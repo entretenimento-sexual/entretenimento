@@ -1,0 +1,128 @@
+<section
+  class="official-claim"
+  aria-labelledby="official-claim-title"
+>
+  <header class="official-claim__header">
+    <div>
+      <span>Identidade oficial</span>
+      <h3 id="official-claim-title">Comunidade Oficial</h3>
+    </div>
+    <i class="fas fa-badge-check" aria-hidden="true"></i>
+  </header>
+
+  @if (capabilityState$ | async; as capabilityState) {
+    @if (capabilityState.status === 'loading') {
+      <div class="official-claim__state" role="status" aria-live="polite">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        Verificando sua elegibilidade…
+      </div>
+    } @else if (capabilityState.status === 'error') {
+      <div class="official-claim__state official-claim__state--error" role="alert">
+        <span>Não foi possível verificar sua elegibilidade agora.</span>
+        <button type="button" (click)="retry()">Tentar novamente</button>
+      </div>
+    } @else {
+      <p class="official-claim__intro">
+        {{ capabilityMessage(capabilityState.capability) }}
+      </p>
+
+      @if (capabilityState.capability.canSubmit) {
+        <div class="official-claim__field">
+          <label for="official-claim-target">Local vinculado</label>
+          <select id="official-claim-target" [formControl]="targetId">
+            @for (candidate of capabilityState.capability.candidates; track candidate.target.id) {
+              <option [value]="candidate.target.id">
+                {{ candidate.label }} — {{ authorityLabel(candidate) }}
+              </option>
+            }
+          </select>
+          <small>
+            A autoridade e a verificação comercial são confirmadas novamente no servidor ao enviar.
+          </small>
+        </div>
+
+        @if (claimState$ | async; as claimState) {
+          @if (claimState.status === 'loading') {
+            <div class="official-claim__state" role="status" aria-live="polite">
+              <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+              Consultando solicitação atual…
+            </div>
+          } @else if (claimState.status === 'error') {
+            <div class="official-claim__state official-claim__state--error" role="alert">
+              <span>Não foi possível consultar o andamento atual.</span>
+              <button type="button" (click)="retry()">Atualizar</button>
+            </div>
+          } @else if (claimState.status === 'ready' && claimState.claim; as claim) {
+            <article
+              class="official-claim__status-card"
+              [attr.data-status]="claim.status"
+              aria-live="polite"
+            >
+              <div>
+                <strong>{{ statusLabel(claim.status) }}</strong>
+                <small>
+                  Solicitação enviada em {{ claim.submittedAt | date:'dd/MM/yyyy' }}.
+                </small>
+              </div>
+
+              @if (claim.revalidationDueAt) {
+                <p>
+                  Revalidação prevista para
+                  <strong>{{ claim.revalidationDueAt | date:'dd/MM/yyyy' }}</strong>.
+                </p>
+              }
+
+              @if (claim.verificationExpiresAt) {
+                <p>
+                  Validade atual até
+                  <strong>{{ claim.verificationExpiresAt | date:'dd/MM/yyyy' }}</strong>.
+                </p>
+              }
+            </article>
+
+            @if (canResubmit(claim.status)) {
+              <ng-container [ngTemplateOutlet]="submissionForm"></ng-container>
+            }
+          } @else if (claimState.status === 'ready') {
+            <ng-container [ngTemplateOutlet]="submissionForm"></ng-container>
+          }
+        }
+      } @else if (capabilityState.capability.reason === 'community_already_official') {
+        <div class="official-claim__verified" role="status">
+          <i class="fas fa-circle-check" aria-hidden="true"></i>
+          <span>O selo oficial permanece sujeito às regras de revalidação e revogação.</span>
+        </div>
+      }
+    }
+  }
+
+  <ng-template #submissionForm>
+    @if (submissionState$ | async; as submissionState) {
+      <div class="official-claim__submission">
+        <label class="official-claim__declaration">
+          <input type="checkbox" [formControl]="declarationAccepted" />
+          <span>
+            Declaro que sou responsável pelo Local selecionado e que as informações
+            usadas para validar este vínculo podem ser revisadas pela plataforma.
+          </span>
+        </label>
+
+        <button
+          type="button"
+          class="official-claim__submit"
+          [disabled]="submissionState === 'loading' || !declarationAccepted.value"
+          [attr.aria-busy]="submissionState === 'loading' ? 'true' : 'false'"
+          (click)="submit()"
+        >
+          @if (submissionState === 'loading') {
+            <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+            Enviando…
+          } @else {
+            <i class="fas fa-shield-check" aria-hidden="true"></i>
+            Solicitar vínculo oficial
+          }
+        </button>
+      </div>
+    }
+  </ng-template>
+</section>
