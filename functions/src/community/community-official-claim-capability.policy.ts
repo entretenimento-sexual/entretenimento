@@ -54,6 +54,7 @@ export function resolveCommunityOfficialClaimCapability(input: {
   readonly actorUid: string;
   readonly rawGrant: unknown;
   readonly rawVenues: readonly Readonly<Record<string, unknown>>[];
+  readonly activeOfficialVenueIds?: readonly string[];
   readonly communityAlreadyOfficial: boolean;
   readonly now?: number;
 }): Readonly<CommunityOfficialClaimCapabilityDecision> {
@@ -92,18 +93,18 @@ export function resolveCommunityOfficialClaimCapability(input: {
     });
   }
 
+  const activeOfficialVenueIds = new Set(
+    (input.activeOfficialVenueIds ?? [])
+      .map(cleanId)
+      .filter((venueId): venueId is string => venueId !== null)
+  );
   const unique = new Map<string, CommunityOfficialClaimCapabilityCandidate>();
 
   for (const rawVenue of input.rawVenues) {
     if (unique.size >= MAX_COMMUNITY_OFFICIAL_CLAIM_CANDIDATES) break;
 
     const venueId = cleanId(rawVenue['id']);
-    if (!venueId) continue;
-
-    // Um alvo já ligado oficialmente não deve reaparecer como reivindicável.
-    // Este campo é apenas uma projeção de disponibilidade; a confirmação final
-    // do singleton continua pertencendo à associação canônica no submit.
-    if (cleanId(rawVenue['officialAssociationKey'])) continue;
+    if (!venueId || activeOfficialVenueIds.has(venueId)) continue;
 
     const authority = resolveCanonicalResourceAuthority({
       actorUid,
