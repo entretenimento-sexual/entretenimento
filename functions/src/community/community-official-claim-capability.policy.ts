@@ -8,6 +8,9 @@
 // -----------------------------------------------------------------------------
 
 import {
+  resolveCanonicalResourceAuthority,
+} from '../authority/canonical-resource-authority.resolver';
+import {
   evaluateOfficialSpaceCreationGrant,
 } from './community-official-space.policy';
 
@@ -45,14 +48,6 @@ function cleanId(value: unknown): string | null {
 function cleanLabel(value: unknown, fallback: string): string {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
   return (normalized || fallback).slice(0, 80);
-}
-
-function cleanAdminUids(value: unknown): readonly string[] {
-  return Array.isArray(value)
-    ? value
-      .map(cleanId)
-      .filter((uid): uid is string => uid !== null)
-    : [];
 }
 
 export function resolveCommunityOfficialClaimCapability(input: {
@@ -103,24 +98,28 @@ export function resolveCommunityOfficialClaimCapability(input: {
     if (unique.size >= MAX_COMMUNITY_OFFICIAL_CLAIM_CANDIDATES) break;
 
     const venueId = cleanId(rawVenue['id']);
-    if (!venueId || rawVenue['status'] !== 'active') continue;
+    if (!venueId) continue;
 
     // Um alvo já ligado oficialmente não deve reaparecer como reivindicável.
+    // Este campo é apenas uma projeção de disponibilidade; a confirmação final
+    // do singleton continua pertencendo à associação canônica no submit.
     if (cleanId(rawVenue['officialAssociationKey'])) continue;
 
-    const ownerUid = cleanId(rawVenue['ownerUid']);
-    const adminUids = cleanAdminUids(rawVenue['adminUids']);
-    const authorityRole = ownerUid === actorUid
-      ? 'owner' as const
-      : adminUids.includes(actorUid)
-        ? 'manager' as const
-        : null;
-    if (!authorityRole) continue;
+    const authority = resolveCanonicalResourceAuthority({
+      actorUid,
+      targetType: 'venue',
+      targetId: venueId,
+      rawCommercialGrant: input.rawGrant,
+      rawTarget: rawVenue,
+      now: input.now,
+    });
+
+    if (!authority.allowed || !authority.authorityRole) continue;
 
     unique.set(venueId, Object.freeze({
       target: Object.freeze({ type: 'venue' as const, id: venueId }),
       label: cleanLabel(rawVenue['name'], 'Local sem nome'),
-      authorityRole,
+      authorityRole: authority.authorityRole,
     }));
   }
 
