@@ -38,6 +38,7 @@ import {
   finalize,
 } from 'rxjs/operators';
 
+import { ProfileOfficialCommunitiesComponent } from 'src/app/community/profile-official-communities/profile-official-communities.component';
 import { Friend } from 'src/app/core/interfaces/friendship/friend.interface';
 import { FriendRequest } from 'src/app/core/interfaces/friendship/friend-request.interface';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
@@ -75,6 +76,7 @@ const DEFAULT_PROFILE_PHOTO_URL = 'assets/imagem-padrao.webp';
     SharedModule,
     ProfileMediaShowcaseComponent,
     SocialLinksAccordionComponent,
+    ProfileOfficialCommunitiesComponent,
   ],
 })
 export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
