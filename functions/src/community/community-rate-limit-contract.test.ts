@@ -80,6 +80,7 @@ const EXPECTED_CANONICAL_ACTION_BY_CALLABLE: Readonly<Record<
   reviewCommunityFeedCommentReport: 'content_moderation',
   reviewCommunityFeedCommentReplyReport: 'content_moderation',
   reviewCommunityOfficialClaim: 'content_moderation',
+  getCommunityOfficialClaimReviewQueue: 'content_moderation',
   configureCommunityRankingMode: 'operations_ranking',
 });
 
