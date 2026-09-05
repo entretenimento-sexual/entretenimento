@@ -39,6 +39,17 @@ function normalizeUid(value: unknown): string | null {
   return SAFE_ID_PATTERN.test(normalized) ? normalized : null;
 }
 
+export function buildOrganizationRepresentationId(
+  organizationId: unknown,
+  holderUid: unknown
+): string | null {
+  const normalizedOrganizationId = normalizeOrganizationId(organizationId);
+  const normalizedHolderUid = normalizeUid(holderUid);
+  return normalizedOrganizationId && normalizedHolderUid
+    ? `${normalizedOrganizationId}:${normalizedHolderUid}`
+    : null;
+}
+
 function asPositiveTime(value: unknown): number | null {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
