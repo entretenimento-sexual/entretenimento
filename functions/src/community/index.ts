@@ -19,6 +19,9 @@ export {
   submitCommunityOfficialClaim,
   reviewCommunityOfficialClaim,
 } from './community-official-claim.handler';
+export {
+  getMyCommunityOfficialClaim,
+} from './get-my-community-official-claim.handler';
 export { getCommunityFeedPage } from './get-community-feed-page.handler';
 export { getCommunityFeedItems } from './get-community-feed-items.handler';
 export { createCommunityFeedPost } from './community-feed-write.handler';
