@@ -112,6 +112,7 @@ export interface ReviewCommunityOfficialClaimCommand {
 }
 
 const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
+const SAFE_REFERENCE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,320}$/;
 const SAFE_ASSOCIATION_KEY_PATTERN = /^[A-Za-z0-9:_-]{1,192}$/;
 const MAX_EVIDENCE_REFERENCES = 8;
 const MAX_VERIFICATION_WINDOW_MS = 730 * 24 * 60 * 60 * 1_000;
@@ -119,6 +120,11 @@ const MAX_VERIFICATION_WINDOW_MS = 730 * 24 * 60 * 60 * 1_000;
 function cleanId(value: unknown): string | null {
   const normalized = String(value ?? '').trim();
   return SAFE_ID_PATTERN.test(normalized) ? normalized : null;
+}
+
+function cleanReferenceId(value: unknown): string | null {
+  const normalized = String(value ?? '').trim();
+  return SAFE_REFERENCE_ID_PATTERN.test(normalized) ? normalized : null;
 }
 
 function cleanAssociationKey(value: unknown): string | null {
@@ -205,7 +211,7 @@ function cleanEvidenceReferences(
   for (const raw of value.slice(0, MAX_EVIDENCE_REFERENCES + 1)) {
     const source = (raw ?? {}) as Record<string, unknown>;
     const type = cleanEvidenceType(source['type']);
-    const referenceId = cleanId(source['referenceId']);
+    const referenceId = cleanReferenceId(source['referenceId']);
     if (!type || !referenceId) return null;
 
     unique.set(`${type}:${referenceId}`, { type, referenceId });
