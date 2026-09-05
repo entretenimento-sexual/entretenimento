@@ -81,11 +81,15 @@ export interface SubmitCommunityOfficialClaimRequest {
   declarationAccepted?: unknown;
 }
 
-export interface SubmitCommunityOfficialClaimCommand {
+export interface SubmitCommunityOfficialClaimIntentCommand {
   requestId: string;
   communityId: string;
   target: CommunityOfficialTarget;
   associationKey: string;
+}
+
+export interface SubmitCommunityOfficialClaimCommand
+  extends SubmitCommunityOfficialClaimIntentCommand {
   authorityRole: CommunityOfficialAuthorityRole;
   sponsorOrganizationId: string | null;
   evidenceReferences: CommunityOfficialClaimEvidenceReference[];
@@ -243,13 +247,39 @@ function evidenceMatchesTarget(
   );
 }
 
-export function normalizeSubmitCommunityOfficialClaimRequest(
+/**
+ * Contrato seguro para o cliente: ele escolhe somente um alvo previamente
+ * oferecido pela capability. Autoridade, organização patrocinadora e evidência
+ * são resolvidas novamente pelo backend no momento da submissão.
+ */
+export function normalizeSubmitCommunityOfficialClaimIntentRequest(
   raw: unknown
-): SubmitCommunityOfficialClaimCommand | null {
+): SubmitCommunityOfficialClaimIntentCommand | null {
   const source = (raw ?? {}) as SubmitCommunityOfficialClaimRequest;
   const requestId = cleanId(source.requestId);
   const communityId = cleanId(source.communityId);
   const target = cleanTarget(source.target);
+
+  if (
+    source.declarationAccepted !== true
+    || !requestId
+    || !communityId
+    || !target
+  ) {
+    return null;
+  }
+
+  const associationKey = buildCommunityOfficialAssociationKey(target);
+  if (!associationKey) return null;
+
+  return { requestId, communityId, target, associationKey };
+}
+
+export function normalizeSubmitCommunityOfficialClaimRequest(
+  raw: unknown
+): SubmitCommunityOfficialClaimCommand | null {
+  const source = (raw ?? {}) as SubmitCommunityOfficialClaimRequest;
+  const intent = normalizeSubmitCommunityOfficialClaimIntentRequest(raw);
   const authorityRole = cleanAuthorityRole(source.authorityRole);
   const sponsorOrganizationId = source.sponsorOrganizationId === null
     || source.sponsorOrganizationId === undefined
@@ -259,14 +289,11 @@ export function normalizeSubmitCommunityOfficialClaimRequest(
   const evidenceReferences = cleanEvidenceReferences(source.evidenceReferences);
 
   if (
-    source.declarationAccepted !== true
-    || !requestId
-    || !communityId
-    || !target
+    !intent
     || !authorityRole
-    || !roleMatchesTarget(target, authorityRole)
+    || !roleMatchesTarget(intent.target, authorityRole)
     || !evidenceReferences
-    || !evidenceMatchesTarget(target, evidenceReferences)
+    || !evidenceMatchesTarget(intent.target, evidenceReferences)
     || (
       source.sponsorOrganizationId !== null
       && source.sponsorOrganizationId !== undefined
@@ -277,14 +304,8 @@ export function normalizeSubmitCommunityOfficialClaimRequest(
     return null;
   }
 
-  const associationKey = buildCommunityOfficialAssociationKey(target);
-  if (!associationKey) return null;
-
   return {
-    requestId,
-    communityId,
-    target,
-    associationKey,
+    ...intent,
     authorityRole,
     sponsorOrganizationId,
     evidenceReferences,
