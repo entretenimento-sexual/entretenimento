@@ -16,6 +16,7 @@ import {
   normalizeCommunityOfficialAssociationKey,
 } from './community-official-association.model';
 import { assertCommunityOfficialClaimEvidence } from './community-official-claim-evidence.service';
+import { resolveCommunityOfficialClaimIdempotentStatus } from './community-official-claim-idempotency.policy';
 import {
   COMMUNITY_OFFICIAL_CLAIM_POLICY_VERSION,
   normalizeCommunityOfficialClaimStatus,
@@ -24,6 +25,7 @@ import {
   resolveCommunityOfficialClaimNextStatus,
   shouldRevokeAssociationForClaimDecision,
   type CommunityOfficialClaimRecord,
+  type CommunityOfficialClaimStatus,
   type ReviewCommunityOfficialClaimRequest,
   type SubmitCommunityOfficialClaimRequest,
 } from './community-official-claim.model';
@@ -110,7 +112,7 @@ export const submitCommunityOfficialClaim =
     },
     async (request): Promise<{
       associationKey: string;
-      status: 'pending' | 'verified' | 'under_review' | 'disputed';
+      status: CommunityOfficialClaimStatus;
       submitted: boolean;
     }> => {
       assertRuntime();
@@ -168,20 +170,22 @@ export const submitCommunityOfficialClaim =
               'O identificador desta solicitação já foi utilizado.'
             );
           }
-          const status = normalizeCommunityOfficialClaimStatus(
-            existing['status']
-          );
-          if (
-            status !== 'pending'
-            && status !== 'verified'
-            && status !== 'under_review'
-            && status !== 'disputed'
-          ) {
+
+          const status = resolveCommunityOfficialClaimIdempotentStatus({
+            actorUid,
+            associationKey: command.associationKey,
+            communityId: command.communityId,
+            claimRecord: claimSnapshot.exists
+              ? claimSnapshot.data() ?? {}
+              : null,
+          });
+          if (!status) {
             throw new HttpsError(
               'data-loss',
-              'O registro idempotente do vínculo oficial está inconsistente.'
+              'O registro idempotente não corresponde à solicitação oficial canônica.'
             );
           }
+
           return {
             associationKey: command.associationKey,
             status,
