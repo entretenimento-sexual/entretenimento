@@ -3,7 +3,9 @@
 // =============================================================================
 // A associação canônica contém organização patrocinadora, responsável e origem
 // da verificação. Nenhum desses dados pode ser consultado pelo navegador.
-// A UI recebe somente projeções sanitizadas por callable/Discovery.
+// Claims também contêm referências privadas de KYC/KYB/autoridade, identidade
+// do solicitante, revisão e trilha de auditoria. A UI recebe somente projeções
+// sanitizadas por callable/Discovery.
 // =============================================================================
 
 match /community_official_associations/{associationKey} {
@@ -11,5 +13,17 @@ match /community_official_associations/{associationKey} {
 }
 
 match /community_official_association_audit/{auditId} {
+  allow read, write: if false;
+}
+
+match /community_official_claims/{associationKey} {
+  allow read, write: if false;
+}
+
+match /community_official_claim_requests/{requestId} {
+  allow read, write: if false;
+}
+
+match /community_official_claim_audit/{auditId} {
   allow read, write: if false;
 }
