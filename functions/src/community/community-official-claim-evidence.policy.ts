@@ -7,6 +7,9 @@
 // prova por si só: ela precisa corresponder a um registro backend-only vigente.
 // -----------------------------------------------------------------------------
 
+import {
+  resolveCanonicalResourceAuthority,
+} from '../authority/canonical-resource-authority.resolver';
 import type {
   CommunityOfficialAuthorityRole,
 } from './community-official-association.model';
@@ -37,14 +40,6 @@ function normalizeId(value: unknown): string | null {
   return SAFE_ID_PATTERN.test(normalized) ? normalized : null;
 }
 
-function normalizeAdminUids(value: unknown): readonly string[] {
-  if (!Array.isArray(value)) return [];
-
-  return value
-    .map(normalizeId)
-    .filter((uid): uid is string => uid !== null);
-}
-
 function denied(
   denialReason: CommunityOfficialClaimEvidenceDenialReason
 ): Readonly<CommunityOfficialClaimEvidenceDecision> {
@@ -56,13 +51,40 @@ function denied(
   });
 }
 
+function canonicalDenialReason(
+  denialReason: ReturnType<typeof resolveCanonicalResourceAuthority>['denialReason']
+): CommunityOfficialClaimEvidenceDenialReason {
+  if (denialReason === 'verification_inactive') {
+    return 'authority_grant_inactive';
+  }
+  if (denialReason === 'verification_required') {
+    return 'authority_grant_invalid';
+  }
+  if (denialReason === 'target_inactive') {
+    return 'venue_not_active';
+  }
+  return 'venue_authority_mismatch';
+}
+
+function authorityRoleMatches(
+  claimedRole: CommunityOfficialAuthorityRole,
+  canonicalRole: 'owner' | 'manager'
+): boolean {
+  if (claimedRole === canonicalRole) return true;
+
+  // Compatibilidade com claims legados: antes da canonização, administradores
+  // de Local eram registrados como `authorized_representative`.
+  return claimedRole === 'authorized_representative'
+    && canonicalRole === 'manager';
+}
+
 /**
  * Valida o único source de autoridade comercial já canônico no projeto:
  * `official_space_creation_grants/{holderUid}`.
  *
- * O grant comprova a representação comercial; o próprio Local confirma que o
- * solicitante ainda é owner/admin daquele alvo específico. Assim um grant
- * válido de uma organização não pode ser reutilizado contra Local de terceiro.
+ * A capability de Espaço Oficial continua sendo uma regra de Comunidades. A
+ * autoridade atual sobre o Local, porém, é resolvida exclusivamente pelo domínio
+ * canônico de autoridade para impedir drift entre capability, submit e revisão.
  */
 export function evaluateVenueOfficialClaimAuthorityGrant(input: {
   readonly claimantUid: string;
@@ -82,14 +104,6 @@ export function evaluateVenueOfficialClaimAuthorityGrant(input: {
     || authorityReferenceId !== claimantUid
   ) {
     return denied('authority_reference_mismatch');
-  }
-
-  if (
-    input.authorityRole !== 'owner'
-    && input.authorityRole !== 'authorized_representative'
-    && input.authorityRole !== 'manager'
-  ) {
-    return denied('venue_authority_mismatch');
   }
 
   const grantDecision = evaluateOfficialSpaceCreationGrant({
@@ -123,16 +137,21 @@ export function evaluateVenueOfficialClaimAuthorityGrant(input: {
   }
 
   const venue = (input.rawVenue ?? {}) as Record<string, unknown>;
-  if (venue['status'] !== 'active') {
-    return denied('venue_not_active');
+  const targetId = normalizeId(venue['id']) ?? 'claim-venue';
+  const authorityDecision = resolveCanonicalResourceAuthority({
+    actorUid: claimantUid,
+    targetType: 'venue',
+    targetId,
+    rawCommercialGrant: input.rawGrant,
+    rawTarget: input.rawVenue,
+    now: input.now,
+  });
+
+  if (!authorityDecision.allowed || !authorityDecision.authorityRole) {
+    return denied(canonicalDenialReason(authorityDecision.denialReason));
   }
 
-  const ownerUid = normalizeId(venue['ownerUid']);
-  const adminUids = normalizeAdminUids(venue['adminUids']);
-  const hasTargetAuthority = ownerUid === claimantUid
-    || adminUids.includes(claimantUid);
-
-  if (!hasTargetAuthority) {
+  if (!authorityRoleMatches(input.authorityRole, authorityDecision.authorityRole)) {
     return denied('venue_authority_mismatch');
   }
 
