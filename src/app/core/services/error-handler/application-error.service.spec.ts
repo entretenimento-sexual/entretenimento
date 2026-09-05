@@ -136,6 +136,59 @@ describe('ApplicationErrorService', () => {
     });
   });
 
+  it('resolve reason canônico de Comunidade Oficial sem expor detalhe técnico', () => {
+    const descriptor = service.normalize(
+      {
+        code: 'functions/failed-precondition',
+        message: 'internal KYB detail',
+        details: { reason: 'official_claim_verification_inactive' },
+      },
+      {
+        feature: 'community',
+        operation: 'submitCommunityOfficialClaim',
+        fallbackMessage: 'Não foi possível enviar a solicitação.',
+      }
+    );
+
+    expect(descriptor.userMessage).toBe(
+      'A verificação usada para comprovar este vínculo está inativa ou vencida.'
+    );
+    expect(descriptor.userMessage).not.toContain('internal');
+    expect(descriptor.presentation).toEqual({
+      surface: 'modal',
+      severity: 'warning',
+      title: 'Verificação inativa',
+      detail:
+        'Regularize a verificação do vínculo antes de reenviar a solicitação.',
+      dismissLabel: 'Entendi',
+    });
+  });
+
+  it('centraliza bloqueio de revalidação da representação da Organização', () => {
+    const descriptor = service.normalize(
+      {
+        code: 'functions/failed-precondition',
+        details: {
+          reason: 'official_claim_evidence_organization_authority_mismatch',
+        },
+      },
+      {
+        feature: 'community',
+        operation: 'reviewCommunityOfficialClaim',
+        fallbackMessage: 'Não foi possível revisar o vínculo.',
+      }
+    );
+
+    expect(descriptor.userMessage).toBe(
+      'A representação autorizada da Organização não pôde ser revalidada.'
+    );
+    expect(descriptor.presentation).toMatchObject({
+      surface: 'modal',
+      severity: 'warning',
+      title: 'Representação não confirmada',
+    });
+  });
+
   it('remove rota externa de uma apresentação acionável', () => {
     const descriptor = service.normalize(
       { code: 'functions/permission-denied' },
