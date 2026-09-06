@@ -8,6 +8,7 @@ import { provideMockStore } from '@ngrx/store/testing';
 import { BehaviorSubject, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ProfileMyCommunitiesComponent } from '../../community/profile-my-communities/profile-my-communities.component';
 import { UserProfileViewComponent } from './user-profile-view.component';
 import { UserPhotoManagerComponent } from '../user-photo-manager/user-photo-manager.component';
 import { AccessControlService } from '../../core/services/autentication/auth/access-control.service';
@@ -52,6 +53,13 @@ class MockUserPhotoManagerComponent {
   @Input() galleryLink: readonly unknown[] | null = null;
   @Input() uploadLink: readonly unknown[] | null = null;
 }
+
+@Component({
+  selector: 'app-profile-my-communities',
+  standalone: true,
+  template: '<span data-testid="profile-my-communities">Minhas comunidades</span>',
+})
+class MockProfileMyCommunitiesComponent {}
 
 class MockCurrentUserStoreService {
   user$ = new BehaviorSubject<any | null | undefined>(CURRENT_USER);
@@ -183,8 +191,15 @@ describe('UserProfileViewComponent', () => {
     });
 
     TestBed.overrideComponent(UserProfileViewComponent, {
-      remove: { imports: [UserPhotoManagerComponent] },
-      add: { imports: [MockUserPhotoManagerComponent] },
+      remove: {
+        imports: [UserPhotoManagerComponent, ProfileMyCommunitiesComponent],
+      },
+      add: {
+        imports: [
+          MockUserPhotoManagerComponent,
+          MockProfileMyCommunitiesComponent,
+        ],
+      },
     });
 
     await TestBed.compileComponents();
@@ -212,5 +227,11 @@ describe('UserProfileViewComponent', () => {
     expect(duplicateHeaderShortcut).toBeNull();
     expect(fixture.nativeElement.querySelector('.inline-editor')).toBeNull();
     expect(fixture.nativeElement.querySelector('.edit-row')).toBeNull();
+  });
+
+  it('expõe Minhas comunidades no perfil próprio', () => {
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="profile-my-communities"]')
+    ).toBeTruthy();
   });
 });

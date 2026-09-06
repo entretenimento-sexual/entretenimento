@@ -1,0 +1,125 @@
+<!-- src/app/community/profile-my-communities/profile-my-communities.component.html -->
+@if (vm$ | async; as vm) {
+  <section
+    class="profile-my-communities"
+    aria-labelledby="profile-my-communities-title"
+    [attr.aria-busy]="vm.status === 'loading' || vm.stale ? 'true' : 'false'"
+  >
+    <header class="profile-my-communities__header">
+      <div>
+        <p class="profile-my-communities__eyebrow">
+          <i class="fas fa-users" aria-hidden="true"></i>
+          Sua participação
+        </p>
+        <h2 id="profile-my-communities-title">Minhas comunidades</h2>
+      </div>
+
+      @if (vm.status === 'ready') {
+        <a
+          class="profile-my-communities__all"
+          [routerLink]="['/dashboard/comunidades/minhas']"
+          aria-label="Ver todas as minhas comunidades"
+        >
+          Ver todas
+        </a>
+      }
+    </header>
+
+    @if (vm.status === 'loading') {
+      <div
+        class="profile-my-communities__state"
+        role="status"
+        aria-live="polite"
+      >
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Carregando suas comunidades.</span>
+      </div>
+    } @else if (vm.status === 'error') {
+      <div
+        class="profile-my-communities__state profile-my-communities__state--error"
+        role="status"
+        aria-live="polite"
+      >
+        <span>Suas comunidades não puderam ser carregadas.</span>
+        <button type="button" (click)="retry()">Tentar novamente</button>
+      </div>
+    } @else if (vm.status === 'empty') {
+      <div class="profile-my-communities__empty">
+        <p>Você ainda não participa de nenhuma Comunidade.</p>
+        <a
+          [routerLink]="['/dashboard/comunidades']"
+          class="profile-my-communities__explore"
+        >
+          Explorar comunidades
+        </a>
+      </div>
+    } @else {
+      <ul
+        class="profile-my-communities__list"
+        aria-label="Comunidades das quais você participa ou administra"
+      >
+        @for (item of vm.items; track item.communityId) {
+          <li>
+            <a
+              class="profile-my-community"
+              [routerLink]="detailsRoute(item)"
+              [attr.aria-label]="'Abrir ' + item.name"
+            >
+              <span
+                class="profile-my-community__avatar"
+                [attr.data-visual-variant]="communityVisualVariant(item)"
+                aria-hidden="true"
+              >
+                <span>{{ communityInitials(item) }}</span>
+                @if (item.avatarUrl) {
+                  <img
+                    [src]="item.avatarUrl"
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    appImageFallback
+                  />
+                }
+              </span>
+
+              <span class="profile-my-community__body">
+                <span class="profile-my-community__title-row">
+                  <strong>{{ item.name }}</strong>
+                  @if (item.officialAssociation?.verified) {
+                    <app-community-official-badge [community]="item" />
+                  }
+                </span>
+
+                <span class="profile-my-community__meta">
+                  @if (membershipRoleLabel(item); as roleLabel) {
+                    <span>{{ roleLabel }}</span>
+                    <span aria-hidden="true">•</span>
+                  }
+                  <span [attr.aria-label]="item.metrics.memberCount + ' membros'">
+                    {{ item.metrics.memberCount }} membros
+                  </span>
+                </span>
+              </span>
+
+              <i
+                class="fas fa-chevron-right profile-my-community__chevron"
+                aria-hidden="true"
+              ></i>
+            </a>
+          </li>
+        }
+      </ul>
+    }
+
+    @if (vm.stale) {
+      <p
+        class="profile-my-communities__refreshing"
+        role="status"
+        aria-live="polite"
+      >
+        <i class="fas fa-rotate" aria-hidden="true"></i>
+        Atualizando suas comunidades em segundo plano.
+      </p>
+    }
+  </section>
+}

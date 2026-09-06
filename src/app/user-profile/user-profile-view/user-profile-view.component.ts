@@ -39,6 +39,7 @@ import {
   tap,
 } from 'rxjs/operators';
 
+import { ProfileMyCommunitiesComponent } from 'src/app/community/profile-my-communities/profile-my-communities.component';
 import { ProfileOfficialCommunitiesComponent } from 'src/app/community/profile-official-communities/profile-official-communities.component';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
@@ -81,6 +82,7 @@ interface ProfileContentStateVm {
     ContentStateComponent,
     UserPhotoManagerComponent,
     SocialLinksAccordionComponent,
+    ProfileMyCommunitiesComponent,
     ProfileOfficialCommunitiesComponent,
     DateFormatPipe,
     CapitalizePipe,
