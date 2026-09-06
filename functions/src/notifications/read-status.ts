@@ -2,6 +2,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
+import { shouldResetGroupedCommunityActivityCount } from './read-status.policy';
 
 const MAX_BATCH_SIZE = 50;
 
@@ -11,6 +12,12 @@ interface MarkNotificationReadRequest {
 
 interface MarkAllNotificationsReadResponse {
   updated: number;
+}
+
+interface NotificationReadState {
+  userId?: unknown;
+  readAt?: unknown;
+  type?: unknown;
 }
 
 function getUid(value: unknown): string {
@@ -25,6 +32,18 @@ function getNotificationId(value: unknown): string {
   }
 
   return notificationId;
+}
+
+function buildReadPatch(notification: NotificationReadState): Record<string, unknown> {
+  const now = FieldValue.serverTimestamp();
+
+  return {
+    readAt: now,
+    updatedAt: now,
+    ...(shouldResetGroupedCommunityActivityCount(notification.type)
+      ? { activityCount: 0 }
+      : {}),
+  };
 }
 
 export const markNotificationRead = onCall<MarkNotificationReadRequest>(
@@ -46,7 +65,7 @@ export const markNotificationRead = onCall<MarkNotificationReadRequest>(
         throw new HttpsError('not-found', 'Notificação não encontrada.');
       }
 
-      const notification = snapshot.data() as { userId?: unknown; readAt?: unknown };
+      const notification = snapshot.data() as NotificationReadState;
 
       if (notification.userId !== uid) {
         throw new HttpsError('permission-denied', 'Notificação não pertence ao usuário.');
@@ -56,10 +75,7 @@ export const markNotificationRead = onCall<MarkNotificationReadRequest>(
         return;
       }
 
-      tx.set(notificationRef, {
-        readAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
+      tx.set(notificationRef, buildReadPatch(notification), { merge: true });
     });
 
     return { ok: true };
@@ -88,13 +104,13 @@ export const markAllNotificationsRead = onCall(
     }
 
     const batch = db.batch();
-    const now = FieldValue.serverTimestamp();
 
     snapshot.docs.forEach((docSnapshot) => {
-      batch.set(docSnapshot.ref, {
-        readAt: now,
-        updatedAt: now,
-      }, { merge: true });
+      batch.set(
+        docSnapshot.ref,
+        buildReadPatch(docSnapshot.data() as NotificationReadState),
+        { merge: true }
+      );
     });
 
     await batch.commit();
