@@ -55,7 +55,7 @@ describe('CommunityOfficialClaimPanelComponent', () => {
     return fixture;
   }
 
-  it('elimina seletor e declaração quando existe apenas um vínculo elegível', () => {
+  it('seleciona automaticamente somente o único vínculo e exige declaração', () => {
     const fixture = createFixture({
       canSubmit: true,
       reason: 'eligible',
@@ -67,18 +67,25 @@ describe('CommunityOfficialClaimPanelComponent', () => {
     });
 
     const text = fixture.nativeElement.textContent as string;
+    const checkbox = fixture.nativeElement.querySelector(
+      'input[type="checkbox"]'
+    ) as HTMLInputElement;
+
     expect(fixture.nativeElement.querySelector('select')).toBeNull();
-    expect(fixture.nativeElement.querySelector('input[type="checkbox"]')).toBeNull();
+    expect(fixture.componentInstance.targetKey.value).toBe('venue:venue-1');
+    expect(checkbox).not.toBeNull();
+    expect(checkbox.checked).toBe(false);
     expect(text).toContain('Casa Aurora');
     expect(text).toContain('Local');
-    expect(text).toContain('Ativar selo oficial');
-    expect(text).toContain('automaticamente');
-    expect(text).not.toContain('Declaro');
+    expect(text).toContain('Declaro que tenho autorização');
+    expect(text).toContain('Solicitar selo oficial');
     expect(text).not.toContain('Proprietário');
+    expect(text).not.toContain('Gestor autorizado');
+    expect(text).not.toContain('Representante autorizado');
     expect(text).not.toContain('KYB');
   });
 
-  it('mostra apenas uma escolha simples quando existem vários vínculos', () => {
+  it('não pré-seleciona quando existem várias entidades elegíveis', () => {
     const fixture = createFixture({
       canSubmit: true,
       reason: 'eligible',
@@ -98,7 +105,9 @@ describe('CommunityOfficialClaimPanelComponent', () => {
     const select = fixture.nativeElement.querySelector('select') as HTMLSelectElement;
     const text = fixture.nativeElement.textContent as string;
     expect(select).not.toBeNull();
-    expect(select.options).toHaveLength(2);
+    expect(select.options).toHaveLength(3);
+    expect(select.options[0]?.textContent).toContain('Selecione uma entidade');
+    expect(fixture.componentInstance.targetKey.value).toBe('');
     expect(text).toContain('O que esta comunidade representa?');
     expect(text).toContain('Casa Aurora — Local');
     expect(text).toContain('Aurora Produções — Organização');
@@ -106,7 +115,7 @@ describe('CommunityOfficialClaimPanelComponent', () => {
     expect(text).not.toContain('Representante autorizado');
   });
 
-  it('ativa o selo sem enviar declaração do usuário', () => {
+  it('mantém a solicitação bloqueada enquanto a declaração não for aceita', () => {
     const fixture = createFixture({
       canSubmit: true,
       reason: 'eligible',
@@ -120,6 +129,34 @@ describe('CommunityOfficialClaimPanelComponent', () => {
     const button = fixture.nativeElement.querySelector(
       '.official-claim__submit'
     ) as HTMLButtonElement;
+
+    expect(button.disabled).toBe(true);
+    fixture.componentInstance.submit();
+
+    expect(repositoryMock.submitCommunityOfficialClaim$).not.toHaveBeenCalled();
+    expect(notificationsMock.showWarning).toHaveBeenCalledWith(
+      'Confirme que você tem autorização para representar esta entidade.'
+    );
+  });
+
+  it('envia somente entidade e declaração, sem detalhes técnicos de autoridade', () => {
+    const fixture = createFixture({
+      canSubmit: true,
+      reason: 'eligible',
+      candidates: [{
+        target: { type: 'venue', id: 'venue-1' },
+        label: 'Casa Aurora',
+      }],
+      generatedAt: 100,
+    });
+
+    fixture.componentInstance.authorizationAccepted.setValue(true);
+    fixture.detectChanges();
+
+    const button = fixture.nativeElement.querySelector(
+      '.official-claim__submit'
+    ) as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
     button.click();
     fixture.detectChanges();
 
@@ -129,10 +166,13 @@ describe('CommunityOfficialClaimPanelComponent', () => {
     expect(submittedInput).toMatchObject({
       communityId: 'community-1',
       target: { type: 'venue', id: 'venue-1' },
+      declarationAccepted: true,
     });
-    expect(submittedInput).not.toHaveProperty('declarationAccepted');
+    expect(submittedInput).not.toHaveProperty('authorityRole');
+    expect(submittedInput).not.toHaveProperty('sponsorOrganizationId');
+    expect(submittedInput).not.toHaveProperty('evidenceReferences');
     expect(notificationsMock.showSuccess).toHaveBeenCalledWith(
-      'Selo oficial ativado automaticamente.'
+      'Selo oficial confirmado.'
     );
   });
 
@@ -148,6 +188,6 @@ describe('CommunityOfficialClaimPanelComponent', () => {
     expect(text).toContain('conclua primeiro a verificação necessária');
     expect(text).not.toContain('KYB');
     expect(text).not.toContain('grant');
-    expect(text).not.toContain('autoridade');
+    expect(text).not.toContain('autoridade canônica');
   });
 });
