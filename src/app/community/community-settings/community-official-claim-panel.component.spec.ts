@@ -150,9 +150,13 @@ describe('CommunityOfficialClaimPanelComponent', () => {
       generatedAt: 100,
     });
 
-    fixture.componentInstance.authorizationAccepted.setValue(true);
+    const checkbox = fixture.nativeElement.querySelector(
+      'input[type="checkbox"]'
+    ) as HTMLInputElement;
+    checkbox.click();
     fixture.detectChanges();
 
+    expect(fixture.componentInstance.authorizationAccepted.value).toBe(true);
     const button = fixture.nativeElement.querySelector(
       '.official-claim__submit'
     ) as HTMLButtonElement;
