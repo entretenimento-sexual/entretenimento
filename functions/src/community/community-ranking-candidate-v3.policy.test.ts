@@ -297,6 +297,49 @@ test('perda de membros gera churn sem ser mascarada por baixa confiança positiv
   assert.equal(churned.activityScore < first.activityScore, true);
 });
 
+test('reentrada histórica não compra momento positivo de aquisição', () => {
+  const baseline = buildCommunityDiscoveryRankingCandidateV3({
+    rawCommunity: community({
+      memberCount: 100,
+      postCount: 40,
+      mediaCount: 5,
+      interactionCount: 20,
+    }),
+    rawDiscovery: visualDiscovery,
+    now: NOW,
+  });
+  const left = buildCommunityDiscoveryRankingCandidateV3({
+    rawCommunity: community({
+      memberCount: 99,
+      postCount: 40,
+      mediaCount: 5,
+      interactionCount: 20,
+    }),
+    rawDiscovery: { ...visualDiscovery, rankingCandidate: baseline },
+    now: NOW + DAY_MS,
+  });
+  const rejoined = buildCommunityDiscoveryRankingCandidateV3({
+    rawCommunity: community({
+      memberCount: 100,
+      postCount: 40,
+      mediaCount: 5,
+      interactionCount: 20,
+    }),
+    rawDiscovery: { ...visualDiscovery, rankingCandidate: left },
+    now: NOW + 2 * DAY_MS,
+  });
+
+  assert.equal(left.activityDelta.memberLoss, 1);
+  assert.equal(left.activityMomentum.churnShortTerm > 0, true);
+  assert.equal(rejoined.activityDelta.memberGrowth, 1);
+  assert.equal(rejoined.activityDelta.memberLoss, 0);
+  assert.equal(rejoined.activityMomentum.shortTerm, 0);
+  assert.equal(rejoined.activityMomentum.mediumTerm, 0);
+  assert.equal(rejoined.activityConfidence.effectiveEvidence, 0);
+  assert.equal(rejoined.activityConfidence.confidence, 0);
+  assert.equal(rejoined.activityMomentum.churnShortTerm > 0, true);
+});
+
 test('comunidade menor e realmente ativa pode superar comunidade grande estagnada', () => {
   const smallBaseline = buildCommunityDiscoveryRankingCandidateV3({
     rawCommunity: community({

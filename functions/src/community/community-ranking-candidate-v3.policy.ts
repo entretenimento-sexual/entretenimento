@@ -224,12 +224,14 @@ function resolveActivityState(
     0
   );
 
-  // Publicação é o sinal principal. Interação entra com peso menor e saturação;
-  // crescimento de membros representa saúde de rede, não popularidade histórica.
+  // Publicação é o sinal principal. Interação entra com peso menor e saturação.
+  // memberGrowth permanece no delta para observabilidade, mas memberCount é estoque
+  // reversível: saída e reentrada do mesmo membro não provam aquisição nova.
+  // Enquanto não houver sinal monotônico/canônico de primeira ativação, crescimento
+  // de membros não compra momento positivo; saúde estrutural continua no baseline.
   const engagementUnits =
     postGrowth * 4
     + mediaGrowth * 2
-    + memberGrowth * 2
     + interactionGrowth;
   const churnUnits = memberLoss * 3;
 
