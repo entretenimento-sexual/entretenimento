@@ -182,6 +182,9 @@ export const requestCommunityMembership =
         const existingStatus = normalizeMembershipStatus(
           membershipSnapshot.data()?.['status']
         );
+        const existingJoinedAt = membershipSnapshot.exists
+          ? membershipSnapshot.data()?.['joinedAt'] ?? null
+          : null;
         const operational =
           community['status'] === 'active'
           && moderation['state'] === 'active';
@@ -220,7 +223,7 @@ export const requestCommunityMembership =
               role: 'member',
               status: targetStatus,
               requestedAt: targetStatus === 'pending' ? now : null,
-              joinedAt: targetStatus === 'active' ? now : null,
+              joinedAt: targetStatus === 'active' ? now : existingJoinedAt,
               leftAt: null,
               reviewedAt: null,
               reviewedBy: null,
@@ -235,7 +238,6 @@ export const requestCommunityMembership =
           if (decision.incrementMemberCount) {
             const nextMemberCount = resolveMemberCountDelta(community, 1);
             const communityPatch: Record<string, unknown> = {
-              'lifecycle.lastMeaningfulActivityAt': now,
               updatedAt: now,
             };
 

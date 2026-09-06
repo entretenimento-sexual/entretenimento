@@ -4,34 +4,58 @@ import test from 'node:test';
 
 import { isCommunityMembershipTransitionMeaningful } from './community-membership-activity.policy';
 
-test('considera entrada e aprovação como atividade significativa', () => {
+test('considera somente a primeira entrada ou aprovação como atividade significativa', () => {
   assert.equal(
     isCommunityMembershipTransitionMeaningful(null, { status: 'active' }),
     true
   );
   assert.equal(
     isCommunityMembershipTransitionMeaningful(
-      { status: 'pending' },
-      { status: 'active' }
+      { status: 'pending', joinedAt: null },
+      { status: 'active', joinedAt: 2_000 }
     ),
     true
   );
 });
 
-test('considera saída ou bloqueio de membro ativo como atividade significativa', () => {
+test('reentrada não renova atividade quando já existe histórico de joinedAt', () => {
   assert.equal(
     isCommunityMembershipTransitionMeaningful(
-      { status: 'active' },
-      { status: 'left' }
+      { status: 'left', joinedAt: 1_000 },
+      { status: 'active', joinedAt: 2_000 }
     ),
-    true
+    false
   );
   assert.equal(
     isCommunityMembershipTransitionMeaningful(
-      { status: 'active' },
-      { status: 'blocked' }
+      { status: 'pending', joinedAt: 1_000 },
+      { status: 'active', joinedAt: 2_000 }
     ),
-    true
+    false
+  );
+});
+
+test('saída, bloqueio e desbloqueio não renovam o relógio', () => {
+  assert.equal(
+    isCommunityMembershipTransitionMeaningful(
+      { status: 'active', joinedAt: 1_000 },
+      { status: 'left', joinedAt: 1_000 }
+    ),
+    false
+  );
+  assert.equal(
+    isCommunityMembershipTransitionMeaningful(
+      { status: 'active', joinedAt: 1_000 },
+      { status: 'blocked', joinedAt: 1_000 }
+    ),
+    false
+  );
+  assert.equal(
+    isCommunityMembershipTransitionMeaningful(
+      { status: 'blocked', joinedAt: 1_000 },
+      { status: 'active', joinedAt: 1_000 }
+    ),
+    false
   );
 });
 
@@ -52,8 +76,8 @@ test('não mantém Comunidade viva apenas por solicitação pendente ou rejeitad
 test('ignora atualização sem mudança real de status', () => {
   assert.equal(
     isCommunityMembershipTransitionMeaningful(
-      { status: 'active' },
-      { status: 'active' }
+      { status: 'active', joinedAt: 1_000 },
+      { status: 'active', joinedAt: 1_000 }
     ),
     false
   );

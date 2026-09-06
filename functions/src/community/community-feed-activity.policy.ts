@@ -3,7 +3,9 @@
 // COMMUNITY FEED ACTIVITY POLICY
 // -----------------------------------------------------------------------------
 // A projeção do mural é backend-only. Apenas publicação válida/reativada ou
-// crescimento real de interação renova o relógio de atividade da Comunidade.
+// crescimento real de comentários renova o relógio de atividade da Comunidade.
+// Reações continuam visíveis no card, mas o toggle reversível não compra frescor
+// nem momentum de ranking.
 // -----------------------------------------------------------------------------
 
 const MAX_INTERACTION_DELTA_PER_WRITE = 1_000;
@@ -37,16 +39,8 @@ export function resolveCommunityFeedInteractionDelta(
       - normalizeCount(beforeMetrics['commentCount']),
     0
   );
-  const reactionGrowth = Math.max(
-    normalizeCount(afterMetrics['reactionCount'])
-      - normalizeCount(beforeMetrics['reactionCount']),
-    0
-  );
 
-  return Math.min(
-    commentGrowth + reactionGrowth,
-    MAX_INTERACTION_DELTA_PER_WRITE
-  );
+  return Math.min(commentGrowth, MAX_INTERACTION_DELTA_PER_WRITE);
 }
 
 export function isCommunityFeedTransitionMeaningful(

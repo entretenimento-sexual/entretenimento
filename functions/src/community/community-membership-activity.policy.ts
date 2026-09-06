@@ -2,9 +2,9 @@
 // -----------------------------------------------------------------------------
 // COMMUNITY MEMBERSHIP ACTIVITY POLICY
 // -----------------------------------------------------------------------------
-// Define quais transições de membership representam atividade significativa
-// para o ciclo de vida da Comunidade. Solicitações pendentes isoladas não mantêm
-// uma Comunidade viva; entrada, aprovação, saída/bloqueio de membro ativo sim.
+// Mantém frescor apenas na primeira ativação daquele participante na Comunidade.
+// Saída, bloqueio, desbloqueio e reentrada continuam alterando membership/métricas,
+// mas não podem renovar indefinidamente a vantagem de descoberta por churn.
 // -----------------------------------------------------------------------------
 
 export type CommunityActivityMembershipStatus =
@@ -23,6 +23,12 @@ function normalizeStatus(value: unknown): CommunityActivityMembershipStatus {
     : null;
 }
 
+function hasActivationHistory(rawMembership: unknown): boolean {
+  const membership = (rawMembership ?? {}) as Record<string, unknown>;
+  return membership['joinedAt'] !== null
+    && membership['joinedAt'] !== undefined;
+}
+
 export function isCommunityMembershipTransitionMeaningful(
   rawBefore: unknown,
   rawAfter: unknown
@@ -32,7 +38,7 @@ export function isCommunityMembershipTransitionMeaningful(
   const beforeStatus = normalizeStatus(before['status']);
   const afterStatus = normalizeStatus(after['status']);
 
-  if (beforeStatus === afterStatus) return false;
+  if (beforeStatus === afterStatus || afterStatus !== 'active') return false;
 
-  return beforeStatus === 'active' || afterStatus === 'active';
+  return !hasActivationHistory(rawBefore);
 }

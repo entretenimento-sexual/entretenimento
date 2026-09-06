@@ -33,7 +33,7 @@ test('reativação de publicação moderada é atividade significativa sem fabri
   assert.equal(resolveCommunityFeedInteractionDelta(before, after), 0);
 });
 
-test('crescimento de comentário ou reação renova atividade e retorna o delta real', () => {
+test('crescimento de comentário renova atividade e ignora reação reversível', () => {
   const before = projection({
     metrics: { commentCount: 3, reactionCount: 4 },
   });
@@ -42,7 +42,19 @@ test('crescimento de comentário ou reação renova atividade e retorna o delta 
   });
 
   assert.equal(isCommunityFeedTransitionMeaningful(before, after), true);
-  assert.equal(resolveCommunityFeedInteractionDelta(before, after), 5);
+  assert.equal(resolveCommunityFeedInteractionDelta(before, after), 2);
+});
+
+test('crescimento isolado de reação não renova atividade nem interactionCount', () => {
+  const before = projection({
+    metrics: { commentCount: 3, reactionCount: 4 },
+  });
+  const after = projection({
+    metrics: { commentCount: 3, reactionCount: 5 },
+  });
+
+  assert.equal(isCommunityFeedTransitionMeaningful(before, after), false);
+  assert.equal(resolveCommunityFeedInteractionDelta(before, after), 0);
 });
 
 test('redução de métricas não vira atividade positiva', () => {
@@ -57,7 +69,7 @@ test('redução de métricas não vira atividade positiva', () => {
   assert.equal(resolveCommunityFeedInteractionDelta(before, after), 0);
 });
 
-test('limita saltos anormais de interação antes de atualizar o agregado', () => {
+test('limita saltos anormais de comentário antes de atualizar o agregado', () => {
   const before = projection();
   const after = projection({
     metrics: { commentCount: 50_000, reactionCount: 50_000 },
