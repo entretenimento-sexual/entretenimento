@@ -29,16 +29,16 @@
       @if (capabilityState.capability.canSubmit) {
         @if (capabilityState.capability.candidates.length === 1) {
           @if (capabilityState.capability.candidates[0]; as candidate) {
-            <article class="official-claim__target-card" aria-label="Vínculo disponível">
+            <article class="official-claim__target-card" aria-label="Entidade elegível">
               <span>{{ targetTypeLabel(candidate) }}</span>
               <strong>{{ candidate.label }}</strong>
-              <small>Este vínculo pode ser verificado automaticamente.</small>
             </article>
           }
         } @else {
           <div class="official-claim__field">
             <label for="official-claim-target">O que esta comunidade representa?</label>
             <select id="official-claim-target" [formControl]="targetKey">
+              <option value="" disabled>Selecione uma entidade</option>
               @for (candidate of capabilityState.capability.candidates; track candidateKey(candidate)) {
                 <option [value]="candidateKey(candidate)">
                   {{ candidate.label }} — {{ targetTypeLabel(candidate) }}
@@ -46,7 +46,7 @@
               }
             </select>
             <small>
-              Mostramos somente vínculos que podem ser confirmados pela plataforma.
+              Mostramos somente entidades que podem ser confirmadas pela plataforma.
             </small>
           </div>
         }
@@ -111,23 +111,37 @@
   <ng-template #submissionForm>
     @if (submissionState$ | async; as submissionState) {
       <div class="official-claim__submission">
-        <small class="official-claim__automation-note">
-          A plataforma confirma o vínculo automaticamente antes de ativar o selo.
+        <label class="official-claim__declaration">
+          <input
+            type="checkbox"
+            [formControl]="authorizationAccepted"
+            aria-describedby="official-claim-declaration-note"
+          />
+          <span>
+            Declaro que tenho autorização para representar esta entidade e solicitar o selo oficial.
+          </span>
+        </label>
+
+        <small
+          id="official-claim-declaration-note"
+          class="official-claim__automation-note"
+        >
+          A plataforma verificará o vínculo antes de conceder o selo.
         </small>
 
         <button
           type="button"
           class="official-claim__submit"
-          [disabled]="submissionState === 'loading'"
+          [disabled]="submissionState === 'loading' || !authorizationAccepted.value || !targetKey.value"
           [attr.aria-busy]="submissionState === 'loading' ? 'true' : 'false'"
           (click)="submit()"
         >
           @if (submissionState === 'loading') {
             <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
-            Verificando…
+            Solicitando…
           } @else {
             <i class="fas fa-shield-check" aria-hidden="true"></i>
-            Ativar selo oficial
+            Solicitar selo oficial
           }
         </button>
       </div>
