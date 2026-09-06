@@ -40,6 +40,11 @@ import {
   type CommunityRankingExposureDiagnostics,
 } from './community-ranking-exposure-diagnostics.policy';
 import {
+  resolveCommunityRankingShadowReadiness,
+  type CommunityRankingShadowReadiness,
+  type CommunityRankingShadowUnavailableReason,
+} from './community-ranking-shadow-readiness.policy';
+import {
   buildCommunityRankingShadowDiagnostics,
   type CommunityRankingShadowDiagnostics,
   type CommunityRankingShadowEntry,
@@ -53,7 +58,6 @@ import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 const SHADOW_COMPARISON_TOP_K = 25;
 
 type CommunityRankingOrderField = 'rankScore' | 'discoveryScore';
-type CommunityRankingShadowUnavailableReason = 'ranking_cycle_not_ready';
 
 interface CommunityRankingReadinessInspection {
   requestedMode: CommunityDiscoveryRankingMode;
@@ -279,13 +283,13 @@ async function queryServedDocuments(
 }
 
 async function inspectShadowComparison(
-  runtimeReadyForTarget: boolean,
+  shadowReadiness: CommunityRankingShadowReadiness,
   servedOrderField: CommunityRankingOrderField
 ): Promise<CommunityRankingReadinessInspection['shadowComparison']> {
   const projection = db.collection('community_discovery_index');
   const now = Date.now();
 
-  if (!runtimeReadyForTarget) {
+  if (!shadowReadiness.available) {
     const servedSnapshot = await queryServedDocuments(servedOrderField);
     const servedExposure = await inspectServedExposure(
       servedSnapshot.docs,
@@ -296,7 +300,7 @@ async function inspectShadowComparison(
     return {
       available: false,
       candidateScoreVersion: COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
-      unavailableReason: 'ranking_cycle_not_ready',
+      unavailableReason: shadowReadiness.unavailableReason,
       diagnostics: null,
       servedExposure,
       explorationSimulation: null,
@@ -370,8 +374,13 @@ export const inspectCommunityRankingReadiness = onCall(
     const runtimeReadyForTarget = runtime['ready'] === true
       && Number(runtime['completedScoreVersion'])
         === COMMUNITY_DISCOVERY_SCORE_VERSION;
-    const shadowComparison = await inspectShadowComparison(
+    const shadowReadiness = resolveCommunityRankingShadowReadiness({
       runtimeReadyForTarget,
+      completedCandidateActivityMomentumModelVersion:
+        runtime['completedCandidateActivityMomentumModelVersion'],
+    });
+    const shadowComparison = await inspectShadowComparison(
+      shadowReadiness,
       decision.orderField
     );
     const inspection: CommunityRankingReadinessInspection = {
@@ -415,6 +424,8 @@ export const inspectCommunityRankingReadiness = onCall(
       completedScoreVersion: inspection.runtime.completedScoreVersion,
       canEnableTargetScore: inspection.canEnableTargetScore,
       shadowAvailable: inspection.shadowComparison.available,
+      shadowUnavailableReason:
+        inspection.shadowComparison.unavailableReason,
       shadowTopK: inspection.shadowComparison.diagnostics?.topK ?? null,
       shadowOverlapRate:
         inspection.shadowComparison.diagnostics?.overlapRate ?? null,
