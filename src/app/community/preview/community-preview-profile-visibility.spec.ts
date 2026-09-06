@@ -147,9 +147,12 @@ describe('CommunityPreviewPageComponent / opt-in público', () => {
     fixture.detectChanges();
     fixture.detectChanges();
 
-    const privacyButton = Array.from(
-      fixture.nativeElement.querySelectorAll('button')
-    ).find((button: Element) => button.textContent?.includes('Privacidade')) as HTMLButtonElement | undefined;
+    const buttons = Array.from(
+      fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>
+    );
+    const privacyButton = buttons.find((button) =>
+      button.textContent?.includes('Privacidade')
+    );
 
     expect(privacyButton).toBeTruthy();
     privacyButton?.click();

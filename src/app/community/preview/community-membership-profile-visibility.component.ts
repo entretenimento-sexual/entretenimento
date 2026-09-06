@@ -8,6 +8,7 @@ import {
 import { toObservable } from '@angular/core/rxjs-interop';
 import {
   BehaviorSubject,
+  Observable,
   Subject,
   catchError,
   combineLatest,
@@ -37,6 +38,11 @@ type VisibilityLoadState =
 type VisibilityAction =
   | { kind: 'member'; value: CommunityMembershipProfileVisibility }
   | { kind: 'policy'; value: CommunityMembershipDisclosureMode };
+
+type VisibilityActionState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'error' };
 
 @Component({
   selector: 'app-community-membership-profile-visibility',
@@ -183,10 +189,10 @@ export class CommunityMembershipProfileVisibilityComponent {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly action$ = this.actionsSubject.pipe(
+  readonly action$: Observable<VisibilityActionState> = this.actionsSubject.pipe(
     exhaustMap((action) => {
       const communityId = String(this.communityId() ?? '').trim();
-      const operation$ = action.kind === 'member'
+      const operation$: Observable<unknown> = action.kind === 'member'
         ? this.repository.updateVisibility$(communityId, action.value)
         : this.repository.updateDisclosure$(communityId, action.value);
 
@@ -203,18 +209,18 @@ export class CommunityMembershipProfileVisibilityComponent {
           );
           this.reload();
         }),
-        map(() => ({ status: 'idle' as const })),
+        map((): VisibilityActionState => ({ status: 'idle' })),
         catchError((error: unknown) => {
           this.report(error, action.kind === 'member'
             ? 'updateCommunityMembershipProfileVisibility'
             : 'updateCommunityMembershipDisclosurePolicy');
           this.reload();
-          return of({ status: 'error' as const });
+          return of<VisibilityActionState>({ status: 'error' });
         }),
-        startWith({ status: 'loading' as const })
+        startWith<VisibilityActionState>({ status: 'loading' })
       );
     }),
-    startWith({ status: 'idle' as const }),
+    startWith<VisibilityActionState>({ status: 'idle' }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 

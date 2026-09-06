@@ -37,9 +37,17 @@ export interface CommunityMembershipProfileVisibilityState {
 
 const COMMUNITY_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
 
+function stripControlCharacters(value: string): string {
+  return Array.from(value)
+    .filter((character) => {
+      const codePoint = character.codePointAt(0) ?? 0;
+      return codePoint > 31 && codePoint !== 127;
+    })
+    .join('');
+}
+
 function normalizeText(value: unknown, maxLength: number): string {
-  return String(value ?? '')
-    .replace(/[\u0000-\u001F\u007F]/g, '')
+  return stripControlCharacters(String(value ?? ''))
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, maxLength);
