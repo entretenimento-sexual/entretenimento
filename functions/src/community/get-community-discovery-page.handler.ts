@@ -21,6 +21,9 @@ import {
 import {
   resolveCommunityDiscoveryMembershipBatchSize,
 } from './community-discovery-membership-batch.policy';
+import {
+  resolveCommunityDiscoveryProjectionBatchSize,
+} from './community-discovery-projection-batch.policy';
 import { getCommunityDiscoveryRankingMode } from './community-discovery-ranking-mode.service';
 import {
   buildCommunityDiscoveryTelemetry,
@@ -215,19 +218,20 @@ export const getCommunityDiscoveryPage =
         ? 'community'
         : pageRequest.sourceType;
       const projection = db.collection('community_discovery_index');
+      // Orçamento máximo total da varredura. A projeção agora é buscada em
+      // lotes incrementais, em vez de pré-carregar todo esse teto de uma vez.
       const scanLimit = pageRequest.limit * 3 + 1;
-      let pageQuery = pageRequest.tagId
+      const projectionQuery = pageRequest.tagId
         ? projection
           .where('source.type', '==', 'community')
           .where('tagIds', 'array-contains', pageRequest.tagId)
           .orderBy(orderField, 'desc')
-          .limit(scanLimit)
         : effectiveSourceType
           ? projection
             .where('source.type', '==', effectiveSourceType)
             .orderBy(orderField, 'desc')
-            .limit(scanLimit)
-          : projection.orderBy(orderField, 'desc').limit(scanLimit);
+          : projection.orderBy(orderField, 'desc');
+      let projectionCursorSnapshot: FirebaseFirestore.DocumentSnapshot | null = null;
 
       if (cursor) {
         const cursorSnapshot = await projection.doc(cursor.documentId).get();
@@ -273,81 +277,128 @@ export const getCommunityDiscoveryPage =
           );
         }
 
-        pageQuery = pageQuery.startAfter(cursorSnapshot);
+        projectionCursorSnapshot = cursorSnapshot;
       }
 
-      const querySnapshot = await pageQuery.get();
       const items: CommunityPreviewCard[] = [];
-      let lastConsumedIndex = -1;
+      let projectionDocumentsFetched = 0;
+      let projectionDocumentsConsumed = 0;
       let candidatesEvaluated = 0;
       let membershipReads = 0;
       let membershipBatches = 0;
       let blockedExcluded = 0;
-      let batchStart = 0;
+      let lastConsumedDocument: FirebaseFirestore.QueryDocumentSnapshot | null = null;
+      let hasBufferedDocuments = false;
+      let sourceExhausted = false;
 
       while (
-        batchStart < querySnapshot.docs.length
-        && items.length < pageRequest.limit
+        items.length < pageRequest.limit
+        && projectionDocumentsFetched < scanLimit
       ) {
-        const membershipBatchSize =
-          resolveCommunityDiscoveryMembershipBatchSize({
+        const projectionBatchSize =
+          resolveCommunityDiscoveryProjectionBatchSize({
             remainingCards: pageRequest.limit - items.length,
-            candidatesEvaluated,
-            blockedExcluded,
+            remainingScanBudget: scanLimit - projectionDocumentsFetched,
+            projectionDocumentsConsumed,
+            cardsReturned: items.length,
           });
 
-        if (membershipBatchSize === 0) {
+        if (projectionBatchSize === 0) {
           break;
         }
 
-        const batchEnd = Math.min(
-          batchStart + membershipBatchSize,
-          querySnapshot.docs.length
-        );
-        const candidates = collectDiscoveryCandidates(
-          querySnapshot.docs,
-          batchStart,
-          batchEnd,
-          effectiveSourceType,
-          pageRequest.tagId
-        );
-        candidatesEvaluated += candidates.length;
-
-        const visibilityResult = await resolveVisibleDiscoveryCandidates(
-          uid,
-          candidates
-        );
-        membershipReads += visibilityResult.membershipReads;
-        blockedExcluded += visibilityResult.blockedExcluded;
-        if (visibilityResult.membershipReads > 0) {
-          membershipBatches += 1;
+        let projectionBatchQuery = projectionQuery.limit(projectionBatchSize);
+        if (projectionCursorSnapshot) {
+          projectionBatchQuery = projectionBatchQuery.startAfter(
+            projectionCursorSnapshot
+          );
         }
 
-        for (let index = batchStart; index < batchEnd; index += 1) {
-          lastConsumedIndex = index;
-          const item = visibilityResult.visibleCandidates.get(index);
+        const projectionBatchSnapshot = await projectionBatchQuery.get();
+        projectionDocumentsFetched += projectionBatchSnapshot.size;
+        sourceExhausted = projectionBatchSnapshot.size < projectionBatchSize;
 
-          if (item) {
-            items.push(item);
-          }
+        if (projectionBatchSnapshot.empty) {
+          break;
+        }
 
-          if (items.length >= pageRequest.limit) {
+        let membershipBatchStart = 0;
+        while (
+          membershipBatchStart < projectionBatchSnapshot.docs.length
+          && items.length < pageRequest.limit
+        ) {
+          const membershipBatchSize =
+            resolveCommunityDiscoveryMembershipBatchSize({
+              remainingCards: pageRequest.limit - items.length,
+              candidatesEvaluated,
+              blockedExcluded,
+            });
+
+          if (membershipBatchSize === 0) {
             break;
           }
+
+          const membershipBatchEnd = Math.min(
+            membershipBatchStart + membershipBatchSize,
+            projectionBatchSnapshot.docs.length
+          );
+          const candidates = collectDiscoveryCandidates(
+            projectionBatchSnapshot.docs,
+            membershipBatchStart,
+            membershipBatchEnd,
+            effectiveSourceType,
+            pageRequest.tagId
+          );
+          candidatesEvaluated += candidates.length;
+
+          const visibilityResult = await resolveVisibleDiscoveryCandidates(
+            uid,
+            candidates
+          );
+          membershipReads += visibilityResult.membershipReads;
+          blockedExcluded += visibilityResult.blockedExcluded;
+          if (visibilityResult.membershipReads > 0) {
+            membershipBatches += 1;
+          }
+
+          for (
+            let index = membershipBatchStart;
+            index < membershipBatchEnd;
+            index += 1
+          ) {
+            const document = projectionBatchSnapshot.docs[index];
+            projectionDocumentsConsumed += 1;
+            lastConsumedDocument = document;
+            const item = visibilityResult.visibleCandidates.get(index);
+
+            if (item) {
+              items.push(item);
+            }
+
+            if (items.length >= pageRequest.limit) {
+              break;
+            }
+          }
+
+          membershipBatchStart = membershipBatchEnd;
         }
 
-        batchStart = batchEnd;
+        if (items.length >= pageRequest.limit) {
+          hasBufferedDocuments =
+            projectionDocumentsConsumed < projectionDocumentsFetched;
+          break;
+        }
+
+        if (sourceExhausted) {
+          break;
+        }
+
+        projectionCursorSnapshot =
+          projectionBatchSnapshot.docs.at(-1) ?? projectionCursorSnapshot;
       }
 
-      const lastConsumedDocument =
-        lastConsumedIndex >= 0
-          ? querySnapshot.docs[lastConsumedIndex]
-          : null;
-      const hasBufferedDocuments =
-        lastConsumedIndex >= 0
-        && lastConsumedIndex < querySnapshot.docs.length - 1;
-      const mayHaveAnotherPage =
-        querySnapshot.docs.length === scanLimit || hasBufferedDocuments;
+      const mayHaveAnotherPage = Boolean(lastConsumedDocument)
+        && (hasBufferedDocuments || !sourceExhausted);
       const nextCursor = mayHaveAnotherPage && lastConsumedDocument
         ? buildCommunityDiscoveryCursor(
           rankingMode.effectiveMode,
@@ -367,8 +418,8 @@ export const getCommunityDiscoveryPage =
         buildCommunityDiscoveryTelemetry({
           requestedLimit: pageRequest.limit,
           scanLimit,
-          projectionDocumentsFetched: querySnapshot.size,
-          projectionDocumentsConsumed: lastConsumedIndex + 1,
+          projectionDocumentsFetched,
+          projectionDocumentsConsumed,
           candidatesEvaluated,
           membershipReads,
           membershipBatches,
