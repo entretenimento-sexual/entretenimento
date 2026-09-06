@@ -7,7 +7,7 @@ import { AppNotificationService } from 'src/app/core/services/notifications/app-
 import { UserActivityHubComponent } from './user-activity-hub.component';
 
 describe('UserActivityHubComponent', () => {
-  it('mantém pendências globais sem misturar Conexões com convites de Sala', () => {
+  it('mantém categorias recentes e usa o total global exato na Central', () => {
     TestBed.configureTestingModule({
       imports: [UserActivityHubComponent],
       providers: [
@@ -15,6 +15,7 @@ describe('UserActivityHubComponent', () => {
         {
           provide: AppNotificationService,
           useValue: {
+            currentUserUnreadCount$: of(9),
             currentUserNotifications$: of([
               {
                 id: 'notification-room-1',
@@ -39,12 +40,12 @@ describe('UserActivityHubComponent', () => {
                 updatedAt: 2,
               },
               {
-                id: 'notification-community-1',
+                id: 'notification-community-reply-1',
                 userId: 'user-1',
-                type: 'community.comment.received',
-                title: 'Novo comentário',
-                body: 'Uma publicação recebeu um comentário.',
-                route: '/dashboard/comunidades/community-1',
+                type: 'community.comment.reply.received',
+                title: 'Nova resposta',
+                body: 'Seu comentário recebeu uma resposta.',
+                route: null,
                 readAt: null,
                 createdAt: 4,
                 updatedAt: 4,
@@ -59,6 +60,17 @@ describe('UserActivityHubComponent', () => {
                 readAt: null,
                 createdAt: 3,
                 updatedAt: 3,
+              },
+              {
+                id: 'notification-system-1',
+                userId: 'user-1',
+                type: 'system',
+                title: 'Atualização da plataforma',
+                body: 'Há uma novidade disponível.',
+                route: '/notificacoes',
+                readAt: null,
+                createdAt: 5,
+                updatedAt: 5,
               },
             ]),
           },
@@ -81,8 +93,14 @@ describe('UserActivityHubComponent', () => {
     const roomLink = links.find((link) =>
       link.textContent?.includes('Salas')
     );
+    const communitiesLink = links.find((link) =>
+      link.textContent?.includes('Comunidades')
+    );
     const momentsLink = links.find((link) =>
       link.textContent?.includes('Momentos')
+    );
+    const centralLink = links.find((link) =>
+      link.textContent?.includes('Central')
     );
 
     expect(labels).toEqual([
@@ -98,6 +116,53 @@ describe('UserActivityHubComponent', () => {
     expect(connectionLink?.getAttribute('href')).toBe('/friends/requests');
     expect(roomLink?.getAttribute('href')).toBe('/chat/room-invites');
     expect(momentsLink?.getAttribute('href')).toBe('/descobrir');
-    expect(fixture.nativeElement.textContent).toContain('4');
+    expect(
+      communitiesLink?.querySelector('.activity-bar__badge')?.textContent?.trim()
+    ).toBe('1');
+    expect(
+      centralLink?.querySelector('.activity-bar__badge')?.textContent?.trim()
+    ).toBe('9');
+  });
+
+  it('não duplica uma notificação genérica que pertence somente à Central', () => {
+    TestBed.configureTestingModule({
+      imports: [UserActivityHubComponent],
+      providers: [
+        provideRouter([]),
+        {
+          provide: AppNotificationService,
+          useValue: {
+            currentUserUnreadCount$: of(1),
+            currentUserNotifications$: of([
+              {
+                id: 'notification-system-only',
+                userId: 'user-1',
+                type: 'system',
+                title: 'Aviso',
+                body: 'Atualização geral.',
+                route: '/notificacoes',
+                readAt: null,
+                createdAt: 1,
+                updatedAt: 1,
+              },
+            ]),
+          },
+        },
+      ],
+    });
+
+    const fixture = TestBed.createComponent(UserActivityHubComponent);
+    fixture.detectChanges();
+
+    const links = Array.from(
+      fixture.nativeElement.querySelectorAll('a') as NodeListOf<HTMLAnchorElement>
+    );
+    const centralLink = links.find((link) =>
+      link.textContent?.includes('Central')
+    );
+
+    expect(
+      centralLink?.querySelector('.activity-bar__badge')?.textContent?.trim()
+    ).toBe('1');
   });
 });

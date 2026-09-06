@@ -10,7 +10,8 @@
 // - Conexões aponta somente para solicitações entre pessoas;
 // - convites para salas possuem categoria e rota próprias;
 // - badges aparecem apenas quando houver pendência;
-// - usa o stream reativo já protegido por Rules;
+// - categorias usam a janela recente já carregada, sem listeners extras;
+// - Central usa o total global canônico de não lidas, sem inferir pelo limite local;
 // - não escreve no Firestore;
 // - ações de leitura seguem nas callables da central de notificações.
 // -----------------------------------------------------------------------------
@@ -18,7 +19,7 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
-import { Observable } from 'rxjs';
+import { Observable, combineLatest } from 'rxjs';
 import { map } from 'rxjs/operators';
 
 import { IAppNotification } from 'src/app/core/interfaces/app-notification.interface';
@@ -116,34 +117,55 @@ export class UserActivityHubComponent {
     },
   ];
 
-  readonly vm$: Observable<UserActivityHubVm> =
-    this.notifications.currentUserNotifications$.pipe(
-      map((items) => this.toVm(items))
-    );
+  readonly vm$: Observable<UserActivityHubVm> = combineLatest([
+    this.notifications.currentUserNotifications$,
+    this.notifications.currentUserUnreadCount$,
+  ]).pipe(
+    map(([items, totalUnread]) => this.toVm(items, totalUnread))
+  );
 
   trackAction(_index: number, action: UserActivityHubAction): string {
     return action.id;
   }
 
-  private toVm(items: IAppNotification[]): UserActivityHubVm {
+  private toVm(
+    items: IAppNotification[],
+    totalUnread: number
+  ): UserActivityHubVm {
     const unreadItems = (items ?? []).filter((item) => item.readAt === null);
     const counts = new Map<ActivityKind, number>();
 
     unreadItems.forEach((item) => {
       const kind = this.toActivityKind(item);
-      counts.set(kind, (counts.get(kind) ?? 0) + 1);
-      counts.set('central', (counts.get('central') ?? 0) + 1);
+
+      // `central` não é uma categoria exclusiva: representa o total global.
+      // Não incrementá-la aqui também elimina a dupla contagem de notificações
+      // genéricas que já caem naturalmente na própria Central.
+      if (kind !== 'central') {
+        counts.set(kind, (counts.get(kind) ?? 0) + 1);
+      }
     });
 
+    const resolvedTotalUnread = Math.max(
+      this.normalizeCount(totalUnread),
+      unreadItems.length
+    );
     const actions = this.baseActions.map((action) => ({
       ...action,
-      count: counts.get(action.id) ?? 0,
+      count: action.id === 'central'
+        ? resolvedTotalUnread
+        : counts.get(action.id) ?? 0,
     }));
 
     return {
       actions,
-      totalUnread: unreadItems.length,
+      totalUnread: resolvedTotalUnread,
     };
+  }
+
+  private normalizeCount(value: unknown): number {
+    const parsed = Math.trunc(Number(value));
+    return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
   }
 
   private toActivityKind(item: IAppNotification): ActivityKind {
@@ -230,6 +252,7 @@ export class UserActivityHubComponent {
 
   private isCommunityActivity(item: IAppNotification, route: string): boolean {
     return item.type === 'community.comment.received'
+      || item.type === 'community.comment.reply.received'
       || item.type === 'community.content.moderated'
       || route.startsWith('/dashboard/comunidades');
   }
@@ -251,6 +274,7 @@ export class UserActivityHubComponent {
       case 'user_intent_status.published':
         return '/descobrir';
       case 'community.comment.received':
+      case 'community.comment.reply.received':
       case 'community.content.moderated':
         return '/dashboard/comunidades';
       case 'social':
