@@ -6,6 +6,11 @@ export interface SubmitCommunityOfficialClaimInput {
   readonly requestId: string;
   readonly communityId: string;
   readonly target: CommunityOfficialTarget;
+  /**
+   * Declaração fixa da UI. Ela registra a afirmação do usuário, mas nunca
+   * substitui a revalidação canônica de autoridade executada pelo backend.
+   */
+  readonly declarationAccepted: true;
 }
 
 export interface SubmitCommunityOfficialClaimResponse {
@@ -63,6 +68,7 @@ export function normalizeSubmitCommunityOfficialClaimInput(
     !SAFE_ID_PATTERN.test(requestId)
     || !SAFE_ID_PATTERN.test(communityId)
     || !SAFE_ID_PATTERN.test(targetId)
+    || input.declarationAccepted !== true
     || (
       targetType !== 'profile'
       && targetType !== 'organization'
@@ -77,5 +83,6 @@ export function normalizeSubmitCommunityOfficialClaimInput(
     requestId,
     communityId,
     target: { type: targetType, id: targetId },
+    declarationAccepted: true,
   };
 }
