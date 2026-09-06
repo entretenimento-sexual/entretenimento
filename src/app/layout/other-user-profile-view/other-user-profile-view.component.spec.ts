@@ -10,6 +10,7 @@ import { of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CommunityPreviewRepository } from '../../community/data-access/community-preview.repository';
+import { CommunityProfilePublicCommunitiesRepository } from '../../community/data-access/community-profile-public-communities.repository';
 import { ProfileOfficialCommunitiesComponent } from '../../community/profile-official-communities/profile-official-communities.component';
 import { OtherUserProfileViewComponent } from './other-user-profile-view.component';
 import { AccessControlService } from '../../core/services/autentication/auth/access-control.service';
@@ -89,6 +90,14 @@ describe('OtherUserProfileViewComponent', () => {
           provide: CommunityPreviewRepository,
           useValue: {
             getProfileOfficialCommunities$: vi.fn(() =>
+              of({ items: [], nextCursor: null, generatedAt: Date.now() })
+            ),
+          },
+        },
+        {
+          provide: CommunityProfilePublicCommunitiesRepository,
+          useValue: {
+            getProfilePublicCommunities$: vi.fn(() =>
               of({ items: [], nextCursor: null, generatedAt: Date.now() })
             ),
           },
@@ -249,15 +258,21 @@ describe('OtherUserProfileViewComponent', () => {
     );
   });
 
-  it('expõe somente comunidades oficiais vinculadas ao perfil visitado', () => {
-    const repository = TestBed.inject(CommunityPreviewRepository);
-    const officialCommunities = fixture.debugElement.query(
+  it('combina comunidades oficiais e opt-ins públicos sem expor participação privada', () => {
+    const officialRepository = TestBed.inject(CommunityPreviewRepository);
+    const publicMembershipRepository = TestBed.inject(
+      CommunityProfilePublicCommunitiesRepository
+    );
+    const communitySurface = fixture.debugElement.query(
       By.directive(ProfileOfficialCommunitiesComponent)
     );
 
-    expect(officialCommunities).toBeTruthy();
+    expect(communitySurface).toBeTruthy();
     expect(
-      repository.getProfileOfficialCommunities$
+      officialRepository.getProfileOfficialCommunities$
+    ).toHaveBeenCalledWith(targetUid, 4);
+    expect(
+      publicMembershipRepository.getProfilePublicCommunities$
     ).toHaveBeenCalledWith(targetUid, 4);
     expect(
       fixture.debugElement.query(By.css('app-profile-communities'))
