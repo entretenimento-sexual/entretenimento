@@ -19,7 +19,7 @@ import {
   type CommunityOfficialTarget,
 } from './community-official-association.model';
 
-export const COMMUNITY_OFFICIAL_CLAIM_POLICY_VERSION = 1;
+export const COMMUNITY_OFFICIAL_CLAIM_POLICY_VERSION = 2;
 
 export type CommunityOfficialClaimStatus =
   | 'pending'
@@ -62,6 +62,10 @@ export interface CommunityOfficialClaimRecord {
   policyVersion: number;
   submissionAttempt: number;
   submittedAt: number;
+  /** Presente nos claims criados a partir da policy v2. Ausente em legado. */
+  declarationAccepted?: true;
+  /** Timestamp server-side da declaração. Ausente em registros legados. */
+  declarationAcceptedAt?: number;
   revalidationRequestedAt: number | null;
   reviewedAt: number | null;
   reviewedBy: string | null;
@@ -79,7 +83,10 @@ export interface SubmitCommunityOfficialClaimRequest {
   authorityRole?: unknown;
   sponsorOrganizationId?: unknown;
   evidenceReferences?: unknown;
-  /** Legado aceito e ignorado. Autoridade é comprovada no backend. */
+  /**
+   * Atestação fixa e obrigatória do usuário. Não é prova de autoridade:
+   * autoridade, KYC/KYB e evidências continuam derivados no backend.
+   */
   declarationAccepted?: unknown;
 }
 
@@ -88,6 +95,7 @@ export interface SubmitCommunityOfficialClaimIntentCommand {
   communityId: string;
   target: CommunityOfficialTarget;
   associationKey: string;
+  declarationAccepted: true;
 }
 
 export interface SubmitCommunityOfficialClaimCommand
@@ -217,8 +225,9 @@ function evidenceMatchesTarget(
 
 /**
  * Contrato seguro para o cliente: ele escolhe somente um alvo previamente
- * oferecido pela capability. Autoridade, organização patrocinadora e evidência
- * são resolvidas novamente pelo backend no momento da submissão.
+ * oferecido pela capability e confirma uma declaração fixa de autorização.
+ * Autoridade, organização patrocinadora e evidência são resolvidas novamente
+ * pelo backend no momento da submissão; a declaração nunca substitui a prova.
  */
 export function normalizeSubmitCommunityOfficialClaimIntentRequest(
   raw: unknown
@@ -228,14 +237,25 @@ export function normalizeSubmitCommunityOfficialClaimIntentRequest(
   const communityId = cleanId(source.communityId);
   const target = cleanTarget(source.target);
 
-  if (!requestId || !communityId || !target) {
+  if (
+    !requestId
+    || !communityId
+    || !target
+    || source.declarationAccepted !== true
+  ) {
     return null;
   }
 
   const associationKey = buildCommunityOfficialAssociationKey(target);
   if (!associationKey) return null;
 
-  return { requestId, communityId, target, associationKey };
+  return {
+    requestId,
+    communityId,
+    target,
+    associationKey,
+    declarationAccepted: true,
+  };
 }
 
 export function normalizeSubmitCommunityOfficialClaimRequest(
