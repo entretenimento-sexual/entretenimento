@@ -18,6 +18,9 @@ import {
   buildCommunityDiscoveryCursor,
   parseCommunityDiscoveryCursor,
 } from './community-discovery-cursor.policy';
+import {
+  resolveCommunityDiscoveryMembershipBatchSize,
+} from './community-discovery-membership-batch.policy';
 import { getCommunityDiscoveryRankingMode } from './community-discovery-ranking-mode.service';
 import {
   buildCommunityDiscoveryTelemetry,
@@ -38,9 +41,6 @@ import {
 import {
   assertCommunitySocialAccessForUid,
 } from './community-social-access.service';
-
-const MIN_VIEWER_MEMBERSHIP_BATCH_SIZE = 12;
-const MAX_VIEWER_MEMBERSHIP_BATCH_SIZE = 24;
 
 interface CommunityDiscoveryCandidate {
   readonly index: number;
@@ -283,16 +283,23 @@ export const getCommunityDiscoveryPage =
       let membershipReads = 0;
       let membershipBatches = 0;
       let blockedExcluded = 0;
-      const membershipBatchSize = Math.min(
-        Math.max(pageRequest.limit, MIN_VIEWER_MEMBERSHIP_BATCH_SIZE),
-        MAX_VIEWER_MEMBERSHIP_BATCH_SIZE
-      );
+      let batchStart = 0;
 
-      for (
-        let batchStart = 0;
-        batchStart < querySnapshot.docs.length && items.length < pageRequest.limit;
-        batchStart += membershipBatchSize
+      while (
+        batchStart < querySnapshot.docs.length
+        && items.length < pageRequest.limit
       ) {
+        const membershipBatchSize =
+          resolveCommunityDiscoveryMembershipBatchSize({
+            remainingCards: pageRequest.limit - items.length,
+            candidatesEvaluated,
+            blockedExcluded,
+          });
+
+        if (membershipBatchSize === 0) {
+          break;
+        }
+
         const batchEnd = Math.min(
           batchStart + membershipBatchSize,
           querySnapshot.docs.length
@@ -328,6 +335,8 @@ export const getCommunityDiscoveryPage =
             break;
           }
         }
+
+        batchStart = batchEnd;
       }
 
       const lastConsumedDocument =
