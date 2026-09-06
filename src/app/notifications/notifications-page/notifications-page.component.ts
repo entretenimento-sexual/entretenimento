@@ -2,10 +2,13 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
-import { finalize, take } from 'rxjs/operators';
+import { map, finalize, take } from 'rxjs/operators';
 
 import { AppNotificationService } from 'src/app/core/services/notifications/app-notification.service';
-import { IAppNotification } from 'src/app/core/interfaces/app-notification.interface';
+import {
+  IAppNotification,
+  ICommunityNotificationSummary,
+} from 'src/app/core/interfaces/app-notification.interface';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 
 @Component({
@@ -28,11 +31,22 @@ export class NotificationsPageComponent {
   private readonly markAllBusySubject = new BehaviorSubject(false);
 
   readonly vm$ = this.notificationService.currentUserVm$;
+  readonly communitySummaries$ = this.notificationService.currentUserCommunitySummaries$.pipe(
+    map((summaries) => summaries.slice(0, 4))
+  );
+  readonly communityUnreadCount$ = this.notificationService.currentUserCommunityUnreadCount$;
   readonly busyIds$ = this.busyIdsSubject.asObservable();
   readonly markAllBusy$ = this.markAllBusySubject.asObservable();
 
   trackNotification(_index: number, item: IAppNotification): string {
     return item.id;
+  }
+
+  trackCommunitySummary(
+    _index: number,
+    summary: ICommunityNotificationSummary
+  ): string {
+    return summary.communityId;
   }
 
   formatNotificationDate(value: number | null): string {
@@ -65,6 +79,7 @@ export class NotificationsPageComponent {
       case 'social':
         return '🤝';
       case 'community.comment.received':
+      case 'community.comment.reply.received':
         return '💬';
       case 'community.content.moderated':
         return '🛡️';
@@ -84,6 +99,26 @@ export class NotificationsPageComponent {
     }
 
     return route;
+  }
+
+  communitySummaryLabel(summary: ICommunityNotificationSummary): string {
+    if (summary.hasPriorityUnread) {
+      return 'Requer atenção';
+    }
+
+    if (summary.unreadCount === 1) {
+      return '1 novidade';
+    }
+
+    if (summary.unreadCount > 1) {
+      return `${summary.unreadCount} novidades`;
+    }
+
+    return 'Em dia';
+  }
+
+  openCommunitySummary(summary: ICommunityNotificationSummary): void {
+    this.openNotification(summary.latestNotification);
   }
 
   openNotification(item: IAppNotification): void {
