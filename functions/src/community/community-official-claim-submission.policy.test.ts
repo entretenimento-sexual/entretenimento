@@ -12,12 +12,14 @@ const venueIntent = {
   communityId: 'community-1',
   target: { type: 'venue' as const, id: 'venue-1' },
   associationKey: 'venue:venue-1',
+  declarationAccepted: true as const,
 };
 const organizationIntent = {
   requestId: 'request-2',
   communityId: 'community-1',
   target: { type: 'organization' as const, id: 'organization-1' },
   associationKey: 'organization:organization-1',
+  declarationAccepted: true as const,
 };
 
 function activeGrant(overrides: Record<string, unknown> = {}) {
@@ -195,6 +197,7 @@ test('aceita referência canônica composta acima de 128 caracteres', () => {
     communityId: 'community-1',
     target: { type: 'organization' as const, id: organizationId },
     associationKey: `organization:${organizationId}`,
+    declarationAccepted: true as const,
   };
 
   assert.ok(representationReferenceId.length > 128);
