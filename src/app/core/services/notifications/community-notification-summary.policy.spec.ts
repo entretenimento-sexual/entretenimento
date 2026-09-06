@@ -10,17 +10,19 @@ import {
 function notification(
   patch: Partial<IAppNotification> & Pick<IAppNotification, 'id' | 'type'>
 ): IAppNotification {
+  const { id, type, ...overrides } = patch;
+
   return {
-    id: patch.id,
+    id,
     userId: 'user-1',
-    type: patch.type,
+    type,
     title: 'Título',
     body: 'Mensagem',
     route: null,
     readAt: null,
     createdAt: 1,
     updatedAt: 1,
-    ...patch,
+    ...overrides,
   };
 }
 
