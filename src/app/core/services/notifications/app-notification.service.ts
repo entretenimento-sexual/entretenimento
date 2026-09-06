@@ -11,7 +11,9 @@
 // - aguarda bootstrap do Auth antes de iniciar watchers de Firestore;
 // - usa AuthSessionService.readyAuthUser$ como fonte única do usuário autenticado;
 // - falhas opcionais de permissão na leitura retornam lista vazia sem poluir login;
-// - resumos por Comunidade derivam do mesmo stream global, sem listeners extras.
+// - resumos por Comunidade derivam do mesmo stream global, sem listeners extras;
+// - o total global não é inferido da janela recente: usa count() agregado e barato;
+// - mudanças de conteúdo que preservam ids/readAt não repetem o count() global.
 // -----------------------------------------------------------------------------
 
 import { Injectable, inject } from '@angular/core';
@@ -19,20 +21,31 @@ import {
   Firestore,
   collection,
   collectionData,
+  getCountFromServer,
   limit as firestoreLimit,
   orderBy,
   query,
   where,
 } from '@angular/fire/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable, defer, from, of, throwError } from 'rxjs';
 import {
+  BehaviorSubject,
+  Observable,
+  combineLatest,
+  defer,
+  from,
+  of,
+  throwError,
+} from 'rxjs';
+import {
+  auditTime,
   catchError,
   distinctUntilChanged,
   map,
   shareReplay,
   startWith,
   switchMap,
+  tap,
 } from 'rxjs/operators';
 
 import {
@@ -81,6 +94,17 @@ interface MarkNotificationReadPayload {
 
 interface MarkAllNotificationsReadResponse {
   updated: number;
+  complete?: boolean;
+}
+
+export interface MarkAllNotificationsReadResult {
+  updated: number;
+  complete: boolean;
+}
+
+interface NotificationReadWindowState {
+  items: IAppNotification[];
+  signature: string;
 }
 
 interface NotificationReportableError extends Error {
@@ -93,6 +117,8 @@ interface NotificationReportableError extends Error {
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
+const LEGACY_MARK_ALL_BATCH_SIZE = 50;
+const UNREAD_COUNT_COALESCE_MS = 75;
 
 @Injectable({ providedIn: 'root' })
 export class AppNotificationService {
@@ -101,6 +127,7 @@ export class AppNotificationService {
   private readonly session = inject(AuthSessionService);
   private readonly firestoreContext = inject(FirestoreContextService);
   private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly unreadCountRefreshSubject = new BehaviorSubject(0);
 
   private readonly markNotificationReadCallable = httpsCallable<
     MarkNotificationReadPayload,
@@ -131,12 +158,42 @@ export class AppNotificationService {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-  readonly currentUserUnreadCount$: Observable<number> =
-    this.currentUserNotifications$.pipe(
-      map((items) => items.filter((item) => item.readAt == null).length),
-      distinctUntilChanged(),
+  private readonly currentUserNotificationReadWindow$:
+    Observable<NotificationReadWindowState> = this.currentUserNotifications$.pipe(
+      map((items) => ({
+        items,
+        signature: items
+          .map((item) => `${item.id}:${item.readAt == null ? 'unread' : 'read'}`)
+          .join('|'),
+      })),
+      distinctUntilChanged(
+        (previous, current) => previous.signature === current.signature
+      ),
       shareReplay({ bufferSize: 1, refCount: true })
     );
+
+  readonly currentUserUnreadCount$: Observable<number> = combineLatest([
+    this.session.readyAuthUser$,
+    this.currentUserNotificationReadWindow$,
+    this.unreadCountRefreshSubject,
+  ]).pipe(
+    auditTime(UNREAD_COUNT_COALESCE_MS),
+    switchMap(([user, state]) => {
+      const uid = String(user?.uid ?? '').trim();
+
+      if (!uid) {
+        return of(0);
+      }
+
+      const fallbackCount = state.items.filter(
+        (item) => item.userId === uid && item.readAt == null
+      ).length;
+
+      return this.countUnreadForUser$(uid, fallbackCount);
+    }),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
   readonly currentUserCommunitySummaries$: Observable<
     ICommunityNotificationSummary[]
@@ -154,16 +211,18 @@ export class AppNotificationService {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-  readonly currentUserVm$: Observable<IAppNotificationListVm> =
-    this.currentUserNotifications$.pipe(
-      map((items) => ({
-        loading: false,
-        items,
-        unreadCount: items.filter((item) => item.readAt == null).length,
-      })),
-      startWith({ loading: true, items: [], unreadCount: 0 }),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
+  readonly currentUserVm$: Observable<IAppNotificationListVm> = combineLatest([
+    this.currentUserNotifications$,
+    this.currentUserUnreadCount$,
+  ]).pipe(
+    map(([items, unreadCount]) => ({
+      loading: false,
+      items,
+      unreadCount,
+    })),
+    startWith({ loading: true, items: [], unreadCount: 0 }),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
   watchForUser$(uid: string, max = DEFAULT_LIMIT): Observable<IAppNotification[]> {
     const safeUid = String(uid ?? '').trim();
@@ -209,6 +268,7 @@ export class AppNotificationService {
     return defer(() => from(this.markNotificationReadCallable({
       notificationId: safeNotificationId,
     }))).pipe(
+      tap(() => this.refreshUnreadCount()),
       map(() => undefined),
       catchError((error) => {
         this.reportWriteError(error, 'markAsRead', {
@@ -219,13 +279,55 @@ export class AppNotificationService {
     );
   }
 
-  markAllAsRead$(): Observable<number> {
+  markAllAsRead$(): Observable<MarkAllNotificationsReadResult> {
     return defer(() => from(this.markAllNotificationsReadCallable({}))).pipe(
-      map((response) => Number(response.data?.updated ?? 0)),
+      map((response) => {
+        const parsedUpdated = Math.trunc(Number(response.data?.updated ?? 0));
+        const updated = Number.isFinite(parsedUpdated)
+          ? Math.max(0, parsedUpdated)
+          : 0;
+        const explicitComplete = response.data?.complete;
+        const complete = typeof explicitComplete === 'boolean'
+          ? explicitComplete
+          : updated < LEGACY_MARK_ALL_BATCH_SIZE;
+
+        return { updated, complete };
+      }),
+      tap(() => this.refreshUnreadCount()),
       catchError((error) => {
         this.reportWriteError(error, 'markAllAsRead', {});
         return throwError(() => error);
       })
+    );
+  }
+
+  private countUnreadForUser$(uid: string, fallbackCount: number): Observable<number> {
+    return this.firestoreContext.deferPromise$(() => {
+      const notificationsRef = collection(this.firestore, 'notifications');
+      const unreadQuery = query(
+        notificationsRef,
+        where('userId', '==', uid),
+        where('readAt', '==', null)
+      );
+
+      return getCountFromServer(unreadQuery);
+    }).pipe(
+      map((snapshot) => {
+        const parsedCount = Math.trunc(Number(snapshot.data().count));
+        return Number.isFinite(parsedCount)
+          ? Math.max(0, parsedCount)
+          : fallbackCount;
+      }),
+      catchError((error) => {
+        this.reportReadError(error, 'countUnreadForUser', { uid });
+        return of(fallbackCount);
+      })
+    );
+  }
+
+  private refreshUnreadCount(): void {
+    this.unreadCountRefreshSubject.next(
+      this.unreadCountRefreshSubject.value + 1
     );
   }
 

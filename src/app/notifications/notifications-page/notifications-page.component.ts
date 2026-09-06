@@ -178,8 +178,15 @@ export class NotificationsPageComponent {
       take(1),
       finalize(() => this.markAllBusySubject.next(false))
     ).subscribe({
-      next: (updated) => {
-        if (updated > 0) {
+      next: (result) => {
+        if (!result.complete) {
+          this.notifier.showWarning(
+            'Parte das notificações foi marcada como lida, mas ainda há itens antigos pendentes. Use “Marcar todas” novamente para concluir.'
+          );
+          return;
+        }
+
+        if (result.updated > 0) {
           this.notifier.showSuccess('Notificações marcadas como lidas.');
         }
       },
