@@ -6,11 +6,12 @@ import {
   normalizeSubmitCommunityOfficialClaimRequest,
 } from './community-official-claim.model';
 
-test('aceita intenção segura sem declaração, autoridade nem evidência no cliente', () => {
+test('aceita intenção segura somente com declaração explícita do usuário', () => {
   const intent = normalizeSubmitCommunityOfficialClaimIntentRequest({
     requestId: 'request-1',
     communityId: 'community-1',
     target: { type: 'venue', id: 'venue-1' },
+    declarationAccepted: true,
   });
 
   assert.deepEqual(intent, {
@@ -18,18 +19,21 @@ test('aceita intenção segura sem declaração, autoridade nem evidência no cl
     communityId: 'community-1',
     target: { type: 'venue', id: 'venue-1' },
     associationKey: 'venue:venue-1',
+    declarationAccepted: true,
   });
 });
 
-test('campo legado de declaração não interfere na intenção segura', () => {
-  const intent = normalizeSubmitCommunityOfficialClaimIntentRequest({
-    requestId: 'request-1',
-    communityId: 'community-1',
-    target: { type: 'venue', id: 'venue-1' },
-    declarationAccepted: false,
-  });
+test('falha fechado sem declaração ou com declaração recusada', () => {
+  for (const declarationAccepted of [undefined, false, 'true', 1]) {
+    const intent = normalizeSubmitCommunityOfficialClaimIntentRequest({
+      requestId: 'request-1',
+      communityId: 'community-1',
+      target: { type: 'venue', id: 'venue-1' },
+      declarationAccepted,
+    });
 
-  assert.equal(intent?.associationKey, 'venue:venue-1');
+    assert.equal(intent, null);
+  }
 });
 
 test('intenção segura não é confundida com comando privado completo', () => {
@@ -37,6 +41,7 @@ test('intenção segura não é confundida com comando privado completo', () => 
     requestId: 'request-1',
     communityId: 'community-1',
     target: { type: 'venue', id: 'venue-1' },
+    declarationAccepted: true,
   };
 
   assert.ok(normalizeSubmitCommunityOfficialClaimIntentRequest(raw));
