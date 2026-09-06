@@ -24,6 +24,7 @@ test('intent do cliente ignora autoridade, organização e evidências fornecida
     communityId: 'community-1',
     target: { type: 'organization', id: 'organization-1' },
     associationKey: 'organization:organization-1',
+    declarationAccepted: true,
   });
 });
 
