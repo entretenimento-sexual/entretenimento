@@ -12,6 +12,7 @@
 import { buildCommunityDiscoveryRanking } from './community-ranking.policy';
 
 export const COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION = 3;
+export const COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION = 2;
 export const COMMUNITY_ACTIVITY_CONFIDENCE_MODEL_VERSION = 1;
 
 export interface CommunityRankingActivityBaselineV3 {
@@ -50,6 +51,7 @@ export interface CommunityDiscoveryRankingCandidateV3 {
   freshnessScore: number;
   safetyScore: number;
   scoreVersion: 3;
+  activityMomentumModelVersion: typeof COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION;
   scoreUpdatedAt: number;
   activityBaseline: CommunityRankingActivityBaselineV3;
   activityMomentum: CommunityRankingActivityMomentumV3;
@@ -144,6 +146,8 @@ function previousCandidate(rawDiscovery: unknown): Record<string, unknown> | nul
   const candidate = asRecord(discovery['rankingCandidate']);
 
   return Number(candidate['scoreVersion']) === COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION
+    && Number(candidate['activityMomentumModelVersion'])
+      === COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION
     ? candidate
     : null;
 }
@@ -343,6 +347,7 @@ export function buildCommunityDiscoveryRankingCandidateV3(
     freshnessScore: v2.freshnessScore,
     safetyScore: v2.safetyScore,
     scoreVersion: COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
+    activityMomentumModelVersion: COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION,
     scoreUpdatedAt: now,
     activityBaseline: activityState.baseline,
     activityMomentum: activityState.momentum,

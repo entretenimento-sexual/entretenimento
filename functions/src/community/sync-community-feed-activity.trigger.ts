@@ -3,7 +3,7 @@
 // SYNC COMMUNITY FEED ACTIVITY
 // -----------------------------------------------------------------------------
 // A projeção community_public_feed é backend-only. Novas publicações válidas e
-// crescimento real de comentários/reações atualizam o relógio de lifecycle.
+// crescimento real de comentários atualizam o relógio de lifecycle.
 // O contador agregado de interação alimenta o ranking temporal sem persistir
 // identidade individual dos participantes.
 // -----------------------------------------------------------------------------

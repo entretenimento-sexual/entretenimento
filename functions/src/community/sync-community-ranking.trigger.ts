@@ -15,6 +15,7 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import {
   buildCommunityRankingProjectionPatch,
+  haveCommunityRankingCommunityInputsChanged,
   haveCommunityRankingVisualInputsChanged,
   isCommunityRankingProjectionCurrent,
   isCommunityRankingSupportedDocument,
@@ -57,6 +58,8 @@ async function persistCommunityRanking(
     scoreVersion: expected.ranking.scoreVersion,
     candidateDiscoveryScore: expected.rankingCandidate.discoveryScore,
     candidateScoreVersion: expected.rankingCandidate.scoreVersion,
+    candidateActivityMomentumModelVersion:
+      expected.rankingCandidate.activityMomentumModelVersion,
     candidateActivityScore: expected.rankingCandidate.activityScore,
     candidateActivityDelta: expected.rankingCandidate.activityDelta,
   });
@@ -71,9 +74,16 @@ export const syncCommunityRankingFromCommunity = onDocumentWritten(
     const communityId = String(event.params['communityId'] ?? '').trim();
     if (!communityId || !event.data?.after.exists) return;
 
+    const before = event.data.before.exists
+      ? event.data.before.data()
+      : null;
+    const after = event.data.after.data();
+
+    if (!haveCommunityRankingCommunityInputsChanged(before, after)) return;
+
     await persistCommunityRanking(
       communityId,
-      event.data.after.data()
+      after
     );
   }
 );

@@ -9,6 +9,7 @@
 // -----------------------------------------------------------------------------
 
 import {
+  COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION,
   buildCommunityDiscoveryRankingCandidateV3,
   type CommunityDiscoveryRankingCandidateV3,
 } from './community-ranking-candidate-v3.policy';
@@ -81,6 +82,19 @@ function normalizeText(value: unknown): string {
   return String(value ?? '').trim();
 }
 
+function normalizeRankingCount(value: unknown): number {
+  return normalizeInteger(value, 0, 0, 1_000_000_000);
+}
+
+function resolveCommunityRankingFreshnessAnchor(rawCommunity: unknown): number | null {
+  const community = asRecord(rawCommunity);
+  const lifecycle = asRecord(community['lifecycle']);
+
+  return normalizeTimestamp(lifecycle['lastMeaningfulActivityAt'])
+    ?? normalizeTimestamp(community['updatedAt'])
+    ?? normalizeTimestamp(community['createdAt']);
+}
+
 function sameScore(value: unknown, expected: number): boolean {
   const parsed = Number(value);
   return Number.isFinite(parsed) && Math.round(parsed) === expected;
@@ -116,6 +130,8 @@ function isCandidateV3Current(
     && sameScore(candidate['freshnessScore'], expected.freshnessScore)
     && sameScore(candidate['safetyScore'], expected.safetyScore)
     && Number(candidate['scoreVersion']) === expected.scoreVersion
+    && Number(candidate['activityMomentumModelVersion'])
+      === expected.activityMomentumModelVersion
     && sameCount(
       baseline['memberCount'],
       expected.activityBaseline.memberCount
@@ -167,6 +183,40 @@ export function isCommunityRankingSupportedDocument(
   const source = asRecord(community['source']);
 
   return source['type'] === 'community' || source['type'] === 'venue';
+}
+
+export function haveCommunityRankingCommunityInputsChanged(
+  beforeRaw: unknown,
+  afterRaw: unknown
+): boolean {
+  if (!beforeRaw && afterRaw) return true;
+  if (beforeRaw && !afterRaw) return true;
+
+  const before = asRecord(beforeRaw);
+  const after = asRecord(afterRaw);
+  const beforeSource = asRecord(before['source']);
+  const afterSource = asRecord(after['source']);
+  const beforeModeration = asRecord(before['moderation']);
+  const afterModeration = asRecord(after['moderation']);
+  const beforeMetrics = asRecord(before['metrics']);
+  const afterMetrics = asRecord(after['metrics']);
+
+  return normalizeText(beforeSource['type']) !== normalizeText(afterSource['type'])
+    || normalizeText(before['status']) !== normalizeText(after['status'])
+    || normalizeText(beforeModeration['state'])
+      !== normalizeText(afterModeration['state'])
+    || normalizeText(before['description']) !== normalizeText(after['description'])
+    || normalizeTimestamp(before['createdAt']) !== normalizeTimestamp(after['createdAt'])
+    || resolveCommunityRankingFreshnessAnchor(before)
+      !== resolveCommunityRankingFreshnessAnchor(after)
+    || normalizeRankingCount(beforeMetrics['memberCount'])
+      !== normalizeRankingCount(afterMetrics['memberCount'])
+    || normalizeRankingCount(beforeMetrics['postCount'])
+      !== normalizeRankingCount(afterMetrics['postCount'])
+    || normalizeRankingCount(beforeMetrics['mediaCount'])
+      !== normalizeRankingCount(afterMetrics['mediaCount'])
+    || normalizeRankingCount(beforeMetrics['interactionCount'])
+      !== normalizeRankingCount(afterMetrics['interactionCount']);
 }
 
 export function buildCommunityRankingProjectionPatch(
@@ -237,6 +287,16 @@ export function haveCommunityRankingVisualInputsChanged(
 export function isCommunityRankingRuntimeCurrent(rawRuntime: unknown): boolean {
   const runtime = asRecord(rawRuntime);
   return Number(runtime['scoreVersion']) === COMMUNITY_DISCOVERY_SCORE_VERSION;
+}
+
+export function isCommunityRankingCandidateRuntimeCurrent(
+  rawRuntime: unknown
+): boolean {
+  const runtime = asRecord(rawRuntime);
+
+  return isCommunityRankingRuntimeCurrent(runtime)
+    && Number(runtime['candidateActivityMomentumModelVersion'])
+      === COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION;
 }
 
 export function resolveCommunityRankingMaxPerRun(rawConfig: unknown): number {

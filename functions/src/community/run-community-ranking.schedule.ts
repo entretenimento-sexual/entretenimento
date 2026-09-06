@@ -16,9 +16,13 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
+import {
+  COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION,
+} from './community-ranking-candidate-v3.policy';
 import { COMMUNITY_DISCOVERY_SCORE_VERSION } from './community-ranking.policy';
 import {
   buildCommunityRankingProjectionPatch,
+  isCommunityRankingCandidateRuntimeCurrent,
   isCommunityRankingProjectionCurrent,
   isCommunityRankingRuntimeCurrent,
   isCommunityRankingSupportedDocument,
@@ -66,8 +70,9 @@ export const runCommunityRanking = onSchedule(
     ]);
     const config = configSnapshot.exists ? configSnapshot.data() ?? {} : {};
     const runtime = runtimeSnapshot.exists ? runtimeSnapshot.data() ?? {} : {};
+    const scoreRuntimeCurrent = isCommunityRankingRuntimeCurrent(runtime);
+    const runtimeCurrent = isCommunityRankingCandidateRuntimeCurrent(runtime);
     const maxPerRun = resolveCommunityRankingMaxPerRun(config);
-    const runtimeCurrent = isCommunityRankingRuntimeCurrent(runtime);
     let cursor = runtimeCurrent ? normalizeCursor(runtime['cursor']) : null;
     const continuingCycle = runtimeCurrent && cursor !== null;
     const cycleStartedAt = continuingCycle
@@ -179,6 +184,8 @@ export const runCommunityRanking = onSchedule(
       cursor: reachedEnd ? null : cursor,
       ready,
       scoreVersion: COMMUNITY_DISCOVERY_SCORE_VERSION,
+      candidateActivityMomentumModelVersion:
+        COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION,
       processedThisRun,
       reachedEnd,
       scoreEvaluationAt: now,
@@ -203,6 +210,9 @@ export const runCommunityRanking = onSchedule(
       };
       runtimePatch['completedScoreVersion'] = cycleReady
         ? COMMUNITY_DISCOVERY_SCORE_VERSION
+        : null;
+      runtimePatch['completedCandidateActivityMomentumModelVersion'] = cycleReady
+        ? COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION
         : null;
 
       if (cycleReady) {
@@ -229,7 +239,11 @@ export const runCommunityRanking = onSchedule(
       reachedEnd,
       ready,
       scoreVersion: COMMUNITY_DISCOVERY_SCORE_VERSION,
-      restartedForScoreVersion: runtimeSnapshot.exists && !runtimeCurrent,
+      candidateActivityMomentumModelVersion:
+        COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION,
+      restartedForScoreVersion: runtimeSnapshot.exists && !scoreRuntimeCurrent,
+      restartedForCandidateActivityModel:
+        runtimeSnapshot.exists && scoreRuntimeCurrent && !runtimeCurrent,
       nextCursor: reachedEnd ? null : cursor,
     });
   }
