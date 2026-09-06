@@ -131,7 +131,7 @@ export const submitCommunityOfficialClaim =
       if (!intent) {
         throw new HttpsError(
           'invalid-argument',
-          'Revise a Comunidade e o vínculo oficial selecionado.'
+          'Revise a Comunidade, o vínculo selecionado e a declaração de autorização.'
         );
       }
 
@@ -353,6 +353,8 @@ export const submitCommunityOfficialClaim =
             actorUid,
             associationKey: command.associationKey,
             communityId: command.communityId,
+            declarationAccepted: true,
+            declarationAcceptedAt: now,
             status: 'disputed',
             createdAt: now,
             updatedAt: now,
@@ -406,6 +408,8 @@ export const submitCommunityOfficialClaim =
           policyVersion: COMMUNITY_OFFICIAL_CLAIM_POLICY_VERSION,
           submissionAttempt,
           submittedAt: now,
+          declarationAccepted: true,
+          declarationAcceptedAt: now,
           revalidationRequestedAt: null,
           reviewedAt: now,
           reviewedBy: 'system',
@@ -427,6 +431,8 @@ export const submitCommunityOfficialClaim =
           actorUid,
           associationKey: command.associationKey,
           communityId: command.communityId,
+          declarationAccepted: true,
+          declarationAcceptedAt: now,
           status: 'verified',
           createdAt: now,
           updatedAt: now,
@@ -440,6 +446,8 @@ export const submitCommunityOfficialClaim =
           authorityRole: command.authorityRole,
           sponsorOrganizationId: command.sponsorOrganizationId,
           evidenceReferenceCount: command.evidenceReferences.length,
+          declarationAccepted: true,
+          declarationAcceptedAt: now,
           verificationSource: verification.verificationSource,
           verificationPolicyVersion: verification.verificationPolicyVersion,
           verificationExpiresAt: verification.verificationExpiresAt,
