@@ -10,7 +10,8 @@
 // - cliente segue sem updateDoc direto em /notifications;
 // - aguarda bootstrap do Auth antes de iniciar watchers de Firestore;
 // - usa AuthSessionService.readyAuthUser$ como fonte única do usuário autenticado;
-// - falhas opcionais de permissão na leitura retornam lista vazia sem poluir login.
+// - falhas opcionais de permissão na leitura retornam lista vazia sem poluir login;
+// - resumos por Comunidade derivam do mesmo stream global, sem listeners extras.
 // -----------------------------------------------------------------------------
 
 import { Injectable, inject } from '@angular/core';
@@ -35,13 +36,15 @@ import {
 } from 'rxjs/operators';
 
 import {
+  AppNotificationType,
   IAppNotification,
   IAppNotificationListVm,
-  AppNotificationType,
+  ICommunityNotificationSummary,
 } from 'src/app/core/interfaces/app-notification.interface';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { buildCommunityNotificationSummaries } from 'src/app/core/services/notifications/community-notification-summary.policy';
 import {
   isFirebasePermissionDeniedError,
   toErrorInstance,
@@ -62,6 +65,9 @@ interface AppNotificationFirestoreDocument {
   communityId?: unknown;
   postId?: unknown;
   commentId?: unknown;
+  replyToCommentId?: unknown;
+  replyId?: unknown;
+  actorUid?: unknown;
   activityCount?: unknown;
   moderationTarget?: unknown;
   readAt?: unknown;
@@ -128,6 +134,22 @@ export class AppNotificationService {
   readonly currentUserUnreadCount$: Observable<number> =
     this.currentUserNotifications$.pipe(
       map((items) => items.filter((item) => item.readAt == null).length),
+      distinctUntilChanged(),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
+  readonly currentUserCommunitySummaries$: Observable<
+    ICommunityNotificationSummary[]
+  > = this.currentUserNotifications$.pipe(
+    map((items) => buildCommunityNotificationSummaries(items)),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  readonly currentUserCommunityUnreadCount$: Observable<number> =
+    this.currentUserCommunitySummaries$.pipe(
+      map((summaries) =>
+        summaries.reduce((total, summary) => total + summary.unreadCount, 0)
+      ),
       distinctUntilChanged(),
       shareReplay({ bufferSize: 1, refCount: true })
     );
@@ -247,9 +269,14 @@ export class AppNotificationService {
       communityId: this.toText(raw.communityId) || null,
       postId: this.toText(raw.postId) || null,
       commentId: this.toText(raw.commentId) || null,
+      replyToCommentId: this.toText(raw.replyToCommentId) || null,
+      replyId: this.toText(raw.replyId) || null,
+      actorUid: this.toText(raw.actorUid) || null,
       activityCount: this.toPositiveInteger(raw.activityCount),
       moderationTarget:
-        raw.moderationTarget === 'comment' || raw.moderationTarget === 'post'
+        raw.moderationTarget === 'comment'
+        || raw.moderationTarget === 'reply'
+        || raw.moderationTarget === 'post'
           ? raw.moderationTarget
           : null,
       readAt: this.toMillis(raw.readAt),
@@ -271,6 +298,7 @@ export class AppNotificationService {
       case 'compliance.violation.resolved':
       case 'compliance.action.taken':
       case 'community.comment.received':
+      case 'community.comment.reply.received':
       case 'community.content.moderated':
       case 'system':
       case 'social':
