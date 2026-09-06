@@ -159,7 +159,7 @@ export const getMyCommunitiesPage = onCall<CommunityDiscoveryPageRequest>(
     });
 
     return {
-      items: result.items,
+      items: [...result.items],
       nextCursor: result.mayHaveAnotherPage
         ? (result.lastConsumedDocument?.id ?? null)
         : null,
