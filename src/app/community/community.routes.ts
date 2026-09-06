@@ -71,6 +71,13 @@ export const COMMUNITY_ROUTES: Routes = [
       ),
   },
   {
+    path: ':communityId/privacidade',
+    loadComponent: () =>
+      import('./preview/community-membership-profile-visibility-page.component').then(
+        (module) => module.CommunityMembershipProfileVisibilityPageComponent
+      ),
+  },
+  {
     path: ':communityId',
     data: { backRoute: '/dashboard/comunidades' },
     loadComponent: () =>

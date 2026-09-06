@@ -2,9 +2,9 @@
 // -----------------------------------------------------------------------------
 // COMMUNITY MEMBERSHIP VISIBILITY POLICY
 // -----------------------------------------------------------------------------
-// Decide apenas elegibilidade para uma futura projeção pública de participação.
-// Não cria índice, não concede leitura e não transforma membership privado em
-// dado público. Toda ausência ou valor desconhecido falha fechado.
+// Decide elegibilidade para exposição pública da participação. O locator privado
+// nunca concede acesso. Toda ausência, valor desconhecido ou versão divergente
+// falha fechado.
 // -----------------------------------------------------------------------------
 
 export interface CommunityMembershipVisibilityDecision {
@@ -19,6 +19,14 @@ export interface CommunityMembershipVisibilityDecision {
     | 'membership_not_active'
     | 'member_not_opted_in'
     | 'consent_policy_mismatch';
+}
+
+export interface CommunityMembershipProfileVisibilityResolvedState {
+  readonly disclosureMode: 'disabled' | 'opt_in';
+  readonly policyVersion: number;
+  readonly profileVisibility: 'hidden' | 'visible';
+  readonly profileVisibilityPolicyVersion: number | null;
+  readonly canChange: boolean;
 }
 
 function normalizePositiveInteger(value: unknown): number | null {
@@ -72,4 +80,42 @@ export function resolveCommunityMembershipVisibility(
   }
 
   return { visible: true, reason: 'eligible' };
+}
+
+export function resolveCommunityMembershipProfileVisibilityState(
+  rawCommunity: unknown,
+  rawMembership: unknown
+): CommunityMembershipProfileVisibilityResolvedState {
+  const community = (rawCommunity ?? {}) as Record<string, unknown>;
+  const membership = (rawMembership ?? {}) as Record<string, unknown>;
+  const disclosure = (community['membershipDisclosure'] ?? {}) as Record<string, unknown>;
+  const policyVersion = normalizePositiveInteger(disclosure['policyVersion']);
+  const disclosureEnabled =
+    disclosure['profileMembership'] === 'opt_in' && policyVersion !== null;
+  const currentDecision = resolveCommunityMembershipVisibility(
+    community,
+    membership
+  );
+  const acceptedPolicyVersion = normalizePositiveInteger(
+    membership['profileVisibilityPolicyVersion']
+  );
+  const canChange = disclosureEnabled
+    && resolveCommunityMembershipVisibility(
+      community,
+      {
+        ...membership,
+        profileVisibility: 'visible',
+        profileVisibilityPolicyVersion: policyVersion,
+      }
+    ).visible;
+
+  return {
+    disclosureMode: disclosureEnabled ? 'opt_in' : 'disabled',
+    policyVersion: policyVersion ?? 1,
+    profileVisibility: currentDecision.visible ? 'visible' : 'hidden',
+    profileVisibilityPolicyVersion: currentDecision.visible
+      ? acceptedPolicyVersion
+      : null,
+    canChange,
+  };
 }

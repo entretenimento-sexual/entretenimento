@@ -3,7 +3,7 @@
   @if (vm.status === 'loading') {
     <section
       class="profile-official-communities profile-official-communities--state"
-      aria-label="Comunidades oficiais"
+      [attr.aria-label]="vm.combined ? 'Comunidades' : 'Comunidades oficiais'"
       aria-busy="true"
       role="status"
       aria-live="polite"
@@ -11,15 +11,17 @@
       <span class="profile-official-communities__spinner" aria-hidden="true">
         <i class="fas fa-spinner fa-spin"></i>
       </span>
-      <span>Carregando comunidades oficiais.</span>
+      <span>{{ vm.combined ? 'Carregando comunidades.' : 'Carregando comunidades oficiais.' }}</span>
     </section>
   } @else if (vm.status === 'error') {
     <section
       class="profile-official-communities profile-official-communities--state"
-      aria-label="Comunidades oficiais"
+      [attr.aria-label]="vm.combined ? 'Comunidades' : 'Comunidades oficiais'"
       role="status"
     >
-      <span>As comunidades oficiais não puderam ser carregadas.</span>
+      <span>
+        {{ vm.combined ? 'As comunidades não puderam ser carregadas.' : 'As comunidades oficiais não puderam ser carregadas.' }}
+      </span>
       <button type="button" (click)="retry()">Tentar novamente</button>
     </section>
   } @else if (vm.status === 'ready') {
@@ -30,16 +32,25 @@
       <header class="profile-official-communities__header">
         <div>
           <p class="profile-official-communities__eyebrow">
-            <i class="fas fa-circle-check" aria-hidden="true"></i>
-            Vínculo verificado
+            <i
+              class="fas {{ vm.combined ? 'fa-users' : 'fa-circle-check' }}"
+              aria-hidden="true"
+            ></i>
+            {{ vm.combined ? 'Participação pública' : 'Vínculo verificado' }}
           </p>
-          <h2 id="profile-official-communities-title">Comunidades oficiais</h2>
+          <h2 id="profile-official-communities-title">
+            {{ vm.combined ? 'Comunidades' : 'Comunidades oficiais' }}
+          </h2>
         </div>
       </header>
 
       <ul
         class="profile-official-communities__list"
-        aria-label="Comunidades oficialmente vinculadas a este perfil"
+        [attr.aria-label]="
+          vm.combined
+            ? 'Comunidades públicas deste perfil'
+            : 'Comunidades oficialmente vinculadas a este perfil'
+        "
       >
         @for (item of vm.items; track item.communityId) {
           <li>
@@ -68,7 +79,9 @@
               <span class="profile-official-community__body">
                 <span class="profile-official-community__title-row">
                   <strong>{{ item.name }}</strong>
-                  <app-community-official-badge [community]="item" />
+                  @if (item.officialAssociation?.verified) {
+                    <app-community-official-badge [community]="item" />
+                  }
                 </span>
 
                 @if (item.description) {

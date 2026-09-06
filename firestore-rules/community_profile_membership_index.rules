@@ -1,0 +1,15 @@
+// =============================================================================
+// COMMUNITY PROFILE MEMBERSHIP INDEX
+// =============================================================================
+// Locator privado e mínimo de opt-ins de participação em Comunidades.
+// Nunca é fonte de autorização nem de cards públicos. Leitura e escrita ficam
+// exclusivamente no backend; o endpoint público revalida membership canônico.
+// =============================================================================
+
+match /community_profile_membership_index/{userId} {
+  allow read, write: if false;
+}
+
+match /community_profile_membership_index/{userId}/items/{communityId} {
+  allow read, write: if false;
+}

@@ -207,6 +207,22 @@
                   </span>
                 </button>
               }
+
+              @if (
+                preview.community.source.type === 'community'
+                && preview.viewerMode !== 'visitor'
+                && preview.viewerMode !== 'pending'
+              ) {
+                <button
+                  class="community-preview__membership-action community-preview__membership-action--privacy"
+                  type="button"
+                  aria-label="Abrir privacidade da participação"
+                  (click)="selectSection('about')"
+                >
+                  <i class="fas fa-user-shield" aria-hidden="true"></i>
+                  <span>Privacidade</span>
+                </button>
+              }
             </div>
           </header>
 
@@ -410,6 +426,16 @@
 
                   @if (
                     preview.community.source.type === 'community'
+                    && preview.viewerMode !== 'visitor'
+                    && preview.viewerMode !== 'pending'
+                  ) {
+                    <app-community-membership-profile-visibility
+                      [communityId]="preview.community.communityId"
+                    />
+                  }
+
+                  @if (
+                    preview.community.source.type === 'community'
                     && preview.rules
                   ) {
                     <section
@@ -520,6 +546,24 @@
                     Ver informações completas
                   </button>
                 </section>
+
+                @if (
+                  preview.viewerMode !== 'visitor'
+                  && preview.viewerMode !== 'pending'
+                ) {
+                  <section class="community-preview__rail-card">
+                    <div class="community-preview__rail-heading">
+                      <i class="fas fa-user-shield" aria-hidden="true"></i>
+                      <h2>Privacidade</h2>
+                    </div>
+                    <p>
+                      Sua participação é privada por padrão. Você decide se esta Comunidade pode aparecer no seu perfil.
+                    </p>
+                    <button type="button" (click)="selectSection('about')">
+                      Ajustar participação no perfil
+                    </button>
+                  </section>
+                }
 
                 <section class="community-preview__rail-card">
                   <div class="community-preview__rail-heading">

@@ -12,6 +12,7 @@ export {
 export {
   getProfileOfficialCommunities,
 } from './get-profile-official-communities.handler';
+export { getProfilePublicCommunities } from './get-profile-public-communities.handler';
 export {
   getOfficialCommunitiesForTarget,
 } from './get-official-communities-for-target.handler';
@@ -89,6 +90,13 @@ export {
   getCommunityMembershipContext,
 } from './get-community-membership-context.handler';
 export {
+  getCommunityMembershipProfileVisibility,
+  updateCommunityMembershipProfileVisibility,
+} from './community-membership-profile-visibility.handler';
+export {
+  updateCommunityMembershipDisclosurePolicy,
+} from './community-membership-disclosure.handler';
+export {
   getCommunityMembersForManagement,
   manageCommunityMember,
 } from './community-member-management.handler';
@@ -152,4 +160,7 @@ export {
   syncCommunityRankingFromDiscovery,
 } from './sync-community-ranking.trigger';
 export { syncCommunityUserIndex } from './sync-community-user-index.trigger';
+export {
+  syncCommunityProfileMembershipIndex,
+} from './sync-community-profile-membership-index.trigger';
 export { syncVenuePublicLocation } from './sync-venue-public-location.trigger';

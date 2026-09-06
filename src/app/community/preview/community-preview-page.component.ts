@@ -68,6 +68,7 @@ import {
   communityInitials as buildCommunityInitials,
   communityVisualVariant as resolveCommunityVisualVariant,
 } from '../presentation/community-visual-identity';
+import { CommunityMembershipProfileVisibilityComponent } from './community-membership-profile-visibility.component';
 
 export type CommunityPreviewSection =
   | 'feed'
@@ -166,6 +167,7 @@ const SECTION_QUERY_VALUES: Readonly<Record<CommunityPreviewSection, string | nu
     CommunityInviteManagementComponent,
     CommunityMembershipManagementComponent,
     CommunityOfficialBadgeComponent,
+    CommunityMembershipProfileVisibilityComponent,
   ],
   templateUrl: './community-preview-page.component.html',
   styleUrl: './community-preview-page.component.css',
@@ -488,7 +490,6 @@ export class CommunityPreviewPageComponent {
   private sectionFromQuery(value: unknown): CommunityPreviewSection {
     switch (String(value ?? '').trim().toLowerCase()) {
       case 'topicos':
-        // Compatibilidade com links antigos: Discussões foi incorporada ao Mural.
         return 'feed';
       case 'fotos':
         return 'photos';

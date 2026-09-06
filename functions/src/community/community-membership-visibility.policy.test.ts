@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  resolveCommunityMembershipProfileVisibilityState,
   resolveCommunityMembershipVisibility,
 } from './community-membership-visibility.policy';
 
@@ -116,5 +117,37 @@ test('não reutiliza consentimento concedido para versão antiga da policy', () 
       buildMembership({ profileVisibilityPolicyVersion: 1 })
     ),
     { visible: false, reason: 'consent_policy_mismatch' }
+  );
+});
+
+test('estado privado exige novo opt-in após mudança de policy', () => {
+  assert.deepEqual(
+    resolveCommunityMembershipProfileVisibilityState(
+      buildCommunity(),
+      buildMembership({ profileVisibilityPolicyVersion: 1 })
+    ),
+    {
+      disclosureMode: 'opt_in',
+      policyVersion: 2,
+      profileVisibility: 'hidden',
+      profileVisibilityPolicyVersion: null,
+      canChange: true,
+    }
+  );
+});
+
+test('estado privado mantém legacy hidden e desabilita mudança sem policy', () => {
+  assert.deepEqual(
+    resolveCommunityMembershipProfileVisibilityState(
+      buildCommunity({ membershipDisclosure: undefined }),
+      { status: 'active' }
+    ),
+    {
+      disclosureMode: 'disabled',
+      policyVersion: 1,
+      profileVisibility: 'hidden',
+      profileVisibilityPolicyVersion: null,
+      canChange: false,
+    }
   );
 });

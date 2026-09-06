@@ -52,6 +52,7 @@ export const FIRESTORE_RULE_PARTS = Object.freeze([
 
   // Demais módulos.
   'communities.rules',
+  'community_profile_membership_index.rules',
   'community_official_associations.rules',
   'invites.rules',
   'admin_logs.rules',
