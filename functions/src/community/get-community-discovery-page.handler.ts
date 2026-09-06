@@ -19,6 +19,9 @@ import {
   parseCommunityDiscoveryCursor,
 } from './community-discovery-cursor.policy';
 import {
+  diversifyCommunityDiscoveryPage,
+} from './community-discovery-diversity.policy';
+import {
   resolveCommunityDiscoveryMembershipBatchSize,
 } from './community-discovery-membership-batch.policy';
 import {
@@ -413,6 +416,12 @@ export const getCommunityDiscoveryPage =
         );
       }
 
+      // Filtro explícito por interesse preserva a ordem canônica integral. Na
+      // descoberta ampla, a diversidade atua apenas dentro da página já segura.
+      const deliveredItems = pageRequest.tagId
+        ? items
+        : diversifyCommunityDiscoveryPage(items);
+
       logger.info(
         'community_discovery_page_served',
         buildCommunityDiscoveryTelemetry({
@@ -424,7 +433,7 @@ export const getCommunityDiscoveryPage =
           membershipReads,
           membershipBatches,
           blockedExcluded,
-          cardsReturned: items.length,
+          cardsReturned: deliveredItems.length,
           cursorProjectionReads: cursor ? 1 : 0,
           durationMs: Date.now() - startedAt,
           hasCursor: Boolean(cursor),
@@ -436,7 +445,7 @@ export const getCommunityDiscoveryPage =
       );
 
       return {
-        items,
+        items: deliveredItems,
         nextCursor,
         generatedAt: Date.now(),
       };
