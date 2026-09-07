@@ -7,6 +7,11 @@ import {
   isPushNotificationEnabledByPreference,
   resolvePushNotificationPreferenceKey,
 } from './notification-preference.policy';
+import {
+  MAX_PUSH_DEVICES_PER_USER,
+  resolveInvalidPushRegistryDocumentIds,
+  resolvePushDeliveryTargets,
+} from './push-device.policy';
 
 export const sendNotification = onDocumentCreated(
   'notifications/{notificationId}',
@@ -55,22 +60,64 @@ export const sendNotification = onDocumentCreated(
       }
     }
 
-    const userDoc = await db.collection('users').doc(recipientId).get();
-    const fcmToken = userDoc.data()?.fcmToken;
+    const userRef = db.collection('users').doc(recipientId);
+    const userDoc = await userRef.get();
+    if (!userDoc.exists) return;
 
-    if (!fcmToken) return;
+    const devicesRef = userRef.collection('push_devices');
+    const devicesSnapshot = await devicesRef
+      .orderBy('lastSeenAt', 'desc')
+      .limit(MAX_PUSH_DEVICES_PER_USER)
+      .get();
+    const targets = resolvePushDeliveryTargets(
+      userDoc.data()?.fcmToken,
+      devicesSnapshot.docs.map((device) => ({
+        documentId: device.id,
+        token: device.data()?.token,
+      }))
+    );
 
-    await getMessaging().send({
-      token: fcmToken,
+    if (targets.length === 0) return;
+
+    const response = await getMessaging().sendEachForMulticast({
+      tokens: targets.map((target) => target.token),
       notification: {
         title: notification.title,
         body: notification.body,
       },
     });
+    const responseErrorCodes = response.responses.map((result) =>
+      result.success ? null : toSafeErrorCode(result.error)
+    );
+    const invalidRegistryDocumentIds =
+      resolveInvalidPushRegistryDocumentIds(targets, responseErrorCodes);
 
-    console.info('[sendNotification] push enviado', {
+    if (invalidRegistryDocumentIds.length > 0) {
+      try {
+        const cleanupBatch = db.batch();
+        for (const documentId of invalidRegistryDocumentIds) {
+          cleanupBatch.delete(devicesRef.doc(documentId));
+        }
+        await cleanupBatch.commit();
+      } catch (error) {
+        // Limpeza é best-effort: não transformamos uma entrega já processada em
+        // falha apenas porque a remoção de tokens inválidos ficou indisponível.
+        console.error('[sendNotification] falha ao limpar tokens inválidos', {
+          notificationId,
+          notificationType,
+          invalidTokenCount: invalidRegistryDocumentIds.length,
+          errorCode: toSafeErrorCode(error),
+        });
+      }
+    }
+
+    console.info('[sendNotification] push processado', {
       notificationId,
       notificationType,
+      targetCount: targets.length,
+      successCount: response.successCount,
+      failureCount: response.failureCount,
+      invalidTokenCount: invalidRegistryDocumentIds.length,
     });
   }
 );
