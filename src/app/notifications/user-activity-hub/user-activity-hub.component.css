@@ -15,23 +15,32 @@
 .activity-bar__rail {
   width: min(1180px, 100%);
   min-height: 38px;
+  box-sizing: border-box;
   margin: 0 auto;
   display: flex;
   align-items: center;
   gap: 6px;
   overflow-x: auto;
   overscroll-behavior-inline: contain;
+  scroll-padding-inline: 8px;
   padding: 4px clamp(8px, 2vw, 18px);
+  list-style: none;
   scrollbar-width: none;
+  touch-action: pan-x;
+  -webkit-overflow-scrolling: touch;
 }
 
 .activity-bar__rail::-webkit-scrollbar {
   display: none;
 }
 
+.activity-bar__entry {
+  flex: 0 0 auto;
+  display: flex;
+}
+
 .activity-bar__item {
   position: relative;
-  flex: 0 0 auto;
   min-height: 30px;
   display: inline-flex;
   align-items: center;
@@ -52,12 +61,18 @@
     color 150ms ease;
 }
 
-.activity-bar__item:hover,
-.activity-bar__item:focus-visible {
+.activity-bar__item:hover {
   border-color: color-mix(in oklab, var(--primary-color, #ff7070) 28%, transparent);
   color: var(--text-color, #f5f7fb);
   background: color-mix(in oklab, var(--primary-color, #ff7070) 9%, transparent);
-  outline: none;
+}
+
+.activity-bar__item:focus-visible {
+  border-color: color-mix(in oklab, var(--primary-color, #ff7070) 36%, transparent);
+  color: var(--text-color, #f5f7fb);
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 12%, transparent);
+  outline: 2px solid color-mix(in oklab, var(--primary-color, #ff7070) 62%, transparent);
+  outline-offset: 2px;
 }
 
 .activity-bar__item--muted {
@@ -98,13 +113,14 @@
 
 @media (max-width: 640px) {
   .activity-bar__rail {
-    min-height: 36px;
+    min-height: 52px;
+    padding-block: 4px;
     padding-inline: 8px;
   }
 
   .activity-bar__item {
-    min-height: 30px;
-    padding-inline: 9px;
+    min-height: 44px;
+    padding-inline: 10px;
     font-size: 0.76rem;
   }
 
@@ -116,5 +132,11 @@
 @media (max-width: 380px) {
   .activity-bar__label {
     max-width: 76px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .activity-bar__item {
+    transition: none;
   }
 }

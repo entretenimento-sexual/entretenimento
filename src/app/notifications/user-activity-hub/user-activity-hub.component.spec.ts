@@ -82,8 +82,14 @@ describe('UserActivityHubComponent', () => {
     const fixture = TestBed.createComponent(UserActivityHubComponent);
     fixture.detectChanges();
 
+    const nav = fixture.nativeElement.querySelector(
+      '.activity-bar'
+    ) as HTMLElement | null;
     const links = Array.from(
       fixture.nativeElement.querySelectorAll('a') as NodeListOf<HTMLAnchorElement>
+    );
+    const listItems = Array.from(
+      fixture.nativeElement.querySelectorAll('.activity-bar__entry') as NodeListOf<HTMLLIElement>
     );
     const labels = Array.from(
       fixture.nativeElement.querySelectorAll('.activity-bar__label') as NodeListOf<HTMLElement>
@@ -114,12 +120,16 @@ describe('UserActivityHubComponent', () => {
     ]);
     expect(labels).not.toContain('Status');
     expect(labels).not.toContain('Locais');
+    expect(nav?.hasAttribute('aria-live')).toBe(false);
+    expect(listItems).toHaveLength(links.length);
+    expect(links.every((link) => !link.hasAttribute('role'))).toBe(true);
     expect(connectionLink?.getAttribute('href')).toBe('/friends/requests');
     expect(roomLink?.getAttribute('href')).toBe('/chat/room-invites');
     expect(momentsLink?.getAttribute('href')).toBe('/descobrir');
     expect(
       communitiesLink?.querySelector('.activity-bar__badge')?.textContent?.trim()
     ).toBe('3');
+    expect(communitiesLink?.getAttribute('aria-label')).toContain('3 pendências.');
     expect(
       centralLink?.querySelector('.activity-bar__badge')?.textContent?.trim()
     ).toBe('9');
@@ -165,5 +175,6 @@ describe('UserActivityHubComponent', () => {
     expect(
       centralLink?.querySelector('.activity-bar__badge')?.textContent?.trim()
     ).toBe('1');
+    expect(centralLink?.getAttribute('aria-label')).toContain('1 pendência.');
   });
 });

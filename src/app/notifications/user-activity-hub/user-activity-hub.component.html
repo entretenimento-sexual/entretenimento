@@ -4,26 +4,33 @@
   <nav
     class="activity-bar"
     aria-label="Atividades e notificações"
-    aria-live="polite"
   >
-    <div class="activity-bar__rail" role="list">
+    <ul class="activity-bar__rail">
       @for (action of vm.actions; track trackAction($index, action)) {
-        <a
-          class="activity-bar__item"
-          role="listitem"
-          [routerLink]="action.route"
-          [attr.aria-label]="action.label + ': ' + action.description + '. ' + action.count + ' pendente(s).'"
-        >
-          <span class="activity-bar__icon" aria-hidden="true">{{ action.icon }}</span>
-          <span class="activity-bar__label">{{ action.label }}</span>
+        <li class="activity-bar__entry">
+          <a
+            class="activity-bar__item"
+            [routerLink]="action.route"
+            [attr.aria-label]="
+              action.label + ': ' + action.description + '. ' +
+              (action.count === 0
+                ? 'Sem pendências.'
+                : action.count === 1
+                  ? '1 pendência.'
+                  : action.count + ' pendências.')
+            "
+          >
+            <span class="activity-bar__icon" aria-hidden="true">{{ action.icon }}</span>
+            <span class="activity-bar__label">{{ action.label }}</span>
 
-          @if (action.count > 0) {
-            <span class="activity-bar__badge" aria-hidden="true">
-              {{ action.count > 99 ? '99+' : action.count }}
-            </span>
-          }
-        </a>
+            @if (action.count > 0) {
+              <span class="activity-bar__badge" aria-hidden="true">
+                {{ action.count > 99 ? '99+' : action.count }}
+              </span>
+            }
+          </a>
+        </li>
       }
-    </div>
+    </ul>
   </nav>
 }
