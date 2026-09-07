@@ -21,9 +21,17 @@
 
 .notifications-hero__count,
 .notifications-hero__button {
-  min-height: 34px;
   padding-inline: 0.65rem;
   font-size: 0.74rem;
+}
+
+.notifications-hero__count {
+  min-height: 34px;
+}
+
+.notifications-hero__button {
+  min-height: var(--tap-target, 2.75rem);
+  touch-action: manipulation;
 }
 
 .community-activity {
@@ -166,8 +174,8 @@
 
 .community-activity__open {
   appearance: none;
-  min-height: 32px;
-  padding: 0 0.55rem;
+  min-height: var(--tap-target, 2.75rem);
+  padding: 0 0.65rem;
   border: 0;
   border-radius: 0.55rem;
   color: var(--primary-color);
@@ -176,6 +184,7 @@
   font-size: 0.7rem;
   font-weight: 850;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .community-activity__open:hover,
@@ -242,17 +251,25 @@
 
 .notification-card__link,
 .notification-card__link--button {
-  min-height: 30px;
-  padding: 0;
+  min-height: var(--tap-target, 2.75rem);
+  padding: 0 0.2rem;
   border: 0;
-  border-radius: 0;
+  border-radius: 0.45rem;
   font-size: 0.74rem;
+  touch-action: manipulation;
 }
 
-.notification-card__link:hover,
+.notification-card__link:hover {
+  background: transparent;
+  text-decoration: underline;
+}
+
+.notifications-hero__button:focus-visible,
 .notification-card__link:focus-visible {
   background: transparent;
   text-decoration: underline;
+  outline: 2px solid color-mix(in oklab, var(--primary-color) 65%, transparent);
+  outline-offset: 2px;
 }
 
 .notifications-state {
@@ -282,10 +299,10 @@
   .community-activity__open {
     grid-column: 2;
     justify-self: start;
-    min-height: 30px;
+    min-height: var(--tap-target, 2.75rem);
     margin-top: -0.15rem;
-    padding: 0;
-    border-radius: 0;
+    padding: 0 0.15rem;
+    border-radius: 0.45rem;
   }
 
   .community-activity__open:hover,
