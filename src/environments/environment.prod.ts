@@ -23,6 +23,13 @@ export const environment: AppEnvironment = {
     measurementId: 'G-GWTPJVK044',
   },
 
+  webPush: {
+    // Chave pública VAPID do projeto de produção.
+    // Fail-closed enquanto não for configurada.
+    vapidKey: undefined,
+    serviceWorkerPath: '/assets/firebase-messaging-sw.js',
+  },
+
   apiEndpoint: 'https://api.seuprojeto.com',
   enableDebugTools: false,
 

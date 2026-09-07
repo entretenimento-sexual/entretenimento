@@ -39,6 +39,7 @@ import {
   CACHE_MAINTENANCE_AUTO_START,
   CacheMaintenanceService,
 } from './core/services/general/cache/cache-maintenance.service';
+import { PushNotificationDeviceService } from './core/services/notifications/push-notification-device.service';
 import { PublicVideoSwipeFeedbackService } from './media/videos/public-video-viewer/public-video-swipe-feedback.service';
 
 registerLocaleData(localePt, 'pt-BR');
@@ -74,6 +75,11 @@ registerLocaleData(localePt, 'pt-BR');
       if (inject(CACHE_MAINTENANCE_AUTO_START)) {
         inject(CacheMaintenanceService).scheduleOncePerSession();
       }
+    }),
+    provideAppInitializer(() => {
+      // Não bloqueia o bootstrap e nunca pede permissão automaticamente.
+      // O serviço apenas revalida opt-in previamente concedido.
+      inject(PushNotificationDeviceService).start();
     }),
   ],
 

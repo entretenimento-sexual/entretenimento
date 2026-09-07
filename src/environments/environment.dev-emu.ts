@@ -18,6 +18,12 @@ export const environment: AppEnvironment = {
     messagingSenderId: '0',
   },
 
+  webPush: {
+    // O Emulator Suite não emula FCM Web Push. Mantemos fail-closed.
+    vapidKey: undefined,
+    serviceWorkerPath: '/assets/firebase-messaging-sw.js',
+  },
+
   authActionHandlerBaseUrl: 'http://localhost:4200',
   apiEndpoint: 'http://localhost:3000',
   enableDebugTools: true,

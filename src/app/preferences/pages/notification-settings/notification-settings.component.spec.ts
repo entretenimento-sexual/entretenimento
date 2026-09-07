@@ -6,11 +6,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_NOTIFICATION_PREFERENCES } from 'src/app/core/interfaces/notification-preferences.interface';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { NotificationPreferencesService } from 'src/app/core/services/notifications/notification-preferences.service';
+import { PushNotificationDeviceService } from 'src/app/core/services/notifications/push-notification-device.service';
 import { NotificationSettingsComponent } from './notification-settings.component';
 
 describe('NotificationSettingsComponent', () => {
   const refreshCurrentPreferences = vi.fn();
   const updateCurrentPreferences$ = vi.fn(() => of(undefined));
+  const activatePush$ = vi.fn(() => of('active' as const));
+  const deactivatePush$ = vi.fn(() => of('inactive' as const));
+  const refreshPush$ = vi.fn(() => of('inactive' as const));
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -34,10 +38,24 @@ describe('NotificationSettingsComponent', () => {
           },
         },
         {
+          provide: PushNotificationDeviceService,
+          useValue: {
+            vm$: of({
+              state: 'inactive',
+              busy: false,
+            }),
+            activate$: activatePush$,
+            deactivate$: deactivatePush$,
+            refresh$: refreshPush$,
+          },
+        },
+        {
           provide: ErrorNotificationService,
           useValue: {
             showSuccess: vi.fn(),
             showError: vi.fn(),
+            showInfo: vi.fn(),
+            showWarning: vi.fn(),
           },
         },
       ],
@@ -95,5 +113,28 @@ describe('NotificationSettingsComponent', () => {
     retryButton?.click();
 
     expect(refreshCurrentPreferences).toHaveBeenCalledTimes(1);
+  });
+
+  it('oferece opt-in explícito para Web Push sem misturar com preferências por tipo', () => {
+    configure();
+
+    const fixture = TestBed.createComponent(NotificationSettingsComponent);
+    fixture.detectChanges();
+
+    const card = fixture.nativeElement.querySelector(
+      '.push-device-card'
+    ) as HTMLElement | null;
+    const button = card?.querySelector(
+      '.push-device-card__action'
+    ) as HTMLButtonElement | null;
+
+    expect(card?.textContent).toContain('Notificações no navegador');
+    expect(card?.textContent).toContain('identificador aleatório');
+    expect(button?.textContent).toContain('Ativar neste dispositivo');
+
+    button?.click();
+
+    expect(activatePush$).toHaveBeenCalledTimes(1);
+    expect(updateCurrentPreferences$).not.toHaveBeenCalled();
   });
 });

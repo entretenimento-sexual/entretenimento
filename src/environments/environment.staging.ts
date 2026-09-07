@@ -24,6 +24,12 @@ export const environment: AppEnvironment = {
     // measurementId: 'G-XXXXXXXXXX', // adicione se usar Analytics no stage
   },
 
+  webPush: {
+    // Staging possui projeto Firebase próprio e precisa da própria chave VAPID.
+    vapidKey: undefined,
+    serviceWorkerPath: '/assets/firebase-messaging-sw.js',
+  },
+
   apiEndpoint: 'https://api.staging.seuprojeto.com',
   enableDebugTools: true,
 

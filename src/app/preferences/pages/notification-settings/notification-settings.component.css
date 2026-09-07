@@ -15,6 +15,160 @@
   padding: clamp(14px, 2vw, 24px);
 }
 
+.push-device-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--primary-color, #ff7070) 24%,
+    var(--surface-border, rgba(255, 255, 255, 0.12))
+  );
+  border-radius: 20px;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #101923) 96%,
+    var(--primary-color, #ff7070) 4%
+  );
+}
+
+.push-device-card__content {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.push-device-card__eyebrow {
+  color: color-mix(
+    in oklab,
+    var(--primary-color, #ff7070) 78%,
+    var(--text-color, #f5f7fb)
+  );
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.push-device-card__heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+
+.push-device-card__heading h2 {
+  margin: 0;
+  color: var(--text-color, #f5f7fb);
+  font-size: 1rem;
+  line-height: 1.2;
+  font-weight: 920;
+}
+
+.push-device-card__status {
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 9px;
+  border-radius: 999px;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 76%, transparent);
+  background: color-mix(
+    in oklab,
+    var(--surface-border, rgba(255, 255, 255, 0.12)) 76%,
+    transparent
+  );
+  font-size: 0.7rem;
+  font-weight: 850;
+}
+
+.push-device-card__status[data-state='active'] {
+  color: var(--text-color, #f5f7fb);
+  background: color-mix(
+    in oklab,
+    var(--primary-color, #ff7070) 28%,
+    transparent
+  );
+}
+
+.push-device-card__status[data-state='blocked'],
+.push-device-card__status[data-state='error'] {
+  border: 1px solid color-mix(
+    in oklab,
+    var(--primary-color, #ff7070) 42%,
+    transparent
+  );
+}
+
+.push-device-card__description,
+.push-device-card__privacy {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 70%, transparent);
+  line-height: 1.45;
+}
+
+.push-device-card__description {
+  font-size: 0.86rem;
+}
+
+.push-device-card__privacy {
+  font-size: 0.76rem;
+}
+
+.push-device-card__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.push-device-card__action {
+  min-height: var(--tap-target, 2.75rem);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.7rem 1rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--primary-color, #ff7070);
+  color: #fff;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  line-height: 1.15;
+  text-align: center;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.push-device-card__action--secondary {
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color, #ff7070) 38%,
+    transparent
+  );
+  background: transparent;
+  color: var(--primary-color, #ff7070);
+}
+
+.push-device-card__action:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.push-device-card__action:focus-visible {
+  outline: 2px solid color-mix(
+    in oklab,
+    var(--primary-color, #ff7070) 72%,
+    white
+  );
+  outline-offset: 3px;
+}
+
+.push-device-card__action:disabled {
+  opacity: 0.62;
+  cursor: wait;
+}
+
 .notification-settings-panel {
   display: grid;
   gap: 10px;
@@ -194,10 +348,20 @@
     padding: 12px;
   }
 
+  .push-device-card,
   .notification-option {
     grid-template-columns: 1fr;
     align-items: start;
     gap: 12px;
+  }
+
+  .push-device-card__actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .push-device-card__action {
+    width: 100%;
   }
 
   .notification-toggle {
@@ -205,6 +369,8 @@
   }
 }
 
+:host-context(html.high-contrast) .push-device-card,
+:host-context(html.high-contrast) .push-device-card__action,
 :host-context(html.high-contrast) .notification-settings-state,
 :host-context(html.high-contrast) .notification-settings-state__retry,
 :host-context(html.high-contrast) .notification-option {

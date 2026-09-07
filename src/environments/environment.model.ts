@@ -21,6 +21,23 @@ export interface AppCheckConfig {
 }
 
 // ---------------------------
+// Web Push
+// ---------------------------
+export interface WebPushConfig {
+  /**
+   * Chave pública VAPID criada em Firebase Console > Cloud Messaging.
+   * Não é segredo, mas deve pertencer ao mesmo projeto Firebase do ambiente.
+   */
+  vapidKey?: string;
+
+  /**
+   * Worker dedicado ao FCM. O arquivo é estático, enquanto a configuração
+   * pública do projeto Firebase é enviada pelo registro do worker.
+   */
+  serviceWorkerPath?: string;
+}
+
+// ---------------------------
 // Monitoring
 // ---------------------------
 export interface SentryMonitoringConfig {
@@ -134,6 +151,7 @@ export interface AppEnvironment {
   enableDebugTools?: boolean;
   privacyLogging?: PrivacyLoggingConfig;
   monitoring?: MonitoringConfig;
+  webPush?: WebPushConfig;
 
   useEmulators: boolean;
   emulators?: EmulatorsConfig;

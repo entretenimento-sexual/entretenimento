@@ -20,6 +20,13 @@ export const environment: AppEnvironment = {
     measurementId: 'G-GWTPJVK044',
   },
 
+  webPush: {
+    // Configure com a chave pública de Web Push do mesmo projeto Firebase.
+    // Enquanto ausente, a UI fica em "Não configurado" e nunca abre o prompt.
+    vapidKey: undefined,
+    serviceWorkerPath: '/assets/firebase-messaging-sw.js',
+  },
+
   apiEndpoint: 'http://localhost:3000',
   enableDebugTools: true,
 

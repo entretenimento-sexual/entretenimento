@@ -108,6 +108,9 @@ export const registerPushDevice = onCall<PushDeviceRequest>(
       const migratedLegacy = duplicateTokenDevices.find(
         (snapshot) => snapshot.id === legacyTokenDocumentId
       )?.data() as PushDeviceDocument | undefined;
+      const legacyUserToken = normalizePushToken(
+        userSnapshot.data()?.fcmToken
+      );
 
       for (const duplicate of duplicateTokenDevices) {
         tx.delete(duplicate.ref);
@@ -147,6 +150,15 @@ export const registerPushDevice = onCall<PushDeviceRequest>(
         },
         { merge: true }
       );
+
+      // O user.fcmToken v1 permanece como fallback apenas enquanto não houver
+      // prova de que esta mesma instalação já migrou. Se o token coincidir,
+      // a registry v2 passa a ser a única fonte para evitar tentativas órfãs.
+      if (legacyUserToken === token) {
+        tx.update(userRef, {
+          fcmToken: FieldValue.delete(),
+        });
+      }
     });
 
     return { ok: true };
@@ -160,23 +172,42 @@ export const unregisterPushDevice = onCall<PushDeviceRequest>(
     const installationId = requireInstallationId(request.data?.installationId);
     const installationDocumentId =
       buildPushInstallationDocumentId(installationId);
-    const token = normalizePushToken(request.data?.token);
-    const devicesRef = db
-      .collection('users')
-      .doc(uid)
-      .collection('push_devices');
-    const batch = db.batch();
+    const requestedToken = normalizePushToken(request.data?.token);
+    const userRef = db.collection('users').doc(uid);
+    const devicesRef = userRef.collection('push_devices');
+    const deviceRef = devicesRef.doc(installationDocumentId);
 
-    batch.delete(devicesRef.doc(installationDocumentId));
+    await db.runTransaction(async (tx) => {
+      const userSnapshot = await tx.get(userRef);
+      const deviceSnapshot = await tx.get(deviceRef);
+      const registeredToken = normalizePushToken(
+        deviceSnapshot.data()?.token
+      );
+      const tokensToRemove = new Set(
+        [requestedToken, registeredToken].filter(
+          (token): token is string => token !== null
+        )
+      );
 
-    if (token) {
-      const legacyTokenDocumentId = buildPushTokenDocumentId(token);
-      if (legacyTokenDocumentId !== installationDocumentId) {
-        batch.delete(devicesRef.doc(legacyTokenDocumentId));
+      tx.delete(deviceRef);
+
+      for (const token of tokensToRemove) {
+        const legacyTokenDocumentId = buildPushTokenDocumentId(token);
+        if (legacyTokenDocumentId !== installationDocumentId) {
+          tx.delete(devicesRef.doc(legacyTokenDocumentId));
+        }
       }
-    }
 
-    await batch.commit();
+      const legacyUserToken = normalizePushToken(
+        userSnapshot.data()?.fcmToken
+      );
+
+      if (legacyUserToken && tokensToRemove.has(legacyUserToken)) {
+        tx.update(userRef, {
+          fcmToken: FieldValue.delete(),
+        });
+      }
+    });
 
     return { ok: true };
   }

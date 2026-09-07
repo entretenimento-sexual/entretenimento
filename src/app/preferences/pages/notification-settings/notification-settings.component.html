@@ -13,6 +13,87 @@
 
     <app-preferences-domain-nav></app-preferences-domain-nav>
 
+    @if (pushDeviceVm$ | async; as pushVm) {
+      <section
+        class="push-device-card"
+        aria-labelledby="push-device-title"
+        [attr.aria-busy]="pushVm.busy || null"
+      >
+        <div class="push-device-card__content">
+          <span class="push-device-card__eyebrow">Este dispositivo</span>
+          <div class="push-device-card__heading">
+            <h2 id="push-device-title">Notificações no navegador</h2>
+            <span
+              class="push-device-card__status"
+              [attr.data-state]="pushVm.state"
+            >
+              {{ pushStateLabel(pushVm.state) }}
+            </span>
+          </div>
+
+          <p
+            class="push-device-card__description"
+            [attr.role]="pushVm.state === 'error' ? 'alert' : 'status'"
+            aria-live="polite"
+          >
+            {{ pushStateDescription(pushVm.state) }}
+          </p>
+
+          <p class="push-device-card__privacy">
+            A ativação usa um identificador aleatório desta instalação. Não usamos impressão digital de hardware para identificar o dispositivo.
+          </p>
+        </div>
+
+        <div class="push-device-card__actions">
+          @switch (pushVm.state) {
+            @case ('active') {
+              <button
+                type="button"
+                class="push-device-card__action push-device-card__action--secondary"
+                [disabled]="pushVm.busy"
+                (click)="onPushDeactivate()"
+              >
+                {{ pushVm.busy ? 'Desativando...' : 'Desativar neste dispositivo' }}
+              </button>
+            }
+
+            @case ('blocked') {
+              <button
+                type="button"
+                class="push-device-card__action push-device-card__action--secondary"
+                [disabled]="pushVm.busy"
+                (click)="onPushRefresh()"
+              >
+                {{ pushVm.busy ? 'Verificando...' : 'Verificar novamente' }}
+              </button>
+            }
+
+            @case ('error') {
+              <button
+                type="button"
+                class="push-device-card__action"
+                [disabled]="pushVm.busy"
+                (click)="onPushRefresh()"
+              >
+                {{ pushVm.busy ? 'Verificando...' : 'Tentar novamente' }}
+              </button>
+            }
+
+            @case ('inactive') {
+              <button
+                type="button"
+                class="push-device-card__action"
+                [disabled]="pushVm.busy"
+                (click)="onPushActivate()"
+              >
+                {{ pushVm.busy ? 'Ativando...' : 'Ativar neste dispositivo' }}
+              </button>
+            }
+          }
+        </div>
+      </section>
+    }
+
     @if (vm$ | async; as vm) {
       @let readState = ((readState$ | async) || 'loading');
       @let busyKeys = ((busyKeys$ | async) || null);
