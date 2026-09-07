@@ -31,6 +31,7 @@ export class NotificationsPageComponent {
   private readonly markAllBusySubject = new BehaviorSubject(false);
 
   readonly vm$ = this.notificationService.currentUserVm$;
+  readonly readState$ = this.notificationService.currentUserReadState$;
   readonly communitySummaries$ = this.notificationService.currentUserCommunitySummaries$.pipe(
     map((summaries) => summaries.slice(0, 4))
   );
@@ -165,6 +166,10 @@ export class NotificationsPageComponent {
       next: () => undefined,
       error: () => this.notifier.showError('Não foi possível marcar a notificação como lida.'),
     });
+  }
+
+  retryNotifications(): void {
+    this.notificationService.refreshCurrentUserNotifications();
   }
 
   markAllAsRead(): void {

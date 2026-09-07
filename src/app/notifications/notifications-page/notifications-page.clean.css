@@ -277,6 +277,46 @@
   border-radius: 0.85rem;
 }
 
+.notifications-state--error {
+  border-style: solid;
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color) 32%,
+    var(--surface-border)
+  );
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 96%,
+    var(--primary-color) 4%
+  );
+}
+
+.notifications-state__retry {
+  min-height: var(--tap-target, 2.75rem);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.85rem;
+  border: 1px solid color-mix(in oklab, var(--primary-color) 38%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--primary-color);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 800;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.notifications-state__retry:hover {
+  background: color-mix(in oklab, var(--primary-color) 9%, transparent);
+}
+
+.notifications-state__retry:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--primary-color) 65%, transparent);
+  outline-offset: 2px;
+}
+
 @media (max-width: 640px) {
   .notifications-hero--compact {
     align-items: flex-start;
@@ -336,7 +376,8 @@
 :host-context(html.high-contrast) .community-activity,
 :host-context(html.high-contrast) .community-activity__item,
 :host-context(html.high-contrast) .notification-card,
-:host-context(html.high-contrast) .notifications-state {
+:host-context(html.high-contrast) .notifications-state,
+:host-context(html.high-contrast) .notifications-state__retry {
   border-color: currentColor !important;
   background: var(--background-color) !important;
   color: var(--text-color) !important;

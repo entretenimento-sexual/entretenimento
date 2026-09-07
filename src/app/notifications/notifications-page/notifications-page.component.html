@@ -1,5 +1,6 @@
 <!-- src/app/notifications/notifications-page/notifications-page.component.html -->
 @if (vm$ | async; as vm) {
+  @let readState = ((readState$ | async) || 'loading');
   @let markAllBusy = ((markAllBusy$ | async) || false);
   @let communitySummaries = ((communitySummaries$ | async) || []);
   @let communityUnreadCount = ((communityUnreadCount$ | async) || 0);
@@ -8,7 +9,7 @@
     <header class="notifications-hero notifications-hero--compact">
       <h1 id="notifications-title">Notificações</h1>
 
-      @if (!vm.loading) {
+      @if (!vm.loading && readState !== 'error') {
         <div class="notifications-hero__actions">
           @if (vm.unreadCount > 0) {
             <span
@@ -29,6 +30,7 @@
               class="notifications-hero__button"
               (click)="markAllAsRead()"
               [disabled]="markAllBusy"
+              [attr.aria-busy]="markAllBusy"
             >
               {{ markAllBusy ? 'Marcando...' : 'Marcar todas' }}
             </button>
@@ -37,7 +39,7 @@
       }
     </header>
 
-    @if (!vm.loading && communitySummaries.length > 0) {
+    @if (!vm.loading && readState !== 'error' && communitySummaries.length > 0) {
       <section class="community-activity" aria-labelledby="community-activity-title">
         <div class="community-activity__header">
           <div>
@@ -89,6 +91,7 @@
                   class="community-activity__open"
                   (click)="openCommunitySummary(summary)"
                   [disabled]="isBusy(latest.id)"
+                  [attr.aria-busy]="isBusy(latest.id)"
                   [attr.aria-label]="'Abrir atividade: ' + latest.title"
                 >
                   {{ isBusy(latest.id) ? 'Abrindo...' : 'Abrir' }}
@@ -100,9 +103,21 @@
       </section>
     }
 
-    @if (vm.loading) {
+    @if (vm.loading || readState === 'loading') {
       <div class="notifications-state" role="status" aria-live="polite">
         Carregando notificações...
+      </div>
+    } @else if (readState === 'error') {
+      <div class="notifications-state notifications-state--error" role="alert">
+        <strong>Não foi possível carregar as notificações.</strong>
+        <span>Tente novamente. Se o problema continuar, volte em alguns instantes.</span>
+        <button
+          type="button"
+          class="notifications-state__retry"
+          (click)="retryNotifications()"
+        >
+          Tentar novamente
+        </button>
       </div>
     } @else if (vm.items.length === 0) {
       <div class="notifications-state notifications-state--empty" role="status">
@@ -137,6 +152,7 @@
                       class="notification-card__link notification-card__link--button"
                       (click)="openNotification(item)"
                       [disabled]="isBusy(item.id)"
+                      [attr.aria-busy]="isBusy(item.id)"
                     >
                       {{ isBusy(item.id) ? 'Abrindo...' : 'Abrir' }}
                     </button>
@@ -148,6 +164,7 @@
                       class="notification-card__link notification-card__link--button"
                       (click)="markAsRead(item)"
                       [disabled]="isBusy(item.id)"
+                      [attr.aria-busy]="isBusy(item.id)"
                     >
                       {{ isBusy(item.id) ? 'Marcando...' : 'Marcar como lida' }}
                     </button>

@@ -11,6 +11,8 @@
 // - aguarda bootstrap do Auth antes de iniciar watchers de Firestore;
 // - usa AuthSessionService.readyAuthUser$ como fonte única do usuário autenticado;
 // - falhas opcionais de permissão na leitura retornam lista vazia sem poluir login;
+// - falhas reais da leitura principal expõem estado recuperável para a Central;
+// - retry manual substitui o listener atual, sem abrir listener paralelo;
 // - resumos por Comunidade derivam do mesmo stream global, sem listeners extras;
 // - o total global não é inferido da janela recente: usa count() agregado e barato;
 // - mudanças de conteúdo que preservam ids/readAt não repetem o count() global.
@@ -102,6 +104,8 @@ export interface MarkAllNotificationsReadResult {
   complete: boolean;
 }
 
+export type NotificationReadState = 'loading' | 'ready' | 'error';
+
 interface NotificationReadWindowState {
   items: IAppNotification[];
   signature: string;
@@ -128,6 +132,9 @@ export class AppNotificationService {
   private readonly firestoreContext = inject(FirestoreContextService);
   private readonly globalError = inject(GlobalErrorHandlerService);
   private readonly unreadCountRefreshSubject = new BehaviorSubject(0);
+  private readonly currentUserRefreshSubject = new BehaviorSubject(0);
+  private readonly currentUserReadStateSubject =
+    new BehaviorSubject<NotificationReadState>('loading');
 
   private readonly markNotificationReadCallable = httpsCallable<
     MarkNotificationReadPayload,
@@ -139,17 +146,36 @@ export class AppNotificationService {
     MarkAllNotificationsReadResponse
   >(this.functions, 'markAllNotificationsRead');
 
+  readonly currentUserReadState$: Observable<NotificationReadState> =
+    this.currentUserReadStateSubject.asObservable().pipe(
+      distinctUntilChanged(),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
   readonly currentUserNotifications$: Observable<IAppNotification[]> =
-    this.session.readyAuthUser$.pipe(
-      switchMap((user) => {
+    combineLatest([
+      this.session.readyAuthUser$,
+      this.currentUserRefreshSubject,
+    ]).pipe(
+      switchMap(([user]) => {
         const uid = String(user?.uid ?? '').trim();
 
         if (!uid) {
+          this.currentUserReadStateSubject.next('ready');
           return of([]);
         }
 
-        return this.watchForUser$(uid).pipe(
+        this.currentUserReadStateSubject.next('loading');
+
+        return this.watchForUserQuery$(uid, DEFAULT_LIMIT).pipe(
+          tap(() => this.currentUserReadStateSubject.next('ready')),
           catchError((error) => {
+            if (isFirebasePermissionDeniedError(error)) {
+              this.currentUserReadStateSubject.next('ready');
+              return of([]);
+            }
+
+            this.currentUserReadStateSubject.next('error');
             this.reportReadError(error, 'currentUserNotifications', { uid });
             return of([]);
           })
@@ -224,6 +250,13 @@ export class AppNotificationService {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
+  refreshCurrentUserNotifications(): void {
+    this.currentUserReadStateSubject.next('loading');
+    this.currentUserRefreshSubject.next(
+      this.currentUserRefreshSubject.value + 1
+    );
+  }
+
   watchForUser$(uid: string, max = DEFAULT_LIMIT): Observable<IAppNotification[]> {
     const safeUid = String(uid ?? '').trim();
 
@@ -231,26 +264,7 @@ export class AppNotificationService {
       return of([]);
     }
 
-    const safeLimit = this.normalizeLimit(max);
-
-    return this.firestoreContext.deferObservable$(() => {
-      const notificationsRef = collection(this.firestore, 'notifications');
-      const notificationsQuery = query(
-        notificationsRef,
-        where('userId', '==', safeUid),
-        orderBy('createdAt', 'desc'),
-        firestoreLimit(safeLimit)
-      );
-
-      return collectionData(notificationsQuery, { idField: 'id' }) as Observable<
-        AppNotificationFirestoreDocument[]
-      >;
-    }).pipe(
-      map((items) =>
-        (items ?? [])
-          .map((item) => this.toNotification(item))
-          .filter((item): item is IAppNotification => !!item)
-      ),
+    return this.watchForUserQuery$(safeUid, max).pipe(
       catchError((error) => {
         this.reportReadError(error, 'watchForUser', { uid: safeUid });
         return of([]);
@@ -298,6 +312,33 @@ export class AppNotificationService {
         this.reportWriteError(error, 'markAllAsRead', {});
         return throwError(() => error);
       })
+    );
+  }
+
+  private watchForUserQuery$(
+    uid: string,
+    max = DEFAULT_LIMIT
+  ): Observable<IAppNotification[]> {
+    const safeLimit = this.normalizeLimit(max);
+
+    return this.firestoreContext.deferObservable$(() => {
+      const notificationsRef = collection(this.firestore, 'notifications');
+      const notificationsQuery = query(
+        notificationsRef,
+        where('userId', '==', uid),
+        orderBy('createdAt', 'desc'),
+        firestoreLimit(safeLimit)
+      );
+
+      return collectionData(notificationsQuery, { idField: 'id' }) as Observable<
+        AppNotificationFirestoreDocument[]
+      >;
+    }).pipe(
+      map((items) =>
+        (items ?? [])
+          .map((item) => this.toNotification(item))
+          .filter((item): item is IAppNotification => !!item)
+      )
     );
   }
 
