@@ -1,0 +1,11 @@
+// ==============================================================
+// PUSH DEVICES (private backend-owned registry)
+// ==============================================================
+// Tokens FCM identificam instalações/dispositivos e não fazem parte do perfil.
+// O cliente registra/remove tokens somente pelas Cloud Functions canônicas.
+// Admin SDK ignora Firestore Rules; qualquer acesso direto do navegador falha.
+// ==============================================================
+
+match /users/{userId}/push_devices/{deviceId} {
+  allow read, write: if false;
+}

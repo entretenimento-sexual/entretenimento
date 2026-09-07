@@ -3,6 +3,10 @@ import { onUserCreate } from './auth/onUserCreate';
 import { recoverRegistrationSeed } from './auth/recoverRegistrationSeed';
 import { cleanupOldData } from './cron/cleanupOldData';
 import { moderateContent } from './moderation/moderateContent';
+import {
+  registerPushDevice,
+  unregisterPushDevice,
+} from './notifications/push-device-registry';
 import { sendNotification } from './notifications/sendNotification';
 import {
   markAllNotificationsRead,
@@ -16,6 +20,8 @@ export {
   recoverRegistrationSeed,
   moderateContent,
   sendNotification,
+  registerPushDevice,
+  unregisterPushDevice,
   markNotificationRead,
   markAllNotificationsRead,
   cleanupOldData,
