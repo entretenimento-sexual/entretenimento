@@ -93,13 +93,13 @@ function createHarness(pushMode: PushMode = 'success') {
     cache as any
   );
 
-  vi.spyOn(service as any, 'executeSignOut$').mockImplementation(
-    (mode: string) =>
-      defer(() => {
-        calls.push(`signout:${mode}`);
-        return of(void 0);
-      })
+  const executeSignOut = vi.fn((mode: string) =>
+    defer(() => {
+      calls.push(`signout:${mode}`);
+      return of(void 0);
+    })
   );
+  (service as any).executeSignOut$ = executeSignOut;
 
   return {
     service,
