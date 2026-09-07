@@ -310,7 +310,27 @@
 
 .community-card__dismiss {
   max-width: 100%;
+  min-height: var(--tap-target, 2.75rem);
   justify-self: start;
+  gap: 0.3rem;
+  padding-inline: 0.45rem;
+  border-color: transparent;
+  border-radius: 0.65rem;
+  background: transparent;
+  color: color-mix(in oklab, var(--text-color, #222) 62%, transparent);
+  font-size: 0.74rem;
+  font-weight: 650;
+}
+
+.community-card__dismiss:hover,
+.community-card__dismiss:focus-visible {
+  border-color: transparent;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #fff) 95%,
+    var(--primary-color, #d83768) 5%
+  );
+  color: var(--text-color, #222);
 }
 
 .community-card {
@@ -661,6 +681,10 @@
   opacity: 0.58;
 }
 
+.community-discovery__grid:has(.community-card--mine) {
+  max-width: 62rem;
+}
+
 @media (min-width: 42rem) {
   .community-discovery__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -670,6 +694,10 @@
 @media (min-width: 70rem) {
   .community-discovery__grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .community-discovery__grid:has(.community-card--mine) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
