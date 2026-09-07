@@ -3,6 +3,8 @@ import { createHash } from 'node:crypto';
 export const MAX_PUSH_DEVICES_PER_USER = 10;
 export const MIN_PUSH_TOKEN_LENGTH = 20;
 export const MAX_PUSH_TOKEN_LENGTH = 4096;
+export const MIN_PUSH_INSTALLATION_ID_LENGTH = 16;
+export const MAX_PUSH_INSTALLATION_ID_LENGTH = 128;
 
 export type PushDevicePlatform = 'web' | 'ios' | 'android';
 
@@ -35,6 +37,21 @@ export function normalizePushToken(value: unknown): string | null {
   return token;
 }
 
+export function normalizePushInstallationId(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+
+  const installationId = value.trim();
+  if (
+    installationId.length < MIN_PUSH_INSTALLATION_ID_LENGTH ||
+    installationId.length > MAX_PUSH_INSTALLATION_ID_LENGTH ||
+    !/^[A-Za-z0-9_-]+$/.test(installationId)
+  ) {
+    return null;
+  }
+
+  return installationId;
+}
+
 export function resolvePushDevicePlatform(
   value: unknown
 ): PushDevicePlatform | null {
@@ -50,6 +67,14 @@ export function resolvePushDevicePlatform(
   }
 }
 
+export function buildPushInstallationDocumentId(installationId: string): string {
+  return createHash('sha256').update(installationId, 'utf8').digest('hex');
+}
+
+/**
+ * Mantido durante a migração do registro v1, cujo document id era derivado do
+ * token. Novos registros usam exclusivamente a installation id estável.
+ */
 export function buildPushTokenDocumentId(token: string): string {
   return createHash('sha256').update(token, 'utf8').digest('hex');
 }

@@ -2,9 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  buildPushInstallationDocumentId,
   buildPushTokenDocumentId,
   isPermanentPushTokenErrorCode,
   MAX_PUSH_DEVICES_PER_USER,
+  normalizePushInstallationId,
   normalizePushToken,
   resolveInvalidPushRegistryDocumentIds,
   resolvePushDeliveryTargets,
@@ -13,6 +15,7 @@ import {
 
 const TOKEN = 'fcm-token-value-that-is-long-enough-for-validation-1234567890';
 const TOKEN_B = 'second-fcm-token-value-that-is-long-enough-0987654321';
+const INSTALLATION_ID = '550e8400-e29b-41d4-a716-446655440000';
 
 test('normaliza token FCM sem aceitar payload curto, vazio ou não textual', () => {
   assert.equal(normalizePushToken(`  ${TOKEN}  `), TOKEN);
@@ -27,6 +30,18 @@ test('limita tamanho máximo do token recebido', () => {
   assert.equal(normalizePushToken('x'.repeat(4097)), null);
 });
 
+test('normaliza installation id sem aceitar fingerprint ou payload arbitrário', () => {
+  assert.equal(
+    normalizePushInstallationId(`  ${INSTALLATION_ID}  `),
+    INSTALLATION_ID
+  );
+  assert.equal(normalizePushInstallationId('short'), null);
+  assert.equal(normalizePushInstallationId('x'.repeat(129)), null);
+  assert.equal(normalizePushInstallationId('device id with spaces'), null);
+  assert.equal(normalizePushInstallationId('device/../../other'), null);
+  assert.equal(normalizePushInstallationId(undefined), null);
+});
+
 test('aceita somente plataformas canônicas previstas para expansão mobile', () => {
   assert.equal(resolvePushDevicePlatform('web'), 'web');
   assert.equal(resolvePushDevicePlatform(' IOS '), 'ios');
@@ -35,7 +50,16 @@ test('aceita somente plataformas canônicas previstas para expansão mobile', ()
   assert.equal(resolvePushDevicePlatform(undefined), null);
 });
 
-test('gera id determinístico sem persistir o token no caminho do documento', () => {
+test('gera id estável da instalação sem expor o identificador no caminho', () => {
+  const id = buildPushInstallationDocumentId(INSTALLATION_ID);
+
+  assert.equal(id.length, 64);
+  assert.equal(id, buildPushInstallationDocumentId(INSTALLATION_ID));
+  assert.notEqual(id, INSTALLATION_ID);
+  assert.match(id, /^[a-f0-9]{64}$/);
+});
+
+test('mantém id legado por token somente para migração do registro v1', () => {
   const id = buildPushTokenDocumentId(TOKEN);
 
   assert.equal(id.length, 64);

@@ -3,8 +3,10 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
+  buildPushInstallationDocumentId,
   buildPushTokenDocumentId,
   MAX_PUSH_DEVICES_PER_USER,
+  normalizePushInstallationId,
   normalizePushToken,
   resolvePushDevicePlatform,
 } from './push-device.policy';
@@ -12,6 +14,7 @@ import {
 interface PushDeviceRequest {
   token?: unknown;
   platform?: unknown;
+  installationId?: unknown;
 }
 
 interface PushDeviceDocument {
@@ -43,6 +46,19 @@ function requireToken(value: unknown): string {
   return token;
 }
 
+function requireInstallationId(value: unknown): string {
+  const installationId = normalizePushInstallationId(value);
+
+  if (!installationId) {
+    throw new HttpsError(
+      'invalid-argument',
+      'Identificador da instalação inválido.'
+    );
+  }
+
+  return installationId;
+}
+
 function requirePlatform(value: unknown) {
   const platform = resolvePushDevicePlatform(value);
 
@@ -59,10 +75,13 @@ export const registerPushDevice = onCall<PushDeviceRequest>(
     const uid = requireUid(request.auth?.uid);
     const token = requireToken(request.data?.token);
     const platform = requirePlatform(request.data?.platform);
-    const tokenId = buildPushTokenDocumentId(token);
+    const installationId = requireInstallationId(request.data?.installationId);
+    const installationDocumentId =
+      buildPushInstallationDocumentId(installationId);
+    const legacyTokenDocumentId = buildPushTokenDocumentId(token);
     const userRef = db.collection('users').doc(uid);
     const devicesRef = userRef.collection('push_devices');
-    const deviceRef = devicesRef.doc(tokenId);
+    const deviceRef = devicesRef.doc(installationDocumentId);
 
     await db.runTransaction(async (tx) => {
       const userSnapshot = await tx.get(userRef);
@@ -74,45 +93,60 @@ export const registerPushDevice = onCall<PushDeviceRequest>(
       const devicesSnapshot = await tx.get(
         devicesRef
           .orderBy('lastSeenAt', 'asc')
-          .limit(MAX_PUSH_DEVICES_PER_USER)
+          .limit(MAX_PUSH_DEVICES_PER_USER + 1)
       );
       const existingDevice = devicesSnapshot.docs.find(
-        (snapshot) => snapshot.id === tokenId
+        (snapshot) => snapshot.id === installationDocumentId
+      );
+      const duplicateTokenDevices = devicesSnapshot.docs.filter(
+        (snapshot) =>
+          snapshot.id !== installationDocumentId &&
+          normalizePushToken(snapshot.data()?.token) === token
       );
       const now = FieldValue.serverTimestamp();
+      const current = existingDevice?.data() as PushDeviceDocument | undefined;
+      const migratedLegacy = duplicateTokenDevices.find(
+        (snapshot) => snapshot.id === legacyTokenDocumentId
+      )?.data() as PushDeviceDocument | undefined;
 
-      if (existingDevice) {
-        const current = existingDevice.data() as PushDeviceDocument;
-        tx.set(
-          deviceRef,
-          {
-            token,
-            platform,
-            schemaVersion: 1,
-            createdAt: current.createdAt ?? now,
-            updatedAt: now,
-            lastSeenAt: now,
-          },
-          { merge: true }
-        );
-        return;
+      for (const duplicate of duplicateTokenDevices) {
+        tx.delete(duplicate.ref);
       }
 
-      if (devicesSnapshot.size >= MAX_PUSH_DEVICES_PER_USER) {
-        const oldestDevice = devicesSnapshot.docs[0];
-        if (oldestDevice) {
-          tx.delete(oldestDevice.ref);
+      const sizeAfterDeduplication =
+        devicesSnapshot.size - duplicateTokenDevices.length;
+      const projectedSize = sizeAfterDeduplication + (existingDevice ? 0 : 1);
+      const overflowCount = Math.max(
+        0,
+        projectedSize - MAX_PUSH_DEVICES_PER_USER
+      );
+
+      if (overflowCount > 0) {
+        const removableDevices = devicesSnapshot.docs.filter(
+          (snapshot) =>
+            snapshot.id !== installationDocumentId &&
+            !duplicateTokenDevices.some(
+              (duplicate) => duplicate.id === snapshot.id
+            )
+        );
+
+        for (const staleDevice of removableDevices.slice(0, overflowCount)) {
+          tx.delete(staleDevice.ref);
         }
       }
 
-      tx.create(deviceRef, {
-        token,
-        platform,
-        schemaVersion: 1,
-        createdAt: now,
-        updatedAt: now,
-        lastSeenAt: now,
-      });
+      tx.set(
+        deviceRef,
+        {
+          token,
+          platform,
+          schemaVersion: 2,
+          createdAt: current?.createdAt ?? migratedLegacy?.createdAt ?? now,
+          updatedAt: now,
+          lastSeenAt: now,
+        },
+        { merge: true }
+      );
     });
 
     return { ok: true };
@@ -123,15 +157,26 @@ export const unregisterPushDevice = onCall<PushDeviceRequest>(
   { region: FUNCTIONS_REGION },
   async (request): Promise<{ ok: true }> => {
     const uid = requireUid(request.auth?.uid);
-    const token = requireToken(request.data?.token);
-    const tokenId = buildPushTokenDocumentId(token);
-
-    await db
+    const installationId = requireInstallationId(request.data?.installationId);
+    const installationDocumentId =
+      buildPushInstallationDocumentId(installationId);
+    const token = normalizePushToken(request.data?.token);
+    const devicesRef = db
       .collection('users')
       .doc(uid)
-      .collection('push_devices')
-      .doc(tokenId)
-      .delete();
+      .collection('push_devices');
+    const batch = db.batch();
+
+    batch.delete(devicesRef.doc(installationDocumentId));
+
+    if (token) {
+      const legacyTokenDocumentId = buildPushTokenDocumentId(token);
+      if (legacyTokenDocumentId !== installationDocumentId) {
+        batch.delete(devicesRef.doc(legacyTokenDocumentId));
+      }
+    }
+
+    await batch.commit();
 
     return { ok: true };
   }
