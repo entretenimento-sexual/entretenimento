@@ -14,6 +14,7 @@ import {
   resolvePushDeliveryTargets,
   shouldPruneCurrentPushToken,
 } from './push-device.policy';
+import {buildPushNotificationNavigationData} from './push-notification-navigation.policy';
 
 export const sendNotification = onDocumentCreated(
   'notifications/{notificationId}',
@@ -28,6 +29,9 @@ export const sendNotification = onDocumentCreated(
     const notificationId = String(event.params.notificationId ?? '').trim();
     const notificationType = String(notification?.type ?? '').trim();
     const preferenceKey = resolvePushNotificationPreferenceKey(notificationType);
+    const navigationData = buildPushNotificationNavigationData(
+      notification?.route
+    );
     const db = getFirestore();
 
     if (preferenceKey) {
@@ -87,6 +91,7 @@ export const sendNotification = onDocumentCreated(
         title: notification.title,
         body: notification.body,
       },
+      ...(navigationData ? {data: navigationData} : {}),
     });
     const responseErrorCodes = response.responses.map((result) =>
       result.success ? null : toSafeErrorCode(result.error)
@@ -181,6 +186,7 @@ export const sendNotification = onDocumentCreated(
     console.info('[sendNotification] push processado', {
       notificationId,
       notificationType,
+      hasNavigationRoute: Boolean(navigationData),
       targetCount: targets.length,
       successCount: response.successCount,
       failureCount: response.failureCount,

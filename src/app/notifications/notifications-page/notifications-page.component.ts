@@ -10,6 +10,7 @@ import {
   ICommunityNotificationSummary,
 } from 'src/app/core/interfaces/app-notification.interface';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { normalizeNotificationRoute } from 'src/app/core/services/notifications/notification-navigation.policy';
 
 @Component({
   selector: 'app-notifications-page',
@@ -93,13 +94,7 @@ export class NotificationsPageComponent {
   }
 
   notificationRoute(item: IAppNotification): string | null {
-    const route = String(item.route ?? '').trim();
-
-    if (!route.startsWith('/') || route.startsWith('//')) {
-      return null;
-    }
-
-    return route;
+    return normalizeNotificationRoute(item.route);
   }
 
   communitySummaryLabel(summary: ICommunityNotificationSummary): string {
