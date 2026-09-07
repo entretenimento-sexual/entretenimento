@@ -120,16 +120,53 @@ export function isPermanentPushTokenErrorCode(value: unknown): boolean {
   return PERMANENT_PUSH_TOKEN_ERROR_CODES.has(value.trim());
 }
 
+export function resolveInvalidPushDeliveryTargets(
+  targets: readonly PushDeliveryTarget[],
+  responseErrorCodes: readonly unknown[]
+): PushDeliveryTarget[] {
+  const invalidTargets: PushDeliveryTarget[] = [];
+
+  for (let index = 0; index < targets.length; index += 1) {
+    if (!isPermanentPushTokenErrorCode(responseErrorCodes[index])) continue;
+
+    const target = targets[index];
+    if (!target) continue;
+
+    invalidTargets.push({
+      token: target.token,
+      registryDocumentIds: [...target.registryDocumentIds],
+    });
+  }
+
+  return invalidTargets;
+}
+
+export function shouldPruneCurrentPushToken(
+  currentToken: unknown,
+  invalidToken: unknown
+): boolean {
+  const normalizedCurrent = normalizePushToken(currentToken);
+  const normalizedInvalid = normalizePushToken(invalidToken);
+
+  return Boolean(
+    normalizedCurrent &&
+    normalizedInvalid &&
+    normalizedCurrent === normalizedInvalid
+  );
+}
+
 export function resolveInvalidPushRegistryDocumentIds(
   targets: readonly PushDeliveryTarget[],
   responseErrorCodes: readonly unknown[]
 ): string[] {
   const documentIds = new Set<string>();
+  const invalidTargets = resolveInvalidPushDeliveryTargets(
+    targets,
+    responseErrorCodes
+  );
 
-  for (let index = 0; index < targets.length; index += 1) {
-    if (!isPermanentPushTokenErrorCode(responseErrorCodes[index])) continue;
-
-    for (const documentId of targets[index]?.registryDocumentIds ?? []) {
+  for (const target of invalidTargets) {
+    for (const documentId of target.registryDocumentIds) {
       documentIds.add(documentId);
     }
   }
