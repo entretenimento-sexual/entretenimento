@@ -21,6 +21,9 @@
 }
 
 .notification-settings-state {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
   margin: 0;
   padding: 18px;
   border: 1px dashed var(--surface-border, rgba(255, 255, 255, 0.12));
@@ -28,6 +31,51 @@
   color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
   background: color-mix(in oklab, var(--surface-color, #101923) 94%, transparent);
   text-align: center;
+}
+
+.notification-settings-state strong {
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.94rem;
+}
+
+.notification-settings-state--error {
+  border-style: solid;
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color, #ff7070) 34%,
+    var(--surface-border, rgba(255, 255, 255, 0.12))
+  );
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #101923) 96%,
+    var(--primary-color, #ff7070) 4%
+  );
+}
+
+.notification-settings-state__retry {
+  min-height: var(--tap-target, 2.75rem);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.9rem;
+  border: 1px solid color-mix(in oklab, var(--primary-color, #ff7070) 38%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--primary-color, #ff7070);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.notification-settings-state__retry:hover {
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 9%, transparent);
+}
+
+.notification-settings-state__retry:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--primary-color, #ff7070) 65%, transparent);
+  outline-offset: 2px;
 }
 
 .notification-option {
@@ -154,5 +202,20 @@
 
   .notification-toggle {
     justify-self: start;
+  }
+}
+
+:host-context(html.high-contrast) .notification-settings-state,
+:host-context(html.high-contrast) .notification-settings-state__retry,
+:host-context(html.high-contrast) .notification-option {
+  border-color: currentColor !important;
+  background: var(--background-color) !important;
+  color: var(--text-color) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notification-toggle__track,
+  .notification-toggle__thumb {
+    transition: none;
   }
 }

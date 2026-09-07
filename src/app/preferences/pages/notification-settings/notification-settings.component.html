@@ -14,11 +14,26 @@
     <app-preferences-domain-nav></app-preferences-domain-nav>
 
     @if (vm$ | async; as vm) {
+      @let readState = ((readState$ | async) || 'loading');
       @let busyKeys = ((busyKeys$ | async) || null);
 
       <section class="notification-settings-panel" aria-label="Tipos de notificação">
-        @if (vm.loading) {
-          <p class="notification-settings-state">Carregando preferências...</p>
+        @if (vm.loading || readState === 'loading') {
+          <div class="notification-settings-state" role="status" aria-live="polite">
+            Carregando preferências...
+          </div>
+        } @else if (readState === 'error') {
+          <div class="notification-settings-state notification-settings-state--error" role="alert">
+            <strong>Não foi possível carregar suas preferências.</strong>
+            <span>Suas configurações não foram alteradas. Tente novamente.</span>
+            <button
+              type="button"
+              class="notification-settings-state__retry"
+              (click)="retryPreferences()"
+            >
+              Tentar novamente
+            </button>
+          </div>
         } @else {
           @for (option of options; track trackOption($index, option)) {
             <article class="notification-option">
@@ -36,6 +51,7 @@
                   type="checkbox"
                   [checked]="isEnabled(vm.preferences, option.key)"
                   [disabled]="option.locked || busyKeys?.has(option.key)"
+                  [attr.aria-busy]="busyKeys?.has(option.key) || null"
                   (change)="onToggle(option.key, $any($event.target).checked)"
                 />
                 <span class="notification-toggle__track" aria-hidden="true">

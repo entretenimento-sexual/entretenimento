@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_NOTIFICATION_PREFERENCES } from 'src/app/core/interfaces/notification-preferences.interface';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -9,9 +9,14 @@ import { NotificationPreferencesService } from 'src/app/core/services/notificati
 import { NotificationSettingsComponent } from './notification-settings.component';
 
 describe('NotificationSettingsComponent', () => {
-  it('expõe Comunidades como preferência opcional sem desligar moderação essencial', () => {
-    const updateCurrentPreferences$ = vi.fn(() => of(undefined));
+  const refreshCurrentPreferences = vi.fn();
+  const updateCurrentPreferences$ = vi.fn(() => of(undefined));
 
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function configure(readState: 'loading' | 'ready' | 'error' = 'ready'): void {
     TestBed.configureTestingModule({
       imports: [NotificationSettingsComponent],
       providers: [
@@ -23,6 +28,8 @@ describe('NotificationSettingsComponent', () => {
               loading: false,
               preferences: DEFAULT_NOTIFICATION_PREFERENCES,
             }),
+            currentReadState$: of(readState),
+            refreshCurrentPreferences,
             updateCurrentPreferences$,
           },
         },
@@ -35,6 +42,10 @@ describe('NotificationSettingsComponent', () => {
         },
       ],
     });
+  }
+
+  it('expõe Comunidades como preferência opcional sem desligar moderação essencial', () => {
+    configure();
 
     const fixture = TestBed.createComponent(NotificationSettingsComponent);
     fixture.detectChanges();
@@ -58,5 +69,31 @@ describe('NotificationSettingsComponent', () => {
     expect(updateCurrentPreferences$).toHaveBeenCalledWith({
       communities: false,
     });
+  });
+
+  it('não apresenta valores padrão como preferências carregadas quando a leitura falha', () => {
+    configure('error');
+
+    const fixture = TestBed.createComponent(NotificationSettingsComponent);
+    fixture.detectChanges();
+
+    const errorState = fixture.nativeElement.querySelector(
+      '.notification-settings-state--error'
+    ) as HTMLElement | null;
+    const retryButton = fixture.nativeElement.querySelector(
+      '.notification-settings-state__retry'
+    ) as HTMLButtonElement | null;
+
+    expect(errorState).not.toBeNull();
+    expect(errorState?.getAttribute('role')).toBe('alert');
+    expect(errorState?.textContent).toContain(
+      'Não foi possível carregar suas preferências.'
+    );
+    expect(fixture.nativeElement.querySelectorAll('.notification-option').length).toBe(0);
+    expect(retryButton).not.toBeNull();
+
+    retryButton?.click();
+
+    expect(refreshCurrentPreferences).toHaveBeenCalledTimes(1);
   });
 });

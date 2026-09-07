@@ -46,6 +46,7 @@ export class NotificationSettingsComponent {
   private readonly busySubject = new BehaviorSubject<ReadonlySet<string>>(new Set());
 
   readonly vm$ = this.preferences.currentVm$;
+  readonly readState$ = this.preferences.currentReadState$;
   readonly busyKeys$ = this.busySubject.asObservable();
 
   readonly options: NotificationSettingOption[] = [
@@ -104,6 +105,10 @@ export class NotificationSettingsComponent {
     }
 
     return preferences[key] !== false;
+  }
+
+  retryPreferences(): void {
+    this.preferences.refreshCurrentPreferences();
   }
 
   onToggle(key: NotificationSettingOption['key'], checked: boolean): void {

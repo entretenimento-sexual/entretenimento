@@ -8,7 +8,9 @@
 // - cada usuário só acessa preferences/{uid} pelas Rules atuais;
 // - grava apenas um submapa conhecido: notificationPreferences;
 // - conta/segurança permanece sempre ativo na normalização;
-// - erros técnicos seguem para GlobalErrorHandlerService.
+// - erros técnicos seguem para GlobalErrorHandlerService;
+// - falhas da leitura principal expõem estado recuperável para a página;
+// - retry manual substitui o listener atual, sem abrir listener paralelo.
 // -----------------------------------------------------------------------------
 
 import { Injectable, inject } from '@angular/core';
@@ -19,7 +21,13 @@ import {
   serverTimestamp,
   setDoc,
 } from '@angular/fire/firestore';
-import { Observable, of, throwError } from 'rxjs';
+import {
+  BehaviorSubject,
+  Observable,
+  combineLatest,
+  of,
+  throwError,
+} from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -27,6 +35,7 @@ import {
   shareReplay,
   startWith,
   switchMap,
+  tap,
 } from 'rxjs/operators';
 
 import {
@@ -51,18 +60,49 @@ interface NotificationPreferencesReportableError extends Error {
   skipUserNotification?: boolean;
 }
 
+export type NotificationPreferencesReadState = 'loading' | 'ready' | 'error';
+
 @Injectable({ providedIn: 'root' })
 export class NotificationPreferencesService {
   private readonly firestore = inject(Firestore);
   private readonly session = inject(AuthSessionService);
   private readonly firestoreContext = inject(FirestoreContextService);
   private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly currentRefreshSubject = new BehaviorSubject(0);
+  private readonly currentReadStateSubject =
+    new BehaviorSubject<NotificationPreferencesReadState>('loading');
+
+  readonly currentReadState$: Observable<NotificationPreferencesReadState> =
+    this.currentReadStateSubject.asObservable().pipe(
+      distinctUntilChanged(),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
 
   readonly currentPreferences$: Observable<INotificationPreferences> =
-    this.session.uid$.pipe(
-      map((uid) => String(uid ?? '').trim()),
-      distinctUntilChanged(),
-      switchMap((uid) => this.watchForUser$(uid)),
+    combineLatest([
+      this.session.uid$.pipe(
+        map((uid) => String(uid ?? '').trim()),
+        distinctUntilChanged()
+      ),
+      this.currentRefreshSubject,
+    ]).pipe(
+      switchMap(([uid]) => {
+        if (!uid) {
+          this.currentReadStateSubject.next('ready');
+          return of(DEFAULT_NOTIFICATION_PREFERENCES);
+        }
+
+        this.currentReadStateSubject.next('loading');
+
+        return this.watchForUserQuery$(uid).pipe(
+          tap(() => this.currentReadStateSubject.next('ready')),
+          catchError((error) => {
+            this.currentReadStateSubject.next('error');
+            this.reportError(error, 'currentPreferences', { uid });
+            return of(DEFAULT_NOTIFICATION_PREFERENCES);
+          })
+        );
+      }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
@@ -76,6 +116,11 @@ export class NotificationPreferencesService {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
+  refreshCurrentPreferences(): void {
+    this.currentReadStateSubject.next('loading');
+    this.currentRefreshSubject.next(this.currentRefreshSubject.value + 1);
+  }
+
   watchForUser$(uid: string): Observable<INotificationPreferences> {
     const safeUid = String(uid ?? '').trim();
 
@@ -83,11 +128,7 @@ export class NotificationPreferencesService {
       return of(DEFAULT_NOTIFICATION_PREFERENCES);
     }
 
-    return this.firestoreContext.deferObservable$(() => {
-      const preferencesRef = doc(this.firestore, 'preferences', safeUid);
-      return docData(preferencesRef) as Observable<UserPreferencesDocument | undefined>;
-    }).pipe(
-      map((document) => this.normalizePreferences(document?.notificationPreferences)),
+    return this.watchForUserQuery$(safeUid).pipe(
       catchError((error) => {
         this.reportError(error, 'watchForUser', { uid: safeUid });
         return of(DEFAULT_NOTIFICATION_PREFERENCES);
@@ -127,6 +168,15 @@ export class NotificationPreferencesService {
         this.reportError(error, 'updateCurrentPreferences', { patch: normalizedPatch });
         return throwError(() => error);
       })
+    );
+  }
+
+  private watchForUserQuery$(uid: string): Observable<INotificationPreferences> {
+    return this.firestoreContext.deferObservable$(() => {
+      const preferencesRef = doc(this.firestore, 'preferences', uid);
+      return docData(preferencesRef) as Observable<UserPreferencesDocument | undefined>;
+    }).pipe(
+      map((document) => this.normalizePreferences(document?.notificationPreferences))
     );
   }
 
