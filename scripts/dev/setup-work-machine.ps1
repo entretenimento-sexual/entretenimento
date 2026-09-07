@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-  [string]$Branch = 'feat/auth-password-recovery-polish',
+  [string]$Branch = 'main',
   [switch]$Start,
   [switch]$Validate
 )
