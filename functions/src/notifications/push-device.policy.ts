@@ -41,12 +41,12 @@ export function resolvePushDevicePlatform(
   const platform = String(value ?? '').trim().toLowerCase();
 
   switch (platform) {
-    case 'web':
-    case 'ios':
-    case 'android':
-      return platform;
-    default:
-      return null;
+  case 'web':
+  case 'ios':
+  case 'android':
+    return platform;
+  default:
+    return null;
   }
 }
 
