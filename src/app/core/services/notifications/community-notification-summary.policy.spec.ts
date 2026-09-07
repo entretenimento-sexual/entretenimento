@@ -4,6 +4,7 @@ import type { IAppNotification } from 'src/app/core/interfaces/app-notification.
 
 import {
   buildCommunityNotificationSummaries,
+  communityNotificationActivityCount,
   isCommunityPriorityNotification,
 } from './community-notification-summary.policy';
 
@@ -64,6 +65,44 @@ describe('community notification summary policy', () => {
       communityId: 'community-b',
       unreadCount: 1,
     });
+  });
+
+  it('contabiliza todas as atividades não lidas agrupadas no mesmo documento', () => {
+    const summaries = buildCommunityNotificationSummaries([
+      notification({
+        id: 'reply-group',
+        type: 'community.comment.reply.received',
+        communityId: 'community-a',
+        activityCount: 4,
+        createdAt: 30,
+      }),
+      notification({
+        id: 'comment-single',
+        type: 'community.comment.received',
+        communityId: 'community-a',
+        activityCount: null,
+        createdAt: 20,
+      }),
+      notification({
+        id: 'read-group',
+        type: 'community.comment.reply.received',
+        communityId: 'community-a',
+        activityCount: 7,
+        readAt: 50,
+        createdAt: 10,
+      }),
+    ]);
+
+    expect(summaries[0]?.unreadCount).toBe(5);
+    expect(
+      communityNotificationActivityCount(
+        notification({
+          id: 'invalid-count',
+          type: 'community.comment.received',
+          activityCount: 0,
+        })
+      )
+    ).toBe(1);
   });
 
   it('não contabiliza como não lidas as notificações já abertas', () => {

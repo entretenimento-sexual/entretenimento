@@ -7,6 +7,13 @@ function notificationOrderValue(notification: IAppNotification): number {
   return notification.createdAt ?? notification.updatedAt ?? 0;
 }
 
+export function communityNotificationActivityCount(
+  notification: IAppNotification
+): number {
+  const parsed = Math.trunc(Number(notification.activityCount));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+}
+
 export function isCommunityPriorityNotification(
   notification: IAppNotification
 ): boolean {
@@ -25,13 +32,16 @@ export function buildCommunityNotificationSummaries(
 
     const existing = summaries.get(communityId);
     const unread = notification.readAt == null;
+    const unreadActivityCount = unread
+      ? communityNotificationActivityCount(notification)
+      : 0;
     const priorityUnread = unread && isCommunityPriorityNotification(notification);
 
     if (!existing) {
       summaries.set(communityId, {
         communityId,
         latestNotification: notification,
-        unreadCount: unread ? 1 : 0,
+        unreadCount: unreadActivityCount,
         hasPriorityUnread: priorityUnread,
       });
       continue;
@@ -44,10 +54,7 @@ export function buildCommunityNotificationSummaries(
       existing.latestNotification = notification;
     }
 
-    if (unread) {
-      existing.unreadCount += 1;
-    }
-
+    existing.unreadCount += unreadActivityCount;
     existing.hasPriorityUnread ||= priorityUnread;
   }
 

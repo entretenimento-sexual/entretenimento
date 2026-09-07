@@ -11,7 +11,8 @@
 // - convites para salas possuem categoria e rota próprias;
 // - badges aparecem apenas quando houver pendência;
 // - categorias usam a janela recente já carregada, sem listeners extras;
-// - Central usa o total global canônico de não lidas, sem inferir pelo limite local;
+// - Comunidades respeita activityCount dos documentos agrupados;
+// - Central usa o total global canônico de documentos não lidos, sem inferir pelo limite local;
 // - não escreve no Firestore;
 // - ações de leitura seguem nas callables da central de notificações.
 // -----------------------------------------------------------------------------
@@ -24,6 +25,7 @@ import { map } from 'rxjs/operators';
 
 import { IAppNotification } from 'src/app/core/interfaces/app-notification.interface';
 import { AppNotificationService } from 'src/app/core/services/notifications/app-notification.service';
+import { communityNotificationActivityCount } from 'src/app/core/services/notifications/community-notification-summary.policy';
 
 interface UserActivityHubAction {
   id: ActivityKind;
@@ -142,7 +144,10 @@ export class UserActivityHubComponent {
       // Não incrementá-la aqui também elimina a dupla contagem de notificações
       // genéricas que já caem naturalmente na própria Central.
       if (kind !== 'central') {
-        counts.set(kind, (counts.get(kind) ?? 0) + 1);
+        const increment = kind === 'communities'
+          ? communityNotificationActivityCount(item)
+          : 1;
+        counts.set(kind, (counts.get(kind) ?? 0) + increment);
       }
     });
 

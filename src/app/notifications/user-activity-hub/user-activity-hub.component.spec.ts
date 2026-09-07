@@ -7,7 +7,7 @@ import { AppNotificationService } from 'src/app/core/services/notifications/app-
 import { UserActivityHubComponent } from './user-activity-hub.component';
 
 describe('UserActivityHubComponent', () => {
-  it('mantém categorias recentes e usa o total global exato na Central', () => {
+  it('mantém categorias recentes, expande atividade agrupada e preserva o total global da Central', () => {
     TestBed.configureTestingModule({
       imports: [UserActivityHubComponent],
       providers: [
@@ -44,8 +44,9 @@ describe('UserActivityHubComponent', () => {
                 userId: 'user-1',
                 type: 'community.comment.reply.received',
                 title: 'Nova resposta',
-                body: 'Seu comentário recebeu uma resposta.',
+                body: 'Seu comentário recebeu novas respostas.',
                 route: null,
+                activityCount: 3,
                 readAt: null,
                 createdAt: 4,
                 updatedAt: 4,
@@ -118,7 +119,7 @@ describe('UserActivityHubComponent', () => {
     expect(momentsLink?.getAttribute('href')).toBe('/descobrir');
     expect(
       communitiesLink?.querySelector('.activity-bar__badge')?.textContent?.trim()
-    ).toBe('1');
+    ).toBe('3');
     expect(
       centralLink?.querySelector('.activity-bar__badge')?.textContent?.trim()
     ).toBe('9');
