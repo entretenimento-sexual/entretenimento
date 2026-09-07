@@ -8,9 +8,11 @@ import {
   MAX_PUSH_DEVICES_PER_USER,
   normalizePushInstallationId,
   normalizePushToken,
+  resolveInvalidPushDeliveryTargets,
   resolveInvalidPushRegistryDocumentIds,
   resolvePushDeliveryTargets,
   resolvePushDevicePlatform,
+  shouldPruneCurrentPushToken,
 } from './push-device.policy';
 
 const TOKEN = 'fcm-token-value-that-is-long-enough-for-validation-1234567890';
@@ -128,6 +130,25 @@ test('classifica somente erros de token permanentemente inválido para limpeza',
   assert.equal(isPermanentPushTokenErrorCode(undefined), false);
 });
 
+test('seleciona somente alvos ligados a falhas permanentes', () => {
+  const targets = resolvePushDeliveryTargets(TOKEN_B, [
+    { documentId: 'device-a', token: TOKEN },
+  ]);
+
+  assert.deepEqual(
+    resolveInvalidPushDeliveryTargets(targets, [
+      'messaging/registration-token-not-registered',
+      'messaging/internal-error',
+    ]),
+    [
+      {
+        token: TOKEN,
+        registryDocumentIds: ['device-a'],
+      },
+    ]
+  );
+});
+
 test('limpa somente referências privadas ligadas a falhas permanentes', () => {
   const targets = resolvePushDeliveryTargets(TOKEN_B, [
     { documentId: 'device-a', token: TOKEN },
@@ -142,13 +163,39 @@ test('limpa somente referências privadas ligadas a falhas permanentes', () => {
   );
 });
 
-test('não tenta remover o campo legado quando a falha permanente é só dele', () => {
+test('expõe fallback legado para limpeza quando ele falha permanentemente', () => {
   const targets = resolvePushDeliveryTargets(TOKEN, []);
 
+  assert.deepEqual(
+    resolveInvalidPushDeliveryTargets(targets, [
+      'messaging/registration-token-not-registered',
+    ]),
+    [
+      {
+        token: TOKEN,
+        registryDocumentIds: [],
+      },
+    ]
+  );
   assert.deepEqual(
     resolveInvalidPushRegistryDocumentIds(targets, [
       'messaging/registration-token-not-registered',
     ]),
     []
   );
+});
+
+test('não seleciona fallback legado para limpeza em falha transitória', () => {
+  const targets = resolvePushDeliveryTargets(TOKEN, []);
+
+  assert.deepEqual(
+    resolveInvalidPushDeliveryTargets(targets, ['messaging/internal-error']),
+    []
+  );
+});
+
+test('cleanup condicional preserva token que já rotacionou', () => {
+  assert.equal(shouldPruneCurrentPushToken(TOKEN, TOKEN), true);
+  assert.equal(shouldPruneCurrentPushToken(TOKEN_B, TOKEN), false);
+  assert.equal(shouldPruneCurrentPushToken(undefined, TOKEN), false);
 });
