@@ -5,7 +5,7 @@
 // Objetivo:
 // - Centralizar logout voluntário e hard signout inevitável.
 // - Coordenar side-effects que pertencem ao encerramento da sessão:
-//   presença, geolocalização, signOut, limpeza de perfil runtime e navegação.
+//   presença, geolocalização, Web Push, signOut, limpeza de perfil runtime e navegação.
 // =============================================================================
 import {
   EnvironmentInjector,
@@ -30,6 +30,7 @@ import { CurrentUserStoreService } from './current-user-store.service';
 import { AuthAppBlockService } from './auth-app-block.service';
 import { CacheService } from '@core/services/general/cache/cache.service';
 import { GeolocationTrackingService } from '@core/services/geolocation/geolocation-tracking.service';
+import { PushNotificationDeviceService } from '@core/services/notifications/push-notification-device.service';
 
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
@@ -47,6 +48,7 @@ export class LogoutService {
     private readonly router: Router,
     private readonly presence: PresenceService,
     private readonly geolocation: GeolocationTrackingService,
+    private readonly pushNotifications: PushNotificationDeviceService,
     private readonly currentUserStore: CurrentUserStoreService,
     private readonly appBlock: AuthAppBlockService,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
@@ -59,6 +61,7 @@ export class LogoutService {
   /**
    * Logout voluntário:
    * - para geolocalização e presença
+   * - remove o registro Web Push desta instalação em best-effort
    * - faz signOut estrito
    * - limpa CurrentUserStore/cache
    * - limpa bloqueio de app
@@ -70,6 +73,7 @@ export class LogoutService {
 
     return this.stopGeolocationBestEffort$().pipe(
       switchMap(() => this.stopPresenceBestEffort$()),
+      switchMap(() => this.deactivatePushBestEffort$()),
       switchMap(() => this.executeSignOut$('strict')),
       switchMap(() => this.clearLocalSessionDataBestEffort$()),
       switchMap(() => this.navigateBestEffort$('/login')),
@@ -93,7 +97,7 @@ export class LogoutService {
   /**
    * Hard signout:
    * - usado quando a sessão do Auth ficou tecnicamente inválida
-   * - tenta parar geolocalização e presença
+   * - tenta parar geolocalização, presença e Web Push
    * - faz signOut best-effort
    * - limpa CurrentUserStore/cache
    * - limpa bloqueio de app
@@ -115,6 +119,7 @@ export class LogoutService {
 
     return this.stopGeolocationBestEffort$().pipe(
       switchMap(() => this.stopPresenceBestEffort$()),
+      switchMap(() => this.deactivatePushBestEffort$()),
       switchMap(() => this.executeSignOut$('best-effort')),
       switchMap(() => this.clearLocalSessionDataBestEffort$()),
       switchMap(() => this.navigateToWelcomeBestEffort$(reason)),
@@ -163,6 +168,24 @@ export class LogoutService {
       defaultIfEmpty(void 0),
       catchError((err) => {
         this.reportSilent(err, { phase: 'stopPresenceBestEffort$' });
+        return of(void 0);
+      })
+    );
+  }
+
+  /**
+   * Remove o vínculo Web Push enquanto a sessão ainda pode autenticar a callable.
+   * Qualquer falha é best-effort: push nunca pode impedir logout/hard signout.
+   * `defer` também captura falhas síncronas ao iniciar o cleanup e
+   * `defaultIfEmpty` impede Observable vazio de encerrar a cadeia prematuramente.
+   */
+  private deactivatePushBestEffort$(): Observable<void> {
+    return defer(() => this.pushNotifications.deactivate$()).pipe(
+      take(1),
+      defaultIfEmpty(void 0),
+      map(() => void 0),
+      catchError((err) => {
+        this.reportSilent(err, { phase: 'deactivatePushBestEffort$' });
         return of(void 0);
       })
     );
