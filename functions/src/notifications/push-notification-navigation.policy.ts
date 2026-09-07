@@ -7,7 +7,8 @@ const PUSH_NOTIFICATION_ROUTE_BASE_ORIGIN =
   'https://notification-route.invalid';
 const MAX_PUSH_NOTIFICATION_ROUTE_LENGTH = 2048;
 
-export interface PushNotificationNavigationData {
+export interface PushNotificationNavigationData
+  extends Record<string, string> {
   route: string;
 }
 
