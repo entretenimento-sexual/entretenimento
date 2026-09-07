@@ -1,7 +1,7 @@
 // functions/src/notifications/sendNotification.ts
 import {onDocumentCreated} from 'firebase-functions/v2/firestore';
 import {getMessaging} from 'firebase-admin/messaging';
-import {getFirestore} from 'firebase-admin/firestore';
+import {FieldValue, getFirestore} from 'firebase-admin/firestore';
 
 import {
   isPushNotificationEnabledByPreference,
@@ -9,8 +9,10 @@ import {
 } from './notification-preference.policy';
 import {
   MAX_PUSH_DEVICES_PER_USER,
-  resolveInvalidPushRegistryDocumentIds,
+  normalizePushToken,
+  resolveInvalidPushDeliveryTargets,
   resolvePushDeliveryTargets,
+  shouldPruneCurrentPushToken,
 } from './push-device.policy';
 
 export const sendNotification = onDocumentCreated(
@@ -89,23 +91,88 @@ export const sendNotification = onDocumentCreated(
     const responseErrorCodes = response.responses.map((result) =>
       result.success ? null : toSafeErrorCode(result.error)
     );
-    const invalidRegistryDocumentIds =
-      resolveInvalidPushRegistryDocumentIds(targets, responseErrorCodes);
+    const invalidTargets = resolveInvalidPushDeliveryTargets(
+      targets,
+      responseErrorCodes
+    );
+    let prunedRegistryDeviceCount = 0;
+    let prunedLegacyToken = false;
 
-    if (invalidRegistryDocumentIds.length > 0) {
+    if (invalidTargets.length > 0) {
       try {
-        const cleanupBatch = db.batch();
-        for (const documentId of invalidRegistryDocumentIds) {
-          cleanupBatch.delete(devicesRef.doc(documentId));
+        const invalidTokens = new Set(
+          invalidTargets.map((target) => target.token)
+        );
+        const expectedTokenByDocumentId = new Map<string, string>();
+
+        for (const target of invalidTargets) {
+          for (const documentId of target.registryDocumentIds) {
+            expectedTokenByDocumentId.set(documentId, target.token);
+          }
         }
-        await cleanupBatch.commit();
+
+        const cleanupResult = await db.runTransaction(async (tx) => {
+          const currentUserDoc = await tx.get(userRef);
+          const deviceEntries = Array.from(expectedTokenByDocumentId.entries());
+          const currentDevices = [];
+
+          // Todas as leituras acontecem antes das escritas. Se um token rotacionar
+          // durante a transação, o Firestore repete a operação com o estado novo.
+          for (const [documentId] of deviceEntries) {
+            currentDevices.push(await tx.get(devicesRef.doc(documentId)));
+          }
+
+          let registryDeviceCount = 0;
+
+          for (let index = 0; index < deviceEntries.length; index += 1) {
+            const expectedInvalidToken = deviceEntries[index]?.[1];
+            const currentDevice = currentDevices[index];
+
+            if (
+              !expectedInvalidToken ||
+              !currentDevice?.exists ||
+              !shouldPruneCurrentPushToken(
+                currentDevice.data()?.token,
+                expectedInvalidToken
+              )
+            ) {
+              continue;
+            }
+
+            tx.delete(currentDevice.ref);
+            registryDeviceCount += 1;
+          }
+
+          const currentLegacyToken = normalizePushToken(
+            currentUserDoc.data()?.fcmToken
+          );
+          const removeLegacyToken = Boolean(
+            currentUserDoc.exists &&
+            currentLegacyToken &&
+            invalidTokens.has(currentLegacyToken)
+          );
+
+          if (removeLegacyToken) {
+            tx.update(userRef, {
+              fcmToken: FieldValue.delete(),
+            });
+          }
+
+          return {
+            registryDeviceCount,
+            legacyTokenRemoved: removeLegacyToken,
+          };
+        });
+
+        prunedRegistryDeviceCount = cleanupResult.registryDeviceCount;
+        prunedLegacyToken = cleanupResult.legacyTokenRemoved;
       } catch (error) {
         // Limpeza é best-effort: não transformamos uma entrega já processada em
         // falha apenas porque a remoção de tokens inválidos ficou indisponível.
         console.error('[sendNotification] falha ao limpar tokens inválidos', {
           notificationId,
           notificationType,
-          invalidTokenCount: invalidRegistryDocumentIds.length,
+          invalidTokenCount: invalidTargets.length,
           errorCode: toSafeErrorCode(error),
         });
       }
@@ -117,7 +184,9 @@ export const sendNotification = onDocumentCreated(
       targetCount: targets.length,
       successCount: response.successCount,
       failureCount: response.failureCount,
-      invalidTokenCount: invalidRegistryDocumentIds.length,
+      invalidTokenCount: invalidTargets.length,
+      prunedRegistryDeviceCount,
+      prunedLegacyToken,
     });
   }
 );
