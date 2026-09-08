@@ -94,6 +94,7 @@ function assertAuthenticatedUid(
 
 function normalizeText(value: unknown, maxLength: number): string {
   return String(value ?? '')
+    // eslint-disable-next-line no-control-regex -- Sanitização intencional.
     .replace(/[\u0000-\u001F\u007F]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
