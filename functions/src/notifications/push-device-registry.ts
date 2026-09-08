@@ -123,8 +123,8 @@ export const registerPushDevice = onCall<PushDeviceRequest>(
       const existingDevice = deviceSnapshot.exists
         ? deviceSnapshot
         : devicesSnapshot.docs.find(
-            (snapshot) => snapshot.id === installationDocumentId
-          );
+          (snapshot) => snapshot.id === installationDocumentId
+        );
       const duplicateTokenDevices = devicesSnapshot.docs.filter(
         (snapshot) =>
           snapshot.id !== installationDocumentId &&
