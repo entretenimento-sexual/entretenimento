@@ -9,6 +9,7 @@ import { CommunityCreationGateService } from './community/community-create/commu
 import { CommunityMembershipRepository } from './community/data-access/community-membership.repository';
 import { CommunityPreviewRepository } from './community/data-access/community-preview.repository';
 import type { CommunityPreviewCard } from './community/data-access/community-preview.model';
+import { CommunityProfilePublicCommunitiesRepository } from './community/data-access/community-profile-public-communities.repository';
 import { CommunityTagRepository } from './community/data-access/community-tag.repository';
 import { CommunityDiscoveryCacheService } from './community/discovery/community-discovery-cache.service';
 import { CommunityDiscoveryExposureService } from './community/discovery/community-discovery-exposure.service';
@@ -208,6 +209,10 @@ const previewRepository = {
   getProfileOfficialCommunities$: () => of({ items: profileCards, nextCursor: null, generatedAt: now }),
 };
 
+const publicCommunitiesRepository = {
+  getProfilePublicCommunities$: () => of({ items: [], nextCursor: null, generatedAt: now }),
+};
+
 const membershipRepository = {
   getMembershipContext$: () => of({ activeCommunityIds: ['visual-community-rio'] }),
 };
@@ -258,6 +263,7 @@ const sessionBehavior = {
   providers: [
     { provide: ActivatedRoute, useValue: route },
     { provide: CommunityPreviewRepository, useValue: previewRepository },
+    { provide: CommunityProfilePublicCommunitiesRepository, useValue: publicCommunitiesRepository },
     { provide: CommunityMembershipRepository, useValue: membershipRepository },
     { provide: CommunityTagRepository, useValue: tagRepository },
     { provide: CommunityDiscoveryCacheService, useValue: discoveryCache },
