@@ -3,8 +3,20 @@
 // CHAT MODULE ROUTING
 // -----------------------------------------------------------------------------
 // Rotas estáticas permanecem antes de `:userId`.
-// `/chat/room-invites` é a rota canônica de convites para salas.
+// `/chat/room-invites` é a rota canônica de convites para salas legadas.
 // `/chat/invite-list` permanece somente como redirecionamento legado.
+//
+// DIREÇÃO DE PRODUTO — /chat/rooms EM MANUTENÇÃO/COMPATIBILIDADE
+// -----------------------------------------------------------------------------
+// Salas independentes estão congeladas. Esta rota existe enquanto documentos,
+// convites e notificações antigos ainda precisam de destino seguro. Não criar
+// `/chat/rooms/:id`, novas telas de conversa, discovery, membership, papéis ou
+// monetização neste domínio. A interação coletiva canônica pertence a Comunidades;
+// o chat direto pessoa-a-pessoa continua separado.
+//
+// A remoção/redirect definitivo de `/chat/rooms` deve acontecer somente depois da
+// migração ou expiração do legado persistido, para não quebrar links e notificações.
+// -----------------------------------------------------------------------------
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 

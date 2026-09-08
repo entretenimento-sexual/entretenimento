@@ -97,6 +97,9 @@ export {
   updateCommunityMembershipDisclosurePolicy,
 } from './community-membership-disclosure.handler';
 export {
+  getCommunityMemberRosterPage,
+} from './get-community-member-roster-page.handler';
+export {
   getCommunityMembersForManagement,
   manageCommunityMember,
 } from './community-member-management.handler';

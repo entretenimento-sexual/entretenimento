@@ -3,7 +3,8 @@
 // ROTAS CANÔNICAS DE COMUNIDADE
 // -----------------------------------------------------------------------------
 // Comunidade é um grupo permanente de pessoas unidas por interesse, identidade,
-// região ou objetivo. Local possui rota própria e Sala permanece em /chat/rooms.
+// região ou objetivo. Local possui rota própria e Sala permanece em /chat/rooms
+// somente por compatibilidade durante o congelamento/migração desse domínio.
 //
 // A antiga rota de sugestão é preservada apenas como redirecionamento para a
 // criação direta, evitando quebra de favoritos e histórico sem manter dois fluxos.
@@ -68,6 +69,13 @@ export const COMMUNITY_ROUTES: Routes = [
     loadComponent: () =>
       import('./discovery/community-discovery-page.component').then(
         (module) => module.CommunityDiscoveryPageComponent
+      ),
+  },
+  {
+    path: ':communityId/integrantes',
+    loadComponent: () =>
+      import('./members/community-members-page.component').then(
+        (module) => module.CommunityMembersPageComponent
       ),
   },
   {

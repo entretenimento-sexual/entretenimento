@@ -6,6 +6,7 @@ import {
   input,
 } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
+import { RouterLink } from '@angular/router';
 import {
   BehaviorSubject,
   Observable,
@@ -47,7 +48,7 @@ type VisibilityActionState =
 @Component({
   selector: 'app-community-membership-profile-visibility',
   standalone: true,
-  imports: [AsyncPipe],
+  imports: [AsyncPipe, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (action$ | async; as action) {
@@ -75,6 +76,22 @@ type VisibilityActionState =
             <p class="membership-visibility__default-note">
               Sua participação continua privada por padrão. Ela só aparece no seu perfil quando você escolhe explicitamente a opção visível abaixo.
             </p>
+
+            <div class="membership-visibility__members">
+              <i class="fas fa-users" aria-hidden="true"></i>
+              <div>
+                <strong>Integrantes da Comunidade</strong>
+                <small>
+                  A lista é interna e visível somente para participantes ativos. Ela não publica sua participação no perfil.
+                </small>
+              </div>
+              <a
+                [routerLink]="['/dashboard/comunidades', communityId(), 'integrantes']"
+                aria-label="Ver integrantes desta Comunidade"
+              >
+                Ver integrantes
+              </a>
+            </div>
 
             @if (value.canManagePolicy) {
               <label class="membership-visibility__switch">
@@ -149,6 +166,12 @@ type VisibilityActionState =
     .membership-visibility__heading span { display: block; font-size: .78rem; opacity: .72; }
     .membership-visibility__heading h2 { margin: .1rem 0 0; font-size: 1rem; }
     .membership-visibility__default-note, .membership-visibility__note { margin: 0; opacity: .82; line-height: 1.45; }
+    .membership-visibility__members { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .7rem; align-items: center; padding: .8rem; border: 1px solid var(--app-border-color, rgba(127,127,127,.2)); border-radius: .8rem; }
+    .membership-visibility__members > i { color: var(--primary-color, #d83768); }
+    .membership-visibility__members > div { display: grid; gap: .18rem; min-width: 0; }
+    .membership-visibility__members small { opacity: .78; line-height: 1.4; }
+    .membership-visibility__members a { min-height: 2.75rem; display: inline-flex; align-items: center; justify-content: center; padding: .5rem .7rem; border-radius: .65rem; color: var(--primary-color, #d83768); font-size: .78rem; font-weight: 760; text-decoration: none; }
+    .membership-visibility__members a:hover, .membership-visibility__members a:focus-visible { background: color-mix(in oklab, var(--app-surface, #fff) 90%, var(--primary-color, #d83768) 10%); }
     .membership-visibility__switch { display: flex; align-items: flex-start; gap: .75rem; cursor: pointer; }
     .membership-visibility__switch input { inline-size: 1.1rem; block-size: 1.1rem; margin-top: .15rem; flex: 0 0 auto; }
     .membership-visibility__switch span, .membership-visibility__choice span { display: grid; gap: .2rem; }
@@ -160,7 +183,7 @@ type VisibilityActionState =
     .membership-visibility__live { min-height: 1.2em; font-size: .82rem; opacity: .75; }
     .membership-visibility--state { grid-template-columns: auto 1fr auto; align-items: center; }
     .membership-visibility--state button { min-height: 2.75rem; }
-    @media (max-width: 520px) { .membership-visibility { padding: .9rem; } .membership-visibility--state { grid-template-columns: 1fr; } }
+    @media (max-width: 520px) { .membership-visibility { padding: .9rem; } .membership-visibility__members { grid-template-columns: auto minmax(0, 1fr); } .membership-visibility__members a { grid-column: 2; justify-self: start; padding-inline: 0; } .membership-visibility--state { grid-template-columns: 1fr; } }
   `],
 })
 export class CommunityMembershipProfileVisibilityComponent {

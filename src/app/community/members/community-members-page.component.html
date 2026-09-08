@@ -1,0 +1,86 @@
+<!-- src/app/community/members/community-members-page.component.html -->
+@if (state$ | async; as state) {
+  <main class="community-members">
+    <nav class="community-members__topbar" aria-label="Navegação dos integrantes">
+      @if (state.communityId) {
+        <a
+          [routerLink]="['/dashboard/comunidades', state.communityId]"
+          aria-label="Voltar para a Comunidade"
+        >
+          <i class="fas fa-arrow-left" aria-hidden="true"></i>
+        </a>
+      }
+    </nav>
+
+    <header class="community-members__header">
+      <span>Comunidade</span>
+      <h1>Integrantes</h1>
+      @if (state.status === 'ready' || state.status === 'empty') {
+        <p>{{ state.memberCount }} participantes</p>
+      } @else {
+        <p>Veja quem participa deste espaço.</p>
+      }
+    </header>
+
+    @if (state.status === 'loading') {
+      <section class="community-members__state" role="status" aria-live="polite">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Carregando integrantes…</span>
+      </section>
+    } @else if (state.status === 'error') {
+      <section class="community-members__state" role="alert">
+        <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+        <span>Não foi possível carregar os integrantes.</span>
+        <button type="button" (click)="retry()">Tentar novamente</button>
+      </section>
+    } @else {
+      @if (state.items.length > 0) {
+        <ul class="community-members__list" aria-label="Integrantes da Comunidade">
+          @for (member of state.items; track member.memberKey) {
+            <li class="community-members__item">
+              <app-public-user-identity
+                [identity]="member.identity"
+                density="comfortable"
+                emphasis="strong"
+                [contextText]="roleLabel(member.role)"
+              />
+            </li>
+          }
+        </ul>
+      } @else {
+        <section class="community-members__state" role="status">
+          <i class="fas fa-users" aria-hidden="true"></i>
+          <span>Nenhum integrante disponível para exibição nesta página.</span>
+        </section>
+      }
+
+      @if (state.loadMoreFailed) {
+        <p class="community-members__more-error" role="status">
+          Não foi possível carregar mais integrantes. A lista acima foi preservada.
+        </p>
+      }
+
+      @if (state.nextCursor) {
+        <div class="community-members__more">
+          <button
+            type="button"
+            [disabled]="state.loadingMore"
+            (click)="loadMore(state.nextCursor)"
+          >
+            @if (state.loadingMore) {
+              <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+              <span>Carregando…</span>
+            } @else {
+              <i class="fas fa-chevron-down" aria-hidden="true"></i>
+              <span>Ver mais integrantes</span>
+            }
+          </button>
+        </div>
+      }
+    }
+
+    <p class="community-members__privacy-note">
+      Esta lista é interna à Comunidade. Ela não altera a opção de mostrar ou ocultar sua participação no perfil.
+    </p>
+  </main>
+}
