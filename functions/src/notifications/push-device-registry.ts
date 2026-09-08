@@ -70,7 +70,7 @@ function requirePlatform(value: unknown) {
 }
 
 export const registerPushDevice = onCall<PushDeviceRequest>(
-  { region: FUNCTIONS_REGION },
+  { region: FUNCTIONS_REGION, enforceAppCheck: true },
   async (request): Promise<{ ok: true }> => {
     const uid = requireUid(request.auth?.uid);
     const token = requireToken(request.data?.token);
@@ -166,7 +166,7 @@ export const registerPushDevice = onCall<PushDeviceRequest>(
 );
 
 export const unregisterPushDevice = onCall<PushDeviceRequest>(
-  { region: FUNCTIONS_REGION },
+  { region: FUNCTIONS_REGION, enforceAppCheck: true },
   async (request): Promise<{ ok: true }> => {
     const uid = requireUid(request.auth?.uid);
     const installationId = requireInstallationId(request.data?.installationId);
