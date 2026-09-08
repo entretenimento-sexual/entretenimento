@@ -2,13 +2,17 @@ import { describe, expect, it } from 'vitest';
 
 import { normalizeCommunityMemberRosterPage } from './community-member-roster.model';
 
+const PROFILE_ID = 'profile-123e4567-e89b-42d3-a456-426614174000';
+const NEXT_PROFILE_ID = 'profile-223e4567-e89b-42d3-a456-426614174000';
+
 describe('normalizeCommunityMemberRosterPage', () => {
-  it('normaliza somente identidade pública mínima e papel comunitário', () => {
+  it('normaliza somente identidade pública canônica e papel comunitário', () => {
     const page = normalizeCommunityMemberRosterPage({
       items: [
         {
-          memberKey: 'uM6ahxYpF1RkL8qvW2N3Zw',
+          memberKey: PROFILE_ID,
           identity: {
+            profileId: PROFILE_ID,
             nickname: 'Perfil Teste',
             label: 'Perfil Teste',
             avatarUrl: 'https://example.com/avatar.webp',
@@ -17,7 +21,7 @@ describe('normalizeCommunityMemberRosterPage', () => {
           role: 'moderator',
         },
       ],
-      nextCursor: 'roster1:YWJjMTIz',
+      nextCursor: NEXT_PROFILE_ID,
       memberCount: 23,
       generatedAt: 123456,
     });
@@ -25,38 +29,37 @@ describe('normalizeCommunityMemberRosterPage', () => {
     expect(page).not.toBeNull();
     expect(page?.items).toHaveLength(1);
     expect(page?.items[0].role).toBe('moderator');
+    expect(page?.items[0].identity.profileId).toBe(PROFILE_ID);
     expect(page?.items[0].identity.nickname).toBe('Perfil Teste');
     expect((page?.items[0].identity as { uid?: unknown }).uid).toBeUndefined();
   });
 
-  it('descarta itens inválidos sem derrubar os demais integrantes', () => {
+  it('descarta itens cujo identificador não coincide com o profileId público', () => {
     const page = normalizeCommunityMemberRosterPage({
       items: [
         {
-          memberKey: 'membroValido_123456',
-          identity: { nickname: 'Pessoa Válida', label: 'Pessoa Válida' },
+          memberKey: PROFILE_ID,
+          identity: {
+            profileId: NEXT_PROFILE_ID,
+            nickname: 'Pessoa Inválida',
+            label: 'Pessoa Inválida',
+          },
           role: 'member',
-        },
-        {
-          memberKey: 'curto',
-          identity: { nickname: 'Pessoa Inválida', label: 'Pessoa Inválida' },
-          role: 'owner',
         },
       ],
       nextCursor: null,
-      memberCount: 2,
+      memberCount: 1,
       generatedAt: 123456,
     });
 
-    expect(page?.items).toHaveLength(1);
-    expect(page?.items[0].identity.nickname).toBe('Pessoa Válida');
+    expect(page?.items).toHaveLength(0);
   });
 
-  it('falha fechado quando o cursor não obedece ao contrato', () => {
+  it('falha fechado quando o cursor não é um profileId público canônico', () => {
     expect(
       normalizeCommunityMemberRosterPage({
         items: [],
-        nextCursor: '../uid-interno',
+        nextCursor: 'roster1:dWlkLWludGVybm8',
         memberCount: 0,
         generatedAt: 123456,
       })

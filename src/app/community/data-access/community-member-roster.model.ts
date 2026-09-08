@@ -3,9 +3,13 @@
 // COMMUNITY MEMBER ROSTER - CLIENT CONTRACT
 // -----------------------------------------------------------------------------
 // A listagem é uma projeção interna e mínima. Não aceita UID, nome civil, KYC,
-// status de bloqueio ou capabilities administrativas.
+// status de bloqueio ou capabilities administrativas. A paginação transporta
+// somente o profileId público canônico; UID nunca é cursor do cliente.
 // -----------------------------------------------------------------------------
 
+import {
+  normalizePublicProfileId,
+} from 'src/app/core/domain/public-user-identity/public-profile-id.model';
 import {
   normalizePublicUserIdentity,
   type PublicUserIdentity,
@@ -36,9 +40,6 @@ export interface CommunityMemberRosterPageRequest {
   readonly limit?: number;
 }
 
-const SAFE_MEMBER_KEY_PATTERN = /^[A-Za-z0-9_-]{12,64}$/;
-const SAFE_CURSOR_PATTERN = /^roster1:[A-Za-z0-9_-]{1,220}$/;
-
 function normalizeCount(value: unknown): number | null {
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) && parsed >= 0
@@ -64,8 +65,7 @@ function normalizeRole(value: unknown): CommunityMemberRosterRole | null {
 
 function normalizeCursor(value: unknown): string | null {
   if (value == null || value === '') return null;
-  const normalized = String(value).trim();
-  return SAFE_CURSOR_PATTERN.test(normalized) ? normalized : null;
+  return normalizePublicProfileId(value);
 }
 
 export function normalizeCommunityMemberRosterPage(
@@ -90,11 +90,16 @@ export function normalizeCommunityMemberRosterPage(
 
   for (const rawItem of source['items'].slice(0, 40)) {
     const item = (rawItem ?? {}) as Record<string, unknown>;
-    const memberKey = String(item['memberKey'] ?? '').trim();
+    const memberKey = normalizePublicProfileId(item['memberKey']);
     const identity = normalizePublicUserIdentity(item['identity']);
     const role = normalizeRole(item['role']);
 
-    if (!SAFE_MEMBER_KEY_PATTERN.test(memberKey) || !identity || !role) {
+    if (
+      !memberKey
+      || !identity?.profileId
+      || identity.profileId !== memberKey
+      || !role
+    ) {
       continue;
     }
 

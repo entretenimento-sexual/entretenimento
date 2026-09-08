@@ -10,7 +10,7 @@
 // - a resposta usa apenas public_profiles e nunca expõe UID, nome civil, KYC,
 //   capacidades administrativas ou documentos privados;
 // - bloqueios bilaterais são respeitados antes da hidratação do perfil;
-// - o cursor é transporte opaco e não deve ser tratado como identidade pública.
+// - paginação usa o profileId público canônico, nunca o UID interno.
 //
 // Custo:
 // - não há listener;
@@ -18,13 +18,13 @@
 // - paginação e scan limitado evitam hidratar toda a Comunidade de uma vez.
 // -----------------------------------------------------------------------------
 
-import { createHash } from 'node:crypto';
 import { FieldPath } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import { resolveBlockedTargetUids } from '../friendship/application/bilateral-block-access.policy';
+import { normalizePublicProfileId } from '../identity/public-profile-id';
 import {
   assertCommunityCallableAppCheck,
   REQUIRE_COMMUNITY_APP_CHECK,
@@ -44,6 +44,7 @@ interface CommunityMemberRosterPageRequest {
 interface CommunityMemberRosterItem {
   memberKey: string;
   identity: {
+    profileId: string;
     nickname: string;
     label: string;
     avatarUrl: string | null;
@@ -59,7 +60,6 @@ interface CommunityMemberRosterPageResponse {
 }
 
 const SAFE_MEMBER_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
-const CURSOR_PREFIX = 'roster1:';
 const DEFAULT_PAGE_LIMIT = 20;
 const MAX_PAGE_LIMIT = 40;
 
@@ -129,33 +129,54 @@ function normalizePageLimit(value: unknown): number {
     : DEFAULT_PAGE_LIMIT;
 }
 
-function buildMemberKey(communityId: string, memberId: string): string {
-  return createHash('sha256')
-    .update(`${communityId}\u0000${memberId}`)
-    .digest('base64url')
-    .slice(0, 22);
-}
+async function resolveCursorMemberId(
+  communityId: string,
+  cursorProfileId: string | null
+): Promise<string | null> {
+  if (!cursorProfileId) return null;
 
-function buildCursor(memberId: string): string {
-  return `${CURSOR_PREFIX}${Buffer.from(memberId, 'utf8').toString('base64url')}`;
-}
+  const profileSnapshot = await db
+    .collection('public_profiles')
+    .where('profileId', '==', cursorProfileId)
+    .limit(2)
+    .get();
 
-function parseCursor(value: unknown): string | null {
-  const normalized = String(value ?? '').trim();
-  if (!normalized) return null;
-  if (!normalized.startsWith(CURSOR_PREFIX) || normalized.length > 240) {
-    return null;
+  if (profileSnapshot.size !== 1) {
+    throw new HttpsError(
+      'invalid-argument',
+      'Cursor da lista de integrantes inválido.',
+      { reason: 'invalid_community_member_roster_cursor' }
+    );
   }
 
-  try {
-    const decoded = Buffer.from(
-      normalized.slice(CURSOR_PREFIX.length),
-      'base64url'
-    ).toString('utf8');
-    return SAFE_MEMBER_ID_PATTERN.test(decoded) ? decoded : null;
-  } catch {
-    return null;
+  const memberId = profileSnapshot.docs[0].id;
+  if (!SAFE_MEMBER_ID_PATTERN.test(memberId)) {
+    throw new HttpsError(
+      'invalid-argument',
+      'Cursor da lista de integrantes inválido.',
+      { reason: 'invalid_community_member_roster_cursor' }
+    );
   }
+
+  const membershipSnapshot = await db
+    .collection('communities')
+    .doc(communityId)
+    .collection('members')
+    .doc(memberId)
+    .get();
+
+  if (
+    !membershipSnapshot.exists
+    || membershipSnapshot.data()?.['status'] !== 'active'
+  ) {
+    throw new HttpsError(
+      'invalid-argument',
+      'Cursor da lista de integrantes inválido.',
+      { reason: 'invalid_community_member_roster_cursor' }
+    );
+  }
+
+  return memberId;
 }
 
 export const getCommunityMemberRosterPage =
@@ -171,10 +192,12 @@ export const getCommunityMemberRosterPage =
       const actorUid = assertAuthenticatedUid(request.auth);
       const communityId = normalizeCommunityId(request.data?.communityId);
       const providedCursor = String(request.data?.cursor ?? '').trim();
-      const cursorMemberId = parseCursor(request.data?.cursor);
+      const cursorProfileId = providedCursor
+        ? normalizePublicProfileId(providedCursor)
+        : null;
       const limit = normalizePageLimit(request.data?.limit);
 
-      if (!communityId || (providedCursor && !cursorMemberId)) {
+      if (!communityId || (providedCursor && !cursorProfileId)) {
         throw new HttpsError(
           'invalid-argument',
           'Consulta de integrantes inválida.',
@@ -194,11 +217,15 @@ export const getCommunityMemberRosterPage =
         );
       }
 
+      const cursorMemberId = await resolveCursorMemberId(
+        communityId,
+        cursorProfileId
+      );
       const membersCollection = db
         .collection('communities')
         .doc(communityId)
         .collection('members');
-      const scanLimit = Math.min(limit * 2 + 1, MAX_PAGE_LIMIT * 2 + 1);
+      const scanLimit = Math.min(limit * 3 + 1, MAX_PAGE_LIMIT * 3 + 1);
       let membersQuery = membersCollection
         .where('status', '==', 'active')
         .orderBy(FieldPath.documentId())
@@ -225,31 +252,27 @@ export const getCommunityMemberRosterPage =
       );
 
       const items: CommunityMemberRosterItem[] = [];
-      let lastConsumedIndex = -1;
+      let lastReturnedMemberId: string | null = null;
+      let lastReturnedProfileId: string | null = null;
 
-      for (
-        let index = 0;
-        index < membershipSnapshot.docs.length;
-        index += 1
-      ) {
-        const membershipDocument = membershipSnapshot.docs[index];
-        lastConsumedIndex = index;
+      for (const membershipDocument of membershipSnapshot.docs) {
         const memberId = membershipDocument.id;
-
         if (blockedUids.has(memberId)) continue;
 
         const membership = membershipDocument.data() ?? {};
         const role = normalizeRole(membership['role']);
         const profile = profilesByUid.get(memberId);
+        const profileId = normalizePublicProfileId(profile?.['profileId']);
         const nickname = profile
           ? normalizeText(profile['nickname'], 60)
           : '';
 
-        if (!role || nickname.length < 2) continue;
+        if (!role || !profileId || nickname.length < 2) continue;
 
         items.push({
-          memberKey: buildMemberKey(communityId, memberId),
+          memberKey: profileId,
           identity: {
+            profileId,
             nickname,
             label: nickname,
             avatarUrl: normalizeHttpsUrl(
@@ -258,24 +281,23 @@ export const getCommunityMemberRosterPage =
           },
           role,
         });
+        lastReturnedMemberId = memberId;
+        lastReturnedProfileId = profileId;
 
         if (items.length >= limit) break;
       }
 
-      const lastConsumedDocument = lastConsumedIndex >= 0
-        ? membershipSnapshot.docs[lastConsumedIndex]
-        : null;
-      const hasBufferedDocuments =
-        lastConsumedIndex >= 0
-        && lastConsumedIndex < membershipSnapshot.docs.length - 1;
+      const lastScannedDocument = membershipSnapshot.docs.at(-1) ?? null;
+      const stoppedBeforeScanEnd =
+        !!lastReturnedMemberId
+        && lastReturnedMemberId !== lastScannedDocument?.id;
       const mayHaveAnotherPage =
-        membershipSnapshot.docs.length === scanLimit || hasBufferedDocuments;
+        stoppedBeforeScanEnd
+        || membershipSnapshot.docs.length === scanLimit;
 
       return {
         items,
-        nextCursor: mayHaveAnotherPage && lastConsumedDocument
-          ? buildCursor(lastConsumedDocument.id)
-          : null,
+        nextCursor: mayHaveAnotherPage ? lastReturnedProfileId : null,
         memberCount:
           context.capacity?.memberCount
           ?? context.community.metrics.memberCount,
