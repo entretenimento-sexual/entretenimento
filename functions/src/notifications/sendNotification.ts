@@ -16,6 +16,7 @@ import {
   shouldPruneCurrentPushToken,
 } from './push-device.policy';
 import {buildPrivatePushContent} from './push-notification-content.policy';
+import {buildPushNotificationDeliveryOptions} from './push-notification-delivery.policy';
 import {buildPushNotificationNavigationData} from './push-notification-navigation.policy';
 
 export const sendNotification = onDocumentCreated(
@@ -92,9 +93,11 @@ export const sendNotification = onDocumentCreated(
     if (targets.length === 0) return;
 
     const pushContent = buildPrivatePushContent();
+    const deliveryOptions = buildPushNotificationDeliveryOptions();
     const response = await getMessaging().sendEachForMulticast({
       tokens: targets.map((target) => target.token),
       notification: pushContent,
+      ...deliveryOptions,
       ...(navigationData ? {data: navigationData} : {}),
     });
     const responseErrorCodes = response.responses.map((result) =>
@@ -193,6 +196,7 @@ export const sendNotification = onDocumentCreated(
       hasNavigationRoute: Boolean(navigationData),
       usesNeutralExternalContent: true,
       targetsFreshRegistryOnly: true,
+      hasExplicitDeliveryTtl: true,
       targetCount: targets.length,
       successCount: response.successCount,
       failureCount: response.failureCount,
