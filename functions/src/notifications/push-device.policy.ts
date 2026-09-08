@@ -5,6 +5,7 @@ export const MIN_PUSH_TOKEN_LENGTH = 20;
 export const MAX_PUSH_TOKEN_LENGTH = 4096;
 export const MIN_PUSH_INSTALLATION_ID_LENGTH = 16;
 export const MAX_PUSH_INSTALLATION_ID_LENGTH = 128;
+export const PUSH_DEVICE_LEASE_REFRESH_MS = 24 * 60 * 60 * 1000;
 
 export type PushDevicePlatform = 'web' | 'ios' | 'android';
 
@@ -16,6 +17,13 @@ export interface PushDeviceTokenCandidate {
 export interface PushDeliveryTarget {
   token: string;
   registryDocumentIds: string[];
+}
+
+export interface PushDeviceRegistrationCandidate {
+  token?: unknown;
+  platform?: unknown;
+  schemaVersion?: unknown;
+  lastSeenAt?: unknown;
 }
 
 const PERMANENT_PUSH_TOKEN_ERROR_CODES = new Set([
@@ -77,6 +85,42 @@ export function buildPushInstallationDocumentId(installationId: string): string 
  */
 export function buildPushTokenDocumentId(token: string): string {
   return createHash('sha256').update(token, 'utf8').digest('hex');
+}
+
+/**
+ * Evita reescrever o mesmo registro em todo bootstrap sem atrasar rotação de
+ * token: qualquer mudança material força sincronização imediata. O lease só
+ * posterga a atualização de lastSeenAt quando token, plataforma e schema já
+ * estão canônicos e o dispositivo foi visto nas últimas 24 horas.
+ */
+export function isPushDeviceRegistrationFresh(
+  current: PushDeviceRegistrationCandidate | null | undefined,
+  requestedToken: unknown,
+  requestedPlatform: unknown,
+  nowMs = Date.now()
+): boolean {
+  const currentToken = normalizePushToken(current?.token);
+  const nextToken = normalizePushToken(requestedToken);
+  const currentPlatform = resolvePushDevicePlatform(current?.platform);
+  const nextPlatform = resolvePushDevicePlatform(requestedPlatform);
+  const lastSeenAtMs = toMillis(current?.lastSeenAt);
+
+  if (
+    !currentToken ||
+    !nextToken ||
+    currentToken !== nextToken ||
+    !currentPlatform ||
+    !nextPlatform ||
+    currentPlatform !== nextPlatform ||
+    current?.schemaVersion !== 2 ||
+    lastSeenAtMs === null ||
+    !Number.isFinite(nowMs)
+  ) {
+    return false;
+  }
+
+  const ageMs = nowMs - lastSeenAtMs;
+  return ageMs >= 0 && ageMs < PUSH_DEVICE_LEASE_REFRESH_MS;
 }
 
 export function resolvePushDeliveryTargets(
@@ -172,4 +216,27 @@ export function resolveInvalidPushRegistryDocumentIds(
   }
 
   return Array.from(documentIds);
+}
+
+function toMillis(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  const timestamp = value as {
+    toMillis?: () => number;
+    toDate?: () => Date;
+  } | null | undefined;
+
+  if (typeof timestamp?.toMillis === 'function') {
+    const millis = timestamp.toMillis();
+    return Number.isFinite(millis) ? millis : null;
+  }
+
+  if (typeof timestamp?.toDate === 'function') {
+    const millis = timestamp.toDate().getTime();
+    return Number.isFinite(millis) ? millis : null;
+  }
+
+  return null;
 }

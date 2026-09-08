@@ -5,6 +5,7 @@ import { db, FieldValue } from '../firebaseApp';
 import {
   buildPushInstallationDocumentId,
   buildPushTokenDocumentId,
+  isPushDeviceRegistrationFresh,
   MAX_PUSH_DEVICES_PER_USER,
   normalizePushInstallationId,
   normalizePushToken,
@@ -82,6 +83,7 @@ export const registerPushDevice = onCall<PushDeviceRequest>(
     const userRef = db.collection('users').doc(uid);
     const devicesRef = userRef.collection('push_devices');
     const deviceRef = devicesRef.doc(installationDocumentId);
+    const observedAtMs = Date.now();
 
     await db.runTransaction(async (tx) => {
       const userSnapshot = await tx.get(userRef);
@@ -90,27 +92,51 @@ export const registerPushDevice = onCall<PushDeviceRequest>(
         throw new HttpsError('not-found', 'Usuário não encontrado.');
       }
 
+      // Fast path: um bootstrap recorrente do mesmo navegador não precisa ler
+      // toda a registry nem regravar lastSeenAt. Mudança de token/plataforma,
+      // schema legado ou lease vencido continua seguindo a reconciliação completa.
+      const deviceSnapshot = await tx.get(deviceRef);
+      const current = deviceSnapshot.exists
+        ? (deviceSnapshot.data() as PushDeviceDocument)
+        : undefined;
+      const legacyUserToken = normalizePushToken(
+        userSnapshot.data()?.fcmToken
+      );
+
+      if (
+        isPushDeviceRegistrationFresh(
+          current,
+          token,
+          platform,
+          observedAtMs
+        ) &&
+        legacyUserToken !== token
+      ) {
+        return;
+      }
+
       const devicesSnapshot = await tx.get(
         devicesRef
           .orderBy('lastSeenAt', 'asc')
           .limit(MAX_PUSH_DEVICES_PER_USER + 1)
       );
-      const existingDevice = devicesSnapshot.docs.find(
-        (snapshot) => snapshot.id === installationDocumentId
-      );
+      const existingDevice = deviceSnapshot.exists
+        ? deviceSnapshot
+        : devicesSnapshot.docs.find(
+            (snapshot) => snapshot.id === installationDocumentId
+          );
       const duplicateTokenDevices = devicesSnapshot.docs.filter(
         (snapshot) =>
           snapshot.id !== installationDocumentId &&
           normalizePushToken(snapshot.data()?.token) === token
       );
       const now = FieldValue.serverTimestamp();
-      const current = existingDevice?.data() as PushDeviceDocument | undefined;
+      const currentForWrite = existingDevice?.data() as
+        | PushDeviceDocument
+        | undefined;
       const migratedLegacy = duplicateTokenDevices.find(
         (snapshot) => snapshot.id === legacyTokenDocumentId
       )?.data() as PushDeviceDocument | undefined;
-      const legacyUserToken = normalizePushToken(
-        userSnapshot.data()?.fcmToken
-      );
 
       for (const duplicate of duplicateTokenDevices) {
         tx.delete(duplicate.ref);
@@ -144,7 +170,8 @@ export const registerPushDevice = onCall<PushDeviceRequest>(
           token,
           platform,
           schemaVersion: 2,
-          createdAt: current?.createdAt ?? migratedLegacy?.createdAt ?? now,
+          createdAt:
+            currentForWrite?.createdAt ?? migratedLegacy?.createdAt ?? now,
           updatedAt: now,
           lastSeenAt: now,
         },

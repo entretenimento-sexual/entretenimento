@@ -5,9 +5,11 @@ import {
   buildPushInstallationDocumentId,
   buildPushTokenDocumentId,
   isPermanentPushTokenErrorCode,
+  isPushDeviceRegistrationFresh,
   MAX_PUSH_DEVICES_PER_USER,
   normalizePushInstallationId,
   normalizePushToken,
+  PUSH_DEVICE_LEASE_REFRESH_MS,
   resolveInvalidPushDeliveryTargets,
   resolveInvalidPushRegistryDocumentIds,
   resolvePushDeliveryTargets,
@@ -72,6 +74,70 @@ test('mantém id legado por token somente para migração do registro v1', () =>
 
 test('mantém limite explícito de dispositivos por usuário', () => {
   assert.equal(MAX_PUSH_DEVICES_PER_USER, 10);
+});
+
+test('mantém lease diário para evitar write amplification no bootstrap', () => {
+  assert.equal(PUSH_DEVICE_LEASE_REFRESH_MS, 24 * 60 * 60 * 1000);
+
+  const now = 2_000_000_000_000;
+  const freshRegistration = {
+    token: TOKEN,
+    platform: 'web',
+    schemaVersion: 2,
+    lastSeenAt: {
+      toMillis: () => now - PUSH_DEVICE_LEASE_REFRESH_MS + 1,
+    },
+  };
+
+  assert.equal(
+    isPushDeviceRegistrationFresh(freshRegistration, TOKEN, 'web', now),
+    true
+  );
+  assert.equal(
+    isPushDeviceRegistrationFresh(
+      {
+        ...freshRegistration,
+        lastSeenAt: {
+          toMillis: () => now - PUSH_DEVICE_LEASE_REFRESH_MS,
+        },
+      },
+      TOKEN,
+      'web',
+      now
+    ),
+    false
+  );
+});
+
+test('lease nunca oculta rotação de token, plataforma ou schema', () => {
+  const now = 2_000_000_000_000;
+  const current = {
+    token: TOKEN,
+    platform: 'web',
+    schemaVersion: 2,
+    lastSeenAt: now - 1000,
+  };
+
+  assert.equal(isPushDeviceRegistrationFresh(current, TOKEN_B, 'web', now), false);
+  assert.equal(isPushDeviceRegistrationFresh(current, TOKEN, 'ios', now), false);
+  assert.equal(
+    isPushDeviceRegistrationFresh(
+      { ...current, schemaVersion: 1 },
+      TOKEN,
+      'web',
+      now
+    ),
+    false
+  );
+  assert.equal(
+    isPushDeviceRegistrationFresh(
+      { ...current, lastSeenAt: now + 1 },
+      TOKEN,
+      'web',
+      now
+    ),
+    false
+  );
 });
 
 test('mantém fallback legado quando ainda não há dispositivo no registro privado', () => {
@@ -188,10 +254,7 @@ test('expõe fallback legado para limpeza quando ele falha permanentemente', () 
 test('não seleciona fallback legado para limpeza em falha transitória', () => {
   const targets = resolvePushDeliveryTargets(TOKEN, []);
 
-  assert.deepEqual(
-    resolveInvalidPushDeliveryTargets(targets, ['messaging/internal-error']),
-    []
-  );
+  assert.deepEqual(resolveInvalidPushDeliveryTargets(targets, ['messaging/internal-error']), []);
 });
 
 test('cleanup condicional preserva token que já rotacionou', () => {
