@@ -82,6 +82,7 @@ jobs:
           import { NEVER, of } from 'rxjs';
           import { AppComponent } from './app.component';
           import { CommunityHighlightRepository } from './community/data-access/community-highlight.repository';
+          import { CommunityMembershipProfileVisibilityRepository } from './community/data-access/community-membership-profile-visibility.repository';
           import { CommunityPreviewPageComponent } from './community/preview/community-preview-page.component';
 
           const visualCommunityHighlightRepository = {
@@ -92,6 +93,24 @@ jobs:
               generatedAt: Date.now(),
             }),
             manage$: () => NEVER,
+          };
+
+          // O harness visual testa apresentação, não Firebase. A privacidade de
+          // membership é simulada no limite do repositório para que a tela real
+          // continue exercitada sem criar uma segunda fonte de regra no teste.
+          const visualCommunityMembershipProfileVisibilityRepository = {
+            getState$: (communityId: string) => of({
+              communityId,
+              disclosureMode: 'opt_in' as const,
+              policyVersion: 1,
+              profileVisibility: 'hidden' as const,
+              profileVisibilityPolicyVersion: null,
+              canChange: true,
+              canManagePolicy: false,
+              generatedAt: Date.now(),
+            }),
+            updateVisibility$: () => NEVER,
+            updateDisclosure$: () => NEVER,
           };
 
           @NgModule({
@@ -105,6 +124,10 @@ jobs:
               {
                 provide: CommunityHighlightRepository,
                 useValue: visualCommunityHighlightRepository,
+              },
+              {
+                provide: CommunityMembershipProfileVisibilityRepository,
+                useValue: visualCommunityMembershipProfileVisibilityRepository,
               },
             ],
             bootstrap: [AppComponent],
