@@ -22,6 +22,10 @@ import {
   CommunityMemberRosterRole,
 } from '../data-access/community-member-roster.model';
 import { CommunityMemberRosterRepository } from '../data-access/community-member-roster.repository';
+import {
+  COMMUNITY_MEMBER_ROSTER_CODE_MESSAGES,
+  COMMUNITY_MEMBER_ROSTER_REASON_MESSAGES,
+} from '../presentation/community-member-roster-error.messages';
 
 type MemberRosterStatus = 'loading' | 'ready' | 'empty' | 'error';
 
@@ -191,6 +195,8 @@ export class CommunityMembersPageComponent {
         ? 'Não foi possível carregar mais integrantes agora.'
         : 'Não foi possível carregar os integrantes desta Comunidade agora.',
       notification: 'none',
+      reasonMessages: COMMUNITY_MEMBER_ROSTER_REASON_MESSAGES,
+      codeMessages: COMMUNITY_MEMBER_ROSTER_CODE_MESSAGES,
       metadata: {
         scope: 'CommunityMembersPageComponent',
         communityId,
