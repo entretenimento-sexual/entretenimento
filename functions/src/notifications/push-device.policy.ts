@@ -6,6 +6,7 @@ export const MAX_PUSH_TOKEN_LENGTH = 4096;
 export const MIN_PUSH_INSTALLATION_ID_LENGTH = 16;
 export const MAX_PUSH_INSTALLATION_ID_LENGTH = 128;
 export const PUSH_DEVICE_LEASE_REFRESH_MS = 24 * 60 * 60 * 1000;
+export const PUSH_DEVICE_STALE_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 
 export type PushDevicePlatform = 'web' | 'ios' | 'android';
 
@@ -121,6 +122,18 @@ export function isPushDeviceRegistrationFresh(
 
   const ageMs = nowMs - lastSeenAtMs;
   return ageMs >= 0 && ageMs < PUSH_DEVICE_LEASE_REFRESH_MS;
+}
+
+/**
+ * O FCM considera registros sem atividade por aproximadamente um mês como
+ * stale. O sender usa este corte para não gastar entrega nem expor alertas em
+ * instalações antigas; quando o app voltar a abrir, o registro é sincronizado
+ * novamente pelo lifecycle normal.
+ */
+export function resolvePushDeviceFreshnessCutoffMs(
+  nowMs = Date.now()
+): number {
+  return nowMs - PUSH_DEVICE_STALE_AFTER_MS;
 }
 
 export function resolvePushDeliveryTargets(

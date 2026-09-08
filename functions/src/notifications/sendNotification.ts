@@ -1,7 +1,7 @@
 // functions/src/notifications/sendNotification.ts
 import {onDocumentCreated} from 'firebase-functions/v2/firestore';
 import {getMessaging} from 'firebase-admin/messaging';
-import {FieldValue, getFirestore} from 'firebase-admin/firestore';
+import {FieldValue, getFirestore, Timestamp} from 'firebase-admin/firestore';
 
 import {
   isPushNotificationEnabledByPreference,
@@ -12,6 +12,7 @@ import {
   normalizePushToken,
   resolveInvalidPushDeliveryTargets,
   resolvePushDeliveryTargets,
+  resolvePushDeviceFreshnessCutoffMs,
   shouldPruneCurrentPushToken,
 } from './push-device.policy';
 import {buildPrivatePushContent} from './push-notification-content.policy';
@@ -72,7 +73,11 @@ export const sendNotification = onDocumentCreated(
     if (!userDoc.exists) return;
 
     const devicesRef = userRef.collection('push_devices');
+    const freshnessCutoff = Timestamp.fromMillis(
+      resolvePushDeviceFreshnessCutoffMs()
+    );
     const devicesSnapshot = await devicesRef
+      .where('lastSeenAt', '>=', freshnessCutoff)
       .orderBy('lastSeenAt', 'desc')
       .limit(MAX_PUSH_DEVICES_PER_USER)
       .get();
@@ -187,6 +192,7 @@ export const sendNotification = onDocumentCreated(
       notificationType,
       hasNavigationRoute: Boolean(navigationData),
       usesNeutralExternalContent: true,
+      targetsFreshRegistryOnly: true,
       targetCount: targets.length,
       successCount: response.successCount,
       failureCount: response.failureCount,
