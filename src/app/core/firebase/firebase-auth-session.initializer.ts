@@ -1,7 +1,8 @@
 import type { Auth } from '@angular/fire/auth';
-import { signOut } from 'firebase/auth';
+import { firstValueFrom } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
+import { LogoutService } from '../services/autentication/auth/logout.service';
 import { GlobalErrorHandlerService } from '../services/error-handler/global-error-handler.service';
 import {
   firebaseDebugLog,
@@ -40,7 +41,8 @@ function normalizeInitializerError(error: unknown): Error {
 
 export function authRestoreInitializer(
   auth: Auth,
-  globalErrorHandler: GlobalErrorHandlerService
+  globalErrorHandler: GlobalErrorHandlerService,
+  logoutService: LogoutService
 ): () => Promise<void> {
   return async (): Promise<void> => {
     try {
@@ -65,11 +67,13 @@ export function authRestoreInitializer(
       const currentUser = auth.currentUser;
 
       if (persistenceMode === 'memory' && currentUser) {
-        firebaseDebugLog('[AUTH][INIT] memory-mode ghost -> signOut()', {
+        firebaseDebugLog('[AUTH][INIT] memory-mode ghost -> canonical invalidation', {
           uid: currentUser.uid,
         });
 
-        await signOut(auth);
+        await firstValueFrom(
+          logoutService.invalidateRestoredSessionForBootstrap$()
+        );
         return;
       }
 
@@ -91,7 +95,9 @@ export function authRestoreInitializer(
         });
 
         if (INVALID_SESSION_ERROR_CODES.has(code)) {
-          await signOut(auth);
+          await firstValueFrom(
+            logoutService.invalidateRestoredSessionForBootstrap$()
+          );
         }
       }
     } catch (error: unknown) {
