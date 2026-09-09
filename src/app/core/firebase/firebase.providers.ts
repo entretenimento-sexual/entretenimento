@@ -32,6 +32,7 @@ import { getFunctions } from 'firebase/functions';
 import { getStorage } from 'firebase/storage';
 
 import { environment } from '../../../environments/environment';
+import { LogoutService } from '../services/autentication/auth/logout.service';
 import { GlobalErrorHandlerService } from '../services/error-handler/global-error-handler.service';
 import { authRestoreInitializer } from './firebase-auth-session.initializer';
 import {
@@ -240,7 +241,7 @@ export const FIREBASE_APPLICATION_PROVIDERS: Array<
   {
     provide: APP_INITIALIZER,
     useFactory: authRestoreInitializer,
-    deps: [Auth, GlobalErrorHandlerService],
+    deps: [Auth, GlobalErrorHandlerService, LogoutService],
     multi: true,
   },
 ];
