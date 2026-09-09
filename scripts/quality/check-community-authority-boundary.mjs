@@ -7,9 +7,10 @@
 // request.auth; membership/role/capabilities devem ser relidos do backend; counts
 // e scores são projeções materializadas/calculadas pelo backend.
 //
-// O checker é dependency-free e deliberadamente conservador: ele procura acesso
-// direto e aliases simples de `<request>.data`, sem depender do nome do parâmetro
-// da callable. Isso mantém o gate barato e disponível em todos os fluxos raiz.
+// O checker é dependency-free e deliberadamente conservador. Primeiro identifica
+// objetos que têm a forma de CallableRequest (uso de `.data` junto de `.auth` ou
+// `.app`) e só então inspeciona seu payload. Isso evita confundir `snapshot.data`
+// e outras estruturas backend-owned com dados enviados pelo navegador.
 // -----------------------------------------------------------------------------
 
 import fs from 'node:fs';
@@ -56,8 +57,12 @@ const FORBIDDEN_CLIENT_AUTHORITY_FIELDS = Object.freeze([
   'officialAssociation',
 ]);
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 const FORBIDDEN_FIELD_PATTERN = FORBIDDEN_CLIENT_AUTHORITY_FIELDS
-  .map((field) => field.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  .map(escapeRegExp)
   .join('|');
 
 function walkTypeScriptFiles(directory) {
@@ -106,15 +111,37 @@ function addViolation(violations, source, absolutePath, index, field) {
   );
 }
 
-function collectDataAliases(source) {
-  const aliases = new Set();
-  const aliasPattern = new RegExp(
-    String.raw`\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*[A-Za-z_$][\w$]*\.data\b`,
-    'gm'
-  );
+function collectCallableRequestIdentifiers(source) {
+  const identifiersWithData = new Set();
+  const dataAccessPattern = /\b([A-Za-z_$][\w$]*)\.data\b/gm;
 
-  for (const match of source.matchAll(aliasPattern)) {
-    if (match[1]) aliases.add(match[1]);
+  for (const match of source.matchAll(dataAccessPattern)) {
+    if (match[1]) identifiersWithData.add(match[1]);
+  }
+
+  return [...identifiersWithData].filter((identifier) => {
+    const escaped = escapeRegExp(identifier);
+    const callableContextPattern = new RegExp(
+      String.raw`\b${escaped}\s*(?:\?\.|\.)\s*(?:auth|app)\b`,
+      'm'
+    );
+    return callableContextPattern.test(source);
+  });
+}
+
+function collectDataAliases(source, requestIdentifiers) {
+  const aliases = new Set();
+
+  for (const requestIdentifier of requestIdentifiers) {
+    const escapedRequest = escapeRegExp(requestIdentifier);
+    const aliasPattern = new RegExp(
+      String.raw`\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*${escapedRequest}\.data\b`,
+      'gm'
+    );
+
+    for (const match of source.matchAll(aliasPattern)) {
+      if (match[1]) aliases.add(match[1]);
+    }
   }
 
   return aliases;
@@ -156,7 +183,7 @@ function findForbiddenDestructuring(source, initializerPattern) {
 
     for (const field of FORBIDDEN_CLIENT_AUTHORITY_FIELDS) {
       const fieldPattern = new RegExp(
-        String.raw`(?:^|,)\s*${field.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\s*(?::|,|$)`,
+        String.raw`(?:^|,)\s*${escapeRegExp(field)}\s*(?::|,|$)`,
         'm'
       );
 
@@ -180,37 +207,35 @@ const violations = [];
 
 for (const absolutePath of walkTypeScriptFiles(communityBackendRoot)) {
   const source = fs.readFileSync(absolutePath, 'utf8');
+  const requestIdentifiers = collectCallableRequestIdentifiers(source);
 
-  // Acesso direto: request.data.viewerRole / request.data['memberCount'] etc.
-  for (const finding of findForbiddenPropertyAccesses(
-    source,
-    String.raw`[A-Za-z_$][\w$]*\.data`
-  )) {
-    addViolation(
-      violations,
-      source,
-      absolutePath,
-      finding.index,
-      finding.field
-    );
-  }
+  for (const requestIdentifier of requestIdentifiers) {
+    const requestDataPattern = `${escapeRegExp(requestIdentifier)}\\.data`;
 
-  for (const finding of findForbiddenDestructuring(
-    source,
-    String.raw`[A-Za-z_$][\w$]*\.data`
-  )) {
-    addViolation(
-      violations,
-      source,
-      absolutePath,
-      finding.index,
-      finding.field
-    );
+    for (const finding of findForbiddenPropertyAccesses(source, requestDataPattern)) {
+      addViolation(
+        violations,
+        source,
+        absolutePath,
+        finding.index,
+        finding.field
+      );
+    }
+
+    for (const finding of findForbiddenDestructuring(source, requestDataPattern)) {
+      addViolation(
+        violations,
+        source,
+        absolutePath,
+        finding.index,
+        finding.field
+      );
+    }
   }
 
   // Alias simples: const data = request.data; data.viewerRole / const {...} = data.
-  for (const alias of collectDataAliases(source)) {
-    const escapedAlias = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  for (const alias of collectDataAliases(source, requestIdentifiers)) {
+    const escapedAlias = escapeRegExp(alias);
 
     for (const finding of findForbiddenPropertyAccesses(source, escapedAlias)) {
       addViolation(
