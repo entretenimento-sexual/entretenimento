@@ -1,9 +1,8 @@
 // src/app/chat-module/invite-list/invite-list.component.ts
-// Lista de convites do usuário autenticado.
-// - AuthSessionService é a fonte canônica do UID;
-// - Store é a projeção global do inbox;
-// - respostas são comandos NgRx executados por callables no backend;
-// - métodos públicos existentes são preservados.
+// Convites legados de Sala.
+// - novos convites e aceite foram descontinuados;
+// - a lista permanece para o destinatário recusar/limpar convites persistidos;
+// - Store continua sendo a projeção global do inbox.
 import { Component, DestroyRef, OnDestroy, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
@@ -14,10 +13,7 @@ import { InviteInboxItem } from 'src/app/core/interfaces/interfaces-chat/invite.
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
-import {
-  AcceptInvite,
-  DeclineInvite,
-} from 'src/app/store/actions/actions.chat/invite.actions';
+import { DeclineInvite } from 'src/app/store/actions/actions.chat/invite.actions';
 import {
   selectInvitesError,
   selectInvitesLoading,
@@ -39,13 +35,10 @@ export class InviteListComponent implements OnInit, OnDestroy {
 
   readonly pendingCount$: Observable<number> =
     this.store.select(selectPendingInvitesCount);
-
   readonly loading$: Observable<boolean> =
     this.store.select(selectInvitesLoading);
-
   readonly error$: Observable<string | null> =
     this.store.select(selectInvitesError);
-
   readonly invites$: Observable<readonly InviteInboxItem[]> =
     this.store.select(selectPendingInvites);
 
@@ -78,7 +71,6 @@ export class InviteListComponent implements OnInit, OnDestroy {
             error,
             { op: 'observeAuthenticatedUid' }
           );
-
           this.userId = null;
           return of(null);
         }),
@@ -87,6 +79,10 @@ export class InviteListComponent implements OnInit, OnDestroy {
       .subscribe();
   }
 
+  /**
+   * Método preservado para compatibilidade de chamadas existentes.
+   * Aceite é explicitamente bloqueado; apenas recusa continua operacional.
+   */
   respondToInvite(
     invite: InviteInboxItem,
     status: 'accepted' | 'declined'
@@ -101,33 +97,27 @@ export class InviteListComponent implements OnInit, OnDestroy {
     }
 
     if (status === 'accepted') {
-      this.store.dispatch(AcceptInvite({ ownerUid, inviteId }));
+      this.errorNotifier.showInfo(
+        'Salas foram descontinuadas. Use Comunidades para interações coletivas.'
+      );
       return;
     }
 
     this.store.dispatch(DeclineInvite({ ownerUid, inviteId }));
   }
 
-  trackByInviteId = (_: number, invite: InviteInboxItem): string =>
-    invite.id;
+  trackByInviteId = (_: number, invite: InviteInboxItem): string => invite.id;
 
   getInviteTitle(invite: InviteInboxItem): string {
-    return invite.targetName?.trim() || invite.roomName?.trim() || 'Convite de sala';
+    return invite.targetName?.trim() || invite.roomName?.trim() || 'Convite de sala antigo';
   }
 
-  /**
-   * Não expõe UID bruto do remetente na interface.
-   * O perfil público poderá ser enriquecido numa etapa própria.
-   */
   getInviteSubtitle(_invite: InviteInboxItem): string {
-    return 'Você foi convidado para participar';
+    return 'Convite legado — não é mais possível aceitar';
   }
 
   formatInviteDate(value: number | null | undefined): string | null {
-    if (typeof value !== 'number' || !Number.isFinite(value)) {
-      return null;
-    }
-
+    if (typeof value !== 'number' || !Number.isFinite(value)) return null;
     return new Date(value).toLocaleString('pt-BR');
   }
 
@@ -144,14 +134,12 @@ export class InviteListComponent implements OnInit, OnDestroy {
 
     try {
       const err = error instanceof Error ? error : new Error(userMessage);
-
       (err as any).original = error;
       (err as any).context = {
         scope: 'InviteListComponent',
         ...(context ?? {}),
       };
       (err as any).skipUserNotification = true;
-
       this.globalError.handleError(err);
     } catch {
       // noop

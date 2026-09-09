@@ -5,23 +5,22 @@
 //
 // Local
 // - é um lugar físico ou estabelecimento real;
-// - pode ter conteúdo, seguidores, eventos e salas vinculadas;
-// - não é uma comunidade, embora reutilize infraestrutura interna de feed,
-//   permissões e moderação.
+// - pode ter conteúdo, seguidores, eventos e Comunidade oficial relacionada;
+// - não é uma Comunidade, embora possa reutilizar infraestrutura interna.
 //
 // Comunidade
-// - é um grupo permanente de pessoas unidas por interesse, identidade, região
-//   ou objetivo;
-// - possui membros, regras, mural e moderação;
-// - não é uma sala de conversa nem representa um estabelecimento físico.
+// - é o domínio canônico para grupos coletivos persistentes;
+// - possui membros, regras, mural, moderação, descoberta e lifecycle;
+// - futuras conversas coletivas devem ser capacidades subordinadas à Comunidade,
+//   sem membership/roles/social graph paralelos.
 //
 // Sala
-// - é um espaço de conversa, público ou privado, temporário ou permanente;
-// - pode ser independente ou estar vinculada a um Local ou Comunidade;
-// - pertence ao domínio de Conversas e não deve aparecer como Comunidade.
+// - é um conceito LEGADO preservado exclusivamente para compatibilidade;
+// - não recebe criação, convite, aceite, descoberta ou evolução funcional;
+// - registros antigos podem ser consultados/encerrados durante a migração.
 //
-// Estas definições são usadas pela interface. Alterações conceituais devem ser
-// feitas aqui antes de alterar rótulos isolados em componentes.
+// `room` permanece no tipo por compatibilidade de código/rotas antigas. Removê-lo
+// agora quebraria consumidores persistidos antes da etapa final de migração.
 // -----------------------------------------------------------------------------
 
 export type SocialSpaceKind = 'venue' | 'community' | 'room';
@@ -43,7 +42,7 @@ export const SOCIAL_SPACE_DEFINITIONS: Readonly<
     label: 'Local',
     pluralLabel: 'Locais',
     description:
-      'Lugar físico ou estabelecimento real. Pode publicar novidades, fotos e eventos e ter salas de conversa vinculadas.',
+      'Lugar físico ou estabelecimento real. Pode publicar novidades, fotos e eventos e ter uma Comunidade oficial relacionada.',
     primaryAction: 'Ver o Local',
     navigationRoute: '/dashboard/locais',
   }),
@@ -52,17 +51,17 @@ export const SOCIAL_SPACE_DEFINITIONS: Readonly<
     label: 'Comunidade',
     pluralLabel: 'Comunidades',
     description:
-      'Grupo permanente de pessoas unidas por um interesse, identidade, região ou objetivo, com membros, regras e mural próprios.',
+      'Grupo coletivo persistente com membros, regras, mural, moderação e recursos de interação próprios.',
     primaryAction: 'Ver a Comunidade',
     navigationRoute: '/dashboard/comunidades',
   }),
   room: Object.freeze({
     kind: 'room',
-    label: 'Sala',
-    pluralLabel: 'Salas',
+    label: 'Sala antiga',
+    pluralLabel: 'Salas antigas',
     description:
-      'Espaço de conversa em tempo real, público ou privado, que pode ser independente ou vinculado a um Local ou Comunidade.',
-    primaryAction: 'Entrar na Sala',
+      'Registro legado mantido somente para compatibilidade e encerramento seguro. Novas interações coletivas pertencem a Comunidades.',
+    primaryAction: 'Ver histórico',
     navigationRoute: '/chat/rooms',
   }),
 });

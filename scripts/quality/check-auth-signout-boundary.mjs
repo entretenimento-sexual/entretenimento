@@ -2,16 +2,14 @@
 // -----------------------------------------------------------------------------
 // AUTH SIGNOUT BOUNDARY CHECK
 // -----------------------------------------------------------------------------
-// `LogoutService` é a única fronteira autorizada a chamar o Firebase Auth
-// `signOut`. Features e serviços de leitura de sessão devem usar AuthFacade /
-// LogoutService para preservar cleanup de presence, geolocalização, Web Push e
-// caches sensíveis.
+// LogoutService é a única fronteira autorizada a importar/chamar signOut do
+// Firebase Auth. O checker é intencionalmente dependency-free para também rodar
+// cedo no Quality Gate, sem depender do parser TypeScript em runtime.
 // -----------------------------------------------------------------------------
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import ts from 'typescript';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,7 +18,6 @@ const appRoot = path.join(root, 'src', 'app');
 const canonicalRelativePath = path.normalize(
   'src/app/core/services/autentication/auth/logout.service.ts'
 );
-const firebaseAuthModules = new Set(['@angular/fire/auth', 'firebase/auth']);
 
 function walkTypeScriptFiles(directory) {
   const entries = fs.readdirSync(directory, { withFileTypes: true });
@@ -51,65 +48,40 @@ function normalizeRelativePath(absolutePath) {
   return path.normalize(path.relative(root, absolutePath));
 }
 
-function collectRawSignOutBindings(sourceFile) {
-  const directBindings = new Set();
-  const namespaceBindings = new Set();
+function findRawSignOutImports(source) {
+  const findings = [];
+  const directImport = /import\s*{[^}]*\bsignOut\b[^}]*}\s*from\s*['"](?:@angular\/fire\/auth|firebase\/auth)['"]/gms;
 
-  for (const statement of sourceFile.statements) {
-    if (!ts.isImportDeclaration(statement)) continue;
-    if (!ts.isStringLiteral(statement.moduleSpecifier)) continue;
-    if (!firebaseAuthModules.has(statement.moduleSpecifier.text)) continue;
+  for (const match of source.matchAll(directImport)) {
+    findings.push(match.index ?? 0);
+  }
 
-    const bindings = statement.importClause?.namedBindings;
-    if (!bindings) continue;
+  const namespaceImport = /import\s*\*\s*as\s*([A-Za-z_$][\w$]*)\s*from\s*['"](?:@angular\/fire\/auth|firebase\/auth)['"]/gm;
 
-    if (ts.isNamespaceImport(bindings)) {
-      namespaceBindings.add(bindings.name.text);
-      continue;
-    }
+  for (const match of source.matchAll(namespaceImport)) {
+    const namespace = match[1];
+    if (!namespace) continue;
 
-    for (const element of bindings.elements) {
-      const importedName = element.propertyName?.text ?? element.name.text;
-      if (importedName === 'signOut') {
-        directBindings.add(element.name.text);
-      }
+    const escapedNamespace = namespace.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const callPattern = new RegExp(`\\b${escapedNamespace}\\.signOut\\s*\\(`, 'm');
+    const callMatch = callPattern.exec(source);
+
+    if (callMatch) {
+      findings.push(callMatch.index);
     }
   }
 
-  return { directBindings, namespaceBindings };
+  return findings;
 }
 
-function findRawSignOutCalls(sourceFile) {
-  const { directBindings, namespaceBindings } = collectRawSignOutBindings(sourceFile);
-  const calls = [];
+function lineAndColumn(source, index) {
+  const before = source.slice(0, index);
+  const lines = before.split('\n');
 
-  function visit(node) {
-    if (ts.isCallExpression(node)) {
-      const expression = node.expression;
-      let isRawSignOut = false;
-
-      if (ts.isIdentifier(expression) && directBindings.has(expression.text)) {
-        isRawSignOut = true;
-      } else if (
-        ts.isPropertyAccessExpression(expression)
-        && expression.name.text === 'signOut'
-        && ts.isIdentifier(expression.expression)
-        && namespaceBindings.has(expression.expression.text)
-      ) {
-        isRawSignOut = true;
-      }
-
-      if (isRawSignOut) {
-        const position = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-        calls.push({ line: position.line + 1, column: position.character + 1 });
-      }
-    }
-
-    ts.forEachChild(node, visit);
-  }
-
-  visit(sourceFile);
-  return calls;
+  return {
+    line: lines.length,
+    column: (lines.at(-1)?.length ?? 0) + 1,
+  };
 }
 
 if (!fs.existsSync(appRoot)) {
@@ -124,16 +96,10 @@ for (const absolutePath of walkTypeScriptFiles(appRoot)) {
   if (relativePath === canonicalRelativePath) continue;
 
   const source = fs.readFileSync(absolutePath, 'utf8');
-  const sourceFile = ts.createSourceFile(
-    relativePath,
-    source,
-    ts.ScriptTarget.Latest,
-    true,
-    ts.ScriptKind.TS
-  );
 
-  for (const call of findRawSignOutCalls(sourceFile)) {
-    violations.push(`${relativePath}:${call.line}:${call.column}`);
+  for (const index of findRawSignOutImports(source)) {
+    const position = lineAndColumn(source, index);
+    violations.push(`${relativePath}:${position.line}:${position.column}`);
   }
 }
 
@@ -144,7 +110,7 @@ if (violations.length > 0) {
   }
   console.error(
     '[auth-boundary] Use AuthFacade.logout$()/logout() ou LogoutService. '
-      + 'Somente logout.service.ts pode chamar Firebase signOut diretamente.'
+      + 'Somente logout.service.ts pode importar/chamar Firebase signOut.'
   );
   process.exit(1);
 }
