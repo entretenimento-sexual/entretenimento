@@ -95,6 +95,28 @@ export class LogoutService {
   }
 
   /**
+   * Invalidação restrita ao bootstrap do Firebase Auth.
+   *
+   * Não executa navegação, Presence, geolocalização ou callable de Web Push:
+   * esses side-effects não devem ser inicializados apenas para remover uma
+   * sessão restaurada inválida/ghost antes do bootstrap da aplicação terminar.
+   *
+   * A chamada bruta ao Firebase `signOut` continua encapsulada neste serviço e
+   * a limpeza local sensível é preservada para impedir vazamento entre contas.
+   */
+  invalidateRestoredSessionForBootstrap$(): Observable<void> {
+    return this.executeSignOut$('strict').pipe(
+      switchMap(() => this.clearLocalSessionDataBestEffort$()),
+      catchError((err) => {
+        this.reportSilent(err, {
+          phase: 'invalidateRestoredSessionForBootstrap$',
+        });
+        return throwError(() => err);
+      })
+    );
+  }
+
+  /**
    * Hard signout:
    * - usado quando a sessão do Auth ficou tecnicamente inválida
    * - tenta parar geolocalização, presença e Web Push
