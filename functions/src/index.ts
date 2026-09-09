@@ -3,6 +3,7 @@ import { onUserCreate } from './auth/onUserCreate';
 import { recoverRegistrationSeed } from './auth/recoverRegistrationSeed';
 import { cleanupOldData } from './cron/cleanupOldData';
 import { moderateContent } from './moderation/moderateContent';
+import { backfillPushTokenOwnership } from './notifications/backfill-push-token-ownership.handler';
 import {
   registerPushDevice,
   unregisterPushDevice,
@@ -22,6 +23,7 @@ export {
   sendNotification,
   registerPushDevice,
   unregisterPushDevice,
+  backfillPushTokenOwnership,
   markNotificationRead,
   markAllNotificationsRead,
   cleanupOldData,
