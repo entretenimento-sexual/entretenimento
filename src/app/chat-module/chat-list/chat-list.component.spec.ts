@@ -1,45 +1,46 @@
 // src/app/chat-module/chat-list/chat-list.component.spec.ts
+// -----------------------------------------------------------------------------
+// CHAT LIST — DIRECT-ONLY REGRESSION
+// -----------------------------------------------------------------------------
+//
+// SUPRESSÃO EXPLÍCITA:
+// - removidos mocks/testes de RoomService, RoomMessagesService,
+//   RoomManagementService, InviteService e encerramento de Sala;
+// - motivo: Salas foram retiradas da inbox ativa e permanecem somente na rota
+//   legada `/chat/rooms` para histórico/encerramento seguro.
+// - estes testes agora protegem o contrato atual: a inbox seleciona apenas chat
+//   direto e não depende da infraestrutura de Salas.
+// -----------------------------------------------------------------------------
+
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Router } from '@angular/router';
-import { MatDialog } from '@angular/material/dialog';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { of } from 'rxjs';
 
 import { ChatListComponent } from './chat-list.component';
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
-import { CurrentUserStoreService } from '../../core/services/autentication/auth/current-user-store.service';
 import { AccessControlService } from '../../core/services/autentication/auth/access-control.service';
 import { PublicUserPreviewTriggerDirective } from '../../core/components/public-user-preview-popover/public-user-preview-trigger.directive';
 import { DirectChatFacade } from '../../messaging/direct-chat/application/direct-chat.facade';
-import { RoomService } from '../../core/services/batepapo/room-services/room.service';
-import { RoomMessagesService } from '../../core/services/batepapo/room-services/room-messages.service';
-import { RoomManagementService } from '../../core/services/batepapo/room-services/room-management.service';
-import { InviteService } from '../../core/services/batepapo/invite-service/invite.service';
-import { ChatNotificationService } from '../../core/services/batepapo/chat-notification.service';
 import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
 import { PrivacyDebugLoggerService } from '../../core/services/privacy/privacy-debug-logger.service';
-import { ActionStateDirective } from '../../shared/action-state/action-state.directive';
 import { ContentStateComponent } from '../../shared/content-state/content-state.component';
+import type { DirectChatListItem } from '../../messaging/direct-chat/models/direct-chat.models';
 
 describe('ChatListComponent', () => {
   let component: ChatListComponent;
   let fixture: ComponentFixture<ChatListComponent>;
-  let dialogOpenMock: ReturnType<typeof vi.fn>;
-  let deleteRoomMock: ReturnType<typeof vi.fn>;
-  let showSuccessMock: ReturnType<typeof vi.fn>;
+  let selectChatMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    dialogOpenMock = vi.fn(() => ({ afterClosed: () => of(null) }));
-    deleteRoomMock = vi.fn(() => Promise.resolve());
-    showSuccessMock = vi.fn();
+    selectChatMock = vi.fn();
 
     TestBed.configureTestingModule({
       declarations: [ChatListComponent],
       imports: [
         FormsModule,
-        ActionStateDirective,
         ContentStateComponent,
         PublicUserPreviewTriggerDirective,
       ],
@@ -52,60 +53,16 @@ describe('ChatListComponent', () => {
           },
         },
         {
-          provide: CurrentUserStoreService,
-          useValue: {
-            user$: of({ uid: 'u1', role: 'basic' }),
-          },
-        },
-        {
           provide: AccessControlService,
           useValue: {
             canRunChatRealtime$: of(true),
-            canListenRealtime$: of(true),
           },
         },
         {
           provide: DirectChatFacade,
           useValue: {
             items$: of([]),
-            selectChat: vi.fn(),
-          },
-        },
-        {
-          provide: RoomService,
-          useValue: {
-            getRooms: vi.fn(() => of([])),
-          },
-        },
-        {
-          provide: RoomMessagesService,
-          useValue: {
-            getRoomMessages: vi.fn(() => of([])),
-            updateMessageStatus: vi.fn(() => of(void 0)),
-          },
-        },
-        {
-          provide: ChatNotificationService,
-          useValue: {
-            decrementUnreadMessages: vi.fn(),
-          },
-        },
-        {
-          provide: RoomManagementService,
-          useValue: {
-            deleteRoom: deleteRoomMock,
-          },
-        },
-        {
-          provide: InviteService,
-          useValue: {
-            sendInviteToRoom: vi.fn(() => of(void 0)),
-          },
-        },
-        {
-          provide: MatDialog,
-          useValue: {
-            open: dialogOpenMock,
+            selectChat: selectChatMock,
           },
         },
         {
@@ -124,7 +81,6 @@ describe('ChatListComponent', () => {
           provide: ErrorNotificationService,
           useValue: {
             showError: vi.fn(),
-            showSuccess: showSuccessMock,
           },
         },
         {
@@ -135,41 +91,53 @@ describe('ChatListComponent', () => {
         },
       ],
     });
+
     fixture = TestBed.createComponent(ChatListComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
   });
 
-  it('should create', () => {
+  it('cria a inbox de conversas diretas sem infraestrutura de Salas', () => {
     expect(component).toBeTruthy();
   });
 
-  it('confirma o encerramento lógico da Sala e informa sucesso', async () => {
-    dialogOpenMock.mockReturnValue({ afterClosed: () => of(true) });
+  it('seleciona somente o contrato de chat direto', () => {
+    const selected = vi.fn();
+    component.chatSelected.subscribe(selected);
+    component.activeType = 'chat';
 
-    component.deleteRoom('room-1', new MouseEvent('click'));
-    await Promise.resolve();
-    await Promise.resolve();
+    const chat = {
+      id: 'chat-u1-u2',
+      otherParticipantUid: 'u2',
+      otherParticipantNickname: 'Pessoa 2',
+      otherParticipantPhotoURL: null,
+      unreadCount: 1,
+    } as unknown as DirectChatListItem;
 
-    expect(dialogOpenMock).toHaveBeenCalledTimes(1);
-    const dialogConfig = dialogOpenMock.mock.calls[0]?.[1];
-    expect(dialogConfig?.data?.title).toBe('Encerrar Sala');
-    expect(dialogConfig?.data?.message).toContain(
-      'histórico será preservado'
-    );
-    expect(deleteRoomMock).toHaveBeenCalledTimes(1);
-    expect(deleteRoomMock).toHaveBeenCalledWith('room-1');
-    expect(showSuccessMock).toHaveBeenCalledWith(
-      'Sala encerrada com sucesso.'
-    );
+    component.selectChat(chat);
+
+    expect(selectChatMock).toHaveBeenCalledWith('chat-u1-u2');
+    expect(selected).toHaveBeenCalledWith({
+      id: 'chat-u1-u2',
+      type: 'chat',
+      peerUid: 'u2',
+      peerName: 'Pessoa 2',
+      peerPhotoURL: null,
+    });
   });
 
-  it('não encerra a Sala quando a confirmação é cancelada', async () => {
-    dialogOpenMock.mockReturnValue({ afterClosed: () => of(false) });
+  it('não reemite a conversa direta já selecionada', () => {
+    const selected = vi.fn();
+    component.chatSelected.subscribe(selected);
+    component.activeType = 'chat';
+    component.activeChatId = 'chat-u1-u2';
 
-    component.deleteRoom('room-1', new MouseEvent('click'));
-    await Promise.resolve();
+    component.selectChat({
+      id: 'chat-u1-u2',
+      otherParticipantUid: 'u2',
+    } as unknown as DirectChatListItem);
 
-    expect(deleteRoomMock).not.toHaveBeenCalled();
+    expect(selectChatMock).not.toHaveBeenCalled();
+    expect(selected).not.toHaveBeenCalled();
   });
 });
