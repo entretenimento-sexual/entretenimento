@@ -25,8 +25,7 @@ export const environment: AppEnvironment = {
 
   webPush: {
     // Chave pública VAPID do projeto de produção.
-    // Fail-closed enquanto não for configurada.
-    vapidKey: undefined,
+    vapidKey: 'BBDzdIwOzHKGuP-9QhuijPi2phZ8L0QYd1o-m6erieugUDJecTddqVwPpU07wfqEOr_3oYV2WXiZr8pYHiR_aAg',
     serviceWorkerPath: '/assets/firebase-messaging-sw.js',
   },
 
