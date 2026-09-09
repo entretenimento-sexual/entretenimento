@@ -1,9 +1,5 @@
 // src/app/core/services/autentication/auth/auth-session.service.ts
-import {
-  EnvironmentInjector,
-  Injectable,
-  runInInjectionContext,
-} from '@angular/core';
+import { Injectable } from '@angular/core';
 import { Observable, Subject, defer, from, merge, of } from 'rxjs';
 import {
   catchError,
@@ -18,7 +14,6 @@ import {
 import {
   Auth,
   onAuthStateChanged,
-  signOut,
   User,
 } from '@angular/fire/auth';
 import { onIdTokenChanged } from 'firebase/auth';
@@ -40,7 +35,6 @@ export class AuthSessionService {
 
   constructor(
     private readonly auth: Auth,
-    private readonly envInjector: EnvironmentInjector,
     private readonly privacyDebug: PrivacyDebugLoggerService
   ) {
     const idTokenUser$ = new Observable<User | null>((subscriber) => {
@@ -207,12 +201,6 @@ export class AuthSessionService {
         })
       );
     });
-  }
-
-  signOut$(): Observable<void> {
-    return defer(() =>
-      from(runInInjectionContext(this.envInjector, () => signOut(this.auth)))
-    ).pipe(map(() => void 0));
   }
 
   get currentAuthUser(): User | null {
