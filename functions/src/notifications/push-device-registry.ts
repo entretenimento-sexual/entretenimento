@@ -5,11 +5,15 @@ import { db, FieldValue } from '../firebaseApp';
 import {
   buildPushInstallationDocumentId,
   buildPushTokenDocumentId,
+  isCanonicalPushTokenOwner,
   isPushDeviceRegistrationFresh,
   MAX_PUSH_DEVICES_PER_USER,
   normalizePushInstallationId,
   normalizePushToken,
+  PUSH_TOKEN_OWNERS_COLLECTION,
+  PUSH_TOKEN_OWNER_SCHEMA_VERSION,
   resolvePushDevicePlatform,
+  shouldReleasePushTokenOwner,
 } from './push-device.policy';
 
 interface PushDeviceRequest {
@@ -79,10 +83,14 @@ export const registerPushDevice = onCall<PushDeviceRequest>(
     const installationId = requireInstallationId(request.data?.installationId);
     const installationDocumentId =
       buildPushInstallationDocumentId(installationId);
-    const legacyTokenDocumentId = buildPushTokenDocumentId(token);
+    const tokenDocumentId = buildPushTokenDocumentId(token);
+    const legacyTokenDocumentId = tokenDocumentId;
     const userRef = db.collection('users').doc(uid);
     const devicesRef = userRef.collection('push_devices');
     const deviceRef = devicesRef.doc(installationDocumentId);
+    const tokenOwnerRef = db
+      .collection(PUSH_TOKEN_OWNERS_COLLECTION)
+      .doc(tokenDocumentId);
     const observedAtMs = Date.now();
 
     await db.runTransaction(async (tx) => {
@@ -93,12 +101,14 @@ export const registerPushDevice = onCall<PushDeviceRequest>(
       }
 
       // Fast path: um bootstrap recorrente do mesmo navegador não precisa ler
-      // toda a registry nem regravar lastSeenAt. Mudança de token/plataforma,
-      // schema legado ou lease vencido continua seguindo a reconciliação completa.
+      // toda a registry nem regravar lastSeenAt, mas somente quando a autoridade
+      // global do token confirma a mesma instalação e o mesmo usuário.
       const deviceSnapshot = await tx.get(deviceRef);
+      const tokenOwnerSnapshot = await tx.get(tokenOwnerRef);
       const current = deviceSnapshot.exists
         ? (deviceSnapshot.data() as PushDeviceDocument)
         : undefined;
+      const currentToken = normalizePushToken(current?.token);
       const legacyUserToken = normalizePushToken(
         userSnapshot.data()?.fcmToken
       );
@@ -110,11 +120,25 @@ export const registerPushDevice = onCall<PushDeviceRequest>(
           platform,
           observedAtMs
         ) &&
-        legacyUserToken !== token
+        legacyUserToken !== token &&
+        tokenOwnerSnapshot.exists &&
+        isCanonicalPushTokenOwner(
+          tokenOwnerSnapshot.data(),
+          uid,
+          installationDocumentId
+        )
       ) {
         return;
       }
 
+      const previousTokenOwnerSnapshot =
+        currentToken && currentToken !== token
+          ? await tx.get(
+            db
+              .collection(PUSH_TOKEN_OWNERS_COLLECTION)
+              .doc(buildPushTokenDocumentId(currentToken))
+          )
+          : null;
       const devicesSnapshot = await tx.get(
         devicesRef
           .orderBy('lastSeenAt', 'asc')
@@ -164,6 +188,17 @@ export const registerPushDevice = onCall<PushDeviceRequest>(
         }
       }
 
+      if (
+        previousTokenOwnerSnapshot?.exists &&
+        shouldReleasePushTokenOwner(
+          previousTokenOwnerSnapshot.data(),
+          uid,
+          installationDocumentId
+        )
+      ) {
+        tx.delete(previousTokenOwnerSnapshot.ref);
+      }
+
       tx.set(
         deviceRef,
         {
@@ -177,6 +212,15 @@ export const registerPushDevice = onCall<PushDeviceRequest>(
         },
         { merge: true }
       );
+
+      // O mesmo token FCM só possui um proprietário canônico em toda a
+      // plataforma. Um registro posterior transfere a autoridade atomicamente.
+      tx.set(tokenOwnerRef, {
+        uid,
+        deviceId: installationDocumentId,
+        schemaVersion: PUSH_TOKEN_OWNER_SCHEMA_VERSION,
+        updatedAt: now,
+      });
 
       // O user.fcmToken v1 permanece como fallback apenas enquanto não houver
       // prova de que esta mesma instalação já migrou. Se o token coincidir,
@@ -215,13 +259,41 @@ export const unregisterPushDevice = onCall<PushDeviceRequest>(
           (token): token is string => token !== null
         )
       );
+      const tokens = Array.from(tokensToRemove);
+      const ownerRefs = tokens.map((token) =>
+        db
+          .collection(PUSH_TOKEN_OWNERS_COLLECTION)
+          .doc(buildPushTokenDocumentId(token))
+      );
+      const ownerSnapshots = await Promise.all(
+        ownerRefs.map((ownerRef) => tx.get(ownerRef))
+      );
 
       tx.delete(deviceRef);
 
-      for (const token of tokensToRemove) {
+      for (const token of tokens) {
         const legacyTokenDocumentId = buildPushTokenDocumentId(token);
         if (legacyTokenDocumentId !== installationDocumentId) {
           tx.delete(devicesRef.doc(legacyTokenDocumentId));
+        }
+      }
+
+      // Logout/desregistro atrasado nunca pode remover um token que já foi
+      // transferido a outro usuário ou a outra instalação.
+      for (let index = 0; index < ownerRefs.length; index += 1) {
+        const ownerRef = ownerRefs[index];
+        const ownerSnapshot = ownerSnapshots[index];
+
+        if (
+          ownerRef &&
+          ownerSnapshot?.exists &&
+          shouldReleasePushTokenOwner(
+            ownerSnapshot.data(),
+            uid,
+            installationDocumentId
+          )
+        ) {
+          tx.delete(ownerRef);
         }
       }
 

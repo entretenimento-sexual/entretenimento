@@ -8,11 +8,15 @@ import {
   resolvePushNotificationPreferenceKey,
 } from './notification-preference.policy';
 import {
+  buildPushTokenDocumentId,
+  isPushTokenOwnedByUid,
   MAX_PUSH_DEVICES_PER_USER,
   normalizePushToken,
+  PUSH_TOKEN_OWNERS_COLLECTION,
   resolveInvalidPushDeliveryTargets,
   resolvePushDeliveryTargets,
   resolvePushDeviceFreshnessCutoffMs,
+  shouldDeliverPushTokenToRecipient,
   shouldPruneCurrentPushToken,
 } from './push-device.policy';
 import {buildPrivatePushContent} from './push-notification-content.policy';
@@ -86,13 +90,57 @@ export const sendNotification = onDocumentCreated(
       .orderBy('lastSeenAt', 'desc')
       .limit(MAX_PUSH_DEVICES_PER_USER)
       .get();
-    const targets = resolvePushDeliveryTargets(
+    const candidateTargets = resolvePushDeliveryTargets(
       userDoc.data()?.fcmToken,
       devicesSnapshot.docs.map((device) => ({
         documentId: device.id,
         token: device.data()?.token,
       }))
     );
+
+    if (candidateTargets.length === 0) return;
+
+    let targets = candidateTargets;
+
+    try {
+      const ownerRefs = candidateTargets.map((target) =>
+        db
+          .collection(PUSH_TOKEN_OWNERS_COLLECTION)
+          .doc(buildPushTokenDocumentId(target.token))
+      );
+      const ownerSnapshots = await db.getAll(...ownerRefs);
+
+      targets = candidateTargets.filter((_target, index) => {
+        const ownerSnapshot = ownerSnapshots[index];
+
+        return shouldDeliverPushTokenToRecipient(
+          ownerSnapshot?.exists ?? false,
+          ownerSnapshot?.exists ? ownerSnapshot.data() : undefined,
+          recipientId
+        );
+      });
+    } catch (error) {
+      // A notificação in-app já existe. Se a autoridade global do token não
+      // puder ser comprovada, o push externo falha fechado para preservar
+      // privacidade entre contas que compartilharam a mesma instalação.
+      console.error('[sendNotification] falha ao validar ownership de token', {
+        notificationId,
+        notificationType,
+        candidateTargetCount: candidateTargets.length,
+        errorCode: toSafeErrorCode(error),
+      });
+      return;
+    }
+
+    const ownershipFilteredCount = candidateTargets.length - targets.length;
+
+    if (ownershipFilteredCount > 0) {
+      console.warn('[sendNotification] alvos suprimidos por ownership canônico', {
+        notificationId,
+        notificationType,
+        ownershipFilteredCount,
+      });
+    }
 
     if (targets.length === 0) return;
 
@@ -113,6 +161,7 @@ export const sendNotification = onDocumentCreated(
     );
     let prunedRegistryDeviceCount = 0;
     let prunedLegacyToken = false;
+    let prunedTokenOwnerCount = 0;
 
     if (invalidTargets.length > 0) {
       try {
@@ -138,6 +187,18 @@ export const sendNotification = onDocumentCreated(
             currentDevices.push(await tx.get(devicesRef.doc(documentId)));
           }
 
+          const invalidTokenList = Array.from(invalidTokens);
+          const invalidOwnerRefs = invalidTokenList.map((token) =>
+            db
+              .collection(PUSH_TOKEN_OWNERS_COLLECTION)
+              .doc(buildPushTokenDocumentId(token))
+          );
+          const currentOwners = [];
+
+          for (const ownerRef of invalidOwnerRefs) {
+            currentOwners.push(await tx.get(ownerRef));
+          }
+
           let registryDeviceCount = 0;
 
           for (let index = 0; index < deviceEntries.length; index += 1) {
@@ -159,6 +220,18 @@ export const sendNotification = onDocumentCreated(
             registryDeviceCount += 1;
           }
 
+          let tokenOwnerCount = 0;
+
+          for (const currentOwner of currentOwners) {
+            if (
+              currentOwner.exists &&
+              isPushTokenOwnedByUid(currentOwner.data(), recipientId)
+            ) {
+              tx.delete(currentOwner.ref);
+              tokenOwnerCount += 1;
+            }
+          }
+
           const currentLegacyToken = normalizePushToken(
             currentUserDoc.data()?.fcmToken
           );
@@ -177,11 +250,13 @@ export const sendNotification = onDocumentCreated(
           return {
             registryDeviceCount,
             legacyTokenRemoved: removeLegacyToken,
+            tokenOwnerCount,
           };
         });
 
         prunedRegistryDeviceCount = cleanupResult.registryDeviceCount;
         prunedLegacyToken = cleanupResult.legacyTokenRemoved;
+        prunedTokenOwnerCount = cleanupResult.tokenOwnerCount;
       } catch (error) {
         // Limpeza é best-effort: não transformamos uma entrega já processada em
         // falha apenas porque a remoção de tokens inválidos ficou indisponível.
@@ -200,13 +275,17 @@ export const sendNotification = onDocumentCreated(
       hasNavigationRoute: Boolean(navigationData),
       usesNeutralExternalContent: true,
       targetsFreshRegistryOnly: true,
+      validatesCanonicalTokenOwnership: true,
       hasExplicitDeliveryTtl: true,
+      candidateTargetCount: candidateTargets.length,
+      ownershipFilteredCount,
       targetCount: targets.length,
       successCount: response.successCount,
       failureCount: response.failureCount,
       invalidTokenCount: invalidTargets.length,
       prunedRegistryDeviceCount,
       prunedLegacyToken,
+      prunedTokenOwnerCount,
     });
   }
 );

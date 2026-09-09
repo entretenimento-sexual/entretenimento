@@ -4,22 +4,37 @@ import test from 'node:test';
 import {
   buildPushInstallationDocumentId,
   buildPushTokenDocumentId,
+  isCanonicalPushTokenOwner,
   isPermanentPushTokenErrorCode,
   isPushDeviceRegistrationFresh,
   MAX_PUSH_DEVICES_PER_USER,
   normalizePushInstallationId,
   normalizePushToken,
   PUSH_DEVICE_LEASE_REFRESH_MS,
+  PUSH_TOKEN_OWNER_SCHEMA_VERSION,
   resolveInvalidPushDeliveryTargets,
   resolveInvalidPushRegistryDocumentIds,
   resolvePushDeliveryTargets,
   resolvePushDevicePlatform,
+  shouldDeliverPushTokenToRecipient,
   shouldPruneCurrentPushToken,
+  shouldReleasePushTokenOwner,
 } from './push-device.policy';
 
 const TOKEN = 'fcm-token-value-that-is-long-enough-for-validation-1234567890';
 const TOKEN_B = 'second-fcm-token-value-that-is-long-enough-0987654321';
 const INSTALLATION_ID = '550e8400-e29b-41d4-a716-446655440000';
+const INSTALLATION_ID_B = '660e8400-e29b-41d4-a716-446655440001';
+const DEVICE_ID_A = buildPushInstallationDocumentId(INSTALLATION_ID);
+const DEVICE_ID_B = buildPushInstallationDocumentId(INSTALLATION_ID_B);
+
+function tokenOwner(uid: string, deviceId: string) {
+  return {
+    uid,
+    deviceId,
+    schemaVersion: PUSH_TOKEN_OWNER_SCHEMA_VERSION,
+  };
+}
 
 test('normaliza token FCM sem aceitar payload curto, vazio ou não textual', () => {
   assert.equal(normalizePushToken(`  ${TOKEN}  `), TOKEN);
@@ -140,6 +155,56 @@ test('lease nunca oculta rotação de token, plataforma ou schema', () => {
   );
 });
 
+test('handoff do mesmo token torna somente o último owner entregável', () => {
+  const ownerA = tokenOwner('user-a', DEVICE_ID_A);
+  const ownerB = tokenOwner('user-b', DEVICE_ID_B);
+
+  assert.equal(isCanonicalPushTokenOwner(ownerA, 'user-a', DEVICE_ID_A), true);
+  assert.equal(isCanonicalPushTokenOwner(ownerB, 'user-b', DEVICE_ID_B), true);
+  assert.equal(shouldDeliverPushTokenToRecipient(true, ownerB, 'user-a'), false);
+  assert.equal(shouldDeliverPushTokenToRecipient(true, ownerB, 'user-b'), true);
+});
+
+test('logout atrasado não libera ownership já transferido a outro usuário', () => {
+  const ownerB = tokenOwner('user-b', DEVICE_ID_B);
+
+  assert.equal(
+    shouldReleasePushTokenOwner(ownerB, 'user-a', DEVICE_ID_A),
+    false
+  );
+});
+
+test('registro legado sem owner continua entregável durante migração', () => {
+  assert.equal(
+    shouldDeliverPushTokenToRecipient(false, undefined, 'user-a'),
+    true
+  );
+});
+
+test('unregister do owner atual libera ownership canônico', () => {
+  const ownerB = tokenOwner('user-b', DEVICE_ID_B);
+
+  assert.equal(
+    shouldReleasePushTokenOwner(ownerB, 'user-b', DEVICE_ID_B),
+    true
+  );
+});
+
+test('owner existente e malformado falha fechado no envio', () => {
+  assert.equal(
+    shouldDeliverPushTokenToRecipient(
+      true,
+      {
+        uid: 'user-a',
+        deviceId: 'invalid-device-id',
+        schemaVersion: PUSH_TOKEN_OWNER_SCHEMA_VERSION,
+      },
+      'user-a'
+    ),
+    false
+  );
+});
+
 test('mantém fallback legado quando ainda não há dispositivo no registro privado', () => {
   assert.deepEqual(resolvePushDeliveryTargets(TOKEN, []), [
     { token: TOKEN, registryDocumentIds: [] },
@@ -254,7 +319,10 @@ test('expõe fallback legado para limpeza quando ele falha permanentemente', () 
 test('não seleciona fallback legado para limpeza em falha transitória', () => {
   const targets = resolvePushDeliveryTargets(TOKEN, []);
 
-  assert.deepEqual(resolveInvalidPushDeliveryTargets(targets, ['messaging/internal-error']), []);
+  assert.deepEqual(
+    resolveInvalidPushDeliveryTargets(targets, ['messaging/internal-error']),
+    []
+  );
 });
 
 test('cleanup condicional preserva token que já rotacionou', () => {

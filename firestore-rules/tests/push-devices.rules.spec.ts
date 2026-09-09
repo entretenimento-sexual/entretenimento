@@ -30,11 +30,16 @@ const FIRESTORE_PORT = 8180;
 const OWNER_UID = 'push-device-owner';
 const OTHER_UID = 'push-device-other';
 const DEVICE_ID = 'a'.repeat(64);
+const TOKEN_OWNER_ID = 'c'.repeat(64);
 
 let testEnv: RulesTestEnvironment;
 
 function deviceRef(db: Firestore, uid = OWNER_UID) {
   return doc(db, 'users', uid, 'push_devices', DEVICE_ID);
+}
+
+function tokenOwnerRef(db: Firestore) {
+  return doc(db, 'push_token_owners', TOKEN_OWNER_ID);
 }
 
 describe('Firestore Rules / push devices', () => {
@@ -61,6 +66,11 @@ describe('Firestore Rules / push devices', () => {
       await setDoc(deviceRef(context.firestore()), {
         token: 'server-owned-token',
         platform: 'web',
+        schemaVersion: 1,
+      });
+      await setDoc(tokenOwnerRef(context.firestore()), {
+        uid: OWNER_UID,
+        deviceId: DEVICE_ID,
         schemaVersion: 1,
       });
     });
@@ -106,9 +116,34 @@ describe('Firestore Rules / push devices', () => {
     await assertFails(deleteDoc(existingRef));
   });
 
+  it('nega acesso direto ao ownership global do token', async () => {
+    const ownerDb = testEnv.authenticatedContext(OWNER_UID).firestore();
+    const otherDb = testEnv.authenticatedContext(OTHER_UID).firestore();
+    const currentOwnerRef = tokenOwnerRef(ownerDb);
+    const forgedOwnerRef = doc(
+      ownerDb,
+      'push_token_owners',
+      'b'.repeat(64)
+    );
+
+    await assertFails(getDoc(currentOwnerRef));
+    await assertFails(getDocs(collection(ownerDb, 'push_token_owners')));
+    await assertFails(
+      setDoc(forgedOwnerRef, {
+        uid: OWNER_UID,
+        deviceId: DEVICE_ID,
+        schemaVersion: 1,
+      })
+    );
+    await assertFails(updateDoc(currentOwnerRef, { uid: OTHER_UID }));
+    await assertFails(deleteDoc(currentOwnerRef));
+    await assertFails(getDoc(tokenOwnerRef(otherDb)));
+  });
+
   it('nega acesso não autenticado', async () => {
     const db = testEnv.unauthenticatedContext().firestore();
 
     await assertFails(getDoc(deviceRef(db)));
+    await assertFails(getDoc(tokenOwnerRef(db)));
   });
 });

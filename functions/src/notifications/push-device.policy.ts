@@ -7,6 +7,8 @@ export const MIN_PUSH_INSTALLATION_ID_LENGTH = 16;
 export const MAX_PUSH_INSTALLATION_ID_LENGTH = 128;
 export const PUSH_DEVICE_LEASE_REFRESH_MS = 24 * 60 * 60 * 1000;
 export const PUSH_DEVICE_STALE_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
+export const PUSH_TOKEN_OWNERS_COLLECTION = 'push_token_owners';
+export const PUSH_TOKEN_OWNER_SCHEMA_VERSION = 1;
 
 export type PushDevicePlatform = 'web' | 'ios' | 'android';
 
@@ -25,6 +27,18 @@ export interface PushDeviceRegistrationCandidate {
   platform?: unknown;
   schemaVersion?: unknown;
   lastSeenAt?: unknown;
+}
+
+export interface PushTokenOwnerCandidate {
+  uid?: unknown;
+  deviceId?: unknown;
+  schemaVersion?: unknown;
+}
+
+export interface PushTokenOwner {
+  uid: string;
+  deviceId: string;
+  schemaVersion: typeof PUSH_TOKEN_OWNER_SCHEMA_VERSION;
 }
 
 const PERMANENT_PUSH_TOKEN_ERROR_CODES = new Set([
@@ -86,6 +100,72 @@ export function buildPushInstallationDocumentId(installationId: string): string 
  */
 export function buildPushTokenDocumentId(token: string): string {
   return createHash('sha256').update(token, 'utf8').digest('hex');
+}
+
+export function resolvePushTokenOwner(
+  value: PushTokenOwnerCandidate | null | undefined
+): PushTokenOwner | null {
+  const uid = typeof value?.uid === 'string' ? value.uid.trim() : '';
+  const deviceId = typeof value?.deviceId === 'string'
+    ? value.deviceId.trim()
+    : '';
+
+  if (
+    !uid ||
+    !/^[a-f0-9]{64}$/.test(deviceId) ||
+    value?.schemaVersion !== PUSH_TOKEN_OWNER_SCHEMA_VERSION
+  ) {
+    return null;
+  }
+
+  return {
+    uid,
+    deviceId,
+    schemaVersion: PUSH_TOKEN_OWNER_SCHEMA_VERSION,
+  };
+}
+
+export function isCanonicalPushTokenOwner(
+  value: PushTokenOwnerCandidate | null | undefined,
+  uid: string,
+  deviceId: string
+): boolean {
+  const owner = resolvePushTokenOwner(value);
+  return Boolean(owner && owner.uid === uid && owner.deviceId === deviceId);
+}
+
+/**
+ * Owner ausente significa registro legado ainda em migração e permanece
+ * entregável. Owner existente, porém inválido, falha fechado para não expor
+ * uma notificação a um token cuja autoridade canônica não pode ser provada.
+ */
+export function shouldDeliverPushTokenToRecipient(
+  ownerExists: boolean,
+  value: PushTokenOwnerCandidate | null | undefined,
+  recipientUid: string
+): boolean {
+  if (!ownerExists) return true;
+
+  const owner = resolvePushTokenOwner(value);
+  const normalizedRecipientUid = String(recipientUid ?? '').trim();
+  return Boolean(owner && normalizedRecipientUid && owner.uid === normalizedRecipientUid);
+}
+
+export function shouldReleasePushTokenOwner(
+  value: PushTokenOwnerCandidate | null | undefined,
+  uid: string,
+  deviceId: string
+): boolean {
+  return isCanonicalPushTokenOwner(value, uid, deviceId);
+}
+
+export function isPushTokenOwnedByUid(
+  value: PushTokenOwnerCandidate | null | undefined,
+  uid: string
+): boolean {
+  const owner = resolvePushTokenOwner(value);
+  const normalizedUid = String(uid ?? '').trim();
+  return Boolean(owner && normalizedUid && owner.uid === normalizedUid);
 }
 
 /**
