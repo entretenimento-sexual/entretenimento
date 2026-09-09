@@ -35,6 +35,9 @@ export interface IAppNotification {
   replyToCommentId?: string | null;
   replyId?: string | null;
   actorUid?: string | null;
+  inviteId?: string | null;
+  roomId?: string | null;
+  messageId?: string | null;
   activityCount?: number | null;
   moderationTarget?: AppNotificationModerationTarget | null;
   readAt: number | null;

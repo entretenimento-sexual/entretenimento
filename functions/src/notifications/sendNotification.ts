@@ -33,7 +33,11 @@ export const sendNotification = onDocumentCreated(
     const notificationType = String(notification?.type ?? '').trim();
     const preferenceKey = resolvePushNotificationPreferenceKey(notificationType);
     const navigationData = buildPushNotificationNavigationData(
-      notification?.route
+      notification?.route,
+      {
+        type: notificationType,
+        roomId: notification?.roomId,
+      }
     );
     const db = getFirestore();
 

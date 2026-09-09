@@ -8,11 +8,37 @@
 // - aceita somente rotas internas path-only iniciadas por "/";
 // - rejeita URLs absolutas, protocol-relative, barras invertidas e controles;
 // - normaliza path/query/hash via URL sem permitir troca de origin;
-// - limita o tamanho para evitar propagar payloads de navegação anormais.
+// - limita o tamanho para evitar propagar payloads de navegação anormais;
+// - corrige somente o namespace legado de mensagens de Sala quando o próprio
+//   documento comprova contexto de Sala por type=chat + roomId.
 // -----------------------------------------------------------------------------
 
 const NOTIFICATION_ROUTE_BASE_ORIGIN = 'https://notification-route.invalid';
 const MAX_NOTIFICATION_ROUTE_LENGTH = 2048;
+const CANONICAL_ROOMS_ROUTE = '/chat/rooms';
+const LEGACY_ROOM_MESSAGES_ROUTE = '/messages';
+
+export interface NotificationNavigationContext {
+  type?: unknown;
+  route?: unknown;
+  roomId?: unknown;
+}
+
+export function resolveNotificationRoute(
+  notification: NotificationNavigationContext
+): string | null {
+  const route = normalizeNotificationRoute(notification?.route);
+
+  if (!route) {
+    return null;
+  }
+
+  if (isLegacyRoomMessageNotification(notification, route)) {
+    return CANONICAL_ROOMS_ROUTE;
+  }
+
+  return route;
+}
 
 export function normalizeNotificationRoute(value: unknown): string | null {
   const route = String(value ?? '').trim();
@@ -39,6 +65,29 @@ export function normalizeNotificationRoute(value: unknown): string | null {
   } catch {
     return null;
   }
+}
+
+function isLegacyRoomMessageNotification(
+  notification: NotificationNavigationContext,
+  normalizedRoute: string
+): boolean {
+  const type = String(notification?.type ?? '').trim();
+  const roomId = String(notification?.roomId ?? '').trim();
+
+  return (
+    type === 'chat' &&
+    roomId.length > 0 &&
+    isLegacyRoomMessagesRoute(normalizedRoute)
+  );
+}
+
+function isLegacyRoomMessagesRoute(route: string): boolean {
+  return (
+    route === LEGACY_ROOM_MESSAGES_ROUTE ||
+    route.startsWith(`${LEGACY_ROOM_MESSAGES_ROUTE}/`) ||
+    route.startsWith(`${LEGACY_ROOM_MESSAGES_ROUTE}?`) ||
+    route.startsWith(`${LEGACY_ROOM_MESSAGES_ROUTE}#`)
+  );
 }
 
 function hasControlCharacters(value: string): boolean {

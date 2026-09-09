@@ -83,6 +83,9 @@ interface AppNotificationFirestoreDocument {
   replyToCommentId?: unknown;
   replyId?: unknown;
   actorUid?: unknown;
+  inviteId?: unknown;
+  roomId?: unknown;
+  messageId?: unknown;
   activityCount?: unknown;
   moderationTarget?: unknown;
   readAt?: unknown;
@@ -415,6 +418,9 @@ export class AppNotificationService {
       replyToCommentId: this.toText(raw.replyToCommentId) || null,
       replyId: this.toText(raw.replyId) || null,
       actorUid: this.toText(raw.actorUid) || null,
+      inviteId: this.toText(raw.inviteId) || null,
+      roomId: this.toText(raw.roomId) || null,
+      messageId: this.toText(raw.messageId) || null,
       activityCount: this.toPositiveInteger(raw.activityCount),
       moderationTarget:
         raw.moderationTarget === 'comment'

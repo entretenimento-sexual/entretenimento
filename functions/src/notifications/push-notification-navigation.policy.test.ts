@@ -132,6 +132,51 @@ test('backend propaga somente rota interna normalizada no data do FCM', () => {
   assert.equal(normalizePushNotificationRoute('javascript:alert(1)'), null);
 });
 
+test('backend corrige rota legada de mensagem de Sala com contexto explícito', () => {
+  assert.deepEqual(
+    buildPushNotificationNavigationData(
+      '/messages/room-123/message-456?origem=push#message',
+      {type: 'chat', roomId: 'room-123'}
+    ),
+    {route: '/chat/rooms'}
+  );
+});
+
+test('backend preserva convite de Sala e chat direto', () => {
+  assert.deepEqual(
+    buildPushNotificationNavigationData(
+      '/chat/room-invites',
+      {type: 'chat', roomId: 'room-123'}
+    ),
+    {route: '/chat/room-invites'}
+  );
+
+  assert.deepEqual(
+    buildPushNotificationNavigationData(
+      '/chat?userId=user-456',
+      {type: 'chat'}
+    ),
+    {route: '/chat?userId=user-456'}
+  );
+});
+
+test('backend não reescreve /messages sem contexto completo de Sala', () => {
+  assert.deepEqual(
+    buildPushNotificationNavigationData('/messages/qualquer-coisa', {
+      type: 'chat',
+    }),
+    {route: '/messages/qualquer-coisa'}
+  );
+
+  assert.deepEqual(
+    buildPushNotificationNavigationData('/messages/qualquer-coisa', {
+      type: 'system',
+      roomId: 'room-123',
+    }),
+    {route: '/messages/qualquer-coisa'}
+  );
+});
+
 test('worker navega uma aba same-origin para o deep link válido do FCM', async () => {
   const navigatedUrls: string[] = [];
   let focusCount = 0;
