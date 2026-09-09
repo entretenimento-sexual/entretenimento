@@ -95,8 +95,8 @@ export function buildPushInstallationDocumentId(installationId: string): string 
 }
 
 /**
- * Mantido durante a migração do registro v1, cujo document id era derivado do
- * token. Novos registros usam exclusivamente a installation id estável.
+ * Hash canônico do token usado como chave da autoridade global. O token bruto
+ * nunca é exposto no caminho de push_token_owners.
  */
 export function buildPushTokenDocumentId(token: string): string {
   return createHash('sha256').update(token, 'utf8').digest('hex');
@@ -135,16 +135,15 @@ export function isCanonicalPushTokenOwner(
 }
 
 /**
- * Owner ausente significa registro legado ainda em migração e permanece
- * entregável. Owner existente, porém inválido, falha fechado para não expor
- * uma notificação a um token cuja autoridade canônica não pode ser provada.
+ * A entrega externa exige prova positiva de ownership. Owner ausente ou
+ * malformado falha fechado; a notificação in-app continua preservada.
  */
 export function shouldDeliverPushTokenToRecipient(
   ownerExists: boolean,
   value: PushTokenOwnerCandidate | null | undefined,
   recipientUid: string
 ): boolean {
-  if (!ownerExists) return true;
+  if (!ownerExists) return false;
 
   const owner = resolvePushTokenOwner(value);
   const normalizedRecipientUid = String(recipientUid ?? '').trim();
@@ -205,10 +204,8 @@ export function isPushDeviceRegistrationFresh(
 }
 
 /**
- * O FCM considera registros sem atividade por aproximadamente um mês como
- * stale. O sender usa este corte para não gastar entrega nem expor alertas em
- * instalações antigas; quando o app voltar a abrir, o registro é sincronizado
- * novamente pelo lifecycle normal.
+ * Dispositivos sem atividade por 30 dias deixam de ser alvos de entrega. Ao
+ * retornar ao app, o lifecycle registra novamente a instalação normalmente.
  */
 export function resolvePushDeviceFreshnessCutoffMs(
   nowMs = Date.now()
@@ -217,7 +214,6 @@ export function resolvePushDeviceFreshnessCutoffMs(
 }
 
 export function resolvePushDeliveryTargets(
-  legacyToken: unknown,
   registryDevices: readonly PushDeviceTokenCandidate[]
 ): PushDeliveryTarget[] {
   const targetsByToken = new Map<string, PushDeliveryTarget>();
@@ -238,14 +234,6 @@ export function resolvePushDeliveryTargets(
     targetsByToken.set(token, {
       token,
       registryDocumentIds: [documentId],
-    });
-  }
-
-  const normalizedLegacyToken = normalizePushToken(legacyToken);
-  if (normalizedLegacyToken && !targetsByToken.has(normalizedLegacyToken)) {
-    targetsByToken.set(normalizedLegacyToken, {
-      token: normalizedLegacyToken,
-      registryDocumentIds: [],
     });
   }
 

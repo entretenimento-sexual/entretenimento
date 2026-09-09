@@ -84,7 +84,6 @@ export const registerPushDevice = onCall<PushDeviceRequest>(
     const installationDocumentId =
       buildPushInstallationDocumentId(installationId);
     const tokenDocumentId = buildPushTokenDocumentId(token);
-    const legacyTokenDocumentId = tokenDocumentId;
     const userRef = db.collection('users').doc(uid);
     const devicesRef = userRef.collection('push_devices');
     const deviceRef = devicesRef.doc(installationDocumentId);
@@ -109,9 +108,6 @@ export const registerPushDevice = onCall<PushDeviceRequest>(
         ? (deviceSnapshot.data() as PushDeviceDocument)
         : undefined;
       const currentToken = normalizePushToken(current?.token);
-      const legacyUserToken = normalizePushToken(
-        userSnapshot.data()?.fcmToken
-      );
 
       if (
         isPushDeviceRegistrationFresh(
@@ -120,7 +116,6 @@ export const registerPushDevice = onCall<PushDeviceRequest>(
           platform,
           observedAtMs
         ) &&
-        legacyUserToken !== token &&
         tokenOwnerSnapshot.exists &&
         isCanonicalPushTokenOwner(
           tokenOwnerSnapshot.data(),
@@ -158,9 +153,6 @@ export const registerPushDevice = onCall<PushDeviceRequest>(
       const currentForWrite = existingDevice?.data() as
         | PushDeviceDocument
         | undefined;
-      const migratedLegacy = duplicateTokenDevices.find(
-        (snapshot) => snapshot.id === legacyTokenDocumentId
-      )?.data() as PushDeviceDocument | undefined;
 
       for (const duplicate of duplicateTokenDevices) {
         tx.delete(duplicate.ref);
@@ -205,8 +197,7 @@ export const registerPushDevice = onCall<PushDeviceRequest>(
           token,
           platform,
           schemaVersion: 2,
-          createdAt:
-            currentForWrite?.createdAt ?? migratedLegacy?.createdAt ?? now,
+          createdAt: currentForWrite?.createdAt ?? now,
           updatedAt: now,
           lastSeenAt: now,
         },
@@ -221,15 +212,6 @@ export const registerPushDevice = onCall<PushDeviceRequest>(
         schemaVersion: PUSH_TOKEN_OWNER_SCHEMA_VERSION,
         updatedAt: now,
       });
-
-      // O user.fcmToken v1 permanece como fallback apenas enquanto não houver
-      // prova de que esta mesma instalação já migrou. Se o token coincidir,
-      // a registry v2 passa a ser a única fonte para evitar tentativas órfãs.
-      if (legacyUserToken === token) {
-        tx.update(userRef, {
-          fcmToken: FieldValue.delete(),
-        });
-      }
     });
 
     return { ok: true };
@@ -249,17 +231,16 @@ export const unregisterPushDevice = onCall<PushDeviceRequest>(
     const deviceRef = devicesRef.doc(installationDocumentId);
 
     await db.runTransaction(async (tx) => {
-      const userSnapshot = await tx.get(userRef);
       const deviceSnapshot = await tx.get(deviceRef);
       const registeredToken = normalizePushToken(
         deviceSnapshot.data()?.token
       );
-      const tokensToRemove = new Set(
+      const tokensToRelease = new Set(
         [requestedToken, registeredToken].filter(
           (token): token is string => token !== null
         )
       );
-      const tokens = Array.from(tokensToRemove);
+      const tokens = Array.from(tokensToRelease);
       const ownerRefs = tokens.map((token) =>
         db
           .collection(PUSH_TOKEN_OWNERS_COLLECTION)
@@ -270,13 +251,6 @@ export const unregisterPushDevice = onCall<PushDeviceRequest>(
       );
 
       tx.delete(deviceRef);
-
-      for (const token of tokens) {
-        const legacyTokenDocumentId = buildPushTokenDocumentId(token);
-        if (legacyTokenDocumentId !== installationDocumentId) {
-          tx.delete(devicesRef.doc(legacyTokenDocumentId));
-        }
-      }
 
       // Logout/desregistro atrasado nunca pode remover um token que já foi
       // transferido a outro usuário ou a outra instalação.
@@ -295,16 +269,6 @@ export const unregisterPushDevice = onCall<PushDeviceRequest>(
         ) {
           tx.delete(ownerRef);
         }
-      }
-
-      const legacyUserToken = normalizePushToken(
-        userSnapshot.data()?.fcmToken
-      );
-
-      if (legacyUserToken && tokensToRemove.has(legacyUserToken)) {
-        tx.update(userRef, {
-          fcmToken: FieldValue.delete(),
-        });
       }
     });
 

@@ -1,7 +1,7 @@
 // functions/src/notifications/sendNotification.ts
 import {onDocumentCreated} from 'firebase-functions/v2/firestore';
 import {getMessaging} from 'firebase-admin/messaging';
-import {FieldValue, getFirestore, Timestamp} from 'firebase-admin/firestore';
+import {getFirestore, Timestamp} from 'firebase-admin/firestore';
 
 import {
   isPushNotificationEnabledByPreference,
@@ -11,7 +11,6 @@ import {
   buildPushTokenDocumentId,
   isPushTokenOwnedByUid,
   MAX_PUSH_DEVICES_PER_USER,
-  normalizePushToken,
   PUSH_TOKEN_OWNERS_COLLECTION,
   resolveInvalidPushDeliveryTargets,
   resolvePushDeliveryTargets,
@@ -91,7 +90,6 @@ export const sendNotification = onDocumentCreated(
       .limit(MAX_PUSH_DEVICES_PER_USER)
       .get();
     const candidateTargets = resolvePushDeliveryTargets(
-      userDoc.data()?.fcmToken,
       devicesSnapshot.docs.map((device) => ({
         documentId: device.id,
         token: device.data()?.token,
@@ -160,14 +158,10 @@ export const sendNotification = onDocumentCreated(
       responseErrorCodes
     );
     let prunedRegistryDeviceCount = 0;
-    let prunedLegacyToken = false;
     let prunedTokenOwnerCount = 0;
 
     if (invalidTargets.length > 0) {
       try {
-        const invalidTokens = new Set(
-          invalidTargets.map((target) => target.token)
-        );
         const expectedTokenByDocumentId = new Map<string, string>();
 
         for (const target of invalidTargets) {
@@ -177,7 +171,6 @@ export const sendNotification = onDocumentCreated(
         }
 
         const cleanupResult = await db.runTransaction(async (tx) => {
-          const currentUserDoc = await tx.get(userRef);
           const deviceEntries = Array.from(expectedTokenByDocumentId.entries());
           const currentDevices = [];
 
@@ -187,7 +180,7 @@ export const sendNotification = onDocumentCreated(
             currentDevices.push(await tx.get(devicesRef.doc(documentId)));
           }
 
-          const invalidTokenList = Array.from(invalidTokens);
+          const invalidTokenList = invalidTargets.map((target) => target.token);
           const invalidOwnerRefs = invalidTokenList.map((token) =>
             db
               .collection(PUSH_TOKEN_OWNERS_COLLECTION)
@@ -232,30 +225,13 @@ export const sendNotification = onDocumentCreated(
             }
           }
 
-          const currentLegacyToken = normalizePushToken(
-            currentUserDoc.data()?.fcmToken
-          );
-          const removeLegacyToken = Boolean(
-            currentUserDoc.exists &&
-            currentLegacyToken &&
-            invalidTokens.has(currentLegacyToken)
-          );
-
-          if (removeLegacyToken) {
-            tx.update(userRef, {
-              fcmToken: FieldValue.delete(),
-            });
-          }
-
           return {
             registryDeviceCount,
-            legacyTokenRemoved: removeLegacyToken,
             tokenOwnerCount,
           };
         });
 
         prunedRegistryDeviceCount = cleanupResult.registryDeviceCount;
-        prunedLegacyToken = cleanupResult.legacyTokenRemoved;
         prunedTokenOwnerCount = cleanupResult.tokenOwnerCount;
       } catch (error) {
         // Limpeza é best-effort: não transformamos uma entrega já processada em
@@ -284,7 +260,6 @@ export const sendNotification = onDocumentCreated(
       failureCount: response.failureCount,
       invalidTokenCount: invalidTargets.length,
       prunedRegistryDeviceCount,
-      prunedLegacyToken,
       prunedTokenOwnerCount,
     });
   }

@@ -78,7 +78,7 @@ test('gera id estável da instalação sem expor o identificador no caminho', ()
   assert.match(id, /^[a-f0-9]{64}$/);
 });
 
-test('mantém id legado por token somente para migração do registro v1', () => {
+test('gera hash canônico do token para ownership global sem expor token', () => {
   const id = buildPushTokenDocumentId(TOKEN);
 
   assert.equal(id.length, 64);
@@ -174,10 +174,10 @@ test('logout atrasado não libera ownership já transferido a outro usuário', (
   );
 });
 
-test('registro legado sem owner continua entregável durante migração', () => {
+test('owner ausente falha fechado depois do encerramento da migração', () => {
   assert.equal(
     shouldDeliverPushTokenToRecipient(false, undefined, 'user-a'),
-    true
+    false
   );
 });
 
@@ -205,15 +205,9 @@ test('owner existente e malformado falha fechado no envio', () => {
   );
 });
 
-test('mantém fallback legado quando ainda não há dispositivo no registro privado', () => {
-  assert.deepEqual(resolvePushDeliveryTargets(TOKEN, []), [
-    { token: TOKEN, registryDocumentIds: [] },
-  ]);
-});
-
-test('combina registro privado e token legado sem enviar duplicado', () => {
+test('entrega usa exclusivamente registros privados de dispositivo', () => {
   assert.deepEqual(
-    resolvePushDeliveryTargets(TOKEN, [
+    resolvePushDeliveryTargets([
       { documentId: 'device-a', token: TOKEN },
       { documentId: 'device-b', token: TOKEN_B },
     ]),
@@ -222,11 +216,12 @@ test('combina registro privado e token legado sem enviar duplicado', () => {
       { token: TOKEN_B, registryDocumentIds: ['device-b'] },
     ]
   );
+  assert.deepEqual(resolvePushDeliveryTargets([]), []);
 });
 
 test('preserva todas as referências privadas quando houver token duplicado', () => {
   assert.deepEqual(
-    resolvePushDeliveryTargets(undefined, [
+    resolvePushDeliveryTargets([
       { documentId: 'device-a', token: TOKEN },
       { documentId: 'device-a-copy', token: TOKEN },
       { documentId: '', token: TOKEN_B },
@@ -262,8 +257,9 @@ test('classifica somente erros de token permanentemente inválido para limpeza',
 });
 
 test('seleciona somente alvos ligados a falhas permanentes', () => {
-  const targets = resolvePushDeliveryTargets(TOKEN_B, [
+  const targets = resolvePushDeliveryTargets([
     { documentId: 'device-a', token: TOKEN },
+    { documentId: 'device-b', token: TOKEN_B },
   ]);
 
   assert.deepEqual(
@@ -281,8 +277,9 @@ test('seleciona somente alvos ligados a falhas permanentes', () => {
 });
 
 test('limpa somente referências privadas ligadas a falhas permanentes', () => {
-  const targets = resolvePushDeliveryTargets(TOKEN_B, [
+  const targets = resolvePushDeliveryTargets([
     { documentId: 'device-a', token: TOKEN },
+    { documentId: 'device-b', token: TOKEN_B },
   ]);
 
   assert.deepEqual(
@@ -291,37 +288,6 @@ test('limpa somente referências privadas ligadas a falhas permanentes', () => {
       'messaging/internal-error',
     ]),
     ['device-a']
-  );
-});
-
-test('expõe fallback legado para limpeza quando ele falha permanentemente', () => {
-  const targets = resolvePushDeliveryTargets(TOKEN, []);
-
-  assert.deepEqual(
-    resolveInvalidPushDeliveryTargets(targets, [
-      'messaging/registration-token-not-registered',
-    ]),
-    [
-      {
-        token: TOKEN,
-        registryDocumentIds: [],
-      },
-    ]
-  );
-  assert.deepEqual(
-    resolveInvalidPushRegistryDocumentIds(targets, [
-      'messaging/registration-token-not-registered',
-    ]),
-    []
-  );
-});
-
-test('não seleciona fallback legado para limpeza em falha transitória', () => {
-  const targets = resolvePushDeliveryTargets(TOKEN, []);
-
-  assert.deepEqual(
-    resolveInvalidPushDeliveryTargets(targets, ['messaging/internal-error']),
-    []
   );
 });
 
