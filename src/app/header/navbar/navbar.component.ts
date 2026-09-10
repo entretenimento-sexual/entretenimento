@@ -593,8 +593,9 @@ export class NavbarComponent implements OnInit, OnDestroy {
       },
       error: (error) => {
         this.logNavbar('logout error', { error });
-        console.error('[NavbarComponent] Erro no logout:', error);
-        this.notify.showError('Não foi possível sair agora. Tente novamente.');
+        // Supressão intencional: não há console.error nem showError local.
+        // LogoutService/ApplicationErrorService é a autoridade canônica do erro
+        // de logout e já entrega um único feedback seguro ao usuário.
       }
     });
   }

@@ -5,7 +5,7 @@ import { Router } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
 import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { BreakpointObserver } from '@angular/cdk/layout';
-import { BehaviorSubject, of } from 'rxjs';
+import { BehaviorSubject, of, throwError } from 'rxjs';
 import { By } from '@angular/platform-browser';
 
 import { describe, beforeEach, it, expect, vi } from 'vitest';
@@ -164,6 +164,18 @@ describe('NavbarComponent', () => {
 
     expect(logout.logout$).toHaveBeenCalled();
     expect(notify.showSuccess).toHaveBeenCalledWith('Você saiu da sua conta.');
+  });
+
+  it('logout: não deve duplicar feedback de erro já centralizado no LogoutService', () => {
+    const expectedError = new Error('signOut falhou');
+    logout.logout$.mockReturnValueOnce(throwError(() => expectedError));
+
+    component.logout();
+    fixture.detectChanges();
+
+    expect(logout.logout$).toHaveBeenCalled();
+    expect(notify.showError).not.toHaveBeenCalled();
+    expect(notify.showSuccess).not.toHaveBeenCalled();
   });
 
   it('toggleDarkMode / toggleHighContrast / resetAppearance devem refletir no <html>', () => {
