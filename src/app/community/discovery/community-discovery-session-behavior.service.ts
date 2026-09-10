@@ -15,6 +15,8 @@ import {
   timer,
 } from 'rxjs';
 
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
+
 export interface CommunityDiscoverySessionSignal {
   readonly meaningfulOpenCount: number;
   readonly lastMeaningfulOpenAt: number | null;
@@ -44,6 +46,11 @@ function normalizeCommunityId(value: unknown): string {
   return /^[A-Za-z0-9:_-]{1,128}$/.test(normalized) ? normalized : '';
 }
 
+function normalizeViewerUid(value: unknown): string | null {
+  const normalized = String(value ?? '').trim();
+  return normalized || null;
+}
+
 function communityIdFromUrl(rawUrl: unknown): string {
   const path = String(rawUrl ?? '').split('?')[0].split('#')[0];
   const segments = path.split('/').filter(Boolean);
@@ -58,14 +65,32 @@ function communityIdFromUrl(rawUrl: unknown): string {
 @Injectable({ providedIn: 'root' })
 export class CommunityDiscoverySessionBehaviorService {
   private readonly router = inject(Router, { optional: true });
+  private readonly session = inject(AuthSessionService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly stateSubject =
     new BehaviorSubject<CommunityDiscoverySessionBehaviorState>(INITIAL_STATE);
+  private activeViewerUid: string | null | undefined = undefined;
 
   readonly state$: Observable<CommunityDiscoverySessionBehaviorState> =
     this.stateSubject.asObservable();
 
   constructor() {
+    /**
+     * Este estado é exclusivamente comportamental e válido apenas dentro da
+     * sessão atual. Ele nunca pode atravessar logout ou troca de conta.
+     *
+     * AuthSessionService mascara `uid$` imediatamente quando o logout entra em
+     * terminating, portanto o reset também acontece antes da navegação final.
+     */
+    this.session.uid$
+      .pipe(
+        map(normalizeViewerUid),
+        distinctUntilChanged(),
+        tap((uid) => this.handleViewerUid(uid)),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
+
     if (!this.router) return;
 
     merge(
@@ -161,6 +186,18 @@ export class CommunityDiscoverySessionBehaviorService {
           && previous.memberActive === current.memberActive
       )
     );
+  }
+
+  private handleViewerUid(uid: string | null): void {
+    if (this.activeViewerUid === undefined) {
+      this.activeViewerUid = uid;
+      return;
+    }
+
+    if (this.activeViewerUid === uid) return;
+
+    this.activeViewerUid = uid;
+    this.stateSubject.next(INITIAL_STATE);
   }
 
   private patchSignal(

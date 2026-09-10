@@ -6,6 +6,8 @@
 // - Centralizar logout voluntário e hard signout inevitável.
 // - Coordenar side-effects que pertencem ao encerramento da sessão:
 //   presença, geolocalização, Web Push, signOut, limpeza de perfil runtime e navegação.
+// - Tornar o encerramento imediatamente visível para toda a plataforma sem
+//   falsificar o estado técnico do Firebase antes de signOut concluir.
 // =============================================================================
 import {
   EnvironmentInjector,
@@ -21,17 +23,24 @@ import {
   defaultIfEmpty,
   finalize,
   map,
+  shareReplay,
   switchMap,
   take,
+  tap,
 } from 'rxjs/operators';
 
 import { PresenceService } from '@core/services/presence/presence.service';
 import { CurrentUserStoreService } from './current-user-store.service';
 import { AuthAppBlockService } from './auth-app-block.service';
+import { AuthSessionService } from './auth-session.service';
 import { CacheService } from '@core/services/general/cache/cache.service';
 import { GeolocationTrackingService } from '@core/services/geolocation/geolocation-tracking.service';
-import { PushNotificationDeviceService } from '@core/services/notifications/push-notification-device.service';
+import {
+  PushNotificationDeviceService,
+  type PushNotificationDeviceState,
+} from '@core/services/notifications/push-notification-device.service';
 
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 import { inRegistrationFlow as isRegFlow, type TerminateReason } from './auth.types';
@@ -41,7 +50,12 @@ type SignOutMode = 'strict' | 'best-effort';
 
 @Injectable({ providedIn: 'root' })
 export class LogoutService {
-  private running = false;
+  /**
+   * Uma única operação de encerramento pode existir por vez.
+   * Chamadores concorrentes compartilham o mesmo Observable e observam o mesmo
+   * sucesso/erro; ninguém recebe falso sucesso enquanto outro logout ainda roda.
+   */
+  private terminationInFlight$: Observable<void> | null = null;
 
   constructor(
     private readonly auth: Auth,
@@ -51,6 +65,8 @@ export class LogoutService {
     private readonly pushNotifications: PushNotificationDeviceService,
     private readonly currentUserStore: CurrentUserStoreService,
     private readonly appBlock: AuthAppBlockService,
+    private readonly authSession: AuthSessionService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
     private readonly errorNotifier: ErrorNotificationService,
     private readonly envInjector: EnvironmentInjector,
@@ -59,32 +75,53 @@ export class LogoutService {
   ) {}
 
   /**
-   * Logout voluntário:
-   * - para geolocalização e presença
-   * - remove o registro Web Push desta instalação em best-effort
-   * - faz signOut estrito
-   * - limpa CurrentUserStore/cache
-   * - limpa bloqueio de app
-   * - navega para /login
+   * Logout voluntário global.
+   *
+   * Assim que a operação é assinada, AuthSessionService entra em `terminating` e
+   * deixa de expor UID/user operacional para o restante da plataforma. Firebase
+   * Auth continua tecnicamente disponível internamente apenas durante os cleanups
+   * que precisam de credencial antes do signOut.
    */
   logout$(): Observable<void> {
-    if (this.running) return of(void 0);
-    this.running = true;
+    if (this.terminationInFlight$) return this.terminationInFlight$;
 
-    return this.stopGeolocationBestEffort$().pipe(
-      switchMap(() => this.stopPresenceBestEffort$()),
-      switchMap(() => this.deactivatePushBestEffort$()),
-      switchMap(() => this.executeSignOut$('strict')),
-      switchMap(() => this.clearLocalSessionDataBestEffort$()),
-      switchMap(() => this.navigateBestEffort$('/login')),
-      catchError((err) => {
-        this.reportSilent(err, { phase: 'logout$' });
-        return throwError(() => err);
-      }),
+    let shared$: Observable<void>;
+
+    shared$ = this.capturePushStateBestEffort$().pipe(
+      tap(() => this.authSession.beginTermination()),
+      switchMap((pushState) =>
+        this.stopGeolocationBestEffort$().pipe(
+          switchMap(() => this.stopPresenceBestEffort$()),
+          switchMap(() => this.deactivatePushBestEffort$()),
+          switchMap(() =>
+            this.executeSignOut$('strict').pipe(
+              catchError((err) =>
+                this.handleVoluntarySignOutFailure$(err, pushState)
+              )
+            )
+          ),
+          switchMap(() => this.clearLocalSessionDataBestEffort$()),
+          switchMap(() => this.navigateBestEffort$('/login'))
+        )
+      ),
       finalize(() => {
-        this.running = false;
-      })
+        if (this.terminationInFlight$ === shared$) {
+          this.terminationInFlight$ = null;
+        }
+
+        /**
+         * Sucesso: Firebase já está nulo e liberamos o estado transitório.
+         * Falha voluntária: o handler já restaurou a sessão antes de propagar erro.
+         */
+        if (!this.auth.currentUser) {
+          this.authSession.endTermination();
+        }
+      }),
+      shareReplay({ bufferSize: 1, refCount: false })
     );
+
+    this.terminationInFlight$ = shared$;
+    return shared$;
   }
 
   logout(): void {
@@ -117,19 +154,24 @@ export class LogoutService {
   }
 
   /**
-   * Hard signout:
+   * Hard signout global:
    * - usado quando a sessão do Auth ficou tecnicamente inválida
+   * - mascara a sessão operacional imediatamente
    * - tenta parar geolocalização, presença e Web Push
    * - faz signOut best-effort
    * - limpa CurrentUserStore/cache
    * - limpa bloqueio de app
    * - redireciona para welcome com reason
+   *
+   * Se o Firebase continuar com currentUser após a tentativa best-effort, o
+   * estado `terminating` permanece ativo (fail-closed). Assim uma sessão que
+   * deveria estar morta não volta a habilitar features apenas porque o signOut
+   * técnico falhou naquele instante.
    */
   hardSignOutToWelcome$(
     reason: TerminateReason = 'auth-invalid'
   ): Observable<void> {
-    if (this.running) return of(void 0);
-    this.running = true;
+    if (this.terminationInFlight$) return this.terminationInFlight$;
 
     const url = this.router.url || '';
 
@@ -139,7 +181,12 @@ export class LogoutService {
       );
     }
 
-    return this.stopGeolocationBestEffort$().pipe(
+    let shared$: Observable<void>;
+
+    shared$ = defer(() => {
+      this.authSession.beginTermination();
+      return this.stopGeolocationBestEffort$();
+    }).pipe(
       switchMap(() => this.stopPresenceBestEffort$()),
       switchMap(() => this.deactivatePushBestEffort$()),
       switchMap(() => this.executeSignOut$('best-effort')),
@@ -150,9 +197,24 @@ export class LogoutService {
         return of(void 0);
       }),
       finalize(() => {
-        this.running = false;
-      })
+        if (this.terminationInFlight$ === shared$) {
+          this.terminationInFlight$ = null;
+        }
+
+        if (!this.auth.currentUser) {
+          this.authSession.endTermination();
+        } else {
+          this.dbg('hard signout permaneceu fail-closed', {
+            reason,
+            hasFirebaseUser: true,
+          });
+        }
+      }),
+      shareReplay({ bufferSize: 1, refCount: false })
     );
+
+    this.terminationInFlight$ = shared$;
+    return shared$;
   }
 
   hardSignOutToWelcome(reason: TerminateReason = 'auth-invalid'): void {
@@ -164,6 +226,83 @@ export class LogoutService {
 
   private inRegistrationFlow(url: string): boolean {
     return isRegFlow(url);
+  }
+
+  /**
+   * Captura somente o estado necessário para rollback do logout voluntário.
+   * Não lê token, UID ou conteúdo de notificação.
+   */
+  private capturePushStateBestEffort$(): Observable<PushNotificationDeviceState> {
+    return this.pushNotifications.state$.pipe(
+      take(1),
+      defaultIfEmpty('inactive' as PushNotificationDeviceState),
+      catchError((err) => {
+        this.reportSilent(err, { phase: 'capturePushStateBestEffort$' });
+        return of('inactive' as PushNotificationDeviceState);
+      })
+    );
+  }
+
+  /**
+   * Falha de signOut voluntário não pode deixar a conta autenticada com Presence,
+   * geolocalização/Store já desmontados. Primeiro reexpomos a sessão canônica;
+   * os orquestradores rearmam seus próprios recursos. Web Push é o único recurso
+   * que precisa de restauração explícita porque `deactivate$()` remove o opt-in.
+   */
+  private handleVoluntarySignOutFailure$(
+    err: unknown,
+    previousPushState: PushNotificationDeviceState
+  ): Observable<void> {
+    if (!this.auth.currentUser) {
+      // O Firebase já ficou nulo apesar da rejeição: prossegue como logout efetivo.
+      return of(void 0);
+    }
+
+    this.authSession.endTermination();
+
+    return this.restorePushAfterFailedSignOutBestEffort$(previousPushState).pipe(
+      switchMap(() => {
+        this.applicationError.report(err, {
+          feature: 'auth',
+          operation: 'logout',
+          fallbackMessage: 'Não foi possível sair agora. Tente novamente.',
+          notification: 'error',
+          metadata: {
+            sessionRestored: true,
+          },
+        });
+
+        return throwError(() => err);
+      })
+    );
+  }
+
+  /**
+   * Restaura Web Push sem abrir prompt: só tentamos `activate$()` quando o estado
+   * anterior era `active` e o navegador ainda informa permissão `granted`.
+   */
+  private restorePushAfterFailedSignOutBestEffort$(
+    previousState: PushNotificationDeviceState
+  ): Observable<void> {
+    const canRestoreWithoutPrompt =
+      previousState === 'active'
+      && typeof Notification !== 'undefined'
+      && Notification.permission === 'granted'
+      && !!this.auth.currentUser;
+
+    if (!canRestoreWithoutPrompt) return of(void 0);
+
+    return defer(() => this.pushNotifications.activate$()).pipe(
+      take(1),
+      defaultIfEmpty('inactive' as PushNotificationDeviceState),
+      map(() => void 0),
+      catchError((err) => {
+        this.reportSilent(err, {
+          phase: 'restorePushAfterFailedSignOutBestEffort$',
+        });
+        return of(void 0);
+      })
+    );
   }
 
   /**

@@ -1,6 +1,15 @@
 // src/app/core/services/autentication/auth/auth-session.service.ts
 import { Injectable } from '@angular/core';
-import { Observable, Subject, defer, from, merge, of } from 'rxjs';
+import {
+  BehaviorSubject,
+  Observable,
+  Subject,
+  combineLatest,
+  defer,
+  from,
+  merge,
+  of,
+} from 'rxjs';
 import {
   catchError,
   combineLatestWith,
@@ -29,14 +38,21 @@ export class AuthSessionService {
   readonly isAuthenticated$: Observable<boolean>;
   readonly readyAuthUser$: Observable<User | null>;
   readonly readyUid$: Observable<string | null>;
+  readonly isTerminating$: Observable<boolean>;
 
   private readyPromise: Promise<void> | null = null;
   private readonly manualAuthUserRefresh$ = new Subject<User | null>();
+  private readonly terminationSubject = new BehaviorSubject<boolean>(false);
 
   constructor(
     private readonly auth: Auth,
     private readonly privacyDebug: PrivacyDebugLoggerService
   ) {
+    this.isTerminating$ = this.terminationSubject.asObservable().pipe(
+      distinctUntilChanged(),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
     const idTokenUser$ = new Observable<User | null>((subscriber) => {
       const unsubscribe = onIdTokenChanged(
         this.auth,
@@ -57,10 +73,35 @@ export class AuthSessionService {
       })
     );
 
-    this.authUser$ = merge(
+    /**
+     * Firebase continua sendo a verdade técnica da autenticação. Durante um
+     * encerramento, porém, a sessão deixa de ser operacional imediatamente.
+     * Mantemos o snapshot técnico em `auth.currentUser` para que o LogoutService
+     * ainda possa concluir callables/cleanup autenticados antes do signOut.
+     *
+     * Ao mascarar `authUser$` enquanto `terminationSubject=true`, toda a camada
+     * Angular que consome AuthSessionService recebe `null` no mesmo ciclo:
+     * guards, AccessControl, NgRx, listeners e caches deixam de operar para o UID.
+     * Se o signOut voluntário falhar, `endTermination()` restaura atomicamente o
+     * mesmo Firebase user e os orquestradores rearmam a sessão canônica.
+     */
+    const firebaseAuthUser$ = merge(
       idTokenUser$,
       this.manualAuthUserRefresh$
     ).pipe(
+      distinctUntilChanged(
+        (previous, current) =>
+          previous?.uid === current?.uid &&
+          previous?.emailVerified === current?.emailVerified
+      ),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
+    this.authUser$ = combineLatest([
+      firebaseAuthUser$,
+      this.isTerminating$,
+    ]).pipe(
+      map(([user, terminating]) => terminating ? null : user),
       distinctUntilChanged(
         (previous, current) =>
           previous?.uid === current?.uid &&
@@ -130,6 +171,37 @@ export class AuthSessionService {
       distinctUntilChanged(),
       shareReplay({ bufferSize: 1, refCount: true })
     );
+  }
+
+  /**
+   * Marca o começo do encerramento global da sessão.
+   * Somente o LogoutService deve coordenar esta transição.
+   */
+  beginTermination(): void {
+    if (this.terminationSubject.value) return;
+
+    this.dbg('beginTermination()', {
+      hasFirebaseUser: !!this.auth.currentUser?.uid,
+    });
+    this.terminationSubject.next(true);
+  }
+
+  /**
+   * Finaliza o estado transitório de encerramento.
+   * - após signOut confirmado, o Firebase user já é null;
+   * - após falha do logout voluntário, reexpõe a sessão técnica ainda válida.
+   */
+  endTermination(): void {
+    if (!this.terminationSubject.value) return;
+
+    this.dbg('endTermination()', {
+      hasFirebaseUser: !!this.auth.currentUser?.uid,
+    });
+    this.terminationSubject.next(false);
+  }
+
+  get isTerminatingSnapshot(): boolean {
+    return this.terminationSubject.value;
   }
 
   whenReady(): Promise<void> {
