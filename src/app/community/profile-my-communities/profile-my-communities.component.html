@@ -88,6 +88,15 @@
                   @if (item.officialAssociation?.verified) {
                     <app-community-official-badge [community]="item" />
                   }
+                  @if (item.notificationUnreadCount > 0) {
+                    <span
+                      class="profile-my-community__unread"
+                      [class.profile-my-community__unread--priority]="item.notificationHasPriorityUnread"
+                      [attr.aria-label]="item.notificationUnreadCount + ' atividades não lidas'"
+                    >
+                      {{ item.notificationUnreadCount > 99 ? '99+' : item.notificationUnreadCount }}
+                    </span>
+                  }
                 </span>
 
                 <span class="profile-my-community__meta">
@@ -98,6 +107,16 @@
                   <span [attr.aria-label]="item.metrics.memberCount + ' membros'">
                     {{ item.metrics.memberCount }} membros
                   </span>
+                  @if (item.notificationsMuted) {
+                    <span aria-hidden="true">•</span>
+                    <span
+                      class="profile-my-community__muted"
+                      aria-label="Notificações push desta Comunidade silenciadas"
+                    >
+                      <i class="fas fa-bell-slash" aria-hidden="true"></i>
+                      Silenciada
+                    </span>
+                  }
                 </span>
               </span>
 

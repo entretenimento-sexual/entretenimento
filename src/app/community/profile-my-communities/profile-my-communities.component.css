@@ -171,6 +171,25 @@
   white-space: nowrap;
 }
 
+.profile-my-community__unread {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.55rem;
+  min-height: 1.55rem;
+  padding: 0 0.42rem;
+  border-radius: 999px;
+  background: var(--primary-color, currentColor);
+  color: var(--on-primary-color, #fff);
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.profile-my-community__unread--priority {
+  box-shadow: 0 0 0 2px rgba(127, 127, 127, 0.22);
+}
+
 .profile-my-community__meta {
   display: flex;
   flex-wrap: wrap;
@@ -178,6 +197,12 @@
   align-items: center;
   font-size: 0.76rem;
   opacity: 0.72;
+}
+
+.profile-my-community__muted {
+  display: inline-flex;
+  gap: 0.28rem;
+  align-items: center;
 }
 
 .profile-my-community__chevron {

@@ -22,6 +22,8 @@ import {
 } from 'rxjs';
 
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { CommunityNotificationPreferenceService } from 'src/app/core/services/notifications/community-notification-preference.service';
+import { CommunityNotificationUnreadSummaryService } from 'src/app/core/services/notifications/community-notification-unread-summary.service';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import {
   CommunityDiscoveryPage,
@@ -45,9 +47,21 @@ import {
 
 type ProfileMyCommunitiesStatus = 'loading' | 'ready' | 'empty' | 'error';
 
-interface ProfileMyCommunitiesVm {
+type ProfileMyCommunityItemVm = CommunityPreviewCard & {
+  readonly notificationUnreadCount: number;
+  readonly notificationHasPriorityUnread: boolean;
+  readonly notificationsMuted: boolean;
+};
+
+interface ProfileMyCommunitiesBaseVm {
   readonly status: ProfileMyCommunitiesStatus;
   readonly items: readonly CommunityPreviewCard[];
+  readonly stale: boolean;
+}
+
+interface ProfileMyCommunitiesVm {
+  readonly status: ProfileMyCommunitiesStatus;
+  readonly items: readonly ProfileMyCommunityItemVm[];
   readonly stale: boolean;
 }
 
@@ -67,13 +81,13 @@ const FULL_CACHE_CONTEXT: CommunityDiscoveryCacheContext = Object.freeze({
   pageSize: DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE,
 });
 
-const LOADING_VM: ProfileMyCommunitiesVm = Object.freeze({
+const LOADING_VM: ProfileMyCommunitiesBaseVm = Object.freeze({
   status: 'loading',
   items: [],
   stale: false,
 });
 
-const ERROR_VM: ProfileMyCommunitiesVm = Object.freeze({
+const ERROR_VM: ProfileMyCommunitiesBaseVm = Object.freeze({
   status: 'error',
   items: [],
   stale: false,
@@ -96,13 +110,37 @@ export class ProfileMyCommunitiesComponent {
   private readonly repository = inject(CommunityPreviewRepository);
   private readonly discoveryCache = inject(CommunityDiscoveryCacheService);
   private readonly applicationError = inject(ApplicationErrorService);
+  private readonly unreadSummary = inject(CommunityNotificationUnreadSummaryService);
+  private readonly notificationPreference = inject(CommunityNotificationPreferenceService);
   private readonly reloadSubject = new BehaviorSubject<boolean>(false);
 
-  readonly vm$: Observable<ProfileMyCommunitiesVm> = this.reloadSubject.pipe(
-    switchMap((forceRemote) =>
-      forceRemote ? this.fetchRemote$() : this.resolveInitialState$()
-    ),
-    startWith(LOADING_VM),
+  private readonly baseVm$: Observable<ProfileMyCommunitiesBaseVm> =
+    this.reloadSubject.pipe(
+      switchMap((forceRemote) =>
+        forceRemote ? this.fetchRemote$() : this.resolveInitialState$()
+      ),
+      startWith(LOADING_VM),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
+  readonly vm$: Observable<ProfileMyCommunitiesVm> = combineLatest([
+    this.baseVm$,
+    this.unreadSummary.currentUserSummaryMap$,
+    this.notificationPreference.currentUserMutedCommunityIds$,
+  ]).pipe(
+    map(([baseVm, unreadMap, mutedIds]) => ({
+      ...baseVm,
+      items: baseVm.items.map((item): ProfileMyCommunityItemVm => {
+        const summary = unreadMap.get(item.communityId);
+
+        return {
+          ...item,
+          notificationUnreadCount: summary?.unreadCount ?? 0,
+          notificationHasPriorityUnread: summary?.hasPriorityUnread ?? false,
+          notificationsMuted: mutedIds.has(item.communityId),
+        };
+      }),
+    })),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -135,7 +173,7 @@ export class ProfileMyCommunitiesComponent {
     return resolveCommunityVisualVariant(item);
   }
 
-  private resolveInitialState$(): Observable<ProfileMyCommunitiesVm> {
+  private resolveInitialState$(): Observable<ProfileMyCommunitiesBaseVm> {
     return combineLatest([
       this.discoveryCache.readSnapshot$(SUMMARY_CACHE_CONTEXT),
       this.discoveryCache.readSnapshot$(FULL_CACHE_CONTEXT),
@@ -167,7 +205,7 @@ export class ProfileMyCommunitiesComponent {
 
   private fetchRemote$(
     staleFallback: CommunityDiscoveryPage | null = null
-  ): Observable<ProfileMyCommunitiesVm> {
+  ): Observable<ProfileMyCommunitiesBaseVm> {
     return this.repository
       .getMyCommunitiesPage$({
         limit: PROFILE_MY_COMMUNITIES_PAGE_SIZE,
@@ -228,7 +266,7 @@ export class ProfileMyCommunitiesComponent {
   private toVm(
     page: CommunityDiscoveryPage,
     stale: boolean
-  ): ProfileMyCommunitiesVm {
+  ): ProfileMyCommunitiesBaseVm {
     const items = page.items.slice(0, PROFILE_MY_COMMUNITIES_PAGE_SIZE);
 
     return {
