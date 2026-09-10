@@ -9,6 +9,7 @@
 // - cliente autenticado pode ler apenas as próprias notificações;
 // - cliente NÃO cria/edita/remove notificações nesta fase;
 // - resumo multi-Comunidade é projeção privada backend-only;
+// - mute por Comunidade é preferência privada, escrita somente por callable;
 // - estado interno da projeção não é exposto ao navegador.
 //
 // Segurança:
@@ -28,6 +29,11 @@ match /notifications/{notificationId} {
 }
 
 match /community_notification_summaries/{userId}/items/{communityId} {
+  allow get, list: if signedIn() && userId == uid();
+  allow create, update, delete: if false;
+}
+
+match /community_notification_preferences/{userId}/items/{communityId} {
   allow get, list: if signedIn() && userId == uid();
   allow create, update, delete: if false;
 }
