@@ -60,7 +60,7 @@ export const registerFailure = createAction(
 );
 
 // ============================================================================
-// Login / Logout
+// Login
 // ============================================================================
 
 export const loginStart = createAction('[Auth] Login Start');
@@ -86,8 +86,13 @@ export const loginFailure = createAction(
   props<{ error: string }>()
 );
 
-export const logout = createAction('[Auth] Logout');
-export const logoutSuccess = createAction('[Auth] Logout Success');
+/**
+ * SUPRESSÃO EXPLÍCITA — logout/logoutSuccess:
+ * as antigas actions NgRx foram removidas porque não encerravam Firebase Auth e
+ * podiam parecer uma segunda API de logout. Encerramento de sessão pertence
+ * exclusivamente a LogoutService/AuthFacade; o Store observa somente
+ * `authSessionChanged`, emitido a partir de AuthSessionService.
+ */
 
 export const authFailure = createAction(
   '[Auth] Failure',

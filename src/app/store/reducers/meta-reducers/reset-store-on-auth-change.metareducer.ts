@@ -6,7 +6,6 @@ import { STORE_FEATURE } from '../feature-keys';
 
 import {
   authSessionChanged,
-  logoutSuccess,
 } from '../../actions/actions.user/auth.actions';
 
 import { initialInviteState } from '../../states/states.chat/invite.state';
@@ -22,6 +21,19 @@ import { initialUserPreferencesState } from '../../states/states.user/user-prefe
 
 /**
  * Limpa toda projeção vinculada à identidade anterior.
+ *
+ * Autoridade única para a transição:
+ * - `authSessionChanged`, produzido a partir de AuthSessionService.
+ * - no início do logout, AuthSessionService mascara o UID operacional como null;
+ * - na troca direta de conta, UID A -> UID B também passa por este mesmo caminho.
+ *
+ * SUPRESSÃO EXPLÍCITA:
+ * - removida a reação a `logoutSuccess`.
+ *
+ * Motivo:
+ * - `logoutSuccess` era uma action paralela sem garantia de Firebase signOut;
+ * - resetar exclusivamente por mudança do UID canônico cobre logout, hard signout,
+ *   expiração e troca de conta sem criar uma segunda verdade.
  *
  * discoveryFeeds é user-scoped porque pode refletir preferências, localização,
  * bloqueios e elegibilidade da conta autenticada.
@@ -54,10 +66,6 @@ export const resetStoreOnAuthChangeMetaReducer: MetaReducer<AppState> =
   (reducer: ActionReducer<AppState>): ActionReducer<AppState> => {
     return (state, action) => {
       const nextState = reducer(state, action);
-
-      if (action.type === logoutSuccess.type) {
-        return resetUserScopedSlices(nextState);
-      }
 
       if (action.type === authSessionChanged.type) {
         const previousUid =

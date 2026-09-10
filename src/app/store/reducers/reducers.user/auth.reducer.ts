@@ -9,8 +9,6 @@ import {
   loginSessionReady,
   loginStart,
   loginSuccess,
-  logout,
-  logoutSuccess,
   register,
   registerFailure,
   registerSuccess,
@@ -37,10 +35,15 @@ import {
  *   prioritariamente de authSessionChanged
  * - loginSuccess/registerSuccess servem como apoio de UX
  * - reducer NÃO deve “inventar” sessão a partir de loginSuccess
+ * - logout NÃO possui action própria: LogoutService altera o lifecycle canônico e
+ *   AuthSessionService publica a queda real/operacional via authSessionChanged
  *
- * Resultado:
- * - menos competição entre effects / Firebase Auth / store
- * - menos chance de estado inconsistente
+ * SUPRESSÃO EXPLÍCITA:
+ * - removidos handlers de `logout` e `logoutSuccess`.
+ *
+ * Motivo:
+ * - essas actions não executavam Firebase signOut nem os cleanups globais e
+ *   constituíam uma segunda aparência de autoridade de sessão.
  * =============================================================================
  */
 
@@ -152,24 +155,5 @@ export const authReducer = createReducer(
     ...state,
     loading: false,
     error,
-  })),
-
-  // ---------------------------------------------------------------------------
-  // Logout
-  // ---------------------------------------------------------------------------
-  on(logout, (state): AuthState => ({
-    ...state,
-    loading: true,
-    error: null,
-  })),
-
-  /**
-   * logoutSuccess:
-   * - reseta o estado
-   * - mantém ready=true porque já sabemos que a sessão foi resolvida e é nula
-   */
-  on(logoutSuccess, (): AuthState => ({
-    ...initialAuthState,
-    ready: true,
   }))
-); // Linha 173, fim do auth.reducer.ts
+);
