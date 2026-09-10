@@ -128,6 +128,9 @@ export {
   configureCommunityRankingMode,
 } from './configure-community-ranking-mode.handler';
 export { requestCommunityMembership } from './request-community-membership.handler';
+export {
+  updateCommunityNotificationPreference,
+} from './update-community-notification-preference.handler';
 export { updateCommunitySettings } from './update-community-settings.handler';
 export { runCommunityLifecycle } from './run-community-lifecycle.schedule';
 export {
