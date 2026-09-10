@@ -1,5 +1,6 @@
 import {
   EMPTY,
+  NEVER,
   Subject,
   defer,
   firstValueFrom,
@@ -10,11 +11,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { LogoutService } from './logout.service';
 
-type PushMode = 'success' | 'error' | 'empty';
+type PushMode = 'success' | 'error' | 'empty' | 'never';
+type CleanupMode = 'success' | 'never';
 type SignOutMode = 'success' | 'error';
 
 interface HarnessOptions {
+  presenceMode?: CleanupMode;
   pushMode?: PushMode;
+  cacheMode?: CleanupMode;
   signOutMode?: SignOutMode;
 }
 
@@ -24,7 +28,9 @@ const originalNotification = Object.getOwnPropertyDescriptor(
 );
 
 function createHarness(options: HarnessOptions = {}) {
+  const presenceMode = options.presenceMode ?? 'success';
   const pushMode = options.pushMode ?? 'success';
+  const cacheMode = options.cacheMode ?? 'success';
   const signOutMode = options.signOutMode ?? 'success';
   const calls: string[] = [];
   let terminating = false;
@@ -45,6 +51,11 @@ function createHarness(options: HarnessOptions = {}) {
     stop$: vi.fn(() =>
       defer(() => {
         calls.push('presence');
+
+        if (presenceMode === 'never') {
+          return NEVER;
+        }
+
         return of(void 0);
       })
     ),
@@ -68,6 +79,10 @@ function createHarness(options: HarnessOptions = {}) {
 
         if (pushMode === 'empty') {
           return EMPTY;
+        }
+
+        if (pushMode === 'never') {
+          return NEVER;
         }
 
         return of('inactive' as const);
@@ -123,6 +138,11 @@ function createHarness(options: HarnessOptions = {}) {
     clearSensitiveSessionCache$: vi.fn(() =>
       defer(() => {
         calls.push('cache');
+
+        if (cacheMode === 'never') {
+          return NEVER;
+        }
+
         return of(void 0);
       })
     ),
@@ -164,7 +184,9 @@ function createHarness(options: HarnessOptions = {}) {
     auth,
     calls,
     router,
+    presence,
     pushNotifications,
+    cache,
     currentUserStore,
     appBlock,
     authSession,
@@ -176,6 +198,8 @@ function createHarness(options: HarnessOptions = {}) {
 }
 
 afterEach(() => {
+  vi.useRealTimers();
+
   if (originalNotification) {
     Object.defineProperty(globalThis, 'Notification', originalNotification);
   } else {
@@ -295,6 +319,33 @@ describe('LogoutService global session lifecycle', () => {
 
     expect(calls).toContain('signout:strict');
     expect(calls).toContain('navigate');
+  });
+
+  it('cleanups best-effort que nunca completam não prendem o logout', async () => {
+    vi.useFakeTimers();
+
+    const { service, calls, globalErrorHandler } = createHarness({
+      presenceMode: 'never',
+      pushMode: 'never',
+      cacheMode: 'never',
+    });
+
+    const done = firstValueFrom(service.logout$());
+
+    await vi.runAllTimersAsync();
+    await done;
+
+    expect(calls).toEqual([
+      'session:begin',
+      'geolocation',
+      'presence',
+      'push',
+      'signout:strict',
+      'cache',
+      'navigate',
+      'session:end',
+    ]);
+    expect(globalErrorHandler.handleError).toHaveBeenCalledTimes(3);
   });
 
   it('hard signout usa o mesmo lifecycle e remove Web Push antes do signOut best-effort', async () => {
