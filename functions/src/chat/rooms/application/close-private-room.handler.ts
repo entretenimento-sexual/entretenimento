@@ -5,9 +5,14 @@
 //
 // Responsabilidade:
 // - encerrar logicamente uma sala privada criada pelo usuário autenticado;
-// - liberar room_owner_slots/{uid} para permitir nova sala futura;
+// - desativar o room_owner_slots/{uid} legado durante a limpeza final da sala;
 // - manter histórico/auditoria sem apagar documento;
 // - impedir que cliente comum altere status/slot diretamente.
+//
+// DIREÇÃO DE PRODUTO:
+// - desativar o slot NÃO habilita criação futura de Sala;
+// - Salas permanecem `deprecated_compatibility_only`;
+// - novas interações coletivas pertencem a Comunidades.
 //
 // Segurança:
 // - somente o owner pode encerrar a própria sala;
