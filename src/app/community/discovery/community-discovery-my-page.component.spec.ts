@@ -57,8 +57,14 @@ describe('CommunityDiscoveryPageComponent / Minhas comunidades', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    unreadSummaryMap$ = new BehaviorSubject(new Map());
-    mutedCommunityIds$ = new BehaviorSubject(new Set());
+    unreadSummaryMap$ = new BehaviorSubject<ReadonlyMap<string, {
+      communityId: string;
+      unreadCount: number;
+      priorityUnreadCount: number;
+      hasPriorityUnread: boolean;
+      updatedAt: number | null;
+    }>>(new Map());
+    mutedCommunityIds$ = new BehaviorSubject<ReadonlySet<string>>(new Set());
     getMyCommunitiesPage$.mockReturnValue(
       of({
         items: [communityCard()],
