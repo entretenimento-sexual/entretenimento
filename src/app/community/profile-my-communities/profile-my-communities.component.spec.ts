@@ -5,6 +5,8 @@ import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { CommunityNotificationPreferenceService } from 'src/app/core/services/notifications/community-notification-preference.service';
+import { CommunityNotificationUnreadSummaryService } from 'src/app/core/services/notifications/community-notification-unread-summary.service';
 import { CommunityPreviewCard } from '../data-access/community-preview.model';
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
 import { CommunityDiscoveryCacheService } from '../discovery/community-discovery-cache.service';
@@ -66,6 +68,27 @@ describe('ProfileMyCommunitiesComponent', () => {
         {
           provide: ApplicationErrorService,
           useValue: { report },
+        },
+        {
+          provide: CommunityNotificationUnreadSummaryService,
+          useValue: {
+            currentUserSummaryMap$: of(new Map([
+              [
+                'community-1',
+                {
+                  communityId: 'community-1',
+                  unreadCount: 7,
+                  hasPriorityUnread: true,
+                },
+              ],
+            ])),
+          },
+        },
+        {
+          provide: CommunityNotificationPreferenceService,
+          useValue: {
+            currentUserMutedCommunityIds$: of(new Set(['community-1'])),
+          },
         },
       ],
     }).compileComponents();
@@ -145,6 +168,13 @@ describe('ProfileMyCommunitiesComponent', () => {
     );
     expect(fixture.nativeElement.textContent).toContain('Proprietário');
     expect(fixture.nativeElement.textContent).toContain('Ver todas');
+  });
+
+  it('exibe unread e mute como estados separados da mesma Comunidade', () => {
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('7');
+    expect(fixture.nativeElement.textContent).toContain('Silenciada');
   });
 
   it('mantém o cache vencido visível se a revalidação falhar e reporta sem novo aviso', () => {

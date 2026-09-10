@@ -30,6 +30,7 @@ export type CommunityRateLimitAction =
   | 'member_management'
   | 'highlight_management'
   | 'settings_update'
+  | 'notification_preference_update'
   | 'ownership_mutation'
   | 'content_moderation'
   | 'operations_ranking';
@@ -218,6 +219,17 @@ const POLICY_BY_ACTION: Readonly<Record<
     }),
     reason: 'community_management_rate_limited',
     message: 'Muitas alterações de configuração foram enviadas em pouco tempo.',
+  }),
+  notification_preference_update: Object.freeze({
+    backendAction: 'updateCommunityNotificationPreference',
+    config: Object.freeze({
+      burstWindowMs: MINUTE_MS,
+      burstMax: 12,
+      sustainedWindowMs: HOUR_MS,
+      sustainedMax: 60,
+    }),
+    reason: 'community_notification_preference_rate_limited',
+    message: 'Muitas alterações de notificações foram feitas em pouco tempo.',
   }),
   ownership_mutation: Object.freeze({
     // Transferência e arquivamento compartilham o mesmo orçamento sensível.

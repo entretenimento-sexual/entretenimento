@@ -15,6 +15,8 @@ import {
   REQUIRE_COMMUNITY_APP_CHECK,
   assertCommunityCallableAppCheck,
 } from './community-callable-security';
+import { consumeCommunityRateLimit } from './community-rate-limit.service';
+import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 
 interface UpdateCommunityNotificationPreferenceRequest {
   communityId?: unknown;
@@ -27,6 +29,15 @@ interface UpdateCommunityNotificationPreferenceResponse {
 }
 
 const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
+
+function assertPreviewRuntime(): void {
+  if (isCommunityPreviewRuntimeAvailable()) return;
+
+  throw new HttpsError(
+    'failed-precondition',
+    'As preferências de notificações de Comunidades ainda não estão disponíveis neste ambiente.'
+  );
+}
 
 function assertAuthenticatedUid(auth: { uid?: string } | undefined): string {
   const uid = String(auth?.uid ?? '').trim();
@@ -47,6 +58,7 @@ export const updateCommunityNotificationPreference =
       enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
     },
     async (request): Promise<UpdateCommunityNotificationPreferenceResponse> => {
+      assertPreviewRuntime();
       assertCommunityCallableAppCheck(request.app);
       const uid = assertAuthenticatedUid(request.auth);
       const communityId = String(request.data?.communityId ?? '').trim();
@@ -59,6 +71,11 @@ export const updateCommunityNotificationPreference =
           { reason: 'invalid_community_notification_preference' }
         );
       }
+
+      await consumeCommunityRateLimit({
+        action: 'notification_preference_update',
+        actorUid: uid,
+      });
 
       const communityRef = db.collection('communities').doc(communityId);
       const membershipRef = communityRef.collection('members').doc(uid);

@@ -76,6 +76,7 @@ const EXPECTED_CANONICAL_ACTION_BY_CALLABLE: Readonly<Record<
   updateCommunitySettings: 'settings_update',
   updateCommunityMembershipDisclosurePolicy: 'settings_update',
   updateCommunityMembershipProfileVisibility: 'settings_update',
+  updateCommunityNotificationPreference: 'notification_preference_update',
   transferCommunityOwnership: 'ownership_mutation',
   archiveCommunity: 'ownership_mutation',
   moderateCommunityFeedPost: 'content_moderation',
