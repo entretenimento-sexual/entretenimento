@@ -1,8 +1,9 @@
 // -----------------------------------------------------------------------------
 // COMMUNITY NOTIFICATION POLICY
 // -----------------------------------------------------------------------------
-// Centraliza preferências, elegibilidade, agrupamento e texto seguro. O backend
-// continua responsável por decidir quando uma notificação pode ser criada.
+// Centraliza elegibilidade, agrupamento e texto seguro. A preferência global de
+// `communities` controla somente o push externo em `sendNotification`; atividade
+// in-app continua sendo persistida para manter a Central consistente.
 // -----------------------------------------------------------------------------
 
 import { createHash } from 'node:crypto';
@@ -60,10 +61,15 @@ function stableId(prefix: string, parts: string[]): string {
   return `${prefix}_${digest}`;
 }
 
+/**
+ * @deprecated A preferência global de Comunidades é uma preferência de push e
+ * não deve decidir persistência in-app. Mantido temporariamente para preservar
+ * a nomenclatura dos consumidores enquanto a leitura redundante é removida.
+ */
 export function allowsCommunityActivityNotifications(
-  preferences: CommunityNotificationPreferences | undefined
+  _preferences: CommunityNotificationPreferences | undefined
 ): boolean {
-  return preferences?.notificationPreferences?.communities !== false;
+  return true;
 }
 
 export function canReceiveCommunityActivityNotification(
