@@ -14,7 +14,7 @@ import {
   setCurrentUser,
   clearCurrentUser,
 } from '../../actions/actions.user/user.actions';
-import { loginSuccess, logoutSuccess } from '../../actions/actions.user/auth.actions';
+import { loginSuccess } from '../../actions/actions.user/auth.actions';
 import { describe, expect, it } from 'vitest';
 
 function reduceFrom(initial = initialUserState, ...actions: any[]) {
@@ -132,15 +132,12 @@ describe('userReducer', () => {
     expect(s2.users['me']).toBeUndefined();
   });
 
-  it('logoutSuccess deve limpar currentUser, onlineUsers e remover currentUser do dicionário', () => {
-    const me = u({ uid: 'me', isOnline: true });
-    const s1 = reduceFrom(initialUserState, loginSuccess({ user: me }));
-    const s2 = reduceFrom(s1, logoutSuccess());
-
-    expect(s2.currentUser).toBeNull();
-    expect(s2.onlineUsers.find((x: IUserDados) => x.uid === 'me')).toBeFalsy();
-    expect(s2.users['me']).toBeUndefined();
-  });
+  /**
+   * SUPRESSÃO EXPLÍCITA:
+   * o teste unitário de `logoutSuccess` foi removido junto da action legada.
+   * Reset por logout/troca de conta pertence ao meta-reducer canônico baseado em
+   * `authSessionChanged`; a regressão desse contrato vive no spec do meta-reducer.
+   */
 
   it('loadUsersSuccess deve mesclar lista no dicionário e desligar loading', () => {
     const s1 = reduceFrom(initialUserState, loadUsers());
