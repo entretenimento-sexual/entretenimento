@@ -18,10 +18,7 @@ import { PresenceService } from 'src/app/core/services/presence/presence.service
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
-import {
-  authSessionChanged,
-  logoutSuccess,
-} from '../../actions/actions.user/auth.actions';
+import { authSessionChanged } from '../../actions/actions.user/auth.actions';
 
 @Injectable()
 export class AuthStatusSyncEffects {
@@ -67,17 +64,18 @@ export class AuthStatusSyncEffects {
     );
   }
 
-  /** Para presença no logout explícito. */
-  stopPresenceOnLogout$ = createEffect(
-    () =>
-      this.actions$.pipe(
-        ofType(logoutSuccess),
-        concatMap(() => this.stopPresenceBestEffort$())
-      ),
-    { dispatch: false }
-  );
-
-  /** Para presença quando a sessão é perdida sem logout explícito. */
+  /**
+   * Para presença quando a sessão canônica é perdida fora do logout voluntário.
+   *
+   * SUPRESSÃO EXPLÍCITA:
+   * - removido o antigo effect baseado em `logoutSuccess`.
+   *
+   * Motivo:
+   * - logout voluntário já para Presence dentro do LogoutService antes do signOut;
+   * - `logoutSuccess` foi removido por ser uma pseudo-autoridade paralela;
+   * - perdas de sessão por expiração/invalidação continuam cobertas por
+   *   `authSessionChanged` com transição UID -> null.
+   */
   stopPresenceOnSessionLost$ = createEffect(
     () =>
       this.actions$.pipe(

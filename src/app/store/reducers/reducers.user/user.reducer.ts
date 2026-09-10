@@ -53,10 +53,7 @@ import {
   setCurrentUserHydrationError,
 } from '../../actions/actions.user/user.actions';
 
-import {
-  loginSuccess,
-  logoutSuccess,
-} from '../../actions/actions.user/auth.actions';
+import { loginSuccess } from '../../actions/actions.user/auth.actions';
 
 import { initialUserState } from '../../states/states.user/user.state';
 
@@ -456,20 +453,15 @@ export const userReducer = createReducer(
       loading: false,
       error: null,
     };
-  }),
-
-  on(logoutSuccess, (state) => {
-    const uidToRemove = state.currentUser?.uid ?? null;
-
-    return {
-      ...state,
-      currentUser: null,
-      currentUserLoading: false,
-      currentUserHydrated: true,
-      users: removeFromMap(state.users, uidToRemove),
-      onlineUsers: removeByUid(state.onlineUsers, uidToRemove),
-      filteredUsers: [],
-      error: null,
-    };
   })
+
+  /**
+   * SUPRESSÃO EXPLÍCITA:
+   * - removido o antigo handler de `logoutSuccess`.
+   *
+   * Motivo:
+   * - `logoutSuccess` foi removido como pseudo-autoridade de sessão;
+   * - o meta-reducer global limpa este slice em toda troca do UID canônico,
+   *   inclusive UID -> null no início do logout e UID A -> UID B.
+   */
 );

@@ -38,10 +38,7 @@ import {
 
 import { BlockedUserActive } from 'src/app/core/interfaces/friendship/blocked-user.interface';
 
-import {
-  authSessionChanged,
-  logoutSuccess,
-} from '../../actions/actions.user/auth.actions';
+import { authSessionChanged } from '../../actions/actions.user/auth.actions';
 
 /* ============================================================================
  * Helpers de normalização
@@ -546,8 +543,16 @@ export const friendsReducer = createReducer(
    * Reset de sessão
    * ========================================================================== */
 
-  on(logoutSuccess, (): FriendsState => initialState),
-
+  /**
+   * SUPRESSÃO EXPLÍCITA:
+   * - removido o antigo reset por `logoutSuccess`.
+   *
+   * Motivo:
+   * - `logoutSuccess` não é mais uma autoridade válida de sessão;
+   * - a queda operacional de UID já acontece imediatamente em
+   *   `authSessionChanged`; troca direta de conta também é coberta pelo
+   *   meta-reducer global de reset user-scoped.
+   */
   on(authSessionChanged, (state, { uid }): FriendsState =>
     uid ? state : initialState
   )
