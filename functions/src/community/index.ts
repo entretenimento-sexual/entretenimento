@@ -159,6 +159,9 @@ export {
   syncCommunityMembershipActivity,
 } from './sync-community-membership-activity.trigger';
 export {
+  syncCommunityNotificationSummary,
+} from './sync-community-notification-summary.trigger';
+export {
   syncCommunityRankingFromCommunity,
   syncCommunityRankingFromDiscovery,
 } from './sync-community-ranking.trigger';
