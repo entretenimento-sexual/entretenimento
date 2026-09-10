@@ -3,8 +3,11 @@
 // AUTH SIGNOUT BOUNDARY CHECK
 // -----------------------------------------------------------------------------
 // LogoutService é a única fronteira autorizada a importar/chamar signOut do
-// Firebase Auth. O checker é intencionalmente dependency-free para também rodar
-// cedo no Quality Gate, sem depender do parser TypeScript em runtime.
+// Firebase Auth. NgRx não pode expor uma segunda pseudo-autoridade de logout:
+// o Store reage a authSessionChanged, derivado do AuthSessionService.
+//
+// O checker é intencionalmente dependency-free para também rodar cedo no
+// Quality Gate, sem depender do parser TypeScript em runtime.
 // -----------------------------------------------------------------------------
 
 import fs from 'node:fs';
@@ -74,6 +77,22 @@ function findRawSignOutImports(source) {
   return findings;
 }
 
+function findParallelLogoutActions(source) {
+  const findings = [];
+
+  /**
+   * A action type exata é a fronteira mais estável para impedir que o antigo
+   * contrato NgRx volte com outro nome de variável/import.
+   */
+  const legacyLogoutAction = /createAction\s*\(\s*['"]\[Auth\]\s+Logout(?:\s+Success)?['"]/gm;
+
+  for (const match of source.matchAll(legacyLogoutAction)) {
+    findings.push(match.index ?? 0);
+  }
+
+  return findings;
+}
+
 function lineAndColumn(source, index) {
   const before = source.slice(0, index);
   const lines = before.split('\n');
@@ -89,32 +108,58 @@ if (!fs.existsSync(appRoot)) {
   process.exit(1);
 }
 
-const violations = [];
+const signOutViolations = [];
+const parallelLogoutViolations = [];
 
 for (const absolutePath of walkTypeScriptFiles(appRoot)) {
   const relativePath = normalizeRelativePath(absolutePath);
-  if (relativePath === canonicalRelativePath) continue;
-
   const source = fs.readFileSync(absolutePath, 'utf8');
 
-  for (const index of findRawSignOutImports(source)) {
+  if (relativePath !== canonicalRelativePath) {
+    for (const index of findRawSignOutImports(source)) {
+      const position = lineAndColumn(source, index);
+      signOutViolations.push(
+        `${relativePath}:${position.line}:${position.column}`
+      );
+    }
+  }
+
+  for (const index of findParallelLogoutActions(source)) {
     const position = lineAndColumn(source, index);
-    violations.push(`${relativePath}:${position.line}:${position.column}`);
+    parallelLogoutViolations.push(
+      `${relativePath}:${position.line}:${position.column}`
+    );
   }
 }
 
-if (violations.length > 0) {
-  console.error('[auth-boundary] Firebase Auth signOut fora da fronteira canônica:');
-  for (const violation of violations) {
-    console.error(`  - ${violation}`);
+if (signOutViolations.length > 0 || parallelLogoutViolations.length > 0) {
+  if (signOutViolations.length > 0) {
+    console.error(
+      '[auth-boundary] Firebase Auth signOut fora da fronteira canônica:'
+    );
+    for (const violation of signOutViolations) {
+      console.error(`  - ${violation}`);
+    }
   }
+
+  if (parallelLogoutViolations.length > 0) {
+    console.error(
+      '[auth-boundary] Action NgRx paralela de logout detectada:'
+    );
+    for (const violation of parallelLogoutViolations) {
+      console.error(`  - ${violation}`);
+    }
+  }
+
   console.error(
-    '[auth-boundary] Use AuthFacade.logout$()/logout() ou LogoutService. '
-      + 'Somente logout.service.ts pode importar/chamar Firebase signOut.'
+    '[auth-boundary] Use AuthFacade.logout$()/logoutNow() ou LogoutService. '
+      + 'Somente logout.service.ts pode importar/chamar Firebase signOut; '
+      + 'NgRx deve reagir exclusivamente a authSessionChanged.'
   );
   process.exit(1);
 }
 
 console.log(
-  '[auth-boundary] OK: Firebase signOut permanece exclusivo de LogoutService.'
+  '[auth-boundary] OK: logout global permanece exclusivo de LogoutService; '
+    + 'NgRx reage somente à sessão canônica.'
 );
