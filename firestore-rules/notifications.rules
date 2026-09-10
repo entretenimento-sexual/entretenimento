@@ -7,12 +7,15 @@
 // - backend/Admin SDK cria notificações;
 // - Cloud Function sendNotification pode enviar FCM;
 // - cliente autenticado pode ler apenas as próprias notificações;
-// - cliente NÃO cria/edita/remove notificações nesta fase.
+// - cliente NÃO cria/edita/remove notificações nesta fase;
+// - resumo multi-Comunidade é projeção privada backend-only;
+// - estado interno da projeção não é exposto ao navegador.
 //
 // Segurança:
 // - evita que usuário force push para terceiros;
 // - evita manipulação de userId/read state enquanto não houver endpoint próprio;
-// - futura marcação como lida deve passar por callable ou regra específica.
+// - marcação como lida passa por callable;
+// - unread/priority por Comunidade nunca são autoridade do cliente.
 // ===============================================================
 
 match /notifications/{notificationId} {
@@ -22,4 +25,13 @@ match /notifications/{notificationId} {
 
   allow get, list: if isOwnNotification();
   allow create, update, delete: if false;
+}
+
+match /community_notification_summaries/{userId}/items/{communityId} {
+  allow get, list: if signedIn() && userId == uid();
+  allow create, update, delete: if false;
+}
+
+match /community_notification_projection_state/{notificationId} {
+  allow read, write: if false;
 }
