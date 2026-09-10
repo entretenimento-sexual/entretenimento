@@ -1,12 +1,14 @@
 // src/app/community/discovery/community-discovery-my-page.component.spec.ts
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { filter, firstValueFrom, of, take } from 'rxjs';
+import { BehaviorSubject, filter, firstValueFrom, of, take } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { CommunityNotificationPreferenceService } from 'src/app/core/services/notifications/community-notification-preference.service';
+import { CommunityNotificationUnreadSummaryService } from 'src/app/core/services/notifications/community-notification-unread-summary.service';
 import { ProfilePreferencesService } from 'src/app/preferences/services/profile-preferences.service';
 import { CommunityCreationGateService } from '../community-create/community-creation-gate.service';
 import { CommunityMembershipRepository } from '../data-access/community-membership.repository';
@@ -40,17 +42,35 @@ function communityCard() {
 describe('CommunityDiscoveryPageComponent / Minhas comunidades', () => {
   const getDiscoveryPage$ = vi.fn();
   const getMyCommunitiesPage$ = vi.fn();
+  const getMembershipContext$ = vi.fn();
   const readSnapshot$ = vi.fn();
   const rememberPage = vi.fn();
+  const updateMuted$ = vi.fn();
+  let unreadSummaryMap$: BehaviorSubject<ReadonlyMap<string, {
+    communityId: string;
+    unreadCount: number;
+    priorityUnreadCount: number;
+    hasPriorityUnread: boolean;
+    updatedAt: number | null;
+  }>>;
+  let mutedCommunityIds$: BehaviorSubject<ReadonlySet<string>>;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    unreadSummaryMap$ = new BehaviorSubject(new Map());
+    mutedCommunityIds$ = new BehaviorSubject(new Set());
     getMyCommunitiesPage$.mockReturnValue(
       of({
         items: [communityCard()],
         nextCursor: null,
         generatedAt: 123,
       })
+    );
+    getMembershipContext$.mockReturnValue(
+      of({ activeCommunityIds: [], generatedAt: 123 })
+    );
+    updateMuted$.mockReturnValue(
+      of({ communityId: 'community-owned-1', muted: true })
     );
     readSnapshot$.mockReturnValue(of(null));
 
@@ -85,11 +105,7 @@ describe('CommunityDiscoveryPageComponent / Minhas comunidades', () => {
         },
         {
           provide: CommunityMembershipRepository,
-          useValue: {
-            getMembershipContext$: vi.fn(() =>
-              of({ activeCommunityIds: [], generatedAt: 123 })
-            ),
-          },
+          useValue: { getMembershipContext$ },
         },
         {
           provide: CommunityTagRepository,
@@ -102,6 +118,17 @@ describe('CommunityDiscoveryPageComponent / Minhas comunidades', () => {
         {
           provide: CommunityCreationGateService,
           useValue: { requestCreation$: vi.fn(() => of(void 0)) },
+        },
+        {
+          provide: CommunityNotificationUnreadSummaryService,
+          useValue: { currentUserSummaryMap$: unreadSummaryMap$ },
+        },
+        {
+          provide: CommunityNotificationPreferenceService,
+          useValue: {
+            currentUserMutedCommunityIds$: mutedCommunityIds$,
+            updateMuted$,
+          },
         },
         {
           provide: ErrorNotificationService,
@@ -135,6 +162,7 @@ describe('CommunityDiscoveryPageComponent / Minhas comunidades', () => {
       sourceType: 'community',
     });
     expect(getDiscoveryPage$).not.toHaveBeenCalled();
+    expect(getMembershipContext$).not.toHaveBeenCalled();
     expect(state.items.map((item) => item.communityId)).toEqual([
       'community-owned-1',
     ]);
@@ -166,6 +194,65 @@ describe('CommunityDiscoveryPageComponent / Minhas comunidades', () => {
       '0 mídias',
       '1 membros',
     ]);
+  });
+
+  it('combina unread, prioridade e mute a partir dos streams agregados', () => {
+    unreadSummaryMap$.next(new Map([
+      [
+        'community-owned-1',
+        {
+          communityId: 'community-owned-1',
+          unreadCount: 7,
+          priorityUnreadCount: 2,
+          hasPriorityUnread: true,
+          updatedAt: 123,
+        },
+      ],
+    ]));
+    mutedCommunityIds$.next(new Set(['community-owned-1']));
+
+    const fixture = TestBed.createComponent(CommunityDiscoveryPageComponent);
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const unread = fixture.nativeElement.querySelector(
+      '[aria-label="7 atividades não lidas, incluindo atividade prioritária"]'
+    ) as HTMLElement | null;
+    const muted = fixture.nativeElement.querySelector(
+      '[aria-label="Alertas push silenciados para Minha Comunidade"]'
+    ) as HTMLElement | null;
+    const preferenceButton = fixture.nativeElement.querySelector(
+      'button[aria-pressed="true"]'
+    ) as HTMLButtonElement | null;
+
+    expect(unread?.textContent?.replace(/\s+/g, ' ').trim()).toBe('7 não lidas');
+    expect(unread?.querySelector('.fa-bolt')).not.toBeNull();
+    expect(muted?.textContent?.replace(/\s+/g, ' ').trim()).toBe('Silenciada');
+    expect(preferenceButton?.textContent).toContain('Reativar alertas');
+  });
+
+  it('altera mute pela callable canônica sem colocar botão dentro do link do card', () => {
+    const fixture = TestBed.createComponent(CommunityDiscoveryPageComponent);
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const card = fixture.nativeElement.querySelector(
+      '.community-card--mine'
+    ) as HTMLAnchorElement | null;
+    const preferenceButton = fixture.nativeElement.querySelector(
+      'button[aria-label="Silenciar alertas push de Minha Comunidade"]'
+    ) as HTMLButtonElement | null;
+
+    expect(card?.querySelector('button')).toBeNull();
+    expect(preferenceButton).not.toBeNull();
+
+    preferenceButton?.click();
+    fixture.detectChanges();
+
+    expect(updateMuted$).toHaveBeenCalledWith('community-owned-1', true);
+    expect(fixture.nativeElement.textContent).toContain(
+      'alertas push silenciados. A atividade continua na Central.'
+    );
   });
 
   it('orienta Minhas vazio para Explorar sem duplicar o CTA de criação', () => {

@@ -5,6 +5,7 @@ import {
   Component,
   DestroyRef,
   inject,
+  Injector,
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -18,6 +19,7 @@ import {
   catchError,
   combineLatest,
   concat,
+  defer,
   distinctUntilChanged,
   filter,
   finalize,
@@ -35,6 +37,11 @@ import {
 import { getSocialSpaceDefinition } from 'src/app/core/domain/social-space.definition';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { CommunityNotificationPreferenceService } from 'src/app/core/services/notifications/community-notification-preference.service';
+import {
+  CommunityNotificationUnreadSummary,
+  CommunityNotificationUnreadSummaryService,
+} from 'src/app/core/services/notifications/community-notification-unread-summary.service';
 import type { PreferenceProfile } from 'src/app/preferences/models/preference-profile.model';
 import { ProfilePreferencesService } from 'src/app/preferences/services/profile-preferences.service';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
@@ -78,9 +85,22 @@ type CommunityTagFilterState =
   | { status: 'ready'; items: readonly CommunityTagDefinition[] }
   | { status: 'error'; items: readonly CommunityTagDefinition[] };
 
+type CommunityDiscoveryCardView = CommunityPreviewCard & {
+  readonly notificationUnreadCount: number;
+  readonly notificationHasPriorityUnread: boolean;
+  readonly notificationsMuted: boolean;
+};
+
 interface CommunityDiscoveryState {
   status: CommunityDiscoveryStatus;
   items: readonly CommunityPreviewCard[];
+  nextCursor: string | null;
+  loadingMore: boolean;
+}
+
+interface CommunityDiscoveryViewState {
+  status: CommunityDiscoveryStatus;
+  items: readonly CommunityDiscoveryCardView[];
   nextCursor: string | null;
   loadingMore: boolean;
 }
@@ -96,6 +116,12 @@ interface HiddenCommunityFeedback {
   readonly name: string;
 }
 
+interface NotificationPreferenceFeedback {
+  readonly communityId: string;
+  readonly name: string;
+  readonly muted: boolean;
+}
+
 type LoadEvent =
   | { type: 'loading'; request: LoadRequest }
   | { type: 'success'; request: LoadRequest; page: CommunityDiscoveryPage }
@@ -107,6 +133,12 @@ const INITIAL_STATE: CommunityDiscoveryState = Object.freeze({
   nextCursor: null,
   loadingMore: false,
 });
+
+const EMPTY_NOTIFICATION_SUMMARY_MAP: ReadonlyMap<
+  string,
+  CommunityNotificationUnreadSummary
+> = new Map<string, CommunityNotificationUnreadSummary>();
+const EMPTY_MUTED_COMMUNITY_IDS: ReadonlySet<string> = new Set<string>();
 
 const COMMUNITY_QUICK_FILTER_TAG_IDS = Object.freeze([
   'intent:friendship',
@@ -197,6 +229,7 @@ export class CommunityDiscoveryPageComponent {
   private readonly applicationError = inject(ApplicationErrorService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly injector = inject(Injector);
   private readonly destroyRef = inject(DestroyRef);
   private readonly loadRequests$ = new Subject<LoadRequest>();
   private readonly tagCatalogReload$ = new Subject<void>();
@@ -236,9 +269,31 @@ export class CommunityDiscoveryPageComponent {
       )
     : null;
 
+  private readonly mineUnreadSummaryMap$: Observable<
+    ReadonlyMap<string, CommunityNotificationUnreadSummary>
+  > = this.discoveryMode === 'mine'
+    ? defer(() =>
+        this.injector.get(CommunityNotificationUnreadSummaryService)
+          .currentUserSummaryMap$
+      )
+    : of(EMPTY_NOTIFICATION_SUMMARY_MAP);
+
+  private readonly mineMutedCommunityIds$: Observable<ReadonlySet<string>> =
+    this.discoveryMode === 'mine'
+      ? defer(() =>
+          this.injector.get(CommunityNotificationPreferenceService)
+            .currentUserMutedCommunityIds$
+        )
+      : of(EMPTY_MUTED_COMMUNITY_IDS);
+
   readonly selectedTagId = signal<string | null>(this.initialTagId);
   readonly creationGateBusy = signal(false);
   readonly hiddenCommunityFeedback = signal<HiddenCommunityFeedback | null>(null);
+  readonly notificationPreferenceBusyCommunityIds = signal<ReadonlySet<string>>(
+    new Set<string>()
+  );
+  readonly notificationPreferenceFeedback =
+    signal<NotificationPreferenceFeedback | null>(null);
 
   readonly tagFilterState$: Observable<CommunityTagFilterState> =
     this.tagCatalogReload$.pipe(
@@ -295,32 +350,53 @@ export class CommunityDiscoveryPageComponent {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly viewState$: Observable<CommunityDiscoveryState> = combineLatest([
+  readonly viewState$: Observable<CommunityDiscoveryViewState> = combineLatest([
     this.state$,
     this.tagFilterState$,
     this.contextualPreferenceProfile$,
     this.sessionBehavior.state$,
+    this.mineUnreadSummaryMap$,
+    this.mineMutedCommunityIds$,
   ]).pipe(
-    map(([state, tagState, profile, sessionBehavior]): CommunityDiscoveryState => {
-      if (
-        !this.canFilterByTags
-        || state.status !== 'ready'
-        || tagState.status !== 'ready'
-      ) {
-        return state;
-      }
+    map(([
+      state,
+      tagState,
+      profile,
+      sessionBehavior,
+      unreadSummaryMap,
+      mutedCommunityIds,
+    ]): CommunityDiscoveryViewState => {
+      let status = state.status;
+      let items = state.items;
 
-      const items = personalizeCommunityDiscoveryCards(
-        state.items,
-        tagState.items,
-        profile,
-        sessionBehavior
-      );
+      if (
+        this.canFilterByTags
+        && state.status === 'ready'
+        && tagState.status === 'ready'
+      ) {
+        items = personalizeCommunityDiscoveryCards(
+          state.items,
+          tagState.items,
+          profile,
+          sessionBehavior
+        );
+        status = items.length > 0 ? 'ready' : 'empty';
+      }
 
       return {
         ...state,
-        status: items.length > 0 ? 'ready' : 'empty',
-        items,
+        status,
+        items: items.map((item): CommunityDiscoveryCardView => {
+          const summary = unreadSummaryMap.get(item.communityId);
+
+          return {
+            ...item,
+            notificationUnreadCount: summary?.unreadCount ?? 0,
+            notificationHasPriorityUnread:
+              summary?.hasPriorityUnread ?? false,
+            notificationsMuted: mutedCommunityIds.has(item.communityId),
+          };
+        }),
       };
     }),
     shareReplay({ bufferSize: 1, refCount: true })
@@ -471,6 +547,69 @@ export class CommunityDiscoveryPageComponent {
     return labels[item.viewerRole];
   }
 
+  notificationUnreadText(item: CommunityDiscoveryCardView): string {
+    return item.notificationUnreadCount > 99
+      ? '99+'
+      : String(item.notificationUnreadCount);
+  }
+
+  notificationUnreadAriaLabel(item: CommunityDiscoveryCardView): string {
+    const priority = item.notificationHasPriorityUnread
+      ? ', incluindo atividade prioritária'
+      : '';
+
+    return `${item.notificationUnreadCount} atividades não lidas${priority}`;
+  }
+
+  isNotificationPreferenceBusy(communityId: string): boolean {
+    return this.notificationPreferenceBusyCommunityIds().has(communityId);
+  }
+
+  toggleCommunityNotifications(item: CommunityDiscoveryCardView): void {
+    if (
+      this.discoveryMode !== 'mine'
+      || this.isNotificationPreferenceBusy(item.communityId)
+    ) {
+      return;
+    }
+
+    const nextMuted = !item.notificationsMuted;
+    this.notificationPreferenceFeedback.set(null);
+    this.setNotificationPreferenceBusy(item.communityId, true);
+
+    this.injector.get(CommunityNotificationPreferenceService)
+      .updateMuted$(item.communityId, nextMuted)
+      .pipe(
+        tap((result) => {
+          this.notificationPreferenceFeedback.set({
+            communityId: result.communityId,
+            name: item.name,
+            muted: result.muted,
+          });
+        }),
+        catchError((error: unknown) => {
+          this.applicationError.report(error, {
+            feature: 'community',
+            operation: 'updateCommunityNotificationPreference',
+            fallbackMessage: nextMuted
+              ? 'Não foi possível silenciar os alertas desta Comunidade.'
+              : 'Não foi possível reativar os alertas desta Comunidade.',
+            metadata: {
+              ...this.errorMetadata(),
+              communityId: item.communityId,
+              muted: nextMuted,
+            },
+          });
+          return of(null);
+        }),
+        finalize(() =>
+          this.setNotificationPreferenceBusy(item.communityId, false)
+        ),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
+  }
+
   detailsRoute(item: CommunityPreviewCard): readonly string[] {
     if (item.source.type === 'venue') {
       return ['/dashboard/locais', item.communityId];
@@ -479,6 +618,21 @@ export class CommunityDiscoveryPageComponent {
     return this.discoveryMode === 'mine'
       ? ['/dashboard/comunidades/minhas', item.communityId]
       : ['/dashboard/comunidades', item.communityId];
+  }
+
+  private setNotificationPreferenceBusy(
+    communityId: string,
+    busy: boolean
+  ): void {
+    const next = new Set(this.notificationPreferenceBusyCommunityIds());
+
+    if (busy) {
+      next.add(communityId);
+    } else {
+      next.delete(communityId);
+    }
+
+    this.notificationPreferenceBusyCommunityIds.set(next);
   }
 
   private observeVisibleMembershipContext(): void {
