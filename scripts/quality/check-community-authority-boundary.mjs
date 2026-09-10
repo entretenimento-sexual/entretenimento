@@ -7,12 +7,12 @@
 // request.auth; membership/role/capabilities devem ser relidos do backend; counts
 // e scores são projeções materializadas/calculadas pelo backend.
 //
-// O checker é dependency-free e deliberadamente conservador. Primeiro identifica
-// objetos que têm a forma de CallableRequest (uso de `.data` junto de `.auth` ou
-// `.app`) e só então inspeciona seu payload. Isso evita confundir `snapshot.data`
-// e outras estruturas backend-owned com dados enviados pelo navegador.
+// A fronteira Comunidades × Salas também é validada antes deste checker. Assim o
+// mesmo Quality Gate impede tanto pseudoautoridade em Comunidades quanto regressão
+// do domínio legado de Salas.
 // -----------------------------------------------------------------------------
 
+import './check-room-deprecation-boundary.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,11 +23,8 @@ const root = path.resolve(__dirname, '..', '..');
 const communityBackendRoot = path.join(root, 'functions', 'src', 'community');
 
 const FORBIDDEN_CLIENT_AUTHORITY_FIELDS = Object.freeze([
-  // Identidade do ator/viewer é derivada de request.auth.
   'actorUid',
   'viewerUid',
-
-  // Estado/capabilities do viewer são projeções derivadas do membership canônico.
   'viewerMode',
   'viewerRole',
   'viewerMembershipStatus',
@@ -36,8 +33,6 @@ const FORBIDDEN_CLIENT_AUTHORITY_FIELDS = Object.freeze([
   'canInviteCommunityMembers',
   'canManageCommunitySettings',
   'canLeaveMembership',
-
-  // Métricas e ranking são projeções backend-owned.
   'metrics',
   'memberCount',
   'postCount',
@@ -51,8 +46,6 @@ const FORBIDDEN_CLIENT_AUTHORITY_FIELDS = Object.freeze([
   'safetyScore',
   'scoreVersion',
   'scoreUpdatedAt',
-
-  // Índices/contextos derivados nunca concedem autoridade.
   'activeCommunityIds',
   'officialAssociation',
 ]);
@@ -213,48 +206,23 @@ for (const absolutePath of walkTypeScriptFiles(communityBackendRoot)) {
     const requestDataPattern = `${escapeRegExp(requestIdentifier)}\\.data`;
 
     for (const finding of findForbiddenPropertyAccesses(source, requestDataPattern)) {
-      addViolation(
-        violations,
-        source,
-        absolutePath,
-        finding.index,
-        finding.field
-      );
+      addViolation(violations, source, absolutePath, finding.index, finding.field);
     }
 
     for (const finding of findForbiddenDestructuring(source, requestDataPattern)) {
-      addViolation(
-        violations,
-        source,
-        absolutePath,
-        finding.index,
-        finding.field
-      );
+      addViolation(violations, source, absolutePath, finding.index, finding.field);
     }
   }
 
-  // Alias simples: const data = request.data; data.viewerRole / const {...} = data.
   for (const alias of collectDataAliases(source, requestIdentifiers)) {
     const escapedAlias = escapeRegExp(alias);
 
     for (const finding of findForbiddenPropertyAccesses(source, escapedAlias)) {
-      addViolation(
-        violations,
-        source,
-        absolutePath,
-        finding.index,
-        finding.field
-      );
+      addViolation(violations, source, absolutePath, finding.index, finding.field);
     }
 
     for (const finding of findForbiddenDestructuring(source, escapedAlias)) {
-      addViolation(
-        violations,
-        source,
-        absolutePath,
-        finding.index,
-        finding.field
-      );
+      addViolation(violations, source, absolutePath, finding.index, finding.field);
     }
   }
 }

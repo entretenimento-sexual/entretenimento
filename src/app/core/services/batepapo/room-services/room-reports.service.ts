@@ -1,36 +1,62 @@
-// src/app/core/services/batepapo/rooms/room-reports.service.ts
-// Não esqueça is comentários explicativos e ferramentas de debug
+// src/app/core/services/batepapo/room-services/room-reports.service.ts
+// Compatibilidade de denúncias de Salas legadas. Novas escritas estão congeladas.
+
 import { Injectable } from '@angular/core';
-import { getFirestore, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { Observable, defer, firstValueFrom, throwError } from 'rxjs';
+
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 
-@Injectable({
-  providedIn: 'root',
-})
+@Injectable({ providedIn: 'root' })
 export class RoomReportsService {
-  private db = getFirestore();
-
-  constructor(private errorNotifier: ErrorNotificationService) { }
+  constructor(
+    private readonly errorNotifier: ErrorNotificationService,
+    private readonly globalError: GlobalErrorHandlerService
+  ) {}
 
   /**
-   * Registra uma denúncia contra uma sala.
-   * @param roomId ID da sala.
-   * @param reason Razão da denúncia.
-   * @param userId ID do usuário que está denunciando.
+   * SUPRESSÃO EXPLÍCITA: a escrita direta em `rooms/{roomId}/reports` foi removida.
+   * Salas estão em compatibilidade somente-leitura/limpeza e não recebem novos dados.
    */
-  async reportRoom(roomId: string, reason: string, userId: string): Promise<void> {
-    try {
-      const reportsRef = collection(this.db, `rooms/${roomId}/reports`);
-      const report = {
-        roomId,
-        reason,
-        reportedBy: userId,
-        reportedAt: serverTimestamp(),
+  reportRoom$(
+    roomId: string,
+    reason: string,
+    userId: string
+  ): Observable<void> {
+    const rid = String(roomId ?? '').trim();
+    const reporterUid = String(userId ?? '').trim();
+    void reason;
+
+    return defer(() => {
+      const error = new Error(
+        'Novas denúncias vinculadas a Salas legadas não estão disponíveis.'
+      );
+      (error as any).code = 'failed-precondition';
+      (error as any).silent = true;
+      (error as any).skipUserNotification = true;
+      (error as any).context = {
+        scope: 'RoomReportsService',
+        operation: 'reportRoom$',
+        roomId: rid,
+        reporterUid,
+        productState: 'deprecated_compatibility_only',
       };
-      await addDoc(reportsRef, report);
-    } catch (error) {
-      this.errorNotifier.showError('Erro ao registrar denúncia.');
-      throw error;
-    }
+
+      try {
+        this.globalError.handleError(error);
+      } catch {
+        // O bloqueio local não depende da telemetria.
+      }
+
+      this.errorNotifier.showInfo(
+        'Salas foram descontinuadas. Novas interações coletivas devem ocorrer em Comunidades.'
+      );
+      return throwError(() => error);
+    });
   }
-} // Linha 36, fim do RoomReportService
+
+  /** Compatibilidade Promise preservada para consumidores antigos. */
+  async reportRoom(roomId: string, reason: string, userId: string): Promise<void> {
+    await firstValueFrom(this.reportRoom$(roomId, reason, userId));
+  }
+}

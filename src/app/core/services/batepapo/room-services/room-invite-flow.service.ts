@@ -1,5 +1,5 @@
 // src/app/core/services/batepapo/room-services/room-invite-flow.service.ts
-// Respostas a convites de sala executadas exclusivamente por Cloud Functions.
+// Compatibilidade de convites legados: aceite bloqueado; recusa permanece para limpeza.
 import { Injectable } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable, defer, from, throwError } from 'rxjs';
@@ -20,10 +20,6 @@ interface RoomInviteResponseResult {
 
 @Injectable({ providedIn: 'root' })
 export class RoomInviteFlowService {
-  private readonly acceptRoomInviteCallable: ReturnType<
-    typeof httpsCallable<RoomInviteResponseRequest, RoomInviteResponseResult>
-  >;
-
   private readonly declineRoomInviteCallable: ReturnType<
     typeof httpsCallable<RoomInviteResponseRequest, RoomInviteResponseResult>
   >;
@@ -32,11 +28,6 @@ export class RoomInviteFlowService {
     private readonly functions: Functions,
     private readonly globalError: GlobalErrorHandlerService
   ) {
-    this.acceptRoomInviteCallable = httpsCallable<
-      RoomInviteResponseRequest,
-      RoomInviteResponseResult
-    >(this.functions, 'acceptRoomInvite');
-
     this.declineRoomInviteCallable = httpsCallable<
       RoomInviteResponseRequest,
       RoomInviteResponseResult
@@ -44,54 +35,44 @@ export class RoomInviteFlowService {
   }
 
   /**
-   * Método público preservado.
+   * Método público preservado para compatibilidade.
    *
    * SUPRESSÃO EXPLÍCITA:
-   * - a transação Firestore executada no navegador foi removida;
-   * - a escrita em rooms, members, users e invites agora é atômica no backend;
-   * - a UI envia somente inviteId e nunca UID, roomId ou membership.
+   * - o cliente não chama mais a operação de aceite;
+   * - aceitar convite legado criaria membership novo em um domínio depreciado;
+   * - a falha acontece localmente e de forma observável, sem tráfego de rede.
    */
   acceptRoomInvite$(inviteId: string): Observable<void> {
-    return this.invokeResponseCallable$(
-      inviteId,
-      'accepted',
-      this.acceptRoomInviteCallable,
-      'acceptRoomInvite$'
-    );
+    const rawInviteId = String(inviteId ?? '').trim();
+
+    return defer(() => {
+      this.requireInviteId(rawInviteId);
+      const error = new Error(
+        'Convites legados de Sala não podem mais ser aceitos. Use Comunidades para interações coletivas.'
+      );
+      (error as any).code = 'failed-precondition';
+      return this.reportAndRethrow(error, 'acceptRoomInvite$', rawInviteId);
+    });
   }
 
-  /** Método público preservado, agora protegido pela callable. */
+  /** A recusa continua permitida para limpar convites legados pendentes. */
   declineRoomInvite$(inviteId: string): Observable<void> {
-    return this.invokeResponseCallable$(
-      inviteId,
-      'declined',
-      this.declineRoomInviteCallable,
-      'declineRoomInvite$'
-    );
-  }
-
-  private invokeResponseCallable$(
-    inviteId: string,
-    expectedStatus: 'accepted' | 'declined',
-    callable: ReturnType<
-      typeof httpsCallable<RoomInviteResponseRequest, RoomInviteResponseResult>
-    >,
-    operation: string
-  ): Observable<void> {
     const rawInviteId = String(inviteId ?? '').trim();
 
     return defer(() => {
       const safeInviteId = this.requireInviteId(rawInviteId);
 
-      return from(callable({ inviteId: safeInviteId })).pipe(
+      return from(
+        this.declineRoomInviteCallable({ inviteId: safeInviteId })
+      ).pipe(
         map((result) => {
-          this.assertValidResponse(result.data, safeInviteId, expectedStatus);
+          this.assertValidDeclineResponse(result.data, safeInviteId);
           return void 0;
         })
       );
     }).pipe(
       catchError((error) =>
-        this.reportAndRethrow(error, operation, rawInviteId)
+        this.reportAndRethrow(error, 'declineRoomInvite$', rawInviteId)
       )
     );
   }
@@ -106,18 +87,17 @@ export class RoomInviteFlowService {
     return safeInviteId;
   }
 
-  private assertValidResponse(
+  private assertValidDeclineResponse(
     result: RoomInviteResponseResult | null | undefined,
-    inviteId: string,
-    expectedStatus: 'accepted' | 'declined'
+    inviteId: string
   ): void {
     if (
       !result ||
       String(result.inviteId ?? '').trim() !== inviteId ||
       String(result.roomId ?? '').trim().length === 0 ||
-      result.status !== expectedStatus
+      result.status !== 'declined'
     ) {
-      throw new Error('Resposta inválida ao processar convite de sala.');
+      throw new Error('Resposta inválida ao recusar convite de sala.');
     }
   }
 
@@ -141,7 +121,7 @@ export class RoomInviteFlowService {
 
       this.globalError.handleError(wrapped);
     } catch {
-      // noop: o Observable ainda propaga a falha ao effect owner do feedback.
+      // O Observable ainda propaga a falha ao owner do feedback.
     }
 
     return throwError(() => error);

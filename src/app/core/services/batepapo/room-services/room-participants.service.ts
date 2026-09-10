@@ -1,11 +1,5 @@
 // src/app/core/services/batepapo/room-services/room-participants.service.ts
-// Serviço para gerenciar participantes de salas de bate-papo usando Firestore.
-//
-// Ajustes desta versão:
-// - protege collection/doc/getDoc/onSnapshot/runTransaction com FirestoreContextService
-// - mantém Observable-first
-// - mantém transação de membership
-// - não recoloca lógica de aceite de convite aqui
+// Compatibilidade de participantes legados: leitura permitida; mutações congeladas.
 
 import { Injectable, NgZone } from '@angular/core';
 import {
@@ -14,36 +8,23 @@ import {
   doc,
   getDoc,
   onSnapshot,
-  runTransaction,
 } from '@angular/fire/firestore';
 import {
   Observable,
+  catchError,
   defer,
+  firstValueFrom,
   from,
   map,
-  catchError,
-  firstValueFrom,
-  switchMap,
   of,
+  switchMap,
   throwError,
-  take,
 } from 'rxjs';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-
-import { UserRoomIdsService } from './user-room-ids.service';
-import { AuthSessionService } from '../../autentication/auth/auth-session.service';
 import { FirestoreContextService } from '@core/services/data-handling/firestore/core/firestore-context.service';
-
-type RoomParticipantDoc = {
-  uid: string;
-  joinedAt?: number | null;
-  removedAt?: number | null;
-  removed?: boolean;
-};
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 
 @Injectable({ providedIn: 'root' })
 export class RoomParticipantsService {
@@ -52,13 +33,11 @@ export class RoomParticipantsService {
     private readonly zone: NgZone,
     private readonly ctx: FirestoreContextService,
     private readonly notify: ErrorNotificationService,
-    private readonly globalError: GlobalErrorHandlerService,
-    private readonly userRoomIds: UserRoomIdsService,
-    private readonly authSession: AuthSessionService
+    private readonly globalError: GlobalErrorHandlerService
   ) {}
 
-  private norm(v: string | null | undefined): string {
-    return (v ?? '').trim();
+  private norm(value: string | null | undefined): string {
+    return (value ?? '').trim();
   }
 
   private fail<T>(
@@ -67,51 +46,33 @@ export class RoomParticipantsService {
     context?: Record<string, unknown>
   ): Observable<T> {
     this.notify.showError(userMessage);
-
-    try {
-      const e = err instanceof Error ? err : new Error(userMessage);
-      (e as any).original = err;
-      (e as any).context = {
-        scope: 'RoomParticipantsService',
-        ...(context ?? {}),
-      };
-      (e as any).skipUserNotification = true;
-      this.globalError.handleError(e);
-    } catch {}
-
+    this.reportSilent(err, context);
     return throwError(() => err);
   }
 
   private reportSilent(err: unknown, context?: Record<string, unknown>): void {
     try {
-      const e =
+      const error =
         err instanceof Error
           ? err
           : new Error('[RoomParticipantsService] stream error');
 
-      (e as any).original = err;
-      (e as any).context = {
+      (error as any).original = err;
+      (error as any).context = {
         scope: 'RoomParticipantsService',
         ...(context ?? {}),
       };
-      (e as any).silent = true;
-      (e as any).skipUserNotification = true;
-      this.globalError.handleError(e);
-    } catch {}
+      (error as any).silent = true;
+      (error as any).skipUserNotification = true;
+      this.globalError.handleError(error);
+    } catch {
+      // Telemetria nunca deve substituir a falha original.
+    }
   }
 
   private roomRef(roomId: string) {
     const rid = this.norm(roomId);
     return this.ctx.run(() => doc(this.db, 'rooms', rid));
-  }
-
-  private participantRef(roomId: string, userId: string) {
-    const rid = this.norm(roomId);
-    const uid = this.norm(userId);
-
-    return this.ctx.run(() =>
-      doc(this.db, 'rooms', rid, 'participants', uid)
-    );
   }
 
   private participantsCol(roomId: string) {
@@ -126,118 +87,28 @@ export class RoomParticipantsService {
     return this.ctx.run(() => doc(this.db, 'users', uid));
   }
 
-  private withActorUid$<T>(
-    operation: (actorUid: string) => Observable<T>
-  ): Observable<T> {
-    return this.authSession.uid$.pipe(
-      take(1),
-      switchMap((uid) => {
-        const actorUid = this.norm(uid);
-
-        if (!actorUid) {
-          return this.fail<T>(
-            'Sessão inválida para gerenciar participantes.',
-            new Error('No authenticated actor'),
-            { op: 'withActorUid$' }
-          );
-        }
-
-        return operation(actorUid);
-      })
-    );
+  /**
+   * SUPRESSÃO EXPLÍCITA: a antiga transação de membership foi removida. As Rules
+   * negam mutações de participantes e Salas não podem adquirir novos membros.
+   */
+  addUserToRoom$(userId: string, roomId: string): Observable<void> {
+    return this.blockDeprecatedMutation$('addUserToRoom$', userId, roomId);
   }
 
-  private mutateParticipantMembership$(
-    actorUid: string,
-    targetUid: string,
-    roomId: string,
-    mode: 'add' | 'remove'
-  ): Observable<void> {
-    const uid = this.norm(targetUid);
-    const rid = this.norm(roomId);
+  /**
+   * SUPRESSÃO EXPLÍCITA: remoção de membership pelo navegador também foi retirada.
+   * O encerramento da Sala é a operação canônica de limpeza do domínio legado.
+   */
+  removeUserFromRoom$(userId: string, roomId: string): Observable<void> {
+    return this.blockDeprecatedMutation$('removeUserFromRoom$', userId, roomId);
+  }
 
-    if (!uid || !rid) {
-      return this.fail<void>(
-        'Dados inválidos para alterar participante.',
-        new Error('Invalid args'),
-        { op: 'mutateParticipantMembership$', actorUid, targetUid, roomId, mode }
-      );
-    }
+  async addUserToRoom(userId: string, roomId: string): Promise<void> {
+    await firstValueFrom(this.addUserToRoom$(userId, roomId));
+  }
 
-    const roomRef = this.roomRef(rid);
-    const participantRef = this.participantRef(rid, uid);
-
-    return defer(() =>
-      from(
-        this.ctx.run(() =>
-          runTransaction(this.db, async (tx) => {
-            const roomSnap = await tx.get(roomRef);
-
-            if (!roomSnap.exists()) {
-              throw new Error('Sala não encontrada.');
-            }
-
-            const roomData = roomSnap.data() as any;
-            const createdBy = this.norm(roomData?.createdBy);
-            const currentParticipants: string[] = Array.isArray(roomData?.participants)
-              ? roomData.participants
-              : [];
-
-            const actorCanManage = actorUid === uid || createdBy === actorUid;
-            if (!actorCanManage) {
-              throw new Error('Ação não autorizada para este participante.');
-            }
-
-            const alreadyInRoom = currentParticipants.includes(uid);
-
-            if (mode === 'add') {
-              if (!alreadyInRoom) {
-                tx.update(roomRef, {
-                  participants: [...currentParticipants, uid],
-                } as any);
-              }
-
-              const participantData: RoomParticipantDoc = {
-                uid,
-                joinedAt: Date.now(),
-                removedAt: null,
-                removed: false,
-              };
-
-              tx.set(participantRef, participantData as any, { merge: true });
-              return;
-            }
-
-            if (alreadyInRoom) {
-              tx.update(roomRef, {
-                participants: currentParticipants.filter(
-                  (participantUid) => participantUid !== uid
-                ),
-              } as any);
-            }
-
-            const participantData: RoomParticipantDoc = {
-              uid,
-              removedAt: Date.now(),
-              removed: true,
-            };
-
-            tx.set(participantRef, participantData as any, { merge: true });
-          })
-        )
-      )
-    ).pipe(
-      map(() => void 0),
-      catchError((err) =>
-        this.fail<void>(
-          mode === 'add'
-            ? 'Erro ao adicionar participante na sala.'
-            : 'Erro ao remover participante da sala.',
-          err,
-          { op: 'mutateParticipantMembership$', actorUid, targetUid: uid, roomId: rid, mode }
-        )
-      )
-    );
+  async removeUserFromRoom(userId: string, roomId: string): Promise<void> {
+    await firstValueFrom(this.removeUserFromRoom$(userId, roomId));
   }
 
   getParticipants(roomId: string): Observable<any[]> {
@@ -252,9 +123,9 @@ export class RoomParticipantsService {
           participantsRef,
           (snapshot) => {
             this.zone.run(() => {
-              const participants = snapshot.docs.map((d) => ({
-                id: d.id,
-                ...d.data(),
+              const participants = snapshot.docs.map((participant) => ({
+                id: participant.id,
+                ...participant.data(),
               }));
               observer.next(participants);
             });
@@ -273,68 +144,6 @@ export class RoomParticipantsService {
     });
   }
 
-  async addUserToRoom(userId: string, roomId: string): Promise<void> {
-    await firstValueFrom(this.addUserToRoom$(userId, roomId));
-  }
-
-  async removeUserFromRoom(userId: string, roomId: string): Promise<void> {
-    await firstValueFrom(this.removeUserFromRoom$(userId, roomId));
-  }
-
-  addUserToRoom$(userId: string, roomId: string): Observable<void> {
-    const uid = this.norm(userId);
-    const rid = this.norm(roomId);
-
-    if (!uid || !rid) {
-      return this.fail<void>(
-        'Dados inválidos para adicionar participante.',
-        new Error('Invalid args'),
-        { op: 'addUserToRoom$', userId, roomId }
-      );
-    }
-
-    return this.withActorUid$((actorUid) =>
-      this.mutateParticipantMembership$(actorUid, uid, rid, 'add').pipe(
-        switchMap(() => this.userRoomIds.addRoomId$(uid, rid)),
-        map(() => void 0),
-        catchError((err) =>
-          this.fail<void>(
-            'Erro ao adicionar participante na sala.',
-            err,
-            { op: 'addUserToRoom$', actorUid, targetUid: uid, roomId: rid }
-          )
-        )
-      )
-    );
-  }
-
-  removeUserFromRoom$(userId: string, roomId: string): Observable<void> {
-    const uid = this.norm(userId);
-    const rid = this.norm(roomId);
-
-    if (!uid || !rid) {
-      return this.fail<void>(
-        'Dados inválidos para remover participante.',
-        new Error('Invalid args'),
-        { op: 'removeUserFromRoom$', userId, roomId }
-      );
-    }
-
-    return this.withActorUid$((actorUid) =>
-      this.mutateParticipantMembership$(actorUid, uid, rid, 'remove').pipe(
-        switchMap(() => this.userRoomIds.removeRoomId$(uid, rid)),
-        map(() => void 0),
-        catchError((err) =>
-          this.fail<void>(
-            'Erro ao remover participante da sala.',
-            err,
-            { op: 'removeUserFromRoom$', actorUid, targetUid: uid, roomId: rid }
-          )
-        )
-      )
-    );
-  }
-
   getRoomCreator(roomId: string): Observable<IUserDados> {
     const rid = this.norm(roomId);
     if (!rid) {
@@ -348,8 +157,8 @@ export class RoomParticipantsService {
     const roomRef = this.roomRef(rid);
 
     return defer(() => from(this.ctx.run(() => getDoc(roomRef)))).pipe(
-      switchMap((roomSnap) => {
-        if (!roomSnap.exists()) {
+      switchMap((roomSnapshot) => {
+        if (!roomSnapshot.exists()) {
           return this.fail<IUserDados>(
             'Sala não encontrada.',
             new Error('Sala não existe'),
@@ -357,7 +166,7 @@ export class RoomParticipantsService {
           );
         }
 
-        const creatorId = this.norm((roomSnap.data() as any)?.createdBy);
+        const creatorId = this.norm((roomSnapshot.data() as any)?.createdBy);
         if (!creatorId) {
           return this.fail<IUserDados>(
             'Criador da sala não encontrado.',
@@ -369,25 +178,59 @@ export class RoomParticipantsService {
         const userRef = this.userRef(creatorId);
 
         return from(this.ctx.run(() => getDoc(userRef))).pipe(
-          map((userSnap) => {
-            if (!userSnap.exists()) {
+          map((userSnapshot) => {
+            if (!userSnapshot.exists()) {
               throw new Error('Criador da sala não encontrado.');
             }
 
             return {
-              uid: userSnap.id,
-              ...(userSnap.data() as any),
+              uid: userSnapshot.id,
+              ...(userSnapshot.data() as any),
             } as IUserDados;
           })
         );
       }),
-      catchError((err) =>
+      catchError((error) =>
         this.fail<IUserDados>(
           'Erro ao buscar criador.',
-          err,
+          error,
           { op: 'getRoomCreator', roomId: rid }
         )
       )
     );
+  }
+
+  private blockDeprecatedMutation$(
+    operation: string,
+    userId: string,
+    roomId: string
+  ): Observable<void> {
+    const uid = this.norm(userId);
+    const rid = this.norm(roomId);
+
+    if (!uid || !rid) {
+      return this.fail<void>(
+        'Dados inválidos para alterar participante.',
+        new Error('Invalid args'),
+        { op: operation, userId, roomId }
+      );
+    }
+
+    return defer(() => {
+      const error = new Error(
+        'Participantes de Salas legadas não podem mais ser alterados.'
+      );
+      (error as any).code = 'failed-precondition';
+      this.reportSilent(error, {
+        op: operation,
+        targetUid: uid,
+        roomId: rid,
+        productState: 'deprecated_compatibility_only',
+      });
+      this.notify.showInfo(
+        'Participantes de Salas não podem mais ser alterados. Use Comunidades para membership e papéis.'
+      );
+      return throwError(() => error);
+    });
   }
 }

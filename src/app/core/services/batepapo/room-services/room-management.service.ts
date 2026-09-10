@@ -1,5 +1,5 @@
 // src/app/core/services/batepapo/room-services/room-management.service.ts
-// Serviço de comandos de sala. Criação e encerramento passam por Cloud Functions.
+// Serviço de compatibilidade de Salas: criação/edição bloqueadas; encerramento via backend.
 
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
@@ -22,27 +22,9 @@ import { ActionRegistryService } from 'src/app/core/services/action-state/action
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
 
-interface CreatePrivateRoomPayload {
-  roomName: string;
-  description: string | null;
-  placeIntent?: IRoomPlaceIntentInput | null;
-}
-
 type CreateRoomDetails = Partial<Omit<IRoom, 'placeIntent'>> & {
   placeIntent?: IRoomPlaceIntent | IRoomPlaceIntentInput | null;
 };
-
-interface CreatePrivateRoomResponse {
-  roomId: string;
-  roomName: string;
-  description: string | null;
-  createdBy: string;
-  memberCount: number;
-  visibility: 'hidden';
-  roomType: 'private';
-  status: 'active';
-  placeIntent?: IRoomPlaceIntent | null;
-}
 
 interface ClosePrivateRoomPayload {
   roomId: string;
@@ -65,57 +47,34 @@ export class RoomManagementService {
     Observable<ClosePrivateRoomResponse>
   >();
 
-  private readonly createPrivateRoomCallable = httpsCallable<
-    CreatePrivateRoomPayload,
-    CreatePrivateRoomResponse
-  >(this.functions, 'createPrivateRoom');
-
   private readonly closePrivateRoomCallable = httpsCallable<
     ClosePrivateRoomPayload,
     ClosePrivateRoomResponse
   >(this.functions, 'closePrivateRoom');
 
+  /**
+   * Compatibilidade de API para consumidores antigos.
+   *
+   * SUPRESSÃO EXPLÍCITA:
+   * - a chamada `createPrivateRoom` foi removida do cliente;
+   * - nenhuma nova Sala pode ser criada no produto atual;
+   * - Comunidades são a superfície coletiva canônica.
+   */
   createRoom(
     roomDetails: CreateRoomDetails,
     _legacyCreatorId?: string
   ): Observable<IRoom> {
+    void roomDetails;
     void _legacyCreatorId;
 
-    const payload: CreatePrivateRoomPayload = {
-      roomName: String(roomDetails.roomName ?? '').trim(),
-      description: String(roomDetails.description ?? '').trim() || null,
-      placeIntent: this.toPlaceIntentInput(roomDetails.placeIntent),
-    };
-
-    return defer(() => from(this.createPrivateRoomCallable(payload))).pipe(
-      map((result) => {
-        const data = result.data;
-
-        if (!data?.roomId || !data.createdBy) {
-          throw new Error('Resposta inválida ao criar sala.');
-        }
-
-        return {
-          id: data.roomId,
-          roomName: data.roomName,
-          createdBy: data.createdBy,
-          participants: [data.createdBy],
-          creationTime: new Date(),
-          lastActivity: new Date(),
-          description: data.description ?? undefined,
-          isPrivate: true,
-          roomType: data.roomType,
-          visibility: data.visibility,
-          placeIntent: data.placeIntent ?? null,
-          isRoom: true,
-        } as IRoom;
-      }),
-      catchError((error) => {
-        this.reportError(error, 'createRoom');
-        this.notify.showError(this.getCreateRoomUserMessage(error));
-        return throwError(() => error);
-      })
-    );
+    return defer(() => {
+      const error = this.createDeprecatedCommandError('createRoom');
+      this.reportError(error, 'createRoom');
+      this.notify.showInfo(
+        'Novas Salas foram descontinuadas. Para interações coletivas, use Comunidades.'
+      );
+      return throwError(() => error);
+    });
   }
 
   closeRoom(roomId: string): Observable<ClosePrivateRoomResponse> {
@@ -153,10 +112,9 @@ export class RoomManagementService {
   /**
    * Compatibilidade de nomenclatura.
    *
-   * A edição estrutural direta foi suprimida porque as Rules a bloqueiam e porque
-   * ainda não existe uma callable de edição com contrato, auditoria e validação de
-   * papel. O método permanece para não quebrar consumidores antigos, mas falha de
-   * forma explícita e observável em vez de tentar uma escrita insegura.
+   * SUPRESSÃO EXPLÍCITA: a edição estrutural de Sala permanece bloqueada. As Rules
+   * não aceitam essa escrita e o domínio está em compatibilidade somente-leitura,
+   * com encerramento como operação de limpeza.
    */
   async updateRoom(
     roomId: string,
@@ -164,14 +122,16 @@ export class RoomManagementService {
   ): Promise<void> {
     void _roomDetails;
     const safeRoomId = String(roomId ?? '').trim();
-    const error = new Error(
-      safeRoomId
-        ? 'A edição protegida de sala ainda não está disponível.'
-        : 'roomId inválido.'
-    );
+    const error = safeRoomId
+      ? this.createDeprecatedCommandError('updateRoom')
+      : new Error('roomId inválido.');
 
     this.reportError(error, 'updateRoom');
-    this.notify.showInfo('A edição da sala ainda não está disponível.');
+    this.notify.showInfo(
+      safeRoomId
+        ? 'A edição de Salas foi descontinuada. Use Comunidades para interações coletivas.'
+        : 'Sala inválida.'
+    );
     throw error;
   }
 
@@ -179,60 +139,20 @@ export class RoomManagementService {
    * Compatibilidade de nomenclatura.
    *
    * “Excluir” uma Sala significa encerrá-la logicamente. O histórico e a auditoria
-   * são preservados e o slot do proprietário é liberado pela callable canônica.
+   * são preservados; a callable de encerramento executa a limpeza canônica.
    */
   async deleteRoom(roomId: string): Promise<void> {
     await firstValueFrom(this.closeRoom(roomId));
   }
 
-  private toPlaceIntentInput(
-    placeIntent: IRoomPlaceIntent | IRoomPlaceIntentInput | null | undefined
-  ): IRoomPlaceIntentInput | null {
-    if (!placeIntent) {
-      return null;
-    }
-
-    const venueId = String(placeIntent.venueId ?? '').trim();
-
-    if (!venueId) {
-      return null;
-    }
-
-    return {
-      venueId,
-      mode: placeIntent.mode === 'scheduled' ? 'scheduled' : 'now',
-      startsAt:
-        typeof placeIntent.startsAt === 'number' &&
-        Number.isFinite(placeIntent.startsAt)
-          ? Math.trunc(placeIntent.startsAt)
-          : null,
-    };
-  }
-
-  private getCreateRoomUserMessage(error: unknown): string {
-    const code = this.getErrorCode(error);
-
-    if (code.includes('unauthenticated')) {
-      return 'Entre novamente para criar uma sala.';
-    }
-
-    if (code.includes('not-found')) {
-      return 'O estabelecimento selecionado não está mais disponível.';
-    }
-
-    if (code.includes('invalid-argument')) {
-      return 'Verifique o nome, a descrição, o estabelecimento e o horário da sala.';
-    }
-
-    if (code.includes('permission-denied')) {
-      return 'Sua conta ou plano atual não permite criar a sala com essas opções.';
-    }
-
-    if (code.includes('failed-precondition')) {
-      return 'A sala ou o estabelecimento não está disponível nas condições atuais.';
-    }
-
-    return 'Não foi possível criar a sala.';
+  private createDeprecatedCommandError(operation: string): Error {
+    const error = new Error(
+      'Salas estão em modo de compatibilidade e não aceitam novas operações coletivas.'
+    );
+    (error as any).code = 'failed-precondition';
+    (error as any).feature = 'rooms';
+    (error as any).operation = operation;
+    return error;
   }
 
   private getCloseRoomUserMessage(error: unknown): string {
@@ -273,6 +193,7 @@ export class RoomManagementService {
       };
       (normalizedError as any).original = error;
       (normalizedError as any).skipUserNotification = true;
+      (normalizedError as any).silent = true;
 
       this.globalError.handleError(normalizedError);
     } catch {
