@@ -27,6 +27,7 @@ import {
   switchMap,
   take,
   tap,
+  timeout,
 } from 'rxjs/operators';
 
 import { PresenceService } from '@core/services/presence/presence.service';
@@ -47,6 +48,8 @@ import { inRegistrationFlow as isRegFlow, type TerminateReason } from './auth.ty
 import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
 
 type SignOutMode = 'strict' | 'best-effort';
+
+const BEST_EFFORT_CLEANUP_TIMEOUT_MS = 3_000;
 
 @Injectable({ providedIn: 'root' })
 export class LogoutService {
@@ -322,11 +325,18 @@ export class LogoutService {
     );
   }
 
-  /** Para presença antes do signOut sem bloquear o encerramento em caso de falha. */
+  /**
+   * Para Presence antes do signOut, mas impõe um limite ao write offline.
+   * Uma rede degradada nunca pode manter a sessão Firebase aberta indefinidamente.
+   */
   private stopPresenceBestEffort$(): Observable<void> {
-    return this.presence.stop$().pipe(
+    return defer(() => this.presence.stop$()).pipe(
       take(1),
       defaultIfEmpty(void 0),
+      timeout({
+        first: BEST_EFFORT_CLEANUP_TIMEOUT_MS,
+        with: () => this.cleanupTimeoutFallback$('stopPresenceBestEffort$'),
+      }),
       catchError((err) => {
         this.reportSilent(err, { phase: 'stopPresenceBestEffort$' });
         return of(void 0);
@@ -345,6 +355,10 @@ export class LogoutService {
       take(1),
       defaultIfEmpty(void 0),
       map(() => void 0),
+      timeout({
+        first: BEST_EFFORT_CLEANUP_TIMEOUT_MS,
+        with: () => this.cleanupTimeoutFallback$('deactivatePushBestEffort$'),
+      }),
       catchError((err) => {
         this.reportSilent(err, { phase: 'deactivatePushBestEffort$' });
         return of(void 0);
@@ -423,13 +437,31 @@ export class LogoutService {
     }
   }
 
+  private cleanupTimeoutFallback$(phase: string): Observable<void> {
+    return defer(() => {
+      const error = new Error('[LogoutService] best-effort cleanup timeout');
+      this.reportSilent(error, {
+        phase,
+        timeoutMs: BEST_EFFORT_CLEANUP_TIMEOUT_MS,
+      });
+      return of(void 0);
+    });
+  }
+
   /**
    * Limpeza local pós-logout.
    * Cache sensível não deve sobreviver à sessão; falha de limpeza não bloqueia
-   * navegação/signOut.
+   * navegação/signOut. IndexedDB também é limitado para não prender a UI após
+   * o Firebase Auth já ter sido encerrado.
    */
   private clearLocalSessionDataBestEffort$(): Observable<void> {
-    return this.cache.clearSensitiveSessionCache$().pipe(
+    return defer(() => this.cache.clearSensitiveSessionCache$()).pipe(
+      take(1),
+      defaultIfEmpty(void 0),
+      timeout({
+        first: BEST_EFFORT_CLEANUP_TIMEOUT_MS,
+        with: () => this.cleanupTimeoutFallback$('clearLocalSessionDataBestEffort$'),
+      }),
       catchError((err) => {
         this.reportSilent(err, {
           phase: 'clearLocalSessionDataBestEffort$',
