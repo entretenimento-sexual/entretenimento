@@ -11,10 +11,7 @@ import { InviteInboxItem } from '../../core/interfaces/interfaces-chat/invite.in
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';
-import {
-  AcceptInvite,
-  DeclineInvite,
-} from '../../store/actions/actions.chat/invite.actions';
+import { DeclineInvite } from '../../store/actions/actions.chat/invite.actions';
 import {
   selectInvitesError,
   selectInvitesLoading,
@@ -44,11 +41,14 @@ describe('InviteListComponent', () => {
   let fixture: ComponentFixture<InviteListComponent>;
   let store: MockStore;
   let authUidSubject: BehaviorSubject<string | null>;
-  let errorNotifierMock: { showError: Mock };
+  let errorNotifierMock: { showError: Mock; showInfo: Mock };
 
   beforeEach(async () => {
     authUidSubject = new BehaviorSubject<string | null>('u1');
-    errorNotifierMock = { showError: vi.fn() };
+    errorNotifierMock = {
+      showError: vi.fn(),
+      showInfo: vi.fn(),
+    };
 
     await TestBed.configureTestingModule({
       declarations: [InviteListComponent],
@@ -103,11 +103,12 @@ describe('InviteListComponent', () => {
     await expect(firstValueFrom(component.invites$)).resolves.toEqual(invites);
   });
 
-  it('despacha AcceptInvite com ownerUid', () => {
+  it('bloqueia aceite de convite legado e orienta usar Comunidades', () => {
     component.respondToInvite(buildInvite('invite-1'), 'accepted');
 
-    expect(store.dispatch).toHaveBeenCalledWith(
-      AcceptInvite({ ownerUid: 'u1', inviteId: 'invite-1' })
+    expect(store.dispatch).not.toHaveBeenCalled();
+    expect(errorNotifierMock.showInfo).toHaveBeenCalledWith(
+      'Salas foram descontinuadas. Use Comunidades para interações coletivas.'
     );
   });
 
@@ -128,9 +129,12 @@ describe('InviteListComponent', () => {
     );
   });
 
-  it('não expõe UID bruto no subtítulo', () => {
-    expect(component.getInviteSubtitle(buildInvite('invite-1'))).toBe(
-      'Você foi convidado para participar'
-    );
+  it('identifica o convite como legado sem expor UID bruto no subtítulo', () => {
+    const invite = buildInvite('invite-1');
+    const subtitle = component.getInviteSubtitle(invite);
+
+    expect(subtitle).toBe('Convite legado — não é mais possível aceitar');
+    expect(subtitle).not.toContain(invite.receiverId);
+    expect(subtitle).not.toContain(invite.senderId);
   });
 });

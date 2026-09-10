@@ -6,14 +6,13 @@ import {
 } from './social-space.definition';
 
 describe('social space definitions', () => {
-  it('mantém Local, Comunidade e Sala como conceitos distintos', () => {
+  it('mantém Local, Comunidade e Sala legada como conceitos distintos', () => {
     expect(SOCIAL_SPACE_DEFINITIONS.venue.description).toContain('Lugar físico');
     expect(SOCIAL_SPACE_DEFINITIONS.community.description).toContain(
-      'Grupo permanente'
+      'Grupo coletivo persistente'
     );
-    expect(SOCIAL_SPACE_DEFINITIONS.room.description).toContain(
-      'Espaço de conversa'
-    );
+    expect(SOCIAL_SPACE_DEFINITIONS.room.description).toContain('Registro legado');
+    expect(SOCIAL_SPACE_DEFINITIONS.room.description).toContain('Comunidades');
   });
 
   it('mantém rotas canônicas separadas', () => {
