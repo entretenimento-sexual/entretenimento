@@ -21,11 +21,11 @@ const ACTIVE_USER = {
   loginAllowed: true,
 };
 
-test('notifica atividade por padrão e respeita a preferência desativada', () => {
+test('persistência in-app independe da preferência global de push', () => {
   assert.equal(allowsCommunityActivityNotifications(undefined), true);
   assert.equal(allowsCommunityActivityNotifications({
     notificationPreferences: { communities: false },
-  }), false);
+  }), true);
 });
 
 test('atividade exige destinatário operacional e nunca notifica o próprio autor', () => {
