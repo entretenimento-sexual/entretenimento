@@ -34,20 +34,6 @@ function communityNotification(
   };
 }
 
-function systemNotification(): IAppNotification {
-  return {
-    id: 'notification-system-1',
-    userId: 'user-1',
-    type: 'system',
-    title: 'Atualização da plataforma',
-    body: 'Uma atualização recente está disponível.',
-    route: '/notificacoes',
-    readAt: null,
-    createdAt: 456,
-    updatedAt: 456,
-  };
-}
-
 describe('NotificationsPageComponent', () => {
   const refreshCurrentUserNotifications = vi.fn();
 
@@ -162,7 +148,7 @@ describe('NotificationsPageComponent', () => {
     expect(await firstValueFrom(component.communityUnreadCount$)).toBe(17);
   });
 
-  it('enriquece o card recente com unread e prioridade canônicos sem trocar conteúdo ou rota', async () => {
+  it('usa a contagem exata sem atribuir ao card recente uma prioridade que ele não representa', async () => {
     const latestNotification = communityNotification();
     const recentSummary: ICommunityNotificationSummary = {
       communityId: 'community-1',
@@ -192,7 +178,7 @@ describe('NotificationsPageComponent', () => {
 
     expect(summaries).toHaveLength(1);
     expect(summaries[0]?.unreadCount).toBe(9);
-    expect(summaries[0]?.hasPriorityUnread).toBe(true);
+    expect(summaries[0]?.hasPriorityUnread).toBe(false);
     expect(summaries[0]?.latestNotification).toBe(latestNotification);
     expect(component.notificationRoute(summaries[0]!.latestNotification)).toBe(
       '/dashboard/comunidades/minhas/community-1'
@@ -205,11 +191,15 @@ describe('NotificationsPageComponent', () => {
     const status = fixture.nativeElement.querySelector(
       '.community-activity__status'
     ) as HTMLElement | null;
+    const card = fixture.nativeElement.querySelector(
+      '.community-activity__item'
+    ) as HTMLElement | null;
     const scope = fixture.nativeElement.querySelector(
       '.community-activity__header p'
     ) as HTMLElement | null;
 
-    expect(status?.textContent?.trim()).toBe('Requer atenção');
+    expect(status?.textContent?.trim()).toBe('9 novidades');
+    expect(card?.classList.contains('community-activity__item--priority')).toBe(false);
     expect(scope?.textContent?.replace(/\s+/g, ' ').trim()).toBe(
       'As Comunidades abaixo refletem atividade recente; as pendências consideram todas as atividades não lidas.'
     );
@@ -235,7 +225,7 @@ describe('NotificationsPageComponent', () => {
     expect(summaries[0]?.latestNotification).toBe(latestNotification);
   });
 
-  it('mantém Comunidades visível quando as pendências ficaram fora da janela recente', () => {
+  it('mantém pendências antigas de Comunidades visíveis sem declarar a Central vazia', () => {
     const exactSummary: CommunityNotificationUnreadSummary = {
       communityId: 'community-older',
       unreadCount: 6,
@@ -249,8 +239,8 @@ describe('NotificationsPageComponent', () => {
       6,
       [],
       new Map([['community-older', exactSummary]]),
-      [systemNotification()],
-      7
+      [],
+      1
     );
 
     const fixture = TestBed.createComponent(NotificationsPageComponent);
@@ -282,6 +272,9 @@ describe('NotificationsPageComponent', () => {
     ).toBeNull();
     expect(
       fixture.nativeElement.querySelector('.notifications-state--empty')
+    ).toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('.notifications-list')
     ).toBeNull();
   });
 });
