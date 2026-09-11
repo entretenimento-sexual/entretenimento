@@ -56,8 +56,11 @@
       </nav>
 
       @if (discoveryMode === 'mine') {
-        <p class="community-discovery__definition">
-          Silenciar alertas reduz push e interrupções; a atividade continua aparecendo na Central e como não lida.
+        <p
+          id="community-mine-attention-scope"
+          class="community-discovery__definition"
+        >
+          Silenciar alertas reduz push e interrupções; a atividade continua aparecendo na Central e como não lida. As Comunidades carregadas são organizadas por atenção; ao ver mais, novas atividades podem aparecer acima.
         </p>
       }
     } @else {
@@ -212,7 +215,12 @@
         </div>
       }
     } @else {
-      <ul class="community-discovery__grid" [attr.aria-label]="title + ' disponíveis'">
+      <ul
+        class="community-discovery__grid"
+        [attr.aria-label]="title + ' disponíveis'"
+        [attr.aria-describedby]="discoveryMode === 'mine' ? 'community-mine-attention-scope' : null"
+        [attr.aria-busy]="state.loadingMore"
+      >
         @for (item of state.items; track item.communityId) {
           <li
             class="community-card-shell"
@@ -378,7 +386,14 @@
 
       @if (state.nextCursor) {
         <div class="community-discovery__more">
-          <button type="button" [disabled]="state.loadingMore" (click)="loadMore(state.nextCursor)">
+          <button
+            type="button"
+            aria-label="Ver mais comunidades"
+            [disabled]="state.loadingMore"
+            [attr.aria-busy]="state.loadingMore"
+            [attr.aria-describedby]="discoveryMode === 'mine' ? 'community-mine-attention-scope' : null"
+            (click)="loadMore(state.nextCursor)"
+          >
             @if (state.loadingMore) {
               <i class="fas fa-spinner fa-spin" aria-hidden="true"></i><span>Carregando</span>
             } @else {
