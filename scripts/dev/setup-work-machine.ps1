@@ -2,7 +2,8 @@
 param(
   [string]$Branch = 'main',
   [switch]$Start,
-  [switch]$Validate
+  [switch]$Validate,
+  [switch]$Install
 )
 
 $ErrorActionPreference = 'Stop'
@@ -263,8 +264,11 @@ if (-not (Test-Path $ResumeScript)) {
 }
 
 $resumeParameters = @{
-  Install = $true
   Branch = $Branch
+}
+
+if ($Install.IsPresent) {
+  $resumeParameters['Install'] = $true
 }
 
 if ($Start.IsPresent) {
