@@ -51,8 +51,11 @@ export class NotificationsPageComponent {
 
         return {
           ...summary,
+          // A contagem exata pode abranger atividades fora da janela recente.
+          // A prioridade permanece vinculada ao resumo recente porque o card
+          // exibe e abre `latestNotification`; propagar prioridade global aqui
+          // faria uma atividade comum parecer ser a pendência prioritária.
           unreadCount: exact.unreadCount,
-          hasPriorityUnread: exact.hasPriorityUnread,
         };
       })
     )
