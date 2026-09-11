@@ -76,6 +76,14 @@ export const environment: AppEnvironment = {
       '/dashboard/chat',
       '/dashboard/featured-profiles',
     ],
+
+    /**
+     * SUPRESSÃO EXPLÍCITA EM DESENVOLVIMENTO EMULADO:
+     * o dev-emu não depende do callable jurídico para liberar a navegação.
+     * Nenhum aceite é persistido por esse bypass; produção continua fail-closed.
+     */
+    enforceCurrentLegalAcceptance: false,
+
     subscriberExperiencesPreview: true,
     communityPreview: true,
   },
