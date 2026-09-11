@@ -10,6 +10,11 @@
 // A fronteira Comunidades × Salas também é validada antes deste checker. Assim o
 // mesmo Quality Gate impede tanto pseudoautoridade em Comunidades quanto regressão
 // do domínio legado de Salas.
+//
+// O checker também protege a fronteira de custo das notificações de Comunidades:
+// - community_notification_summaries possui um único owner de leitura no cliente;
+// - o owner mantém um único listener agregado por usuário;
+// - Explore/Locais não resolvem os serviços privados usados por Minhas comunidades.
 // -----------------------------------------------------------------------------
 
 import './check-room-deprecation-boundary.mjs';
@@ -21,6 +26,16 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const root = path.resolve(__dirname, '..', '..');
 const communityBackendRoot = path.join(root, 'functions', 'src', 'community');
+const angularAppRoot = path.join(root, 'src', 'app');
+
+const COMMUNITY_NOTIFICATION_SUMMARY_COLLECTION =
+  'community_notification_summaries';
+const COMMUNITY_NOTIFICATION_SUMMARY_OWNER = path.normalize(
+  'src/app/core/services/notifications/community-notification-unread-summary.service.ts'
+);
+const COMMUNITY_DISCOVERY_COMPONENT = path.normalize(
+  'src/app/community/discovery/community-discovery-page.component.ts'
+);
 
 const FORBIDDEN_CLIENT_AUTHORITY_FIELDS = Object.freeze([
   'actorUid',
@@ -189,6 +204,153 @@ function findForbiddenDestructuring(source, initializerPattern) {
   return findings;
 }
 
+function readRequiredSource(relativePath, architectureViolations) {
+  const absolutePath = path.join(root, relativePath);
+
+  if (!fs.existsSync(absolutePath)) {
+    architectureViolations.push(`${relativePath} (arquivo obrigatório ausente)`);
+    return '';
+  }
+
+  return fs.readFileSync(absolutePath, 'utf8');
+}
+
+function countMatches(source, pattern) {
+  return [...source.matchAll(pattern)].length;
+}
+
+function validateCommunityNotificationClientBoundary(architectureViolations) {
+  if (!fs.existsSync(angularAppRoot)) {
+    architectureViolations.push(
+      `${normalizeRelativePath(angularAppRoot)} (diretório Angular ausente)`
+    );
+    return;
+  }
+
+  for (const absolutePath of walkTypeScriptFiles(angularAppRoot)) {
+    const source = fs.readFileSync(absolutePath, 'utf8');
+    const relativePath = normalizeRelativePath(absolutePath);
+    const collectionIndex = source.indexOf(
+      COMMUNITY_NOTIFICATION_SUMMARY_COLLECTION
+    );
+
+    if (
+      collectionIndex >= 0
+      && relativePath !== COMMUNITY_NOTIFICATION_SUMMARY_OWNER
+    ) {
+      const position = lineAndColumn(source, collectionIndex);
+      architectureViolations.push(
+        `${relativePath}:${position.line}:${position.column} `
+          + `(${COMMUNITY_NOTIFICATION_SUMMARY_COLLECTION} fora do owner canônico)`
+      );
+    }
+  }
+
+  const ownerSource = readRequiredSource(
+    COMMUNITY_NOTIFICATION_SUMMARY_OWNER,
+    architectureViolations
+  );
+
+  if (ownerSource) {
+    const collectionOwnerPattern = /collection\(\s*this\.firestore\s*,\s*['"]community_notification_summaries['"]\s*,\s*uid\s*,\s*['"]items['"]\s*\)/m;
+    const collectionDataCount = countMatches(ownerSource, /\bcollectionData\s*\(/gm);
+    const summaryMapDerivesFromAggregate = /currentUserSummaryMap\$[\s\S]{0,220}=\s*this\.currentUserSummaries\$\.pipe\s*\(/m.test(
+      ownerSource
+    );
+    const unreadCountDerivesFromAggregate = /currentUserUnreadCount\$[\s\S]{0,220}=\s*this\.currentUserSummaries\$\.pipe\s*\(/m.test(
+      ownerSource
+    );
+
+    if (!collectionOwnerPattern.test(ownerSource)) {
+      architectureViolations.push(
+        `${COMMUNITY_NOTIFICATION_SUMMARY_OWNER} `
+          + '(listener agregado não aponta para community_notification_summaries/{uid}/items)'
+      );
+    }
+
+    if (collectionDataCount !== 1) {
+      architectureViolations.push(
+        `${COMMUNITY_NOTIFICATION_SUMMARY_OWNER} `
+          + `(esperado 1 collectionData agregado; encontrado ${collectionDataCount})`
+      );
+    }
+
+    if (!summaryMapDerivesFromAggregate) {
+      architectureViolations.push(
+        `${COMMUNITY_NOTIFICATION_SUMMARY_OWNER} `
+          + '(currentUserSummaryMap$ deve derivar de currentUserSummaries$)'
+      );
+    }
+
+    if (!unreadCountDerivesFromAggregate) {
+      architectureViolations.push(
+        `${COMMUNITY_NOTIFICATION_SUMMARY_OWNER} `
+          + '(currentUserUnreadCount$ deve derivar de currentUserSummaries$)'
+      );
+    }
+  }
+
+  const discoverySource = readRequiredSource(
+    COMMUNITY_DISCOVERY_COMPONENT,
+    architectureViolations
+  );
+
+  if (!discoverySource) return;
+
+  const privateServices = [
+    'CommunityNotificationUnreadSummaryService',
+    'CommunityNotificationPreferenceService',
+  ];
+
+  for (const serviceName of privateServices) {
+    const eagerInjectPattern = new RegExp(
+      String.raw`\binject\s*\(\s*${serviceName}\s*\)`,
+      'm'
+    );
+    const constructorInjectionPattern = new RegExp(
+      String.raw`\bconstructor\s*\([^)]*\b(?:private|protected|public)?\s*(?:readonly\s+)?[A-Za-z_$][\w$]*\s*:\s*${serviceName}\b`,
+      'ms'
+    );
+    const lazyGetPattern = new RegExp(
+      String.raw`\bthis\.injector\.get\s*\(\s*${serviceName}\s*\)`,
+      'gm'
+    );
+    const mineGuardedLazyPattern = new RegExp(
+      String.raw`this\.discoveryMode\s*===\s*['"]mine['"][\s\S]{0,500}?defer\s*\(\s*\(\)\s*=>[\s\S]{0,300}?this\.injector\.get\s*\(\s*${serviceName}\s*\)`,
+      'm'
+    );
+
+    if (eagerInjectPattern.test(discoverySource)) {
+      architectureViolations.push(
+        `${COMMUNITY_DISCOVERY_COMPONENT} `
+          + `(${serviceName} não pode usar inject() eager em Explore/Locais)`
+      );
+    }
+
+    if (constructorInjectionPattern.test(discoverySource)) {
+      architectureViolations.push(
+        `${COMMUNITY_DISCOVERY_COMPONENT} `
+          + `(${serviceName} não pode ser dependência de constructor eager)`
+      );
+    }
+
+    const lazyGetCount = countMatches(discoverySource, lazyGetPattern);
+    if (lazyGetCount !== 1) {
+      architectureViolations.push(
+        `${COMMUNITY_DISCOVERY_COMPONENT} `
+          + `(${serviceName} deve possuir exatamente 1 resolução lazy; encontrado ${lazyGetCount})`
+      );
+    }
+
+    if (!mineGuardedLazyPattern.test(discoverySource)) {
+      architectureViolations.push(
+        `${COMMUNITY_DISCOVERY_COMPONENT} `
+          + `(${serviceName} deve ser resolvido via defer + Injector.get somente em mine)`
+      );
+    }
+  }
+}
+
 if (!fs.existsSync(communityBackendRoot)) {
   console.error(
     `[community-authority] Diretório não encontrado: ${communityBackendRoot}`
@@ -244,6 +406,29 @@ if (uniqueViolations.length > 0) {
   process.exit(1);
 }
 
+const architectureViolations = [];
+validateCommunityNotificationClientBoundary(architectureViolations);
+
+const uniqueArchitectureViolations = [...new Set(architectureViolations)].sort();
+
+if (uniqueArchitectureViolations.length > 0) {
+  console.error(
+    '[community-authority] Fronteira de custo/autoridade das notificações de Comunidades violada:'
+  );
+  for (const violation of uniqueArchitectureViolations) {
+    console.error(`  - ${violation}`);
+  }
+  console.error(
+    '[community-authority] Mantenha community_notification_summaries com owner único no '
+      + 'CommunityNotificationUnreadSummaryService, um listener agregado por usuário e '
+      + 'resolução lazy dos serviços privados somente em Minhas comunidades.'
+  );
+  process.exit(1);
+}
+
 console.log(
   '[community-authority] OK: payloads de Comunidades não são usados como autoridade derivada.'
+);
+console.log(
+  '[community-authority] OK: notificações de Comunidades preservam owner único, listener agregado e lazy injection em mine.'
 );
