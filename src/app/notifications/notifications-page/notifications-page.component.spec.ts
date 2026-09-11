@@ -3,10 +3,36 @@ import { provideRouter } from '@angular/router';
 import { firstValueFrom, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  IAppNotification,
+  ICommunityNotificationSummary,
+} from 'src/app/core/interfaces/app-notification.interface';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { AppNotificationService } from 'src/app/core/services/notifications/app-notification.service';
-import { CommunityNotificationUnreadSummaryService } from 'src/app/core/services/notifications/community-notification-unread-summary.service';
+import {
+  CommunityNotificationUnreadSummary,
+  CommunityNotificationUnreadSummaryService,
+} from 'src/app/core/services/notifications/community-notification-unread-summary.service';
 import { NotificationsPageComponent } from './notifications-page.component';
+
+function communityNotification(
+  id = 'notification-community-1',
+  communityId = 'community-1'
+): IAppNotification {
+  return {
+    id,
+    userId: 'user-1',
+    type: 'community.comment.received',
+    title: 'Nova atividade na Comunidade',
+    body: 'Uma publicação recebeu novos comentários.',
+    route: `/dashboard/comunidades/minhas/${communityId}`,
+    communityId,
+    activityCount: 2,
+    readAt: null,
+    createdAt: 123,
+    updatedAt: 123,
+  };
+}
 
 describe('NotificationsPageComponent', () => {
   const refreshCurrentUserNotifications = vi.fn();
@@ -17,7 +43,12 @@ describe('NotificationsPageComponent', () => {
 
   function configure(
     readState: 'loading' | 'ready' | 'error',
-    communityUnreadCount = 0
+    communityUnreadCount = 0,
+    recentCommunitySummaries: readonly ICommunityNotificationSummary[] = [],
+    exactSummaryMap: ReadonlyMap<
+      string,
+      CommunityNotificationUnreadSummary
+    > = new Map()
   ): void {
     TestBed.configureTestingModule({
       imports: [NotificationsPageComponent],
@@ -32,7 +63,7 @@ describe('NotificationsPageComponent', () => {
               unreadCount: 0,
             }),
             currentUserReadState$: of(readState),
-            currentUserCommunitySummaries$: of([]),
+            currentUserCommunitySummaries$: of(recentCommunitySummaries),
             // Valor legado propositalmente divergente: o total exato de
             // Comunidades deve vir da projeção server-side dedicada.
             currentUserCommunityUnreadCount$: of(1),
@@ -45,6 +76,7 @@ describe('NotificationsPageComponent', () => {
           provide: CommunityNotificationUnreadSummaryService,
           useValue: {
             currentUserUnreadCount$: of(communityUnreadCount),
+            currentUserSummaryMap$: of(exactSummaryMap),
           },
         },
         {
@@ -112,5 +144,78 @@ describe('NotificationsPageComponent', () => {
     );
 
     expect(await firstValueFrom(component.communityUnreadCount$)).toBe(17);
+  });
+
+  it('enriquece o card recente com unread e prioridade canônicos sem trocar conteúdo ou rota', async () => {
+    const latestNotification = communityNotification();
+    const recentSummary: ICommunityNotificationSummary = {
+      communityId: 'community-1',
+      latestNotification,
+      unreadCount: 2,
+      hasPriorityUnread: false,
+    };
+    const exactSummary: CommunityNotificationUnreadSummary = {
+      communityId: 'community-1',
+      unreadCount: 9,
+      priorityUnreadCount: 3,
+      hasPriorityUnread: true,
+      updatedAt: 999,
+    };
+
+    configure(
+      'ready',
+      9,
+      [recentSummary],
+      new Map([['community-1', exactSummary]])
+    );
+
+    const component = TestBed.runInInjectionContext(
+      () => new NotificationsPageComponent()
+    );
+    const summaries = await firstValueFrom(component.communitySummaries$);
+
+    expect(summaries).toHaveLength(1);
+    expect(summaries[0]?.unreadCount).toBe(9);
+    expect(summaries[0]?.hasPriorityUnread).toBe(true);
+    expect(summaries[0]?.latestNotification).toBe(latestNotification);
+    expect(component.notificationRoute(summaries[0]!.latestNotification)).toBe(
+      '/dashboard/comunidades/minhas/community-1'
+    );
+
+    const fixture = TestBed.createComponent(NotificationsPageComponent);
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const status = fixture.nativeElement.querySelector(
+      '.community-activity__status'
+    ) as HTMLElement | null;
+    const scope = fixture.nativeElement.querySelector(
+      '.community-activity__header p'
+    ) as HTMLElement | null;
+
+    expect(status?.textContent?.trim()).toBe('Requer atenção');
+    expect(scope?.textContent?.replace(/\s+/g, ' ').trim()).toBe(
+      'As Comunidades abaixo refletem atividade recente; as pendências consideram todas as atividades não lidas.'
+    );
+  });
+
+  it('preserva o resumo recente quando a projeção exata não contém a Comunidade', async () => {
+    const latestNotification = communityNotification();
+    const recentSummary: ICommunityNotificationSummary = {
+      communityId: 'community-1',
+      latestNotification,
+      unreadCount: 2,
+      hasPriorityUnread: false,
+    };
+
+    configure('ready', 0, [recentSummary], new Map());
+
+    const component = TestBed.runInInjectionContext(
+      () => new NotificationsPageComponent()
+    );
+    const summaries = await firstValueFrom(component.communitySummaries$);
+
+    expect(summaries).toEqual([recentSummary]);
+    expect(summaries[0]?.latestNotification).toBe(latestNotification);
   });
 });

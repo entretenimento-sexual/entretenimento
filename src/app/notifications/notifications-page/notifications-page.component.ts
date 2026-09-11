@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, combineLatest } from 'rxjs';
 import { map, finalize, take } from 'rxjs/operators';
 
 import { AppNotificationService } from 'src/app/core/services/notifications/app-notification.service';
@@ -37,8 +37,25 @@ export class NotificationsPageComponent {
 
   readonly vm$ = this.notificationService.currentUserVm$;
   readonly readState$ = this.notificationService.currentUserReadState$;
-  readonly communitySummaries$ = this.notificationService.currentUserCommunitySummaries$.pipe(
-    map((summaries) => summaries.slice(0, 4))
+  readonly communitySummaries$ = combineLatest([
+    this.notificationService.currentUserCommunitySummaries$,
+    this.communityUnreadSummary.currentUserSummaryMap$,
+  ]).pipe(
+    map(([summaries, exactSummaryMap]) =>
+      summaries.slice(0, 4).map((summary): ICommunityNotificationSummary => {
+        const exact = exactSummaryMap.get(summary.communityId);
+
+        if (!exact) {
+          return summary;
+        }
+
+        return {
+          ...summary,
+          unreadCount: exact.unreadCount,
+          hasPriorityUnread: exact.hasPriorityUnread,
+        };
+      })
+    )
   );
   readonly communityUnreadCount$ =
     this.communityUnreadSummary.currentUserUnreadCount$;
