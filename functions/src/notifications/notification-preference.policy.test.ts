@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  isCommunityPushMuted,
   isPushNotificationEnabledByPreference,
+  normalizeCommunityPushPreferenceId,
   resolvePushNotificationPreferenceKey,
 } from './notification-preference.policy';
 
@@ -68,4 +70,20 @@ test('preferência ausente ou inválida preserva o default ativo', () => {
     isPushNotificationEnabledByPreference('messages', {messages: 'false'}),
     true
   );
+});
+
+test('normaliza somente ids seguros para preferência push por Comunidade', () => {
+  assert.equal(normalizeCommunityPushPreferenceId('community-1'), 'community-1');
+  assert.equal(normalizeCommunityPushPreferenceId(' community:official_2 '), 'community:official_2');
+  assert.equal(normalizeCommunityPushPreferenceId(''), null);
+  assert.equal(normalizeCommunityPushPreferenceId('community/1'), null);
+  assert.equal(normalizeCommunityPushPreferenceId('a'.repeat(129)), null);
+});
+
+test('mute por Comunidade exige true explícito', () => {
+  assert.equal(isCommunityPushMuted({muted: true}), true);
+  assert.equal(isCommunityPushMuted({muted: false}), false);
+  assert.equal(isCommunityPushMuted({muted: 'true'}), false);
+  assert.equal(isCommunityPushMuted({}), false);
+  assert.equal(isCommunityPushMuted(null), false);
 });

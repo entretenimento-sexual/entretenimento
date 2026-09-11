@@ -17,6 +17,8 @@ const OPTIONAL_PUSH_PREFERENCE_BY_TYPE = new Map<
   ['user_intent_status.compatible', 'compatibleStatus'],
 ]);
 
+const SAFE_COMMUNITY_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
+
 /**
  * Resolve a preferência que pode silenciar somente o push externo.
  * `null` significa notificação essencial ou tipo ainda não classificado.
@@ -42,6 +44,25 @@ export function isPushNotificationEnabledByPreference(
   }
 
   return rawPreferences[preferenceKey] !== false;
+}
+
+/**
+ * IDs de Comunidade usados na preferência privada precisam obedecer ao mesmo
+ * contrato da callable de mute. Valor inválido nunca deve virar path Firestore.
+ */
+export function normalizeCommunityPushPreferenceId(
+  value: unknown
+): string | null {
+  const communityId = String(value ?? '').trim();
+  return SAFE_COMMUNITY_ID_PATTERN.test(communityId) ? communityId : null;
+}
+
+/**
+ * Mute por Comunidade é opt-in explícito e afeta somente push opcional.
+ * A persistência in-app, unread e prioridade continuam independentes.
+ */
+export function isCommunityPushMuted(rawPreference: unknown): boolean {
+  return isRecord(rawPreference) && rawPreference['muted'] === true;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

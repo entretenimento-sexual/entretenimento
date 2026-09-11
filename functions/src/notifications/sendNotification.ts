@@ -4,7 +4,9 @@ import {getMessaging} from 'firebase-admin/messaging';
 import {getFirestore, Timestamp} from 'firebase-admin/firestore';
 
 import {
+  isCommunityPushMuted,
   isPushNotificationEnabledByPreference,
+  normalizeCommunityPushPreferenceId,
   resolvePushNotificationPreferenceKey,
 } from './notification-preference.policy';
 import {
@@ -62,6 +64,41 @@ export const sendNotification = onDocumentCreated(
             preferenceKey,
           });
           return;
+        }
+
+        if (preferenceKey === 'communities') {
+          const communityId = normalizeCommunityPushPreferenceId(
+            notification?.communityId
+          );
+
+          // Notificação opcional de Comunidade sem identidade canônica não deve
+          // contornar a preferência privada por falha de payload.
+          if (!communityId) {
+            console.error('[sendNotification] push de Comunidade sem id válido', {
+              notificationId,
+              notificationType,
+            });
+            return;
+          }
+
+          const communityPreferenceDoc = await db
+            .collection('community_notification_preferences')
+            .doc(recipientId)
+            .collection('items')
+            .doc(communityId)
+            .get();
+
+          if (isCommunityPushMuted(communityPreferenceDoc.data())) {
+            console.info(
+              '[sendNotification] push suprimido por mute da Comunidade',
+              {
+                notificationId,
+                notificationType,
+                communityId,
+              }
+            );
+            return;
+          }
         }
       } catch (error) {
         // Push opcional falha fechado: a notificação in-app já foi persistida e
