@@ -88,6 +88,7 @@ type CommunityTagFilterState =
 type CommunityDiscoveryCardView = CommunityPreviewCard & {
   readonly notificationUnreadCount: number;
   readonly notificationHasPriorityUnread: boolean;
+  readonly notificationUpdatedAt: number | null;
   readonly notificationsMuted: boolean;
 };
 
@@ -197,6 +198,56 @@ function reduceState(
     nextCursor: event.page.nextCursor,
     loadingMore: false,
   };
+}
+
+function communityAttentionRank(item: CommunityDiscoveryCardView): number {
+  if (
+    item.notificationUnreadCount > 0
+    && item.notificationHasPriorityUnread
+  ) {
+    return 0;
+  }
+
+  return item.notificationUnreadCount > 0 ? 1 : 2;
+}
+
+function orderMineCommunityCardsByAttention(
+  items: readonly CommunityDiscoveryCardView[]
+): readonly CommunityDiscoveryCardView[] {
+  return items
+    .map((item, originalIndex) => ({ item, originalIndex }))
+    .sort((left, right) => {
+      const leftRank = communityAttentionRank(left.item);
+      const rightRank = communityAttentionRank(right.item);
+      const rankDifference = leftRank - rightRank;
+
+      if (rankDifference !== 0) {
+        return rankDifference;
+      }
+
+      if (leftRank < 2) {
+        const updatedAtDifference =
+          (right.item.notificationUpdatedAt ?? 0)
+          - (left.item.notificationUpdatedAt ?? 0);
+
+        if (updatedAtDifference !== 0) {
+          return updatedAtDifference;
+        }
+
+        const unreadDifference =
+          right.item.notificationUnreadCount
+          - left.item.notificationUnreadCount;
+
+        if (unreadDifference !== 0) {
+          return unreadDifference;
+        }
+      }
+
+      // Mute é preferência de interrupção/push e, por contrato, não participa
+      // da prioridade. Empates preservam a ordem canônica recebida do backend.
+      return left.originalIndex - right.originalIndex;
+    })
+    .map(({ item }) => item);
 }
 
 @Component({
@@ -383,20 +434,25 @@ export class CommunityDiscoveryPageComponent {
         status = items.length > 0 ? 'ready' : 'empty';
       }
 
+      const cardViews = items.map((item): CommunityDiscoveryCardView => {
+        const summary = unreadSummaryMap.get(item.communityId);
+
+        return {
+          ...item,
+          notificationUnreadCount: summary?.unreadCount ?? 0,
+          notificationHasPriorityUnread:
+            summary?.hasPriorityUnread ?? false,
+          notificationUpdatedAt: summary?.updatedAt ?? null,
+          notificationsMuted: mutedCommunityIds.has(item.communityId),
+        };
+      });
+
       return {
         ...state,
         status,
-        items: items.map((item): CommunityDiscoveryCardView => {
-          const summary = unreadSummaryMap.get(item.communityId);
-
-          return {
-            ...item,
-            notificationUnreadCount: summary?.unreadCount ?? 0,
-            notificationHasPriorityUnread:
-              summary?.hasPriorityUnread ?? false,
-            notificationsMuted: mutedCommunityIds.has(item.communityId),
-          };
-        }),
+        items: this.discoveryMode === 'mine'
+          ? orderMineCommunityCardsByAttention(cardViews)
+          : cardViews,
       };
     }),
     shareReplay({ bufferSize: 1, refCount: true })

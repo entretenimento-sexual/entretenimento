@@ -10,6 +10,7 @@ import {
   ICommunityNotificationSummary,
 } from 'src/app/core/interfaces/app-notification.interface';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { CommunityNotificationUnreadSummaryService } from 'src/app/core/services/notifications/community-notification-unread-summary.service';
 import { resolveNotificationRoute } from 'src/app/core/services/notifications/notification-navigation.policy';
 
 @Component({
@@ -25,6 +26,9 @@ import { resolveNotificationRoute } from 'src/app/core/services/notifications/no
 })
 export class NotificationsPageComponent {
   private readonly notificationService = inject(AppNotificationService);
+  private readonly communityUnreadSummary = inject(
+    CommunityNotificationUnreadSummaryService
+  );
   private readonly notifier = inject(ErrorNotificationService);
   private readonly router = inject(Router);
 
@@ -36,7 +40,8 @@ export class NotificationsPageComponent {
   readonly communitySummaries$ = this.notificationService.currentUserCommunitySummaries$.pipe(
     map((summaries) => summaries.slice(0, 4))
   );
-  readonly communityUnreadCount$ = this.notificationService.currentUserCommunityUnreadCount$;
+  readonly communityUnreadCount$ =
+    this.communityUnreadSummary.currentUserUnreadCount$;
   readonly busyIds$ = this.busyIdsSubject.asObservable();
   readonly markAllBusy$ = this.markAllBusySubject.asObservable();
 

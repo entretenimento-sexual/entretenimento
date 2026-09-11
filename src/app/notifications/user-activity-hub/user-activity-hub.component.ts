@@ -10,8 +10,9 @@
 // - Conexões aponta somente para solicitações entre pessoas;
 // - convites para salas possuem categoria e rota próprias;
 // - badges aparecem apenas quando houver pendência;
-// - categorias usam a janela recente já carregada, sem listeners extras;
-// - Comunidades respeita activityCount dos documentos agrupados;
+// - categorias comuns usam a janela recente já carregada, sem listeners extras;
+// - Comunidades usa a projeção agregada privada, com um listener por usuário e
+//   nunca um listener por Comunidade;
 // - Central usa o total global canônico de documentos não lidos, sem inferir pelo limite local;
 // - não escreve no Firestore;
 // - ações de leitura seguem nas callables da central de notificações.
@@ -25,7 +26,7 @@ import { map } from 'rxjs/operators';
 
 import { IAppNotification } from 'src/app/core/interfaces/app-notification.interface';
 import { AppNotificationService } from 'src/app/core/services/notifications/app-notification.service';
-import { communityNotificationActivityCount } from 'src/app/core/services/notifications/community-notification-summary.policy';
+import { CommunityNotificationUnreadSummaryService } from 'src/app/core/services/notifications/community-notification-unread-summary.service';
 
 interface UserActivityHubAction {
   id: ActivityKind;
@@ -61,6 +62,9 @@ type ActivityKind =
 })
 export class UserActivityHubComponent {
   private readonly notifications = inject(AppNotificationService);
+  private readonly communityUnreadSummary = inject(
+    CommunityNotificationUnreadSummaryService
+  );
 
   private readonly baseActions: UserActivityHubAction[] = [
     {
@@ -96,7 +100,7 @@ export class UserActivityHubComponent {
       description: 'Comentários e avisos relevantes do Mural',
       count: 0,
       icon: '👥',
-      route: '/dashboard/comunidades',
+      route: '/dashboard/comunidades/minhas',
       priority: 70,
     },
     {
@@ -122,8 +126,11 @@ export class UserActivityHubComponent {
   readonly vm$: Observable<UserActivityHubVm> = combineLatest([
     this.notifications.currentUserNotifications$,
     this.notifications.currentUserUnreadCount$,
+    this.communityUnreadSummary.currentUserUnreadCount$,
   ]).pipe(
-    map(([items, totalUnread]) => this.toVm(items, totalUnread))
+    map(([items, totalUnread, communityUnreadCount]) =>
+      this.toVm(items, totalUnread, communityUnreadCount)
+    )
   );
 
   trackAction(_index: number, action: UserActivityHubAction): string {
@@ -132,7 +139,8 @@ export class UserActivityHubComponent {
 
   private toVm(
     items: IAppNotification[],
-    totalUnread: number
+    totalUnread: number,
+    communityUnreadCount: number
   ): UserActivityHubVm {
     const unreadItems = (items ?? []).filter((item) => item.readAt === null);
     const counts = new Map<ActivityKind, number>();
@@ -140,14 +148,10 @@ export class UserActivityHubComponent {
     unreadItems.forEach((item) => {
       const kind = this.toActivityKind(item);
 
-      // `central` não é uma categoria exclusiva: representa o total global.
-      // Não incrementá-la aqui também elimina a dupla contagem de notificações
-      // genéricas que já caem naturalmente na própria Central.
-      if (kind !== 'central') {
-        const increment = kind === 'communities'
-          ? communityNotificationActivityCount(item)
-          : 1;
-        counts.set(kind, (counts.get(kind) ?? 0) + increment);
+      // `central` representa o total global e `communities` possui projeção
+      // agregada própria. Nenhuma das duas deve ser inferida da janela recente.
+      if (kind !== 'central' && kind !== 'communities') {
+        counts.set(kind, (counts.get(kind) ?? 0) + 1);
       }
     });
 
@@ -155,11 +159,14 @@ export class UserActivityHubComponent {
       this.normalizeCount(totalUnread),
       unreadItems.length
     );
+    const resolvedCommunityUnread = this.normalizeCount(communityUnreadCount);
     const actions = this.baseActions.map((action) => ({
       ...action,
       count: action.id === 'central'
         ? resolvedTotalUnread
-        : counts.get(action.id) ?? 0,
+        : action.id === 'communities'
+          ? resolvedCommunityUnread
+          : counts.get(action.id) ?? 0,
     }));
 
     return {
@@ -281,7 +288,7 @@ export class UserActivityHubComponent {
       case 'community.comment.received':
       case 'community.comment.reply.received':
       case 'community.content.moderated':
-        return '/dashboard/comunidades';
+        return '/dashboard/comunidades/minhas';
       case 'social':
       case 'system':
       default:

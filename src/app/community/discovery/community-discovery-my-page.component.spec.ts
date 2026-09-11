@@ -17,13 +17,16 @@ import { CommunityTagRepository } from '../data-access/community-tag.repository'
 import { CommunityDiscoveryCacheService } from './community-discovery-cache.service';
 import { CommunityDiscoveryPageComponent } from './community-discovery-page.component';
 
-function communityCard() {
+function communityCard(
+  communityId = 'community-owned-1',
+  name = 'Minha Comunidade'
+) {
   return {
-    communityId: 'community-owned-1',
-    name: 'Minha Comunidade',
-    slug: 'minha-comunidade',
+    communityId,
+    name,
+    slug: communityId,
     description: 'Grupo administrado pelo usuário.',
-    source: { type: 'community' as const, id: 'community-owned-1' },
+    source: { type: 'community' as const, id: communityId },
     avatarUrl: null,
     coverUrl: null,
     metrics: { memberCount: 1, postCount: 0, mediaCount: 0 },
@@ -235,6 +238,57 @@ describe('CommunityDiscoveryPageComponent / Minhas comunidades', () => {
     expect(unread?.querySelector('.fa-bolt')).not.toBeNull();
     expect(muted?.textContent?.replace(/\s+/g, ' ').trim()).toBe('Silenciada');
     expect(preferenceButton?.textContent).toContain('Reativar alertas');
+  });
+
+  it('ordena Minhas por atenção sem deixar mute reduzir a prioridade', () => {
+    getMyCommunitiesPage$.mockReturnValue(
+      of({
+        items: [
+          communityCard('community-quiet', 'Em dia'),
+          communityCard('community-unread', 'Com novidades'),
+          communityCard('community-priority', 'Prioritária'),
+        ],
+        nextCursor: null,
+        generatedAt: 123,
+      })
+    );
+    unreadSummaryMap$.next(new Map([
+      [
+        'community-unread',
+        {
+          communityId: 'community-unread',
+          unreadCount: 40,
+          priorityUnreadCount: 0,
+          hasPriorityUnread: false,
+          updatedAt: 200,
+        },
+      ],
+      [
+        'community-priority',
+        {
+          communityId: 'community-priority',
+          unreadCount: 2,
+          priorityUnreadCount: 1,
+          hasPriorityUnread: true,
+          updatedAt: 100,
+        },
+      ],
+    ]));
+    mutedCommunityIds$.next(new Set(['community-priority']));
+
+    const fixture = TestBed.createComponent(CommunityDiscoveryPageComponent);
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const names = Array.from(
+      fixture.nativeElement.querySelectorAll('.community-card--mine h2')
+    ).map((heading) => (heading as HTMLElement).textContent?.trim());
+    const firstCard = fixture.nativeElement.querySelector(
+      '.community-card--mine'
+    ) as HTMLElement | null;
+
+    expect(names).toEqual(['Prioritária', 'Com novidades', 'Em dia']);
+    expect(firstCard?.textContent).toContain('Silenciada');
   });
 
   it('altera mute pela callable canônica sem colocar botão dentro do link do card', () => {

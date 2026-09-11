@@ -1,10 +1,11 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { firstValueFrom, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { AppNotificationService } from 'src/app/core/services/notifications/app-notification.service';
+import { CommunityNotificationUnreadSummaryService } from 'src/app/core/services/notifications/community-notification-unread-summary.service';
 import { NotificationsPageComponent } from './notifications-page.component';
 
 describe('NotificationsPageComponent', () => {
@@ -14,7 +15,10 @@ describe('NotificationsPageComponent', () => {
     vi.clearAllMocks();
   });
 
-  function configure(readState: 'loading' | 'ready' | 'error'): void {
+  function configure(
+    readState: 'loading' | 'ready' | 'error',
+    communityUnreadCount = 0
+  ): void {
     TestBed.configureTestingModule({
       imports: [NotificationsPageComponent],
       providers: [
@@ -29,10 +33,18 @@ describe('NotificationsPageComponent', () => {
             }),
             currentUserReadState$: of(readState),
             currentUserCommunitySummaries$: of([]),
-            currentUserCommunityUnreadCount$: of(0),
+            // Valor legado propositalmente divergente: o total exato de
+            // Comunidades deve vir da projeção server-side dedicada.
+            currentUserCommunityUnreadCount$: of(1),
             refreshCurrentUserNotifications,
             markAsRead$: vi.fn(),
             markAllAsRead$: vi.fn(),
+          },
+        },
+        {
+          provide: CommunityNotificationUnreadSummaryService,
+          useValue: {
+            currentUserUnreadCount$: of(communityUnreadCount),
           },
         },
         {
@@ -90,5 +102,15 @@ describe('NotificationsPageComponent', () => {
     expect(
       fixture.nativeElement.querySelector('.notifications-state--error')
     ).toBeNull();
+  });
+
+  it('usa a projeção agregada para o total multi-Comunidade', async () => {
+    configure('ready', 17);
+
+    const component = TestBed.runInInjectionContext(
+      () => new NotificationsPageComponent()
+    );
+
+    expect(await firstValueFrom(component.communityUnreadCount$)).toBe(17);
   });
 });

@@ -4,10 +4,11 @@ import { of } from 'rxjs';
 import { describe, expect, it } from 'vitest';
 
 import { AppNotificationService } from 'src/app/core/services/notifications/app-notification.service';
+import { CommunityNotificationUnreadSummaryService } from 'src/app/core/services/notifications/community-notification-unread-summary.service';
 import { UserActivityHubComponent } from './user-activity-hub.component';
 
 describe('UserActivityHubComponent', () => {
-  it('mantém categorias recentes, expande atividade agrupada e preserva o total global da Central', () => {
+  it('mantém categorias recentes, usa projeção agregada de Comunidades e preserva o total global da Central', () => {
     TestBed.configureTestingModule({
       imports: [UserActivityHubComponent],
       providers: [
@@ -76,6 +77,12 @@ describe('UserActivityHubComponent', () => {
             ]),
           },
         },
+        {
+          provide: CommunityNotificationUnreadSummaryService,
+          useValue: {
+            currentUserUnreadCount$: of(7),
+          },
+        },
       ],
     });
 
@@ -125,11 +132,12 @@ describe('UserActivityHubComponent', () => {
     expect(links.every((link) => !link.hasAttribute('role'))).toBe(true);
     expect(connectionLink?.getAttribute('href')).toBe('/friends/requests');
     expect(roomLink?.getAttribute('href')).toBe('/chat/room-invites');
+    expect(communitiesLink?.getAttribute('href')).toBe('/dashboard/comunidades/minhas');
     expect(momentsLink?.getAttribute('href')).toBe('/descobrir');
     expect(
       communitiesLink?.querySelector('.activity-bar__badge')?.textContent?.trim()
-    ).toBe('3');
-    expect(communitiesLink?.getAttribute('aria-label')).toContain('3 pendências.');
+    ).toBe('7');
+    expect(communitiesLink?.getAttribute('aria-label')).toContain('7 pendências.');
     expect(
       centralLink?.querySelector('.activity-bar__badge')?.textContent?.trim()
     ).toBe('9');
@@ -157,6 +165,12 @@ describe('UserActivityHubComponent', () => {
                 updatedAt: 1,
               },
             ]),
+          },
+        },
+        {
+          provide: CommunityNotificationUnreadSummaryService,
+          useValue: {
+            currentUserUnreadCount$: of(0),
           },
         },
       ],
