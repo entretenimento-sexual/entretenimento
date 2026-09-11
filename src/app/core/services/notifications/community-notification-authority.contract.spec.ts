@@ -15,7 +15,7 @@ const aggregateProjectionExposesCommunityUnread: HasKey<
 
 describe('Community notification unread authority contract', () => {
   it('keeps aggregate unread totals out of the recent notification window', () => {
-    expect(recentWindowExposesAggregateCommunityUnread).toBeFalse();
-    expect(aggregateProjectionExposesCommunityUnread).toBeTrue();
+    expect(recentWindowExposesAggregateCommunityUnread).toBe(false);
+    expect(aggregateProjectionExposesCommunityUnread).toBe(true);
   });
 });
