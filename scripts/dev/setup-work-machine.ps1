@@ -122,7 +122,16 @@ function Find-PortableNode22 {
 }
 
 function Select-Node22 {
-  $currentNode = Get-Command node -CommandType Application -ErrorAction SilentlyContinue
+  # Get-Command pode devolver mais de um executavel quando o PATH contem
+  # runtimes Node paralelos. A ordem do PATH continua sendo a autoridade para
+  # o executavel atual, mas o restante do script deve operar sobre um unico
+  # CommandInfo para nao transformar Source em array.
+  $currentNode = Get-Command node `
+    -CommandType Application `
+    -All `
+    -ErrorAction SilentlyContinue |
+    Select-Object -First 1
+
   $currentVersion = if ($currentNode) {
     Get-NodeVersion -Executable $currentNode.Source
   } else {
@@ -130,12 +139,13 @@ function Select-Node22 {
   }
 
   if ($currentVersion -match '^v22\.') {
-    $currentNpm = Get-Command npm.cmd -CommandType Application -ErrorAction SilentlyContinue
+    $currentNodeDirectory = Split-Path $currentNode.Source -Parent
+    $currentNpmPath = Join-Path $currentNodeDirectory 'npm.cmd'
 
     return [PSCustomObject]@{
-      Directory = Split-Path $currentNode.Source -Parent
+      Directory = $currentNodeDirectory
       Node = $currentNode.Source
-      Npm = if ($currentNpm) { $currentNpm.Source } else { $null }
+      Npm = if (Test-Path $currentNpmPath) { $currentNpmPath } else { $null }
       VersionText = $currentVersion
       Portable = $false
     }
@@ -184,7 +194,11 @@ Write-Step "Node confirmado: $nodeVersion"
 
 $npmExecutable = $selectedNode.Npm
 if (-not $npmExecutable -or -not (Test-Path $npmExecutable)) {
-  $npmCommand = Get-Command npm.cmd -CommandType Application -ErrorAction SilentlyContinue
+  $npmCommand = Get-Command npm.cmd `
+    -CommandType Application `
+    -All `
+    -ErrorAction SilentlyContinue |
+    Select-Object -First 1
   $npmExecutable = if ($npmCommand) { $npmCommand.Source } else { $null }
 }
 
