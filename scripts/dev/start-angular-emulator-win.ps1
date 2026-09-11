@@ -22,7 +22,7 @@ $script:LogWriteWarningEmitted = $false
 New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
 
 try {
-  Set-Content -LiteralPath $logPath -Value '' -Encoding UTF8
+  Set-Content -LiteralPath $logPath -Value '' -Encoding UTF8 -ErrorAction Stop
 } catch {
   $script:LogFileEnabled = $false
   Write-Warning "[angular:win] Nao foi possivel inicializar o log em $logPath. A sessao continuara com saida no console. Erro: $($_.Exception.Message)"
@@ -45,7 +45,7 @@ function Write-LogLine {
 
   for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
     try {
-      Add-Content -LiteralPath $logPath -Value $Line -Encoding UTF8
+      Add-Content -LiteralPath $logPath -Value $Line -Encoding UTF8 -ErrorAction Stop
       return
     } catch {
       if ($attempt -lt $maxAttempts) {
