@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { environment as devEmuEnvironment } from 'src/environments/environment.dev-emu';
 import {
   CURRENT_LEGAL_ACCEPTANCE_ENFORCED,
   TERMS_ACCEPTANCE_VERSION,
@@ -12,6 +13,10 @@ describe('política de aceite jurídico', () => {
     expect(CURRENT_LEGAL_ACCEPTANCE_ENFORCED).toBe(false);
     expect(hasAcceptedCurrentTerms(undefined)).toBe(true);
     expect(hasAcceptedCurrentTerms(null)).toBe(true);
+  });
+
+  it('mantém o dev-emu explicitamente fora da barreira jurídica remota', () => {
+    expect(devEmuEnvironment.features?.enforceCurrentLegalAcceptance).toBe(false);
   });
 
   it('mantém a validação persistida fail-closed sem evidência', () => {
