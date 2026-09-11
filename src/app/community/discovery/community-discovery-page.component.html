@@ -221,7 +221,17 @@
         [attr.aria-describedby]="discoveryMode === 'mine' ? 'community-mine-attention-scope' : null"
         [attr.aria-busy]="state.loadingMore"
       >
-        @for (item of state.items; track item.communityId) {
+        @for (item of state.items; track item.communityId; let itemIndex = $index) {
+          @if (startsMineAttentionGroup(state.items, itemIndex)) {
+            <li
+              class="community-discovery__attention-heading"
+              role="presentation"
+              [attr.data-attention-group]="mineAttentionGroupKey(item)"
+            >
+              <h2>{{ mineAttentionGroupLabel(item) }}</h2>
+            </li>
+          }
+
           <li
             class="community-card-shell"
             [appCommunityDiscoveryVisibility]="item.communityId"

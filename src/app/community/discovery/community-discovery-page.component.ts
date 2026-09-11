@@ -92,6 +92,8 @@ type CommunityDiscoveryCardView = CommunityPreviewCard & {
   readonly notificationsMuted: boolean;
 };
 
+type CommunityAttentionGroupKey = 'priority' | 'unread' | 'quiet';
+
 interface CommunityDiscoveryState {
   status: CommunityDiscoveryStatus;
   items: readonly CommunityPreviewCard[];
@@ -140,6 +142,14 @@ const EMPTY_NOTIFICATION_SUMMARY_MAP: ReadonlyMap<
   CommunityNotificationUnreadSummary
 > = new Map<string, CommunityNotificationUnreadSummary>();
 const EMPTY_MUTED_COMMUNITY_IDS: ReadonlySet<string> = new Set<string>();
+
+const COMMUNITY_ATTENTION_GROUP_LABELS: Readonly<
+  Record<CommunityAttentionGroupKey, string>
+> = Object.freeze({
+  priority: 'Requer atenção',
+  unread: 'Novidades',
+  quiet: 'Em dia',
+});
 
 const COMMUNITY_QUICK_FILTER_TAG_IDS = Object.freeze([
   'intent:friendship',
@@ -200,15 +210,25 @@ function reduceState(
   };
 }
 
-function communityAttentionRank(item: CommunityDiscoveryCardView): number {
+function communityAttentionGroupKey(
+  item: CommunityDiscoveryCardView
+): CommunityAttentionGroupKey {
   if (
     item.notificationUnreadCount > 0
     && item.notificationHasPriorityUnread
   ) {
-    return 0;
+    return 'priority';
   }
 
-  return item.notificationUnreadCount > 0 ? 1 : 2;
+  return item.notificationUnreadCount > 0 ? 'unread' : 'quiet';
+}
+
+function communityAttentionRank(item: CommunityDiscoveryCardView): number {
+  const group = communityAttentionGroupKey(item);
+
+  if (group === 'priority') return 0;
+  if (group === 'unread') return 1;
+  return 2;
 }
 
 function orderMineCommunityCardsByAttention(
@@ -615,6 +635,30 @@ export class CommunityDiscoveryPageComponent {
       : '';
 
     return `${item.notificationUnreadCount} atividades não lidas${priority}`;
+  }
+
+  mineAttentionGroupKey(
+    item: CommunityDiscoveryCardView
+  ): CommunityAttentionGroupKey {
+    return communityAttentionGroupKey(item);
+  }
+
+  mineAttentionGroupLabel(item: CommunityDiscoveryCardView): string {
+    return COMMUNITY_ATTENTION_GROUP_LABELS[communityAttentionGroupKey(item)];
+  }
+
+  startsMineAttentionGroup(
+    items: readonly CommunityDiscoveryCardView[],
+    index: number
+  ): boolean {
+    if (this.discoveryMode !== 'mine') return false;
+
+    const item = items[index];
+    if (!item) return false;
+
+    const previous = index > 0 ? items[index - 1] : null;
+    return !previous
+      || communityAttentionGroupKey(previous) !== communityAttentionGroupKey(item);
   }
 
   isNotificationPreferenceBusy(communityId: string): boolean {
