@@ -34,6 +34,20 @@ function communityNotification(
   };
 }
 
+function systemNotification(): IAppNotification {
+  return {
+    id: 'notification-system-1',
+    userId: 'user-1',
+    type: 'system',
+    title: 'Atualização da plataforma',
+    body: 'Uma atualização recente está disponível.',
+    route: '/notificacoes',
+    readAt: null,
+    createdAt: 90,
+    updatedAt: 90,
+  };
+}
+
 describe('NotificationsPageComponent', () => {
   const refreshCurrentUserNotifications = vi.fn();
 
@@ -203,6 +217,149 @@ describe('NotificationsPageComponent', () => {
     expect(scope?.textContent?.replace(/\s+/g, ' ').trim()).toBe(
       'As Comunidades abaixo refletem atividade recente; as pendências consideram todas as atividades não lidas.'
     );
+  });
+
+  it('exibe a atividade de atenção e preserva a atividade já lida na linha do tempo', async () => {
+    const latestRead: IAppNotification = {
+      ...communityNotification('community-read-newest', 'community-1'),
+      title: 'Atividade já vista',
+      readAt: 300,
+      createdAt: 300,
+      updatedAt: 300,
+    };
+    const priorityUnread: IAppNotification = {
+      ...communityNotification('community-priority', 'community-1'),
+      type: 'community.content.moderated',
+      title: 'Conteúdo moderado',
+      body: 'Uma publicação precisa da sua atenção.',
+      activityCount: 1,
+      createdAt: 200,
+      updatedAt: 200,
+    };
+    const summary: ICommunityNotificationSummary = {
+      communityId: 'community-1',
+      latestNotification: latestRead,
+      attentionNotification: priorityUnread,
+      unreadCount: 1,
+      hasPriorityUnread: true,
+    };
+
+    configure(
+      'ready',
+      1,
+      [summary],
+      new Map(),
+      [latestRead, priorityUnread],
+      1
+    );
+
+    const component = TestBed.runInInjectionContext(
+      () => new NotificationsPageComponent()
+    );
+    const timelineItems = await firstValueFrom(
+      component.notificationTimelineItems$
+    );
+
+    expect(component.communitySummaryNotification(summary)).toBe(priorityUnread);
+    expect(timelineItems.map((item) => item.id)).toEqual([
+      'community-read-newest',
+    ]);
+
+    const fixture = TestBed.createComponent(NotificationsPageComponent);
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const summaryTitle = fixture.nativeElement.querySelector(
+      '.community-activity__meta strong'
+    ) as HTMLElement | null;
+    const timelineCard = fixture.nativeElement.querySelector(
+      '.notification-card'
+    ) as HTMLElement | null;
+
+    expect(summaryTitle?.textContent?.trim()).toBe('Conteúdo moderado');
+    expect(timelineCard?.textContent).toContain('Atividade já vista');
+    expect(timelineCard?.textContent).not.toContain('Conteúdo moderado');
+  });
+
+  it('remove da linha do tempo somente as atividades já representadas pelos resumos de várias Comunidades', async () => {
+    const communityAVisible: IAppNotification = {
+      ...communityNotification('community-a-visible', 'community-a'),
+      title: 'Novidade A',
+      createdAt: 400,
+      updatedAt: 400,
+    };
+    const communityBVisible: IAppNotification = {
+      ...communityNotification('community-b-visible', 'community-b'),
+      title: 'Novidade B',
+      createdAt: 350,
+      updatedAt: 350,
+    };
+    const communityAOlder: IAppNotification = {
+      ...communityNotification('community-a-older', 'community-a'),
+      title: 'Histórico A',
+      createdAt: 250,
+      updatedAt: 250,
+    };
+    const system = systemNotification();
+    const summaries: ICommunityNotificationSummary[] = [
+      {
+        communityId: 'community-a',
+        latestNotification: communityAVisible,
+        attentionNotification: communityAVisible,
+        unreadCount: 3,
+        hasPriorityUnread: false,
+      },
+      {
+        communityId: 'community-b',
+        latestNotification: communityBVisible,
+        attentionNotification: communityBVisible,
+        unreadCount: 2,
+        hasPriorityUnread: false,
+      },
+    ];
+
+    configure(
+      'ready',
+      5,
+      summaries,
+      new Map(),
+      [communityAVisible, communityBVisible, communityAOlder, system],
+      6
+    );
+
+    const component = TestBed.runInInjectionContext(
+      () => new NotificationsPageComponent()
+    );
+    const timelineItems = await firstValueFrom(
+      component.notificationTimelineItems$
+    );
+
+    expect(timelineItems.map((item) => item.id)).toEqual([
+      'community-a-older',
+      'notification-system-1',
+    ]);
+
+    const fixture = TestBed.createComponent(NotificationsPageComponent);
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const summaryCards = fixture.nativeElement.querySelectorAll(
+      '.community-activity__item'
+    ) as NodeListOf<HTMLElement>;
+    const timelineCards = fixture.nativeElement.querySelectorAll(
+      '.notification-card'
+    ) as NodeListOf<HTMLElement>;
+    const timeline = fixture.nativeElement.querySelector(
+      '.notifications-list'
+    ) as HTMLElement | null;
+
+    expect(summaryCards).toHaveLength(2);
+    expect(timelineCards).toHaveLength(2);
+    expect(timeline?.getAttribute('aria-label')).toBe('Outras notificações');
+    expect(timeline?.textContent).toContain('Histórico A');
+    expect(timeline?.textContent).toContain('Atualização da plataforma');
+    expect(timeline?.textContent).not.toContain('Novidade A');
+    expect(timeline?.textContent).not.toContain('Novidade B');
   });
 
   it('preserva o resumo recente quando a projeção exata não contém a Comunidade', async () => {

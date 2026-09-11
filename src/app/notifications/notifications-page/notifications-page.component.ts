@@ -13,6 +13,12 @@ import { ErrorNotificationService } from 'src/app/core/services/error-handler/er
 import { CommunityNotificationUnreadSummaryService } from 'src/app/core/services/notifications/community-notification-unread-summary.service';
 import { resolveNotificationRoute } from 'src/app/core/services/notifications/notification-navigation.policy';
 
+function summaryAttentionNotification(
+  summary: ICommunityNotificationSummary
+): IAppNotification {
+  return summary.attentionNotification ?? summary.latestNotification;
+}
+
 @Component({
   selector: 'app-notifications-page',
   standalone: true,
@@ -53,12 +59,29 @@ export class NotificationsPageComponent {
           ...summary,
           // A contagem exata pode abranger atividades fora da janela recente.
           // A prioridade permanece vinculada ao resumo recente porque o card
-          // exibe e abre `latestNotification`; propagar prioridade global aqui
-          // faria uma atividade comum parecer ser a pendência prioritária.
+          // exibe e abre a atividade de atenção recente; propagar prioridade
+          // global aqui faria uma atividade comum parecer prioritária.
           unreadCount: exact.unreadCount,
         };
       })
     )
+  );
+  readonly notificationTimelineItems$ = combineLatest([
+    this.vm$,
+    this.communitySummaries$,
+  ]).pipe(
+    map(([vm, summaries]) => {
+      const representedNotificationIds = new Set(
+        summaries.map((summary) => summaryAttentionNotification(summary).id)
+      );
+
+      // Remove somente a atividade já apresentada no resumo. Outras atividades
+      // da mesma Comunidade permanecem na linha do tempo para preservar
+      // histórico, marcação individual como lida e deep links específicos.
+      return vm.items.filter(
+        (item) => !representedNotificationIds.has(item.id)
+      );
+    })
   );
   readonly communityUnreadCount$ =
     this.communityUnreadSummary.currentUserUnreadCount$;
@@ -122,6 +145,12 @@ export class NotificationsPageComponent {
     return resolveNotificationRoute(item);
   }
 
+  communitySummaryNotification(
+    summary: ICommunityNotificationSummary
+  ): IAppNotification {
+    return summaryAttentionNotification(summary);
+  }
+
   communitySummaryLabel(summary: ICommunityNotificationSummary): string {
     if (summary.hasPriorityUnread) {
       return 'Requer atenção';
@@ -139,7 +168,7 @@ export class NotificationsPageComponent {
   }
 
   openCommunitySummary(summary: ICommunityNotificationSummary): void {
-    this.openNotification(summary.latestNotification);
+    this.openNotification(this.communitySummaryNotification(summary));
   }
 
   openNotification(item: IAppNotification): void {

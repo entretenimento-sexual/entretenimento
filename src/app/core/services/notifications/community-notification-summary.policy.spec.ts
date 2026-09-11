@@ -61,6 +61,7 @@ describe('community notification summary policy', () => {
       unreadCount: 2,
     });
     expect(summaries[0]?.latestNotification.id).toBe('reply-1');
+    expect(summaries[0]?.attentionNotification?.id).toBe('reply-1');
     expect(summaries[1]).toMatchObject({
       communityId: 'community-b',
       unreadCount: 1,
@@ -122,6 +123,61 @@ describe('community notification summary policy', () => {
     ]);
 
     expect(summaries[0]?.unreadCount).toBe(1);
+  });
+
+  it('mantém a última atividade para ordenar, mas abre a pendência não lida mais recente', () => {
+    const summaries = buildCommunityNotificationSummaries([
+      notification({
+        id: 'read-newest',
+        type: 'community.comment.received',
+        communityId: 'community-a',
+        readAt: 80,
+        createdAt: 80,
+      }),
+      notification({
+        id: 'unread-newer',
+        type: 'community.comment.reply.received',
+        communityId: 'community-a',
+        createdAt: 60,
+      }),
+      notification({
+        id: 'unread-older',
+        type: 'community.comment.received',
+        communityId: 'community-a',
+        createdAt: 40,
+      }),
+    ]);
+
+    expect(summaries[0]?.latestNotification.id).toBe('read-newest');
+    expect(summaries[0]?.attentionNotification?.id).toBe('unread-newer');
+    expect(summaries[0]?.unreadCount).toBe(2);
+  });
+
+  it('prioriza a pendência crítica mais recente sobre atividade comum mais nova', () => {
+    const summaries = buildCommunityNotificationSummaries([
+      notification({
+        id: 'common-newer',
+        type: 'community.comment.reply.received',
+        communityId: 'community-a',
+        createdAt: 90,
+      }),
+      notification({
+        id: 'priority-newer',
+        type: 'community.content.moderated',
+        communityId: 'community-a',
+        createdAt: 70,
+      }),
+      notification({
+        id: 'priority-older',
+        type: 'community.content.moderated',
+        communityId: 'community-a',
+        createdAt: 50,
+      }),
+    ]);
+
+    expect(summaries[0]?.latestNotification.id).toBe('common-newer');
+    expect(summaries[0]?.attentionNotification?.id).toBe('priority-newer');
+    expect(summaries[0]?.hasPriorityUnread).toBe(true);
   });
 
   it('marca moderação como prioridade inclusive para resposta legada', () => {

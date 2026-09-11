@@ -54,6 +54,12 @@ export interface IAppNotificationListVm {
 export interface ICommunityNotificationSummary {
   communityId: string;
   latestNotification: IAppNotification;
+  /**
+   * Atividade recente que o resumo deve exibir e abrir. Prioriza uma pendência
+   * de atenção, depois uma atividade não lida e, por fim, a última atividade.
+   * Opcional para preservar consumidores/mocks legados do contrato.
+   */
+  attentionNotification?: IAppNotification;
   unreadCount: number;
   hasPriorityUnread: boolean;
 }

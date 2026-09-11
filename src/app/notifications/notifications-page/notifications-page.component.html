@@ -4,6 +4,7 @@
   @let markAllBusy = ((markAllBusy$ | async) || false);
   @let communitySummaries = ((communitySummaries$ | async) || []);
   @let communityUnreadCount = ((communityUnreadCount$ | async) || 0);
+  @let notificationItems = ((notificationTimelineItems$ | async) || []);
 
   <section class="notifications-page" aria-labelledby="notifications-title">
     <header class="notifications-hero notifications-hero--compact">
@@ -68,7 +69,7 @@
         @if (communitySummaries.length > 0) {
           <div class="community-activity__list" role="list" aria-label="Resumo das Comunidades">
             @for (summary of communitySummaries; track trackCommunitySummary($index, summary)) {
-              @let latest = summary.latestNotification;
+              @let activity = communitySummaryNotification(summary);
               <article
                 class="community-activity__item"
                 role="listitem"
@@ -76,12 +77,12 @@
                 [class.community-activity__item--unread]="summary.unreadCount > 0"
               >
                 <div class="community-activity__icon" aria-hidden="true">
-                  {{ notificationIcon(latest) }}
+                  {{ notificationIcon(activity) }}
                 </div>
 
                 <div class="community-activity__body">
                   <div class="community-activity__meta">
-                    <strong>{{ latest.title }}</strong>
+                    <strong>{{ activity.title }}</strong>
                     <span
                       class="community-activity__status"
                       [class.community-activity__status--priority]="summary.hasPriorityUnread"
@@ -90,20 +91,20 @@
                     </span>
                   </div>
 
-                  <p>{{ latest.body }}</p>
-                  <time>{{ formatNotificationDate(latest.createdAt) }}</time>
+                  <p>{{ activity.body }}</p>
+                  <time>{{ formatNotificationDate(activity.createdAt) }}</time>
                 </div>
 
-                @if (notificationRoute(latest)) {
+                @if (notificationRoute(activity)) {
                   <button
                     type="button"
                     class="community-activity__open"
                     (click)="openCommunitySummary(summary)"
-                    [disabled]="isBusy(latest.id)"
-                    [attr.aria-busy]="isBusy(latest.id)"
-                    [attr.aria-label]="'Abrir atividade: ' + latest.title"
+                    [disabled]="isBusy(activity.id)"
+                    [attr.aria-busy]="isBusy(activity.id)"
+                    [attr.aria-label]="'Abrir atividade: ' + activity.title"
                   >
-                    {{ isBusy(latest.id) ? 'Abrindo...' : 'Abrir' }}
+                    {{ isBusy(activity.id) ? 'Abrindo...' : 'Abrir' }}
                   </button>
                 }
               </article>
@@ -146,9 +147,13 @@
         <strong>Nenhuma notificação.</strong>
         <span>Atualizações importantes aparecerão aqui.</span>
       </div>
-    } @else if (vm.items.length > 0) {
-      <div class="notifications-list" role="list" aria-label="Lista de notificações">
-        @for (item of vm.items; track trackNotification($index, item)) {
+    } @else if (notificationItems.length > 0) {
+      <div
+        class="notifications-list"
+        role="list"
+        [attr.aria-label]="communitySummaries.length > 0 ? 'Outras notificações' : 'Lista de notificações'"
+      >
+        @for (item of notificationItems; track trackNotification($index, item)) {
           <article
             class="notification-card"
             role="listitem"
