@@ -298,11 +298,22 @@ function validateCommunityNotificationClientBoundary(architectureViolations) {
   if (!discoverySource) return;
 
   const privateServices = [
-    'CommunityNotificationUnreadSummaryService',
-    'CommunityNotificationPreferenceService',
+    {
+      serviceName: 'CommunityNotificationUnreadSummaryService',
+      expectedLazyGetCount: 1,
+    },
+    {
+      serviceName: 'CommunityNotificationPreferenceService',
+      expectedLazyGetCount: 2,
+      guardedCommandPattern: /toggleCommunityNotifications\s*\([^)]*\)\s*:\s*void\s*\{[\s\S]{0,350}?this\.discoveryMode\s*!==\s*['"]mine['"][\s\S]{0,700}?this\.injector\.get\s*\(\s*CommunityNotificationPreferenceService\s*\)/m,
+    },
   ];
 
-  for (const serviceName of privateServices) {
+  for (const {
+    serviceName,
+    expectedLazyGetCount,
+    guardedCommandPattern,
+  } of privateServices) {
     const eagerInjectPattern = new RegExp(
       String.raw`\binject\s*\(\s*${serviceName}\s*\)`,
       'm'
@@ -335,17 +346,27 @@ function validateCommunityNotificationClientBoundary(architectureViolations) {
     }
 
     const lazyGetCount = countMatches(discoverySource, lazyGetPattern);
-    if (lazyGetCount !== 1) {
+    if (lazyGetCount !== expectedLazyGetCount) {
       architectureViolations.push(
         `${COMMUNITY_DISCOVERY_COMPONENT} `
-          + `(${serviceName} deve possuir exatamente 1 resolução lazy; encontrado ${lazyGetCount})`
+          + `(${serviceName} deve possuir ${expectedLazyGetCount} resolução(ões) lazy canônica(s); encontrado ${lazyGetCount})`
       );
     }
 
     if (!mineGuardedLazyPattern.test(discoverySource)) {
       architectureViolations.push(
         `${COMMUNITY_DISCOVERY_COMPONENT} `
-          + `(${serviceName} deve ser resolvido via defer + Injector.get somente em mine)`
+          + `(${serviceName} deve alimentar o read model via defer + Injector.get somente em mine)`
+      );
+    }
+
+    if (
+      guardedCommandPattern
+      && !guardedCommandPattern.test(discoverySource)
+    ) {
+      architectureViolations.push(
+        `${COMMUNITY_DISCOVERY_COMPONENT} `
+          + `(${serviceName} deve manter a mutação de preferência protegida por discoveryMode mine)`
       );
     }
   }
