@@ -78,6 +78,58 @@ async function getSessionHead() {
   }
 }
 
+function getWindowsListeningProcessCommandLine(port) {
+  if (process.platform !== 'win32') {
+    return '';
+  }
+
+  const command = [
+    `$connection = Get-NetTCPConnection -State Listen -LocalPort ${port} -ErrorAction SilentlyContinue | Select-Object -First 1`,
+    'if (-not $connection) { exit 0 }',
+    '$process = Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $($connection.OwningProcess)" -ErrorAction SilentlyContinue',
+    'if ($process -and $process.CommandLine) { [Console]::Out.Write($process.CommandLine) }',
+  ].join('; ');
+
+  try {
+    return execFileSync(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command', command],
+      {
+        cwd: PROJECT_ROOT,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }
+    ).trim();
+  } catch {
+    return '';
+  }
+}
+
+function isExpectedAngularEmulatorProcess(commandLine) {
+  if (!commandLine) {
+    return false;
+  }
+
+  const normalizedCommandLine = commandLine
+    .replaceAll('/', '\\')
+    .toLowerCase();
+  const normalizedProjectRoot = PROJECT_ROOT.replaceAll('/', '\\').toLowerCase();
+
+  const projectMatches = normalizedCommandLine.includes(normalizedProjectRoot);
+  const angularCliMatches =
+    /node_modules[\\/]@angular[\\/]cli[\\/]bin[\\/]ng\.js/i.test(commandLine);
+  const configurationMatches =
+    /--configuration(?:=|\s+)["']?dev-emu["']?/i.test(commandLine);
+  const portMatches = /--port(?:=|\s+)["']?4200["']?/i.test(commandLine);
+
+  return (
+    projectMatches &&
+    angularCliMatches &&
+    configurationMatches &&
+    portMatches
+  );
+}
+
 async function isExpectedSessionHealthy() {
   const [angular, firebaseUi, sessionHead] = await Promise.all([
     fetchText(`http://${HOST}:4200/`),
@@ -86,8 +138,11 @@ async function isExpectedSessionHealthy() {
   ]);
 
   const currentHead = getCurrentHead();
+  const angularCommandLine = getWindowsListeningProcessCommandLine(4200);
   const angularSignature =
     angular.ok && /<app-root(?:\s|>)/i.test(angular.text);
+  const angularEmulatorProcess =
+    isExpectedAngularEmulatorProcess(angularCommandLine);
   const firebaseSignature =
     firebaseUi.ok &&
     /Firebase Emulator Suite|firebase-emulator-ui|emulator suite/i.test(
@@ -98,10 +153,15 @@ async function isExpectedSessionHealthy() {
   );
 
   return {
-    healthy: angularSignature && firebaseSignature && headMatches,
+    healthy:
+      angularSignature &&
+      angularEmulatorProcess &&
+      firebaseSignature &&
+      headMatches,
     angularStatus: angular.status,
     firebaseUiStatus: firebaseUi.status,
     angularSignature,
+    angularEmulatorProcess,
     firebaseSignature,
     headMatches,
     currentHead,
@@ -126,15 +186,15 @@ if (occupiedPorts.length === 0) {
 
   if (health.healthy) {
     console.log(
-      `[dev:session] Angular e Firebase ativos no HEAD ${health.currentHead}.`
+      `[dev:session] Angular dev-emu e Firebase ativos no HEAD ${health.currentHead}.`
     );
     process.exitCode = 10;
   } else {
     console.error(
-      '[dev:session] Todas as portas estão ocupadas, mas a sessão não corresponde ao estado atual do projeto.'
+      '[dev:session] Todas as portas estão ocupadas, mas a sessão não corresponde ao estado emulado atual do projeto.'
     );
     console.error(
-      `[dev:session] Angular status=${health.angularStatus} assinatura=${health.angularSignature}.`
+      `[dev:session] Angular status=${health.angularStatus} assinatura=${health.angularSignature} processoDevEmu=${health.angularEmulatorProcess}.`
     );
     console.error(
       `[dev:session] Firebase UI status=${health.firebaseUiStatus} assinatura=${health.firebaseSignature}.`
