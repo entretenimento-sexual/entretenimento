@@ -141,12 +141,12 @@
           Tentar novamente
         </button>
       </div>
-    } @else if (vm.items.length === 0) {
+    } @else if (vm.items.length === 0 && communityUnreadCount === 0) {
       <div class="notifications-state notifications-state--empty" role="status">
         <strong>Nenhuma notificação.</strong>
         <span>Atualizações importantes aparecerão aqui.</span>
       </div>
-    } @else {
+    } @else if (vm.items.length > 0) {
       <div class="notifications-list" role="list" aria-label="Lista de notificações">
         @for (item of vm.items; track trackNotification($index, item)) {
           <article
