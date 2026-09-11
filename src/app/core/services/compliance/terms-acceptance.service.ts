@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable, defer, from, of, throwError } from 'rxjs';
-import { catchError, map, switchMap, take, timeout } from 'rxjs/operators';
+import { catchError, map, switchMap, timeout } from 'rxjs/operators';
 
 import {
   IUserTermsAcceptance,
@@ -119,19 +119,27 @@ export class TermsAcceptanceService {
   acceptCurrentTerms$(): Observable<AcceptedPlatformTermsResult> {
     /**
      * Aceite persistente é uma operação autenticada e não pode confiar apenas
-     * no snapshot local de UID. `readyUid$` só expõe o usuário após o Firebase
-     * concluir o restore da sessão e validar a disponibilidade do ID token.
+     * no snapshot local de UID. Aguardamos o restore canônico do Firebase Auth
+     * e exigimos um ID token válido do usuário atual antes de chamar a Function.
      */
-    return this.session.readyUid$.pipe(
-      map((uid) => String(uid ?? '').trim()),
-      take(1),
-      switchMap((uid) => {
-        if (!uid) {
+    return defer(() => from(this.session.whenReady())).pipe(
+      switchMap(() => {
+        const user = this.session.currentAuthUser;
+        const uid = String(user?.uid ?? '').trim();
+
+        if (!user || !uid) {
           return throwError(() => new Error('Usuário não autenticado.'));
         }
 
-        return this.acceptForUser$(uid);
-      })
+        return defer(() => from(user.getIdToken())).pipe(
+          map(() => uid),
+          catchError((error) => {
+            this.reportError(error, 'validateAuthSession', { uid });
+            return throwError(() => error);
+          })
+        );
+      }),
+      switchMap((uid) => this.acceptForUser$(uid))
     );
   }
 
