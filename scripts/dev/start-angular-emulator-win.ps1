@@ -16,9 +16,17 @@ if (-not $ProjectRoot) {
 $logDirectory = Join-Path $ProjectRoot '.dev-logs'
 $logPath = Join-Path $logDirectory 'angular-dev.log'
 $sessionHeadPath = Join-Path $logDirectory 'angular-session-head.txt'
+$script:LogFileEnabled = $true
+$script:LogWriteWarningEmitted = $false
 
 New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
-Set-Content -LiteralPath $logPath -Value '' -Encoding UTF8
+
+try {
+  Set-Content -LiteralPath $logPath -Value '' -Encoding UTF8
+} catch {
+  $script:LogFileEnabled = $false
+  Write-Warning "[angular:win] Nao foi possivel inicializar o log em $logPath. A sessao continuara com saida no console. Erro: $($_.Exception.Message)"
+}
 
 function Write-LogLine {
   param(
@@ -28,7 +36,31 @@ function Write-LogLine {
   )
 
   Write-Host $Line
-  Add-Content -LiteralPath $logPath -Value $Line -Encoding UTF8
+
+  if (-not $script:LogFileEnabled) {
+    return
+  }
+
+  $maxAttempts = 3
+
+  for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+    try {
+      Add-Content -LiteralPath $logPath -Value $Line -Encoding UTF8
+      return
+    } catch {
+      if ($attempt -lt $maxAttempts) {
+        Start-Sleep -Milliseconds (100 * $attempt)
+        continue
+      }
+
+      $script:LogFileEnabled = $false
+
+      if (-not $script:LogWriteWarningEmitted) {
+        $script:LogWriteWarningEmitted = $true
+        Write-Warning "[angular:win] O log ficou temporariamente indisponivel em $logPath. A sessao continuara com saida no console. Erro: $($_.Exception.Message)"
+      }
+    }
+  }
 }
 
 function Write-SessionMessage {
