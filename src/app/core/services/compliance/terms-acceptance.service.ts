@@ -117,7 +117,12 @@ export class TermsAcceptanceService {
   >(this.functions, 'acceptPlatformTerms');
 
   acceptCurrentTerms$(): Observable<AcceptedPlatformTermsResult> {
-    return this.session.uid$.pipe(
+    /**
+     * Aceite persistente é uma operação autenticada e não pode confiar apenas
+     * no snapshot local de UID. `readyUid$` só expõe o usuário após o Firebase
+     * concluir o restore da sessão e validar a disponibilidade do ID token.
+     */
+    return this.session.readyUid$.pipe(
       map((uid) => String(uid ?? '').trim()),
       take(1),
       switchMap((uid) => {
