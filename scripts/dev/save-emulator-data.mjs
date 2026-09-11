@@ -49,6 +49,27 @@ function quoteWindowsArg(value) {
   return `"${normalized.replace(/"/g, '\\"')}"`;
 }
 
+function resolveWindowsCommandProcessor() {
+  const candidates = [
+    process.env.ComSpec,
+    process.env.COMSPEC,
+    process.env.SystemRoot
+      ? path.join(process.env.SystemRoot, 'System32', 'cmd.exe')
+      : '',
+    process.env.WINDIR
+      ? path.join(process.env.WINDIR, 'System32', 'cmd.exe')
+      : '',
+  ].filter(Boolean);
+
+  for (const candidate of new Set(candidates)) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return 'cmd.exe';
+}
+
 function copyExistingSnapshot() {
   if (!fs.existsSync(dataPath)) {
     return null;
@@ -111,8 +132,9 @@ function runFirebaseExport() {
   const commandLine = ['npx', ...args]
     .map((arg) => quoteWindowsArg(arg))
     .join(' ');
+  const commandProcessor = resolveWindowsCommandProcessor();
 
-  return spawnSync('cmd.exe', ['/d', '/s', '/c', commandLine], {
+  return spawnSync(commandProcessor, ['/d', '/s', '/c', commandLine], {
     cwd: root,
     env: process.env,
     stdio: 'inherit',
