@@ -34,6 +34,20 @@ function communityNotification(
   };
 }
 
+function systemNotification(): IAppNotification {
+  return {
+    id: 'notification-system-1',
+    userId: 'user-1',
+    type: 'system',
+    title: 'Atualização da plataforma',
+    body: 'Uma atualização recente está disponível.',
+    route: '/notificacoes',
+    readAt: null,
+    createdAt: 456,
+    updatedAt: 456,
+  };
+}
+
 describe('NotificationsPageComponent', () => {
   const refreshCurrentUserNotifications = vi.fn();
 
@@ -48,7 +62,9 @@ describe('NotificationsPageComponent', () => {
     exactSummaryMap: ReadonlyMap<
       string,
       CommunityNotificationUnreadSummary
-    > = new Map()
+    > = new Map(),
+    vmItems: readonly IAppNotification[] = [],
+    globalUnreadCount = 0
   ): void {
     TestBed.configureTestingModule({
       imports: [NotificationsPageComponent],
@@ -59,8 +75,8 @@ describe('NotificationsPageComponent', () => {
           useValue: {
             currentUserVm$: of({
               loading: false,
-              items: [],
-              unreadCount: 0,
+              items: [...vmItems],
+              unreadCount: globalUnreadCount,
             }),
             currentUserReadState$: of(readState),
             currentUserCommunitySummaries$: of(recentCommunitySummaries),
@@ -217,5 +233,55 @@ describe('NotificationsPageComponent', () => {
 
     expect(summaries).toEqual([recentSummary]);
     expect(summaries[0]?.latestNotification).toBe(latestNotification);
+  });
+
+  it('mantém Comunidades visível quando as pendências ficaram fora da janela recente', () => {
+    const exactSummary: CommunityNotificationUnreadSummary = {
+      communityId: 'community-older',
+      unreadCount: 6,
+      priorityUnreadCount: 1,
+      hasPriorityUnread: true,
+      updatedAt: 111,
+    };
+
+    configure(
+      'ready',
+      6,
+      [],
+      new Map([['community-older', exactSummary]]),
+      [systemNotification()],
+      7
+    );
+
+    const fixture = TestBed.createComponent(NotificationsPageComponent);
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const section = fixture.nativeElement.querySelector(
+      '.community-activity'
+    ) as HTMLElement | null;
+    const total = fixture.nativeElement.querySelector(
+      '.community-activity__total'
+    ) as HTMLElement | null;
+    const fallback = fixture.nativeElement.querySelector(
+      '.community-activity__fallback'
+    ) as HTMLElement | null;
+    const link = fixture.nativeElement.querySelector(
+      '.community-activity__fallback-link'
+    ) as HTMLAnchorElement | null;
+
+    expect(section).not.toBeNull();
+    expect(total?.textContent?.replace(/\s+/g, ' ').trim()).toBe('6 pendentes');
+    expect(fallback?.textContent?.replace(/\s+/g, ' ').trim()).toContain(
+      'Abrir a lista não altera o estado de leitura das atividades.'
+    );
+    expect(link?.textContent?.trim()).toBe('Ver minhas Comunidades');
+    expect(link?.getAttribute('href')).toBe('/dashboard/comunidades/minhas');
+    expect(
+      fixture.nativeElement.querySelector('.community-activity__item')
+    ).toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('.notifications-state--empty')
+    ).toBeNull();
   });
 });

@@ -39,12 +39,20 @@
       }
     </header>
 
-    @if (!vm.loading && readState !== 'error' && communitySummaries.length > 0) {
+    @if (
+      !vm.loading
+      && readState !== 'error'
+      && (communitySummaries.length > 0 || communityUnreadCount > 0)
+    ) {
       <section class="community-activity" aria-labelledby="community-activity-title">
         <div class="community-activity__header">
           <div>
             <h2 id="community-activity-title">Comunidades</h2>
-            <p>As Comunidades abaixo refletem atividade recente; as pendências consideram todas as atividades não lidas.</p>
+            @if (communitySummaries.length > 0) {
+              <p>As Comunidades abaixo refletem atividade recente; as pendências consideram todas as atividades não lidas.</p>
+            } @else {
+              <p>Há atividade de Comunidades fora das notificações recentes desta Central.</p>
+            }
           </div>
 
           @if (communityUnreadCount > 0) {
@@ -57,49 +65,63 @@
           }
         </div>
 
-        <div class="community-activity__list" role="list" aria-label="Resumo das Comunidades">
-          @for (summary of communitySummaries; track trackCommunitySummary($index, summary)) {
-            @let latest = summary.latestNotification;
-            <article
-              class="community-activity__item"
-              role="listitem"
-              [class.community-activity__item--priority]="summary.hasPriorityUnread"
-              [class.community-activity__item--unread]="summary.unreadCount > 0"
-            >
-              <div class="community-activity__icon" aria-hidden="true">
-                {{ notificationIcon(latest) }}
-              </div>
-
-              <div class="community-activity__body">
-                <div class="community-activity__meta">
-                  <strong>{{ latest.title }}</strong>
-                  <span
-                    class="community-activity__status"
-                    [class.community-activity__status--priority]="summary.hasPriorityUnread"
-                  >
-                    {{ communitySummaryLabel(summary) }}
-                  </span>
+        @if (communitySummaries.length > 0) {
+          <div class="community-activity__list" role="list" aria-label="Resumo das Comunidades">
+            @for (summary of communitySummaries; track trackCommunitySummary($index, summary)) {
+              @let latest = summary.latestNotification;
+              <article
+                class="community-activity__item"
+                role="listitem"
+                [class.community-activity__item--priority]="summary.hasPriorityUnread"
+                [class.community-activity__item--unread]="summary.unreadCount > 0"
+              >
+                <div class="community-activity__icon" aria-hidden="true">
+                  {{ notificationIcon(latest) }}
                 </div>
 
-                <p>{{ latest.body }}</p>
-                <time>{{ formatNotificationDate(latest.createdAt) }}</time>
-              </div>
+                <div class="community-activity__body">
+                  <div class="community-activity__meta">
+                    <strong>{{ latest.title }}</strong>
+                    <span
+                      class="community-activity__status"
+                      [class.community-activity__status--priority]="summary.hasPriorityUnread"
+                    >
+                      {{ communitySummaryLabel(summary) }}
+                    </span>
+                  </div>
 
-              @if (notificationRoute(latest)) {
-                <button
-                  type="button"
-                  class="community-activity__open"
-                  (click)="openCommunitySummary(summary)"
-                  [disabled]="isBusy(latest.id)"
-                  [attr.aria-busy]="isBusy(latest.id)"
-                  [attr.aria-label]="'Abrir atividade: ' + latest.title"
-                >
-                  {{ isBusy(latest.id) ? 'Abrindo...' : 'Abrir' }}
-                </button>
-              }
-            </article>
-          }
-        </div>
+                  <p>{{ latest.body }}</p>
+                  <time>{{ formatNotificationDate(latest.createdAt) }}</time>
+                </div>
+
+                @if (notificationRoute(latest)) {
+                  <button
+                    type="button"
+                    class="community-activity__open"
+                    (click)="openCommunitySummary(summary)"
+                    [disabled]="isBusy(latest.id)"
+                    [attr.aria-busy]="isBusy(latest.id)"
+                    [attr.aria-label]="'Abrir atividade: ' + latest.title"
+                  >
+                    {{ isBusy(latest.id) ? 'Abrindo...' : 'Abrir' }}
+                  </button>
+                }
+              </article>
+            }
+          </div>
+        } @else {
+          <div class="community-activity__fallback">
+            <p>
+              Acesse Minhas comunidades para revisar as pendências. Abrir a lista não altera o estado de leitura das atividades.
+            </p>
+            <a
+              class="community-activity__fallback-link"
+              routerLink="/dashboard/comunidades/minhas"
+            >
+              Ver minhas Comunidades
+            </a>
+          </div>
+        }
       </section>
     }
 
