@@ -13,7 +13,8 @@
 // - falhas opcionais de permissão na leitura retornam lista vazia sem poluir login;
 // - falhas reais da leitura principal expõem estado recuperável para a Central;
 // - retry manual substitui o listener atual, sem abrir listener paralelo;
-// - resumos por Comunidade derivam do mesmo stream global, sem listeners extras;
+// - resumos recentes por Comunidade derivam da janela global e servem só à apresentação;
+// - o total exato de atividade não lida de Comunidades pertence à projeção agregada dedicada;
 // - o total global não é inferido da janela recente: usa count() agregado e barato;
 // - mudanças de conteúdo que preservam ids/readAt não repetem o count() global.
 // -----------------------------------------------------------------------------
@@ -224,21 +225,19 @@ export class AppNotificationService {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
+  /**
+   * Agrupamentos da janela recente carregada pela Central.
+   *
+   * Esta projeção é adequada para cards/resumos recentes, mas é deliberadamente
+   * incompleta para totais. Totais de atividade não lida por Comunidade devem
+   * vir de CommunityNotificationUnreadSummaryService.currentUserUnreadCount$.
+   */
   readonly currentUserCommunitySummaries$: Observable<
     ICommunityNotificationSummary[]
   > = this.currentUserNotifications$.pipe(
     map((items) => buildCommunityNotificationSummaries(items)),
     shareReplay({ bufferSize: 1, refCount: true })
   );
-
-  readonly currentUserCommunityUnreadCount$: Observable<number> =
-    this.currentUserCommunitySummaries$.pipe(
-      map((summaries) =>
-        summaries.reduce((total, summary) => total + summary.unreadCount, 0)
-      ),
-      distinctUntilChanged(),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
 
   readonly currentUserVm$: Observable<IAppNotificationListVm> = combineLatest([
     this.currentUserNotifications$,
