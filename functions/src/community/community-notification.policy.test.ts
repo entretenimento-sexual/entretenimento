@@ -12,6 +12,8 @@ import {
   buildCommunityReplyNotificationId,
   canReceiveCommunityActivityNotification,
   canReceiveCommunityEssentialNotification,
+  isCommunityNotificationInCurrentMembershipCycle,
+  isCommunitySocialActivityNotificationType,
 } from './community-notification.policy';
 
 const ACTIVE_USER = {
@@ -21,6 +23,11 @@ const ACTIVE_USER = {
   loginAllowed: true,
 };
 
+const ACTIVE_MEMBERSHIP = {
+  status: 'active',
+  joinedAt: { seconds: 1_800_000_000, nanoseconds: 0 },
+};
+
 test('persistência in-app independe da preferência global de push', () => {
   assert.equal(allowsCommunityActivityNotifications(undefined), true);
   assert.equal(allowsCommunityActivityNotifications({
@@ -28,25 +35,43 @@ test('persistência in-app independe da preferência global de push', () => {
   }), true);
 });
 
-test('atividade exige destinatário operacional e nunca notifica o próprio autor', () => {
+test('atividade exige destinatário operacional, membership ativo e nunca notifica o próprio autor', () => {
   assert.equal(canReceiveCommunityActivityNotification(
     ACTIVE_USER,
     'author-1',
-    'commenter-1'
+    'commenter-1',
+    ACTIVE_MEMBERSHIP
   ), true);
   assert.equal(canReceiveCommunityActivityNotification(
     ACTIVE_USER,
     'author-1',
-    'author-1'
+    'author-1',
+    ACTIVE_MEMBERSHIP
   ), false);
   assert.equal(canReceiveCommunityActivityNotification(
     { ...ACTIVE_USER, accountStatus: 'self_suspended' },
     'author-1',
-    'commenter-1'
+    'commenter-1',
+    ACTIVE_MEMBERSHIP
   ), false);
+
+  for (const membership of [
+    undefined,
+    { status: 'pending' },
+    { status: 'left' },
+    { status: 'removed' },
+    { status: 'blocked' },
+  ]) {
+    assert.equal(canReceiveCommunityActivityNotification(
+      ACTIVE_USER,
+      'author-1',
+      'commenter-1',
+      membership
+    ), false);
+  }
 });
 
-test('aviso essencial alcança conta suspensa, mas não conta excluída', () => {
+test('aviso essencial alcança conta suspensa sem depender de membership, mas não conta excluída', () => {
   assert.equal(canReceiveCommunityEssentialNotification(
     { ...ACTIVE_USER, accountStatus: 'self_suspended' },
     'author-1',
@@ -59,55 +84,104 @@ test('aviso essencial alcança conta suspensa, mas não conta excluída', () => 
   ), false);
 });
 
-test('agrupa mensagens da mesma publicação na mesma janela diária', () => {
+test('classifica apenas atividade social comum para o gate de membership', () => {
+  assert.equal(isCommunitySocialActivityNotificationType('community.comment.received'), true);
+  assert.equal(isCommunitySocialActivityNotificationType('community.comment.reply.received'), true);
+  assert.equal(isCommunitySocialActivityNotificationType('community.content.moderated'), false);
+  assert.equal(isCommunitySocialActivityNotificationType('security.account.changed'), false);
+});
+
+test('atividade social pertence somente ao ciclo atual da participação', () => {
+  assert.equal(isCommunityNotificationInCurrentMembershipCycle(
+    ACTIVE_MEMBERSHIP,
+    { seconds: 1_800_000_001, nanoseconds: 0 }
+  ), true);
+  assert.equal(isCommunityNotificationInCurrentMembershipCycle(
+    ACTIVE_MEMBERSHIP,
+    { seconds: 1_799_999_999, nanoseconds: 999_000_000 }
+  ), false);
+  assert.equal(isCommunityNotificationInCurrentMembershipCycle(
+    { status: 'left', joinedAt: ACTIVE_MEMBERSHIP.joinedAt },
+    { seconds: 1_800_000_001, nanoseconds: 0 }
+  ), false);
+  assert.equal(isCommunityNotificationInCurrentMembershipCycle(
+    { status: 'active' },
+    { seconds: 1_800_000_001, nanoseconds: 0 }
+  ), false);
+});
+
+test('agrupa mensagens da mesma publicação na mesma janela e separa ciclos de membership', () => {
   const first = buildCommunityCommentNotificationId(
     'community-1',
     'post-1',
     'author-1',
-    1_800_000_000_000
+    1_800_000_000_000,
+    1_799_000_000_000
   );
   const sameWindow = buildCommunityCommentNotificationId(
     'community-1',
     'post-1',
     'author-1',
-    1_800_000_000_000 + 60_000
+    1_800_000_000_000 + 60_000,
+    1_799_000_000_000
+  );
+  const rejoined = buildCommunityCommentNotificationId(
+    'community-1',
+    'post-1',
+    'author-1',
+    1_800_000_000_000 + 60_000,
+    1_800_000_030_000
   );
   const nextWindow = buildCommunityCommentNotificationId(
     'community-1',
     'post-1',
     'author-1',
-    1_800_000_000_000 + 24 * 60 * 60 * 1_000
+    1_800_000_000_000 + 24 * 60 * 60 * 1_000,
+    1_799_000_000_000
   );
 
   assert.equal(first, sameWindow);
+  assert.notEqual(first, rejoined);
   assert.notEqual(first, nextWindow);
   assert.match(first, /^community_comments_[a-f0-9]{40}$/);
 });
 
-test('agrupa respostas pela mensagem citada e janela diária', () => {
+test('agrupa respostas pela mensagem citada e separa ciclos de membership', () => {
   const first = buildCommunityReplyNotificationId(
     'community-1',
     'post-1',
     'comment-1',
     'author-1',
-    1_800_000_000_000
+    1_800_000_000_000,
+    1_799_000_000_000
   );
   const sameReference = buildCommunityReplyNotificationId(
     'community-1',
     'post-1',
     'comment-1',
     'author-1',
-    1_800_000_000_000 + 60_000
+    1_800_000_000_000 + 60_000,
+    1_799_000_000_000
+  );
+  const rejoined = buildCommunityReplyNotificationId(
+    'community-1',
+    'post-1',
+    'comment-1',
+    'author-1',
+    1_800_000_000_000 + 60_000,
+    1_800_000_030_000
   );
   const otherReference = buildCommunityReplyNotificationId(
     'community-1',
     'post-1',
     'comment-2',
     'author-1',
-    1_800_000_000_000 + 60_000
+    1_800_000_000_000 + 60_000,
+    1_799_000_000_000
   );
 
   assert.equal(first, sameReference);
+  assert.notEqual(first, rejoined);
   assert.notEqual(first, otherReference);
   assert.match(first, /^community_replies_[a-f0-9]{40}$/);
 });
