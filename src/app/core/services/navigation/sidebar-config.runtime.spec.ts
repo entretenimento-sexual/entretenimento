@@ -84,7 +84,7 @@ describe('sidebar runtime composition', () => {
     );
   });
 
-  it('separa conexões de mensagens e mantém apenas convites legados acionáveis no menu global', () => {
+  it('separa conexões de mensagens sem promover salas antigas no menu global', () => {
     const sections = buildSidebarSections({
       isSubscriber: false,
       isVip: false,
@@ -109,7 +109,6 @@ describe('sidebar runtime composition', () => {
 
     expect(chat?.items.map(({ id }) => id)).toEqual([
       'chat-list',
-      'room-invites',
     ]);
     expect(
       chat?.items.map((item) =>
@@ -117,10 +116,13 @@ describe('sidebar runtime composition', () => {
       )
     ).toEqual([
       '/chat',
-      '/chat/room-invites',
     ]);
     expect(chat?.items.some(({ id }) => id === 'chat-rooms')).toBe(false);
+    expect(chat?.items.some(({ id }) => id === 'room-invites')).toBe(false);
 
+    expect(resolveSidebarSectionFromUrl('/chat/rooms')).toBe('chat');
+    expect(resolveSidebarSectionFromUrl('/chat/room-invites')).toBe('chat');
+    expect(resolveSidebarSectionFromUrl('/chat/invite-list')).toBe('chat');
     expect(resolveSidebarSectionFromUrl('/friends/requests')).toBe('profiles');
     expect(resolveSidebarSectionFromUrl('/dashboard/friends/list')).toBe(
       'profiles'
