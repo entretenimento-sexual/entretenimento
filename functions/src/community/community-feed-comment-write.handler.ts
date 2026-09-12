@@ -38,6 +38,8 @@ import {
   buildCommunityReplyNotificationCopy,
   buildCommunityReplyNotificationId,
   canReceiveCommunityActivityNotification,
+  normalizeCommunityNotificationTimestampMs,
+  type CommunityNotificationMembership,
   type CommunityNotificationPreferences,
   type CommunityNotificationUser,
 } from './community-notification.policy';
@@ -366,67 +368,81 @@ export const createCommunityFeedComment = onCall<FlatConversationCreateRequest>(
       const nowMs = Date.now();
       const recipientUid = replyTarget?.actorUid
         ?? String(post['actorUid'] ?? '').trim();
-      const notificationRef = recipientUid && recipientUid !== actorUid
-        ? db.collection('notifications').doc(
-          replyToCommentId
-            ? buildCommunityReplyNotificationId(
-              communityId,
-              postId,
-              replyToCommentId,
-              recipientUid,
-              nowMs
-            )
-            : buildCommunityCommentNotificationId(
-              communityId,
-              postId,
-              recipientUid,
-              nowMs
-            )
-        )
-        : null;
+      let notificationRef: FirebaseFirestore.DocumentReference | null = null;
       let shouldNotify = false;
       let existingNotification: FirebaseFirestore.DocumentData | undefined;
 
-      if (notificationRef) {
-        const recipientUserRef = db.collection('users').doc(recipientUid);
-        const recipientPreferencesRef = db
-          .collection('preferences')
-          .doc(recipientUid);
-        const [actorBlockPath, recipientBlockPath] = buildBilateralBlockPaths(
-          actorUid,
-          recipientUid
+      if (recipientUid && recipientUid !== actorUid) {
+        const recipientMembershipRef = communityRef.collection('members').doc(recipientUid);
+        const recipientMembershipSnapshot = await transaction.get(recipientMembershipRef);
+        const recipientMembership = recipientMembershipSnapshot.exists
+          ? recipientMembershipSnapshot.data() as CommunityNotificationMembership
+          : undefined;
+        const membershipJoinedAtMs = normalizeCommunityNotificationTimestampMs(
+          recipientMembership?.joinedAt
         );
-        const [
-          recipientUserSnapshot,
-          recipientPreferencesSnapshot,
-          notificationSnapshot,
-          actorBlockSnapshot,
-          recipientBlockSnapshot,
-        ] = await Promise.all([
-          transaction.get(recipientUserRef),
-          transaction.get(recipientPreferencesRef),
-          transaction.get(notificationRef),
-          transaction.get(db.doc(actorBlockPath)),
-          transaction.get(db.doc(recipientBlockPath)),
-        ]);
-        const recipientUser = recipientUserSnapshot.data() as
-          | CommunityNotificationUser
-          | undefined;
-        const recipientPreferences = recipientPreferencesSnapshot.data() as
-          | CommunityNotificationPreferences
-          | undefined;
 
-        shouldNotify = canReceiveCommunityActivityNotification(
-          recipientUser,
-          recipientUid,
-          actorUid
-        )
-          && allowsCommunityActivityNotifications(recipientPreferences)
-          && !isBilateralBlockActive({
-            actorBlock: actorBlockSnapshot.data(),
-            targetBlock: recipientBlockSnapshot.data(),
-          });
-        existingNotification = notificationSnapshot.data();
+        if (recipientMembership?.status === 'active' && membershipJoinedAtMs !== null) {
+          notificationRef = db.collection('notifications').doc(
+            replyToCommentId
+              ? buildCommunityReplyNotificationId(
+                communityId,
+                postId,
+                replyToCommentId,
+                recipientUid,
+                nowMs,
+                membershipJoinedAtMs
+              )
+              : buildCommunityCommentNotificationId(
+                communityId,
+                postId,
+                recipientUid,
+                nowMs,
+                membershipJoinedAtMs
+              )
+          );
+
+          const recipientUserRef = db.collection('users').doc(recipientUid);
+          const recipientPreferencesRef = db
+            .collection('preferences')
+            .doc(recipientUid);
+          const [actorBlockPath, recipientBlockPath] = buildBilateralBlockPaths(
+            actorUid,
+            recipientUid
+          );
+          const [
+            recipientUserSnapshot,
+            recipientPreferencesSnapshot,
+            notificationSnapshot,
+            actorBlockSnapshot,
+            recipientBlockSnapshot,
+          ] = await Promise.all([
+            transaction.get(recipientUserRef),
+            transaction.get(recipientPreferencesRef),
+            transaction.get(notificationRef),
+            transaction.get(db.doc(actorBlockPath)),
+            transaction.get(db.doc(recipientBlockPath)),
+          ]);
+          const recipientUser = recipientUserSnapshot.data() as
+            | CommunityNotificationUser
+            | undefined;
+          const recipientPreferences = recipientPreferencesSnapshot.data() as
+            | CommunityNotificationPreferences
+            | undefined;
+
+          shouldNotify = canReceiveCommunityActivityNotification(
+            recipientUser,
+            recipientUid,
+            actorUid,
+            recipientMembership
+          )
+            && allowsCommunityActivityNotifications(recipientPreferences)
+            && !isBilateralBlockActive({
+              actorBlock: actorBlockSnapshot.data(),
+              targetBlock: recipientBlockSnapshot.data(),
+            });
+          existingNotification = notificationSnapshot.data();
+        }
       }
 
       const metrics = (post['metrics'] ?? {}) as Record<string, unknown>;
