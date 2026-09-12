@@ -91,3 +91,69 @@ export async function resolvePhotoAudienceAccessInTransaction(
 
   return socialAccess;
 }
+
+export async function assertPhotoCommentAccessInTransaction(
+  transaction: Transaction,
+  input: {
+    viewerUid: string;
+    ownerUid: string;
+    visibility: unknown;
+    commentsEnabled: unknown;
+    commentsPolicy: unknown;
+  },
+  unavailableMessage = 'Foto indisponível.'
+): Promise<void> {
+  const viewerIsOwner = input.viewerUid === input.ownerUid;
+  const visibility = String(input.visibility ?? '').trim().toUpperCase();
+  const commentsPolicy = String(input.commentsPolicy ?? '').trim().toUpperCase();
+  const needsFriendState =
+    !viewerIsOwner &&
+    (visibility === 'FRIENDS' || commentsPolicy === 'FRIENDS');
+
+  let viewerIsFriend = false;
+
+  if (needsFriendState) {
+    const socialAccess = await resolveSocialConnectionAccessInTransaction(
+      transaction,
+      input.viewerUid,
+      input.ownerUid
+    );
+
+    if (socialAccess.isBlocked) {
+      throw new HttpsError('not-found', unavailableMessage);
+    }
+
+    viewerIsFriend = socialAccess.isFriend;
+  } else if (!viewerIsOwner) {
+    await assertNoActiveBilateralBlockInTransaction(
+      transaction,
+      input.viewerUid,
+      input.ownerUid,
+      unavailableMessage
+    );
+  }
+
+  if (
+    !canReadPublishedPhotoAudience({
+      visibility,
+      viewerIsOwner,
+      viewerIsFriend,
+    })
+  ) {
+    throw new HttpsError('not-found', unavailableMessage);
+  }
+
+  if (
+    !canCommentOnPublishedPhoto({
+      commentsEnabled: input.commentsEnabled,
+      commentsPolicy,
+      viewerIsOwner,
+      viewerIsFriend,
+    })
+  ) {
+    throw new HttpsError(
+      'failed-precondition',
+      'A política atual da foto não permite este comentário.'
+    );
+  }
+}
