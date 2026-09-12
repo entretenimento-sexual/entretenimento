@@ -11,6 +11,7 @@ import {
   startAfter,
   where,
 } from '@angular/fire/firestore';
+import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable, of } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
 
@@ -49,21 +50,42 @@ interface PublicMediaOwnerRawPage {
   readonly hasMore: boolean;
 }
 
+interface AuthorizedPhotoOwnerPageRequest {
+  readonly ownerUids: string[];
+  readonly pageSize: number;
+  readonly cursor: {
+    readonly publishedAt: number;
+    readonly documentPath: string;
+  } | null;
+}
+
+interface AuthorizedPhotoOwnerPageResponse {
+  readonly items: IPublicPhotoProjection[];
+  readonly nextCursor: {
+    readonly publishedAt: number;
+    readonly documentPath: string;
+  } | null;
+  readonly hasMore: boolean;
+}
+
 const DEFAULT_PAGE_SIZE = 12;
 const MAX_PAGE_SIZE = 24;
 const MAX_OWNER_UIDS = 30;
+const MAX_AUTHORIZED_PHOTO_OWNER_UIDS = 12;
 const SAFE_PUBLIC_MEDIA_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 
 /**
- * Paginação estável de mídia pública para um conjunto conhecido de autores.
+ * Paginação estável de mídia para um conjunto conhecido de autores.
  *
- * O cursor combina `publishedAt` e `documentId()` para impedir saltos ou
- * repetições quando duas publicações possuem o mesmo timestamp. A consulta usa
- * somente projeções PUBLIC + APPROVED e mantém URLs assinadas fora do cursor.
+ * Fotos passam pela autoridade backend porque podem incluir a audiência
+ * FRIENDS; o cliente nunca usa Rules como filtro social. Vídeos mantêm o fluxo
+ * PUBLIC + APPROVED atual. URLs assinadas continuam emitidas separadamente e
+ * revalidam a audiência imediatamente antes do acesso ao ativo.
  */
 @Injectable({ providedIn: 'root' })
 export class PublicMediaOwnerPageQueryService {
   private readonly firestore = inject(Firestore);
+  private readonly functions = inject(Functions);
   private readonly firestoreCtx = inject(FirestoreContextService);
   private readonly photoAccess = inject(PublicPhotoAccessService);
   private readonly videoAccess = inject(PublicVideoAccessService);
@@ -73,23 +95,49 @@ export class PublicMediaOwnerPageQueryService {
   loadPhotoPage$(
     request: IPublicMediaOwnerPageRequest
   ): Observable<IPublicPhotoOwnerPage> {
-    return this.loadRawPage$('PHOTO', request).pipe(
-      switchMap((rawPage) => {
-        const projections = rawPage.documents.map((document) => ({
-          ...document.data,
-          id: document.id,
-        }) as unknown as IPublicPhotoProjection);
+    const ownerUids = this
+      .normalizeOwnerUids(request.ownerUids)
+      .slice(0, MAX_AUTHORIZED_PHOTO_OWNER_UIDS);
+    const pageSize = this.normalizePageSize(request.pageSize);
+    const cursor = this.normalizeCursor('PHOTO', request.cursor);
 
-        return this.photoAccess.hydratePublicPhotoUrls$(projections).pipe(
+    if (!ownerUids.length) {
+      return of({
+        items: [],
+        nextCursor: null,
+        hasMore: false,
+        failed: false,
+        loadedAt: Date.now(),
+      });
+    }
+
+    return this.loadAuthorizedPhotoPage$({
+      ownerUids,
+      pageSize,
+      cursor: cursor
+        ? {
+            publishedAt: cursor.publishedAt,
+            documentPath: cursor.documentPath,
+          }
+        : null,
+    }).pipe(
+      switchMap((rawPage) =>
+        this.photoAccess.hydratePublicPhotoUrls$(rawPage.items).pipe(
           map((items): IPublicPhotoOwnerPage => ({
             items,
-            nextCursor: rawPage.nextCursor,
+            nextCursor: rawPage.nextCursor
+              ? {
+                  kind: 'PHOTO',
+                  publishedAt: rawPage.nextCursor.publishedAt,
+                  documentPath: rawPage.nextCursor.documentPath,
+                }
+              : null,
             hasMore: rawPage.hasMore,
             failed: false,
             loadedAt: Date.now(),
           }))
-        );
-      }),
+        )
+      ),
       catchError((error: unknown) =>
         this.handlePageError$<IPublicPhotoItem>('PHOTO', request, error)
       )
@@ -125,6 +173,26 @@ export class PublicMediaOwnerPageQueryService {
         this.handlePageError$<IPublicVideoItem>('VIDEO', request, error)
       )
     );
+  }
+
+  private loadAuthorizedPhotoPage$(
+    request: AuthorizedPhotoOwnerPageRequest
+  ): Observable<AuthorizedPhotoOwnerPageResponse> {
+    return this.firestoreCtx.deferPromise$(async () => {
+      const callable = httpsCallable<
+        AuthorizedPhotoOwnerPageRequest,
+        AuthorizedPhotoOwnerPageResponse
+      >(this.functions, 'getAuthorizedPhotoOwnerPage');
+      const response = await callable(request);
+
+      return {
+        items: Array.isArray(response.data?.items)
+          ? response.data.items
+          : [],
+        nextCursor: response.data?.nextCursor ?? null,
+        hasMore: response.data?.hasMore === true,
+      };
+    });
   }
 
   private loadRawPage$(
