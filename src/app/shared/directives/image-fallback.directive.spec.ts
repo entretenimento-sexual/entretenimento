@@ -8,11 +8,14 @@ import { ImageFallbackDirective } from './image-fallback.directive';
   standalone: true,
   imports: [ImageFallbackDirective],
   template: `
-    <img
-      class="user-photo"
-      [src]="source"
-      alt="Foto do usuário"
-    />
+    <span class="avatar-shell">
+      <span class="avatar-initial" aria-hidden="true">A</span>
+      <img
+        class="user-photo"
+        [src]="source"
+        alt="Foto do usuário"
+      />
+    </span>
     <img
       class="marker-photo"
       appImageFallback
@@ -46,6 +49,7 @@ describe('ImageFallbackDirective', () => {
 
     expect(userPhoto.getAttribute('src')).toBe('assets/imagem-padrao.webp');
     expect(userPhoto.getAttribute('data-image-fallback')).toBe('applied');
+    expect(userPhoto.style.visibility).toBe('');
   });
 
   it('mantém o fallback padrão quando a diretiva é usada somente como marcador', () => {
@@ -54,10 +58,26 @@ describe('ImageFallbackDirective', () => {
     expect(markerPhoto.getAttribute('src')).toBe('assets/imagem-padrao.webp');
   });
 
-  it('não entra em loop quando o fallback também falha', () => {
+  it('oculta a tag se o próprio fallback falhar, evitando o ícone nativo de imagem quebrada', () => {
     userPhoto.dispatchEvent(new Event('error'));
     userPhoto.dispatchEvent(new Event('error'));
 
-    expect(userPhoto.getAttribute('src')).toBe('assets/imagem-padrao.webp');
+    expect(userPhoto.hasAttribute('src')).toBe(false);
+    expect(userPhoto.hasAttribute('srcset')).toBe(false);
+    expect(userPhoto.getAttribute('data-image-fallback')).toBe('failed');
+    expect(userPhoto.style.visibility).toBe('hidden');
+  });
+
+  it('restaura visibilidade e limpa o estado ao carregar novamente uma imagem válida', () => {
+    userPhoto.dispatchEvent(new Event('error'));
+    userPhoto.dispatchEvent(new Event('error'));
+
+    const component = fixture.componentInstance;
+    component.source = 'https://example.test/avatar-ok.webp';
+    fixture.detectChanges();
+    userPhoto.dispatchEvent(new Event('load'));
+
+    expect(userPhoto.style.visibility).toBe('');
+    expect(userPhoto.hasAttribute('data-image-fallback')).toBe(false);
   });
 });

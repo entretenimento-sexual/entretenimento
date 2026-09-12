@@ -123,6 +123,26 @@ describe('PublicVideoCardComponent', () => {
     expect(actions[1].nativeElement.textContent).toContain('3');
   });
 
+  it('aplica o fallback canônico quando o avatar remoto do autor falha', () => {
+    fixture.componentRef.setInput('video', {
+      ...VIDEO,
+      owner: {
+        ...VIDEO.owner,
+        photoURL: 'https://example.invalid/avatar.webp',
+      },
+    });
+    fixture.detectChanges();
+
+    const avatar = fixture.debugElement.query(
+      By.css('.public-video-card__avatar')
+    ).nativeElement as HTMLImageElement;
+
+    avatar.dispatchEvent(new Event('error'));
+
+    expect(avatar.getAttribute('src')).toBe('assets/imagem-padrao.webp');
+    expect(avatar.getAttribute('data-image-fallback')).toBe('applied');
+  });
+
   it('emite preview somente quando o card não está abrindo', () => {
     const emit = vi.spyOn(component.preview, 'emit');
     const preview = fixture.debugElement.query(By.css('.public-video-card__preview'));

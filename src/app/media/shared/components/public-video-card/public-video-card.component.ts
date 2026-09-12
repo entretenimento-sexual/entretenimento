@@ -10,6 +10,7 @@ import { RouterModule } from '@angular/router';
 
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
 import { PublicVideoMetadataPreloadDirective } from 'src/app/media/videos/public-video-metadata-preload.directive';
+import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import { PublicMediaEngagementActionsComponent } from '../public-media-engagement-actions/public-media-engagement-actions.component';
 
 export type TPublicVideoCardVariant = 'feed' | 'highlight';
@@ -21,6 +22,7 @@ export type TPublicVideoCardVariant = 'feed' | 'highlight';
     CommonModule,
     RouterModule,
     PublicVideoMetadataPreloadDirective,
+    ImageFallbackDirective,
     PublicMediaEngagementActionsComponent,
   ],
   templateUrl: './public-video-card.component.html',
