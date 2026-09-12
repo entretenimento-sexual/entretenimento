@@ -1,3 +1,4 @@
+import type { Transaction } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 
 import { db } from '../../firebaseApp';
@@ -15,6 +16,11 @@ export interface SocialConnectionAccessResolution {
   readonly blockedTargetUids: ReadonlySet<string>;
 }
 
+export interface SingleSocialConnectionAccessResolution {
+  readonly isFriend: boolean;
+  readonly isBlocked: boolean;
+}
+
 function normalizeUid(value: unknown): string {
   const uid = String(value ?? '').trim();
   return uid && uid.length <= 128 && !uid.includes('/') ? uid : '';
@@ -22,7 +28,7 @@ function normalizeUid(value: unknown): string {
 
 export function evaluateSocialConnectionAccess(
   input: SocialConnectionAccessInput
-): { isFriend: boolean; isBlocked: boolean } {
+): SingleSocialConnectionAccessResolution {
   const isBlocked =
     isActiveBlockData(input.actorBlock) || isActiveBlockData(input.targetBlock);
 
@@ -31,6 +37,42 @@ export function evaluateSocialConnectionAccess(
     isFriend:
       !isBlocked && input.actorFriendExists && input.targetFriendExists,
   };
+}
+
+export async function resolveSocialConnectionAccessInTransaction(
+  transaction: Transaction,
+  actorUid: string,
+  targetUid: string
+): Promise<SingleSocialConnectionAccessResolution> {
+  const actor = normalizeUid(actorUid);
+  const target = normalizeUid(targetUid);
+
+  if (!actor) {
+    throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
+  }
+
+  if (!target || actor === target) {
+    return { isFriend: false, isBlocked: false };
+  }
+
+  const [
+    actorFriendSnapshot,
+    targetFriendSnapshot,
+    actorBlockSnapshot,
+    targetBlockSnapshot,
+  ] = await Promise.all([
+    transaction.get(db.doc(`users/${actor}/friends/${target}`)),
+    transaction.get(db.doc(`users/${target}/friends/${actor}`)),
+    transaction.get(db.doc(`users/${actor}/blocks/${target}`)),
+    transaction.get(db.doc(`users/${target}/blocks/${actor}`)),
+  ]);
+
+  return evaluateSocialConnectionAccess({
+    actorFriendExists: actorFriendSnapshot.exists,
+    targetFriendExists: targetFriendSnapshot.exists,
+    actorBlock: actorBlockSnapshot.exists ? actorBlockSnapshot.data() : null,
+    targetBlock: targetBlockSnapshot.exists ? targetBlockSnapshot.data() : null,
+  });
 }
 
 /**
