@@ -144,17 +144,23 @@ export const syncCommunityNotificationSummary = onDocumentWritten(
         ? normalizeAppliedContribution(stateSnapshot.data())
         : null;
 
+      if (suppressedByMembership && projected) {
+        // O lifecycle de membership é a autoridade que zera/remove o resumo ao
+        // sair ou iniciar um novo ciclo. Aqui apenas tornamos o estado desta
+        // notificação neutro. Não aplicamos delta negativo do ciclo antigo: isso
+        // poderia descontar unread legítimo criado depois de uma reentrada.
+        transaction.set(stateRef, {
+          userId: projected.userId,
+          communityId: projected.communityId,
+          unreadCount: 0,
+          priorityUnreadCount: 0,
+          suppressedByMembership: true,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        return;
+      }
+
       if (sameCommunityNotificationSummaryContribution(applied, desired)) {
-        if (suppressedByMembership && notification && projected && !stateSnapshot.exists) {
-          transaction.set(stateRef, {
-            userId: projected.userId,
-            communityId: projected.communityId,
-            unreadCount: 0,
-            priorityUnreadCount: 0,
-            suppressedByMembership: true,
-            updatedAt: FieldValue.serverTimestamp(),
-          });
-        }
         return;
       }
 
@@ -207,15 +213,6 @@ export const syncCommunityNotificationSummary = onDocumentWritten(
         transaction.set(stateRef, {
           ...desired,
           suppressedByMembership: false,
-          updatedAt: FieldValue.serverTimestamp(),
-        });
-      } else if (notificationSnapshot.exists && projected) {
-        transaction.set(stateRef, {
-          userId: projected.userId,
-          communityId: projected.communityId,
-          unreadCount: 0,
-          priorityUnreadCount: 0,
-          suppressedByMembership,
           updatedAt: FieldValue.serverTimestamp(),
         });
       } else {
