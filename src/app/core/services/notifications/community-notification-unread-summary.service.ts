@@ -16,12 +16,15 @@ import {
 import {
   BehaviorSubject,
   Observable,
+  Subject,
+  merge,
   of,
 } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
   map,
+  scan,
   shareReplay,
   switchMap,
   tap,
@@ -34,6 +37,12 @@ import {
   isFirebasePermissionDeniedError,
   toErrorInstance,
 } from 'src/app/core/utils/firebase-error-utils';
+import {
+  CommunityNotificationLocalOverlayEvent,
+  initialCommunityNotificationLocalOverlayState,
+  reduceCommunityNotificationLocalOverlay,
+  visibleCommunityNotificationSummaries,
+} from './community-notification-local-overlay.policy';
 
 export interface CommunityNotificationUnreadSummary {
   readonly communityId: string;
@@ -72,6 +81,8 @@ export class CommunityNotificationUnreadSummaryService {
   private readonly globalError = inject(GlobalErrorHandlerService);
   private readonly readStateSubject =
     new BehaviorSubject<CommunityNotificationSummaryReadState>('loading');
+  private readonly localOverlayEvents =
+    new Subject<CommunityNotificationLocalOverlayEvent<CommunityNotificationUnreadSummary>>();
 
   readonly readState$: Observable<CommunityNotificationSummaryReadState> =
     this.readStateSubject.asObservable().pipe(
@@ -79,33 +90,63 @@ export class CommunityNotificationUnreadSummaryService {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-  readonly currentUserSummaries$: Observable<
-    readonly CommunityNotificationUnreadSummary[]
+  private readonly serverSummaryEvents$: Observable<
+    CommunityNotificationLocalOverlayEvent<CommunityNotificationUnreadSummary>
   > = this.session.readyAuthUser$.pipe(
     switchMap((user) => {
       const uid = String(user?.uid ?? '').trim();
 
       if (!uid) {
         this.readStateSubject.next('ready');
-        return of<readonly CommunityNotificationUnreadSummary[]>([]);
+        return of<CommunityNotificationLocalOverlayEvent<CommunityNotificationUnreadSummary>>({
+          kind: 'server',
+          viewerUid: null,
+          summaries: [],
+        });
       }
 
       this.readStateSubject.next('loading');
 
       return this.watchUserSummaries$(uid).pipe(
         tap(() => this.readStateSubject.next('ready')),
+        map((summaries) => ({
+          kind: 'server' as const,
+          viewerUid: uid,
+          summaries,
+        })),
         catchError((error: unknown) => {
           if (isFirebasePermissionDeniedError(error)) {
             this.readStateSubject.next('ready');
-            return of<readonly CommunityNotificationUnreadSummary[]>([]);
+            return of<CommunityNotificationLocalOverlayEvent<CommunityNotificationUnreadSummary>>({
+              kind: 'server',
+              viewerUid: uid,
+              summaries: [],
+            });
           }
 
           this.readStateSubject.next('error');
           this.reportReadError(error, uid);
-          return of<readonly CommunityNotificationUnreadSummary[]>([]);
+          return of<CommunityNotificationLocalOverlayEvent<CommunityNotificationUnreadSummary>>({
+            kind: 'server',
+            viewerUid: uid,
+            summaries: [],
+          });
         })
       );
-    }),
+    })
+  );
+
+  readonly currentUserSummaries$: Observable<
+    readonly CommunityNotificationUnreadSummary[]
+  > = merge(
+    this.serverSummaryEvents$,
+    this.localOverlayEvents
+  ).pipe(
+    scan(
+      reduceCommunityNotificationLocalOverlay<CommunityNotificationUnreadSummary>,
+      initialCommunityNotificationLocalOverlayState<CommunityNotificationUnreadSummary>()
+    ),
+    map((state) => visibleCommunityNotificationSummaries(state)),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -130,6 +171,16 @@ export class CommunityNotificationUnreadSummaryService {
       distinctUntilChanged(),
       shareReplay({ bufferSize: 1, refCount: true })
     );
+
+  suppressCommunityLocally(communityId: string): void {
+    const normalizedCommunityId = String(communityId ?? '').trim();
+    if (!normalizedCommunityId) return;
+
+    this.localOverlayEvents.next({
+      kind: 'suppress',
+      communityId: normalizedCommunityId,
+    });
+  }
 
   private watchUserSummaries$(
     uid: string
