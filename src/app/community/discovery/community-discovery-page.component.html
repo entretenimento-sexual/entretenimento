@@ -60,7 +60,7 @@
           id="community-mine-attention-scope"
           class="community-discovery__definition"
         >
-          Silenciar alertas reduz push e interrupções; a atividade continua aparecendo na Central e como não lida. As Comunidades carregadas são organizadas por atenção; ao ver mais, novas atividades podem aparecer acima.
+          As comunidades com novidades importantes aparecem primeiro. Silenciar alertas reduz notificações push, sem esconder as novidades da Central.
         </p>
       }
     } @else {
@@ -234,6 +234,7 @@
 
           <li
             class="community-card-shell"
+            [class.community-card-shell--mine]="discoveryMode === 'mine'"
             [appCommunityDiscoveryVisibility]="item.communityId"
             (qualifiedExposure)="recordQualifiedExposure($event)"
           >
@@ -355,30 +356,36 @@
             </a>
 
             @if (discoveryMode === 'mine') {
-              <button
-                class="community-card__dismiss community-discovery__empty-explore"
-                type="button"
-                [disabled]="isNotificationPreferenceBusy(item.communityId)"
-                [attr.aria-busy]="isNotificationPreferenceBusy(item.communityId)"
-                [attr.aria-pressed]="item.notificationsMuted"
-                [attr.aria-label]="
-                  item.notificationsMuted
-                    ? 'Reativar alertas push de ' + item.name
-                    : 'Silenciar alertas push de ' + item.name
-                "
-                (click)="toggleCommunityNotifications(item)"
+              <div
+                class="community-card__actions"
+                role="group"
+                [attr.aria-label]="'Preferências de alertas de ' + item.name"
               >
-                @if (isNotificationPreferenceBusy(item.communityId)) {
-                  <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
-                  <span>Atualizando alertas</span>
-                } @else if (item.notificationsMuted) {
-                  <i class="fas fa-bell" aria-hidden="true"></i>
-                  <span>Reativar alertas</span>
-                } @else {
-                  <i class="fas fa-bell-slash" aria-hidden="true"></i>
-                  <span>Silenciar alertas</span>
-                }
-              </button>
+                <button
+                  class="community-card__notification-action"
+                  type="button"
+                  [disabled]="isNotificationPreferenceBusy(item.communityId)"
+                  [attr.aria-busy]="isNotificationPreferenceBusy(item.communityId)"
+                  [attr.aria-pressed]="item.notificationsMuted"
+                  [attr.aria-label]="
+                    item.notificationsMuted
+                      ? 'Reativar alertas push de ' + item.name
+                      : 'Silenciar alertas push de ' + item.name
+                  "
+                  (click)="toggleCommunityNotifications(item)"
+                >
+                  @if (isNotificationPreferenceBusy(item.communityId)) {
+                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                    <span>Atualizando alertas</span>
+                  } @else if (item.notificationsMuted) {
+                    <i class="fas fa-bell" aria-hidden="true"></i>
+                    <span>Reativar alertas</span>
+                  } @else {
+                    <i class="fas fa-bell-slash" aria-hidden="true"></i>
+                    <span>Silenciar alertas</span>
+                  }
+                </button>
+              </div>
             } @else if (canFilterByTags) {
               <button
                 class="community-card__dismiss community-discovery__empty-explore"

@@ -361,6 +361,90 @@
   align-items: stretch;
 }
 
+.community-card-shell--mine {
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--surface-border, #d5d5d5);
+  border-radius: var(--radius-lg, 0.9rem);
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--surface-color, #fff) 98%, var(--primary-color, #d83768) 2%),
+      var(--surface-color, #fff)
+    );
+  transition:
+    border-color 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.community-card-shell--mine:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color, #d83768) 34%,
+    var(--surface-border, #d5d5d5)
+  );
+  box-shadow: 0 8px 24px color-mix(in oklab, var(--text-color, #222) 6%, transparent);
+}
+
+.community-card-shell--mine:focus-within {
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color, #d83768) 42%,
+    var(--surface-border, #d5d5d5)
+  );
+}
+
+.community-card__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+  padding: 0.35rem 0.55rem 0.5rem;
+  border-top: 1px solid color-mix(
+    in oklab,
+    var(--surface-border, #d5d5d5) 72%,
+    transparent
+  );
+}
+
+.community-card__notification-action {
+  min-height: var(--tap-target, 2.75rem);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  max-width: 100%;
+  padding: 0.45rem 0.7rem;
+  border: 0;
+  border-radius: 0.65rem;
+  background: transparent;
+  color: color-mix(in oklab, var(--text-color, #222) 70%, transparent);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.community-card__notification-action:hover,
+.community-card__notification-action:focus-visible {
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #fff) 94%,
+    var(--primary-color, #d83768) 6%
+  );
+  color: var(--text-color, #222);
+}
+
+.community-card__notification-action:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
 .community-card__dismiss {
   max-width: 100%;
   min-height: var(--tap-target, 2.75rem);
@@ -415,15 +499,20 @@
 }
 
 .community-card--mine {
-  background:
-    linear-gradient(
-      135deg,
-      color-mix(in oklab, var(--surface-color, #fff) 98%, var(--primary-color, #d83768) 2%),
-      var(--surface-color, #fff)
-    );
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.community-card--mine:hover {
+  transform: none;
+  border-color: transparent;
+  box-shadow: none;
 }
 
 .community-card:focus-visible,
+.community-card__notification-action:focus-visible,
 .community-discovery__scope-nav a:focus-visible,
 .community-discovery__create:focus-visible,
 .community-discovery__empty-create:focus-visible,
@@ -772,6 +861,15 @@
     margin-inline: -0.15rem;
     padding-inline: 0.15rem;
   }
+
+  .community-card__actions {
+    justify-content: stretch;
+  }
+
+  .community-card__notification-action {
+    width: 100%;
+    justify-content: flex-start;
+  }
 }
 
 @media (max-width: 23rem) {
@@ -809,6 +907,8 @@
 }
 
 :host-context(.high-contrast) .community-card,
+:host-context(.high-contrast) .community-card-shell--mine,
+:host-context(.high-contrast) .community-card__notification-action,
 :host-context(.high-contrast) .community-discovery__scope-nav,
 :host-context(.high-contrast) .community-discovery__create,
 :host-context(.high-contrast) .community-discovery__empty-create,
@@ -821,6 +921,10 @@
 :host-context(.high-contrast) .community-discovery__state button,
 :host-context(.high-contrast) .community-discovery__more button {
   border: 2px solid var(--text-color, #222);
+}
+
+:host-context(.high-contrast) .community-card-shell--mine .community-card--mine {
+  border: 0;
 }
 
 :host-context(.high-contrast) .community-card__viewer-role,
@@ -843,12 +947,15 @@
 
 @media (prefers-reduced-motion: reduce) {
   .community-card,
+  .community-card-shell--mine,
+  .community-card__notification-action,
   .community-discovery__filter-chip,
   .community-discovery__empty-explore {
     transition: none;
   }
 
-  .community-card:hover {
+  .community-card:hover,
+  .community-card-shell--mine:hover {
     transform: none;
   }
 }

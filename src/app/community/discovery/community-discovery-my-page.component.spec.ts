@@ -205,6 +205,24 @@ describe('CommunityDiscoveryPageComponent / Minhas comunidades', () => {
     ]);
   });
 
+  it('explica atenção e mute sem expor detalhes técnicos de paginação', () => {
+    const fixture = TestBed.createComponent(CommunityDiscoveryPageComponent);
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const definition = fixture.nativeElement.querySelector(
+      '#community-mine-attention-scope'
+    ) as HTMLElement | null;
+    const text = definition?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+
+    expect(text).toContain(
+      'As comunidades com novidades importantes aparecem primeiro.'
+    );
+    expect(text).toContain('Silenciar alertas reduz notificações push');
+    expect(text).not.toContain('ao ver mais');
+    expect(text).not.toContain('Comunidades carregadas');
+  });
+
   it('combina unread, prioridade e mute a partir dos streams agregados', () => {
     unreadSummaryMap$.next(new Map([
       [
@@ -291,20 +309,28 @@ describe('CommunityDiscoveryPageComponent / Minhas comunidades', () => {
     expect(firstCard?.textContent).toContain('Silenciada');
   });
 
-  it('altera mute pela callable canônica sem colocar botão dentro do link do card', () => {
+  it('integra mute ao card visual sem aninhar botão no link navegável', () => {
     const fixture = TestBed.createComponent(CommunityDiscoveryPageComponent);
     fixture.detectChanges();
     fixture.detectChanges();
 
+    const shell = fixture.nativeElement.querySelector(
+      '.community-card-shell--mine'
+    ) as HTMLElement | null;
     const card = fixture.nativeElement.querySelector(
       '.community-card--mine'
     ) as HTMLAnchorElement | null;
+    const actions = fixture.nativeElement.querySelector(
+      '[role="group"][aria-label="Preferências de alertas de Minha Comunidade"]'
+    ) as HTMLElement | null;
     const preferenceButton = fixture.nativeElement.querySelector(
       'button[aria-label="Silenciar alertas push de Minha Comunidade"]'
     ) as HTMLButtonElement | null;
 
     expect(card?.querySelector('button')).toBeNull();
     expect(preferenceButton).not.toBeNull();
+    expect(shell?.contains(preferenceButton)).toBe(true);
+    expect(actions?.contains(preferenceButton)).toBe(true);
 
     preferenceButton?.click();
     fixture.detectChanges();
