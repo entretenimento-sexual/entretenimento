@@ -7,7 +7,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import {
   catchError,
   finalize,
@@ -44,7 +44,13 @@ interface CommunityInvitesState {
 @Component({
   selector: 'app-community-invites-page',
   standalone: true,
-  imports: [AsyncPipe, DatePipe, RouterLink, ImageFallbackDirective],
+  imports: [
+    AsyncPipe,
+    DatePipe,
+    RouterLink,
+    RouterLinkActive,
+    ImageFallbackDirective,
+  ],
   templateUrl: './community-invites-page.component.html',
   styleUrl: './community-invites-page.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
