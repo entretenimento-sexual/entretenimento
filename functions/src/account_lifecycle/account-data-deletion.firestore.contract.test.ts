@@ -5,7 +5,7 @@ import test from 'node:test';
 
 const sourcePath = path.resolve(
   __dirname,
-  'account-data-deletion.firestore.ts'
+  '../../src/account_lifecycle/account-data-deletion.firestore.ts'
 );
 const source = readFileSync(sourcePath, 'utf8');
 
