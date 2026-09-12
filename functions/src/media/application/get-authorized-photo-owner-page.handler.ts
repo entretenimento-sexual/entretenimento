@@ -284,9 +284,9 @@ export const getAuthorizedPhotoOwnerPage = onCall<AuthorizedPhotoOwnerPageReques
         })),
         nextCursor: hasMore && lastDocument
           ? {
-              publishedAt: lastDocument.publishedAt,
-              documentPath: lastDocument.path,
-            }
+            publishedAt: lastDocument.publishedAt,
+            documentPath: lastDocument.path,
+          }
           : null,
         hasMore,
       };
