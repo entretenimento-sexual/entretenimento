@@ -8,8 +8,8 @@
 // - não funciona como uma segunda navegação de domínio;
 // - Locais permanecem na navegação canônica do sidebar;
 // - Conexões aponta somente para solicitações entre pessoas;
-// - convites para salas antigas não ganham atalho no hub; permanecem no
-//   sidebar/badge de compatibilidade e no total global da Central;
+// - convites para salas antigas não ganham atalho no hub nem no sidebar; sua
+//   atividade permanece somente no total global da Central e nos deep links legados;
 // - badges aparecem apenas quando houver pendência;
 // - categorias comuns usam a janela recente já carregada, sem listeners extras;
 // - Comunidades usa a projeção agregada privada, com um listener por usuário e
