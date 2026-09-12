@@ -93,7 +93,10 @@ run_checked "$OUT/explore/mobile/metrics.log" "async (page) => {
     const grid = document.querySelector('.community-discovery__grid');
     const gridRect = grid?.getBoundingClientRect();
     const gridStyle = grid ? getComputedStyle(grid) : null;
-    const firstCard = document.querySelector('.community-card')?.getBoundingClientRect();
+    const firstCardShell = document.querySelector('.community-card-shell');
+    const firstCardSurface = firstCardShell?.querySelector('.community-card__dismiss')
+      ? firstCardShell.getBoundingClientRect()
+      : firstCardShell?.querySelector('.community-card')?.getBoundingClientRect();
     const nav = document.querySelector('.community-discovery__scope-nav');
     const filters = document.querySelector('.community-discovery__filter-strip');
     const filtersSection = document.querySelector('.community-discovery__filters');
@@ -147,7 +150,7 @@ run_checked "$OUT/explore/mobile/metrics.log" "async (page) => {
       filtersSectionWidth: filtersSection?.getBoundingClientRect().width ?? 0,
       gridColumns: gridStyle?.gridTemplateColumns?.split(/\\s+/).filter(Boolean).length ?? 0,
       gridWidth: gridRect?.width ?? 0,
-      firstCardWidth: firstCard?.width ?? 0,
+      firstCardSurfaceWidth: firstCardSurface?.width ?? 0,
       navHeight: nav?.getBoundingClientRect().height ?? 0,
       filterClientWidth: filters?.clientWidth ?? 0,
       filterScrollWidth: filters?.scrollWidth ?? 0,
@@ -162,7 +165,7 @@ run_checked "$OUT/explore/mobile/metrics.log" "async (page) => {
     || metrics.windowScrollX > 1
     || metrics.gridColumns !== 1
     || metrics.gridWidth < metrics.viewportWidth * 0.9
-    || Math.abs(metrics.firstCardWidth - metrics.gridWidth) > 1
+    || Math.abs(metrics.firstCardSurfaceWidth - metrics.gridWidth) > 1
     || metrics.navHeight < 44
     || metrics.filterScrollWidth <= metrics.filterClientWidth
     || metrics.officialBadgeCount < 3
