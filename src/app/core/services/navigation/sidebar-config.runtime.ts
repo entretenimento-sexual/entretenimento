@@ -4,7 +4,7 @@
 // - preservar os contratos e filtros puros de sidebar-config.ts;
 // - apresentar Feed, Pessoas, Locais e Comunidades dentro de Descobrir;
 // - apresentar Minhas conexões e Solicitações dentro de Conexões;
-// - apresentar Mensagens, Salas e Convites para salas dentro de Conversas;
+// - apresentar Mensagens e convites legados acionáveis dentro de Conversas;
 // - mover a gestão da assinatura para o grupo Conta;
 // - apresentar documentos legais, avisos e manifestações dentro da conta;
 // - manter Área VIP e Recursos premium como destinos condicionais;
@@ -226,20 +226,12 @@ function composeDomainNavigation(
               ariaLabel: 'Abrir mensagens diretas',
             },
             {
-              id: 'chat-rooms',
-              label: SOCIAL_SPACE_DEFINITIONS.room.pluralLabel,
-              route: SOCIAL_SPACE_DEFINITIONS.room.navigationRoute,
-              icon: '🗣️',
-              exact: false,
-              ariaLabel: SOCIAL_SPACE_DEFINITIONS.room.description,
-            },
-            {
               id: 'room-invites',
               label: 'Convites para salas',
               route: '/chat/room-invites',
               icon: '📨',
               exact: false,
-              ariaLabel: 'Abrir convites pendentes para salas privadas',
+              ariaLabel: 'Abrir convites pendentes para salas privadas antigas',
             },
           ],
         };

@@ -24,9 +24,9 @@
 
         @if (selectedType === 'room') {
           <div class="chat-shell__main-context">
-            <p class="chat-shell__main-kicker">Sala</p>
-            <h2 class="chat-shell__main-title">Conversa em grupo</h2>
-            <p class="chat-shell__main-subtitle">Mensagens e interações desta sala aparecem aqui.</p>
+            <p class="chat-shell__main-kicker">Sala antiga</p>
+            <h2 class="chat-shell__main-title">Conversa em grupo legada</h2>
+            <p class="chat-shell__main-subtitle">Conteúdo preservado somente para compatibilidade e encerramento seguro.</p>
           </div>
         }
       </header>
@@ -58,7 +58,7 @@
             <p class="chat-shell__main-kicker">Mensagens</p>
             <p class="chat-shell__empty-title">Selecione uma conversa</p>
             <p class="chat-shell__empty-text">
-              Abra uma conversa existente, consulte suas conexões ou acesse suas salas.
+              Abra uma conversa existente, consulte suas conexões ou, se necessário, acesse registros de salas antigas.
             </p>
 
             <div class="chat-shell__empty-actions" aria-label="Atalhos de conversa">
@@ -70,12 +70,16 @@
                 Solicitações de conexão
               </a>
 
-              <a class="btn btn-ghost" routerLink="/chat/rooms">
-                Salas
+              <a
+                class="btn btn-ghost"
+                routerLink="/chat/rooms"
+                aria-label="Abrir salas antigas mantidas somente por compatibilidade"
+              >
+                Salas antigas
               </a>
 
               <a class="btn btn-ghost" routerLink="/chat/room-invites">
-                Convites para salas
+                Convites para salas antigas
               </a>
             </div>
           </div>

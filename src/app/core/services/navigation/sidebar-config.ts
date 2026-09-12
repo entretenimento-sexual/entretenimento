@@ -17,11 +17,10 @@
 // Definições de navegação:
 // - Pessoas: perfis encontrados na descoberta;
 // - Locais: lugares físicos ou estabelecimentos reais;
-// - Comunidades: grupos permanentes de pessoas com membros, regras e mural;
-// - Salas: espaços de conversa em tempo real dentro de Conversas.
+// - Comunidades: grupos permanentes de pessoas com membros, regras e mural.
 //
-// Sala não é Comunidade. Local não é Comunidade. A infraestrutura interna pode
-// ser compartilhada, mas os destinos e rótulos apresentados são distintos.
+// Salas antigas não são destino de navegação global. `/chat/rooms` permanece
+// acessível somente por compatibilidade explícita enquanto o legado existir.
 export type SidebarSectionKey =
   | 'dashboard'
   | 'explore'
@@ -202,14 +201,6 @@ const AUTH_SIDEBAR_CONFIG: ReadonlyArray<SidebarSectionConfig> = [
         icon: '💬',
         exact: true,
         ariaLabel: 'Abrir mensagens diretas',
-      },
-      {
-        id: 'chat-rooms',
-        label: 'Salas',
-        route: '/chat/rooms',
-        icon: '🗨️',
-        exact: false,
-        ariaLabel: 'Abrir espaços de conversa em tempo real',
       },
     ],
   },
