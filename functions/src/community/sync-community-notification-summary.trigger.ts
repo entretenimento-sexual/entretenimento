@@ -12,8 +12,10 @@ import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
+import { isCommunityNotificationMembershipCycleCurrent } from './community-notification-membership.policy';
 import {
   type CommunityNotificationSummaryContribution,
+  isCommunitySocialNotificationType,
   normalizeCommunityNotificationSummaryCount,
   projectCommunityNotificationSummaryContribution,
   sameCommunityNotificationSummaryContribution,
@@ -103,15 +105,38 @@ export const syncCommunityNotificationSummary = onDocumentWritten(
         transaction.get(notificationRef),
         transaction.get(stateRef),
       ]);
-
-      const desired = notificationSnapshot.exists
-        ? projectCommunityNotificationSummaryContribution(
-          notificationSnapshot.data()
-        )
+      const rawNotification = notificationSnapshot.exists
+        ? notificationSnapshot.data()
+        : undefined;
+      let desired = rawNotification
+        ? projectCommunityNotificationSummaryContribution(rawNotification)
         : null;
       const applied = stateSnapshot.exists
         ? normalizeAppliedContribution(stateSnapshot.data())
         : null;
+
+      if (
+        desired
+        && rawNotification
+        && isCommunitySocialNotificationType(rawNotification['type'])
+      ) {
+        const membershipRef = db
+          .collection('communities')
+          .doc(desired.communityId)
+          .collection('members')
+          .doc(desired.userId);
+        const membershipSnapshot = await transaction.get(membershipRef);
+
+        if (
+          !membershipSnapshot.exists
+          || !isCommunityNotificationMembershipCycleCurrent(
+            membershipSnapshot.data(),
+            rawNotification['membershipCycleStartedAtMs']
+          )
+        ) {
+          desired = null;
+        }
+      }
 
       if (sameCommunityNotificationSummaryContribution(applied, desired)) {
         return;

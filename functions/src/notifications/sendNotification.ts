@@ -3,6 +3,7 @@ import {onDocumentCreated} from 'firebase-functions/v2/firestore';
 import {getMessaging} from 'firebase-admin/messaging';
 import {getFirestore, Timestamp} from 'firebase-admin/firestore';
 
+import {isCommunityNotificationMembershipCycleCurrent} from '../community/community-notification-membership.policy';
 import {
   isCommunityPushMuted,
   isPushNotificationEnabledByPreference,
@@ -45,6 +46,7 @@ export const sendNotification = onDocumentCreated(
       }
     );
     const db = getFirestore();
+    let communityIdForPush: string | null = null;
 
     if (preferenceKey) {
       try {
@@ -71,8 +73,6 @@ export const sendNotification = onDocumentCreated(
             notification?.communityId
           );
 
-          // Notificação opcional de Comunidade sem identidade canônica não deve
-          // contornar a preferência privada por falha de payload.
           if (!communityId) {
             console.error('[sendNotification] push de Comunidade sem id válido', {
               notificationId,
@@ -80,6 +80,7 @@ export const sendNotification = onDocumentCreated(
             });
             return;
           }
+          communityIdForPush = communityId;
 
           const communityPreferenceDoc = await db
             .collection('community_notification_preferences')
@@ -91,18 +92,12 @@ export const sendNotification = onDocumentCreated(
           if (isCommunityPushMuted(communityPreferenceDoc.data())) {
             console.info(
               '[sendNotification] push suprimido por mute da Comunidade',
-              {
-                notificationId,
-                notificationType,
-                communityId,
-              }
+              {notificationId, notificationType, communityId}
             );
             return;
           }
         }
       } catch (error) {
-        // Push opcional falha fechado: a notificação in-app já foi persistida e
-        // não arriscamos ignorar uma preferência de privacidade por indisponibilidade.
         console.error('[sendNotification] falha ao ler preferência de push', {
           notificationId,
           notificationType,
@@ -118,9 +113,7 @@ export const sendNotification = onDocumentCreated(
     if (!userDoc.exists) return;
 
     const devicesRef = userRef.collection('push_devices');
-    const freshnessCutoff = Timestamp.fromMillis(
-      resolvePushDeviceFreshnessCutoffMs()
-    );
+    const freshnessCutoff = Timestamp.fromMillis(resolvePushDeviceFreshnessCutoffMs());
     const devicesSnapshot = await devicesRef
       .where('lastSeenAt', '>=', freshnessCutoff)
       .orderBy('lastSeenAt', 'desc')
@@ -132,22 +125,17 @@ export const sendNotification = onDocumentCreated(
         token: device.data()?.token,
       }))
     );
-
     if (candidateTargets.length === 0) return;
 
     let targets = candidateTargets;
-
     try {
       const ownerRefs = candidateTargets.map((target) =>
-        db
-          .collection(PUSH_TOKEN_OWNERS_COLLECTION)
+        db.collection(PUSH_TOKEN_OWNERS_COLLECTION)
           .doc(buildPushTokenDocumentId(target.token))
       );
       const ownerSnapshots = await db.getAll(...ownerRefs);
-
       targets = candidateTargets.filter((_target, index) => {
         const ownerSnapshot = ownerSnapshots[index];
-
         return shouldDeliverPushTokenToRecipient(
           ownerSnapshot?.exists ?? false,
           ownerSnapshot?.exists ? ownerSnapshot.data() : undefined,
@@ -155,9 +143,6 @@ export const sendNotification = onDocumentCreated(
         );
       });
     } catch (error) {
-      // A notificação in-app já existe. Se a autoridade global do token não
-      // puder ser comprovada, o push externo falha fechado para preservar
-      // privacidade entre contas que compartilharam a mesma instalação.
       console.error('[sendNotification] falha ao validar ownership de token', {
         notificationId,
         notificationType,
@@ -168,7 +153,6 @@ export const sendNotification = onDocumentCreated(
     }
 
     const ownershipFilteredCount = candidateTargets.length - targets.length;
-
     if (ownershipFilteredCount > 0) {
       console.warn('[sendNotification] alvos suprimidos por ownership canônico', {
         notificationId,
@@ -176,8 +160,41 @@ export const sendNotification = onDocumentCreated(
         ownershipFilteredCount,
       });
     }
-
     if (targets.length === 0) return;
+
+    if (preferenceKey === 'communities') {
+      if (!communityIdForPush) return;
+      try {
+        const membershipDoc = await db
+          .collection('communities')
+          .doc(communityIdForPush)
+          .collection('members')
+          .doc(recipientId)
+          .get();
+        if (
+          !membershipDoc.exists ||
+          !isCommunityNotificationMembershipCycleCurrent(
+            membershipDoc.data(),
+            notification?.membershipCycleStartedAtMs
+          )
+        ) {
+          console.info('[sendNotification] push social de Comunidade suprimido por membership', {
+            notificationId,
+            notificationType,
+            communityId: communityIdForPush,
+          });
+          return;
+        }
+      } catch (error) {
+        console.error('[sendNotification] falha ao revalidar membership antes do push', {
+          notificationId,
+          notificationType,
+          communityId: communityIdForPush,
+          errorCode: toSafeErrorCode(error),
+        });
+        return;
+      }
+    }
 
     const pushContent = buildPrivatePushContent();
     const deliveryOptions = buildPushNotificationDeliveryOptions();
@@ -190,89 +207,57 @@ export const sendNotification = onDocumentCreated(
     const responseErrorCodes = response.responses.map((result) =>
       result.success ? null : toSafeErrorCode(result.error)
     );
-    const invalidTargets = resolveInvalidPushDeliveryTargets(
-      targets,
-      responseErrorCodes
-    );
+    const invalidTargets = resolveInvalidPushDeliveryTargets(targets, responseErrorCodes);
     let prunedRegistryDeviceCount = 0;
     let prunedTokenOwnerCount = 0;
 
     if (invalidTargets.length > 0) {
       try {
         const expectedTokenByDocumentId = new Map<string, string>();
-
         for (const target of invalidTargets) {
           for (const documentId of target.registryDocumentIds) {
             expectedTokenByDocumentId.set(documentId, target.token);
           }
         }
-
         const cleanupResult = await db.runTransaction(async (tx) => {
           const deviceEntries = Array.from(expectedTokenByDocumentId.entries());
           const currentDevices = [];
-
-          // Todas as leituras acontecem antes das escritas. Se um token rotacionar
-          // durante a transação, o Firestore repete a operação com o estado novo.
           for (const [documentId] of deviceEntries) {
             currentDevices.push(await tx.get(devicesRef.doc(documentId)));
           }
-
           const invalidTokenList = invalidTargets.map((target) => target.token);
           const invalidOwnerRefs = invalidTokenList.map((token) =>
-            db
-              .collection(PUSH_TOKEN_OWNERS_COLLECTION)
+            db.collection(PUSH_TOKEN_OWNERS_COLLECTION)
               .doc(buildPushTokenDocumentId(token))
           );
           const currentOwners = [];
-
           for (const ownerRef of invalidOwnerRefs) {
             currentOwners.push(await tx.get(ownerRef));
           }
-
           let registryDeviceCount = 0;
-
           for (let index = 0; index < deviceEntries.length; index += 1) {
             const expectedInvalidToken = deviceEntries[index]?.[1];
             const currentDevice = currentDevices[index];
-
             if (
               !expectedInvalidToken ||
               !currentDevice?.exists ||
-              !shouldPruneCurrentPushToken(
-                currentDevice.data()?.token,
-                expectedInvalidToken
-              )
-            ) {
-              continue;
-            }
-
+              !shouldPruneCurrentPushToken(currentDevice.data()?.token, expectedInvalidToken)
+            ) continue;
             tx.delete(currentDevice.ref);
             registryDeviceCount += 1;
           }
-
           let tokenOwnerCount = 0;
-
           for (const currentOwner of currentOwners) {
-            if (
-              currentOwner.exists &&
-              isPushTokenOwnedByUid(currentOwner.data(), recipientId)
-            ) {
+            if (currentOwner.exists && isPushTokenOwnedByUid(currentOwner.data(), recipientId)) {
               tx.delete(currentOwner.ref);
               tokenOwnerCount += 1;
             }
           }
-
-          return {
-            registryDeviceCount,
-            tokenOwnerCount,
-          };
+          return {registryDeviceCount, tokenOwnerCount};
         });
-
         prunedRegistryDeviceCount = cleanupResult.registryDeviceCount;
         prunedTokenOwnerCount = cleanupResult.tokenOwnerCount;
       } catch (error) {
-        // Limpeza é best-effort: não transformamos uma entrega já processada em
-        // falha apenas porque a remoção de tokens inválidos ficou indisponível.
         console.error('[sendNotification] falha ao limpar tokens inválidos', {
           notificationId,
           notificationType,
@@ -289,6 +274,8 @@ export const sendNotification = onDocumentCreated(
       usesNeutralExternalContent: true,
       targetsFreshRegistryOnly: true,
       validatesCanonicalTokenOwnership: true,
+      validatesCommunityMembershipImmediatelyBeforeDelivery:
+        preferenceKey === 'communities',
       hasExplicitDeliveryTtl: true,
       candidateTargetCount: candidateTargets.length,
       ownershipFilteredCount,
@@ -305,7 +292,6 @@ export const sendNotification = onDocumentCreated(
 function toSafeErrorCode(error: unknown): string | null {
   const rawCode = (error as {code?: unknown} | null | undefined)?.code;
   if (typeof rawCode !== 'string') return null;
-
   const normalized = rawCode.trim();
   return normalized ? normalized.slice(0, 96) : null;
 }

@@ -9,9 +9,13 @@
 
 const MAX_ACTIVITY_COUNT = 1_000_000_000;
 
-const COMMUNITY_NOTIFICATION_TYPES = new Set([
+const COMMUNITY_SOCIAL_NOTIFICATION_TYPES = new Set([
   'community.comment.received',
   'community.comment.reply.received',
+]);
+
+const COMMUNITY_NOTIFICATION_TYPES = new Set([
+  ...COMMUNITY_SOCIAL_NOTIFICATION_TYPES,
   'community.content.moderated',
 ]);
 
@@ -38,6 +42,10 @@ function isUnread(raw: Record<string, unknown>): boolean {
 
 function isPriority(raw: Record<string, unknown>, type: string): boolean {
   return type === 'community.content.moderated' || raw['actionRequired'] === true;
+}
+
+export function isCommunitySocialNotificationType(value: unknown): boolean {
+  return COMMUNITY_SOCIAL_NOTIFICATION_TYPES.has(normalizeId(value));
 }
 
 export function projectCommunityNotificationSummaryContribution(

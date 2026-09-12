@@ -112,6 +112,7 @@ export function buildCommunityCommentNotificationId(
   communityId: string,
   postId: string,
   recipientUid: string,
+  membershipCycleStartedAtMs: number,
   nowMs: number
 ): string {
   const window = Math.floor(Math.max(0, nowMs) / COMMENT_GROUP_WINDOW_MS);
@@ -119,6 +120,7 @@ export function buildCommunityCommentNotificationId(
     communityId,
     postId,
     recipientUid,
+    String(membershipCycleStartedAtMs),
     String(window),
   ]);
 }
@@ -128,6 +130,7 @@ export function buildCommunityReplyNotificationId(
   postId: string,
   commentId: string,
   recipientUid: string,
+  membershipCycleStartedAtMs: number,
   nowMs: number
 ): string {
   const window = Math.floor(Math.max(0, nowMs) / COMMENT_GROUP_WINDOW_MS);
@@ -136,6 +139,7 @@ export function buildCommunityReplyNotificationId(
     postId,
     commentId,
     recipientUid,
+    String(membershipCycleStartedAtMs),
     String(window),
   ]);
 }

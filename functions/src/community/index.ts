@@ -162,6 +162,9 @@ export {
   syncCommunityMembershipActivity,
 } from './sync-community-membership-activity.trigger';
 export {
+  reconcileCommunityMembershipNotifications,
+} from './reconcile-community-membership-notifications.trigger';
+export {
   syncCommunityNotificationSummary,
 } from './sync-community-notification-summary.trigger';
 export {

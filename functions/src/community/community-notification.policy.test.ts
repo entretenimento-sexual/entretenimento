@@ -20,6 +20,7 @@ const ACTIVE_USER = {
   profileCompleted: true,
   loginAllowed: true,
 };
+const MEMBERSHIP_CYCLE = 1_799_999_000_000;
 
 test('persistência in-app independe da preferência global de push', () => {
   assert.equal(allowsCommunityActivityNotifications(undefined), true);
@@ -59,37 +60,49 @@ test('aviso essencial alcança conta suspensa, mas não conta excluída', () => 
   ), false);
 });
 
-test('agrupa mensagens da mesma publicação na mesma janela diária', () => {
+test('agrupa mensagens somente dentro do mesmo ciclo e janela diária', () => {
   const first = buildCommunityCommentNotificationId(
     'community-1',
     'post-1',
     'author-1',
+    MEMBERSHIP_CYCLE,
     1_800_000_000_000
   );
   const sameWindow = buildCommunityCommentNotificationId(
     'community-1',
     'post-1',
     'author-1',
+    MEMBERSHIP_CYCLE,
+    1_800_000_000_000 + 60_000
+  );
+  const nextCycle = buildCommunityCommentNotificationId(
+    'community-1',
+    'post-1',
+    'author-1',
+    MEMBERSHIP_CYCLE + 1,
     1_800_000_000_000 + 60_000
   );
   const nextWindow = buildCommunityCommentNotificationId(
     'community-1',
     'post-1',
     'author-1',
+    MEMBERSHIP_CYCLE,
     1_800_000_000_000 + 24 * 60 * 60 * 1_000
   );
 
   assert.equal(first, sameWindow);
+  assert.notEqual(first, nextCycle);
   assert.notEqual(first, nextWindow);
   assert.match(first, /^community_comments_[a-f0-9]{40}$/);
 });
 
-test('agrupa respostas pela mensagem citada e janela diária', () => {
+test('agrupa respostas somente pela mesma mensagem, ciclo e janela diária', () => {
   const first = buildCommunityReplyNotificationId(
     'community-1',
     'post-1',
     'comment-1',
     'author-1',
+    MEMBERSHIP_CYCLE,
     1_800_000_000_000
   );
   const sameReference = buildCommunityReplyNotificationId(
@@ -97,6 +110,7 @@ test('agrupa respostas pela mensagem citada e janela diária', () => {
     'post-1',
     'comment-1',
     'author-1',
+    MEMBERSHIP_CYCLE,
     1_800_000_000_000 + 60_000
   );
   const otherReference = buildCommunityReplyNotificationId(
@@ -104,11 +118,21 @@ test('agrupa respostas pela mensagem citada e janela diária', () => {
     'post-1',
     'comment-2',
     'author-1',
+    MEMBERSHIP_CYCLE,
+    1_800_000_000_000 + 60_000
+  );
+  const nextCycle = buildCommunityReplyNotificationId(
+    'community-1',
+    'post-1',
+    'comment-1',
+    'author-1',
+    MEMBERSHIP_CYCLE + 1,
     1_800_000_000_000 + 60_000
   );
 
   assert.equal(first, sameReference);
   assert.notEqual(first, otherReference);
+  assert.notEqual(first, nextCycle);
   assert.match(first, /^community_replies_[a-f0-9]{40}$/);
 });
 
