@@ -13,6 +13,10 @@ import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
+  isCommunityNotificationInCurrentMembershipCycle,
+  isCommunitySocialActivityNotificationType,
+} from './community-notification.policy';
+import {
   type CommunityNotificationSummaryContribution,
   normalizeCommunityNotificationSummaryCount,
   projectCommunityNotificationSummaryContribution,
@@ -104,16 +108,53 @@ export const syncCommunityNotificationSummary = onDocumentWritten(
         transaction.get(stateRef),
       ]);
 
-      const desired = notificationSnapshot.exists
-        ? projectCommunityNotificationSummaryContribution(
-          notificationSnapshot.data()
-        )
+      const notification = notificationSnapshot.exists
+        ? notificationSnapshot.data()
+        : undefined;
+      const projected = notification
+        ? projectCommunityNotificationSummaryContribution(notification)
         : null;
+      let desired = projected;
+      let suppressedByMembership = false;
+
+      if (
+        projected
+        && notification
+        && isCommunitySocialActivityNotificationType(notification['type'])
+      ) {
+        const membershipRef = db
+          .collection('communities')
+          .doc(projected.communityId)
+          .collection('members')
+          .doc(projected.userId);
+        const membershipSnapshot = await transaction.get(membershipRef);
+        const eligible = membershipSnapshot.exists
+          && isCommunityNotificationInCurrentMembershipCycle(
+            membershipSnapshot.data(),
+            notification['createdAt']
+          );
+
+        if (!eligible) {
+          desired = null;
+          suppressedByMembership = true;
+        }
+      }
+
       const applied = stateSnapshot.exists
         ? normalizeAppliedContribution(stateSnapshot.data())
         : null;
 
       if (sameCommunityNotificationSummaryContribution(applied, desired)) {
+        if (suppressedByMembership && notification && projected && !stateSnapshot.exists) {
+          transaction.set(stateRef, {
+            userId: projected.userId,
+            communityId: projected.communityId,
+            unreadCount: 0,
+            priorityUnreadCount: 0,
+            suppressedByMembership: true,
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        }
         return;
       }
 
@@ -165,6 +206,16 @@ export const syncCommunityNotificationSummary = onDocumentWritten(
       if (desired) {
         transaction.set(stateRef, {
           ...desired,
+          suppressedByMembership: false,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      } else if (notificationSnapshot.exists && projected) {
+        transaction.set(stateRef, {
+          userId: projected.userId,
+          communityId: projected.communityId,
+          unreadCount: 0,
+          priorityUnreadCount: 0,
+          suppressedByMembership,
           updatedAt: FieldValue.serverTimestamp(),
         });
       } else {
