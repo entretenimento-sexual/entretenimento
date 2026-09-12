@@ -3,9 +3,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
-import {
-  resolveBlockedTargetUids,
-} from '../../friendship/application/bilateral-block-access.policy';
+import { resolveSocialConnectionAccess } from '../../friendship/application/social-connection-access.policy';
 import { consumeBackendRateLimitQuota } from './backend-rate-limit.service';
 import {
   containsControlCharacter,
@@ -74,6 +72,17 @@ function buildRequestKey(ownerUid: string, photoId: string): string {
   return JSON.stringify([ownerUid, photoId]);
 }
 
+export function canReadPublishedPhotoAudience(input: {
+  visibility: unknown;
+  viewerIsOwner: boolean;
+  viewerIsFriend: boolean;
+}): boolean {
+  const visibility = String(input.visibility ?? '').trim().toUpperCase();
+
+  return visibility === 'PUBLIC' ||
+    (visibility === 'FRIENDS' && (input.viewerIsOwner || input.viewerIsFriend));
+}
+
 async function consumePublicPhotoAccessQuota(
   viewerUid: string,
   itemCount: number
@@ -96,7 +105,9 @@ async function resolveAccessItem(
   ownerUid: string,
   photoId: string,
   expiresAt: number,
-  publicProfileExists: boolean
+  publicProfileExists: boolean,
+  viewerIsOwner: boolean,
+  viewerIsFriend: boolean
 ): Promise<PublicPhotoAccessResponseItem | null> {
   if (!publicProfileExists) {
     return null;
@@ -119,11 +130,19 @@ async function resolveAccessItem(
 
   const publicPhoto = publicPhotoSnap.data();
   const publication = publicationSnap.data();
+  const visibility = String(publicPhoto?.visibility ?? '')
+    .trim()
+    .toUpperCase();
 
   if (
-    publicPhoto?.visibility !== 'PUBLIC' ||
+    !canReadPublishedPhotoAudience({
+      visibility,
+      viewerIsOwner,
+      viewerIsFriend,
+    }) ||
     publicPhoto?.moderationStatus !== 'APPROVED' ||
-    publication?.isPublished !== true
+    publication?.isPublished !== true ||
+    String(publication?.visibility ?? '').trim().toUpperCase() !== visibility
   ) {
     return null;
   }
@@ -210,13 +229,13 @@ export const getPublicPhotoAccessUrls = onCall<PublicPhotoAccessRequest>(
     const ownerUids = [
       ...new Set([...uniqueItems.values()].map(({ ownerUid }) => ownerUid)),
     ];
-    let blockedOwnerUids: Set<string>;
+    let socialAccess: Awaited<ReturnType<typeof resolveSocialConnectionAccess>>;
 
     try {
-      blockedOwnerUids = await resolveBlockedTargetUids(viewerUid, ownerUids);
+      socialAccess = await resolveSocialConnectionAccess(viewerUid, ownerUids);
     } catch (error) {
       logger.warn(
-        '[getPublicPhotoAccessUrls] Falha ao validar bloqueios bilaterais.',
+        '[getPublicPhotoAccessUrls] Falha ao validar relação social.',
         {
           viewerUid,
           ownerCount: ownerUids.length,
@@ -234,7 +253,7 @@ export const getPublicPhotoAccessUrls = onCall<PublicPhotoAccessRequest>(
 
     const ownerProfileEntries = await Promise.all(
       ownerUids.map(async (ownerUid) => {
-        if (blockedOwnerUids.has(ownerUid)) {
+        if (socialAccess.blockedTargetUids.has(ownerUid)) {
           return [
             ownerUid,
             { exists: false, technicalFailure: false },
@@ -285,7 +304,9 @@ export const getPublicPhotoAccessUrls = onCall<PublicPhotoAccessRequest>(
                 ownerUid,
                 photoId,
                 expiresAt,
-                profileAccess?.exists === true
+                profileAccess?.exists === true,
+                ownerUid === viewerUid,
+                socialAccess.friendTargetUids.has(ownerUid)
               ),
               technicalFailure: false,
             };
