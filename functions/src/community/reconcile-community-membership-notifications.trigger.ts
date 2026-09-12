@@ -65,7 +65,7 @@ export const reconcileCommunityMembershipNotifications = onDocumentWritten(
         return String(state['communityId'] ?? '').trim() === communityId
           && normalizeCommunityNotificationSummaryCount(state['unreadCount']) > 0;
       });
-      const notificationSnapshots = [];
+      const notificationSnapshots: FirebaseFirestore.DocumentSnapshot[] = [];
       for (const stateDoc of candidateStates) {
         notificationSnapshots.push(
           await transaction.get(db.collection('notifications').doc(stateDoc.id))

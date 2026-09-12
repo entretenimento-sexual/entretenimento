@@ -30,6 +30,9 @@ import { buildCommunityPublicAuthor } from './community-public-author.model';
 import { isCommunityMemberActivityEnabledStatus } from './community-lifecycle.policy';
 import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
 import {
+  resolveCommunityNotificationMembershipCycleStartedAtMs,
+} from './community-notification-membership.policy';
+import {
   allowsCommunityActivityNotifications,
   buildCommunityNotificationRoute,
   buildCommunityReplyNotificationCopy,
@@ -339,24 +342,16 @@ export const createCommunityFeedCommentReply = onCall<
 
       const nowMs = Date.now();
       const parentAuthorUid = parentComment.actorUid;
-      const notificationRef = parentAuthorUid !== actorUid
-        ? db.collection('notifications').doc(
-          buildCommunityReplyNotificationId(
-            communityId,
-            postId,
-            commentId,
-            parentAuthorUid,
-            nowMs
-          )
-        )
-        : null;
+      let notificationRef: FirebaseFirestore.DocumentReference | null = null;
+      let membershipCycleStartedAtMs: number | null = null;
       let shouldNotify = false;
       let existingNotification: FirebaseFirestore.DocumentData | undefined;
 
-      if (notificationRef) {
+      if (parentAuthorUid !== actorUid) {
         const recipientUserRef = db.collection('users').doc(parentAuthorUid);
-        const recipientPreferencesRef = db
-          .collection('preferences')
+        const recipientPreferencesRef = db.collection('preferences').doc(parentAuthorUid);
+        const recipientMembershipRef = communityRef
+          .collection('members')
           .doc(parentAuthorUid);
         const [actorBlockPath, recipientBlockPath] = buildBilateralBlockPaths(
           actorUid,
@@ -365,13 +360,13 @@ export const createCommunityFeedCommentReply = onCall<
         const [
           recipientUserSnapshot,
           recipientPreferencesSnapshot,
-          notificationSnapshot,
+          recipientMembershipSnapshot,
           actorBlockSnapshot,
           recipientBlockSnapshot,
         ] = await Promise.all([
           transaction.get(recipientUserRef),
           transaction.get(recipientPreferencesRef),
-          transaction.get(notificationRef),
+          transaction.get(recipientMembershipRef),
           transaction.get(db.doc(actorBlockPath)),
           transaction.get(db.doc(recipientBlockPath)),
         ]);
@@ -382,17 +377,36 @@ export const createCommunityFeedCommentReply = onCall<
           | CommunityNotificationPreferences
           | undefined;
 
-        shouldNotify = canReceiveCommunityActivityNotification(
-          recipientUser,
-          parentAuthorUid,
-          actorUid
-        )
+        membershipCycleStartedAtMs = recipientMembershipSnapshot.exists
+          ? resolveCommunityNotificationMembershipCycleStartedAtMs(
+            recipientMembershipSnapshot.data()
+          )
+          : null;
+        shouldNotify = membershipCycleStartedAtMs !== null
+          && canReceiveCommunityActivityNotification(
+            recipientUser,
+            parentAuthorUid,
+            actorUid
+          )
           && allowsCommunityActivityNotifications(recipientPreferences)
           && !isBilateralBlockActive({
             actorBlock: actorBlockSnapshot.data(),
             targetBlock: recipientBlockSnapshot.data(),
           });
-        existingNotification = notificationSnapshot.data();
+
+        if (shouldNotify && membershipCycleStartedAtMs !== null) {
+          notificationRef = db.collection('notifications').doc(
+            buildCommunityReplyNotificationId(
+              communityId,
+              postId,
+              commentId,
+              parentAuthorUid,
+              membershipCycleStartedAtMs,
+              nowMs
+            )
+          );
+          existingNotification = (await transaction.get(notificationRef)).data();
+        }
       }
 
       const comment = commentSnapshot.data() ?? {};
@@ -454,7 +468,11 @@ export const createCommunityFeedCommentReply = onCall<
         updatedAt: now,
       });
 
-      if (shouldNotify && notificationRef) {
+      if (
+        shouldNotify
+        && notificationRef
+        && membershipCycleStartedAtMs !== null
+      ) {
         const copy = buildCommunityReplyNotificationCopy({
           existingActivityCount: existingNotification?.['activityCount'],
           actorLabel: author.label,
@@ -470,6 +488,7 @@ export const createCommunityFeedCommentReply = onCall<
           postId,
           commentId,
           replyId,
+          membershipCycleStartedAtMs,
           activityCount: copy.activityCount,
           actorUid,
           readAt: null,
