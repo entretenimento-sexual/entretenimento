@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { canReadPublishedPhotoAudience } from './get-public-photo-access-urls.handler';
+import { canReadPublishedPhotoAudience } from './photo-audience-access.policy';
 
 describe('public photo access audience', () => {
   it('mantém PUBLIC disponível sem exigir amizade', () => {
