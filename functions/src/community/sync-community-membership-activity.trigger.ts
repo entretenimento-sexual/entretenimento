@@ -3,9 +3,9 @@
 // SYNC COMMUNITY MEMBERSHIP ACTIVITY
 // -----------------------------------------------------------------------------
 // Mantém o relógio de atividade significativa sob autoridade do backend.
-// Observa qualquer fluxo legítimo de membership, inclusive handlers futuros,
-// sem depender de o cliente ou cada caso de uso lembrar de atualizar o lifecycle.
-// Comunidades arquivadas ou agendadas para exclusão permanecem congeladas.
+// Também converge projeções privadas descartáveis quando a participação deixa
+// de estar ativa. Histórico de notificações, auditoria e estado idempotente não
+// são apagados.
 // -----------------------------------------------------------------------------
 
 import { logger } from 'firebase-functions';
@@ -15,39 +15,25 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import { canSyncCommunityActivity } from './community-activity-sync.policy';
 import { isCommunityMembershipTransitionMeaningful } from './community-membership-activity.policy';
+import { normalizeCommunityNotificationTimestampMs } from './community-notification.policy';
 
 function normalizeTimestamp(value: unknown): number | null {
-  if (value instanceof Date) {
-    const time = value.getTime();
-    return Number.isFinite(time) && time > 0 ? Math.trunc(time) : null;
-  }
+  return normalizeCommunityNotificationTimestampMs(value);
+}
 
-  if (typeof value === 'number') {
-    return Number.isFinite(value) && value > 0 ? Math.trunc(value) : null;
-  }
+function normalizeMembershipStatus(raw: FirebaseFirestore.DocumentData | null): string {
+  return String(raw?.['status'] ?? '').trim().toLowerCase();
+}
 
-  if (value && typeof value === 'object') {
-    const source = value as {
-      toMillis?: () => number;
-      seconds?: unknown;
-      nanoseconds?: unknown;
-    };
+function membershipCycleChanged(
+  before: FirebaseFirestore.DocumentData | null,
+  after: FirebaseFirestore.DocumentData | null
+): boolean {
+  if (normalizeMembershipStatus(after) !== 'active') return false;
 
-    if (typeof source.toMillis === 'function') {
-      const time = Number(source.toMillis());
-      return Number.isFinite(time) && time > 0 ? Math.trunc(time) : null;
-    }
-
-    const seconds = Number(source.seconds);
-    const nanoseconds = Number(source.nanoseconds ?? 0);
-
-    if (Number.isFinite(seconds) && Number.isFinite(nanoseconds)) {
-      const time = seconds * 1_000 + Math.trunc(nanoseconds / 1_000_000);
-      return Number.isFinite(time) && time > 0 ? Math.trunc(time) : null;
-    }
-  }
-
-  return null;
+  const beforeJoinedAt = normalizeTimestamp(before?.['joinedAt']);
+  const afterJoinedAt = normalizeTimestamp(after?.['joinedAt']);
+  return beforeJoinedAt !== afterJoinedAt;
 }
 
 export const syncCommunityMembershipActivity = onDocumentWritten(
@@ -63,10 +49,47 @@ export const syncCommunityMembershipActivity = onDocumentWritten(
       ? event.data.after.data()
       : null;
 
-    if (!isCommunityMembershipTransitionMeaningful(before, after)) return;
-
     const communityId = String(event.params['communityId'] ?? '').trim();
-    if (!communityId) return;
+    const uid = String(event.params['uid'] ?? '').trim();
+    if (!communityId || !uid) return;
+
+    const beforeStatus = normalizeMembershipStatus(before);
+    const afterStatus = normalizeMembershipStatus(after);
+    const leftActiveMembership = beforeStatus === 'active' && afterStatus !== 'active';
+    const startedNewMembershipCycle = membershipCycleChanged(before, after);
+
+    if (leftActiveMembership || startedNewMembershipCycle) {
+      const summaryRef = db
+        .collection('community_notification_summaries')
+        .doc(uid)
+        .collection('items')
+        .doc(communityId);
+      const preferenceRef = db
+        .collection('community_notification_preferences')
+        .doc(uid)
+        .collection('items')
+        .doc(communityId);
+      const batch = db.batch();
+
+      // O resumo é apenas read model e pode ser reconstruído. O estado aplicado
+      // por notificationId fica intacto para preservar idempotência/histórico.
+      batch.delete(summaryRef);
+      if (leftActiveMembership) {
+        // Mute por Comunidade é preferência privada descartável da participação.
+        // Preferências globais e notificações canônicas não são tocadas.
+        batch.delete(preferenceRef);
+      }
+      await batch.commit();
+
+      logger.debug('community_membership_notification_projection_converged', {
+        communityId,
+        uid,
+        leftActiveMembership,
+        startedNewMembershipCycle,
+      });
+    }
+
+    if (!isCommunityMembershipTransitionMeaningful(before, after)) return;
 
     const communityRef = db.collection('communities').doc(communityId);
     const communitySnapshot = await communityRef.get();
