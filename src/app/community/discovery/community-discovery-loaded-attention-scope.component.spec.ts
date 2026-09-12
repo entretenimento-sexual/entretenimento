@@ -138,7 +138,7 @@ describe('CommunityDiscoveryPageComponent / escopo de atenção carregada', () =
     });
   });
 
-  it('explica que a prioridade vale para itens carregados e conecta a descrição à lista e à paginação', () => {
+  it('conecta a orientação de atenção à lista e à paginação sem expor detalhes técnicos', () => {
     const fixture = TestBed.createComponent(CommunityDiscoveryPageComponent);
     fixture.detectChanges();
     fixture.detectChanges();
@@ -159,7 +159,7 @@ describe('CommunityDiscoveryPageComponent / escopo de atenção carregada', () =
     ).map((heading) => (heading as HTMLElement).textContent?.trim());
 
     expect(scope?.textContent?.replace(/\s+/g, ' ').trim()).toContain(
-      'As Comunidades carregadas são organizadas por atenção; ao ver mais, novas atividades podem aparecer acima.'
+      'As comunidades com novidades importantes aparecem primeiro.'
     );
     expect(grid?.getAttribute('aria-describedby')).toBe(
       'community-mine-attention-scope'
