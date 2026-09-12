@@ -18,6 +18,9 @@ import {
   queueModerationEvidencePreservation,
 } from './moderation-evidence-preservation.service';
 import {
+  resolvePhotoAudienceAccessInTransaction,
+} from './photo-audience-access.policy';
+import {
   assertPublicMediaCallableAppCheck,
   REQUIRE_PUBLIC_MEDIA_APP_CHECK,
 } from './public-media-callable-security';
@@ -45,6 +48,7 @@ interface PublicPhotoDocument {
 
 interface PhotoPublicationDocument {
   isPublished?: boolean;
+  visibility?: string;
   publishedStoragePath?: string;
 }
 
@@ -168,7 +172,7 @@ export const reportPhotoContent = onCall<ReportPhotoContentRequest>(
         ]);
 
         if (!photoSnap.exists || !publicationSnap.exists) {
-          throw new HttpsError('not-found', 'Foto pública não encontrada.');
+          throw new HttpsError('not-found', 'Foto não encontrada.');
         }
 
         if (reportSnap.exists) {
@@ -180,18 +184,31 @@ export const reportPhotoContent = onCall<ReportPhotoContentRequest>(
 
         const photo = photoSnap.data() as PublicPhotoDocument;
         const publication = publicationSnap.data() as PhotoPublicationDocument;
+        const visibility = String(photo.visibility ?? '').trim().toUpperCase();
+        const publicationVisibility = String(publication.visibility ?? '')
+          .trim()
+          .toUpperCase();
 
         if (
           photo.ownerUid !== ownerUid ||
-          photo.visibility !== 'PUBLIC' ||
           photo.moderationStatus !== 'APPROVED' ||
-          publication.isPublished !== true
+          publication.isPublished !== true ||
+          !visibility ||
+          publicationVisibility !== visibility
         ) {
           throw new HttpsError(
             'failed-precondition',
-            'Este conteúdo não está disponível para denúncia pública.'
+            'Este conteúdo não está disponível para denúncia.'
           );
         }
+
+        await resolvePhotoAudienceAccessInTransaction(
+          transaction,
+          reporterUid,
+          ownerUid,
+          visibility,
+          'Foto não encontrada.'
+        );
 
         const safetyState = buildMediaReportSafetyState(photo, 'OPEN');
         const quarantine = shouldQuarantineMediaAfterReport(
@@ -241,7 +258,7 @@ export const reportPhotoContent = onCall<ReportPhotoContentRequest>(
             publicationRef,
             {
               isPublished: true,
-              visibility: 'PUBLIC',
+              visibility,
               moderationStatus: 'FLAGGED',
               moderationReason: QUARANTINE_REASON,
               updatedAt: Date.now(),
