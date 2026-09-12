@@ -361,7 +361,8 @@
   align-items: stretch;
 }
 
-.community-card-shell--mine {
+.community-card-shell--mine,
+.community-card-shell:has(.community-card__dismiss) {
   gap: 0;
   overflow: hidden;
   border: 1px solid var(--surface-border, #d5d5d5);
@@ -378,7 +379,8 @@
     box-shadow 160ms ease;
 }
 
-.community-card-shell--mine:hover {
+.community-card-shell--mine:hover,
+.community-card-shell:has(.community-card__dismiss):hover {
   transform: translateY(-2px);
   border-color: color-mix(
     in oklab,
@@ -388,7 +390,8 @@
   box-shadow: 0 8px 24px color-mix(in oklab, var(--text-color, #222) 6%, transparent);
 }
 
-.community-card-shell--mine:focus-within {
+.community-card-shell--mine:focus-within,
+.community-card-shell:has(.community-card__dismiss):focus-within {
   border-color: color-mix(
     in oklab,
     var(--primary-color, #d83768) 42%,
@@ -459,6 +462,22 @@
   font-weight: 650;
 }
 
+.community-card-shell:has(.community-card__dismiss) .community-card__dismiss {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+  justify-self: stretch;
+  justify-content: flex-end;
+  padding: 0.35rem 0.65rem 0.45rem;
+  border: 0;
+  border-top: 1px solid color-mix(
+    in oklab,
+    var(--surface-border, #d5d5d5) 72%,
+    transparent
+  );
+  border-radius: 0;
+}
+
 .community-card__dismiss:hover,
 .community-card__dismiss:focus-visible {
   border-color: transparent;
@@ -498,14 +517,16 @@
   box-shadow: 0 8px 24px color-mix(in oklab, var(--text-color, #222) 6%, transparent);
 }
 
-.community-card--mine {
+.community-card--mine,
+.community-card-shell:has(.community-card__dismiss) .community-card {
   border: 0;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
 }
 
-.community-card--mine:hover {
+.community-card--mine:hover,
+.community-card-shell:has(.community-card__dismiss) .community-card:hover {
   transform: none;
   border-color: transparent;
   box-shadow: none;
@@ -870,6 +891,10 @@
     width: 100%;
     justify-content: flex-start;
   }
+
+  .community-card-shell:has(.community-card__dismiss) .community-card__dismiss {
+    justify-content: flex-start;
+  }
 }
 
 @media (max-width: 23rem) {
@@ -908,6 +933,7 @@
 
 :host-context(.high-contrast) .community-card,
 :host-context(.high-contrast) .community-card-shell--mine,
+:host-context(.high-contrast) .community-card-shell:has(.community-card__dismiss),
 :host-context(.high-contrast) .community-card__notification-action,
 :host-context(.high-contrast) .community-discovery__scope-nav,
 :host-context(.high-contrast) .community-discovery__create,
@@ -923,8 +949,14 @@
   border: 2px solid var(--text-color, #222);
 }
 
-:host-context(.high-contrast) .community-card-shell--mine .community-card--mine {
+:host-context(.high-contrast) .community-card-shell--mine .community-card--mine,
+:host-context(.high-contrast) .community-card-shell:has(.community-card__dismiss) .community-card {
   border: 0;
+}
+
+:host-context(.high-contrast) .community-card-shell:has(.community-card__dismiss) .community-card__dismiss {
+  border: 0;
+  border-top: 2px solid var(--text-color, #222);
 }
 
 :host-context(.high-contrast) .community-card__viewer-role,
@@ -948,6 +980,7 @@
 @media (prefers-reduced-motion: reduce) {
   .community-card,
   .community-card-shell--mine,
+  .community-card-shell:has(.community-card__dismiss),
   .community-card__notification-action,
   .community-discovery__filter-chip,
   .community-discovery__empty-explore {
@@ -955,7 +988,8 @@
   }
 
   .community-card:hover,
-  .community-card-shell--mine:hover {
+  .community-card-shell--mine:hover,
+  .community-card-shell:has(.community-card__dismiss):hover {
     transform: none;
   }
 }
