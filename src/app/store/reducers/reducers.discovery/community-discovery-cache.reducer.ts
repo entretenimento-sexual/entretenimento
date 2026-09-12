@@ -145,6 +145,42 @@ export const communityDiscoveryCacheReducer = createReducer(
   ),
 
   on(
+    CommunityDiscoveryCacheActions.removeCommunityFromMineCache,
+    (state, { viewerUid, communityId }) => {
+      const normalizedCommunityId = communityId.trim();
+      if (
+        !viewerUid
+        || state.activeViewerUid !== viewerUid
+        || !normalizedCommunityId
+      ) {
+        return state;
+      }
+
+      let changed = false;
+      const byQuery = Object.fromEntries(
+        Object.entries(state.byQuery).map(([key, slice]) => {
+          if (
+            slice.query.sourceType !== 'community'
+            || slice.query.discoveryMode !== 'mine'
+          ) {
+            return [key, slice];
+          }
+
+          const items = slice.items.filter(
+            (item) => item.communityId !== normalizedCommunityId
+          );
+          if (items.length === slice.items.length) return [key, slice];
+
+          changed = true;
+          return [key, { ...slice, items, lastLoadedAt: 0 }];
+        })
+      );
+
+      return changed ? { ...state, byQuery } : state;
+    }
+  ),
+
+  on(
     CommunityDiscoveryCacheActions.clearCommunityDiscoveryCache,
     () => initialCommunityDiscoveryCacheState
   )

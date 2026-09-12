@@ -107,6 +107,19 @@ export class CommunityDiscoveryCacheService {
     );
   }
 
+  removeCurrentViewerMineCommunity(communityIdValue: string): void {
+    const viewerUid = this.resolveCurrentViewerUid();
+    const communityId = communityIdValue.trim();
+    if (!viewerUid || !communityId) return;
+
+    this.store.dispatch(
+      CommunityDiscoveryCacheActions.removeCommunityFromMineCache({
+        viewerUid,
+        communityId,
+      })
+    );
+  }
+
   invalidateCurrentViewer(
     scope: CommunityDiscoveryCacheInvalidationScope = {}
   ): void {

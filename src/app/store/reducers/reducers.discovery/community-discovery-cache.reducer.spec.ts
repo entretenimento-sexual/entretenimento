@@ -165,6 +165,46 @@ describe('communityDiscoveryCacheReducer', () => {
     ).toBe(200);
   });
 
+  it('remove imediatamente apenas das consultas Minhas após saída confirmada', () => {
+    const mineQuery = buildCommunityDiscoveryCacheQuery('viewer-1', {
+      sourceType: 'community', discoveryMode: 'mine', tagId: null, pageSize: 12,
+    })!;
+    const explored = communityDiscoveryCacheReducer(
+      initialCommunityDiscoveryCacheState,
+      Actions.storeCommunityDiscoveryPage({
+        query,
+        page: { items: [card('a'), card('b')], nextCursor: null, generatedAt: 10 },
+        append: false,
+        storedAt: 100,
+      })
+    );
+    const populated = communityDiscoveryCacheReducer(
+      explored,
+      Actions.storeCommunityDiscoveryPage({
+        query: mineQuery,
+        page: { items: [card('a'), card('b')], nextCursor: null, generatedAt: 20 },
+        append: false,
+        storedAt: 200,
+      })
+    );
+
+    const converged = communityDiscoveryCacheReducer(
+      populated,
+      Actions.removeCommunityFromMineCache({
+        viewerUid: 'viewer-1',
+        communityId: 'a',
+      })
+    );
+    const slices = Object.values(converged.byQuery);
+    const exploreSlice = slices.find((slice) => slice.query.discoveryMode === 'explore')!;
+    const mineSlice = slices.find((slice) => slice.query.discoveryMode === 'mine')!;
+
+    expect(exploreSlice.items.map((item) => item.communityId)).toEqual(['a', 'b']);
+    expect(exploreSlice.lastLoadedAt).toBe(100);
+    expect(mineSlice.items.map((item) => item.communityId)).toEqual(['b']);
+    expect(mineSlice.lastLoadedAt).toBe(0);
+  });
+
   it('limita consultas por viewer e remove primeiro a menos recente', () => {
     let state = initialCommunityDiscoveryCacheState;
 

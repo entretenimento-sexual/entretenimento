@@ -7,7 +7,8 @@
 // nome e identidade visual continuam fora desta projeção.
 // -----------------------------------------------------------------------------
 
-import { Injectable, inject } from '@angular/core';
+import { DestroyRef, Injectable, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   Firestore,
   collection,
@@ -16,6 +17,7 @@ import {
 import {
   BehaviorSubject,
   Observable,
+  combineLatest,
   of,
 } from 'rxjs';
 import {
@@ -34,6 +36,11 @@ import {
   isFirebasePermissionDeniedError,
   toErrorInstance,
 } from 'src/app/core/utils/firebase-error-utils';
+import {
+  applyCommunitySocialUnreadSuppressions,
+  reconcileCommunitySocialUnreadSuppressions,
+  shouldSuppressCommunitySocialUnreadLocally,
+} from './community-notification-unread-summary.local';
 
 export interface CommunityNotificationUnreadSummary {
   readonly communityId: string;
@@ -70,8 +77,14 @@ export class CommunityNotificationUnreadSummaryService {
   private readonly session = inject(AuthSessionService);
   private readonly firestoreContext = inject(FirestoreContextService);
   private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly readStateSubject =
     new BehaviorSubject<CommunityNotificationSummaryReadState>('loading');
+  private readonly localSocialSuppressionSubject =
+    new BehaviorSubject<ReadonlySet<string>>(new Set<string>());
+  private latestCanonicalSummaries: readonly CommunityNotificationUnreadSummary[] = [];
+  private canonicalSummariesReady = false;
+  private activeViewerUid: string | null | undefined = undefined;
 
   readonly readState$: Observable<CommunityNotificationSummaryReadState> =
     this.readStateSubject.asObservable().pipe(
@@ -79,24 +92,30 @@ export class CommunityNotificationUnreadSummaryService {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-  readonly currentUserSummaries$: Observable<
+  private readonly currentUserCanonicalSummaries$: Observable<
     readonly CommunityNotificationUnreadSummary[]
   > = this.session.readyAuthUser$.pipe(
     switchMap((user) => {
       const uid = String(user?.uid ?? '').trim();
+      this.handleViewerChange(uid || null);
 
       if (!uid) {
         this.readStateSubject.next('ready');
+        this.handleCanonicalSummaries([]);
         return of<readonly CommunityNotificationUnreadSummary[]>([]);
       }
 
       this.readStateSubject.next('loading');
 
       return this.watchUserSummaries$(uid).pipe(
-        tap(() => this.readStateSubject.next('ready')),
+        tap((summaries) => {
+          this.handleCanonicalSummaries(summaries);
+          this.readStateSubject.next('ready');
+        }),
         catchError((error: unknown) => {
           if (isFirebasePermissionDeniedError(error)) {
             this.readStateSubject.next('ready');
+            this.handleCanonicalSummaries([]);
             return of<readonly CommunityNotificationUnreadSummary[]>([]);
           }
 
@@ -106,6 +125,21 @@ export class CommunityNotificationUnreadSummaryService {
         })
       );
     }),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  readonly currentUserSummaries$: Observable<
+    readonly CommunityNotificationUnreadSummary[]
+  > = combineLatest([
+    this.currentUserCanonicalSummaries$,
+    this.localSocialSuppressionSubject,
+  ]).pipe(
+    map(([summaries, suppressedCommunityIds]) =>
+      applyCommunitySocialUnreadSuppressions(
+        summaries,
+        suppressedCommunityIds
+      )
+    ),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -131,6 +165,34 @@ export class CommunityNotificationUnreadSummaryService {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
+  constructor() {
+    this.session.readyUid$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((uid) => this.handleViewerChange(String(uid ?? '').trim() || null));
+  }
+
+  suppressCommunitySocialUnreadAfterMembershipExit(communityIdValue: string): void {
+    const communityId = communityIdValue.trim();
+    if (!communityId) return;
+
+    if (
+      this.canonicalSummariesReady
+      && !shouldSuppressCommunitySocialUnreadLocally(
+        this.latestCanonicalSummaries,
+        communityId
+      )
+    ) {
+      return;
+    }
+
+    const current = this.localSocialSuppressionSubject.value;
+    if (current.has(communityId)) return;
+
+    this.localSocialSuppressionSubject.next(
+      new Set([...current, communityId])
+    );
+  }
+
   private watchUserSummaries$(
     uid: string
   ): Observable<readonly CommunityNotificationUnreadSummary[]> {
@@ -155,6 +217,41 @@ export class CommunityNotificationUnreadSummaryService {
           )
       )
     );
+  }
+
+  private handleViewerChange(uid: string | null): void {
+    if (this.activeViewerUid === uid) return;
+
+    this.activeViewerUid = uid;
+    this.latestCanonicalSummaries = [];
+    this.canonicalSummariesReady = false;
+    if (this.localSocialSuppressionSubject.value.size > 0) {
+      this.localSocialSuppressionSubject.next(new Set<string>());
+    }
+  }
+
+  private handleCanonicalSummaries(
+    summaries: readonly CommunityNotificationUnreadSummary[]
+  ): void {
+    this.latestCanonicalSummaries = summaries;
+    this.canonicalSummariesReady = true;
+
+    const current = this.localSocialSuppressionSubject.value;
+    const reconciled = reconcileCommunitySocialUnreadSuppressions(
+      summaries,
+      current
+    );
+    if (this.sameIds(current, reconciled)) return;
+
+    this.localSocialSuppressionSubject.next(reconciled);
+  }
+
+  private sameIds(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
+    if (left.size !== right.size) return false;
+    for (const id of left) {
+      if (!right.has(id)) return false;
+    }
+    return true;
   }
 
   private toSummary(

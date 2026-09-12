@@ -10,6 +10,9 @@ import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { defer, forkJoin, from, map, Observable, of, tap } from 'rxjs';
 
+import {
+  CommunityNotificationUnreadSummaryService,
+} from 'src/app/core/services/notifications/community-notification-unread-summary.service';
 import { CommunityDiscoveryCacheService } from '../discovery/community-discovery-cache.service';
 import { CommunityDiscoverySessionBehaviorService } from '../discovery/community-discovery-session-behavior.service';
 import {
@@ -30,6 +33,7 @@ const COMMUNITY_MEMBERSHIP_CONTEXT_BATCH_SIZE = 24;
 export class CommunityMembershipRepository {
   private readonly functions = inject(Functions);
   private readonly discoveryCache = inject(CommunityDiscoveryCacheService);
+  private readonly unreadSummary = inject(CommunityNotificationUnreadSummaryService);
   private readonly sessionBehavior = inject(
     CommunityDiscoverySessionBehaviorService
   );
@@ -110,6 +114,10 @@ export class CommunityMembershipRepository {
       }),
       tap(() => {
         this.sessionBehavior.setMembershipActive(normalizedCommunityId, false);
+        this.discoveryCache.removeCurrentViewerMineCommunity(normalizedCommunityId);
+        this.unreadSummary.suppressCommunitySocialUnreadAfterMembershipExit(
+          normalizedCommunityId
+        );
         this.discoveryCache.invalidateCurrentViewer({
           sourceType: 'community',
         });

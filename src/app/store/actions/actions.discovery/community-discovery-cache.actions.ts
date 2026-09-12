@@ -32,6 +32,14 @@ export const invalidateCommunityDiscoveryViewer = createAction(
   }>()
 );
 
+export const removeCommunityFromMineCache = createAction(
+  '[Community Discovery Cache] Remove Community From Mine',
+  props<{
+    viewerUid: string;
+    communityId: string;
+  }>()
+);
+
 export const clearCommunityDiscoveryCache = createAction(
   '[Community Discovery Cache] Clear'
 );
