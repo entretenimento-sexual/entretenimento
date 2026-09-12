@@ -177,7 +177,7 @@ export class UserActivityHubComponent {
 
     // Salas são compatibilidade legada. No hub, sua atividade pertence somente
     // ao total global da Central e não deve inflar o badge de Mensagens.
-    if (this.isRoomActivity(route, searchable)) {
+    if (this.isRoomActivity(item, route, searchable)) {
       return 'central';
     }
 
@@ -239,8 +239,15 @@ export class UserActivityHubComponent {
       searchable.includes('amizade');
   }
 
-  private isRoomActivity(route: string, searchable: string): boolean {
-    return route.startsWith('/chat/rooms') ||
+  private isRoomActivity(
+    item: IAppNotification,
+    route: string,
+    searchable: string
+  ): boolean {
+    const roomId = String(item.roomId ?? '').trim();
+
+    return !!roomId ||
+      route.startsWith('/chat/rooms') ||
       route.includes('/chat/room-invites') ||
       route.includes('/chat/invite-list') ||
       searchable.includes('convite para sala') ||
