@@ -6,6 +6,9 @@ import { db, storage } from '../../firebaseApp';
 import { resolveSocialConnectionAccess } from '../../friendship/application/social-connection-access.policy';
 import { consumeBackendRateLimitQuota } from './backend-rate-limit.service';
 import {
+  canReadPublishedPhotoAudience,
+} from './photo-audience-access.policy';
+import {
   containsControlCharacter,
   normalizeOwnedPublishedPhotoPath,
 } from './photo-storage-path';
@@ -70,17 +73,6 @@ function cleanId(value: unknown): string {
 
 function buildRequestKey(ownerUid: string, photoId: string): string {
   return JSON.stringify([ownerUid, photoId]);
-}
-
-export function canReadPublishedPhotoAudience(input: {
-  visibility: unknown;
-  viewerIsOwner: boolean;
-  viewerIsFriend: boolean;
-}): boolean {
-  const visibility = String(input.visibility ?? '').trim().toUpperCase();
-
-  return visibility === 'PUBLIC' ||
-    (visibility === 'FRIENDS' && (input.viewerIsOwner || input.viewerIsFriend));
 }
 
 async function consumePublicPhotoAccessQuota(
