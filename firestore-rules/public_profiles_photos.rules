@@ -25,9 +25,48 @@ match /public_profiles/{userId}/public_photos/{photoId} {
     return get(photoPath()).data;
   }
 
+  function viewerFriendPath() {
+    return /databases/$(database)/documents/users/$(request.auth.uid)/friends/$(userId);
+  }
+
+  function ownerFriendPath() {
+    return /databases/$(database)/documents/users/$(userId)/friends/$(request.auth.uid);
+  }
+
+  function viewerBlockPath() {
+    return /databases/$(database)/documents/users/$(request.auth.uid)/blocks/$(userId);
+  }
+
+  function ownerBlockPath() {
+    return /databases/$(database)/documents/users/$(userId)/blocks/$(request.auth.uid);
+  }
+
+  function hasMutualFriendship() {
+    return exists(viewerFriendPath()) && exists(ownerFriendPath());
+  }
+
+  function hasActiveBilateralBlock() {
+    return (
+      exists(viewerBlockPath())
+      && get(viewerBlockPath()).data.isBlocked == true
+    ) || (
+      exists(ownerBlockPath())
+      && get(ownerBlockPath()).data.isBlocked == true
+    );
+  }
+
   function isApprovedPublicPhotoData(data) {
     return data.visibility == "PUBLIC"
       && data.moderationStatus == "APPROVED";
+  }
+
+  function isApprovedCommentReadablePhotoData(data) {
+    return data.moderationStatus == "APPROVED"
+      && !hasActiveBilateralBlock()
+      && (
+        data.visibility == "PUBLIC"
+        || (data.visibility == "FRIENDS" && hasMutualFriendship())
+      );
   }
 
   function isPublicReadable() {
@@ -56,7 +95,7 @@ match /public_profiles/{userId}/public_photos/{photoId} {
           publicProfileExists()
           && resource.data.status == "VISIBLE"
           && photoExists()
-          && isApprovedPublicPhotoData(photoData())
+          && isApprovedCommentReadablePhotoData(photoData())
         )
       );
 
@@ -67,7 +106,7 @@ match /public_profiles/{userId}/public_photos/{photoId} {
           publicProfileExists()
           && resource.data.status == "VISIBLE"
           && photoExists()
-          && isApprovedPublicPhotoData(photoData())
+          && isApprovedCommentReadablePhotoData(photoData())
         )
       );
 
@@ -79,6 +118,8 @@ match /public_profiles/{userId}/public_photos/{photoId} {
 // Collection group: public_photos
 // A revalidação muda a projeção para PRIVATE na mesma transação;
 // por isso a consulta global continua filtrável por visibility.
+// FRIENDS não é aberta nesta superfície: descoberta restrita passa
+// pelo backend autorizado e por URL temporária revalidada.
 // Leituras diretas permanecem no match específico acima, que também
 // confirma a existência do perfil público pai.
 // ------------------------------------------------------------
