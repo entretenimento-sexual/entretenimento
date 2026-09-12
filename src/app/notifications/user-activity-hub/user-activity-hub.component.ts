@@ -6,9 +6,10 @@
 //
 // Decisões:
 // - não funciona como uma segunda navegação de domínio;
-// - Locais e Salas permanecem na navegação canônica do sidebar;
+// - Locais permanecem na navegação canônica do sidebar;
 // - Conexões aponta somente para solicitações entre pessoas;
-// - convites para salas possuem categoria e rota próprias;
+// - convites para salas antigas não ganham atalho no hub; permanecem no
+//   sidebar/badge de compatibilidade e no total global da Central;
 // - badges aparecem apenas quando houver pendência;
 // - categorias comuns usam a janela recente já carregada, sem listeners extras;
 // - Comunidades usa a projeção agregada privada, com um listener por usuário e
@@ -46,7 +47,6 @@ interface UserActivityHubVm {
 type ActivityKind =
   | 'messages'
   | 'connections'
-  | 'rooms'
   | 'communities'
   | 'places'
   | 'status'
@@ -84,15 +84,6 @@ export class UserActivityHubComponent {
       icon: '🤝',
       route: '/friends/requests',
       priority: 90,
-    },
-    {
-      id: 'rooms',
-      label: 'Salas',
-      description: 'Convites pendentes para salas privadas',
-      count: 0,
-      icon: '✉️',
-      route: '/chat/room-invites',
-      priority: 80,
     },
     {
       id: 'communities',
@@ -184,8 +175,10 @@ export class UserActivityHubComponent {
     const route = this.safeRoute(item.route) ?? this.defaultRouteFor(item);
     const searchable = this.searchableText(item);
 
+    // Salas são compatibilidade legada. No hub, sua atividade pertence somente
+    // ao total global da Central e não deve inflar o badge de Mensagens.
     if (this.isRoomActivity(route, searchable)) {
-      return 'rooms';
+      return 'central';
     }
 
     if (this.isMessageActivity(item, route, searchable)) {

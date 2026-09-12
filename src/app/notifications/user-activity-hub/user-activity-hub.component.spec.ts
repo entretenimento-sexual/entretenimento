@@ -8,7 +8,7 @@ import { CommunityNotificationUnreadSummaryService } from 'src/app/core/services
 import { UserActivityHubComponent } from './user-activity-hub.component';
 
 describe('UserActivityHubComponent', () => {
-  it('mantém categorias recentes, usa projeção agregada de Comunidades e preserva o total global da Central', () => {
+  it('mantém atalhos atuais, rebaixa Salas para a Central e preserva o total global', () => {
     TestBed.configureTestingModule({
       imports: [UserActivityHubComponent],
       providers: [
@@ -101,11 +101,11 @@ describe('UserActivityHubComponent', () => {
     const labels = Array.from(
       fixture.nativeElement.querySelectorAll('.activity-bar__label') as NodeListOf<HTMLElement>
     ).map((element) => element.textContent?.trim());
+    const messagesLink = links.find((link) =>
+      link.textContent?.includes('Mensagens')
+    );
     const connectionLink = links.find((link) =>
       link.textContent?.includes('Conexões')
-    );
-    const roomLink = links.find((link) =>
-      link.textContent?.includes('Salas')
     );
     const communitiesLink = links.find((link) =>
       link.textContent?.includes('Comunidades')
@@ -120,18 +120,21 @@ describe('UserActivityHubComponent', () => {
     expect(labels).toEqual([
       'Mensagens',
       'Conexões',
-      'Salas',
       'Comunidades',
       'Momentos',
       'Central',
     ]);
+    expect(labels).not.toContain('Salas');
     expect(labels).not.toContain('Status');
     expect(labels).not.toContain('Locais');
     expect(nav?.hasAttribute('aria-live')).toBe(false);
     expect(listItems).toHaveLength(links.length);
     expect(links.every((link) => !link.hasAttribute('role'))).toBe(true);
     expect(connectionLink?.getAttribute('href')).toBe('/friends/requests');
-    expect(roomLink?.getAttribute('href')).toBe('/chat/room-invites');
+    expect(
+      links.some((link) => link.getAttribute('href') === '/chat/room-invites')
+    ).toBe(false);
+    expect(messagesLink?.querySelector('.activity-bar__badge')).toBeNull();
     expect(communitiesLink?.getAttribute('href')).toBe('/dashboard/comunidades/minhas');
     expect(momentsLink?.getAttribute('href')).toBe('/descobrir');
     expect(
