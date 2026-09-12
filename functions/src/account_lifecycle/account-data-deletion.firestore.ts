@@ -40,14 +40,40 @@ export class FirestoreAccountDataDeletionAdapter implements AccountDataDeletionA
       .where(field, '==', uid)
       .limit(limit)
       .get();
+    const notificationRefs = snapshot.docs.map((doc) => doc.ref);
+    const projectionStateRefs = direction === 'recipient'
+      ? snapshot.docs.map((doc) =>
+        db.collection('community_notification_projection_state').doc(doc.id)
+      )
+      : [];
 
-    await this.deleteDocumentRefs(snapshot.docs.map((doc) => doc.ref));
+    await this.deleteDocumentRefs([
+      ...notificationRefs,
+      ...projectionStateRefs,
+    ]);
+
+    // A projeção agregada é derivada e privada. Ao concluir a paginação das
+    // notificações recebidas, removemos a árvore explicitamente para que a
+    // finalização da conta não dependa da latência do trigger de convergência.
+    if (direction === 'recipient' && snapshot.size < limit) {
+      await db.recursiveDelete(
+        db.collection('community_notification_summaries').doc(uid)
+      );
+    }
+
     return snapshot.size;
   }
 
   async deletePreferences(uid: string): Promise<number> {
     const ref = db.collection('preferences').doc(uid);
     const snapshot = await ref.get();
+
+    // Preferências de notificações por Comunidade vivem em uma árvore própria
+    // e o documento pai pode nem existir. recursiveDelete cobre os itens mesmo
+    // nesse caso e mantém a operação idempotente em retries do lifecycle.
+    await db.recursiveDelete(
+      db.collection('community_notification_preferences').doc(uid)
+    );
 
     if (!snapshot.exists) return 0;
 
