@@ -2,6 +2,9 @@ import type { Transaction } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 
 import {
+  assertNoActiveBilateralBlockInTransaction,
+} from '../../friendship/application/bilateral-block-access.policy';
+import {
   resolveSocialConnectionAccessInTransaction,
   type SingleSocialConnectionAccessResolution,
 } from '../../friendship/application/social-connection-access.policy';
@@ -44,11 +47,12 @@ export async function resolvePhotoAudienceAccessInTransaction(
   visibility: unknown,
   unavailableMessage = 'Foto indisponível.'
 ): Promise<SingleSocialConnectionAccessResolution> {
+  const normalizedVisibility = String(visibility ?? '').trim().toUpperCase();
   const viewerIsOwner = viewerUid === ownerUid;
 
   if (viewerIsOwner) {
     const allowed = canReadPublishedPhotoAudience({
-      visibility,
+      visibility: normalizedVisibility,
       viewerIsOwner: true,
       viewerIsFriend: false,
     });
@@ -60,20 +64,28 @@ export async function resolvePhotoAudienceAccessInTransaction(
     return { isFriend: false, isBlocked: false };
   }
 
+  if (normalizedVisibility === 'PUBLIC') {
+    await assertNoActiveBilateralBlockInTransaction(
+      transaction,
+      viewerUid,
+      ownerUid,
+      unavailableMessage
+    );
+
+    return { isFriend: false, isBlocked: false };
+  }
+
+  if (normalizedVisibility !== 'FRIENDS') {
+    throw new HttpsError('not-found', unavailableMessage);
+  }
+
   const socialAccess = await resolveSocialConnectionAccessInTransaction(
     transaction,
     viewerUid,
     ownerUid
   );
 
-  if (
-    socialAccess.isBlocked ||
-    !canReadPublishedPhotoAudience({
-      visibility,
-      viewerIsOwner: false,
-      viewerIsFriend: socialAccess.isFriend,
-    })
-  ) {
+  if (socialAccess.isBlocked || !socialAccess.isFriend) {
     throw new HttpsError('not-found', unavailableMessage);
   }
 
