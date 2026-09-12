@@ -4,7 +4,7 @@
 // - preservar os contratos e filtros puros de sidebar-config.ts;
 // - apresentar Feed, Pessoas, Locais e Comunidades dentro de Descobrir;
 // - apresentar Minhas conexões e Solicitações dentro de Conexões;
-// - apresentar Mensagens e convites legados acionáveis dentro de Conversas;
+// - apresentar somente Mensagens dentro de Conversas;
 // - mover a gestão da assinatura para o grupo Conta;
 // - apresentar documentos legais, avisos e manifestações dentro da conta;
 // - manter Área VIP e Recursos premium como destinos condicionais;
@@ -224,14 +224,6 @@ function composeDomainNavigation(
               icon: '💬',
               exact: true,
               ariaLabel: 'Abrir mensagens diretas',
-            },
-            {
-              id: 'room-invites',
-              label: 'Convites para salas',
-              route: '/chat/room-invites',
-              icon: '📨',
-              exact: false,
-              ariaLabel: 'Abrir convites pendentes para salas privadas antigas',
             },
           ],
         };
