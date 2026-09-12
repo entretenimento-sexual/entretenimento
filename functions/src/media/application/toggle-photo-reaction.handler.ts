@@ -4,8 +4,8 @@
 // -----------------------------------------------------------------------------
 //
 // Responsabilidade:
-// - receber intenção autenticada de curtir/descurtir foto pública;
-// - validar que a foto está PUBLIC + APPROVED + reactionsEnabled;
+// - receber intenção autenticada de curtir/descurtir foto acessível;
+// - validar audiência, moderação e reactionsEnabled;
 // - gravar/remover o like do usuário;
 // - recalcular reactionsCount, engagementScore, rankingScore e score no backend.
 //
@@ -14,7 +14,8 @@
 // - cliente não escreve contador;
 // - cliente não escreve documento público da foto;
 // - cada usuário só possui um like ativo por foto;
-// - conta com interações bloqueadas não altera reações.
+// - conta com interações bloqueadas não altera reações;
+// - audiência é revalidada dentro da mesma transação da mutação.
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
@@ -23,9 +24,6 @@ import {
 } from '../../account_lifecycle/interaction-access.policy';
 import { db } from '../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
-import {
-  assertNoActiveBilateralBlockInTransaction,
-} from '../../friendship/application/bilateral-block-access.policy';
 import {
   REQUIRE_PUBLIC_MEDIA_APP_CHECK,
   assertPublicMediaCallableAppCheck,
@@ -36,6 +34,9 @@ import {
 import {
   consumePublicPhotoSocialInteractionQuota,
 } from './public-photo-social-interaction-rate-limit.service';
+import {
+  resolvePhotoAudienceAccessInTransaction,
+} from './photo-audience-access.policy';
 
 interface TogglePhotoReactionRequest {
   ownerUid?: string;
@@ -183,17 +184,10 @@ export const togglePhotoReaction = onCall<TogglePhotoReactionRequest>(
     const photoRef = db.doc(
       `public_profiles/${ownerUid}/public_photos/${photoId}`
     );
-
     const likeRef = photoRef.collection('likes').doc(viewerUid);
 
     return db.runTransaction(async (transaction) => {
       await assertInteractionAccessInTransaction(transaction, viewerUid);
-      await assertNoActiveBilateralBlockInTransaction(
-        transaction,
-        viewerUid,
-        ownerUid,
-        'Foto pública não encontrada.'
-      );
 
       const photoSnap = await transaction.get(photoRef);
 
@@ -213,12 +207,13 @@ export const togglePhotoReaction = onCall<TogglePhotoReactionRequest>(
         );
       }
 
-      if (photo.visibility !== 'PUBLIC') {
-        throw new HttpsError(
-          'failed-precondition',
-          'Esta foto não está pública.'
-        );
-      }
+      await resolvePhotoAudienceAccessInTransaction(
+        transaction,
+        viewerUid,
+        ownerUid,
+        photo.visibility,
+        'Foto pública não encontrada.'
+      );
 
       if (photo.moderationStatus !== 'APPROVED') {
         throw new HttpsError(

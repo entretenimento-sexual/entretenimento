@@ -2,7 +2,7 @@
 // -----------------------------------------------------------------------------
 // PHOTO VIEW TRACKING
 // -----------------------------------------------------------------------------
-// Registra visualizações públicas de fotos via backend confiável.
+// Registra visualizações autorizadas de fotos via backend confiável.
 //
 // Semântica:
 // - viewsCount: visualizações contabilizadas respeitando janela antifraude;
@@ -15,7 +15,14 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { db, FieldValue } from '../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
+import {
+  resolveSocialConnectionAccess,
+} from '../../friendship/application/social-connection-access.policy';
 import { calculateMediaViewScore } from './media-audience-score';
+import {
+  canReadPublishedPhotoAudience,
+  resolvePhotoAudienceAccessInTransaction,
+} from './photo-audience-access.policy';
 import {
   PROFILE_VIEWER_INDEX_VERSION,
   PROFILE_VIEWERS_COLLECTION,
@@ -65,7 +72,7 @@ function safeNumber(value: unknown): number {
     : 0;
 }
 
-function assertPublicApprovedPhoto(
+function assertApprovedPhoto(
   exists: boolean,
   data: FirebaseFirestore.DocumentData | undefined
 ): void {
@@ -73,14 +80,43 @@ function assertPublicApprovedPhoto(
     throw new HttpsError('not-found', 'Foto pública não encontrada.');
   }
 
-  if (
-    data?.visibility !== 'PUBLIC' ||
-    data?.moderationStatus !== 'APPROVED'
-  ) {
+  if (data?.moderationStatus !== 'APPROVED') {
     throw new HttpsError(
       'failed-precondition',
-      'Foto indisponível para visualização pública.'
+      'Foto indisponível para visualização.'
     );
+  }
+}
+
+async function assertPreflightPhotoAudience(input: {
+  viewerUid: string;
+  ownerUid: string;
+  visibility: unknown;
+}): Promise<void> {
+  const visibility = String(input.visibility ?? '').trim().toUpperCase();
+
+  if (visibility === 'PUBLIC') {
+    return;
+  }
+
+  if (visibility !== 'FRIENDS') {
+    throw new HttpsError('not-found', 'Foto pública não encontrada.');
+  }
+
+  const socialAccess = await resolveSocialConnectionAccess(
+    input.viewerUid,
+    [input.ownerUid]
+  );
+
+  if (
+    socialAccess.blockedTargetUids.has(input.ownerUid) ||
+    !canReadPublishedPhotoAudience({
+      visibility,
+      viewerIsOwner: false,
+      viewerIsFriend: socialAccess.friendTargetUids.has(input.ownerUid),
+    })
+  ) {
+    throw new HttpsError('not-found', 'Foto pública não encontrada.');
   }
 }
 
@@ -114,14 +150,18 @@ export const recordPhotoView = onCall<RecordPhotoViewRequest>(
     );
 
     /**
-     * Preflight barato: impede que um photoId inexistente acione o backfill
-     * histórico do perfil. A transação revalida o documento depois.
+     * Preflight barato: impede que um photoId inexistente ou uma audiência não
+     * autorizada acione o backfill histórico do perfil. A transação revalida a
+     * audiência novamente imediatamente antes de contabilizar a visualização.
      */
     const preflightPhotoSnapshot = await publicPhotoRef.get();
-    assertPublicApprovedPhoto(
-      preflightPhotoSnapshot.exists,
-      preflightPhotoSnapshot.data()
-    );
+    const preflightPhoto = preflightPhotoSnapshot.data();
+    assertApprovedPhoto(preflightPhotoSnapshot.exists, preflightPhoto);
+    await assertPreflightPhotoAudience({
+      viewerUid,
+      ownerUid,
+      visibility: preflightPhoto?.visibility,
+    });
 
     /**
      * Migração lazy e idempotente. Executa leitura histórica apenas enquanto o
@@ -145,13 +185,18 @@ export const recordPhotoView = onCall<RecordPhotoViewRequest>(
         throw new HttpsError('not-found', 'Perfil público não encontrado.');
       }
 
-      assertPublicApprovedPhoto(
-        publicPhotoSnap.exists,
-        publicPhotoSnap.data()
+      const publicPhotoData = publicPhotoSnap.data();
+      assertApprovedPhoto(publicPhotoSnap.exists, publicPhotoData);
+      await resolvePhotoAudienceAccessInTransaction(
+        transaction,
+        viewerUid,
+        ownerUid,
+        publicPhotoData?.visibility,
+        'Foto pública não encontrada.'
       );
 
       const publicProfile = publicProfileSnap.data() ?? {};
-      const publicPhoto = publicPhotoSnap.data() ?? {};
+      const publicPhoto = publicPhotoData ?? {};
       const photoViewerData = photoViewerSnap.data() ?? {};
       const profileViewerData = profileViewerSnap.data() ?? {};
 

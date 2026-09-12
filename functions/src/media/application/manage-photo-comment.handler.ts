@@ -4,7 +4,7 @@
 // -----------------------------------------------------------------------------
 //
 // Responsabilidade:
-// - criar comentário em foto pública aprovada;
+// - criar comentário em foto acessível e aprovada;
 // - permitir resposta do dono da foto a um comentário;
 // - permitir moderação pelo dono da foto;
 // - permitir remoção suave pelo autor do comentário;
@@ -14,6 +14,7 @@
 // - cliente não edita comentário diretamente;
 // - cliente não atualiza commentsCount/score;
 // - nickname do autor é resolvido pelo backend a partir da projeção pública;
+// - audiência e política de comentários são revalidadas na transação;
 // - resposta encadeada é limitada a 1 nível para manter UX mobile limpa.
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
@@ -21,8 +22,8 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { db } from '../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import {
-  assertNoActiveBilateralBlockInTransaction,
-} from '../../friendship/application/bilateral-block-access.policy';
+  assertPhotoCommentAccessInTransaction,
+} from './photo-audience-access.policy';
 
 type CommentStatus = 'VISIBLE' | 'PENDING_REVIEW' | 'HIDDEN' | 'DELETED';
 
@@ -190,29 +191,11 @@ function buildNextScore(
   };
 }
 
-function assertPublicPhotoAllowsComments(photo: PublicPhotoDoc): void {
-  if (photo.visibility !== 'PUBLIC') {
-    throw new HttpsError('failed-precondition', 'Esta foto não está pública.');
-  }
-
+function assertPhotoApprovedForComments(photo: PublicPhotoDoc): void {
   if (photo.moderationStatus !== 'APPROVED') {
     throw new HttpsError(
       'failed-precondition',
       'Esta foto ainda não está aprovada para comentários.'
-    );
-  }
-
-  if (photo.commentsEnabled !== true) {
-    throw new HttpsError(
-      'failed-precondition',
-      'Comentários desabilitados nesta foto.'
-    );
-  }
-
-  if (photo.commentsPolicy !== 'EVERYONE') {
-    throw new HttpsError(
-      'failed-precondition',
-      'A política atual da foto não permite comentários públicos.'
     );
   }
 }
@@ -262,13 +245,6 @@ export const createPhotoComment = onCall<CreatePhotoCommentRequest>(
     const newCommentRef = commentsCollection.doc();
 
     return db.runTransaction(async (transaction) => {
-      await assertNoActiveBilateralBlockInTransaction(
-        transaction,
-        authorUid,
-        ownerUid,
-        'Foto pública não encontrada.'
-      );
-
       const [photoSnap, authorProfileSnap] = await Promise.all([
         transaction.get(photoRef),
         transaction.get(authorProfileRef),
@@ -284,7 +260,18 @@ export const createPhotoComment = onCall<CreatePhotoCommentRequest>(
         throw new HttpsError('failed-precondition', 'Foto inconsistente.');
       }
 
-      assertPublicPhotoAllowsComments(photo);
+      assertPhotoApprovedForComments(photo);
+      await assertPhotoCommentAccessInTransaction(
+        transaction,
+        {
+          viewerUid: authorUid,
+          ownerUid,
+          visibility: photo.visibility,
+          commentsEnabled: photo.commentsEnabled,
+          commentsPolicy: photo.commentsPolicy,
+        },
+        'Foto pública não encontrada.'
+      );
 
       const authorNickname = resolveNickname(
         authorProfileSnap.exists ? (authorProfileSnap.data() as PublicProfileDoc) : undefined
@@ -395,7 +382,6 @@ export const moderatePhotoComment = onCall<ModeratePhotoCommentRequest>(
     const photoId = cleanId(request.data?.photoId);
     const commentId = cleanId(request.data?.commentId);
     const action = String(request.data?.action ?? '').trim().toUpperCase();
-
 
     if (!ownerUid || !photoId || !commentId) {
       throw new HttpsError('invalid-argument', 'Comentário inválido.');

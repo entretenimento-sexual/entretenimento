@@ -19,6 +19,7 @@ import {
 } from './public-media-callable-security';
 
 export type PhotoContentReportDecision = 'KEEP' | 'REMOVE';
+type ModeratedPhotoVisibility = 'PUBLIC' | 'FRIENDS';
 
 interface ReviewPhotoContentReportRequest {
   reportId?: string;
@@ -38,6 +39,7 @@ interface ModerationReportDocument {
 
 interface PublicPhotoDocument {
   ownerUid?: string;
+  visibility?: string;
   reportsCount?: number;
   openReportsCount?: number;
   confirmedReportsCount?: number;
@@ -45,6 +47,7 @@ interface PublicPhotoDocument {
 }
 
 interface PhotoPublicationDocument {
+  visibility?: string;
   publishedStoragePath?: string;
 }
 
@@ -90,6 +93,54 @@ function cleanReason(value: unknown): MediaReportSafetyReason | null {
   ].includes(normalized)
     ? normalized as MediaReportSafetyReason
     : null;
+}
+
+function cleanModeratedPhotoVisibility(
+  value: unknown
+): ModeratedPhotoVisibility | null {
+  const normalized = String(value ?? '').trim().toUpperCase();
+  return normalized === 'PUBLIC' || normalized === 'FRIENDS'
+    ? normalized
+    : null;
+}
+
+export function resolveModeratedPhotoVisibility(input: {
+  photoVisibility?: unknown;
+  publicationVisibility?: unknown;
+  hasPhoto: boolean;
+  hasPublication: boolean;
+}): ModeratedPhotoVisibility | null {
+  const photoVisibility = cleanModeratedPhotoVisibility(input.photoVisibility);
+  const publicationVisibility = cleanModeratedPhotoVisibility(
+    input.publicationVisibility
+  );
+
+  if (input.hasPhoto && !photoVisibility) {
+    throw new HttpsError(
+      'failed-precondition',
+      'A foto possui audiência inconsistente para moderação.'
+    );
+  }
+
+  if (input.hasPublication && !publicationVisibility) {
+    throw new HttpsError(
+      'failed-precondition',
+      'A publicação possui audiência inconsistente para moderação.'
+    );
+  }
+
+  if (
+    photoVisibility &&
+    publicationVisibility &&
+    photoVisibility !== publicationVisibility
+  ) {
+    throw new HttpsError(
+      'failed-precondition',
+      'A foto e sua configuração de publicação possuem audiências divergentes.'
+    );
+  }
+
+  return publicationVisibility ?? photoVisibility;
 }
 
 function assertAdmin(requestAuth: unknown): string {
@@ -193,6 +244,12 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
         const publication = publicationSnap.exists
           ? publicationSnap.data() as PhotoPublicationDocument
           : null;
+        const visibility = resolveModeratedPhotoVisibility({
+          photoVisibility: photo?.visibility,
+          publicationVisibility: publication?.visibility,
+          hasPhoto: photoSnap.exists,
+          hasPublication: publicationSnap.exists,
+        });
         const safetyState = buildMediaReportSafetyState(
           photo ?? {},
           decision === 'KEEP' ? 'KEEP' : 'REMOVE'
@@ -216,11 +273,18 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
           });
 
           if (report.contentQuarantined === true && publicationSnap.exists) {
+            if (!visibility) {
+              throw new HttpsError(
+                'failed-precondition',
+                'Não foi possível restaurar a audiência original da publicação.'
+              );
+            }
+
             transaction.set(
               publicationRef,
               {
                 isPublished: true,
-                visibility: 'PUBLIC',
+                visibility,
                 moderationStatus: 'APPROVED',
                 moderationReason: null,
                 lastModeratedAt: FieldValue.serverTimestamp(),
@@ -241,11 +305,18 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
           }
 
           if (publicationSnap.exists) {
+            if (!visibility) {
+              throw new HttpsError(
+                'failed-precondition',
+                'Não foi possível preservar a audiência original da publicação.'
+              );
+            }
+
             transaction.set(
               publicationRef,
               {
                 isPublished: true,
-                visibility: 'PUBLIC',
+                visibility,
                 moderationStatus: 'FLAGGED',
                 moderationReason: resolution,
                 lastModeratedAt: FieldValue.serverTimestamp(),

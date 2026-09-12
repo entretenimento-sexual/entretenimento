@@ -128,6 +128,10 @@ export {
 } from './application/get-private-video-access-urls.handler';
 
 export {
+  getAuthorizedPhotoOwnerPage,
+} from './application/get-authorized-photo-owner-page.handler';
+
+export {
   getPublicPhotoAccessUrls,
 } from './application/get-public-photo-access-urls.handler';
 

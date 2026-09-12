@@ -48,6 +48,11 @@ interface PublicPhotoAccessCacheEntry {
 const MAX_ITEMS_PER_REQUEST = 32;
 const CACHE_EXPIRY_SAFETY_MS = 30_000;
 
+export function isSupportedPublicPhotoAccessAudience(value: unknown): boolean {
+  const visibility = String(value ?? '').trim().toUpperCase();
+  return visibility === 'PUBLIC' || visibility === 'FRIENDS';
+}
+
 @Injectable({ providedIn: 'root' })
 export class PublicPhotoAccessService {
   private readonly destroyRef = inject(DestroyRef);
@@ -224,7 +229,7 @@ export class PublicPhotoAccessService {
     return (
       !!projection.ownerUid?.trim() &&
       !!projection.id?.trim() &&
-      projection.visibility === 'PUBLIC' &&
+      isSupportedPublicPhotoAccessAudience(projection.visibility) &&
       projection.moderationStatus === 'APPROVED' &&
       projection.assetAccess === 'SIGNED_URL'
     );
