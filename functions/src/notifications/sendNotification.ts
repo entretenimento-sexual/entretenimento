@@ -4,6 +4,10 @@ import {getMessaging} from 'firebase-admin/messaging';
 import {getFirestore, Timestamp} from 'firebase-admin/firestore';
 
 import {
+  isCommunityNotificationInCurrentMembershipCycle,
+  isCommunitySocialActivityNotificationType,
+} from '../community/community-notification.policy';
+import {
   isCommunityPushMuted,
   isPushNotificationEnabledByPreference,
   normalizeCommunityPushPreferenceId,
@@ -179,6 +183,51 @@ export const sendNotification = onDocumentCreated(
 
     if (targets.length === 0) return;
 
+    // Revalidação deliberadamente próxima do multicast: fecha a corrida em que
+    // a notificação foi criada enquanto o membership era ativo, mas o usuário
+    // saiu/foi removido/bloqueado antes do push. Avisos essenciais/moderação não
+    // entram neste gate porque não são atividade social comum.
+    if (isCommunitySocialActivityNotificationType(notificationType)) {
+      const communityId = normalizeCommunityPushPreferenceId(
+        notification?.communityId
+      );
+      if (!communityId) return;
+
+      try {
+        const membershipSnapshot = await db
+          .collection('communities')
+          .doc(communityId)
+          .collection('members')
+          .doc(recipientId)
+          .get();
+
+        if (
+          !membershipSnapshot.exists
+          || !isCommunityNotificationInCurrentMembershipCycle(
+            membershipSnapshot.data(),
+            notification?.createdAt
+          )
+        ) {
+          console.info('[sendNotification] push social de Comunidade suprimido por membership', {
+            notificationId,
+            notificationType,
+            communityId,
+          });
+          return;
+        }
+      } catch (error) {
+        // Atividade social é opcional e falha fechado quando a autoridade do
+        // membership não pode ser confirmada. A notificação in-app permanece.
+        console.error('[sendNotification] falha ao revalidar membership de Comunidade', {
+          notificationId,
+          notificationType,
+          communityId,
+          errorCode: toSafeErrorCode(error),
+        });
+        return;
+      }
+    }
+
     const pushContent = buildPrivatePushContent();
     const deliveryOptions = buildPushNotificationDeliveryOptions();
     const response = await getMessaging().sendEachForMulticast({
@@ -289,6 +338,7 @@ export const sendNotification = onDocumentCreated(
       usesNeutralExternalContent: true,
       targetsFreshRegistryOnly: true,
       validatesCanonicalTokenOwnership: true,
+      revalidatesCommunityMembership: isCommunitySocialActivityNotificationType(notificationType),
       hasExplicitDeliveryTtl: true,
       candidateTargetCount: candidateTargets.length,
       ownershipFilteredCount,
