@@ -10,6 +10,10 @@ import { createHash } from 'node:crypto';
 
 const COMMENT_GROUP_WINDOW_MS = 24 * 60 * 60 * 1_000;
 const MAX_ACTIVITY_COUNT = 1_000_000_000;
+const COMMUNITY_SOCIAL_ACTIVITY_NOTIFICATION_TYPES = new Set([
+  'community.comment.received',
+  'community.comment.reply.received',
+]);
 
 export type CommunityModerationTarget = 'comment' | 'reply' | 'post';
 
@@ -20,6 +24,11 @@ export interface CommunityNotificationUser {
   accountLocked?: unknown;
   loginAllowed?: unknown;
   profileCompleted?: unknown;
+}
+
+export interface CommunityNotificationMembership {
+  status?: unknown;
+  joinedAt?: unknown;
 }
 
 export interface CommunityNotificationPreferences {
@@ -53,6 +62,39 @@ function normalizeCount(value: unknown): number {
     : 0;
 }
 
+export function normalizeCommunityNotificationTimestampMs(value: unknown): number | null {
+  if (value instanceof Date) {
+    const time = value.getTime();
+    return Number.isFinite(time) && time > 0 ? Math.trunc(time) : null;
+  }
+
+  if (typeof value === 'number') {
+    return Number.isFinite(value) && value > 0 ? Math.trunc(value) : null;
+  }
+
+  if (value && typeof value === 'object') {
+    const source = value as {
+      toMillis?: () => number;
+      seconds?: unknown;
+      nanoseconds?: unknown;
+    };
+
+    if (typeof source.toMillis === 'function') {
+      const time = Number(source.toMillis());
+      return Number.isFinite(time) && time > 0 ? Math.trunc(time) : null;
+    }
+
+    const seconds = Number(source.seconds);
+    const nanoseconds = Number(source.nanoseconds ?? 0);
+    if (Number.isFinite(seconds) && Number.isFinite(nanoseconds)) {
+      const time = seconds * 1_000 + Math.trunc(nanoseconds / 1_000_000);
+      return Number.isFinite(time) && time > 0 ? Math.trunc(time) : null;
+    }
+  }
+
+  return null;
+}
+
 function stableId(prefix: string, parts: string[]): string {
   const digest = createHash('sha256')
     .update(parts.join('\u001f'))
@@ -72,10 +114,33 @@ export function allowsCommunityActivityNotifications(
   return true;
 }
 
+export function isCommunitySocialActivityNotificationType(type: unknown): boolean {
+  return COMMUNITY_SOCIAL_ACTIVITY_NOTIFICATION_TYPES.has(
+    String(type ?? '').trim()
+  );
+}
+
+export function isCommunityNotificationInCurrentMembershipCycle(
+  membership: CommunityNotificationMembership | undefined,
+  notificationCreatedAt: unknown
+): boolean {
+  if (String(membership?.status ?? '').trim() !== 'active') return false;
+
+  const joinedAtMs = normalizeCommunityNotificationTimestampMs(membership?.joinedAt);
+  const notificationCreatedAtMs = normalizeCommunityNotificationTimestampMs(
+    notificationCreatedAt
+  );
+
+  return joinedAtMs !== null
+    && notificationCreatedAtMs !== null
+    && notificationCreatedAtMs >= joinedAtMs;
+}
+
 export function canReceiveCommunityActivityNotification(
   user: CommunityNotificationUser | undefined,
   recipientUid: string,
-  actorUid: string
+  actorUid: string,
+  membership: CommunityNotificationMembership | undefined
 ): boolean {
   if (!recipientUid || recipientUid === actorUid || user?.uid !== recipientUid) {
     return false;
@@ -89,7 +154,9 @@ export function canReceiveCommunityActivityNotification(
     && user.profileCompleted === true
     && user.interactionBlocked !== true
     && user.accountLocked !== true
-    && user.loginAllowed !== false;
+    && user.loginAllowed !== false
+    && String(membership?.status ?? '').trim() === 'active'
+    && normalizeCommunityNotificationTimestampMs(membership?.joinedAt) !== null;
 }
 
 export function canReceiveCommunityEssentialNotification(
@@ -112,7 +179,8 @@ export function buildCommunityCommentNotificationId(
   communityId: string,
   postId: string,
   recipientUid: string,
-  nowMs: number
+  nowMs: number,
+  membershipJoinedAtMs?: number | null
 ): string {
   const window = Math.floor(Math.max(0, nowMs) / COMMENT_GROUP_WINDOW_MS);
   return stableId('community_comments', [
@@ -120,6 +188,7 @@ export function buildCommunityCommentNotificationId(
     postId,
     recipientUid,
     String(window),
+    String(membershipJoinedAtMs ?? 0),
   ]);
 }
 
@@ -128,7 +197,8 @@ export function buildCommunityReplyNotificationId(
   postId: string,
   commentId: string,
   recipientUid: string,
-  nowMs: number
+  nowMs: number,
+  membershipJoinedAtMs?: number | null
 ): string {
   const window = Math.floor(Math.max(0, nowMs) / COMMENT_GROUP_WINDOW_MS);
   return stableId('community_replies', [
@@ -137,6 +207,7 @@ export function buildCommunityReplyNotificationId(
     commentId,
     recipientUid,
     String(window),
+    String(membershipJoinedAtMs ?? 0),
   ]);
 }
 
