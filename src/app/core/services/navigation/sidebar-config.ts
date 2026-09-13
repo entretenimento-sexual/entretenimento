@@ -128,8 +128,12 @@ const SECTION_MATCHERS: ReadonlyArray<{
     ],
   },
   {
+    key: 'profiles',
+    prefixes: ['/friends', '/dashboard/friends'],
+  },
+  {
     key: 'chat',
-    prefixes: ['/chat', '/friends'],
+    prefixes: ['/chat'],
   },
   {
     key: 'media',

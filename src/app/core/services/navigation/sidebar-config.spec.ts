@@ -34,6 +34,21 @@ describe('sidebar-config', () => {
     expect(resolveSidebarSectionFromUrl('/media/perfil/u1/videos')).toBe('media');
   });
 
+  it.each([
+    '/friends',
+    '/friends/list',
+    '/friends/requests',
+    '/dashboard/friends',
+    '/dashboard/friends/list',
+  ])('deve reconhecer %s como seção de conexões', (url) => {
+    expect(resolveSidebarSectionFromUrl(url)).toBe('profiles');
+  });
+
+  it('deve manter chat separado de conexões', () => {
+    expect(resolveSidebarSectionFromUrl('/chat')).toBe('chat');
+    expect(resolveSidebarSectionFromUrl('/chat/conversation-1')).toBe('chat');
+  });
+
   it('deve aglutinar os destinos pessoais no grupo Conta', () => {
     const sections = buildSidebarSections({
       isSubscriber: false,
