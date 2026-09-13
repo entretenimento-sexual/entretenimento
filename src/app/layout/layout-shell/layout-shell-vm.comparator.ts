@@ -152,6 +152,7 @@ function areSidebarVmsEqual(
       previous.isCollapsed === current.isCollapsed &&
       previous.currentUrl === current.currentUrl &&
       previous.currentSection === current.currentSection &&
+      previous.currentItemId === current.currentItemId &&
       areStringArraysEqual(
         previous.expandedGroupIds,
         current.expandedGroupIds

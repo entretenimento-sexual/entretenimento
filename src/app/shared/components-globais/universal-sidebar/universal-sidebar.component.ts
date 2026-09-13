@@ -1,24 +1,18 @@
 // src/app/shared/components-globais/universal-sidebar/universal-sidebar.component.ts
 // Sidebar universal de apresentação.
 //
-// Objetivos desta revisão:
+// Objetivos:
 // - manter o componente desacoplado de Auth/Firestore
 // - suportar header com avatar/resumo do usuário autenticado via Input
 // - melhorar acessibilidade no modo colapsado
 // - melhorar UX mobile/overlay com fechamento por Escape e backdrop
-// - substituir detecção manual de item ativo por routerLinkActive
-//
-// Ajustes desta versão:
-// - adiciona lockCollapsed para o modo chat
-// - suprime perfil expandido e quick actions quando o rail estiver travado
-// - impede expansão manual do sidebar no modo chat
-// - adiciona fallback visual quando avatar remoto falhar
-// - suporta grupos e submenus controlados pelo SidebarService
+// - consumir seção/item ativos já resolvidos pelo SidebarService
+// - suportar grupos e submenus controlados pelo SidebarService
 //
 // Observação arquitetural:
 // - este componente NÃO consulta sessão diretamente
-// - os dados do usuário devem vir do container/shell
-// - isso evita acoplamento indevido e facilita reuso futuro
+// - este componente NÃO tenta reinterpretar rotas
+// - os dados do usuário e o item ativo vêm do container/shell
 import {
   ChangeDetectionStrategy,
   Component,
@@ -142,17 +136,12 @@ export class UniversalSidebarComponent {
   }
 
   isGroupActive(group: SidebarGroupItem): boolean {
-    return group.children.some((child) => this.isLinkActive(child));
+    const activeItemId = this.vm?.currentItemId ?? null;
+    return !!activeItemId && group.children.some((child) => child.id === activeItemId);
   }
 
   isLinkActive(item: SidebarLinkItem): boolean {
-    const currentUrl = this.normalizeUrl(this.vm?.currentUrl);
-    const route = this.normalizeUrl(item.route);
-
-    if (!route) return false;
-    if (item.exact === true) return currentUrl === route;
-
-    return currentUrl === route || currentUrl.startsWith(`${route}/`);
+    return !!item.id && this.vm?.currentItemId === item.id;
   }
 
   groupPanelId(groupId: string): string {
@@ -280,13 +269,6 @@ export class UniversalSidebarComponent {
     if (sidebarEl.contains(activeEl) && typeof activeEl.blur === 'function') {
       activeEl.blur();
     }
-  }
-
-  private normalizeUrl(url: string | null | undefined): string {
-    const clean = String(url ?? '').trim().split('?')[0].split('#')[0];
-
-    if (!clean || clean === '/') return clean;
-    return clean.endsWith('/') ? clean.slice(0, -1) : clean;
   }
 
   @HostListener('document:keydown.escape')

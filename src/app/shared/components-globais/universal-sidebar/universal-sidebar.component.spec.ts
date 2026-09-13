@@ -26,11 +26,22 @@ const accountGroup: SidebarGroupItem = {
       label: 'Preferências',
       route: '/preferencias',
     },
+    {
+      id: 'my-account',
+      label: 'Dados da conta',
+      route: '/conta',
+    },
+    {
+      id: 'legal-documents',
+      label: 'Documentos legais',
+      route: '/conta/documentos-legais',
+    },
   ],
 };
 
 function buildVm(
   currentUrl: string,
+  currentItemId: string | null,
   isCollapsed = false,
   expandedGroupIds: readonly string[] = []
 ): SidebarVm {
@@ -40,6 +51,7 @@ function buildVm(
     isCollapsed,
     currentUrl,
     currentSection: 'settings',
+    currentItemId,
     expandedGroupIds,
     sections: [
       {
@@ -56,13 +68,14 @@ function buildBadgeVm(item: SidebarLinkItem): SidebarVm {
     isMobile: false,
     isOpen: true,
     isCollapsed: false,
-    currentUrl: '/dashboard/principal',
-    currentSection: 'chat',
+    currentUrl: '/friends/requests',
+    currentSection: 'profiles',
+    currentItemId: 'friend-requests',
     expandedGroupIds: [],
     sections: [
       {
-        key: 'chat',
-        title: 'Conversas',
+        key: 'profiles',
+        title: 'Conexões',
         items: [item],
       },
     ],
@@ -72,7 +85,7 @@ function buildBadgeVm(item: SidebarLinkItem): SidebarVm {
 describe('UniversalSidebarComponent account group', () => {
   it('mantém a rota filha ativa sem forçar a abertura do grupo', () => {
     const component = new UniversalSidebarComponent();
-    component.vm = buildVm('/preferencias/editar/u1');
+    component.vm = buildVm('/preferencias/editar/u1', 'preferences');
 
     expect(component.isGroupActive(accountGroup)).toBe(true);
     expect(component.isGroupExpanded(accountGroup)).toBe(false);
@@ -80,7 +93,7 @@ describe('UniversalSidebarComponent account group', () => {
 
   it('abre o grupo somente por expansão explícita', () => {
     const component = new UniversalSidebarComponent();
-    component.vm = buildVm('/perfil', false, ['account']);
+    component.vm = buildVm('/perfil', 'my-profile', false, ['account']);
 
     expect(component.isGroupActive(accountGroup)).toBe(true);
     expect(component.isGroupExpanded(accountGroup)).toBe(true);
@@ -88,18 +101,52 @@ describe('UniversalSidebarComponent account group', () => {
 
   it('mantém o rail recolhido dependente de expansão explícita', () => {
     const component = new UniversalSidebarComponent();
-    component.vm = buildVm('/preferencias', true);
+    component.vm = buildVm('/preferencias', 'preferences', true);
 
     expect(component.isGroupActive(accountGroup)).toBe(true);
     expect(component.isGroupExpanded(accountGroup)).toBe(false);
 
-    component.vm = buildVm('/preferencias', true, ['account']);
+    component.vm = buildVm('/preferencias', 'preferences', true, ['account']);
     expect(component.isGroupExpanded(accountGroup)).toBe(true);
+  });
+
+  it('mantém somente o destino específico ativo quando rotas se sobrepõem', () => {
+    const component = new UniversalSidebarComponent();
+    component.vm = buildVm(
+      '/conta/documentos-legais',
+      'legal-documents',
+      false,
+      ['account']
+    );
+
+    const myAccount = accountGroup.children.find(
+      (child) => child.id === 'my-account'
+    );
+    const legalDocuments = accountGroup.children.find(
+      (child) => child.id === 'legal-documents'
+    );
+
+    expect(myAccount).toBeTruthy();
+    expect(legalDocuments).toBeTruthy();
+    expect(component.isLinkActive(myAccount!)).toBe(false);
+    expect(component.isLinkActive(legalDocuments!)).toBe(true);
+    expect(component.isGroupActive(accountGroup)).toBe(true);
+  });
+
+  it('não acende a Conta ao visualizar perfil alheio na descoberta', () => {
+    const component = new UniversalSidebarComponent();
+    component.vm = {
+      ...buildVm('/perfil/usuario-2', 'discover-people'),
+      currentSection: 'explore',
+    };
+
+    expect(component.isGroupActive(accountGroup)).toBe(false);
+    expect(component.isLinkActive(accountGroup.children[0])).toBe(false);
   });
 
   it('emite os pedidos de alternância e fechamento sem acessar o serviço', () => {
     const component = new UniversalSidebarComponent();
-    component.vm = buildVm('/dashboard/principal');
+    component.vm = buildVm('/dashboard/principal', 'dashboard-home');
     const toggleSpy = vi.fn();
     const closeSpy = vi.fn();
 

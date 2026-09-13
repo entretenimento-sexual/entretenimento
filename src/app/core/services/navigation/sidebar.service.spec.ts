@@ -5,12 +5,12 @@ import { isSidebarGroupItem } from './sidebar-config.runtime';
 import { SidebarService, type SidebarVm } from './sidebar.service';
 
 describe('SidebarService groups', () => {
-  function createService(): SidebarService {
+  function createService(currentUrl = '/dashboard/principal'): SidebarService {
     const breakpointObserver = {
       observe: vi.fn(() => of({ matches: false })),
     };
     const routeContext = {
-      currentUrl$: of('/dashboard/principal'),
+      currentUrl$: of(currentUrl),
     };
     const access = {
       hasAny$: vi.fn(() => of(false)),
@@ -58,7 +58,7 @@ describe('SidebarService groups', () => {
     subscription.unsubscribe();
   });
 
-  it('propaga o grupo aberto pela view model reativa', () => {
+  it('propaga o grupo aberto e o item ativo pela view model reativa', () => {
     const service = createService();
     const emissions: SidebarVm[] = [];
     const subscription = service.vm$.subscribe((value) => emissions.push(value));
@@ -67,6 +67,29 @@ describe('SidebarService groups', () => {
 
     expect(emissions.at(-1)?.expandedGroupIds).toEqual(['account']);
     expect(emissions.at(-1)?.sections.length).toBeGreaterThan(0);
+    expect(emissions.at(-1)?.currentItemId).toBe('dashboard-home');
+
+    subscription.unsubscribe();
+  });
+
+  it('resolve um único filho específico da Conta como ativo', () => {
+    const service = createService('/conta/documentos-legais?from=settings');
+    const emissions: SidebarVm[] = [];
+    const subscription = service.vm$.subscribe((value) => emissions.push(value));
+
+    expect(emissions.at(-1)?.currentSection).toBe('settings');
+    expect(emissions.at(-1)?.currentItemId).toBe('legal-documents');
+
+    subscription.unsubscribe();
+  });
+
+  it('mantém perfil alheio como Pessoas na descoberta', () => {
+    const service = createService('/perfil/usuario-2');
+    const emissions: SidebarVm[] = [];
+    const subscription = service.vm$.subscribe((value) => emissions.push(value));
+
+    expect(emissions.at(-1)?.currentSection).toBe('explore');
+    expect(emissions.at(-1)?.currentItemId).toBe('discover-people');
 
     subscription.unsubscribe();
   });

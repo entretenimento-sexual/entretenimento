@@ -7,7 +7,8 @@
 // - apresentar somente Mensagens dentro de Conversas;
 // - mover a gestão da assinatura para o grupo Conta;
 // - apresentar documentos legais, avisos e manifestações dentro da conta;
-// - manter Área VIP e Recursos premium como destinos condicionais;
+// - manter Área VIP como destino condicional enquanto possuir rota real;
+// - resolver seção e item ativos a partir de uma única autoridade de rota;
 // - remover seções que fiquem vazias após a composição.
 import {
   SOCIAL_SPACE_DEFINITIONS,
@@ -136,35 +137,108 @@ export function resolveSidebarSectionFromUrl(
   }
 
   if (
-    clean === '/subscription-plan'
-    || clean.startsWith('/subscription-plan/')
-    || clean === '/conta/documentos-legais'
-    || clean.startsWith('/conta/documentos-legais/')
-    || clean === '/conta/conformidade'
-    || clean.startsWith('/conta/conformidade/')
+    matchesRoute(clean, '/subscription-plan')
+    || matchesRoute(clean, '/conta/documentos-legais')
+    || matchesRoute(clean, '/conta/conformidade')
   ) {
     return 'settings';
   }
 
   if (
-    clean === '/dashboard/locais'
-    || clean.startsWith('/dashboard/locais/')
-    || clean === '/dashboard/comunidades'
-    || clean.startsWith('/dashboard/comunidades/')
+    matchesRoute(clean, '/dashboard/locais')
+    || matchesRoute(clean, '/dashboard/comunidades')
   ) {
     return 'explore';
   }
 
   if (
-    clean === '/friends'
-    || clean.startsWith('/friends/')
-    || clean === '/dashboard/friends'
-    || clean.startsWith('/dashboard/friends/')
+    matchesRoute(clean, '/friends')
+    || matchesRoute(clean, '/dashboard/friends')
   ) {
     return 'profiles';
   }
 
   return resolveBaseSidebarSectionFromUrl(clean);
+}
+
+/**
+ * Resolve o item visualmente ativo a partir da rota canônica/contextual.
+ *
+ * Esse é o contrato usado pelo sidebar desktop para impedir estados ativos
+ * concorrentes causados por prefixos sobrepostos (por exemplo `/conta` e
+ * `/conta/documentos-legais`) e para manter contexto em páginas de detalhe.
+ */
+export function resolveSidebarItemIdFromUrl(url: string): string | null {
+  const clean = normalizeUrl(url);
+
+  if (isCanonicalPublicProfileRoute(clean)) return 'discover-people';
+
+  if (
+    matchesRoute(clean, '/outro-perfil')
+    || matchesRoute(clean, '/profile-list')
+    || matchesRoute(clean, '/perfis-proximos')
+    || matchesRoute(clean, '/dashboard/perfis-sugeridos')
+    || matchesRoute(clean, '/dashboard/suggested-profiles')
+    || matchesRoute(clean, '/dashboard/online')
+    || matchesRoute(clean, '/dashboard/online-users')
+  ) {
+    return 'discover-people';
+  }
+
+  if (matchesRoute(clean, '/descobrir')) return 'social-feed';
+  if (matchesRoute(clean, '/dashboard/explorar')) return 'discover-people';
+  if (matchesRoute(clean, '/dashboard/locais')) return 'discover-venues';
+  if (matchesRoute(clean, '/dashboard/comunidades')) {
+    return 'discover-communities';
+  }
+
+  if (
+    matchesRoute(clean, '/friends/requests')
+    || matchesRoute(clean, '/dashboard/friends/requests')
+  ) {
+    return 'friend-requests';
+  }
+
+  if (
+    matchesRoute(clean, '/friends')
+    || matchesRoute(clean, '/dashboard/friends')
+  ) {
+    return 'friends-list';
+  }
+
+  if (matchesRoute(clean, '/chat')) return 'chat-list';
+
+  const mediaItemId = resolveMediaItemId(clean);
+  if (mediaItemId) return mediaItemId;
+
+  if (matchesRoute(clean, '/conta/documentos-legais')) {
+    return LEGAL_DOCUMENTS_ITEM_ID;
+  }
+
+  if (matchesRoute(clean, '/conta/conformidade')) {
+    return COMPLIANCE_CASES_ITEM_ID;
+  }
+
+  if (matchesRoute(clean, '/subscription-plan')) return SUBSCRIPTION_ITEM_ID;
+  if (matchesRoute(clean, '/dashboard/seguranca')) return SAFETY_ITEM_ID;
+  if (matchesRoute(clean, '/preferencias')) return 'preferences';
+
+  if (clean === '/perfil' || matchesRoute(clean, '/perfil')) {
+    return 'my-profile';
+  }
+
+  if (matchesRoute(clean, '/conta')) return 'my-account';
+  if (matchesRoute(clean, '/dashboard/featured-profiles')) return 'vip-area';
+  if (matchesRoute(clean, '/admin-dashboard')) return 'admin-dashboard';
+
+  if (
+    matchesRoute(clean, '/dashboard/principal')
+    || clean === '/principal'
+  ) {
+    return 'dashboard-home';
+  }
+
+  return null;
 }
 
 function composeDomainNavigation(
@@ -312,6 +386,30 @@ function appendAccountDestinations(
   } satisfies SidebarGroupItem;
 }
 
+function resolveMediaItemId(url: string): string | null {
+  if (
+    matchesRoute(url, '/media/videos')
+    || matchesRoute(url, '/media/video')
+    || matchesRoute(url, '/media/denunciar/video')
+    || /^\/media\/perfil\/[^/]+\/videos(?:-publicos)?(?:\/|$)/.test(url)
+  ) {
+    return 'media-videos';
+  }
+
+  if (
+    matchesRoute(url, '/media/photos')
+    || matchesRoute(url, '/media/ultimas-fotos')
+    || matchesRoute(url, '/media/fotos-top')
+    || matchesRoute(url, '/media/fotos-turbinadas')
+    || matchesRoute(url, '/media/denunciar/photo')
+    || /^\/media\/perfil\/[^/]+\/fotos(?:-publicas)?(?:\/|$)/.test(url)
+  ) {
+    return 'media-photos';
+  }
+
+  return null;
+}
+
 function normalizeUrl(url: string | null | undefined): string {
   const clean = String(url ?? '').trim().split('?')[0].split('#')[0];
 
@@ -320,6 +418,11 @@ function normalizeUrl(url: string | null | undefined): string {
   }
 
   return clean.endsWith('/') ? clean.slice(0, -1) : clean;
+}
+
+function matchesRoute(path: string, route: string): boolean {
+  const cleanRoute = normalizeUrl(route);
+  return path === cleanRoute || path.startsWith(`${cleanRoute}/`);
 }
 
 function isCanonicalPublicProfileRoute(url: string): boolean {

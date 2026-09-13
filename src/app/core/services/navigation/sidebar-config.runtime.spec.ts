@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildSidebarSections,
   isSidebarGroupItem,
+  resolveSidebarItemIdFromUrl,
   resolveSidebarSectionFromUrl,
 } from './sidebar-config.runtime';
 
@@ -97,6 +98,58 @@ describe('sidebar runtime composition', () => {
     ).toBe('settings');
   });
 
+  it('resolve um único item ativo para páginas contextuais de descoberta', () => {
+    expect(resolveSidebarItemIdFromUrl('/descobrir')).toBe('social-feed');
+    expect(resolveSidebarItemIdFromUrl('/dashboard/explorar')).toBe(
+      'discover-people'
+    );
+    expect(resolveSidebarItemIdFromUrl('/dashboard/perfis-sugeridos')).toBe(
+      'discover-people'
+    );
+    expect(resolveSidebarItemIdFromUrl('/dashboard/online')).toBe(
+      'discover-people'
+    );
+    expect(resolveSidebarItemIdFromUrl('/perfil/usuario-1')).toBe(
+      'discover-people'
+    );
+    expect(resolveSidebarItemIdFromUrl('/outro-perfil/usuario-1')).toBe(
+      'discover-people'
+    );
+  });
+
+  it('resolve destinos específicos da conta antes do pai /conta', () => {
+    expect(resolveSidebarItemIdFromUrl('/conta')).toBe('my-account');
+    expect(resolveSidebarItemIdFromUrl('/conta/documentos-legais')).toBe(
+      'legal-documents'
+    );
+    expect(resolveSidebarItemIdFromUrl('/conta/conformidade')).toBe(
+      'compliance-cases'
+    );
+    expect(resolveSidebarItemIdFromUrl('/subscription-plan')).toBe(
+      'subscription-plan'
+    );
+    expect(resolveSidebarItemIdFromUrl('/dashboard/seguranca')).toBe(
+      'safety-center'
+    );
+  });
+
+  it('resolve mídia contextual sem acender fotos e vídeos ao mesmo tempo', () => {
+    expect(resolveSidebarItemIdFromUrl('/media/photos')).toBe('media-photos');
+    expect(resolveSidebarItemIdFromUrl('/media/ultimas-fotos')).toBe(
+      'media-photos'
+    );
+    expect(resolveSidebarItemIdFromUrl('/media/perfil/u1/fotos-publicas')).toBe(
+      'media-photos'
+    );
+    expect(resolveSidebarItemIdFromUrl('/media/videos')).toBe('media-videos');
+    expect(resolveSidebarItemIdFromUrl('/media/video/u1/v1')).toBe(
+      'media-videos'
+    );
+    expect(resolveSidebarItemIdFromUrl('/media/perfil/u1/videos-publicos')).toBe(
+      'media-videos'
+    );
+  });
+
   it('separa conexões de mensagens sem promover salas antigas no menu global', () => {
     const sections = buildSidebarSections({
       isSubscriber: false,
@@ -140,6 +193,13 @@ describe('sidebar runtime composition', () => {
     expect(resolveSidebarSectionFromUrl('/dashboard/friends/list')).toBe(
       'profiles'
     );
+    expect(resolveSidebarItemIdFromUrl('/friends/requests')).toBe(
+      'friend-requests'
+    );
+    expect(resolveSidebarItemIdFromUrl('/friends/blocked')).toBe(
+      'friends-list'
+    );
+    expect(resolveSidebarItemIdFromUrl('/chat/rooms')).toBe('chat-list');
   });
 
   it('mantém Feed e Pessoas quando Locais e Comunidades estão desativados', () => {

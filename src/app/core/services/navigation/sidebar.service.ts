@@ -5,7 +5,7 @@
 // - controlar abertura/fechamento
 // - controlar colapso/expansão
 // - controlar grupos e submenus
-// - derivar seção ativa pela rota
+// - derivar seção e item ativos pela rota
 // - expor VM reativa para shell/sidebar
 //
 // Compatibilidade:
@@ -40,6 +40,7 @@ import {
   SidebarSection,
   SidebarSectionKey,
   buildSidebarSections,
+  resolveSidebarItemIdFromUrl,
   resolveSidebarSectionFromUrl,
 } from '@core/services/navigation/sidebar-config.runtime';
 
@@ -49,6 +50,7 @@ export interface SidebarVm {
   isCollapsed: boolean;
   currentUrl: string;
   currentSection: SidebarSectionKey;
+  currentItemId: string | null;
   expandedGroupIds: readonly string[];
   sections: SidebarSection[];
 }
@@ -72,6 +74,7 @@ function areSidebarVmsEqual(previous: SidebarVm, current: SidebarVm): boolean {
     previous.isCollapsed === current.isCollapsed &&
     previous.currentUrl === current.currentUrl &&
     previous.currentSection === current.currentSection &&
+    previous.currentItemId === current.currentItemId &&
     areStringArraysEqual(
       previous.expandedGroupIds,
       current.expandedGroupIds
@@ -142,6 +145,15 @@ export class SidebarService {
     )
   );
 
+  readonly currentItemId$: Observable<string | null> = this.currentUrl$.pipe(
+    map((url) => resolveSidebarItemIdFromUrl(url)),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError((err): Observable<string | null> =>
+      this.handleStreamError<string | null>('currentItemId$', null, err)
+    )
+  );
+
   /**
    * Seções efetivamente renderizáveis no sidebar.
    *
@@ -193,6 +205,7 @@ export class SidebarService {
     this.isCollapsed$,
     this.currentUrl$,
     this.currentSection$,
+    this.currentItemId$,
     this.expandedGroupIds$,
     this.sections$,
   ]).pipe(
@@ -202,6 +215,7 @@ export class SidebarService {
       isCollapsed,
       currentUrl,
       currentSection,
+      currentItemId,
       expandedGroupIds,
       sections,
     ]): SidebarVm => ({
@@ -210,6 +224,7 @@ export class SidebarService {
       isCollapsed: isMobile ? false : isCollapsed,
       currentUrl,
       currentSection,
+      currentItemId,
       expandedGroupIds,
       sections,
     })),
@@ -224,6 +239,7 @@ export class SidebarService {
           isCollapsed: false,
           currentUrl: '/',
           currentSection: 'unknown',
+          currentItemId: null,
           expandedGroupIds: [],
           sections: [],
         },

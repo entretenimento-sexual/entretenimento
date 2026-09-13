@@ -19,6 +19,7 @@ function createVm(): LayoutShellVm {
       isCollapsed: false,
       currentUrl: '/perfil',
       currentSection: 'settings',
+      currentItemId: 'my-profile',
       expandedGroupIds: ['account'],
       sections: [
         {
@@ -88,6 +89,14 @@ describe('areLayoutShellVmsEqual', () => {
     const previous = createVm();
     const current = createVm();
     current.sidebar.expandedGroupIds = [];
+
+    expect(areLayoutShellVmsEqual(previous, current)).toBe(false);
+  });
+
+  it('detecta alteração no item ativo mesmo dentro da mesma seção', () => {
+    const previous = createVm();
+    const current = createVm();
+    current.sidebar.currentItemId = 'legal-documents';
 
     expect(areLayoutShellVmsEqual(previous, current)).toBe(false);
   });

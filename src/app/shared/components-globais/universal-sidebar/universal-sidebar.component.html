@@ -219,12 +219,10 @@
                 <ng-container *ngIf="!child.disabled; else disabledChildItem">
                   <a
                     class="universal-sidebar__link universal-sidebar__submenu-link"
+                    [class.universal-sidebar__link--active]="isLinkActive(child)"
                     [routerLink]="child.route"
-                    routerLinkActive="universal-sidebar__link--active"
-                    [routerLinkActiveOptions]="{ exact: child.exact ?? false }"
-                    #childRla="routerLinkActive"
                     [attr.aria-label]="child.ariaLabel || child.label"
-                    [attr.aria-current]="childRla.isActive ? 'page' : null"
+                    [attr.aria-current]="isLinkActive(child) ? 'page' : null"
                     [attr.title]="isCollapsedMode ? child.label : null"
                     (click)="onChildActivated(item.id)"
                   >
@@ -277,12 +275,10 @@
               <ng-container *ngIf="!linkItem.disabled; else disabledItem">
                 <a
                   class="universal-sidebar__link"
+                  [class.universal-sidebar__link--active]="isLinkActive(linkItem)"
                   [routerLink]="linkItem.route"
-                  routerLinkActive="universal-sidebar__link--active"
-                  [routerLinkActiveOptions]="{ exact: linkItem.exact ?? false }"
-                  #rla="routerLinkActive"
                   [attr.aria-label]="linkItem.ariaLabel || linkItem.label"
-                  [attr.aria-current]="rla.isActive ? 'page' : null"
+                  [attr.aria-current]="isLinkActive(linkItem) ? 'page' : null"
                   [attr.title]="isCollapsedMode ? linkItem.label : null"
                   (click)="onItemActivated()"
                 >
