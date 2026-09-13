@@ -244,7 +244,7 @@ function composeDomainNavigation(
       {
         id: 'friends-list',
         label: 'Minhas conexões',
-        route: '/dashboard/friends/list',
+        route: '/friends/list',
         icon: '🔗',
         exact: false,
         ariaLabel: 'Abrir minha lista de conexões',
