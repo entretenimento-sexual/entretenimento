@@ -122,7 +122,7 @@ describe('AuthenticatedNavigationService subscription reactivity', () => {
     subscription.unsubscribe();
   });
 
-  it('usa as rotas canônicas de perfil próprio e biblioteca de fotos', async () => {
+  it('usa as rotas canônicas de perfil próprio, fotos e preferências', async () => {
     const service = TestBed.inject(AuthenticatedNavigationService);
     const items = await firstValueFrom(service.items$);
 
@@ -132,6 +132,10 @@ describe('AuthenticatedNavigationService subscription reactivity', () => {
     expect(items.find((item) => item.id === 'photos')?.routerLink).toEqual([
       '/media',
       'photos',
+    ]);
+    expect(items.find((item) => item.id === 'preferences')?.routerLink).toEqual([
+      '/preferencias',
+      'editar',
     ]);
   });
 });
