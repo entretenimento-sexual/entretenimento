@@ -9,9 +9,9 @@
 // - recebe a URL atual do LayoutShell;
 // - não substitui a sidebar universal no desktop;
 // - fica oculto em chat para não competir com teclado/thread;
-// - reduz a navegação fixa para quatro áreas mentais: Hoje, Feed, Chat e Perfil;
-// - mantém rotas existentes para não quebrar deep links ou guards;
-// - sinaliza no destino Chat somente solicitações recebidas e acionáveis.
+// - usa cinco áreas mentais: Hoje, Feed, Conexões, Chat e Perfil;
+// - mantém aliases apenas para reconhecimento de estado ativo, nunca como destino;
+// - sinaliza solicitações recebidas somente em Conexões.
 // -----------------------------------------------------------------------------
 
 import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
@@ -82,12 +82,20 @@ export class MobileBottomNavComponent {
       ariaLabel: 'Abrir feed e áreas de descoberta',
     },
     {
+      id: 'connections',
+      label: 'Conexões',
+      icon: '🤝',
+      route: ['/friends', 'list'],
+      activePrefixes: ['/friends', '/dashboard/friends'],
+      ariaLabel: 'Abrir minhas conexões e solicitações',
+    },
+    {
       id: 'chat',
       label: 'Chat',
       icon: '💬',
       route: ['/chat'],
-      activePrefixes: ['/chat', '/friends', '/dashboard/friends'],
-      ariaLabel: 'Abrir conversas, convites e conexões',
+      activePrefixes: ['/chat'],
+      ariaLabel: 'Abrir conversas e mensagens',
     },
     {
       id: 'profile',
@@ -112,7 +120,7 @@ export class MobileBottomNavComponent {
   }
 
   itemBadgeCount(item: MobileBottomNavItem): number {
-    if (item.id === 'chat') {
+    if (item.id === 'connections') {
       return this.normalizeBadgeCount(this.friendRequestsCount);
     }
 
@@ -122,7 +130,7 @@ export class MobileBottomNavComponent {
   itemAriaLabel(item: MobileBottomNavItem): string {
     const count = this.itemBadgeCount(item);
 
-    if (item.id !== 'chat' || count <= 0) {
+    if (item.id !== 'connections' || count <= 0) {
       return item.ariaLabel;
     }
 
