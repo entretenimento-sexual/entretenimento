@@ -5,15 +5,7 @@
 // Responsabilidade:
 // - centralizar a definição dos links de navegação autenticada
 // - derivar o estado mínimo necessário para sidebars/menus autenticados
-// - permitir reaproveitamento progressivo em:
-//   1) UserProfileSidebarComponent
-//   2) LinksInteractionComponent
-//   3) DashboardLayoutComponent
-//
-// Objetivo arquitetural:
-// - começar a migração para um menu autenticado unificado
-// - sem trocar toda a estrutura do app agora
-// - sem forçar shell global neste momento
+// - permitir reaproveitamento progressivo em superfícies contextuais do perfil
 //
 // Importante:
 // - este service NÃO decide guards
@@ -149,11 +141,10 @@ export class AuthenticatedNavigationService {
   );
 
   /**
-   * Itens do menu autenticado.
+   * Itens de navegação usados pelo card contextual do perfil.
    *
-   * Observação:
-   * - esta lista continua reutilizável
-   * - mas agora fica restrita a rotas realmente sólidas
+   * Os rótulos seguem a mesma semântica do shell global para não apresentar
+   * dois vocabulários diferentes para os mesmos destinos.
    */
   readonly items$: Observable<AuthenticatedNavItem[]> = this.vm$.pipe(
     map((vm) => this.buildItems(vm)),
@@ -202,24 +193,24 @@ export class AuthenticatedNavigationService {
       },
       {
         id: 'preferences',
-        label: 'Minhas preferências',
-        ariaLabel: 'Ir para minhas preferências',
+        label: 'Preferências',
+        ariaLabel: 'Editar minhas preferências',
         iconClass: 'fas fa-cogs',
         routerLink: ['/preferencias', 'editar'],
         activeExact: true,
       },
       {
         id: 'friends',
-        label: 'Meus amigos',
-        ariaLabel: 'Ir para meus amigos',
+        label: 'Minhas conexões',
+        ariaLabel: 'Abrir minhas conexões',
         iconClass: 'fas fa-users',
         routerLink: ['/friends', 'list'],
         activeExact: false,
       },
       {
         id: 'chat',
-        label: 'Bate-papo',
-        ariaLabel: 'Ir para bate-papo',
+        label: 'Mensagens',
+        ariaLabel: 'Abrir mensagens',
         iconClass: 'fas fa-comments',
         routerLink: ['/chat'],
         activeExact: false,

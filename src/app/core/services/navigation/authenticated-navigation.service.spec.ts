@@ -138,4 +138,20 @@ describe('AuthenticatedNavigationService subscription reactivity', () => {
       'editar',
     ]);
   });
+
+  it('mantém o mesmo vocabulário canônico de conexões e mensagens do shell', async () => {
+    const service = TestBed.inject(AuthenticatedNavigationService);
+    const items = await firstValueFrom(service.items$);
+
+    expect(items.find((item) => item.id === 'friends')).toMatchObject({
+      label: 'Minhas conexões',
+      ariaLabel: 'Abrir minhas conexões',
+      routerLink: ['/friends', 'list'],
+    });
+    expect(items.find((item) => item.id === 'chat')).toMatchObject({
+      label: 'Mensagens',
+      ariaLabel: 'Abrir mensagens',
+      routerLink: ['/chat'],
+    });
+  });
 });

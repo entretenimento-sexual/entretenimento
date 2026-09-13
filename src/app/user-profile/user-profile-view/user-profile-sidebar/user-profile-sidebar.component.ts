@@ -2,57 +2,32 @@
 // ============================================================================
 // USER PROFILE SIDEBAR COMPONENT
 //
-// Fase atual da migração:
-// - continua com o mesmo nome para não quebrar o projeto
-// - deixa de ser um sidebar estrutural da aplicação
-// - passa a atuar como card contextual do perfil
-// - o drawer/sidebar global fica sob responsabilidade exclusiva do LayoutShellComponent
+// Este componente mantém o nome legado para compatibilidade, mas atua somente
+// como card contextual do perfil. A navegação estrutural pertence ao LayoutShell.
 //
-// Mantido de propósito:
-// - createRoomIfSubscriber()
-// - openDialog()
-// - toggleSidebar()
-// - closeSidebar()
-//
-// Suprimido de propósito nesta revisão:
-// - enum SidebarState
-// - assinatura em SidebarService.isSidebarVisible$
-// - comportamento de drawer fixo/local
-// - inferência local de assinatura por `user.isSubscriber`/`user.role`
-//
-// Motivo da supressão:
-// - havia competição visual com o sidebar universal do shell global
-// - este componente deve ser contextual ao perfil, não estrutural da aplicação
-// - capacidades pagas devem vir da fonte canônica de assinatura do VM
+// SUPRESSÃO EXPLÍCITA:
+// - criação de Salas foi removida desta superfície;
+// - Salas estão em modo de compatibilidade e não aceitam novas criações;
+// - Comunidades são a superfície coletiva canônica.
 // ============================================================================
-import { Component, DestroyRef, inject } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
-import { MatButtonModule } from '@angular/material/button';
-import { MatDialog } from '@angular/material/dialog';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-import { Observable, EMPTY, combineLatest } from 'rxjs';
+import { Observable } from 'rxjs';
 import {
-  catchError,
   distinctUntilChanged,
   map,
   shareReplay,
-  switchMap,
-  take,
   tap,
 } from 'rxjs/operators';
 
 import type { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { RoomManagementService } from 'src/app/core/services/batepapo/room-services/room-management.service';
 import {
   AuthenticatedNavItem,
   AuthenticatedNavigationService,
   AuthenticatedNavigationVm,
 } from '../../../core/services/navigation/authenticated-navigation.service';
-
-import { ConfirmacaoDialogComponent } from 'src/app/shared/components-globais/confirmacao-dialog/confirmacao-dialog.component';
 import { environment } from 'src/environments/environment';
 
 @Component({
@@ -60,16 +35,10 @@ import { environment } from 'src/environments/environment';
   standalone: true,
   templateUrl: './user-profile-sidebar.component.html',
   styleUrls: ['./user-profile-sidebar.component.css'],
-  imports: [CommonModule, RouterModule, MatButtonModule],
+  imports: [CommonModule, RouterModule],
 })
 export class UserProfileSidebarComponent {
-  private readonly destroyRef = inject(DestroyRef);
-
   private readonly navigation = inject(AuthenticatedNavigationService);
-
-  private readonly errorNotifier = inject(ErrorNotificationService);
-  private readonly roomManagement = inject(RoomManagementService);
-  private readonly dialog = inject(MatDialog);
 
   private readonly DEBUG =
     !environment.production &&
@@ -111,9 +80,6 @@ export class UserProfileSidebarComponent {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-  /**
-   * Conveniências mantidas para o fluxo existente de criação de sala.
-   */
   readonly currentUid$ = this.vm$.pipe(
     map((vm) => vm.uid),
     distinctUntilChanged()
@@ -130,82 +96,16 @@ export class UserProfileSidebarComponent {
   );
 
   /**
-   * Compatibilidade mantida.
-   *
-   * Este componente não controla mais o sidebar global.
-   * Método preservado apenas para evitar quebra de template/chamadas legadas.
+   * Compatibilidade mantida: este card não controla o sidebar global.
    */
   toggleSidebar(): void {
     this.debug('toggleSidebar() suprimido: componente agora é card contextual');
   }
 
   /**
-   * Compatibilidade mantida.
-   *
-   * Antes fechava drawer local/global.
-   * Agora é no-op deliberado, porque clique em ação contextual não deve
-   * interferir no sidebar estrutural do shell.
+   * Compatibilidade mantida: clique em ação contextual não interfere no shell.
    */
   closeSidebar(): void {
     this.debug('closeSidebar() noop: card contextual não controla shell global');
-  }
-
-  /**
-   * Cria sala caso assinante; caso não seja, abre diálogo de upsell.
-   * Mantido o nome do método.
-   */
-  createRoomIfSubscriber(): void {
-    combineLatest([this.currentUid$, this.usuario$, this.isSubscriber$])
-      .pipe(
-        take(1),
-
-        switchMap(([uid, user, isSubscriber]) => {
-          if (!uid) {
-            this.errorNotifier.showError('Faça login para criar uma sala.');
-            return EMPTY;
-          }
-
-          if (!user) {
-            this.errorNotifier.showError(
-              'Carregando seu perfil... tente novamente em instantes.'
-            );
-            return EMPTY;
-          }
-
-          if (!isSubscriber) {
-            this.openDialog();
-            return EMPTY;
-          }
-
-          const roomDetails = {
-            roomName: 'Minha nova sala',
-            description: 'Bem-vindo(a)!',
-            isPrivate: true,
-          };
-
-          return this.roomManagement.createRoom(roomDetails, uid).pipe(
-            tap(() =>
-              this.errorNotifier.showSuccess('Sala criada com sucesso!')
-            ),
-            catchError((err) => {
-              this.errorNotifier.showError(err);
-              return EMPTY;
-            })
-          );
-        }),
-
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe();
-  }
-
-  openDialog(): void {
-    this.dialog.open(ConfirmacaoDialogComponent, {
-      data: {
-        title: 'Assinatura necessária',
-        message:
-          'Assine para criar salas exclusivas e desbloquear recursos premium.',
-      },
-    });
   }
 }
