@@ -49,6 +49,18 @@ describe('sidebar-config', () => {
     expect(resolveSidebarSectionFromUrl('/chat/conversation-1')).toBe('chat');
   });
 
+  it('deve respeitar fronteiras de rota e ignorar query/hash', () => {
+    expect(
+      resolveSidebarSectionFromUrl('/friends/requests?tab=received#top')
+    ).toBe('profiles');
+    expect(resolveSidebarSectionFromUrl('/friends/')).toBe('profiles');
+    expect(resolveSidebarSectionFromUrl('/chatty')).toBe('unknown');
+    expect(resolveSidebarSectionFromUrl('/friends-old')).toBe('unknown');
+    expect(resolveSidebarSectionFromUrl('/dashboard/explorar-legado')).toBe(
+      'dashboard'
+    );
+  });
+
   it('deve aglutinar os destinos pessoais no grupo Conta', () => {
     const sections = buildSidebarSections({
       isSubscriber: false,

@@ -333,10 +333,14 @@ export function isSidebarGroupItem(
 }
 
 export function resolveSidebarSectionFromUrl(url: string): SidebarSectionKey {
-  const clean = (url ?? '').trim();
+  const clean = normalizeNavigationPath(url);
 
   for (const matcher of SECTION_MATCHERS) {
-    if (matcher.prefixes.some((prefix) => clean.startsWith(prefix))) {
+    if (
+      matcher.prefixes.some((prefix) =>
+        matchesNavigationPrefix(clean, prefix)
+      )
+    ) {
       return matcher.key;
     }
   }
@@ -394,4 +398,21 @@ function hasSidebarAccess(
   if (item.requiresVip && !isVip) return false;
   if (item.requiresSubscriber && !isSubscriber) return false;
   return true;
+}
+
+function normalizeNavigationPath(url: string | null | undefined): string {
+  const clean = String(url ?? '').trim().split('?')[0].split('#')[0];
+
+  if (!clean) {
+    return '/';
+  }
+
+  return clean.length > 1 && clean.endsWith('/')
+    ? clean.slice(0, -1)
+    : clean;
+}
+
+function matchesNavigationPrefix(path: string, prefix: string): boolean {
+  const cleanPrefix = normalizeNavigationPath(prefix);
+  return path === cleanPrefix || path.startsWith(`${cleanPrefix}/`);
 }
