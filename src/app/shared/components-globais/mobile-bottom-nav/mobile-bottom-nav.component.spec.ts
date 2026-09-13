@@ -48,6 +48,9 @@ describe('MobileBottomNavComponent', () => {
 
     component.currentUrl = '/dashboard/explorar';
     expect(component.isActive(feed!)).toBe(true);
+
+    component.currentUrl = '/dashboard/perfis-sugeridos';
+    expect(component.isActive(feed!)).toBe(true);
   });
 
   it('mantém perfil alheio no Feed e reserva Perfil para a conta', async () => {

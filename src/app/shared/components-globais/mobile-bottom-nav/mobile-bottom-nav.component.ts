@@ -71,6 +71,8 @@ export class MobileBottomNavComponent {
       activePrefixes: [
         '/descobrir',
         '/dashboard/explorar',
+        '/dashboard/perfis-sugeridos',
+        '/dashboard/suggested-profiles',
         '/dashboard/locais',
         '/dashboard/comunidades',
         '/outro-perfil',

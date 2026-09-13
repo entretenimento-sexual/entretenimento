@@ -39,7 +39,7 @@ describe('sidebar runtime composition', () => {
     );
   });
 
-  it('preserves conditional premium links and account route context', () => {
+  it('preserves only premium links backed by a real route', () => {
     const sections = buildSidebarSections({
       isSubscriber: true,
       isVip: true,
@@ -50,7 +50,6 @@ describe('sidebar runtime composition', () => {
     expect(premium?.title).toBe('Premium');
     expect(premium?.items.map(({ id }) => id)).toEqual([
       'vip-area',
-      'premium-area',
     ]);
     expect(resolveSidebarSectionFromUrl('/subscription-plan')).toBe(
       'settings'
@@ -78,6 +77,9 @@ describe('sidebar runtime composition', () => {
     });
     expect(sections.some(({ key }) => key === 'communities')).toBe(false);
     expect(resolveSidebarSectionFromUrl('/descobrir')).toBe('explore');
+    expect(resolveSidebarSectionFromUrl('/dashboard/perfis-sugeridos')).toBe(
+      'explore'
+    );
     expect(resolveSidebarSectionFromUrl('/dashboard/locais/novo')).toBe('explore');
     expect(resolveSidebarSectionFromUrl('/dashboard/comunidades/grupo-1')).toBe(
       'explore'

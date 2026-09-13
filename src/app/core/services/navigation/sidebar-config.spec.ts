@@ -49,6 +49,15 @@ describe('sidebar-config', () => {
     expect(resolveSidebarSectionFromUrl('/chat/conversation-1')).toBe('chat');
   });
 
+  it('deve reconhecer perfis sugeridos como descoberta', () => {
+    expect(resolveSidebarSectionFromUrl('/dashboard/perfis-sugeridos')).toBe(
+      'explore'
+    );
+    expect(resolveSidebarSectionFromUrl('/dashboard/suggested-profiles')).toBe(
+      'explore'
+    );
+  });
+
   it('deve respeitar fronteiras de rota e ignorar query/hash', () => {
     expect(
       resolveSidebarSectionFromUrl('/friends/requests?tab=received#top')
@@ -96,7 +105,7 @@ describe('sidebar-config', () => {
     ]);
   });
 
-  it('deve manter recursos condicionais fora da Conta', () => {
+  it('deve manter apenas destinos condicionais com rota real', () => {
     const basicSections = buildSidebarSections({
       isSubscriber: false,
       isVip: false,
@@ -119,7 +128,7 @@ describe('sidebar-config', () => {
     expect(basicIds).not.toContain('premium-area');
     expect(basicIds).not.toContain('admin-dashboard');
     expect(privilegedIds).toContain('vip-area');
-    expect(privilegedIds).toContain('premium-area');
+    expect(privilegedIds).not.toContain('premium-area');
     expect(privilegedIds).toContain('admin-dashboard');
   });
 
