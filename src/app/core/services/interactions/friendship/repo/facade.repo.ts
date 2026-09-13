@@ -1,135 +1,147 @@
 // src/app/core/services/interactions/friendship/repo/facade.repo.ts
-// Nomes trocados podem causar confusão, exporta FriendshipRepo
-// Não esquecer comentários e ferramentas de debug
-import { Injectable, inject } from '@angular/core';
+// -----------------------------------------------------------------------------
+// FRIENDSHIP REPOSITORY FACADE — READ ONLY
+// -----------------------------------------------------------------------------
+// A fachada expõe apenas consultas. Toda mutação de amizade, solicitação,
+// cooldown e bloqueio passa por FriendshipService -> Cloud Functions.
+// -----------------------------------------------------------------------------
+import { inject, Injectable } from '@angular/core';
 import {
-  Firestore,
   collection,
+  CollectionReference,
+  doc,
+  Firestore,
+  getDoc,
   getDocs,
   query,
+  QuerySnapshot,
   where,
-  doc,
-  getDoc,
-  CollectionReference,
-  QuerySnapshot
 } from '@angular/fire/firestore';
 import { DocumentData } from 'firebase/firestore';
-import { FriendsRepo } from './friends.repo';
+import { from, map, Observable, of } from 'rxjs';
+
+import { IUserDados } from '../../../../interfaces/iuser-dados';
 import { BlocksRepo } from './blocks.repo';
 import { CooldownRepo } from './cooldown.repo';
+import { FriendsRepo } from './friends.repo';
 import { RequestsRepo } from './requests.repo';
-import { map, from, Observable, of } from 'rxjs';
-import { IUserDados } from '../../../../interfaces/iuser-dados';
 
 @Injectable({ providedIn: 'root' })
 export class FriendshipRepo {
-  private db = inject(Firestore);
-  private friends = inject(FriendsRepo);
-  private blocks = inject(BlocksRepo);
-  private cd = inject(CooldownRepo);
-  private reqs = inject(RequestsRepo);
+  private readonly db = inject(Firestore);
+  private readonly friends = inject(FriendsRepo);
+  private readonly blocks = inject(BlocksRepo);
+  private readonly cooldown = inject(CooldownRepo);
+  private readonly requests = inject(RequestsRepo);
 
-  /* Friends */
-  getFriendDoc$(a: string, b: string) { return this.friends.getFriendDoc$(a, b); }
-  listFriends(uid: string) { return this.friends.listFriends(uid); }
-
-  /**
- * Amigos em tempo real.
- *
- * Expõe o listener do FriendsRepo pela fachada FriendshipRepo,
- * mantendo o FriendshipService desacoplado da implementação interna.
- */
-watchFriends(uid: string) {
-  return this.friends.watchFriends(uid);
-}
-
-  /* Blocks — leitura apenas; writes passam por FriendshipService/callables */
-  getBlockedDoc$(owner: string, target: string) { return this.blocks.getBlockedDoc$(owner, target); }
-  listBlocked(uid: string) { return this.blocks.listBlocked(uid); }
-
-  /* Requests */
-  listInboundRequests(uid: string) { return this.reqs.listInboundRequests(uid); }
-  listOutboundRequests(uid: string) { return this.reqs.listOutboundRequests(uid); }
-  findDuplicatePending(a: string, b: string) { return this.reqs.findDuplicatePending(a, b); }
-  createRequest(a: string, b: string, m?: string) { return this.reqs.createRequest(a, b, m); }
-  acceptRequestBatch(id: string, a: string, b: string) { return this.reqs.acceptRequestBatch(id, a, b); }
-  declineRequest(id: string) { return this.reqs.declineRequest(id); }
-  declineRequestWithCooldown(id: string, ms: number) { return this.reqs.declineRequestWithCooldown(id, ms); }
-  cancelOutboundRequest(id: string) { return this.reqs.cancelOutboundRequest(id); }
-  watchInboundRequests(uid: string) { return this.reqs.watchInboundRequests(uid); }
-  watchOutboundRequests(uid: string) { return this.reqs.watchOutboundRequests(uid); }
-
-  /* Cooldown */
-  readCooldown(a: string, b: string) { return this.cd.readCooldown(a, b); }
-  setCooldown(a: string, b: string, until: Date) { return this.cd.setCooldown(a, b, until); }
-
-  /* Checks reusados no service */
-  isAlreadyFriends(a: string, b: string) { return this.getFriendDoc$(a, b); }
-  isBlockedByA(owner: string, target: string) { return this.getBlockedDoc$(owner, target); }
-
-  /**
-   * Busca pública por apelido.
-   *
-   * SUPRESSÃO EXPLÍCITA:
-   * - removido query em /users com nicknameLower
-   *
-   * Motivo:
-   * - fluxo social/público deve consultar /public_profiles
-   * - suas rules públicas já permitem leitura autenticada nessa coleção
-   */
-  searchUsers(term: string) {
-    const q = (term ?? '').trim().toLowerCase();
-    if (!q) return of([] as IUserDados[]);
-
-    const profilesCol = collection(this.db, 'public_profiles') as CollectionReference<DocumentData>;
-    const qRef = query(
-      profilesCol,
-      where('nicknameNormalized', '>=', q),
-      where('nicknameNormalized', '<=', q + '\uf8ff')
-    );
-
-    return from(getDocs(qRef)).pipe(
-      map((snap: QuerySnapshot<DocumentData>) =>
-        snap.docs.map(d => {
-          const data = d.data() as any;
-          return {
-            uid: data.uid ?? d.id,
-            ...data,
-          } as IUserDados;
-        })
-      )
-    );
+  /* Friends — leitura */
+  getFriendDoc$(a: string, b: string) {
+    return this.friends.getFriendDoc$(a, b);
   }
 
-  /**
-   * Perfil público de terceiro.
-   *
-   * SUPRESSÃO EXPLÍCITA:
-   * - removido get em /users/{uid}
-   *
-   * Motivo:
-   * - para fluxo público/social, a fonte correta é /public_profiles/{uid}
-   */
-  getUserByUid(uid: string): Observable<IUserDados | null> {
-    const safeUid = (uid ?? '').trim();
-    if (!safeUid) return of(null);
+  listFriends(uid: string) {
+    return this.friends.listFriends(uid);
+  }
 
-    return from(getDoc(doc(this.db, `public_profiles/${safeUid}`))).pipe(
-      map(d => {
-        if (!d.exists()) return null;
-        const data = d.data() as any;
-        return {
-          uid: data.uid ?? d.id,
-          ...data,
-        } as IUserDados;
-      })
-    );
+  watchFriends(uid: string) {
+    return this.friends.watchFriends(uid);
   }
 
   listFriendsPage(uid: string, pageSize = 24, after: number | null = null) {
     return this.friends.listFriendsPage(uid, pageSize, after);
   }
 
-  /* util */
-  getDocExists(path: string) { return this.reqs.getDocExists(path); }
+  /* Blocks — leitura */
+  getBlockedDoc$(owner: string, target: string) {
+    return this.blocks.getBlockedDoc$(owner, target);
+  }
+
+  listBlocked(uid: string) {
+    return this.blocks.listBlocked(uid);
+  }
+
+  /* Requests — leitura */
+  listInboundRequests(uid: string) {
+    return this.requests.listInboundRequests(uid);
+  }
+
+  listOutboundRequests(uid: string) {
+    return this.requests.listOutboundRequests(uid);
+  }
+
+  findDuplicatePending(a: string, b: string) {
+    return this.requests.findDuplicatePending(a, b);
+  }
+
+  watchInboundRequests(uid: string) {
+    return this.requests.watchInboundRequests(uid);
+  }
+
+  watchOutboundRequests(uid: string) {
+    return this.requests.watchOutboundRequests(uid);
+  }
+
+  /* Cooldown — leitura */
+  readCooldown(a: string, b: string) {
+    return this.cooldown.readCooldown(a, b);
+  }
+
+  /* Checks reusados no service */
+  isAlreadyFriends(a: string, b: string) {
+    return this.getFriendDoc$(a, b);
+  }
+
+  isBlockedByA(owner: string, target: string) {
+    return this.getBlockedDoc$(owner, target);
+  }
+
+  /** Busca pública por apelido exclusivamente em /public_profiles. */
+  searchUsers(term: string) {
+    const normalizedTerm = (term ?? '').trim().toLowerCase();
+    if (!normalizedTerm) return of([] as IUserDados[]);
+
+    const profilesCol = collection(
+      this.db,
+      'public_profiles'
+    ) as CollectionReference<DocumentData>;
+
+    const queryRef = query(
+      profilesCol,
+      where('nicknameNormalized', '>=', normalizedTerm),
+      where('nicknameNormalized', '<=', `${normalizedTerm}\uf8ff`)
+    );
+
+    return from(getDocs(queryRef)).pipe(
+      map((snapshot: QuerySnapshot<DocumentData>) =>
+        snapshot.docs.map((documentSnapshot) => {
+          const data = documentSnapshot.data() as IUserDados;
+          return {
+            ...data,
+            uid: data.uid ?? documentSnapshot.id,
+          } as IUserDados;
+        })
+      )
+    );
+  }
+
+  /** Perfil público de terceiro exclusivamente em /public_profiles/{uid}. */
+  getUserByUid(uid: string): Observable<IUserDados | null> {
+    const safeUid = (uid ?? '').trim();
+    if (!safeUid) return of(null);
+
+    return from(getDoc(doc(this.db, `public_profiles/${safeUid}`))).pipe(
+      map((documentSnapshot) => {
+        if (!documentSnapshot.exists()) return null;
+        const data = documentSnapshot.data() as IUserDados;
+        return {
+          ...data,
+          uid: data.uid ?? documentSnapshot.id,
+        } as IUserDados;
+      })
+    );
+  }
+
+  getDocExists(path: string) {
+    return this.requests.getDocExists(path);
+  }
 }
