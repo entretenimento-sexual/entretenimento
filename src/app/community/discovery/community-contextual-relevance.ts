@@ -3,8 +3,9 @@
 // COMMUNITY CONTEXTUAL RELEVANCE
 // -----------------------------------------------------------------------------
 // Camada de apresentação derivada e efêmera. Não altera `discoveryScore`, não é
-// persistida no Firestore e não entra no cache orgânico. A ordem original da
-// página continua sendo a autoridade de qualidade e paginação do backend.
+// persistida no Firestore e não entra no cache orgânico. A ordem recebida do
+// backend é canônica e deve permanecer intacta entre páginas; afinidade local
+// serve apenas para explicar por que um card pode ser relevante ao viewer.
 // -----------------------------------------------------------------------------
 
 import type { PreferenceProfile } from 'src/app/preferences/models/preference-profile.model';
@@ -26,7 +27,7 @@ export interface CommunityContextualMatch {
 }
 
 export interface CommunityContextualRelevance {
-  /** Peso interno de ordenação contextual; nunca deve ser mostrado como score. */
+  /** Metadado local explicativo; nunca participa da ordenação ou paginação. */
   readonly rank: number;
   readonly explicitPreferenceRank: number;
   readonly sessionBehaviorRank: number;
@@ -37,20 +38,12 @@ export type CommunityContextualPreviewCard = CommunityPreviewCard & {
   readonly contextualRelevance: CommunityContextualRelevance | null;
 };
 
-interface ContextualCandidate {
-  readonly card: CommunityContextualPreviewCard;
-}
-
 const SIGNAL_WEIGHTS: Readonly<Record<CommunityPreferenceSignalDomain, number>> =
   Object.freeze({
     relationshipIntent: 4,
     sexualPractice: 3,
     genderInterest: 2,
   });
-
-const CONTEXTUAL_CANDIDATE_WINDOW = 4;
-const ORGANIC_ANCHOR_INTERVAL = 4;
-const CONTEXTUAL_DIVERSITY_LOOKBACK = 2;
 
 function signalMatchesProfile(
   signal: Readonly<CommunityPreferenceSignal>,
@@ -72,78 +65,12 @@ function sessionBehaviorRank(
 ): number {
   if (!signal) return 0;
 
-  // O comportamento nunca supera sozinho uma preferência explícita forte.
+  // Mantido somente como metadado explicativo/experimental. Ele não pode mover
+  // um card dentro da página nem competir com o ranking canônico do backend.
   if (signal.memberActive) return 2;
   if (signal.meaningfulOpenCount >= 4) return 2;
   if (signal.meaningfulOpenCount >= 2) return 1;
   return 0;
-}
-
-function recentContextualTagIds(
-  selected: readonly ContextualCandidate[]
-): ReadonlySet<string> {
-  const recentTags = new Set<string>();
-
-  for (const candidate of selected.slice(-CONTEXTUAL_DIVERSITY_LOOKBACK)) {
-    for (const match of candidate.card.contextualRelevance?.matches ?? []) {
-      recentTags.add(match.tagId);
-    }
-  }
-
-  return recentTags;
-}
-
-function contextualSelectionRank(
-  candidate: Readonly<ContextualCandidate>,
-  recentTags: ReadonlySet<string>
-): { adjustedRank: number; novelMatches: number } {
-  const relevance = candidate.card.contextualRelevance;
-  if (!relevance) return { adjustedRank: 0, novelMatches: 0 };
-
-  const repeatedMatches = relevance.matches.filter((match) =>
-    recentTags.has(match.tagId)
-  ).length;
-  const novelMatches = relevance.matches.length - repeatedMatches;
-
-  return {
-    adjustedRank: Math.max(0, relevance.rank - repeatedMatches),
-    novelMatches,
-  };
-}
-
-function chooseContextualCandidateIndex(
-  remaining: readonly ContextualCandidate[],
-  selected: readonly ContextualCandidate[],
-  targetIndex: number
-): number {
-  if (
-    targetIndex % ORGANIC_ANCHOR_INTERVAL === 0
-    || remaining.length <= 1
-  ) {
-    return 0;
-  }
-
-  const recentTags = recentContextualTagIds(selected);
-  const candidateWindow = remaining.slice(0, CONTEXTUAL_CANDIDATE_WINDOW);
-  let bestWindowIndex = 0;
-  let bestRank = contextualSelectionRank(candidateWindow[0], recentTags);
-
-  for (let index = 1; index < candidateWindow.length; index += 1) {
-    const currentRank = contextualSelectionRank(candidateWindow[index], recentTags);
-
-    if (
-      currentRank.adjustedRank > bestRank.adjustedRank
-      || (
-        currentRank.adjustedRank === bestRank.adjustedRank
-        && currentRank.novelMatches > bestRank.novelMatches
-      )
-    ) {
-      bestWindowIndex = index;
-      bestRank = currentRank;
-    }
-  }
-
-  return bestWindowIndex;
 }
 
 export function resolveCommunityContextualRelevance(
@@ -197,6 +124,13 @@ function resolveCommunityCombinedRelevance(
     : null;
 }
 
+/**
+ * Compatibilidade de API com a apresentação existente.
+ *
+ * O backend define integralmente a ordem da descoberta e o cursor que continua
+ * essa ordem. O cliente pode ocultar um card por decisão efêmera do próprio
+ * viewer e anexar metadados contextuais, mas nunca reordenar os sobreviventes.
+ */
 export function personalizeCommunityDiscoveryCards(
   items: readonly CommunityPreviewCard[],
   catalog: readonly CommunityTagDefinition[],
@@ -204,32 +138,18 @@ export function personalizeCommunityDiscoveryCards(
   sessionBehavior?: Readonly<CommunityDiscoverySessionBehaviorState>
 ): readonly CommunityContextualPreviewCard[] {
   const hidden = new Set(sessionBehavior?.hiddenCommunityIds ?? []);
-  const remaining: ContextualCandidate[] = items
+
+  return items
     .filter((item) => !hidden.has(item.communityId))
     .map((item) => ({
-      card: {
-        ...item,
-        contextualRelevance: resolveCommunityCombinedRelevance(
-          item,
-          catalog,
-          profile,
-          sessionBehavior?.signals[item.communityId]
-        ),
-      } satisfies CommunityContextualPreviewCard,
-    }));
-  const selected: ContextualCandidate[] = [];
-
-  while (remaining.length > 0) {
-    const candidateIndex = chooseContextualCandidateIndex(
-      remaining,
-      selected,
-      selected.length
-    );
-    const [candidate] = remaining.splice(candidateIndex, 1);
-    selected.push(candidate);
-  }
-
-  return selected.map(({ card }) => card);
+      ...item,
+      contextualRelevance: resolveCommunityCombinedRelevance(
+        item,
+        catalog,
+        profile,
+        sessionBehavior?.signals[item.communityId]
+      ),
+    } satisfies CommunityContextualPreviewCard));
 }
 
 export function communityContextualMatchLabel(
