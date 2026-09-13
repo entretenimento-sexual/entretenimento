@@ -4,9 +4,10 @@
     <div class="navbar-container">
       <div class="navbar-header">
         <a
-          routerLink="/"
+          [routerLink]="homeLink"
           class="navbar-brand"
           routerLinkActive="active"
+          [routerLinkActiveOptions]="{ exact: true }"
           #rlaHome="routerLinkActive"
           [attr.aria-current]="rlaHome.isActive ? 'page' : null"
           (click)="closeMobileMenu()"
@@ -88,7 +89,7 @@
                 <a
                   [routerLink]="myProfileLink"
                   routerLinkActive="active"
-                  [routerLinkActiveOptions]="{ exact: false }"
+                  [routerLinkActiveOptions]="{ exact: true }"
                   (click)="accountMenu.open = false"
                 >
                   Meu perfil
@@ -194,7 +195,7 @@
           class="navbar-mobile-link"
           [routerLink]="myProfileLink"
           routerLinkActive="active"
-          [routerLinkActiveOptions]="{ exact: false }"
+          [routerLinkActiveOptions]="{ exact: true }"
           #rlaProfileMobile="routerLinkActive"
           [attr.aria-current]="rlaProfileMobile.isActive ? 'page' : null"
           (click)="closeMobileMenu()"

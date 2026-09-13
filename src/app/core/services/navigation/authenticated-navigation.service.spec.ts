@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
-import { BehaviorSubject, Subject } from 'rxjs';
+import { BehaviorSubject, Subject, firstValueFrom } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { IUserDados } from 'src/app/core/interfaces/iuser-dados';
@@ -120,5 +120,18 @@ describe('AuthenticatedNavigationService subscription reactivity', () => {
 
     expect(roles).toEqual(['free', 'vip', 'free']);
     subscription.unsubscribe();
+  });
+
+  it('usa as rotas canônicas de perfil próprio e biblioteca de fotos', async () => {
+    const service = TestBed.inject(AuthenticatedNavigationService);
+    const items = await firstValueFrom(service.items$);
+
+    expect(items.find((item) => item.id === 'my-profile')?.routerLink).toEqual([
+      '/perfil',
+    ]);
+    expect(items.find((item) => item.id === 'photos')?.routerLink).toEqual([
+      '/media',
+      'photos',
+    ]);
   });
 });

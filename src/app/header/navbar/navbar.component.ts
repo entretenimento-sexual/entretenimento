@@ -541,7 +541,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.router.navigate(['/perfil', uid]).catch((err) => {
+    this.router.navigate(['/perfil']).catch((err) => {
       this.logNavbar('goToMyProfile navigation error', { err });
       this.notify.showError('Não foi possível abrir seu perfil agora.');
     });
@@ -563,9 +563,12 @@ export class NavbarComponent implements OnInit, OnDestroy {
     this.isMobileMenuOpen = false;
   }
 
+  get homeLink(): any[] {
+    return this.isAuthenticated ? ['/dashboard', 'principal'] : ['/login'];
+  }
+
   get myProfileLink(): any[] {
-    const uid = this.userId || this.session.currentAuthUser?.uid || '';
-    return uid ? ['/perfil', uid] : ['/perfil'];
+    return ['/perfil'];
   }
 
   onMyProfileLinkClick(ev: MouseEvent): void {

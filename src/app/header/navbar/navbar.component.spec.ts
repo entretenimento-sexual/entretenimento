@@ -158,6 +158,22 @@ describe('NavbarComponent', () => {
     expect(component.isLoginPage).toBe(true);
   });
 
+  it('mantém Meu perfil na rota canônica sem UID', () => {
+    session.setUid('uid-123');
+    fixture.detectChanges();
+
+    expect(component.myProfileLink).toEqual(['/perfil']);
+  });
+
+  it('resolve o logo diretamente para a home correta conforme a sessão', () => {
+    expect(component.homeLink).toEqual(['/login']);
+
+    session.setUid('uid-123');
+    fixture.detectChanges();
+
+    expect(component.homeLink).toEqual(['/dashboard', 'principal']);
+  });
+
   it('logout: deve chamar logoutService e notificar sucesso', () => {
     component.logout();
     fixture.detectChanges();

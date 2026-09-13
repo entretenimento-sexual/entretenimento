@@ -320,7 +320,7 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
       email: navVm.usuario.email?.trim() || null,
       subtitle,
       photoURL: navVm.usuario.photoURL?.trim() || null,
-      profileRoute: ['/perfil', navVm.uid],
+      profileRoute: ['/perfil'],
     };
   }
 

@@ -187,7 +187,7 @@ export class AuthenticatedNavigationService {
               label: 'Meu perfil',
               ariaLabel: 'Ir para meu perfil',
               iconClass: 'fas fa-user',
-              routerLink: ['/perfil', vm.uid],
+              routerLink: ['/perfil'],
               activeExact: true,
             },
           ]
@@ -197,7 +197,7 @@ export class AuthenticatedNavigationService {
         label: 'Minhas fotos',
         ariaLabel: 'Ir para minhas fotos',
         iconClass: 'fas fa-images',
-        routerLink: ['/perfil', vm.uid, 'fotos'],
+        routerLink: ['/media', 'photos'],
         activeExact: true,
       },
       {
