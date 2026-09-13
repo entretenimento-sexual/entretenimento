@@ -102,7 +102,13 @@ export class MobileBottomNavComponent {
       label: 'Perfil',
       icon: '🙍',
       route: ['/perfil'],
-      activePrefixes: ['/perfil', '/preferencias', '/conta', '/subscription-plan'],
+      activePrefixes: [
+        '/perfil',
+        '/preferencias',
+        '/conta',
+        '/subscription-plan',
+        '/dashboard/seguranca',
+      ],
       ariaLabel: 'Abrir perfil, preferências e conta',
     },
   ];

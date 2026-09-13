@@ -76,6 +76,24 @@ describe('MobileBottomNavComponent', () => {
     expect(component.isActive(chat!)).toBe(true);
   });
 
+  it('mantém Perfil ativo na central de segurança sem acender Feed', async () => {
+    await TestBed.configureTestingModule({
+      imports: [MobileBottomNavComponent, RouterTestingModule],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(MobileBottomNavComponent);
+    const component = fixture.componentInstance;
+    const profile = component.items.find((item) => item.id === 'profile');
+    const feed = component.items.find((item) => item.id === 'feed');
+
+    expect(profile).toBeTruthy();
+    expect(feed).toBeTruthy();
+
+    component.currentUrl = '/dashboard/seguranca';
+    expect(component.isActive(profile!)).toBe(true);
+    expect(component.isActive(feed!)).toBe(false);
+  });
+
   it('sinaliza solicitações recebidas somente em Conexões', async () => {
     await TestBed.configureTestingModule({
       imports: [MobileBottomNavComponent, RouterTestingModule],
