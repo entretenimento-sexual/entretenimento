@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { MobileBottomNavComponent } from './mobile-bottom-nav.component';
 
 describe('MobileBottomNavComponent', () => {
-  it('usa Feed como segundo destino principal no mobile', async () => {
+  it('usa cinco destinos principais e mantém conexões separadas do chat', async () => {
     await TestBed.configureTestingModule({
       imports: [MobileBottomNavComponent, RouterTestingModule],
     }).compileComponents();
@@ -16,6 +16,7 @@ describe('MobileBottomNavComponent', () => {
     expect(component.items.map((item) => item.label)).toEqual([
       'Hoje',
       'Feed',
+      'Conexões',
       'Chat',
       'Perfil',
     ]);
@@ -23,6 +24,11 @@ describe('MobileBottomNavComponent', () => {
       id: 'feed',
       route: ['/descobrir'],
       ariaLabel: 'Abrir feed e áreas de descoberta',
+    });
+    expect(component.items[2]).toMatchObject({
+      id: 'connections',
+      route: ['/friends', 'list'],
+      ariaLabel: 'Abrir minhas conexões e solicitações',
     });
   });
 
@@ -33,54 +39,68 @@ describe('MobileBottomNavComponent', () => {
 
     const fixture = TestBed.createComponent(MobileBottomNavComponent);
     const component = fixture.componentInstance;
-    const feed = component.items[1];
+    const feed = component.items.find((item) => item.id === 'feed');
+
+    expect(feed).toBeTruthy();
 
     component.currentUrl = '/descobrir';
-    expect(component.isActive(feed)).toBe(true);
+    expect(component.isActive(feed!)).toBe(true);
 
     component.currentUrl = '/dashboard/explorar';
-    expect(component.isActive(feed)).toBe(true);
+    expect(component.isActive(feed!)).toBe(true);
   });
 
-  it('mantém Chat ativo nas rotas de conexões', async () => {
+  it('mantém Conexões ativa em rotas canônicas e aliases antigos sem acender Chat', async () => {
     await TestBed.configureTestingModule({
       imports: [MobileBottomNavComponent, RouterTestingModule],
     }).compileComponents();
 
     const fixture = TestBed.createComponent(MobileBottomNavComponent);
     const component = fixture.componentInstance;
+    const connections = component.items.find((item) => item.id === 'connections');
     const chat = component.items.find((item) => item.id === 'chat');
 
+    expect(connections).toBeTruthy();
     expect(chat).toBeTruthy();
 
     component.currentUrl = '/friends/requests';
-    expect(component.isActive(chat!)).toBe(true);
+    expect(component.isActive(connections!)).toBe(true);
+    expect(component.isActive(chat!)).toBe(false);
 
     component.currentUrl = '/dashboard/friends/list';
+    expect(component.isActive(connections!)).toBe(true);
+    expect(component.isActive(chat!)).toBe(false);
+
+    component.currentUrl = '/chat';
+    expect(component.isActive(connections!)).toBe(false);
     expect(component.isActive(chat!)).toBe(true);
   });
 
-  it('sinaliza no Chat somente solicitações recebidas', async () => {
+  it('sinaliza solicitações recebidas somente em Conexões', async () => {
     await TestBed.configureTestingModule({
       imports: [MobileBottomNavComponent, RouterTestingModule],
     }).compileComponents();
 
     const fixture = TestBed.createComponent(MobileBottomNavComponent);
     const component = fixture.componentInstance;
+    const connections = component.items.find((item) => item.id === 'connections');
     const chat = component.items.find((item) => item.id === 'chat');
 
+    expect(connections).toBeTruthy();
     expect(chat).toBeTruthy();
 
     component.friendRequestsCount = 3;
 
-    expect(component.itemBadgeCount(chat!)).toBe(3);
-    expect(component.itemAriaLabel(chat!)).toContain(
+    expect(component.itemBadgeCount(connections!)).toBe(3);
+    expect(component.itemAriaLabel(connections!)).toContain(
       '3 solicitações de conexão recebidas'
     );
+    expect(component.itemBadgeCount(chat!)).toBe(0);
+    expect(component.itemAriaLabel(chat!)).toBe(chat!.ariaLabel);
 
     component.friendRequestsCount = 0;
 
-    expect(component.itemBadgeCount(chat!)).toBe(0);
-    expect(component.itemAriaLabel(chat!)).toBe(chat!.ariaLabel);
+    expect(component.itemBadgeCount(connections!)).toBe(0);
+    expect(component.itemAriaLabel(connections!)).toBe(connections!.ariaLabel);
   });
 });
