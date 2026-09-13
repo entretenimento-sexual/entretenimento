@@ -74,7 +74,7 @@ function card(
 }
 
 describe('CommunityDiscoveryPageComponent / apresentação contextual', () => {
-  it('personaliza somente a apresentação, preserva a âncora orgânica e não altera o cache', () => {
+  it('anexa contexto visual sem reordenar a página canônica nem alterar o cache', () => {
     const organicFirst = card('community-organic', 'Primeira orgânica', []);
     const neutralSecond = card('community-neutral', 'Segunda orgânica', []);
     const relevant = card('community-swing', 'Swing relevante', [
@@ -182,8 +182,8 @@ describe('CommunityDiscoveryPageComponent / apresentação contextual', () => {
 
     expect(headings).toEqual([
       'Primeira orgânica',
-      'Swing relevante',
       'Segunda orgânica',
+      'Swing relevante',
     ]);
     expect(contextualBadge?.textContent).toContain('Combina com 1 interesse seu');
     expect(contextualBadge?.textContent).not.toMatch(/%/);
