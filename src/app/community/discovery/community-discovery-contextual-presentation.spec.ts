@@ -74,7 +74,7 @@ function card(
 }
 
 describe('CommunityDiscoveryPageComponent / apresentação contextual', () => {
-  it('anexa contexto visual sem reordenar a página canônica nem alterar o cache', () => {
+  it('anexa contexto sem reordenar, sem alterar cache e sem consultar membership extra', () => {
     const organicFirst = card('community-organic', 'Primeira orgânica', []);
     const neutralSecond = card('community-neutral', 'Segunda orgânica', []);
     const relevant = card('community-swing', 'Swing relevante', [
@@ -86,6 +86,9 @@ describe('CommunityDiscoveryPageComponent / apresentação contextual', () => {
       generatedAt: 456,
     };
     const rememberPage = vi.fn();
+    const getMembershipContext$ = vi.fn(() =>
+      of({ activeCommunityIds: [], generatedAt: 123 })
+    );
 
     TestBed.configureTestingModule({
       imports: [CommunityDiscoveryPageComponent],
@@ -121,11 +124,7 @@ describe('CommunityDiscoveryPageComponent / apresentação contextual', () => {
         },
         {
           provide: CommunityMembershipRepository,
-          useValue: {
-            getMembershipContext$: vi.fn(() =>
-              of({ activeCommunityIds: [], generatedAt: 123 })
-            ),
-          },
+          useValue: { getMembershipContext$ },
         },
         {
           provide: CommunityTagRepository,
@@ -187,6 +186,7 @@ describe('CommunityDiscoveryPageComponent / apresentação contextual', () => {
     ]);
     expect(contextualBadge?.textContent).toContain('Combina com 1 interesse seu');
     expect(contextualBadge?.textContent).not.toMatch(/%/);
+    expect(getMembershipContext$).not.toHaveBeenCalled();
     expect(rememberPage).toHaveBeenCalledWith(
       expect.anything(),
       organicPage,
