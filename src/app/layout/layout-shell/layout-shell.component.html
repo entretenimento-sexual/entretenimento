@@ -5,7 +5,9 @@
   [attr.data-shell-mode]="vm.shellMode"
   [attr.data-chat-layout]="vm.isChatLayout ? 'true' : 'false'"
 >
-  <app-navbar></app-navbar>
+  <app-navbar
+    [attr.data-app-navigation-available]="vm.shellMode === 'auth' && vm.showSidebar && vm.sidebarShouldOverlay ? 'true' : null"
+  ></app-navbar>
   <app-legal-update-notice-bridge></app-legal-update-notice-bridge>
 
   <!--

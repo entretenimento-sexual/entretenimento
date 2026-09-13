@@ -17,16 +17,33 @@
         </a>
 
         @if (isMobileMenuViewport) {
-          <button
-            type="button"
-            class="hamburger-btn"
-            (click)="toggleMobileMenu()"
-            aria-label="Abrir ou fechar menu principal"
-            aria-controls="navbar-mobile-panel"
-            [attr.aria-expanded]="isMobileMenuOpen ? 'true' : 'false'"
-          >
-            &#9776;
-          </button>
+          <div class="navbar-mobile-controls">
+            @if (isAuthenticated && !isPublicAuthRoute) {
+              <button
+                type="button"
+                class="hamburger-btn sidebar-nav-toggle"
+                (click)="closeMobileMenu(); onToggleSidebar()"
+                [attr.aria-label]="isSidebarOpen ? 'Fechar navegação completa' : 'Abrir navegação completa'"
+                aria-controls="app-sidebar"
+                [attr.aria-expanded]="isSidebarOpen ? 'true' : 'false'"
+                title="Navegação completa"
+              >
+                <span aria-hidden="true">☰</span>
+              </button>
+            }
+
+            <button
+              type="button"
+              class="hamburger-btn account-mobile-toggle"
+              (click)="isSidebarOpen ? onToggleSidebar() : null; toggleMobileMenu()"
+              aria-label="Abrir ou fechar menu da conta e aparência"
+              aria-controls="navbar-mobile-panel"
+              [attr.aria-expanded]="isMobileMenuOpen ? 'true' : 'false'"
+              title="Conta e aparência"
+            >
+              <span aria-hidden="true">⋮</span>
+            </button>
+          </div>
         }
       </div>
 

@@ -247,6 +247,18 @@
   transform: scale(0.98);
 }
 
+.navbar-mobile-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.sidebar-nav-toggle {
+  display: none;
+}
+
 /* Painel mobile dropdown */
 .navbar-mobile-panel {
   display: none;
@@ -312,6 +324,14 @@
   }
 
   .hamburger-btn {
+    display: inline-flex;
+  }
+
+  .hamburger-btn.sidebar-nav-toggle {
+    display: none;
+  }
+
+  :host([data-app-navigation-available='true']) .hamburger-btn.sidebar-nav-toggle {
     display: inline-flex;
   }
 
@@ -413,6 +433,10 @@
     min-width: 38px;
     min-height: 38px;
     font-size: 22px;
+  }
+
+  .navbar-mobile-controls {
+    gap: 4px;
   }
 
   .navbar-mobile-panel {
