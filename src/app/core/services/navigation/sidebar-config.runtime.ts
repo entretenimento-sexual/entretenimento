@@ -127,6 +127,14 @@ export function resolveSidebarSectionFromUrl(
 ): SidebarSectionKey {
   const clean = normalizeUrl(url);
 
+  // `/perfil/:uid` é o destino canônico de visualização de perfil alheio,
+  // inclusive quando aberto a partir da descoberta. Ele pertence ao contexto
+  // de descoberta, não ao grupo da conta. Rotas mais profundas de edição do
+  // próprio perfil continuam sendo classificadas pelo resolver-base como Conta.
+  if (isCanonicalPublicProfileRoute(clean)) {
+    return 'explore';
+  }
+
   if (
     clean === '/subscription-plan'
     || clean.startsWith('/subscription-plan/')
@@ -156,7 +164,7 @@ export function resolveSidebarSectionFromUrl(
     return 'profiles';
   }
 
-  return resolveBaseSidebarSectionFromUrl(url);
+  return resolveBaseSidebarSectionFromUrl(clean);
 }
 
 function composeDomainNavigation(
@@ -305,5 +313,15 @@ function appendAccountDestinations(
 }
 
 function normalizeUrl(url: string | null | undefined): string {
-  return String(url ?? '').trim().split('?')[0].split('#')[0];
+  const clean = String(url ?? '').trim().split('?')[0].split('#')[0];
+
+  if (!clean || clean === '/') {
+    return clean || '/';
+  }
+
+  return clean.endsWith('/') ? clean.slice(0, -1) : clean;
+}
+
+function isCanonicalPublicProfileRoute(url: string): boolean {
+  return /^\/perfil\/[^/]+$/.test(url);
 }

@@ -84,6 +84,17 @@ describe('sidebar runtime composition', () => {
     );
   });
 
+  it('mantém perfil alheio no contexto de descoberta sem confundir edição da conta', () => {
+    expect(resolveSidebarSectionFromUrl('/perfil/usuario-1')).toBe('explore');
+    expect(
+      resolveSidebarSectionFromUrl('/perfil/usuario-1?from=discovery#bio')
+    ).toBe('explore');
+    expect(resolveSidebarSectionFromUrl('/perfil')).toBe('settings');
+    expect(
+      resolveSidebarSectionFromUrl('/perfil/usuario-1/editar-dados-pessoais')
+    ).toBe('settings');
+  });
+
   it('separa conexões de mensagens sem promover salas antigas no menu global', () => {
     const sections = buildSidebarSections({
       isSubscriber: false,

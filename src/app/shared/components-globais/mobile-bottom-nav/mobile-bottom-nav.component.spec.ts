@@ -50,6 +50,32 @@ describe('MobileBottomNavComponent', () => {
     expect(component.isActive(feed!)).toBe(true);
   });
 
+  it('mantém perfil alheio no Feed e reserva Perfil para a conta', async () => {
+    await TestBed.configureTestingModule({
+      imports: [MobileBottomNavComponent, RouterTestingModule],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(MobileBottomNavComponent);
+    const component = fixture.componentInstance;
+    const feed = component.items.find((item) => item.id === 'feed');
+    const profile = component.items.find((item) => item.id === 'profile');
+
+    expect(feed).toBeTruthy();
+    expect(profile).toBeTruthy();
+
+    component.currentUrl = '/perfil/usuario-1?from=discovery#bio';
+    expect(component.isActive(feed!)).toBe(true);
+    expect(component.isActive(profile!)).toBe(false);
+
+    component.currentUrl = '/perfil';
+    expect(component.isActive(feed!)).toBe(false);
+    expect(component.isActive(profile!)).toBe(true);
+
+    component.currentUrl = '/perfil/usuario-1/editar-dados-pessoais';
+    expect(component.isActive(feed!)).toBe(false);
+    expect(component.isActive(profile!)).toBe(true);
+  });
+
   it('mantém Conexões ativa em rotas canônicas e aliases antigos sem acender Chat', async () => {
     await TestBed.configureTestingModule({
       imports: [MobileBottomNavComponent, RouterTestingModule],

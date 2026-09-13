@@ -115,6 +115,12 @@ export class MobileBottomNavComponent {
 
   isActive(item: MobileBottomNavItem): boolean {
     const clean = this.normalizeUrl(this.currentUrl);
+    const isPublicProfile = this.isCanonicalPublicProfileRoute(clean);
+
+    if (isPublicProfile) {
+      if (item.id === 'feed') return true;
+      if (item.id === 'profile') return false;
+    }
 
     if (item.exact) {
       return item.activePrefixes.some((prefix) => clean === prefix);
@@ -171,6 +177,14 @@ export class MobileBottomNavComponent {
   }
 
   private normalizeUrl(url: string | null | undefined): string {
-    return String(url ?? '').trim().split('?')[0].split('#')[0] || '/';
+    const clean = String(url ?? '').trim().split('?')[0].split('#')[0] || '/';
+
+    return clean.length > 1 && clean.endsWith('/')
+      ? clean.slice(0, -1)
+      : clean;
+  }
+
+  private isCanonicalPublicProfileRoute(url: string): boolean {
+    return /^\/perfil\/[^/]+$/.test(url);
   }
 }
