@@ -5,7 +5,7 @@
 
 .mobile-bottom-nav {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
   width: min(100%, 640px);
   margin-inline: auto;
@@ -100,12 +100,16 @@
 
 @media (max-width: 360px) {
   .mobile-bottom-nav {
-    gap: 4px;
-    padding-inline: 6px;
+    gap: 3px;
+    padding-inline: 5px;
+  }
+
+  .mobile-bottom-nav__item {
+    padding-inline: 4px;
   }
 
   .mobile-bottom-nav__label {
-    font-size: 0.68rem;
+    font-size: 0.64rem;
   }
 }
 
