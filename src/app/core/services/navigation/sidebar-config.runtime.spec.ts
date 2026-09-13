@@ -103,7 +103,7 @@ describe('sidebar runtime composition', () => {
         isSidebarGroupItem(item) ? null : item.route
       )
     ).toEqual([
-      '/dashboard/friends/list',
+      '/friends/list',
       '/friends/requests',
     ]);
 
