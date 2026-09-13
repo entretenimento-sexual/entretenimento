@@ -205,7 +205,7 @@ export class AuthenticatedNavigationService {
         label: 'Minhas preferências',
         ariaLabel: 'Ir para minhas preferências',
         iconClass: 'fas fa-cogs',
-        routerLink: ['/preferencias', 'editar', vm.uid],
+        routerLink: ['/preferencias', 'editar'],
         activeExact: true,
       },
       {
