@@ -8,12 +8,19 @@ import {
 const GENERATED_AT = 1_800_000_000_000;
 
 describe('community official claim capability model', () => {
-  it('projeta somente alvo e rótulo mesmo quando a resposta legada traz papel de autoridade', () => {
+  it('projeta somente alvo e rótulo mesmo quando a resposta traz campos privados ou papel de autoridade', () => {
     const result = normalizeCommunityOfficialClaimCapabilityResponse({
       canSubmit: true,
       reason: 'eligible',
       generatedAt: GENERATED_AT,
       candidates: [
+        {
+          target: { type: 'profile', id: 'profile-1' },
+          label: 'Meu perfil',
+          authorityRole: 'self',
+          kycStatus: 'verified',
+          verifiedAt: GENERATED_AT - 1_000,
+        },
         {
           target: { type: 'venue', id: 'shared-1' },
           label: 'Local Um',
@@ -28,12 +35,14 @@ describe('community official claim capability model', () => {
     });
 
     expect(result).not.toBeNull();
-    expect(result?.candidates).toHaveLength(2);
-    expect(result?.candidates[1]).toEqual({
-      target: { type: 'organization', id: 'shared-1' },
-      label: 'Organização Um',
+    expect(result?.candidates).toHaveLength(3);
+    expect(result?.candidates[0]).toEqual({
+      target: { type: 'profile', id: 'profile-1' },
+      label: 'Meu perfil',
     });
-    expect(result?.candidates[1]).not.toHaveProperty('authorityRole');
+    expect(result?.candidates[0]).not.toHaveProperty('authorityRole');
+    expect(result?.candidates[0]).not.toHaveProperty('kycStatus');
+    expect(result?.candidates[0]).not.toHaveProperty('verifiedAt');
   });
 
   it('aceita a projeção mínima sem papel de autoridade', () => {
@@ -51,7 +60,10 @@ describe('community official claim capability model', () => {
     }]);
   });
 
-  it('mantém a seleção distinta quando Local e Organização compartilham id', () => {
+  it('mantém a seleção distinta quando tipos diferentes compartilham id', () => {
+    expect(buildCommunityOfficialClaimCapabilityCandidateKey({
+      target: { type: 'profile', id: 'shared-1' },
+    })).toBe('profile:shared-1');
     expect(buildCommunityOfficialClaimCapabilityCandidateKey({
       target: { type: 'venue', id: 'shared-1' },
     })).toBe('venue:shared-1');
@@ -60,7 +72,7 @@ describe('community official claim capability model', () => {
     })).toBe('organization:shared-1');
   });
 
-  it('falha fechado para alvo ainda não habilitado', () => {
+  it('mantém Event fail-closed', () => {
     expect(normalizeCommunityOfficialClaimCapabilityResponse({
       canSubmit: true,
       reason: 'eligible',

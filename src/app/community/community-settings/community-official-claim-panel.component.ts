@@ -228,14 +228,14 @@ export class CommunityOfficialClaimPanelComponent {
     );
     if (!candidate) {
       this.notifications.showWarning(
-        'Escolha a entidade que esta comunidade representa.'
+        'Escolha o vínculo que esta comunidade representa.'
       );
       return;
     }
 
     if (!this.authorizationAccepted.value) {
       this.notifications.showWarning(
-        'Confirme que você tem autorização para representar esta entidade.'
+        'Confirme que você pode representar este vínculo.'
       );
       return;
     }
@@ -248,7 +248,11 @@ export class CommunityOfficialClaimPanelComponent {
   }
 
   targetTypeLabel(candidate: CommunityOfficialClaimCapabilityCandidate): string {
-    return candidate.target.type === 'organization' ? 'Organização' : 'Local';
+    switch (candidate.target.type) {
+    case 'profile': return 'Perfil';
+    case 'organization': return 'Organização';
+    case 'venue': return 'Local';
+    }
   }
 
   canResubmit(status: CommunityOfficialClaimStatus): boolean {
@@ -279,8 +283,8 @@ export class CommunityOfficialClaimPanelComponent {
       return 'No momento, não há nenhum vínculo disponível para transformar esta comunidade em oficial.';
     case 'eligible':
       return capability.candidates.length === 1
-        ? 'Encontramos uma entidade elegível para esta comunidade.'
-        : 'Escolha a entidade que esta comunidade representa.';
+        ? 'Encontramos um vínculo elegível para esta comunidade.'
+        : 'Escolha o vínculo que esta comunidade representa.';
     }
   }
 

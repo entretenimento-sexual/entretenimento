@@ -21,6 +21,33 @@ function activeGrant() {
   };
 }
 
+function profileAuthority(overrides: {
+  user?: Record<string, unknown> | null;
+  kyc?: Record<string, unknown> | null;
+} = {}) {
+  return {
+    rawUser: overrides.user === null
+      ? null
+      : {
+        profileId: 'profile-1',
+        ...overrides.user,
+      },
+    rawKyc: overrides.kyc === null
+      ? null
+      : {
+        uid: 'user-1',
+        profileId: 'profile-1',
+        status: 'verified',
+        policyVersion: 3,
+        verifiedAt: NOW - 10_000,
+        revalidationDueAt: NOW + 20_000,
+        expiresAt: NOW + 30_000,
+        revokedAt: null,
+        ...overrides.kyc,
+      },
+  };
+}
+
 function organizationAuthority(overrides: {
   organization?: Record<string, unknown>;
   kyb?: Record<string, unknown> | null;
@@ -62,6 +89,88 @@ function organizationAuthority(overrides: {
       },
   };
 }
+
+test('expõe somente o Profile self canônico com KYC privado vigente', () => {
+  const result = resolveCommunityOfficialClaimCapability({
+    actorUid: 'user-1',
+    rawGrant: null,
+    rawVenues: [],
+    rawProfileAuthority: profileAuthority(),
+    activeOfficialProfileIds: [],
+    activeOfficialVenueIds: [],
+    activeOfficialOrganizationIds: [],
+    communityAlreadyOfficial: false,
+    now: NOW,
+  });
+
+  assert.equal(result.canSubmit, true);
+  assert.equal(result.reason, 'eligible');
+  assert.deepEqual(result.candidates, [{
+    target: { type: 'profile', id: 'profile-1' },
+    label: 'Meu perfil',
+    authorityRole: 'self',
+  }]);
+  assert.equal(JSON.stringify(result).includes('verifiedAt'), false);
+  assert.equal(JSON.stringify(result).includes('revalidationDueAt'), false);
+  assert.equal(JSON.stringify(result).includes('expiresAt'), false);
+});
+
+test('não expõe Profile quando o KYC não corresponde ao self canônico', () => {
+  const result = resolveCommunityOfficialClaimCapability({
+    actorUid: 'user-1',
+    rawGrant: null,
+    rawVenues: [],
+    rawProfileAuthority: profileAuthority({
+      kyc: { profileId: 'profile-outro' },
+    }),
+    activeOfficialProfileIds: [],
+    activeOfficialVenueIds: [],
+    activeOfficialOrganizationIds: [],
+    communityAlreadyOfficial: false,
+    now: NOW,
+  });
+
+  assert.equal(result.canSubmit, false);
+  assert.deepEqual(result.candidates, []);
+});
+
+test('não expõe Profile com KYC expirado ou revogado', () => {
+  for (const status of ['expired', 'revoked'] as const) {
+    const result = resolveCommunityOfficialClaimCapability({
+      actorUid: 'user-1',
+      rawGrant: null,
+      rawVenues: [],
+      rawProfileAuthority: profileAuthority({ kyc: { status } }),
+      activeOfficialProfileIds: [],
+      activeOfficialVenueIds: [],
+      activeOfficialOrganizationIds: [],
+      communityAlreadyOfficial: false,
+      now: NOW,
+    });
+
+    assert.equal(result.canSubmit, false);
+    assert.equal(result.reason, 'verification_inactive');
+    assert.deepEqual(result.candidates, []);
+  }
+});
+
+test('não oferece Profile que já possui associação oficial ativa', () => {
+  const result = resolveCommunityOfficialClaimCapability({
+    actorUid: 'user-1',
+    rawGrant: activeGrant(),
+    rawVenues: [],
+    rawProfileAuthority: profileAuthority(),
+    activeOfficialProfileIds: ['profile-1'],
+    activeOfficialVenueIds: [],
+    activeOfficialOrganizationIds: [],
+    communityAlreadyOfficial: false,
+    now: NOW,
+  });
+
+  assert.equal(result.canSubmit, false);
+  assert.equal(result.reason, 'no_eligible_target');
+  assert.deepEqual(result.candidates, []);
+});
 
 test('expõe somente Local ativo em que o solicitante possui autoridade canônica', () => {
   const result = resolveCommunityOfficialClaimCapability({

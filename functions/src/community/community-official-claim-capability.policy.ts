@@ -4,7 +4,7 @@
 // -----------------------------------------------------------------------------
 // Resolve somente alvos cuja autoridade já pode ser comprovada por fonte
 // canônica backend-only. O cliente recebe alvo, rótulo e papel, nunca grant,
-// KYB, organização patrocinadora ou referência de evidência.
+// KYC/KYB, organização patrocinadora ou referência de evidência.
 // -----------------------------------------------------------------------------
 
 import {
@@ -14,6 +14,7 @@ import {
 import {
   resolveCanonicalResourceAuthority,
 } from '../authority/canonical-resource-authority.resolver';
+import { evaluateProfileKyc } from '../identity/profile-kyc.policy';
 import {
   evaluateOfficialSpaceCreationGrant,
 } from './community-official-space.policy';
@@ -29,16 +30,21 @@ export type CommunityOfficialClaimCapabilityReason =
 
 type CommunityOfficialClaimCandidateAuthorityRole = Extract<
   CanonicalResourceAuthorityRole,
-  'owner' | 'authorized_representative' | 'manager'
+  'self' | 'owner' | 'authorized_representative' | 'manager'
 >;
 
 export interface CommunityOfficialClaimCapabilityCandidate {
   readonly target: {
-    readonly type: 'organization' | 'venue';
+    readonly type: 'profile' | 'organization' | 'venue';
     readonly id: string;
   };
   readonly label: string;
   readonly authorityRole: CommunityOfficialClaimCandidateAuthorityRole;
+}
+
+export interface CommunityOfficialClaimProfileAuthorityInput {
+  readonly rawUser: Readonly<Record<string, unknown>> | null;
+  readonly rawKyc: unknown;
 }
 
 export interface CommunityOfficialClaimOrganizationAuthorityInput {
@@ -67,7 +73,9 @@ export function resolveCommunityOfficialClaimCapability(input: {
   readonly actorUid: string;
   readonly rawGrant: unknown;
   readonly rawVenues: readonly Readonly<Record<string, unknown>>[];
+  readonly rawProfileAuthority?: CommunityOfficialClaimProfileAuthorityInput | null;
   readonly rawOrganizationAuthorities?: readonly CommunityOfficialClaimOrganizationAuthorityInput[];
+  readonly activeOfficialProfileIds?: readonly string[];
   readonly activeOfficialVenueIds?: readonly string[];
   readonly activeOfficialOrganizationIds?: readonly string[];
   readonly communityAlreadyOfficial: boolean;
@@ -102,8 +110,13 @@ export function resolveCommunityOfficialClaimCapability(input: {
   let sawVerificationInactive = !grant.allowed
     && grant.denialReason === 'grant_inactive';
 
-  // Ocupação oficial é decidida somente pela associação canônica. A projeção
-  // `officialAssociationKey` eventualmente presente em Local é ignorada aqui.
+  // Ocupação oficial é decidida somente pela associação canônica. Projeções
+  // eventualmente presentes nos recursos públicos são ignoradas aqui.
+  const activeOfficialProfileIds = new Set(
+    (input.activeOfficialProfileIds ?? [])
+      .map(cleanId)
+      .filter((profileId): profileId is string => profileId !== null)
+  );
   const activeOfficialVenueIds = new Set(
     (input.activeOfficialVenueIds ?? [])
       .map(cleanId)
@@ -115,6 +128,52 @@ export function resolveCommunityOfficialClaimCapability(input: {
       .filter((organizationId): organizationId is string => organizationId !== null)
   );
   const unique = new Map<string, CommunityOfficialClaimCapabilityCandidate>();
+
+  // Profile é independente de grant comercial. A única fonte de identidade do
+  // alvo é users/{actorUid}.profileId; KYC só decide elegibilidade no backend e
+  // jamais é projetado para o cliente.
+  const profileSource = input.rawProfileAuthority;
+  const profileId = cleanId(profileSource?.rawUser?.['profileId']);
+  if (
+    profileSource
+    && profileId
+    && !activeOfficialProfileIds.has(profileId)
+    && unique.size < MAX_COMMUNITY_OFFICIAL_CLAIM_CANDIDATES
+  ) {
+    const authority = resolveCanonicalResourceAuthority({
+      actorUid,
+      targetType: 'profile',
+      targetId: profileId,
+      rawTarget: profileSource.rawUser,
+      now: input.now,
+    });
+
+    if (
+      authority.allowed
+      && authority.authorityUid === actorUid
+      && authority.authorityRole === 'self'
+      && authority.organizationId === null
+    ) {
+      const profileKyc = evaluateProfileKyc({
+        actorUid,
+        profileId,
+        rawKyc: profileSource.rawKyc,
+        now: input.now,
+      });
+
+      if (profileKyc.allowed && profileKyc.verificationPolicyVersion) {
+        unique.set(`profile:${profileId}`, Object.freeze({
+          target: Object.freeze({ type: 'profile' as const, id: profileId }),
+          // Não derivar rótulo de KYC nem de atributos civis privados.
+          label: 'Meu perfil',
+          authorityRole: 'self',
+        }));
+      } else {
+        sawVerificationInactive ||= profileKyc.denialReason === 'verification_inactive';
+        sawVerificationRequired ||= profileKyc.denialReason === 'verification_required';
+      }
+    }
+  }
 
   if (grant.allowed) {
     for (const rawVenue of input.rawVenues) {

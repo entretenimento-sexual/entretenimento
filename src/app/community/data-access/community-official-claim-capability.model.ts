@@ -9,13 +9,14 @@ export type CommunityOfficialClaimCapabilityReason =
   | 'community_already_official';
 
 export type CommunityOfficialClaimCapabilityTarget =
-  CommunityOfficialTarget & { readonly type: 'organization' | 'venue' };
+  CommunityOfficialTarget & {
+    readonly type: 'profile' | 'organization' | 'venue';
+  };
 
 /**
- * Projeção mínima usada pela UI. O papel técnico que concede autoridade
- * pertence ao backend e não participa da escolha nem do envio do usuário.
- * Respostas legadas podem continuar trazendo `authorityRole`; o normalizador
- * simplesmente não o projeta para a aplicação.
+ * Projeção mínima usada pela UI. O papel técnico que concede autoridade e toda
+ * evidência de KYC/KYB pertencem ao backend e não participam da escolha nem do
+ * envio do usuário. Campos extras da resposta nunca são projetados.
  */
 export interface CommunityOfficialClaimCapabilityCandidate {
   readonly target: CommunityOfficialClaimCapabilityTarget;
@@ -54,7 +55,9 @@ function cleanReason(value: unknown): CommunityOfficialClaimCapabilityReason | n
 function cleanTargetType(
   value: unknown
 ): CommunityOfficialClaimCapabilityTarget['type'] | null {
-  return value === 'organization' || value === 'venue' ? value : null;
+  return value === 'profile' || value === 'organization' || value === 'venue'
+    ? value
+    : null;
 }
 
 export function buildCommunityOfficialClaimCapabilityCandidateKey(

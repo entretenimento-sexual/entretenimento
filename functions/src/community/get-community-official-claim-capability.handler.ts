@@ -3,7 +3,7 @@
 // GET COMMUNITY OFFICIAL CLAIM CAPABILITY
 // -----------------------------------------------------------------------------
 // O navegador recebe apenas alvos reivindicáveis e papel de autoridade seguro.
-// Grants comerciais, KYB, representação e evidências permanecem privados.
+// Grants comerciais, KYC/KYB, representação e evidências permanecem privados.
 // -----------------------------------------------------------------------------
 
 import type { DocumentReference } from 'firebase-admin/firestore';
@@ -30,6 +30,7 @@ import {
   type CommunityOfficialClaimCapabilityCandidate,
   type CommunityOfficialClaimCapabilityReason,
   type CommunityOfficialClaimOrganizationAuthorityInput,
+  type CommunityOfficialClaimProfileAuthorityInput,
 } from './community-official-claim-capability.policy';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import { assertCommunitySocialAccessForUid } from './community-social-access.service';
@@ -99,6 +100,63 @@ async function resolveStoredCommunityOfficialState(input: {
     snapshot.data()
   );
   return reference?.communityId === input.communityId;
+}
+
+async function resolveProfileOfficialOccupancy(input: {
+  readonly communityId: string;
+  readonly profileId: string | null;
+}): Promise<Readonly<{
+  activeOfficialProfileIds: readonly string[];
+  communityAlreadyOfficial: boolean;
+}>> {
+  const profileId = cleanId(input.profileId);
+  if (!profileId) {
+    return Object.freeze({
+      activeOfficialProfileIds: Object.freeze([]),
+      communityAlreadyOfficial: false,
+    });
+  }
+
+  const associationKey = buildCommunityOfficialAssociationKey({
+    type: 'profile',
+    id: profileId,
+  });
+  if (!associationKey) {
+    return Object.freeze({
+      activeOfficialProfileIds: Object.freeze([]),
+      communityAlreadyOfficial: false,
+    });
+  }
+
+  const snapshot = await db
+    .collection('community_official_associations')
+    .doc(associationKey)
+    .get();
+  if (!snapshot.exists) {
+    return Object.freeze({
+      activeOfficialProfileIds: Object.freeze([]),
+      communityAlreadyOfficial: false,
+    });
+  }
+
+  const reference = resolveCanonicalOfficialCommunityReferenceFromAssociation(
+    snapshot.data()
+  );
+  if (
+    !reference
+    || reference.target.type !== 'profile'
+    || reference.target.id !== profileId
+  ) {
+    return Object.freeze({
+      activeOfficialProfileIds: Object.freeze([]),
+      communityAlreadyOfficial: false,
+    });
+  }
+
+  return Object.freeze({
+    activeOfficialProfileIds: Object.freeze([profileId]),
+    communityAlreadyOfficial: reference.communityId === input.communityId,
+  });
 }
 
 async function resolveVenueOfficialOccupancy(input: {
@@ -343,6 +401,7 @@ export const getCommunityOfficialClaimCapability = onCall<
         rawGrant,
         rawVenues: [],
         rawOrganizationAuthorities: [],
+        activeOfficialProfileIds: [],
         activeOfficialVenueIds: [],
         activeOfficialOrganizationIds: [],
         communityAlreadyOfficial: true,
@@ -356,6 +415,7 @@ export const getCommunityOfficialClaimCapability = onCall<
       rawGrant,
       rawVenues: [],
       rawOrganizationAuthorities: [],
+      activeOfficialProfileIds: [],
       activeOfficialVenueIds: [],
       activeOfficialOrganizationIds: [],
       communityAlreadyOfficial: false,
@@ -382,12 +442,32 @@ export const getCommunityOfficialClaimCapability = onCall<
         })))
         : Promise.resolve([]);
 
-    const [rawVenues, rawOrganizationAuthorities] = await Promise.all([
+    const profileAuthorityPromise: Promise<CommunityOfficialClaimProfileAuthorityInput> =
+      Promise.all([
+        db.collection('users').doc(actorUid).get(),
+        db.collection('profile_kyc_records').doc(actorUid).get(),
+      ]).then(([userSnapshot, profileKycSnapshot]) => Object.freeze({
+        rawUser: userSnapshot.exists ? userSnapshot.data() ?? null : null,
+        rawKyc: profileKycSnapshot.exists ? profileKycSnapshot.data() : null,
+      }));
+
+    const [
+      rawVenues,
+      rawOrganizationAuthorities,
+      rawProfileAuthority,
+    ] = await Promise.all([
       rawVenuesPromise,
       resolveOrganizationAuthorityInputs({ actorUid, now }),
+      profileAuthorityPromise,
     ]);
 
-    const [venueOccupancy, organizationOccupancy] = await Promise.all([
+    const profileId = cleanId(rawProfileAuthority.rawUser?.['profileId']);
+    const [
+      profileOccupancy,
+      venueOccupancy,
+      organizationOccupancy,
+    ] = await Promise.all([
+      resolveProfileOfficialOccupancy({ communityId, profileId }),
       resolveVenueOfficialOccupancy({ communityId, rawVenues }),
       resolveOrganizationOfficialOccupancy({
         communityId,
@@ -401,12 +481,15 @@ export const getCommunityOfficialClaimCapability = onCall<
       actorUid,
       rawGrant,
       rawVenues,
+      rawProfileAuthority,
       rawOrganizationAuthorities,
+      activeOfficialProfileIds: profileOccupancy.activeOfficialProfileIds,
       activeOfficialVenueIds: venueOccupancy.activeOfficialVenueIds,
       activeOfficialOrganizationIds:
         organizationOccupancy.activeOfficialOrganizationIds,
       communityAlreadyOfficial:
-        venueOccupancy.communityAlreadyOfficial
+        profileOccupancy.communityAlreadyOfficial
+        || venueOccupancy.communityAlreadyOfficial
         || organizationOccupancy.communityAlreadyOfficial,
       now,
     });
