@@ -6,7 +6,7 @@ import ts from 'typescript';
 
 const ownershipLifecycleHandlerPath = path.resolve(
   __dirname,
-  './community-ownership-lifecycle.handler.ts'
+  '../../src/community/community-ownership-lifecycle.handler.ts'
 );
 
 function parseOwnershipLifecycleHandler(): ts.SourceFile {
