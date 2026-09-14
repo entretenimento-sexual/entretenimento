@@ -35,16 +35,10 @@ const ALL_CAPACITY_OPTIONS = [
 
 function assertInconsistentMemberCount(run: () => unknown): void {
   assert.throws(run, (error: unknown) => {
-    const source = error as {
-      code?: unknown;
-      details?: Record<string, unknown>;
-    };
+    const source = error as { code?: unknown; details?: unknown };
 
     assert.equal(source.code, 'data-loss');
-    assert.equal(
-      source.details?.['reason'],
-      'community_member_count_inconsistent'
-    );
+    assert.equal(source.details, undefined);
     return true;
   });
 }
