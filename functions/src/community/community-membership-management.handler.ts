@@ -214,6 +214,16 @@ function resolveMemberCountDelta(
   return resolveCommunityMemberCountDelta(metrics['memberCount'], delta);
 }
 
+function isCommunityOperationalForMembershipActivation(
+  rawCommunity: unknown
+): boolean {
+  const community = (rawCommunity ?? {}) as Record<string, unknown>;
+  const moderation = (community['moderation'] ?? {}) as Record<string, unknown>;
+
+  return community['status'] === 'active'
+    && moderation['state'] === 'active';
+}
+
 function assertCommunityManageable(rawCommunity: unknown): void {
   const community = (rawCommunity ?? {}) as Record<string, unknown>;
   const moderation = (community['moderation'] ?? {}) as Record<string, unknown>;
@@ -281,6 +291,14 @@ function throwReviewDecisionError(reason: string | null): never {
     throw new HttpsError(
       'permission-denied',
       'Apenas a moderação pode revisar solicitações.',
+      { reason }
+    );
+  }
+
+  if (reason === 'community_unavailable') {
+    throw new HttpsError(
+      'failed-precondition',
+      'Esta comunidade não aceita novas entradas agora.',
       { reason }
     );
   }
@@ -620,6 +638,8 @@ export const reviewCommunityMembership =
           ? targetMembershipSnapshot.data()
           : null;
         const decision = evaluateCommunityMembershipReview({
+          communityOperational:
+            isCommunityOperationalForMembershipActivation(community),
           actorActive: actor.status === 'active',
           actorRole: actor.role,
           targetIsActor: actorUid === memberId,
