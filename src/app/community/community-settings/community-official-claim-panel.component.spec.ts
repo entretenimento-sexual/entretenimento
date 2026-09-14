@@ -85,7 +85,7 @@ describe('CommunityOfficialClaimPanelComponent', () => {
     expect(text).not.toContain('KYB');
   });
 
-  it('não pré-seleciona quando existem várias entidades elegíveis', () => {
+  it('não pré-seleciona quando existem vários vínculos elegíveis', () => {
     const fixture = createFixture({
       canSubmit: true,
       reason: 'eligible',
@@ -106,7 +106,7 @@ describe('CommunityOfficialClaimPanelComponent', () => {
     const text = fixture.nativeElement.textContent as string;
     expect(select).not.toBeNull();
     expect(select.options).toHaveLength(3);
-    expect(select.options[0]?.textContent).toContain('Selecione uma entidade');
+    expect(select.options[0]?.textContent).toContain('Selecione um vínculo');
     expect(fixture.componentInstance.targetKey.value).toBe('');
     expect(text).toContain('O que esta comunidade representa?');
     expect(text).toContain('Casa Aurora — Local');
@@ -135,11 +135,11 @@ describe('CommunityOfficialClaimPanelComponent', () => {
 
     expect(repositoryMock.submitCommunityOfficialClaim$).not.toHaveBeenCalled();
     expect(notificationsMock.showWarning).toHaveBeenCalledWith(
-      'Confirme que você tem autorização para representar esta entidade.'
+      'Confirme que você pode representar este vínculo.'
     );
   });
 
-  it('envia somente entidade e declaração, sem detalhes técnicos de autoridade', () => {
+  it('envia somente vínculo e declaração, sem detalhes técnicos de autoridade', () => {
     const fixture = createFixture({
       canSubmit: true,
       reason: 'eligible',

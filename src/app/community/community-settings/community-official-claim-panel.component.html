@@ -29,7 +29,7 @@
       @if (capabilityState.capability.canSubmit) {
         @if (capabilityState.capability.candidates.length === 1) {
           @if (capabilityState.capability.candidates[0]; as candidate) {
-            <article class="official-claim__target-card" aria-label="Entidade elegível">
+            <article class="official-claim__target-card" aria-label="Vínculo elegível">
               <span>{{ targetTypeLabel(candidate) }}</span>
               <strong>{{ candidate.label }}</strong>
             </article>
@@ -38,7 +38,7 @@
           <div class="official-claim__field">
             <label for="official-claim-target">O que esta comunidade representa?</label>
             <select id="official-claim-target" [formControl]="targetKey">
-              <option value="" disabled>Selecione uma entidade</option>
+              <option value="" disabled>Selecione um vínculo</option>
               @for (candidate of capabilityState.capability.candidates; track candidateKey(candidate)) {
                 <option [value]="candidateKey(candidate)">
                   {{ candidate.label }} — {{ targetTypeLabel(candidate) }}
@@ -46,7 +46,7 @@
               }
             </select>
             <small>
-              Mostramos somente entidades que podem ser confirmadas pela plataforma.
+              Mostramos somente vínculos que podem ser confirmados pela plataforma.
             </small>
           </div>
         }
@@ -118,7 +118,7 @@
             aria-describedby="official-claim-declaration-note"
           />
           <span>
-            Declaro que tenho autorização para representar esta entidade e solicitar o selo oficial.
+            Declaro que tenho autorização para representar este vínculo e solicitar o selo oficial.
           </span>
         </label>
 
