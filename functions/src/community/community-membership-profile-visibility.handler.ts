@@ -205,8 +205,7 @@ export const updateCommunityMembershipProfileVisibility =
         }
 
         const alreadyApplied = command.profileVisibility === 'visible'
-          ? previousVisibility === 'visible'
-            && previousPolicyVersion === nextPolicyVersion
+          ? state.profileVisibility === 'visible'
           : previousVisibility === 'hidden' && previousPolicyVersion === null;
 
         if (!alreadyApplied) {
@@ -237,6 +236,7 @@ export const updateCommunityMembershipProfileVisibility =
             ...membership,
             profileVisibility: command.profileVisibility,
             profileVisibilityPolicyVersion: nextPolicyVersion,
+            profileVisibilityUpdatedAt: Date.now(),
           };
 
         return buildState(command.communityId, community, nextMembership);

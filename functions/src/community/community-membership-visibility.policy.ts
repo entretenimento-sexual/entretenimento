@@ -18,7 +18,8 @@ export interface CommunityMembershipVisibilityDecision {
     | 'community_disclosure_policy_invalid'
     | 'membership_not_active'
     | 'member_not_opted_in'
-    | 'consent_policy_mismatch';
+    | 'consent_policy_mismatch'
+    | 'consent_predates_membership_cycle';
 }
 
 export interface CommunityMembershipProfileVisibilityResolvedState {
@@ -32,6 +33,39 @@ export interface CommunityMembershipProfileVisibilityResolvedState {
 function normalizePositiveInteger(value: unknown): number | null {
   const parsed = Math.trunc(Number(value));
   return Number.isFinite(parsed) && parsed >= 1 ? parsed : null;
+}
+
+function normalizeTimestampMs(value: unknown): number | null {
+  if (value instanceof Date) {
+    const time = value.getTime();
+    return Number.isFinite(time) && time > 0 ? Math.trunc(time) : null;
+  }
+
+  if (typeof value === 'number') {
+    return Number.isFinite(value) && value > 0 ? Math.trunc(value) : null;
+  }
+
+  if (value && typeof value === 'object') {
+    const source = value as {
+      toMillis?: () => number;
+      seconds?: unknown;
+      nanoseconds?: unknown;
+    };
+
+    if (typeof source.toMillis === 'function') {
+      const time = Number(source.toMillis());
+      return Number.isFinite(time) && time > 0 ? Math.trunc(time) : null;
+    }
+
+    const seconds = Number(source.seconds);
+    const nanoseconds = Number(source.nanoseconds ?? 0);
+    if (Number.isFinite(seconds) && Number.isFinite(nanoseconds)) {
+      const time = seconds * 1_000 + Math.trunc(nanoseconds / 1_000_000);
+      return Number.isFinite(time) && time > 0 ? Math.trunc(time) : null;
+    }
+  }
+
+  return null;
 }
 
 export function resolveCommunityMembershipVisibility(
@@ -79,6 +113,19 @@ export function resolveCommunityMembershipVisibility(
     return { visible: false, reason: 'consent_policy_mismatch' };
   }
 
+  const joinedAt = normalizeTimestampMs(membership['joinedAt']);
+  if (joinedAt !== null) {
+    const profileVisibilityUpdatedAt = normalizeTimestampMs(
+      membership['profileVisibilityUpdatedAt']
+    );
+    if (
+      profileVisibilityUpdatedAt === null
+      || profileVisibilityUpdatedAt < joinedAt
+    ) {
+      return { visible: false, reason: 'consent_predates_membership_cycle' };
+    }
+  }
+
   return { visible: true, reason: 'eligible' };
 }
 
@@ -106,6 +153,8 @@ export function resolveCommunityMembershipProfileVisibilityState(
         ...membership,
         profileVisibility: 'visible',
         profileVisibilityPolicyVersion: policyVersion,
+        profileVisibilityUpdatedAt:
+          membership['joinedAt'] ?? membership['profileVisibilityUpdatedAt'],
       }
     ).visible;
 
