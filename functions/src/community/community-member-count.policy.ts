@@ -4,8 +4,11 @@
 // -----------------------------------------------------------------------------
 // Métricas de membership são projeções derivadas. Ausência, null, strings ou
 // números inválidos nunca podem ser convertidos implicitamente em zero/um.
-// O chamador só persiste uma nova contagem quando o estado atual é confiável.
+// Toda transição que altera cardinalidade exige uma base confiável; caso
+// contrário, a operação falha fechada e a transação não persiste o vínculo.
 // -----------------------------------------------------------------------------
+
+import { HttpsError } from 'firebase-functions/v2/https';
 
 export function normalizeCommunityMemberCount(value: unknown): number | null {
   return typeof value === 'number'
@@ -18,9 +21,16 @@ export function normalizeCommunityMemberCount(value: unknown): number | null {
 export function resolveCommunityMemberCountDelta(
   currentValue: unknown,
   delta: -1 | 1
-): number | null {
+): number {
   const current = normalizeCommunityMemberCount(currentValue);
-  if (current === null) return null;
 
-  return Math.max(current + delta, 0);
+  if (current === null || (delta === -1 && current === 0)) {
+    throw new HttpsError(
+      'data-loss',
+      'A contagem de participantes da Comunidade está inconsistente.',
+      { reason: 'community_member_count_inconsistent' }
+    );
+  }
+
+  return current + delta;
 }
