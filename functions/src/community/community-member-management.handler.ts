@@ -647,6 +647,7 @@ export const manageCommunityMember = onCall<ManageCommunityMemberPayload>(
           update['blockedByRole'] = actor.role;
           update['blockedPreviousRole'] = currentTargetRole;
         } else if (action === 'unblock') {
+          update['leftAt'] = now;
           update['unblockedAt'] = now;
           update['blockedAt'] = FieldValue.delete();
           update['blockedBy'] = FieldValue.delete();
