@@ -19,6 +19,7 @@ import {
   assertCommunityCallableAppCheck,
 } from './community-callable-security';
 import { hasCommunityLifecycleHold } from './community-lifecycle.policy';
+import { resolveCommunityMemberCountDelta } from './community-member-count.policy';
 import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
 import {
   CommunityOwnershipMembershipRole,
@@ -160,18 +161,6 @@ function normalizeMembershipRole(value: unknown): CommunityOwnershipMembershipRo
     || value === 'moderator'
     || value === 'member'
     ? value
-    : null;
-}
-
-function normalizeMemberCount(rawCommunity: unknown): number | null {
-  const community = (rawCommunity ?? {}) as Record<string, unknown>;
-  const metrics = (community['metrics'] ?? {}) as Record<string, unknown>;
-  const value = metrics['memberCount'];
-
-  return typeof value === 'number'
-    && Number.isFinite(value)
-    && value >= 0
-    ? Math.trunc(value)
     : null;
 }
 
@@ -775,10 +764,11 @@ export const archiveCommunity = onCall<CommunityArchivePayload>(
       }
 
       const now = Date.now();
-      const currentMemberCount = normalizeMemberCount(community);
-      const nextMemberCount = currentMemberCount === null
-        ? null
-        : Math.max(currentMemberCount - 1, 0);
+      const metrics = (community['metrics'] ?? {}) as Record<string, unknown>;
+      const nextMemberCount = resolveCommunityMemberCountDelta(
+        metrics['memberCount'],
+        -1
+      );
       const communityPatch: Record<string, unknown> = {
         status: 'archived',
         visibility: 'hidden',
@@ -793,12 +783,9 @@ export const archiveCommunity = onCall<CommunityArchivePayload>(
         'lifecycle.interactionBlocked': true,
         'lifecycle.policyVersion': 1,
         'lifecycle.updatedAt': now,
+        'metrics.memberCount': nextMemberCount,
         updatedAt: now,
       };
-
-      if (nextMemberCount !== null) {
-        communityPatch['metrics.memberCount'] = nextMemberCount;
-      }
 
       transaction.update(communityRef, communityPatch);
       transaction.set(
