@@ -31,6 +31,7 @@ export type CommunityMembershipLeaveDenialReason =
   | 'owner_transfer_required';
 
 export type CommunityMembershipReviewDenialReason =
+  | 'community_unavailable'
   | 'moderator_required'
   | 'self_review_forbidden'
   | 'membership_blocked'
@@ -73,6 +74,7 @@ export interface CommunityMembershipLeaveDecision {
 }
 
 export interface CommunityMembershipReviewInput {
+  communityOperational: boolean;
   actorActive: boolean;
   actorRole: CommunityMembershipRole | null;
   targetIsActor: boolean;
@@ -315,6 +317,17 @@ export function evaluateCommunityMembershipReview(
   }
 
   const approving = input.action === 'approve';
+
+  if (approving && !input.communityOperational) {
+    return {
+      allowed: false,
+      targetStatus: null,
+      denialReason: 'community_unavailable',
+      idempotent: false,
+      incrementMemberCount: false,
+      auditAction: null,
+    };
+  }
 
   return {
     allowed: true,
