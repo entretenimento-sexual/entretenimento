@@ -26,27 +26,35 @@ export const syncCommunityProfileMembershipIndex = onDocumentWritten(
 
     if (!communityId || !memberId) return;
 
+    const membershipRef = db
+      .collection('communities')
+      .doc(communityId)
+      .collection('members')
+      .doc(memberId);
     const indexRef = db
       .collection('community_profile_membership_index')
       .doc(memberId)
       .collection('items')
       .doc(communityId);
-    const membershipSnapshot = event.data?.after;
-    const projection = membershipSnapshot?.exists
-      ? buildCommunityProfileMembershipIndexProjection(
-        communityId,
-        membershipSnapshot.data()
-      )
-      : null;
 
-    if (!projection) {
-      await indexRef.delete();
-      return;
-    }
+    await db.runTransaction(async (transaction) => {
+      const membershipSnapshot = await transaction.get(membershipRef);
+      const projection = membershipSnapshot.exists
+        ? buildCommunityProfileMembershipIndexProjection(
+          communityId,
+          membershipSnapshot.data()
+        )
+        : null;
 
-    await indexRef.set({
-      ...projection,
-      updatedAt: FieldValue.serverTimestamp(),
+      if (!projection) {
+        transaction.delete(indexRef);
+        return;
+      }
+
+      transaction.set(indexRef, {
+        ...projection,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
     });
   }
 );

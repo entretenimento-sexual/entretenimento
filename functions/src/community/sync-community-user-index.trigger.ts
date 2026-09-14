@@ -24,39 +24,38 @@ export const syncCommunityUserIndex = onDocumentWritten(
 
     if (!communityId || !memberId) return;
 
+    const communityRef = db.collection('communities').doc(communityId);
+    const membershipRef = communityRef.collection('members').doc(memberId);
     const indexRef = db
       .collection('community_user_index')
       .doc(memberId)
       .collection('items')
       .doc(communityId);
-    const membershipSnapshot = event.data?.after;
 
-    if (!membershipSnapshot?.exists) {
-      await indexRef.delete();
-      return;
-    }
+    await db.runTransaction(async (transaction) => {
+      const [communitySnapshot, membershipSnapshot] = await Promise.all([
+        transaction.get(communityRef),
+        transaction.get(membershipRef),
+      ]);
+      const projection = buildCommunityUserIndexProjection(
+        communityId,
+        communitySnapshot.exists ? communitySnapshot.data() : null,
+        membershipSnapshot.exists ? membershipSnapshot.data() : null
+      );
 
-    const communitySnapshot = await db
-      .collection('communities')
-      .doc(communityId)
-      .get();
-    const projection = buildCommunityUserIndexProjection(
-      communityId,
-      communitySnapshot.exists ? communitySnapshot.data() : null,
-      membershipSnapshot.data()
-    );
+      if (!projection) {
+        transaction.delete(indexRef);
+        return;
+      }
 
-    if (!projection) {
-      await indexRef.delete();
-      return;
-    }
-
-    await indexRef.set(
-      {
-        ...projection,
-        updatedAt: FieldValue.serverTimestamp(),
-      },
-      { merge: true }
-    );
+      transaction.set(
+        indexRef,
+        {
+          ...projection,
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+    });
   }
 );
