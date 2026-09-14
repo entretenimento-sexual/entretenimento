@@ -192,6 +192,7 @@ test('nega saída quando o vínculo não possui papel válido', () => {
 
 test('moderador aprova pendência e incrementa membros', () => {
   const decision = evaluateCommunityMembershipReview({
+    communityOperational: true,
     actorActive: true,
     actorRole: 'moderator',
     targetIsActor: false,
@@ -208,6 +209,7 @@ test('moderador aprova pendência e incrementa membros', () => {
 
 test('moderador rejeita pendência sem alterar contagem', () => {
   const decision = evaluateCommunityMembershipReview({
+    communityOperational: true,
     actorActive: true,
     actorRole: 'admin',
     targetIsActor: false,
@@ -222,8 +224,37 @@ test('moderador rejeita pendência sem alterar contagem', () => {
   assert.equal(decision.auditAction, 'community-membership-rejected');
 });
 
+test('comunidade inativa bloqueia aprovação pendente mas preserva rejeição', () => {
+  const approved = evaluateCommunityMembershipReview({
+    communityOperational: false,
+    actorActive: true,
+    actorRole: 'moderator',
+    targetIsActor: false,
+    targetStatus: 'pending',
+    targetRole: 'member',
+    action: 'approve',
+  });
+  const rejected = evaluateCommunityMembershipReview({
+    communityOperational: false,
+    actorActive: true,
+    actorRole: 'moderator',
+    targetIsActor: false,
+    targetStatus: 'pending',
+    targetRole: 'member',
+    action: 'reject',
+  });
+
+  assert.equal(approved.allowed, false);
+  assert.equal(approved.denialReason, 'community_unavailable');
+  assert.equal(approved.incrementMemberCount, false);
+  assert.equal(rejected.allowed, true);
+  assert.equal(rejected.targetStatus, 'left');
+  assert.equal(rejected.incrementMemberCount, false);
+});
+
 test('revisão repetida preserva aprovação ou rejeição sem nova métrica', () => {
   const approved = evaluateCommunityMembershipReview({
+    communityOperational: false,
     actorActive: true,
     actorRole: 'moderator',
     targetIsActor: false,
@@ -232,6 +263,7 @@ test('revisão repetida preserva aprovação ou rejeição sem nova métrica', (
     action: 'approve',
   });
   const rejected = evaluateCommunityMembershipReview({
+    communityOperational: false,
     actorActive: true,
     actorRole: 'moderator',
     targetIsActor: false,
@@ -249,6 +281,7 @@ test('revisão repetida preserva aprovação ou rejeição sem nova métrica', (
 test('revisão exige papel, alvo válido e impede autorrevisão', () => {
   assert.equal(
     evaluateCommunityMembershipReview({
+      communityOperational: true,
       actorActive: true,
       actorRole: 'member',
       targetIsActor: false,
@@ -260,6 +293,7 @@ test('revisão exige papel, alvo válido e impede autorrevisão', () => {
   );
   assert.equal(
     evaluateCommunityMembershipReview({
+      communityOperational: true,
       actorActive: true,
       actorRole: 'moderator',
       targetIsActor: true,
@@ -271,6 +305,7 @@ test('revisão exige papel, alvo válido e impede autorrevisão', () => {
   );
   assert.equal(
     evaluateCommunityMembershipReview({
+      communityOperational: true,
       actorActive: true,
       actorRole: 'owner',
       targetIsActor: false,
@@ -282,6 +317,7 @@ test('revisão exige papel, alvo válido e impede autorrevisão', () => {
   );
   assert.equal(
     evaluateCommunityMembershipReview({
+      communityOperational: true,
       actorActive: true,
       actorRole: 'owner',
       targetIsActor: false,
