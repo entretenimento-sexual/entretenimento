@@ -37,3 +37,27 @@ test('legacy, hidden, left e policy inválida permanecem fora do locator', () =>
     );
   }
 });
+
+test('consentimento anterior ao ciclo atual fica fora do locator', () => {
+  assert.equal(
+    buildCommunityProfileMembershipIndexProjection('community-1', {
+      status: 'active',
+      profileVisibility: 'visible',
+      profileVisibilityPolicyVersion: 2,
+      joinedAt: 2_000,
+      profileVisibilityUpdatedAt: 1_000,
+    }),
+    null
+  );
+
+  assert.deepEqual(
+    buildCommunityProfileMembershipIndexProjection('community-1', {
+      status: 'active',
+      profileVisibility: 'visible',
+      profileVisibilityPolicyVersion: 2,
+      joinedAt: 2_000,
+      profileVisibilityUpdatedAt: 2_000,
+    }),
+    { communityId: 'community-1', status: 'candidate' }
+  );
+});

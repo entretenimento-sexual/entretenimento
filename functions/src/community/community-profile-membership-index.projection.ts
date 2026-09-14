@@ -7,6 +7,10 @@
 // membership canônico. Ausência/false/legacy sempre remove o candidato.
 // -----------------------------------------------------------------------------
 
+import {
+  isCommunityMembershipProfileVisibilityConsentCurrent,
+} from './community-membership-visibility.policy';
+
 export interface CommunityProfileMembershipIndexProjection {
   communityId: string;
   status: 'candidate';
@@ -36,6 +40,7 @@ export function buildCommunityProfileMembershipIndexProjection(
     || membership['status'] !== 'active'
     || membership['profileVisibility'] !== 'visible'
     || !normalizePositiveInteger(membership['profileVisibilityPolicyVersion'])
+    || !isCommunityMembershipProfileVisibilityConsentCurrent(membership)
   ) {
     return null;
   }

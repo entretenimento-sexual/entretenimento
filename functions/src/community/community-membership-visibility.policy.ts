@@ -68,6 +68,20 @@ function normalizeTimestampMs(value: unknown): number | null {
   return null;
 }
 
+export function isCommunityMembershipProfileVisibilityConsentCurrent(
+  rawMembership: unknown
+): boolean {
+  const membership = (rawMembership ?? {}) as Record<string, unknown>;
+  const joinedAt = normalizeTimestampMs(membership['joinedAt']);
+  if (joinedAt === null) return true;
+
+  const profileVisibilityUpdatedAt = normalizeTimestampMs(
+    membership['profileVisibilityUpdatedAt']
+  );
+  return profileVisibilityUpdatedAt !== null
+    && profileVisibilityUpdatedAt >= joinedAt;
+}
+
 export function resolveCommunityMembershipVisibility(
   rawCommunity: unknown,
   rawMembership: unknown
@@ -113,17 +127,8 @@ export function resolveCommunityMembershipVisibility(
     return { visible: false, reason: 'consent_policy_mismatch' };
   }
 
-  const joinedAt = normalizeTimestampMs(membership['joinedAt']);
-  if (joinedAt !== null) {
-    const profileVisibilityUpdatedAt = normalizeTimestampMs(
-      membership['profileVisibilityUpdatedAt']
-    );
-    if (
-      profileVisibilityUpdatedAt === null
-      || profileVisibilityUpdatedAt < joinedAt
-    ) {
-      return { visible: false, reason: 'consent_predates_membership_cycle' };
-    }
+  if (!isCommunityMembershipProfileVisibilityConsentCurrent(membership)) {
+    return { visible: false, reason: 'consent_predates_membership_cycle' };
   }
 
   return { visible: true, reason: 'eligible' };
