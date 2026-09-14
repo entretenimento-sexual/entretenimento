@@ -1,0 +1,11 @@
+// =============================================================================
+// PROFILE KYC RECORDS
+// =============================================================================
+// Fonte privada de identidade civil verificada de pessoa física. O navegador
+// não lê nem escreve status, vínculo uid/profileId, lifecycle ou dados do
+// provedor. Somente código backend privilegiado pode consumir/manter registros.
+// =============================================================================
+
+match /profile_kyc_records/{uid} {
+  allow read, write: if false;
+}

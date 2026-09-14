@@ -33,6 +33,7 @@ const PRIVATE_COLLECTIONS = [
   'community_official_claims',
   'community_official_claim_requests',
   'community_official_claim_audit',
+  'profile_kyc_records',
 ] as const;
 
 let testEnv: RulesTestEnvironment;
@@ -75,7 +76,7 @@ describe('Firestore Rules / community official private state', () => {
     await testEnv.cleanup();
   });
 
-  it('nega leitura autenticada e anônima de claims, associações e auditorias', async () => {
+  it('nega leitura autenticada e anônima de claims, associações, KYC e auditorias', async () => {
     const authenticatedDb = testEnv
       .authenticatedContext(VIEWER_UID)
       .firestore();

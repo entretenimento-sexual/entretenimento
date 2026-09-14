@@ -16,6 +16,7 @@ export const FIRESTORE_RULE_PARTS = Object.freeze([
   'backend_rate_limits.rules',
   'exclusive_connection_candidates.rules',
   'organizations.rules',
+  'profile_kyc_records.rules',
 
   // Discovery, presença e vitrines regionais moderadas.
   'public_profiles_next.rules',
