@@ -33,6 +33,22 @@ const ALL_CAPACITY_OPTIONS = [
   { memberLimit: 1_000, requirement: 'special_access', allowed: false },
 ] as const;
 
+function assertInconsistentMemberCount(run: () => unknown): void {
+  assert.throws(run, (error: unknown) => {
+    const source = error as {
+      code?: unknown;
+      details?: Record<string, unknown>;
+    };
+
+    assert.equal(source.code, 'data-loss');
+    assert.equal(
+      source.details?.['reason'],
+      'community_member_count_inconsistent'
+    );
+    return true;
+  });
+}
+
 test('normaliza somente contagem numérica finita e não negativa', () => {
   assert.equal(normalizeCommunityMemberCount(8), 8);
   assert.equal(normalizeCommunityMemberCount(8.9), 8);
@@ -45,13 +61,14 @@ test('normaliza somente contagem numérica finita e não negativa', () => {
   assert.equal(normalizeCommunityMemberCount(Number.POSITIVE_INFINITY), null);
 });
 
-test('aplica incremento e decremento somente quando a base é confiável', () => {
+test('aplica delta somente quando a base é confiável e falha fechada caso contrário', () => {
   assert.equal(resolveCommunityMemberCountDelta(8, 1), 9);
   assert.equal(resolveCommunityMemberCountDelta(8, -1), 7);
-  assert.equal(resolveCommunityMemberCountDelta(0, -1), 0);
-  assert.equal(resolveCommunityMemberCountDelta(null, -1), null);
-  assert.equal(resolveCommunityMemberCountDelta(undefined, 1), null);
-  assert.equal(resolveCommunityMemberCountDelta('8', 1), null);
+
+  assertInconsistentMemberCount(() => resolveCommunityMemberCountDelta(0, -1));
+  assertInconsistentMemberCount(() => resolveCommunityMemberCountDelta(null, -1));
+  assertInconsistentMemberCount(() => resolveCommunityMemberCountDelta(undefined, 1));
+  assertInconsistentMemberCount(() => resolveCommunityMemberCountDelta('8', 1));
 });
 
 test('limita a capacidade conforme o plano ativo do proprietário', () => {
