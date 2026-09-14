@@ -27,8 +27,7 @@ export function resolveCommunityMemberCountDelta(
   if (current === null || (delta === -1 && current === 0)) {
     throw new HttpsError(
       'data-loss',
-      'A contagem de participantes da Comunidade está inconsistente.',
-      { reason: 'community_member_count_inconsistent' }
+      'A contagem de participantes da Comunidade está inconsistente.'
     );
   }
 
