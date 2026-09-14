@@ -131,9 +131,36 @@ export function resolveCanonicalResourceAuthority(input: {
     });
   }
 
-  // Profile e Event são tipos conhecidos pelo contrato, mas permanecem
-  // deliberadamente fail-closed até existir fonte canônica backend-only própria.
-  // Em especial, `creatorUid` de Evento nunca é interpretado como autoridade.
+  // A autoridade do Profile prova somente o controle do próprio recurso público.
+  // O caller backend deve fornecer aqui o documento canônico users/{actorUid};
+  // profileId vindo do cliente nunca é aceito como prova e isto não equivale a KYC.
+  if (input.targetType === 'profile') {
+    const canonicalProfileId = isRecord(input.rawTarget)
+      ? normalizeCanonicalAuthorityResourceId(input.rawTarget['profileId'])
+      : null;
+
+    if (canonicalProfileId !== targetId) {
+      return denied({
+        targetType: input.targetType,
+        targetId,
+        denialReason: 'target_authority_mismatch',
+      });
+    }
+
+    return Object.freeze({
+      allowed: true,
+      targetType: input.targetType,
+      targetId,
+      organizationId: null,
+      authorityUid: actorUid,
+      authorityRole: 'self',
+      verificationPolicyVersion: null,
+      denialReason: null,
+    });
+  }
+
+  // Event permanece deliberadamente fail-closed até existir fonte canônica
+  // backend-only própria. Em especial, creatorUid nunca prova autoridade.
   if (input.targetType !== 'venue') {
     return denied({
       targetType: input.targetType,

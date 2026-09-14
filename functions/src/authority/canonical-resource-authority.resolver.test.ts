@@ -144,20 +144,61 @@ test('Organização falha fechado com KYB inativo ou representação sem escopo'
   }).denialReason, 'target_authority_mismatch');
 });
 
-test('falha fechado para tipos ainda sem fonte canônica', () => {
-  for (const targetType of ['profile', 'event'] as const) {
-    assert.equal(
-      resolveCanonicalResourceAuthority({
-        actorUid: 'user-1',
-        targetType,
-        targetId: `${targetType}-1`,
-        rawCommercialGrant: activeGrant(),
-        rawTarget: null,
-        now: NOW,
-      }).denialReason,
-      'unsupported_target'
-    );
+test('resolve o próprio Profile por users/{uid}.profileId canônico', () => {
+  const result = resolveCanonicalResourceAuthority({
+    actorUid: 'user-1',
+    targetType: 'profile',
+    targetId: 'profile-1',
+    rawTarget: {
+      profileId: 'profile-1',
+    },
+    now: NOW,
+  });
+
+  assert.deepEqual(result, {
+    allowed: true,
+    targetType: 'profile',
+    targetId: 'profile-1',
+    organizationId: null,
+    authorityUid: 'user-1',
+    authorityRole: 'self',
+    verificationPolicyVersion: null,
+    denialReason: null,
+  });
+});
+
+test('Profile falha fechado quando users/{uid}.profileId não comprova o alvo', () => {
+  for (const rawTarget of [
+    null,
+    {},
+    { profileId: 'profile-2' },
+  ]) {
+    const result = resolveCanonicalResourceAuthority({
+      actorUid: 'user-1',
+      targetType: 'profile',
+      targetId: 'profile-1',
+      rawTarget,
+      now: NOW,
+    });
+
+    assert.equal(result.allowed, false);
+    assert.equal(result.authorityRole, null);
+    assert.equal(result.denialReason, 'target_authority_mismatch');
   }
+});
+
+test('falha fechado para Event enquanto não há fonte canônica', () => {
+  assert.equal(
+    resolveCanonicalResourceAuthority({
+      actorUid: 'user-1',
+      targetType: 'event',
+      targetId: 'event-1',
+      rawCommercialGrant: activeGrant(),
+      rawTarget: null,
+      now: NOW,
+    }).denialReason,
+    'unsupported_target'
+  );
 });
 
 test('Evento não deriva autoridade de creatorUid sem fonte canônica', () => {
