@@ -3,6 +3,8 @@
 // COMMUNITY CAPACITY SERVICE
 // -----------------------------------------------------------------------------
 // Conecta a policy pura de capacidade ao entitlement canônico do proprietário.
+// O resolver transacional também funciona como gate fail-closed de crescimento:
+// nenhuma nova membership ativa é criada fora de uma comunidade operacional.
 // -----------------------------------------------------------------------------
 
 import { db } from '../firebaseApp';
@@ -17,6 +19,24 @@ import {
 } from './community-capacity.policy';
 
 const SAFE_UID_PATTERN = /^[A-Za-z0-9:_-]{1,160}$/;
+
+export function assertCommunityOperationalForMemberGrowth(
+  rawCommunity: unknown
+): void {
+  const community = (rawCommunity ?? {}) as Record<string, unknown>;
+  const moderation = (community['moderation'] ?? {}) as Record<string, unknown>;
+
+  if (
+    community['status'] !== 'active'
+    || moderation['state'] !== 'active'
+  ) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Esta Comunidade não aceita novas entradas agora.',
+      { reason: 'community_unavailable' }
+    );
+  }
+}
 
 export function resolveCommunityCapacityOwnerUid(
   rawCommunity: unknown
@@ -67,6 +87,8 @@ export async function getCommunityCapacityForOwnerInTransaction(
   rawCommunity: unknown,
   now = Date.now()
 ): Promise<Readonly<CommunityCapacityState> | null> {
+  assertCommunityOperationalForMemberGrowth(rawCommunity);
+
   const community = (rawCommunity ?? {}) as Record<string, unknown>;
   const source = (community['source'] ?? {}) as Record<string, unknown>;
 
