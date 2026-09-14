@@ -24,6 +24,7 @@ import type {
 } from './community-official-claim.model';
 import {
   evaluateOrganizationOfficialClaimAuthority,
+  evaluateProfileOfficialClaimAuthority,
   evaluateVenueOfficialClaimAuthorityGrant,
   type CommunityOfficialClaimEvidenceDenialReason,
 } from './community-official-claim-evidence.policy';
@@ -100,8 +101,8 @@ function evidenceFailure(
 
 /**
  * Valida a evidência necessária para manter/promover um claim a `verified`.
- * Local e Organização possuem fontes canônicas backend-only. Profile e Event
- * permanecem fail-closed até seus resolvers próprios.
+ * Profile, Local e Organização possuem fontes canônicas backend-only. Event
+ * permanece fail-closed até existir fonte autoritativa própria.
  */
 export async function assertCommunityOfficialClaimEvidence(input: {
   readonly transaction: Transaction;
@@ -117,6 +118,57 @@ export async function assertCommunityOfficialClaimEvidence(input: {
 
   if (!claimantUid || !references) {
     throw evidenceFailure('unsupported_source');
+  }
+
+  if (input.target.type === 'profile') {
+    const kycReference = references.find(
+      (reference) =>
+        reference.type === 'profile_kyc_record'
+        && reference.referenceId === claimantUid
+    );
+    if (!kycReference) {
+      throw evidenceFailure('authority_reference_mismatch');
+    }
+
+    const userRef = db.collection('users').doc(claimantUid);
+    const kycRef = db.collection('profile_kyc_records').doc(claimantUid);
+    const [userSnapshot, kycSnapshot] = await Promise.all([
+      input.transaction.get(userRef),
+      input.transaction.get(kycRef),
+    ]);
+    const rawKyc = kycSnapshot.exists ? kycSnapshot.data() : null;
+    const decision = evaluateProfileOfficialClaimAuthority({
+      claimantUid,
+      profileId: input.target.id,
+      authorityRole: input.authorityRole,
+      sponsorOrganizationId: input.sponsorOrganizationId,
+      kycReferenceId: kycReference.referenceId,
+      rawUser: userSnapshot.exists ? userSnapshot.data() : null,
+      rawKyc,
+      now: input.now,
+    });
+
+    if (!decision.allowed || !decision.verificationPolicyVersion) {
+      throw evidenceFailure(
+        decision.denialReason ?? 'profile_authority_mismatch'
+      );
+    }
+
+    const kyc = (rawKyc ?? {}) as Record<string, unknown>;
+    const window = resolveCommunityOfficialVerificationWindow({
+      now: input.now,
+      sourceRevalidationDueAt: kyc['revalidationDueAt'],
+      sourceExpiryCandidates: [kyc['expiresAt']],
+    });
+
+    return Object.freeze({
+      verificationSource: 'profile_verification',
+      verificationPolicyVersion: decision.verificationPolicyVersion,
+      sponsorOrganizationId: null,
+      evidenceType: kycReference.type,
+      revalidationDueAt: window.revalidationDueAt,
+      verificationExpiresAt: window.verificationExpiresAt,
+    });
   }
 
   if (input.target.type === 'organization') {

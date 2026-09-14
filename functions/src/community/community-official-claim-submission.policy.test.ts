@@ -21,6 +21,13 @@ const organizationIntent = {
   associationKey: 'organization:organization-1',
   declarationAccepted: true as const,
 };
+const profileIntent = {
+  requestId: 'request-3',
+  communityId: 'community-1',
+  target: { type: 'profile' as const, id: 'profile-1' },
+  associationKey: 'profile:profile-1',
+  declarationAccepted: true as const,
+};
 
 function activeGrant(overrides: Record<string, unknown> = {}) {
   return {
@@ -74,6 +81,20 @@ function activeRepresentation(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function verifiedProfileKyc(overrides: Record<string, unknown> = {}) {
+  return {
+    uid: 'user-1',
+    profileId: 'profile-1',
+    status: 'verified',
+    policyVersion: 4,
+    verifiedAt: NOW - 10_000,
+    revalidationDueAt: NOW + 20_000,
+    expiresAt: NOW + 30_000,
+    revokedAt: null,
+    ...overrides,
+  };
+}
+
 function submitOrganization(overrides: Partial<Parameters<
   typeof resolveCommunityOfficialClaimSubmission
 >[0]> = {}) {
@@ -84,6 +105,19 @@ function submitOrganization(overrides: Partial<Parameters<
     rawOrganizationKyb: verifiedKyb(),
     rawOrganizationRepresentation: activeRepresentation(),
     organizationRepresentationReferenceId: 'organization-1:user-1',
+    now: NOW,
+    ...overrides,
+  });
+}
+
+function submitProfile(overrides: Partial<Parameters<
+  typeof resolveCommunityOfficialClaimSubmission
+>[0]> = {}) {
+  return resolveCommunityOfficialClaimSubmission({
+    actorUid: 'user-1',
+    intent: profileIntent,
+    rawTarget: { profileId: 'profile-1' },
+    rawProfileKyc: verifiedProfileKyc(),
     now: NOW,
     ...overrides,
   });
@@ -157,6 +191,64 @@ test('deriva manager para administrador ativo do Local', () => {
   });
 
   assert.equal(result.command?.authorityRole, 'manager');
+});
+
+test('deriva Profile por self canônico e KYC privado vigente', () => {
+  assert.deepEqual(submitProfile(), {
+    command: {
+      ...profileIntent,
+      authorityRole: 'self',
+      sponsorOrganizationId: null,
+      evidenceReferences: [
+        { type: 'profile_kyc_record', referenceId: 'user-1' },
+      ],
+    },
+    verification: {
+      verificationSource: 'profile_verification',
+      verificationPolicyVersion: 4,
+      revalidationDueAt: NOW + 20_000,
+      verificationExpiresAt: NOW + 30_000,
+    },
+    denialReason: null,
+  });
+});
+
+test('Profile falha fechado sem KYC verificado vigente', () => {
+  for (const rawProfileKyc of [
+    null,
+    verifiedProfileKyc({ status: 'pending' }),
+    verifiedProfileKyc({ status: 'rejected' }),
+  ]) {
+    const result = submitProfile({ rawProfileKyc });
+    assert.equal(result.command, null);
+    assert.equal(result.verification, null);
+    assert.equal(result.denialReason, 'verification_required');
+  }
+
+  for (const rawProfileKyc of [
+    verifiedProfileKyc({ status: 'expired' }),
+    verifiedProfileKyc({ status: 'revoked' }),
+    verifiedProfileKyc({ expiresAt: NOW }),
+    verifiedProfileKyc({ revalidationDueAt: NOW }),
+  ]) {
+    const result = submitProfile({ rawProfileKyc });
+    assert.equal(result.command, null);
+    assert.equal(result.verification, null);
+    assert.equal(result.denialReason, 'verification_inactive');
+  }
+});
+
+test('Profile falha fechado para vínculo canônico ou KYC divergente', () => {
+  for (const overrides of [
+    { rawTarget: { profileId: 'profile-2' } },
+    { rawProfileKyc: verifiedProfileKyc({ uid: 'user-2' }) },
+    { rawProfileKyc: verifiedProfileKyc({ profileId: 'profile-2' }) },
+  ]) {
+    const result = submitProfile(overrides);
+    assert.equal(result.command, null);
+    assert.equal(result.verification, null);
+    assert.equal(result.denialReason, 'target_authority_mismatch');
+  }
 });
 
 test('deriva Organização por KYB e representação canônica escopada', () => {
@@ -278,16 +370,16 @@ test('Organização falha fechado para referência de representação divergente
   assert.equal(result.denialReason, 'target_authority_mismatch');
 });
 
-test('falha fechado para alvo sem fonte canônica ou sem autoridade', () => {
+test('Event permanece fail-closed e Local sem autoridade continua rejeitado', () => {
   const unsupported = resolveCommunityOfficialClaimSubmission({
     actorUid: 'user-1',
     intent: {
       ...venueIntent,
-      target: { type: 'profile', id: 'profile-1' },
-      associationKey: 'profile:profile-1',
+      target: { type: 'event', id: 'event-1' },
+      associationKey: 'event:event-1',
     },
-    rawGrant: activeGrant(),
     rawTarget: null,
+    rawProfileKyc: verifiedProfileKyc(),
     now: NOW,
   });
   assert.equal(unsupported.command, null);

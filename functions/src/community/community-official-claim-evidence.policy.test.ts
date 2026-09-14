@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 
 import {
   evaluateOrganizationOfficialClaimAuthority,
+  evaluateProfileOfficialClaimAuthority,
   evaluateVenueOfficialClaimAuthorityGrant,
 } from './community-official-claim-evidence.policy';
 import { OFFICIAL_SPACE_CREATION_POLICY_VERSION } from './community-official-space.policy';
@@ -29,6 +30,20 @@ function venue(overrides: Record<string, unknown> = {}): Record<string, unknown>
     ownerUid: 'user-1',
     adminUids: [],
     status: 'active',
+    ...overrides,
+  };
+}
+
+function profileKyc(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    uid: 'user-1',
+    profileId: 'profile-1',
+    status: 'verified',
+    policyVersion: 4,
+    verifiedAt: NOW - 10_000,
+    revalidationDueAt: NOW + 20_000,
+    expiresAt: NOW + 30_000,
+    revokedAt: null,
     ...overrides,
   };
 }
@@ -88,6 +103,22 @@ function evaluate(overrides: Partial<Parameters<
   });
 }
 
+function evaluateProfile(overrides: Partial<Parameters<
+  typeof evaluateProfileOfficialClaimAuthority
+>[0]> = {}) {
+  return evaluateProfileOfficialClaimAuthority({
+    claimantUid: 'user-1',
+    profileId: 'profile-1',
+    authorityRole: 'self',
+    sponsorOrganizationId: null,
+    kycReferenceId: 'user-1',
+    rawUser: { profileId: 'profile-1' },
+    rawKyc: profileKyc(),
+    now: NOW,
+    ...overrides,
+  });
+}
+
 function evaluateOrganization(overrides: Partial<Parameters<
   typeof evaluateOrganizationOfficialClaimAuthority
 >[0]> = {}) {
@@ -107,6 +138,63 @@ function evaluateOrganization(overrides: Partial<Parameters<
 }
 
 describe('community official claim evidence policy', () => {
+  it('revalida Profile com self canônico e KYC privado vigente', () => {
+    assert.deepEqual(evaluateProfile(), {
+      allowed: true,
+      sponsorOrganizationId: null,
+      verificationPolicyVersion: 4,
+      denialReason: null,
+    });
+  });
+
+  it('rejeita Profile quando referência, self ou KYC divergem', () => {
+    assert.equal(
+      evaluateProfile({ kycReferenceId: 'user-2' }).denialReason,
+      'authority_reference_mismatch'
+    );
+    assert.equal(
+      evaluateProfile({ rawUser: { profileId: 'profile-2' } }).denialReason,
+      'profile_authority_mismatch'
+    );
+    assert.equal(
+      evaluateProfile({ rawKyc: profileKyc({ profileId: 'profile-2' }) }).denialReason,
+      'profile_authority_mismatch'
+    );
+    assert.equal(
+      evaluateProfile({ authorityRole: 'owner' }).denialReason,
+      'profile_authority_mismatch'
+    );
+    assert.equal(
+      evaluateProfile({ sponsorOrganizationId: 'org-1' }).denialReason,
+      'profile_authority_mismatch'
+    );
+  });
+
+  it('rejeita Profile com KYC ausente, pendente, revogado ou vencido', () => {
+    for (const rawKyc of [
+      null,
+      profileKyc({ status: 'pending' }),
+      profileKyc({ status: 'rejected' }),
+    ]) {
+      assert.equal(
+        evaluateProfile({ rawKyc }).denialReason,
+        'profile_verification_invalid'
+      );
+    }
+
+    for (const rawKyc of [
+      profileKyc({ status: 'revoked' }),
+      profileKyc({ status: 'expired' }),
+      profileKyc({ expiresAt: NOW }),
+      profileKyc({ revalidationDueAt: NOW }),
+    ]) {
+      assert.equal(
+        evaluateProfile({ rawKyc }).denialReason,
+        'profile_verification_inactive'
+      );
+    }
+  });
+
   it('aceita grant vigente e autoridade atual sobre o Local', () => {
     assert.deepEqual(evaluate(), {
       allowed: true,

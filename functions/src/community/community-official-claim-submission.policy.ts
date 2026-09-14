@@ -13,6 +13,7 @@ import {
 import {
   resolveCanonicalResourceAuthority,
 } from '../authority/canonical-resource-authority.resolver';
+import { evaluateProfileKyc } from '../identity/profile-kyc.policy';
 import {
   buildOrganizationRepresentationId,
 } from '../organization/organization-representation.policy';
@@ -83,6 +84,7 @@ export function resolveCommunityOfficialClaimSubmission(input: {
   readonly intent: SubmitCommunityOfficialClaimIntentCommand;
   readonly rawGrant?: unknown;
   readonly rawTarget: unknown;
+  readonly rawProfileKyc?: unknown;
   readonly rawOrganizationKyb?: unknown;
   readonly rawOrganizationRepresentation?: unknown;
   readonly organizationRepresentationReferenceId?: unknown;
@@ -92,6 +94,67 @@ export function resolveCommunityOfficialClaimSubmission(input: {
   const now = Math.trunc(input.now ?? Date.now());
   if (!actorUid || !Number.isFinite(now) || now <= 0) {
     return denied('target_authority_mismatch');
+  }
+
+  if (input.intent.target.type === 'profile') {
+    const canonicalAuthority = resolveCanonicalResourceAuthority({
+      actorUid,
+      targetType: 'profile',
+      targetId: input.intent.target.id,
+      rawTarget: input.rawTarget,
+      now,
+    });
+
+    if (
+      !canonicalAuthority.allowed
+      || canonicalAuthority.authorityUid !== actorUid
+      || canonicalAuthority.authorityRole !== 'self'
+      || canonicalAuthority.organizationId !== null
+    ) {
+      return denied('target_authority_mismatch');
+    }
+
+    const profileKyc = evaluateProfileKyc({
+      actorUid,
+      profileId: input.intent.target.id,
+      rawKyc: input.rawProfileKyc,
+      now,
+    });
+    if (!profileKyc.allowed || !profileKyc.verificationPolicyVersion) {
+      return denied(
+        profileKyc.denialReason === 'verification_inactive'
+          ? 'verification_inactive'
+          : profileKyc.denialReason === 'verification_required'
+            ? 'verification_required'
+            : 'target_authority_mismatch'
+      );
+    }
+
+    const command: SubmitCommunityOfficialClaimCommand = {
+      ...input.intent,
+      authorityRole: 'self',
+      sponsorOrganizationId: null,
+      evidenceReferences: [
+        { type: 'profile_kyc_record', referenceId: actorUid },
+      ],
+    };
+    const rawKyc = asRecord(input.rawProfileKyc);
+    const window = resolveCommunityOfficialVerificationWindow({
+      now,
+      sourceRevalidationDueAt: rawKyc['revalidationDueAt'],
+      sourceExpiryCandidates: [rawKyc['expiresAt']],
+    });
+
+    return Object.freeze({
+      command,
+      verification: Object.freeze({
+        verificationSource: 'profile_verification',
+        verificationPolicyVersion: profileKyc.verificationPolicyVersion,
+        revalidationDueAt: window.revalidationDueAt,
+        verificationExpiresAt: window.verificationExpiresAt,
+      }),
+      denialReason: null,
+    });
   }
 
   if (input.intent.target.type === 'organization') {

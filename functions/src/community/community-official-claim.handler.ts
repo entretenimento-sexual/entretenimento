@@ -204,13 +204,20 @@ export const submitCommunityOfficialClaim =
         const organizationRepresentationId = intent.target.type === 'organization'
           ? buildOrganizationRepresentationId(intent.target.id, actorUid)
           : null;
-        const targetRef = intent.target.type === 'venue'
-          ? db.collection('venues').doc(intent.target.id)
-          : intent.target.type === 'organization'
-            ? db.collection('organizations').doc(intent.target.id)
-            : null;
+        const targetRef = intent.target.type === 'profile'
+          ? db.collection('users').doc(actorUid)
+          : intent.target.type === 'venue'
+            ? db.collection('venues').doc(intent.target.id)
+            : intent.target.type === 'organization'
+              ? db.collection('organizations').doc(intent.target.id)
+              : null;
         const targetSnapshot = targetRef
           ? await transaction.get(targetRef)
+          : null;
+        const profileKycSnapshot = intent.target.type === 'profile'
+          ? await transaction.get(
+            db.collection('profile_kyc_records').doc(actorUid)
+          )
           : null;
         const grantSnapshot = intent.target.type === 'venue'
           ? await transaction.get(
@@ -235,6 +242,9 @@ export const submitCommunityOfficialClaim =
           intent,
           rawGrant: grantSnapshot?.exists ? grantSnapshot.data() : null,
           rawTarget: targetSnapshot?.exists ? targetSnapshot.data() : null,
+          rawProfileKyc: profileKycSnapshot?.exists
+            ? profileKycSnapshot.data()
+            : null,
           rawOrganizationKyb: organizationKybSnapshot?.exists
             ? organizationKybSnapshot.data()
             : null,

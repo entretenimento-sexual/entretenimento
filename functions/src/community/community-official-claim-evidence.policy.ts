@@ -13,6 +13,7 @@ import {
 import {
   resolveCanonicalResourceAuthority,
 } from '../authority/canonical-resource-authority.resolver';
+import { evaluateProfileKyc } from '../identity/profile-kyc.policy';
 import {
   buildOrganizationRepresentationId,
 } from '../organization/organization-representation.policy';
@@ -31,6 +32,9 @@ export type CommunityOfficialClaimEvidenceDenialReason =
   | 'sponsor_organization_mismatch'
   | 'venue_not_active'
   | 'venue_authority_mismatch'
+  | 'profile_verification_invalid'
+  | 'profile_verification_inactive'
+  | 'profile_authority_mismatch'
   | 'organization_kyb_invalid'
   | 'organization_kyb_inactive'
   | 'organization_not_active'
@@ -105,6 +109,78 @@ function authorityRoleMatches(
   // de Local eram registrados como `authorized_representative`.
   return claimedRole === 'authorized_representative'
     && canonicalRole === 'manager';
+}
+
+/**
+ * Revalida Profile Oficial sem confiar no target ou na evidência persistida.
+ * O vínculo self vem de users/{uid}.profileId e o KYC privado precisa continuar
+ * vigente para exatamente o mesmo uid/profileId.
+ */
+export function evaluateProfileOfficialClaimAuthority(input: {
+  readonly claimantUid: string;
+  readonly profileId: string;
+  readonly authorityRole: CommunityOfficialAuthorityRole;
+  readonly sponsorOrganizationId: string | null;
+  readonly kycReferenceId: string;
+  readonly rawUser: unknown;
+  readonly rawKyc: unknown;
+  readonly now?: number;
+}): Readonly<CommunityOfficialClaimEvidenceDecision> {
+  const claimantUid = normalizeId(input.claimantUid);
+  const profileId = normalizeId(input.profileId);
+  const kycReferenceId = normalizeId(input.kycReferenceId);
+
+  if (
+    !claimantUid
+    || !profileId
+    || !kycReferenceId
+    || kycReferenceId !== claimantUid
+  ) {
+    return denied('authority_reference_mismatch');
+  }
+
+  if (input.sponsorOrganizationId !== null || input.authorityRole !== 'self') {
+    return denied('profile_authority_mismatch');
+  }
+
+  const authority = resolveCanonicalResourceAuthority({
+    actorUid: claimantUid,
+    targetType: 'profile',
+    targetId: profileId,
+    rawTarget: input.rawUser,
+    now: input.now,
+  });
+  if (
+    !authority.allowed
+    || authority.authorityUid !== claimantUid
+    || authority.authorityRole !== 'self'
+    || authority.organizationId !== null
+  ) {
+    return denied('profile_authority_mismatch');
+  }
+
+  const kyc = evaluateProfileKyc({
+    actorUid: claimantUid,
+    profileId,
+    rawKyc: input.rawKyc,
+    now: input.now,
+  });
+  if (!kyc.allowed || !kyc.verificationPolicyVersion) {
+    if (kyc.denialReason === 'verification_inactive') {
+      return denied('profile_verification_inactive');
+    }
+    if (kyc.denialReason === 'record_mismatch') {
+      return denied('profile_authority_mismatch');
+    }
+    return denied('profile_verification_invalid');
+  }
+
+  return Object.freeze({
+    allowed: true,
+    sponsorOrganizationId: null,
+    verificationPolicyVersion: kyc.verificationPolicyVersion,
+    denialReason: null,
+  });
 }
 
 /**
