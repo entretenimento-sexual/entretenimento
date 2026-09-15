@@ -67,9 +67,10 @@ describe('CommunityOwnershipManagementComponent', () => {
     TestBed.resetTestingModule();
   });
 
-  function createComponent() {
+  function createComponent(): CommunityOwnershipManagementComponent {
     const fixture = TestBed.createComponent(CommunityOwnershipManagementComponent);
     fixture.componentRef.setInput('communityId', 'community-1');
+    fixture.detectChanges();
     return fixture.componentInstance;
   }
 
