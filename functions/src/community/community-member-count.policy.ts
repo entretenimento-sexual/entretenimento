@@ -22,5 +22,6 @@ export function resolveCommunityMemberCountDelta(
   const current = normalizeCommunityMemberCount(currentValue);
   if (current === null) return null;
 
-  return Math.max(current + delta, 0);
+  const next = current + delta;
+  return Number.isFinite(next) && next >= 0 ? next : null;
 }

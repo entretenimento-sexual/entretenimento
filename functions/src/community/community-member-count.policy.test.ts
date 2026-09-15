@@ -45,10 +45,10 @@ test('normaliza somente contagem numérica finita e não negativa', () => {
   assert.equal(normalizeCommunityMemberCount(Number.POSITIVE_INFINITY), null);
 });
 
-test('aplica incremento e decremento somente quando a base é confiável', () => {
+test('aplica delta somente quando a base e a transição são confiáveis', () => {
   assert.equal(resolveCommunityMemberCountDelta(8, 1), 9);
   assert.equal(resolveCommunityMemberCountDelta(8, -1), 7);
-  assert.equal(resolveCommunityMemberCountDelta(0, -1), 0);
+  assert.equal(resolveCommunityMemberCountDelta(0, -1), null);
   assert.equal(resolveCommunityMemberCountDelta(null, -1), null);
   assert.equal(resolveCommunityMemberCountDelta(undefined, 1), null);
   assert.equal(resolveCommunityMemberCountDelta('8', 1), null);

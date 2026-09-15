@@ -483,6 +483,17 @@ export const leaveCommunityMembership = onCall<CommunityIdPayload>(
       }
 
       if (!decision.idempotent) {
+        const nextMemberCount = decision.decrementMemberCount
+          ? resolveMemberCountDelta(community, -1)
+          : null;
+
+        if (decision.decrementMemberCount && nextMemberCount === null) {
+          throw new HttpsError(
+            'data-loss',
+            'A contagem de participantes desta Comunidade está inconsistente.'
+          );
+        }
+
         const now = FieldValue.serverTimestamp();
         const membershipPatch: Record<string, unknown> = {
           status: 'left',
@@ -500,13 +511,9 @@ export const leaveCommunityMembership = onCall<CommunityIdPayload>(
         transaction.set(membershipRef, membershipPatch, { merge: true });
 
         const communityPatch: Record<string, unknown> = {};
-        let nextMemberCount: number | null = null;
 
-        if (decision.decrementMemberCount) {
-          nextMemberCount = resolveMemberCountDelta(community, -1);
-          if (nextMemberCount !== null) {
-            communityPatch['metrics.memberCount'] = nextMemberCount;
-          }
+        if (nextMemberCount !== null) {
+          communityPatch['metrics.memberCount'] = nextMemberCount;
         }
 
         const ownerPointerReleased =
