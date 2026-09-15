@@ -7,9 +7,14 @@
 //
 // Falhas de leitura são convertidas em estado desconhecido para que a política
 // `evaluateCommunityPurgeReadiness` bloqueie a exclusão (fail closed).
+// Denúncias encerradas continuam preservadas em `moderation_reports`, mas apenas
+// evidência não terminal/desconhecida exige retenção do conteúdo-alvo.
 // -----------------------------------------------------------------------------
 
 import { db } from '../firebaseApp';
+import {
+  resolveCommunityModerationPurgeBlocker,
+} from './community-purge-moderation-evidence.policy';
 import type { CommunityPurgeEvidenceProbe } from './community-purge.policy';
 
 export type CommunityPurgeProbeName =
@@ -31,10 +36,23 @@ function normalizeCommunityId(value: unknown): string | null {
   return SAFE_ID_PATTERN.test(normalized) ? normalized : null;
 }
 
-function isRejected(
-  result: PromiseSettledResult<FirebaseFirestore.QuerySnapshot>
+function isRejected<T>(
+  result: PromiseSettledResult<T>
 ): result is PromiseRejectedResult {
   return result.status === 'rejected';
+}
+
+async function countMatching(
+  query: FirebaseFirestore.Query
+): Promise<number> {
+  const snapshot = await query.count().get();
+  const count = snapshot.data().count;
+
+  if (!Number.isSafeInteger(count) || count < 0) {
+    throw new Error('Contagem de evidência de moderação inválida.');
+  }
+
+  return count;
 }
 
 export async function readCommunityPurgeEvidence(
@@ -76,33 +94,66 @@ export async function readCommunityPurgeEvidence(
     .limit(1);
   const moderationParentQuery = db
     .collection('moderation_reports')
-    .where('parentTargetId', '==', communityId)
-    .limit(1);
+    .where('parentTargetId', '==', communityId);
   const moderationContainerQuery = db
     .collection('moderation_reports')
-    .where('containerTargetId', '==', communityId)
-    .limit(1);
+    .where('containerTargetId', '==', communityId);
 
   const [
     memberships,
     feedPosts,
     topics,
-    moderationParent,
-    moderationContainer,
+    moderationParentTotal,
+    moderationParentResolved,
+    moderationParentRejected,
+    moderationContainerTotal,
+    moderationContainerResolved,
+    moderationContainerRejected,
   ] = await Promise.allSettled([
     membershipQuery.get(),
     feedPostQuery.get(),
     topicQuery.get(),
-    moderationParentQuery.get(),
-    moderationContainerQuery.get(),
+    countMatching(moderationParentQuery),
+    countMatching(moderationParentQuery.where('status', '==', 'resolved')),
+    countMatching(moderationParentQuery.where('status', '==', 'rejected')),
+    countMatching(moderationContainerQuery),
+    countMatching(moderationContainerQuery.where('status', '==', 'resolved')),
+    countMatching(moderationContainerQuery.where('status', '==', 'rejected')),
   ]);
 
   const failedProbes: CommunityPurgeProbeName[] = [];
   if (isRejected(memberships)) failedProbes.push('memberships');
   if (isRejected(feedPosts)) failedProbes.push('feed_posts');
   if (isRejected(topics)) failedProbes.push('topics');
-  if (isRejected(moderationParent)) failedProbes.push('moderation_parent');
-  if (isRejected(moderationContainer)) {
+
+  const moderationParentReadFailed =
+    isRejected(moderationParentTotal)
+    || isRejected(moderationParentResolved)
+    || isRejected(moderationParentRejected);
+  const moderationContainerReadFailed =
+    isRejected(moderationContainerTotal)
+    || isRejected(moderationContainerResolved)
+    || isRejected(moderationContainerRejected);
+
+  const moderationParentEvidence = moderationParentReadFailed
+    ? null
+    : resolveCommunityModerationPurgeBlocker({
+      totalCount: moderationParentTotal.value,
+      resolvedCount: moderationParentResolved.value,
+      rejectedCount: moderationParentRejected.value,
+    });
+  const moderationContainerEvidence = moderationContainerReadFailed
+    ? null
+    : resolveCommunityModerationPurgeBlocker({
+      totalCount: moderationContainerTotal.value,
+      resolvedCount: moderationContainerResolved.value,
+      rejectedCount: moderationContainerRejected.value,
+    });
+
+  if (moderationParentEvidence === null) {
+    failedProbes.push('moderation_parent');
+  }
+  if (moderationContainerEvidence === null) {
     failedProbes.push('moderation_container');
   }
 
@@ -113,9 +164,9 @@ export async function readCommunityPurgeEvidence(
     ? null
     : !feedPosts.value.empty || !topics.value.empty;
   const hasModerationEvidence =
-    isRejected(moderationParent) || isRejected(moderationContainer)
+    moderationParentEvidence === null || moderationContainerEvidence === null
       ? null
-      : !moderationParent.value.empty || !moderationContainer.value.empty;
+      : moderationParentEvidence || moderationContainerEvidence;
 
   return {
     evidence: {
