@@ -5,21 +5,15 @@
 // A assinatura do proprietário define somente o teto de crescimento. O limite
 // escolhido pertence à Comunidade e nunca remove memberships existentes.
 //
-// Esta policy também é a fonte canônica das opções comerciais expostas ao
-// compositor. O cliente recebe capacidade, requisito e recomendação já resolvidos
-// e nunca deve reconstruir a relação entre quantidade de membros e plano.
+// A policy resolve decisões de domínio; os números comerciais ajustáveis ficam
+// centralizados em community-product-limits.config.ts.
 // -----------------------------------------------------------------------------
 
 import { normalizeCommunityMemberCount } from './community-member-count.policy';
+import { COMMUNITY_PRODUCT_LIMITS } from './community-product-limits.config';
 
-export const COMMUNITY_MEMBER_LIMIT_OPTIONS = [
-  25,
-  50,
-  100,
-  250,
-  500,
-  1_000,
-] as const;
+export const COMMUNITY_MEMBER_LIMIT_OPTIONS =
+  COMMUNITY_PRODUCT_LIMITS.selectableMemberLimits;
 
 export type CommunityMemberLimit =
   typeof COMMUNITY_MEMBER_LIMIT_OPTIONS[number];
@@ -93,30 +87,20 @@ export interface CommunityCapacityState {
   atCapacity: boolean;
 }
 
-const DEFAULT_COMMUNITY_MEMBER_LIMIT: CommunityMemberLimit = 25;
-export const OFFICIAL_SPACE_MEMBER_LIMIT: CommunityMemberLimit = 1_000;
-export const MAX_PERSONAL_COMMUNITIES_PER_OWNER = 5;
+const DEFAULT_COMMUNITY_MEMBER_LIMIT: CommunityMemberLimit =
+  COMMUNITY_PRODUCT_LIMITS.defaultMemberLimit;
+export const OFFICIAL_SPACE_MEMBER_LIMIT: CommunityMemberLimit =
+  COMMUNITY_PRODUCT_LIMITS.officialSpaceMemberLimit;
+export const MAX_PERSONAL_COMMUNITIES_PER_OWNER =
+  COMMUNITY_PRODUCT_LIMITS.maxPersonalCommunitiesPerOwner;
 
 const ROLE_MEMBER_LIMIT: Readonly<
   Record<CommunityCapacitySponsorRole, CommunityEffectiveMemberLimit>
-> = Object.freeze({
-  free: 0,
-  basic: 100,
-  premium: 250,
-  vip: 500,
-  official_space: OFFICIAL_SPACE_MEMBER_LIMIT,
-  admin: 1_000,
-});
+> = COMMUNITY_PRODUCT_LIMITS.memberLimitBySponsorRole;
 
 const PERSONAL_CREATION_LIMIT: Readonly<
   Record<PersonalCommunitySponsorRole, number | null>
-> = Object.freeze({
-  free: 0,
-  basic: 1,
-  premium: 3,
-  vip: 5,
-  admin: null,
-});
+> = COMMUNITY_PRODUCT_LIMITS.ownedPersonalCommunitiesBySponsorRole;
 
 const PUBLIC_SUBSCRIPTION_ROLE_ORDER = Object.freeze([
   'basic',
