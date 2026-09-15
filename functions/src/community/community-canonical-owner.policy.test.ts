@@ -4,6 +4,7 @@ import test from 'node:test';
 
 import {
   isCommunityCanonicalOwner,
+  resolveCanonicalCommunityManagerRole,
   resolveCanonicalCommunityMemberRole,
   resolveCommunityCanonicalOwnerUid,
 } from './community-canonical-owner.policy';
@@ -42,5 +43,58 @@ test('ownerUid prevalece sobre papel divergente do membership', () => {
   assert.equal(
     resolveCanonicalCommunityMemberRole(community, 'member-1', 'moderator'),
     'moderator'
+  );
+});
+
+test('autoridade gerencial usa ownerUid e falha fechada para owner duplicado', () => {
+  const community = { ownerUid: 'owner-1' };
+
+  assert.equal(
+    resolveCanonicalCommunityManagerRole(
+      community,
+      'owner-1',
+      { status: 'active', role: 'member' }
+    ),
+    'owner'
+  );
+  assert.equal(
+    resolveCanonicalCommunityManagerRole(
+      community,
+      'member-1',
+      { status: 'active', role: 'owner' }
+    ),
+    null
+  );
+  assert.equal(
+    resolveCanonicalCommunityManagerRole(
+      community,
+      'admin-1',
+      { status: 'active', role: 'admin' }
+    ),
+    'admin'
+  );
+  assert.equal(
+    resolveCanonicalCommunityManagerRole(
+      community,
+      'moderator-1',
+      { status: 'active', role: 'moderator' }
+    ),
+    'moderator'
+  );
+  assert.equal(
+    resolveCanonicalCommunityManagerRole(
+      community,
+      'member-1',
+      { status: 'active', role: 'member' }
+    ),
+    null
+  );
+  assert.equal(
+    resolveCanonicalCommunityManagerRole(
+      community,
+      'owner-1',
+      { status: 'left', role: 'owner' }
+    ),
+    null
   );
 });

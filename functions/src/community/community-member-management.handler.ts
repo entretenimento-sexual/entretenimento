@@ -14,6 +14,7 @@ import { assertRecentAuthentication } from '../account_lifecycle/_shared';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
+  resolveCanonicalCommunityManagerRole,
   resolveCanonicalCommunityMemberRole,
 } from './community-canonical-owner.policy';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
@@ -260,18 +261,21 @@ function assertCommunityManageable(rawCommunity: unknown): void {
   }
 }
 
-function assertManagerMembership(rawMembership: unknown): {
+function assertManagerMembership(
+  rawCommunity: unknown,
+  actorUid: string,
+  rawMembership: unknown
+): {
   status: 'active';
   role: 'owner' | 'admin' | 'moderator';
 } {
-  const membership = (rawMembership ?? {}) as Record<string, unknown>;
-  const status = normalizeMembershipStatus(membership['status']);
-  const role = normalizeMembershipRole(membership['role']);
+  const role = resolveCanonicalCommunityManagerRole(
+    rawCommunity,
+    actorUid,
+    rawMembership
+  );
 
-  if (
-    status !== 'active'
-    || (role !== 'owner' && role !== 'admin' && role !== 'moderator')
-  ) {
+  if (!role) {
     throw new HttpsError(
       'permission-denied',
       'Sua função não permite gerenciar participantes desta Comunidade.',
@@ -279,7 +283,7 @@ function assertManagerMembership(rawMembership: unknown): {
     );
   }
 
-  return { status, role };
+  return { status: 'active', role };
 }
 
 function roleBeforeBlock(rawMembership: Record<string, unknown>): CommunityManagedMemberRole {
@@ -443,6 +447,8 @@ export const getCommunityMembersForManagement = onCall<ManagedMembersPagePayload
     const community = communitySnapshot.data() ?? {};
     assertCommunityManageable(community);
     const actor = assertManagerMembership(
+      community,
+      actorUid,
       actorMembershipSnapshot.exists ? actorMembershipSnapshot.data() : null
     );
 
@@ -596,7 +602,8 @@ export const manageCommunityMember = onCall<ManageCommunityMemberPayload>(
         actorUserSnapshot.exists ? actorUserSnapshot.data() : null,
         actorUid
       );
-      assertCommunityManageable(communitySnapshot.data());
+      const community = communitySnapshot.data() ?? {};
+      assertCommunityManageable(community);
 
       const actorMembership = actorMembershipSnapshot.exists
         ? actorMembershipSnapshot.data() ?? {}
@@ -604,8 +611,11 @@ export const manageCommunityMember = onCall<ManageCommunityMemberPayload>(
       const targetMembership = targetMembershipSnapshot.exists
         ? targetMembershipSnapshot.data() ?? {}
         : {};
-      const actor = assertManagerMembership(actorMembership);
-      const community = communitySnapshot.data() ?? {};
+      const actor = assertManagerMembership(
+        community,
+        actorUid,
+        actorMembership
+      );
       const currentTargetRole = resolveCanonicalCommunityMemberRole(
         community,
         memberId,

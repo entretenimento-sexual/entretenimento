@@ -14,6 +14,12 @@ export type CanonicalCommunityMemberRole =
   | 'member'
   | null;
 
+export type CanonicalCommunityManagerRole =
+  | 'owner'
+  | 'admin'
+  | 'moderator'
+  | null;
+
 const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
 
 function normalizeSafeId(value: unknown): string | null {
@@ -48,4 +54,30 @@ export function resolveCanonicalCommunityMemberRole(
   return isCommunityCanonicalOwner(rawCommunity, memberUid)
     ? 'owner'
     : membershipRole;
+}
+
+/**
+ * Resolve autoridade operacional do ator de forma estrita.
+ *
+ * `owner` persistido em membership nunca concede propriedade a um UID que não
+ * corresponde a community.ownerUid. Isso fecha dados legados/corrompidos sem
+ * rebaixar o proprietário canônico quando o papel persistido divergiu.
+ */
+export function resolveCanonicalCommunityManagerRole(
+  rawCommunity: unknown,
+  memberUid: unknown,
+  rawMembership: unknown
+): CanonicalCommunityManagerRole {
+  const membership = (rawMembership ?? {}) as Record<string, unknown>;
+
+  if (membership['status'] !== 'active') return null;
+
+  if (isCommunityCanonicalOwner(rawCommunity, memberUid)) {
+    return 'owner';
+  }
+
+  const role = membership['role'];
+  if (role === 'owner') return null;
+
+  return role === 'admin' || role === 'moderator' ? role : null;
 }
