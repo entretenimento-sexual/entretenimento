@@ -29,6 +29,7 @@ test('mantém resíduos privados limitados aos namespaces conhecidos por members
     'community_feed_user_reactions',
     'community_feed_user_comments',
     'community_feed_user_replies',
+    'community_profile_membership_index',
   ]);
 });
 

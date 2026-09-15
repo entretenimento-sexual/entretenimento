@@ -2,16 +2,15 @@
 // -----------------------------------------------------------------------------
 // COMMUNITY FEED REALTIME CLEANUP POLICY
 // -----------------------------------------------------------------------------
-// Decide quando a remoção de uma projeção pública deve apagar definitivamente o
-// sinal realtime em vez de publicar tombstone. Estados que ainda podem voltar a
-// operar preservam tombstones; estados terminais e Comunidade inexistente não.
+// Decide quando a projeção realtime deve ser apagada definitivamente em vez de
+// escrita/convertida em tombstone. Estados terminais e Comunidade inexistente
+// sempre vencem o snapshot do evento, inclusive quando ele chegou atrasado.
 // -----------------------------------------------------------------------------
 
 export function shouldDeleteCommunityFeedRealtimeProjection(
-  publicProjectionExists: boolean,
+  _publicProjectionExists: boolean,
   rawCommunity: unknown
 ): boolean {
-  if (publicProjectionExists) return false;
   if (!rawCommunity || typeof rawCommunity !== 'object') return true;
 
   const community = rawCommunity as Record<string, unknown>;

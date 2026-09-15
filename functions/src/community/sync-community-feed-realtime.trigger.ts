@@ -7,8 +7,9 @@
 // vindo de callable autorizada. Tombstones permitem remover itens legados que
 // nunca haviam sido espelhados antes desta versão.
 //
-// Em Comunidades arquivadas, agendadas para exclusão ou já inexistentes, a
-// remoção da projeção pública apaga o sinal realtime em vez de recriar tombstone.
+// O estado canônico da Comunidade sempre é relido antes de persistir. Em
+// Comunidades arquivadas, agendadas para exclusão ou já inexistentes, inclusive
+// quando um evento antigo chega atrasado, o realtime é apagado e nunca recriado.
 // -----------------------------------------------------------------------------
 
 import { logger } from 'firebase-functions';
@@ -40,24 +41,26 @@ export const syncCommunityFeedRealtime = onDocumentWritten(
       .doc(communityId)
       .collection('items')
       .doc(postId);
+    const communitySnapshot = await db
+      .collection('communities')
+      .doc(communityId)
+      .get();
+    const community = communitySnapshot.exists
+      ? communitySnapshot.data() ?? null
+      : null;
 
-    if (!after) {
-      const communitySnapshot = await db
-        .collection('communities')
-        .doc(communityId)
-        .get();
-      const community = communitySnapshot.exists
-        ? communitySnapshot.data() ?? null
-        : null;
-
-      if (shouldDeleteCommunityFeedRealtimeProjection(false, community)) {
-        await realtimeRef.delete();
-        logger.debug('community_feed_realtime_deleted_for_terminal_state', {
-          communityId,
-          postId,
-        });
-        return;
-      }
+    if (
+      shouldDeleteCommunityFeedRealtimeProjection(
+        after !== null,
+        community
+      )
+    ) {
+      await realtimeRef.delete();
+      logger.debug('community_feed_realtime_deleted_for_terminal_state', {
+        communityId,
+        postId,
+      });
+      return;
     }
 
     const projection = buildCommunityFeedRealtimeProjection(

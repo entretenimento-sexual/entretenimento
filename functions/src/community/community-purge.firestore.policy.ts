@@ -30,6 +30,7 @@ export const COMMUNITY_PURGE_MEMBER_SCOPED_COLLECTIONS = Object.freeze([
   'community_feed_user_reactions',
   'community_feed_user_comments',
   'community_feed_user_replies',
+  'community_profile_membership_index',
 ] as const);
 
 export const COMMUNITY_PURGE_PROJECTION_ROOT_COLLECTIONS = Object.freeze([

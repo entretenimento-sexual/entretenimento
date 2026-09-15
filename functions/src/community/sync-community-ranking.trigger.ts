@@ -6,6 +6,10 @@
 // Mudanças na Comunidade atualizam atividade/frescor/segurança; mudanças visuais
 // na projeção atualizam qualidade. `rankScore` legado não é alterado aqui.
 // O candidato v3 permanece shadow-only; o log compara ambos para diagnóstico.
+//
+// Eventos são apenas sinais de recomputação: antes de qualquer persistência,
+// Comunidade e discovery são relidas do estado canônico atual. Estados terminais
+// removem a projeção e eventos atrasados nunca podem recriá-la.
 // -----------------------------------------------------------------------------
 
 import { logger } from 'firebase-functions';
@@ -21,29 +25,42 @@ import {
   isCommunityRankingSupportedDocument,
 } from './community-ranking-sync.policy';
 
-async function persistCommunityRanking(
-  communityId: string,
-  rawCommunity: unknown,
-  rawDiscovery?: unknown
-): Promise<void> {
-  if (!isCommunityRankingSupportedDocument(rawCommunity)) return;
+function isCommunityRankingTerminal(rawCommunity: unknown): boolean {
+  const community = (rawCommunity ?? {}) as Record<string, unknown>;
+  return community['status'] === 'archived'
+    || community['status'] === 'scheduled_for_deletion';
+}
 
+async function persistCommunityRanking(
+  communityId: string
+): Promise<void> {
+  const communityRef = db.collection('communities').doc(communityId);
   const discoveryRef = db
     .collection('community_discovery_index')
     .doc(communityId);
-  const discoverySnapshot = rawDiscovery === undefined
-    ? await discoveryRef.get()
-    : null;
-  const discovery = rawDiscovery === undefined
-    ? discoverySnapshot?.exists
-      ? discoverySnapshot.data() ?? null
-      : null
-    : rawDiscovery;
+  const [communitySnapshot, discoverySnapshot] = await Promise.all([
+    communityRef.get(),
+    discoveryRef.get(),
+  ]);
 
-  if (!discovery) return;
+  if (!communitySnapshot.exists) {
+    await discoveryRef.delete();
+    return;
+  }
 
+  const community = communitySnapshot.data() ?? {};
+
+  if (isCommunityRankingTerminal(community)) {
+    await discoveryRef.delete();
+    return;
+  }
+
+  if (!isCommunityRankingSupportedDocument(community)) return;
+  if (!discoverySnapshot.exists) return;
+
+  const discovery = discoverySnapshot.data() ?? {};
   const expected = buildCommunityRankingProjectionPatch(
-    rawCommunity,
+    community,
     discovery,
     Date.now()
   );
@@ -81,10 +98,7 @@ export const syncCommunityRankingFromCommunity = onDocumentWritten(
 
     if (!haveCommunityRankingCommunityInputsChanged(before, after)) return;
 
-    await persistCommunityRanking(
-      communityId,
-      after
-    );
+    await persistCommunityRanking(communityId);
   }
 );
 
@@ -104,17 +118,6 @@ export const syncCommunityRankingFromDiscovery = onDocumentWritten(
 
     if (!haveCommunityRankingVisualInputsChanged(before, after)) return;
 
-    const communitySnapshot = await db
-      .collection('communities')
-      .doc(communityId)
-      .get();
-
-    if (!communitySnapshot.exists) return;
-
-    await persistCommunityRanking(
-      communityId,
-      communitySnapshot.data(),
-      after
-    );
+    await persistCommunityRanking(communityId);
   }
 );

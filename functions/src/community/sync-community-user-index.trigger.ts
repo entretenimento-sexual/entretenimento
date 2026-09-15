@@ -5,6 +5,8 @@
 // Mantém a projeção privada de “Minhas comunidades” a partir da fonte canônica:
 // o membership. Entrada, aprovação, promoção, saída, bloqueio ou exclusão passam
 // pelo mesmo ponto, evitando divergência entre handlers atuais e futuros.
+// Eventos atrasados nunca recriam índice para Comunidade arquivada ou agendada
+// para exclusão porque o estado canônico da Comunidade é relido antes do write.
 // -----------------------------------------------------------------------------
 
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
@@ -12,6 +14,12 @@ import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import { buildCommunityUserIndexProjection } from './community-user-index.projection';
+
+function isCommunityUserIndexTerminal(rawCommunity: unknown): boolean {
+  const community = (rawCommunity ?? {}) as Record<string, unknown>;
+  return community['status'] === 'archived'
+    || community['status'] === 'scheduled_for_deletion';
+}
 
 export const syncCommunityUserIndex = onDocumentWritten(
   {
@@ -40,9 +48,18 @@ export const syncCommunityUserIndex = onDocumentWritten(
       .collection('communities')
       .doc(communityId)
       .get();
+    const community = communitySnapshot.exists
+      ? communitySnapshot.data() ?? null
+      : null;
+
+    if (!community || isCommunityUserIndexTerminal(community)) {
+      await indexRef.delete();
+      return;
+    }
+
     const projection = buildCommunityUserIndexProjection(
       communityId,
-      communitySnapshot.exists ? communitySnapshot.data() : null,
+      community,
       membershipSnapshot.data()
     );
 

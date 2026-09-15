@@ -5,6 +5,8 @@
 // O trigger acompanha toda mudança de membership, inclusive saída/bloqueio por
 // outros handlers. O locator é somente uma dica de busca; o endpoint público
 // revalida o documento canônico antes de expor qualquer card.
+// Eventos atrasados não podem recriar locator quando a Comunidade já está
+// arquivada, scheduled_for_deletion ou inexistente.
 // -----------------------------------------------------------------------------
 
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
@@ -14,6 +16,12 @@ import { db, FieldValue } from '../firebaseApp';
 import {
   buildCommunityProfileMembershipIndexProjection,
 } from './community-profile-membership-index.projection';
+
+function isCommunityProfileIndexTerminal(rawCommunity: unknown): boolean {
+  const community = (rawCommunity ?? {}) as Record<string, unknown>;
+  return community['status'] === 'archived'
+    || community['status'] === 'scheduled_for_deletion';
+}
 
 export const syncCommunityProfileMembershipIndex = onDocumentWritten(
   {
@@ -32,12 +40,29 @@ export const syncCommunityProfileMembershipIndex = onDocumentWritten(
       .collection('items')
       .doc(communityId);
     const membershipSnapshot = event.data?.after;
-    const projection = membershipSnapshot?.exists
-      ? buildCommunityProfileMembershipIndexProjection(
-        communityId,
-        membershipSnapshot.data()
-      )
+
+    if (!membershipSnapshot?.exists) {
+      await indexRef.delete();
+      return;
+    }
+
+    const communitySnapshot = await db
+      .collection('communities')
+      .doc(communityId)
+      .get();
+    const community = communitySnapshot.exists
+      ? communitySnapshot.data() ?? null
       : null;
+
+    if (!community || isCommunityProfileIndexTerminal(community)) {
+      await indexRef.delete();
+      return;
+    }
+
+    const projection = buildCommunityProfileMembershipIndexProjection(
+      communityId,
+      membershipSnapshot.data()
+    );
 
     if (!projection) {
       await indexRef.delete();
