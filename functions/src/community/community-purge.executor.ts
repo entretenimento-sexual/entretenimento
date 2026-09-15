@@ -9,6 +9,8 @@
 // - referências privadas por usuário são limpas junto com memberships históricas;
 // - se a paginação não terminar, nenhuma raiz destrutiva é tocada;
 // - readiness é revalidada antes das projeções e novamente antes da árvore final;
+// - o adapter final revalida readiness após sua preparação e imediatamente antes
+//   do recursive delete, retornando null quando o fence operacional se perdeu;
 // - auditorias, moderation_reports, admin_logs e evidências não fazem parte do
 //   adapter e portanto não podem ser removidos por este fluxo.
 // -----------------------------------------------------------------------------
@@ -30,7 +32,7 @@ export interface CommunityPurgeExecutionAdapter {
   ): Promise<number>;
   confirmPurgeReadiness(communityId: string): Promise<boolean>;
   deleteProjectionRoots(communityId: string): Promise<number>;
-  deleteCommunityRoots(communityId: string): Promise<number>;
+  deleteCommunityRootsIfReady(communityId: string): Promise<number | null>;
 }
 
 export type CommunityPurgeExecutionStatus =
@@ -157,9 +159,20 @@ export async function executeCommunityPurge(
       );
     }
 
-    const communityRootsDeleted = normalizeProcessedCount(
-      await adapter.deleteCommunityRoots(communityId)
+    const finalDeleteResult = await adapter.deleteCommunityRootsIfReady(
+      communityId
     );
+
+    if (finalDeleteResult === null) {
+      return blockedResult(
+        communityId,
+        referenceResults,
+        'readiness-changed-before-final-delete',
+        projectionRootsDeleted
+      );
+    }
+
+    const communityRootsDeleted = normalizeProcessedCount(finalDeleteResult);
     const referenceProcessed = sumProcessed(referenceResults);
     const referencePages = sumPages(referenceResults);
 

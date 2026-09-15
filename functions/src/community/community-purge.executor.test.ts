@@ -18,6 +18,7 @@ class FakeAdapter implements CommunityPurgeExecutionAdapter {
   communityRootsDeleted = 0;
   projectionDeleteCalls = 0;
   communityDeleteCalls = 0;
+  finalDeleteReady = true;
   throwOnKind: CommunityPurgeReferenceKind | null = null;
 
   async deleteReferencePage(
@@ -46,13 +47,13 @@ class FakeAdapter implements CommunityPurgeExecutionAdapter {
     return this.projectionRootsDeleted;
   }
 
-  async deleteCommunityRoots(_communityId: string): Promise<number> {
+  async deleteCommunityRootsIfReady(_communityId: string): Promise<number | null> {
     this.communityDeleteCalls += 1;
-    return this.communityRootsDeleted;
+    return this.finalDeleteReady ? this.communityRootsDeleted : null;
   }
 }
 
-test('purge completo valida readiness três vezes e só então apaga raízes', async () => {
+test('purge completo valida readiness e exige confirmação final do adapter', async () => {
   const adapter = new FakeAdapter();
   adapter.projectionRootsDeleted = 4;
   adapter.communityRootsDeleted = 5;
@@ -185,6 +186,24 @@ test('readiness alterada após limpar projeções preserva árvore comunitária'
   assert.equal(adapter.projectionDeleteCalls, 1);
   assert.equal(adapter.communityDeleteCalls, 0);
   assert.equal(result.details['projectionRootsDeleted'], 3);
+});
+
+test('adapter final bloqueia recursive delete se readiness mudar durante preparação', async () => {
+  const adapter = new FakeAdapter();
+  adapter.readiness = [true, true, true];
+  adapter.projectionRootsDeleted = 3;
+  adapter.finalDeleteReady = false;
+
+  const result = await executeCommunityPurge(adapter, {
+    communityId: 'community-1',
+  });
+
+  assert.equal(result.status, 'blocked');
+  assert.equal(result.blocker, 'readiness-changed-before-final-delete');
+  assert.equal(adapter.projectionDeleteCalls, 1);
+  assert.equal(adapter.communityDeleteCalls, 1);
+  assert.equal(result.details['projectionRootsDeleted'], 3);
+  assert.equal(result.details['communityRootsDeleted'], 0);
 });
 
 test('falha de adapter encerra em failed sem avançar para raízes', async () => {

@@ -98,7 +98,9 @@ implements CommunityPurgeExecutionAdapter {
     );
   }
 
-  async deleteCommunityRoots(communityIdRaw: string): Promise<number> {
+  async deleteCommunityRootsIfReady(
+    communityIdRaw: string
+  ): Promise<number | null> {
     const communityId = requireCommunityId(communityIdRaw);
     const auditRef = db.collection(PURGE_AUDIT_COLLECTION).doc(communityId);
     const startedAt = Date.now();
@@ -135,6 +137,24 @@ implements CommunityPurgeExecutionAdapter {
 
     await revokeOfficialAssociationForPurgedCommunity(communityId);
 
+    // `scheduled_for_deletion` é o fence operacional canônico. Mesmo assim,
+    // toda preparação final acima pode envolver I/O e retries; por isso a prova
+    // canônica é refeita aqui, imediatamente antes do primeiro recursiveDelete.
+    // Se algum blocker reapareceu, nenhuma raiz canônica é tocada.
+    if (!(await this.confirmPurgeReadiness(communityId))) {
+      const blockedAt = Date.now();
+      await auditRef.set(
+        {
+          status: 'blocked',
+          blocker: 'readiness-changed-before-recursive-delete',
+          completedAt: null,
+          updatedAt: blockedAt,
+        },
+        { merge: true }
+      );
+      return null;
+    }
+
     const rootsProcessed = await deleteRootCollections(
       communityId,
       COMMUNITY_PURGE_FINAL_ROOT_COLLECTIONS
@@ -144,6 +164,7 @@ implements CommunityPurgeExecutionAdapter {
     await auditRef.set(
       {
         status: 'completed',
+        blocker: null,
         rootsProcessed,
         completedAt,
         updatedAt: completedAt,
