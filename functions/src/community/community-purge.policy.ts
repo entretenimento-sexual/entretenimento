@@ -134,17 +134,20 @@ export function evaluateCommunityPurgeReadiness(
   }
 
   const memberCount = normalizeMemberCount(metrics['memberCount']);
-  if (memberCount === null) {
-    return denied('member_count_unknown');
-  }
-  if (memberCount > 0) {
-    return denied('members_present');
-  }
 
-  if (evidence.hasLiveMemberships === null) {
-    return denied('membership_probe_unknown');
-  }
-  if (evidence.hasLiveMemberships) {
+  // A projeção mantém os motivos legados quando a prova canônica não existe ou
+  // confirma presença. Porém, quando o probe canônico confirma vazio, ele é a
+  // autoridade e uma projeção stale/ausente não pode bloquear o purge.
+  if (evidence.hasLiveMemberships !== false) {
+    if (memberCount === null) {
+      return denied('member_count_unknown');
+    }
+    if (memberCount > 0) {
+      return denied('members_present');
+    }
+    if (evidence.hasLiveMemberships === null) {
+      return denied('membership_probe_unknown');
+    }
     return denied('live_memberships_present');
   }
 
