@@ -13,6 +13,9 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { assertRecentAuthentication } from '../account_lifecycle/_shared';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
+import {
+  resolveCanonicalCommunityMemberRole,
+} from './community-canonical-owner.policy';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   REQUIRE_COMMUNITY_APP_CHECK,
@@ -291,10 +294,15 @@ function buildCapabilities(
   actorUid: string,
   actor: { status: 'active'; role: 'owner' | 'admin' | 'moderator' },
   targetUid: string,
-  rawMembership: Record<string, unknown>
+  rawMembership: Record<string, unknown>,
+  rawCommunity: unknown
 ): CommunityManagedMemberCapabilities {
   const targetStatus = normalizeMembershipStatus(rawMembership['status']);
-  const targetRole = normalizeMembershipRole(rawMembership['role']);
+  const targetRole = resolveCanonicalCommunityMemberRole(
+    rawCommunity,
+    targetUid,
+    normalizeMembershipRole(rawMembership['role'])
+  );
   const previousRole = roleBeforeBlock(rawMembership);
   const blockedByActor = normalizeSafeId(rawMembership['blockedBy']) === actorUid;
 
@@ -432,7 +440,8 @@ export const getCommunityMembersForManagement = onCall<ManagedMembersPagePayload
       actorUserSnapshot.exists ? actorUserSnapshot.data() : null,
       actorUid
     );
-    assertCommunityManageable(communitySnapshot.data());
+    const community = communitySnapshot.data() ?? {};
+    assertCommunityManageable(community);
     const actor = assertManagerMembership(
       actorMembershipSnapshot.exists ? actorMembershipSnapshot.data() : null
     );
@@ -457,7 +466,11 @@ export const getCommunityMembersForManagement = onCall<ManagedMembersPagePayload
       .map((document, index): CommunityManagedMemberItem | null => {
         const membership = document.data() ?? {};
         const memberStatus = normalizeMembershipStatus(membership['status']);
-        const role = normalizeMembershipRole(membership['role']);
+        const role = resolveCanonicalCommunityMemberRole(
+          community,
+          document.id,
+          normalizeMembershipRole(membership['role'])
+        );
         const previousRole = roleBeforeBlock(membership);
         const user = userSnapshots[index]?.exists
           ? userSnapshots[index]?.data() ?? {}
@@ -491,7 +504,13 @@ export const getCommunityMembersForManagement = onCall<ManagedMembersPagePayload
               ? previousRole
               : null,
           updatedAt,
-          capabilities: buildCapabilities(actorUid, actor, document.id, membership),
+          capabilities: buildCapabilities(
+            actorUid,
+            actor,
+            document.id,
+            membership,
+            community
+          ),
         };
       })
       .filter((item): item is CommunityManagedMemberItem => item !== null);
@@ -586,10 +605,14 @@ export const manageCommunityMember = onCall<ManageCommunityMemberPayload>(
         ? targetMembershipSnapshot.data() ?? {}
         : {};
       const actor = assertManagerMembership(actorMembership);
-      const currentTargetRole = normalizeMembershipRole(targetMembership['role']);
+      const community = communitySnapshot.data() ?? {};
+      const currentTargetRole = resolveCanonicalCommunityMemberRole(
+        community,
+        memberId,
+        normalizeMembershipRole(targetMembership['role'])
+      );
       const targetRoleBeforeBlock = roleBeforeBlock(targetMembership);
       const targetBlockedByRole = blockerRole(targetMembership);
-      const community = communitySnapshot.data() ?? {};
       const source = (community['source'] ?? {}) as Record<string, unknown>;
       const decision = evaluateCommunityMemberManagement({
         sourceType: source['type'] === 'community'

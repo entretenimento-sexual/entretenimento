@@ -10,6 +10,9 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
+import {
+  resolveCanonicalCommunityMemberRole,
+} from './community-canonical-owner.policy';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   assertCommunityAcceptingNewMembers,
@@ -460,7 +463,11 @@ export const leaveCommunityMembership = onCall<CommunityIdPayload>(
       const membership = membershipSnapshot.exists
         ? membershipSnapshot.data()
         : null;
-      const existingRole = normalizeMembershipRole(membership?.['role']);
+      const existingRole = resolveCanonicalCommunityMemberRole(
+        community,
+        uid,
+        normalizeMembershipRole(membership?.['role'])
+      );
       const decision = evaluateCommunityMembershipLeave({
         communityStatus: normalizeCommunityLeaveStatus(community['status']),
         existingStatus: normalizeMembershipStatus(membership?.['status']),
