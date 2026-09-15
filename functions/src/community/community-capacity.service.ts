@@ -10,6 +10,7 @@ import {
   evaluatePlatformSubscriptionEntitlement,
 } from '../payments/application/platform-subscription-entitlement.service';
 import { HttpsError } from 'firebase-functions/v2/https';
+import { isCommunityAdmissionOperational } from './community-admission-operational.policy';
 import {
   CommunityCapacityState,
   evaluateCommunityCapacity,
@@ -67,6 +68,14 @@ export async function getCommunityCapacityForOwnerInTransaction(
   rawCommunity: unknown,
   now = Date.now()
 ): Promise<Readonly<CommunityCapacityState> | null> {
+  if (!isCommunityAdmissionOperational(rawCommunity)) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Esta Comunidade não está disponível para novas entradas agora.',
+      { reason: 'community_not_manageable' }
+    );
+  }
+
   const community = (rawCommunity ?? {}) as Record<string, unknown>;
   const source = (community['source'] ?? {}) as Record<string, unknown>;
 
