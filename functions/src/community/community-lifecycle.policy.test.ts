@@ -8,6 +8,7 @@ import {
   hasCommunityLifecycleHold,
   isCommunityMemberActivityEnabledStatus,
   isCommunityMembershipManagementEnabledStatus,
+  requiresCommunityLifecycleMembershipVerification,
 } from './community-lifecycle.policy';
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
@@ -67,6 +68,49 @@ test('arquiva automaticamente Comunidade vazia e inativa com métricas completas
   assert.equal(result.nextStatus, 'archived');
   assert.equal(result.reason, 'empty_and_inactive');
   assert.equal(result.shouldHideFromDiscovery, true);
+});
+
+test('ocupação canônica bloqueia arquivo vazio quando memberCount está stale em zero', () => {
+  const result = evaluateCommunityLifecycle(
+    community({
+      metrics: { memberCount: 0, postCount: 0, mediaCount: 0, topicCount: 0 },
+      lifecycle: {
+        lastMeaningfulActivityAt:
+          NOW - DEFAULT_COMMUNITY_LIFECYCLE_THRESHOLDS.emptyArchiveAfterDays * DAY_MS,
+      },
+    }),
+    NOW,
+    DEFAULT_COMMUNITY_LIFECYCLE_THRESHOLDS,
+    'nonempty'
+  );
+
+  assert.equal(result.changed, false);
+  assert.equal(result.nextStatus, 'active');
+});
+
+test('vazio canônico permite arquivo mesmo com memberCount stale positivo', () => {
+  const rawCommunity = community({
+    metrics: { memberCount: 12, postCount: 0, mediaCount: 0, topicCount: 0 },
+    lifecycle: {
+      lastMeaningfulActivityAt:
+        NOW - DEFAULT_COMMUNITY_LIFECYCLE_THRESHOLDS.emptyArchiveAfterDays * DAY_MS,
+    },
+  });
+
+  assert.equal(
+    requiresCommunityLifecycleMembershipVerification(rawCommunity, NOW),
+    true
+  );
+
+  const result = evaluateCommunityLifecycle(
+    rawCommunity,
+    NOW,
+    DEFAULT_COMMUNITY_LIFECYCLE_THRESHOLDS,
+    'empty'
+  );
+
+  assert.equal(result.nextStatus, 'archived');
+  assert.equal(result.reason, 'empty_and_inactive');
 });
 
 test('métrica de conteúdo incompleta não classifica Comunidade como vazia no prazo curto', () => {
@@ -163,6 +207,60 @@ test('agenda exclusão de arquivo vazio somente depois da retenção mínima', (
   assert.equal(result.deletionEligibleAt, NOW);
 });
 
+test('ocupação canônica bloqueia exclusão quando arquivo aponta memberCount zero stale', () => {
+  const rawCommunity = community({
+    status: 'archived',
+    metrics: { memberCount: 0, postCount: 0, mediaCount: 0, topicCount: 0 },
+    lifecycle: {
+      archivedAt:
+        NOW - DEFAULT_COMMUNITY_LIFECYCLE_THRESHOLDS.emptyDeletionAfterDays * DAY_MS,
+      lastMeaningfulActivityAt: NOW - 200 * DAY_MS,
+    },
+  });
+
+  assert.equal(
+    requiresCommunityLifecycleMembershipVerification(rawCommunity, NOW),
+    true
+  );
+
+  const result = evaluateCommunityLifecycle(
+    rawCommunity,
+    NOW,
+    DEFAULT_COMMUNITY_LIFECYCLE_THRESHOLDS,
+    'nonempty'
+  );
+
+  assert.equal(result.changed, false);
+  assert.equal(result.nextStatus, 'archived');
+});
+
+test('vazio canônico libera retenção vencida mesmo com memberCount stale positivo', () => {
+  const rawCommunity = community({
+    status: 'archived',
+    metrics: { memberCount: 8, postCount: 0, mediaCount: 0, topicCount: 0 },
+    lifecycle: {
+      archivedAt:
+        NOW - DEFAULT_COMMUNITY_LIFECYCLE_THRESHOLDS.emptyDeletionAfterDays * DAY_MS,
+      lastMeaningfulActivityAt: NOW - 200 * DAY_MS,
+    },
+  });
+
+  assert.equal(
+    requiresCommunityLifecycleMembershipVerification(rawCommunity, NOW),
+    true
+  );
+
+  const result = evaluateCommunityLifecycle(
+    rawCommunity,
+    NOW,
+    DEFAULT_COMMUNITY_LIFECYCLE_THRESHOLDS,
+    'empty'
+  );
+
+  assert.equal(result.nextStatus, 'scheduled_for_deletion');
+  assert.equal(result.reason, 'empty_archive_expired');
+});
+
 test('métrica de tópico legada ausente usa retenção longa em vez de considerar arquivo vazio', () => {
   const result = evaluateCommunityLifecycle(
     community({
@@ -219,21 +317,57 @@ test('Tópicos persistidos entram na retenção longa de conteúdo histórico', 
   assert.equal(result.reason, 'orphaned_content_archive_expired');
 });
 
-test('métrica de membros ausente nunca autoriza transição destrutiva', () => {
-  const result = evaluateCommunityLifecycle(
-    community({
-      status: 'archived',
-      metrics: { postCount: 0, mediaCount: 0, topicCount: 0 },
-      lifecycle: {
-        archivedAt: NOW - 500 * DAY_MS,
-        lastMeaningfulActivityAt: NOW - 500 * DAY_MS,
-      },
-    }),
-    NOW
-  );
+test('métrica de membros ausente nunca autoriza transição destrutiva sem prova canônica', () => {
+  const rawCommunity = community({
+    status: 'archived',
+    metrics: { postCount: 0, mediaCount: 0, topicCount: 0 },
+    lifecycle: {
+      archivedAt: NOW - 500 * DAY_MS,
+      lastMeaningfulActivityAt: NOW - 500 * DAY_MS,
+    },
+  });
+  const result = evaluateCommunityLifecycle(rawCommunity, NOW);
 
   assert.equal(result.changed, false);
   assert.equal(result.nextStatus, 'archived');
+  assert.equal(
+    requiresCommunityLifecycleMembershipVerification(rawCommunity, NOW),
+    true
+  );
+
+  const canonicalEmpty = evaluateCommunityLifecycle(
+    rawCommunity,
+    NOW,
+    DEFAULT_COMMUNITY_LIFECYCLE_THRESHOLDS,
+    'empty'
+  );
+  assert.equal(canonicalEmpty.nextStatus, 'scheduled_for_deletion');
+});
+
+test('não consulta ocupação canônica quando lifecycle não depende de vazio', () => {
+  assert.equal(
+    requiresCommunityLifecycleMembershipVerification(
+      community({
+        lifecycle: { lastMeaningfulActivityAt: NOW - 5 * DAY_MS },
+      }),
+      NOW
+    ),
+    false
+  );
+
+  assert.equal(
+    requiresCommunityLifecycleMembershipVerification(
+      community({
+        status: 'dormant',
+        lifecycle: {
+          lastMeaningfulActivityAt:
+            NOW - DEFAULT_COMMUNITY_LIFECYCLE_THRESHOLDS.archiveAfterDays * DAY_MS,
+        },
+      }),
+      NOW
+    ),
+    false
+  );
 });
 
 test('normaliza os aliases de retenção e legal hold em uma única policy', () => {

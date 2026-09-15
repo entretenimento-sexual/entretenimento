@@ -26,6 +26,11 @@ export type CommunityLifecycleReason =
   | 'orphaned_content_archive_expired'
   | 'no_transition';
 
+export type CommunityLifecycleMembershipOccupancy =
+  | 'unknown'
+  | 'empty'
+  | 'nonempty';
+
 export interface CommunityLifecycleThresholds {
   dormantAfterDays: number;
   archiveAfterDays: number;
@@ -105,6 +110,15 @@ function normalizeStatus(value: unknown): CommunityLifecycleStatus {
     : 'active';
 }
 
+function resolveHasActiveMembers(
+  memberCount: number | null,
+  membershipOccupancy: CommunityLifecycleMembershipOccupancy
+): boolean | null {
+  if (membershipOccupancy === 'empty') return false;
+  if (membershipOccupancy === 'nonempty') return true;
+  return memberCount === null ? null : memberCount > 0;
+}
+
 /**
  * `dormant` sai da descoberta e não aceita novas adesões, mas membros já ativos
  * podem gerar atividade legítima para que o lifecycle volte a `active`.
@@ -177,7 +191,8 @@ export function evaluateCommunityLifecycle(
   rawCommunity: unknown,
   now = Date.now(),
   thresholds: Readonly<CommunityLifecycleThresholds> =
-  DEFAULT_COMMUNITY_LIFECYCLE_THRESHOLDS
+  DEFAULT_COMMUNITY_LIFECYCLE_THRESHOLDS,
+  membershipOccupancy: CommunityLifecycleMembershipOccupancy = 'unknown'
 ): CommunityLifecycleDecision {
   const community = (rawCommunity ?? {}) as Record<string, unknown>;
   const source = (community['source'] ?? {}) as Record<string, unknown>;
@@ -198,6 +213,10 @@ export function evaluateCommunityLifecycle(
   }
 
   const memberCount = normalizeOptionalCount(metrics['memberCount']);
+  const hasActiveMembers = resolveHasActiveMembers(
+    memberCount,
+    membershipOccupancy
+  );
   const postCount = normalizeOptionalCount(metrics['postCount']);
   const mediaCount = normalizeOptionalCount(metrics['mediaCount']);
   const topicCount = normalizeOptionalCount(metrics['topicCount']);
@@ -217,7 +236,7 @@ export function evaluateCommunityLifecycle(
 
   if (status === 'active') {
     if (
-      memberCount === 0
+      hasActiveMembers === false
       && contentMetricsComplete
       && contentCount === 0
       && inactiveDays >= thresholds.emptyArchiveAfterDays
@@ -244,10 +263,10 @@ export function evaluateCommunityLifecycle(
     return noTransition(status, 'no_transition');
   }
 
-  // Ausência/corrupção da métrica de membros nunca pode ser interpretada como
-  // zero para uma transição destrutiva. O Scheduler preserva o arquivo até que
-  // o estado canônico seja conhecido.
-  if (memberCount === null || memberCount > 0) {
+  // Ausência/corrupção da projeção de membros nunca pode ser interpretada como
+  // vazio sem confirmação canônica. Quando o scheduler informa a ocupação
+  // canônica, ela prevalece sobre memberCount para decisões destrutivas.
+  if (hasActiveMembers !== false) {
     return noTransition(status, 'no_transition');
   }
 
@@ -276,4 +295,25 @@ export function evaluateCommunityLifecycle(
   }
 
   return noTransition(status, 'no_transition');
+}
+
+export function requiresCommunityLifecycleMembershipVerification(
+  rawCommunity: unknown,
+  now = Date.now(),
+  thresholds: Readonly<CommunityLifecycleThresholds> =
+  DEFAULT_COMMUNITY_LIFECYCLE_THRESHOLDS
+): boolean {
+  const decisionAssumingEmpty = evaluateCommunityLifecycle(
+    rawCommunity,
+    now,
+    thresholds,
+    'empty'
+  );
+
+  return decisionAssumingEmpty.changed
+    && (
+      decisionAssumingEmpty.reason === 'empty_and_inactive'
+      || decisionAssumingEmpty.reason === 'empty_archive_expired'
+      || decisionAssumingEmpty.reason === 'orphaned_content_archive_expired'
+    );
 }

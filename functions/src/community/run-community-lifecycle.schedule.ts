@@ -20,7 +20,11 @@ import {
   resolveCommunityLifecycleMaxPerRun,
   resolveCommunityLifecycleThresholds,
 } from './community-lifecycle-execution.policy';
-import { evaluateCommunityLifecycle } from './community-lifecycle.policy';
+import {
+  CommunityLifecycleMembershipOccupancy,
+  evaluateCommunityLifecycle,
+  requiresCommunityLifecycleMembershipVerification,
+} from './community-lifecycle.policy';
 import { sanitizeCommunityDocument } from './community-preview.model';
 import { buildCommunityRankingProjectionPatch } from './community-ranking-sync.policy';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
@@ -137,7 +141,33 @@ async function applyCommunityLifecycle(
       return 'retention_anchor_backfilled';
     }
 
-    const decision = evaluateCommunityLifecycle(community, now, thresholds);
+    let membershipOccupancy: CommunityLifecycleMembershipOccupancy = 'unknown';
+
+    if (
+      requiresCommunityLifecycleMembershipVerification(
+        community,
+        now,
+        thresholds
+      )
+    ) {
+      const activeMembershipQuery = communityRef
+        .collection('members')
+        .where('status', '==', 'active')
+        .limit(1);
+      const activeMembershipSnapshot = await transaction.get(
+        activeMembershipQuery
+      );
+      membershipOccupancy = activeMembershipSnapshot.empty
+        ? 'empty'
+        : 'nonempty';
+    }
+
+    const decision = evaluateCommunityLifecycle(
+      community,
+      now,
+      thresholds,
+      membershipOccupancy
+    );
     const mutationPlan = buildCommunityLifecycleMutationPlan(
       community,
       decision,
@@ -247,10 +277,20 @@ export const runCommunityLifecycle = onSchedule(
           now,
           thresholds
         );
+        const needsMembershipVerification =
+          requiresCommunityLifecycleMembershipVerification(
+            document.data(),
+            now,
+            thresholds
+          );
         const needsRetentionAnchor =
           buildCommunityArchiveRetentionAnchorPlan(document.data(), now) !== null;
 
-        if (previewDecision.changed || needsRetentionAnchor) {
+        if (
+          previewDecision.changed
+          || needsMembershipVerification
+          || needsRetentionAnchor
+        ) {
           const result = await applyCommunityLifecycle(
             document.id,
             thresholds,
