@@ -19,6 +19,7 @@ import {
   map,
   Observable,
   of,
+  scan,
   shareReplay,
   startWith,
   Subject,
@@ -37,6 +38,7 @@ import {
 import {
   CommunityOwnershipCandidate,
   CommunityOwnershipCandidateRole,
+  CommunityOwnershipCandidatesResponse,
 } from '../data-access/community-ownership.model';
 import { CommunityOwnershipRepository } from '../data-access/community-ownership.repository';
 import {
@@ -45,10 +47,17 @@ import {
   COMMUNITY_OWNERSHIP_REASON_MESSAGES,
 } from '../presentation/community-error.messages';
 
-type OwnershipCandidatesState =
-  | { status: 'loading'; items: readonly CommunityOwnershipCandidate[] }
-  | { status: 'ready'; items: readonly CommunityOwnershipCandidate[] }
-  | { status: 'error'; items: readonly CommunityOwnershipCandidate[] };
+interface OwnershipCandidatesState {
+  status: 'loading' | 'ready' | 'error';
+  items: readonly CommunityOwnershipCandidate[];
+  nextCursor: string | null;
+  loadingMore: boolean;
+}
+
+type OwnershipCandidatePageEvent =
+  | { kind: 'loading-more' }
+  | { kind: 'page'; response: CommunityOwnershipCandidatesResponse }
+  | { kind: 'load-more-error' };
 
 type OwnershipActionState =
   | { status: 'idle'; kind: null; targetUid: null }
@@ -78,6 +87,7 @@ export class CommunityOwnershipManagementComponent {
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly applicationError = inject(ApplicationErrorService);
   private readonly refreshCandidates$ = new Subject<void>();
+  private readonly loadMoreCandidates$ = new Subject<string>();
   private readonly commands$ = new Subject<OwnershipCommand>();
 
   readonly communityId = input.required<string>();
@@ -97,16 +107,48 @@ export class CommunityOwnershipManagementComponent {
   ]).pipe(
     switchMap(([communityId]) =>
       this.repository.getCandidates$(communityId).pipe(
-        map(
-          (response): OwnershipCandidatesState => ({
-            status: 'ready',
-            items: response.items,
-          })
-        ),
-        startWith<OwnershipCandidatesState>({ status: 'loading', items: [] }),
+        switchMap((initialResponse) => {
+          const initialState = this.readyCandidatesState(initialResponse);
+
+          return this.loadMoreCandidates$.pipe(
+            exhaustMap((cursor) =>
+              this.repository.getCandidates$(communityId, cursor).pipe(
+                map(
+                  (response): OwnershipCandidatePageEvent => ({
+                    kind: 'page',
+                    response,
+                  })
+                ),
+                startWith<OwnershipCandidatePageEvent>({ kind: 'loading-more' }),
+                catchError((error: unknown) => {
+                  this.reportLoadMoreError(error);
+                  return of<OwnershipCandidatePageEvent>({
+                    kind: 'load-more-error',
+                  });
+                })
+              )
+            ),
+            scan<OwnershipCandidatePageEvent, OwnershipCandidatesState>(
+              (state, event) => this.reduceCandidatesState(state, event),
+              initialState
+            ),
+            startWith<OwnershipCandidatesState>(initialState)
+          );
+        }),
+        startWith<OwnershipCandidatesState>({
+          status: 'loading',
+          items: [],
+          nextCursor: null,
+          loadingMore: false,
+        }),
         catchError((error: unknown) => {
           this.reportLoadError(error);
-          return of<OwnershipCandidatesState>({ status: 'error', items: [] });
+          return of<OwnershipCandidatesState>({
+            status: 'error',
+            items: [],
+            nextCursor: null,
+            loadingMore: false,
+          });
         })
       )
     ),
@@ -177,6 +219,12 @@ export class CommunityOwnershipManagementComponent {
     this.refreshCandidates$.next();
   }
 
+  loadMoreCandidates(nextCursor: string | null): void {
+    const normalizedCursor = String(nextCursor ?? '').trim();
+    if (!normalizedCursor) return;
+    this.loadMoreCandidates$.next(normalizedCursor);
+  }
+
   requestTransfer(candidate: CommunityOwnershipCandidate): void {
     const data: ConfirmationDialogData = {
       eyebrow: 'Ação de proprietário',
@@ -223,6 +271,51 @@ export class CommunityOwnershipManagementComponent {
     return 'Membro';
   }
 
+  private readyCandidatesState(
+    response: CommunityOwnershipCandidatesResponse
+  ): OwnershipCandidatesState {
+    return {
+      status: 'ready',
+      items: response.items,
+      nextCursor: response.nextCursor,
+      loadingMore: false,
+    };
+  }
+
+  private reduceCandidatesState(
+    state: OwnershipCandidatesState,
+    event: OwnershipCandidatePageEvent
+  ): OwnershipCandidatesState {
+    if (event.kind === 'loading-more') {
+      return { ...state, loadingMore: true };
+    }
+
+    if (event.kind === 'load-more-error') {
+      return { ...state, loadingMore: false };
+    }
+
+    return {
+      status: 'ready',
+      items: this.mergeCandidates(state.items, event.response.items),
+      nextCursor: event.response.nextCursor,
+      loadingMore: false,
+    };
+  }
+
+  private mergeCandidates(
+    current: readonly CommunityOwnershipCandidate[],
+    incoming: readonly CommunityOwnershipCandidate[]
+  ): readonly CommunityOwnershipCandidate[] {
+    const byUid = new Map<string, CommunityOwnershipCandidate>();
+
+    for (const candidate of current) byUid.set(candidate.uid, candidate);
+    for (const candidate of incoming) byUid.set(candidate.uid, candidate);
+
+    return Array.from(byUid.values()).sort((left, right) =>
+      left.label.localeCompare(right.label, 'pt-BR')
+    );
+  }
+
   private openConfirmation(
     data: ConfirmationDialogData,
     command: OwnershipCommand
@@ -255,6 +348,21 @@ export class CommunityOwnershipManagementComponent {
       fallbackMessage:
         'Não foi possível carregar os membros elegíveis à transferência.',
       notification: 'none',
+      reasonMessages: COMMUNITY_OWNERSHIP_REASON_MESSAGES,
+      codeMessages: COMMUNITY_OWNERSHIP_LOAD_CODE_MESSAGES,
+      metadata: {
+        scope: 'CommunityOwnershipManagementComponent',
+        communityId: this.communityId().trim(),
+      },
+    });
+  }
+
+  private reportLoadMoreError(error: unknown): void {
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'loadMoreOwnershipCandidates',
+      fallbackMessage:
+        'Não foi possível carregar mais membros elegíveis agora.',
       reasonMessages: COMMUNITY_OWNERSHIP_REASON_MESSAGES,
       codeMessages: COMMUNITY_OWNERSHIP_LOAD_CODE_MESSAGES,
       metadata: {

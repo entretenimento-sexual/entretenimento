@@ -28,6 +28,9 @@ export {
   onUserCreateIndexNickname,
   clearStalePresence,
 };
+export {
+  getCommunityOwnershipCandidatesPage,
+} from './community/get-community-ownership-candidates-page.handler';
 export * from './payments';
 export * from './account_lifecycle';
 export * from './chat';

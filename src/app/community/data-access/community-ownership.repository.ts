@@ -26,9 +26,9 @@ export class CommunityOwnershipRepository {
   private readonly discoveryCache = inject(CommunityDiscoveryCacheService);
 
   private readonly getCandidatesCallable = httpsCallable<
-    { communityId: string },
+    { communityId: string; cursor: string | null },
     unknown
-  >(this.functions, 'getCommunityOwnershipCandidates');
+  >(this.functions, 'getCommunityOwnershipCandidatesPage');
 
   private readonly transferOwnershipCallable = httpsCallable<
     { communityId: string; targetUid: string; requestId: string },
@@ -41,10 +41,16 @@ export class CommunityOwnershipRepository {
   >(this.functions, 'archiveCommunity');
 
   getCandidates$(
-    communityId: string
+    communityId: string,
+    cursor: string | null = null
   ): Observable<CommunityOwnershipCandidatesResponse> {
     return defer(() =>
-      from(this.getCandidatesCallable({ communityId: communityId.trim() }))
+      from(
+        this.getCandidatesCallable({
+          communityId: communityId.trim(),
+          cursor: cursor?.trim() || null,
+        })
+      )
     ).pipe(
       map((result) => {
         const normalized = normalizeCommunityOwnershipCandidatesResponse(

@@ -35,7 +35,7 @@ describe('CommunityOwnershipManagementComponent', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     repositoryMock.getCandidates$.mockReturnValue(
-      of({ items: [candidate], generatedAt: 1 })
+      of({ items: [candidate], nextCursor: null, generatedAt: 1 })
     );
     repositoryMock.transferOwnership$.mockReturnValue(
       of({
@@ -72,6 +72,49 @@ describe('CommunityOwnershipManagementComponent', () => {
     fixture.componentRef.setInput('communityId', 'community-1');
     return fixture.componentInstance;
   }
+
+  it('concatena páginas de sucessores sem duplicar membros já carregados', () => {
+    const secondCandidate: CommunityOwnershipCandidate = {
+      uid: 'member-2',
+      label: 'Pessoa Dois',
+      avatarUrl: null,
+      role: 'member',
+    };
+    repositoryMock.getCandidates$.mockImplementation(
+      (_communityId: string, cursor: string | null = null) => cursor
+        ? of({
+            items: [candidate, secondCandidate],
+            nextCursor: null,
+            generatedAt: 2,
+          })
+        : of({
+            items: [candidate],
+            nextCursor: 'member-050',
+            generatedAt: 1,
+          })
+    );
+    const component = createComponent();
+    const states: Array<{ items: readonly CommunityOwnershipCandidate[] }> = [];
+    const subscription = component.state$.subscribe((state) => states.push(state));
+
+    component.loadMoreCandidates('member-050');
+
+    expect(repositoryMock.getCandidates$).toHaveBeenNthCalledWith(
+      1,
+      'community-1'
+    );
+    expect(repositoryMock.getCandidates$).toHaveBeenNthCalledWith(
+      2,
+      'community-1',
+      'member-050'
+    );
+    expect(states.at(-1)?.items.map((item) => item.uid)).toEqual([
+      'member-2',
+      'member-1',
+    ]);
+
+    subscription.unsubscribe();
+  });
 
   it('não transfere propriedade quando o diálogo é cancelado', () => {
     dialogMock.open.mockReturnValue({ afterClosed: () => of(false) });

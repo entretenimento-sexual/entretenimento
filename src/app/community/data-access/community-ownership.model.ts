@@ -16,6 +16,7 @@ export interface CommunityOwnershipCandidate {
 
 export interface CommunityOwnershipCandidatesResponse {
   items: readonly CommunityOwnershipCandidate[];
+  nextCursor: string | null;
   generatedAt: number;
 }
 
@@ -96,10 +97,20 @@ export function normalizeCommunityOwnershipCandidatesResponse(
 
   if (!Array.isArray(source['items'])) return null;
 
+  const rawNextCursor = source['nextCursor'];
+  const nextCursor = rawNextCursor === null || rawNextCursor === undefined
+    ? null
+    : normalizeSafeId(rawNextCursor);
+
+  if (rawNextCursor !== null && rawNextCursor !== undefined && !nextCursor) {
+    return null;
+  }
+
   return {
     items: source['items']
       .map(normalizeCandidate)
       .filter((item): item is CommunityOwnershipCandidate => item !== null),
+    nextCursor,
     generatedAt: normalizeGeneratedAt(source['generatedAt']),
   };
 }

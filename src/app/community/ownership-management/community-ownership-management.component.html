@@ -15,7 +15,7 @@
           type="button"
           class="community-ownership-management__refresh"
           [appActionState]="state.status === 'loading'"
-          [actionDisabled]="action.status === 'loading'"
+          [actionDisabled]="action.status === 'loading' || state.loadingMore"
           aria-label="Atualizar membros elegíveis à transferência"
           (click)="refresh()"
         >
@@ -52,63 +52,89 @@
             <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
             <span>Lista de transferência indisponível.</span>
           </div>
-        } @else if (state.items.length === 0) {
-          <div class="community-ownership-management__state" role="status">
-            <i class="fas fa-user-shield" aria-hidden="true"></i>
-            <span>Nenhum membro pode assumir a propriedade agora.</span>
-          </div>
         } @else {
-          <ul class="community-ownership-management__list">
-            @for (candidate of state.items; track candidate.uid) {
-              <li>
-                <span class="community-ownership-management__avatar" aria-hidden="true">
-                  @if (candidate.avatarUrl) {
-                    <img [src]="candidate.avatarUrl" alt="" />
-                  } @else {
-                    <i class="fas fa-user" aria-hidden="true"></i>
-                  }
-                </span>
+          @if (state.items.length === 0 && !state.nextCursor) {
+            <div class="community-ownership-management__state" role="status">
+              <i class="fas fa-user-shield" aria-hidden="true"></i>
+              <span>Nenhum membro pode assumir a propriedade agora.</span>
+            </div>
+          } @else {
+            @if (state.items.length > 0) {
+              <ul class="community-ownership-management__list">
+                @for (candidate of state.items; track candidate.uid) {
+                  <li>
+                    <span class="community-ownership-management__avatar" aria-hidden="true">
+                      @if (candidate.avatarUrl) {
+                        <img [src]="candidate.avatarUrl" alt="" />
+                      } @else {
+                        <i class="fas fa-user" aria-hidden="true"></i>
+                      }
+                    </span>
 
-                <div class="community-ownership-management__copy">
-                  <strong>{{ candidate.label }}</strong>
-                  <span>{{ roleLabel(candidate.role) }}</span>
-                </div>
+                    <div class="community-ownership-management__copy">
+                      <strong>{{ candidate.label }}</strong>
+                      <span>{{ roleLabel(candidate.role) }}</span>
+                    </div>
 
-                <button
-                  type="button"
-                  class="community-ownership-management__transfer-action"
-                  [appActionState]="
-                    action.status === 'loading'
-                    && action.kind === 'transfer'
-                    && action.targetUid === candidate.uid
-                  "
-                  [actionDisabled]="action.status === 'loading'"
-                  [attr.aria-label]="'Transferir propriedade para ' + candidate.label"
-                  (click)="requestTransfer(candidate)"
-                >
-                  <i
-                    class="fas {{
-                      action.status === 'loading'
-                      && action.kind === 'transfer'
-                      && action.targetUid === candidate.uid
-                        ? 'fa-spinner fa-spin'
-                        : 'fa-right-left'
-                    }}"
-                    aria-hidden="true"
-                  ></i>
-                  <span>
-                    {{
-                      action.status === 'loading'
-                      && action.kind === 'transfer'
-                      && action.targetUid === candidate.uid
-                        ? 'Transferindo...'
-                        : 'Transferir'
-                    }}
-                  </span>
-                </button>
-              </li>
+                    <button
+                      type="button"
+                      class="community-ownership-management__transfer-action"
+                      [appActionState]="
+                        action.status === 'loading'
+                        && action.kind === 'transfer'
+                        && action.targetUid === candidate.uid
+                      "
+                      [actionDisabled]="action.status === 'loading' || state.loadingMore"
+                      [attr.aria-label]="'Transferir propriedade para ' + candidate.label"
+                      (click)="requestTransfer(candidate)"
+                    >
+                      <i
+                        class="fas {{
+                          action.status === 'loading'
+                          && action.kind === 'transfer'
+                          && action.targetUid === candidate.uid
+                            ? 'fa-spinner fa-spin'
+                            : 'fa-right-left'
+                        }}"
+                        aria-hidden="true"
+                      ></i>
+                      <span>
+                        {{
+                          action.status === 'loading'
+                          && action.kind === 'transfer'
+                          && action.targetUid === candidate.uid
+                            ? 'Transferindo...'
+                            : 'Transferir'
+                        }}
+                      </span>
+                    </button>
+                  </li>
+                }
+              </ul>
+            } @else {
+              <div class="community-ownership-management__state" role="status">
+                <i class="fas fa-users" aria-hidden="true"></i>
+                <span>Há mais membros ativos para verificar.</span>
+              </div>
             }
-          </ul>
+
+            @if (state.nextCursor) {
+              <button
+                type="button"
+                class="community-ownership-management__transfer-action"
+                [appActionState]="state.loadingMore"
+                [actionDisabled]="action.status === 'loading' || state.loadingMore"
+                aria-label="Carregar mais membros elegíveis à transferência"
+                (click)="loadMoreCandidates(state.nextCursor)"
+              >
+                <i
+                  class="fas {{ state.loadingMore ? 'fa-spinner fa-spin' : 'fa-chevron-down' }}"
+                  aria-hidden="true"
+                ></i>
+                <span>{{ state.loadingMore ? 'Carregando...' : 'Carregar mais' }}</span>
+              </button>
+            }
+          }
         }
       </section>
 
@@ -127,7 +153,7 @@
         <button
           type="button"
           [appActionState]="action.status === 'loading' && action.kind === 'archive'"
-          [actionDisabled]="action.status === 'loading'"
+          [actionDisabled]="action.status === 'loading' || state.loadingMore"
           (click)="requestArchive()"
         >
           <i
