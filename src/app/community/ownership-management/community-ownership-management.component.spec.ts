@@ -73,7 +73,7 @@ describe('CommunityOwnershipManagementComponent', () => {
     return fixture.componentInstance;
   }
 
-  it('concatena páginas de sucessores sem duplicar membros já carregados', () => {
+  it('concatena páginas de sucessores sem duplicar membros já carregados', async () => {
     const secondCandidate: CommunityOwnershipCandidate = {
       uid: 'member-2',
       label: 'Pessoa Dois',
@@ -97,21 +97,26 @@ describe('CommunityOwnershipManagementComponent', () => {
     const states: Array<{ items: readonly CommunityOwnershipCandidate[] }> = [];
     const subscription = component.state$.subscribe((state) => states.push(state));
 
+    await vi.waitFor(() => {
+      expect(repositoryMock.getCandidates$).toHaveBeenNthCalledWith(
+        1,
+        'community-1'
+      );
+    });
+
     component.loadMoreCandidates('member-050');
 
-    expect(repositoryMock.getCandidates$).toHaveBeenNthCalledWith(
-      1,
-      'community-1'
-    );
-    expect(repositoryMock.getCandidates$).toHaveBeenNthCalledWith(
-      2,
-      'community-1',
-      'member-050'
-    );
-    expect(states.at(-1)?.items.map((item) => item.uid)).toEqual([
-      'member-2',
-      'member-1',
-    ]);
+    await vi.waitFor(() => {
+      expect(repositoryMock.getCandidates$).toHaveBeenNthCalledWith(
+        2,
+        'community-1',
+        'member-050'
+      );
+      expect(states.at(-1)?.items.map((item) => item.uid)).toEqual([
+        'member-2',
+        'member-1',
+      ]);
+    });
 
     subscription.unsubscribe();
   });
