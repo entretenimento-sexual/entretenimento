@@ -11,6 +11,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
+  resolveCanonicalCommunityManagerRole,
   resolveCanonicalCommunityMemberRole,
 } from './community-canonical-owner.policy';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
@@ -197,7 +198,6 @@ function normalizeTimestamp(value: unknown): number | null {
 
     const seconds = Number(source.seconds);
     const nanoseconds = Number(source.nanoseconds ?? 0);
-
     if (Number.isFinite(seconds) && Number.isFinite(nanoseconds)) {
       const time = seconds * 1_000 + Math.trunc(nanoseconds / 1_000_000);
       return Number.isFinite(time) && time > 0 ? Math.trunc(time) : null;
@@ -235,16 +235,17 @@ function assertCommunityManageable(rawCommunity: unknown): void {
 }
 
 function assertModerator(
+  rawCommunity: unknown,
+  actorUid: string,
   membership: unknown
 ): { status: 'active'; role: 'owner' | 'admin' | 'moderator' } {
-  const source = (membership ?? {}) as Record<string, unknown>;
-  const status = normalizeMembershipStatus(source['status']);
-  const role = normalizeMembershipRole(source['role']);
+  const role = resolveCanonicalCommunityManagerRole(
+    rawCommunity,
+    actorUid,
+    membership
+  );
 
-  if (
-    status !== 'active'
-    || (role !== 'owner' && role !== 'admin' && role !== 'moderator')
-  ) {
+  if (!role) {
     throw new HttpsError(
       'permission-denied',
       'Apenas a moderação da comunidade pode revisar solicitações.',
@@ -252,7 +253,7 @@ function assertModerator(
     );
   }
 
-  return { status, role };
+  return { status: 'active', role };
 }
 
 function throwLeaveDecisionError(reason: string | null): never {
@@ -386,8 +387,11 @@ export const getCommunityMembershipRequests = onCall<CommunityIdPayload>(
         actorUserSnapshot.exists ? actorUserSnapshot.data() : null,
         actorUid
       );
-      assertCommunityManageable(communitySnapshot.data());
+      const community = communitySnapshot.data() ?? {};
+      assertCommunityManageable(community);
       assertModerator(
+        community,
+        actorUid,
         actorMembershipSnapshot.exists ? actorMembershipSnapshot.data() : null
       );
 
@@ -621,6 +625,8 @@ export const reviewCommunityMembership =
         const community = communitySnapshot.data() ?? null;
         assertCommunityManageable(community);
         const actor = assertModerator(
+          community,
+          actorUid,
           actorMembershipSnapshot.exists ? actorMembershipSnapshot.data() : null
         );
         const target = targetMembershipSnapshot.exists
