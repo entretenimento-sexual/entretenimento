@@ -27,6 +27,9 @@ import {
 } from './community-feed-comment.model';
 import { isCommunityFeedInteractivePostKind } from './community-feed-comment.policy';
 import {
+  assertCommunityFeedReportAccessInTransaction,
+} from './community-feed-report-access.service';
+import {
   CommunityFeedCommentReplyReportRequest,
   normalizeCommunityFeedCommentReplyReportRequest,
 } from './community-feed-report.model';
@@ -100,15 +103,8 @@ export const reportCommunityFeedCommentReply = onCall<
       actorUid: reporterUid,
     });
     await assertInteractionAccess(reporterUid);
+    await getCommunityViewerContext(reporterUid, command.communityId);
 
-    const context = await getCommunityViewerContext(
-      reporterUid,
-      command.communityId
-    );
-    const feedContentAccess = resolveCommunityFeedContentAccess(
-      context.memberContentAccess,
-      context.authenticatedPreviewAccess
-    );
     const postRef = db
       .collection('community_feed_posts')
       .doc(command.communityId)
@@ -132,12 +128,18 @@ export const reportCommunityFeedCommentReply = onCall<
 
     await db.runTransaction(async (transaction) => {
       const [
+        reportAccess,
         postSnapshot,
         projectionSnapshot,
         commentSnapshot,
         replySnapshot,
         reportSnapshot,
       ] = await Promise.all([
+        assertCommunityFeedReportAccessInTransaction(
+          transaction,
+          reporterUid,
+          command.communityId!
+        ),
         transaction.get(postRef),
         transaction.get(projectionRef),
         transaction.get(commentRef),
@@ -171,6 +173,10 @@ export const reportCommunityFeedCommentReply = onCall<
         command.replyId!,
         replySnapshot.data(),
         command.commentId!
+      );
+      const feedContentAccess = resolveCommunityFeedContentAccess(
+        reportAccess.memberContentAccess,
+        reportAccess.authenticatedPreviewAccess
       );
 
       if (

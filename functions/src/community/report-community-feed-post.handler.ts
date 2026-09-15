@@ -19,6 +19,9 @@ import {
 } from './community-callable-security';
 import { canViewerReadCommunityFeedAudience } from './community-feed-access.policy';
 import {
+  assertCommunityFeedReportAccessInTransaction,
+} from './community-feed-report-access.service';
+import {
   CommunityFeedReportRequest,
   normalizeCommunityFeedReportRequest,
 } from './community-feed-report.model';
@@ -76,11 +79,8 @@ export const reportCommunityFeedPost = onCall<CommunityFeedReportRequest>(
       actorUid: reporterUid,
     });
     await assertInteractionAccess(reporterUid);
+    await getCommunityViewerContext(reporterUid, command.communityId);
 
-    const context = await getCommunityViewerContext(
-      reporterUid,
-      command.communityId
-    );
     const postRef = db
       .collection('community_feed_posts')
       .doc(command.communityId)
@@ -99,7 +99,17 @@ export const reportCommunityFeedPost = onCall<CommunityFeedReportRequest>(
     const reportRef = db.collection('moderation_reports').doc(reportId);
 
     await db.runTransaction(async (transaction) => {
-      const [postSnapshot, projectionSnapshot, reportSnapshot] = await Promise.all([
+      const [
+        reportAccess,
+        postSnapshot,
+        projectionSnapshot,
+        reportSnapshot,
+      ] = await Promise.all([
+        assertCommunityFeedReportAccessInTransaction(
+          transaction,
+          reporterUid,
+          command.communityId!
+        ),
         transaction.get(postRef),
         transaction.get(projectionRef),
         transaction.get(reportRef),
@@ -126,7 +136,7 @@ export const reportCommunityFeedPost = onCall<CommunityFeedReportRequest>(
         || !projection
         || !canViewerReadCommunityFeedAudience(
           projection,
-          context.memberContentAccess
+          reportAccess.memberContentAccess
         )
       ) {
         throw new HttpsError(
