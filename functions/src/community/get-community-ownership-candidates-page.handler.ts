@@ -71,8 +71,7 @@ function normalizeCandidateCursor(value: unknown): string | null {
   if (!SAFE_ID_PATTERN.test(normalized)) {
     throw new HttpsError(
       'invalid-argument',
-      'Cursor de sucessão inválido.',
-      { reason: 'invalid_ownership_candidate_cursor' }
+      'Cursor de sucessão inválido.'
     );
   }
 
