@@ -55,6 +55,8 @@ export const COMMUNITY_MEMBERSHIP_ACTION_REASON_MESSAGES: CommunityErrorMessageM
       'Transfira a propriedade da Comunidade antes de sair.',
     membership_blocked:
       'Este vínculo está bloqueado e não pode ser alterado.',
+    membership_status_invalid:
+      'Não foi possível validar seu vínculo com esta Comunidade. Tente novamente.',
     invite_only:
       'A entrada nesta Comunidade é feita somente por convite.',
     actor_restricted:
@@ -87,6 +89,8 @@ export const COMMUNITY_INVITE_INBOX_REASON_MESSAGES: CommunityErrorMessageMap =
     invalid_invite_id:
       'Este convite não é válido ou não está mais disponível.',
     membership_blocked: 'Você não pode participar desta Comunidade.',
+    membership_status_invalid:
+      'Não foi possível validar seu vínculo com esta Comunidade. Tente novamente.',
     community_unavailable:
       'Esta Comunidade não está disponível para entrada agora.',
     community_capacity_reached:
@@ -112,6 +116,8 @@ export const COMMUNITY_INVITE_MANAGEMENT_REASON_MESSAGES: CommunityErrorMessageM
       'Este perfil já participa da Comunidade.',
     target_blocked:
       'Este perfil não pode receber convites desta Comunidade.',
+    membership_status_invalid:
+      'Não foi possível validar o vínculo deste perfil com a Comunidade.',
     community_unavailable:
       'Esta Comunidade não aceita novos convites neste momento.',
     community_capacity_reached:
@@ -541,7 +547,7 @@ export const COMMUNITY_FEED_REACTION_REASON_MESSAGES: CommunityErrorMessageMap =
     account_restricted:
       'Sua conta não pode interagir em Comunidades neste momento.',
     adult_access_required:
-      'Confirme o acesso adulto antes de interagir nesta Comunidade.',
+      'Confirme seu acesso adulto antes de interagir nesta Comunidade.',
     profile_incomplete:
       'Complete seu perfil antes de interagir nesta Comunidade.',
   });
@@ -621,7 +627,7 @@ export const COMMUNITY_FEED_CONVERSATION_REASON_MESSAGES: CommunityErrorMessageM
     account_restricted:
       'Sua conta não pode interagir em Comunidades neste momento.',
     adult_access_required:
-      'Confirme o acesso adulto antes de responder nesta Comunidade.',
+      'Confirme seu acesso adulto antes de responder nesta Comunidade.',
     profile_incomplete:
       'Complete seu perfil antes de responder nesta Comunidade.',
   });
