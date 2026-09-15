@@ -28,7 +28,6 @@ import {
   communityInviteToEpochMs,
   isCommunityInviteOperational,
   normalizeCommunityInviteMemberCount,
-  normalizeCommunityInviteMembershipStatus,
   normalizeCommunityInviteStatus,
   requireCommunityInviteCanonicalPart,
   requireCommunityInviteId,
@@ -39,6 +38,9 @@ import {
 import {
   assertCommunityMembershipActorEligible,
 } from './community-membership-eligibility.service';
+import {
+  classifyExistingCommunityMembershipState,
+} from './community-membership-state.policy';
 
 interface CommunityInviteResponseRequest {
   inviteId?: unknown;
@@ -165,6 +167,19 @@ async function respondCommunityInvite(
       ? communitySnapshot.data() ?? {}
       : null;
     const membership = membershipSnapshot.data() ?? {};
+    const membershipState = classifyExistingCommunityMembershipState(
+      membershipSnapshot.exists,
+      membership['status']
+    );
+
+    if (action === 'accept' && membershipState.kind === 'invalid') {
+      throw new HttpsError(
+        'failed-precondition',
+        'Seu vínculo com esta Comunidade precisa ser regularizado.',
+        { reason: 'membership_status_invalid' }
+      );
+    }
+
     const expiresAt = communityInviteToEpochMs(invite?.expiresAt);
     const decision = evaluateCommunityInviteResponse({
       action,
@@ -172,9 +187,9 @@ async function respondCommunityInvite(
       inviteExpired: expiresAt === null || expiresAt <= nowMs,
       communityOperational:
         communitySnapshot.exists && isCommunityInviteOperational(community),
-      targetStatus: normalizeCommunityInviteMembershipStatus(
-        membership['status']
-      ),
+      targetStatus: membershipState.kind === 'valid'
+        ? membershipState.status
+        : null,
     });
 
     if (!decision.allowed || !decision.nextInviteStatus) {

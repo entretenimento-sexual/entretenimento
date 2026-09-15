@@ -34,6 +34,9 @@ import {
 import {
   assertCommunityMembershipActorEligible,
 } from './community-membership-eligibility.service';
+import {
+  classifyExistingCommunityMembershipState,
+} from './community-membership-state.policy';
 import { normalizeCommunityId } from './community-preview.model';
 import { consumeCommunityRateLimit } from './community-rate-limit.service';
 
@@ -179,6 +182,19 @@ export const sendCommunityInvite = onCall<SendCommunityInviteRequest>(
       const community = communitySnapshot.data() ?? {};
       const actorMembership = actorMembershipSnapshot.data() ?? {};
       const receiverMembership = receiverMembershipSnapshot.data() ?? {};
+      const receiverMembershipState = classifyExistingCommunityMembershipState(
+        receiverMembershipSnapshot.exists,
+        receiverMembership['status']
+      );
+
+      if (receiverMembershipState.kind === 'invalid') {
+        throw new HttpsError(
+          'failed-precondition',
+          'Este vínculo não pode receber convites.',
+          { reason: 'membership_status_invalid' }
+        );
+      }
+
       const existingInvite = inviteSnapshot.data() as
         | CommunityInviteDocument
         | undefined;
@@ -190,9 +206,9 @@ export const sendCommunityInvite = onCall<SendCommunityInviteRequest>(
         ),
         actorRole: normalizeCommunityInviteMembershipRole(actorMembership['role']),
         membersCanInvite: resolveCommunityMembersCanInvite(community),
-        targetStatus: normalizeCommunityInviteMembershipStatus(
-          receiverMembership['status']
-        ),
+        targetStatus: receiverMembershipState.kind === 'valid'
+          ? receiverMembershipState.status
+          : null,
         existingInviteStatus: normalizeCommunityInviteStatus(
           existingInvite?.status
         ),

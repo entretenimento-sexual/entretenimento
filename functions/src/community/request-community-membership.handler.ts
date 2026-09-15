@@ -25,9 +25,11 @@ import {
 } from './community-membership-eligibility.service';
 import {
   CommunityJoinPolicy,
-  CommunityMembershipStatus,
   evaluateCommunityMembershipRequest,
 } from './community-membership-request.policy';
+import {
+  classifyExistingCommunityMembershipState,
+} from './community-membership-state.policy';
 import { normalizeCommunityId } from './community-preview.model';
 import { consumeCommunityRateLimit } from './community-rate-limit.service';
 
@@ -52,17 +54,6 @@ function assertPreviewRuntime(): void {
 
 function normalizeJoin(value: unknown): CommunityJoinPolicy {
   return value === 'open' || value === 'invite_only' ? value : 'approval';
-}
-
-function normalizeMembershipStatus(
-  value: unknown
-): CommunityMembershipStatus | null {
-  return value === 'active'
-    || value === 'pending'
-    || value === 'blocked'
-    || value === 'left'
-    ? value
-    : null;
 }
 
 function resolveMemberCountDelta(
@@ -179,9 +170,22 @@ export const requestCommunityMembership =
         >;
         const access = (community['access'] ?? {}) as Record<string, unknown>;
         const join = normalizeJoin(access['join']);
-        const existingStatus = normalizeMembershipStatus(
+        const membershipState = classifyExistingCommunityMembershipState(
+          membershipSnapshot.exists,
           membershipSnapshot.data()?.['status']
         );
+
+        if (membershipState.kind === 'invalid') {
+          throw new HttpsError(
+            'failed-precondition',
+            'Seu vínculo com esta comunidade precisa ser regularizado.',
+            { reason: 'membership_status_invalid' }
+          );
+        }
+
+        const existingStatus = membershipState.kind === 'valid'
+          ? membershipState.status
+          : null;
         const existingJoinedAt = membershipSnapshot.exists
           ? membershipSnapshot.data()?.['joinedAt'] ?? null
           : null;
