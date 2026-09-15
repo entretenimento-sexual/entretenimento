@@ -47,6 +47,7 @@ const READ_ONLY_CALLABLES = new Set([
   'getCommunityMembersForManagement',
   'getCommunityMembershipRequests',
   'getCommunityOwnershipCandidates',
+  'getCommunityOwnershipCandidatesPage',
   'getCommunityPreview',
   'inspectCommunityPurgeReadiness',
   'inspectCommunityRankingReadiness',
