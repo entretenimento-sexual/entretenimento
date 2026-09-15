@@ -241,7 +241,7 @@ test('purge bloqueia Local, owner residual, membros e métricas desconhecidas', 
   assert.equal(
     evaluateCommunityPurgeReadiness(
       purgeCandidate({ metrics: {} }),
-      EMPTY_PURGE_EVIDENCE,
+      { ...EMPTY_PURGE_EVIDENCE, hasLiveMemberships: null },
       NOW
     ).denialReason,
     'member_count_unknown'
@@ -251,7 +251,7 @@ test('purge bloqueia Local, owner residual, membros e métricas desconhecidas', 
       purgeCandidate({
         metrics: { memberCount: 1, postCount: 0, mediaCount: 0, topicCount: 0 },
       }),
-      EMPTY_PURGE_EVIDENCE,
+      { ...EMPTY_PURGE_EVIDENCE, hasLiveMemberships: null },
       NOW
     ).denialReason,
     'members_present'
