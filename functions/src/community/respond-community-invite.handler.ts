@@ -214,6 +214,8 @@ async function respondCommunityInvite(
       }
     }
 
+    let nextMemberCount: number | null = null;
+
     if (decision.incrementMemberCount && community) {
       const capacity = await getCommunityCapacityForOwnerInTransaction(
         transaction,
@@ -221,6 +223,16 @@ async function respondCommunityInvite(
         nowMs
       );
       assertCommunityAcceptingNewMembers(capacity);
+
+      const currentMemberCount = normalizeCommunityInviteMemberCount(community);
+      if (currentMemberCount === null) {
+        throw new HttpsError(
+          'data-loss',
+          'A contagem de participantes desta Comunidade está inconsistente.'
+        );
+      }
+
+      nextMemberCount = currentMemberCount + 1;
     }
 
     const now = FieldValue.serverTimestamp();
@@ -248,22 +260,13 @@ async function respondCommunityInvite(
     }
 
     if (decision.incrementMemberCount && community) {
-      const currentMemberCount = normalizeCommunityInviteMemberCount(community);
-      const nextMemberCount = currentMemberCount === null
-        ? null
-        : currentMemberCount + 1;
-      const communityPatch: Record<string, unknown> = {
+      transaction.update(communityRef, {
+        'metrics.memberCount': nextMemberCount,
         'lifecycle.lastMeaningfulActivityAt': now,
         updatedAt: now,
-      };
+      });
 
-      if (nextMemberCount !== null) {
-        communityPatch['metrics.memberCount'] = nextMemberCount;
-      }
-
-      transaction.update(communityRef, communityPatch);
-
-      if (discoverySnapshot.exists && nextMemberCount !== null) {
+      if (discoverySnapshot.exists) {
         transaction.update(discoveryRef, {
           'metrics.memberCount': nextMemberCount,
           updatedAt: now,

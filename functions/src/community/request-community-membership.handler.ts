@@ -216,6 +216,17 @@ export const requestCommunityMembership =
         }
 
         if (!decision.idempotent) {
+          const nextMemberCount = decision.incrementMemberCount
+            ? resolveMemberCountDelta(community, 1)
+            : null;
+
+          if (decision.incrementMemberCount && nextMemberCount === null) {
+            throw new HttpsError(
+              'data-loss',
+              'A contagem de participantes desta Comunidade está inconsistente.'
+            );
+          }
+
           const now = FieldValue.serverTimestamp();
           const targetStatus = decision.targetStatus;
 
@@ -240,18 +251,12 @@ export const requestCommunityMembership =
           );
 
           if (decision.incrementMemberCount) {
-            const nextMemberCount = resolveMemberCountDelta(community, 1);
-            const communityPatch: Record<string, unknown> = {
+            transaction.update(communityRef, {
+              'metrics.memberCount': nextMemberCount,
               updatedAt: now,
-            };
+            });
 
-            if (nextMemberCount !== null) {
-              communityPatch['metrics.memberCount'] = nextMemberCount;
-            }
-
-            transaction.update(communityRef, communityPatch);
-
-            if (discoverySnapshot.exists && nextMemberCount !== null) {
+            if (discoverySnapshot.exists) {
               transaction.update(discoveryRef, {
                 'metrics.memberCount': nextMemberCount,
                 updatedAt: now,

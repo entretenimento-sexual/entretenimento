@@ -674,6 +674,17 @@ export const reviewCommunityMembership =
         }
 
         if (!decision.idempotent) {
+          const nextMemberCount = decision.incrementMemberCount
+            ? resolveMemberCountDelta(community, 1)
+            : null;
+
+          if (decision.incrementMemberCount && nextMemberCount === null) {
+            throw new HttpsError(
+              'data-loss',
+              'A contagem de participantes desta Comunidade está inconsistente.'
+            );
+          }
+
           const now = FieldValue.serverTimestamp();
           const approved = decision.targetStatus === 'active';
 
@@ -694,20 +705,16 @@ export const reviewCommunityMembership =
           );
 
           if (decision.incrementMemberCount) {
-            const nextMemberCount = resolveMemberCountDelta(community, 1);
+            transaction.update(communityRef, {
+              'metrics.memberCount': nextMemberCount,
+              updatedAt: now,
+            });
 
-            if (nextMemberCount !== null) {
-              transaction.update(communityRef, {
+            if (discoverySnapshot.exists) {
+              transaction.update(discoveryRef, {
                 'metrics.memberCount': nextMemberCount,
                 updatedAt: now,
               });
-
-              if (discoverySnapshot.exists) {
-                transaction.update(discoveryRef, {
-                  'metrics.memberCount': nextMemberCount,
-                  updatedAt: now,
-                });
-              }
             }
           }
 
