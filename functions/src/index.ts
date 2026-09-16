@@ -31,6 +31,9 @@ export {
 export {
   getCommunityOwnershipCandidatesPage,
 } from './community/get-community-ownership-candidates-page.handler';
+export {
+  reconcileCommunityMemberCounts,
+} from './community/reconcile-community-member-counts.handler';
 export * from './payments';
 export * from './account_lifecycle';
 export * from './chat';
