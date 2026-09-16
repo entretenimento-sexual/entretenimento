@@ -5,6 +5,7 @@
 // evidência mínima; a projeção legível é retirada na mesma transação.
 // Fotos publicadas entram na fila de limpeza na mesma transação e recebem uma
 // tentativa imediata de exclusão física somente depois que o commit confirma.
+// Mídia com denúncia não terminal/desconhecida permanece retida.
 // -----------------------------------------------------------------------------
 
 import * as logger from 'firebase-functions/logger';
@@ -22,6 +23,12 @@ import {
   REQUIRE_COMMUNITY_APP_CHECK,
   assertCommunityCallableAppCheck,
 } from './community-callable-security';
+import {
+  resolveCommunityFeedPostMediaRetention,
+} from './community-feed-moderation-evidence.policy';
+import {
+  hasBlockingCommunityFeedPostReportInTransaction,
+} from './community-feed-moderation-evidence.service';
 import {
   CommunityFeedPostActionRequest,
   CommunityFeedPostActionResponse,
@@ -129,13 +136,44 @@ function throwDenied(reason: string | null): never {
   );
 }
 
+async function resolvePostPhotoMediaRetention(
+  transaction: FirebaseFirestore.Transaction,
+  post: FirebaseFirestore.DocumentData,
+  communityId: string,
+  postId: string
+): Promise<boolean> {
+  if (post['kind'] !== 'photo') return false;
+
+  const hasBlockingReport = await hasBlockingCommunityFeedPostReportInTransaction(
+    transaction,
+    communityId,
+    postId
+  );
+  const retention = resolveCommunityFeedPostMediaRetention(
+    post['moderationEvidenceMediaHold'],
+    hasBlockingReport
+  );
+
+  if (retention === null) {
+    throw new HttpsError(
+      'data-loss',
+      'O estado de retenção da mídia desta publicação está inconsistente.',
+      { reason: 'post_media_evidence_hold_inconsistent' }
+    );
+  }
+
+  return retention;
+}
+
 function stagePostPhotoCleanup(
   transaction: FirebaseFirestore.Transaction,
   post: FirebaseFirestore.DocumentData,
+  communityId: string,
   postId: string,
-  action: 'delete_own' | 'remove'
+  action: 'delete_own' | 'remove',
+  retainMediaEvidence: boolean
 ): StagedPublishedPhotoAssetCleanup | null {
-  if (post['kind'] !== 'photo') return null;
+  if (post['kind'] !== 'photo' || retainMediaEvidence) return null;
 
   const image = (post['image'] ?? {}) as Record<string, unknown>;
   const ownerUid = String(post['actorUid'] ?? '').trim();
@@ -149,6 +187,11 @@ function stagePostPhotoCleanup(
     reason: action === 'delete_own'
       ? 'community-feed-post-deleted-by-author'
       : 'community-feed-post-removed-by-management',
+    retentionGuard: {
+      targetType: 'community_feed_post',
+      targetId: postId,
+      parentTargetId: communityId,
+    },
   });
 }
 
@@ -260,6 +303,12 @@ export const moderateCommunityFeedPost = onCall<CommunityFeedPostActionRequest>(
           );
         }
         const post = postSnapshot.exists ? postSnapshot.data() ?? {} : {};
+        const retainMediaEvidence = await resolvePostPhotoMediaRetention(
+          transaction,
+          post,
+          communityId,
+          postId
+        );
         return {
           response: {
             communityId,
@@ -269,7 +318,14 @@ export const moderateCommunityFeedPost = onCall<CommunityFeedPostActionRequest>(
             deduplicated: true,
             generatedAt: Math.trunc(completedAt),
           },
-          cleanup: stagePostPhotoCleanup(transaction, post, postId, action),
+          cleanup: stagePostPhotoCleanup(
+            transaction,
+            post,
+            communityId,
+            postId,
+            action,
+            retainMediaEvidence
+          ),
         };
       }
 
@@ -356,7 +412,20 @@ export const moderateCommunityFeedPost = onCall<CommunityFeedPostActionRequest>(
         }
       }
 
-      const cleanup = stagePostPhotoCleanup(transaction, post, postId, action);
+      const retainMediaEvidence = await resolvePostPhotoMediaRetention(
+        transaction,
+        post,
+        communityId,
+        postId
+      );
+      const cleanup = stagePostPhotoCleanup(
+        transaction,
+        post,
+        communityId,
+        postId,
+        action,
+        retainMediaEvidence
+      );
 
       if (!decision.idempotent) {
         transaction.update(postRef, {

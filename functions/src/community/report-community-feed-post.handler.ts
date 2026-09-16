@@ -168,6 +168,15 @@ export const reportCommunityFeedPost = onCall<CommunityFeedReportRequest>(
         createdAt: timestamp,
         updatedAt: timestamp,
       });
+
+      // Serializa denúncia x exclusão no próprio post. Se uma exclusão concorrente
+      // ganhar a corrida, esta transação é refeita e o post já não estará ativo;
+      // se a denúncia ganhar, qualquer exclusão subsequente verá o hold.
+      if (post['kind'] === 'photo') {
+        transaction.update(postRef, {
+          moderationEvidenceMediaHold: true,
+        });
+      }
     });
 
     return { reportId };

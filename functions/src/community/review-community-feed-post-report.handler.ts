@@ -3,17 +3,27 @@
 // -----------------------------------------------------------------------------
 // Decisão administrativa autoritativa. KEEP encerra a denúncia; REMOVE também
 // retira a projeção e atualiza métricas sem apagar a evidência operacional.
+// A mídia física só é liberada após o último report bloqueante ser encerrado.
 // -----------------------------------------------------------------------------
 
+import * as logger from 'firebase-functions/logger';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
+import {
+  deletePublishedPhotoAssetOrQueue,
+  stagePublishedPhotoAssetCleanup,
+  type StagedPublishedPhotoAssetCleanup,
+} from '../media/application/published-photo-asset.service';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   REQUIRE_COMMUNITY_APP_CHECK,
   assertCommunityCallableAppCheck,
 } from './community-callable-security';
+import {
+  hasBlockingCommunityFeedPostReportInTransaction,
+} from './community-feed-moderation-evidence.service';
 import {
   buildCommunityModerationNotificationCopy,
   buildCommunityModerationNotificationId,
@@ -30,6 +40,10 @@ interface ReviewCommunityFeedPostReportRequest {
 }
 
 type ReviewDecision = 'KEEP' | 'REMOVE';
+
+interface ReviewTransactionResult {
+  cleanup: StagedPublishedPhotoAssetCleanup | null;
+}
 
 function assertRuntime(): void {
   if (isCommunityPreviewRuntimeAvailable()) return;
@@ -110,7 +124,7 @@ export const reviewCommunityFeedPostReport = onCall<
       actorUid: adminUid,
     });
 
-    await db.runTransaction(async (transaction) => {
+    const transactionResult = await db.runTransaction(async (transaction): Promise<ReviewTransactionResult> => {
       const reportRef = db.collection('moderation_reports').doc(reportId);
       const reportSnapshot = await transaction.get(reportRef);
       if (!reportSnapshot.exists) {
@@ -157,6 +171,12 @@ export const reviewCommunityFeedPostReport = onCall<
         .doc(adminUid)
         .collection('items')
         .doc(`${communityId}:${postId}`);
+      const hasOtherBlockingReports = await hasBlockingCommunityFeedPostReportInTransaction(
+        transaction,
+        communityId,
+        postId,
+        reportId
+      );
       const [
         communitySnapshot,
         discoverySnapshot,
@@ -184,6 +204,7 @@ export const reviewCommunityFeedPostReport = onCall<
       }
       const contentActive = post['status'] === 'active'
         && post['moderationState'] === 'active';
+      const photoPost = post['kind'] === 'photo';
       const timestamp = FieldValue.serverTimestamp();
       const nowMs = Date.now();
       const authorUser = authorUserSnapshot.data() as
@@ -196,6 +217,29 @@ export const reviewCommunityFeedPostReport = onCall<
           authorUid,
           adminUid
         );
+
+      let cleanup: StagedPublishedPhotoAssetCleanup | null = null;
+      if (
+        photoPost
+        && !hasOtherBlockingReports
+        && (decision === 'REMOVE' || !contentActive)
+      ) {
+        const image = (post['image'] ?? {}) as Record<string, unknown>;
+        const storagePath = String(image['storagePath'] ?? '').trim();
+        if (storagePath) {
+          cleanup = stagePublishedPhotoAssetCleanup(transaction, {
+            ownerUid: authorUid,
+            photoId: postId,
+            storagePath,
+            reason: 'community-feed-post-report-review-closed',
+            retentionGuard: {
+              targetType: 'community_feed_post',
+              targetId: postId,
+              parentTargetId: communityId,
+            },
+          });
+        }
+      }
 
       if (decision === 'REMOVE' && contentActive) {
         transaction.update(postRef, {
@@ -216,21 +260,27 @@ export const reviewCommunityFeedPostReport = onCall<
 
         if (communitySnapshot.exists) {
           const community = communitySnapshot.data() ?? {};
-          const postCount = normalizeCount(
-            ((community['metrics'] ?? {}) as Record<string, unknown>)['postCount']
-          );
+          const metrics = (community['metrics'] ?? {}) as Record<string, unknown>;
+          const postCount = normalizeCount(metrics['postCount']);
+          const mediaCount = normalizeCount(metrics['mediaCount']);
           transaction.update(communityRef, {
             'metrics.postCount': Math.max(0, postCount - 1),
+            ...(photoPost
+              ? { 'metrics.mediaCount': Math.max(0, mediaCount - 1) }
+              : {}),
             updatedAt: nowMs,
           });
         }
         if (discoverySnapshot.exists) {
           const discovery = discoverySnapshot.data() ?? {};
-          const postCount = normalizeCount(
-            ((discovery['metrics'] ?? {}) as Record<string, unknown>)['postCount']
-          );
+          const metrics = (discovery['metrics'] ?? {}) as Record<string, unknown>;
+          const postCount = normalizeCount(metrics['postCount']);
+          const mediaCount = normalizeCount(metrics['mediaCount']);
           transaction.update(discoveryRef, {
             'metrics.postCount': Math.max(0, postCount - 1),
+            ...(photoPost
+              ? { 'metrics.mediaCount': Math.max(0, mediaCount - 1) }
+              : {}),
             updatedAt: nowMs,
           });
         }
@@ -264,6 +314,12 @@ export const reviewCommunityFeedPostReport = onCall<
         }
       }
 
+      if (photoPost) {
+        transaction.update(postRef, {
+          moderationEvidenceMediaHold: hasOtherBlockingReports,
+        });
+      }
+
       transaction.update(reportRef, {
         status: decision === 'KEEP' ? 'rejected' : 'resolved',
         moderationAction: decision,
@@ -286,7 +342,20 @@ export const reviewCommunityFeedPostReport = onCall<
         },
         timestamp,
       });
+
+      return { cleanup };
     });
+
+    if (transactionResult.cleanup) {
+      try {
+        await deletePublishedPhotoAssetOrQueue(transactionResult.cleanup);
+      } catch (error) {
+        logger.error('[communityFeed] Limpeza da mídia após revisão falhou; job preservado.', {
+          reportId,
+          error: error instanceof Error ? error.message.slice(0, 300) : String(error),
+        });
+      }
+    }
 
     return { reportId, decision, targetType: 'community_feed_post' };
   }

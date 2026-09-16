@@ -12,11 +12,18 @@ import {
   normalizeOwnedPublishedPhotoPath,
 } from './photo-storage-path';
 
+export interface PublishedPhotoAssetRetentionGuard {
+  targetType: 'community_feed_post';
+  targetId: string;
+  parentTargetId: string;
+}
+
 interface PublishedPhotoAssetCleanupJob {
   ownerUid: string;
   photoId: string;
   storagePath: string;
   reason: string;
+  retentionGuard?: PublishedPhotoAssetRetentionGuard;
   createdAt: number;
   updatedAt: number;
   attempts: number;
@@ -34,6 +41,7 @@ export interface DeletePublishedPhotoAssetCommand {
   photoId: string;
   storagePath: string | null | undefined;
   reason: string;
+  retentionGuard?: PublishedPhotoAssetRetentionGuard;
 }
 
 export interface StagedPublishedPhotoAssetCleanup {
@@ -41,10 +49,16 @@ export interface StagedPublishedPhotoAssetCleanup {
   photoId: string;
   storagePath: string;
   reason: string;
+  retentionGuard?: PublishedPhotoAssetRetentionGuard;
 }
 
 const CLEANUP_COLLECTION = 'media_published_asset_cleanup_jobs';
 const ALLOWED_IMAGE_CONTENT_TYPES = new Set<string>(IMAGE_INPUT_MIME_TYPES);
+const COMMUNITY_FEED_CLEANUP_REASONS = new Set([
+  'community-feed-post-deleted-by-author',
+  'community-feed-post-removed-by-management',
+  'community-feed-post-report-review-closed',
+]);
 
 function normalizeErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) {
@@ -58,17 +72,85 @@ function buildCleanupJobId(storagePath: string): string {
   return createHash('sha256').update(storagePath).digest('hex');
 }
 
+function normalizeRetentionGuard(
+  value: PublishedPhotoAssetRetentionGuard | undefined
+): PublishedPhotoAssetRetentionGuard | null {
+  if (!value) return null;
+
+  const targetId = String(value.targetId ?? '').trim();
+  const parentTargetId = String(value.parentTargetId ?? '').trim();
+  if (
+    value.targetType !== 'community_feed_post'
+    || !targetId
+    || !parentTargetId
+  ) {
+    return null;
+  }
+
+  return {
+    targetType: 'community_feed_post',
+    targetId,
+    parentTargetId,
+  };
+}
+
+function isBlockingModerationStatus(value: unknown): boolean {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  return normalized !== 'resolved' && normalized !== 'rejected';
+}
+
+async function hasPublishedPhotoRetentionBlocker(
+  command: Pick<
+    DeletePublishedPhotoAssetCommand,
+    'photoId' | 'reason' | 'retentionGuard'
+  >
+): Promise<boolean> {
+  const explicitGuard = normalizeRetentionGuard(command.retentionGuard);
+  if (command.retentionGuard && !explicitGuard) {
+    throw new Error('Guard de retenção de mídia inválido.');
+  }
+
+  const legacyCommunityCleanup = COMMUNITY_FEED_CLEANUP_REASONS.has(command.reason);
+  if (!explicitGuard && !legacyCommunityCleanup) return false;
+
+  const targetId = explicitGuard?.targetId ?? String(command.photoId ?? '').trim();
+  if (!targetId) {
+    throw new Error('Alvo de retenção de mídia inválido.');
+  }
+
+  const reportsSnapshot = await db
+    .collection('moderation_reports')
+    .where('targetId', '==', targetId)
+    .where('targetType', '==', 'community_feed_post')
+    .get();
+
+  return reportsSnapshot.docs.some((doc) => {
+    const report = doc.data() ?? {};
+    if (
+      explicitGuard
+      && String(report['parentTargetId'] ?? '').trim()
+        !== explicitGuard.parentTargetId
+    ) {
+      return false;
+    }
+
+    return isBlockingModerationStatus(report['status']);
+  });
+}
+
 async function enqueuePublishedPhotoAssetCleanup(
   command: DeletePublishedPhotoAssetCommand,
   storagePath: string,
   error: unknown
 ): Promise<void> {
   const now = Date.now();
+  const retentionGuard = normalizeRetentionGuard(command.retentionGuard);
   const job: PublishedPhotoAssetCleanupJob = {
     ownerUid: command.ownerUid,
     photoId: command.photoId,
     storagePath,
     reason: command.reason,
+    ...(retentionGuard ? { retentionGuard } : {}),
     createdAt: now,
     updatedAt: now,
     attempts: 1,
@@ -93,6 +175,11 @@ export function stagePublishedPhotoAssetCleanup(
 
   if (!storagePath) return null;
 
+  const retentionGuard = normalizeRetentionGuard(command.retentionGuard);
+  if (command.retentionGuard && !retentionGuard) {
+    throw new Error('Guard de retenção de mídia inválido.');
+  }
+
   const now = Date.now();
   transaction.set(
     db.collection(CLEANUP_COLLECTION).doc(buildCleanupJobId(storagePath)),
@@ -101,6 +188,7 @@ export function stagePublishedPhotoAssetCleanup(
       photoId: command.photoId,
       storagePath,
       reason: command.reason,
+      ...(retentionGuard ? { retentionGuard } : {}),
       createdAt: now,
       updatedAt: now,
       attempts: 0,
@@ -114,6 +202,7 @@ export function stagePublishedPhotoAssetCleanup(
     photoId: command.photoId,
     storagePath,
     reason: command.reason,
+    ...(retentionGuard ? { retentionGuard } : {}),
   };
 }
 
@@ -190,6 +279,15 @@ export async function deletePublishedPhotoAssetOrQueue(
   }
 
   try {
+    if (await hasPublishedPhotoRetentionBlocker(command)) {
+      logger.info('[publishedPhotoAsset] Limpeza adiada por evidência de moderação.', {
+        ownerUid: command.ownerUid,
+        photoId: command.photoId,
+        reason: command.reason,
+      });
+      return false;
+    }
+
     await getDefaultStorageBucket()
       .file(storagePath)
       .delete({ ignoreNotFound: true });
@@ -240,6 +338,17 @@ export async function processPendingPublishedPhotoAssetCleanupJobs(
     }
 
     try {
+      if (await hasPublishedPhotoRetentionBlocker(job)) {
+        await jobDoc.ref.set(
+          {
+            updatedAt: Date.now(),
+            lastError: null,
+          },
+          { merge: true }
+        );
+        continue;
+      }
+
       await getDefaultStorageBucket()
         .file(storagePath)
         .delete({ ignoreNotFound: true });
