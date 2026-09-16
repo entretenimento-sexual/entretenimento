@@ -5,8 +5,8 @@
 // A assinatura do proprietário define somente o teto de crescimento. O limite
 // escolhido pertence à Comunidade e nunca remove memberships existentes.
 //
-// A policy resolve decisões de domínio; os números comerciais ajustáveis ficam
-// centralizados em community-product-limits.config.ts.
+// A policy resolve decisões de domínio; os números e a estratégia comerciais
+// ajustáveis ficam centralizados em community-product-limits.config.ts.
 // -----------------------------------------------------------------------------
 
 import { normalizeCommunityMemberCount } from './community-member-count.policy';
@@ -29,7 +29,8 @@ export type PersonalCommunitySponsorRole = Exclude<
   CommunityCapacitySponsorRole,
   'official_space'
 >;
-export type CommunityPaidSubscriptionRole = 'basic' | 'premium' | 'vip';
+export type CommunityPaidSubscriptionRole =
+  typeof COMMUNITY_PRODUCT_LIMITS.publicSubscriptionRoleOrder[number];
 export type CommunityMemberLimitRequirement =
   | CommunityPaidSubscriptionRole
   | 'special_access';
@@ -62,7 +63,8 @@ export interface CommunityCreationCapability {
   canCreate: boolean;
   reason: CommunityCreationCapabilityReason;
   sponsorRole: PersonalCommunitySponsorRole;
-  minimumRole: 'basic';
+  minimumRole:
+    typeof COMMUNITY_PRODUCT_LIMITS.minimumPersonalCommunityCreationRole;
   recommendedUpgradeRole: CommunityRecommendedUpgradeRole;
   currentOwnedCommunities: number;
   maxOwnedCommunities: number | null;
@@ -101,22 +103,6 @@ const ROLE_MEMBER_LIMIT: Readonly<
 const PERSONAL_CREATION_LIMIT: Readonly<
   Record<PersonalCommunitySponsorRole, number | null>
 > = COMMUNITY_PRODUCT_LIMITS.ownedPersonalCommunitiesBySponsorRole;
-
-const PUBLIC_SUBSCRIPTION_ROLE_ORDER = Object.freeze([
-  'basic',
-  'premium',
-  'vip',
-] as const);
-
-const PERSONAL_COMMUNITY_UPGRADE_ROLE: Readonly<
-  Record<PersonalCommunitySponsorRole, CommunityRecommendedUpgradeRole>
-> = Object.freeze({
-  free: 'basic',
-  basic: 'premium',
-  premium: 'vip',
-  vip: null,
-  admin: null,
-});
 
 export function normalizeCommunityMemberLimit(
   value: unknown
@@ -176,9 +162,10 @@ export function isCommunityMemberLimitAllowed(
 export function resolveCommunityMemberLimitRequirement(
   memberLimit: CommunityMemberLimit
 ): CommunityMemberLimitRequirement {
-  const minimumSubscriptionRole = PUBLIC_SUBSCRIPTION_ROLE_ORDER.find(
-    (role) => memberLimit <= resolveCommunityOwnerPlanLimit(role)
-  );
+  const minimumSubscriptionRole =
+    COMMUNITY_PRODUCT_LIMITS.publicSubscriptionRoleOrder.find(
+      (role) => memberLimit <= resolveCommunityOwnerPlanLimit(role)
+    );
 
   return minimumSubscriptionRole ?? 'special_access';
 }
@@ -204,7 +191,14 @@ export function resolveCommunityMemberLimitCapabilityOptions(
 export function resolveRecommendedCommunityUpgradeRole(
   role: PersonalCommunitySponsorRole
 ): CommunityRecommendedUpgradeRole {
-  return PERSONAL_COMMUNITY_UPGRADE_ROLE[role];
+  if (role === 'free') {
+    return COMMUNITY_PRODUCT_LIMITS.minimumPersonalCommunityCreationRole;
+  }
+  if (role === 'admin') return null;
+
+  const roleOrder = COMMUNITY_PRODUCT_LIMITS.publicSubscriptionRoleOrder;
+  const currentRoleIndex = roleOrder.indexOf(role);
+  return roleOrder[currentRoleIndex + 1] ?? null;
 }
 
 export function resolvePersonalCommunityCreationPolicy(
@@ -241,7 +235,8 @@ export function resolveCommunityCreationCapability(input: {
     canCreate: reason === null,
     reason,
     sponsorRole: input.sponsorRole,
-    minimumRole: 'basic',
+    minimumRole:
+      COMMUNITY_PRODUCT_LIMITS.minimumPersonalCommunityCreationRole,
     recommendedUpgradeRole: reason === null
       ? null
       : resolveRecommendedCommunityUpgradeRole(input.sponsorRole),
