@@ -158,7 +158,7 @@ async function resolvePostPhotoMediaRetention(
     throw new HttpsError(
       'data-loss',
       'O estado de retenção da mídia desta publicação está inconsistente.',
-      { reason: 'post_media_evidence_hold_inconsistent' }
+      { reason: 'moderation_record_inconsistent' }
     );
   }
 
