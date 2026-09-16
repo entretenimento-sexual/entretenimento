@@ -96,7 +96,7 @@ if (lastResult?.hasMore && cursor) {
   console.log('[community-member-count] Próxima continuação:', {
     COMMUNITY_MEMBER_COUNT_CURSOR: cursor,
     command:
-      `npm run admin:community-member-count-reconcile -- `
+      `node scripts/admin/run-community-member-count-reconcile.mjs `
       + `--limit=${limit} --cursor="${cursor}"`,
   });
 }
