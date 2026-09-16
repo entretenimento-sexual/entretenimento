@@ -24,9 +24,11 @@ export const COMMUNITY_RATE_LIMIT_REASON_MESSAGES: Readonly<Record<string, strin
     community_report_rate_limited:
       'Muitas denúncias foram enviadas em pouco tempo. Aguarde um instante e tente novamente.',
     community_invite_rate_limited:
-      'Você enviou muitos convites em pouco tempo. Aguarde e tente novamente.',
+      'Você realizou muitas ações com convites em pouco tempo. Aguarde e tente novamente.',
     community_membership_rate_limited:
       'Você tentou entrar em muitas Comunidades em pouco tempo. Aguarde e tente novamente.',
+    community_membership_leave_rate_limited:
+      'Você tentou sair de muitas Comunidades em pouco tempo. Aguarde e tente novamente.',
     community_management_rate_limited:
       'Muitas ações de gestão foram executadas em pouco tempo. Aguarde e tente novamente.',
     community_notification_preference_rate_limited:

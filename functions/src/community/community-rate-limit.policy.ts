@@ -26,6 +26,7 @@ export type CommunityRateLimitAction =
   | 'feed_report_reply'
   | 'invite_send'
   | 'membership_request'
+  | 'membership_leave'
   | 'membership_review'
   | 'member_management'
   | 'highlight_management'
@@ -156,6 +157,7 @@ const POLICY_BY_ACTION: Readonly<Record<
     message: 'Muitas denúncias foram enviadas em pouco tempo.',
   }),
   invite_send: Object.freeze({
+    // Envio, aceite, recusa e revogação compartilham o mesmo orçamento por ator.
     backendAction: 'sendCommunityInvite',
     config: Object.freeze({
       burstWindowMs: MINUTE_MS,
@@ -164,7 +166,7 @@ const POLICY_BY_ACTION: Readonly<Record<
       sustainedMax: 24,
     }),
     reason: 'community_invite_rate_limited',
-    message: 'Muitos convites foram enviados em pouco tempo.',
+    message: 'Muitas ações com convites foram realizadas em pouco tempo.',
   }),
   membership_request: Object.freeze({
     backendAction: 'requestCommunityMembership',
@@ -176,6 +178,18 @@ const POLICY_BY_ACTION: Readonly<Record<
     }),
     reason: 'community_membership_rate_limited',
     message: 'Muitas solicitações de entrada foram feitas em pouco tempo.',
+  }),
+  membership_leave: Object.freeze({
+    // Saída voluntária não compete com o orçamento de entrada.
+    backendAction: 'leaveCommunityMembership',
+    config: Object.freeze({
+      burstWindowMs: MINUTE_MS,
+      burstMax: 12,
+      sustainedWindowMs: HOUR_MS,
+      sustainedMax: 60,
+    }),
+    reason: 'community_membership_leave_rate_limited',
+    message: 'Muitas tentativas de saída de Comunidades foram feitas em pouco tempo.',
   }),
   membership_review: Object.freeze({
     backendAction: 'reviewCommunityMembership',

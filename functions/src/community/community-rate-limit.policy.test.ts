@@ -1,4 +1,3 @@
-// functions/src/community/community-rate-limit.policy.test.ts
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
@@ -19,6 +18,7 @@ const ACTIONS: readonly CommunityRateLimitAction[] = [
   'feed_report_reply',
   'invite_send',
   'membership_request',
+  'membership_leave',
   'membership_review',
   'member_management',
   'highlight_management',
@@ -106,9 +106,22 @@ test('convites e entrada limitam abuso global por ator em janela horária', () =
   assert.equal(invite.backendAction, 'sendCommunityInvite');
   assert.equal(invite.config.sustainedWindowMs, 3_600_000);
   assert.equal(invite.config.sustainedMax, 24);
+  assert.equal(invite.message, 'Muitas ações com convites foram realizadas em pouco tempo.');
   assert.equal(membership.backendAction, 'requestCommunityMembership');
   assert.equal(membership.config.sustainedWindowMs, 3_600_000);
   assert.equal(membership.config.sustainedMax, 20);
+});
+
+test('saída voluntária possui orçamento próprio e não compete com entrada', () => {
+  const leave = getCommunityRateLimitPolicy('membership_leave');
+  const request = getCommunityRateLimitPolicy('membership_request');
+
+  assert.equal(leave.backendAction, 'leaveCommunityMembership');
+  assert.equal(leave.config.burstMax, 12);
+  assert.equal(leave.config.sustainedWindowMs, 3_600_000);
+  assert.equal(leave.config.sustainedMax, 60);
+  assert.equal(leave.reason, 'community_membership_leave_rate_limited');
+  assert.notEqual(leave.backendAction, request.backendAction);
 });
 
 test('gestão permite operação legítima em lote sem deixar a ação ilimitada', () => {

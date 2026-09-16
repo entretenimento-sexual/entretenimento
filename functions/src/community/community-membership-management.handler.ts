@@ -441,6 +441,11 @@ export const leaveCommunityMembership = onCall<CommunityIdPayload>(
       );
     }
 
+    await consumeCommunityRateLimit({
+      action: 'membership_leave',
+      actorUid: uid,
+    });
+
     return db.runTransaction(async (transaction) => {
       const communityRef = db.collection('communities').doc(communityId);
       const discoveryRef = db

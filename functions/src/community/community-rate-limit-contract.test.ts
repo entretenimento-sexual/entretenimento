@@ -1,4 +1,3 @@
-// functions/src/community/community-rate-limit-contract.test.ts
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
@@ -70,7 +69,11 @@ const EXPECTED_CANONICAL_ACTION_BY_CALLABLE: Readonly<Record<
   reportCommunityFeedComment: 'feed_report_comment',
   reportCommunityFeedCommentReply: 'feed_report_reply',
   sendCommunityInvite: 'invite_send',
+  acceptCommunityInvite: 'invite_send',
+  declineCommunityInvite: 'invite_send',
+  revokeCommunityInvite: 'invite_send',
   requestCommunityMembership: 'membership_request',
+  leaveCommunityMembership: 'membership_leave',
   reviewCommunityMembership: 'membership_review',
   manageCommunityMember: 'member_management',
   manageCommunityHighlight: 'highlight_management',
@@ -92,28 +95,6 @@ const EXPECTED_CANONICAL_ACTION_BY_CALLABLE: Readonly<Record<
   configureCommunityRankingMode: 'operations_ranking',
   reconcileCommunityMemberCounts: 'operations_reconciliation',
 });
-
-// Exceções temporárias são deliberadamente explícitas. Uma nova callable de
-// escrita não entra aqui automaticamente: ela deve adotar o adapter canônico ou
-// ser classificada conscientemente, com justificativa e prioridade de remoção.
-const DEFERRED_MUTATION_RATE_LIMIT_EXCEPTIONS = new Map<string, string>([
-  [
-    'leaveCommunityMembership',
-    'P2: autosserviço de saída possui baixo potencial de amplificação.',
-  ],
-  [
-    'acceptCommunityInvite',
-    'P2: resposta ao próprio convite será agrupada no orçamento de convites.',
-  ],
-  [
-    'declineCommunityInvite',
-    'P2: resposta ao próprio convite será agrupada no orçamento de convites.',
-  ],
-  [
-    'revokeCommunityInvite',
-    'P2: revogação idempotente será agrupada no orçamento de convites.',
-  ],
-]);
 
 const NON_CENTRAL_RATE_LIMIT_CALLABLES = new Map<string, string>([
   [
@@ -283,13 +264,12 @@ function contractLabels(
 }
 
 describe('Community anti-abuse architecture', () => {
-  it('obriga toda callable a declarar leitura, antiabuso ou exceção temporária', () => {
+  it('obriga toda callable a declarar leitura ou antiabuso explícito', () => {
     const contracts = collectCommunityCallableRateLimitContracts();
     const discoveredNames = new Set(contracts.map(({ name }) => name));
     const classifiedNames = new Set([
       ...READ_ONLY_CALLABLES,
       ...Object.keys(EXPECTED_CANONICAL_ACTION_BY_CALLABLE),
-      ...DEFERRED_MUTATION_RATE_LIMIT_EXCEPTIONS.keys(),
       ...NON_CENTRAL_RATE_LIMIT_CALLABLES.keys(),
     ]);
 
@@ -358,24 +338,6 @@ describe('Community anti-abuse architecture', () => {
         contract.hasExpectedNonCentralWrapper,
         true,
         `${name}: o wrapper explícito de telemetria deve permanecer ativo.`
-      );
-    }
-  });
-
-  it('mantém exceções temporárias sem limiter canônico e documentadas', () => {
-    const contracts = collectCommunityCallableRateLimitContracts();
-
-    for (const [name, reason] of DEFERRED_MUTATION_RATE_LIMIT_EXCEPTIONS) {
-      const contract = contracts.find((candidate) => candidate.name === name);
-      assert.ok(contract, `Exceção temporária sem callable: ${name}`);
-      assert.deepEqual(
-        contract.canonicalActions,
-        [],
-        `${name}: remova a exceção ao adotar o limiter canônico.`
-      );
-      assert.ok(
-        reason.trim().length >= 24,
-        `${name}: a exceção precisa explicar o débito de segurança.`
       );
     }
   });

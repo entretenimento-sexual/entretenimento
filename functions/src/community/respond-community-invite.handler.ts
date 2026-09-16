@@ -41,6 +41,7 @@ import {
 import {
   classifyExistingCommunityMembershipState,
 } from './community-membership-state.policy';
+import { consumeCommunityRateLimit } from './community-rate-limit.service';
 
 interface CommunityInviteResponseRequest {
   inviteId?: unknown;
@@ -307,6 +308,14 @@ export const acceptCommunityInvite = onCall<CommunityInviteResponseRequest>(
   async (request) => {
     assertPreviewRuntime();
     assertCommunityCallableAppCheck(request.app);
+    const actorUid = assertCommunityInviteAuthenticatedUid(request.auth);
+    requireCommunityInviteId(request.data?.inviteId);
+
+    await consumeCommunityRateLimit({
+      action: 'invite_send',
+      actorUid,
+    });
+
     return respondCommunityInvite(request, 'accept');
   }
 );
@@ -319,6 +328,14 @@ export const declineCommunityInvite = onCall<CommunityInviteResponseRequest>(
   async (request) => {
     assertPreviewRuntime();
     assertCommunityCallableAppCheck(request.app);
+    const actorUid = assertCommunityInviteAuthenticatedUid(request.auth);
+    requireCommunityInviteId(request.data?.inviteId);
+
+    await consumeCommunityRateLimit({
+      action: 'invite_send',
+      actorUid,
+    });
+
     return respondCommunityInvite(request, 'decline');
   }
 );

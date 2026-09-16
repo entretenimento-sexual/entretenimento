@@ -24,6 +24,7 @@ import {
   type CommunityInviteResult,
 } from './community-invite.shared';
 import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
+import { consumeCommunityRateLimit } from './community-rate-limit.service';
 
 interface RevokeCommunityInviteRequest {
   inviteId?: unknown;
@@ -67,6 +68,11 @@ export const revokeCommunityInvite = onCall<RevokeCommunityInviteRequest>(
     const inviteId = requireCommunityInviteId(request.data?.inviteId);
     const inviteRef = db.collection('invites').doc(inviteId);
     const actorUserRef = db.collection('users').doc(actorUid);
+
+    await consumeCommunityRateLimit({
+      action: 'invite_send',
+      actorUid,
+    });
 
     return db.runTransaction(async (transaction): Promise<CommunityInviteResult> => {
       const [inviteSnapshot, actorUserSnapshot] = await Promise.all([
