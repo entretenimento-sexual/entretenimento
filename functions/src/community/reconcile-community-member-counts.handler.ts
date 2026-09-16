@@ -180,9 +180,9 @@ export const reconcileCommunityMemberCounts =
             );
             const discoveryDecision = discoverySnapshot.exists
               ? evaluateCommunityMemberCountProjection(
-                  readProjectedCount(discoverySnapshot.data()),
-                  occupancy
-                )
+                readProjectedCount(discoverySnapshot.data()),
+                occupancy
+              )
               : null;
             const discoveryNeedsRepair =
               discoveryDecision?.needsRepair === true
