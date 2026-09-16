@@ -27,10 +27,14 @@ export function hasCommunityOperationsPermission(
   if (source['superadmin'] === true) roles.add('superadmin');
   if (source['admin'] === true) roles.add('admin');
 
+  const hasLegacyLifecycleFallback =
+    capability !== 'community:reconcile'
+    && permissions.has('community:lifecycle');
+
   return roles.has('superadmin')
     || roles.has('admin')
     || permissions.has(capability)
-    || permissions.has('community:lifecycle');
+    || hasLegacyLifecycleFallback;
 }
 
 function normalizeStringArray(value: unknown): string[] {

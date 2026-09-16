@@ -17,6 +17,10 @@ test('admin e superadmin possuem capability operacional', () => {
     ),
     true
   );
+  assert.equal(
+    hasCommunityOperationsPermission({ admin: true }, 'community:reconcile'),
+    true
+  );
 });
 
 test('permissão especializada libera somente capability solicitada', () => {
@@ -32,7 +36,7 @@ test('permissão especializada libera somente capability solicitada', () => {
   );
 });
 
-test('community lifecycle continua como capability operacional ampla', () => {
+test('community lifecycle permanece ampla somente para capabilities legadas', () => {
   const subject = { permissions: ['community:lifecycle'] };
 
   assert.equal(
@@ -43,6 +47,27 @@ test('community lifecycle continua como capability operacional ampla', () => {
     hasCommunityOperationsPermission(subject, 'community:purge'),
     true
   );
+  assert.equal(
+    hasCommunityOperationsPermission(subject, 'community:reconcile'),
+    false
+  );
+});
+
+test('reconciliação exige capability explícita quando ator não é admin', () => {
+  const subject = { permissions: ['community:reconcile'] };
+
+  assert.equal(
+    hasCommunityOperationsPermission(subject, 'community:reconcile'),
+    true
+  );
+  assert.equal(
+    hasCommunityOperationsPermission(subject, 'community:ranking'),
+    false
+  );
+  assert.equal(
+    hasCommunityOperationsPermission(subject, 'community:purge'),
+    false
+  );
 });
 
 test('moderador comum não recebe acesso operacional', () => {
@@ -50,6 +75,13 @@ test('moderador comum não recebe acesso operacional', () => {
     hasCommunityOperationsPermission(
       { roles: ['moderator'] },
       'community:ranking'
+    ),
+    false
+  );
+  assert.equal(
+    hasCommunityOperationsPermission(
+      { roles: ['moderator'] },
+      'community:reconcile'
     ),
     false
   );
