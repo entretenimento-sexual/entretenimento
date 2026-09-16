@@ -33,7 +33,8 @@ export type CommunityRateLimitAction =
   | 'notification_preference_update'
   | 'ownership_mutation'
   | 'content_moderation'
-  | 'operations_ranking';
+  | 'operations_ranking'
+  | 'operations_reconciliation';
 
 export interface CommunityRateLimitPolicy {
   readonly backendAction: string;
@@ -265,6 +266,17 @@ const POLICY_BY_ACTION: Readonly<Record<
     }),
     reason: 'community_operations_rate_limited',
     message: 'Muitas alterações operacionais de ranking foram solicitadas em pouco tempo.',
+  }),
+  operations_reconciliation: Object.freeze({
+    backendAction: 'reconcileCommunityMemberCounts',
+    config: Object.freeze({
+      burstWindowMs: MINUTE_MS,
+      burstMax: 10,
+      sustainedWindowMs: HOUR_MS,
+      sustainedMax: 100,
+    }),
+    reason: 'community_operations_rate_limited',
+    message: 'Muitas operações de manutenção de Comunidades foram solicitadas em pouco tempo.',
   }),
 });
 

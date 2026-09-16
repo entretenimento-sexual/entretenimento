@@ -3,21 +3,36 @@
 // RECONCILE COMMUNITY MEMBER COUNTS
 // -----------------------------------------------------------------------------
 // Manutenção administrativa explícita para auditar/reparar metrics.memberCount.
-// Não substitui os deltas transacionais dos handlers de membership. O reparo
-// deriva a ocupação dos documentos members/* dentro da própria transação e
-// falha fechado quando encontra status de membership desconhecido.
+// Não substitui os deltas transacionais dos handlers de membership. A leitura
+// usa agregações server-side para não materializar o histórico inteiro e o
+// reparo confirma a versão da Comunidade dentro da transação antes de escrever.
 // -----------------------------------------------------------------------------
 
-import { FieldPath } from 'firebase-admin/firestore';
+import {
+  FieldPath,
+  type DocumentSnapshot,
+  type DocumentReference,
+} from 'firebase-admin/firestore';
+import { logger } from 'firebase-functions';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
+import { assertRecentAuthentication } from '../account_lifecycle/_shared';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import {
-  CommunityMemberCountProjectionState,
+  REQUIRE_COMMUNITY_APP_CHECK,
+  assertCommunityCallableAppCheck,
+} from './community-callable-security';
+import {
+  COMMUNITY_MEMBERSHIP_RECONCILIATION_STATUSES,
+  type CommunityMemberCountProjectionState,
+  type CommunityMembershipOccupancySummary,
   evaluateCommunityMemberCountProjection,
-  summarizeCommunityMembershipOccupancy,
+  summarizeCommunityMembershipOccupancyFromCounts,
 } from './community-member-count-reconciliation.policy';
+import { hasCommunityOperationsPermission } from './community-operations.authorization';
+import { consumeCommunityRateLimit } from './community-rate-limit.service';
+import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 
 interface ReconcileCommunityMemberCountsRequest {
   limit?: unknown;
@@ -25,9 +40,13 @@ interface ReconcileCommunityMemberCountsRequest {
   startAfterCommunityId?: unknown;
 }
 
+type CommunityMemberCountReconciliationItemState =
+  | CommunityMemberCountProjectionState
+  | 'concurrent_change';
+
 interface CommunityMemberCountReconciliationItem {
   communityId: string;
-  state: CommunityMemberCountProjectionState;
+  state: CommunityMemberCountReconciliationItemState;
   projectedCount: number | null;
   activeCount: number;
   invalidStatusCount: number;
@@ -48,6 +67,7 @@ interface ReconcileCommunityMemberCountsResponse {
   drifted: number;
   invalidProjection: number;
   invalidMembershipState: number;
+  concurrentChanges: number;
   repaired: number;
   missing: number;
   items: CommunityMemberCountReconciliationItem[];
@@ -56,44 +76,43 @@ interface ReconcileCommunityMemberCountsResponse {
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
 
-function normalizeStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((item) => String(item ?? '').trim().toLowerCase())
-    .filter(Boolean);
-}
+function assertRuntime(): void {
+  if (isCommunityPreviewRuntimeAvailable()) return;
 
-function hasReconciliationAccess(source: Record<string, unknown>): boolean {
-  const primaryRole = String(source['role'] ?? '').trim().toLowerCase();
-  const roles = new Set<string>([
-    primaryRole,
-    ...normalizeStringArray(source['staffRoles']),
-    ...normalizeStringArray(source['roles']),
-  ]);
-  const permissions = new Set<string>(
-    normalizeStringArray(source['permissions'])
+  throw new HttpsError(
+    'failed-precondition',
+    'A reconciliação de participantes não está disponível neste ambiente.'
   );
-
-  return source['superadmin'] === true
-    || source['admin'] === true
-    || roles.has('superadmin')
-    || roles.has('admin')
-    || permissions.has('communities:reconcile');
 }
 
 async function assertReconciliationAuthorization(
   actorUid: string | null,
-  authToken: Record<string, unknown>
+  authToken: Record<string, unknown> | undefined
 ): Promise<string> {
   if (!actorUid) {
     throw new HttpsError('unauthenticated', 'Administrador não autenticado.');
   }
 
-  if (hasReconciliationAccess(authToken)) return actorUid;
+  if (authToken?.['email_verified'] !== true) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Verifique o e-mail da conta administrativa para continuar.'
+    );
+  }
+
+  if (hasCommunityOperationsPermission(authToken, 'community:reconcile')) {
+    return actorUid;
+  }
 
   const actorSnapshot = await db.collection('users').doc(actorUid).get();
-  const actor = (actorSnapshot.data() ?? {}) as Record<string, unknown>;
-  if (hasReconciliationAccess(actor)) return actorUid;
+  if (
+    hasCommunityOperationsPermission(
+      actorSnapshot.exists ? actorSnapshot.data() : null,
+      'community:reconcile'
+    )
+  ) {
+    return actorUid;
+  }
 
   throw new HttpsError(
     'permission-denied',
@@ -119,17 +138,100 @@ function readProjectedCount(rawDocument: unknown): unknown {
   return metrics['memberCount'];
 }
 
+function hasSameDocumentVersion(
+  left: DocumentSnapshot,
+  right: DocumentSnapshot
+): boolean {
+  return Boolean(
+    left.updateTime
+    && right.updateTime
+    && left.updateTime.isEqual(right.updateTime)
+  );
+}
+
+async function readMembershipOccupancy(
+  communityRef: DocumentReference
+): Promise<CommunityMembershipOccupancySummary> {
+  const membersQuery = communityRef.collection('members');
+  const [totalSnapshot, activeSnapshot, knownStatusSnapshot] = await Promise.all([
+    membersQuery.count().get(),
+    membersQuery.where('status', '==', 'active').count().get(),
+    membersQuery
+      .where(
+        'status',
+        'in',
+        [...COMMUNITY_MEMBERSHIP_RECONCILIATION_STATUSES]
+      )
+      .count()
+      .get(),
+  ]);
+
+  return summarizeCommunityMembershipOccupancyFromCounts({
+    totalCount: totalSnapshot.data().count,
+    activeCount: activeSnapshot.data().count,
+    knownStatusCount: knownStatusSnapshot.data().count,
+  });
+}
+
+function buildReconciliationItem(input: {
+  communityId: string;
+  communitySnapshot: DocumentSnapshot;
+  discoverySnapshot: DocumentSnapshot;
+  occupancy: CommunityMembershipOccupancySummary;
+  concurrentChange: boolean;
+  repaired: boolean;
+}): CommunityMemberCountReconciliationItem {
+  const communityDecision = evaluateCommunityMemberCountProjection(
+    readProjectedCount(input.communitySnapshot.data()),
+    input.occupancy
+  );
+  const discoveryDecision = input.discoverySnapshot.exists
+    ? evaluateCommunityMemberCountProjection(
+      readProjectedCount(input.discoverySnapshot.data()),
+      input.occupancy
+    )
+    : null;
+
+  return {
+    communityId: input.communityId,
+    state: input.concurrentChange
+      ? 'concurrent_change'
+      : communityDecision.state,
+    projectedCount: communityDecision.projectedCount,
+    activeCount: input.occupancy.activeCount,
+    invalidStatusCount: input.occupancy.invalidStatusCount,
+    discoveryProjectedCount: discoveryDecision?.projectedCount ?? null,
+    discoveryNeedsRepair: input.concurrentChange
+      ? false
+      : discoveryDecision?.needsRepair === true
+        && discoveryDecision.repairable,
+    repaired: input.repaired,
+  };
+}
+
 export const reconcileCommunityMemberCounts =
   onCall<ReconcileCommunityMemberCountsRequest>(
     {
       region: FUNCTIONS_REGION,
-      invoker: 'public',
+      enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
     },
     async (request): Promise<ReconcileCommunityMemberCountsResponse> => {
+      assertRuntime();
+      assertCommunityCallableAppCheck(request.app);
+
+      const authToken = (request.auth?.token ?? undefined) as
+        | Record<string, unknown>
+        | undefined;
       const actorUid = await assertReconciliationAuthorization(
         request.auth?.uid ?? null,
-        (request.auth?.token ?? {}) as Record<string, unknown>
+        authToken
       );
+      assertRecentAuthentication(authToken);
+      await consumeCommunityRateLimit({
+        action: 'operations_reconciliation',
+        actorUid,
+      });
+
       const limit = normalizeLimit(request.data?.limit);
       const dryRun = request.data?.dryRun !== false;
       const startAfterCommunityId = normalizeCursor(
@@ -149,94 +251,122 @@ export const reconcileCommunityMemberCounts =
       let drifted = 0;
       let invalidProjection = 0;
       let invalidMembershipState = 0;
+      let concurrentChanges = 0;
       let repaired = 0;
       let missing = 0;
 
-      for (const communityDocument of communitiesSnapshot.docs) {
-        const communityId = communityDocument.id;
-        const communityRef = communityDocument.ref;
+      for (const scanCommunitySnapshot of communitiesSnapshot.docs) {
+        const communityId = scanCommunitySnapshot.id;
+        const communityRef = scanCommunitySnapshot.ref;
         const discoveryRef = db
           .collection('community_discovery_index')
           .doc(communityId);
-        const membersQuery = communityRef.collection('members');
+        const occupancy = await readMembershipOccupancy(communityRef);
 
-        const item = await db.runTransaction(
-          async (transaction): Promise<CommunityMemberCountReconciliationItem | null> => {
-            const [communitySnapshot, discoverySnapshot, membersSnapshot] =
-              await Promise.all([
+        let item: CommunityMemberCountReconciliationItem | null;
+
+        if (dryRun) {
+          const [currentCommunitySnapshot, discoverySnapshot] =
+            await Promise.all([
+              communityRef.get(),
+              discoveryRef.get(),
+            ]);
+
+          if (!currentCommunitySnapshot.exists) {
+            item = null;
+          } else {
+            item = buildReconciliationItem({
+              communityId,
+              communitySnapshot: currentCommunitySnapshot,
+              discoverySnapshot,
+              occupancy,
+              concurrentChange: !hasSameDocumentVersion(
+                scanCommunitySnapshot,
+                currentCommunitySnapshot
+              ),
+              repaired: false,
+            });
+          }
+        } else {
+          item = await db.runTransaction(
+            async (transaction): Promise<CommunityMemberCountReconciliationItem | null> => {
+              const [communitySnapshot, discoverySnapshot] = await Promise.all([
                 transaction.get(communityRef),
                 transaction.get(discoveryRef),
-                transaction.get(membersQuery),
               ]);
 
-            if (!communitySnapshot.exists) return null;
+              if (!communitySnapshot.exists) return null;
 
-            const occupancy = summarizeCommunityMembershipOccupancy(
-              membersSnapshot.docs.map((document) => document.data()?.['status'])
-            );
-            const communityDecision = evaluateCommunityMemberCountProjection(
-              readProjectedCount(communitySnapshot.data()),
-              occupancy
-            );
-            const discoveryDecision = discoverySnapshot.exists
-              ? evaluateCommunityMemberCountProjection(
-                readProjectedCount(discoverySnapshot.data()),
-                occupancy
-              )
-              : null;
-            const discoveryNeedsRepair =
-              discoveryDecision?.needsRepair === true
-              && discoveryDecision.repairable;
-            const shouldRepair = communityDecision.repairable
-              && (communityDecision.needsRepair || discoveryNeedsRepair);
-            let didRepair = false;
-
-            if (!dryRun && shouldRepair) {
-              const now = Date.now();
-              transaction.update(communityRef, {
-                'metrics.memberCount': occupancy.activeCount,
-                memberCountReconciledAt: now,
-                memberCountReconciledBy: actorUid,
-                updatedAt: now,
-              });
-
-              if (discoverySnapshot.exists && discoveryNeedsRepair) {
-                transaction.update(discoveryRef, {
-                  'metrics.memberCount': occupancy.activeCount,
-                  memberCountReconciledAt: now,
-                  updatedAt: now,
+              if (!hasSameDocumentVersion(
+                scanCommunitySnapshot,
+                communitySnapshot
+              )) {
+                return buildReconciliationItem({
+                  communityId,
+                  communitySnapshot,
+                  discoverySnapshot,
+                  occupancy,
+                  concurrentChange: true,
+                  repaired: false,
                 });
               }
 
-              const auditRef = db
-                .collection('community_membership_audit')
-                .doc();
-              transaction.create(auditRef, {
-                action: 'community_member_count_reconciled',
-                communityId,
-                actorUid,
-                previousMemberCount: communityDecision.projectedCount,
-                nextMemberCount: occupancy.activeCount,
-                discoveryRepaired: discoveryNeedsRepair,
-                createdAt: now,
-                source: 'admin-reconciliation',
-              });
-              didRepair = true;
-            }
+              const communityDecision = evaluateCommunityMemberCountProjection(
+                readProjectedCount(communitySnapshot.data()),
+                occupancy
+              );
+              const discoveryDecision = discoverySnapshot.exists
+                ? evaluateCommunityMemberCountProjection(
+                  readProjectedCount(discoverySnapshot.data()),
+                  occupancy
+                )
+                : null;
+              const discoveryNeedsRepair =
+                discoveryDecision?.needsRepair === true
+                && discoveryDecision.repairable;
+              const shouldRepair = communityDecision.repairable
+                && (communityDecision.needsRepair || discoveryNeedsRepair);
 
-            return {
-              communityId,
-              state: communityDecision.state,
-              projectedCount: communityDecision.projectedCount,
-              activeCount: occupancy.activeCount,
-              invalidStatusCount: occupancy.invalidStatusCount,
-              discoveryProjectedCount:
-                discoveryDecision?.projectedCount ?? null,
-              discoveryNeedsRepair,
-              repaired: didRepair,
-            };
-          }
-        );
+              if (shouldRepair) {
+                const now = Date.now();
+                transaction.update(communityRef, {
+                  'metrics.memberCount': occupancy.activeCount,
+                  updatedAt: now,
+                });
+
+                if (discoverySnapshot.exists && discoveryNeedsRepair) {
+                  transaction.update(discoveryRef, {
+                    'metrics.memberCount': occupancy.activeCount,
+                    updatedAt: now,
+                  });
+                }
+
+                const auditRef = db
+                  .collection('community_membership_audit')
+                  .doc();
+                transaction.create(auditRef, {
+                  action: 'community_member_count_reconciled',
+                  communityId,
+                  actorUid,
+                  previousMemberCount: communityDecision.projectedCount,
+                  nextMemberCount: occupancy.activeCount,
+                  discoveryRepaired: discoveryNeedsRepair,
+                  createdAt: now,
+                  source: 'admin-reconciliation',
+                });
+              }
+
+              return buildReconciliationItem({
+                communityId,
+                communitySnapshot,
+                discoverySnapshot,
+                occupancy,
+                concurrentChange: false,
+                repaired: shouldRepair,
+              });
+            }
+          );
+        }
 
         if (!item) {
           missing += 1;
@@ -250,6 +380,7 @@ export const reconcileCommunityMemberCounts =
         if (item.state === 'membership_state_invalid') {
           invalidMembershipState += 1;
         }
+        if (item.state === 'concurrent_change') concurrentChanges += 1;
         if (item.repaired) repaired += 1;
       }
 
@@ -257,7 +388,7 @@ export const reconcileCommunityMemberCounts =
       const nextCursor = lastDocument?.id ?? null;
       const hasMore = communitiesSnapshot.size === limit && !!nextCursor;
 
-      console.log('[community] Member count reconciliation completed.', {
+      logger.info('community_member_count_reconciliation_completed', {
         actorUid,
         dryRun,
         limit,
@@ -269,6 +400,7 @@ export const reconcileCommunityMemberCounts =
         drifted,
         invalidProjection,
         invalidMembershipState,
+        concurrentChanges,
         repaired,
         missing,
       });
@@ -285,6 +417,7 @@ export const reconcileCommunityMemberCounts =
         drifted,
         invalidProjection,
         invalidMembershipState,
+        concurrentChanges,
         repaired,
         missing,
         items,

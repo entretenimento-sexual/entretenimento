@@ -15,6 +15,14 @@ export type CommunityMembershipReconciliationStatus =
   | 'blocked'
   | 'left';
 
+export const COMMUNITY_MEMBERSHIP_RECONCILIATION_STATUSES:
+readonly CommunityMembershipReconciliationStatus[] = Object.freeze([
+  'active',
+  'pending',
+  'blocked',
+  'left',
+]);
+
 export interface CommunityMembershipOccupancySummary {
   totalCount: number;
   activeCount: number;
@@ -47,6 +55,13 @@ function normalizeMembershipStatus(
     : null;
 }
 
+function normalizeAggregateCount(value: unknown): number | null {
+  const normalized = Number(value);
+  return Number.isSafeInteger(normalized) && normalized >= 0
+    ? normalized
+    : null;
+}
+
 export function summarizeCommunityMembershipOccupancy(
   rawStatuses: readonly unknown[]
 ): CommunityMembershipOccupancySummary {
@@ -63,6 +78,36 @@ export function summarizeCommunityMembershipOccupancy(
     totalCount: rawStatuses.length,
     activeCount,
     invalidStatusCount,
+  };
+}
+
+export function summarizeCommunityMembershipOccupancyFromCounts(input: {
+  totalCount: unknown;
+  activeCount: unknown;
+  knownStatusCount: unknown;
+}): CommunityMembershipOccupancySummary {
+  const totalCount = normalizeAggregateCount(input.totalCount);
+  const activeCount = normalizeAggregateCount(input.activeCount);
+  const knownStatusCount = normalizeAggregateCount(input.knownStatusCount);
+
+  if (
+    totalCount === null
+    || activeCount === null
+    || knownStatusCount === null
+    || activeCount > knownStatusCount
+    || knownStatusCount > totalCount
+  ) {
+    return {
+      totalCount: totalCount ?? 0,
+      activeCount: activeCount ?? 0,
+      invalidStatusCount: 1,
+    };
+  }
+
+  return {
+    totalCount,
+    activeCount,
+    invalidStatusCount: totalCount - knownStatusCount,
   };
 }
 

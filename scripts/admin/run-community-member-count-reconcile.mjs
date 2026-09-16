@@ -3,7 +3,7 @@
 // ADMIN RUNNER - COMMUNITY MEMBER COUNT RECONCILIATION
 // -----------------------------------------------------------------------------
 // Dry-run é o padrão. Escrita real exige --dryRun=false e a variável
-// COMMUNITY_MEMBER_COUNT_CONFIRM_WRITE=YES.
+// COMMUNITY_MEMBER_COUNT_CONFIRM_WRITE=YES. Runtime real também exige App Check.
 // -----------------------------------------------------------------------------
 
 const DEFAULT_PROJECT_ID = 'entretenimento-sexual';
@@ -23,6 +23,7 @@ const functionUrl = readStringOption(
   `https://${region}-${projectId}.cloudfunctions.net/${FUNCTION_NAME}`
 );
 const idToken = readStringEnv('FIREBASE_ID_TOKEN');
+const appCheckToken = readStringEnv('FIREBASE_APP_CHECK_TOKEN');
 const limit = readNumberOption('limit', 'COMMUNITY_MEMBER_COUNT_LIMIT', 25, 1, 100);
 const maxPages = readNumberOption(
   'maxPages',
@@ -44,6 +45,10 @@ let cursor = readStringOption(
 
 if (!idToken) {
   abort('FIREBASE_ID_TOKEN ausente. Use um ID token de usuário administrativo.');
+}
+
+if (!appCheckToken) {
+  abort('FIREBASE_APP_CHECK_TOKEN ausente. A callable de Comunidades exige App Check.');
 }
 
 assertFirebaseIdTokenProject(idToken, projectId);
@@ -74,7 +79,12 @@ for (let page = 1; page <= maxPages; page += 1) {
   };
 
   console.log(`[community-member-count] Página ${page}/${maxPages}`, payload);
-  const result = await callCallable(functionUrl, idToken, payload);
+  const result = await callCallable(
+    functionUrl,
+    idToken,
+    appCheckToken,
+    payload
+  );
   lastResult = result;
   console.log('[community-member-count] Resultado:', result);
 
@@ -86,19 +96,20 @@ if (lastResult?.hasMore && cursor) {
   console.log('[community-member-count] Próxima continuação:', {
     COMMUNITY_MEMBER_COUNT_CURSOR: cursor,
     command:
-      `node scripts/admin/run-community-member-count-reconcile.mjs `
+      `npm run admin:community-member-count-reconcile -- `
       + `--limit=${limit} --cursor="${cursor}"`,
   });
 }
 
 console.log('[community-member-count] Runner finalizado.');
 
-async function callCallable(url, token, data) {
+async function callCallable(url, token, appToken, data) {
   const response = await fetch(url, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
+      'X-Firebase-AppCheck': appToken,
     },
     body: JSON.stringify({ data }),
   });

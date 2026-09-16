@@ -90,6 +90,7 @@ const EXPECTED_CANONICAL_ACTION_BY_CALLABLE: Readonly<Record<
   reviewCommunityOfficialClaim: 'content_moderation',
   getCommunityOfficialClaimReviewQueue: 'content_moderation',
   configureCommunityRankingMode: 'operations_ranking',
+  reconcileCommunityMemberCounts: 'operations_reconciliation',
 });
 
 // Exceções temporárias são deliberadamente explícitas. Uma nova callable de

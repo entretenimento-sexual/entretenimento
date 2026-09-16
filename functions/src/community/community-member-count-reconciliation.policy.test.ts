@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   evaluateCommunityMemberCountProjection,
   summarizeCommunityMembershipOccupancy,
+  summarizeCommunityMembershipOccupancyFromCounts,
 } from './community-member-count-reconciliation.policy';
 
 test('deriva ocupação somente de memberships ativos conhecidos', () => {
@@ -41,6 +42,34 @@ test('estado de membership desconhecido bloqueia reparo automático', () => {
     repairable: false,
     needsRepair: false,
   });
+});
+
+test('resume agregações sem materializar a subcoleção histórica', () => {
+  assert.deepEqual(
+    summarizeCommunityMembershipOccupancyFromCounts({
+      totalCount: 8,
+      activeCount: 3,
+      knownStatusCount: 6,
+    }),
+    {
+      totalCount: 8,
+      activeCount: 3,
+      invalidStatusCount: 2,
+    }
+  );
+});
+
+test('agregações inconsistentes falham fechado', () => {
+  const occupancy = summarizeCommunityMembershipOccupancyFromCounts({
+    totalCount: 4,
+    activeCount: 3,
+    knownStatusCount: 2,
+  });
+  const decision = evaluateCommunityMemberCountProjection(3, occupancy);
+
+  assert.equal(occupancy.invalidStatusCount, 1);
+  assert.equal(decision.state, 'membership_state_invalid');
+  assert.equal(decision.repairable, false);
 });
 
 test('detecta projeção ausente e drift em ambas as direções', () => {

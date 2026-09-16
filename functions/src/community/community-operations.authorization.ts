@@ -10,7 +10,8 @@
 export type CommunityOperationsCapability =
   | 'community:lifecycle'
   | 'community:purge'
-  | 'community:ranking';
+  | 'community:ranking'
+  | 'community:reconcile';
 
 export function hasCommunityOperationsPermission(
   value: unknown,
