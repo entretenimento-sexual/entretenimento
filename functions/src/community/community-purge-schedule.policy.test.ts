@@ -66,7 +66,7 @@ test('diagnóstico de purge aceita somente administração ou permissão explíc
   );
   assert.equal(
     hasCommunityPurgeOperationsPermission({ permissions: ['community:lifecycle'] }),
-    true
+    false
   );
 });
 

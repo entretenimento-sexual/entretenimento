@@ -34,18 +34,43 @@ test('permissão especializada libera somente capability solicitada', () => {
     hasCommunityOperationsPermission(subject, 'community:purge'),
     false
   );
+  assert.equal(
+    hasCommunityOperationsPermission(subject, 'community:reconcile'),
+    false
+  );
 });
 
-test('community lifecycle permanece ampla somente para capabilities legadas', () => {
+test('community lifecycle não autoriza operações especializadas', () => {
   const subject = { permissions: ['community:lifecycle'] };
 
   assert.equal(
-    hasCommunityOperationsPermission(subject, 'community:ranking'),
+    hasCommunityOperationsPermission(subject, 'community:lifecycle'),
     true
   );
   assert.equal(
+    hasCommunityOperationsPermission(subject, 'community:ranking'),
+    false
+  );
+  assert.equal(
+    hasCommunityOperationsPermission(subject, 'community:purge'),
+    false
+  );
+  assert.equal(
+    hasCommunityOperationsPermission(subject, 'community:reconcile'),
+    false
+  );
+});
+
+test('community purge libera somente purge', () => {
+  const subject = { permissions: ['community:purge'] };
+
+  assert.equal(
     hasCommunityOperationsPermission(subject, 'community:purge'),
     true
+  );
+  assert.equal(
+    hasCommunityOperationsPermission(subject, 'community:ranking'),
+    false
   );
   assert.equal(
     hasCommunityOperationsPermission(subject, 'community:reconcile'),
