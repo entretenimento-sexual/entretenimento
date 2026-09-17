@@ -6,27 +6,31 @@ import {
   getCommunityRateLimitPolicy,
 } from './community-rate-limit.policy';
 
-const ACTIONS: readonly CommunityRateLimitAction[] = [
-  'community_create',
-  'official_space_create',
-  'feed_post',
-  'feed_conversation',
-  'topic_conversation',
-  'feed_reaction',
-  'feed_report_post',
-  'feed_report_comment',
-  'feed_report_reply',
-  'invite_send',
-  'membership_request',
-  'membership_leave',
-  'membership_review',
-  'member_management',
-  'highlight_management',
-  'settings_update',
-  'ownership_mutation',
-  'content_moderation',
-  'operations_ranking',
-];
+const ACTION_COVERAGE = {
+  community_create: true,
+  official_space_create: true,
+  feed_post: true,
+  feed_conversation: true,
+  topic_conversation: true,
+  feed_reaction: true,
+  feed_report_post: true,
+  feed_report_comment: true,
+  feed_report_reply: true,
+  invite_send: true,
+  membership_request: true,
+  membership_leave: true,
+  membership_review: true,
+  member_management: true,
+  highlight_management: true,
+  settings_update: true,
+  notification_preference_update: true,
+  ownership_mutation: true,
+  content_moderation: true,
+  operations_ranking: true,
+  operations_reconciliation: true,
+} as const satisfies Readonly<Record<CommunityRateLimitAction, true>>;
+
+const ACTIONS = Object.keys(ACTION_COVERAGE) as CommunityRateLimitAction[];
 
 test('todas as mutações cobertas possuem política válida e ação backend estável', () => {
   for (const action of ACTIONS) {
