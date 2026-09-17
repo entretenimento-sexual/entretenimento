@@ -2,10 +2,12 @@
 // -----------------------------------------------------------------------------
 // COMMUNITY TOPIC WRITE POLICY
 // -----------------------------------------------------------------------------
-// Rate limit e audiência efetiva sem acessar Firebase. A audiência final segue
-// a visibilidade da Comunidade; o autor não escolhe isso por Tópico.
+// Quota funcional e audiência efetiva sem acessar Firebase. A audiência final
+// segue a visibilidade da Comunidade; o autor não escolhe isso por Tópico.
+// Os valores moduláveis de produto ficam em community-product-limits.config.ts.
 // -----------------------------------------------------------------------------
 
+import { COMMUNITY_PRODUCT_LIMITS } from './community-product-limits.config';
 import type { CommunityTopicAudience } from './community-topic.model';
 
 export type CommunityTopicWriteKind = 'topic' | 'reply';
@@ -16,9 +18,9 @@ export interface CommunityTopicRateWindowDecision {
   nextCount: number;
 }
 
-const WINDOW_MS = 24 * 60 * 60 * 1_000;
-const DEFAULT_TOPIC_LIMIT = 12;
-const DEFAULT_REPLY_LIMIT = 120;
+const TOPIC_CREATION_QUOTA =
+  COMMUNITY_PRODUCT_LIMITS.contentWriteQuotas.topicCreations;
+const TOPIC_REPLY_QUOTA = COMMUNITY_PRODUCT_LIMITS.contentWriteQuotas.topicReplies;
 
 function normalizePositiveInteger(
   value: unknown,
@@ -42,6 +44,10 @@ function normalizeCount(value: unknown): number {
   return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
 }
 
+function resolveCommunityTopicQuota(kind: CommunityTopicWriteKind) {
+  return kind === 'topic' ? TOPIC_CREATION_QUOTA : TOPIC_REPLY_QUOTA;
+}
+
 export function resolveCommunityTopicAudience(
   communityVisibility: unknown
 ): CommunityTopicAudience {
@@ -55,20 +61,17 @@ export function resolveCommunityTopicWriteLimit(
   kind: CommunityTopicWriteKind
 ): number {
   const config = (rawConfig ?? {}) as Record<string, unknown>;
+  const quota = resolveCommunityTopicQuota(kind);
+  const configKey = kind === 'topic'
+    ? 'maxTopicCreationsPer24h'
+    : 'maxTopicRepliesPer24h';
 
-  return kind === 'topic'
-    ? normalizePositiveInteger(
-      config['maxTopicCreationsPer24h'],
-      DEFAULT_TOPIC_LIMIT,
-      1,
-      100
-    )
-    : normalizePositiveInteger(
-      config['maxTopicRepliesPer24h'],
-      DEFAULT_REPLY_LIMIT,
-      1,
-      1_000
-    );
+  return normalizePositiveInteger(
+    config[configKey],
+    quota.defaultLimit,
+    quota.minLimit,
+    quota.maxLimit
+  );
 }
 
 export function evaluateCommunityTopicRateWindow(
@@ -78,6 +81,7 @@ export function evaluateCommunityTopicRateWindow(
   limit: number
 ): CommunityTopicRateWindowDecision {
   const state = (rawState ?? {}) as Record<string, unknown>;
+  const quota = resolveCommunityTopicQuota(kind);
   const startKey = kind === 'topic'
     ? 'topicWindowStartedAt'
     : 'replyWindowStartedAt';
@@ -87,7 +91,7 @@ export function evaluateCommunityTopicRateWindow(
   const currentStart = normalizeTimestamp(state[startKey]);
   const withinWindow = currentStart !== null
     && now >= currentStart
-    && now - currentStart < WINDOW_MS;
+    && now - currentStart < quota.windowMs;
   const currentCount = withinWindow ? normalizeCount(state[countKey]) : 0;
 
   if (currentCount >= limit) {

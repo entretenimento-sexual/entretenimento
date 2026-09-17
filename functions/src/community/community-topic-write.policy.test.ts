@@ -1,11 +1,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { COMMUNITY_PRODUCT_LIMITS } from './community-product-limits.config';
 import {
   evaluateCommunityTopicRateWindow,
   resolveCommunityTopicAudience,
   resolveCommunityTopicWriteLimit,
 } from './community-topic-write.policy';
+
+const TOPIC_CREATION_QUOTA =
+  COMMUNITY_PRODUCT_LIMITS.contentWriteQuotas.topicCreations;
+const TOPIC_REPLY_QUOTA = COMMUNITY_PRODUCT_LIMITS.contentWriteQuotas.topicReplies;
 
 test('audiência segue a visibilidade da Comunidade e falha fechada', () => {
   assert.equal(resolveCommunityTopicAudience('public_preview'), 'public_preview');
@@ -14,9 +19,15 @@ test('audiência segue a visibilidade da Comunidade e falha fechada', () => {
   assert.equal(resolveCommunityTopicAudience('unexpected'), 'members_only');
 });
 
-test('usa limites padrão conservadores e aceita configuração controlada', () => {
-  assert.equal(resolveCommunityTopicWriteLimit({}, 'topic'), 12);
-  assert.equal(resolveCommunityTopicWriteLimit({}, 'reply'), 120);
+test('usa quotas canônicas e aceita configuração controlada', () => {
+  assert.equal(
+    resolveCommunityTopicWriteLimit({}, 'topic'),
+    TOPIC_CREATION_QUOTA.defaultLimit
+  );
+  assert.equal(
+    resolveCommunityTopicWriteLimit({}, 'reply'),
+    TOPIC_REPLY_QUOTA.defaultLimit
+  );
   assert.equal(
     resolveCommunityTopicWriteLimit({ maxTopicCreationsPer24h: 20 }, 'topic'),
     20
@@ -24,6 +35,14 @@ test('usa limites padrão conservadores e aceita configuração controlada', () 
   assert.equal(
     resolveCommunityTopicWriteLimit({ maxTopicRepliesPer24h: 250 }, 'reply'),
     250
+  );
+  assert.equal(
+    resolveCommunityTopicWriteLimit({ maxTopicCreationsPer24h: 999 }, 'topic'),
+    TOPIC_CREATION_QUOTA.maxLimit
+  );
+  assert.equal(
+    resolveCommunityTopicWriteLimit({ maxTopicRepliesPer24h: 9_999 }, 'reply'),
+    TOPIC_REPLY_QUOTA.maxLimit
   );
 });
 
@@ -58,12 +77,12 @@ test('reinicia janela expirada sem carregar contador antigo', () => {
   const now = 100_000_000;
   const decision = evaluateCommunityTopicRateWindow(
     {
-      replyWindowStartedAt: now - 25 * 60 * 60 * 1_000,
+      replyWindowStartedAt: now - TOPIC_REPLY_QUOTA.windowMs - 1,
       replyWritesInWindow: 999,
     },
     'reply',
     now,
-    120
+    TOPIC_REPLY_QUOTA.defaultLimit
   );
 
   assert.deepEqual(decision, {

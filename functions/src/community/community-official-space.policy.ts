@@ -10,9 +10,11 @@ import {
   evaluateVerifiedCommercialAuthority,
 } from '../authority/verified-commercial-authority.policy';
 import { OFFICIAL_SPACE_MEMBER_LIMIT } from './community-capacity.policy';
+import { COMMUNITY_PRODUCT_LIMITS } from './community-product-limits.config';
 
 export const OFFICIAL_SPACE_CREATION_POLICY_VERSION = 1;
-export const MAX_OFFICIAL_SPACES_PER_GRANT = 20;
+export const MAX_OFFICIAL_SPACES_PER_GRANT =
+  COMMUNITY_PRODUCT_LIMITS.maxOfficialSpacesPerGrant;
 
 export interface OfficialSpaceCreationDecision {
   allowed: boolean;

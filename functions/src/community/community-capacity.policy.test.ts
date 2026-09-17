@@ -13,9 +13,24 @@ test('mantém a estratégia comercial canônica internamente coerente', () => {
   const roleOrder = COMMUNITY_PRODUCT_LIMITS.publicSubscriptionRoleOrder;
   const minimumRole =
     COMMUNITY_PRODUCT_LIMITS.minimumPersonalCommunityCreationRole;
+  const finiteOwnedCommunityLimits = Object.values(
+    COMMUNITY_PRODUCT_LIMITS.ownedPersonalCommunitiesBySponsorRole
+  ).filter((value): value is number => typeof value === 'number');
 
   assert.ok(roleOrder.length > 0);
   assert.ok(roleOrder.includes(minimumRole));
+  assert.equal(
+    COMMUNITY_PRODUCT_LIMITS.defaultMemberLimit,
+    COMMUNITY_PRODUCT_LIMITS.selectableMemberLimits[0]
+  );
+  assert.equal(
+    COMMUNITY_PRODUCT_LIMITS.officialSpaceMemberLimit,
+    COMMUNITY_PRODUCT_LIMITS.memberLimitBySponsorRole.official_space
+  );
+  assert.equal(
+    COMMUNITY_PRODUCT_LIMITS.maxPersonalCommunitiesPerOwner,
+    Math.max(...finiteOwnedCommunityLimits)
+  );
 
   for (const role of roleOrder) {
     assert.ok(role in COMMUNITY_PRODUCT_LIMITS.memberLimitBySponsorRole);

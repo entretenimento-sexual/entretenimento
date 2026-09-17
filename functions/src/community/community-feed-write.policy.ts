@@ -2,12 +2,14 @@
 // -----------------------------------------------------------------------------
 // COMMUNITY FEED WRITE POLICY
 // -----------------------------------------------------------------------------
-// Decide autorização, audiência efetiva e rate limit sem acessar Firebase.
+// Decide autorização, audiência efetiva e quota funcional sem acessar Firebase.
 // A audiência final segue a visibilidade da Comunidade; o autor não escolhe
 // individualmente se uma publicação entra ou não na prévia autenticada.
+// Os valores moduláveis de produto ficam em community-product-limits.config.ts.
 // -----------------------------------------------------------------------------
 
 import { CommunityFeedAudience } from './community-feed.model';
+import { COMMUNITY_PRODUCT_LIMITS } from './community-product-limits.config';
 
 export type CommunityFeedWriterRole =
   | 'owner'
@@ -31,8 +33,7 @@ export interface CommunityFeedRateWindowDecision {
   nextCount: number;
 }
 
-const WINDOW_MS = 24 * 60 * 60 * 1_000;
-const DEFAULT_POST_LIMIT = 24;
+const FEED_POST_QUOTA = COMMUNITY_PRODUCT_LIMITS.contentWriteQuotas.feedPosts;
 
 function normalizePositiveInteger(
   value: unknown,
@@ -85,9 +86,9 @@ export function resolveCommunityFeedWriteLimit(rawConfig: unknown): number {
   const config = (rawConfig ?? {}) as Record<string, unknown>;
   return normalizePositiveInteger(
     config['maxFeedPostsPer24h'],
-    DEFAULT_POST_LIMIT,
-    1,
-    200
+    FEED_POST_QUOTA.defaultLimit,
+    FEED_POST_QUOTA.minLimit,
+    FEED_POST_QUOTA.maxLimit
   );
 }
 
@@ -100,7 +101,7 @@ export function evaluateCommunityFeedRateWindow(
   const currentStart = normalizeTimestamp(state['windowStartedAt']);
   const withinWindow = currentStart !== null
     && now >= currentStart
-    && now - currentStart < WINDOW_MS;
+    && now - currentStart < FEED_POST_QUOTA.windowMs;
   const currentCount = withinWindow
     ? normalizeCount(state['writesInWindow'])
     : 0;

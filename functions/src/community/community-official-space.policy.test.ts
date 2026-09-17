@@ -3,7 +3,9 @@ import test from 'node:test';
 
 import {
   evaluateOfficialSpaceCreationGrant,
+  MAX_OFFICIAL_SPACES_PER_GRANT,
 } from './community-official-space.policy';
+import { COMMUNITY_PRODUCT_LIMITS } from './community-product-limits.config';
 
 const NOW = 1_800_000_000_000;
 
@@ -22,6 +24,13 @@ function activeGrant(overrides: Record<string, unknown> = {}) {
   };
 }
 
+test('mantém limites comerciais ligados à configuração canônica', () => {
+  assert.equal(
+    MAX_OFFICIAL_SPACES_PER_GRANT,
+    COMMUNITY_PRODUCT_LIMITS.maxOfficialSpacesPerGrant
+  );
+});
+
 test('mantém capacidade comunitária separada da autoridade comercial', () => {
   assert.deepEqual(
     evaluateOfficialSpaceCreationGrant({
@@ -34,7 +43,7 @@ test('mantém capacidade comunitária separada da autoridade comercial', () => {
       allowed: true,
       organizationId: 'organization-1',
       maxOfficialSpaces: 10,
-      memberLimit: 1000,
+      memberLimit: COMMUNITY_PRODUCT_LIMITS.officialSpaceMemberLimit,
       denialReason: null,
     }
   );

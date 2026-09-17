@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { COMMUNITY_PRODUCT_LIMITS } from './community-product-limits.config';
 import {
   getCommunityTagCatalog,
   resolveCommunityTagDefinitions,
@@ -50,7 +51,10 @@ test('usa aprovação e acesso geral como padrões conservadores', () => {
 
   assert.equal(result?.joinPolicy, 'approval');
   assert.equal(result?.accessTier, 'all');
-  assert.equal(result?.memberLimit, 25);
+  assert.equal(
+    result?.memberLimit,
+    COMMUNITY_PRODUCT_LIMITS.defaultMemberLimit
+  );
   assert.equal(result?.description, null);
 });
 

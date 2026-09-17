@@ -8,11 +8,12 @@
 // backend.
 // -----------------------------------------------------------------------------
 
-import { normalizeNewCommunityTagIds } from './community-tag.catalog';
 import {
   CommunityMemberLimit,
   normalizeCommunityMemberLimit,
 } from './community-capacity.policy';
+import { COMMUNITY_PRODUCT_LIMITS } from './community-product-limits.config';
+import { normalizeNewCommunityTagIds } from './community-tag.catalog';
 
 export type CreateCommunityTheme =
   | 'regional'
@@ -135,7 +136,7 @@ export function normalizeCreateCommunityRequest(
   // de Comunidades não depende do plano do membro.
   const accessTier: CreateCommunityAccessTier = 'all';
   const memberLimit = raw?.memberLimit === undefined
-    ? 25
+    ? COMMUNITY_PRODUCT_LIMITS.defaultMemberLimit
     : normalizeCommunityMemberLimit(raw.memberLimit);
   const tagIds = normalizeNewCommunityTagIds(raw?.tagIds);
   const slug = normalizeSlug(name);

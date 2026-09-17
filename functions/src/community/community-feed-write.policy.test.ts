@@ -7,8 +7,10 @@ import {
   resolveCommunityFeedAudience,
   resolveCommunityFeedWriteLimit,
 } from './community-feed-write.policy';
+import { COMMUNITY_PRODUCT_LIMITS } from './community-product-limits.config';
 
 const NOW = 1_800_000_000_000;
+const FEED_POST_QUOTA = COMMUNITY_PRODUCT_LIMITS.contentWriteQuotas.feedPosts;
 
 test('membro ativo publica no Mural sem escolher audiência por mensagem', () => {
   assert.deepEqual(
@@ -69,9 +71,15 @@ test('nega Local, lifecycle fechado e vínculo não ativo', () => {
   );
 });
 
-test('rate limit reinicia após 24 horas e falha fechado no teto', () => {
-  assert.equal(resolveCommunityFeedWriteLimit(null), 24);
-  assert.equal(resolveCommunityFeedWriteLimit({ maxFeedPostsPer24h: 999 }), 200);
+test('quota funcional usa configuração canônica e reinicia após a janela', () => {
+  assert.equal(
+    resolveCommunityFeedWriteLimit(null),
+    FEED_POST_QUOTA.defaultLimit
+  );
+  assert.equal(
+    resolveCommunityFeedWriteLimit({ maxFeedPostsPer24h: 999 }),
+    FEED_POST_QUOTA.maxLimit
+  );
 
   assert.deepEqual(
     evaluateCommunityFeedRateWindow(null, NOW, 2),
@@ -86,7 +94,7 @@ test('rate limit reinicia após 24 horas e falha fechado no teto', () => {
   );
   assert.deepEqual(
     evaluateCommunityFeedRateWindow({
-      windowStartedAt: NOW - 24 * 60 * 60 * 1_000,
+      windowStartedAt: NOW - FEED_POST_QUOTA.windowMs,
       writesInWindow: 2,
     }, NOW, 2),
     { allowed: true, windowStartedAt: NOW, nextCount: 1 }
