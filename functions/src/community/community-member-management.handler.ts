@@ -652,12 +652,17 @@ export const manageCommunityMember = onCall<ManageCommunityMemberPayload>(
         throwDecisionError(decision.denialReason);
       }
 
-      const touchesAdministration =
+      const requiresRecentAuthentication =
         nextRole === 'admin'
         || currentTargetRole === 'admin'
-        || targetRoleBeforeBlock === 'admin';
+        || targetRoleBeforeBlock === 'admin'
+        || (
+          action === 'set_role'
+          && currentTargetRole === 'member'
+          && nextRole === 'moderator'
+        );
 
-      if (touchesAdministration) {
+      if (requiresRecentAuthentication) {
         assertRecentAuthentication(
           (request.auth?.token ?? undefined) as Record<string, unknown> | undefined
         );
