@@ -124,6 +124,7 @@ export const submitCommunityOfficialClaim =
       assertRuntime();
       assertCommunityCallableAppCheck(request.app);
       const actorUid = assertAuthenticatedUid(request.auth);
+      assertRecentAuthentication(request.auth?.token);
       await assertCommunitySocialAccessForUid(actorUid);
 
       const intent = normalizeSubmitCommunityOfficialClaimIntentRequest(
