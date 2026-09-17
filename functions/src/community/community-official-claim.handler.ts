@@ -9,6 +9,7 @@
 import type { DocumentReference } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
+import { assertRecentAuthentication } from '../account_lifecycle/_shared';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
@@ -499,6 +500,7 @@ export const reviewCommunityOfficialClaim =
       assertRuntime();
       assertCommunityCallableAppCheck(request.app);
       const adminUid = assertAdmin(request.auth);
+      assertRecentAuthentication(request.auth?.token);
       const now = Date.now();
       const command = normalizeReviewCommunityOfficialClaimRequest(
         request.data,
