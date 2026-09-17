@@ -15,7 +15,7 @@ test('mantém a estratégia comercial canônica internamente coerente', () => {
     COMMUNITY_PRODUCT_LIMITS.minimumPersonalCommunityCreationRole;
   const finiteOwnedCommunityLimits = Object.values(
     COMMUNITY_PRODUCT_LIMITS.ownedPersonalCommunitiesBySponsorRole
-  ).filter((value): value is number => typeof value === 'number');
+  ).filter((value) => typeof value === 'number');
 
   assert.ok(roleOrder.length > 0);
   assert.ok(roleOrder.includes(minimumRole));

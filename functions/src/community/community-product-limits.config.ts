@@ -32,7 +32,7 @@ const OWNED_PERSONAL_COMMUNITIES_BY_SPONSOR_ROLE = Object.freeze({
 
 const finitePersonalCommunityLimits = Object.values(
   OWNED_PERSONAL_COMMUNITIES_BY_SPONSOR_ROLE
-).filter((value): value is number => typeof value === 'number');
+).filter((value) => typeof value === 'number');
 
 const CONTENT_QUOTA_WINDOW_MS = 24 * 60 * 60 * 1_000;
 
