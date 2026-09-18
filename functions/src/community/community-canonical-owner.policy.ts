@@ -20,6 +20,11 @@ export type CanonicalCommunityManagerRole =
   | 'moderator'
   | null;
 
+export type CommunityCanonicalOwnerPointerState =
+  | Readonly<{ kind: 'absent'; uid: null }>
+  | Readonly<{ kind: 'valid'; uid: string }>
+  | Readonly<{ kind: 'invalid'; uid: null }>;
+
 const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
 
 function normalizeSafeId(value: unknown): string | null {
@@ -27,11 +32,28 @@ function normalizeSafeId(value: unknown): string | null {
   return SAFE_ID_PATTERN.test(normalized) ? normalized : null;
 }
 
+export function classifyCommunityCanonicalOwnerPointer(
+  rawCommunity: unknown
+): CommunityCanonicalOwnerPointerState {
+  const community = (rawCommunity ?? {}) as Record<string, unknown>;
+  const rawOwnerUid = community['ownerUid'];
+  const normalizedText = String(rawOwnerUid ?? '').trim();
+
+  if (!normalizedText) {
+    return { kind: 'absent', uid: null };
+  }
+
+  const uid = normalizeSafeId(rawOwnerUid);
+  return uid
+    ? { kind: 'valid', uid }
+    : { kind: 'invalid', uid: null };
+}
+
 export function resolveCommunityCanonicalOwnerUid(
   rawCommunity: unknown
 ): string | null {
-  const community = (rawCommunity ?? {}) as Record<string, unknown>;
-  return normalizeSafeId(community['ownerUid']);
+  const state = classifyCommunityCanonicalOwnerPointer(rawCommunity);
+  return state.kind === 'valid' ? state.uid : null;
 }
 
 export function isCommunityCanonicalOwner(

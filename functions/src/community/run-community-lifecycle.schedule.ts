@@ -13,7 +13,7 @@ import { logger } from 'firebase-functions';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
-import { db } from '../firebaseApp';
+import { db, FieldValue } from '../firebaseApp';
 import {
   buildCommunityArchiveRetentionAnchorPlan,
   buildCommunityLifecycleMutationPlan,
@@ -25,6 +25,9 @@ import {
   evaluateCommunityLifecycle,
   requiresCommunityLifecycleMembershipVerification,
 } from './community-lifecycle.policy';
+import {
+  resolveCommunityLifecycleOwnership,
+} from './community-lifecycle-ownership.policy';
 import { sanitizeCommunityDocument } from './community-preview.model';
 import { buildCommunityRankingProjectionPatch } from './community-ranking-sync.policy';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
@@ -36,6 +39,7 @@ type LifecycleApplyResult =
   | 'unchanged'
   | 'transitioned'
   | 'retention_anchor_backfilled'
+  | 'ownership_inconsistent'
   | 'missing';
 
 function normalizeCursor(value: unknown): string | null {
@@ -168,6 +172,36 @@ async function applyCommunityLifecycle(
       thresholds,
       membershipOccupancy
     );
+
+    let ownershipResolution = resolveCommunityLifecycleOwnership(
+      community,
+      decision,
+      membershipOccupancy
+    );
+
+    if (ownershipResolution.state === 'needs_owner_membership_read') {
+      const ownerMembershipRef = communityRef
+        .collection('members')
+        .doc(ownershipResolution.ownerUid);
+      const ownerMembershipSnapshot = await transaction.get(ownerMembershipRef);
+
+      ownershipResolution = resolveCommunityLifecycleOwnership(
+        community,
+        decision,
+        membershipOccupancy,
+        {
+          exists: ownerMembershipSnapshot.exists,
+          data: ownerMembershipSnapshot.exists
+            ? ownerMembershipSnapshot.data() ?? {}
+            : null,
+        }
+      );
+    }
+
+    if (ownershipResolution.state === 'inconsistent') {
+      return 'ownership_inconsistent';
+    }
+
     const mutationPlan = buildCommunityLifecycleMutationPlan(
       community,
       decision,
@@ -176,7 +210,14 @@ async function applyCommunityLifecycle(
 
     if (!mutationPlan) return 'unchanged';
 
-    transaction.update(communityRef, mutationPlan.communityPatch);
+    const communityPatch = ownershipResolution.state === 'release'
+      ? {
+        ...mutationPlan.communityPatch,
+        ownerUid: FieldValue.delete(),
+      }
+      : mutationPlan.communityPatch;
+
+    transaction.update(communityRef, communityPatch);
 
     if (decision.nextStatus === 'active') {
       const discoveryProjection = buildActiveDiscoveryProjection(
@@ -210,6 +251,11 @@ async function applyCommunityLifecycle(
       nextStatus: decision.nextStatus,
       reason: decision.reason,
       deletionEligibleAt: decision.deletionEligibleAt,
+      ownershipReleased: ownershipResolution.state === 'release',
+      previousOwnerUid:
+        ownershipResolution.state === 'release'
+          ? ownershipResolution.ownerUid
+          : null,
       createdAt: now,
       source: SYSTEM_SOURCE,
     });
@@ -249,6 +295,7 @@ export const runCommunityLifecycle = onSchedule(
     let processed = 0;
     let transitioned = 0;
     let retentionAnchorsBackfilled = 0;
+    let ownershipInconsistent = 0;
     let missing = 0;
     let reachedEnd = false;
 
@@ -301,6 +348,12 @@ export const runCommunityLifecycle = onSchedule(
           if (result === 'retention_anchor_backfilled') {
             retentionAnchorsBackfilled += 1;
           }
+          if (result === 'ownership_inconsistent') {
+            ownershipInconsistent += 1;
+            logger.error('community_lifecycle_ownership_inconsistent', {
+              communityId: document.id,
+            });
+          }
           if (result === 'missing') missing += 1;
         }
 
@@ -320,6 +373,7 @@ export const runCommunityLifecycle = onSchedule(
         processed,
         transitioned,
         retentionAnchorsBackfilled,
+        ownershipInconsistent,
         missing,
         reachedEnd,
         thresholds,
@@ -333,6 +387,7 @@ export const runCommunityLifecycle = onSchedule(
       processed,
       transitioned,
       retentionAnchorsBackfilled,
+      ownershipInconsistent,
       missing,
       reachedEnd,
       nextCursor: cursor,

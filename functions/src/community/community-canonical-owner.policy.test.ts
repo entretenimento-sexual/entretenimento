@@ -3,11 +3,31 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  classifyCommunityCanonicalOwnerPointer,
   isCommunityCanonicalOwner,
   resolveCanonicalCommunityManagerRole,
   resolveCanonicalCommunityMemberRole,
   resolveCommunityCanonicalOwnerUid,
 } from './community-canonical-owner.policy';
+
+test('classifica ownerUid ausente, válido e corrompido sem ambiguidade', () => {
+  assert.deepEqual(classifyCommunityCanonicalOwnerPointer({}), {
+    kind: 'absent',
+    uid: null,
+  });
+  assert.deepEqual(classifyCommunityCanonicalOwnerPointer({ ownerUid: '  ' }), {
+    kind: 'absent',
+    uid: null,
+  });
+  assert.deepEqual(
+    classifyCommunityCanonicalOwnerPointer({ ownerUid: ' owner-1 ' }),
+    { kind: 'valid', uid: 'owner-1' }
+  );
+  assert.deepEqual(
+    classifyCommunityCanonicalOwnerPointer({ ownerUid: 'owner/1' }),
+    { kind: 'invalid', uid: null }
+  );
+});
 
 test('resolve ownerUid canônico somente para identificador seguro', () => {
   assert.equal(
