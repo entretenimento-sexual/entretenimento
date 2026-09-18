@@ -15,5 +15,7 @@ export function canSyncCommunityActivity(rawCommunity: unknown): boolean {
 
   if (source['type'] !== 'community') return false;
 
-  return status !== 'archived' && status !== 'scheduled_for_deletion';
+  return status === 'active'
+    || status === 'paused'
+    || status === 'dormant';
 }

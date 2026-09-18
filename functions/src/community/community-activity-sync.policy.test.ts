@@ -28,6 +28,19 @@ test('congela atividade de Comunidade arquivada ou agendada para exclusão', () 
   }
 });
 
+test('falha fechado para status de lifecycle ausente ou inválido', () => {
+  const invalidCommunities: unknown[] = [
+    { source: { type: 'community' } },
+    { source: { type: 'community' }, status: null },
+    { source: { type: 'community' }, status: 'unknown' },
+    { source: { type: 'community' }, status: 123 },
+  ];
+
+  for (const community of invalidCommunities) {
+    assert.equal(canSyncCommunityActivity(community), false);
+  }
+});
+
 test('não sincroniza atividade de Local pelo lifecycle de Comunidade', () => {
   assert.equal(
     canSyncCommunityActivity({ source: { type: 'venue' }, status: 'active' }),
