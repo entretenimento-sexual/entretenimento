@@ -11,16 +11,39 @@ export type CommunityActivityMembershipStatus =
   | 'active'
   | 'pending'
   | 'blocked'
-  | 'left'
-  | null;
+  | 'left';
 
-function normalizeStatus(value: unknown): CommunityActivityMembershipStatus {
-  return value === 'active'
-    || value === 'pending'
-    || value === 'blocked'
-    || value === 'left'
-    ? value
-    : null;
+type CommunityActivityMembershipState =
+  | Readonly<{ kind: 'absent' }>
+  | Readonly<{
+    kind: 'valid';
+    status: CommunityActivityMembershipStatus;
+  }>
+  | Readonly<{ kind: 'invalid' }>;
+
+function classifyMembershipState(
+  rawMembership: unknown
+): CommunityActivityMembershipState {
+  if (rawMembership === null || rawMembership === undefined) {
+    return { kind: 'absent' };
+  }
+
+  if (
+    typeof rawMembership !== 'object'
+    || Array.isArray(rawMembership)
+  ) {
+    return { kind: 'invalid' };
+  }
+
+  const membership = rawMembership as Record<string, unknown>;
+  const status = membership['status'];
+
+  return status === 'active'
+    || status === 'pending'
+    || status === 'blocked'
+    || status === 'left'
+    ? { kind: 'valid', status }
+    : { kind: 'invalid' };
 }
 
 function hasActivationHistory(rawMembership: unknown): boolean {
@@ -33,12 +56,20 @@ export function isCommunityMembershipTransitionMeaningful(
   rawBefore: unknown,
   rawAfter: unknown
 ): boolean {
-  const before = (rawBefore ?? {}) as Record<string, unknown>;
-  const after = (rawAfter ?? {}) as Record<string, unknown>;
-  const beforeStatus = normalizeStatus(before['status']);
-  const afterStatus = normalizeStatus(after['status']);
+  const beforeState = classifyMembershipState(rawBefore);
+  const afterState = classifyMembershipState(rawAfter);
 
-  if (beforeStatus === afterStatus || afterStatus !== 'active') return false;
+  if (
+    afterState.kind !== 'valid'
+    || afterState.status !== 'active'
+    || beforeState.kind === 'invalid'
+    || (
+      beforeState.kind === 'valid'
+      && beforeState.status === 'active'
+    )
+  ) {
+    return false;
+  }
 
   return !hasActivationHistory(rawBefore);
 }

@@ -73,6 +73,37 @@ test('não mantém Comunidade viva apenas por solicitação pendente ou rejeitad
   );
 });
 
+test('falha fechado quando o estado anterior ou atual é inválido', () => {
+  assert.equal(
+    isCommunityMembershipTransitionMeaningful(
+      { status: 'unknown' },
+      { status: 'active', joinedAt: 2_000 }
+    ),
+    false
+  );
+  assert.equal(
+    isCommunityMembershipTransitionMeaningful(
+      { status: 123 },
+      { status: 'active', joinedAt: 2_000 }
+    ),
+    false
+  );
+  assert.equal(
+    isCommunityMembershipTransitionMeaningful(
+      null,
+      { status: 'unknown' }
+    ),
+    false
+  );
+  assert.equal(
+    isCommunityMembershipTransitionMeaningful(
+      { status: 'pending' },
+      { status: null }
+    ),
+    false
+  );
+});
+
 test('ignora atualização sem mudança real de status', () => {
   assert.equal(
     isCommunityMembershipTransitionMeaningful(
