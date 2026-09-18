@@ -428,10 +428,12 @@ export function resolveCommunityViewerMode(rawMembership: unknown): {
   }
 
   if (status === 'pending') {
-    return { mode: 'pending', role, active: false, blocked: false };
+    return role === 'member'
+      ? { mode: 'pending', role, active: false, blocked: false }
+      : { mode: 'visitor', role: null, active: false, blocked: false };
   }
 
-  if (status !== 'active') {
+  if (status !== 'active' || !role) {
     return { mode: 'visitor', role: null, active: false, blocked: false };
   }
 
