@@ -1384,7 +1384,7 @@ describe('community-error transport contract', () => {
 describe('community-callable recent-auth classifier', () => {
   it('rejeita callable nova sem classificação explícita', () => {
     const callables = collectSyntheticCommunityCallables(`
-      export const newSensitiveCallable = onCall(async (request) => {
+      export const newSensitiveCallable = ${SYNTHETIC_ON_CALL_NAME}(async (request) => {
         return { uid: request.auth?.uid ?? null };
       });
     `);
@@ -1397,7 +1397,7 @@ describe('community-callable recent-auth classifier', () => {
 
   it('rejeita callable sensível sem assertRecentAuthentication real no AST', () => {
     const callables = collectSyntheticCommunityCallables(`
-      export const sensitiveCallable = onCall(async (request) => {
+      export const sensitiveCallable = ${SYNTHETIC_ON_CALL_NAME}(async (request) => {
         const marker = 'assertRecentAuthentication(request.auth?.token)';
         return { marker };
       });
@@ -1414,7 +1414,7 @@ describe('community-callable recent-auth classifier', () => {
 
   it('aceita callable sensível com assertRecentAuthentication no AST', () => {
     const callables = collectSyntheticCommunityCallables(`
-      export const sensitiveCallable = onCall(async (request) => {
+      export const sensitiveCallable = ${SYNTHETIC_ON_CALL_NAME}(async (request) => {
         assertRecentAuthentication(request.auth?.token);
         return { ok: true };
       });
@@ -1431,7 +1431,7 @@ describe('community-callable recent-auth classifier', () => {
 
   it('rejeita classificação none quando o runtime ganha recent-auth', () => {
     const callables = collectSyntheticCommunityCallables(`
-      export const ordinaryCallable = onCall(async (request) => {
+      export const ordinaryCallable = ${SYNTHETIC_ON_CALL_NAME}(async (request) => {
         assertRecentAuthentication(request.auth?.token);
         return { ok: true };
       });
