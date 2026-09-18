@@ -226,19 +226,48 @@ test('aceita Firestore Timestamp como atividade significativa', () => {
   assert.equal(result.reason, 'meaningful_activity_resumed');
 });
 
-test('arquiva Comunidade dormente depois da janela máxima de inatividade', () => {
-  const result = evaluateCommunityLifecycle(
-    community({
-      status: 'dormant',
-      lifecycle: {
-        lastMeaningfulActivityAt:
-          NOW - DEFAULT_COMMUNITY_LIFECYCLE_THRESHOLDS.archiveAfterDays * DAY_MS,
-      },
-    }),
-    NOW
+test('dormant só arquiva após janela máxima com vazio canônico', () => {
+  const rawCommunity = community({
+    status: 'dormant',
+    metrics: {
+      memberCount: 10,
+      postCount: 4,
+      mediaCount: 2,
+      topicCount: 1,
+    },
+    lifecycle: {
+      lastMeaningfulActivityAt:
+        NOW - DEFAULT_COMMUNITY_LIFECYCLE_THRESHOLDS.archiveAfterDays * DAY_MS,
+    },
+  });
+
+  const projected = evaluateCommunityLifecycle(rawCommunity, NOW);
+  assert.equal(projected.changed, false);
+  assert.equal(projected.nextStatus, 'dormant');
+
+  assert.equal(
+    requiresCommunityLifecycleMembershipVerification(rawCommunity, NOW),
+    true
   );
 
-  assert.equal(result.nextStatus, 'archived');
+  const nonempty = evaluateCommunityLifecycle(
+    rawCommunity,
+    NOW,
+    DEFAULT_COMMUNITY_LIFECYCLE_THRESHOLDS,
+    'nonempty'
+  );
+  assert.equal(nonempty.changed, false);
+  assert.equal(nonempty.nextStatus, 'dormant');
+
+  const empty = evaluateCommunityLifecycle(
+    rawCommunity,
+    NOW,
+    DEFAULT_COMMUNITY_LIFECYCLE_THRESHOLDS,
+    'empty'
+  );
+  assert.equal(empty.changed, true);
+  assert.equal(empty.nextStatus, 'archived');
+  assert.equal(empty.reason, 'empty_and_inactive');
 });
 
 test('agenda exclusão de arquivo vazio somente depois da retenção mínima', () => {
@@ -414,7 +443,7 @@ test('não consulta ocupação canônica quando lifecycle não depende de vazio'
         status: 'dormant',
         lifecycle: {
           lastMeaningfulActivityAt:
-            NOW - DEFAULT_COMMUNITY_LIFECYCLE_THRESHOLDS.archiveAfterDays * DAY_MS,
+            NOW - (DEFAULT_COMMUNITY_LIFECYCLE_THRESHOLDS.archiveAfterDays - 1) * DAY_MS,
         },
       }),
       NOW

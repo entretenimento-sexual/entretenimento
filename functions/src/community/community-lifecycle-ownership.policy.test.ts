@@ -128,6 +128,22 @@ test('owner ainda ativo nunca é liberado por inferência', () => {
   );
 });
 
+test('dormant vazio libera ownership na mesma transição de arquivamento', () => {
+  const result = resolve(
+    { ownerUid: 'owner-1' },
+    'empty',
+    { exists: true, data: { status: 'left' } },
+    decision({
+      currentStatus: 'dormant',
+      nextStatus: 'archived',
+      reason: 'empty_and_inactive',
+      deletionEligibleAt: null,
+    })
+  );
+
+  assert.deepEqual(result, { state: 'release', ownerUid: 'owner-1' });
+});
+
 test('active vazio também usa a mesma reconciliação antes de arquivar', () => {
   const result = resolve(
     { ownerUid: 'owner-1' },

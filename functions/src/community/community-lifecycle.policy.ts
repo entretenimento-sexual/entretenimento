@@ -262,8 +262,15 @@ export function evaluateCommunityLifecycle(
       return transition(status, 'active', 'meaningful_activity_resumed');
     }
 
-    if (inactiveDays >= thresholds.archiveAfterDays) {
-      return transition(status, 'archived', 'inactive');
+    // Arquivamento automático é uma transição destrutiva para a participação:
+    // activity/gestão deixam de existir e o caminho seguinte pode chegar ao
+    // purge. Portanto, dormência prolongada só pode virar archived com prova
+    // canônica de que nenhuma membership ativa permanece.
+    if (
+      inactiveDays >= thresholds.archiveAfterDays
+      && hasActiveMembers === false
+    ) {
+      return transition(status, 'archived', 'empty_and_inactive');
     }
 
     return noTransition(status, 'no_transition');

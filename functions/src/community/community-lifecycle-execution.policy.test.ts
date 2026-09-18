@@ -172,7 +172,12 @@ test('plano de arquivamento mantém âncora canônica e compatibilidade legada',
     status: 'dormant',
     lifecycle: { lastMeaningfulActivityAt: NOW - 150 * DAY_MS },
   });
-  const decision = evaluateCommunityLifecycle(raw, NOW);
+  const decision = evaluateCommunityLifecycle(
+    raw,
+    NOW,
+    DEFAULT_COMMUNITY_LIFECYCLE_THRESHOLDS,
+    'empty'
+  );
   const plan = buildCommunityLifecycleMutationPlan(raw, decision, NOW);
 
   assert.ok(plan);
