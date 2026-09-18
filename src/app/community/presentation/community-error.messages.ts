@@ -406,6 +406,8 @@ export const COMMUNITY_OWNERSHIP_REASON_MESSAGES: CommunityErrorMessageMap =
       'A conta selecionada não pode assumir a propriedade agora.',
     community_lifecycle_hold:
       'Esta Comunidade possui retenção operacional e não pode ser arquivada.',
+    community_ownership_idempotency_invalid:
+      'A confirmação anterior desta operação está inconsistente. A ação foi bloqueada para revisão.',
   });
 
 export const COMMUNITY_OWNERSHIP_LOAD_CODE_MESSAGES: CommunityErrorMessageMap =
