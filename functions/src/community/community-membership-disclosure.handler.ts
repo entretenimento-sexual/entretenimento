@@ -145,6 +145,15 @@ export const updateCommunityMembershipDisclosurePolicy =
           community,
           mode
         );
+
+        if (!transition) {
+          throw new HttpsError(
+            'data-loss',
+            'A política de visibilidade desta Comunidade está inconsistente.',
+            { reason: 'membership_disclosure_invalid' }
+          );
+        }
+
         const now = Date.now();
 
         if (transition.updated) {

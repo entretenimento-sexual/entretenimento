@@ -15,4 +15,6 @@ export const COMMUNITY_MEMBERSHIP_PROFILE_VISIBILITY_REASON_MESSAGES:
       'Somente proprietários e administradores ativos podem alterar esta política.',
     community_membership_profile_visibility_unavailable:
       'Esta Comunidade não permite exibir sua participação no perfil neste momento.',
+    membership_disclosure_invalid:
+      'A política de privacidade desta Comunidade está inconsistente e precisa ser revisada.',
   });
