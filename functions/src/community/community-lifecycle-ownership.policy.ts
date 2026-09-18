@@ -54,7 +54,7 @@ export function resolveCommunityLifecycleOwnership(
   decision: Readonly<CommunityLifecycleDecision>,
   membershipOccupancy: CommunityLifecycleMembershipOccupancy,
   ownerMembershipRead: Readonly<CommunityLifecycleOwnerMembershipRead> | null
-    = null
+  = null
 ): CommunityLifecycleOwnershipResolution {
   if (!requiresEmptyOwnershipResolution(decision, membershipOccupancy)) {
     return { state: 'not_required', ownerUid: null };
