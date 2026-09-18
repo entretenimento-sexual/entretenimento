@@ -52,8 +52,12 @@ function assertPreviewRuntime(): void {
   );
 }
 
-function normalizeJoin(value: unknown): CommunityJoinPolicy {
-  return value === 'open' || value === 'invite_only' ? value : 'approval';
+function normalizeJoin(value: unknown): CommunityJoinPolicy | null {
+  return value === 'open'
+    || value === 'approval'
+    || value === 'invite_only'
+    ? value
+    : null;
 }
 
 function resolveMemberCountDelta(
@@ -67,6 +71,14 @@ function resolveMemberCountDelta(
 }
 
 function throwDecisionError(reason: string | null): never {
+  if (reason === 'join_policy_invalid') {
+    throw new HttpsError(
+      'data-loss',
+      'A política de entrada desta Comunidade está inconsistente.',
+      { reason: 'join_policy_invalid' }
+    );
+  }
+
   if (reason === 'invite_only') {
     throw new HttpsError(
       'failed-precondition',

@@ -270,12 +270,17 @@ function normalizeCard(raw: unknown): CommunityPreviewCard | null {
     || (sourceType !== 'community' && sourceType !== 'venue')
     || name.length < 2
     || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)
+    || !normalizedJoin
   ) {
     return null;
   }
 
   const description = normalizeText(source['description'], 240);
   const join = access['join'];
+  const normalizedJoin: CommunityPreviewJoinPolicy | null =
+    join === 'open' || join === 'approval' || join === 'invite_only'
+      ? join
+      : null;
   const viewerRole = normalizeViewerRole(source['viewerRole']);
   const publicLocation = sourceType === 'venue'
     ? normalizePublicLocation(source['publicLocation'])
@@ -298,8 +303,7 @@ function normalizeCard(raw: unknown): CommunityPreviewCard | null {
       mediaCount: normalizeCount(metrics['mediaCount']),
     },
     access: {
-      join:
-        join === 'open' || join === 'invite_only' ? join : 'approval',
+      join: normalizedJoin,
       minimumRole: null,
       requiresActiveSubscription: false,
     },

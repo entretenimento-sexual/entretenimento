@@ -57,6 +57,8 @@ export const COMMUNITY_MEMBERSHIP_ACTION_REASON_MESSAGES: CommunityErrorMessageM
       'Este vínculo está bloqueado e não pode ser alterado.',
     membership_status_invalid:
       'Não foi possível validar seu vínculo com esta Comunidade. Tente novamente.',
+    join_policy_invalid:
+      'A política de entrada desta Comunidade está inconsistente. Tente novamente mais tarde.',
     invite_only:
       'A entrada nesta Comunidade é feita somente por convite.',
     actor_restricted:

@@ -21,6 +21,7 @@ export type CommunityMembershipLeaveCommunityStatus =
 
 export type CommunityMembershipDenialReason =
   | 'community_unavailable'
+  | 'join_policy_invalid'
   | 'invite_only'
   | 'membership_blocked'
   | 'actor_restricted';
@@ -41,7 +42,7 @@ export type CommunityMembershipReviewDenialReason =
 export interface CommunityMembershipRequestInput {
   operational: boolean;
   publicPreview: boolean;
-  join: CommunityJoinPolicy;
+  join: CommunityJoinPolicy | null;
   existingStatus: CommunityMembershipStatus | null;
   actorEligible: boolean;
 }
@@ -135,6 +136,10 @@ export function evaluateCommunityMembershipRequest(
 
   if (!input.operational || !input.publicPreview) {
     return denied('community_unavailable');
+  }
+
+  if (input.join === null) {
+    return denied('join_policy_invalid');
   }
 
   if (input.join === 'invite_only') {

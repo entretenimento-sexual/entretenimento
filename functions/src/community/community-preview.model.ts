@@ -248,11 +248,14 @@ function normalizeJoin(value: unknown): CommunityJoinPolicy {
   return value === 'open' || value === 'invite_only' ? value : 'approval';
 }
 
-function normalizeAccess(raw: unknown): CommunityPreviewAccess {
+function normalizeAccess(raw: unknown): CommunityPreviewAccess | null {
   const source = (raw ?? {}) as Record<string, unknown>;
+  const join = normalizeJoin(source['join']);
+
+  if (!join) return null;
 
   return {
-    join: normalizeJoin(source['join']),
+    join,
     minimumRole: null,
     requiresActiveSubscription: false,
   };
@@ -285,12 +288,14 @@ function buildPreviewCard(
   const name = normalizeText(source['name'], 80);
   const slug = normalizeText(source['slug'], 100);
   const communitySource = normalizeSource(source['source']);
+  const access = normalizeAccess(source['access']);
 
   if (
     !communityId
     || name.length < 2
     || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)
     || !communitySource
+    || !access
   ) {
     return null;
   }
@@ -313,7 +318,7 @@ function buildPreviewCard(
     avatarUrl: normalizeHttpsUrl(source['avatarUrl']),
     coverUrl: normalizeHttpsUrl(source['coverUrl']),
     metrics: normalizeMetrics(source['metrics']),
-    access: normalizeAccess(source['access']),
+    access,
     tags: communitySource.type === 'community'
       ? normalizeTags(source['tagIds'])
       : [],
