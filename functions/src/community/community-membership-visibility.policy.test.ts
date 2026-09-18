@@ -44,19 +44,21 @@ test('mantém participação privada quando política de disclosure está ausent
   );
 });
 
-test('rejeita policy de disclosure sem versão válida', () => {
-  assert.deepEqual(
-    resolveCommunityMembershipVisibility(
-      buildCommunity({
-        membershipDisclosure: {
-          profileMembership: 'opt_in',
-          policyVersion: 0,
-        },
-      }),
-      buildMembership()
-    ),
-    { visible: false, reason: 'community_disclosure_policy_invalid' }
-  );
+test('rejeita policy de disclosure sem versão canônica válida', () => {
+  for (const policyVersion of [0, '2', 2.5, Number.NaN]) {
+    assert.deepEqual(
+      resolveCommunityMembershipVisibility(
+        buildCommunity({
+          membershipDisclosure: {
+            profileMembership: 'opt_in',
+            policyVersion,
+          },
+        }),
+        buildMembership()
+      ),
+      { visible: false, reason: 'community_disclosure_policy_invalid' }
+    );
+  }
 });
 
 test('não expõe membership de Comunidade members_only ou hidden', () => {
@@ -120,6 +122,18 @@ test('não reutiliza consentimento concedido para versão antiga da policy', () 
   );
 });
 
+test('não aceita versão de consentimento coercível ou fracionária', () => {
+  for (const profileVisibilityPolicyVersion of ['2', 2.5, Number.NaN]) {
+    assert.deepEqual(
+      resolveCommunityMembershipVisibility(
+        buildCommunity(),
+        buildMembership({ profileVisibilityPolicyVersion })
+      ),
+      { visible: false, reason: 'consent_policy_mismatch' }
+    );
+  }
+});
+
 test('estado privado exige novo opt-in após mudança de policy', () => {
   assert.deepEqual(
     resolveCommunityMembershipProfileVisibilityState(
@@ -141,6 +155,27 @@ test('estado privado mantém legacy hidden e desabilita mudança sem policy', ()
     resolveCommunityMembershipProfileVisibilityState(
       buildCommunity({ membershipDisclosure: undefined }),
       { status: 'active' }
+    ),
+    {
+      disclosureMode: 'disabled',
+      policyVersion: 1,
+      profileVisibility: 'hidden',
+      profileVisibilityPolicyVersion: null,
+      canChange: false,
+    }
+  );
+});
+
+test('estado privado falha fechado quando a policy persistida está corrompida', () => {
+  assert.deepEqual(
+    resolveCommunityMembershipProfileVisibilityState(
+      buildCommunity({
+        membershipDisclosure: {
+          profileMembership: 'opt_in',
+          policyVersion: '2',
+        },
+      }),
+      buildMembership()
     ),
     {
       disclosureMode: 'disabled',

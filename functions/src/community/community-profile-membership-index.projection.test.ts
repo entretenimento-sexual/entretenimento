@@ -30,6 +30,16 @@ test('legacy, hidden, left e policy inválida permanecem fora do locator', () =>
       profileVisibility: 'visible',
       profileVisibilityPolicyVersion: 0,
     },
+    {
+      status: 'active',
+      profileVisibility: 'visible',
+      profileVisibilityPolicyVersion: '2',
+    },
+    {
+      status: 'active',
+      profileVisibility: 'visible',
+      profileVisibilityPolicyVersion: 2.5,
+    },
   ]) {
     assert.equal(
       buildCommunityProfileMembershipIndexProjection('community-1', membership),

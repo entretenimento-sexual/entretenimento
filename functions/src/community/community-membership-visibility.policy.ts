@@ -7,6 +7,10 @@
 // falha fechado.
 // -----------------------------------------------------------------------------
 
+import {
+  classifyCommunityMembershipDisclosureState,
+} from './community-membership-disclosure.policy';
+
 export interface CommunityMembershipVisibilityDecision {
   readonly visible: boolean;
   readonly reason:
@@ -30,8 +34,11 @@ export interface CommunityMembershipProfileVisibilityResolvedState {
 }
 
 function normalizePositiveInteger(value: unknown): number | null {
-  const parsed = Math.trunc(Number(value));
-  return Number.isFinite(parsed) && parsed >= 1 ? parsed : null;
+  return typeof value === 'number'
+    && Number.isSafeInteger(value)
+    && value >= 1
+    ? value
+    : null;
 }
 
 export function resolveCommunityMembershipVisibility(
@@ -41,7 +48,6 @@ export function resolveCommunityMembershipVisibility(
   const community = (rawCommunity ?? {}) as Record<string, unknown>;
   const membership = (rawMembership ?? {}) as Record<string, unknown>;
   const moderation = (community['moderation'] ?? {}) as Record<string, unknown>;
-  const disclosure = (community['membershipDisclosure'] ?? {}) as Record<string, unknown>;
 
   if (community['visibility'] !== 'public_preview') {
     return { visible: false, reason: 'community_not_public' };
@@ -55,14 +61,18 @@ export function resolveCommunityMembershipVisibility(
     return { visible: false, reason: 'community_not_moderation_active' };
   }
 
-  if (disclosure['profileMembership'] !== 'opt_in') {
+  const disclosureState =
+    classifyCommunityMembershipDisclosureState(community);
+
+  if (disclosureState.kind === 'invalid') {
+    return { visible: false, reason: 'community_disclosure_policy_invalid' };
+  }
+
+  if (disclosureState.mode !== 'opt_in') {
     return { visible: false, reason: 'community_disclosure_disabled' };
   }
 
-  const policyVersion = normalizePositiveInteger(disclosure['policyVersion']);
-  if (!policyVersion) {
-    return { visible: false, reason: 'community_disclosure_policy_invalid' };
-  }
+  const policyVersion = disclosureState.policyVersion;
 
   if (membership['status'] !== 'active') {
     return { visible: false, reason: 'membership_not_active' };
@@ -88,10 +98,14 @@ export function resolveCommunityMembershipProfileVisibilityState(
 ): CommunityMembershipProfileVisibilityResolvedState {
   const community = (rawCommunity ?? {}) as Record<string, unknown>;
   const membership = (rawMembership ?? {}) as Record<string, unknown>;
-  const disclosure = (community['membershipDisclosure'] ?? {}) as Record<string, unknown>;
-  const policyVersion = normalizePositiveInteger(disclosure['policyVersion']);
+  const disclosureState =
+    classifyCommunityMembershipDisclosureState(community);
   const disclosureEnabled =
-    disclosure['profileMembership'] === 'opt_in' && policyVersion !== null;
+    disclosureState.kind !== 'invalid'
+    && disclosureState.mode === 'opt_in';
+  const policyVersion = disclosureState.kind === 'invalid'
+    ? 1
+    : disclosureState.policyVersion;
   const currentDecision = resolveCommunityMembershipVisibility(
     community,
     membership
@@ -111,7 +125,7 @@ export function resolveCommunityMembershipProfileVisibilityState(
 
   return {
     disclosureMode: disclosureEnabled ? 'opt_in' : 'disabled',
-    policyVersion: policyVersion ?? 1,
+    policyVersion,
     profileVisibility: currentDecision.visible ? 'visible' : 'hidden',
     profileVisibilityPolicyVersion: currentDecision.visible
       ? acceptedPolicyVersion

@@ -20,8 +20,11 @@ function normalizeCommunityId(value: unknown): string | null {
 }
 
 function normalizePositiveInteger(value: unknown): number | null {
-  const parsed = Math.trunc(Number(value));
-  return Number.isFinite(parsed) && parsed >= 1 ? parsed : null;
+  return typeof value === 'number'
+    && Number.isSafeInteger(value)
+    && value >= 1
+    ? value
+    : null;
 }
 
 export function buildCommunityProfileMembershipIndexProjection(
