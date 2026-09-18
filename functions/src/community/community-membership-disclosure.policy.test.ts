@@ -54,9 +54,10 @@ test('operação idempotente preserva a versão atual', () => {
   );
 });
 
-
 test('estado persistido malformado falha fechado em vez de virar disabled v1', () => {
   for (const membershipDisclosure of [
+    null,
+    undefined,
     {},
     { profileMembership: 'unknown', policyVersion: 4 },
     { profileMembership: 'opt_in' },

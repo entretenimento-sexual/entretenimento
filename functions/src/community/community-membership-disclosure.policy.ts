@@ -41,9 +41,13 @@ export function classifyCommunityMembershipDisclosureState(
   rawCommunity: unknown
 ): CommunityMembershipDisclosureState {
   const community = (rawCommunity ?? {}) as Record<string, unknown>;
-  const rawDisclosure = community['membershipDisclosure'];
 
-  if (rawDisclosure === null || rawDisclosure === undefined) {
+  if (
+    !Object.prototype.hasOwnProperty.call(
+      community,
+      'membershipDisclosure'
+    )
+  ) {
     return {
       kind: 'legacy_absent',
       mode: 'disabled',
@@ -51,8 +55,11 @@ export function classifyCommunityMembershipDisclosureState(
     };
   }
 
+  const rawDisclosure = community['membershipDisclosure'];
+
   if (
-    typeof rawDisclosure !== 'object'
+    rawDisclosure === null
+    || typeof rawDisclosure !== 'object'
     || Array.isArray(rawDisclosure)
   ) {
     return { kind: 'invalid' };

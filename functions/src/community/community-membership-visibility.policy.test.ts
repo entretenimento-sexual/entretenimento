@@ -28,6 +28,12 @@ function buildMembership(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function buildLegacyCommunityWithoutDisclosure(): Record<string, unknown> {
+  const community = buildCommunity();
+  Reflect.deleteProperty(community, 'membershipDisclosure');
+  return community;
+}
+
 test('permite somente Comunidade pública e membro com opt-in da mesma policy', () => {
   assert.deepEqual(
     resolveCommunityMembershipVisibility(buildCommunity(), buildMembership()),
@@ -36,12 +42,25 @@ test('permite somente Comunidade pública e membro com opt-in da mesma policy', 
 });
 
 test('mantém participação privada quando política de disclosure está ausente', () => {
-  const community = buildCommunity({ membershipDisclosure: undefined });
-
   assert.deepEqual(
-    resolveCommunityMembershipVisibility(community, buildMembership()),
+    resolveCommunityMembershipVisibility(
+      buildLegacyCommunityWithoutDisclosure(),
+      buildMembership()
+    ),
     { visible: false, reason: 'community_disclosure_disabled' }
   );
+});
+
+test('rejeita disclosure persistido nulo ou indefinido como corrupção', () => {
+  for (const membershipDisclosure of [null, undefined]) {
+    assert.deepEqual(
+      resolveCommunityMembershipVisibility(
+        buildCommunity({ membershipDisclosure }),
+        buildMembership()
+      ),
+      { visible: false, reason: 'community_disclosure_policy_invalid' }
+    );
+  }
 });
 
 test('rejeita policy de disclosure sem versão canônica válida', () => {
@@ -153,7 +172,7 @@ test('estado privado exige novo opt-in após mudança de policy', () => {
 test('estado privado mantém legacy hidden e desabilita mudança sem policy', () => {
   assert.deepEqual(
     resolveCommunityMembershipProfileVisibilityState(
-      buildCommunity({ membershipDisclosure: undefined }),
+      buildLegacyCommunityWithoutDisclosure(),
       { status: 'active' }
     ),
     {
