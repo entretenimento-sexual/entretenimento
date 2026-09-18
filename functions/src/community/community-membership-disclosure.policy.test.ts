@@ -27,11 +27,11 @@ test('mudança de policy invalida consentimentos antigos por nova versão', () =
     },
   };
 
-  assert.equal(
-    resolveCommunityMembershipDisclosureTransition(community, 'disabled')
-      .nextPolicyVersion,
-    5
-  );
+  const transition =
+    resolveCommunityMembershipDisclosureTransition(community, 'disabled');
+
+  assert.ok(transition);
+  assert.equal(transition.nextPolicyVersion, 5);
 });
 
 test('operação idempotente preserva a versão atual', () => {
