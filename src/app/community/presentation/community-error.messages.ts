@@ -224,6 +224,8 @@ export const COMMUNITY_SETTINGS_REASON_MESSAGES: CommunityErrorMessageMap =
       'Confirme o acesso adulto antes de alterar estas configurações.',
     profile_incomplete:
       'Complete seu perfil antes de alterar estas configurações.',
+    community_settings_idempotency_invalid:
+      'A confirmação anterior desta edição está inconsistente. A ação foi bloqueada para revisão.',
   });
 
 export const COMMUNITY_SETTINGS_CODE_MESSAGES: CommunityErrorMessageMap =

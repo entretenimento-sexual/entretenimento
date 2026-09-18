@@ -37,6 +37,7 @@ import {
 } from './community-settings.model';
 import {
   CommunitySettingsPolicyDenialReason,
+  evaluateCommunitySettingsIdempotencyReplay,
   evaluateCommunitySettingsUpdate,
 } from './community-settings.policy';
 import type { CommunityViewerRole } from './community-preview.model';
@@ -118,6 +119,30 @@ function buildContentAccess(): {
   return { requiresActiveSubscription: false, minimumRole: null };
 }
 
+function resolveSettingsReplay(
+  decision: ReturnType<typeof evaluateCommunitySettingsIdempotencyReplay>
+): { changedFields: string[]; generatedAt: number } {
+  if (decision.state === 'valid') {
+    return {
+      changedFields: decision.changedFields,
+      generatedAt: decision.generatedAt,
+    };
+  }
+
+  if (decision.state === 'conflict') {
+    throw new HttpsError(
+      'permission-denied',
+      'Esta solicitação de edição pertence a outra operação.'
+    );
+  }
+
+  throw new HttpsError(
+    'data-loss',
+    'O registro idempotente da edição está inconsistente.',
+    { reason: 'community_settings_idempotency_invalid' }
+  );
+}
+
 function commandSettings(
   command: ReturnType<typeof normalizeUpdateCommunitySettingsRequest>
 ): CommunityEditableSettings {
@@ -196,40 +221,19 @@ export const updateCommunitySettings = onCall<UpdateCommunitySettingsRequest>(
       ]);
 
       if (requestSnapshot.exists) {
-        const existing = requestSnapshot.data() ?? {};
-        const changedFields = Array.isArray(existing['changedFields'])
-          ? existing['changedFields']
-            .map((field) => String(field ?? '').trim())
-            .filter(Boolean)
-          : [];
-        const existingActorUid = String(existing['actorUid'] ?? '').trim();
-        const existingCommunityId = String(
-          existing['communityId'] ?? ''
-        ).trim();
-        const generatedAt = Number(existing['generatedAt']);
-
-        if (
-          existingActorUid !== actorUid
-          || existingCommunityId !== command.communityId
-        ) {
-          throw new HttpsError(
-            'permission-denied',
-            'Esta solicitação de edição pertence a outra operação.'
-          );
-        }
-
-        if (!Number.isFinite(generatedAt)) {
-          throw new HttpsError(
-            'data-loss',
-            'O registro idempotente da edição está inconsistente.'
-          );
-        }
+        const replay = resolveSettingsReplay(
+          evaluateCommunitySettingsIdempotencyReplay({
+            rawRequest: requestSnapshot.data(),
+            expectedActorUid: actorUid,
+            expectedCommunityId: command.communityId,
+          })
+        );
 
         return {
           communityId: command.communityId,
           updated: false,
-          changedFields,
-          generatedAt,
+          changedFields: replay.changedFields,
+          generatedAt: replay.generatedAt,
         };
       }
 

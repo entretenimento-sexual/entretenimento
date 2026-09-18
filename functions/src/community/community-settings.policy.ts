@@ -25,6 +25,31 @@ export interface CommunitySettingsPolicyDecision {
   denialReason: CommunitySettingsPolicyDenialReason | null;
 }
 
+export type CommunitySettingsIdempotencyReplayDecision =
+  | {
+    readonly state: 'valid';
+    readonly changedFields: string[];
+    readonly generatedAt: number;
+  }
+  | { readonly state: 'conflict' }
+  | { readonly state: 'invalid' };
+
+export interface CommunitySettingsIdempotencyReplayInput {
+  readonly rawRequest: unknown;
+  readonly expectedActorUid: string;
+  readonly expectedCommunityId: string;
+}
+
+const COMMUNITY_SETTINGS_CHANGED_FIELDS = new Set<string>([
+  'name',
+  'description',
+  'rules',
+  'joinPolicy',
+  'membersCanInvite',
+  'memberLimit',
+  'tagIds',
+]);
+
 export function evaluateCommunitySettingsUpdate(
   input: CommunitySettingsPolicyInput
 ): CommunitySettingsPolicyDecision {
@@ -51,4 +76,62 @@ export function evaluateCommunitySettingsUpdate(
   }
 
   return { allowed: true, denialReason: null };
+}
+
+
+export function evaluateCommunitySettingsIdempotencyReplay(
+  input: Readonly<CommunitySettingsIdempotencyReplayInput>
+): CommunitySettingsIdempotencyReplayDecision {
+  if (
+    input.rawRequest === null
+    || typeof input.rawRequest !== 'object'
+    || Array.isArray(input.rawRequest)
+  ) {
+    return { state: 'invalid' };
+  }
+
+  const request = input.rawRequest as Record<string, unknown>;
+
+  if (
+    request['actorUid'] !== input.expectedActorUid
+    || request['communityId'] !== input.expectedCommunityId
+  ) {
+    return { state: 'conflict' };
+  }
+
+  if (request['status'] !== 'completed') {
+    return { state: 'invalid' };
+  }
+
+  const generatedAt = request['generatedAt'];
+  if (
+    typeof generatedAt !== 'number'
+    || !Number.isSafeInteger(generatedAt)
+    || generatedAt <= 0
+  ) {
+    return { state: 'invalid' };
+  }
+
+  const rawChangedFields = request['changedFields'];
+  if (!Array.isArray(rawChangedFields)) {
+    return { state: 'invalid' };
+  }
+
+  const changedFields: string[] = [];
+  const seen = new Set<string>();
+
+  for (const field of rawChangedFields) {
+    if (
+      typeof field !== 'string'
+      || !COMMUNITY_SETTINGS_CHANGED_FIELDS.has(field)
+      || seen.has(field)
+    ) {
+      return { state: 'invalid' };
+    }
+
+    seen.add(field);
+    changedFields.push(field);
+  }
+
+  return { state: 'valid', changedFields, generatedAt };
 }

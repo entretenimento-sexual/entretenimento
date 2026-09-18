@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { evaluateCommunitySettingsUpdate } from './community-settings.policy';
+import {
+  evaluateCommunitySettingsIdempotencyReplay,
+  evaluateCommunitySettingsUpdate,
+} from './community-settings.policy';
 
 const BASE_INPUT = Object.freeze({
   sourceType: 'community' as const,
@@ -91,5 +94,76 @@ test('isola Local e bloqueia estados não editáveis ou moderação inativa', ()
       moderationState: 'blocked',
     }).denialReason,
     'community_unavailable'
+  );
+});
+
+
+const SETTINGS_REPLAY_BASE = Object.freeze({
+  rawRequest: {
+    actorUid: 'owner-1',
+    communityId: 'community-1',
+    status: 'completed',
+    changedFields: ['rules', 'joinPolicy'],
+    generatedAt: 123_456,
+  },
+  expectedActorUid: 'owner-1',
+  expectedCommunityId: 'community-1',
+});
+
+test('aceita replay idempotente íntegro de configurações', () => {
+  assert.deepEqual(
+    evaluateCommunitySettingsIdempotencyReplay(SETTINGS_REPLAY_BASE),
+    {
+      state: 'valid',
+      changedFields: ['rules', 'joinPolicy'],
+      generatedAt: 123_456,
+    }
+  );
+});
+
+test('classifica identidade divergente do replay de configurações como conflito', () => {
+  for (const input of [
+    { ...SETTINGS_REPLAY_BASE, expectedActorUid: 'owner-2' },
+    { ...SETTINGS_REPLAY_BASE, expectedCommunityId: 'community-2' },
+  ]) {
+    assert.deepEqual(
+      evaluateCommunitySettingsIdempotencyReplay(input),
+      { state: 'conflict' }
+    );
+  }
+});
+
+test('replay de configurações corrompido falha fechado', () => {
+  for (const rawRequest of [
+    { ...SETTINGS_REPLAY_BASE.rawRequest, status: 'pending' },
+    { ...SETTINGS_REPLAY_BASE.rawRequest, generatedAt: undefined },
+    { ...SETTINGS_REPLAY_BASE.rawRequest, generatedAt: '123456' },
+    { ...SETTINGS_REPLAY_BASE.rawRequest, generatedAt: 123.5 },
+    { ...SETTINGS_REPLAY_BASE.rawRequest, generatedAt: 0 },
+    { ...SETTINGS_REPLAY_BASE.rawRequest, changedFields: 'rules' },
+    { ...SETTINGS_REPLAY_BASE.rawRequest, changedFields: ['rules', 'unknown'] },
+    { ...SETTINGS_REPLAY_BASE.rawRequest, changedFields: ['rules', 'rules'] },
+    { ...SETTINGS_REPLAY_BASE.rawRequest, changedFields: ['rules', 1] },
+  ]) {
+    assert.deepEqual(
+      evaluateCommunitySettingsIdempotencyReplay({
+        ...SETTINGS_REPLAY_BASE,
+        rawRequest,
+      }),
+      { state: 'invalid' }
+    );
+  }
+});
+
+test('aceita replay idempotente de edição sem mudanças', () => {
+  assert.deepEqual(
+    evaluateCommunitySettingsIdempotencyReplay({
+      ...SETTINGS_REPLAY_BASE,
+      rawRequest: {
+        ...SETTINGS_REPLAY_BASE.rawRequest,
+        changedFields: [],
+      },
+    }),
+    { state: 'valid', changedFields: [], generatedAt: 123_456 }
   );
 });
