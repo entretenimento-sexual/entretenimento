@@ -19,6 +19,7 @@ export type CommunityLifecycleReason =
   | 'not_community'
   | 'moderation_hold'
   | 'status_not_managed'
+  | 'status_invalid'
   | 'meaningful_activity_resumed'
   | 'inactive'
   | 'empty_and_inactive'
@@ -40,8 +41,8 @@ export interface CommunityLifecycleThresholds {
 }
 
 export interface CommunityLifecycleDecision {
-  currentStatus: CommunityLifecycleStatus;
-  nextStatus: CommunityLifecycleStatus;
+  currentStatus: CommunityLifecycleStatus | null;
+  nextStatus: CommunityLifecycleStatus | null;
   changed: boolean;
   reason: CommunityLifecycleReason;
   shouldHideFromDiscovery: boolean;
@@ -101,13 +102,14 @@ function normalizeOptionalCount(value: unknown): number | null {
     : null;
 }
 
-function normalizeStatus(value: unknown): CommunityLifecycleStatus {
-  return value === 'paused'
+function normalizeStatus(value: unknown): CommunityLifecycleStatus | null {
+  return value === 'active'
+    || value === 'paused'
     || value === 'dormant'
     || value === 'archived'
     || value === 'scheduled_for_deletion'
     ? value
-    : 'active';
+    : null;
 }
 
 function resolveHasActiveMembers(
@@ -151,7 +153,7 @@ function ageInDays(now: number, timestamp: number | null): number {
 }
 
 function noTransition(
-  status: CommunityLifecycleStatus,
+  status: CommunityLifecycleStatus | null,
   reason: CommunityLifecycleReason,
   deletionEligibleAt: number | null = null
 ): CommunityLifecycleDecision {
@@ -202,6 +204,10 @@ export function evaluateCommunityLifecycle(
 
   if (source['type'] !== 'community') {
     return noTransition(status, 'not_community');
+  }
+
+  if (status === null) {
+    return noTransition(status, 'status_invalid');
   }
 
   if (hasCommunityLifecycleHold(community)) {

@@ -53,6 +53,59 @@ test('não aplica lifecycle de Comunidade a Local', () => {
   assert.equal(result.reason, 'not_community');
 });
 
+
+test('falha fechado para status ausente, nulo, desconhecido ou inválido', () => {
+  const absentStatus = community({
+    metrics: { memberCount: 0, postCount: 0, mediaCount: 0, topicCount: 0 },
+    lifecycle: { lastMeaningfulActivityAt: NOW - 500 * DAY_MS },
+  });
+  delete absentStatus['status'];
+
+  const invalidCommunities = [
+    absentStatus,
+    community({ status: null }),
+    community({ status: 'corrupted-status' }),
+    community({ status: 123 }),
+  ];
+
+  for (const rawCommunity of invalidCommunities) {
+    const decision = evaluateCommunityLifecycle(rawCommunity, NOW);
+
+    assert.equal(decision.changed, false);
+    assert.equal(decision.currentStatus, null);
+    assert.equal(decision.nextStatus, null);
+    assert.equal(decision.reason, 'status_invalid');
+    assert.equal(
+      requiresCommunityLifecycleMembershipVerification(rawCommunity, NOW),
+      false
+    );
+  }
+});
+
+test('preserva os cinco estados canônicos do lifecycle', () => {
+  const cases = [
+    ['active', NOW - 5 * DAY_MS],
+    ['paused', NOW - 5 * DAY_MS],
+    ['dormant', NOW - 70 * DAY_MS],
+    ['archived', NOW - 200 * DAY_MS],
+    ['scheduled_for_deletion', NOW - 200 * DAY_MS],
+  ] as const;
+
+  for (const [status, lastMeaningfulActivityAt] of cases) {
+    const decision = evaluateCommunityLifecycle(
+      community({
+        status,
+        lifecycle: { lastMeaningfulActivityAt },
+      }),
+      NOW
+    );
+
+    assert.equal(decision.currentStatus, status);
+    assert.equal(decision.nextStatus, status);
+    assert.equal(decision.changed, false);
+  }
+});
+
 test('arquiva automaticamente Comunidade vazia e inativa com métricas completas', () => {
   const result = evaluateCommunityLifecycle(
     community({
