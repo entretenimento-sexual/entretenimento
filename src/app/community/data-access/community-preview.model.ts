@@ -263,6 +263,11 @@ function normalizeCard(raw: unknown): CommunityPreviewCard | null {
   const sourceType = sourceData['type'];
   const name = normalizeText(source['name'], 80);
   const slug = normalizeText(source['slug'], 100);
+  const join = access['join'];
+  const normalizedJoin: CommunityPreviewJoinPolicy | null =
+    join === 'open' || join === 'approval' || join === 'invite_only'
+      ? join
+      : null;
 
   if (
     !communityId
@@ -276,11 +281,6 @@ function normalizeCard(raw: unknown): CommunityPreviewCard | null {
   }
 
   const description = normalizeText(source['description'], 240);
-  const join = access['join'];
-  const normalizedJoin: CommunityPreviewJoinPolicy | null =
-    join === 'open' || join === 'approval' || join === 'invite_only'
-      ? join
-      : null;
   const viewerRole = normalizeViewerRole(source['viewerRole']);
   const publicLocation = sourceType === 'venue'
     ? normalizePublicLocation(source['publicLocation'])

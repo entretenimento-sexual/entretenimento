@@ -244,8 +244,12 @@ function normalizeSource(raw: unknown): CommunityPreviewCard['source'] | null {
   return { type, id };
 }
 
-function normalizeJoin(value: unknown): CommunityJoinPolicy {
-  return value === 'open' || value === 'invite_only' ? value : 'approval';
+function normalizeJoin(value: unknown): CommunityJoinPolicy | null {
+  return value === 'open'
+    || value === 'approval'
+    || value === 'invite_only'
+    ? value
+    : null;
 }
 
 function normalizeAccess(raw: unknown): CommunityPreviewAccess | null {
