@@ -27,6 +27,7 @@ import {
   CommunityOwnershipSourceType,
   CommunityOwnershipStatus,
   evaluateCommunityArchive,
+  evaluateCommunityOwnershipIdempotencyReplay,
   evaluateCommunityOwnershipTransfer,
 } from './community-ownership-lifecycle.policy';
 import { normalizeCommunityId } from './community-preview.model';
@@ -162,6 +163,25 @@ function normalizeMembershipRole(value: unknown): CommunityOwnershipMembershipRo
     || value === 'member'
     ? value
     : null;
+}
+
+function resolveOwnershipReplayCompletedAt(
+  decision: ReturnType<typeof evaluateCommunityOwnershipIdempotencyReplay>
+): number {
+  if (decision.state === 'valid') return decision.completedAt;
+
+  if (decision.state === 'conflict') {
+    throw new HttpsError(
+      'permission-denied',
+      'Esta solicitação idempotente pertence a outra operação.'
+    );
+  }
+
+  throw new HttpsError(
+    'data-loss',
+    'O registro idempotente de ownership está inconsistente.',
+    { reason: 'community_ownership_idempotency_invalid' }
+  );
 }
 
 function resolveMemberCountDelta(
@@ -486,25 +506,23 @@ export const transferCommunityOwnership =
         ]);
 
         if (requestSnapshot.exists) {
-          const existing = requestSnapshot.data() ?? {};
-          if (
-            existing['actorUid'] !== actorUid
-            || existing['communityId'] !== communityId
-            || existing['operation'] !== 'transfer'
-            || existing['targetUid'] !== targetUid
-          ) {
-            throw new HttpsError(
-              'permission-denied',
-              'Esta solicitação idempotente pertence a outra operação.'
-            );
-          }
+          const completedAt = resolveOwnershipReplayCompletedAt(
+            evaluateCommunityOwnershipIdempotencyReplay({
+              rawRequest: requestSnapshot.data(),
+              expectedOperation: 'transfer',
+              expectedRequestId: requestId,
+              expectedActorUid: actorUid,
+              expectedCommunityId: communityId,
+              expectedTargetUid: targetUid,
+            })
+          );
 
           return {
             communityId,
             status: 'transferred',
             previousOwnerUid: actorUid,
             newOwnerUid: targetUid,
-            generatedAt: Number(existing['completedAt'] ?? Date.now()),
+            generatedAt: completedAt,
           };
         }
 
@@ -705,22 +723,20 @@ export const archiveCommunity = onCall<CommunityArchivePayload>(
       ]);
 
       if (requestSnapshot.exists) {
-        const existing = requestSnapshot.data() ?? {};
-        if (
-          existing['actorUid'] !== actorUid
-          || existing['communityId'] !== communityId
-          || existing['operation'] !== 'archive'
-        ) {
-          throw new HttpsError(
-            'permission-denied',
-            'Esta solicitação idempotente pertence a outra operação.'
-          );
-        }
+        const completedAt = resolveOwnershipReplayCompletedAt(
+          evaluateCommunityOwnershipIdempotencyReplay({
+            rawRequest: requestSnapshot.data(),
+            expectedOperation: 'archive',
+            expectedRequestId: requestId,
+            expectedActorUid: actorUid,
+            expectedCommunityId: communityId,
+          })
+        );
 
         return {
           communityId,
           status: 'archived',
-          generatedAt: Number(existing['completedAt'] ?? Date.now()),
+          generatedAt: completedAt,
         };
       }
 

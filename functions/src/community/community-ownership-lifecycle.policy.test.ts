@@ -4,6 +4,7 @@ import test from 'node:test';
 
 import {
   evaluateCommunityArchive,
+  evaluateCommunityOwnershipIdempotencyReplay,
   evaluateCommunityOwnershipTransfer,
 } from './community-ownership-lifecycle.policy';
 
@@ -177,5 +178,82 @@ test('nega arquivamento de Local ou por não owner', () => {
       actorRole: 'admin',
     }).denialReason,
     'owner_required'
+  );
+});
+
+
+const REPLAY_BASE = Object.freeze({
+  rawRequest: {
+    operation: 'transfer',
+    requestId: 'request-1',
+    actorUid: 'owner-1',
+    targetUid: 'member-1',
+    communityId: 'community-1',
+    status: 'completed',
+    completedAt: 123_456,
+  },
+  expectedOperation: 'transfer' as const,
+  expectedRequestId: 'request-1',
+  expectedActorUid: 'owner-1',
+  expectedCommunityId: 'community-1',
+  expectedTargetUid: 'member-1',
+});
+
+test('aceita replay idempotente íntegro de transferência', () => {
+  assert.deepEqual(
+    evaluateCommunityOwnershipIdempotencyReplay(REPLAY_BASE),
+    { state: 'valid', completedAt: 123_456 }
+  );
+});
+
+test('classifica identidade divergente de replay como conflito', () => {
+  for (const input of [
+    { ...REPLAY_BASE, expectedRequestId: 'request-2' },
+    { ...REPLAY_BASE, expectedActorUid: 'owner-2' },
+    { ...REPLAY_BASE, expectedCommunityId: 'community-2' },
+    { ...REPLAY_BASE, expectedTargetUid: 'member-2' },
+  ]) {
+    assert.deepEqual(
+      evaluateCommunityOwnershipIdempotencyReplay(input),
+      { state: 'conflict' }
+    );
+  }
+});
+
+test('replay com status ou timestamp corrompido falha fechado', () => {
+  for (const rawRequest of [
+    { ...REPLAY_BASE.rawRequest, status: 'pending' },
+    { ...REPLAY_BASE.rawRequest, completedAt: undefined },
+    { ...REPLAY_BASE.rawRequest, completedAt: '123456' },
+    { ...REPLAY_BASE.rawRequest, completedAt: 123.5 },
+    { ...REPLAY_BASE.rawRequest, completedAt: 0 },
+  ]) {
+    assert.deepEqual(
+      evaluateCommunityOwnershipIdempotencyReplay({
+        ...REPLAY_BASE,
+        rawRequest,
+      }),
+      { state: 'invalid' }
+    );
+  }
+});
+
+test('aceita replay idempotente íntegro de arquivamento', () => {
+  assert.deepEqual(
+    evaluateCommunityOwnershipIdempotencyReplay({
+      rawRequest: {
+        operation: 'archive',
+        requestId: 'request-archive',
+        actorUid: 'owner-1',
+        communityId: 'community-1',
+        status: 'completed',
+        completedAt: 654_321,
+      },
+      expectedOperation: 'archive',
+      expectedRequestId: 'request-archive',
+      expectedActorUid: 'owner-1',
+      expectedCommunityId: 'community-1',
+    }),
+    { state: 'valid', completedAt: 654_321 }
   );
 });

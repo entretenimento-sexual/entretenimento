@@ -4,7 +4,7 @@
 // -----------------------------------------------------------------------------
 // Política pura para transferência de propriedade e arquivamento seguro.
 // Handlers permanecem responsáveis por autenticação, leituras canônicas,
-// transações, idempotência persistida e auditoria.
+// transações e auditoria. A policy também valida replays idempotentes persistidos.
 // -----------------------------------------------------------------------------
 
 export type CommunityOwnershipSourceType = 'community' | 'venue' | null;
@@ -73,6 +73,20 @@ export interface CommunityArchiveDecision {
   denialReason: CommunityArchiveDenialReason | null;
   actorNextRole: 'member' | null;
   actorNextStatus: 'left' | null;
+}
+
+export type CommunityOwnershipIdempotencyReplayDecision =
+  | { readonly state: 'valid'; readonly completedAt: number }
+  | { readonly state: 'conflict' }
+  | { readonly state: 'invalid' };
+
+export interface CommunityOwnershipIdempotencyReplayInput {
+  readonly rawRequest: unknown;
+  readonly expectedOperation: 'transfer' | 'archive';
+  readonly expectedRequestId: string;
+  readonly expectedActorUid: string;
+  readonly expectedCommunityId: string;
+  readonly expectedTargetUid?: string;
 }
 
 export function evaluateCommunityOwnershipTransfer(
@@ -159,6 +173,49 @@ export function evaluateCommunityArchive(
     actorNextRole: 'member',
     actorNextStatus: 'left',
   };
+}
+
+export function evaluateCommunityOwnershipIdempotencyReplay(
+  input: Readonly<CommunityOwnershipIdempotencyReplayInput>
+): CommunityOwnershipIdempotencyReplayDecision {
+  if (
+    input.rawRequest === null
+    || typeof input.rawRequest !== 'object'
+    || Array.isArray(input.rawRequest)
+  ) {
+    return { state: 'invalid' };
+  }
+
+  const request = input.rawRequest as Record<string, unknown>;
+  const targetMatches = input.expectedOperation === 'transfer'
+    ? Boolean(input.expectedTargetUid)
+      && request['targetUid'] === input.expectedTargetUid
+    : true;
+
+  if (
+    request['operation'] !== input.expectedOperation
+    || request['requestId'] !== input.expectedRequestId
+    || request['actorUid'] !== input.expectedActorUid
+    || request['communityId'] !== input.expectedCommunityId
+    || !targetMatches
+  ) {
+    return { state: 'conflict' };
+  }
+
+  if (request['status'] !== 'completed') {
+    return { state: 'invalid' };
+  }
+
+  const completedAt = request['completedAt'];
+  if (
+    typeof completedAt !== 'number'
+    || !Number.isSafeInteger(completedAt)
+    || completedAt <= 0
+  ) {
+    return { state: 'invalid' };
+  }
+
+  return { state: 'valid', completedAt };
 }
 
 function deniedTransfer(
