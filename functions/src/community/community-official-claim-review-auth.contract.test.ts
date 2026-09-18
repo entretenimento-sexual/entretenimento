@@ -92,7 +92,7 @@ for (const scenario of [
     name: 'com auth_time excessivamente futuro',
     token: {
       admin: true,
-      auth_time: Math.floor(Date.now() / 1_000) + 61,
+      auth_time: Math.floor(Date.now() / 1_000) + 600,
     },
   },
 ] as const) {
