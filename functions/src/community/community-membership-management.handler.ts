@@ -257,6 +257,14 @@ function assertModerator(
 }
 
 function throwLeaveDecisionError(reason: string | null): never {
+  if (reason === 'community_status_invalid') {
+    throw new HttpsError(
+      'data-loss',
+      'O estado da Comunidade está inconsistente e exige revisão.',
+      { reason }
+    );
+  }
+
   if (reason === 'membership_blocked') {
     throw new HttpsError(
       'permission-denied',

@@ -26,6 +26,7 @@ export type CommunityMembershipDenialReason =
   | 'actor_restricted';
 
 export type CommunityMembershipLeaveDenialReason =
+  | 'community_status_invalid'
   | 'membership_not_found'
   | 'membership_blocked'
   | 'owner_transfer_required';
@@ -159,6 +160,18 @@ export function evaluateCommunityMembershipRequest(
 export function evaluateCommunityMembershipLeave(
   input: Readonly<CommunityMembershipLeaveInput>
 ): Readonly<CommunityMembershipLeaveDecision> {
+  if (input.communityStatus === null) {
+    return {
+      allowed: false,
+      targetStatus: null,
+      denialReason: 'community_status_invalid',
+      idempotent: false,
+      decrementMemberCount: false,
+      releaseOwnership: false,
+      auditAction: null,
+    };
+  }
+
   if (input.existingStatus === 'blocked') {
     return {
       allowed: false,

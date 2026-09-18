@@ -101,6 +101,28 @@ test('nega comunidade indisponível, convite e ator restrito', () => {
   );
 });
 
+test('status inválido da comunidade bloqueia qualquer saída fail-closed', () => {
+  for (const [existingStatus, existingRole] of [
+    ['active', 'member'],
+    ['pending', 'member'],
+    ['active', 'owner'],
+  ] as const) {
+    const decision = evaluateCommunityMembershipLeave({
+      communityStatus: null,
+      existingStatus,
+      existingRole,
+    });
+
+    assert.equal(decision.allowed, false);
+    assert.equal(decision.targetStatus, null);
+    assert.equal(decision.denialReason, 'community_status_invalid');
+    assert.equal(decision.idempotent, false);
+    assert.equal(decision.decrementMemberCount, false);
+    assert.equal(decision.releaseOwnership, false);
+    assert.equal(decision.auditAction, null);
+  }
+});
+
 test('saída ativa reduz contagem e cancelamento pendente não reduz', () => {
   const active = evaluateCommunityMembershipLeave({
     communityStatus: LEAVE_COMMUNITY_STATUS,
