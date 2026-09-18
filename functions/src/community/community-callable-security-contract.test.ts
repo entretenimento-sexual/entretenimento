@@ -25,6 +25,81 @@ const COMMUNITY_REASON_MESSAGE_CATALOG_PATTERN = /_REASON_MESSAGES$/;
 const ANONYMOUS_COMMUNITY_CALLABLE_ALLOWLIST: ReadonlySet<string> = new Set();
 const SYNTHETIC_ON_CALL_NAME = 'onCall';
 
+type RecentAuthenticationRequirement = 'always' | 'conditional' | 'none';
+
+const COMMUNITY_CALLABLE_RECENT_AUTH_REQUIREMENTS =
+  new Map<string, RecentAuthenticationRequirement>([
+  ['community-feed-comment-moderation.handler.ts:moderateCommunityFeedComment', 'none'],
+  ['community-feed-comment-reply-moderation.handler.ts:moderateCommunityFeedCommentReply', 'none'],
+  ['community-feed-comment-reply-write.handler.ts:createCommunityFeedCommentReply', 'none'],
+  ['community-feed-comment-write.handler.ts:createCommunityFeedComment', 'none'],
+  ['community-feed-moderation.handler.ts:moderateCommunityFeedPost', 'none'],
+  ['community-feed-reaction.handler.ts:toggleCommunityFeedReaction', 'none'],
+  ['community-feed-write.handler.ts:createCommunityFeedPost', 'none'],
+  ['community-highlight.handler.ts:manageCommunityHighlight', 'none'],
+  ['community-invite-management.handler.ts:findCommunityInviteCandidate', 'none'],
+  ['community-invite-management.handler.ts:getCommunitySentInvites', 'none'],
+  ['community-member-management.handler.ts:getCommunityMembersForManagement', 'none'],
+  ['community-member-management.handler.ts:manageCommunityMember', 'conditional'],
+  ['community-membership-disclosure.handler.ts:updateCommunityMembershipDisclosurePolicy', 'none'],
+  ['community-membership-management.handler.ts:getCommunityMembershipRequests', 'none'],
+  ['community-membership-management.handler.ts:leaveCommunityMembership', 'none'],
+  ['community-membership-management.handler.ts:reviewCommunityMembership', 'none'],
+  ['community-membership-profile-visibility.handler.ts:getCommunityMembershipProfileVisibility', 'none'],
+  ['community-membership-profile-visibility.handler.ts:updateCommunityMembershipProfileVisibility', 'none'],
+  ['community-official-claim.handler.ts:submitCommunityOfficialClaim', 'always'],
+  ['community-official-claim.handler.ts:reviewCommunityOfficialClaim', 'always'],
+  ['community-ownership-lifecycle.handler.ts:getCommunityOwnershipCandidates', 'none'],
+  ['community-ownership-lifecycle.handler.ts:transferCommunityOwnership', 'always'],
+  ['community-ownership-lifecycle.handler.ts:archiveCommunity', 'always'],
+  ['community-topic-moderation.handler.ts:moderateCommunityTopic', 'none'],
+  ['community-topic-write.handler.ts:createCommunityTopic', 'none'],
+  ['community-topic-write.handler.ts:createCommunityTopicReply', 'none'],
+  ['configure-community-ranking-mode.handler.ts:configureCommunityRankingMode', 'always'],
+  ['create-community.handler.ts:createCommunity', 'none'],
+  ['create-venue-community.handler.ts:createVenueCommunity', 'always'],
+  ['get-community-creation-capability.handler.ts:getCommunityCreationCapability', 'none'],
+  ['get-community-discovery-page.handler.ts:getCommunityDiscoveryPage', 'none'],
+  ['get-community-feed-comment-replies-page.handler.ts:getCommunityFeedCommentRepliesPage', 'none'],
+  ['get-community-feed-comments-page.handler.ts:getCommunityFeedCommentsPage', 'none'],
+  ['get-community-feed-items.handler.ts:getCommunityFeedItems', 'none'],
+  ['get-community-feed-page.handler.ts:getCommunityFeedPage', 'none'],
+  ['get-community-highlight.handler.ts:getCommunityHighlight', 'none'],
+  ['get-community-invites.handler.ts:getCommunityInvites', 'none'],
+  ['get-community-member-roster-page.handler.ts:getCommunityMemberRosterPage', 'none'],
+  ['get-community-membership-context.handler.ts:getCommunityMembershipContext', 'none'],
+  ['get-community-official-claim-capability.handler.ts:getCommunityOfficialClaimCapability', 'none'],
+  ['get-community-official-claim-review-queue.handler.ts:getCommunityOfficialClaimReviewQueue', 'none'],
+  ['get-community-ownership-candidates-page.handler.ts:getCommunityOwnershipCandidatesPage', 'none'],
+  ['get-community-preview.handler.ts:getCommunityPreview', 'none'],
+  ['get-community-tag-catalog.handler.ts:getCommunityTagCatalog', 'none'],
+  ['get-community-topic-detail.handler.ts:getCommunityTopicDetail', 'none'],
+  ['get-community-topic-detail.handler.ts:getCommunityTopicRepliesPage', 'none'],
+  ['get-community-topics-page.handler.ts:getCommunityTopicsPage', 'none'],
+  ['get-my-communities-page.handler.ts:getMyCommunitiesPage', 'none'],
+  ['get-my-community-official-claim.handler.ts:getMyCommunityOfficialClaim', 'none'],
+  ['get-official-communities-for-target.handler.ts:getOfficialCommunitiesForTarget', 'none'],
+  ['get-profile-official-communities.handler.ts:getProfileOfficialCommunities', 'none'],
+  ['get-profile-public-communities.handler.ts:getProfilePublicCommunities', 'none'],
+  ['inspect-community-purge-readiness.handler.ts:inspectCommunityPurgeReadiness', 'none'],
+  ['inspect-community-ranking-readiness.handler.ts:inspectCommunityRankingReadiness', 'none'],
+  ['reconcile-community-member-counts.handler.ts:reconcileCommunityMemberCounts', 'always'],
+  ['record-community-discovery-exposure.handler.ts:recordCommunityDiscoveryExposure', 'none'],
+  ['report-community-feed-comment-reply.handler.ts:reportCommunityFeedCommentReply', 'none'],
+  ['report-community-feed-comment.handler.ts:reportCommunityFeedComment', 'none'],
+  ['report-community-feed-post.handler.ts:reportCommunityFeedPost', 'none'],
+  ['request-community-membership.handler.ts:requestCommunityMembership', 'none'],
+  ['respond-community-invite.handler.ts:acceptCommunityInvite', 'none'],
+  ['respond-community-invite.handler.ts:declineCommunityInvite', 'none'],
+  ['review-community-feed-comment-reply-report.handler.ts:reviewCommunityFeedCommentReplyReport', 'none'],
+  ['review-community-feed-comment-report.handler.ts:reviewCommunityFeedCommentReport', 'none'],
+  ['review-community-feed-post-report.handler.ts:reviewCommunityFeedPostReport', 'none'],
+  ['revoke-community-invite.handler.ts:revokeCommunityInvite', 'none'],
+  ['send-community-invite.handler.ts:sendCommunityInvite', 'none'],
+  ['update-community-notification-preference.handler.ts:updateCommunityNotificationPreference', 'none'],
+  ['update-community-settings.handler.ts:updateCommunitySettings', 'conditional'],
+  ]);
+
 type CallableHandler = ts.ArrowFunction | ts.FunctionExpression;
 type ResolvedFunction =
   | ts.ArrowFunction
@@ -689,6 +764,80 @@ function classifySyntheticCallables(
   );
 }
 
+function collectSyntheticCommunityCallables(
+  source: string
+): readonly CommunityCallableDefinition[] {
+  const filePath = path.join(communitySourceDirectory, 'synthetic.ts');
+  const sourceFile = parseTypeScriptSource(filePath, source);
+  const callableFiles: readonly CommunityCallableFile[] = [{
+    fileName: 'synthetic.ts',
+    source,
+    sourceFile,
+    callableCount: countOnCallExpressions(sourceFile),
+  }];
+
+  return collectCommunityCallables(callableFiles);
+}
+
+function callableHasRecentAuthenticationAssertion(
+  callable: CommunityCallableDefinition
+): boolean {
+  if (!callable.handler) return false;
+
+  let found = false;
+  const visit = (node: ts.Node): void => {
+    if (found) return;
+    if (
+      ts.isCallExpression(node)
+      && ts.isIdentifier(node.expression)
+      && node.expression.text === 'assertRecentAuthentication'
+    ) {
+      found = true;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+
+  visit(callable.handler);
+  return found;
+}
+
+function collectRecentAuthenticationInventoryIssues(
+  callables: readonly CommunityCallableDefinition[],
+  requirements: ReadonlyMap<string, RecentAuthenticationRequirement>
+): readonly string[] {
+  const issues: string[] = [];
+  const discovered = new Map(
+    callables.map((callable) => [callableKey(callable), callable] as const)
+  );
+
+  for (const key of discovered.keys()) {
+    if (!requirements.has(key)) {
+      issues.push(`${key}: recent-auth classification missing`);
+    }
+  }
+
+  for (const key of requirements.keys()) {
+    if (!discovered.has(key)) {
+      issues.push(`${key}: stale recent-auth classification`);
+    }
+  }
+
+  for (const [key, requirement] of requirements) {
+    const callable = discovered.get(key);
+    if (!callable) continue;
+
+    const hasAssertion = callableHasRecentAuthenticationAssertion(callable);
+    if (requirement === 'none' && hasAssertion) {
+      issues.push(`${key}: unexpected recent-auth assertion`);
+    } else if (requirement !== 'none' && !hasAssertion) {
+      issues.push(`${key}: recent-auth assertion required`);
+    }
+  }
+
+  return issues.sort();
+}
+
 function propertyNameText(name: ts.PropertyName): string | null {
   if (ts.isIdentifier(name) || ts.isStringLiteral(name)) {
     return name.text;
@@ -942,6 +1091,20 @@ describe('community-callable-security contract', () => {
       unrecognized,
       [],
       `Callables sem autenticação fail-closed reconhecida:\n${unrecognized.join('\n')}`
+    );
+  });
+  it('classifica recent-auth de toda callable e exige a proteção nos caminhos sensíveis', () => {
+    const callableFiles = collectCommunityCallableFiles();
+    const callables = collectCommunityCallables(callableFiles);
+    const issues = collectRecentAuthenticationInventoryIssues(
+      callables,
+      COMMUNITY_CALLABLE_RECENT_AUTH_REQUIREMENTS
+    );
+
+    assert.deepEqual(
+      issues,
+      [],
+      `Contrato de recent-auth inconsistente:\n${issues.join('\n')}`
     );
   });
 });
@@ -1213,6 +1376,73 @@ describe('community-error transport contract', () => {
         missing,
         'recommendedAction'
       )}`
+    );
+  });
+});
+
+
+describe('community-callable recent-auth classifier', () => {
+  it('rejeita callable nova sem classificação explícita', () => {
+    const callables = collectSyntheticCommunityCallables(`
+      export const newSensitiveCallable = onCall(async (request) => {
+        return { uid: request.auth?.uid ?? null };
+      });
+    `);
+
+    assert.deepEqual(
+      collectRecentAuthenticationInventoryIssues(callables, new Map()),
+      ['synthetic.ts:newSensitiveCallable: recent-auth classification missing']
+    );
+  });
+
+  it('rejeita callable sensível sem assertRecentAuthentication real no AST', () => {
+    const callables = collectSyntheticCommunityCallables(`
+      export const sensitiveCallable = onCall(async (request) => {
+        const marker = 'assertRecentAuthentication(request.auth?.token)';
+        return { marker };
+      });
+    `);
+    const requirements = new Map<string, RecentAuthenticationRequirement>([
+      ['synthetic.ts:sensitiveCallable', 'always'],
+    ]);
+
+    assert.deepEqual(
+      collectRecentAuthenticationInventoryIssues(callables, requirements),
+      ['synthetic.ts:sensitiveCallable: recent-auth assertion required']
+    );
+  });
+
+  it('aceita callable sensível com assertRecentAuthentication no AST', () => {
+    const callables = collectSyntheticCommunityCallables(`
+      export const sensitiveCallable = onCall(async (request) => {
+        assertRecentAuthentication(request.auth?.token);
+        return { ok: true };
+      });
+    `);
+    const requirements = new Map<string, RecentAuthenticationRequirement>([
+      ['synthetic.ts:sensitiveCallable', 'always'],
+    ]);
+
+    assert.deepEqual(
+      collectRecentAuthenticationInventoryIssues(callables, requirements),
+      []
+    );
+  });
+
+  it('rejeita classificação none quando o runtime ganha recent-auth', () => {
+    const callables = collectSyntheticCommunityCallables(`
+      export const ordinaryCallable = onCall(async (request) => {
+        assertRecentAuthentication(request.auth?.token);
+        return { ok: true };
+      });
+    `);
+    const requirements = new Map<string, RecentAuthenticationRequirement>([
+      ['synthetic.ts:ordinaryCallable', 'none'],
+    ]);
+
+    assert.deepEqual(
+      collectRecentAuthenticationInventoryIssues(callables, requirements),
+      ['synthetic.ts:ordinaryCallable: unexpected recent-auth assertion']
     );
   });
 });
