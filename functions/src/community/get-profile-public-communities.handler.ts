@@ -13,6 +13,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
+import { assertNoActiveBilateralBlock } from '../friendship/application/bilateral-block-access.policy';
 import {
   assertCommunityCallableAppCheck,
   REQUIRE_COMMUNITY_APP_CHECK,
@@ -84,6 +85,12 @@ export const getProfilePublicCommunities = onCall<ProfilePublicCommunitiesReques
     if (!profileUid) {
       throw new HttpsError('invalid-argument', 'Perfil inválido.');
     }
+
+    await assertNoActiveBilateralBlock(
+      viewerUid,
+      profileUid,
+      'Perfil indisponível.'
+    );
 
     // Não expõe participações de contas que não estejam na projeção pública.
     const publicProfileSnapshot = await db

@@ -45,3 +45,20 @@ test('perfil público exige consentimento explícito da versão atual', () => {
     );
   }
 });
+
+
+test('perfil público respeita bloqueio bilateral antes de ler a projeção', () => {
+  const source = require('node:fs').readFileSync(
+    require('node:path').resolve(
+      process.cwd(),
+      'src/community/get-profile-public-communities.handler.ts'
+    ),
+    'utf8'
+  );
+
+  const blockCheck = source.indexOf('assertNoActiveBilateralBlock(');
+  const publicProfileRead = source.indexOf("collection('public_profiles')");
+
+  assert.ok(blockCheck >= 0);
+  assert.ok(publicProfileRead > blockCheck);
+});
