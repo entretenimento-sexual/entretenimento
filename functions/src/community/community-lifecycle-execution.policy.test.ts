@@ -8,7 +8,10 @@ import {
   resolveCommunityLifecycleMaxPerRun,
   resolveCommunityLifecycleThresholds,
 } from './community-lifecycle-execution.policy';
-import { evaluateCommunityLifecycle } from './community-lifecycle.policy';
+import {
+  DEFAULT_COMMUNITY_LIFECYCLE_THRESHOLDS,
+  evaluateCommunityLifecycle,
+} from './community-lifecycle.policy';
 import {
   evaluateCommunityPurgeReadiness,
   resolveCommunityPurgeGraceDays,
