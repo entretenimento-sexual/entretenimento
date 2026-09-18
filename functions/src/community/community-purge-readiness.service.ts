@@ -15,6 +15,9 @@ import { db } from '../firebaseApp';
 import {
   resolveCommunityModerationPurgeBlocker,
 } from './community-purge-moderation-evidence.policy';
+import {
+  COMMUNITY_PURGE_BLOCKING_MEMBERSHIP_STATUSES,
+} from './community-purge.firestore.policy';
 import type { CommunityPurgeEvidenceProbe } from './community-purge.policy';
 
 export type CommunityPurgeProbeName =
@@ -80,7 +83,7 @@ export async function readCommunityPurgeEvidence(
   const communityRef = db.collection('communities').doc(communityId);
   const membershipQuery = communityRef
     .collection('members')
-    .where('status', 'in', ['active', 'pending', 'blocked'])
+    .where('status', 'in', COMMUNITY_PURGE_BLOCKING_MEMBERSHIP_STATUSES)
     .limit(1);
   const feedPostQuery = db
     .collection('community_feed_posts')

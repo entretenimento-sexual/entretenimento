@@ -46,6 +46,11 @@ export const COMMUNITY_PURGE_FINAL_ROOT_COLLECTIONS = Object.freeze([
   'communities',
 ] as const);
 
+export const COMMUNITY_PURGE_BLOCKING_MEMBERSHIP_STATUSES = Object.freeze([
+  'active',
+  'pending',
+] as const);
+
 export const COMMUNITY_PURGE_PROTECTED_COLLECTIONS = Object.freeze([
   'community_membership_audit',
   'community_feed_audit',
@@ -64,9 +69,11 @@ export function assertCommunityPurgeMembershipsTerminal(
 ): void {
   for (const rawMembership of rawMemberships) {
     const membership = (rawMembership ?? {}) as Record<string, unknown>;
-    if (membership['status'] !== 'left') {
+    const status = membership['status'];
+
+    if (status !== 'left' && status !== 'blocked') {
       const error = new Error(
-        'Purge bloqueado: existe membership sem estado terminal left.'
+        'Purge bloqueado: existe membership não terminal para exclusão.'
       ) as Error & { code?: string };
       error.code = 'community-purge-membership-not-terminal';
       throw error;

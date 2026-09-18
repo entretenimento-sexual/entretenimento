@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  COMMUNITY_PURGE_BLOCKING_MEMBERSHIP_STATUSES,
   COMMUNITY_PURGE_FINAL_ROOT_COLLECTIONS,
   COMMUNITY_PURGE_MEMBER_SCOPED_COLLECTIONS,
   COMMUNITY_PURGE_PROJECTION_ROOT_COLLECTIONS,
@@ -62,17 +63,25 @@ test('nenhum namespace de retenção aparece entre os alvos de purge', () => {
   }
 });
 
-test('memberships históricas left são elegíveis à limpeza de referência', () => {
+test('somente memberships ativas ou pendentes bloqueiam readiness de purge', () => {
+  assert.deepEqual(COMMUNITY_PURGE_BLOCKING_MEMBERSHIP_STATUSES, [
+    'active',
+    'pending',
+  ]);
+});
+
+test('memberships left ou blocked são terminais para limpeza de referência', () => {
   assert.doesNotThrow(() =>
     assertCommunityPurgeMembershipsTerminal([
       { status: 'left' },
       { status: 'left', role: 'member' },
+      { status: 'blocked', role: 'member' },
     ])
   );
 });
 
-test('membership ativa, pendente, bloqueada ou desconhecida falha fechado', () => {
-  for (const status of ['active', 'pending', 'blocked', 'unknown', null]) {
+test('membership ativa, pendente ou desconhecida falha fechado', () => {
+  for (const status of ['active', 'pending', 'unknown', null]) {
     assert.throws(
       () => assertCommunityPurgeMembershipsTerminal([{ status }]),
       (error: unknown) => {
