@@ -40,6 +40,9 @@ function buildDiscoveryProjection(overrides: Record<string, unknown> = {}) {
       postCount: 3,
       mediaCount: 1,
     },
+    access: {
+      join: 'approval',
+    },
     officialAssociation: {
       target,
       verified: true,

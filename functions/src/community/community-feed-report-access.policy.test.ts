@@ -13,7 +13,7 @@ function buildCommunity(
     status: 'active',
     moderation: { state: 'active' },
     visibility: 'public_preview',
-    access: { preview: 'authenticated' },
+    access: { preview: 'authenticated', join: 'approval' },
     ...overrides,
   };
 }
