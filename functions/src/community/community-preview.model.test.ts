@@ -289,13 +289,24 @@ test('resolve visitante, pendente, membro, moderador e gestores', () => {
   );
 });
 
-test('não promove papel ativo desconhecido a privilégio de gestão', () => {
+test('papel ativo desconhecido falha fechado sem acesso de membro', () => {
   assert.deepEqual(resolveCommunityViewerMode({ status: 'active', role: 'root' }), {
-    mode: 'member',
+    mode: 'visitor',
     role: null,
-    active: true,
+    active: false,
     blocked: false,
   });
+});
+
+test('pendência com papel inválido não preserva acesso vinculado', () => {
+  for (const role of [null, 'root', 'admin', 'moderator', 'owner'] as const) {
+    assert.deepEqual(resolveCommunityViewerMode({ status: 'pending', role }), {
+      mode: 'visitor',
+      role: null,
+      active: false,
+      blocked: false,
+    });
+  }
 });
 
 test('marca membership bloqueada sem expor um modo privilegiado', () => {
