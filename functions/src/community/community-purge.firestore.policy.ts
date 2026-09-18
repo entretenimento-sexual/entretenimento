@@ -50,6 +50,13 @@ export const COMMUNITY_PURGE_BLOCKING_MEMBERSHIP_STATUSES = Object.freeze([
   'active',
 ] as const);
 
+export const COMMUNITY_PURGE_KNOWN_MEMBERSHIP_STATUSES = Object.freeze([
+  'active',
+  'pending',
+  'blocked',
+  'left',
+] as const);
+
 export const COMMUNITY_PURGE_PROTECTED_COLLECTIONS = Object.freeze([
   'community_membership_audit',
   'community_feed_audit',
@@ -62,6 +69,38 @@ export const COMMUNITY_PURGE_PROTECTED_COLLECTIONS = Object.freeze([
   'admin_logs',
   'compliance_audit',
 ] as const);
+
+export function resolveCommunityPurgeMembershipProbe(input: {
+  readonly totalCount: unknown;
+  readonly activeCount: unknown;
+  readonly knownStatusCount: unknown;
+}): boolean | null {
+  const totalCount = normalizeCount(input.totalCount);
+  const activeCount = normalizeCount(input.activeCount);
+  const knownStatusCount = normalizeCount(input.knownStatusCount);
+
+  if (
+    totalCount === null
+    || activeCount === null
+    || knownStatusCount === null
+    || activeCount > totalCount
+    || knownStatusCount > totalCount
+    || activeCount > knownStatusCount
+  ) {
+    return null;
+  }
+
+  if (knownStatusCount !== totalCount) return null;
+  return activeCount > 0;
+}
+
+function normalizeCount(value: unknown): number | null {
+  return typeof value === 'number'
+    && Number.isSafeInteger(value)
+    && value >= 0
+    ? value
+    : null;
+}
 
 export function assertCommunityPurgeMembershipsTerminal(
   rawMemberships: readonly unknown[]

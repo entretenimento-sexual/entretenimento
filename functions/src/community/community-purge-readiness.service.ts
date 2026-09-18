@@ -17,6 +17,8 @@ import {
 } from './community-purge-moderation-evidence.policy';
 import {
   COMMUNITY_PURGE_BLOCKING_MEMBERSHIP_STATUSES,
+  COMMUNITY_PURGE_KNOWN_MEMBERSHIP_STATUSES,
+  resolveCommunityPurgeMembershipProbe,
 } from './community-purge.firestore.policy';
 import type { CommunityPurgeEvidenceProbe } from './community-purge.policy';
 
@@ -81,10 +83,17 @@ export async function readCommunityPurgeEvidence(
   }
 
   const communityRef = db.collection('communities').doc(communityId);
-  const membershipQuery = communityRef
-    .collection('members')
-    .where('status', 'in', COMMUNITY_PURGE_BLOCKING_MEMBERSHIP_STATUSES)
-    .limit(1);
+  const memberships = communityRef.collection('members');
+  const activeMembershipQuery = memberships.where(
+    'status',
+    'in',
+    COMMUNITY_PURGE_BLOCKING_MEMBERSHIP_STATUSES
+  );
+  const knownMembershipQuery = memberships.where(
+    'status',
+    'in',
+    COMMUNITY_PURGE_KNOWN_MEMBERSHIP_STATUSES
+  );
   const feedPostQuery = db
     .collection('community_feed_posts')
     .doc(communityId)
@@ -103,7 +112,9 @@ export async function readCommunityPurgeEvidence(
     .where('containerTargetId', '==', communityId);
 
   const [
-    memberships,
+    membershipTotal,
+    membershipActive,
+    membershipKnown,
     feedPosts,
     topics,
     moderationParentTotal,
@@ -113,7 +124,9 @@ export async function readCommunityPurgeEvidence(
     moderationContainerResolved,
     moderationContainerRejected,
   ] = await Promise.allSettled([
-    membershipQuery.get(),
+    countMatching(memberships),
+    countMatching(activeMembershipQuery),
+    countMatching(knownMembershipQuery),
     feedPostQuery.get(),
     topicQuery.get(),
     countMatching(moderationParentQuery),
@@ -125,7 +138,11 @@ export async function readCommunityPurgeEvidence(
   ]);
 
   const failedProbes: CommunityPurgeProbeName[] = [];
-  if (isRejected(memberships)) failedProbes.push('memberships');
+  const membershipReadFailed =
+    isRejected(membershipTotal)
+    || isRejected(membershipActive)
+    || isRejected(membershipKnown);
+  if (membershipReadFailed) failedProbes.push('memberships');
   if (isRejected(feedPosts)) failedProbes.push('feed_posts');
   if (isRejected(topics)) failedProbes.push('topics');
 
@@ -160,9 +177,17 @@ export async function readCommunityPurgeEvidence(
     failedProbes.push('moderation_container');
   }
 
-  const hasLiveMemberships = isRejected(memberships)
+  const hasLiveMemberships = membershipReadFailed
     ? null
-    : !memberships.value.empty;
+    : resolveCommunityPurgeMembershipProbe({
+      totalCount: membershipTotal.value,
+      activeCount: membershipActive.value,
+      knownStatusCount: membershipKnown.value,
+    });
+
+  if (hasLiveMemberships === null && !failedProbes.includes('memberships')) {
+    failedProbes.push('memberships');
+  }
   const hasRetainedContent = isRejected(feedPosts) || isRejected(topics)
     ? null
     : !feedPosts.value.empty || !topics.value.empty;

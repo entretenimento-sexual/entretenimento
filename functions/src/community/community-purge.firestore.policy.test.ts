@@ -5,12 +5,14 @@ import test from 'node:test';
 import {
   COMMUNITY_PURGE_BLOCKING_MEMBERSHIP_STATUSES,
   COMMUNITY_PURGE_FINAL_ROOT_COLLECTIONS,
+  COMMUNITY_PURGE_KNOWN_MEMBERSHIP_STATUSES,
   COMMUNITY_PURGE_MEMBER_SCOPED_COLLECTIONS,
   COMMUNITY_PURGE_PROJECTION_ROOT_COLLECTIONS,
   COMMUNITY_PURGE_PROTECTED_COLLECTIONS,
   COMMUNITY_PURGE_REFERENCE_COLLECTIONS,
   assertCommunityPurgeMembershipsTerminal,
   isCommunityPurgeProtectedCollection,
+  resolveCommunityPurgeMembershipProbe,
 } from './community-purge.firestore.policy';
 
 test('mapeia somente referências operacionais explicitamente autorizadas', () => {
@@ -60,6 +62,50 @@ test('nenhum namespace de retenção aparece entre os alvos de purge', () => {
   for (const protectedCollection of COMMUNITY_PURGE_PROTECTED_COLLECTIONS) {
     assert.equal(purgeTargets.has(protectedCollection), false);
     assert.equal(isCommunityPurgeProtectedCollection(protectedCollection), true);
+  }
+});
+
+test('probe de memberships distingue vazio, ativo e corrupção', () => {
+  assert.deepEqual(COMMUNITY_PURGE_KNOWN_MEMBERSHIP_STATUSES, [
+    'active',
+    'pending',
+    'blocked',
+    'left',
+  ]);
+
+  assert.equal(
+    resolveCommunityPurgeMembershipProbe({
+      totalCount: 0,
+      activeCount: 0,
+      knownStatusCount: 0,
+    }),
+    false
+  );
+  assert.equal(
+    resolveCommunityPurgeMembershipProbe({
+      totalCount: 3,
+      activeCount: 0,
+      knownStatusCount: 3,
+    }),
+    false
+  );
+  assert.equal(
+    resolveCommunityPurgeMembershipProbe({
+      totalCount: 3,
+      activeCount: 1,
+      knownStatusCount: 3,
+    }),
+    true
+  );
+
+  for (const sample of [
+    { totalCount: 2, activeCount: 0, knownStatusCount: 1 },
+    { totalCount: 1, activeCount: 2, knownStatusCount: 1 },
+    { totalCount: 1, activeCount: 0, knownStatusCount: 2 },
+    { totalCount: -1, activeCount: 0, knownStatusCount: 0 },
+    { totalCount: 1.5, activeCount: 0, knownStatusCount: 1 },
+  ]) {
+    assert.equal(resolveCommunityPurgeMembershipProbe(sample), null);
   }
 });
 
