@@ -3,12 +3,17 @@
 // GET PROFILE OFFICIAL COMMUNITIES
 // -----------------------------------------------------------------------------
 // Compatibilidade nominal para consumidores existentes. A leitura real é a
-// consulta canônica por alvo oficial; nenhum UID é resolvido ou exposto aqui.
+// consulta canônica por alvo oficial. O UID do alvo só é resolvido no backend
+// para validar disponibilidade pública e bloqueio bilateral; nunca é exposto.
 // -----------------------------------------------------------------------------
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
+import { db } from '../firebaseApp';
+import {
+  assertNoActiveBilateralBlock,
+} from '../friendship/application/bilateral-block-access.policy';
 import {
   assertCommunityCallableAppCheck,
   REQUIRE_COMMUNITY_APP_CHECK,
@@ -31,6 +36,14 @@ function assertRuntime(): void {
     'failed-precondition',
     'As comunidades ainda não estão disponíveis neste ambiente.'
   );
+}
+
+function emptyResponse(): CommunityDiscoveryPageResponse {
+  return {
+    items: [],
+    nextCursor: null,
+    generatedAt: Date.now(),
+  };
 }
 
 export const getProfileOfficialCommunities =
@@ -64,6 +77,40 @@ export const getProfileOfficialCommunities =
           'O perfil informado não é válido.'
         );
       }
+
+      const publicProfilesSnapshot = await db
+        .collection('public_profiles')
+        .where('profileId', '==', command.profileId)
+        .limit(2)
+        .get();
+
+      if (publicProfilesSnapshot.size > 1) {
+        throw new HttpsError(
+          'data-loss',
+          'A identidade pública do perfil está inconsistente.',
+          { reason: 'public_profile_identity_duplicate' }
+        );
+      }
+
+      const targetProfileSnapshot = publicProfilesSnapshot.docs[0];
+      if (!targetProfileSnapshot) {
+        return emptyResponse();
+      }
+
+      const targetUid = String(targetProfileSnapshot.id ?? '').trim();
+      if (!targetUid || targetUid.length > 128) {
+        throw new HttpsError(
+          'data-loss',
+          'A identidade pública do perfil está inconsistente.',
+          { reason: 'public_profile_identity_invalid' }
+        );
+      }
+
+      await assertNoActiveBilateralBlock(
+        uid,
+        targetUid,
+        'Perfil indisponível.'
+      );
 
       return loadOfficialCommunitiesForTarget(
         { type: 'profile', id: command.profileId },
