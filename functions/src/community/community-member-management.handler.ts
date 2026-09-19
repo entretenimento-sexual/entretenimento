@@ -31,6 +31,14 @@ import {
   CommunityMemberManagementAction,
   evaluateCommunityMemberManagement,
 } from './community-member-management.policy';
+import {
+  buildCommunityMemberLifecycleNotificationCopy,
+  buildCommunityMemberLifecycleNotificationId,
+  buildCommunityNotificationRoute,
+  canReceiveCommunityEssentialNotification,
+  type CommunityMemberLifecycleNotificationAction,
+  type CommunityNotificationUser,
+} from './community-notification.policy';
 import { normalizeCommunityId } from './community-preview.model';
 import { consumeCommunityRateLimit } from './community-rate-limit.service';
 import { syncCommunityUserIndexInTransaction } from './community-user-index.transaction';
@@ -568,6 +576,8 @@ export const manageCommunityMember = onCall<ManageCommunityMemberPayload>(
       actorUid,
     });
 
+    const commandStartedAtMs = Date.now();
+
     return db.runTransaction(async (transaction) => {
       const communityRef = db.collection('communities').doc(communityId);
       const discoveryRef = db
@@ -576,6 +586,7 @@ export const manageCommunityMember = onCall<ManageCommunityMemberPayload>(
       const actorMembershipRef = communityRef.collection('members').doc(actorUid);
       const targetMembershipRef = communityRef.collection('members').doc(memberId);
       const actorUserRef = db.collection('users').doc(actorUid);
+      const targetUserRef = db.collection('users').doc(memberId);
       const auditRef = db.collection('community_membership_audit').doc();
       const [
         communitySnapshot,
@@ -669,6 +680,33 @@ export const manageCommunityMember = onCall<ManageCommunityMemberPayload>(
         );
       }
 
+      const lifecycleNotificationAction:
+        CommunityMemberLifecycleNotificationAction | null =
+          action === 'remove' || action === 'block' || action === 'unblock'
+            ? action
+            : null;
+      const targetUserSnapshot = lifecycleNotificationAction
+        ? await transaction.get(targetUserRef)
+        : null;
+      const targetUser = targetUserSnapshot?.data() as
+        | CommunityNotificationUser
+        | undefined;
+      const shouldNotifyTarget =
+        lifecycleNotificationAction !== null
+        && targetUserSnapshot?.exists === true
+        && canReceiveCommunityEssentialNotification(
+          targetUser,
+          memberId,
+          actorUid
+        );
+      const lifecycleCycleStartedAtMs = action === 'unblock'
+        ? normalizeTimestamp(targetMembership['blockedAt'])
+          ?? normalizeTimestamp(targetMembership['updatedAt'])
+          ?? commandStartedAtMs
+        : normalizeTimestamp(targetMembership['joinedAt'])
+          ?? normalizeTimestamp(targetMembership['updatedAt'])
+          ?? commandStartedAtMs;
+
       const nextMemberCount = decision.decrementMemberCount
         ? resolveMemberCountDelta(community, -1)
         : null;
@@ -733,6 +771,46 @@ export const manageCommunityMember = onCall<ManageCommunityMemberPayload>(
               updatedAt: now,
             });
           }
+        }
+
+        if (
+          lifecycleNotificationAction
+          && shouldNotifyTarget
+        ) {
+          const notificationRef = db
+            .collection('notifications')
+            .doc(buildCommunityMemberLifecycleNotificationId(
+              communityId,
+              memberId,
+              lifecycleCycleStartedAtMs,
+              lifecycleNotificationAction
+            ));
+          const copy = buildCommunityMemberLifecycleNotificationCopy({
+            action: lifecycleNotificationAction,
+            communityName: community['name'],
+          });
+          const route = lifecycleNotificationAction === 'block'
+            ? '/dashboard/comunidades'
+            : buildCommunityNotificationRoute(communityId);
+          let notificationType = 'community.membership.unblocked';
+          if (lifecycleNotificationAction === 'remove') {
+            notificationType = 'community.membership.removed';
+          } else if (lifecycleNotificationAction === 'block') {
+            notificationType = 'community.membership.blocked';
+          }
+
+          transaction.set(notificationRef, {
+            userId: memberId,
+            type: notificationType,
+            title: copy.title,
+            body: copy.body,
+            route,
+            communityId,
+            actorUid,
+            readAt: null,
+            createdAt: now,
+            updatedAt: now,
+          }, { merge: true });
         }
 
         if (decision.auditAction) {

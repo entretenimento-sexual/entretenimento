@@ -13,6 +13,10 @@ const MAX_ACTIVITY_COUNT = 1_000_000_000;
 
 export type CommunityModerationTarget = 'comment' | 'reply' | 'post';
 export type CommunityMembershipReviewOutcome = 'approved' | 'rejected';
+export type CommunityMemberLifecycleNotificationAction =
+  | 'remove'
+  | 'block'
+  | 'unblock';
 
 export interface CommunityNotificationUser {
   uid?: unknown;
@@ -210,6 +214,46 @@ export function buildCommunityMembershipReviewNotificationId(
     String(Math.max(0, Math.trunc(requestCycleStartedAtMs))),
     outcome,
   ]);
+}
+
+export function buildCommunityMemberLifecycleNotificationId(
+  communityId: string,
+  memberId: string,
+  cycleStartedAtMs: number,
+  action: CommunityMemberLifecycleNotificationAction
+): string {
+  return stableId('community_member_lifecycle', [
+    communityId,
+    memberId,
+    String(Math.max(0, Math.trunc(cycleStartedAtMs))),
+    action,
+  ]);
+}
+
+export function buildCommunityMemberLifecycleNotificationCopy(input: {
+  action: CommunityMemberLifecycleNotificationAction;
+  communityName: unknown;
+}): { title: string; body: string } {
+  const communityName = normalizeText(input.communityName, 60) || 'a Comunidade';
+
+  if (input.action === 'block') {
+    return {
+      title: 'Acesso à Comunidade bloqueado',
+      body: `Seu acesso a ${communityName} foi bloqueado pela gestão.`,
+    };
+  }
+
+  if (input.action === 'unblock') {
+    return {
+      title: 'Bloqueio removido',
+      body: `O bloqueio de acesso a ${communityName} foi removido.`,
+    };
+  }
+
+  return {
+    title: 'Participação encerrada',
+    body: `Sua participação em ${communityName} foi encerrada pela gestão.`,
+  };
 }
 
 export function buildCommunityModerationNotificationId(

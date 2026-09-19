@@ -5,6 +5,8 @@ import {
   allowsCommunityActivityNotifications,
   buildCommunityCommentNotificationCopy,
   buildCommunityCommentNotificationId,
+  buildCommunityMemberLifecycleNotificationCopy,
+  buildCommunityMemberLifecycleNotificationId,
   buildCommunityMembershipRequestNotificationCopy,
   buildCommunityMembershipRequestNotificationId,
   isCommunityMembershipRequestNotificationForReview,
@@ -240,6 +242,53 @@ test('resume respostas diretas à publicação sem copiar conteúdo', () => {
     title: '3 novas respostas à sua publicação',
     body: 'Sua publicação em Comunidade Teste recebeu 3 novas respostas.',
     activityCount: 3,
+  });
+});
+
+test('gera aviso de lifecycle de membro por ciclo e ação', () => {
+  const removed = buildCommunityMemberLifecycleNotificationId(
+    'community-1',
+    'member-1',
+    MEMBERSHIP_CYCLE,
+    'remove'
+  );
+  const blocked = buildCommunityMemberLifecycleNotificationId(
+    'community-1',
+    'member-1',
+    MEMBERSHIP_CYCLE,
+    'block'
+  );
+  const nextCycle = buildCommunityMemberLifecycleNotificationId(
+    'community-1',
+    'member-1',
+    MEMBERSHIP_CYCLE + 1,
+    'remove'
+  );
+
+  assert.notEqual(removed, blocked);
+  assert.notEqual(removed, nextCycle);
+  assert.match(removed, /^community_member_lifecycle_[a-f0-9]{40}$/);
+
+  assert.deepEqual(buildCommunityMemberLifecycleNotificationCopy({
+    action: 'remove',
+    communityName: ' Comunidade Teste ',
+  }), {
+    title: 'Participação encerrada',
+    body: 'Sua participação em Comunidade Teste foi encerrada pela gestão.',
+  });
+  assert.deepEqual(buildCommunityMemberLifecycleNotificationCopy({
+    action: 'block',
+    communityName: 'Comunidade Teste',
+  }), {
+    title: 'Acesso à Comunidade bloqueado',
+    body: 'Seu acesso a Comunidade Teste foi bloqueado pela gestão.',
+  });
+  assert.deepEqual(buildCommunityMemberLifecycleNotificationCopy({
+    action: 'unblock',
+    communityName: 'Comunidade Teste',
+  }), {
+    title: 'Bloqueio removido',
+    body: 'O bloqueio de acesso a Comunidade Teste foi removido.',
   });
 });
 
