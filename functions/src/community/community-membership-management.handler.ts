@@ -36,6 +36,13 @@ import {
   evaluateCommunityMembershipLeave,
   evaluateCommunityMembershipReview,
 } from './community-membership-request.policy';
+import {
+  buildCommunityMembershipReviewNotificationCopy,
+  buildCommunityMembershipReviewNotificationId,
+  buildCommunityNotificationRoute,
+  canReceiveCommunityEssentialNotification,
+  type CommunityNotificationUser,
+} from './community-notification.policy';
 import { normalizeCommunityId } from './community-preview.model';
 import { consumeCommunityRateLimit } from './community-rate-limit.service';
 import { syncCommunityUserIndexInTransaction } from './community-user-index.transaction';
@@ -635,12 +642,14 @@ export const reviewCommunityMembership =
           actorMembershipSnapshot,
           targetMembershipSnapshot,
           actorUserSnapshot,
+          targetUserSnapshot,
         ] = await Promise.all([
           transaction.get(communityRef),
           transaction.get(discoveryRef),
           transaction.get(actorMembershipRef),
           transaction.get(targetMembershipRef),
           transaction.get(actorUserRef),
+          transaction.get(targetUserRef),
         ]);
 
         if (!communitySnapshot.exists) {
@@ -679,7 +688,6 @@ export const reviewCommunityMembership =
         }
 
         if (!decision.idempotent && decision.targetStatus === 'active') {
-          const targetUserSnapshot = await transaction.get(targetUserRef);
           assertCommunityMembershipActorEligible(
             targetUserSnapshot.exists ? targetUserSnapshot.data() : null,
             memberId
@@ -708,6 +716,31 @@ export const reviewCommunityMembership =
 
           const now = FieldValue.serverTimestamp();
           const approved = decision.targetStatus === 'active';
+          const requestCycleStartedAtMs =
+            normalizeTimestamp(target?.['requestedAt'])
+            ?? normalizeTimestamp(target?.['updatedAt'])
+            ?? 0;
+          const outcome = approved ? 'approved' : 'rejected';
+          const targetUser = targetUserSnapshot.data() as
+            | CommunityNotificationUser
+            | undefined;
+          const shouldNotifyTarget =
+            targetUserSnapshot.exists
+            && canReceiveCommunityEssentialNotification(
+              targetUser,
+              memberId,
+              actorUid
+            );
+          const notificationRef = shouldNotifyTarget
+            ? db.collection('notifications').doc(
+                buildCommunityMembershipReviewNotificationId(
+                  communityId,
+                  memberId,
+                  requestCycleStartedAtMs,
+                  outcome
+                )
+              )
+            : null;
 
           transaction.set(
             targetMembershipRef,
@@ -749,6 +782,30 @@ export const reviewCommunityMembership =
                 updatedAt: now,
               });
             }
+          }
+
+          if (notificationRef) {
+            const copy = buildCommunityMembershipReviewNotificationCopy({
+              outcome,
+              communityName: community?.['name'],
+            });
+
+            transaction.set(notificationRef, {
+              userId: memberId,
+              type: approved
+                ? 'community.membership.approved'
+                : 'community.membership.rejected',
+              title: copy.title,
+              body: copy.body,
+              route: approved
+                ? buildCommunityNotificationRoute(communityId)
+                : '/dashboard/comunidades',
+              communityId,
+              actorUid,
+              readAt: null,
+              createdAt: now,
+              updatedAt: now,
+            }, { merge: true });
           }
 
           transaction.set(

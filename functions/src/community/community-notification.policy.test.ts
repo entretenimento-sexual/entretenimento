@@ -5,6 +5,8 @@ import {
   allowsCommunityActivityNotifications,
   buildCommunityCommentNotificationCopy,
   buildCommunityCommentNotificationId,
+  buildCommunityMembershipReviewNotificationCopy,
+  buildCommunityMembershipReviewNotificationId,
   buildCommunityModerationNotificationCopy,
   buildCommunityModerationNotificationId,
   buildCommunityPostReplyNotificationCopy,
@@ -235,6 +237,56 @@ test('resume respostas diretas à publicação sem copiar conteúdo', () => {
     title: '3 novas respostas à sua publicação',
     body: 'Sua publicação em Comunidade Teste recebeu 3 novas respostas.',
     activityCount: 3,
+  });
+});
+
+test('gera resultado determinístico de revisão por ciclo do pedido', () => {
+  const approved = buildCommunityMembershipReviewNotificationId(
+    'community-1',
+    'member-1',
+    1_800_000_000_000,
+    'approved'
+  );
+  const same = buildCommunityMembershipReviewNotificationId(
+    'community-1',
+    'member-1',
+    1_800_000_000_000,
+    'approved'
+  );
+  const nextCycle = buildCommunityMembershipReviewNotificationId(
+    'community-1',
+    'member-1',
+    1_800_000_000_001,
+    'approved'
+  );
+  const rejected = buildCommunityMembershipReviewNotificationId(
+    'community-1',
+    'member-1',
+    1_800_000_000_000,
+    'rejected'
+  );
+
+  assert.equal(approved, same);
+  assert.notEqual(approved, nextCycle);
+  assert.notEqual(approved, rejected);
+  assert.match(approved, /^community_membership_review_[a-f0-9]{40}$/);
+});
+
+test('gera cópia segura para aprovação e rejeição de entrada', () => {
+  assert.deepEqual(buildCommunityMembershipReviewNotificationCopy({
+    outcome: 'approved',
+    communityName: ' Comunidade Teste ',
+  }), {
+    title: 'Entrada aprovada',
+    body: 'Seu pedido para entrar em Comunidade Teste foi aprovado.',
+  });
+
+  assert.deepEqual(buildCommunityMembershipReviewNotificationCopy({
+    outcome: 'rejected',
+    communityName: ' Comunidade Teste ',
+  }), {
+    title: 'Pedido de entrada não aprovado',
+    body: 'Seu pedido para entrar em Comunidade Teste não foi aprovado.',
   });
 });
 

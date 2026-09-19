@@ -12,6 +12,7 @@ const COMMENT_GROUP_WINDOW_MS = 24 * 60 * 60 * 1_000;
 const MAX_ACTIVITY_COUNT = 1_000_000_000;
 
 export type CommunityModerationTarget = 'comment' | 'reply' | 'post';
+export type CommunityMembershipReviewOutcome = 'approved' | 'rejected';
 
 export interface CommunityNotificationUser {
   uid?: unknown;
@@ -161,6 +162,20 @@ export function buildCommunityPostReplyNotificationId(
   ]);
 }
 
+export function buildCommunityMembershipReviewNotificationId(
+  communityId: string,
+  memberId: string,
+  requestCycleStartedAtMs: number,
+  outcome: CommunityMembershipReviewOutcome
+): string {
+  return stableId('community_membership_review', [
+    communityId,
+    memberId,
+    String(Math.max(0, Math.trunc(requestCycleStartedAtMs))),
+    outcome,
+  ]);
+}
+
 export function buildCommunityModerationNotificationId(
   target: CommunityModerationTarget,
   operationId: string,
@@ -248,6 +263,23 @@ export function buildCommunityPostReplyNotificationCopy(input: {
     body: `Sua publicação em ${communityName} recebeu ${activityCount} novas respostas.`,
     activityCount,
   };
+}
+
+export function buildCommunityMembershipReviewNotificationCopy(input: {
+  outcome: CommunityMembershipReviewOutcome;
+  communityName: unknown;
+}): { title: string; body: string } {
+  const communityName = normalizeText(input.communityName, 60) || 'a Comunidade';
+
+  return input.outcome === 'approved'
+    ? {
+        title: 'Entrada aprovada',
+        body: `Seu pedido para entrar em ${communityName} foi aprovado.`,
+      }
+    : {
+        title: 'Pedido de entrada não aprovado',
+        body: `Seu pedido para entrar em ${communityName} não foi aprovado.`,
+      };
 }
 
 export function buildCommunityModerationNotificationCopy(input: {

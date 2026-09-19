@@ -448,6 +448,8 @@ export class AppNotificationService {
       case 'community.comment.received':
       case 'community.comment.reply.received':
       case 'community.post.reply.received':
+      case 'community.membership.approved':
+      case 'community.membership.rejected':
       case 'community.content.moderated':
       case 'system':
       case 'social':
