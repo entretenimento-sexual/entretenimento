@@ -30,6 +30,9 @@ import {
   CommunityMembershipProfileVisibilityState,
 } from '../data-access/community-membership-profile-visibility.model';
 import { CommunityMembershipProfileVisibilityRepository } from '../data-access/community-membership-profile-visibility.repository';
+import {
+  COMMUNITY_MEMBERSHIP_PROFILE_VISIBILITY_REASON_MESSAGES,
+} from '../presentation/community-membership-profile-visibility-error.messages';
 
 type VisibilityLoadState =
   | { status: 'loading'; value: null }
@@ -284,6 +287,7 @@ export class CommunityMembershipProfileVisibilityComponent {
       feature: 'community',
       operation,
       fallbackMessage: 'Não foi possível atualizar a privacidade da participação.',
+      reasonMessages: COMMUNITY_MEMBERSHIP_PROFILE_VISIBILITY_REASON_MESSAGES,
       metadata: {
         scope: 'CommunityMembershipProfileVisibilityComponent',
         communityId: String(this.communityId() ?? '').trim(),

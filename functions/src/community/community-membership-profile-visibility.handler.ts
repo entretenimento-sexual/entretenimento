@@ -19,6 +19,7 @@ import {
   REQUIRE_COMMUNITY_APP_CHECK,
 } from './community-callable-security';
 import {
+  classifyCommunityMembershipProfileVisibilityState,
   resolveCommunityMembershipProfileVisibilityState,
 } from './community-membership-visibility.policy';
 import {
@@ -184,17 +185,30 @@ export const updateCommunityMembershipProfileVisibility =
           community,
           membership
         );
-        const previousVisibility = membership['profileVisibility'] === 'visible'
-          ? 'visible'
-          : 'hidden';
-        const previousPolicyVersion = Number.isSafeInteger(
-          membership['profileVisibilityPolicyVersion']
-        ) && Number(membership['profileVisibilityPolicyVersion']) >= 1
-          ? Number(membership['profileVisibilityPolicyVersion'])
-          : null;
+        const persistedVisibilityState =
+          classifyCommunityMembershipProfileVisibilityState(membership);
+        const previousVisibility =
+          persistedVisibilityState.kind === 'visible'
+            ? 'visible'
+            : 'hidden';
+        const previousPolicyVersion =
+          persistedVisibilityState.kind === 'visible'
+            ? persistedVisibilityState.policyVersion
+            : null;
         const nextPolicyVersion = command.profileVisibility === 'visible'
           ? state.policyVersion
           : null;
+
+        if (
+          command.profileVisibility === 'visible'
+          && persistedVisibilityState.kind === 'invalid'
+        ) {
+          throw new HttpsError(
+            'data-loss',
+            'A preferência de visibilidade desta participação está inconsistente.',
+            { reason: 'community_membership_profile_visibility_invalid' }
+          );
+        }
 
         if (command.profileVisibility === 'visible' && !state.canChange) {
           throw new HttpsError(
@@ -205,9 +219,10 @@ export const updateCommunityMembershipProfileVisibility =
         }
 
         const alreadyApplied = command.profileVisibility === 'visible'
-          ? previousVisibility === 'visible'
-            && previousPolicyVersion === nextPolicyVersion
-          : previousVisibility === 'hidden' && previousPolicyVersion === null;
+          ? persistedVisibilityState.kind === 'visible'
+            && persistedVisibilityState.policyVersion === nextPolicyVersion
+          : persistedVisibilityState.kind === 'hidden'
+            || persistedVisibilityState.kind === 'legacy_hidden';
 
         if (!alreadyApplied) {
           const now = Date.now();

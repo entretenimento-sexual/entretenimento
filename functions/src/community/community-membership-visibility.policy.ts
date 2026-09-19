@@ -33,12 +33,61 @@ export interface CommunityMembershipProfileVisibilityResolvedState {
   readonly canChange: boolean;
 }
 
+export type CommunityMembershipProfileVisibilityPersistenceState =
+  | { readonly kind: 'legacy_hidden' }
+  | { readonly kind: 'hidden' }
+  | { readonly kind: 'visible'; readonly policyVersion: number }
+  | { readonly kind: 'invalid' };
+
 function normalizePositiveInteger(value: unknown): number | null {
   return typeof value === 'number'
     && Number.isSafeInteger(value)
     && value >= 1
     ? value
     : null;
+}
+
+export function classifyCommunityMembershipProfileVisibilityState(
+  rawMembership: unknown
+): CommunityMembershipProfileVisibilityPersistenceState {
+  if (
+    rawMembership === null
+    || typeof rawMembership !== 'object'
+    || Array.isArray(rawMembership)
+  ) {
+    return { kind: 'invalid' };
+  }
+
+  const membership = rawMembership as Record<string, unknown>;
+  const hasVisibility = Object.prototype.hasOwnProperty.call(
+    membership,
+    'profileVisibility'
+  );
+  const hasPolicyVersion = Object.prototype.hasOwnProperty.call(
+    membership,
+    'profileVisibilityPolicyVersion'
+  );
+
+  if (!hasVisibility && !hasPolicyVersion) {
+    return { kind: 'legacy_hidden' };
+  }
+
+  const visibility = membership['profileVisibility'];
+  const rawPolicyVersion = membership['profileVisibilityPolicyVersion'];
+
+  if (
+    visibility === 'hidden'
+    && (!hasPolicyVersion || rawPolicyVersion === null)
+  ) {
+    return { kind: 'hidden' };
+  }
+
+  const policyVersion = normalizePositiveInteger(rawPolicyVersion);
+  if (visibility === 'visible' && policyVersion !== null) {
+    return { kind: 'visible', policyVersion };
+  }
+
+  return { kind: 'invalid' };
 }
 
 export function resolveCommunityMembershipVisibility(
@@ -110,10 +159,13 @@ export function resolveCommunityMembershipProfileVisibilityState(
     community,
     membership
   );
+  const persistedVisibilityState =
+    classifyCommunityMembershipProfileVisibilityState(membership);
   const acceptedPolicyVersion = normalizePositiveInteger(
     membership['profileVisibilityPolicyVersion']
   );
   const canChange = disclosureEnabled
+    && persistedVisibilityState.kind !== 'invalid'
     && resolveCommunityMembershipVisibility(
       community,
       {
