@@ -114,6 +114,48 @@ export function canReceiveCommunityEssentialNotification(
   return accountStatus !== 'deleted' && user.loginAllowed !== false;
 }
 
+export function buildCommunityReactionNotificationId(
+  communityId: string,
+  postId: string,
+  recipientUid: string,
+  membershipCycleStartedAtMs: number,
+  nowMs: number
+): string {
+  const window = Math.floor(Math.max(0, nowMs) / COMMENT_GROUP_WINDOW_MS);
+  return stableId('community_reactions', [
+    communityId,
+    postId,
+    recipientUid,
+    String(membershipCycleStartedAtMs),
+    String(window),
+  ]);
+}
+
+export function buildCommunityReactionNotificationCopy(input: {
+  existingActivityCount: unknown;
+  communityName: unknown;
+}): CommunityCommentNotificationCopy {
+  const activityCount = Math.min(
+    normalizeCount(input.existingActivityCount) + 1,
+    MAX_ACTIVITY_COUNT
+  );
+  const communityName = normalizeText(input.communityName, 60) || 'sua Comunidade';
+
+  if (activityCount === 1) {
+    return {
+      title: 'Nova reação',
+      body: `Sua publicação em ${communityName} recebeu uma nova reação.`,
+      activityCount,
+    };
+  }
+
+  return {
+    title: `${activityCount} novas reações`,
+    body: `Sua publicação em ${communityName} recebeu novas reações.`,
+    activityCount,
+  };
+}
+
 export function buildCommunityCommentNotificationId(
   communityId: string,
   postId: string,

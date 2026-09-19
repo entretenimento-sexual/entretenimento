@@ -5,6 +5,8 @@ import {
   allowsCommunityActivityNotifications,
   buildCommunityCommentNotificationCopy,
   buildCommunityCommentNotificationId,
+  buildCommunityReactionNotificationCopy,
+  buildCommunityReactionNotificationId,
   buildCommunityInviteResponseNotificationCopy,
   buildCommunityInviteResponseNotificationId,
   buildCommunityMemberLifecycleNotificationCopy,
@@ -69,6 +71,50 @@ test('aviso essencial alcança conta suspensa, mas não conta excluída', () => 
     'author-1',
     'moderator-1'
   ), false);
+});
+
+test('agrupa reações por publicação, ciclo e janela diária', () => {
+  const first = buildCommunityReactionNotificationId(
+    'community-1',
+    'post-1',
+    'author-1',
+    MEMBERSHIP_CYCLE,
+    1_800_000_000_000
+  );
+  const sameWindow = buildCommunityReactionNotificationId(
+    'community-1',
+    'post-1',
+    'author-1',
+    MEMBERSHIP_CYCLE,
+    1_800_000_000_000 + 60_000
+  );
+  const otherPost = buildCommunityReactionNotificationId(
+    'community-1',
+    'post-2',
+    'author-1',
+    MEMBERSHIP_CYCLE,
+    1_800_000_000_000 + 60_000
+  );
+
+  assert.equal(first, sameWindow);
+  assert.notEqual(first, otherPost);
+  assert.match(first, /^community_reactions_[a-f0-9]{40}$/);
+  assert.deepEqual(buildCommunityReactionNotificationCopy({
+    existingActivityCount: 0,
+    communityName: ' Comunidade Teste ',
+  }), {
+    title: 'Nova reação',
+    body: 'Sua publicação em Comunidade Teste recebeu uma nova reação.',
+    activityCount: 1,
+  });
+  assert.deepEqual(buildCommunityReactionNotificationCopy({
+    existingActivityCount: 2,
+    communityName: 'Comunidade Teste',
+  }), {
+    title: '3 novas reações',
+    body: 'Sua publicação em Comunidade Teste recebeu novas reações.',
+    activityCount: 3,
+  });
 });
 
 test('agrupa mensagens somente dentro do mesmo ciclo e janela diária', () => {

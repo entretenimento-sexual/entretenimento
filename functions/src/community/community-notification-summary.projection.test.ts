@@ -22,6 +22,21 @@ test('projeta atividade agrupada não lida por Comunidade', () => {
   });
 });
 
+test('projeta reação agrupada no resumo da Comunidade', () => {
+  assert.deepEqual(projectCommunityNotificationSummaryContribution({
+    userId: 'user-1',
+    communityId: 'community-1',
+    type: 'community.post.reaction.received',
+    activityCount: 5,
+    readAt: null,
+  }), {
+    userId: 'user-1',
+    communityId: 'community-1',
+    unreadCount: 5,
+    priorityUnreadCount: 0,
+  });
+});
+
 test('projeta resposta direta à publicação no resumo da Comunidade', () => {
   assert.deepEqual(projectCommunityNotificationSummaryContribution({
     userId: 'user-1',

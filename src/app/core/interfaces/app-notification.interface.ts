@@ -10,6 +10,7 @@ export type AppNotificationType =
   | 'community.comment.received'
   | 'community.comment.reply.received'
   | 'community.post.reply.received'
+  | 'community.post.reaction.received'
   | 'community.membership.approved'
   | 'community.membership.rejected'
   | 'community.membership.requested'

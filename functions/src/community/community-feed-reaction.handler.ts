@@ -10,6 +10,10 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, Timestamp } from '../firebaseApp';
+import {
+  buildBilateralBlockPaths,
+  isBilateralBlockActive,
+} from '../friendship/application/bilateral-block-access.policy';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   REQUIRE_COMMUNITY_APP_CHECK,
@@ -17,6 +21,16 @@ import {
 } from './community-callable-security';
 import { isCommunityMemberActivityEnabledStatus } from './community-lifecycle.policy';
 import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
+import {
+  resolveCommunityNotificationMembershipCycleStartedAtMs,
+} from './community-notification-membership.policy';
+import {
+  buildCommunityNotificationRoute,
+  buildCommunityReactionNotificationCopy,
+  buildCommunityReactionNotificationId,
+  canReceiveCommunityActivityNotification,
+  type CommunityNotificationUser,
+} from './community-notification.policy';
 import { evaluateCommunityFeedReaction } from './community-feed-reaction.policy';
 import type { CommunityViewerRole } from './community-preview.model';
 import { consumeCommunityRateLimit } from './community-rate-limit.service';
@@ -212,16 +226,80 @@ export const toggleCommunityFeedReaction = onCall<
       });
       if (!decision.allowed) throwDenied(decision.denialReason);
 
+      const now = Date.now();
       const metrics = (post['metrics'] ?? {}) as Record<string, unknown>;
       const currentCount = normalizeCount(metrics['reactionCount']);
       const currentlyReacted = reactionSnapshot.exists;
       const stateChanged = currentlyReacted !== desiredReacted;
+      const shouldCreateReactionNotification =
+        stateChanged && desiredReacted;
+      const recipientUid = shouldCreateReactionNotification
+        ? cleanId(post['actorUid'])
+        : '';
+      let notificationRef: FirebaseFirestore.DocumentReference | null = null;
+      let membershipCycleStartedAtMs: number | null = null;
+      let existingNotification: FirebaseFirestore.DocumentData | undefined;
+
+      if (recipientUid && recipientUid !== actorUid) {
+        const recipientUserRef = db.collection('users').doc(recipientUid);
+        const recipientMembershipRef = communityRef
+          .collection('members')
+          .doc(recipientUid);
+        const [actorBlockPath, recipientBlockPath] = buildBilateralBlockPaths(
+          actorUid,
+          recipientUid
+        );
+        const [
+          recipientUserSnapshot,
+          recipientMembershipSnapshot,
+          actorBlockSnapshot,
+          recipientBlockSnapshot,
+        ] = await Promise.all([
+          transaction.get(recipientUserRef),
+          transaction.get(recipientMembershipRef),
+          transaction.get(db.doc(actorBlockPath)),
+          transaction.get(db.doc(recipientBlockPath)),
+        ]);
+        const recipientUser = recipientUserSnapshot.data() as
+          | CommunityNotificationUser
+          | undefined;
+
+        membershipCycleStartedAtMs = recipientMembershipSnapshot.exists
+          ? resolveCommunityNotificationMembershipCycleStartedAtMs(
+            recipientMembershipSnapshot.data()
+          )
+          : null;
+
+        const shouldNotify =
+          membershipCycleStartedAtMs !== null
+          && canReceiveCommunityActivityNotification(
+            recipientUser,
+            recipientUid,
+            actorUid
+          )
+          && !isBilateralBlockActive({
+            actorBlock: actorBlockSnapshot.data(),
+            targetBlock: recipientBlockSnapshot.data(),
+          });
+
+        if (shouldNotify && membershipCycleStartedAtMs !== null) {
+          notificationRef = db.collection('notifications').doc(
+            buildCommunityReactionNotificationId(
+              communityId,
+              postId,
+              recipientUid,
+              membershipCycleStartedAtMs,
+              now
+            )
+          );
+          existingNotification = (await transaction.get(notificationRef)).data();
+        }
+      }
       const nextCount = !stateChanged
         ? currentCount
         : desiredReacted
           ? Math.min(currentCount + 1, 1_000_000_000)
           : Math.max(0, currentCount - 1);
-      const now = Date.now();
       const updatedAt = Timestamp.fromMillis(now);
 
       if (desiredReacted) {
@@ -251,6 +329,32 @@ export const toggleCommunityFeedReaction = onCall<
           'metrics.reactionCount': nextCount,
           updatedAt,
         });
+      }
+
+      if (
+        notificationRef
+        && membershipCycleStartedAtMs !== null
+      ) {
+        const copy = buildCommunityReactionNotificationCopy({
+          existingActivityCount: existingNotification?.['activityCount'],
+          communityName: community['name'],
+        });
+
+        transaction.set(notificationRef, {
+          userId: recipientUid,
+          type: 'community.post.reaction.received',
+          title: copy.title,
+          body: copy.body,
+          route: buildCommunityNotificationRoute(communityId, postId),
+          communityId,
+          postId,
+          membershipCycleStartedAtMs,
+          activityCount: copy.activityCount,
+          actorUid,
+          readAt: null,
+          createdAt: updatedAt,
+          updatedAt,
+        }, { merge: true });
       }
 
       return {

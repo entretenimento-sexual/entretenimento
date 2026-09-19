@@ -13,6 +13,7 @@ const COMMUNITY_SOCIAL_NOTIFICATION_TYPES = new Set([
   'community.comment.received',
   'community.comment.reply.received',
   'community.post.reply.received',
+  'community.post.reaction.received',
 ]);
 
 const COMMUNITY_NOTIFICATION_TYPES = new Set([
