@@ -133,10 +133,75 @@ jobs:
             exit 1
           fi
 
-          echo 'npm audit registry fallback: rebuilding the audit tree without lockfile serialization.'
-          npm --prefix functions audit --omit=dev --audit-level=moderate \
-            --no-package-lock \
-            2>&1 | tee -a logs/functions-audit-prod.log
+          echo 'npm audit registry fallback: querying the bulk advisory endpoint.'
+          node <<'NODE' 2>&1 | tee -a logs/functions-audit-prod.log
+          const fs = require('node:fs');
+
+          const lock = JSON.parse(
+            fs.readFileSync('functions/package-lock.json', 'utf8')
+          );
+          const payload = {};
+
+          for (const [location, meta] of Object.entries(lock.packages ?? {})) {
+            if (!location || meta?.dev === true || !meta?.version) continue;
+
+            const match = location.match(
+              /(?:^|\/)node_modules\/((?:@[^/]+\/)?[^/]+)$/
+            );
+            if (!match) continue;
+
+            const name = match[1];
+            payload[name] ??= [];
+            if (!payload[name].includes(meta.version)) {
+              payload[name].push(meta.version);
+            }
+          }
+
+          const response = await fetch(
+            'https://registry.npmjs.org/-/npm/v1/security/advisories/bulk',
+            {
+              method: 'POST',
+              headers: {
+                accept: 'application/json',
+                'content-type': 'application/json',
+              },
+              body: JSON.stringify(payload),
+            }
+          );
+
+          if (!response.ok) {
+            throw new Error(
+              `Bulk advisory endpoint failed with HTTP ${response.status}`
+            );
+          }
+
+          const advisories = await response.json();
+          const blockingSeverities = new Set(['moderate', 'high', 'critical']);
+          let blockingCount = 0;
+
+          for (const [name, entries] of Object.entries(advisories ?? {})) {
+            for (const advisory of entries ?? []) {
+              const severity = String(advisory?.severity ?? '').toLowerCase();
+              console.log(JSON.stringify({
+                name,
+                severity,
+                title: advisory?.title ?? null,
+                url: advisory?.url ?? null,
+                vulnerableVersions: advisory?.vulnerable_versions ?? null,
+              }));
+              if (blockingSeverities.has(severity)) blockingCount += 1;
+            }
+          }
+
+          if (blockingCount > 0) {
+            console.error(
+              `Functions production audit found ${blockingCount} blocking advisory(s).`
+            );
+            process.exit(1);
+          }
+
+          console.log('Functions production bulk advisory audit: no moderate+ findings.');
+          NODE
 
       - name: Report Functions development dependency audit
         shell: bash
