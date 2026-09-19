@@ -258,6 +258,56 @@
                 </div>
               }
 
+              @case ('community-post') {
+                <article class="social-space-card app-card" role="article">
+                  <a
+                    class="social-space-card__link"
+                    [routerLink]="feedItemRoute(item)"
+                    [queryParams]="feedItemQueryParams(item)"
+                    [attr.aria-label]="'Abrir publicação em ' + item.space.name"
+                  >
+                    <header class="social-space-card__header">
+                      <span class="social-space-card__avatar">
+                        @if (item.space.avatarUrl; as avatarUrl) {
+                          <img
+                            [src]="avatarUrl"
+                            alt=""
+                            appImageFallback
+                          />
+                        } @else {
+                          <span aria-hidden="true">
+                            {{ item.space.name.slice(0, 1).toUpperCase() }}
+                          </span>
+                        }
+                      </span>
+
+                      <span class="social-space-card__identity">
+                        <strong>{{ item.space.name }}</strong>
+                        <small>Publicação da Comunidade · {{ item.post.author.label }}</small>
+                      </span>
+                    </header>
+
+                    @if (item.post.image; as image) {
+                      <img
+                        class="social-space-card__cover"
+                        [src]="image.url"
+                        [alt]="image.alt"
+                        appImageFallback
+                      />
+                    }
+
+                    @if (item.post.text) {
+                      <p>{{ item.post.text }}</p>
+                    }
+
+                    <footer class="social-space-card__metrics">
+                      <span>{{ item.post.metrics.reactionCount }} reações</span>
+                      <span>{{ item.post.metrics.commentCount }} comentários</span>
+                    </footer>
+                  </a>
+                </article>
+              }
+
               @case ('community') {
                 <article class="social-space-card app-card" role="article">
                   <a

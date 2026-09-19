@@ -304,6 +304,12 @@ export class PrincipalComponent implements OnInit {
       : ['/dashboard', 'comunidades', item.space.communityId];
   }
 
+  feedItemQueryParams(item: PrincipalFeedItem): Record<string, string> | null {
+    return item.kind === 'community-post'
+      ? { post: item.post.postId }
+      : null;
+  }
+
   feedItemLabel(item: PrincipalFeedItem): string {
     if (item.kind === 'profile-photo') return 'Foto';
     if (item.kind === 'profile-video') return 'Vídeo';

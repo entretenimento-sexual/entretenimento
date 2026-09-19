@@ -1,6 +1,7 @@
 // src/app/dashboard/principal/principal-feed.model.spec.ts
 import { describe, expect, it } from 'vitest';
 
+import type { CommunityFeedItem } from 'src/app/community/data-access/community-feed.model';
 import type { CommunityPreviewCard } from 'src/app/community/data-access/community-preview.model';
 import type { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
 import type { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
@@ -102,6 +103,28 @@ function space(
   };
 }
 
+function communityPost(postId: string): CommunityFeedItem {
+  return {
+    postId,
+    kind: 'text',
+    author: { label: 'Pessoa', avatarUrl: null },
+    text: 'Atividade recente',
+    image: null,
+    replyTo: null,
+    metrics: { commentCount: 2, reactionCount: 3 },
+    capabilities: {
+      canDeleteOwn: false,
+      canModerate: false,
+      canReport: true,
+      canReact: true,
+      viewerReacted: false,
+      canViewComments: true,
+      canComment: true,
+    },
+    publishedAt: 300,
+  };
+}
+
 describe('buildPrincipalFeedItems', () => {
   it('mistura fotos e vídeos por publicação e insere descoberta após duas mídias', () => {
     const items = buildPrincipalFeedItems(
@@ -118,6 +141,29 @@ describe('buildPrincipalFeedItems', () => {
       'profile-photo:owner-old:old',
       'venue:v1',
     ]);
+  });
+
+  it('substitui o card da Comunidade por atividade recente sem duplicar espaço', () => {
+    const items = buildPrincipalFeedItems(
+      [photo('a', 300), photo('b', 200)],
+      [],
+      [space('c1', 'community')],
+      [],
+      10,
+      [],
+      [],
+      [],
+      [{ communityId: 'c1', post: communityPost('post-1') }]
+    );
+
+    expect(items.map((item) => item.id)).toEqual([
+      'profile-photo:owner-a:a',
+      'profile-photo:owner-b:b',
+      'community-post:c1:post-1',
+    ]);
+    expect(items.filter((item) =>
+      item.kind === 'community' || item.kind === 'community-post'
+    )).toHaveLength(1);
   });
 
   it('limita prioridade de conexões a um slot a cada três mídias enquanto há global', () => {

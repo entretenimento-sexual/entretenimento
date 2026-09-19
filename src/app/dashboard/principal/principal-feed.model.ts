@@ -13,6 +13,7 @@
 // - a intercalação é pura e determinística para facilitar cache e testes.
 // -----------------------------------------------------------------------------
 
+import type { CommunityFeedItem } from 'src/app/community/data-access/community-feed.model';
 import type { CommunityPreviewCard } from 'src/app/community/data-access/community-preview.model';
 import type { IPublicMediaContinuationContext } from 'src/app/core/interfaces/media/i-public-media-continuation-context';
 import {
@@ -32,7 +33,13 @@ export type PrincipalFeedSource =
   | 'personalizedVideos'
   | 'recentViews'
   | 'communities'
+  | 'communityActivity'
   | 'venues';
+
+export interface PrincipalCommunityActivity {
+  readonly communityId: string;
+  readonly post: CommunityFeedItem;
+}
 
 export type PrincipalFeedItem =
   | {
@@ -49,6 +56,12 @@ export type PrincipalFeedItem =
       readonly id: string;
       readonly kind: 'community' | 'venue';
       readonly space: CommunityPreviewCard;
+    }
+  | {
+      readonly id: string;
+      readonly kind: 'community-post';
+      readonly space: CommunityPreviewCard;
+      readonly post: CommunityFeedItem;
     };
 
 export type PrincipalFeedStatus = 'loading' | 'ready' | 'empty' | 'error';
@@ -108,7 +121,8 @@ function buildProfileMediaItems(
 
 function uniqueSpaces(
   items: readonly CommunityPreviewCard[],
-  kind: 'community' | 'venue'
+  kind: 'community' | 'venue',
+  communityActivityById: ReadonlyMap<string, CommunityFeedItem>
 ): PrincipalFeedItem[] {
   const unique = new Map<string, CommunityPreviewCard>();
 
@@ -118,19 +132,41 @@ function uniqueSpaces(
     unique.set(id, item);
   }
 
-  return [...unique.values()].map((space) => ({
-    id: `${kind}:${space.communityId}`,
-    kind,
-    space,
-  }));
+  return [...unique.values()].map((space): PrincipalFeedItem => {
+    if (kind === 'community') {
+      const post = communityActivityById.get(space.communityId);
+      if (post) {
+        return {
+          id: `community-post:${space.communityId}:${post.postId}`,
+          kind: 'community-post',
+          space,
+          post,
+        };
+      }
+    }
+
+    return {
+      id: `${kind}:${space.communityId}`,
+      kind,
+      space,
+    };
+  });
 }
 
 function interleaveDiscovery(
   communities: readonly CommunityPreviewCard[],
-  venues: readonly CommunityPreviewCard[]
+  venues: readonly CommunityPreviewCard[],
+  communityActivity: readonly PrincipalCommunityActivity[]
 ): PrincipalFeedItem[] {
-  const communityItems = uniqueSpaces(communities, 'community');
-  const venueItems = uniqueSpaces(venues, 'venue');
+  const communityActivityById = new Map(
+    communityActivity.map((activity) => [activity.communityId, activity.post])
+  );
+  const communityItems = uniqueSpaces(
+    communities,
+    'community',
+    communityActivityById
+  );
+  const venueItems = uniqueSpaces(venues, 'venue', new Map());
   const result: PrincipalFeedItem[] = [];
   const maxLength = Math.max(communityItems.length, venueItems.length);
 
@@ -159,7 +195,8 @@ export function buildPrincipalFeedItems(
   maxItems = 24,
   connectionOwnerUids: readonly string[] = [],
   compatibleOwnerUids: readonly string[] = [],
-  recentViewedKeys: readonly string[] = []
+  recentViewedKeys: readonly string[] = [],
+  communityActivity: readonly PrincipalCommunityActivity[] = []
 ): PrincipalFeedItem[] {
   const safeMaxItems = Number.isFinite(maxItems)
     ? Math.min(Math.max(Math.trunc(maxItems), 1), 60)
@@ -171,7 +208,11 @@ export function buildPrincipalFeedItems(
     compatibleOwnerUids,
     recentViewedKeys
   );
-  const discoveryItems = interleaveDiscovery(communities, venues);
+  const discoveryItems = interleaveDiscovery(
+    communities,
+    venues,
+    communityActivity
+  );
   const result: PrincipalFeedItem[] = [];
   let discoveryIndex = 0;
 

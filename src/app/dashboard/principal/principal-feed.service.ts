@@ -29,7 +29,7 @@
 // -----------------------------------------------------------------------------
 
 import { Injectable, inject } from '@angular/core';
-import { BehaviorSubject, Observable, combineLatest, of } from 'rxjs';
+import { BehaviorSubject, Observable, combineLatest, forkJoin, of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -39,6 +39,7 @@ import {
   switchMap,
 } from 'rxjs/operators';
 
+import { CommunityFeedRepository } from 'src/app/community/data-access/community-feed.repository';
 import { CommunityPreviewCard } from 'src/app/community/data-access/community-preview.model';
 import { CommunityPreviewRepository } from 'src/app/community/data-access/community-preview.repository';
 import { isFeatureEnabled } from 'src/app/core/guards/access-guard/feature-flag.guard';
@@ -56,6 +57,7 @@ import { PublicVideoRankingQueryService } from 'src/app/core/services/media/publ
 import { CompatibleProfileCandidatesService } from 'src/app/dashboard/discovery/application/compatible-profile-candidates.service';
 import {
   PRINCIPAL_FEED_LOADING_STATE,
+  PrincipalCommunityActivity,
   PrincipalFeedItem,
   PrincipalFeedSource,
   PrincipalFeedState,
@@ -96,6 +98,7 @@ const PERSONALIZED_OWNER_LIMIT = 30;
 const PERSONALIZED_PHOTO_LIMIT = 12;
 const PERSONALIZED_VIDEO_LIMIT = 12;
 const SPACE_LIMIT = 4;
+const COMMUNITY_ACTIVITY_LIMIT = 2;
 const COMMUNITIES_ENABLED = isFeatureEnabled('communitiesEnabled');
 const VENUES_ENABLED = isFeatureEnabled('communityPreview');
 
@@ -124,6 +127,7 @@ export class PrincipalFeedService {
   private readonly recentViews = inject(PublicMediaRecentViewService);
   private readonly videoRanking = inject(PublicVideoRankingQueryService);
   private readonly communityRepository = inject(CommunityPreviewRepository);
+  private readonly communityFeedRepository = inject(CommunityFeedRepository);
   private readonly authSession = inject(AuthSessionService);
   private readonly friendship = inject(FriendshipService);
   private readonly compatibleCandidates = inject(CompatibleProfileCandidatesService);
@@ -157,14 +161,20 @@ export class PrincipalFeedService {
         this.loadSpaces$('community'),
         this.loadSpaces$('venue'),
       ]).pipe(
-        map(([
+        switchMap(([
           mediaContext,
           communitiesResult,
           venuesResult,
-        ]) => this.buildState(
-          mediaContext,
-          communitiesResult,
-          venuesResult
+        ]) => this.loadCommunityActivity$(
+          viewerUid,
+          communitiesResult.value
+        ).pipe(
+          map((communityActivityResult) => this.buildState(
+            mediaContext,
+            communitiesResult,
+            venuesResult,
+            communityActivityResult
+          ))
         ))
       );
     }),
@@ -179,7 +189,9 @@ export class PrincipalFeedService {
   private buildState(
     mediaContext: MediaContextResult,
     communitiesResult: FeedSourceResult<readonly CommunityPreviewCard[]>,
-    venuesResult: FeedSourceResult<readonly CommunityPreviewCard[]>
+    venuesResult: FeedSourceResult<readonly CommunityPreviewCard[]>,
+    communityActivityResult:
+      FeedSourceResult<readonly PrincipalCommunityActivity[]>
   ): PrincipalFeedState {
     const {
       photosResult,
@@ -197,6 +209,9 @@ export class PrincipalFeedService {
     if (personalizedMedia.videos.failed) failedSources.push('personalizedVideos');
     if (recentViews.failed) failedSources.push('recentViews');
     if (communitiesResult.failed) failedSources.push('communities');
+    if (communityActivityResult.failed) {
+      failedSources.push('communityActivity');
+    }
     if (venuesResult.failed) failedSources.push('venues');
 
     const allPhotos = [
@@ -215,7 +230,8 @@ export class PrincipalFeedService {
       24,
       personalizedMedia.connectionOwnerUids,
       personalizedMedia.compatibleOwnerUids,
-      recentViews.value
+      recentViews.value,
+      communityActivityResult.value
     );
     const visiblePhotos = this.collectVisiblePhotos(items);
     const visibleVideos = this.collectVisibleVideos(items);
@@ -465,6 +481,62 @@ export class PrincipalFeedService {
         this.reportSourceError('personalizedVideos', error);
         return of({ value: [], failed: true });
       })
+    );
+  }
+
+  private loadCommunityActivity$(
+    viewerUid: string | null | undefined,
+    communities: readonly CommunityPreviewCard[]
+  ): Observable<FeedSourceResult<readonly PrincipalCommunityActivity[]>> {
+    const safeViewerUid = String(viewerUid ?? '').trim();
+    if (!COMMUNITIES_ENABLED || !safeViewerUid) {
+      return of({ value: [], failed: false });
+    }
+
+    const targets = communities
+      .filter((community) => community.source.type === 'community')
+      .slice(0, COMMUNITY_ACTIVITY_LIMIT);
+
+    if (targets.length === 0) {
+      return of({ value: [], failed: false });
+    }
+
+    const requests = targets.map((community) =>
+      this.communityFeedRepository.getPage$({
+        communityId: community.communityId,
+        view: 'feed',
+        limit: 1,
+        cursor: null,
+      }).pipe(
+        map((page): FeedSourceResult<PrincipalCommunityActivity | null> => ({
+          value: page.items[0]
+            ? {
+                communityId: community.communityId,
+                post: page.items[0],
+              }
+            : null,
+          failed: false,
+        })),
+        catchError((error: unknown) => {
+          this.reportSourceError('communityActivity', error);
+          return of({
+            value: null,
+            failed: true,
+          } as FeedSourceResult<PrincipalCommunityActivity | null>);
+        })
+      )
+    );
+
+    return forkJoin(requests).pipe(
+      map((results) => ({
+        value: results
+          .map((result) => result.value)
+          .filter(
+            (activity): activity is PrincipalCommunityActivity =>
+              activity !== null
+          ),
+        failed: results.some((result) => result.failed),
+      }))
     );
   }
 

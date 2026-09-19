@@ -4,6 +4,7 @@ import { firstValueFrom, of, throwError } from 'rxjs';
 import { filter, take } from 'rxjs/operators';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { CommunityFeedRepository } from 'src/app/community/data-access/community-feed.repository';
 import { CommunityPreviewRepository } from 'src/app/community/data-access/community-preview.repository';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
@@ -92,6 +93,9 @@ describe('PrincipalFeedService', () => {
   const communityRepository = {
     getDiscoveryPage$: vi.fn(),
   };
+  const communityFeedRepository = {
+    getPage$: vi.fn(),
+  };
   const globalError = {
     handleError: vi.fn(),
   };
@@ -116,6 +120,11 @@ describe('PrincipalFeedService', () => {
       nextCursor: null,
       generatedAt: Date.now(),
     }));
+    communityFeedRepository.getPage$.mockReturnValue(of({
+      items: [],
+      nextCursor: null,
+      generatedAt: Date.now(),
+    }));
 
     TestBed.configureTestingModule({
       providers: [
@@ -130,6 +139,7 @@ describe('PrincipalFeedService', () => {
         { provide: MediaPublicQueryService, useValue: mediaQuery },
         { provide: PublicVideoRankingQueryService, useValue: videoRanking },
         { provide: CommunityPreviewRepository, useValue: communityRepository },
+        { provide: CommunityFeedRepository, useValue: communityFeedRepository },
         { provide: GlobalErrorHandlerService, useValue: globalError },
       ],
     });
@@ -165,6 +175,73 @@ describe('PrincipalFeedService', () => {
       cursor: null,
       sourceType: 'community',
     });
+  });
+
+  it('substitui descoberta estática por atividade recente autorizada', async () => {
+    TestBed.overrideProvider(AuthSessionService, {
+      useValue: { uid$: of('viewer-1') },
+    });
+    communityRepository.getDiscoveryPage$.mockReturnValue(of({
+      items: [{
+        communityId: 'community-1',
+        name: 'Comunidade 1',
+        slug: 'community-1',
+        description: 'Descrição',
+        source: { type: 'community', id: 'community-1' },
+        avatarUrl: null,
+        coverUrl: null,
+        metrics: { memberCount: 10, postCount: 2, mediaCount: 0 },
+        access: {
+          join: 'open',
+          minimumRole: null,
+          requiresActiveSubscription: false,
+        },
+        tags: [],
+      }],
+      nextCursor: null,
+      generatedAt: Date.now(),
+    }));
+    communityFeedRepository.getPage$.mockReturnValue(of({
+      items: [{
+        postId: 'post-1',
+        kind: 'text',
+        author: { label: 'Pessoa', avatarUrl: null },
+        text: 'Atividade recente',
+        image: null,
+        replyTo: null,
+        metrics: { commentCount: 2, reactionCount: 3 },
+        capabilities: {
+          canDeleteOwn: false,
+          canModerate: false,
+          canReport: true,
+          canReact: true,
+          viewerReacted: false,
+          canViewComments: true,
+          canComment: true,
+        },
+        publishedAt: 300,
+      }],
+      nextCursor: null,
+      generatedAt: Date.now(),
+    }));
+
+    const service = TestBed.inject(PrincipalFeedService);
+    const state = await firstValueFrom(
+      service.state$.pipe(
+        filter((value) => value.status !== 'loading'),
+        take(1)
+      )
+    );
+
+    expect(communityFeedRepository.getPage$).toHaveBeenCalledWith({
+      communityId: 'community-1',
+      view: 'feed',
+      limit: 1,
+      cursor: null,
+    });
+    expect(state.items.some(
+      (item) => item.id === 'community-post:community-1:post-1'
+    )).toBe(true);
   });
 
   it('mantém vídeos disponíveis quando a fonte de fotos falha', async () => {

@@ -255,6 +255,66 @@ describe('PrincipalComponent', () => {
     expect(fixture.debugElement.query(By.css('.feed-stream'))).toBeTruthy();
   });
 
+  it('renderiza atividade recente da Comunidade com deep-link para a publicação', () => {
+    const feedItems: PrincipalFeedItem[] = [{
+      id: 'community-post:community-1:post-1',
+      kind: 'community-post',
+      space: {
+        communityId: 'community-1',
+        name: 'Comunidade 1',
+        slug: 'community-1',
+        description: 'Descrição',
+        source: { type: 'community', id: 'community-1' },
+        avatarUrl: null,
+        coverUrl: null,
+        metrics: { memberCount: 10, postCount: 2, mediaCount: 0 },
+        access: {
+          join: 'open',
+          minimumRole: null,
+          requiresActiveSubscription: false,
+        },
+        tags: [],
+      },
+      post: {
+        postId: 'post-1',
+        kind: 'text',
+        author: { label: 'Pessoa', avatarUrl: null },
+        text: 'Atividade recente',
+        image: null,
+        replyTo: null,
+        metrics: { commentCount: 2, reactionCount: 3 },
+        capabilities: {
+          canDeleteOwn: false,
+          canModerate: false,
+          canReport: true,
+          canReact: true,
+          viewerReacted: false,
+          canViewComments: true,
+          canComment: true,
+        },
+        publishedAt: 300,
+      },
+    }];
+
+    feedStateSubject.next({
+      status: 'ready',
+      items: feedItems,
+      photos: [],
+      videos: [],
+      failedSources: [],
+    });
+    fixture.detectChanges();
+
+    const link = fixture.debugElement.query(
+      By.css('.social-space-card__link')
+    ).nativeElement as HTMLAnchorElement;
+    expect(link.textContent).toContain('Atividade recente');
+    expect(link.getAttribute('href')).toContain(
+      '/dashboard/comunidades/community-1'
+    );
+    expect(link.getAttribute('href')).toContain('post=post-1');
+  });
+
   it('abre foto preservando a ordem mista e o contexto de continuação', () => {
     const first = createPhoto('owner-a', 'photo-a');
     const video = createVideo();
