@@ -180,6 +180,64 @@ test('resume respostas como referência a mensagem sem copiar o texto respondido
   });
 });
 
+test('agrupa respostas diretas à publicação por alvo, ciclo e janela', () => {
+  const first = buildCommunityPostReplyNotificationId(
+    'community-1',
+    'post-1',
+    'author-1',
+    MEMBERSHIP_CYCLE,
+    1_800_000_000_000
+  );
+  const sameWindow = buildCommunityPostReplyNotificationId(
+    'community-1',
+    'post-1',
+    'author-1',
+    MEMBERSHIP_CYCLE,
+    1_800_000_000_000 + 60_000
+  );
+  const otherPost = buildCommunityPostReplyNotificationId(
+    'community-1',
+    'post-2',
+    'author-1',
+    MEMBERSHIP_CYCLE,
+    1_800_000_000_000 + 60_000
+  );
+  const nextCycle = buildCommunityPostReplyNotificationId(
+    'community-1',
+    'post-1',
+    'author-1',
+    MEMBERSHIP_CYCLE + 1,
+    1_800_000_000_000 + 60_000
+  );
+
+  assert.equal(first, sameWindow);
+  assert.notEqual(first, otherPost);
+  assert.notEqual(first, nextCycle);
+  assert.match(first, /^community_post_replies_[a-f0-9]{40}$/);
+});
+
+test('resume respostas diretas à publicação sem copiar conteúdo', () => {
+  assert.deepEqual(buildCommunityPostReplyNotificationCopy({
+    existingActivityCount: 0,
+    actorLabel: ' Pessoa\nSegura ',
+    communityName: ' Comunidade Teste ',
+  }), {
+    title: 'Nova resposta à sua publicação',
+    body: 'Pessoa Segura respondeu à sua publicação em Comunidade Teste.',
+    activityCount: 1,
+  });
+
+  assert.deepEqual(buildCommunityPostReplyNotificationCopy({
+    existingActivityCount: 2,
+    actorLabel: 'Outra pessoa',
+    communityName: 'Comunidade Teste',
+  }), {
+    title: '3 novas respostas à sua publicação',
+    body: 'Sua publicação em Comunidade Teste recebeu 3 novas respostas.',
+    activityCount: 3,
+  });
+});
+
 test('gera aviso essencial determinístico sem expor o motivo da remoção', () => {
   const notificationId = buildCommunityModerationNotificationId(
     'comment',
