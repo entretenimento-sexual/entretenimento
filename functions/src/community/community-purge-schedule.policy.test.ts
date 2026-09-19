@@ -53,12 +53,12 @@ test('valores não numéricos retornam aos defaults seguros', () => {
   assert.equal(options.maxPagesPerStep, 30);
 });
 
-test('diagnóstico de purge aceita somente administração ou permissão explícita', () => {
-  assert.equal(hasCommunityPurgeOperationsPermission({ superadmin: true }), true);
-  assert.equal(hasCommunityPurgeOperationsPermission({ admin: true }), true);
+test('diagnóstico de purge exige capability explícita', () => {
+  assert.equal(hasCommunityPurgeOperationsPermission({ superadmin: true }), false);
+  assert.equal(hasCommunityPurgeOperationsPermission({ admin: true }), false);
   assert.equal(
     hasCommunityPurgeOperationsPermission({ roles: ['ADMIN'] }),
-    true
+    false
   );
   assert.equal(
     hasCommunityPurgeOperationsPermission({ permissions: ['community:purge'] }),
