@@ -37,6 +37,21 @@ test('projeta resposta direta à publicação no resumo da Comunidade', () => {
   });
 });
 
+test('pedido de entrada não lido é prioridade da Comunidade', () => {
+  assert.deepEqual(projectCommunityNotificationSummaryContribution({
+    userId: 'owner-1',
+    communityId: 'community-1',
+    type: 'community.membership.requested',
+    actionRequired: true,
+    readAt: null,
+  }), {
+    userId: 'owner-1',
+    communityId: 'community-1',
+    unreadCount: 1,
+    priorityUnreadCount: 1,
+  });
+});
+
 test('moderação não lida é atividade prioritária', () => {
   assert.deepEqual(projectCommunityNotificationSummaryContribution({
     userId: 'user-1',

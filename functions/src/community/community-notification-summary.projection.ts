@@ -17,6 +17,7 @@ const COMMUNITY_SOCIAL_NOTIFICATION_TYPES = new Set([
 
 const COMMUNITY_NOTIFICATION_TYPES = new Set([
   ...COMMUNITY_SOCIAL_NOTIFICATION_TYPES,
+  'community.membership.requested',
   'community.content.moderated',
 ]);
 

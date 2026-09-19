@@ -12,6 +12,7 @@ export type AppNotificationType =
   | 'community.post.reply.received'
   | 'community.membership.approved'
   | 'community.membership.rejected'
+  | 'community.membership.requested'
   | 'community.content.moderated'
   | 'system'
   | 'social'

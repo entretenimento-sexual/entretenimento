@@ -10,6 +10,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
+import { resolveCommunityCanonicalOwnerUid } from './community-canonical-owner.policy';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   REQUIRE_COMMUNITY_APP_CHECK,
@@ -30,6 +31,13 @@ import {
 import {
   classifyExistingCommunityMembershipState,
 } from './community-membership-state.policy';
+import {
+  buildCommunityMembershipRequestNotificationCopy,
+  buildCommunityMembershipRequestNotificationId,
+  buildCommunityNotificationRoute,
+  canReceiveCommunityEssentialNotification,
+  type CommunityNotificationUser,
+} from './community-notification.policy';
 import { normalizeCommunityId } from './community-preview.model';
 import { consumeCommunityRateLimit } from './community-rate-limit.service';
 import { syncCommunityUserIndexInTransaction } from './community-user-index.transaction';
@@ -143,6 +151,8 @@ export const requestCommunityMembership =
         actorUid: uid,
       });
 
+      const requestCycleStartedAtMs = Date.now();
+
       return db.runTransaction(async (transaction) => {
         const communityRef = db.collection('communities').doc(communityId);
         const discoveryRef = db
@@ -228,6 +238,14 @@ export const requestCommunityMembership =
           assertCommunityAcceptingNewMembers(capacity);
         }
 
+        const targetStatus = decision.targetStatus;
+        const ownerUid = targetStatus === 'pending'
+          ? resolveCommunityCanonicalOwnerUid(community)
+          : null;
+        const ownerUserSnapshot = ownerUid && ownerUid !== uid
+          ? await transaction.get(db.collection('users').doc(ownerUid))
+          : null;
+
         if (!decision.idempotent) {
           const nextMemberCount = decision.incrementMemberCount
             ? resolveMemberCountDelta(community, 1)
@@ -241,7 +259,6 @@ export const requestCommunityMembership =
           }
 
           const now = FieldValue.serverTimestamp();
-          const targetStatus = decision.targetStatus;
 
           transaction.set(
             membershipRef,
@@ -286,6 +303,47 @@ export const requestCommunityMembership =
                 'metrics.memberCount': nextMemberCount,
                 updatedAt: now,
               });
+            }
+          }
+
+          if (
+            targetStatus === 'pending'
+            && ownerUid
+            && ownerUserSnapshot?.exists
+          ) {
+            const ownerUser = ownerUserSnapshot.data() as
+              | CommunityNotificationUser
+              | undefined;
+
+            if (canReceiveCommunityEssentialNotification(
+              ownerUser,
+              ownerUid,
+              uid
+            )) {
+              const notificationRef = db
+                .collection('notifications')
+                .doc(buildCommunityMembershipRequestNotificationId(
+                  communityId,
+                  uid,
+                  requestCycleStartedAtMs
+                ));
+              const copy = buildCommunityMembershipRequestNotificationCopy({
+                communityName: community['name'],
+              });
+
+              transaction.set(notificationRef, {
+                userId: ownerUid,
+                type: 'community.membership.requested',
+                title: copy.title,
+                body: copy.body,
+                route: `${buildCommunityNotificationRoute(communityId)}?secao=gestao`,
+                communityId,
+                actorUid: uid,
+                actionRequired: true,
+                readAt: null,
+                createdAt: now,
+                updatedAt: now,
+              }, { merge: true });
             }
           }
 

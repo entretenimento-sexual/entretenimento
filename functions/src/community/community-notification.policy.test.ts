@@ -5,6 +5,8 @@ import {
   allowsCommunityActivityNotifications,
   buildCommunityCommentNotificationCopy,
   buildCommunityCommentNotificationId,
+  buildCommunityMembershipRequestNotificationCopy,
+  buildCommunityMembershipRequestNotificationId,
   buildCommunityMembershipReviewNotificationCopy,
   buildCommunityMembershipReviewNotificationId,
   buildCommunityModerationNotificationCopy,
@@ -237,6 +239,34 @@ test('resume respostas diretas à publicação sem copiar conteúdo', () => {
     title: '3 novas respostas à sua publicação',
     body: 'Sua publicação em Comunidade Teste recebeu 3 novas respostas.',
     activityCount: 3,
+  });
+});
+
+test('gera pedido de entrada determinístico por ciclo', () => {
+  const first = buildCommunityMembershipRequestNotificationId(
+    'community-1',
+    'member-1',
+    1_800_000_000_000
+  );
+  const same = buildCommunityMembershipRequestNotificationId(
+    'community-1',
+    'member-1',
+    1_800_000_000_000
+  );
+  const nextCycle = buildCommunityMembershipRequestNotificationId(
+    'community-1',
+    'member-1',
+    1_800_000_000_001
+  );
+
+  assert.equal(first, same);
+  assert.notEqual(first, nextCycle);
+  assert.match(first, /^community_membership_request_[a-f0-9]{40}$/);
+  assert.deepEqual(buildCommunityMembershipRequestNotificationCopy({
+    communityName: ' Comunidade Teste ',
+  }), {
+    title: 'Novo pedido de entrada',
+    body: 'Há um novo pedido para entrar em Comunidade Teste.',
   });
 });
 

@@ -162,6 +162,29 @@ export function buildCommunityPostReplyNotificationId(
   ]);
 }
 
+export function buildCommunityMembershipRequestNotificationId(
+  communityId: string,
+  memberId: string,
+  requestCycleStartedAtMs: number
+): string {
+  return stableId('community_membership_request', [
+    communityId,
+    memberId,
+    String(Math.max(0, Math.trunc(requestCycleStartedAtMs))),
+  ]);
+}
+
+export function buildCommunityMembershipRequestNotificationCopy(input: {
+  communityName: unknown;
+}): { title: string; body: string } {
+  const communityName = normalizeText(input.communityName, 60) || 'sua Comunidade';
+
+  return {
+    title: 'Novo pedido de entrada',
+    body: `Há um novo pedido para entrar em ${communityName}.`,
+  };
+}
+
 export function buildCommunityMembershipReviewNotificationId(
   communityId: string,
   memberId: string,

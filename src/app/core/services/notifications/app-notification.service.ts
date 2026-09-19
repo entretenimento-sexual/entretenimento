@@ -450,6 +450,7 @@ export class AppNotificationService {
       case 'community.post.reply.received':
       case 'community.membership.approved':
       case 'community.membership.rejected':
+      case 'community.membership.requested':
       case 'community.content.moderated':
       case 'system':
       case 'social':
