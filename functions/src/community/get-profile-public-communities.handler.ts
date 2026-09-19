@@ -13,6 +13,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
+import { normalizePublicProfileId } from '../identity/public-profile-id';
 import { assertNoActiveBilateralBlock } from '../friendship/application/bilateral-block-access.policy';
 import {
   assertCommunityCallableAppCheck,
@@ -36,7 +37,7 @@ import {
 } from './community-social-access.service';
 
 interface ProfilePublicCommunitiesRequest {
-  profileUid?: unknown;
+  profileId?: unknown;
   limit?: unknown;
 }
 
@@ -59,11 +60,6 @@ function assertAuthenticatedUid(
   return uid;
 }
 
-function normalizeProfileUid(value: unknown): string | null {
-  const uid = String(value ?? '').trim();
-  return uid && uid.length <= 128 && !uid.includes('/') ? uid : null;
-}
-
 function normalizeLimit(value: unknown): number {
   const parsed = Math.trunc(Number(value));
   return Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 12) : 4;
@@ -80,10 +76,41 @@ export const getProfilePublicCommunities = onCall<ProfilePublicCommunitiesReques
     const viewerUid = assertAuthenticatedUid(request.auth);
     await assertCommunitySocialAccessForUid(viewerUid);
 
-    const profileUid = normalizeProfileUid(request.data?.profileUid);
+    const profileId = normalizePublicProfileId(request.data?.profileId);
     const limit = normalizeLimit(request.data?.limit);
-    if (!profileUid) {
+    if (!profileId) {
       throw new HttpsError('invalid-argument', 'Perfil inválido.');
+    }
+
+    // A identidade pública é a única entrada do cliente. O UID é resolvido
+    // exclusivamente no backend e precisa ser único para evitar composição
+    // entre dados de perfis diferentes.
+    const publicProfilesSnapshot = await db
+      .collection('public_profiles')
+      .where('profileId', '==', profileId)
+      .limit(2)
+      .get();
+
+    if (publicProfilesSnapshot.size > 1) {
+      throw new HttpsError(
+        'data-loss',
+        'A identidade pública do perfil está inconsistente.',
+        { reason: 'public_profile_identity_duplicate' }
+      );
+    }
+
+    const publicProfileSnapshot = publicProfilesSnapshot.docs[0];
+    if (!publicProfileSnapshot) {
+      return { items: [], nextCursor: null, generatedAt: Date.now() };
+    }
+
+    const profileUid = String(publicProfileSnapshot.id ?? '').trim();
+    if (!profileUid || profileUid.length > 128 || profileUid.includes('/')) {
+      throw new HttpsError(
+        'data-loss',
+        'A identidade pública do perfil está inconsistente.',
+        { reason: 'public_profile_identity_invalid' }
+      );
     }
 
     await assertNoActiveBilateralBlock(
@@ -91,15 +118,6 @@ export const getProfilePublicCommunities = onCall<ProfilePublicCommunitiesReques
       profileUid,
       'Perfil indisponível.'
     );
-
-    // Não expõe participações de contas que não estejam na projeção pública.
-    const publicProfileSnapshot = await db
-      .collection('public_profiles')
-      .doc(profileUid)
-      .get();
-    if (!publicProfileSnapshot.exists) {
-      return { items: [], nextCursor: null, generatedAt: Date.now() };
-    }
 
     const indexCollection = db
       .collection('community_profile_membership_index')

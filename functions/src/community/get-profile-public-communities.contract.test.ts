@@ -47,7 +47,7 @@ test('perfil público exige consentimento explícito da versão atual', () => {
 });
 
 
-test('perfil público respeita bloqueio bilateral antes de ler a projeção', () => {
+test('perfil público resolve UID pela identidade pública antes do bloqueio bilateral', () => {
   const source = require('node:fs').readFileSync(
     require('node:path').resolve(
       process.cwd(),
@@ -56,9 +56,41 @@ test('perfil público respeita bloqueio bilateral antes de ler a projeção', ()
     'utf8'
   );
 
-  const blockCheck = source.indexOf('assertNoActiveBilateralBlock(');
   const publicProfileRead = source.indexOf("collection('public_profiles')");
+  const profileIdFilter = source.indexOf(".where('profileId', '==', profileId)");
+  const blockCheck = source.indexOf('assertNoActiveBilateralBlock(');
 
-  assert.ok(blockCheck >= 0);
-  assert.ok(publicProfileRead > blockCheck);
+  assert.ok(publicProfileRead >= 0);
+  assert.ok(profileIdFilter > publicProfileRead);
+  assert.ok(blockCheck > profileIdFilter);
+  assert.match(source, /\.limit\(2\)/);
+});
+
+test('perfil público não aceita UID interno como identidade enviada pelo cliente', () => {
+  const source = require('node:fs').readFileSync(
+    require('node:path').resolve(
+      process.cwd(),
+      'src/community/get-profile-public-communities.handler.ts'
+    ),
+    'utf8'
+  );
+
+  assert.match(source, /profileId\?: unknown/);
+  assert.doesNotMatch(source, /profileUid\?: unknown/);
+  assert.match(source, /normalizePublicProfileId\(request\.data\?\.profileId\)/);
+});
+
+test('profileId duplicado ou UID resolvido inválido falham fechado', () => {
+  const source = require('node:fs').readFileSync(
+    require('node:path').resolve(
+      process.cwd(),
+      'src/community/get-profile-public-communities.handler.ts'
+    ),
+    'utf8'
+  );
+
+  assert.match(source, /if \(publicProfilesSnapshot\.size > 1\)/);
+  assert.match(source, /public_profile_identity_duplicate/);
+  assert.match(source, /public_profile_identity_invalid/);
+  assert.match(source, /'data-loss'/);
 });

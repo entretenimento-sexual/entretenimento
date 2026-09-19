@@ -98,7 +98,6 @@ export class ProfileOfficialCommunitiesComponent {
   );
   private readonly applicationError = inject(ApplicationErrorService);
   private readonly profileIdSubject = new BehaviorSubject<string>('');
-  private readonly profileUidSubject = new BehaviorSubject<string>('');
   private readonly refreshSubject = new BehaviorSubject<number>(0);
 
   @Input({ required: true })
@@ -106,47 +105,16 @@ export class ProfileOfficialCommunitiesComponent {
     this.profileIdSubject.next(String(value ?? '').trim().toLowerCase());
   }
 
-  /**
-   * UID é opcional para preservar a superfície do próprio perfil, que continua
-   * exibindo `Minhas comunidades` separadamente. Quando informado no perfil
-   * visitado, habilita a união com participações explicitamente públicas.
-   */
-  @Input()
-  set profileUid(value: string | null | undefined) {
-    this.profileUidSubject.next(String(value ?? '').trim());
-  }
-
   readonly vm$: Observable<ProfileOfficialCommunitiesVm> = combineLatest([
     this.profileIdSubject.pipe(distinctUntilChanged()),
-    this.profileUidSubject.pipe(distinctUntilChanged()),
     this.refreshSubject,
   ]).pipe(
-    switchMap(([profileId, profileUid]) => {
+    switchMap(([profileId]) => {
       if (!profileId) return of(EMPTY_VM);
 
-      const official$ = this.loadOfficial$(profileId);
-      if (!profileUid) {
-        return official$.pipe(
-          map((result): ProfileOfficialCommunitiesVm => ({
-            status: result.failed
-              ? 'error'
-              : result.items.length > 0
-                ? 'ready'
-                : 'empty',
-            items: result.items,
-            combined: false,
-          })),
-          startWith<ProfileOfficialCommunitiesVm>({
-            status: 'loading',
-            items: [],
-            combined: false,
-          })
-        );
-      }
-
       return combineLatest([
-        official$,
-        this.loadPublicMemberships$(profileUid),
+        this.loadOfficial$(profileId),
+        this.loadPublicMemberships$(profileId),
       ]).pipe(
         map(([official, publicMemberships]): ProfileOfficialCommunitiesVm => {
           const items = mergeProfileCommunityCards(
@@ -219,10 +187,10 @@ export class ProfileOfficialCommunitiesComponent {
   }
 
   private loadPublicMemberships$(
-    profileUid: string
+    profileId: string
   ): Observable<ProfileCommunityLoadResult> {
     return this.publicCommunitiesRepository.getProfilePublicCommunities$(
-      profileUid,
+      profileId,
       PROFILE_COMMUNITY_LIMIT
     ).pipe(
       map((page) => ({ items: page.items, failed: false })),
@@ -233,9 +201,10 @@ export class ProfileOfficialCommunitiesComponent {
           fallbackMessage:
             'Não foi possível carregar as comunidades públicas deste perfil.',
           notification: 'warning',
+          reasonMessages: PROFILE_OFFICIAL_COMMUNITIES_REASON_MESSAGES,
           metadata: {
             scope: 'ProfileOfficialCommunitiesComponent',
-            hasProfileUid: true,
+            hasProfileId: true,
           },
         });
         return of<ProfileCommunityLoadResult>({ items: [], failed: true });

@@ -12,17 +12,17 @@ export class CommunityProfilePublicCommunitiesRepository {
   private readonly functions = inject(Functions);
 
   private readonly getProfilePublicCommunitiesCallable = httpsCallable<
-    { profileUid: string; limit: number },
+    { profileId: string; limit: number },
     unknown
   >(this.functions, 'getProfilePublicCommunities');
 
   getProfilePublicCommunities$(
-    profileUid: string,
+    profileId: string,
     limit = 4
   ): Observable<CommunityDiscoveryPage> {
     const normalizedLimit = Math.min(Math.max(Math.trunc(limit), 1), 12);
     return defer(() => from(this.getProfilePublicCommunitiesCallable({
-      profileUid: String(profileUid ?? '').trim(),
+      profileId: String(profileId ?? '').trim().toLowerCase(),
       limit: normalizedLimit,
     }))).pipe(
       map((result) => normalizeCommunityDiscoveryPageResponse(result.data))
