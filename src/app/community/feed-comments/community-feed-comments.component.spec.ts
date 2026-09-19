@@ -85,11 +85,15 @@ describe('CommunityFeedCommentsComponent', () => {
     });
   });
 
-  function create(canComment = false) {
+  function create(
+    canComment = false,
+    focusCommentId: string | null = null
+  ) {
     const fixture = TestBed.createComponent(CommunityFeedCommentsComponent);
     fixture.componentRef.setInput('communityId', 'community-1');
     fixture.componentRef.setInput('postId', 'post-1');
     fixture.componentRef.setInput('canComment', canComment);
+    fixture.componentRef.setInput('focusCommentId', focusCommentId);
     fixture.detectChanges();
     return fixture;
   }
@@ -407,6 +411,35 @@ describe('CommunityFeedCommentsComponent', () => {
       fixture.nativeElement.querySelectorAll('.feed-comment__surface > p')
     ).map((element) => (element as HTMLElement).textContent?.trim());
     expect(rendered).toEqual(['Mensagem anterior.', 'Mensagem recente.']);
+  });
+
+  it('pagina até a mensagem indicada por deep-link e aplica destaque', async () => {
+    const recent = item({
+      commentId: 'comment-2',
+      text: 'Mensagem recente.',
+      createdAt: CREATED_AT + 2_000,
+    });
+    const target = item({
+      commentId: 'comment-target',
+      text: 'Mensagem alvo.',
+      createdAt: CREATED_AT,
+    });
+    repositoryMock.getPage$
+      .mockReturnValueOnce(of(page([recent], 'comment-2')))
+      .mockReturnValueOnce(of(page([target])));
+
+    const fixture = create(false, 'comment-target');
+    await Promise.resolve();
+    fixture.detectChanges();
+    await Promise.resolve();
+
+    expect(repositoryMock.getPage$).toHaveBeenCalledTimes(2);
+    expect(repositoryMock.getPage$).toHaveBeenLastCalledWith(expect.objectContaining({
+      communityId: 'community-1',
+      postId: 'post-1',
+      cursor: 'comment-2',
+    }));
+    expect(fixture.componentInstance.highlightedCommentId()).toBe('comment-target');
   });
 
   it('oferece fechamento explícito da conversa', () => {

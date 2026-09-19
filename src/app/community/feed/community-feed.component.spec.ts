@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { Subject, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -15,6 +16,7 @@ import { CommunityFeedPage } from '../data-access/community-feed.model';
 import type { CommunityFeedRealtimeChange } from '../data-access/community-feed-realtime.model';
 import { CommunityFeedRepository } from '../data-access/community-feed.repository';
 import { CommunityFeedCommentRepository } from '../data-access/community-feed-comment.repository';
+import { CommunityFeedCommentsComponent } from '../feed-comments/community-feed-comments.component';
 import { CommunityHighlightUiService } from '../highlight/community-highlight-ui.service';
 
 function page(nextCursor: string | null = null): CommunityFeedPage {
@@ -376,6 +378,10 @@ describe('CommunityFeedComponent', () => {
     expect(
       fixture.nativeElement.querySelector('app-community-feed-comments')
     ).not.toBeNull();
+    const comments = fixture.debugElement.query(
+      By.directive(CommunityFeedCommentsComponent)
+    ).componentInstance as CommunityFeedCommentsComponent;
+    expect(comments.focusCommentId()).toBe('comment-1');
   });
 
   it('mostra estados vazios coerentes por contexto', () => {

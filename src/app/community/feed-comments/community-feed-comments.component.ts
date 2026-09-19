@@ -218,6 +218,9 @@ export class CommunityFeedCommentsComponent implements OnDestroy {
   private expectedRealtimeCommentCount: number | null = null;
   private readonly pendingActionRequestIds = new Map<string, string>();
   private highlightTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastExternalFocusKey: string | null = null;
+  private externalFocusCursor: string | null = null;
+  private latestLoadState: CommentLoadState = INITIAL_STATE;
 
   readonly communityId = input.required<string>();
   readonly postId = input.required<string>();
@@ -226,6 +229,7 @@ export class CommunityFeedCommentsComponent implements OnDestroy {
   readonly postTextPreview = input('Publicação');
   readonly replyToPostRequested = input(false);
   readonly replyRequestVersion = input(0);
+  readonly focusCommentId = input<string | null>(null);
   readonly commentCountChanged = output<number>();
   readonly closeRequested = output<void>();
   readonly postReplyCleared = output<void>();
@@ -255,6 +259,15 @@ export class CommunityFeedCommentsComponent implements OnDestroy {
     if (!requested || requestVersion < 1) return;
 
     queueMicrotask(() => this.focusComposer());
+  });
+
+  private readonly externalCommentFocusEffect = effect(() => {
+    const commentId = String(this.focusCommentId() ?? '').trim();
+    this.lastExternalFocusKey = null;
+    this.externalFocusCursor = null;
+    if (!commentId) return;
+
+    queueMicrotask(() => this.focusExternalComment(this.latestLoadState));
   });
 
   readonly state$ = combineLatest([
@@ -308,7 +321,12 @@ export class CommunityFeedCommentsComponent implements OnDestroy {
             return of<CommentLoadEvent>({ type: 'error', request });
           })
         )),
-        scan(reduceState, INITIAL_STATE)
+        scan(reduceState, INITIAL_STATE),
+        tap((state) => {
+          this.latestLoadState = state;
+          if (state.status !== 'ready') return;
+          queueMicrotask(() => this.focusExternalComment(state));
+        })
       );
     }),
     shareReplay({ bufferSize: 1, refCount: true })
@@ -463,12 +481,49 @@ export class CommunityFeedCommentsComponent implements OnDestroy {
   }
 
   scrollToReferencedComment(commentId: string): void {
-    const element = document.getElementById(this.commentDomId(commentId));
-    if (!element) {
-      this.notification.showWarning('A mensagem original não está carregada nesta parte da conversa.');
+    if (this.scrollToComment(commentId)) return;
+    this.notification.showWarning(
+      'A mensagem original não está carregada nesta parte da conversa.'
+    );
+  }
+
+  private focusExternalComment(state: CommentLoadState): void {
+    const commentId = String(this.focusCommentId() ?? '').trim();
+    if (!commentId || state.status !== 'ready') return;
+
+    const communityId = this.communityId().trim();
+    const postId = this.postId().trim();
+    const focusKey = `${communityId}:${postId}:${commentId}`;
+    if (this.lastExternalFocusKey === focusKey) return;
+
+    if (state.items.some((item) => item.commentId === commentId)) {
+      if (this.scrollToComment(commentId)) {
+        this.lastExternalFocusKey = focusKey;
+        this.externalFocusCursor = null;
+      }
       return;
     }
-    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    const cursor = state.nextCursor;
+    if (!cursor || state.loadingMore || this.externalFocusCursor === cursor) {
+      return;
+    }
+
+    this.externalFocusCursor = cursor;
+    this.loadRequests$.next({
+      cursor,
+      append: true,
+      preserve: true,
+    });
+  }
+
+  private scrollToComment(commentId: string): boolean {
+    const element = document.getElementById(this.commentDomId(commentId));
+    if (!element) return false;
+
+    if (typeof element.scrollIntoView === 'function') {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
     this.highlightedCommentId.set(commentId);
     if (this.highlightTimer) clearTimeout(this.highlightTimer);
     this.highlightTimer = setTimeout(() => {
@@ -477,6 +532,7 @@ export class CommunityFeedCommentsComponent implements OnDestroy {
       }
       this.highlightTimer = null;
     }, 1_800);
+    return true;
   }
 
   commentDomId(commentId: string): string {

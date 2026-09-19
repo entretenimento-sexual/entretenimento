@@ -540,6 +540,7 @@
                   [postTextPreview]="item.text || (item.image ? 'Foto publicada no Mural' : 'Publicação no Mural')"
                   [replyToPostRequested]="replyPostId() === item.postId"
                   [replyRequestVersion]="postReplyRequestVersion()"
+                  [focusCommentId]="focusPostId() === item.postId ? focusCommentId() : null"
                   (feedPostCreated)="followCreatedPost($event)"
                   (postReplyCleared)="clearPostReplyContext(item)"
                   (commentCountChanged)="updateCommentCount(item, $event)"
