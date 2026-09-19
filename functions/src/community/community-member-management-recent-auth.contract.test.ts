@@ -92,7 +92,8 @@ function installTransactionProbe(
   const documents: Record<string, unknown> = {
     'communities/community-1': {
       ownerUid: 'owner-1',
-      source: { type: 'community' },
+      name: 'Comunidade 1',
+      source: { type: 'community', id: 'community-1' },
       status: 'active',
       moderation: { state: 'active' },
       metrics: { memberCount: 2 },
