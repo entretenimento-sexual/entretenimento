@@ -9,7 +9,7 @@ function readSource(fileName: string): string {
   return readFileSync(path.join(sourceDirectory, fileName), 'utf8');
 }
 
-describe('Community admission user-index atomicity', () => {
+describe('Community membership user-index atomicity', () => {
   it('mantém os três admission paths ligados à projeção transacional', () => {
     for (const fileName of [
       'request-community-membership.handler.ts',
@@ -22,6 +22,21 @@ describe('Community admission user-index atomicity', () => {
         source.includes('syncCommunityUserIndexInTransaction'),
         true,
         `${fileName}: admission path deve sincronizar community_user_index na transação.`
+      );
+    }
+  });
+
+  it('mantém saída e gestão de membros ligadas à mesma projeção transacional', () => {
+    for (const fileName of [
+      'community-membership-management.handler.ts',
+      'community-member-management.handler.ts',
+    ]) {
+      const source = readSource(fileName);
+
+      assert.equal(
+        source.includes('syncCommunityUserIndexInTransaction'),
+        true,
+        `${fileName}: saída/gestão deve sincronizar community_user_index na transação.`
       );
     }
   });

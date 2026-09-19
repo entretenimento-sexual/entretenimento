@@ -33,6 +33,7 @@ import {
 } from './community-member-management.policy';
 import { normalizeCommunityId } from './community-preview.model';
 import { consumeCommunityRateLimit } from './community-rate-limit.service';
+import { syncCommunityUserIndexInTransaction } from './community-user-index.transaction';
 
 interface ManagedMembersPagePayload {
   communityId?: unknown;
@@ -707,6 +708,18 @@ export const manageCommunityMember = onCall<ManageCommunityMemberPayload>(
         }
 
         transaction.set(targetMembershipRef, update, { merge: true });
+
+        syncCommunityUserIndexInTransaction({
+          transaction,
+          communityId,
+          memberId,
+          community,
+          membership: {
+            role: decision.targetNextRole,
+            status: decision.targetNextStatus,
+          },
+          updatedAt: now,
+        });
 
         if (nextMemberCount !== null) {
           transaction.update(communityRef, {

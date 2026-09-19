@@ -524,6 +524,18 @@ export const leaveCommunityMembership = onCall<CommunityIdPayload>(
 
         transaction.set(membershipRef, membershipPatch, { merge: true });
 
+        syncCommunityUserIndexInTransaction({
+          transaction,
+          communityId,
+          memberId: uid,
+          community,
+          membership: {
+            role: decision.releaseOwnership ? 'member' : existingRole,
+            status: 'left',
+          },
+          updatedAt: now,
+        });
+
         const communityPatch: Record<string, unknown> = {};
 
         if (nextMemberCount !== null) {
