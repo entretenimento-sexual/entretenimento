@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { CommunityFeedRepository } from 'src/app/community/data-access/community-feed.repository';
 import { CommunityPreviewRepository } from 'src/app/community/data-access/community-preview.repository';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
@@ -50,6 +51,13 @@ describe('PrincipalFeedService / refresh personalizado', () => {
       generatedAt: Date.now(),
     })),
   };
+  const communityFeedRepository = {
+    getPage$: vi.fn(() => of({
+      items: [],
+      nextCursor: null,
+      generatedAt: Date.now(),
+    })),
+  };
   const globalError = {
     handleError: vi.fn(),
   };
@@ -73,6 +81,7 @@ describe('PrincipalFeedService / refresh personalizado', () => {
         { provide: MediaPublicQueryService, useValue: mediaQuery },
         { provide: PublicVideoRankingQueryService, useValue: videoRanking },
         { provide: CommunityPreviewRepository, useValue: communityRepository },
+        { provide: CommunityFeedRepository, useValue: communityFeedRepository },
         { provide: GlobalErrorHandlerService, useValue: globalError },
       ],
     });
