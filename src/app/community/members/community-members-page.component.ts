@@ -1,6 +1,6 @@
 // src/app/community/members/community-members-page.component.ts
 import { AsyncPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import {
   Subject,
@@ -122,6 +122,8 @@ function reduceState(
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CommunityMembersPageComponent {
+  readonly embedded = input(false);
+
   private readonly route = inject(ActivatedRoute);
   private readonly repository = inject(CommunityMemberRosterRepository);
   private readonly applicationError = inject(ApplicationErrorService);

@@ -52,6 +52,7 @@ import {
   CommunityPreviewViewerRole,
 } from '../data-access/community-preview.model';
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
+import { CommunityMembersPageComponent } from '../members/community-members-page.component';
 import { CommunityFeedComponent } from '../feed/community-feed.component';
 import { CommunityInviteManagementComponent } from '../invite-management/community-invite-management.component';
 import { CommunityMembershipManagementComponent } from '../membership-management/community-membership-management.component';
@@ -73,6 +74,7 @@ import { CommunityMembershipProfileVisibilityComponent } from './community-membe
 export type CommunityPreviewSection =
   | 'feed'
   | 'photos'
+  | 'members'
   | 'about'
   | 'invites'
   | 'requests';
@@ -158,6 +160,7 @@ const SECTION_QUERY_VALUES: Readonly<Record<CommunityPreviewSection, string | nu
   Object.freeze({
     feed: null,
     photos: 'fotos',
+    members: 'membros',
     about: 'sobre',
     invites: 'convites',
     requests: 'gestao',
@@ -171,6 +174,7 @@ const SECTION_QUERY_VALUES: Readonly<Record<CommunityPreviewSection, string | nu
     RouterLink,
     ImageFallbackDirective,
     CommunityFeedComponent,
+    CommunityMembersPageComponent,
     CommunityInviteManagementComponent,
     CommunityMembershipManagementComponent,
     CommunityOfficialBadgeComponent,
@@ -528,7 +532,9 @@ export class CommunityPreviewPageComponent {
       ? preview.canManageMemberships
       : section === 'invites'
         ? preview.canInviteCommunityMembers
-        : true;
+        : section === 'members'
+          ? preview.community.source.type === 'community'
+          : true;
 
     if (!allowed) {
       this.selectSection('about', true);
@@ -541,6 +547,8 @@ export class CommunityPreviewPageComponent {
         return 'feed';
       case 'fotos':
         return 'photos';
+      case 'membros':
+        return 'members';
       case 'sobre':
         return 'about';
       case 'convites':

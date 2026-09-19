@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ContentAccessNavigationService } from 'src/app/core/access/content-access-navigation.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { CommunityMemberRosterRepository } from '../data-access/community-member-roster.repository';
 import { CommunityFeedRepository } from '../data-access/community-feed.repository';
 import { CommunityMembershipRepository } from '../data-access/community-membership.repository';
 import { CommunityPreviewResponse } from '../data-access/community-preview.model';
@@ -69,6 +70,7 @@ function basePreview(): CommunityPreviewResponse {
 }
 
 describe('CommunityPreviewPageComponent / Local', () => {
+  const rosterRepositoryMock = { getPage$: vi.fn() };
   const dialogMock = { open: vi.fn() };
   const previewRepositoryMock = { getPreview$: vi.fn() };
   const feedRepositoryMock = {
@@ -90,6 +92,9 @@ describe('CommunityPreviewPageComponent / Local', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    rosterRepositoryMock.getPage$.mockReturnValue(of({
+      items: [], nextCursor: null, memberCount: 12, generatedAt: 123,
+    }));
     previewRepositoryMock.getPreview$.mockReturnValue(of(preview()));
     feedRepositoryMock.getPage$.mockReturnValue(
       of({ items: [], nextCursor: null, generatedAt: 123 })
@@ -124,6 +129,7 @@ describe('CommunityPreviewPageComponent / Local', () => {
             paramMap: of(convertToParamMap({ communityId: 'community-1' })),
           },
         },
+        { provide: CommunityMemberRosterRepository, useValue: rosterRepositoryMock },
         { provide: MatDialog, useValue: dialogMock },
         { provide: CommunityPreviewRepository, useValue: previewRepositoryMock },
         { provide: CommunityFeedRepository, useValue: feedRepositoryMock },
@@ -153,6 +159,63 @@ describe('CommunityPreviewPageComponent / Local', () => {
     if (!button) throw new Error(`Botão do espaço ${index} ausente.`);
     return button;
   }
+
+
+  it('abre Membros dentro da Comunidade e só consulta a lista após o clique', () => {
+    previewRepositoryMock.getPreview$.mockReturnValue(of(preview({
+      community: {
+        ...basePreview().community,
+        source: { type: 'community', id: 'community-1' },
+      },
+      viewerMode: 'member',
+      viewerRole: 'member',
+      canInteract: false,
+    })));
+    const fixture = createFixture();
+    const button = fixture.nativeElement.querySelector('#community-tab-members') as HTMLButtonElement;
+    expect(button.textContent).toContain('Membros');
+    expect(rosterRepositoryMock.getPage$).not.toHaveBeenCalled();
+
+    button.click();
+    fixture.detectChanges();
+
+    expect(button.getAttribute('aria-pressed')).toBe('true');
+    expect(rosterRepositoryMock.getPage$).toHaveBeenCalledWith({
+      communityId: 'community-1', cursor: null, limit: 20,
+    });
+    expect(fixture.nativeElement.querySelectorAll('h1')).toHaveLength(1);
+    expect(fixture.nativeElement.querySelectorAll('main')).toHaveLength(1);
+    expect(fixture.nativeElement.querySelector('.community-members__topbar')).toBeNull();
+    expect(fixture.nativeElement.querySelector('#community-panel-members').textContent)
+      .toContain('12 participantes');
+  });
+
+  it.each(['visitor', 'pending'] as const)(
+    'não consulta nem expõe integrantes para %s',
+    (viewerMode) => {
+      previewRepositoryMock.getPreview$.mockReturnValue(of(preview({
+        community: {
+          ...basePreview().community,
+          source: { type: 'community', id: 'community-1' },
+        },
+        viewerMode,
+      })));
+      const fixture = createFixture();
+      fixture.nativeElement.querySelector('#community-tab-members').click();
+      fixture.detectChanges();
+
+      expect(rosterRepositoryMock.getPage$).not.toHaveBeenCalled();
+      expect(fixture.nativeElement.querySelector('app-community-members-page')).toBeNull();
+      expect(fixture.nativeElement.querySelector('#community-panel-members').textContent)
+        .toContain('somente para participantes ativos');
+    }
+  );
+
+  it('não oferece Membros na navegação de Locais', () => {
+    const fixture = createFixture();
+    expect(fixture.nativeElement.querySelector('#community-tab-members')).toBeNull();
+    expect(rosterRepositoryMock.getPage$).not.toHaveBeenCalled();
+  });
 
   it('mantém título único, rota de retorno e submenu contextual de Local', () => {
     const fixture = createFixture();

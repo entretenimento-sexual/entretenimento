@@ -51,11 +51,13 @@
 }
 
 .community-members__header h1,
+.community-members__header h2,
 .community-members__header p {
   margin: 0;
 }
 
-.community-members__header h1 {
+.community-members__header h1,
+.community-members__header h2 {
   font-size: clamp(1.4rem, 4vw, 2rem);
 }
 

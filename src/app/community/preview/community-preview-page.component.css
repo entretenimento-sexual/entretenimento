@@ -454,6 +454,19 @@
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
+.community-preview__tabs.has-members {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.community-preview__tabs.has-members.has-management,
+.community-preview__tabs.has-members.has-invites {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.community-preview__tabs.has-members.has-management.has-invites {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
 .community-preview__tabs button {
   position: relative;
   min-width: 0;

@@ -199,6 +199,28 @@ describe('CommunityPreviewPageComponent / navegação e retry', () => {
     expect(component.focusedCommentId()).toBeNull();
   });
 
+  it('restaura Membros pela URL e preserva o retorno ao trocar de seção', () => {
+    queryParamMap$.next(convertToParamMap({
+      secao: 'membros',
+      retorno: '/dashboard/comunidades/minhas',
+    }));
+    const component = createComponent();
+    const subscription = component.state$.subscribe();
+    expect(component.activeSection()).toBe('members');
+    expect(component.returnTarget()).toBe('/dashboard/comunidades/minhas');
+
+    component.selectSection('members');
+    expect(navigate).toHaveBeenCalledWith([], {
+      relativeTo: expect.anything(),
+      queryParams: { secao: 'membros' },
+      queryParamsHandling: 'merge',
+      replaceUrl: false,
+    });
+    queryParamMap$.next(convertToParamMap({ secao: 'fotos' }));
+    expect(component.activeSection()).toBe('photos');
+    subscription.unsubscribe();
+  });
+
   it('rejeita retorno externo e mantém a rota canônica de fallback', () => {
     queryParamMap$.next(
       convertToParamMap({ retorno: 'https://example.test/fora' })

@@ -134,7 +134,8 @@ describe('CommunityPreviewPageComponent / seções principais', () => {
     ) as NodeListOf<HTMLButtonElement>;
 
     expect(fixture.componentInstance.activeSection()).toBe('feed');
-    expect(tabs).toHaveLength(3);
+    expect(tabs).toHaveLength(4);
+    expect(fixture.nativeElement.textContent).toContain('Membros');
     expect(fixture.nativeElement.textContent).toContain('Mural');
     expect(fixture.nativeElement.textContent).toContain('Fotos');
     expect(fixture.nativeElement.textContent).toContain('Sobre');

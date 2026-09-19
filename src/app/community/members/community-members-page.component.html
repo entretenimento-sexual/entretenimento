@@ -1,20 +1,26 @@
 <!-- src/app/community/members/community-members-page.component.html -->
 @if (state$ | async; as state) {
-  <main class="community-members">
-    <nav class="community-members__topbar" aria-label="Navegação dos integrantes">
-      @if (state.communityId) {
-        <a
-          [routerLink]="['/dashboard/comunidades', state.communityId]"
-          aria-label="Voltar para a Comunidade"
-        >
-          <i class="fas fa-arrow-left" aria-hidden="true"></i>
-        </a>
-      }
-    </nav>
+  <div class="community-members" [attr.role]="embedded() ? null : 'main'">
+    @if (!embedded()) {
+      <nav class="community-members__topbar" aria-label="Navegação dos integrantes">
+        @if (state.communityId) {
+          <a
+            [routerLink]="['/dashboard/comunidades', state.communityId]"
+            aria-label="Voltar para a Comunidade"
+          >
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+          </a>
+        }
+      </nav>
+    }
 
     <header class="community-members__header">
-      <span>Comunidade</span>
-      <h1>Integrantes</h1>
+      @if (embedded()) {
+        <h2>Membros</h2>
+      } @else {
+        <span>Comunidade</span>
+        <h1>Integrantes</h1>
+      }
       @if (state.status === 'ready' || state.status === 'empty') {
         <p>{{ state.memberCount }} participantes</p>
       } @else {
@@ -82,5 +88,5 @@
     <p class="community-members__privacy-note">
       Esta lista é interna à Comunidade. Ela não altera a opção de mostrar ou ocultar sua participação no perfil.
     </p>
-  </main>
+  </div>
 }
