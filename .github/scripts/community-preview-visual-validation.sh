@@ -40,6 +40,7 @@ run_checked "$OUT/desktop/feed.metrics.log" "async (page) => {
       scrollWidth: document.documentElement.scrollWidth,
       h1Count: document.querySelectorAll('.community-preview h1').length,
       tabCount: document.querySelectorAll('.community-preview__tabs button').length,
+      hasMembersTab: document.querySelector('#community-tab-members')?.textContent.includes('Membros') === true,
       postCount: document.querySelectorAll('.community-post').length,
       hasComposer: Boolean(document.querySelector('.community-feed__composer')),
       hasCover: Boolean(document.querySelector('.community-preview__cover')),
@@ -63,7 +64,8 @@ run_checked "$OUT/desktop/feed.metrics.log" "async (page) => {
   if (
     metrics.scrollWidth > metrics.viewportWidth + 1
     || metrics.h1Count !== 1
-    || metrics.tabCount !== 3
+    || metrics.tabCount !== 4
+    || !metrics.hasMembersTab
     || metrics.postCount !== 3
     || !metrics.hasComposer
     || !metrics.hasCover
@@ -133,6 +135,7 @@ run_checked "$OUT/mobile/feed.metrics.log" "async (page) => {
       contentWidth: content?.width ?? 0,
       tabsWidth: tabs?.width ?? 0,
       tabCount: document.querySelectorAll('.community-preview__tabs button').length,
+      hasMembersTab: document.querySelector('#community-tab-members')?.textContent.includes('Membros') === true,
       postCount: document.querySelectorAll('.community-post').length,
       railCount: document.querySelectorAll('.community-preview__rail').length,
       railVisible: Boolean(rail && getComputedStyle(rail).display !== 'none'),
@@ -148,7 +151,8 @@ run_checked "$OUT/mobile/feed.metrics.log" "async (page) => {
     metrics.scrollWidth > metrics.viewportWidth + 1
     || metrics.contentWidth > metrics.viewportWidth + 1
     || metrics.tabsWidth > metrics.viewportWidth + 1
-    || metrics.tabCount !== 3
+    || metrics.tabCount !== 4
+    || !metrics.hasMembersTab
     || metrics.postCount !== 3
     || metrics.railCount !== 1
     || metrics.railVisible
@@ -219,7 +223,7 @@ run_checked "$OUT/management/desktop/overview.metrics.log" "async (page) => {
   const expectedCards = ['Solicitações', 'Participantes', 'Convites', 'Configurações', 'Moderação', 'Capacidade', 'Propriedade'];
   if (
     metrics.scrollWidth > metrics.viewportWidth + 1
-    || metrics.topTabCount !== 5
+    || metrics.topTabCount !== 6
     || metrics.hubWidth < 700
     || metrics.navLabels.length !== expectedNav.length
     || !expectedNav.every((label) => metrics.navLabels.some((value) => value.includes(label)))
@@ -312,7 +316,7 @@ run_checked "$OUT/management/mobile/overview.metrics.log" "async (page) => {
   if (
     metrics.scrollWidth > metrics.viewportWidth + 1
     || metrics.hubWidth > metrics.viewportWidth + 1
-    || metrics.topTabCount !== 5
+    || metrics.topTabCount !== 6
     || !metrics.topTabLabelsVisible
     || metrics.topTabsScrollWidth <= metrics.topTabsClientWidth
     || metrics.navCount !== 5
