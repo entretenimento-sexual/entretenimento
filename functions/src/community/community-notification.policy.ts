@@ -144,6 +144,23 @@ export function buildCommunityReplyNotificationId(
   ]);
 }
 
+export function buildCommunityPostReplyNotificationId(
+  communityId: string,
+  originalPostId: string,
+  recipientUid: string,
+  membershipCycleStartedAtMs: number,
+  nowMs: number
+): string {
+  const window = Math.floor(Math.max(0, nowMs) / COMMENT_GROUP_WINDOW_MS);
+  return stableId('community_post_replies', [
+    communityId,
+    originalPostId,
+    recipientUid,
+    String(membershipCycleStartedAtMs),
+    String(window),
+  ]);
+}
+
 export function buildCommunityModerationNotificationId(
   target: CommunityModerationTarget,
   operationId: string,
@@ -202,6 +219,33 @@ export function buildCommunityReplyNotificationCopy(input: {
   return {
     title: `${activityCount} novas respostas`,
     body: `Sua mensagem em ${communityName} recebeu ${activityCount} novas respostas.`,
+    activityCount,
+  };
+}
+
+export function buildCommunityPostReplyNotificationCopy(input: {
+  existingActivityCount: unknown;
+  actorLabel: unknown;
+  communityName: unknown;
+}): CommunityCommentNotificationCopy {
+  const activityCount = Math.min(
+    normalizeCount(input.existingActivityCount) + 1,
+    MAX_ACTIVITY_COUNT
+  );
+  const communityName = normalizeText(input.communityName, 60) || 'sua Comunidade';
+
+  if (activityCount === 1) {
+    const actorLabel = normalizeText(input.actorLabel, 40) || 'Alguém';
+    return {
+      title: 'Nova resposta à sua publicação',
+      body: `${actorLabel} respondeu à sua publicação em ${communityName}.`,
+      activityCount,
+    };
+  }
+
+  return {
+    title: `${activityCount} novas respostas à sua publicação`,
+    body: `Sua publicação em ${communityName} recebeu ${activityCount} novas respostas.`,
     activityCount,
   };
 }

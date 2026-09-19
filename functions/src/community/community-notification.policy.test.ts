@@ -7,6 +7,8 @@ import {
   buildCommunityCommentNotificationId,
   buildCommunityModerationNotificationCopy,
   buildCommunityModerationNotificationId,
+  buildCommunityPostReplyNotificationCopy,
+  buildCommunityPostReplyNotificationId,
   buildCommunityNotificationRoute,
   buildCommunityReplyNotificationCopy,
   buildCommunityReplyNotificationId,

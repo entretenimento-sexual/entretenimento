@@ -17,6 +17,10 @@ import {
   deletePublishedPhotoAssetOrQueue,
 } from '../media/application/published-photo-asset.service';
 import { extractOwnedPrivatePhotoPath } from '../media/application/photo-storage-path';
+import {
+  buildBilateralBlockPaths,
+  isBilateralBlockActive,
+} from '../friendship/application/bilateral-block-access.policy';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   REQUIRE_COMMUNITY_APP_CHECK,
@@ -37,6 +41,18 @@ import {
 } from './community-feed-write.policy';
 import { isCommunityMemberActivityEnabledStatus } from './community-lifecycle.policy';
 import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
+import {
+  resolveCommunityNotificationMembershipCycleStartedAtMs,
+} from './community-notification-membership.policy';
+import {
+  allowsCommunityActivityNotifications,
+  buildCommunityNotificationRoute,
+  buildCommunityPostReplyNotificationCopy,
+  buildCommunityPostReplyNotificationId,
+  canReceiveCommunityActivityNotification,
+  type CommunityNotificationPreferences,
+  type CommunityNotificationUser,
+} from './community-notification.policy';
 import { buildCommunityPublicAuthor } from './community-public-author.model';
 import { consumeCommunityRateLimit } from './community-rate-limit.service';
 import { getCommunityViewerContext } from './community-viewer-access.service';
@@ -431,6 +447,12 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
             );
           }
 
+          let replyRecipientUid = '';
+          let replyNotificationRef: FirebaseFirestore.DocumentReference | null = null;
+          let replyMembershipCycleStartedAtMs: number | null = null;
+          let replyShouldNotify = false;
+          let existingReplyNotification: FirebaseFirestore.DocumentData | undefined;
+
           if (command.replyToPostId) {
             const replyTargetProjection = replyTargetProjectionSnapshot?.exists
               ? sanitizeCommunityFeedProjection(
@@ -453,6 +475,74 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
                 'A mensagem original não está disponível para resposta.',
                 { reason: 'referenced_post_unavailable' }
               );
+            }
+
+            replyRecipientUid = String(replyTargetRaw['actorUid'] ?? '').trim();
+
+            if (replyRecipientUid && replyRecipientUid !== actorUid) {
+              const recipientUserRef = db.collection('users').doc(replyRecipientUid);
+              const recipientPreferencesRef = db.collection('preferences').doc(replyRecipientUid);
+              const recipientMembershipRef = communityRef
+                .collection('members')
+                .doc(replyRecipientUid);
+              const [actorBlockPath, recipientBlockPath] = buildBilateralBlockPaths(
+                actorUid,
+                replyRecipientUid
+              );
+              const [
+                recipientUserSnapshot,
+                recipientPreferencesSnapshot,
+                recipientMembershipSnapshot,
+                actorBlockSnapshot,
+                recipientBlockSnapshot,
+              ] = await Promise.all([
+                transaction.get(recipientUserRef),
+                transaction.get(recipientPreferencesRef),
+                transaction.get(recipientMembershipRef),
+                transaction.get(db.doc(actorBlockPath)),
+                transaction.get(db.doc(recipientBlockPath)),
+              ]);
+              const recipientUser = recipientUserSnapshot.data() as
+                | CommunityNotificationUser
+                | undefined;
+              const recipientPreferences = recipientPreferencesSnapshot.data() as
+                | CommunityNotificationPreferences
+                | undefined;
+
+              replyMembershipCycleStartedAtMs = recipientMembershipSnapshot.exists
+                ? resolveCommunityNotificationMembershipCycleStartedAtMs(
+                  recipientMembershipSnapshot.data()
+                )
+                : null;
+              replyShouldNotify = replyMembershipCycleStartedAtMs !== null
+                && canReceiveCommunityActivityNotification(
+                  recipientUser,
+                  replyRecipientUid,
+                  actorUid
+                )
+                && allowsCommunityActivityNotifications(recipientPreferences)
+                && !isBilateralBlockActive({
+                  actorBlock: actorBlockSnapshot.data(),
+                  targetBlock: recipientBlockSnapshot.data(),
+                });
+
+              if (
+                replyShouldNotify
+                && replyMembershipCycleStartedAtMs !== null
+              ) {
+                replyNotificationRef = db.collection('notifications').doc(
+                  buildCommunityPostReplyNotificationId(
+                    communityId,
+                    command.replyToPostId,
+                    replyRecipientUid,
+                    replyMembershipCycleStartedAtMs,
+                    nowMs
+                  )
+                );
+                existingReplyNotification = (
+                  await transaction.get(replyNotificationRef)
+                ).data();
+              }
             }
           }
 
@@ -554,6 +644,40 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
             replyToPostId: command.replyToPostId,
             createdAt: nowMs,
           });
+
+          if (
+            command.replyToPostId
+            && replyShouldNotify
+            && replyNotificationRef
+            && replyMembershipCycleStartedAtMs !== null
+          ) {
+            const copy = buildCommunityPostReplyNotificationCopy({
+              existingActivityCount:
+                existingReplyNotification?.['activityCount'],
+              actorLabel: author.label,
+              communityName: community['name'],
+            });
+            transaction.set(replyNotificationRef, {
+              userId: replyRecipientUid,
+              type: 'community.post.reply.received',
+              title: copy.title,
+              body: copy.body,
+              route: buildCommunityNotificationRoute(
+                communityId,
+                postId
+              ),
+              communityId,
+              postId,
+              replyToPostId: command.replyToPostId,
+              membershipCycleStartedAtMs: replyMembershipCycleStartedAtMs,
+              activityCount: copy.activityCount,
+              actorUid,
+              readAt: null,
+              createdAt: now,
+              updatedAt: now,
+            }, { merge: true });
+          }
+
           transaction.create(auditRef, {
             action: command.replyToPostId
               ? 'community-feed-reply-created'
