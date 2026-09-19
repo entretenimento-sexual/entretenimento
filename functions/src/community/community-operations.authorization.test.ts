@@ -5,21 +5,47 @@ import test from 'node:test';
 import { hasCommunityOperationsPermission } from './community-operations.authorization';
 import { hasCommunityPurgeOperationsPermission } from './community-purge-operations.authorization';
 
-test('admin e superadmin possuem capability operacional', () => {
+test('admin e superadmin não recebem capability operacional implícita', () => {
+  for (const subject of [
+    { admin: true },
+    { superadmin: true },
+    { roles: ['admin'] },
+    { roles: ['superadmin'] },
+    { staffRoles: ['admin'] },
+    { staffRoles: ['superadmin'] },
+  ]) {
+    assert.equal(
+      hasCommunityOperationsPermission(subject, 'community:ranking'),
+      false
+    );
+    assert.equal(
+      hasCommunityOperationsPermission(subject, 'community:purge'),
+      false
+    );
+    assert.equal(
+      hasCommunityOperationsPermission(subject, 'community:reconcile'),
+      false
+    );
+  }
+});
+
+test('admin com capability explícita recebe somente a capability declarada', () => {
+  const subject = {
+    admin: true,
+    permissions: ['community:ranking'],
+  };
+
   assert.equal(
-    hasCommunityOperationsPermission({ admin: true }, 'community:ranking'),
+    hasCommunityOperationsPermission(subject, 'community:ranking'),
     true
   );
   assert.equal(
-    hasCommunityOperationsPermission(
-      { staffRoles: ['superadmin'] },
-      'community:purge'
-    ),
-    true
+    hasCommunityOperationsPermission(subject, 'community:purge'),
+    false
   );
   assert.equal(
-    hasCommunityOperationsPermission({ admin: true }, 'community:reconcile'),
-    true
+    hasCommunityOperationsPermission(subject, 'community:reconcile'),
+    false
   );
 });
 
@@ -78,7 +104,7 @@ test('community purge libera somente purge', () => {
   );
 });
 
-test('reconciliação exige capability explícita quando ator não é admin', () => {
+test('reconciliação exige capability explícita', () => {
   const subject = { permissions: ['community:reconcile'] };
 
   assert.equal(
@@ -112,10 +138,14 @@ test('moderador comum não recebe acesso operacional', () => {
   );
 });
 
-test('wrapper de purge preserva contrato existente', () => {
+test('wrapper de purge exige capability explícita', () => {
   assert.equal(
     hasCommunityPurgeOperationsPermission({ permissions: ['community:purge'] }),
     true
+  );
+  assert.equal(
+    hasCommunityPurgeOperationsPermission({ admin: true }),
+    false
   );
   assert.equal(
     hasCommunityPurgeOperationsPermission({ roles: ['moderator'] }),

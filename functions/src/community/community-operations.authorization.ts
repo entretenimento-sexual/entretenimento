@@ -3,8 +3,8 @@
 // COMMUNITY OPERATIONS AUTHORIZATION
 // -----------------------------------------------------------------------------
 // Fonte canônica de autorização para diagnósticos/operações internas do domínio
-// Comunidades. Permissões especializadas continuam explícitas por capability.
-// Moderadores de conteúdo não recebem acesso operacional automaticamente.
+// Comunidades. Toda operação exige a capability especializada correspondente.
+// Papéis amplos como admin/superadmin não concedem capabilities implicitamente.
 // -----------------------------------------------------------------------------
 
 export type CommunityOperationsCapability =
@@ -18,18 +18,9 @@ export function hasCommunityOperationsPermission(
   capability: CommunityOperationsCapability
 ): boolean {
   const source = normalizeRecord(value);
-  const roles = new Set([
-    ...normalizeStringArray(source['staffRoles']),
-    ...normalizeStringArray(source['roles']),
-  ]);
   const permissions = new Set(normalizeStringArray(source['permissions']));
 
-  if (source['superadmin'] === true) roles.add('superadmin');
-  if (source['admin'] === true) roles.add('admin');
-
-  return roles.has('superadmin')
-    || roles.has('admin')
-    || permissions.has(capability);
+  return permissions.has(capability);
 }
 
 function normalizeStringArray(value: unknown): string[] {
