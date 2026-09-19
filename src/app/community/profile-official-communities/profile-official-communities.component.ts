@@ -30,6 +30,9 @@ import {
   communityInitials as buildCommunityInitials,
   communityVisualVariant as resolveCommunityVisualVariant,
 } from '../presentation/community-visual-identity';
+import {
+  PROFILE_OFFICIAL_COMMUNITIES_REASON_MESSAGES,
+} from './profile-official-communities-error.messages';
 
 type ProfileOfficialCommunitiesStatus =
   | 'loading'
@@ -204,6 +207,7 @@ export class ProfileOfficialCommunitiesComponent {
           fallbackMessage:
             'Não foi possível carregar as comunidades oficiais deste perfil.',
           notification: 'warning',
+          reasonMessages: PROFILE_OFFICIAL_COMMUNITIES_REASON_MESSAGES,
           metadata: {
             scope: 'ProfileOfficialCommunitiesComponent',
             hasProfileId: true,
