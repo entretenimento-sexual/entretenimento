@@ -4,11 +4,17 @@
 // -----------------------------------------------------------------------------
 // Endpoint canônico para Perfis, Organizações, Locais e Eventos. Apenas cards
 // públicos sanitizados de associações verificadas atravessam esta fronteira.
+// Alvos de perfil também precisam existir na projeção pública atual e respeitar
+// bloqueio bilateral antes que a associação oficial seja consultada.
 // -----------------------------------------------------------------------------
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
+import { db } from '../firebaseApp';
+import {
+  assertNoActiveBilateralBlock,
+} from '../friendship/application/bilateral-block-access.policy';
 import {
   assertCommunityCallableAppCheck,
   REQUIRE_COMMUNITY_APP_CHECK,
@@ -31,6 +37,14 @@ function assertRuntime(): void {
     'failed-precondition',
     'As comunidades ainda não estão disponíveis neste ambiente.'
   );
+}
+
+function emptyResponse(): CommunityDiscoveryPageResponse {
+  return {
+    items: [],
+    nextCursor: null,
+    generatedAt: Date.now(),
+  };
 }
 
 export const getOfficialCommunitiesForTarget =
@@ -62,6 +76,42 @@ export const getOfficialCommunitiesForTarget =
         throw new HttpsError(
           'invalid-argument',
           'A entidade oficial informada não é válida.'
+        );
+      }
+
+      if (command.target.type === 'profile') {
+        const publicProfilesSnapshot = await db
+          .collection('public_profiles')
+          .where('profileId', '==', command.target.id)
+          .limit(2)
+          .get();
+
+        if (publicProfilesSnapshot.size > 1) {
+          throw new HttpsError(
+            'data-loss',
+            'A identidade pública do perfil está inconsistente.',
+            { reason: 'public_profile_identity_duplicate' }
+          );
+        }
+
+        const targetProfileSnapshot = publicProfilesSnapshot.docs[0];
+        if (!targetProfileSnapshot) {
+          return emptyResponse();
+        }
+
+        const targetUid = String(targetProfileSnapshot.id ?? '').trim();
+        if (!targetUid || targetUid.length > 128) {
+          throw new HttpsError(
+            'data-loss',
+            'A identidade pública do perfil está inconsistente.',
+            { reason: 'public_profile_identity_invalid' }
+          );
+        }
+
+        await assertNoActiveBilateralBlock(
+          uid,
+          targetUid,
+          'Perfil indisponível.'
         );
       }
 
