@@ -12,6 +12,7 @@ const MAX_ACTIVITY_COUNT = 1_000_000_000;
 const COMMUNITY_SOCIAL_NOTIFICATION_TYPES = new Set([
   'community.comment.received',
   'community.comment.reply.received',
+  'community.post.reply.received',
 ]);
 
 const COMMUNITY_NOTIFICATION_TYPES = new Set([

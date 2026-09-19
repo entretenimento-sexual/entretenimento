@@ -37,6 +37,13 @@ describe('community notification summary policy', () => {
         createdAt: 30,
       }),
       notification({
+        id: 'post-reply-1',
+        type: 'community.post.reply.received',
+        communityId: 'community-a',
+        activityCount: 2,
+        createdAt: 25,
+      }),
+      notification({
         id: 'comment-1',
         type: 'community.comment.received',
         communityId: 'community-a',
@@ -58,7 +65,7 @@ describe('community notification summary policy', () => {
     expect(summaries).toHaveLength(2);
     expect(summaries[0]).toMatchObject({
       communityId: 'community-a',
-      unreadCount: 2,
+      unreadCount: 4,
     });
     expect(summaries[0]?.latestNotification.id).toBe('reply-1');
     expect(summaries[0]?.attentionNotification?.id).toBe('reply-1');

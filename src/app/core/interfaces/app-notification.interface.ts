@@ -9,6 +9,7 @@ export type AppNotificationType =
   | 'compliance.action.taken'
   | 'community.comment.received'
   | 'community.comment.reply.received'
+  | 'community.post.reply.received'
   | 'community.content.moderated'
   | 'system'
   | 'social'

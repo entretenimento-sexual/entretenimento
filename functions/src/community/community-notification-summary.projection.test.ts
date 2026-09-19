@@ -22,6 +22,21 @@ test('projeta atividade agrupada não lida por Comunidade', () => {
   });
 });
 
+test('projeta resposta direta à publicação no resumo da Comunidade', () => {
+  assert.deepEqual(projectCommunityNotificationSummaryContribution({
+    userId: 'user-1',
+    communityId: 'community-1',
+    type: 'community.post.reply.received',
+    activityCount: 3,
+    readAt: null,
+  }), {
+    userId: 'user-1',
+    communityId: 'community-1',
+    unreadCount: 3,
+    priorityUnreadCount: 0,
+  });
+});
+
 test('moderação não lida é atividade prioritária', () => {
   assert.deepEqual(projectCommunityNotificationSummaryContribution({
     userId: 'user-1',

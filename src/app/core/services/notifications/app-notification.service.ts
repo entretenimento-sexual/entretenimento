@@ -447,6 +447,7 @@ export class AppNotificationService {
       case 'compliance.action.taken':
       case 'community.comment.received':
       case 'community.comment.reply.received':
+      case 'community.post.reply.received':
       case 'community.content.moderated':
       case 'system':
       case 'social':
