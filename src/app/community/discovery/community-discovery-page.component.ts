@@ -21,7 +21,6 @@ import {
   concat,
   defer,
   distinctUntilChanged,
-  filter,
   finalize,
   map,
   Observable,
@@ -46,7 +45,6 @@ import type { PreferenceProfile } from 'src/app/preferences/models/preference-pr
 import { ProfilePreferencesService } from 'src/app/preferences/services/profile-preferences.service';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import { CommunityCreationGateService } from '../community-create/community-creation-gate.service';
-import { CommunityMembershipRepository } from '../data-access/community-membership.repository';
 import {
   CommunityDiscoveryPage,
   CommunityPreviewCard,
@@ -287,7 +285,6 @@ function orderMineCommunityCardsByAttention(
 })
 export class CommunityDiscoveryPageComponent {
   private readonly repository = inject(CommunityPreviewRepository);
-  private readonly membershipRepository = inject(CommunityMembershipRepository);
   private readonly tagRepository = inject(CommunityTagRepository);
   private readonly creationGate = inject(CommunityCreationGateService);
   private readonly discoveryCache = inject(CommunityDiscoveryCacheService);
@@ -304,7 +301,6 @@ export class CommunityDiscoveryPageComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly loadRequests$ = new Subject<LoadRequest>();
   private readonly tagCatalogReload$ = new Subject<void>();
-  private readonly membershipContextResolvedIds = new Set<string>();
 
   readonly sourceType: CommunityPreviewSourceType =
     this.route.snapshot.data['sourceType'] === 'venue' ? 'venue' : 'community';
@@ -490,8 +486,6 @@ export class CommunityDiscoveryPageComponent {
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe((tagId) => this.applyTagFilter(tagId, false));
-
-    this.observeVisibleMembershipContext();
   }
 
   requestCommunityCreation(event?: Event): void {
@@ -735,48 +729,6 @@ export class CommunityDiscoveryPageComponent {
     this.notificationPreferenceBusyCommunityIds.set(next);
   }
 
-  private observeVisibleMembershipContext(): void {
-    if (!this.canFilterByTags) return;
-
-    this.state$.pipe(
-      map((state) =>
-        state.status === 'ready'
-          ? [...new Set(
-              state.items
-                .map((item) => item.communityId)
-                .filter((communityId) =>
-                  !this.membershipContextResolvedIds.has(communityId)
-                )
-            )]
-          : []
-      ),
-      filter((communityIds) => communityIds.length > 0),
-      switchMap((communityIds) =>
-        this.membershipRepository.getMembershipContext$(communityIds).pipe(
-          map((context) => ({
-            communityIds,
-            activeCommunityIds: new Set(context.activeCommunityIds),
-          })),
-          catchError((error: unknown) => {
-            this.reportMembershipContextError(error);
-            return of(null);
-          })
-        )
-      ),
-      takeUntilDestroyed(this.destroyRef)
-    ).subscribe((context) => {
-      if (!context) return;
-
-      for (const communityId of context.communityIds) {
-        this.sessionBehavior.setMembershipActive(
-          communityId,
-          context.activeCommunityIds.has(communityId)
-        );
-        this.membershipContextResolvedIds.add(communityId);
-      }
-    });
-  }
-
   private resolveLoadEvents$(request: LoadRequest): Observable<LoadEvent> {
     const context = this.cacheContext(request.tagId);
 
@@ -899,17 +851,6 @@ export class CommunityDiscoveryPageComponent {
       queryParams: { interesse: tagId },
       queryParamsHandling: 'merge',
       replaceUrl: true,
-    });
-  }
-
-  private reportMembershipContextError(error: unknown): void {
-    this.applicationError.report(error, {
-      feature: 'community',
-      operation: 'getCommunityMembershipContext',
-      fallbackMessage:
-        'Não foi possível considerar suas participações na recomendação agora.',
-      notification: 'none',
-      metadata: this.errorMetadata(),
     });
   }
 

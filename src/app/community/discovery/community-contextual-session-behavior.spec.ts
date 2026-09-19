@@ -71,7 +71,7 @@ function card(communityId: string, tags: CommunityPreviewCard['tags'] = []): Com
 }
 
 describe('community contextual session behavior', () => {
-  it('mantém preferência explícita mais forte que comportamento isolado', () => {
+  it('preserva a ordem canônica mesmo com preferência explícita e comportamento de sessão', () => {
     const organic = card('organic');
     const behaviorOnly = card('behavior-only');
     const explicit = card('explicit', [
@@ -97,8 +97,8 @@ describe('community contextual session behavior', () => {
 
     expect(result.map((item) => item.communityId)).toEqual([
       'organic',
-      'explicit',
       'behavior-only',
+      'explicit',
     ]);
   });
 
