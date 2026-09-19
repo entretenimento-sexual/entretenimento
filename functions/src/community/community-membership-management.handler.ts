@@ -41,6 +41,7 @@ import {
   buildCommunityMembershipReviewNotificationId,
   buildCommunityNotificationRoute,
   canReceiveCommunityEssentialNotification,
+  isCommunityMembershipRequestNotificationForReview,
   type CommunityNotificationUser,
 } from './community-notification.policy';
 import { normalizeCommunityId } from './community-preview.model';
@@ -702,6 +703,23 @@ export const reviewCommunityMembership =
           assertCommunityAcceptingNewMembers(capacity);
         }
 
+        const requestNotificationId = normalizeSafeId(
+          target?.['requestNotificationId']
+        );
+        const requestNotificationRef = requestNotificationId
+          ? db.collection('notifications').doc(requestNotificationId)
+          : null;
+        const requestNotificationSnapshot = requestNotificationRef
+          ? await transaction.get(requestNotificationRef)
+          : null;
+        const canResolveRequestNotification =
+          requestNotificationSnapshot?.exists === true
+          && isCommunityMembershipRequestNotificationForReview(
+            requestNotificationSnapshot.data(),
+            communityId,
+            memberId
+          );
+
         if (!decision.idempotent) {
           const nextMemberCount = decision.incrementMemberCount
             ? resolveMemberCountDelta(community, 1)
@@ -752,6 +770,7 @@ export const reviewCommunityMembership =
               reviewedAt: now,
               reviewedBy: actorUid,
               requestResolution: approved ? 'approved' : 'rejected',
+              requestNotificationId: null,
               updatedAt: now,
               source: 'callable',
             },
@@ -782,6 +801,19 @@ export const reviewCommunityMembership =
                 updatedAt: now,
               });
             }
+          }
+
+          if (
+            canResolveRequestNotification
+            && requestNotificationRef
+          ) {
+            transaction.set(requestNotificationRef, {
+              actionRequired: false,
+              readAt: now,
+              resolvedAt: now,
+              resolution: outcome,
+              updatedAt: now,
+            }, { merge: true });
           }
 
           if (notificationRef) {

@@ -7,6 +7,7 @@ import {
   buildCommunityCommentNotificationId,
   buildCommunityMembershipRequestNotificationCopy,
   buildCommunityMembershipRequestNotificationId,
+  isCommunityMembershipRequestNotificationForReview,
   buildCommunityMembershipReviewNotificationCopy,
   buildCommunityMembershipReviewNotificationId,
   buildCommunityModerationNotificationCopy,
@@ -268,6 +269,33 @@ test('gera pedido de entrada determinístico por ciclo', () => {
     title: 'Novo pedido de entrada',
     body: 'Há um novo pedido para entrar em Comunidade Teste.',
   });
+});
+
+test('valida o alerta de pedido antes de resolvê-lo na revisão', () => {
+  assert.equal(
+    isCommunityMembershipRequestNotificationForReview({
+      type: 'community.membership.requested',
+      communityId: 'community-1',
+      actorUid: 'member-1',
+    }, 'community-1', 'member-1'),
+    true
+  );
+  assert.equal(
+    isCommunityMembershipRequestNotificationForReview({
+      type: 'community.membership.requested',
+      communityId: 'community-2',
+      actorUid: 'member-1',
+    }, 'community-1', 'member-1'),
+    false
+  );
+  assert.equal(
+    isCommunityMembershipRequestNotificationForReview({
+      type: 'community.membership.requested',
+      communityId: 'community-1',
+      actorUid: 'member-2',
+    }, 'community-1', 'member-1'),
+    false
+  );
 });
 
 test('gera resultado determinístico de revisão por ciclo do pedido', () => {

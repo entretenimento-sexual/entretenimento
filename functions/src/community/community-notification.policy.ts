@@ -185,6 +185,19 @@ export function buildCommunityMembershipRequestNotificationCopy(input: {
   };
 }
 
+export function isCommunityMembershipRequestNotificationForReview(
+  raw: unknown,
+  communityId: string,
+  memberId: string
+): boolean {
+  const notification = (raw ?? {}) as Record<string, unknown>;
+
+  return normalizeText(notification['type'], 80)
+      === 'community.membership.requested'
+    && normalizeText(notification['communityId'], 128) === communityId
+    && normalizeText(notification['actorUid'], 128) === memberId;
+}
+
 export function buildCommunityMembershipReviewNotificationId(
   communityId: string,
   memberId: string,

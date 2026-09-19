@@ -245,6 +245,30 @@ export const requestCommunityMembership =
         const ownerUserSnapshot = ownerUid && ownerUid !== uid
           ? await transaction.get(db.collection('users').doc(ownerUid))
           : null;
+        let requestNotificationId: string | null = null;
+
+        if (
+          targetStatus === 'pending'
+          && ownerUid
+          && ownerUserSnapshot?.exists
+        ) {
+          const ownerUser = ownerUserSnapshot.data() as
+            | CommunityNotificationUser
+            | undefined;
+
+          if (canReceiveCommunityEssentialNotification(
+            ownerUser,
+            ownerUid,
+            uid
+          )) {
+            requestNotificationId =
+              buildCommunityMembershipRequestNotificationId(
+                communityId,
+                uid,
+                requestCycleStartedAtMs
+              );
+          }
+        }
 
         if (!decision.idempotent) {
           const nextMemberCount = decision.incrementMemberCount
@@ -273,6 +297,7 @@ export const requestCommunityMembership =
               reviewedAt: null,
               reviewedBy: null,
               requestResolution: null,
+              requestNotificationId,
               updatedAt: now,
               policyVersion: 1,
               source: 'callable',
@@ -309,42 +334,28 @@ export const requestCommunityMembership =
           if (
             targetStatus === 'pending'
             && ownerUid
-            && ownerUserSnapshot?.exists
+            && requestNotificationId
           ) {
-            const ownerUser = ownerUserSnapshot.data() as
-              | CommunityNotificationUser
-              | undefined;
+            const notificationRef = db
+              .collection('notifications')
+              .doc(requestNotificationId);
+            const copy = buildCommunityMembershipRequestNotificationCopy({
+              communityName: community['name'],
+            });
 
-            if (canReceiveCommunityEssentialNotification(
-              ownerUser,
-              ownerUid,
-              uid
-            )) {
-              const notificationRef = db
-                .collection('notifications')
-                .doc(buildCommunityMembershipRequestNotificationId(
-                  communityId,
-                  uid,
-                  requestCycleStartedAtMs
-                ));
-              const copy = buildCommunityMembershipRequestNotificationCopy({
-                communityName: community['name'],
-              });
-
-              transaction.set(notificationRef, {
-                userId: ownerUid,
-                type: 'community.membership.requested',
-                title: copy.title,
-                body: copy.body,
-                route: `${buildCommunityNotificationRoute(communityId)}?secao=gestao`,
-                communityId,
-                actorUid: uid,
-                actionRequired: true,
-                readAt: null,
-                createdAt: now,
-                updatedAt: now,
-              }, { merge: true });
-            }
+            transaction.set(notificationRef, {
+              userId: ownerUid,
+              type: 'community.membership.requested',
+              title: copy.title,
+              body: copy.body,
+              route: `${buildCommunityNotificationRoute(communityId)}?secao=gestao`,
+              communityId,
+              actorUid: uid,
+              actionRequired: true,
+              readAt: null,
+              createdAt: now,
+              updatedAt: now,
+            }, { merge: true });
           }
 
           transaction.set(auditRef, {
