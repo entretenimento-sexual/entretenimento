@@ -85,6 +85,7 @@ export const environment: AppEnvironment = {
     enforceCurrentLegalAcceptance: false,
 
     subscriberExperiencesPreview: true,
+    communitiesEnabled: true,
     communityPreview: true,
   },
 

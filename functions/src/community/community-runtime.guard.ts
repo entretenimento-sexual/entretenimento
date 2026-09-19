@@ -1,17 +1,17 @@
 // functions/src/community/community-runtime.guard.ts
 // -----------------------------------------------------------------------------
-// COMMUNITY PREVIEW RUNTIME GUARD
+// COMMUNITY RUNTIME GUARD
 // -----------------------------------------------------------------------------
-// Define em quais runtimes o backend de Comunidades pode executar enquanto a
-// feature ainda está em homologação controlada.
+// Define em quais runtimes o backend de Comunidades pode executar.
 //
 // - Emulator: permitido para desenvolvimento local;
-// - projeto Firebase de staging: permitido para homologação real;
-// - produção e runtime desconhecido: bloqueados (fail closed).
+// - staging: permitido para homologação real;
+// - produção: permitido para a experiência pública de Comunidades;
+// - runtime desconhecido: bloqueado (fail closed).
 //
-// Esta fronteira é independente de App Check e da feature flag do frontend.
-// Staging continua exigindo App Check e `communityPreview` pode permanecer
-// desligado até a homologação estar pronta para usuários selecionados.
+// Esta fronteira continua independente de App Check, autenticação, autorização,
+// quotas e feature flags do frontend. Os nomes "Preview" das funções públicas
+// são preservados por compatibilidade enquanto o domínio entra em operação.
 // -----------------------------------------------------------------------------
 
 interface FirebaseRuntimeConfigLike {
@@ -27,6 +27,12 @@ export interface CommunityRuntimeEnvironment {
 }
 
 export const COMMUNITY_STAGING_PROJECT_ID = 'entretenimento-staging';
+export const COMMUNITY_PRODUCTION_PROJECT_ID = 'entretenimento-sexual';
+
+const COMMUNITY_ALLOWED_PROJECT_IDS = new Set<string>([
+  COMMUNITY_STAGING_PROJECT_ID,
+  COMMUNITY_PRODUCTION_PROJECT_ID,
+]);
 
 export function resolveCommunityRuntimeProjectId(
   environment: CommunityRuntimeEnvironment
@@ -55,8 +61,9 @@ export function isCommunityPreviewRuntimeAllowed(
 ): boolean {
   if (environment.functionsEmulator === 'true') return true;
 
-  return resolveCommunityRuntimeProjectId(environment)
-    === COMMUNITY_STAGING_PROJECT_ID;
+  return COMMUNITY_ALLOWED_PROJECT_IDS.has(
+    resolveCommunityRuntimeProjectId(environment)
+  );
 }
 
 export function isCommunityPreviewRuntimeAvailable(): boolean {

@@ -85,6 +85,7 @@ export const environment: AppEnvironment = {
       '/upload',
     ],
     subscriberExperiencesPreview: false,
+    communitiesEnabled: true,
     communityPreview: false,
   },
 

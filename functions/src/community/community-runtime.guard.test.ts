@@ -62,13 +62,13 @@ describe('community-runtime.guard', () => {
     );
   });
 
-  it('bloqueia explicitamente produção', () => {
+  it('permite o projeto de produção em runtime real', () => {
     assert.equal(
       isCommunityPreviewRuntimeAllowed({
         functionsEmulator: 'false',
         gcloudProject: 'entretenimento-sexual',
       }),
-      false
+      true
     );
   });
 

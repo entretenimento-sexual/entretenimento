@@ -88,8 +88,14 @@ export interface FeaturesConfig {
   subscriberExperiencesPreview?: boolean;
 
   /**
-   * Libera descoberta e página comunitária somente leitura no ambiente emulado.
-   * Não habilita feed, mídia, membership ou interação.
+   * Habilita a experiência funcional de Comunidades no ambiente atual.
+   * Não substitui autenticação, App Check, autorização, quotas ou Rules.
+   */
+  communitiesEnabled?: boolean;
+
+  /**
+   * Mantém experiências ainda em preview que reutilizam infraestrutura de
+   * Comunidades, como Locais, sem acoplá-las ao rollout de Comunidades.
    */
   communityPreview?: boolean;
 }

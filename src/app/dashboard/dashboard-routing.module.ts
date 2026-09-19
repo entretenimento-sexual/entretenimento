@@ -119,7 +119,7 @@ const routes: Routes = [
        */
       {
         path: 'comunidades',
-        canMatch: [requireFeatureFlag('communityPreview')],
+        canMatch: [requireFeatureFlag('communitiesEnabled')],
         canActivate: [authGuard, emailVerifiedGuard, profileCompletedGuard],
         data: {
           requireVerified: true,
