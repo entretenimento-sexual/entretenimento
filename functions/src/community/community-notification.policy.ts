@@ -223,6 +223,24 @@ export function buildCommunityModerationNotificationCopy(input: {
   };
 }
 
-export function buildCommunityNotificationRoute(communityId: string): string {
-  return `/dashboard/comunidades/${encodeURIComponent(communityId)}`;
+export function buildCommunityNotificationRoute(
+  communityId: string,
+  postId?: string | null,
+  commentId?: string | null
+): string {
+  const base = `/dashboard/comunidades/${encodeURIComponent(communityId)}`;
+  const normalizedPostId = String(postId ?? '').trim();
+
+  if (!normalizedPostId) return base;
+
+  const query = [
+    `post=${encodeURIComponent(normalizedPostId)}`,
+  ];
+  const normalizedCommentId = String(commentId ?? '').trim();
+
+  if (normalizedCommentId) {
+    query.push(`comentario=${encodeURIComponent(normalizedCommentId)}`);
+  }
+
+  return `${base}?${query.join('&')}`;
 }

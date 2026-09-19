@@ -140,7 +140,9 @@ describe('CommunityFeedComponent', () => {
     view: 'feed' | 'photos' = 'feed',
     sourceType: 'community' | 'venue' = 'community',
     canInteract = false,
-    viewerRole: 'owner' | 'admin' | 'moderator' | 'member' | null = null
+    viewerRole: 'owner' | 'admin' | 'moderator' | 'member' | null = null,
+    focusPostId: string | null = null,
+    focusCommentId: string | null = null
   ) {
     const fixture = TestBed.createComponent(CommunityFeedComponent);
     fixture.componentRef.setInput('communityId', 'community-1');
@@ -148,6 +150,8 @@ describe('CommunityFeedComponent', () => {
     fixture.componentRef.setInput('sourceType', sourceType);
     fixture.componentRef.setInput('canInteract', canInteract);
     fixture.componentRef.setInput('viewerRole', viewerRole);
+    fixture.componentRef.setInput('focusPostId', focusPostId);
+    fixture.componentRef.setInput('focusCommentId', focusCommentId);
     fixture.detectChanges();
     return fixture;
   }
@@ -347,6 +351,31 @@ describe('CommunityFeedComponent', () => {
     fixture.componentInstance.updateCommentCount(interactivePage.items[0], 4);
     fixture.detectChanges();
     expect(toggle.textContent).toContain('4');
+  });
+
+  it('abre o post e a conversa indicados por deep-link de notificação', () => {
+    const interactivePage = page();
+    interactivePage.items[0].capabilities.canViewComments = true;
+    commentRepositoryMock.getPage$.mockReturnValue(of({
+      items: [],
+      nextCursor: null,
+      generatedAt: Date.now(),
+    }));
+    repositoryMock.getPage$.mockReturnValue(of(interactivePage));
+
+    const fixture = create(
+      'feed',
+      'community',
+      true,
+      'member',
+      'post-1',
+      'comment-1'
+    );
+
+    expect(fixture.componentInstance.commentsPostId()).toBe('post-1');
+    expect(
+      fixture.nativeElement.querySelector('app-community-feed-comments')
+    ).not.toBeNull();
   });
 
   it('mostra estados vazios coerentes por contexto', () => {

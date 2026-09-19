@@ -200,4 +200,12 @@ test('gera aviso essencial determinístico sem expor o motivo da remoção', () 
   assert.equal(legacyReplyCopy.body.includes('resposta legada'), true);
   assert.equal(buildCommunityNotificationRoute('community:1'),
     '/dashboard/comunidades/community%3A1');
+  assert.equal(
+    buildCommunityNotificationRoute('community:1', 'post:1'),
+    '/dashboard/comunidades/community%3A1?post=post%3A1'
+  );
+  assert.equal(
+    buildCommunityNotificationRoute('community:1', 'post:1', 'comment:2'),
+    '/dashboard/comunidades/community%3A1?post=post%3A1&comentario=comment%3A2'
+  );
 });

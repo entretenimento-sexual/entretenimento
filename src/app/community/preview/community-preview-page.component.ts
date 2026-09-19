@@ -147,6 +147,13 @@ const ACCESS_REASONS = new Set<ContentAccessDenialReason>([
   'access_check_unavailable',
 ]);
 
+const COMMUNITY_FEED_TARGET_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
+
+function normalizeCommunityFeedTargetId(value: unknown): string | null {
+  const normalized = String(value ?? '').trim();
+  return COMMUNITY_FEED_TARGET_ID_PATTERN.test(normalized) ? normalized : null;
+}
+
 const SECTION_QUERY_VALUES: Readonly<Record<CommunityPreviewSection, string | null>> =
   Object.freeze({
     feed: null,
@@ -194,6 +201,18 @@ export class CommunityPreviewPageComponent {
   );
   readonly returnTarget = signal<string>(
     this.resolveReturnTarget(this.route.snapshot.queryParamMap?.get('retorno'))
+  );
+  readonly focusedPostId = signal<string | null>(
+    normalizeCommunityFeedTargetId(
+      this.route.snapshot.queryParamMap?.get('post')
+    )
+  );
+  readonly focusedCommentId = signal<string | null>(
+    this.focusedPostId()
+      ? normalizeCommunityFeedTargetId(
+          this.route.snapshot.queryParamMap?.get('comentario')
+        )
+      : null
   );
 
   private readonly communityId$ = this.route.paramMap.pipe(
@@ -277,10 +296,17 @@ export class CommunityPreviewPageComponent {
       .pipe(
         map((params) => {
           const rawSection = String(params.get('secao') ?? '').trim().toLowerCase();
+          const postId = normalizeCommunityFeedTargetId(params.get('post'));
+          const commentId = postId
+            ? normalizeCommunityFeedTargetId(params.get('comentario'))
+            : null;
+
           return {
-            section: this.sectionFromQuery(rawSection),
+            section: postId ? 'feed' as const : this.sectionFromQuery(rawSection),
             returnTarget: this.resolveReturnTarget(params.get('retorno')),
             legacyTopics: rawSection === 'topicos',
+            postId,
+            commentId,
           };
         }),
         distinctUntilChanged(
@@ -288,12 +314,22 @@ export class CommunityPreviewPageComponent {
             previous.section === current.section
             && previous.returnTarget === current.returnTarget
             && previous.legacyTopics === current.legacyTopics
+            && previous.postId === current.postId
+            && previous.commentId === current.commentId
         ),
         takeUntilDestroyed(this.destroyRef)
       )
-      .subscribe(({ section, returnTarget, legacyTopics }) => {
+      .subscribe(({
+        section,
+        returnTarget,
+        legacyTopics,
+        postId,
+        commentId,
+      }) => {
         this.activeSection.set(section);
         this.returnTarget.set(returnTarget);
+        this.focusedPostId.set(postId);
+        this.focusedCommentId.set(commentId);
         if (legacyTopics) {
           this.selectSection('feed', true);
         }
@@ -305,11 +341,23 @@ export class CommunityPreviewPageComponent {
     replaceUrl = false
   ): void {
     this.activeSection.set(section);
+    const clearFeedTarget = section !== 'feed' && !!this.focusedPostId();
+
+    if (clearFeedTarget) {
+      this.focusedPostId.set(null);
+      this.focusedCommentId.set(null);
+    }
 
     try {
       const navigation = this.router.navigate([], {
         relativeTo: this.route,
-        queryParams: { secao: SECTION_QUERY_VALUES[section] },
+        queryParams: clearFeedTarget
+          ? {
+              secao: SECTION_QUERY_VALUES[section],
+              post: null,
+              comentario: null,
+            }
+          : { secao: SECTION_QUERY_VALUES[section] },
         queryParamsHandling: 'merge',
         replaceUrl,
       });

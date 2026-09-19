@@ -530,7 +530,11 @@ export const createCommunityFeedComment = onCall<FlatConversationCreateRequest>(
             : 'community.comment.received',
           title: copy.title,
           body: copy.body,
-          route: buildCommunityNotificationRoute(communityId),
+          route: buildCommunityNotificationRoute(
+            communityId,
+            postId,
+            commentId
+          ),
           communityId,
           postId,
           commentId,

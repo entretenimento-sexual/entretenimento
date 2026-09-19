@@ -169,6 +169,7 @@ export class CommunityFeedComponent implements OnDestroy {
   private readonly pendingOwnPostFollowId = signal<string | null>(null);
   private readonly unseenAnchorPostId = signal<string | null>(null);
   private pendingRealtimeFollowIntent: boolean | null = null;
+  private lastExternalFocusKey: string | null = null;
   private lastObservedLatestPostId: string | null = null;
   private readonly pendingActionRequestIds = new Map<string, string>();
 
@@ -177,6 +178,8 @@ export class CommunityFeedComponent implements OnDestroy {
   readonly sourceType = input<CommunityPreviewSourceType>('community');
   readonly canInteract = input<boolean>(false);
   readonly viewerRole = input<CommunityPreviewViewerRole | null>(null);
+  readonly focusPostId = input<string | null>(null);
+  readonly focusCommentId = input<string | null>(null);
   readonly composerExpanded = this.composer.composerExpanded;
   readonly selectedAttachment = this.composer.selectedAttachment;
   readonly uploadProgress = this.composer.uploadProgress;
@@ -379,6 +382,31 @@ export class CommunityFeedComponent implements OnDestroy {
         Math.min(MAX_UNSEEN_NEW_POSTS, current + previousIndex)
       );
     });
+  });
+
+  private readonly externalFocusEffect = effect(() => {
+    const communityId = this.communityId().trim();
+    const postId = String(this.focusPostId() ?? '').trim();
+    const commentId = String(this.focusCommentId() ?? '').trim();
+
+    if (!postId) {
+      this.lastExternalFocusKey = null;
+      return;
+    }
+
+    if (!communityId || this.view() !== 'feed') return;
+
+    const focusKey = `${communityId}:${postId}:${commentId}`;
+    if (this.lastExternalFocusKey === focusKey) return;
+
+    this.lastExternalFocusKey = focusKey;
+
+    if (commentId) {
+      this.commentsPostId.set(postId);
+      this.replyPostId.set(null);
+    }
+
+    this.navigateToPost(postId);
   });
 
   private readonly ownPostFollowEffect = effect(() => {
@@ -621,14 +649,20 @@ export class CommunityFeedComponent implements OnDestroy {
   }
 
   navigateToReferencedPost(event: Event, postId: string): void {
-    const normalizedPostId = postId.trim();
-    if (!normalizedPostId) return;
-
     event.preventDefault();
+    this.navigateToPost(postId);
+  }
+
+  private navigateToPost(postId: string): void {
+    const normalizedPostId = postId.trim();
+    const communityId = this.communityId().trim();
+
+    if (!normalizedPostId || !communityId) return;
+
     this.references.navigate(
       normalizedPostId,
       {
-        communityId: this.communityId().trim(),
+        communityId,
         view: this.view(),
         sourceType: this.sourceType(),
       },

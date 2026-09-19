@@ -152,6 +152,53 @@ describe('CommunityPreviewPageComponent / navegação e retry', () => {
     expect(component.activeSection()).toBe('about');
   });
 
+  it('abre deep-link de notificação no Mural e limpa o alvo ao trocar de seção', () => {
+    queryParamMap$.next(
+      convertToParamMap({
+        secao: 'fotos',
+        post: 'post:1',
+        comentario: 'comment:2',
+      })
+    );
+
+    const component = createComponent();
+
+    expect(component.activeSection()).toBe('feed');
+    expect(component.focusedPostId()).toBe('post:1');
+    expect(component.focusedCommentId()).toBe('comment:2');
+
+    component.selectSection('photos');
+
+    expect(component.focusedPostId()).toBeNull();
+    expect(component.focusedCommentId()).toBeNull();
+    expect(navigate).toHaveBeenCalledWith([], {
+      relativeTo: expect.anything(),
+      queryParams: {
+        secao: 'fotos',
+        post: null,
+        comentario: null,
+      },
+      queryParamsHandling: 'merge',
+      replaceUrl: false,
+    });
+  });
+
+  it('ignora alvo inválido de feed sem desviar a seção solicitada', () => {
+    queryParamMap$.next(
+      convertToParamMap({
+        secao: 'sobre',
+        post: '../post',
+        comentario: 'comment:2',
+      })
+    );
+
+    const component = createComponent();
+
+    expect(component.activeSection()).toBe('about');
+    expect(component.focusedPostId()).toBeNull();
+    expect(component.focusedCommentId()).toBeNull();
+  });
+
   it('rejeita retorno externo e mantém a rota canônica de fallback', () => {
     queryParamMap$.next(
       convertToParamMap({ retorno: 'https://example.test/fora' })
