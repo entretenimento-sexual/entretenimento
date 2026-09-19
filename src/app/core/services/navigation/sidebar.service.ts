@@ -55,6 +55,7 @@ export interface SidebarVm {
   sections: SidebarSection[];
 }
 
+const COMMUNITIES_ENABLED = isFeatureEnabled('communitiesEnabled');
 const COMMUNITY_PREVIEW_ENABLED = isFeatureEnabled('communityPreview');
 
 function areStringArraysEqual(
@@ -189,6 +190,7 @@ export class SidebarService {
           isAdmin,
         },
         {
+          communitiesEnabled: COMMUNITIES_ENABLED,
           communityPreviewEnabled: COMMUNITY_PREVIEW_ENABLED,
         }
       )

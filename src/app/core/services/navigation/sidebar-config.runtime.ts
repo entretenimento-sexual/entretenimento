@@ -41,6 +41,7 @@ export type {
 export { isSidebarGroupItem } from './sidebar-config';
 
 export interface SidebarRuntimeOptions {
+  readonly communitiesEnabled?: boolean;
   readonly communityPreviewEnabled?: boolean;
 }
 
@@ -103,6 +104,7 @@ export function buildSidebarSections(
 
   const domainSections = composeDomainNavigation(
     sectionsWithoutSubscription,
+    options.communitiesEnabled !== false,
     options.communityPreviewEnabled !== false
   );
 
@@ -243,6 +245,7 @@ export function resolveSidebarItemIdFromUrl(url: string): string | null {
 
 function composeDomainNavigation(
   sections: readonly SidebarSection[],
+  communitiesEnabled: boolean,
   communityPreviewEnabled: boolean
 ): SidebarSection[] {
   const composed = sections
@@ -266,26 +269,28 @@ function composeDomainNavigation(
           ariaLabel: 'Descobrir pessoas e perfis',
         };
 
-        const socialItems: SidebarLinkItem[] = communityPreviewEnabled
-          ? [
-              {
+        const socialItems: SidebarLinkItem[] = [
+          ...(communityPreviewEnabled
+            ? [{
                 id: 'discover-venues',
                 label: SOCIAL_SPACE_DEFINITIONS.venue.pluralLabel,
                 route: SOCIAL_SPACE_DEFINITIONS.venue.navigationRoute,
                 icon: '📍',
                 exact: false,
                 ariaLabel: SOCIAL_SPACE_DEFINITIONS.venue.description,
-              },
-              {
+              }]
+            : []),
+          ...(communitiesEnabled
+            ? [{
                 id: 'discover-communities',
                 label: SOCIAL_SPACE_DEFINITIONS.community.pluralLabel,
                 route: SOCIAL_SPACE_DEFINITIONS.community.navigationRoute,
                 icon: '👥',
                 exact: false,
                 ariaLabel: SOCIAL_SPACE_DEFINITIONS.community.description,
-              },
-            ]
-          : [];
+              }]
+            : []),
+        ];
 
         return {
           ...section,

@@ -202,6 +202,27 @@ describe('sidebar runtime composition', () => {
     expect(resolveSidebarItemIdFromUrl('/chat/rooms')).toBe('chat-list');
   });
 
+  it('mantém Comunidades visível quando somente o preview de Locais está desativado', () => {
+    const sections = buildSidebarSections(
+      {
+        isSubscriber: false,
+        isVip: false,
+        isAdmin: false,
+      },
+      {
+        communitiesEnabled: true,
+        communityPreviewEnabled: false,
+      }
+    );
+    const explore = sections.find(({ key }) => key === 'explore');
+
+    expect(explore?.items.map(({ id }) => id)).toEqual([
+      'social-feed',
+      'discover-people',
+      'discover-communities',
+    ]);
+  });
+
   it('mantém Feed e Pessoas quando Locais e Comunidades estão desativados', () => {
     const sections = buildSidebarSections(
       {
@@ -209,7 +230,10 @@ describe('sidebar runtime composition', () => {
         isVip: false,
         isAdmin: false,
       },
-      { communityPreviewEnabled: false }
+      {
+        communitiesEnabled: false,
+        communityPreviewEnabled: false,
+      }
     );
     const explore = sections.find(({ key }) => key === 'explore');
 
