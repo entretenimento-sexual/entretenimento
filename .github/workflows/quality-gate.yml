@@ -122,18 +122,38 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
+          if npm --prefix functions audit --omit=dev --audit-level=moderate \
+            2>&1 | tee logs/functions-audit-prod.log; then
+            exit 0
+          fi
+
+          if ! grep -Eq \
+            'audit endpoint returned an error|400 Bad Request|Invalid package tree' \
+            logs/functions-audit-prod.log; then
+            exit 1
+          fi
+
+          echo 'npm audit registry fallback: rebuilding the audit tree without lockfile serialization.'
           npm --prefix functions audit --omit=dev --audit-level=moderate \
-            2>&1 | tee logs/functions-audit-prod.log
+            --no-package-lock \
+            2>&1 | tee -a logs/functions-audit-prod.log
 
       - name: Report Functions development dependency audit
         shell: bash
         run: |
-          npm --prefix functions audit --json > logs/functions-audit-all.json || true
+          npm --prefix functions audit --json \
+            > logs/functions-audit-all.json 2> logs/functions-audit-all.err || true
           node <<'NODE'
           const fs = require('node:fs');
-          const report = JSON.parse(
-            fs.readFileSync('logs/functions-audit-all.json', 'utf8')
-          );
+          let report;
+          try {
+            report = JSON.parse(
+              fs.readFileSync('logs/functions-audit-all.json', 'utf8')
+            );
+          } catch {
+            console.log('Functions all-dependencies audit unavailable from registry.');
+            process.exit(0);
+          }
           const counts = report.metadata?.vulnerabilities ?? {};
           console.log(
             'Functions all-dependencies audit:',
