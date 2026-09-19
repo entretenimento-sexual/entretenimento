@@ -263,15 +263,16 @@ async function respondCommunityInvite(
         shape.senderId,
         receiverId
       );
-    const responseNotificationRef = shouldNotifySender
-      ? db.collection('notifications').doc(
-          buildCommunityInviteResponseNotificationId(
-            inviteId,
-            shape.senderId,
-            desiredStatus
-          )
+    let responseNotificationRef: FirebaseFirestore.DocumentReference | null = null;
+    if (shouldNotifySender) {
+      responseNotificationRef = db.collection('notifications').doc(
+        buildCommunityInviteResponseNotificationId(
+          inviteId,
+          shape.senderId,
+          desiredStatus
         )
-      : null;
+      );
+    }
     const inviteNotification = inviteNotificationSnapshot.data() ?? {};
     const canResolveInviteNotification =
       inviteNotificationSnapshot.exists
