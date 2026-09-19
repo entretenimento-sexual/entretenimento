@@ -273,13 +273,13 @@ export function buildCommunityMembershipReviewNotificationCopy(input: {
 
   return input.outcome === 'approved'
     ? {
-        title: 'Entrada aprovada',
-        body: `Seu pedido para entrar em ${communityName} foi aprovado.`,
-      }
+      title: 'Entrada aprovada',
+      body: `Seu pedido para entrar em ${communityName} foi aprovado.`,
+    }
     : {
-        title: 'Pedido de entrada não aprovado',
-        body: `Seu pedido para entrar em ${communityName} não foi aprovado.`,
-      };
+      title: 'Pedido de entrada não aprovado',
+      body: `Seu pedido para entrar em ${communityName} não foi aprovado.`,
+    };
 }
 
 export function buildCommunityModerationNotificationCopy(input: {

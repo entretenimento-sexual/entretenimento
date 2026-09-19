@@ -731,15 +731,15 @@ export const reviewCommunityMembership =
               memberId,
               actorUid
             );
+          const notificationId =
+            buildCommunityMembershipReviewNotificationId(
+              communityId,
+              memberId,
+              requestCycleStartedAtMs,
+              outcome
+            );
           const notificationRef = shouldNotifyTarget
-            ? db.collection('notifications').doc(
-                buildCommunityMembershipReviewNotificationId(
-                  communityId,
-                  memberId,
-                  requestCycleStartedAtMs,
-                  outcome
-                )
-              )
+            ? db.collection('notifications').doc(notificationId)
             : null;
 
           transaction.set(
