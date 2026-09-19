@@ -16,6 +16,8 @@ export type AppNotificationType =
   | 'community.membership.removed'
   | 'community.membership.blocked'
   | 'community.membership.unblocked'
+  | 'community.invite.accepted'
+  | 'community.invite.declined'
   | 'community.content.moderated'
   | 'system'
   | 'social'

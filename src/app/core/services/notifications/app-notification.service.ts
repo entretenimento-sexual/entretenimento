@@ -454,6 +454,8 @@ export class AppNotificationService {
       case 'community.membership.removed':
       case 'community.membership.blocked':
       case 'community.membership.unblocked':
+      case 'community.invite.accepted':
+      case 'community.invite.declined':
       case 'community.content.moderated':
       case 'system':
       case 'social':

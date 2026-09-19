@@ -5,6 +5,8 @@ import {
   allowsCommunityActivityNotifications,
   buildCommunityCommentNotificationCopy,
   buildCommunityCommentNotificationId,
+  buildCommunityInviteResponseNotificationCopy,
+  buildCommunityInviteResponseNotificationId,
   buildCommunityMemberLifecycleNotificationCopy,
   buildCommunityMemberLifecycleNotificationId,
   buildCommunityMembershipRequestNotificationCopy,
@@ -242,6 +244,42 @@ test('resume respostas diretas à publicação sem copiar conteúdo', () => {
     title: '3 novas respostas à sua publicação',
     body: 'Sua publicação em Comunidade Teste recebeu 3 novas respostas.',
     activityCount: 3,
+  });
+});
+
+test('gera retorno determinístico para resposta de convite', () => {
+  const accepted = buildCommunityInviteResponseNotificationId(
+    'community:community-1:to:member-1',
+    'sender-1',
+    'accepted'
+  );
+  const same = buildCommunityInviteResponseNotificationId(
+    'community:community-1:to:member-1',
+    'sender-1',
+    'accepted'
+  );
+  const declined = buildCommunityInviteResponseNotificationId(
+    'community:community-1:to:member-1',
+    'sender-1',
+    'declined'
+  );
+
+  assert.equal(accepted, same);
+  assert.notEqual(accepted, declined);
+  assert.match(accepted, /^community_invite_response_[a-f0-9]{40}$/);
+  assert.deepEqual(buildCommunityInviteResponseNotificationCopy({
+    outcome: 'accepted',
+    communityName: ' Comunidade Teste ',
+  }), {
+    title: 'Convite aceito',
+    body: 'Seu convite para Comunidade Teste foi aceito.',
+  });
+  assert.deepEqual(buildCommunityInviteResponseNotificationCopy({
+    outcome: 'declined',
+    communityName: ' Comunidade Teste ',
+  }), {
+    title: 'Convite recusado',
+    body: 'Seu convite para Comunidade Teste foi recusado.',
   });
 });
 

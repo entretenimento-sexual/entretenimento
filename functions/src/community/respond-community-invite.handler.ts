@@ -24,6 +24,7 @@ import {
 import {
   assertCommunityInviteAuthenticatedUid,
   buildCommunityInviteId,
+  buildCommunityInviteNotificationId,
   COMMUNITY_INVITE_POLICY_VERSION,
   communityInviteToEpochMs,
   isCommunityInviteOperational,
@@ -38,6 +39,13 @@ import {
 import {
   assertCommunityMembershipActorEligible,
 } from './community-membership-eligibility.service';
+import {
+  buildCommunityInviteResponseNotificationCopy,
+  buildCommunityInviteResponseNotificationId,
+  buildCommunityNotificationRoute,
+  canReceiveCommunityEssentialNotification,
+  type CommunityNotificationUser,
+} from './community-notification.policy';
 import {
   classifyExistingCommunityMembershipState,
 } from './community-membership-state.policy';
@@ -152,6 +160,10 @@ async function respondCommunityInvite(
 
     const communityRef = db.collection('communities').doc(shape.communityId);
     const membershipRef = communityRef.collection('members').doc(receiverId);
+    const senderUserRef = db.collection('users').doc(shape.senderId);
+    const inviteNotificationRef = db
+      .collection('notifications')
+      .doc(buildCommunityInviteNotificationId(shape.communityId, receiverId));
     const discoveryRef = db
       .collection('community_discovery_index')
       .doc(shape.communityId);
@@ -160,10 +172,14 @@ async function respondCommunityInvite(
       communitySnapshot,
       membershipSnapshot,
       discoverySnapshot,
+      senderUserSnapshot,
+      inviteNotificationSnapshot,
     ] = await Promise.all([
       transaction.get(communityRef),
       transaction.get(membershipRef),
       transaction.get(discoveryRef),
+      transaction.get(senderUserRef),
+      transaction.get(inviteNotificationRef),
     ]);
     const community = communitySnapshot.exists
       ? communitySnapshot.data() ?? {}
@@ -237,6 +253,32 @@ async function respondCommunityInvite(
     }
 
     const now = FieldValue.serverTimestamp();
+    const senderUser = senderUserSnapshot.data() as
+      | CommunityNotificationUser
+      | undefined;
+    const shouldNotifySender =
+      senderUserSnapshot.exists
+      && canReceiveCommunityEssentialNotification(
+        senderUser,
+        shape.senderId,
+        receiverId
+      );
+    const responseNotificationRef = shouldNotifySender
+      ? db.collection('notifications').doc(
+          buildCommunityInviteResponseNotificationId(
+            inviteId,
+            shape.senderId,
+            desiredStatus
+          )
+        )
+      : null;
+    const inviteNotification = inviteNotificationSnapshot.data() ?? {};
+    const canResolveInviteNotification =
+      inviteNotificationSnapshot.exists
+      && String(inviteNotification['userId'] ?? '').trim() === receiverId
+      && String(inviteNotification['communityId'] ?? '').trim()
+        === shape.communityId
+      && String(inviteNotification['inviteId'] ?? '').trim() === inviteId;
 
     if (decision.activateMembership && community) {
       transaction.set(
@@ -292,6 +334,43 @@ async function respondCommunityInvite(
       respondedAt: now,
       updatedAt: now,
     });
+
+    if (canResolveInviteNotification) {
+      transaction.set(inviteNotificationRef, {
+        readAt: now,
+        resolvedAt: now,
+        resolution: desiredStatus,
+        updatedAt: now,
+      }, { merge: true });
+    }
+
+    if (responseNotificationRef) {
+      const copy = buildCommunityInviteResponseNotificationCopy({
+        outcome: desiredStatus,
+        communityName: community?.['name'],
+      });
+      const notificationType = desiredStatus === 'accepted'
+        ? 'community.invite.accepted'
+        : 'community.invite.declined';
+      const notificationRoute = community
+        ? buildCommunityNotificationRoute(shape.communityId)
+        : '/dashboard/comunidades';
+
+      transaction.set(responseNotificationRef, {
+        userId: shape.senderId,
+        type: notificationType,
+        title: copy.title,
+        body: copy.body,
+        route: notificationRoute,
+        communityId: shape.communityId,
+        inviteId,
+        actorUid: receiverId,
+        readAt: null,
+        createdAt: now,
+        updatedAt: now,
+      }, { merge: true });
+    }
+
     transaction.set(auditRef, {
       action: action === 'accept'
         ? 'community-invite-accepted'

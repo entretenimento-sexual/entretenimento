@@ -17,6 +17,7 @@ export type CommunityMemberLifecycleNotificationAction =
   | 'remove'
   | 'block'
   | 'unblock';
+export type CommunityInviteNotificationOutcome = 'accepted' | 'declined';
 
 export interface CommunityNotificationUser {
   uid?: unknown;
@@ -214,6 +215,35 @@ export function buildCommunityMembershipReviewNotificationId(
     String(Math.max(0, Math.trunc(requestCycleStartedAtMs))),
     outcome,
   ]);
+}
+
+export function buildCommunityInviteResponseNotificationId(
+  inviteId: string,
+  senderId: string,
+  outcome: CommunityInviteNotificationOutcome
+): string {
+  return stableId('community_invite_response', [
+    inviteId,
+    senderId,
+    outcome,
+  ]);
+}
+
+export function buildCommunityInviteResponseNotificationCopy(input: {
+  outcome: CommunityInviteNotificationOutcome;
+  communityName: unknown;
+}): { title: string; body: string } {
+  const communityName = normalizeText(input.communityName, 60) || 'a Comunidade';
+
+  return input.outcome === 'accepted'
+    ? {
+      title: 'Convite aceito',
+      body: `Seu convite para ${communityName} foi aceito.`,
+    }
+    : {
+      title: 'Convite recusado',
+      body: `Seu convite para ${communityName} foi recusado.`,
+    };
 }
 
 export function buildCommunityMemberLifecycleNotificationId(

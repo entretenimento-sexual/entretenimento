@@ -37,6 +37,20 @@ test('projeta resposta direta à publicação no resumo da Comunidade', () => {
   });
 });
 
+test('resposta de convite contribui como atividade comum da Comunidade', () => {
+  assert.deepEqual(projectCommunityNotificationSummaryContribution({
+    userId: 'sender-1',
+    communityId: 'community-1',
+    type: 'community.invite.accepted',
+    readAt: null,
+  }), {
+    userId: 'sender-1',
+    communityId: 'community-1',
+    unreadCount: 1,
+    priorityUnreadCount: 0,
+  });
+});
+
 test('pedido de entrada não lido é prioridade da Comunidade', () => {
   assert.deepEqual(projectCommunityNotificationSummaryContribution({
     userId: 'owner-1',
