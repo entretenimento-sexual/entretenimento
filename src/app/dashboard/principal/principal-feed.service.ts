@@ -96,7 +96,8 @@ const PERSONALIZED_OWNER_LIMIT = 30;
 const PERSONALIZED_PHOTO_LIMIT = 12;
 const PERSONALIZED_VIDEO_LIMIT = 12;
 const SPACE_LIMIT = 4;
-const SOCIAL_SPACES_ENABLED = isFeatureEnabled('communityPreview');
+const COMMUNITIES_ENABLED = isFeatureEnabled('communitiesEnabled');
+const VENUES_ENABLED = isFeatureEnabled('communityPreview');
 
 const EMPTY_PHOTO_RESULT: FeedSourceResult<readonly IPublicPhotoItem[]> =
   Object.freeze({ value: [], failed: false });
@@ -218,13 +219,13 @@ export class PrincipalFeedService {
     );
     const visiblePhotos = this.collectVisiblePhotos(items);
     const visibleVideos = this.collectVisibleVideos(items);
+    const enabledSpaceSourcesFailed =
+      (!COMMUNITIES_ENABLED || communitiesResult.failed)
+      && (!VENUES_ENABLED || venuesResult.failed);
     const allCoreSourcesFailed =
-      photosResult.failed &&
-      videosResult.failed &&
-      (
-        !SOCIAL_SPACES_ENABLED ||
-        (communitiesResult.failed && venuesResult.failed)
-      );
+      photosResult.failed
+      && videosResult.failed
+      && enabledSpaceSourcesFailed;
 
     return {
       status: items.length > 0
@@ -470,7 +471,11 @@ export class PrincipalFeedService {
   private loadSpaces$(
     sourceType: 'community' | 'venue'
   ): Observable<FeedSourceResult<readonly CommunityPreviewCard[]>> {
-    if (!SOCIAL_SPACES_ENABLED) {
+    const enabled = sourceType === 'community'
+      ? COMMUNITIES_ENABLED
+      : VENUES_ENABLED;
+
+    if (!enabled) {
       return of({ value: [], failed: false });
     }
 

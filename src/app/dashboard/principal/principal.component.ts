@@ -108,7 +108,7 @@ export class PrincipalComponent implements OnInit {
     this.privacyDebug.log('friends', `Principal: ${message}`, extra);
   }
 
-  readonly socialSpacesEnabled = isFeatureEnabled('communityPreview');
+  readonly venuesEnabled = isFeatureEnabled('communityPreview');
 
   readonly currentUser$: Observable<IUserDados | null> = this.store.select(
     selectCurrentUser

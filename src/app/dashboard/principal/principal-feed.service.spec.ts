@@ -135,7 +135,7 @@ describe('PrincipalFeedService', () => {
     });
   });
 
-  it('entrega foto e preview de vídeo sem consultar espaços com a flag desligada', async () => {
+  it('consulta Comunidades, mas não Locais, quando somente Comunidades estão habilitadas', async () => {
     const service = TestBed.inject(PrincipalFeedService);
     const state = await firstValueFrom(
       service.state$.pipe(
@@ -159,7 +159,12 @@ describe('PrincipalFeedService', () => {
     });
     expect(friendship.watchFriends).not.toHaveBeenCalled();
     expect(recentViews.resolveRecentViewedKeys$).not.toHaveBeenCalled();
-    expect(communityRepository.getDiscoveryPage$).not.toHaveBeenCalled();
+    expect(communityRepository.getDiscoveryPage$).toHaveBeenCalledTimes(1);
+    expect(communityRepository.getDiscoveryPage$).toHaveBeenCalledWith({
+      limit: 4,
+      cursor: null,
+      sourceType: 'community',
+    });
   });
 
   it('mantém vídeos disponíveis quando a fonte de fotos falha', async () => {
@@ -187,6 +192,9 @@ describe('PrincipalFeedService', () => {
     videoRanking.loadPage$.mockReturnValue(
       throwError(() => new Error('video query failed'))
     );
+    communityRepository.getDiscoveryPage$.mockReturnValue(
+      throwError(() => new Error('community query failed'))
+    );
     const service = TestBed.inject(PrincipalFeedService);
     const state = await firstValueFrom(
       service.state$.pipe(
@@ -197,7 +205,7 @@ describe('PrincipalFeedService', () => {
 
     expect(state.status).toBe('error');
     expect(state.items).toEqual([]);
-    expect(state.failedSources).toEqual(['photos', 'videos']);
-    expect(globalError.handleError).toHaveBeenCalledTimes(2);
+    expect(state.failedSources).toEqual(['photos', 'videos', 'communities']);
+    expect(globalError.handleError).toHaveBeenCalledTimes(3);
   });
 });
