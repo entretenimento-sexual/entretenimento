@@ -42,6 +42,7 @@ import {
   classifyExistingCommunityMembershipState,
 } from './community-membership-state.policy';
 import { consumeCommunityRateLimit } from './community-rate-limit.service';
+import { syncCommunityUserIndexInTransaction } from './community-user-index.transaction';
 
 interface CommunityInviteResponseRequest {
   inviteId?: unknown;
@@ -257,6 +258,18 @@ async function respondCommunityInvite(
         },
         { merge: true }
       );
+
+      syncCommunityUserIndexInTransaction({
+        transaction,
+        communityId: shape.communityId,
+        memberId: receiverId,
+        community,
+        membership: {
+          role: 'member',
+          status: 'active',
+        },
+        updatedAt: now,
+      });
     }
 
     if (decision.incrementMemberCount && community) {

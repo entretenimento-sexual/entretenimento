@@ -32,6 +32,7 @@ import {
 } from './community-membership-state.policy';
 import { normalizeCommunityId } from './community-preview.model';
 import { consumeCommunityRateLimit } from './community-rate-limit.service';
+import { syncCommunityUserIndexInTransaction } from './community-user-index.transaction';
 
 interface RequestCommunityMembershipPayload {
   communityId?: unknown;
@@ -261,6 +262,18 @@ export const requestCommunityMembership =
             },
             { merge: true }
           );
+
+          syncCommunityUserIndexInTransaction({
+            transaction,
+            communityId,
+            memberId: uid,
+            community,
+            membership: {
+              role: 'member',
+              status: targetStatus,
+            },
+            updatedAt: now,
+          });
 
           if (decision.incrementMemberCount) {
             transaction.update(communityRef, {
