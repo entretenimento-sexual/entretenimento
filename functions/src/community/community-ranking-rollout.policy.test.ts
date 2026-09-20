@@ -6,6 +6,11 @@ import {
   COMMUNITY_DISCOVERY_RANKING_MODE,
   COMMUNITY_DISCOVERY_SCORE_VERSION,
 } from './community-ranking.policy';
+import {
+  COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION,
+  COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
+} from './community-ranking-candidate-v3.policy';
+import { COMMUNITY_DISCOVERY_V3_RANKING_MODE } from './community-ranking-rollout.policy';
 import { evaluateCommunityRankingRollout } from './community-ranking-rollout.policy';
 
 test('rollback legado permanece sempre disponível', () => {
@@ -80,4 +85,91 @@ test('ativa somente a versão canônica atual após todos os gates', () => {
     scoreVersion: COMMUNITY_DISCOVERY_SCORE_VERSION,
     denialReason: null,
   });
+});
+
+
+test('v3 continua bloqueado sem índice candidato homologado', () => {
+  const decision = evaluateCommunityRankingRollout({
+    action: 'promote_v3',
+    rawConfig: { discoveryScoreIndexReady: true },
+    rawRuntime: {
+      ready: true,
+      completedScoreVersion: COMMUNITY_DISCOVERY_SCORE_VERSION,
+      completedCandidateActivityMomentumModelVersion:
+        COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION,
+    },
+    rawShadowRuntime: {
+      candidateScoreVersion: COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
+      promotionReady: true,
+    },
+  });
+
+  assert.equal(decision.allowed, false);
+  assert.equal(decision.denialReason, 'candidate_index_not_ready');
+});
+
+test('v3 continua shadow até a janela mensurável marcar promotionReady', () => {
+  const decision = evaluateCommunityRankingRollout({
+    action: 'promote_v3',
+    rawConfig: {
+      discoveryScoreIndexReady: true,
+      discoveryCandidateV3IndexReady: true,
+    },
+    rawRuntime: {
+      ready: true,
+      completedScoreVersion: COMMUNITY_DISCOVERY_SCORE_VERSION,
+      completedCandidateActivityMomentumModelVersion:
+        COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION,
+    },
+    rawShadowRuntime: {
+      candidateScoreVersion: COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
+      promotionReady: false,
+    },
+  });
+
+  assert.equal(decision.allowed, false);
+  assert.equal(decision.denialReason, 'candidate_shadow_acceptance_not_ready');
+});
+
+test('promove v3 somente com índice, runtime e aceitação shadow prontos', () => {
+  const decision = evaluateCommunityRankingRollout({
+    action: 'promote_v3',
+    rawConfig: {
+      discoveryScoreIndexReady: true,
+      discoveryCandidateV3IndexReady: true,
+    },
+    rawRuntime: {
+      ready: true,
+      completedScoreVersion: COMMUNITY_DISCOVERY_SCORE_VERSION,
+      completedCandidateActivityMomentumModelVersion:
+        COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION,
+    },
+    rawShadowRuntime: {
+      candidateScoreVersion: COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
+      promotionReady: true,
+    },
+  });
+
+  assert.deepEqual(decision, {
+    allowed: true,
+    action: 'promote_v3',
+    targetMode: COMMUNITY_DISCOVERY_V3_RANKING_MODE,
+    scoreVersion: COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
+    denialReason: null,
+  });
+});
+
+test('rollback para v2 permanece disponível sem depender da aceitação v3', () => {
+  const decision = evaluateCommunityRankingRollout({
+    action: 'rollback_v2',
+    rawConfig: { discoveryScoreIndexReady: true },
+    rawRuntime: {
+      ready: true,
+      completedScoreVersion: COMMUNITY_DISCOVERY_SCORE_VERSION,
+    },
+    rawShadowRuntime: null,
+  });
+
+  assert.equal(decision.allowed, true);
+  assert.equal(decision.targetMode, COMMUNITY_DISCOVERY_RANKING_MODE);
 });
