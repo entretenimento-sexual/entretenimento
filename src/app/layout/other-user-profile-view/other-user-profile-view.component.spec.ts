@@ -258,7 +258,7 @@ describe('OtherUserProfileViewComponent', () => {
     );
   });
 
-  it('combina comunidades oficiais e opt-ins públicos sem expor participação privada', () => {
+  it('consulta separadamente associação oficial e participação pública opt-in', () => {
     const officialRepository = TestBed.inject(CommunityPreviewRepository);
     const publicMembershipRepository = TestBed.inject(
       CommunityProfilePublicCommunitiesRepository
@@ -274,9 +274,9 @@ describe('OtherUserProfileViewComponent', () => {
     expect(
       publicMembershipRepository.getProfilePublicCommunities$
     ).toHaveBeenCalledWith(targetUid, 4);
-    expect(
-      fixture.debugElement.query(By.css('app-profile-communities'))
-    ).toBeNull();
+    expect(communitySurface.componentInstance).toBeInstanceOf(
+      ProfileOfficialCommunitiesComponent
+    );
   });
 
   it('move descrição e localização para Sobre sem duplicar no hero', () => {
