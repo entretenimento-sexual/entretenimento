@@ -19,7 +19,10 @@ import { authSessionChanged } from 'src/app/store/actions/actions.user/auth.acti
 import { STORE_FEATURE } from 'src/app/store/reducers/feature-keys';
 import { resetStoreOnAuthChangeMetaReducer } from 'src/app/store/reducers/meta-reducers/reset-store-on-auth-change.metareducer';
 import { communityDiscoveryCacheReducer } from 'src/app/store/reducers/reducers.discovery/community-discovery-cache.reducer';
-import {\n  type CommunityDiscoveryCacheState,\n  initialCommunityDiscoveryCacheState,\n} from 'src/app/store/states/states.discovery/community-discovery-cache.state';
+import {
+  type CommunityDiscoveryCacheState,
+  initialCommunityDiscoveryCacheState,
+} from 'src/app/store/states/states.discovery/community-discovery-cache.state';
 import type { AppState } from 'src/app/store/states/app.state';
 
 const COMMUNITY_COUNTS = [1, 5, 20, 100] as const;
@@ -99,7 +102,7 @@ describe('Community operational synthetic validation / multi-community scale', (
         pageSize: PAGE_SIZE,
       })!;
 
-      let state = {
+      let state: CommunityDiscoveryCacheState = {
         ...initialCommunityDiscoveryCacheState,
         activeViewerUid: 'viewer-a',
       };
