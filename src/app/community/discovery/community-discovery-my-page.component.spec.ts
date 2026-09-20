@@ -187,7 +187,7 @@ describe('CommunityDiscoveryPageComponent / Minhas comunidades', () => {
       '.community-card--mine'
     ) as HTMLElement | null;
     const role = fixture.nativeElement.querySelector(
-      '.community-card__viewer-role'
+      '.community-card__relationship'
     ) as HTMLElement | null;
     const metrics = Array.from(
       fixture.nativeElement.querySelectorAll('.community-card__metrics--mine > span')
@@ -195,7 +195,7 @@ describe('CommunityDiscoveryPageComponent / Minhas comunidades', () => {
 
     expect(card).not.toBeNull();
     expect(role?.textContent?.replace(/\s+/g, ' ').trim()).toBe('Proprietário');
-    expect(role?.querySelector('.fa-user-check')).not.toBeNull();
+    expect(role?.querySelector('.fa-crown')).not.toBeNull();
     expect(card?.querySelector('p')).toBeNull();
     expect(card?.querySelector('.community-card__tags')).toBeNull();
     expect(metrics.map((metric) => metric.getAttribute('aria-label'))).toEqual([
@@ -245,16 +245,16 @@ describe('CommunityDiscoveryPageComponent / Minhas comunidades', () => {
     const unread = fixture.nativeElement.querySelector(
       '[aria-label="7 atividades não lidas, incluindo atividade prioritária"]'
     ) as HTMLElement | null;
-    const muted = fixture.nativeElement.querySelector(
-      '[aria-label="Alertas push silenciados para Minha Comunidade"]'
-    ) as HTMLElement | null;
     const preferenceButton = fixture.nativeElement.querySelector(
       'button[aria-pressed="true"]'
     ) as HTMLButtonElement | null;
+    const operationalStatuses = fixture.nativeElement.querySelectorAll(
+      '.community-card__attention'
+    );
 
     expect(unread?.textContent?.replace(/\s+/g, ' ').trim()).toBe('7 não lidas');
     expect(unread?.querySelector('.fa-bolt')).not.toBeNull();
-    expect(muted?.textContent?.replace(/\s+/g, ' ').trim()).toBe('Silenciada');
+    expect(operationalStatuses).toHaveLength(1);
     expect(preferenceButton?.textContent).toContain('Reativar alertas');
   });
 
@@ -301,12 +301,14 @@ describe('CommunityDiscoveryPageComponent / Minhas comunidades', () => {
     const names = Array.from(
       fixture.nativeElement.querySelectorAll('.community-card--mine h2')
     ).map((heading) => (heading as HTMLElement).textContent?.trim());
-    const firstCard = fixture.nativeElement.querySelector(
-      '.community-card--mine'
+    const firstShell = fixture.nativeElement.querySelector(
+      '.community-card-shell--mine'
     ) as HTMLElement | null;
 
     expect(names).toEqual(['Prioritária', 'Com novidades', 'Em dia']);
-    expect(firstCard?.textContent).toContain('Silenciada');
+    expect(firstShell?.getAttribute('data-attention')).toBe('priority');
+    expect(firstShell?.classList.contains('is-muted')).toBe(true);
+    expect(firstShell?.textContent).toContain('Reativar alertas');
   });
 
   it('integra mute ao card visual sem aninhar botão no link navegável', () => {
