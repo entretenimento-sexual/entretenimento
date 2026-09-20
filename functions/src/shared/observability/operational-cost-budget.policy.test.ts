@@ -46,6 +46,15 @@ test('classifica warning e critical somente acima dos thresholds', () => {
   assert.equal(isOperationalCostBudgetAlert(critical), true);
 });
 
+test('marca métricas server-side como observáveis sem I/O adicional', () => {
+  for (const [metric, budget] of Object.entries(
+    COMMUNITY_OPERATIONAL_COST_BUDGETS
+  )) {
+    if (metric === 'community.discovery.callables_per_session') continue;
+    assert.equal(budget.measurementSource, 'runtime_log');
+  }
+});
+
 test('estima writes de exposure incluindo o write de quota por lote', () => {
   assert.equal(
     estimateExposureWritesPerAcceptedExposure({ accepted: 12 }),
@@ -83,6 +92,7 @@ test('orçamento de callables por sessão é alerta agregado, não identificador
     ];
 
   assert.equal(budget.targetMax, 4);
+  assert.equal(budget.measurementSource, 'client_synthetic');
   assert.equal(budget.aggregation, 'p95');
   assert.equal(budget.windowMinutes, 60);
   assert.match(budget.semantics, /do not add server session identifiers/);
