@@ -15,6 +15,13 @@ import type { CommunitySourceType } from './community-preview.model';
 export const COMMUNITY_DISCOVERY_COST_SEMANTICS =
   'operational_proxy_not_billed_reads' as const;
 
+/**
+ * Toda chamada protegida relê a elegibilidade social do usuário (1 read).
+ * O controle do ranking pode reler config + runtime (2 reads) quando o cache
+ * de instância de 30s está frio. Usamos 3 como upper bound sem gerar I/O extra.
+ */
+export const COMMUNITY_DISCOVERY_FIXED_CONTROL_READ_UPPER_BOUND = 3;
+
 export interface CommunityDiscoveryTelemetryInput {
   readonly requestedLimit: number;
   readonly scanLimit: number;
@@ -63,9 +70,13 @@ export function buildCommunityDiscoveryTelemetry(
   const cursorProjectionReads = normalizeCount(input.cursorProjectionReads);
   const deliveryDocumentReadProxy =
     projectionDocumentsFetched + membershipReads + cursorProjectionReads;
+  const fixedControlReadUpperBound =
+    COMMUNITY_DISCOVERY_FIXED_CONTROL_READ_UPPER_BOUND;
+  const totalDocumentReadUpperBoundProxy =
+    deliveryDocumentReadProxy + fixedControlReadUpperBound;
 
   return Object.freeze({
-    schemaVersion: 2,
+    schemaVersion: 3,
     costSemantics: COMMUNITY_DISCOVERY_COST_SEMANTICS,
     requestedLimit: normalizeCount(input.requestedLimit),
     scanLimit: normalizeCount(input.scanLimit),
@@ -78,12 +89,18 @@ export function buildCommunityDiscoveryTelemetry(
     cardsReturned,
     cursorProjectionReads,
     deliveryDocumentReadProxy,
+    fixedControlReadUpperBound,
+    totalDocumentReadUpperBoundProxy,
     projectionReadAmplification: ratio(
       projectionDocumentsFetched,
       cardsReturned
     ),
     membershipReadAmplification: ratio(membershipReads, cardsReturned),
     deliveryReadAmplification: ratio(deliveryDocumentReadProxy, cardsReturned),
+    totalReadAmplificationUpperBound: ratio(
+      totalDocumentReadUpperBoundProxy,
+      cardsReturned
+    ),
     durationMs: normalizeCount(input.durationMs),
     hasCursor: input.hasCursor === true,
     hasTagFilter: input.hasTagFilter === true,
