@@ -12,6 +12,7 @@ import {
 } from '../data-access/community-feed-comment.model';
 import { CommunityFeedCommentRepository } from '../data-access/community-feed-comment.repository';
 import { CommunityFeedRepository } from '../data-access/community-feed.repository';
+import { CommunityRealtimeAttentionCoordinatorService } from '../data-access/community-realtime-attention-coordinator.service';
 import { CommunityFeedCommentsComponent } from './community-feed-comments.component';
 
 const CREATED_AT = Date.now() - 60_000;
@@ -55,6 +56,9 @@ describe('CommunityFeedCommentsComponent', () => {
   const feedRepositoryMock = {
     createPost$: vi.fn(),
   };
+  const realtimeAttentionMock = {
+    modeForCommunity$: vi.fn(() => of('detailed' as const)),
+  };
   const notificationMock = {
     showError: vi.fn(),
     showSuccess: vi.fn(),
@@ -77,6 +81,10 @@ describe('CommunityFeedCommentsComponent', () => {
       providers: [
         { provide: CommunityFeedCommentRepository, useValue: repositoryMock },
         { provide: CommunityFeedRepository, useValue: feedRepositoryMock },
+        {
+          provide: CommunityRealtimeAttentionCoordinatorService,
+          useValue: realtimeAttentionMock,
+        },
         { provide: ErrorNotificationService, useValue: notificationMock },
         { provide: GlobalErrorHandlerService, useValue: globalErrorMock },
         { provide: MatDialog, useValue: dialogMock },
@@ -222,6 +230,17 @@ describe('CommunityFeedCommentsComponent', () => {
 
     expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' });
     expect(fixture.componentInstance.highlightedCommentId()).toBe('comment-1');
+  });
+
+  it('não abre watcher detalhado quando a Comunidade está em background', () => {
+    realtimeAttentionMock.modeForCommunity$.mockReturnValueOnce(
+      of('aggregate' as const)
+    );
+    repositoryMock.getPage$.mockReturnValue(of(page()));
+
+    create(false);
+
+    expect(repositoryMock.watchCommentCount$).not.toHaveBeenCalled();
   });
 
   it('revalida a conversa por realtime sem apagar mensagens visíveis', () => {
