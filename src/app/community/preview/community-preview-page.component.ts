@@ -66,6 +66,10 @@ import {
 } from '../presentation/community-error.presentations';
 import { CommunityOfficialBadgeComponent } from '../presentation/community-official-badge.component';
 import {
+  COMMUNITY_SECTION_ICONS,
+  resolveCommunityMembershipRolePresentation,
+} from '../presentation/community-ui.presentation';
+import {
   communityInitials as buildCommunityInitials,
   communityVisualVariant as resolveCommunityVisualVariant,
 } from '../presentation/community-visual-identity';
@@ -197,6 +201,7 @@ export class CommunityPreviewPageComponent {
   private readonly refreshPreview$ = new Subject<void>();
   private readonly membershipCommands$ = new Subject<CommunityMembershipCommand>();
 
+  readonly sectionIcons = COMMUNITY_SECTION_ICONS;
   readonly backRoute = String(
     this.route.snapshot.data['backRoute'] ?? '/dashboard/comunidades'
   );
@@ -475,6 +480,19 @@ export class CommunityPreviewPageComponent {
 
   communityVisualVariant(community: CommunityPreviewCard): number {
     return resolveCommunityVisualVariant(community);
+  }
+
+  viewerRelationshipPresentation(
+    mode: CommunityPreviewViewerMode,
+    role: CommunityPreviewViewerRole | null = null,
+    sourceType: CommunityPreviewSourceType = 'community'
+  ) {
+    if (mode !== 'moderator' && mode !== 'manager') return null;
+
+    return resolveCommunityMembershipRolePresentation(role, sourceType) ?? {
+      label: mode === 'moderator' ? 'Moderação' : 'Gestão',
+      icon: mode === 'moderator' ? 'fa-shield' : 'fa-shield-halved',
+    };
   }
 
   viewerLabel(
