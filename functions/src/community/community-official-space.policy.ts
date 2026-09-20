@@ -9,10 +9,14 @@
 import {
   evaluateVerifiedCommercialAuthority,
 } from '../authority/verified-commercial-authority.policy';
-import { OFFICIAL_SPACE_MEMBER_LIMIT } from './community-capacity.policy';
+import {
+  OFFICIAL_SPACE_MEMBER_LIMIT,
+  normalizeCommunityMemberLimit,
+  type CommunityMemberLimit,
+} from './community-capacity.policy';
 import { COMMUNITY_PRODUCT_LIMITS } from './community-product-limits.config';
 
-export const OFFICIAL_SPACE_CREATION_POLICY_VERSION = 1;
+export const OFFICIAL_SPACE_CREATION_POLICY_VERSION = 2;
 export const MAX_OFFICIAL_SPACES_PER_GRANT =
   COMMUNITY_PRODUCT_LIMITS.maxOfficialSpacesPerGrant;
 
@@ -30,6 +34,15 @@ function normalizeMaximum(value: unknown): number | null {
     && value >= 1
     && value <= MAX_OFFICIAL_SPACES_PER_GRANT
     ? value
+    : null;
+}
+
+function normalizeGrantedMemberLimit(
+  value: unknown
+): CommunityMemberLimit | null {
+  const memberLimit = normalizeCommunityMemberLimit(value);
+  return memberLimit !== null && memberLimit <= OFFICIAL_SPACE_MEMBER_LIMIT
+    ? memberLimit
     : null;
 }
 
@@ -72,10 +85,12 @@ export function evaluateOfficialSpaceCreationGrant(input: {
 
   const grant = isRecord(input.rawGrant) ? input.rawGrant : {};
   const maxOfficialSpaces = normalizeMaximum(grant['maxOfficialSpaces']);
+  const memberLimit = normalizeGrantedMemberLimit(grant['memberLimit']);
   const hasOfficialSpaceCapability =
     grant['scope'] === 'official_space_creation'
     && grant['policyVersion'] === OFFICIAL_SPACE_CREATION_POLICY_VERSION
-    && maxOfficialSpaces !== null;
+    && maxOfficialSpaces !== null
+    && memberLimit !== null;
 
   if (!hasOfficialSpaceCapability) {
     return {
@@ -91,7 +106,7 @@ export function evaluateOfficialSpaceCreationGrant(input: {
     allowed: true,
     organizationId: commercialAuthority.organizationId,
     maxOfficialSpaces,
-    memberLimit: OFFICIAL_SPACE_MEMBER_LIMIT,
+    memberLimit,
     denialReason: null,
   };
 }
