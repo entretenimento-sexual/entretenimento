@@ -10,4 +10,8 @@ A validação desktop não deve renderizar a Comunidade em largura standalone ir
 
 Em mobile, o layout permanece em uma coluna, sem overflow horizontal da página. Capa, identidade, abas, composer, posts, mídia, respostas e localização devem caber no viewport sem reduzir targets de toque. O rail contextual não deve ocupar espaço visual em telas estreitas; as mesmas informações continuam acessíveis pelas áreas próprias da Comunidade.
 
+Navegação de consumo e administração são superfícies diferentes. O trilho principal contém somente Mural, Fotos, Membros e Sobre; Gestão e Convites ficam em uma faixa administrativa própria, visível apenas quando as capabilities correspondentes forem concedidas pelo backend. A mesma ação administrativa não deve ser duplicada no rail contextual. Todos os controles de ambas as faixas preservam alvo de toque mínimo de 44 px.
+
+Identidade, relação do viewer e atenção também não competem como uma pilha de badges. Associação oficial pode permanecer como selo de identidade; papel do viewer é metadado relacional discreto; o card usa no máximo um estado operacional de atenção por vez. Atividade prioritária prevalece sobre unread comum, unread prevalece sobre mute como destaque do card, e mute continua disponível pela ação de preferência sem alterar a ordem de atenção. O mesmo conceito deve usar a mesma iconografia nas superfícies de descoberta, perfil e página da Comunidade.
+
 A validação automatizada cobre geometria, presença das regiões essenciais, responsividade e console. A evidência em screenshot continua sendo revisada quando houver alteração estrutural, porque ausência de overflow isoladamente não comprova qualidade visual percebida.
