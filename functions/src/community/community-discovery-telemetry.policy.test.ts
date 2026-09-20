@@ -139,7 +139,7 @@ test('evita divisão artificial quando nenhuma carta é retornada', () => {
   assert.equal(telemetry['membershipReadAmplification'], null);
   assert.equal(telemetry['deliveryReadAmplification'], null);
   assert.equal(telemetry['deliveryDocumentReadProxy'], 15);
-  assert.equal(telemetry['fixedControlReadUpperBound'], 3);
+  assert.equal(telemetry['fixedControlReadUpperBound'], 4);
   assert.equal(telemetry['totalDocumentReadUpperBoundProxy'], 19);
   assert.equal(telemetry['totalReadAmplificationUpperBound'], null);
   assert.equal(telemetry['rankingMode'], 'legacy');
