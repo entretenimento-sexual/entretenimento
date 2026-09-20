@@ -244,6 +244,12 @@
           <li
             class="community-card-shell"
             [class.community-card-shell--mine]="discoveryMode === 'mine'"
+            [attr.data-attention]="
+              discoveryMode === 'mine' ? mineAttentionGroupKey(item) : null
+            "
+            [class.is-muted]="
+              discoveryMode === 'mine' && item.notificationsMuted
+            "
             [appCommunityDiscoveryVisibility]="item.communityId"
             (qualifiedExposure)="recordQualifiedExposure($event)"
           >
