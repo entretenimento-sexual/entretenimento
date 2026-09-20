@@ -207,15 +207,22 @@ export class ApplicationErrorService {
     recommendedAction: string | null,
     options: ApplicationErrorReportOptions
   ): ApplicationErrorPresentation {
+    const communityPresentation =
+      this.isCommunityFeature(options.feature) && reason
+        ? resolveCommunityPublicErrorPresentation(reason)
+        : null;
+    const canonicalCommunityPresentation =
+      communityPresentation?.surface === 'modal'
+      || options.notification === undefined
+        ? communityPresentation ?? undefined
+        : undefined;
     const mappedPresentation = options.presentation
       ?? (reason ? options.reasonPresentations?.[reason] : undefined)
       ?? (recommendedAction
         ? options.recommendedActionPresentations?.[recommendedAction]
         : undefined)
       ?? (code ? options.codePresentations?.[code] : undefined)
-      ?? (this.isCommunityFeature(options.feature) && reason
-        ? resolveCommunityPublicErrorPresentation(reason) ?? undefined
-        : undefined)
+      ?? canonicalCommunityPresentation
       ?? (reason
         ? COMMON_APPLICATION_ERROR_REASON_PRESENTATIONS[reason]
         : undefined)
