@@ -8,7 +8,10 @@
 // functions/src/community/community-capacity.policy.ts.
 // -----------------------------------------------------------------------------
 
-import type { PlatformSubscriptionRole } from 'src/app/core/services/subscriptions/platform-subscription-access.model';
+import {
+  isPlatformPlanKey,
+  type PlatformPlanKey,
+} from 'src/app/payments-core/domain/models/billing-plan.model';
 
 /**
  * Quantidade recebida do backend. O Angular não mantém uma enumeração comercial
@@ -17,13 +20,13 @@ import type { PlatformSubscriptionRole } from 'src/app/core/services/subscriptio
 export type CommunityMemberLimit = number;
 export type CommunityEffectiveMemberLimit = number;
 export type CommunityCapacitySponsorRole =
-  | PlatformSubscriptionRole
+  | PlatformPlanKey
   | 'free'
   | 'admin';
 export type CommunityMemberLimitRequirement =
-  | PlatformSubscriptionRole
+  | PlatformPlanKey
   | 'special_access';
-export type CommunityRecommendedUpgradeRole = PlatformSubscriptionRole | null;
+export type CommunityRecommendedUpgradeRole = PlatformPlanKey | null;
 
 export interface CommunityMemberLimitCapabilityOption {
   readonly memberLimit: CommunityMemberLimit;
@@ -54,7 +57,7 @@ export interface CommunityCreationCapability {
   canCreate: boolean;
   reason: CommunityCreationCapabilityReason;
   sponsorRole: CommunityCapacitySponsorRole;
-  minimumRole: 'basic';
+  minimumRole: PlatformPlanKey;
   recommendedUpgradeRole: CommunityRecommendedUpgradeRole;
   currentOwnedCommunities: number;
   maxOwnedCommunities: number | null;
@@ -100,21 +103,22 @@ export function normalizeCommunityEffectiveMemberLimit(
 function normalizeCommunityMemberLimitRequirement(
   value: unknown
 ): CommunityMemberLimitRequirement | null {
-  return value === 'basic'
-    || value === 'premium'
-    || value === 'vip'
-    || value === 'special_access'
-    ? value
-    : null;
+  if (value === 'special_access') return 'special_access';
+  return isPlatformPlanKey(value) ? value : null;
 }
 
 function normalizeRecommendedUpgradeRole(
   value: unknown
 ): CommunityRecommendedUpgradeRole | undefined {
   if (value === null) return null;
-  return value === 'basic' || value === 'premium' || value === 'vip'
-    ? value
-    : undefined;
+  return isPlatformPlanKey(value) ? value : undefined;
+}
+
+function normalizeCommunityCapacitySponsorRole(
+  value: unknown
+): CommunityCapacitySponsorRole | null {
+  if (value === 'free' || value === 'admin') return value;
+  return isPlatformPlanKey(value) ? value : null;
 }
 
 function normalizeCommunityMemberLimitCapabilityOptions(
@@ -232,7 +236,12 @@ export function normalizeCommunityCreationCapability(
   raw: unknown
 ): CommunityCreationCapability | null {
   const source = (raw ?? {}) as Record<string, unknown>;
-  const sponsorRole = source['sponsorRole'];
+  const sponsorRole = normalizeCommunityCapacitySponsorRole(
+    source['sponsorRole']
+  );
+  const minimumRole = isPlatformPlanKey(source['minimumRole'])
+    ? source['minimumRole']
+    : null;
   const reason = source['reason'];
   const memberLimit = normalizeCommunityEffectiveMemberLimit(
     source['memberLimit']
@@ -251,15 +260,11 @@ export function normalizeCommunityCreationCapability(
   );
 
   if (
-    (sponsorRole !== 'free'
-      && sponsorRole !== 'basic'
-      && sponsorRole !== 'premium'
-      && sponsorRole !== 'vip'
-      && sponsorRole !== 'admin')
+    !sponsorRole
+    || !minimumRole
     || (reason !== null
       && reason !== 'subscription_required'
       && reason !== 'limit_reached')
-    || source['minimumRole'] !== 'basic'
     || memberLimit === null
     || recommendedUpgradeRole === undefined
     || !Number.isInteger(currentOwnedCommunities)
@@ -290,7 +295,7 @@ export function normalizeCommunityCreationCapability(
     canCreate,
     reason,
     sponsorRole,
-    minimumRole: 'basic',
+    minimumRole,
     recommendedUpgradeRole,
     currentOwnedCommunities,
     maxOwnedCommunities,

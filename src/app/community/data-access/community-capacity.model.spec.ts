@@ -21,7 +21,7 @@ describe('community capacity normalization', () => {
       canCreate: true,
       reason: null,
       sponsorRole: 'premium',
-      minimumRole: 'basic',
+      minimumRole: 'premium',
       recommendedUpgradeRole: null,
       currentOwnedCommunities: 1,
       maxOwnedCommunities: 3,
@@ -36,7 +36,7 @@ describe('community capacity normalization', () => {
       canCreate: true,
       reason: null,
       sponsorRole: 'premium',
-      minimumRole: 'basic',
+      minimumRole: 'premium',
       recommendedUpgradeRole: null,
       currentOwnedCommunities: 1,
       maxOwnedCommunities: 3,
@@ -192,6 +192,40 @@ describe('community capacity normalization', () => {
       memberLimitOptions: PREMIUM_OPTIONS.map((option) => ({
         ...option,
         allowed: option.memberLimit <= 100,
+      })),
+      generatedAt: 100,
+    })).toBeNull();
+  });
+
+  it('consome a role mínima enviada pelo backend e rejeita plano desconhecido', () => {
+    expect(normalizeCommunityCreationCapability({
+      canCreate: false,
+      reason: 'subscription_required',
+      sponsorRole: 'free',
+      minimumRole: 'vip',
+      recommendedUpgradeRole: 'basic',
+      currentOwnedCommunities: 0,
+      maxOwnedCommunities: 0,
+      memberLimit: 0,
+      memberLimitOptions: PREMIUM_OPTIONS.map((option) => ({
+        ...option,
+        allowed: false,
+      })),
+      generatedAt: 100,
+    })?.minimumRole).toBe('vip');
+
+    expect(normalizeCommunityCreationCapability({
+      canCreate: false,
+      reason: 'subscription_required',
+      sponsorRole: 'free',
+      minimumRole: 'gold',
+      recommendedUpgradeRole: 'basic',
+      currentOwnedCommunities: 0,
+      maxOwnedCommunities: 0,
+      memberLimit: 0,
+      memberLimitOptions: PREMIUM_OPTIONS.map((option) => ({
+        ...option,
+        allowed: false,
       })),
       generatedAt: 100,
     })).toBeNull();

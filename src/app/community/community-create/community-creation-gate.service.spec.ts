@@ -91,11 +91,12 @@ describe('CommunityCreationGateService', () => {
     expect(navigate).toHaveBeenCalledWith(['/dashboard/comunidades/nova']);
   });
 
-  it('mantém participação gratuita e usa a recomendação Basic do backend', async () => {
+  it('mantém participação gratuita e usa a role mínima enviada pelo backend', async () => {
     getCreationCapability$.mockReturnValue(of(capability({
       canCreate: false,
       reason: 'subscription_required',
       sponsorRole: 'free',
+      minimumRole: 'premium',
       recommendedUpgradeRole: 'basic',
       currentOwnedCommunities: 0,
       maxOwnedCommunities: 0,
@@ -117,6 +118,7 @@ describe('CommunityCreationGateService', () => {
           title: 'Crie sua própria Comunidade',
           confirmLabel: 'Ver planos',
           cancelLabel: 'Continuar explorando',
+          message: expect.stringContaining('plano Premium ou superior'),
           detail: expect.not.stringContaining('100'),
         }),
       })
@@ -127,7 +129,7 @@ describe('CommunityCreationGateService', () => {
 
     expect(navigate).toHaveBeenCalledWith(['/subscription-plan'], {
       queryParams: {
-        minimumRole: 'basic',
+        minimumRole: 'premium',
         returnUrl: COMMUNITY_CREATE_RETURN_URL,
       },
     });

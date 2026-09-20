@@ -7,11 +7,15 @@
 // -----------------------------------------------------------------------------
 
 import type { IUserDados } from '../../interfaces/iuser-dados';
+import {
+  isPlatformPlanKey,
+  type PlatformPlanKey,
+} from '../../../payments-core/domain/models/billing-plan.model';
 import { toEpoch } from '../../utils/epoch-utils';
 
 export const PLATFORM_SUBSCRIPTION_PROJECTION_VERSION = 1;
 
-export type PlatformSubscriptionRole = 'basic' | 'premium' | 'vip';
+export type PlatformSubscriptionRole = PlatformPlanKey;
 
 export type PlatformSubscriptionInactiveReason =
   | 'missing-user'
@@ -36,7 +40,7 @@ export interface PlatformSubscriptionAccessState {
 export function isPlatformSubscriptionRole(
   value: unknown
 ): value is PlatformSubscriptionRole {
-  return value === 'basic' || value === 'premium' || value === 'vip';
+  return isPlatformPlanKey(value);
 }
 
 function toFiniteEpoch(value: unknown): number | null {

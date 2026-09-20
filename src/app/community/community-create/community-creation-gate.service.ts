@@ -39,10 +39,15 @@ type CommunityCreationUpgradeRole = Exclude<
   null
 >;
 
-interface CommunityCreationGateAction {
-  destination: CommunityCreationGateDestination;
-  minimumRole: CommunityCreationUpgradeRole | null;
-}
+type CommunityCreationGateAction =
+  | {
+      destination: 'plans';
+      minimumRole: CommunityCreationUpgradeRole;
+    }
+  | {
+      destination: Exclude<CommunityCreationGateDestination, 'plans'>;
+      minimumRole: null;
+    };
 
 interface CommunityCreationGateDialogConfig {
   data: ConfirmationDialogData;
@@ -106,7 +111,10 @@ export class CommunityCreationGateService {
     capability: CommunityCreationCapability
   ): string | null {
     const role = this.upgradeRole(capability);
-    if (!role) return null;
+    return role ? this.planRoleLabel(role) : null;
+  }
+
+  private planRoleLabel(role: CommunityCreationUpgradeRole): string {
     if (role === 'basic') return 'Basic';
     if (role === 'premium') return 'Premium';
     return 'VIP';
@@ -144,9 +152,8 @@ export class CommunityCreationGateService {
     const aboveCurrentLimit = maximum !== null && current > maximum;
 
     if (capability.reason === 'subscription_required') {
-      const upgradeRole = capability.recommendedUpgradeRole
-        ?? capability.minimumRole;
-      const upgradePlanLabel = this.upgradePlanLabel(capability) ?? 'Basic';
+      const minimumRole = capability.minimumRole;
+      const minimumPlanLabel = this.planRoleLabel(minimumRole);
 
       if (ownsCommunities) {
         return {
@@ -162,7 +169,7 @@ export class CommunityCreationGateService {
             confirmLabel: 'Regularizar plano',
             cancelLabel: 'Gerenciar Comunidades',
           },
-          confirmAction: { destination: 'plans', minimumRole: upgradeRole },
+          confirmAction: { destination: 'plans', minimumRole },
           cancelAction: { destination: 'manage', minimumRole: null },
         };
       }
@@ -172,7 +179,7 @@ export class CommunityCreationGateService {
           eyebrow: 'Conta Gratuita',
           title: 'Crie sua própria Comunidade',
           message:
-            `Participar das Comunidades continua gratuito. Para criar e administrar a sua, é necessário o plano ${upgradePlanLabel} ou superior.`,
+            `Participar das Comunidades continua gratuito. Para criar e administrar a sua, é necessário o plano ${minimumPlanLabel} ou superior.`,
           detail:
             'As quantidades de Comunidades e as capacidades disponíveis são confirmadas pela sua conta antes da criação.',
           icon: 'groups',
@@ -180,7 +187,7 @@ export class CommunityCreationGateService {
           confirmLabel: 'Ver planos',
           cancelLabel: 'Continuar explorando',
         },
-        confirmAction: { destination: 'plans', minimumRole: upgradeRole },
+        confirmAction: { destination: 'plans', minimumRole },
         cancelAction: { destination: 'communities', minimumRole: null },
       };
     }
@@ -270,7 +277,7 @@ export class CommunityCreationGateService {
     if (action.destination === 'plans') {
       return from(this.router.navigate(['/subscription-plan'], {
         queryParams: subscriptionFlowQueryParams({
-          minimumRole: action.minimumRole ?? 'basic',
+          minimumRole: action.minimumRole,
           returnUrl: COMMUNITY_CREATE_RETURN_URL,
         }),
       })).pipe(map(() => void 0));

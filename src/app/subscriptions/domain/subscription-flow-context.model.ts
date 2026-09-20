@@ -5,7 +5,10 @@
 // O contexto organiza a navegação; nunca concede assinatura ou autorização.
 // -----------------------------------------------------------------------------
 
-import type { PlatformPlanKey } from 'src/app/payments-core/domain/models/billing-plan.model';
+import {
+  isPlatformPlanKey,
+  type PlatformPlanKey,
+} from 'src/app/payments-core/domain/models/billing-plan.model';
 
 export const SUBSCRIPTION_PLAN_ROUTE = '/subscription-plan' as const;
 export const COMMUNITY_CREATE_RETURN_URL =
@@ -27,9 +30,7 @@ export const EMPTY_SUBSCRIPTION_FLOW_CONTEXT: Readonly<SubscriptionFlowContext> 
 export function normalizeSubscriptionMinimumRole(
   value: unknown
 ): PlatformPlanKey | null {
-  return value === 'basic' || value === 'premium' || value === 'vip'
-    ? value
-    : null;
+  return isPlatformPlanKey(value) ? value : null;
 }
 
 export function normalizeSubscriptionReturnUrl(

@@ -20,7 +20,15 @@
 // - futuros produtos deverão ganhar modelos próprios, evitando misturar
 //   mensalidade da plataforma com monetização entre usuários.
 
-export type PlatformPlanKey = 'basic' | 'premium' | 'vip';
+export const PLATFORM_PLAN_KEYS = ['basic', 'premium', 'vip'] as const;
+
+export type PlatformPlanKey = (typeof PLATFORM_PLAN_KEYS)[number];
+
+const PLATFORM_PLAN_KEY_SET: ReadonlySet<string> = new Set(PLATFORM_PLAN_KEYS);
+
+export function isPlatformPlanKey(value: unknown): value is PlatformPlanKey {
+  return typeof value === 'string' && PLATFORM_PLAN_KEY_SET.has(value);
+}
 
 export type BillingProvider =
   | 'emulator'
