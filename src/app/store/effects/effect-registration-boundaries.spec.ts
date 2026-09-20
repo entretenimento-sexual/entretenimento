@@ -9,7 +9,7 @@ import { NearbyProfilesEffects } from './effects.location/nearby-profiles.effect
 
 describe('NgRx effect registration boundaries', () => {
   it('mantém apenas owners globais necessários no root', () => {
-    expect(ROOT_EFFECTS).toContain(InviteEffects);
+    expect(ROOT_EFFECTS).not.toContain(InviteEffects);
     expect(ROOT_EFFECTS).not.toContain(NearbyProfilesEffects);
     expect(ROOT_EFFECTS).not.toContain(DiscoveryFeedEffects);
   });
@@ -21,6 +21,7 @@ describe('NgRx effect registration boundaries', () => {
       expect.arrayContaining([
         'ChatEffects',
         'RoomEffects',
+        'InviteEffects',
         'FileEffects',
         'TermsEffects',
         'LocationEffects',
