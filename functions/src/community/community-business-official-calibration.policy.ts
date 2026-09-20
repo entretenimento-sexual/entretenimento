@@ -110,7 +110,7 @@ export function evaluateCommunityBusinessOfficialCalibration(
     conversionRate: ratio(conversions, offersPresented),
     communitiesPerConversion: ratio(communitiesCreated, conversions),
     actualCostPerCreatedCommunityCents:
-      actualCostCents === null
+      actualCostCents === null || communitiesCreated <= 0
         ? null
         : Math.round((actualCostCents / communitiesCreated) * 100) / 100,
     status,
