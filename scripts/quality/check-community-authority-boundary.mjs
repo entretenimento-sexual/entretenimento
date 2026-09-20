@@ -373,7 +373,7 @@ function validateCommunityNotificationClientBoundary(architectureViolations) {
   if (
     realtimeOwnerSource
     && !realtimeOwnerSource.includes(
-      `community_feed_realtime/${safeCommunityId}/items`
+      'community_feed_realtime/${safeCommunityId}/items'
     )
   ) {
     architectureViolations.push(
