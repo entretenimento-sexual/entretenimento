@@ -67,7 +67,7 @@ test('falha fechado para creator/organizer informal sem registro canônico', () 
   });
 
   assert.equal(result.allowed, false);
-  assert.equal(result.denialReason, 'record_invalid');
+  assert.equal(result.denialReason, 'authority_mismatch');
 });
 
 test('rejeita titular divergente, evento inativo e autorização vencida', () => {
