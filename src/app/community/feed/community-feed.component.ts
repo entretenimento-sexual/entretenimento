@@ -62,6 +62,7 @@ import {
   CommunityFeedView,
 } from '../data-access/community-feed.model';
 import { CommunityFeedRepository } from '../data-access/community-feed.repository';
+import { CommunityRealtimeAttentionCoordinatorService } from '../data-access/community-realtime-attention-coordinator.service';
 import type { CommunityFeedRealtimeChange } from '../data-access/community-feed-realtime.model';
 import { CommunityFeedCommentsComponent } from '../feed-comments/community-feed-comments.component';
 import { CommunityHighlightCardComponent } from '../highlight/community-highlight-card.component';
@@ -148,6 +149,7 @@ const MAX_LOCATION_EMBED_URL_CACHE_ENTRIES = 64;
 })
 export class CommunityFeedComponent implements OnDestroy {
   private readonly repository = inject(CommunityFeedRepository);
+  private readonly realtimeAttention = inject(CommunityRealtimeAttentionCoordinatorService);
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly applicationError = inject(ApplicationErrorService);
   private readonly timeTicker = inject(CommunityFeedTimeTickerService);
@@ -263,18 +265,32 @@ export class CommunityFeedComponent implements OnDestroy {
         )
       );
 
-      const realtimeEvents$ = this.repository
-        .watchLatestChanges$(communityId, 20)
+      const realtimeEvents$ = this.realtimeAttention
+        .claimMode$(communityId)
         .pipe(
-          tap((changes) => this.reconcileRealtimeOverrides(changes, communityId)),
-          // Cada diff precisa concluir sua hidratação. Cancelar a chamada anterior
-          // em uma rajada pode fazer um post já sinalizado nunca entrar no estado.
-          concatMap((changes) =>
-            this.buildRealtimeEvent$(communityId, view, changes)
-          ),
-          catchError((error: unknown) => {
-            this.reportTechnicalError(error, 'watchRealtime', view);
-            return EMPTY;
+          switchMap((attentionMode) => {
+            if (attentionMode !== 'detailed') {
+              // Comunidades fora do primeiro plano usam exclusivamente a projeção
+              // agregada de notificações. Nenhum listener de feed permanece ativo.
+              return EMPTY;
+            }
+
+            return this.repository
+              .watchLatestChanges$(communityId, 20)
+              .pipe(
+                tap((changes) =>
+                  this.reconcileRealtimeOverrides(changes, communityId)
+                ),
+                // Cada diff precisa concluir sua hidratação. Cancelar a chamada anterior
+                // em uma rajada pode fazer um post já sinalizado nunca entrar no estado.
+                concatMap((changes) =>
+                  this.buildRealtimeEvent$(communityId, view, changes)
+                ),
+                catchError((error: unknown) => {
+                  this.reportTechnicalError(error, 'watchRealtime', view);
+                  return EMPTY;
+                })
+              );
           })
         );
 

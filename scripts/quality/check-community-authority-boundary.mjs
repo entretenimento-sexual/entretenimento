@@ -14,7 +14,10 @@
 // O checker também protege a fronteira de custo das notificações de Comunidades:
 // - community_notification_summaries possui um único owner de leitura no cliente;
 // - o owner mantém um único listener agregado por usuário;
-// - Explore/Locais não resolvem os serviços privados usados por Minhas comunidades.
+// - Explore/Locais não resolvem os serviços privados usados por Minhas comunidades;
+// - community_feed_realtime possui owner único de leitura;
+// - CommunityFeed só abre esse listener através do coordenador de primeiro plano;
+// - qualquer Comunidade fora do lease ativo permanece no modo agregado.
 // -----------------------------------------------------------------------------
 
 import './check-room-deprecation-boundary.mjs';
@@ -35,6 +38,16 @@ const COMMUNITY_NOTIFICATION_SUMMARY_OWNER = path.normalize(
 );
 const COMMUNITY_DISCOVERY_COMPONENT = path.normalize(
   'src/app/community/discovery/community-discovery-page.component.ts'
+);
+const COMMUNITY_FEED_REALTIME_COLLECTION = 'community_feed_realtime';
+const COMMUNITY_FEED_REALTIME_OWNER = path.normalize(
+  'src/app/community/data-access/community-feed.repository.ts'
+);
+const COMMUNITY_FEED_REALTIME_COORDINATOR = path.normalize(
+  'src/app/community/data-access/community-realtime-attention-coordinator.service.ts'
+);
+const COMMUNITY_FEED_REALTIME_CONSUMER = path.normalize(
+  'src/app/community/feed/community-feed.component.ts'
 );
 
 const OFFICIAL_CREATE_HANDLER = path.normalize(
@@ -270,6 +283,34 @@ function validateCommunityNotificationClientBoundary(architectureViolations) {
           + `(${COMMUNITY_NOTIFICATION_SUMMARY_COLLECTION} fora do owner canônico)`
       );
     }
+
+    const realtimeCollectionIndex = source.indexOf(
+      COMMUNITY_FEED_REALTIME_COLLECTION
+    );
+
+    if (
+      realtimeCollectionIndex >= 0
+      && relativePath !== COMMUNITY_FEED_REALTIME_OWNER
+    ) {
+      const position = lineAndColumn(source, realtimeCollectionIndex);
+      architectureViolations.push(
+        `${relativePath}:${position.line}:${position.column} `
+          + `(${COMMUNITY_FEED_REALTIME_COLLECTION} fora do owner canônico)`
+      );
+    }
+
+    const detailedWatcherIndex = source.indexOf('watchLatestChanges$(');
+    if (
+      detailedWatcherIndex >= 0
+      && relativePath !== COMMUNITY_FEED_REALTIME_OWNER
+      && relativePath !== COMMUNITY_FEED_REALTIME_CONSUMER
+    ) {
+      const position = lineAndColumn(source, detailedWatcherIndex);
+      architectureViolations.push(
+        `${relativePath}:${position.line}:${position.column} `
+          + '(watchLatestChanges$ fora do consumidor/coordenador canônico)'
+      );
+    }
   }
 
   const ownerSource = readRequiredSource(
@@ -313,6 +354,61 @@ function validateCommunityNotificationClientBoundary(architectureViolations) {
         `${COMMUNITY_NOTIFICATION_SUMMARY_OWNER} `
           + '(currentUserUnreadCount$ deve derivar de currentUserSummaries$)'
       );
+    }
+  }
+
+  const realtimeOwnerSource = readRequiredSource(
+    COMMUNITY_FEED_REALTIME_OWNER,
+    architectureViolations
+  );
+  const realtimeCoordinatorSource = readRequiredSource(
+    COMMUNITY_FEED_REALTIME_COORDINATOR,
+    architectureViolations
+  );
+  const realtimeConsumerSource = readRequiredSource(
+    COMMUNITY_FEED_REALTIME_CONSUMER,
+    architectureViolations
+  );
+
+  if (
+    realtimeOwnerSource
+    && !realtimeOwnerSource.includes(
+      `community_feed_realtime/${safeCommunityId}/items`
+    )
+  ) {
+    architectureViolations.push(
+      `${COMMUNITY_FEED_REALTIME_OWNER} (owner não aponta para a projeção realtime mínima)`
+    );
+  }
+
+  if (realtimeCoordinatorSource) {
+    for (const required of [
+      'claimMode$(',
+      "'detailed'",
+      "'aggregate'",
+      "'visibilitychange'",
+      'activeLeaseSubject',
+    ]) {
+      if (!realtimeCoordinatorSource.includes(required)) {
+        architectureViolations.push(
+          `${COMMUNITY_FEED_REALTIME_COORDINATOR} (contrato de primeiro plano ausente: ${required})`
+        );
+      }
+    }
+  }
+
+  if (realtimeConsumerSource) {
+    for (const required of [
+      'CommunityRealtimeAttentionCoordinatorService',
+      '.claimMode$(communityId)',
+      "attentionMode !== 'detailed'",
+      '.watchLatestChanges$(communityId, 20)',
+    ]) {
+      if (!realtimeConsumerSource.includes(required)) {
+        architectureViolations.push(
+          `${COMMUNITY_FEED_REALTIME_CONSUMER} (realtime detalhado sem gate canônico: ${required})`
+        );
+      }
     }
   }
 

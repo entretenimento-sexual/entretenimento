@@ -2,96 +2,96 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  COMMUNITY_NOTIFICATION_SUMMARY_MATRIX,
+  isCommunitySocialNotificationType,
   normalizeCommunityNotificationSummaryCount,
   projectCommunityNotificationSummaryContribution,
   sameCommunityNotificationSummaryContribution,
 } from './community-notification-summary.projection';
 
-test('projeta atividade agrupada não lida por Comunidade', () => {
-  assert.deepEqual(projectCommunityNotificationSummaryContribution({
-    userId: 'user-1',
-    communityId: 'community-1',
-    type: 'community.comment.received',
-    activityCount: 4,
-    readAt: null,
-  }), {
-    userId: 'user-1',
-    communityId: 'community-1',
-    unreadCount: 4,
-    priorityUnreadCount: 0,
-  });
+const ALL_COMMUNITY_NOTIFICATION_TYPES = [
+  'community.comment.received',
+  'community.comment.reply.received',
+  'community.post.reply.received',
+  'community.post.reaction.received',
+  'community.membership.approved',
+  'community.membership.rejected',
+  'community.membership.requested',
+  'community.membership.removed',
+  'community.membership.blocked',
+  'community.membership.unblocked',
+  'community.invite.accepted',
+  'community.invite.declined',
+  'community.content.moderated',
+] as const;
+
+test('matriz agregada cobre todos os tipos canônicos atuais de Comunidades', () => {
+  assert.deepEqual(
+    Object.keys(COMMUNITY_NOTIFICATION_SUMMARY_MATRIX).sort(),
+    [...ALL_COMMUNITY_NOTIFICATION_TYPES].sort()
+  );
+
+  for (const type of ALL_COMMUNITY_NOTIFICATION_TYPES) {
+    const contribution = projectCommunityNotificationSummaryContribution({
+      userId: 'user-1',
+      communityId: 'community-1',
+      type,
+      readAt: null,
+    });
+
+    assert.ok(contribution, `tipo sem projeção agregada: ${type}`);
+  }
 });
 
-test('projeta reação agrupada no resumo da Comunidade', () => {
-  assert.deepEqual(projectCommunityNotificationSummaryContribution({
-    userId: 'user-1',
-    communityId: 'community-1',
-    type: 'community.post.reaction.received',
-    activityCount: 5,
-    readAt: null,
-  }), {
-    userId: 'user-1',
-    communityId: 'community-1',
-    unreadCount: 5,
-    priorityUnreadCount: 0,
-  });
+test('somente atividade social depende do ciclo ativo de membership', () => {
+  for (const type of ALL_COMMUNITY_NOTIFICATION_TYPES) {
+    assert.equal(
+      isCommunitySocialNotificationType(type),
+      type === 'community.comment.received'
+        || type === 'community.comment.reply.received'
+        || type === 'community.post.reply.received'
+        || type === 'community.post.reaction.received'
+    );
+  }
 });
 
-test('projeta resposta direta à publicação no resumo da Comunidade', () => {
+test('matriz prioriza gestão, perda de acesso e moderação', () => {
+  const priorityTypes = new Set([
+    'community.membership.requested',
+    'community.membership.removed',
+    'community.membership.blocked',
+    'community.content.moderated',
+  ]);
+
+  for (const type of ALL_COMMUNITY_NOTIFICATION_TYPES) {
+    const contribution = projectCommunityNotificationSummaryContribution({
+      userId: 'user-1',
+      communityId: 'community-1',
+      type,
+      readAt: null,
+    });
+
+    assert.equal(
+      contribution?.priorityUnreadCount,
+      priorityTypes.has(type) ? 1 : 0,
+      `prioridade inesperada para ${type}`
+    );
+  }
+});
+
+test('actionRequired eleva qualquer atividade comunitária a prioridade', () => {
   assert.deepEqual(projectCommunityNotificationSummaryContribution({
     userId: 'user-1',
     communityId: 'community-1',
-    type: 'community.post.reply.received',
-    activityCount: 3,
-    readAt: null,
-  }), {
-    userId: 'user-1',
-    communityId: 'community-1',
-    unreadCount: 3,
-    priorityUnreadCount: 0,
-  });
-});
-
-test('resposta de convite contribui como atividade comum da Comunidade', () => {
-  assert.deepEqual(projectCommunityNotificationSummaryContribution({
-    userId: 'sender-1',
-    communityId: 'community-1',
-    type: 'community.invite.accepted',
-    readAt: null,
-  }), {
-    userId: 'sender-1',
-    communityId: 'community-1',
-    unreadCount: 1,
-    priorityUnreadCount: 0,
-  });
-});
-
-test('pedido de entrada não lido é prioridade da Comunidade', () => {
-  assert.deepEqual(projectCommunityNotificationSummaryContribution({
-    userId: 'owner-1',
-    communityId: 'community-1',
-    type: 'community.membership.requested',
+    type: 'community.membership.approved',
     actionRequired: true,
-    readAt: null,
-  }), {
-    userId: 'owner-1',
-    communityId: 'community-1',
-    unreadCount: 1,
-    priorityUnreadCount: 1,
-  });
-});
-
-test('moderação não lida é atividade prioritária', () => {
-  assert.deepEqual(projectCommunityNotificationSummaryContribution({
-    userId: 'user-1',
-    communityId: 'community-1',
-    type: 'community.content.moderated',
+    activityCount: 2,
     readAt: null,
   }), {
     userId: 'user-1',
     communityId: 'community-1',
-    unreadCount: 1,
-    priorityUnreadCount: 1,
+    unreadCount: 2,
+    priorityUnreadCount: 2,
   });
 });
 

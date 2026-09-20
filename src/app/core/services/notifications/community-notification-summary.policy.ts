@@ -2,6 +2,10 @@ import type {
   IAppNotification,
   ICommunityNotificationSummary,
 } from 'src/app/core/interfaces/app-notification.interface';
+import {
+  isCommunityNotificationPriority,
+  isCommunityNotificationType,
+} from './community-notification-matrix.policy';
 
 interface CommunityNotificationAccumulator {
   summary: ICommunityNotificationSummary;
@@ -36,8 +40,7 @@ export function communityNotificationActivityCount(
 export function isCommunityPriorityNotification(
   notification: IAppNotification
 ): boolean {
-  return notification.type === 'community.content.moderated'
-    || notification.actionRequired === true;
+  return isCommunityNotificationPriority(notification);
 }
 
 export function buildCommunityNotificationSummaries(
@@ -46,6 +49,8 @@ export function buildCommunityNotificationSummaries(
   const accumulators = new Map<string, CommunityNotificationAccumulator>();
 
   for (const notification of notifications) {
+    if (!isCommunityNotificationType(notification.type)) continue;
+
     const communityId = String(notification.communityId ?? '').trim();
     if (!communityId) continue;
 

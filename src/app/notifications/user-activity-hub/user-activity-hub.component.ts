@@ -28,6 +28,7 @@ import { map } from 'rxjs/operators';
 import { IAppNotification } from 'src/app/core/interfaces/app-notification.interface';
 import { AppNotificationService } from 'src/app/core/services/notifications/app-notification.service';
 import { CommunityNotificationUnreadSummaryService } from 'src/app/core/services/notifications/community-notification-unread-summary.service';
+import { isCommunityNotificationType } from 'src/app/core/services/notifications/community-notification-matrix.policy';
 
 interface UserActivityHubAction {
   id: ActivityKind;
@@ -263,9 +264,7 @@ export class UserActivityHubComponent {
   }
 
   private isCommunityActivity(item: IAppNotification, route: string): boolean {
-    return item.type === 'community.comment.received'
-      || item.type === 'community.comment.reply.received'
-      || item.type === 'community.content.moderated'
+    return isCommunityNotificationType(item.type)
       || route.startsWith('/dashboard/comunidades');
   }
 
@@ -278,6 +277,10 @@ export class UserActivityHubComponent {
   }
 
   private defaultRouteFor(item: IAppNotification): string {
+    if (isCommunityNotificationType(item.type)) {
+      return '/dashboard/comunidades/minhas';
+    }
+
     switch (item.type) {
       case 'chat':
         return '/chat';
@@ -285,10 +288,6 @@ export class UserActivityHubComponent {
         return '/subscription-plan';
       case 'user_intent_status.published':
         return '/descobrir';
-      case 'community.comment.received':
-      case 'community.comment.reply.received':
-      case 'community.content.moderated':
-        return '/dashboard/comunidades/minhas';
       case 'social':
       case 'system':
       default:

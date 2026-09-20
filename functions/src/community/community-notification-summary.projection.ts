@@ -2,27 +2,87 @@
 // -----------------------------------------------------------------------------
 // COMMUNITY NOTIFICATION SUMMARY PROJECTION
 // -----------------------------------------------------------------------------
-// Converte uma notificação canônica em contribuição mínima para o resumo
-// multi-Comunidade do próprio usuário. Não replica membership, role ou metadados
-// da Comunidade: esses dados continuam nas respectivas fontes canônicas.
+// Matriz canônica da projeção agregada multi-Comunidade.
+//
+// Toda notificação de Comunidade entra no resumo privado por usuário/Comunidade.
+// Somente atividade social depende do ciclo atual de membership, porque respostas
+// antigas não podem reaparecer depois de saída/reentrada. Eventos de acesso,
+// gestão e moderação precisam sobreviver mesmo quando o membership deixou de ser
+// ativo, pois justamente podem comunicar remoção, bloqueio ou rejeição.
 // -----------------------------------------------------------------------------
 
 const MAX_ACTIVITY_COUNT = 1_000_000_000;
 
-const COMMUNITY_SOCIAL_NOTIFICATION_TYPES = new Set([
-  'community.comment.received',
-  'community.comment.reply.received',
-  'community.post.reply.received',
-  'community.post.reaction.received',
-]);
+export const COMMUNITY_NOTIFICATION_SUMMARY_MATRIX = Object.freeze({
+  'community.comment.received': {
+    category: 'social',
+    priority: false,
+    requiresActiveMembershipCycle: true,
+  },
+  'community.comment.reply.received': {
+    category: 'social',
+    priority: false,
+    requiresActiveMembershipCycle: true,
+  },
+  'community.post.reply.received': {
+    category: 'social',
+    priority: false,
+    requiresActiveMembershipCycle: true,
+  },
+  'community.post.reaction.received': {
+    category: 'social',
+    priority: false,
+    requiresActiveMembershipCycle: true,
+  },
+  'community.membership.approved': {
+    category: 'membership',
+    priority: false,
+    requiresActiveMembershipCycle: false,
+  },
+  'community.membership.rejected': {
+    category: 'membership',
+    priority: false,
+    requiresActiveMembershipCycle: false,
+  },
+  'community.membership.requested': {
+    category: 'management',
+    priority: true,
+    requiresActiveMembershipCycle: false,
+  },
+  'community.membership.removed': {
+    category: 'access',
+    priority: true,
+    requiresActiveMembershipCycle: false,
+  },
+  'community.membership.blocked': {
+    category: 'access',
+    priority: true,
+    requiresActiveMembershipCycle: false,
+  },
+  'community.membership.unblocked': {
+    category: 'access',
+    priority: false,
+    requiresActiveMembershipCycle: false,
+  },
+  'community.invite.accepted': {
+    category: 'membership',
+    priority: false,
+    requiresActiveMembershipCycle: false,
+  },
+  'community.invite.declined': {
+    category: 'membership',
+    priority: false,
+    requiresActiveMembershipCycle: false,
+  },
+  'community.content.moderated': {
+    category: 'moderation',
+    priority: true,
+    requiresActiveMembershipCycle: false,
+  },
+} as const);
 
-const COMMUNITY_NOTIFICATION_TYPES = new Set([
-  ...COMMUNITY_SOCIAL_NOTIFICATION_TYPES,
-  'community.membership.requested',
-  'community.invite.accepted',
-  'community.invite.declined',
-  'community.content.moderated',
-]);
+type CommunityNotificationSummaryType =
+  keyof typeof COMMUNITY_NOTIFICATION_SUMMARY_MATRIX;
 
 export interface CommunityNotificationSummaryContribution {
   userId: string;
@@ -45,12 +105,20 @@ function isUnread(raw: Record<string, unknown>): boolean {
   return raw['readAt'] == null;
 }
 
-function isPriority(raw: Record<string, unknown>, type: string): boolean {
-  return type === 'community.content.moderated' || raw['actionRequired'] === true;
+function notificationPolicy(
+  value: unknown
+): (typeof COMMUNITY_NOTIFICATION_SUMMARY_MATRIX)[CommunityNotificationSummaryType] | null {
+  const type = normalizeId(value) as CommunityNotificationSummaryType;
+  return COMMUNITY_NOTIFICATION_SUMMARY_MATRIX[type] ?? null;
+}
+
+function isPriority(raw: Record<string, unknown>, type: unknown): boolean {
+  const policy = notificationPolicy(type);
+  return policy?.priority === true || raw['actionRequired'] === true;
 }
 
 export function isCommunitySocialNotificationType(value: unknown): boolean {
-  return COMMUNITY_SOCIAL_NOTIFICATION_TYPES.has(normalizeId(value));
+  return notificationPolicy(value)?.requiresActiveMembershipCycle === true;
 }
 
 export function projectCommunityNotificationSummaryContribution(
@@ -63,7 +131,7 @@ export function projectCommunityNotificationSummaryContribution(
   const communityId = normalizeId(raw['communityId']);
 
   if (
-    !COMMUNITY_NOTIFICATION_TYPES.has(type)
+    !notificationPolicy(type)
     || !userId
     || !communityId
     || !isUnread(raw)
