@@ -33,6 +33,7 @@ describe('OtherUserProfileViewComponent', () => {
   let component: OtherUserProfileViewComponent;
 
   const targetUid = 'target-uid';
+  const targetProfileId = 'profile-12345678-1234-4123-8123-123456789abc';
   const viewerUid = 'viewer-uid';
 
   beforeEach(async () => {
@@ -66,7 +67,7 @@ describe('OtherUserProfileViewComponent', () => {
             getPublicUserById$: vi.fn(() =>
               of({
                 uid: targetUid,
-                profileId: targetUid,
+                profileId: targetProfileId,
                 nickname: 'Pessoa alvo',
                 email: null,
                 photoURL: 'https://example.test/profile.jpg',
@@ -89,7 +90,7 @@ describe('OtherUserProfileViewComponent', () => {
         {
           provide: CommunityPreviewRepository,
           useValue: {
-            getProfileOfficialCommunities$: vi.fn(() =>
+            getOfficialCommunitiesForTarget$: vi.fn(() =>
               of({ items: [], nextCursor: null, generatedAt: Date.now() })
             ),
           },
@@ -258,7 +259,7 @@ describe('OtherUserProfileViewComponent', () => {
     );
   });
 
-  it('consulta separadamente associação oficial e participação pública opt-in', () => {
+  it('consulta associação oficial pelo alvo canônico e participação pública opt-in', () => {
     const officialRepository = TestBed.inject(CommunityPreviewRepository);
     const publicMembershipRepository = TestBed.inject(
       CommunityProfilePublicCommunitiesRepository
@@ -269,11 +270,14 @@ describe('OtherUserProfileViewComponent', () => {
 
     expect(communitySurface).toBeTruthy();
     expect(
-      officialRepository.getProfileOfficialCommunities$
-    ).toHaveBeenCalledWith(targetUid, 4);
+      officialRepository.getOfficialCommunitiesForTarget$
+    ).toHaveBeenCalledWith(
+      { type: 'profile', id: targetProfileId },
+      4
+    );
     expect(
       publicMembershipRepository.getProfilePublicCommunities$
-    ).toHaveBeenCalledWith(targetUid, 4);
+    ).toHaveBeenCalledWith(targetProfileId, 4);
     expect(communitySurface.componentInstance).toBeInstanceOf(
       ProfileOfficialCommunitiesComponent
     );
