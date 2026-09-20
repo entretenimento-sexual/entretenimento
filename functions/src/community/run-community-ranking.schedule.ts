@@ -20,6 +20,8 @@ import {
   COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION,
 } from './community-ranking-candidate-v3.policy';
 import { COMMUNITY_DISCOVERY_SCORE_VERSION } from './community-ranking.policy';
+import { buildCommunityRankingShadowDiagnostics } from './community-ranking-shadow-diagnostics.policy';
+import { advanceCommunityRankingV3AcceptanceState } from './community-ranking-v3-acceptance.policy';
 import {
   buildCommunityRankingProjectionPatch,
   isCommunityRankingCandidateRuntimeCurrent,
@@ -228,6 +230,49 @@ export const runCommunityRanking = onSchedule(
     }
 
     await runtimeRef.set(runtimePatch, { merge: true });
+
+    if (cycleReady && reachedEnd) {
+      const projection = db.collection('community_discovery_index');
+      const [officialSnapshot, candidateSnapshot, acceptanceSnapshot] =
+        await Promise.all([
+          projection.orderBy('discoveryScore', 'desc').limit(25).get(),
+          projection.orderBy('rankingCandidate.discoveryScore', 'desc').limit(25).get(),
+          db.collection('community_ranking_shadow_runtime').doc('v3').get(),
+        ]);
+      const diagnostics = buildCommunityRankingShadowDiagnostics({
+        officialTop: officialSnapshot.docs.map((document) => ({
+          communityId: document.id,
+          score: Number(document.data()['discoveryScore']),
+          communityCreatedAt: normalizeTimestamp(
+            document.data()['communityCreatedAt']
+          ),
+        })),
+        candidateTop: candidateSnapshot.docs.map((document) => {
+          const data = document.data();
+          const candidate = data['rankingCandidate'] as
+            | Record<string, unknown>
+            | undefined;
+          return {
+            communityId: document.id,
+            score: Number(candidate?.['discoveryScore']),
+            communityCreatedAt: normalizeTimestamp(data['communityCreatedAt']),
+          };
+        }),
+        topK: 25,
+        now,
+      });
+      const acceptanceState = advanceCommunityRankingV3AcceptanceState({
+        previous: acceptanceSnapshot.exists ? acceptanceSnapshot.data() : null,
+        diagnostics,
+        cycleCompletedAt: now,
+      });
+
+      await acceptanceSnapshot.ref.set({
+        ...acceptanceState,
+        diagnostics,
+        updatedAt: now,
+      }, { merge: false });
+    }
 
     logger.info('community_ranking_run_completed', {
       processedThisRun,
