@@ -152,6 +152,10 @@
         role="status"
         aria-live="polite"
       >
+        <i
+          class="fas {{ notificationFeedback.muted ? 'fa-bell-slash' : 'fa-bell' }}"
+          aria-hidden="true"
+        ></i>
         <span>
           <strong>{{ notificationFeedback.name }}</strong>:
           @if (notificationFeedback.muted) {
@@ -228,7 +232,12 @@
               role="presentation"
               [attr.data-attention-group]="mineAttentionGroupKey(item)"
             >
-              <h2>{{ mineAttentionGroupLabel(item) }}</h2>
+              @if (mineAttentionGroupPresentation(item); as attentionGroup) {
+                <h2>
+                  <i class="fas {{ attentionGroup.icon }}" aria-hidden="true"></i>
+                  <span>{{ attentionGroup.label }}</span>
+                </h2>
+              }
             </li>
           }
 
@@ -279,44 +288,47 @@
                     @if (item.source.type === 'venue') {
                       <span class="community-card__kind">{{ sourceLabel(item) }}</span>
                     }
-                    <app-community-official-badge [community]="item" />
-                    @if (membershipRoleLabel(item); as membershipRole) {
-                      <span class="community-card__viewer-role">
-                        <i class="fas fa-user-check" aria-hidden="true"></i>
-                        {{ membershipRole }}
-                      </span>
-                    }
-                    @if (discoveryMode === 'mine' && item.notificationUnreadCount > 0) {
-                      <span
-                        class="community-card__viewer-role"
-                        [attr.aria-label]="notificationUnreadAriaLabel(item)"
-                      >
+                    <div class="community-card__status-row">
+                      <app-community-official-badge [community]="item" />
+
+                      @if (notificationStatusPresentation(item); as notificationStatus) {
+                        <span
+                          class="community-card__attention"
+                          [attr.data-attention]="notificationStatus.attention"
+                          [attr.aria-label]="
+                            item.notificationUnreadCount > 0
+                              ? notificationUnreadAriaLabel(item)
+                              : 'Alertas push silenciados para ' + item.name
+                          "
+                        >
+                          <i
+                            class="fas {{ notificationStatus.icon }}"
+                            aria-hidden="true"
+                          ></i>
+                          {{ notificationStatus.label }}
+                        </span>
+                      } @else if (contextualMatchLabel(item); as contextualMatch) {
+                        <span
+                          class="community-card__contextual-match"
+                          [attr.aria-label]="contextualMatch"
+                        >
+                          <i class="fas fa-star" aria-hidden="true"></i>
+                          {{ contextualMatch }}
+                        </span>
+                      }
+                    </div>
+
+                    <h2>{{ item.name }}</h2>
+
+                    @if (membershipRolePresentation(item); as membershipRole) {
+                      <span class="community-card__relationship">
                         <i
-                          class="fas {{ item.notificationHasPriorityUnread ? 'fa-bolt' : 'fa-bell' }}"
+                          class="fas {{ membershipRole.icon }}"
                           aria-hidden="true"
                         ></i>
-                        {{ notificationUnreadText(item) }} não lidas
+                        {{ membershipRole.label }}
                       </span>
                     }
-                    @if (discoveryMode === 'mine' && item.notificationsMuted) {
-                      <span
-                        class="community-card__viewer-role"
-                        [attr.aria-label]="'Alertas push silenciados para ' + item.name"
-                      >
-                        <i class="fas fa-bell-slash" aria-hidden="true"></i>
-                        Silenciada
-                      </span>
-                    }
-                    @if (contextualMatchLabel(item); as contextualMatch) {
-                      <span
-                        class="community-card__viewer-role community-card__contextual-match"
-                        [attr.aria-label]="contextualMatch"
-                      >
-                        <i class="fas fa-star" aria-hidden="true"></i>
-                        {{ contextualMatch }}
-                      </span>
-                    }
-                    <h2>{{ item.name }}</h2>
                   </div>
                 </div>
 
