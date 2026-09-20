@@ -55,9 +55,17 @@ function cleanOperationId(value: unknown): string | null {
   return /^[A-Za-z0-9_-]{12,96}$/.test(normalized) ? normalized : null;
 }
 
+function stripControlCharacters(value: unknown): string {
+  return [...String(value ?? '')]
+    .map((character) => {
+      const code = character.charCodeAt(0);
+      return code < 32 || code === 127 ? ' ' : character;
+    })
+    .join('');
+}
+
 function cleanLabel(value: unknown): string | null {
-  const normalized = String(value ?? '')
-    .replace(/[\u0000-\u001F\u007F]/g, ' ')
+  const normalized = stripControlCharacters(value)
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 120);
@@ -65,8 +73,7 @@ function cleanLabel(value: unknown): string | null {
 }
 
 function cleanReason(value: unknown): string | null {
-  const normalized = String(value ?? '')
-    .replace(/[\u0000-\u001F\u007F]/g, ' ')
+  const normalized = stripControlCharacters(value)
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 500);
