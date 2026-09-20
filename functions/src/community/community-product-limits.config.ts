@@ -13,14 +13,24 @@
 
 const SELECTABLE_MEMBER_LIMITS = [25, 50, 100, 250, 500, 1_000] as const;
 
+/**
+ * Hard ceilings técnicos. Não representam oferta, preço ou recomendação de
+ * produto Business/Official. A capacidade comercial efetiva deve vir de
+ * entitlement/grant explícito e pode ser recalibrada somente com dados reais.
+ */
+const OFFICIAL_TECHNICAL_SAFETY = Object.freeze({
+  maxMemberLimit: 1_000,
+  maxCommunitiesPerGrant: 20,
+} as const);
+
 const MEMBER_LIMIT_BY_SPONSOR_ROLE = Object.freeze({
   free: 0,
   basic: 100,
   premium: 250,
   vip: 500,
-  official: 1_000,
-  official_space: 1_000,
-  admin: 1_000,
+  official: OFFICIAL_TECHNICAL_SAFETY.maxMemberLimit,
+  official_space: OFFICIAL_TECHNICAL_SAFETY.maxMemberLimit,
+  admin: OFFICIAL_TECHNICAL_SAFETY.maxMemberLimit,
 } as const);
 
 const OWNED_PERSONAL_COMMUNITIES_BY_SPONSOR_ROLE = Object.freeze({
@@ -44,7 +54,20 @@ export const COMMUNITY_PRODUCT_LIMITS = Object.freeze({
   // Alias compatível com o fluxo legado de Local Oficial.
   officialSpaceMemberLimit: MEMBER_LIMIT_BY_SPONSOR_ROLE.official_space,
   maxPersonalCommunitiesPerOwner: Math.max(...finitePersonalCommunityLimits),
-  maxOfficialSpacesPerGrant: 20,
+  // Compatibilidade: estes aliases são hard ceilings técnicos, não catálogo.
+  maxOfficialSpacesPerGrant: OFFICIAL_TECHNICAL_SAFETY.maxCommunitiesPerGrant,
+  officialTechnicalSafety: OFFICIAL_TECHNICAL_SAFETY,
+  businessOfficialCalibration: Object.freeze({
+    mode: 'observed_data_only',
+    requiredSignals: Object.freeze([
+      'offers_presented',
+      'conversions',
+      'communities_created',
+      'actual_cost_cents',
+    ] as const),
+    actualCostSource: 'billing_or_finance_actuals',
+    operationalCostProxyAllowedAsActualCost: false,
+  }),
   minimumPersonalCommunityCreationRole: 'basic',
   publicSubscriptionRoleOrder: Object.freeze([
     'basic',
