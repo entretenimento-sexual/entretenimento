@@ -2,33 +2,48 @@
 // -----------------------------------------------------------------------------
 // COMMUNITY DISCOVERY RANKING MODE POLICY
 // -----------------------------------------------------------------------------
-// Decide qual campo pode ordenar a descoberta. O modo solicitado carrega a
-// própria versão (`score_vN`) e só é ativado quando coincide com a policy atual,
-// o índice está declarado pronto e um ciclo completo de backfill terminou na
-// mesma versão. Qualquer dúvida mantém o ranking legado para rollback seguro.
+// Resolve exclusivamente a configuração canônica backend. v3 permanece shadow
+// até índice, runtime candidato e janela mensurável de aceitação estarem prontos.
+// Qualquer inconsistência falha fechado para v2 (quando pronto) ou legacy.
 // -----------------------------------------------------------------------------
 
+import {
+  COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION,
+  COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
+} from './community-ranking-candidate-v3.policy';
 import {
   COMMUNITY_DISCOVERY_RANKING_MODE,
   COMMUNITY_DISCOVERY_SCORE_VERSION,
 } from './community-ranking.policy';
 
+export const COMMUNITY_DISCOVERY_V3_RANKING_MODE =
+  `score_v${COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION}` as const;
+
 export type CommunityDiscoveryScoreRankingMode = `score_v${number}`;
 export type CommunityDiscoveryRankingMode =
   | 'legacy'
   | CommunityDiscoveryScoreRankingMode;
+export type CommunityDiscoveryRankingOrderField =
+  | 'rankScore'
+  | 'discoveryScore'
+  | 'rankingCandidate.discoveryScore';
 export type CommunityDiscoveryRankingFallbackReason =
   | 'score_not_requested'
   | 'score_mode_version_mismatch'
   | 'score_index_not_ready'
   | 'score_backfill_not_ready'
-  | 'score_version_mismatch';
+  | 'score_version_mismatch'
+  | 'candidate_index_not_ready'
+  | 'candidate_runtime_not_ready'
+  | 'candidate_shadow_acceptance_not_ready';
 
 export interface CommunityDiscoveryRankingModeDecision {
   requestedMode: CommunityDiscoveryRankingMode;
   effectiveMode: CommunityDiscoveryRankingMode;
-  targetMode: typeof COMMUNITY_DISCOVERY_RANKING_MODE;
-  orderField: 'rankScore' | 'discoveryScore';
+  targetMode:
+    | typeof COMMUNITY_DISCOVERY_RANKING_MODE
+    | typeof COMMUNITY_DISCOVERY_V3_RANKING_MODE;
+  orderField: CommunityDiscoveryRankingOrderField;
   scoreVersion: number;
   fallbackReason: CommunityDiscoveryRankingFallbackReason | null;
 }
@@ -54,57 +69,139 @@ function rankingModeScoreVersion(
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-function legacyDecision(
+function v2Ready(
+  config: Record<string, unknown>,
+  runtime: Record<string, unknown>
+): CommunityDiscoveryRankingFallbackReason | null {
+  if (config['discoveryScoreIndexReady'] !== true) {
+    return 'score_index_not_ready';
+  }
+  if (runtime['ready'] !== true) {
+    return 'score_backfill_not_ready';
+  }
+  if (
+    Number(runtime['completedScoreVersion'])
+      !== COMMUNITY_DISCOVERY_SCORE_VERSION
+  ) {
+    return 'score_version_mismatch';
+  }
+  return null;
+}
+
+function fallbackDecision(
   requestedMode: CommunityDiscoveryRankingMode,
-  fallbackReason: CommunityDiscoveryRankingFallbackReason
+  reason: CommunityDiscoveryRankingFallbackReason,
+  config: Record<string, unknown>,
+  runtime: Record<string, unknown>
 ): CommunityDiscoveryRankingModeDecision {
+  const v2FallbackReady = v2Ready(config, runtime) === null;
+
   return {
     requestedMode,
-    effectiveMode: 'legacy',
-    targetMode: COMMUNITY_DISCOVERY_RANKING_MODE,
-    orderField: 'rankScore',
-    scoreVersion: COMMUNITY_DISCOVERY_SCORE_VERSION,
-    fallbackReason,
+    effectiveMode: v2FallbackReady
+      ? COMMUNITY_DISCOVERY_RANKING_MODE
+      : 'legacy',
+    targetMode: requestedMode === COMMUNITY_DISCOVERY_V3_RANKING_MODE
+      ? COMMUNITY_DISCOVERY_V3_RANKING_MODE
+      : COMMUNITY_DISCOVERY_RANKING_MODE,
+    orderField: v2FallbackReady ? 'discoveryScore' : 'rankScore',
+    scoreVersion: requestedMode === COMMUNITY_DISCOVERY_V3_RANKING_MODE
+      ? COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION
+      : COMMUNITY_DISCOVERY_SCORE_VERSION,
+    fallbackReason: reason,
   };
 }
 
 export function resolveCommunityDiscoveryRankingMode(
   rawConfig: unknown,
-  rawRuntime: unknown
+  rawRuntime: unknown,
+  rawShadowRuntime: unknown = null
 ): CommunityDiscoveryRankingModeDecision {
   const config = asRecord(rawConfig);
   const runtime = asRecord(rawRuntime);
+  const shadowRuntime = asRecord(rawShadowRuntime);
   const requestedMode = normalizeRequestedMode(config['discoveryRankingMode']);
 
   if (requestedMode === 'legacy') {
-    return legacyDecision(requestedMode, 'score_not_requested');
+    return {
+      requestedMode,
+      effectiveMode: 'legacy',
+      targetMode: COMMUNITY_DISCOVERY_RANKING_MODE,
+      orderField: 'rankScore',
+      scoreVersion: COMMUNITY_DISCOVERY_SCORE_VERSION,
+      fallbackReason: 'score_not_requested',
+    };
   }
 
-  if (rankingModeScoreVersion(requestedMode) !== COMMUNITY_DISCOVERY_SCORE_VERSION) {
-    return legacyDecision(requestedMode, 'score_mode_version_mismatch');
+  const requestedVersion = rankingModeScoreVersion(requestedMode);
+  if (
+    requestedVersion !== COMMUNITY_DISCOVERY_SCORE_VERSION
+    && requestedVersion !== COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION
+  ) {
+    return fallbackDecision(
+      requestedMode,
+      'score_mode_version_mismatch',
+      config,
+      runtime
+    );
   }
 
-  if (config['discoveryScoreIndexReady'] !== true) {
-    return legacyDecision(requestedMode, 'score_index_not_ready');
+  const v2Denial = v2Ready(config, runtime);
+  if (v2Denial) {
+    return fallbackDecision(requestedMode, v2Denial, config, runtime);
   }
 
-  if (runtime['ready'] !== true) {
-    return legacyDecision(requestedMode, 'score_backfill_not_ready');
+  if (requestedVersion === COMMUNITY_DISCOVERY_SCORE_VERSION) {
+    return {
+      requestedMode,
+      effectiveMode: COMMUNITY_DISCOVERY_RANKING_MODE,
+      targetMode: COMMUNITY_DISCOVERY_RANKING_MODE,
+      orderField: 'discoveryScore',
+      scoreVersion: COMMUNITY_DISCOVERY_SCORE_VERSION,
+      fallbackReason: null,
+    };
+  }
+
+  if (config['discoveryCandidateV3IndexReady'] !== true) {
+    return fallbackDecision(
+      requestedMode,
+      'candidate_index_not_ready',
+      config,
+      runtime
+    );
   }
 
   if (
-    Number(runtime['completedScoreVersion'])
-      !== COMMUNITY_DISCOVERY_SCORE_VERSION
+    Number(runtime['completedCandidateActivityMomentumModelVersion'])
+      !== COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION
   ) {
-    return legacyDecision(requestedMode, 'score_version_mismatch');
+    return fallbackDecision(
+      requestedMode,
+      'candidate_runtime_not_ready',
+      config,
+      runtime
+    );
+  }
+
+  if (
+    Number(shadowRuntime['candidateScoreVersion'])
+      !== COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION
+    || shadowRuntime['promotionReady'] !== true
+  ) {
+    return fallbackDecision(
+      requestedMode,
+      'candidate_shadow_acceptance_not_ready',
+      config,
+      runtime
+    );
   }
 
   return {
     requestedMode,
-    effectiveMode: requestedMode,
-    targetMode: COMMUNITY_DISCOVERY_RANKING_MODE,
-    orderField: 'discoveryScore',
-    scoreVersion: COMMUNITY_DISCOVERY_SCORE_VERSION,
+    effectiveMode: COMMUNITY_DISCOVERY_V3_RANKING_MODE,
+    targetMode: COMMUNITY_DISCOVERY_V3_RANKING_MODE,
+    orderField: 'rankingCandidate.discoveryScore',
+    scoreVersion: COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
     fallbackReason: null,
   };
 }
