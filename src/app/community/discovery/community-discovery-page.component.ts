@@ -51,7 +51,6 @@ import {
   CommunityDiscoveryPage,
   CommunityPreviewCard,
   CommunityPreviewSourceType,
-  CommunityPreviewViewerRole,
 } from '../data-access/community-preview.model';
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
 import {
@@ -61,6 +60,12 @@ import {
 } from '../data-access/community-tag.model';
 import { CommunityTagRepository } from '../data-access/community-tag.repository';
 import { CommunityOfficialBadgeComponent } from '../presentation/community-official-badge.component';
+import {
+  CommunityAttentionGroupKey,
+  resolveCommunityAttentionPresentation,
+  resolveCommunityMembershipRolePresentation,
+  resolveCommunityNotificationStatusPresentation,
+} from '../presentation/community-ui.presentation';
 import {
   communityInitials as buildCommunityInitials,
   communityVisualVariant as resolveCommunityVisualVariant,
@@ -91,8 +96,6 @@ type CommunityDiscoveryCardView = CommunityPreviewCard & {
   readonly notificationUpdatedAt: number | null;
   readonly notificationsMuted: boolean;
 };
-
-type CommunityAttentionGroupKey = 'priority' | 'unread' | 'quiet';
 
 interface CommunityDiscoveryState {
   status: CommunityDiscoveryStatus;
@@ -142,14 +145,6 @@ const EMPTY_NOTIFICATION_SUMMARY_MAP: ReadonlyMap<
   CommunityNotificationUnreadSummary
 > = new Map<string, CommunityNotificationUnreadSummary>();
 const EMPTY_MUTED_COMMUNITY_IDS: ReadonlySet<string> = new Set<string>();
-
-const COMMUNITY_ATTENTION_GROUP_LABELS: Readonly<
-  Record<CommunityAttentionGroupKey, string>
-> = Object.freeze({
-  priority: 'Requer atenção',
-  unread: 'Novidades',
-  quiet: 'Em dia',
-});
 
 const COMMUNITY_QUICK_FILTER_TAG_IDS = Object.freeze([
   'intent:friendship',
@@ -213,14 +208,10 @@ function reduceState(
 function communityAttentionGroupKey(
   item: CommunityDiscoveryCardView
 ): CommunityAttentionGroupKey {
-  if (
-    item.notificationUnreadCount > 0
-    && item.notificationHasPriorityUnread
-  ) {
-    return 'priority';
-  }
-
-  return item.notificationUnreadCount > 0 ? 'unread' : 'quiet';
+  return resolveCommunityAttentionPresentation(
+    item.notificationUnreadCount,
+    item.notificationHasPriorityUnread
+  ).key;
 }
 
 function communityAttentionRank(item: CommunityDiscoveryCardView): number {
@@ -610,23 +601,23 @@ export class CommunityDiscoveryPageComponent {
       : null;
   }
 
-  membershipRoleLabel(item: CommunityPreviewCard): string | null {
-    if (this.discoveryMode !== 'mine' || !item.viewerRole) return null;
-
-    const labels: Record<CommunityPreviewViewerRole, string> = {
-      owner: 'Proprietário',
-      admin: 'Administração',
-      moderator: 'Moderação',
-      member: 'Membro',
-    };
-
-    return labels[item.viewerRole];
+  membershipRolePresentation(item: CommunityPreviewCard) {
+    return this.discoveryMode === 'mine'
+      ? resolveCommunityMembershipRolePresentation(
+          item.viewerRole,
+          item.source.type
+        )
+      : null;
   }
 
-  notificationUnreadText(item: CommunityDiscoveryCardView): string {
-    return item.notificationUnreadCount > 99
-      ? '99+'
-      : String(item.notificationUnreadCount);
+  notificationStatusPresentation(item: CommunityDiscoveryCardView) {
+    return this.discoveryMode === 'mine'
+      ? resolveCommunityNotificationStatusPresentation(
+          item.notificationUnreadCount,
+          item.notificationHasPriorityUnread,
+          item.notificationsMuted
+        )
+      : null;
   }
 
   notificationUnreadAriaLabel(item: CommunityDiscoveryCardView): string {
@@ -643,8 +634,11 @@ export class CommunityDiscoveryPageComponent {
     return communityAttentionGroupKey(item);
   }
 
-  mineAttentionGroupLabel(item: CommunityDiscoveryCardView): string {
-    return COMMUNITY_ATTENTION_GROUP_LABELS[communityAttentionGroupKey(item)];
+  mineAttentionGroupPresentation(item: CommunityDiscoveryCardView) {
+    return resolveCommunityAttentionPresentation(
+      item.notificationUnreadCount,
+      item.notificationHasPriorityUnread
+    );
   }
 
   startsMineAttentionGroup(
