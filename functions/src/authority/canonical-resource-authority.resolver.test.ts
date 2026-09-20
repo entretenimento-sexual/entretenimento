@@ -187,21 +187,37 @@ test('Profile falha fechado quando users/{uid}.profileId não comprova o alvo', 
   }
 });
 
-test('falha fechado para Event enquanto não há fonte canônica', () => {
-  assert.equal(
-    resolveCanonicalResourceAuthority({
+for (const role of ['organizer', 'promoter', 'responsible'] as const) {
+  test(`resolve Event somente pela autoridade canônica para ${role}`, () => {
+    const result = resolveCanonicalResourceAuthority({
       actorUid: 'user-1',
       targetType: 'event',
       targetId: 'event-1',
-      rawCommercialGrant: activeGrant(),
       rawTarget: null,
+      rawEventAuthority: {
+        eventId: 'event-1',
+        eventStatus: 'active',
+        holderUid: 'user-1',
+        role,
+        status: 'active',
+        sponsorOrganizationId: null,
+        policyVersion: 1,
+        startsAt: NOW - 1_000,
+        endsAt: NOW + 10_000,
+        revalidationDueAt: null,
+        revokedAt: null,
+      },
       now: NOW,
-    }).denialReason,
-    'unsupported_target'
-  );
-});
+    });
 
-test('Evento não deriva autoridade de creatorUid sem fonte canônica', () => {
+    assert.equal(result.allowed, true);
+    assert.equal(result.authorityRole, role);
+    assert.equal(result.authorityUid, 'user-1');
+    assert.equal(result.verificationPolicyVersion, 1);
+  });
+}
+
+test('Evento não deriva autoridade de creatorUid ou organizerUid informal', () => {
   const result = resolveCanonicalResourceAuthority({
     actorUid: 'user-1',
     targetType: 'event',
@@ -211,13 +227,14 @@ test('Evento não deriva autoridade de creatorUid sem fonte canônica', () => {
       creatorUid: 'user-1',
       organizerUid: 'user-1',
     },
+    rawEventAuthority: null,
     now: NOW,
   });
 
   assert.equal(result.allowed, false);
   assert.equal(result.authorityRole, null);
   assert.equal(result.verificationPolicyVersion, null);
-  assert.equal(result.denialReason, 'unsupported_target');
+  assert.equal(result.denialReason, 'verification_required');
 });
 
 test('rejeita Local inativo ou usuário sem autoridade no recurso', () => {

@@ -13,6 +13,9 @@ import {
 import {
   resolveCanonicalResourceAuthority,
 } from '../authority/canonical-resource-authority.resolver';
+import {
+  buildEventAuthorityRecordId,
+} from '../authority/event-authority.policy';
 import { evaluateProfileKyc } from '../identity/profile-kyc.policy';
 import {
   buildOrganizationRepresentationId,
@@ -88,6 +91,8 @@ export function resolveCommunityOfficialClaimSubmission(input: {
   readonly rawOrganizationKyb?: unknown;
   readonly rawOrganizationRepresentation?: unknown;
   readonly organizationRepresentationReferenceId?: unknown;
+  readonly rawEventAuthority?: unknown;
+  readonly eventAuthorityReferenceId?: unknown;
   readonly now?: number;
 }): Readonly<CommunityOfficialClaimSubmissionDecision> {
   const actorUid = cleanId(input.actorUid);
@@ -229,6 +234,78 @@ export function resolveCommunityOfficialClaimSubmission(input: {
       command,
       verification: Object.freeze({
         verificationSource: 'organization_verification',
+        verificationPolicyVersion:
+          canonicalAuthority.verificationPolicyVersion,
+        revalidationDueAt: window.revalidationDueAt,
+        verificationExpiresAt: window.verificationExpiresAt,
+      }),
+      denialReason: null,
+    });
+  }
+
+  if (input.intent.target.type === 'event') {
+    const authorityReferenceId = cleanReferenceId(
+      input.eventAuthorityReferenceId
+    );
+    const expectedAuthorityReferenceId = buildEventAuthorityRecordId(
+      input.intent.target.id,
+      actorUid
+    );
+    if (
+      !authorityReferenceId
+      || !expectedAuthorityReferenceId
+      || authorityReferenceId !== expectedAuthorityReferenceId
+    ) {
+      return denied('target_authority_mismatch');
+    }
+
+    const canonicalAuthority = resolveCanonicalResourceAuthority({
+      actorUid,
+      targetType: 'event',
+      targetId: input.intent.target.id,
+      rawTarget: null,
+      rawEventAuthority: input.rawEventAuthority,
+      now,
+    });
+
+    if (!canonicalAuthority.allowed) {
+      return denied(
+        canonicalAuthority.denialReason ?? 'target_authority_mismatch'
+      );
+    }
+
+    if (
+      !canonicalAuthority.authorityRole
+      || (
+        canonicalAuthority.authorityRole !== 'organizer'
+        && canonicalAuthority.authorityRole !== 'promoter'
+        && canonicalAuthority.authorityRole !== 'responsible'
+      )
+      || !canonicalAuthority.verificationPolicyVersion
+    ) {
+      return denied('target_authority_mismatch');
+    }
+
+    const command: SubmitCommunityOfficialClaimCommand = {
+      ...input.intent,
+      authorityRole: canonicalAuthority.authorityRole,
+      sponsorOrganizationId: canonicalAuthority.organizationId,
+      evidenceReferences: [{
+        type: 'event_authorization_record',
+        referenceId: authorityReferenceId,
+      }],
+    };
+    const rawAuthority = asRecord(input.rawEventAuthority);
+    const window = resolveCommunityOfficialVerificationWindow({
+      now,
+      sourceRevalidationDueAt: rawAuthority['revalidationDueAt'],
+      sourceExpiryCandidates: [rawAuthority['endsAt']],
+    });
+
+    return Object.freeze({
+      command,
+      verification: Object.freeze({
+        verificationSource: 'event_authorization',
         verificationPolicyVersion:
           canonicalAuthority.verificationPolicyVersion,
         revalidationDueAt: window.revalidationDueAt,

@@ -10,7 +10,7 @@ export type CommunityOfficialClaimCapabilityReason =
 
 export type CommunityOfficialClaimCapabilityTarget =
   CommunityOfficialTarget & {
-    readonly type: 'profile' | 'organization' | 'venue';
+    readonly type: 'profile' | 'organization' | 'venue' | 'event';
   };
 
 /**
@@ -55,7 +55,10 @@ function cleanReason(value: unknown): CommunityOfficialClaimCapabilityReason | n
 function cleanTargetType(
   value: unknown
 ): CommunityOfficialClaimCapabilityTarget['type'] | null {
-  return value === 'profile' || value === 'organization' || value === 'venue'
+  return value === 'profile'
+    || value === 'organization'
+    || value === 'venue'
+    || value === 'event'
     ? value
     : null;
 }

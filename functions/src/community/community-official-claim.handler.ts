@@ -10,6 +10,9 @@ import type { DocumentReference } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { assertRecentAuthentication } from '../account_lifecycle/_shared';
+import {
+  buildEventAuthorityRecordId,
+} from '../authority/event-authority.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
@@ -206,6 +209,9 @@ export const submitCommunityOfficialClaim =
         const organizationRepresentationId = intent.target.type === 'organization'
           ? buildOrganizationRepresentationId(intent.target.id, actorUid)
           : null;
+        const eventAuthorityId = intent.target.type === 'event'
+          ? buildEventAuthorityRecordId(intent.target.id, actorUid)
+          : null;
         const targetRef = intent.target.type === 'profile'
           ? db.collection('users').doc(actorUid)
           : intent.target.type === 'venue'
@@ -238,6 +244,11 @@ export const submitCommunityOfficialClaim =
               .doc(organizationRepresentationId)
           )
           : null;
+        const eventAuthoritySnapshot = eventAuthorityId
+          ? await transaction.get(
+            db.collection('event_authority_records').doc(eventAuthorityId)
+          )
+          : null;
 
         const derived = resolveCommunityOfficialClaimSubmission({
           actorUid,
@@ -254,6 +265,10 @@ export const submitCommunityOfficialClaim =
             ? organizationRepresentationSnapshot.data()
             : null,
           organizationRepresentationReferenceId: organizationRepresentationId,
+          rawEventAuthority: eventAuthoritySnapshot?.exists
+            ? eventAuthoritySnapshot.data()
+            : null,
+          eventAuthorityReferenceId: eventAuthorityId,
           now,
         });
 
@@ -575,6 +590,7 @@ export const reviewCommunityOfficialClaim =
             && authorityRole !== 'manager'
             && authorityRole !== 'organizer'
             && authorityRole !== 'promoter'
+            && authorityRole !== 'responsible'
           )
           || (claim['sponsorOrganizationId'] !== null && !sponsorOrganizationId)
         ) {

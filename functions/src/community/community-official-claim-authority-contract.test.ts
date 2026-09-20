@@ -5,6 +5,7 @@ import {
   resolveCommunityOfficialClaimCapability,
 } from './community-official-claim-capability.policy';
 import {
+  evaluateEventOfficialClaimAuthority,
   evaluateOrganizationOfficialClaimAuthority,
 } from './community-official-claim-evidence.policy';
 import {
@@ -184,6 +185,72 @@ test('capability, submit e evidência concordam sobre representação da Organiz
   assert.equal(evidenceDecision.sponsorOrganizationId, 'organization-1');
   assert.equal(evidenceDecision.verificationPolicyVersion, 2);
 });
+
+for (const role of ['organizer', 'promoter', 'responsible'] as const) {
+  test(`capability, submit e evidência concordam sobre Evento ${role}`, () => {
+    const rawAuthorization = {
+      eventId: 'event-1',
+      eventLabel: 'Evento Um',
+      eventStatus: 'active',
+      holderUid: 'user-1',
+      role,
+      status: 'active',
+      sponsorOrganizationId: null,
+      policyVersion: 1,
+      startsAt: NOW - 10_000,
+      endsAt: NOW + 30_000,
+      revalidationDueAt: NOW + 20_000,
+      revokedAt: null,
+    };
+    const capabilityDecision = resolveCommunityOfficialClaimCapability({
+      actorUid: 'user-1',
+      rawGrant: null,
+      rawVenues: [],
+      rawEventAuthorities: [{
+        authorizationId: 'event-1:user-1',
+        rawAuthorization,
+      }],
+      activeOfficialEventIds: [],
+      communityAlreadyOfficial: false,
+      now: NOW,
+    });
+    const submissionDecision = resolveCommunityOfficialClaimSubmission({
+      actorUid: 'user-1',
+      intent: {
+        requestId: 'request-event-1',
+        communityId: 'community-1',
+        target: { type: 'event', id: 'event-1' },
+        associationKey: 'event:event-1',
+        declarationAccepted: true,
+      },
+      rawTarget: null,
+      rawEventAuthority: rawAuthorization,
+      eventAuthorityReferenceId: 'event-1:user-1',
+      now: NOW,
+    });
+
+    assert.equal(capabilityDecision.canSubmit, true);
+    assert.deepEqual(capabilityDecision.candidates[0], {
+      target: { type: 'event', id: 'event-1' },
+      label: 'Evento Um',
+      authorityRole: role,
+    });
+    assert.equal(submissionDecision.command?.authorityRole, role);
+
+    const evidenceDecision = evaluateEventOfficialClaimAuthority({
+      claimantUid: 'user-1',
+      eventId: 'event-1',
+      authorityRole: role,
+      sponsorOrganizationId: null,
+      authorityReferenceId: 'event-1:user-1',
+      rawEventAuthority: rawAuthorization,
+      now: NOW,
+    });
+
+    assert.equal(evidenceDecision.allowed, true);
+    assert.equal(evidenceDecision.verificationPolicyVersion, 1);
+  });
+}
 
 test('capability e submit falham fechado para usuário sem autoridade no Local', () => {
   const rawVenue = {

@@ -28,6 +28,13 @@ const profileIntent = {
   associationKey: 'profile:profile-1',
   declarationAccepted: true as const,
 };
+const eventIntent = {
+  requestId: 'request-4',
+  communityId: 'community-1',
+  target: { type: 'event' as const, id: 'event-1' },
+  associationKey: 'event:event-1',
+  declarationAccepted: true as const,
+};
 
 function activeGrant(overrides: Record<string, unknown> = {}) {
   return {
@@ -370,21 +377,58 @@ test('Organização falha fechado para referência de representação divergente
   assert.equal(result.denialReason, 'target_authority_mismatch');
 });
 
-test('Event permanece fail-closed e Local sem autoridade continua rejeitado', () => {
+for (const role of ['organizer', 'promoter', 'responsible'] as const) {
+  test(`deriva claim de Evento por autoridade canônica ${role}`, () => {
+    const result = resolveCommunityOfficialClaimSubmission({
+      actorUid: 'user-1',
+      intent: eventIntent,
+      rawTarget: null,
+      rawEventAuthority: {
+        eventId: 'event-1',
+        eventLabel: 'Evento Um',
+        eventStatus: 'active',
+        holderUid: 'user-1',
+        role,
+        status: 'active',
+        sponsorOrganizationId: null,
+        policyVersion: 1,
+        startsAt: NOW - 10_000,
+        endsAt: NOW + 30_000,
+        revalidationDueAt: NOW + 20_000,
+        revokedAt: null,
+      },
+      eventAuthorityReferenceId: 'event-1:user-1',
+      now: NOW,
+    });
+
+    assert.equal(result.command?.authorityRole, role);
+    assert.equal(result.command?.sponsorOrganizationId, null);
+    assert.deepEqual(result.command?.evidenceReferences, [{
+      type: 'event_authorization_record',
+      referenceId: 'event-1:user-1',
+    }]);
+    assert.deepEqual(result.verification, {
+      verificationSource: 'event_authorization',
+      verificationPolicyVersion: 1,
+      revalidationDueAt: NOW + 20_000,
+      verificationExpiresAt: NOW + 30_000,
+    });
+    assert.equal(result.denialReason, null);
+  });
+}
+
+test('Evento sem registro canônico e Local sem autoridade continuam rejeitados', () => {
   const unsupported = resolveCommunityOfficialClaimSubmission({
     actorUid: 'user-1',
-    intent: {
-      ...venueIntent,
-      target: { type: 'event', id: 'event-1' },
-      associationKey: 'event:event-1',
-    },
-    rawTarget: null,
-    rawProfileKyc: verifiedProfileKyc(),
+    intent: eventIntent,
+    rawTarget: { creatorUid: 'user-1', organizerUid: 'user-1' },
+    rawEventAuthority: null,
+    eventAuthorityReferenceId: 'event-1:user-1',
     now: NOW,
   });
   assert.equal(unsupported.command, null);
   assert.equal(unsupported.verification, null);
-  assert.equal(unsupported.denialReason, 'unsupported_target');
+  assert.equal(unsupported.denialReason, 'verification_required');
 
   const unauthorized = resolveCommunityOfficialClaimSubmission({
     actorUid: 'user-1',

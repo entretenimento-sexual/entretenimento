@@ -72,7 +72,7 @@ describe('community official claim capability model', () => {
     })).toBe('organization:shared-1');
   });
 
-  it('mantém Event fail-closed', () => {
+  it('aceita Evento somente quando o backend o oferece como candidato canônico', () => {
     expect(normalizeCommunityOfficialClaimCapabilityResponse({
       canSubmit: true,
       reason: 'eligible',
@@ -80,7 +80,11 @@ describe('community official claim capability model', () => {
       candidates: [{
         target: { type: 'event', id: 'event-1' },
         label: 'Evento Um',
+        authorityRole: 'organizer',
       }],
-    })).toBeNull();
+    })?.candidates).toEqual([{
+      target: { type: 'event', id: 'event-1' },
+      label: 'Evento Um',
+    }]);
   });
 });

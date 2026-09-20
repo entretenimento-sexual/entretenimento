@@ -252,6 +252,7 @@ export class CommunityOfficialClaimPanelComponent {
     case 'profile': return 'Perfil';
     case 'organization': return 'Organização';
     case 'venue': return 'Local';
+    case 'event': return 'Evento';
     }
   }
 

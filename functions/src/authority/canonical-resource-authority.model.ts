@@ -25,6 +25,7 @@ export const CANONICAL_RESOURCE_AUTHORITY_ROLES = [
   'manager',
   'organizer',
   'promoter',
+  'responsible',
 ] as const;
 
 export type CanonicalResourceAuthorityRole =
@@ -74,8 +75,7 @@ export function isCanonicalResourceAuthorityRoleForTarget(
   case 'event':
     return role === 'organizer'
       || role === 'promoter'
-      || role === 'authorized_representative'
-      || role === 'manager';
+      || role === 'responsible';
   default:
     return false;
   }

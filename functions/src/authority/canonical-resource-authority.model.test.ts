@@ -20,6 +20,7 @@ test('normaliza uma única taxonomia canônica de alvo e papel', () => {
     'manager',
     'organizer',
     'promoter',
+    'responsible',
   ] as const) {
     assert.equal(normalizeCanonicalResourceAuthorityRole(role), role);
   }
@@ -44,5 +45,10 @@ test('mantém papel real separado do papel comunitário e por tipo de alvo', () 
   );
   assert.equal(isCanonicalResourceAuthorityRoleForTarget('event', 'organizer'), true);
   assert.equal(isCanonicalResourceAuthorityRoleForTarget('event', 'promoter'), true);
+  assert.equal(isCanonicalResourceAuthorityRoleForTarget('event', 'responsible'), true);
+  assert.equal(
+    isCanonicalResourceAuthorityRoleForTarget('event', 'authorized_representative'),
+    false
+  );
   assert.equal(isCanonicalResourceAuthorityRoleForTarget('event', 'owner'), false);
 });

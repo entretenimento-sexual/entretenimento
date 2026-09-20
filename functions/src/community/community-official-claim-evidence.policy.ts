@@ -13,6 +13,9 @@ import {
 import {
   resolveCanonicalResourceAuthority,
 } from '../authority/canonical-resource-authority.resolver';
+import {
+  buildEventAuthorityRecordId,
+} from '../authority/event-authority.policy';
 import { evaluateProfileKyc } from '../identity/profile-kyc.policy';
 import {
   buildOrganizationRepresentationId,
@@ -38,7 +41,11 @@ export type CommunityOfficialClaimEvidenceDenialReason =
   | 'organization_kyb_invalid'
   | 'organization_kyb_inactive'
   | 'organization_not_active'
-  | 'organization_authority_mismatch';
+  | 'organization_authority_mismatch'
+  | 'event_authorization_invalid'
+  | 'event_authorization_inactive'
+  | 'event_not_active'
+  | 'event_authority_mismatch';
 
 export interface CommunityOfficialClaimEvidenceDecision {
   readonly allowed: boolean;
@@ -254,6 +261,95 @@ export function evaluateOrganizationOfficialClaimAuthority(input: {
   return Object.freeze({
     allowed: true,
     sponsorOrganizationId: organizationId,
+    verificationPolicyVersion: authority.verificationPolicyVersion,
+    denialReason: null,
+  });
+}
+
+function eventDenialReason(
+  denialReason: ReturnType<typeof resolveCanonicalResourceAuthority>['denialReason']
+): CommunityOfficialClaimEvidenceDenialReason {
+  if (denialReason === 'verification_inactive') {
+    return 'event_authorization_inactive';
+  }
+  if (denialReason === 'verification_required') {
+    return 'event_authorization_invalid';
+  }
+  if (denialReason === 'target_inactive') {
+    return 'event_not_active';
+  }
+  return 'event_authority_mismatch';
+}
+
+/**
+ * Revalida a autoridade de Evento no registro backend-only canônico.
+ * creatorUid/organizerUid em documentos de apresentação nunca substituem esse
+ * registro, e a referência precisa ser exatamente eventId:claimantUid.
+ */
+export function evaluateEventOfficialClaimAuthority(input: {
+  readonly claimantUid: string;
+  readonly eventId: string;
+  readonly authorityRole: CommunityOfficialAuthorityRole;
+  readonly sponsorOrganizationId: string | null;
+  readonly authorityReferenceId: string;
+  readonly rawEventAuthority: unknown;
+  readonly now?: number;
+}): Readonly<CommunityOfficialClaimEvidenceDecision> {
+  const claimantUid = normalizeId(input.claimantUid);
+  const eventId = normalizeId(input.eventId);
+  const authorityReferenceId = normalizeReferenceId(input.authorityReferenceId);
+  const expectedReferenceId = buildEventAuthorityRecordId(eventId, claimantUid);
+
+  if (
+    !claimantUid
+    || !eventId
+    || !authorityReferenceId
+    || !expectedReferenceId
+    || authorityReferenceId !== expectedReferenceId
+  ) {
+    return denied('authority_reference_mismatch');
+  }
+
+  const authority = resolveCanonicalResourceAuthority({
+    actorUid: claimantUid,
+    targetType: 'event',
+    targetId: eventId,
+    rawTarget: null,
+    rawEventAuthority: input.rawEventAuthority,
+    now: input.now,
+  });
+  if (
+    !authority.allowed
+    || !authority.authorityRole
+    || !authority.verificationPolicyVersion
+  ) {
+    return denied(eventDenialReason(authority.denialReason));
+  }
+
+  if (
+    authority.authorityRole !== input.authorityRole
+    || (
+      authority.authorityRole !== 'organizer'
+      && authority.authorityRole !== 'promoter'
+      && authority.authorityRole !== 'responsible'
+    )
+  ) {
+    return denied('event_authority_mismatch');
+  }
+
+  const claimedSponsorOrganizationId = input.sponsorOrganizationId === null
+    ? null
+    : normalizeId(input.sponsorOrganizationId);
+  if (
+    (input.sponsorOrganizationId !== null && !claimedSponsorOrganizationId)
+    || claimedSponsorOrganizationId !== authority.organizationId
+  ) {
+    return denied('sponsor_organization_mismatch');
+  }
+
+  return Object.freeze({
+    allowed: true,
+    sponsorOrganizationId: authority.organizationId,
     verificationPolicyVersion: authority.verificationPolicyVersion,
     denialReason: null,
   });

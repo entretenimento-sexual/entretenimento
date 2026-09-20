@@ -14,6 +14,9 @@ import {
 import {
   resolveCanonicalResourceAuthority,
 } from '../authority/canonical-resource-authority.resolver';
+import {
+  buildEventAuthorityRecordId,
+} from '../authority/event-authority.policy';
 import { evaluateProfileKyc } from '../identity/profile-kyc.policy';
 import {
   evaluateOfficialSpaceCreationGrant,
@@ -30,12 +33,18 @@ export type CommunityOfficialClaimCapabilityReason =
 
 type CommunityOfficialClaimCandidateAuthorityRole = Extract<
   CanonicalResourceAuthorityRole,
-  'self' | 'owner' | 'authorized_representative' | 'manager'
+  | 'self'
+  | 'owner'
+  | 'authorized_representative'
+  | 'manager'
+  | 'organizer'
+  | 'promoter'
+  | 'responsible'
 >;
 
 export interface CommunityOfficialClaimCapabilityCandidate {
   readonly target: {
-    readonly type: 'profile' | 'organization' | 'venue';
+    readonly type: 'profile' | 'organization' | 'venue' | 'event';
     readonly id: string;
   };
   readonly label: string;
@@ -52,6 +61,11 @@ export interface CommunityOfficialClaimOrganizationAuthorityInput {
   readonly rawOrganization: Readonly<Record<string, unknown>> | null;
   readonly rawKyb: unknown;
   readonly rawRepresentation: unknown;
+}
+
+export interface CommunityOfficialClaimEventAuthorityInput {
+  readonly authorizationId: string;
+  readonly rawAuthorization: Readonly<Record<string, unknown>> | null;
 }
 
 export interface CommunityOfficialClaimCapabilityDecision {
@@ -75,9 +89,11 @@ export function resolveCommunityOfficialClaimCapability(input: {
   readonly rawVenues: readonly Readonly<Record<string, unknown>>[];
   readonly rawProfileAuthority?: CommunityOfficialClaimProfileAuthorityInput | null;
   readonly rawOrganizationAuthorities?: readonly CommunityOfficialClaimOrganizationAuthorityInput[];
+  readonly rawEventAuthorities?: readonly CommunityOfficialClaimEventAuthorityInput[];
   readonly activeOfficialProfileIds?: readonly string[];
   readonly activeOfficialVenueIds?: readonly string[];
   readonly activeOfficialOrganizationIds?: readonly string[];
+  readonly activeOfficialEventIds?: readonly string[];
   readonly communityAlreadyOfficial: boolean;
   readonly now?: number;
 }): Readonly<CommunityOfficialClaimCapabilityDecision> {
@@ -126,6 +142,11 @@ export function resolveCommunityOfficialClaimCapability(input: {
     (input.activeOfficialOrganizationIds ?? [])
       .map(cleanId)
       .filter((organizationId): organizationId is string => organizationId !== null)
+  );
+  const activeOfficialEventIds = new Set(
+    (input.activeOfficialEventIds ?? [])
+      .map(cleanId)
+      .filter((eventId): eventId is string => eventId !== null)
   );
   const unique = new Map<string, CommunityOfficialClaimCapabilityCandidate>();
 
@@ -248,6 +269,56 @@ export function resolveCommunityOfficialClaimCapability(input: {
       label: cleanLabel(
         source.rawOrganization?.['displayName'],
         'Organização sem nome'
+      ),
+      authorityRole: authority.authorityRole,
+    }));
+  }
+
+  for (const source of input.rawEventAuthorities ?? []) {
+    if (unique.size >= MAX_COMMUNITY_OFFICIAL_CLAIM_CANDIDATES) break;
+
+    const eventId = cleanId(source.rawAuthorization?.['eventId']);
+    const expectedAuthorizationId = buildEventAuthorityRecordId(
+      eventId,
+      actorUid
+    );
+    if (
+      !eventId
+      || !expectedAuthorizationId
+      || source.authorizationId !== expectedAuthorizationId
+      || activeOfficialEventIds.has(eventId)
+    ) {
+      continue;
+    }
+
+    const authority = resolveCanonicalResourceAuthority({
+      actorUid,
+      targetType: 'event',
+      targetId: eventId,
+      rawTarget: null,
+      rawEventAuthority: source.rawAuthorization,
+      now: input.now,
+    });
+
+    if (!authority.allowed || !authority.authorityRole) {
+      sawVerificationInactive ||= authority.denialReason === 'verification_inactive';
+      sawVerificationRequired ||= authority.denialReason === 'verification_required';
+      continue;
+    }
+
+    if (
+      authority.authorityRole !== 'organizer'
+      && authority.authorityRole !== 'promoter'
+      && authority.authorityRole !== 'responsible'
+    ) {
+      continue;
+    }
+
+    unique.set(`event:${eventId}`, Object.freeze({
+      target: Object.freeze({ type: 'event' as const, id: eventId }),
+      label: cleanLabel(
+        source.rawAuthorization?.['eventLabel'],
+        'Evento sem nome'
       ),
       authorityRole: authority.authorityRole,
     }));

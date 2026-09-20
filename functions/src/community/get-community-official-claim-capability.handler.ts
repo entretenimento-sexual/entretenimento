@@ -11,6 +11,9 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
+import {
+  buildEventAuthorityRecordId,
+} from '../authority/event-authority.policy';
 import { normalizeOrganizationId } from '../organization/organization.model';
 import {
   buildOrganizationRepresentationId,
@@ -29,6 +32,7 @@ import {
   resolveCommunityOfficialClaimCapability,
   type CommunityOfficialClaimCapabilityCandidate,
   type CommunityOfficialClaimCapabilityReason,
+  type CommunityOfficialClaimEventAuthorityInput,
   type CommunityOfficialClaimOrganizationAuthorityInput,
   type CommunityOfficialClaimProfileAuthorityInput,
 } from './community-official-claim-capability.policy';
@@ -287,6 +291,91 @@ async function resolveOrganizationAuthorityInputs(input: {
   }));
 }
 
+async function resolveEventAuthorityInputs(input: {
+  readonly actorUid: string;
+}): Promise<readonly CommunityOfficialClaimEventAuthorityInput[]> {
+  const snapshot = await db
+    .collection('event_authority_records')
+    .where('holderUid', '==', input.actorUid)
+    .limit(QUERY_LIMIT)
+    .get();
+  const result: CommunityOfficialClaimEventAuthorityInput[] = [];
+
+  for (const document of snapshot.docs) {
+    if (result.length >= MAX_COMMUNITY_OFFICIAL_CLAIM_CANDIDATES) break;
+
+    const rawAuthorization = document.data() ?? {};
+    const eventId = cleanId(rawAuthorization['eventId']);
+    const expectedId = buildEventAuthorityRecordId(eventId, input.actorUid);
+    if (!eventId || !expectedId || document.id !== expectedId) continue;
+
+    result.push(Object.freeze({
+      authorizationId: document.id,
+      rawAuthorization,
+    }));
+  }
+
+  return Object.freeze(result);
+}
+
+async function resolveEventOfficialOccupancy(input: {
+  readonly communityId: string;
+  readonly eventIds: readonly string[];
+}): Promise<Readonly<{
+  activeOfficialEventIds: readonly string[];
+  communityAlreadyOfficial: boolean;
+}>> {
+  const associationRefs = new Map<string, DocumentReference>();
+
+  for (const rawEventId of input.eventIds) {
+    const eventId = cleanId(rawEventId);
+    if (!eventId) continue;
+
+    const associationKey = buildCommunityOfficialAssociationKey({
+      type: 'event',
+      id: eventId,
+    });
+    if (!associationKey || associationRefs.has(associationKey)) continue;
+
+    associationRefs.set(
+      associationKey,
+      db.collection('community_official_associations').doc(associationKey)
+    );
+  }
+
+  if (associationRefs.size === 0) {
+    return Object.freeze({
+      activeOfficialEventIds: Object.freeze([]),
+      communityAlreadyOfficial: false,
+    });
+  }
+
+  const snapshots = await db.getAll(...associationRefs.values());
+  const activeOfficialEventIds = new Set<string>();
+  let communityAlreadyOfficial = false;
+
+  for (const snapshot of snapshots) {
+    if (!snapshot.exists) continue;
+
+    const reference = resolveCanonicalOfficialCommunityReferenceFromAssociation(
+      snapshot.data()
+    );
+    if (!reference) continue;
+
+    if (reference.communityId === input.communityId) {
+      communityAlreadyOfficial = true;
+    }
+    if (reference.target.type === 'event') {
+      activeOfficialEventIds.add(reference.target.id);
+    }
+  }
+
+  return Object.freeze({
+    activeOfficialEventIds: Object.freeze([...activeOfficialEventIds]),
+    communityAlreadyOfficial,
+  });
+}
+
 async function resolveOrganizationOfficialOccupancy(input: {
   readonly communityId: string;
   readonly organizationIds: readonly string[];
@@ -401,9 +490,11 @@ export const getCommunityOfficialClaimCapability = onCall<
         rawGrant,
         rawVenues: [],
         rawOrganizationAuthorities: [],
+        rawEventAuthorities: [],
         activeOfficialProfileIds: [],
         activeOfficialVenueIds: [],
         activeOfficialOrganizationIds: [],
+        activeOfficialEventIds: [],
         communityAlreadyOfficial: true,
       });
       return { ...decision, generatedAt: Date.now() };
@@ -415,9 +506,11 @@ export const getCommunityOfficialClaimCapability = onCall<
       rawGrant,
       rawVenues: [],
       rawOrganizationAuthorities: [],
+      rawEventAuthorities: [],
       activeOfficialProfileIds: [],
       activeOfficialVenueIds: [],
       activeOfficialOrganizationIds: [],
+      activeOfficialEventIds: [],
       communityAlreadyOfficial: false,
       now,
     });
@@ -454,10 +547,12 @@ export const getCommunityOfficialClaimCapability = onCall<
     const [
       rawVenues,
       rawOrganizationAuthorities,
+      rawEventAuthorities,
       rawProfileAuthority,
     ] = await Promise.all([
       rawVenuesPromise,
       resolveOrganizationAuthorityInputs({ actorUid, now }),
+      resolveEventAuthorityInputs({ actorUid }),
       profileAuthorityPromise,
     ]);
 
@@ -466,6 +561,7 @@ export const getCommunityOfficialClaimCapability = onCall<
       profileOccupancy,
       venueOccupancy,
       organizationOccupancy,
+      eventOccupancy,
     ] = await Promise.all([
       resolveProfileOfficialOccupancy({ communityId, profileId }),
       resolveVenueOfficialOccupancy({ communityId, rawVenues }),
@@ -475,6 +571,12 @@ export const getCommunityOfficialClaimCapability = onCall<
           (item) => item.organizationId
         ),
       }),
+      resolveEventOfficialOccupancy({
+        communityId,
+        eventIds: rawEventAuthorities
+          .map((item) => cleanId(item.rawAuthorization?.['eventId']))
+          .filter((eventId): eventId is string => eventId !== null),
+      }),
     ]);
 
     const decision = resolveCommunityOfficialClaimCapability({
@@ -483,14 +585,17 @@ export const getCommunityOfficialClaimCapability = onCall<
       rawVenues,
       rawProfileAuthority,
       rawOrganizationAuthorities,
+      rawEventAuthorities,
       activeOfficialProfileIds: profileOccupancy.activeOfficialProfileIds,
       activeOfficialVenueIds: venueOccupancy.activeOfficialVenueIds,
       activeOfficialOrganizationIds:
         organizationOccupancy.activeOfficialOrganizationIds,
+      activeOfficialEventIds: eventOccupancy.activeOfficialEventIds,
       communityAlreadyOfficial:
         profileOccupancy.communityAlreadyOfficial
         || venueOccupancy.communityAlreadyOfficial
-        || organizationOccupancy.communityAlreadyOfficial,
+        || organizationOccupancy.communityAlreadyOfficial
+        || eventOccupancy.communityAlreadyOfficial,
       now,
     });
 

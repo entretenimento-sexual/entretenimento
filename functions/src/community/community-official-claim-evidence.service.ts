@@ -9,6 +9,9 @@
 import type { Transaction } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 
+import {
+  buildEventAuthorityRecordId,
+} from '../authority/event-authority.policy';
 import { db } from '../firebaseApp';
 import {
   buildOrganizationRepresentationId,
@@ -23,6 +26,7 @@ import type {
   CommunityOfficialClaimEvidenceType,
 } from './community-official-claim.model';
 import {
+  evaluateEventOfficialClaimAuthority,
   evaluateOrganizationOfficialClaimAuthority,
   evaluateProfileOfficialClaimAuthority,
   evaluateVenueOfficialClaimAuthorityGrant,
@@ -101,8 +105,8 @@ function evidenceFailure(
 
 /**
  * Valida a evidência necessária para manter/promover um claim a `verified`.
- * Profile, Local e Organização possuem fontes canônicas backend-only. Event
- * permanece fail-closed até existir fonte autoritativa própria.
+ * Profile, Local, Organização e Evento possuem fontes canônicas backend-only.
+ * Nenhuma referência persistida substitui a revalidação da fonte de origem.
  */
 export async function assertCommunityOfficialClaimEvidence(input: {
   readonly transaction: Transaction;
@@ -250,6 +254,60 @@ export async function assertCommunityOfficialClaimEvidence(input: {
       verificationPolicyVersion: decision.verificationPolicyVersion,
       sponsorOrganizationId: decision.sponsorOrganizationId,
       evidenceType: kybReference.type,
+      revalidationDueAt: window.revalidationDueAt,
+      verificationExpiresAt: window.verificationExpiresAt,
+    });
+  }
+
+  if (input.target.type === 'event') {
+    const expectedReferenceId = buildEventAuthorityRecordId(
+      input.target.id,
+      claimantUid
+    );
+    const authorityReference = references.find(
+      (reference) =>
+        reference.type === 'event_authorization_record'
+        && reference.referenceId === expectedReferenceId
+    );
+    if (!expectedReferenceId || !authorityReference) {
+      throw evidenceFailure('authority_reference_mismatch');
+    }
+
+    const authorityRef = db
+      .collection('event_authority_records')
+      .doc(authorityReference.referenceId);
+    const authoritySnapshot = await input.transaction.get(authorityRef);
+    const rawEventAuthority = authoritySnapshot.exists
+      ? authoritySnapshot.data()
+      : null;
+    const decision = evaluateEventOfficialClaimAuthority({
+      claimantUid,
+      eventId: input.target.id,
+      authorityRole: input.authorityRole,
+      sponsorOrganizationId: input.sponsorOrganizationId,
+      authorityReferenceId: authorityReference.referenceId,
+      rawEventAuthority,
+      now: input.now,
+    });
+
+    if (!decision.allowed || !decision.verificationPolicyVersion) {
+      throw evidenceFailure(
+        decision.denialReason ?? 'event_authority_mismatch'
+      );
+    }
+
+    const authority = (rawEventAuthority ?? {}) as Record<string, unknown>;
+    const window = resolveCommunityOfficialVerificationWindow({
+      now: input.now,
+      sourceRevalidationDueAt: authority['revalidationDueAt'],
+      sourceExpiryCandidates: [authority['endsAt']],
+    });
+
+    return Object.freeze({
+      verificationSource: 'event_authorization',
+      verificationPolicyVersion: decision.verificationPolicyVersion,
+      sponsorOrganizationId: decision.sponsorOrganizationId,
+      evidenceType: authorityReference.type,
       revalidationDueAt: window.revalidationDueAt,
       verificationExpiresAt: window.verificationExpiresAt,
     });

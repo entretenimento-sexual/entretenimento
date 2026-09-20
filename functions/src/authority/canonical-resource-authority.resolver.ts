@@ -9,6 +9,9 @@
 import {
   evaluateOrganizationResourceAuthority,
 } from '../organization/organization-authority.policy';
+import {
+  evaluateEventAuthority,
+} from './event-authority.policy';
 import type {
   OrganizationAuthorityScope,
 } from '../organization/organization-representation.policy';
@@ -85,6 +88,7 @@ export function resolveCanonicalResourceAuthority(input: {
   readonly rawOrganizationKyb?: unknown;
   readonly rawOrganizationRepresentation?: unknown;
   readonly requiredOrganizationScope?: OrganizationAuthorityScope;
+  readonly rawEventAuthority?: unknown;
   readonly now?: number;
 }): Readonly<CanonicalResourceAuthorityDecision> {
   const actorUid = normalizeCanonicalAuthorityResourceId(input.actorUid);
@@ -159,8 +163,44 @@ export function resolveCanonicalResourceAuthority(input: {
     });
   }
 
-  // Event permanece deliberadamente fail-closed até existir fonte canônica
-  // backend-only própria. Em especial, creatorUid nunca prova autoridade.
+  if (input.targetType === 'event') {
+    const authority = evaluateEventAuthority({
+      actorUid,
+      eventId: targetId,
+      rawAuthorityRecord: input.rawEventAuthority,
+      now: input.now,
+    });
+
+    if (!authority.allowed || !authority.role) {
+      const denialReason = authority.denialReason === 'authority_inactive'
+        ? 'verification_inactive'
+        : authority.denialReason === 'event_inactive'
+          ? 'target_inactive'
+          : authority.denialReason === 'record_invalid'
+            ? 'verification_required'
+            : 'target_authority_mismatch';
+
+      return denied({
+        targetType: input.targetType,
+        targetId,
+        organizationId: authority.sponsorOrganizationId,
+        authorityUid: authority.holderUid,
+        denialReason,
+      });
+    }
+
+    return Object.freeze({
+      allowed: true,
+      targetType: input.targetType,
+      targetId,
+      organizationId: authority.sponsorOrganizationId,
+      authorityUid: authority.holderUid,
+      authorityRole: authority.role,
+      verificationPolicyVersion: authority.verificationPolicyVersion,
+      denialReason: null,
+    });
+  }
+
   if (input.targetType !== 'venue') {
     return denied({
       targetType: input.targetType,
