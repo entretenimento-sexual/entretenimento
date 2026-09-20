@@ -33,8 +33,10 @@ function card(
     ...(official
       ? {
         officialAssociation: {
-          targetType: 'person',
-          targetId: 'profile-1',
+          target: {
+            type: 'profile',
+            id: 'profile-1',
+          },
           verified: true,
         },
       }
