@@ -20,6 +20,7 @@ import {
   copyPrivatePhotoToPublishedAsset,
   deletePublishedPhotoAssetOrQueue,
 } from '../media/application/published-photo-asset.service';
+import { IMAGE_MAX_BYTES } from '../media/media-format.generated';
 import { extractOwnedPrivatePhotoPath } from '../media/application/photo-storage-path';
 import {
   buildBilateralBlockPaths,
@@ -67,7 +68,7 @@ const ALLOWED_COMMUNITY_IMAGE_TYPES = new Set([
   'image/png',
   'image/webp',
 ]);
-const MAX_COMMUNITY_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_COMMUNITY_IMAGE_BYTES = IMAGE_MAX_BYTES;
 
 interface CommunityFeedTransactionResult extends CommunityFeedPostWriteResponse {
   imageStoragePathToKeep: string | null;
