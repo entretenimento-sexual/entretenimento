@@ -144,7 +144,7 @@ describe('CommunityPreviewPageComponent / comunicação de adesão', () => {
     return fixture;
   }
 
-  it('expõe no cabeçalho quando a entrada depende de aprovação', () => {
+  it('mantém a política de entrada na ação sem duplicá-la como badge', () => {
     const fixture = createFixture('approval');
     const labels = fixture.nativeElement.querySelector(
       '.community-preview__labels'
@@ -153,7 +153,7 @@ describe('CommunityPreviewPageComponent / comunicação de adesão', () => {
       '.community-preview__membership-action'
     ) as HTMLButtonElement | null;
 
-    expect(labels?.textContent).toContain('Entrada por aprovação');
+    expect(labels?.textContent).not.toContain('Entrada por aprovação');
     expect(action).not.toBeNull();
     expect(action?.textContent).toContain('Solicitar');
   });
