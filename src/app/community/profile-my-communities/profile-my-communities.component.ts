@@ -28,10 +28,13 @@ import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback
 import {
   CommunityDiscoveryPage,
   CommunityPreviewCard,
-  CommunityPreviewViewerRole,
 } from '../data-access/community-preview.model';
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
 import { CommunityOfficialBadgeComponent } from '../presentation/community-official-badge.component';
+import {
+  resolveCommunityMembershipRolePresentation,
+  resolveCommunityNotificationStatusPresentation,
+} from '../presentation/community-ui.presentation';
 import {
   communityInitials as buildCommunityInitials,
   communityVisualVariant as resolveCommunityVisualVariant,
@@ -152,17 +155,19 @@ export class ProfileMyCommunitiesComponent {
     return ['/dashboard/comunidades/minhas', item.communityId];
   }
 
-  membershipRoleLabel(item: CommunityPreviewCard): string | null {
-    if (!item.viewerRole) return null;
+  membershipRolePresentation(item: CommunityPreviewCard) {
+    return resolveCommunityMembershipRolePresentation(
+      item.viewerRole,
+      item.source.type
+    );
+  }
 
-    const labels: Record<CommunityPreviewViewerRole, string> = {
-      owner: 'Proprietário',
-      admin: 'Administração',
-      moderator: 'Moderação',
-      member: 'Membro',
-    };
-
-    return labels[item.viewerRole];
+  notificationStatusPresentation(item: ProfileMyCommunityItemVm) {
+    return resolveCommunityNotificationStatusPresentation(
+      item.notificationUnreadCount,
+      item.notificationHasPriorityUnread,
+      item.notificationsMuted
+    );
   }
 
   communityInitials(item: CommunityPreviewCard): string {
