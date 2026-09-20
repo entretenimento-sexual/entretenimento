@@ -10,7 +10,6 @@ import { ChatModuleLayoutComponent } from './chat-module-layout.component';
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from '../../core/services/autentication/auth/current-user-store.service';
 import { AccessControlService } from '../../core/services/autentication/auth/access-control.service';
-import { RoomMessagesService } from '../../core/services/batepapo/room-services/room-messages.service';
 import { FirestoreUserQueryService } from '../../core/services/data-handling/firestore-user-query.service';
 import { FriendshipService } from '../../core/services/interactions/friendship/friendship.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
@@ -32,7 +31,6 @@ describe('ChatModuleLayoutComponent', () => {
         { provide: AuthSessionService, useValue: { uid$: of('u1'), authUser$: of({ uid: 'u1' }), ready$: of(true), whenReady: vi.fn(() => Promise.resolve()) } },
         { provide: CurrentUserStoreService, useValue: { user$: of({ uid: 'u1' }), getSnapshot: vi.fn(() => ({ uid: 'u1' })) } },
         { provide: AccessControlService, useValue: { canListenRealtime$: of(true) } },
-        { provide: RoomMessagesService, useValue: { sendMessage: vi.fn(() => of(void 0)) } },
         { provide: FirestoreUserQueryService, useValue: { getPublicUserById$: vi.fn(() => of(null)) } },
         { provide: FriendshipService, useValue: {} },
         { provide: ErrorNotificationService, useValue: { showError: vi.fn(), showWarning: vi.fn(), showInfo: vi.fn(), showSuccess: vi.fn() } },
@@ -54,7 +52,7 @@ describe('ChatModuleLayoutComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  it('diferencia conexões de convites para salas na navegação', () => {
+  it('mantém apenas o atalho legado de leitura/encerramento de Salas', () => {
     const text = fixture.nativeElement.textContent as string;
     const hrefs = Array.from(
       fixture.nativeElement.querySelectorAll('a') as NodeListOf<HTMLAnchorElement>
@@ -63,9 +61,10 @@ describe('ChatModuleLayoutComponent', () => {
     expect(text).toContain('Conexões');
     expect(text).toContain('Solicitações de conexão');
     expect(text).toContain('Salas');
-    expect(text).toContain('Convites para salas');
+    expect(text).not.toContain('Convites para salas');
     expect(hrefs).toContain('/friends/requests');
-    expect(hrefs).toContain('/chat/room-invites');
+    expect(hrefs).toContain('/chat/rooms');
+    expect(hrefs).not.toContain('/chat/room-invites');
     expect(hrefs).not.toContain('/chat/invite-list');
   });
 });

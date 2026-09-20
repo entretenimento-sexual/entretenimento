@@ -86,11 +86,8 @@ export class ChatListComponent implements OnInit, OnDestroy {
 
   @Input() activeChatId: string | undefined;
 
-  /**
-   * Mantido temporariamente para compatibilidade do binding do container.
-   * A inbox ativa reconhece somente `chat`; `room` não dispara fluxo algum.
-   */
-  @Input() activeType: 'room' | 'chat' | undefined;
+  /** A inbox ativa reconhece somente conversa direta. */
+  @Input() activeType: 'chat' | undefined;
 
   @Output() chatSelected = new EventEmitter<ChatSelection>();
 

@@ -3,26 +3,23 @@
 // CHAT MODULE ROUTING
 // -----------------------------------------------------------------------------
 // Rotas estáticas permanecem antes de `:userId`.
-// `/chat/room-invites` é a rota canônica de convites para salas legadas.
-// `/chat/invite-list` permanece somente como redirecionamento legado.
 //
-// DIREÇÃO DE PRODUTO — /chat/rooms EM MANUTENÇÃO/COMPATIBILIDADE
+// DIREÇÃO DE PRODUTO — /chat/rooms É A ÚNICA SUPERFÍCIE LEGADA DE SALAS
 // -----------------------------------------------------------------------------
-// Salas independentes estão congeladas. Esta rota existe enquanto documentos,
-// convites e notificações antigos ainda precisam de destino seguro. Não criar
-// `/chat/rooms/:id`, novas telas de conversa, discovery, membership, papéis ou
-// monetização neste domínio. A interação coletiva canônica pertence a Comunidades;
-// o chat direto pessoa-a-pessoa continua separado.
+// Salas independentes estão congeladas. `/chat/rooms` existe somente enquanto
+// houver registros históricos que precisem de consulta ou encerramento seguro.
+// Não reintroduzir criação, convites, conversa, discovery, membership, papéis ou
+// monetização de Sala. A interação coletiva canônica pertence a Comunidades;
+// o chat pessoa-a-pessoa continua separado.
 //
-// A remoção/redirect definitivo de `/chat/rooms` deve acontecer somente depois da
-// migração ou expiração do legado persistido, para não quebrar links e notificações.
+// A remoção definitiva de `/chat/rooms` deve acontecer somente depois da
+// migração ou expiração do legado persistido.
 // -----------------------------------------------------------------------------
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 
 import { ChatModuleLayoutComponent } from './chat-module-layout/chat-module-layout.component';
 import { ChatRoomsComponent } from './chat-rooms/chat-rooms.component';
-import { InviteListComponent } from './invite-list/invite-list.component';
 
 const routes: Routes = [
   {
@@ -32,15 +29,6 @@ const routes: Routes = [
   {
     path: 'rooms',
     component: ChatRoomsComponent,
-  },
-  {
-    path: 'room-invites',
-    component: InviteListComponent,
-  },
-  {
-    path: 'invite-list',
-    redirectTo: 'room-invites',
-    pathMatch: 'full',
   },
   {
     path: ':userId',

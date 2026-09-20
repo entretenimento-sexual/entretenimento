@@ -19,13 +19,8 @@ import { ChatMessageComponent } from './chat-message/chat-message.component';
 import { ChatModuleLayoutComponent } from './chat-module-layout/chat-module-layout.component';
 import { ChatMessagesListComponent } from './chat-messages-list/chat-messages-list.component';
 import { ChatRoomsComponent } from './chat-rooms/chat-rooms.component';
-import { InviteListComponent } from './invite-list/invite-list.component';
-import { RoomCreationConfirmationModalComponent } from './modals/room-create-confirm-modal/room-creation-confirmation-modal.component';
-import { RoomInteractionComponent } from './rooms/room-interaction/room-interaction.component';
 
-import { RoomsModule } from './rooms/rooms.module';
 import { CommunitiesModule } from './communities/communities.module';
-import { CreateRoomModalComponent } from './modals/create-room-modal/create-room-modal.component';
 import { BaseModalComponent } from './modals/base-modal/base-modal.component';
 import { DeleteMessageConfirmDialogComponent } from './modals/delete-message-confirm-dialog/delete-message-confirm-dialog.component';
 import { ActionStateDirective } from '../shared/action-state/action-state.directive';
@@ -51,10 +46,6 @@ import { ChatReplyQuotePipe } from './pipes/chat-reply-quote.pipe';
     ChatModuleLayoutComponent,
     ChatRoomsComponent,
     ChatMessagesListComponent,
-    CreateRoomModalComponent,
-    InviteListComponent,
-    RoomCreationConfirmationModalComponent,
-    RoomInteractionComponent,
     DeleteMessageConfirmDialogComponent,
     ChatDraftDirective,
     ChatEmojiComposerDirective,
@@ -78,7 +69,6 @@ import { ChatReplyQuotePipe } from './pipes/chat-reply-quote.pipe';
     RouterModule,
     ReactiveFormsModule,
     SharedModule,
-    RoomsModule,
     CommunitiesModule,
     NgOptimizedImage,
     BaseModalComponent,

@@ -4,10 +4,9 @@
 //
 // Responsabilidades desta versão:
 // - manter o shell principal do módulo de chat;
-// - receber seleção de conversa direta ou sala;
+// - receber seleção de conversa direta;
 // - aceitar deep-link por query params: openChatId / withUser;
 // - enviar mensagens para chat direto pela DirectThreadFacade;
-// - manter envio de salas no fluxo legado RoomMessagesService;
 // - usar AuthSessionService como fonte canônica da sessão;
 // - usar CurrentUserStoreService como fonte canônica do perfil do app;
 // - manter seleção canônica sincronizada com DirectChatFacade;
@@ -20,14 +19,14 @@
 // - Cloud Functions continuam sendo a barreira real;
 // - o bloqueio local é apenas UX preventiva;
 // - envio direto continua passando pelo backend;
-// - sala permanece compatível, sem contaminar o eixo de chat direto.
+// - Salas não participam do shell ativo de mensageria.
 //
 // Supressões explícitas mantidas:
 // 1) não usa route userId como chatId;
 // 2) não reaplica deep-link indefinidamente;
 // 3) não mantém sidebar interna duplicando perfil/salas fora da lista;
 // 4) não usa ngSrc no avatar do header para evitar warning de proporção;
-// 5) não migra rooms nesta etapa.
+// 5) /chat/rooms permanece isolado como histórico/encerramento.
 // ============================================================================
 import {
   Component,
@@ -38,8 +37,6 @@ import {
 } from '@angular/core';
 
 import { ActivatedRoute, Router } from '@angular/router';
-import { Timestamp } from '@firebase/firestore';
-
 import {
   Observable,
   combineLatest,
@@ -65,14 +62,12 @@ import {
 } from '@angular/core/rxjs-interop';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
 import { Friend } from 'src/app/core/interfaces/friendship/friend.interface';
 
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
 
-import { RoomMessagesService } from 'src/app/core/services/batepapo/room-services/room-messages.service';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
 
@@ -84,7 +79,7 @@ import { DirectChatService } from 'src/app/messaging/direct-chat/services/direct
 import { DirectChatFacade } from 'src/app/messaging/direct-chat/application/direct-chat.facade';
 import { DirectThreadFacade } from 'src/app/messaging/direct-chat/application/direct-thread.facade';
 
-type ChatSelectionType = 'room' | 'chat';
+type ChatSelectionType = 'chat';
 
 type ChatSelectionEvent = {
   id: string;
@@ -119,7 +114,6 @@ export class ChatModuleLayoutComponent implements OnInit {
   private readonly directChatFacade = inject(DirectChatFacade);
   private readonly directThreadFacade = inject(DirectThreadFacade);
 
-  private readonly roomMessages = inject(RoomMessagesService);
   private readonly firestoreUserQuery = inject(FirestoreUserQueryService);
   private readonly friendshipService = inject(FriendshipService);
 
@@ -368,16 +362,8 @@ get shouldShowComposerHelp(): boolean {
   );
 
   /**
-   * Permissão visual de envio no compose.
-   *
-   * Para chat direto:
-   * - exige sessão;
-   * - exige gate de realtime;
-   * - exige DirectThreadFacade.canSend$;
-   * - exige conexão aceita no hint local.
-   *
-   * Para room:
-   * - mantém regra leve de compatibilidade: sessão + realtime.
+   * Permissão visual de envio no compose direto.
+   * Exige sessão, gate de realtime, DirectThreadFacade.canSend$ e conexão aceita.
    */
   readonly canSendCurrentMessage$: Observable<boolean> = combineLatest([
     this.canCompose$,
@@ -385,17 +371,12 @@ get shouldShowComposerHelp(): boolean {
     this.selectedType$,
     this.hasAcceptedDirectConnection$,
   ]).pipe(
-    map(([canCompose, canSendDirect, selectedType, hasAcceptedConnection]) => {
-      if (selectedType === 'room') {
-        return canCompose;
-      }
-
-      if (selectedType === 'chat') {
-        return canCompose && canSendDirect && hasAcceptedConnection;
-      }
-
-      return false;
-    }),
+    map(([canCompose, canSendDirect, selectedType, hasAcceptedConnection]) =>
+      selectedType === 'chat'
+      && canCompose
+      && canSendDirect
+      && hasAcceptedConnection
+    ),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
   );
@@ -817,13 +798,6 @@ get shouldShowComposerHelp(): boolean {
             return;
           }
 
-          if (selectedType === 'room') {
-            this.sendStatusMessageSignal.set(
-              'Sala ativa para envio de mensagens.'
-            );
-            return;
-          }
-
           if (!hasAcceptedConnection) {
             this.sendStatusMessageSignal.set(
               'Vocês precisam estar conectados para trocar mensagens.'
@@ -881,44 +855,22 @@ get shouldShowComposerHelp(): boolean {
     this.applySelection(safeId, safeType);
     this.directMessageBlockedReason.set(null);
 
-    if (safeType === 'chat') {
-      this.directChatFacade.selectChat(safeId);
+    this.directChatFacade.selectChat(safeId);
 
-      this.applyActiveChatPeer({
-        peerUid: event.peerUid,
-        peerName: event.peerName,
-        peerPhotoURL: event.peerPhotoURL,
-      });
+    this.applyActiveChatPeer({
+      peerUid: event.peerUid,
+      peerName: event.peerName,
+      peerPhotoURL: event.peerPhotoURL,
+    });
 
-      if (event.peerUid && !event.peerName) {
-        this.resolveActiveChatPeerFromUid(event.peerUid);
-      }
-    } else {
-      this.directChatFacade.clearSelection();
-      this.clearActiveChatPeer();
+    if (event.peerUid && !event.peerName) {
+      this.resolveActiveChatPeerFromUid(event.peerUid);
     }
 
     this.dbg('onChatSelected()', {
       selectedChatId: this.selectedChatId,
       selectedType: this.selectedType,
       hasActivePeerUid: !!this.activeChatPeerUid,
-    });
-  }
-
-  onRoomSelected(roomId: string): void {
-    const safeRoomId = (roomId ?? '').trim();
-    if (!safeRoomId) {
-      return;
-    }
-
-    this.applySelection(safeRoomId, 'room');
-    this.directMessageBlockedReason.set(null);
-    this.directChatFacade.clearSelection();
-    this.clearActiveChatPeer();
-
-    this.dbg('onRoomSelected()', {
-      selectedChatId: this.selectedChatId,
-      selectedType: this.selectedType,
     });
   }
 
@@ -962,10 +914,7 @@ if (this.isMessageTooLong) {
 
     this.isSendingMessage.set(true);
 
-    const send$ =
-      selectedType === 'chat'
-        ? this.sendDirectMessage$(selectedChatId, content)
-        : this.sendRoomMessage$(selectedChatId, content);
+    const send$ = this.sendDirectMessage$(selectedChatId, content);
 
     send$
       .pipe(
@@ -1041,53 +990,6 @@ if (this.isMessageTooLong) {
 
   this.sendMessage();
 }
-
-  private sendRoomMessage$(
-    selectedChatId: string,
-    content: string
-  ): Observable<unknown> {
-    return this.currentUserStore.user$.pipe(
-      filter((user) => user !== undefined),
-      take(1),
-      switchMap((currentUser) => {
-        const senderId =
-          currentUser?.uid ??
-          this.currentUserUid ??
-          this.authSession.currentAuthUser?.uid ??
-          null;
-
-        const nickname =
-          currentUser?.nickname?.trim() ||
-          this.authSession.currentAuthUser?.displayName?.trim() ||
-          'Usuário';
-
-        if (!senderId) {
-          this.errorNotifier.showError('Erro: usuário não autenticado.');
-          return of(null);
-        }
-
-        const message: Message = {
-          content,
-          senderId,
-          nickname,
-          timestamp: Timestamp.now(),
-        };
-
-        return this.roomMessages
-          .sendMessageToRoom$(selectedChatId, message)
-          .pipe(
-            tap(() => {
-              this.messageContent = '';
-
-              this.dbg('sendMessage() -> room ok', {
-                selectedChatId,
-                hasSenderId: !!senderId,
-              });
-            })
-          );
-      })
-    );
-  }
 
   // ---------------------------------------------------------------------------
   // Error helpers

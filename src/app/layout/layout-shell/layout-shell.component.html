@@ -9,16 +9,6 @@
     [attr.data-app-navigation-available]="vm.shellMode === 'auth' && vm.showSidebar && vm.sidebarShouldOverlay ? 'true' : null"
   ></app-navbar>
   <app-legal-update-notice-bridge></app-legal-update-notice-bridge>
-
-  <!--
-    SUPRESSÃO EXPLÍCITA:
-    - a faixa global de convites não aparece quando a sidebar desktop está visível.
-
-    Motivo:
-    - o link "Convites para salas" já exibe seu badge acionável;
-    - evita duplicar a mesma pendência e deslocar verticalmente o conteúdo.
-    - no mobile ou sem sidebar, a faixa continua sendo o acesso visível.
-  -->
   <app-global-invite-badge
     *ngIf="vm.shellMode === 'auth' && (vm.sidebarShouldOverlay || !vm.showSidebar)"
     [mobile]="vm.sidebarShouldOverlay"

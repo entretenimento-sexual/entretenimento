@@ -4,7 +4,7 @@
 // -----------------------------------------------------------------------------
 //
 // SUPRESSÃO EXPLÍCITA:
-// - removidos CurrentUserStoreService, criação de Sala, openCreateRoomModal,
+// - removidos CurrentUserStoreService, criação de Sala, bindings de seleção,
 //   createRoom e contadores/flags de criação de Sala ativa;
 // - motivo: Comunidades são o domínio canônico de interação coletiva e esta
 //   tela deve somente ler Salas antigas e permitir encerramento seguro pelo owner.
@@ -154,15 +154,6 @@ describe('ChatRoomsComponent — compatibilidade legada', () => {
     expect(roomServiceMock.getRooms).not.toHaveBeenCalled();
   });
 
-  it('mantém roomSelected apenas como binding de compatibilidade', () => {
-    const emitSpy = vi.spyOn(component.roomSelected, 'emit');
-
-    component.selectRoom('room-123');
-    component.selectRoom('   ');
-
-    expect(emitSpy).toHaveBeenCalledTimes(1);
-    expect(emitSpy).toHaveBeenCalledWith('room-123');
-  });
 
   it('confirma e encerra uma Sala antiga somente pela callable', () => {
     dialogOpenMock.mockReturnValue({ afterClosed: () => of(true) });

@@ -18,11 +18,6 @@ import { OnlineUsersEffects } from './effects/effects.user/online-users.effects'
 import { AuthStatusSyncEffects } from './effects/effects.user/auth-status-sync.effects';
 import { AuthSessionSyncEffects } from './effects/effects.user/auth-session-sync.effects';
 
-// EFFECTS - MESSAGING GLOBAL
-// InviteEffects permanece no root porque o LayoutShell mantém o badge ativo
-// em todas as rotas autenticadas.
-import { InviteEffects } from './effects/effects.chat/invite.effects';
-
 // EFFECTS - INTERACTIONS - FRIENDS
 import { FriendsRequestsCrudEffects } from './effects/effects.interactions/friends/requests-crud.effects';
 import { FriendsNetworkEffects } from './effects/effects.interactions/friends/network.effects';
@@ -42,8 +37,8 @@ const metaReducers = appMetaReducers;
  *   entitlement e não possuem mais caminho de escrita pelo cliente;
  * - ChatEffects foi removido: DirectChatFacade/DirectThreadFacade são os owners
  *   reativos atuais e vinculam listeners e seleção ao UID da sessão;
- * - RoomEffects foi removido: salas pertencem a RoomService,
- *   RoomFirestoreGateway e RoomManagementService/Cloud Functions;
+ * - RoomEffects foi removido: salas pertencem ao legado de leitura/encerramento;
+ * - InviteEffects foi removido do root: não existe mais superfície global de convites de Sala;
  * - NearbyProfilesEffects pertence ao LayoutModule lazy;
  * - DiscoveryFeedEffects pertence ao DashboardModule lazy;
  * - FileEffects é legado e os fluxos modernos mantêm File em services;
@@ -58,9 +53,6 @@ export const ROOT_EFFECTS = [
   OnlineUsersEffects,
   AuthSessionSyncEffects,
   AuthStatusSyncEffects,
-
-  // MESSAGING GLOBAL
-  InviteEffects,
 
   // INTERACTIONS
   FriendsNetworkEffects,

@@ -21,14 +21,6 @@
             [fallbackPhotoURL]="activeChatPeerPhotoURL"
           />
         }
-
-        @if (selectedType === 'room') {
-          <div class="chat-shell__main-context">
-            <p class="chat-shell__main-kicker">Sala antiga</p>
-            <h2 class="chat-shell__main-title">Conversa em grupo legada</h2>
-            <p class="chat-shell__main-subtitle">Conteúdo preservado somente para compatibilidade e encerramento seguro.</p>
-          </div>
-        }
       </header>
     }
 
@@ -37,12 +29,6 @@
         class="chat-shell__thread"
         [class.chat-shell__thread--empty]="!selectedType || !selectedChatId"
       >
-        @if (selectedType === 'room') {
-          @if (selectedChatId; as activeRoomId) {
-            <app-room-interaction [roomId]="activeRoomId"></app-room-interaction>
-          }
-        }
-
         @if (selectedType === 'chat') {
           @if (selectedChatId; as activeChatId) {
             <app-chat-messages-list
@@ -76,10 +62,6 @@
                 aria-label="Abrir salas antigas mantidas somente por compatibilidade"
               >
                 Salas antigas
-              </a>
-
-              <a class="btn btn-ghost" routerLink="/chat/room-invites">
-                Convites para salas antigas
               </a>
             </div>
           </div>

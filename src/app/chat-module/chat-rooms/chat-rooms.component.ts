@@ -17,9 +17,7 @@
 import {
   Component,
   DestroyRef,
-  EventEmitter,
   OnInit,
-  Output,
   inject,
 } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
@@ -68,8 +66,6 @@ interface ChatRoomsViewModel {
   standalone: false,
 })
 export class ChatRoomsComponent implements OnInit {
-  @Output() roomSelected = new EventEmitter<string>();
-
   roomsVm$!: Observable<ChatRoomsViewModel>;
   closingRoomId: string | null = null;
 
@@ -107,11 +103,6 @@ export class ChatRoomsComponent implements OnInit {
     );
   }
 
-  /** Mantido somente para compatibilidade de binding de consumidores antigos. */
-  selectRoom(roomId: string): void {
-    const id = String(roomId ?? '').trim();
-    if (id) this.roomSelected.emit(id);
-  }
 
   closeRoom(room: RoomCardViewModel): void {
     if (!room.canClose || this.closingRoomId) return;

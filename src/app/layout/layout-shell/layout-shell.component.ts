@@ -2,9 +2,6 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  DestroyRef,
-  OnDestroy,
-  OnInit,
   inject,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -17,7 +14,6 @@ import {
   shareReplay,
   tap,
 } from 'rxjs/operators';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { EmailVerificationGateBannerComponent } from '../../shared/components-globais/email-verification-gate-banner/email-verification-gate-banner.component';
 import { SidebarService, SidebarVm } from '@core/services/navigation/sidebar.service';
@@ -42,11 +38,7 @@ import {
 
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
-import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
-import { ChatNotificationService } from 'src/app/core/services/batepapo/chat-notification.service';
 
-import * as InviteActions from 'src/app/store/actions/actions.chat/invite.actions';
-import { selectPendingInvitesCount } from 'src/app/store/selectors/selectors.chat/invite.selectors';
 import { selectInboundRequestsCount } from 'src/app/store/selectors/selectors.interactions/friends';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
@@ -67,11 +59,8 @@ import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy
   styleUrls: ['./layout-shell.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class LayoutShellComponent implements OnInit, OnDestroy {
-  private readonly destroyRef = inject(DestroyRef);
+export class LayoutShellComponent {
   private readonly store = inject<Store<AppState>>(Store as any);
-  private readonly authSession = inject(AuthSessionService);
-  private readonly chatNotification = inject(ChatNotificationService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
 
   /**
@@ -114,12 +103,6 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
     };
   }
 
-  private readonly shellUid$ = this.authSession.uid$.pipe(
-    map((uid) => (uid ?? '').trim() || null),
-    distinctUntilChanged(),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
-
   private readonly mobileOverlayBreakpoint = '(max-width: 767.98px)';
   private readonly compactSidebarBreakpoint =
     '(min-width: 768px) and (max-width: 991.98px)';
@@ -149,7 +132,6 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
     this.sidebarShouldOverlay$,
     this.sidebarShouldCompact$,
     this.store.select(selectInboundRequestsCount).pipe(distinctUntilChanged()),
-    this.store.select(selectPendingInvitesCount).pipe(distinctUntilChanged()),
   ]).pipe(
     map(([
       sidebar,
@@ -157,7 +139,6 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
       sidebarShouldOverlay,
       sidebarShouldCompact,
       inboundRequestsCount,
-      roomInvitesCount,
     ]): LayoutShellVm => {
       const currentUrl = sidebar.currentUrl;
       const shellMode = this.resolveShellMode(currentUrl);
@@ -165,7 +146,7 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
 
       /**
        * Chat mode:
-       * - vale para /chat, /chat/rooms, /chat/room-invites etc.;
+       * - vale para /chat e para a superfície histórica /chat/rooms;
        * - não depende de query string.
        */
       const isChatLayout = /^\/chat(\/|$)/.test(this.normalizeUrl(currentUrl));
@@ -178,11 +159,9 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
       const safeFriendRequestsCount = this.normalizeBadgeCount(
         inboundRequestsCount
       );
-      const safeRoomInvitesCount = this.normalizeBadgeCount(roomInvitesCount);
       const sidebarWithBadges = this.applySidebarBadges(
         sidebar,
-        safeFriendRequestsCount,
-        safeRoomInvitesCount
+        safeFriendRequestsCount
       );
 
       const shellContextActions =
@@ -234,15 +213,6 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
     private readonly breakpointObserver: BreakpointObserver
   ) {}
 
-  ngOnInit(): void {
-    this.bindGlobalSocialOwners();
-    this.bindGlobalInviteBadge();
-  }
-
-  ngOnDestroy(): void {
-    this.store.dispatch(InviteActions.StopInvites());
-    this.chatNotification.resetPendingInvites();
-  }
 
   onToggleSidebar(): void {
     this.sidebar.toggle();
@@ -260,47 +230,6 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
     this.sidebar.closeGroup(groupId);
   }
 
-  /**
-   * Owner global apenas de convites para salas.
-   *
-   * SUPRESSÃO EXPLÍCITA:
-   * - friends bootstrap/listeners NÃO ficam mais aqui.
-   *
-   * Motivo:
-   * - FriendsNetworkEffects já é o owner oficial dessa feature;
-   * - manter isso aqui duplicava start/stop e bootstrap.
-   */
-  private bindGlobalSocialOwners(): void {
-    this.shellUid$
-      .pipe(
-        tap((uid) => {
-          if (uid) {
-            this.store.dispatch(InviteActions.LoadInvites({ userId: uid }));
-            this.dbg('room-invites:start', { uid });
-            return;
-          }
-
-          this.store.dispatch(InviteActions.StopInvites());
-          this.chatNotification.resetPendingInvites();
-
-          this.dbg('room-invites:stop');
-        }),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe();
-  }
-
-  private bindGlobalInviteBadge(): void {
-    this.store.select(selectPendingInvitesCount)
-      .pipe(
-        distinctUntilChanged(),
-        tap((count) => {
-          this.chatNotification.updatePendingInvites(count);
-        }),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe();
-  }
 
   private mapSidebarUser(
     navVm: AuthenticatedNavigationVm
@@ -356,17 +285,15 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
 
   private applySidebarBadges(
     sidebar: SidebarVm,
-    friendRequestsCount: number,
-    roomInvitesCount: number
+    friendRequestsCount: number
   ): SidebarVm {
-    if (!friendRequestsCount && !roomInvitesCount) {
+    if (!friendRequestsCount) {
       return sidebar;
     }
 
     const friendBadgeText = this.buildFriendRequestsBadgeLabel(
       friendRequestsCount
     );
-    const roomBadgeText = this.buildRoomInvitesBadgeLabel(roomInvitesCount);
 
     return {
       ...sidebar,
@@ -381,16 +308,6 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
               ariaLabel: `Consultar solicitações de conexão. ${friendBadgeText}.`,
             };
           }
-
-          if (item.id === 'room-invites' && roomInvitesCount > 0) {
-            return {
-              ...item,
-              badgeCount: roomInvitesCount,
-              badgeLabel: roomBadgeText,
-              ariaLabel: `Consultar convites para salas. ${roomBadgeText}.`,
-            };
-          }
-
           return item;
         }),
       })),
@@ -405,16 +322,6 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
     }
 
     return `${safeCount} solicitações de conexão recebidas`;
-  }
-
-  private buildRoomInvitesBadgeLabel(count: number): string {
-    const safeCount = this.normalizeBadgeCount(count);
-
-    if (safeCount === 1) {
-      return '1 convite para sala pendente';
-    }
-
-    return `${safeCount} convites para salas pendentes`;
   }
 
   private buildShellContextActions(
