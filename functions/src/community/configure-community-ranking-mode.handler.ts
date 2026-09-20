@@ -23,6 +23,7 @@ import {
   type CommunityRankingRolloutAction,
   evaluateCommunityRankingRollout,
 } from './community-ranking-rollout.policy';
+import { invalidateCommunityDiscoveryRankingModeCache } from './community-discovery-ranking-mode.service';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 
 interface ConfigureCommunityRankingModeRequest {
@@ -39,7 +40,10 @@ interface ConfigureCommunityRankingModeResponse {
 }
 
 function normalizeAction(value: unknown): CommunityRankingRolloutAction | null {
-  return value === 'enable_current' || value === 'rollback_legacy'
+  return value === 'enable_current'
+    || value === 'promote_v3'
+    || value === 'rollback_v2'
+    || value === 'rollback_legacy'
     ? value
     : null;
 }
@@ -101,6 +105,15 @@ function rolloutFailureMessage(reason: string | null): string {
   if (reason === 'score_backfill_not_ready') {
     return 'O backfill do ranking atual ainda não concluiu um ciclo completo.';
   }
+  if (reason === 'candidate_index_not_ready') {
+    return 'O índice necessário para servir o ranking v3 ainda não foi homologado.';
+  }
+  if (reason === 'candidate_runtime_not_ready') {
+    return 'O runtime shadow v3 ainda não concluiu a migração canônica do modelo de atividade.';
+  }
+  if (reason === 'candidate_shadow_acceptance_not_ready') {
+    return 'O ranking v3 ainda não cumpriu a janela mensurável de aceitação em shadow.';
+  }
 
   return 'O backfill disponível pertence a outra versão de ranking.';
 }
@@ -140,18 +153,27 @@ export const configureCommunityRankingMode =
       const now = Date.now();
       const configRef = db.collection('platform_config').doc('community');
       const runtimeRef = db.collection('community_ranking_runtime').doc('daily');
+      const shadowRuntimeRef = db
+        .collection('community_ranking_shadow_runtime')
+        .doc('v3');
 
       const result = await db.runTransaction(async (transaction) => {
-        const [configSnapshot, runtimeSnapshot] = await Promise.all([
-          transaction.get(configRef),
-          transaction.get(runtimeRef),
-        ]);
+        const [configSnapshot, runtimeSnapshot, shadowRuntimeSnapshot] =
+          await Promise.all([
+            transaction.get(configRef),
+            transaction.get(runtimeRef),
+            transaction.get(shadowRuntimeRef),
+          ]);
         const config = configSnapshot.exists ? configSnapshot.data() ?? {} : {};
         const runtime = runtimeSnapshot.exists ? runtimeSnapshot.data() ?? {} : {};
+        const shadowRuntime = shadowRuntimeSnapshot.exists
+          ? shadowRuntimeSnapshot.data() ?? {}
+          : {};
         const decision = evaluateCommunityRankingRollout({
           action,
           rawConfig: config,
           rawRuntime: runtime,
+          rawShadowRuntime: shadowRuntime,
         });
 
         if (!decision.allowed) {
@@ -170,6 +192,27 @@ export const configureCommunityRankingMode =
             rankingModeUpdatedAt: now,
             rankingModeUpdatedBy: actorUid,
           }, { merge: true });
+
+          const auditRef = db.collection('community_ranking_mode_audit').doc();
+          transaction.set(auditRef, {
+            action,
+            actorUid,
+            previousMode,
+            mode: decision.targetMode,
+            scoreVersion: decision.scoreVersion,
+            shadowAcceptance: action === 'promote_v3'
+              ? {
+                  policyVersion: shadowRuntime['policyVersion'] ?? null,
+                  observedCycles: shadowRuntime['observedCycles'] ?? null,
+                  consecutivePassingCycles:
+                    shadowRuntime['consecutivePassingCycles'] ?? null,
+                  promotionReady: shadowRuntime['promotionReady'] === true,
+                  lastObservedCycleCompletedAt:
+                    shadowRuntime['lastObservedCycleCompletedAt'] ?? null,
+                }
+              : null,
+            createdAt: now,
+          });
         }
 
         return {
@@ -179,6 +222,8 @@ export const configureCommunityRankingMode =
           updated,
         };
       });
+
+      invalidateCommunityDiscoveryRankingModeCache();
 
       logger.info('community_ranking_mode_configured', {
         actorUid,
