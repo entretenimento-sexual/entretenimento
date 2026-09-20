@@ -34,7 +34,11 @@ describe('CommunityTopicsComponent', () => {
     createTopic$: vi.fn(),
     createReply$: vi.fn(),
   };
-  const errorNotifierMock = { showError: vi.fn(), showSuccess: vi.fn() };
+  const errorNotifierMock = {
+    showError: vi.fn(),
+    showInfo: vi.fn(),
+    showSuccess: vi.fn(),
+  };
   const globalErrorMock = { handleError: vi.fn() };
 
   beforeEach(() => {
@@ -372,10 +376,10 @@ describe('CommunityTopicsComponent', () => {
     component.submitTopic();
     fixture.detectChanges();
 
-    expect(errorNotifierMock.showError).toHaveBeenCalledWith(
+    expect(errorNotifierMock.showInfo).toHaveBeenCalledWith(
       'Você atingiu o limite temporário de interações em Discussões. Tente novamente mais tarde.'
     );
-    expect(errorNotifierMock.showError.mock.calls[0]?.[0]).not.toContain(
+    expect(errorNotifierMock.showInfo.mock.calls[0]?.[0]).not.toContain(
       'internal rate detail'
     );
     expect(globalErrorMock.handleError).toHaveBeenCalledTimes(1);
