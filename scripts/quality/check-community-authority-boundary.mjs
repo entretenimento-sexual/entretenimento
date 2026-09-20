@@ -78,6 +78,18 @@ const EVENT_AUTHORITY_HANDLER = path.normalize(
   'functions/src/authority/event-authority.handler.ts'
 );
 const FUNCTIONS_ROOT_INDEX = path.normalize('functions/src/index.ts');
+const COMMUNITY_RANKING_ROLLOUT_POLICY = path.normalize(
+  'functions/src/community/community-ranking-rollout.policy.ts'
+);
+const COMMUNITY_RANKING_MODE_SERVICE = path.normalize(
+  'functions/src/community/community-discovery-ranking-mode.service.ts'
+);
+const COMMUNITY_RANKING_V3_ACCEPTANCE_POLICY = path.normalize(
+  'functions/src/community/community-ranking-v3-acceptance.policy.ts'
+);
+const COMMUNITY_RANKING_CONFIGURE_HANDLER = path.normalize(
+  'functions/src/community/configure-community-ranking-mode.handler.ts'
+);
 
 const FORBIDDEN_CLIENT_AUTHORITY_FIELDS = Object.freeze([
   'actorUid',
@@ -517,6 +529,108 @@ function validateCommunityNotificationClientBoundary(architectureViolations) {
 }
 
 
+function validateCommunityRankingV3Boundary(architectureViolations) {
+  const forbiddenAngularRankingTokens = [
+    'DISCOVERY_SCORE_WEIGHTS',
+    'V3_SCORE_WEIGHTS',
+    'buildCommunityDiscoveryRanking(',
+    'buildCommunityDiscoveryRankingCandidateV3(',
+    'rankingCandidate.discoveryScore',
+    'discoveryRankingMode',
+  ];
+
+  for (const absolutePath of walkTypeScriptFiles(angularAppRoot)) {
+    const source = fs.readFileSync(absolutePath, 'utf8');
+    const relativePath = normalizeRelativePath(absolutePath);
+
+    for (const token of forbiddenAngularRankingTokens) {
+      const index = source.indexOf(token);
+      if (index < 0) continue;
+      const position = lineAndColumn(source, index);
+      architectureViolations.push(
+        `${relativePath}:${position.line}:${position.column} `
+          + `(ranking/weights de Comunidades devem permanecer backend-only: ${token})`
+      );
+    }
+  }
+
+  const rolloutSource = readRequiredSource(
+    COMMUNITY_RANKING_ROLLOUT_POLICY,
+    architectureViolations
+  );
+  const modeServiceSource = readRequiredSource(
+    COMMUNITY_RANKING_MODE_SERVICE,
+    architectureViolations
+  );
+  const acceptanceSource = readRequiredSource(
+    COMMUNITY_RANKING_V3_ACCEPTANCE_POLICY,
+    architectureViolations
+  );
+  const configureSource = readRequiredSource(
+    COMMUNITY_RANKING_CONFIGURE_HANDLER,
+    architectureViolations
+  );
+
+  if (rolloutSource) {
+    for (const required of [
+      "'promote_v3'",
+      "'rollback_v2'",
+      'candidate_shadow_acceptance_not_ready',
+      "shadowRuntime['promotionReady'] !== true",
+      'discoveryCandidateV3IndexReady',
+    ]) {
+      if (!rolloutSource.includes(required)) {
+        architectureViolations.push(
+          `${COMMUNITY_RANKING_ROLLOUT_POLICY} (gate de promoção v3 ausente: ${required})`
+        );
+      }
+    }
+  }
+
+  if (
+    modeServiceSource
+    && !modeServiceSource.includes(
+      "db.collection('community_ranking_shadow_runtime').doc('v3').get()"
+    )
+  ) {
+    architectureViolations.push(
+      `${COMMUNITY_RANKING_MODE_SERVICE} (resolver deve reler aceitação shadow canônica)`
+    );
+  }
+
+  if (acceptanceSource) {
+    for (const required of [
+      'COMMUNITY_RANKING_V3_MIN_OBSERVED_CYCLES = 7',
+      'COMMUNITY_RANKING_V3_MIN_CONSECUTIVE_PASSING_CYCLES = 3',
+      'promotionReady',
+      'evaluateCommunityRankingV3Acceptance',
+    ]) {
+      if (!acceptanceSource.includes(required)) {
+        architectureViolations.push(
+          `${COMMUNITY_RANKING_V3_ACCEPTANCE_POLICY} (critério mensurável ausente: ${required})`
+        );
+      }
+    }
+  }
+
+  if (configureSource) {
+    for (const required of [
+      "'promote_v3'",
+      "'rollback_v2'",
+      'evaluateCommunityRankingRollout',
+      'community_ranking_mode_audit',
+      'invalidateCommunityDiscoveryRankingModeCache',
+    ]) {
+      if (!configureSource.includes(required)) {
+        architectureViolations.push(
+          `${COMMUNITY_RANKING_CONFIGURE_HANDLER} (cutover canônico incompleto: ${required})`
+        );
+      }
+    }
+  }
+}
+
+
 function validateOfficialCreationBoundary(architectureViolations) {
   const handlerSource = readRequiredSource(
     OFFICIAL_CREATE_HANDLER,
@@ -799,6 +913,7 @@ if (uniqueViolations.length > 0) {
 
 const architectureViolations = [];
 validateCommunityNotificationClientBoundary(architectureViolations);
+validateCommunityRankingV3Boundary(architectureViolations);
 validateOfficialCreationBoundary(architectureViolations);
 validateEventAuthorityLifecycleBoundary(architectureViolations);
 
@@ -823,5 +938,5 @@ console.log(
   '[community-authority] OK: payloads de Comunidades não são usados como autoridade derivada.'
 );
 console.log(
-  '[community-authority] OK: notificações preservam owner único; criação oficial separa autoridade/assinatura/role; Evento possui lifecycle writer único auditável.'
+  '[community-authority] OK: notificações preservam owner único; v3 permanece backend-only com promoção mensurável/rollback canônico; criação oficial separa autoridade/assinatura/role; Evento possui lifecycle writer único auditável.'
 );
