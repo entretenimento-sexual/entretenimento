@@ -105,9 +105,7 @@ function fallbackDecision(
       ? COMMUNITY_DISCOVERY_V3_RANKING_MODE
       : COMMUNITY_DISCOVERY_RANKING_MODE,
     orderField: v2FallbackReady ? 'discoveryScore' : 'rankScore',
-    scoreVersion: requestedMode === COMMUNITY_DISCOVERY_V3_RANKING_MODE
-      ? COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION
-      : COMMUNITY_DISCOVERY_SCORE_VERSION,
+    scoreVersion: COMMUNITY_DISCOVERY_SCORE_VERSION,
     fallbackReason: reason,
   };
 }
