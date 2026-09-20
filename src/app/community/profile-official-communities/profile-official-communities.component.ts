@@ -34,49 +34,42 @@ import {
   PROFILE_OFFICIAL_COMMUNITIES_REASON_MESSAGES,
 } from './profile-official-communities-error.messages';
 
-type ProfileOfficialCommunitiesStatus =
+type ProfileCommunitySectionStatus =
   | 'loading'
   | 'ready'
   | 'empty'
   | 'error';
 
-interface ProfileOfficialCommunitiesVm {
-  status: ProfileOfficialCommunitiesStatus;
-  items: readonly CommunityPreviewCard[];
-  combined: boolean;
+type ProfileCommunitySectionKind = 'membership' | 'official';
+
+interface ProfileCommunitySectionVm {
+  readonly kind: ProfileCommunitySectionKind;
+  readonly status: ProfileCommunitySectionStatus;
+  readonly items: readonly CommunityPreviewCard[];
 }
 
-interface ProfileCommunityLoadResult {
-  readonly items: readonly CommunityPreviewCard[];
-  readonly failed: boolean;
+interface ProfileCommunitiesVm {
+  readonly sections: readonly ProfileCommunitySectionVm[];
+  readonly visible: boolean;
 }
 
 const PROFILE_COMMUNITY_LIMIT = 4;
-const EMPTY_VM: ProfileOfficialCommunitiesVm = Object.freeze({
-  status: 'empty',
-  items: [],
-  combined: false,
-});
 
-export function mergeProfileCommunityCards(
-  official: readonly CommunityPreviewCard[],
-  publicMemberships: readonly CommunityPreviewCard[],
-  limit = PROFILE_COMMUNITY_LIMIT
-): readonly CommunityPreviewCard[] {
-  const byCommunityId = new Map<string, CommunityPreviewCard>();
-
-  for (const item of official) {
-    if (!item?.communityId || byCommunityId.has(item.communityId)) continue;
-    byCommunityId.set(item.communityId, item);
-  }
-
-  for (const item of publicMemberships) {
-    if (!item?.communityId || byCommunityId.has(item.communityId)) continue;
-    byCommunityId.set(item.communityId, item);
-  }
-
-  return [...byCommunityId.values()].slice(0, Math.max(1, Math.trunc(limit)));
+function sectionVm(
+  kind: ProfileCommunitySectionKind,
+  status: ProfileCommunitySectionStatus,
+  items: readonly CommunityPreviewCard[] = []
+): ProfileCommunitySectionVm {
+  return { kind, status, items };
 }
+
+const EMPTY_VM: ProfileCommunitiesVm = Object.freeze({
+  sections: [
+    sectionVm('membership', 'empty'),
+    sectionVm('official', 'empty'),
+  ],
+  visible: false,
+});
 
 @Component({
   selector: 'app-profile-official-communities',
@@ -98,6 +91,8 @@ export class ProfileOfficialCommunitiesComponent {
   );
   private readonly applicationError = inject(ApplicationErrorService);
   private readonly profileIdSubject = new BehaviorSubject<string>('');
+  private readonly includePublicMembershipsSubject =
+    new BehaviorSubject<boolean>(false);
   private readonly refreshSubject = new BehaviorSubject<number>(0);
 
   @Input({ required: true })
@@ -105,39 +100,36 @@ export class ProfileOfficialCommunitiesComponent {
     this.profileIdSubject.next(String(value ?? '').trim().toLowerCase());
   }
 
-  readonly vm$: Observable<ProfileOfficialCommunitiesVm> = combineLatest([
+  /**
+   * O perfil próprio mantém esta opção desligada porque já possui a superfície
+   * "Minhas comunidades". O perfil alheio habilita somente a projeção pública
+   * opt-in, sem transformar participação em associação oficial.
+   */
+  @Input()
+  set includePublicMemberships(value: boolean | null | undefined) {
+    this.includePublicMembershipsSubject.next(value === true);
+  }
+
+  readonly vm$: Observable<ProfileCommunitiesVm> = combineLatest([
     this.profileIdSubject.pipe(distinctUntilChanged()),
+    this.includePublicMembershipsSubject.pipe(distinctUntilChanged()),
     this.refreshSubject,
   ]).pipe(
-    switchMap(([profileId]) => {
+    switchMap(([profileId, includePublicMemberships]) => {
       if (!profileId) return of(EMPTY_VM);
 
-      return combineLatest([
-        this.loadOfficial$(profileId),
-        this.loadPublicMemberships$(profileId),
-      ]).pipe(
-        map(([official, publicMemberships]): ProfileOfficialCommunitiesVm => {
-          const items = mergeProfileCommunityCards(
-            official.items,
-            publicMemberships.items,
-            PROFILE_COMMUNITY_LIMIT
-          );
-          const allSourcesFailed = official.failed && publicMemberships.failed;
+      const official$ = this.loadOfficial$(profileId);
+      const membership$ = includePublicMemberships
+        ? this.loadPublicMemberships$(profileId)
+        : of(sectionVm('membership', 'empty'));
 
+      return combineLatest([membership$, official$]).pipe(
+        map(([membership, official]): ProfileCommunitiesVm => {
+          const sections = [membership, official] as const;
           return {
-            status: items.length > 0
-              ? 'ready'
-              : allSourcesFailed
-                ? 'error'
-                : 'empty',
-            items,
-            combined: true,
+            sections,
+            visible: sections.some((section) => section.status !== 'empty'),
           };
-        }),
-        startWith<ProfileOfficialCommunitiesVm>({
-          status: 'loading',
-          items: [],
-          combined: true,
         })
       );
     }),
@@ -162,12 +154,18 @@ export class ProfileOfficialCommunitiesComponent {
     return resolveCommunityVisualVariant(item);
   }
 
-  private loadOfficial$(profileId: string): Observable<ProfileCommunityLoadResult> {
+  private loadOfficial$(
+    profileId: string
+  ): Observable<ProfileCommunitySectionVm> {
     return this.repository.getProfileOfficialCommunities$(
       profileId,
       PROFILE_COMMUNITY_LIMIT
     ).pipe(
-      map((page) => ({ items: page.items, failed: false })),
+      map((page) => sectionVm(
+        'official',
+        page.items.length > 0 ? 'ready' : 'empty',
+        page.items
+      )),
       catchError((error: unknown) => {
         this.applicationError.report(error, {
           feature: 'community',
@@ -181,34 +179,41 @@ export class ProfileOfficialCommunitiesComponent {
             hasProfileId: true,
           },
         });
-        return of<ProfileCommunityLoadResult>({ items: [], failed: true });
-      })
+        return of(sectionVm('official', 'error'));
+      }),
+      startWith(sectionVm('official', 'loading'))
     );
   }
 
   private loadPublicMemberships$(
     profileId: string
-  ): Observable<ProfileCommunityLoadResult> {
+  ): Observable<ProfileCommunitySectionVm> {
     return this.publicCommunitiesRepository.getProfilePublicCommunities$(
       profileId,
       PROFILE_COMMUNITY_LIMIT
     ).pipe(
-      map((page) => ({ items: page.items, failed: false })),
+      map((page) => sectionVm(
+        'membership',
+        page.items.length > 0 ? 'ready' : 'empty',
+        page.items
+      )),
       catchError((error: unknown) => {
         this.applicationError.report(error, {
           feature: 'community',
           operation: 'loadProfilePublicCommunities',
           fallbackMessage:
-            'Não foi possível carregar as comunidades públicas deste perfil.',
+            'Não foi possível carregar as participações públicas deste perfil.',
           notification: 'warning',
           reasonMessages: PROFILE_OFFICIAL_COMMUNITIES_REASON_MESSAGES,
           metadata: {
             scope: 'ProfileOfficialCommunitiesComponent',
             hasProfileId: true,
+            publicMemberships: true,
           },
         });
-        return of<ProfileCommunityLoadResult>({ items: [], failed: true });
-      })
+        return of(sectionVm('membership', 'error'));
+      }),
+      startWith(sectionVm('membership', 'loading'))
     );
   }
 }
