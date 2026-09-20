@@ -13,6 +13,10 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, getDefaultStorageBucket, Timestamp } from '../firebaseApp';
 import {
+  estimateCommunityStorageUpperBoundBytes,
+  evaluateOperationalCostBudget,
+} from '../shared/observability/operational-cost-budget.policy';
+import {
   copyPrivatePhotoToPublishedAsset,
   deletePublishedPhotoAssetOrQueue,
 } from '../media/application/published-photo-asset.service';
@@ -67,6 +71,7 @@ const MAX_COMMUNITY_IMAGE_BYTES = 10 * 1024 * 1024;
 
 interface CommunityFeedTransactionResult extends CommunityFeedPostWriteResponse {
   imageStoragePathToKeep: string | null;
+  communityMediaCount: number | null;
 }
 
 function assertPreviewRuntime(): void {
@@ -159,10 +164,13 @@ function existingWriteResponse(
     created: false,
     deduplicated: true,
     imageStoragePathToKeep: storagePath || null,
+    communityMediaCount: null,
   };
 }
 
-async function validatePrivateCommunityImage(storagePath: string): Promise<void> {
+async function validatePrivateCommunityImage(
+  storagePath: string
+): Promise<number> {
   const [metadata] = await getDefaultStorageBucket().file(storagePath).getMetadata();
   const contentType = String(metadata.contentType ?? '').trim().toLowerCase();
   const sizeBytes = Number(metadata.size ?? 0);
@@ -190,6 +198,8 @@ async function validatePrivateCommunityImage(storagePath: string): Promise<void>
       { reason: 'image_too_large' }
     );
   }
+
+  return Math.trunc(sizeBytes);
 }
 
 async function deletePrivateDraftQuietly(storagePath: string | null): Promise<void> {
@@ -309,10 +319,11 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
     });
 
     let promotedStoragePath: string | null = null;
+    let publishedAssetBytes: number | null = null;
 
     try {
       if (privateImagePath) {
-        await validatePrivateCommunityImage(privateImagePath);
+        publishedAssetBytes = await validatePrivateCommunityImage(privateImagePath);
         promotedStoragePath = await copyPrivatePhotoToPublishedAsset({
           ownerUid: actorUid,
           photoId: postId,
@@ -713,6 +724,7 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
             created: true,
             deduplicated: false,
             imageStoragePathToKeep: promotedStoragePath,
+            communityMediaCount: promotedStoragePath ? nextMediaCount : null,
           };
         }
       );
@@ -731,8 +743,36 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
 
       await deletePrivateDraftQuietly(privateImagePath);
 
+      if (
+        transactionResult.created
+        && promotedStoragePath
+        && transactionResult.imageStoragePathToKeep === promotedStoragePath
+        && transactionResult.communityMediaCount !== null
+        && publishedAssetBytes !== null
+      ) {
+        const storageUpperBoundBytes =
+          estimateCommunityStorageUpperBoundBytes({
+            mediaCount: transactionResult.communityMediaCount,
+            maxAssetBytes: MAX_COMMUNITY_IMAGE_BYTES,
+          });
+        const operationalCostBudget = evaluateOperationalCostBudget(
+          'community.storage.upper_bound_bytes_per_community',
+          storageUpperBoundBytes
+        );
+
+        logger.info('community_storage_cost_observed', {
+          communityId,
+          mediaCount: transactionResult.communityMediaCount,
+          publishedAssetBytes,
+          maxAssetBytes: MAX_COMMUNITY_IMAGE_BYTES,
+          storageUpperBoundBytes,
+          operationalCostBudget,
+        });
+      }
+
       const {
         imageStoragePathToKeep: _imageStoragePathToKeep,
+        communityMediaCount: _communityMediaCount,
         ...publicResponse
       } = transactionResult;
       return publicResponse;
