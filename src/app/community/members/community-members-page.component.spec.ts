@@ -34,7 +34,8 @@ describe('CommunityMembersPageComponent / fluxo completo', () => {
   let params: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
 
   beforeEach(() => {
-    vi.resetAllMocks();
+    vi.clearAllMocks();
+    getPage$.mockReset();
     params = new BehaviorSubject(convertToParamMap({ communityId: 'community-1' }));
     getPage$.mockReturnValue(of(page()));
     TestBed.configureTestingModule({

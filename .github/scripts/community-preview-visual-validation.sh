@@ -102,6 +102,10 @@ run_checked "$OUT/desktop/members.metrics.log" "async (page) => {
   const profileHref = await firstLink.getAttribute('href');
   const focused = await firstLink.evaluate((link) => document.activeElement === link);
   await panel.getByRole('button', { name: 'Ver mais integrantes', exact: true }).click();
+  await page.waitForFunction(() =>
+    document.querySelectorAll('#community-panel-members .community-members__item').length === 3
+    && !document.querySelector('#community-panel-members .community-members__more button')
+  );
   const metrics = await page.evaluate(() => {
     const panel = document.querySelector('#community-panel-members');
     return {
@@ -225,6 +229,10 @@ run_checked "$OUT/mobile/members.metrics.log" "async (page) => {
   const profileHref = await firstLink.getAttribute('href');
   const focused = await firstLink.evaluate((link) => document.activeElement === link);
   await panel.getByRole('button', { name: 'Ver mais integrantes', exact: true }).click();
+  await page.waitForFunction(() =>
+    document.querySelectorAll('#community-panel-members .community-members__item').length === 3
+    && !document.querySelector('#community-panel-members .community-members__more button')
+  );
   const metrics = await page.evaluate(() => {
     const panel = document.querySelector('#community-panel-members');
     return {
