@@ -11,6 +11,9 @@ import type {
   CommunityRankingShadowDiagnostics,
 } from './community-ranking-shadow-diagnostics.policy';
 
+const DAY_MS = 24 * 60 * 60 * 1_000;
+const START = Date.UTC(2026, 8, 1, 12, 0, 0);
+
 function diagnostics(
   overrides: Partial<CommunityRankingShadowDiagnostics> = {}
 ): CommunityRankingShadowDiagnostics {
@@ -78,7 +81,7 @@ test('um snapshot isolado nunca deixa v3 pronto para promoção', () => {
   const state = advanceCommunityRankingV3AcceptanceState({
     previous: null,
     diagnostics: diagnostics(),
-    cycleCompletedAt: 1_000,
+    cycleCompletedAt: START,
   });
 
   assert.equal(state.observedCycles, 1);
@@ -93,7 +96,7 @@ test('promoção exige janela mínima e aprovações consecutivas no fim da jane
     state = advanceCommunityRankingV3AcceptanceState({
       previous: state,
       diagnostics: diagnostics(),
-      cycleCompletedAt: cycle * 1_000,
+      cycleCompletedAt: START + cycle * DAY_MS,
     });
   }
 
@@ -113,21 +116,21 @@ test('promoção exige janela mínima e aprovações consecutivas no fim da jane
   assert.equal(finalState.promotionReady, true);
 });
 
-test('reprovação reinicia sequência e retry do mesmo ciclo é idempotente', () => {
+test('reprovação reinicia sequência e rerun do mesmo dia é idempotente', () => {
   const first = advanceCommunityRankingV3AcceptanceState({
     previous: null,
     diagnostics: diagnostics(),
-    cycleCompletedAt: 1_000,
+    cycleCompletedAt: START,
   });
   const replay = advanceCommunityRankingV3AcceptanceState({
     previous: first,
     diagnostics: diagnostics({ overlapRate: 0 }),
-    cycleCompletedAt: 1_000,
+    cycleCompletedAt: START + 60_000,
   });
   const failed = advanceCommunityRankingV3AcceptanceState({
     previous: replay,
     diagnostics: diagnostics({ overlapRate: 0 }),
-    cycleCompletedAt: 2_000,
+    cycleCompletedAt: START + DAY_MS,
   });
 
   assert.deepEqual(replay, first);
