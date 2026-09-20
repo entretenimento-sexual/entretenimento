@@ -10,16 +10,6 @@
 import type {
   ApplicationErrorPresentationMap,
 } from 'src/app/core/services/error-handler/application-error-presentation.model';
-import {
-  COMMUNITY_CREATE_RETURN_URL,
-  subscriptionFlowUrl,
-} from 'src/app/subscriptions/domain/subscription-flow-context.model';
-
-const BASIC_PLAN_ROUTE = subscriptionFlowUrl({
-  minimumRole: 'basic',
-  returnUrl: COMMUNITY_CREATE_RETURN_URL,
-});
-
 export const COMMUNITY_CREATE_REASON_PRESENTATIONS:
   ApplicationErrorPresentationMap = Object.freeze({
     community_creation_subscription_required: {
@@ -27,10 +17,10 @@ export const COMMUNITY_CREATE_REASON_PRESENTATIONS:
       severity: 'info',
       title: 'Crie sua própria Comunidade',
       detail:
-        'Participar continua gratuito. O plano Basic ou superior libera a criação e a administração de Comunidades.',
+        'Participar continua gratuito. Uma assinatura compatível libera a criação e a administração de Comunidades.',
       primaryAction: {
         label: 'Ver planos',
-        route: BASIC_PLAN_ROUTE,
+        route: '/subscription-plan',
       },
       dismissLabel: 'Agora não',
     },

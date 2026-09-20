@@ -21,6 +21,11 @@
 import { Injectable, inject } from '@angular/core';
 
 import {
+  resolveCommunityPublicErrorMessage,
+  resolveCommunityPublicErrorPresentation,
+} from 'src/app/community/presentation/community-error.catalog';
+
+import {
   COMMON_APPLICATION_ERROR_CODE_PRESENTATIONS,
   COMMON_APPLICATION_ERROR_REASON_MESSAGES,
   COMMON_APPLICATION_ERROR_REASON_PRESENTATIONS,
@@ -149,8 +154,12 @@ export class ApplicationErrorService {
       options.fallbackMessage,
       'Não foi possível concluir a ação agora.'
     );
+    const communityFeature = this.isCommunityFeature(options.feature);
     const userMessage =
       (reason ? safeString(options.reasonMessages?.[reason], 280) : null)
+      ?? (communityFeature && reason
+        ? safeString(resolveCommunityPublicErrorMessage(reason), 280)
+        : null)
       ?? (reason
         ? safeString(COMMON_APPLICATION_ERROR_REASON_MESSAGES[reason], 280)
         : null)
@@ -204,6 +213,9 @@ export class ApplicationErrorService {
         ? options.recommendedActionPresentations?.[recommendedAction]
         : undefined)
       ?? (code ? options.codePresentations?.[code] : undefined)
+      ?? (this.isCommunityFeature(options.feature) && reason
+        ? resolveCommunityPublicErrorPresentation(reason) ?? undefined
+        : undefined)
       ?? (reason
         ? COMMON_APPLICATION_ERROR_REASON_PRESENTATIONS[reason]
         : undefined)
@@ -216,6 +228,10 @@ export class ApplicationErrorService {
       ?? this.presentationFromLegacyNotification(options.notification);
 
     return normalizeApplicationErrorPresentation(mappedPresentation);
+  }
+
+  private isCommunityFeature(feature: string): boolean {
+    return feature.trim().toLowerCase().startsWith('community');
   }
 
   private presentationFromLegacyNotification(

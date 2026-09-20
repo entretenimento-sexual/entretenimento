@@ -79,6 +79,46 @@ describe('ApplicationErrorService', () => {
     );
   });
 
+  it('aplica presentation canônica bloqueante de Comunidades sem mapa local', () => {
+    const descriptor = service.normalize(
+      {
+        code: 'functions/failed-precondition',
+        details: { reason: 'membership_status_invalid' },
+      },
+      {
+        feature: 'community-membership',
+        operation: 'join',
+        fallbackMessage: 'Não foi possível alterar a participação.',
+      }
+    );
+
+    expect(descriptor.userMessage).toContain('participação');
+    expect(descriptor.presentation).toMatchObject({
+      surface: 'modal',
+      severity: 'warning',
+      title: 'Participação inconsistente',
+    });
+  });
+
+  it('mantém rate limit de Comunidades como snackbar', () => {
+    const descriptor = service.normalize(
+      {
+        code: 'functions/resource-exhausted',
+        details: { reason: 'community_feed_rate_limited' },
+      },
+      {
+        feature: 'community-feed',
+        operation: 'createPost',
+        fallbackMessage: 'Não foi possível publicar.',
+      }
+    );
+
+    expect(descriptor.presentation).toEqual({
+      surface: 'snackbar',
+      severity: 'info',
+    });
+  });
+
   it('prioriza recommendedAction conhecida quando não há reason mapeado', () => {
     const descriptor = service.normalize(
       {
