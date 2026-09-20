@@ -7,28 +7,15 @@
 // -----------------------------------------------------------------------------
 
 import {
-  EnvironmentInjector,
   Injectable,
   inject,
-  runInInjectionContext,
 } from '@angular/core';
-import {
-  DocumentData,
-  DocumentReference,
-} from 'firebase/firestore';
-import {
-  Firestore,
-  doc,
-  docSnapshots,
-} from '@angular/fire/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import {
   Observable,
   defer,
-  distinctUntilChanged,
   from,
   map,
-  of,
 } from 'rxjs';
 
 import {
@@ -51,15 +38,12 @@ import {
   normalizeCommunityFeedCommentReplyCreateResponse,
   normalizeCommunityFeedCommentReplyPageResponse,
 } from './community-feed-comment.model';
-import { normalizeCommunityFeedRealtimeProjection } from './community-feed-realtime.model';
-
-const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
+import { CommunityFeedRepository } from './community-feed.repository';
 
 @Injectable({ providedIn: 'root' })
 export class CommunityFeedCommentRepository {
   private readonly functions = inject(Functions);
-  private readonly firestore = inject(Firestore);
-  private readonly environmentInjector = inject(EnvironmentInjector);
+  private readonly feedRepository = inject(CommunityFeedRepository);
   private readonly getPageCallable = httpsCallable<
     CommunityFeedCommentPageRequest,
     unknown
@@ -118,47 +102,15 @@ export class CommunityFeedCommentRepository {
   }
 
   /**
-   * Observa somente `metrics.commentCount` do stream realtime sanitizado do post.
-   * O conteúdo da conversa permanece backend-only e é revalidado pela callable.
+   * A projeção Firestore pertence ao CommunityFeedRepository. Este repositório
+   * conserva apenas a API da conversa para não criar um segundo owner realtime.
    */
   watchCommentCount$(
     communityId: string,
     postId: string
   ): Observable<number> {
-    return defer(() => {
-      const safeCommunityId = communityId.trim();
-      const safePostId = postId.trim();
-      if (
-        !SAFE_ID_PATTERN.test(safeCommunityId)
-        || !SAFE_ID_PATTERN.test(safePostId)
-      ) {
-        return of(0);
-      }
-
-      const source$ = runInInjectionContext(this.environmentInjector, () => {
-        const reference = doc(
-          this.firestore,
-          `community_feed_realtime/${safeCommunityId}/items/${safePostId}`
-        ) as DocumentReference<DocumentData>;
-        return docSnapshots(reference);
-      });
-
-      return source$.pipe(
-        map((snapshot) => {
-          if (!snapshot.exists()) return 0;
-          const projection = normalizeCommunityFeedRealtimeProjection(
-            snapshot.id,
-            snapshot.data()
-          );
-          return projection?.state === 'active'
-            ? projection.metrics.commentCount
-            : 0;
-        }),
-        distinctUntilChanged()
-      );
-    });
+    return this.feedRepository.watchPostCommentCount$(communityId, postId);
   }
-
   createComment$(
     request: CommunityFeedCommentCreateRequest
   ): Observable<CommunityFeedCommentCreateResponse> {
