@@ -204,39 +204,6 @@
   cursor: pointer;
 }
 
-.community-discovery__session-feedback {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  margin: 0 0 0.75rem;
-  padding: 0.65rem 0.75rem;
-  border: 1px solid color-mix(
-    in oklab,
-    var(--surface-border, #d5d5d5) 80%,
-    transparent
-  );
-  border-radius: 0.75rem;
-  background: color-mix(
-    in oklab,
-    var(--surface-color, #fff) 96%,
-    var(--primary-color, #d83768) 4%
-  );
-  color: color-mix(in oklab, var(--text-color, #222) 82%, transparent);
-  font-size: 0.78rem;
-  line-height: 1.4;
-}
-
-.community-discovery__session-feedback > i {
-  width: 1rem;
-  flex: 0 0 auto;
-  color: var(--primary-color, #d83768);
-  text-align: center;
-}
-
-.community-discovery__session-feedback .community-discovery__empty-explore {
-  margin-inline-start: auto;
-}
-
 .community-discovery__state {
   min-height: 11rem;
   display: grid;
@@ -425,22 +392,6 @@
     var(--primary-color, #d83768) 42%,
     var(--surface-border, #d5d5d5)
   );
-}
-
-.community-card-shell--mine[data-attention='priority'] {
-  border-inline-start: 3px solid var(--primary-color, #d83768);
-}
-
-.community-card-shell--mine[data-attention='unread'] {
-  border-inline-start: 3px solid color-mix(
-    in oklab,
-    var(--primary-color, #d83768) 58%,
-    var(--surface-border, #d5d5d5)
-  );
-}
-
-.community-card-shell--mine.is-muted .community-card__notification-action {
-  color: color-mix(in oklab, var(--text-color, #222) 82%, transparent);
 }
 
 .community-card__actions {
@@ -833,26 +784,16 @@
 }
 
 .community-card__relationship {
-  width: fit-content;
-  max-width: 100%;
   display: inline-flex;
   align-items: center;
   gap: 0.32rem;
-  margin-top: 0.12rem;
   color: color-mix(in oklab, var(--text-color, #222) 66%, transparent);
   font-size: 0.7rem;
   font-weight: 680;
-  line-height: 1.3;
 }
 
 .community-card__relationship i {
-  width: 0.9rem;
-  color: color-mix(
-    in oklab,
-    var(--primary-color, #d83768) 68%,
-    var(--text-color, #222)
-  );
-  text-align: center;
+  color: var(--primary-color, #d83768);
 }
 
 .community-card p {
