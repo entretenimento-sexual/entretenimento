@@ -241,12 +241,12 @@ describe('CommunityDiscoveryPageComponent / criação direta', () => {
     fixture.detectChanges();
     fixture.detectChanges();
 
-    expect(fixture.componentInstance.membershipRoleLabel({
+    expect(fixture.componentInstance.membershipRolePresentation({
       ...DISCOVERY_CARD,
       viewerRole: 'owner',
     })).toBeNull();
     expect(
-      fixture.nativeElement.querySelector('.community-card__viewer-role')
+      fixture.nativeElement.querySelector('.community-card__relationship')
     ).toBeNull();
     expect(fixture.nativeElement.textContent).not.toContain('Seu papel:');
   });
