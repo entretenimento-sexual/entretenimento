@@ -102,6 +102,31 @@ Os planos da plataforma podem oferecer:
 
 Recursos essenciais de segurança, bloqueio, denúncia e privacidade básica não devem depender de pagamento.
 
+### Business / Official — capacidade orientada por dados reais
+
+Business/Official não deve nascer de uma estimativa antecipada de preço, quantidade de Comunidades ou capacidade de membros.
+
+A plataforma deve separar três conceitos:
+
+- **autoridade oficial**: comprova que a pessoa pode representar Perfil, Organização, Local ou Evento;
+- **entitlement comercial**: define a capacidade contratada daquele cliente/organização;
+- **role comunitária**: owner/admin/mod/member governa a Comunidade, sem provar representação comercial.
+
+A oferta Business/Official só deve ser recalibrada a partir de uma janela observada da oferta real contendo, no mínimo:
+
+- quantidade de ofertas apresentadas;
+- conversões efetivas;
+- quantidade de Comunidades efetivamente criadas pelos clientes convertidos;
+- custo financeiro realizado, obtido de billing/finanças.
+
+Proxies técnicos de Firestore, Functions, push ou Storage servem para orçamento operacional, mas não podem ser convertidos em `actualCostCents` nem usados como se fossem custo financeiro realizado.
+
+Os limites globais de Official existentes no runtime são **hard ceilings técnicos de segurança**, não preço, pacote nem recomendação comercial. Grants/entitlements Business/Official devem carregar explicitamente a quantidade contratada e a capacidade de membros dentro desses tetos. Mudanças posteriores de oferta devem ser versionadas e justificadas pelos dados observados, sem alterar score orgânico ou autoridade oficial.
+
+A policy executável que valida se existe evidência mínima real para recalibração é:
+
+`functions/src/community/community-business-official-calibration.policy.ts`
+
 ## Impulsionamento
 
 Impulsionamento é distribuição patrocinada de perfil ou mídia.
