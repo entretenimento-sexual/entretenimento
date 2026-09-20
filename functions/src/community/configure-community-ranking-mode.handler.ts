@@ -194,17 +194,19 @@ export const configureCommunityRankingMode =
           }, { merge: true });
 
           const auditRef = db.collection('community_ranking_mode_audit').doc();
-          const shadowAcceptance = action === 'promote_v3'
-            ? {
-                policyVersion: shadowRuntime['policyVersion'] ?? null,
-                observedCycles: shadowRuntime['observedCycles'] ?? null,
-                consecutivePassingCycles:
-                  shadowRuntime['consecutivePassingCycles'] ?? null,
-                promotionReady: shadowRuntime['promotionReady'] === true,
-                lastObservedCycleCompletedAt:
-                  shadowRuntime['lastObservedCycleCompletedAt'] ?? null,
-              }
-            : null;
+          let shadowAcceptance: Record<string, unknown> | null = null;
+
+          if (action === 'promote_v3') {
+            shadowAcceptance = {
+              policyVersion: shadowRuntime['policyVersion'] ?? null,
+              observedCycles: shadowRuntime['observedCycles'] ?? null,
+              consecutivePassingCycles:
+                shadowRuntime['consecutivePassingCycles'] ?? null,
+              promotionReady: shadowRuntime['promotionReady'] === true,
+              lastObservedCycleCompletedAt:
+                shadowRuntime['lastObservedCycleCompletedAt'] ?? null,
+            };
+          }
 
           transaction.set(auditRef, {
             action,
