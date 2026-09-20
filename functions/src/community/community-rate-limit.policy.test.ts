@@ -9,6 +9,7 @@ import {
 const ACTION_COVERAGE = {
   community_create: true,
   official_space_create: true,
+  official_community_create: true,
   feed_post: true,
   feed_conversation: true,
   topic_conversation: true,
@@ -46,9 +47,10 @@ test('todas as mutações cobertas possuem política válida e ação backend es
   }
 });
 
-test('criações pessoais e oficiais possuem orçamentos independentes e restritos', () => {
+test('criações pessoais, espaços e comunidades oficiais possuem orçamentos independentes e restritos', () => {
   const personal = getCommunityRateLimitPolicy('community_create');
-  const official = getCommunityRateLimitPolicy('official_space_create');
+  const officialSpace = getCommunityRateLimitPolicy('official_space_create');
+  const officialCommunity = getCommunityRateLimitPolicy('official_community_create');
 
   assert.equal(personal.backendAction, 'createCommunity');
   assert.equal(personal.config.burstMax, 3);
@@ -56,11 +58,20 @@ test('criações pessoais e oficiais possuem orçamentos independentes e restrit
   assert.equal(personal.config.sustainedMax, 10);
   assert.equal(personal.reason, 'community_creation_rate_limited');
 
-  assert.equal(official.backendAction, 'createVenueCommunity');
-  assert.equal(official.config.burstMax, 2);
-  assert.equal(official.config.sustainedWindowMs, 3_600_000);
-  assert.equal(official.config.sustainedMax, 6);
-  assert.equal(official.reason, 'official_space_creation_rate_limited');
+  assert.equal(officialSpace.backendAction, 'createVenueCommunity');
+  assert.equal(officialSpace.config.burstMax, 2);
+  assert.equal(officialSpace.config.sustainedWindowMs, 3_600_000);
+  assert.equal(officialSpace.config.sustainedMax, 6);
+  assert.equal(officialSpace.reason, 'official_space_creation_rate_limited');
+
+  assert.equal(officialCommunity.backendAction, 'createOfficialCommunity');
+  assert.equal(officialCommunity.config.burstMax, 2);
+  assert.equal(officialCommunity.config.sustainedWindowMs, 3_600_000);
+  assert.equal(officialCommunity.config.sustainedMax, 6);
+  assert.equal(
+    officialCommunity.reason,
+    'official_community_creation_rate_limited'
+  );
 });
 
 test('preserva identificadores e limites já usados por conversa e reação', () => {
