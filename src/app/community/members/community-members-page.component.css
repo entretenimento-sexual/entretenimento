@@ -79,7 +79,7 @@
 
 .community-members__item {
   min-width: 0;
-  padding: 0.7rem 0.8rem;
+  padding: 0;
   border: 1px solid color-mix(
     in oklab,
     var(--surface-border, #d5d5d5) 82%,
@@ -175,4 +175,24 @@
   .community-members__more button {
     scroll-behavior: auto;
   }
+}
+
+.community-members__profile {
+  display: block;
+  min-height: 2.75rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: inherit;
+  color: inherit;
+  text-decoration: none;
+}
+
+.community-members__profile:hover {
+  background: color-mix(in oklab, var(--primary-color, #d83768) 8%, transparent);
+}
+
+.community-members__profile:focus-visible,
+.community-members__state button:focus-visible,
+.community-members__more button:focus-visible {
+  outline: 3px solid var(--primary-color, #d83768);
+  outline-offset: 2px;
 }

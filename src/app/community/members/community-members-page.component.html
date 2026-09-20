@@ -36,7 +36,7 @@
     } @else if (state.status === 'error') {
       <section class="community-members__state" role="alert">
         <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
-        <span>Não foi possível carregar os integrantes.</span>
+        <span>{{ state.errorMessage || 'Não foi possível carregar os integrantes.' }}</span>
         <button type="button" (click)="retry()">Tentar novamente</button>
       </section>
     } @else {
@@ -44,12 +44,18 @@
         <ul class="community-members__list" aria-label="Integrantes da Comunidade">
           @for (member of state.items; track member.memberKey) {
             <li class="community-members__item">
-              <app-public-user-identity
-                [identity]="member.identity"
-                density="comfortable"
-                emphasis="strong"
-                [contextText]="roleLabel(member.role)"
-              />
+              <a
+                class="community-members__profile"
+                [routerLink]="['/perfil', member.identity.profileId]"
+                [attr.aria-label]="'Ver perfil de ' + member.identity.nickname"
+              >
+                <app-public-user-identity
+                  [identity]="member.identity"
+                  density="comfortable"
+                  emphasis="strong"
+                  [contextText]="roleLabel(member.role)"
+                />
+              </a>
             </li>
           }
         </ul>
@@ -62,11 +68,15 @@
 
       @if (state.loadMoreFailed) {
         <p class="community-members__more-error" role="status">
-          Não foi possível carregar mais integrantes. A lista acima foi preservada.
+          {{ state.errorMessage }} A lista acima foi preservada.
         </p>
       }
 
-      @if (state.nextCursor) {
+      @if (state.restartRequired) {
+        <div class="community-members__more">
+          <button type="button" (click)="retry()">Atualizar lista</button>
+        </div>
+      } @else if (state.nextCursor) {
         <div class="community-members__more">
           <button
             type="button"

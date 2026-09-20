@@ -92,6 +92,51 @@ playwright-cli snapshot --filename="$OUT/desktop/feed.accessibility.yml"
 playwright-cli screenshot --filename="$OUT/desktop/feed.viewport.png"
 playwright-cli screenshot --full-page --filename="$OUT/desktop/feed.full-page.png"
 
+run_checked "$OUT/desktop/members.metrics.log" "async (page) => {
+  await page.getByRole('button', { name: 'Membros', exact: true }).click();
+  await page.waitForSelector('.community-members__profile', { state: 'visible' });
+  const panel = page.locator('#community-panel-members');
+  const initialCount = await panel.locator('.community-members__item').count();
+  const firstLink = panel.getByRole('link', { name: 'Ver perfil de Marina', exact: true });
+  await firstLink.focus();
+  const profileHref = await firstLink.getAttribute('href');
+  const focused = await firstLink.evaluate((link) => document.activeElement === link);
+  await panel.getByRole('button', { name: 'Ver mais integrantes', exact: true }).click();
+  const metrics = await page.evaluate(() => {
+    const panel = document.querySelector('#community-panel-members');
+    return {
+      viewportWidth: window.innerWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+      memberCount: panel?.querySelectorAll('.community-members__item').length,
+      hasTitle: panel?.querySelector('h2')?.textContent === 'Membros',
+      hasMore: Boolean(panel?.querySelector('.community-members__more button')),
+      nestedMain: Boolean(panel?.querySelector('main, [role=main]')),
+      hasBack: Boolean(panel?.querySelector('.community-members__topbar')),
+      linksInsideViewport: Array.from(panel?.querySelectorAll('.community-members__profile') ?? [])
+        .every((link) => {
+          const rect = link.getBoundingClientRect();
+          return rect.left >= -1 && rect.right <= window.innerWidth + 1 && rect.height >= 44;
+        }),
+    };
+  });
+  if (
+    initialCount !== 2
+    || metrics.memberCount !== 3
+    || !metrics.hasTitle
+    || metrics.hasMore
+    || metrics.nestedMain
+    || metrics.hasBack
+    || !metrics.linksInsideViewport
+    || metrics.scrollWidth > metrics.viewportWidth + 1
+    || !focused
+    || profileHref !== '/perfil/profile-00000000-0000-4000-8000-000000000001'
+  ) {
+    throw new Error('Community members desktop validation failed: ' + JSON.stringify(metrics));
+  }
+  return metrics;
+}"
+playwright-cli screenshot --full-page --filename="$OUT/desktop/members.full-page.png"
+
 run_checked "$OUT/desktop/about.metrics.log" "async (page) => {
   await page.getByRole('button', { name: 'Sobre', exact: true }).click();
   await page.waitForSelector('.community-preview__about', { state: 'visible' });
@@ -169,6 +214,51 @@ run_checked "$OUT/mobile/feed.metrics.log" "async (page) => {
 playwright-cli snapshot --filename="$OUT/mobile/feed.accessibility.yml"
 playwright-cli screenshot --filename="$OUT/mobile/feed.viewport.png"
 playwright-cli screenshot --full-page --filename="$OUT/mobile/feed.full-page.png"
+
+run_checked "$OUT/mobile/members.metrics.log" "async (page) => {
+  await page.getByRole('button', { name: 'Membros', exact: true }).click();
+  await page.waitForSelector('.community-members__profile', { state: 'visible' });
+  const panel = page.locator('#community-panel-members');
+  const initialCount = await panel.locator('.community-members__item').count();
+  const firstLink = panel.getByRole('link', { name: 'Ver perfil de Marina', exact: true });
+  await firstLink.focus();
+  const profileHref = await firstLink.getAttribute('href');
+  const focused = await firstLink.evaluate((link) => document.activeElement === link);
+  await panel.getByRole('button', { name: 'Ver mais integrantes', exact: true }).click();
+  const metrics = await page.evaluate(() => {
+    const panel = document.querySelector('#community-panel-members');
+    return {
+      viewportWidth: window.innerWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+      memberCount: panel?.querySelectorAll('.community-members__item').length,
+      hasTitle: panel?.querySelector('h2')?.textContent === 'Membros',
+      hasMore: Boolean(panel?.querySelector('.community-members__more button')),
+      nestedMain: Boolean(panel?.querySelector('main, [role=main]')),
+      hasBack: Boolean(panel?.querySelector('.community-members__topbar')),
+      linksInsideViewport: Array.from(panel?.querySelectorAll('.community-members__profile') ?? [])
+        .every((link) => {
+          const rect = link.getBoundingClientRect();
+          return rect.left >= -1 && rect.right <= window.innerWidth + 1 && rect.height >= 44;
+        }),
+    };
+  });
+  if (
+    initialCount !== 2
+    || metrics.memberCount !== 3
+    || !metrics.hasTitle
+    || metrics.hasMore
+    || metrics.nestedMain
+    || metrics.hasBack
+    || !metrics.linksInsideViewport
+    || metrics.scrollWidth > metrics.viewportWidth + 1
+    || !focused
+    || profileHref !== '/perfil/profile-00000000-0000-4000-8000-000000000001'
+  ) {
+    throw new Error('Community members mobile validation failed: ' + JSON.stringify(metrics));
+  }
+  return metrics;
+}"
+playwright-cli screenshot --full-page --filename="$OUT/mobile/members.full-page.png"
 
 run_checked "$OUT/mobile/about.metrics.log" "async (page) => {
   await page.getByRole('button', { name: 'Sobre', exact: true }).click();

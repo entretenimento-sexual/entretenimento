@@ -20,6 +20,8 @@ import type {
   CommunityFeedPostCreateRequest,
   CommunityFeedReactionRequest,
 } from './community/data-access/community-feed.model';
+import { CommunityMemberRosterRepository } from './community/data-access/community-member-roster.repository';
+import { normalizeCommunityMemberRosterPage } from './community/data-access/community-member-roster.model';
 import { CommunityMembershipRepository } from './community/data-access/community-membership.repository';
 import type { CommunityPreviewResponse } from './community/data-access/community-preview.model';
 import { CommunityPreviewRepository } from './community/data-access/community-preview.repository';
@@ -221,6 +223,28 @@ const comments: CommunityFeedCommentPage = {
   items: [],
 };
 
+const rosterIds = [
+  'profile-00000000-0000-4000-8000-000000000001',
+  'profile-00000000-0000-4000-8000-000000000002',
+  'profile-00000000-0000-4000-8000-000000000003',
+];
+const rosterRepository = {
+  getPage$: ({ cursor }: { cursor: string | null }) => of(normalizeCommunityMemberRosterPage({
+    items: (cursor ? rosterIds.slice(2) : rosterIds.slice(0, 2)).map((profileId) => ({
+      memberKey: profileId,
+      identity: {
+        profileId,
+        nickname: ['Marina', 'Rafael', 'Bia'][rosterIds.indexOf(profileId)],
+        avatarUrl: null,
+      },
+      role: profileId === rosterIds[0] ? 'owner' : 'member',
+    })),
+    nextCursor: cursor ? null : rosterIds[1],
+    memberCount: 86,
+    generatedAt: now,
+  })),
+};
+
 const previewRepository = {
   getPreview$: () => of(currentPreview()),
 };
@@ -300,6 +324,7 @@ const route = {
   providers: [
     { provide: ActivatedRoute, useValue: route },
     { provide: MatDialog, useValue: { open: () => ({ afterClosed: () => of(false) }) } },
+    { provide: CommunityMemberRosterRepository, useValue: rosterRepository },
     { provide: CommunityPreviewRepository, useValue: previewRepository },
     { provide: CommunityMembershipRepository, useValue: membershipRepository },
     { provide: CommunityFeedRepository, useValue: feedRepository },

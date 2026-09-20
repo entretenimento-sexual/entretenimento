@@ -6,6 +6,7 @@ import {
   Subject,
   catchError,
   distinctUntilChanged,
+  exhaustMap,
   map,
   of,
   scan,
@@ -15,7 +16,7 @@ import {
 } from 'rxjs';
 
 import { PublicUserIdentityComponent } from 'src/app/core/components/public-user-identity/public-user-identity.component';
-import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { ApplicationErrorDescriptor, ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import {
   CommunityMemberRosterItem,
   CommunityMemberRosterPage,
@@ -37,6 +38,8 @@ interface MemberRosterState {
   readonly memberCount: number;
   readonly loadingMore: boolean;
   readonly loadMoreFailed: boolean;
+  readonly errorMessage: string | null;
+  readonly restartRequired: boolean;
 }
 
 interface LoadRequest {
@@ -47,7 +50,7 @@ interface LoadRequest {
 type LoadEvent =
   | { type: 'loading'; request: LoadRequest }
   | { type: 'success'; request: LoadRequest; page: CommunityMemberRosterPage }
-  | { type: 'error'; request: LoadRequest };
+  | { type: 'error'; request: LoadRequest; error: ApplicationErrorDescriptor };
 
 function initialState(communityId: string): MemberRosterState {
   return {
@@ -58,6 +61,8 @@ function initialState(communityId: string): MemberRosterState {
     memberCount: 0,
     loadingMore: false,
     loadMoreFailed: false,
+    errorMessage: null,
+    restartRequired: false,
   };
 }
 
@@ -81,20 +86,27 @@ function reduceState(
           ...state,
           loadingMore: true,
           loadMoreFailed: false,
+          errorMessage: null,
+          restartRequired: false,
         }
       : initialState(state.communityId);
   }
 
   if (event.type === 'error') {
-    return event.request.append && state.items.length > 0
+    const accessDenied = ['unauthenticated', 'permission-denied', 'not-found', 'failed-precondition']
+      .includes(event.error.code ?? '');
+    return event.request.append && state.items.length > 0 && !accessDenied
       ? {
           ...state,
           loadingMore: false,
           loadMoreFailed: true,
+          errorMessage: event.error.userMessage,
+          restartRequired: event.error.reason === 'invalid_community_member_roster_cursor',
         }
       : {
           ...initialState(state.communityId),
           status: 'error',
+          errorMessage: event.error.userMessage,
         };
   }
 
@@ -110,6 +122,8 @@ function reduceState(
     memberCount: event.page.memberCount,
     loadingMore: false,
     loadMoreFailed: false,
+    errorMessage: null,
+    restartRequired: false,
   };
 }
 
@@ -134,7 +148,7 @@ export class CommunityMembersPageComponent {
     distinctUntilChanged(),
     switchMap((communityId) => {
       if (!communityId) {
-        this.reportLoadError(
+        const error = this.reportLoadError(
           new Error('Identificador da Comunidade ausente.'),
           communityId,
           false
@@ -142,12 +156,13 @@ export class CommunityMembersPageComponent {
         return of<MemberRosterState>({
           ...initialState(''),
           status: 'error',
+          errorMessage: error.userMessage,
         });
       }
 
       return this.loadRequests$.pipe(
         startWith<LoadRequest>({ cursor: null, append: false }),
-        switchMap((request) =>
+        exhaustMap((request) =>
           this.repository
             .getPage$({
               communityId,
@@ -158,8 +173,8 @@ export class CommunityMembersPageComponent {
               map((page): LoadEvent => ({ type: 'success', request, page })),
               startWith<LoadEvent>({ type: 'loading', request }),
               catchError((error: unknown) => {
-                this.reportLoadError(error, communityId, request.append);
-                return of<LoadEvent>({ type: 'error', request });
+                const descriptor = this.reportLoadError(error, communityId, request.append);
+                return of<LoadEvent>({ type: 'error', request, error: descriptor });
               })
             )
         ),
@@ -189,14 +204,15 @@ export class CommunityMembersPageComponent {
     error: unknown,
     communityId: string,
     append: boolean
-  ): void {
-    this.applicationError.report(error, {
+  ): ApplicationErrorDescriptor {
+    return this.applicationError.report(error, {
       feature: 'community',
       operation: append ? 'loadMoreCommunityMembers' : 'loadCommunityMembers',
       fallbackMessage: append
         ? 'Não foi possível carregar mais integrantes agora.'
         : 'Não foi possível carregar os integrantes desta Comunidade agora.',
       notification: 'none',
+      presentation: { surface: 'inline', severity: 'error' },
       reasonMessages: COMMUNITY_MEMBER_ROSTER_REASON_MESSAGES,
       codeMessages: COMMUNITY_MEMBER_ROSTER_CODE_MESSAGES,
       metadata: {
