@@ -1,0 +1,86 @@
+name: Community Operational Validation - No Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'functions/src/community/community-operational-synthetic.test.ts'
+      - 'src/app/community/operational/**'
+      - '.github/workflows/community-operational-validation.yml'
+  pull_request:
+    paths:
+      - 'functions/src/community/community-operational-synthetic.test.ts'
+      - 'src/app/community/operational/**'
+      - '.github/workflows/community-operational-validation.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: community-operational-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  functions-synthetic:
+    name: Backend synthetic operational flows
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install Functions dependencies
+        run: npm --prefix functions ci
+
+      - name: Build Functions
+        run: npm --prefix functions run build
+
+      - name: Run Community synthetic operational test
+        run: node --test functions/lib/community/community-operational-synthetic.test.js
+
+  angular-synthetic:
+    name: Angular synthetic flows and session boundaries
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install application dependencies
+        run: npm ci
+
+      - name: Run Angular CI suite including operational scenarios
+        run: npm run test:ci
+
+      - name: Record validation scope
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '## Community operational validation'
+            echo
+            echo '- No deploy'
+            echo '- No Billing configuration'
+            echo '- No Monitoring configuration'
+            echo '- Synthetic users: 1 / 5 / 20 / 100 Communities'
+            echo '- Covers pagination, cache, concurrent realtime attention and A→B session isolation'
+          } >> "$GITHUB_STEP_SUMMARY"

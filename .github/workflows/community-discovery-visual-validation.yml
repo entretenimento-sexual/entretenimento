@@ -4,6 +4,7 @@ name: Community Discovery Visual Validation
 # mascarar erros de console do Angular ou depender de serviços externos reais.
 on:
   workflow_dispatch:
+  pull_request:
   push:
     branches:
       - main
