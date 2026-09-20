@@ -72,7 +72,10 @@ function basePreview(): CommunityPreviewResponse {
 describe('CommunityPreviewPageComponent / Local', () => {
   const rosterRepositoryMock = { getPage$: vi.fn() };
   const dialogMock = { open: vi.fn() };
-  const previewRepositoryMock = { getPreview$: vi.fn() };
+  const previewRepositoryMock = {
+    getPreview$: vi.fn(),
+    getOfficialCommunitiesForTarget$: vi.fn(),
+  };
   const feedRepositoryMock = {
     getPage$: vi.fn(),
     getItems$: vi.fn(),
@@ -96,6 +99,11 @@ describe('CommunityPreviewPageComponent / Local', () => {
       items: [], nextCursor: null, memberCount: 12, generatedAt: 123,
     }));
     previewRepositoryMock.getPreview$.mockReturnValue(of(preview()));
+    previewRepositoryMock.getOfficialCommunitiesForTarget$.mockReturnValue(of({
+      items: [basePreview().community],
+      nextCursor: null,
+      generatedAt: 123,
+    }));
     feedRepositoryMock.getPage$.mockReturnValue(
       of({ items: [], nextCursor: null, generatedAt: 123 })
     );
@@ -256,6 +264,28 @@ describe('CommunityPreviewPageComponent / Local', () => {
     expect(fixture.nativeElement.textContent).toContain('12 pessoas conectadas');
     expect(fixture.nativeElement.textContent).toContain(
       'Interação reservada às pessoas autorizadas no Local'
+    );
+  });
+
+  it('monta a associação oficial transversal na superfície de Local sem auto-link', () => {
+    const fixture = createFixture();
+
+    sectionButton(fixture, 2).click();
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    expect(previewRepositoryMock.getOfficialCommunitiesForTarget$)
+      .toHaveBeenCalledWith({ type: 'venue', id: 'venue-1' }, 4);
+    expect(
+      fixture.nativeElement.querySelector(
+        'app-official-entity-community-section'
+      )
+    ).not.toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('.official-community--current')
+    ).not.toBeNull();
+    expect(fixture.nativeElement.textContent).toContain(
+      'Esta é a comunidade oficial deste Local'
     );
   });
 

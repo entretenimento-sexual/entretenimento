@@ -117,6 +117,7 @@ export class OfficialCommunitiesForTargetComponent {
     new BehaviorSubject<CommunityOfficialTargetType | null>(null);
   private readonly targetIdSubject = new BehaviorSubject<string>('');
   private readonly refreshSubject = new BehaviorSubject<number>(0);
+  currentCommunityIdValue = '';
 
   @Input({ required: true })
   set targetType(value: CommunityOfficialTargetType | null | undefined) {
@@ -126,6 +127,11 @@ export class OfficialCommunitiesForTargetComponent {
   @Input({ required: true })
   set targetId(value: string | null | undefined) {
     this.targetIdSubject.next(String(value ?? '').trim());
+  }
+
+  @Input()
+  set currentCommunityId(value: string | null | undefined) {
+    this.currentCommunityIdValue = String(value ?? '').trim();
   }
 
   readonly vm$: Observable<OfficialCommunitiesForTargetVm | null> =
@@ -171,6 +177,11 @@ export class OfficialCommunitiesForTargetComponent {
 
   retry(): void {
     this.refreshSubject.next(this.refreshSubject.value + 1);
+  }
+
+  isCurrentCommunity(item: CommunityPreviewCard): boolean {
+    return !!this.currentCommunityIdValue
+      && item.communityId === this.currentCommunityIdValue;
   }
 
   detailsRoute(item: CommunityPreviewCard): readonly string[] {

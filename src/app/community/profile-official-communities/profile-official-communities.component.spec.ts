@@ -10,6 +10,7 @@ import type { CommunityPreviewCard } from '../data-access/community-preview.mode
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
 import { CommunityProfilePublicCommunitiesRepository } from '../data-access/community-profile-public-communities.repository';
 import { OfficialCommunitiesForTargetComponent } from '../official-communities-for-target/official-communities-for-target.component';
+import { OfficialEntityCommunitySectionComponent } from '../official-entity-community-section/official-entity-community-section.component';
 import { CommunityOfficialBadgeComponent } from '../presentation/community-official-badge.component';
 import { ProfileOfficialCommunitiesComponent } from './profile-official-communities.component';
 
@@ -117,6 +118,11 @@ describe('ProfileOfficialCommunitiesComponent', () => {
         By.directive(OfficialCommunitiesForTargetComponent)
       )
     ).toHaveLength(1);
+    expect(
+      fixture.debugElement.queryAll(
+        By.directive(OfficialEntityCommunitySectionComponent)
+      )
+    ).toHaveLength(0);
     expect(fixture.nativeElement.textContent).toContain('Comunidade oficial');
     expect(fixture.nativeElement.textContent).not.toContain(
       'Participação em comunidades'

@@ -98,6 +98,27 @@ describe('OfficialCommunitiesForTargetComponent', () => {
     }
   );
 
+  it('não cria auto-link quando a própria superfície já é a comunidade oficial', () => {
+    const fixture = TestBed.createComponent(
+      OfficialCommunitiesForTargetComponent
+    );
+    fixture.componentRef.setInput('targetType', 'venue');
+    fixture.componentRef.setInput('targetId', 'venue-1');
+    fixture.componentRef.setInput('currentCommunityId', 'community-venue');
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('.official-community--current')
+    ).not.toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('.official-community--current a')
+    ).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain(
+      'Esta é a comunidade oficial deste Local'
+    );
+  });
+
   it('fica oculto quando não existe associação oficial vigente', () => {
     repository.getOfficialCommunitiesForTarget$.mockReturnValue(of({
       items: [],

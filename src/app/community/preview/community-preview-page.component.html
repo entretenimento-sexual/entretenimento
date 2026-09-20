@@ -481,6 +481,14 @@
                     <p>{{ preview.community.description }}</p>
                   }
 
+                  @if (preview.community.source.type === 'venue') {
+                    <app-official-entity-community-section
+                      targetType="venue"
+                      [targetId]="preview.community.source.id"
+                      [currentCommunityId]="preview.community.communityId"
+                    />
+                  }
+
                   @if (
                     preview.community.source.type === 'community'
                     && preview.viewerMode !== 'visitor'

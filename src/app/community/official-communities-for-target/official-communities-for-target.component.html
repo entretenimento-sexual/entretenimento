@@ -46,55 +46,106 @@
         >
           @for (item of vm.items; track item.communityId) {
             <li>
-              <a
-                class="official-community"
-                [routerLink]="detailsRoute(item)"
-                [attr.aria-label]="'Abrir comunidade ' + item.name"
-              >
-                <span
-                  class="official-community__avatar"
-                  [attr.data-visual-variant]="communityVisualVariant(item)"
-                  aria-hidden="true"
+              @if (isCurrentCommunity(item)) {
+                <div
+                  class="official-community official-community--current"
+                  [attr.aria-label]="'Comunidade oficial atual: ' + item.name"
                 >
-                  <span>{{ communityInitials(item) }}</span>
-                  @if (item.avatarUrl) {
-                    <img
-                      [src]="item.avatarUrl"
-                      alt=""
-                      loading="lazy"
-                      decoding="async"
-                      appImageFallback
-                    />
-                  }
-                </span>
-
-                <span class="official-community__body">
-                  <span class="official-community__title-row">
-                    <strong>{{ item.name }}</strong>
-                    <app-community-official-badge [community]="item" />
+                  <span
+                    class="official-community__avatar"
+                    [attr.data-visual-variant]="communityVisualVariant(item)"
+                    aria-hidden="true"
+                  >
+                    <span>{{ communityInitials(item) }}</span>
+                    @if (item.avatarUrl) {
+                      <img
+                        [src]="item.avatarUrl"
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        appImageFallback
+                      />
+                    }
                   </span>
 
-                  @if (item.description) {
-                    <span class="official-community__description">
-                      {{ item.description }}
+                  <span class="official-community__body">
+                    <span class="official-community__title-row">
+                      <strong>{{ item.name }}</strong>
+                      <app-community-official-badge [community]="item" />
                     </span>
-                  }
 
-                  <span class="official-community__meta">
-                    <span [attr.aria-label]="item.metrics.memberCount + ' membros'">
-                      <i class="fas fa-users" aria-hidden="true"></i>
-                      {{ item.metrics.memberCount }}
+                    @if (item.description) {
+                      <span class="official-community__description">
+                        {{ item.description }}
+                      </span>
+                    }
+
+                    <span class="official-community__meta">
+                      <span [attr.aria-label]="item.metrics.memberCount + ' membros'">
+                        <i class="fas fa-users" aria-hidden="true"></i>
+                        {{ item.metrics.memberCount }}
+                      </span>
+                      <span aria-hidden="true">•</span>
+                      <span>Esta é a comunidade oficial deste Local</span>
                     </span>
-                    <span aria-hidden="true">•</span>
-                    <span>Ver comunidade</span>
                   </span>
-                </span>
 
-                <i
-                  class="fas fa-chevron-right official-community__chevron"
-                  aria-hidden="true"
-                ></i>
-              </a>
+                  <i
+                    class="fas fa-circle-check official-community__chevron"
+                    aria-hidden="true"
+                  ></i>
+                </div>
+              } @else {
+                <a
+                  class="official-community"
+                  [routerLink]="detailsRoute(item)"
+                  [attr.aria-label]="'Abrir comunidade ' + item.name"
+                >
+                  <span
+                    class="official-community__avatar"
+                    [attr.data-visual-variant]="communityVisualVariant(item)"
+                    aria-hidden="true"
+                  >
+                    <span>{{ communityInitials(item) }}</span>
+                    @if (item.avatarUrl) {
+                      <img
+                        [src]="item.avatarUrl"
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        appImageFallback
+                      />
+                    }
+                  </span>
+
+                  <span class="official-community__body">
+                    <span class="official-community__title-row">
+                      <strong>{{ item.name }}</strong>
+                      <app-community-official-badge [community]="item" />
+                    </span>
+
+                    @if (item.description) {
+                      <span class="official-community__description">
+                        {{ item.description }}
+                      </span>
+                    }
+
+                    <span class="official-community__meta">
+                      <span [attr.aria-label]="item.metrics.memberCount + ' membros'">
+                        <i class="fas fa-users" aria-hidden="true"></i>
+                        {{ item.metrics.memberCount }}
+                      </span>
+                      <span aria-hidden="true">•</span>
+                      <span>Ver comunidade</span>
+                    </span>
+                  </span>
+
+                  <i
+                    class="fas fa-chevron-right official-community__chevron"
+                    aria-hidden="true"
+                  ></i>
+                </a>
+              }
             </li>
           }
         </ul>

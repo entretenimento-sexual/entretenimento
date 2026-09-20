@@ -56,6 +56,7 @@ import { CommunityMembersPageComponent } from '../members/community-members-page
 import { CommunityFeedComponent } from '../feed/community-feed.component';
 import { CommunityInviteManagementComponent } from '../invite-management/community-invite-management.component';
 import { CommunityMembershipManagementComponent } from '../membership-management/community-membership-management.component';
+import { OfficialEntityCommunitySectionComponent } from '../official-entity-community-section/official-entity-community-section.component';
 import {
   COMMUNITY_MEMBERSHIP_ACTION_CODE_MESSAGES,
   COMMUNITY_MEMBERSHIP_ACTION_REASON_MESSAGES,
@@ -181,6 +182,7 @@ const SECTION_QUERY_VALUES: Readonly<Record<CommunityPreviewSection, string | nu
     CommunityMembersPageComponent,
     CommunityInviteManagementComponent,
     CommunityMembershipManagementComponent,
+    OfficialEntityCommunitySectionComponent,
     CommunityOfficialBadgeComponent,
     CommunityMembershipProfileVisibilityComponent,
   ],
