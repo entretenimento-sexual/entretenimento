@@ -14,6 +14,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
+import { evaluateOperationalCostBudget } from '../shared/observability/operational-cost-budget.policy';
 import {
   buildCommunityDiscoveryCursor,
   parseCommunityDiscoveryCursor,
@@ -422,27 +423,37 @@ export const getCommunityDiscoveryPage =
         ? items
         : diversifyCommunityDiscoveryPage(items);
 
-      logger.info(
-        'community_discovery_page_served',
-        buildCommunityDiscoveryTelemetry({
-          requestedLimit: pageRequest.limit,
-          scanLimit,
-          projectionDocumentsFetched,
-          projectionDocumentsConsumed,
-          candidatesEvaluated,
-          membershipReads,
-          membershipBatches,
-          blockedExcluded,
-          cardsReturned: deliveredItems.length,
-          cursorProjectionReads: cursor ? 1 : 0,
-          durationMs: Date.now() - startedAt,
-          hasCursor: Boolean(cursor),
-          hasTagFilter: Boolean(pageRequest.tagId),
-          sourceType: effectiveSourceType,
-          rankingMode: rankingMode.effectiveMode,
-          hasNextPage: Boolean(nextCursor),
-        })
-      );
+      const telemetry = buildCommunityDiscoveryTelemetry({
+        requestedLimit: pageRequest.limit,
+        scanLimit,
+        projectionDocumentsFetched,
+        projectionDocumentsConsumed,
+        candidatesEvaluated,
+        membershipReads,
+        membershipBatches,
+        blockedExcluded,
+        cardsReturned: deliveredItems.length,
+        cursorProjectionReads: cursor ? 1 : 0,
+        durationMs: Date.now() - startedAt,
+        hasCursor: Boolean(cursor),
+        hasTagFilter: Boolean(pageRequest.tagId),
+        sourceType: effectiveSourceType,
+        rankingMode: rankingMode.effectiveMode,
+        hasNextPage: Boolean(nextCursor),
+      });
+      const deliveryReadAmplification = telemetry['deliveryReadAmplification'];
+      const operationalCostBudget =
+        typeof deliveryReadAmplification === 'number'
+          ? evaluateOperationalCostBudget(
+            'community.discovery.reads_per_card',
+            deliveryReadAmplification
+          )
+          : null;
+
+      logger.info('community_discovery_page_served', {
+        ...telemetry,
+        operationalCostBudget,
+      });
 
       return {
         items: deliveredItems,
