@@ -7,6 +7,10 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
+import {
+  estimateExposureWritesPerAcceptedExposure,
+  evaluateOperationalCostBudget,
+} from '../shared/observability/operational-cost-budget.policy';
 import { consumeBackendRateLimitQuota } from '../shared/security/backend-rate-limit.service';
 import {
   assertCommunityCallableAppCheck,
@@ -129,13 +133,33 @@ export const recordCommunityDiscoveryExposure =
         await batch.commit();
       }
 
+      const accepted = eligibleCommunityIds.length;
+      const rateLimitWrites = 1;
+      const operationalWritesProxy = accepted + rateLimitWrites;
+      const writesPerAcceptedExposure =
+        estimateExposureWritesPerAcceptedExposure({
+          accepted,
+          successfulRateLimitWrites: rateLimitWrites,
+        });
+      const operationalCostBudget =
+        writesPerAcceptedExposure === null
+          ? null
+          : evaluateOperationalCostBudget(
+            'community.discovery.exposure_writes_per_accepted',
+            writesPerAcceptedExposure
+          );
+
       logger.debug('community_discovery_exposure_recorded', {
         sourceType: command.sourceType,
         submitted: command.communityIds.length,
-        accepted: eligibleCommunityIds.length,
+        accepted,
         projectionReads: projectionSnapshots.length,
-        counterWrites: eligibleCommunityIds.length,
-        writeBatchCommitted: eligibleCommunityIds.length > 0,
+        counterWrites: accepted,
+        rateLimitWrites,
+        operationalWritesProxy,
+        writesPerAcceptedExposure,
+        operationalCostBudget,
+        writeBatchCommitted: accepted > 0,
         durationMs: Date.now() - startedAt,
       });
 
