@@ -852,7 +852,7 @@ export const archiveCommunity = onCall<CommunityArchivePayload>(
         source: 'callable',
       });
       transaction.create(requestRef, {
-          ...buildCommunityOperationalRequestRetention('lifecycle', now),
+        ...buildCommunityOperationalRequestRetention('lifecycle', now),
         operation: 'archive',
         requestId,
         actorUid,

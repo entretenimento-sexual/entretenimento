@@ -444,7 +444,7 @@ export const createCommunityFeedCommentReply = onCall<
         createdAt: nowMs,
       });
       transaction.create(requestRef, {
-          ...buildCommunityOperationalRequestRetention('feed', nowMs),
+        ...buildCommunityOperationalRequestRetention('feed', nowMs),
         requestId: replyId,
         kind: 'comment_reply_create',
         actorUid,

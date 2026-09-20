@@ -505,7 +505,8 @@ export const moderateCommunityFeedPost = onCall<CommunityFeedPostActionRequest>(
       }
 
       transaction.create(requestRef, {
-          ...buildCommunityOperationalRequestRetention('feed', nowMs),
+
+        ...buildCommunityOperationalRequestRetention('feed', nowMs),
         requestId,
         kind: 'post_action',
         actorUid,

@@ -447,7 +447,8 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
       });
 
       transaction.create(requestRef, {
-          ...buildCommunityOperationalRequestRetention('venue_creation', now),
+
+        ...buildCommunityOperationalRequestRetention('venue_creation', now),
         actorUid,
         organizationId: officialSpaceDecision.organizationId,
         officialAssociationKey,

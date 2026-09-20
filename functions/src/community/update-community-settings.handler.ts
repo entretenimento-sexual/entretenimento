@@ -403,7 +403,8 @@ export const updateCommunitySettings = onCall<UpdateCommunitySettingsRequest>(
       }
 
       transaction.create(requestRef, {
-          ...buildCommunityOperationalRequestRetention('settings', now),
+
+        ...buildCommunityOperationalRequestRetention('settings', now),
         actorUid,
         communityId: command.communityId,
         status: 'completed',

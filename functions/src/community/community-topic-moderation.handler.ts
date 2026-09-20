@@ -368,7 +368,8 @@ export const moderateCommunityTopic = onCall<CommunityTopicModerationRequest>(
       }
 
       transaction.create(requestRef, {
-          ...buildCommunityOperationalRequestRetention('topic', nowMs),
+
+        ...buildCommunityOperationalRequestRetention('topic', nowMs),
         requestId,
         kind: 'moderation',
         actorUid,

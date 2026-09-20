@@ -648,7 +648,7 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
             { merge: true }
           );
           transaction.create(requestRef, {
-          ...buildCommunityOperationalRequestRetention('feed', nowMs),
+            ...buildCommunityOperationalRequestRetention('feed', nowMs),
             requestId: command.requestId,
             actorUid,
             communityId,

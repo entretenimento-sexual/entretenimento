@@ -332,7 +332,7 @@ export const createCommunityTopic = onCall<CommunityTopicCreateRequest>(
         { merge: true }
       );
       transaction.create(requestRef, {
-          ...buildCommunityOperationalRequestRetention('topic', nowMs),
+        ...buildCommunityOperationalRequestRetention('topic', nowMs),
         requestId: command.requestId,
         kind: 'topic',
         actorUid,
@@ -557,7 +557,7 @@ export const createCommunityTopicReply = onCall<CommunityTopicReplyCreateRequest
         { merge: true }
       );
       transaction.create(requestRef, {
-          ...buildCommunityOperationalRequestRetention('topic', nowMs),
+        ...buildCommunityOperationalRequestRetention('topic', nowMs),
         requestId: command.requestId,
         kind: 'reply',
         actorUid,

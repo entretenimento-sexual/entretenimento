@@ -378,7 +378,8 @@ export const moderateCommunityFeedCommentReply = onCall<
       }
 
       transaction.create(requestRef, {
-          ...buildCommunityOperationalRequestRetention('feed', nowMs),
+
+        ...buildCommunityOperationalRequestRetention('feed', nowMs),
         requestId,
         kind: 'comment_reply_action',
         actorUid,

@@ -385,7 +385,8 @@ export const createCommunity = onCall<CreateCommunityRequest>(
       });
 
       transaction.create(requestRef, {
-          ...buildCommunityOperationalRequestRetention('creation', now),
+
+        ...buildCommunityOperationalRequestRetention('creation', now),
         actorUid,
         communityId: command.communityId,
         status: 'completed',

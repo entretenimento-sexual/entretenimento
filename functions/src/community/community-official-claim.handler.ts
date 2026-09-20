@@ -378,7 +378,7 @@ export const submitCommunityOfficialClaim =
         }
         if (existingStatus === 'disputed') {
           transaction.create(requestRef, {
-          ...buildCommunityOperationalRequestRetention('official_claim', now),
+            ...buildCommunityOperationalRequestRetention('official_claim', now),
             actorUid,
             associationKey: command.associationKey,
             communityId: command.communityId,

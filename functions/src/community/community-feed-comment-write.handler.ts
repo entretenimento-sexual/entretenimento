@@ -477,7 +477,7 @@ export const createCommunityFeedComment = onCall<FlatConversationCreateRequest>(
         createdAt: nowMs,
       });
       transaction.create(requestRef, {
-          ...buildCommunityOperationalRequestRetention('feed', nowMs),
+        ...buildCommunityOperationalRequestRetention('feed', nowMs),
         requestId: commentId,
         kind: 'comment_create',
         actorUid,
