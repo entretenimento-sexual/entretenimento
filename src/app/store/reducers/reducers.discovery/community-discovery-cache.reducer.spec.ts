@@ -36,7 +36,7 @@ describe('communityDiscoveryCacheReducer', () => {
   const query = buildCommunityDiscoveryCacheQuery('viewer-1', {
     sourceType: 'community', discoveryMode: 'explore', tagId: null, pageSize: 12,
   })!;
-  const viewerOneState = {
+  const viewerOneState: CommunityDiscoveryCacheState = {
     ...initialCommunityDiscoveryCacheState,
     activeViewerUid: 'viewer-1',
   };
