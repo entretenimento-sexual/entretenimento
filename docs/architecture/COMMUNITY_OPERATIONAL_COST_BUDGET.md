@@ -23,6 +23,10 @@ Os valores abaixo são **unidades operacionais**, não uma simulação de billin
 - não desligar billing automaticamente por atingir um threshold de alerta;
 - manter o orçamento canônico versionado e testado.
 
+### Relação com Business/Official
+
+Este orçamento mede proxies operacionais e envelopes técnicos. Ele **não** calcula preço de plano nem custo financeiro em BRL. Para calibrar monetização/capacidade Business/Official, o campo `actualCostCents` deve vir de custo realizado em billing/finanças e ser combinado com oferta apresentada, conversão e quantidade de Comunidades criadas. Sem esses quatro sinais reais, a configuração comercial não deve ser reajustada por estimativa.
+
 ## Orçamento canônico
 
 | Dimensão | Target | Warning | Critical | Agregação / janela | Fonte |
