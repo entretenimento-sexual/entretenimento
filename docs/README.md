@@ -10,6 +10,9 @@ Este diretório concentra documentos de governança técnica, produto, seguranç
 2. [`prelaunch-checklist.md`](./prelaunch-checklist.md)  
    Checklist de validação técnica, bloqueios obrigatórios, produto, UX, moderação, segurança, pagamentos, legal e go/no-go.
 
+3. [`architecture/COMMUNITY_OPERATIONAL_COST_BUDGET.md`](./architecture/COMMUNITY_OPERATIONAL_COST_BUDGET.md)  
+   Orçamento operacional de Comunidades: discovery, exposure, callables, notification fan-out, storage e critérios de alerta antes de otimizar.
+
 ## Regra de uso
 
 Antes de alterar telas críticas, fluxos sensíveis ou rotas públicas, consulte o manifesto e confirme se a alteração respeita:
