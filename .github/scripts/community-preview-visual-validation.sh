@@ -304,7 +304,19 @@ run_checked "$OUT/management/desktop/overview.metrics.log" "async (page) => {
     return {
       viewportWidth: window.innerWidth,
       scrollWidth: document.documentElement.scrollWidth,
-      topTabCount: document.querySelectorAll('.community-preview__tabs button').length,
+      contentTabCount: document.querySelectorAll('.community-preview__tabs button').length,
+      contentTabLabels: Array.from(
+        document.querySelectorAll('.community-preview__tabs button span')
+      ).map((label) => (label.textContent ?? '').trim()),
+      managementActionCount: document.querySelectorAll(
+        '.community-preview__management-actions button'
+      ).length,
+      managementActionLabels: Array.from(
+        document.querySelectorAll('.community-preview__management-actions button span')
+      ).map((label) => (label.textContent ?? '').trim()),
+      duplicatedAdminRail: Array.from(
+        document.querySelectorAll('.community-preview__rail-card')
+      ).some((card) => (card.textContent ?? '').includes('Administração')),
       hubWidth: hubRect?.width ?? 0,
       navLabels,
       cardLabels,
@@ -317,11 +329,17 @@ run_checked "$OUT/management/desktop/overview.metrics.log" "async (page) => {
       ).length,
     };
   });
+  const expectedContentTabs = ['Mural', 'Fotos', 'Membros', 'Sobre'];
+  const expectedManagementActions = ['Gestão', 'Convites'];
   const expectedNav = ['Visão geral', 'Solicitações', 'Participantes', 'Configurações', 'Propriedade'];
   const expectedCards = ['Solicitações', 'Participantes', 'Convites', 'Configurações', 'Moderação', 'Capacidade', 'Propriedade'];
   if (
     metrics.scrollWidth > metrics.viewportWidth + 1
-    || metrics.topTabCount !== 6
+    || metrics.contentTabCount !== expectedContentTabs.length
+    || !expectedContentTabs.every((label) => metrics.contentTabLabels.includes(label))
+    || metrics.managementActionCount !== expectedManagementActions.length
+    || !expectedManagementActions.every((label) => metrics.managementActionLabels.includes(label))
+    || metrics.duplicatedAdminRail
     || metrics.hubWidth < 700
     || metrics.navLabels.length !== expectedNav.length
     || !expectedNav.every((label) => metrics.navLabels.some((value) => value.includes(label)))
@@ -376,6 +394,10 @@ run_checked "$OUT/management/mobile/overview.metrics.log" "async (page) => {
     const hubRect = hub?.getBoundingClientRect();
     const nav = document.querySelector('.community-management-hub__nav');
     const topTabs = document.querySelector('.community-preview__tabs');
+    const managementNav = document.querySelector('.community-preview__management-nav');
+    const managementButtons = Array.from(
+      document.querySelectorAll('.community-preview__management-actions button')
+    );
     const topTabLabels = Array.from(
       document.querySelectorAll('.community-preview__tabs button span')
     );
@@ -400,8 +422,19 @@ run_checked "$OUT/management/mobile/overview.metrics.log" "async (page) => {
       navScrollWidth: nav?.scrollWidth ?? 0,
       topTabsClientWidth: topTabs?.clientWidth ?? 0,
       topTabsScrollWidth: topTabs?.scrollWidth ?? 0,
-      topTabCount: document.querySelectorAll('.community-preview__tabs button').length,
+      contentTabCount: document.querySelectorAll('.community-preview__tabs button').length,
       topTabLabelsVisible,
+      managementNavInsideViewport: (() => {
+        const rect = managementNav?.getBoundingClientRect();
+        return Boolean(rect && rect.left >= -1 && rect.right <= window.innerWidth + 1);
+      })(),
+      managementActionCount: managementButtons.length,
+      managementActionMinHeight: managementButtons.length
+        ? Math.min(...managementButtons.map((button) => button.getBoundingClientRect().height))
+        : 0,
+      managementActionLabels: managementButtons.map(
+        (button) => (button.textContent ?? '').trim()
+      ),
       navCount: document.querySelectorAll('.community-management-hub__nav button').length,
       cardCount: cards.length,
       cardsInsideViewport,
@@ -411,12 +444,19 @@ run_checked "$OUT/management/mobile/overview.metrics.log" "async (page) => {
       ).length,
     };
   });
+  const expectedManagementActions = ['Gestão', 'Convites'];
   if (
     metrics.scrollWidth > metrics.viewportWidth + 1
     || metrics.hubWidth > metrics.viewportWidth + 1
-    || metrics.topTabCount !== 6
+    || metrics.contentTabCount !== 4
     || !metrics.topTabLabelsVisible
-    || metrics.topTabsScrollWidth <= metrics.topTabsClientWidth
+    || metrics.topTabsScrollWidth > metrics.topTabsClientWidth + 1
+    || !metrics.managementNavInsideViewport
+    || metrics.managementActionCount !== expectedManagementActions.length
+    || !expectedManagementActions.every((label) =>
+      metrics.managementActionLabels.some((value) => value.includes(label))
+    )
+    || metrics.managementActionMinHeight < 44
     || metrics.navCount !== 5
     || metrics.cardCount !== 7
     || !metrics.cardsInsideViewport
