@@ -8,7 +8,10 @@ import {
   buildCommunityDiscoveryCacheQuery,
 } from 'src/app/community/discovery/community-discovery-cache.model';
 import * as Actions from '../../actions/actions.discovery/community-discovery-cache.actions';
-import { initialCommunityDiscoveryCacheState } from '../../states/states.discovery/community-discovery-cache.state';
+import {
+  type CommunityDiscoveryCacheState,
+  initialCommunityDiscoveryCacheState,
+} from '../../states/states.discovery/community-discovery-cache.state';
 import { communityDiscoveryCacheReducer } from './community-discovery-cache.reducer';
 
 function card(
