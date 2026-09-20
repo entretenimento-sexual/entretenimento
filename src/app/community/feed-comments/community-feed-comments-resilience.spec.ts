@@ -6,6 +6,7 @@ import { ErrorNotificationService } from 'src/app/core/services/error-handler/er
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { CommunityFeedCommentRepository } from '../data-access/community-feed-comment.repository';
 import { CommunityFeedRepository } from '../data-access/community-feed.repository';
+import { CommunityRealtimeAttentionCoordinatorService } from '../data-access/community-realtime-attention-coordinator.service';
 import { CommunityFeedCommentsComponent } from './community-feed-comments.component';
 
 describe('CommunityFeedCommentsComponent / resiliência realtime', () => {
@@ -37,6 +38,10 @@ describe('CommunityFeedCommentsComponent / resiliência realtime', () => {
       providers: [
         { provide: CommunityFeedCommentRepository, useValue: repositoryMock },
         { provide: CommunityFeedRepository, useValue: feedRepositoryMock },
+        {
+          provide: CommunityRealtimeAttentionCoordinatorService,
+          useValue: { modeForCommunity$: vi.fn(() => of('detailed' as const)) },
+        },
         { provide: ErrorNotificationService, useValue: notificationMock },
         { provide: GlobalErrorHandlerService, useValue: globalErrorMock },
       ],
