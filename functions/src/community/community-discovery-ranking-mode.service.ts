@@ -59,13 +59,15 @@ function logDecisionChange(
 async function loadCommunityDiscoveryRankingMode():
   Promise<CommunityDiscoveryRankingModeDecision> {
   try {
-    const [configSnapshot, runtimeSnapshot] = await Promise.all([
+    const [configSnapshot, runtimeSnapshot, shadowSnapshot] = await Promise.all([
       db.collection('platform_config').doc('community').get(),
       db.collection('community_ranking_runtime').doc('daily').get(),
+      db.collection('community_ranking_shadow_runtime').doc('v3').get(),
     ]);
     const decision = resolveCommunityDiscoveryRankingMode(
       configSnapshot.exists ? configSnapshot.data() : null,
-      runtimeSnapshot.exists ? runtimeSnapshot.data() : null
+      runtimeSnapshot.exists ? runtimeSnapshot.data() : null,
+      shadowSnapshot.exists ? shadowSnapshot.data() : null
     );
 
     logDecisionChange(decision);
@@ -103,4 +105,10 @@ export async function getCommunityDiscoveryRankingMode():
   }
 
   return pendingDecision;
+}
+
+export function invalidateCommunityDiscoveryRankingModeCache(): void {
+  cachedDecision = null;
+  cachedAt = 0;
+  pendingDecision = null;
 }
