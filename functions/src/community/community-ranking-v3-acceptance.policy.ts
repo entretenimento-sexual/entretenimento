@@ -51,7 +51,9 @@ export interface CommunityRankingV3AcceptanceState {
   readonly passingCycles: number;
   readonly consecutivePassingCycles: number;
   readonly promotionReady: boolean;
+  readonly firstObservedCycleCompletedAt: number;
   readonly lastObservedCycleCompletedAt: number;
+  readonly lastObservedDay: string;
   readonly lastEvaluation: CommunityRankingV3AcceptanceEvaluation;
 }
 
@@ -63,6 +65,19 @@ function normalizeCount(value: unknown): number {
 function normalizeTimestamp(value: unknown): number | null {
   const parsed = Math.trunc(Number(value));
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function observationDay(value: number): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date(value));
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value ?? '';
+
+  return `${part('year')}-${part('month')}-${part('day')}`;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -130,6 +145,13 @@ export function advanceCommunityRankingV3AcceptanceState(input: {
   const previousCycleCompletedAt = samePolicy
     ? normalizeTimestamp(previous['lastObservedCycleCompletedAt'])
     : null;
+  const previousFirstCycleCompletedAt = samePolicy
+    ? normalizeTimestamp(previous['firstObservedCycleCompletedAt'])
+    : null;
+  const currentObservationDay = observationDay(cycleCompletedAt);
+  const previousObservedDay = samePolicy
+    ? String(previous['lastObservedDay'] ?? '').trim()
+    : '';
   const previousEvaluation = asRecord(previous['lastEvaluation']);
   const previousState: CommunityRankingV3AcceptanceState | null = samePolicy
     && previousCycleCompletedAt
@@ -142,7 +164,11 @@ export function advanceCommunityRankingV3AcceptanceState(input: {
           previous['consecutivePassingCycles']
         ),
         promotionReady: previous['promotionReady'] === true,
+        firstObservedCycleCompletedAt:
+          previousFirstCycleCompletedAt ?? previousCycleCompletedAt,
         lastObservedCycleCompletedAt: previousCycleCompletedAt,
+        lastObservedDay:
+          previousObservedDay || observationDay(previousCycleCompletedAt),
         lastEvaluation: {
           accepted: previousEvaluation['accepted'] === true,
           failedCriteria: Array.isArray(previousEvaluation['failedCriteria'])
@@ -154,10 +180,10 @@ export function advanceCommunityRankingV3AcceptanceState(input: {
       }
     : null;
 
-  // Retry/idempotência do mesmo ciclo não altera a janela de aceitação.
+  // Retry, rerun ou execução manual no mesmo dia não acelera a janela.
   if (
     previousState
-    && previousState.lastObservedCycleCompletedAt === cycleCompletedAt
+    && previousState.lastObservedDay === currentObservationDay
   ) {
     return previousState;
   }
@@ -182,7 +208,10 @@ export function advanceCommunityRankingV3AcceptanceState(input: {
     passingCycles,
     consecutivePassingCycles,
     promotionReady,
+    firstObservedCycleCompletedAt:
+      previousState?.firstObservedCycleCompletedAt ?? cycleCompletedAt,
     lastObservedCycleCompletedAt: cycleCompletedAt,
+    lastObservedDay: currentObservationDay,
     lastEvaluation: evaluation,
   };
 }
