@@ -6,6 +6,11 @@ import {
   COMMUNITY_DISCOVERY_RANKING_MODE,
   COMMUNITY_DISCOVERY_SCORE_VERSION,
 } from './community-ranking.policy';
+import {
+  COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION,
+  COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
+} from './community-ranking-candidate-v3.policy';
+import { COMMUNITY_DISCOVERY_V3_RANKING_MODE } from './community-discovery-ranking-mode.policy';
 import { resolveCommunityDiscoveryRankingMode } from './community-discovery-ranking-mode.policy';
 
 test('mantém ranking legado por padrão', () => {
@@ -90,5 +95,55 @@ test('ativa score v2 somente quando todos os gates estão prontos', () => {
 
   assert.equal(decision.effectiveMode, COMMUNITY_DISCOVERY_RANKING_MODE);
   assert.equal(decision.orderField, 'discoveryScore');
+  assert.equal(decision.fallbackReason, null);
+});
+
+
+test('config score_v3 sem aceitação permanece servindo v2', () => {
+  const decision = resolveCommunityDiscoveryRankingMode(
+    {
+      discoveryRankingMode: COMMUNITY_DISCOVERY_V3_RANKING_MODE,
+      discoveryScoreIndexReady: true,
+      discoveryCandidateV3IndexReady: true,
+    },
+    {
+      ready: true,
+      completedScoreVersion: COMMUNITY_DISCOVERY_SCORE_VERSION,
+      completedCandidateActivityMomentumModelVersion:
+        COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION,
+    },
+    {
+      candidateScoreVersion: COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
+      promotionReady: false,
+    }
+  );
+
+  assert.equal(decision.effectiveMode, COMMUNITY_DISCOVERY_RANKING_MODE);
+  assert.equal(decision.orderField, 'discoveryScore');
+  assert.equal(decision.fallbackReason, 'candidate_shadow_acceptance_not_ready');
+});
+
+test('score_v3 só vira efetivo depois de todos os gates canônicos', () => {
+  const decision = resolveCommunityDiscoveryRankingMode(
+    {
+      discoveryRankingMode: COMMUNITY_DISCOVERY_V3_RANKING_MODE,
+      discoveryScoreIndexReady: true,
+      discoveryCandidateV3IndexReady: true,
+    },
+    {
+      ready: true,
+      completedScoreVersion: COMMUNITY_DISCOVERY_SCORE_VERSION,
+      completedCandidateActivityMomentumModelVersion:
+        COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION,
+    },
+    {
+      candidateScoreVersion: COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
+      promotionReady: true,
+    }
+  );
+
+  assert.equal(decision.effectiveMode, COMMUNITY_DISCOVERY_V3_RANKING_MODE);
+  assert.equal(decision.orderField, 'rankingCandidate.discoveryScore');
+  assert.equal(decision.scoreVersion, COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION);
   assert.equal(decision.fallbackReason, null);
 });
