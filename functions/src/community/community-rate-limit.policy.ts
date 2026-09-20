@@ -17,6 +17,7 @@ import type {
 export type CommunityRateLimitAction =
   | 'community_create'
   | 'official_space_create'
+  | 'official_community_create'
   | 'feed_post'
   | 'feed_conversation'
   | 'topic_conversation'
@@ -72,6 +73,17 @@ const POLICY_BY_ACTION: Readonly<Record<
     }),
     reason: 'official_space_creation_rate_limited',
     message: 'Muitas tentativas de criação de Espaços Oficiais foram feitas em pouco tempo.',
+  }),
+  official_community_create: Object.freeze({
+    backendAction: 'createOfficialCommunity',
+    config: Object.freeze({
+      burstWindowMs: MINUTE_MS,
+      burstMax: 2,
+      sustainedWindowMs: HOUR_MS,
+      sustainedMax: 6,
+    }),
+    reason: 'official_community_creation_rate_limited',
+    message: 'Muitas tentativas de criação de Comunidades Oficiais foram feitas em pouco tempo.',
   }),
   feed_post: Object.freeze({
     backendAction: 'createCommunityFeedPost',

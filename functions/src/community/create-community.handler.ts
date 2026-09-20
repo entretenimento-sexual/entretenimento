@@ -316,6 +316,7 @@ export const createCommunity = onCall<CreateCommunityRequest>(
         metrics,
         capacity: {
           memberLimit: command.memberLimit,
+          sponsorType: 'personal',
           policyVersion: 1,
         },
         lifecycle,
@@ -337,6 +338,7 @@ export const createCommunity = onCall<CreateCommunityRequest>(
         metrics,
         capacity: {
           memberLimit: command.memberLimit,
+          sponsorType: 'personal',
           policyVersion: 1,
         },
         access,

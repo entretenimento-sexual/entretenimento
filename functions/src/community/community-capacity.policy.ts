@@ -23,11 +23,12 @@ export type CommunityCapacitySponsorRole =
   | 'basic'
   | 'premium'
   | 'vip'
+  | 'official'
   | 'official_space'
   | 'admin';
 export type PersonalCommunitySponsorRole = Exclude<
   CommunityCapacitySponsorRole,
-  'official_space'
+  'official' | 'official_space'
 >;
 export type CommunityPaidSubscriptionRole =
   typeof COMMUNITY_PRODUCT_LIMITS.publicSubscriptionRoleOrder[number];
@@ -91,6 +92,9 @@ export interface CommunityCapacityState {
 
 const DEFAULT_COMMUNITY_MEMBER_LIMIT: CommunityMemberLimit =
   COMMUNITY_PRODUCT_LIMITS.defaultMemberLimit;
+export const OFFICIAL_COMMUNITY_MEMBER_LIMIT: CommunityMemberLimit =
+  COMMUNITY_PRODUCT_LIMITS.officialCommunityMemberLimit;
+/** Alias legado: Local Oficial usa a mesma capacidade oficial transversal. */
 export const OFFICIAL_SPACE_MEMBER_LIMIT: CommunityMemberLimit =
   COMMUNITY_PRODUCT_LIMITS.officialSpaceMemberLimit;
 export const MAX_PERSONAL_COMMUNITIES_PER_OWNER =
@@ -120,10 +124,12 @@ export function resolveCommunityConfiguredMemberLimit(
   const community = (rawCommunity ?? {}) as Record<string, unknown>;
   const capacity = (community['capacity'] ?? {}) as Record<string, unknown>;
   const source = (community['source'] ?? {}) as Record<string, unknown>;
+  const officialSponsored = capacity['sponsorType'] === 'official'
+    || (capacity['sponsorType'] !== 'personal' && source['type'] === 'venue');
 
   return normalizeCommunityMemberLimit(capacity['memberLimit'])
-    ?? (source['type'] === 'venue'
-      ? OFFICIAL_SPACE_MEMBER_LIMIT
+    ?? (officialSponsored
+      ? OFFICIAL_COMMUNITY_MEMBER_LIMIT
       : DEFAULT_COMMUNITY_MEMBER_LIMIT);
 }
 

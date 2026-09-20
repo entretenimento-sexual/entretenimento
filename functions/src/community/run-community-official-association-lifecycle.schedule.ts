@@ -122,6 +122,7 @@ async function expireAssociation(
     ) {
       transaction.update(communityRef, {
         officialAssociationKey: FieldValue.delete(),
+        'capacity.sponsorType': 'personal',
         updatedAt: now,
       });
     }
@@ -278,6 +279,7 @@ async function revalidateAssociation(
       ) {
         transaction.update(communityRef, {
           officialAssociationKey: FieldValue.delete(),
+          'capacity.sponsorType': 'personal',
           updatedAt: now,
         });
       }
@@ -341,6 +343,7 @@ async function revalidateAssociation(
     ) {
       transaction.update(communityRef, {
         officialAssociationKey: associationKey,
+        'capacity.sponsorType': 'official',
         updatedAt: now,
       });
     }

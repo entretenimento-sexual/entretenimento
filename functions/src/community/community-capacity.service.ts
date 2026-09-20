@@ -2,7 +2,9 @@
 // -----------------------------------------------------------------------------
 // COMMUNITY CAPACITY SERVICE
 // -----------------------------------------------------------------------------
-// Conecta a policy pura de capacidade ao entitlement canônico do proprietário.
+// Conecta a policy pura de capacidade ao sponsor canônico. Assinatura pessoal
+// só participa quando capacity.sponsorType é personal; oficialidade usa sponsor
+// próprio e nunca herda tier financeiro do proprietário.
 // -----------------------------------------------------------------------------
 
 import { db } from '../firebaseApp';
@@ -19,6 +21,20 @@ import {
 
 const SAFE_UID_PATTERN = /^[A-Za-z0-9:_-]{1,160}$/;
 
+export function isOfficialCommunityCapacity(
+  rawCommunity: unknown
+): boolean {
+  const community = (rawCommunity ?? {}) as Record<string, unknown>;
+  const capacity = (community['capacity'] ?? {}) as Record<string, unknown>;
+  const source = (community['source'] ?? {}) as Record<string, unknown>;
+
+  if (capacity['sponsorType'] === 'official') return true;
+  if (capacity['sponsorType'] === 'personal') return false;
+
+  // Compatibilidade com Locais criados antes da marcação explícita do sponsor.
+  return source['type'] === 'venue';
+}
+
 export function resolveCommunityCapacityOwnerUid(
   rawCommunity: unknown
 ): string | null {
@@ -33,13 +49,10 @@ export function evaluateCommunityCapacityForOwner(input: {
   rawOwnerUser: unknown;
   now?: number;
 }): Readonly<CommunityCapacityState> | null {
-  const community = (input.rawCommunity ?? {}) as Record<string, unknown>;
-  const source = (community['source'] ?? {}) as Record<string, unknown>;
-
-  if (source['type'] === 'venue') {
+  if (isOfficialCommunityCapacity(input.rawCommunity)) {
     return evaluateCommunityCapacity({
       rawCommunity: input.rawCommunity,
-      sponsorRole: 'official_space',
+      sponsorRole: 'official',
     });
   }
 
@@ -76,13 +89,10 @@ export async function getCommunityCapacityForOwnerInTransaction(
     );
   }
 
-  const community = (rawCommunity ?? {}) as Record<string, unknown>;
-  const source = (community['source'] ?? {}) as Record<string, unknown>;
-
-  if (source['type'] === 'venue') {
+  if (isOfficialCommunityCapacity(rawCommunity)) {
     return evaluateCommunityCapacity({
       rawCommunity,
-      sponsorRole: 'official_space',
+      sponsorRole: 'official',
     });
   }
 
@@ -110,13 +120,10 @@ export async function getCommunityCapacityForOwner(
   rawCommunity: unknown,
   now = Date.now()
 ): Promise<Readonly<CommunityCapacityState> | null> {
-  const community = (rawCommunity ?? {}) as Record<string, unknown>;
-  const source = (community['source'] ?? {}) as Record<string, unknown>;
-
-  if (source['type'] === 'venue') {
+  if (isOfficialCommunityCapacity(rawCommunity)) {
     return evaluateCommunityCapacity({
       rawCommunity,
-      sponsorRole: 'official_space',
+      sponsorRole: 'official',
     });
   }
 

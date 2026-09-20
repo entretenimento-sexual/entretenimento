@@ -2,41 +2,28 @@
 // -----------------------------------------------------------------------------
 // COMMUNITY CALLABLE SECURITY
 // -----------------------------------------------------------------------------
-// Centraliza a exigência de App Check para callables de Comunidades.
-//
-// Política:
-// - Emulator: App Check dispensado para preservar o desenvolvimento local;
-// - qualquer runtime real (staging, produção ou desconhecido): App Check
-//   obrigatório e fail closed.
-//
-// Os guards de disponibilidade de Comunidades permanecem uma fronteira
-// independente. App Check autentica a origem do cliente, mas nunca habilita a
-// feature por si só.
+// Alias de compatibilidade do contrato transversal de App Check. Comunidades
+// mantêm os nomes públicos existentes, mas a decisão de segurança tem owner
+// único em shared/security/callable-app-check.
 // -----------------------------------------------------------------------------
 
-import { HttpsError } from 'firebase-functions/v2/https';
+import {
+  REQUIRE_CALLABLE_APP_CHECK,
+  assertCallableAppCheck,
+  shouldRequireCallableAppCheck,
+  type CallableAppCheckEnvironment,
+} from '../shared/security/callable-app-check';
 
-export interface CommunityAppCheckEnvironment {
-  functionsEmulator?: unknown;
-}
+export type CommunityAppCheckEnvironment = CallableAppCheckEnvironment;
 
 export function shouldRequireCommunityAppCheck(
   environment: CommunityAppCheckEnvironment
 ): boolean {
-  return environment.functionsEmulator !== 'true';
+  return shouldRequireCallableAppCheck(environment);
 }
 
-export const REQUIRE_COMMUNITY_APP_CHECK = shouldRequireCommunityAppCheck({
-  functionsEmulator: process.env.FUNCTIONS_EMULATOR,
-});
+export const REQUIRE_COMMUNITY_APP_CHECK = REQUIRE_CALLABLE_APP_CHECK;
 
 export function assertCommunityCallableAppCheck(appContext: unknown): void {
-  if (!REQUIRE_COMMUNITY_APP_CHECK || appContext) {
-    return;
-  }
-
-  throw new HttpsError(
-    'unauthenticated',
-    'Não foi possível verificar a origem desta solicitação.'
-  );
+  assertCallableAppCheck(appContext);
 }

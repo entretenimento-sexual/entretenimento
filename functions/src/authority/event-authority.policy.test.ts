@@ -92,3 +92,19 @@ test('rejeita titular divergente, evento inativo e autorização vencida', () =>
     now: NOW,
   }).denialReason, 'authority_inactive');
 });
+
+
+test('revogação do ledger invalida imediatamente a autoridade canônica', () => {
+  const result = evaluateEventAuthority({
+    actorUid: 'user-1',
+    eventId: 'event-1',
+    rawAuthorityRecord: authority({
+      status: 'revoked',
+      revokedAt: NOW - 1,
+    }),
+    now: NOW,
+  });
+
+  assert.equal(result.allowed, false);
+  assert.equal(result.denialReason, 'authority_inactive');
+});

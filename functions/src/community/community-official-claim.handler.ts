@@ -10,22 +10,16 @@ import type { DocumentReference } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { assertRecentAuthentication } from '../account_lifecycle/_shared';
-import {
-  buildEventAuthorityRecordId,
-} from '../authority/event-authority.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { buildCommunityOperationalRequestRetention } from './community-operational-retention.policy';
 import { db, FieldValue } from '../firebaseApp';
-import {
-  buildOrganizationRepresentationId,
-} from '../organization/organization-representation.policy';
 import {
   buildVerifiedCommunityOfficialAssociation,
   normalizeCommunityOfficialAssociationKey,
 } from './community-official-association.model';
 import { assertCommunityOfficialClaimEvidence } from './community-official-claim-evidence.service';
 import { resolveCommunityOfficialClaimIdempotentStatus } from './community-official-claim-idempotency.policy';
-import { resolveCommunityOfficialClaimSubmission } from './community-official-claim-submission.policy';
+import { resolveCommunityOfficialAuthorityContext } from './community-official-authority-context.service';
 import {
   COMMUNITY_OFFICIAL_CLAIM_POLICY_VERSION,
   normalizeCommunityOfficialClaimStatus,
@@ -207,69 +201,10 @@ export const submitCommunityOfficialClaim =
         }
 
         const now = Date.now();
-        const organizationRepresentationId = intent.target.type === 'organization'
-          ? buildOrganizationRepresentationId(intent.target.id, actorUid)
-          : null;
-        const eventAuthorityId = intent.target.type === 'event'
-          ? buildEventAuthorityRecordId(intent.target.id, actorUid)
-          : null;
-        const targetRef = intent.target.type === 'profile'
-          ? db.collection('users').doc(actorUid)
-          : intent.target.type === 'venue'
-            ? db.collection('venues').doc(intent.target.id)
-            : intent.target.type === 'organization'
-              ? db.collection('organizations').doc(intent.target.id)
-              : null;
-        const targetSnapshot = targetRef
-          ? await transaction.get(targetRef)
-          : null;
-        const profileKycSnapshot = intent.target.type === 'profile'
-          ? await transaction.get(
-            db.collection('profile_kyc_records').doc(actorUid)
-          )
-          : null;
-        const grantSnapshot = intent.target.type === 'venue'
-          ? await transaction.get(
-            db.collection('official_space_creation_grants').doc(actorUid)
-          )
-          : null;
-        const organizationKybSnapshot = intent.target.type === 'organization'
-          ? await transaction.get(
-            db.collection('organization_kyb_records').doc(intent.target.id)
-          )
-          : null;
-        const organizationRepresentationSnapshot = organizationRepresentationId
-          ? await transaction.get(
-            db
-              .collection('organization_representations')
-              .doc(organizationRepresentationId)
-          )
-          : null;
-        const eventAuthoritySnapshot = eventAuthorityId
-          ? await transaction.get(
-            db.collection('event_authority_records').doc(eventAuthorityId)
-          )
-          : null;
-
-        const derived = resolveCommunityOfficialClaimSubmission({
+        const derived = await resolveCommunityOfficialAuthorityContext({
+          transaction,
           actorUid,
           intent,
-          rawGrant: grantSnapshot?.exists ? grantSnapshot.data() : null,
-          rawTarget: targetSnapshot?.exists ? targetSnapshot.data() : null,
-          rawProfileKyc: profileKycSnapshot?.exists
-            ? profileKycSnapshot.data()
-            : null,
-          rawOrganizationKyb: organizationKybSnapshot?.exists
-            ? organizationKybSnapshot.data()
-            : null,
-          rawOrganizationRepresentation: organizationRepresentationSnapshot?.exists
-            ? organizationRepresentationSnapshot.data()
-            : null,
-          organizationRepresentationReferenceId: organizationRepresentationId,
-          rawEventAuthority: eventAuthoritySnapshot?.exists
-            ? eventAuthoritySnapshot.data()
-            : null,
-          eventAuthorityReferenceId: eventAuthorityId,
           now,
         });
 
@@ -453,6 +388,7 @@ export const submitCommunityOfficialClaim =
         transaction.set(associationRef, officialAssociation);
         transaction.update(communityRef, {
           officialAssociationKey: command.associationKey,
+          'capacity.sponsorType': 'official',
           updatedAt: now,
         });
         transaction.set(claimRef, claim);
@@ -731,12 +667,14 @@ export const reviewCommunityOfficialClaim =
           if (previousCommunityRef) {
             transaction.update(previousCommunityRef, {
               officialAssociationKey: FieldValue.delete(),
+              'capacity.sponsorType': 'personal',
               updatedAt: now,
             });
           }
           transaction.set(associationRef, officialAssociation);
           transaction.update(communityRef, {
             officialAssociationKey: command.associationKey,
+            'capacity.sponsorType': 'official',
             updatedAt: now,
           });
         } else if (
@@ -765,6 +703,7 @@ export const reviewCommunityOfficialClaim =
           if (communityAssociationKey === command.associationKey) {
             transaction.update(communityRef, {
               officialAssociationKey: FieldValue.delete(),
+              'capacity.sponsorType': 'personal',
               updatedAt: now,
             });
           }

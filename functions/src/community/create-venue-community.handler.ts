@@ -360,6 +360,7 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
         metrics,
         capacity: {
           memberLimit: officialSpaceDecision.memberLimit,
+          sponsorType: 'official',
           policyVersion: 1,
         },
         createdAt: now,
@@ -380,6 +381,7 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
         metrics,
         capacity: {
           memberLimit: officialSpaceDecision.memberLimit,
+          sponsorType: 'official',
           policyVersion: 1,
         },
         access,

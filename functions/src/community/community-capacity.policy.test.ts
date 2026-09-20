@@ -24,8 +24,16 @@ test('mantém a estratégia comercial canônica internamente coerente', () => {
     COMMUNITY_PRODUCT_LIMITS.selectableMemberLimits[0]
   );
   assert.equal(
+    COMMUNITY_PRODUCT_LIMITS.officialCommunityMemberLimit,
+    COMMUNITY_PRODUCT_LIMITS.memberLimitBySponsorRole.official
+  );
+  assert.equal(
     COMMUNITY_PRODUCT_LIMITS.officialSpaceMemberLimit,
     COMMUNITY_PRODUCT_LIMITS.memberLimitBySponsorRole.official_space
+  );
+  assert.equal(
+    COMMUNITY_PRODUCT_LIMITS.officialCommunityMemberLimit,
+    COMMUNITY_PRODUCT_LIMITS.officialSpaceMemberLimit
   );
   assert.equal(
     COMMUNITY_PRODUCT_LIMITS.maxPersonalCommunitiesPerOwner,

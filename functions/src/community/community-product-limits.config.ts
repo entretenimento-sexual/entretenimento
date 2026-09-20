@@ -18,6 +18,7 @@ const MEMBER_LIMIT_BY_SPONSOR_ROLE = Object.freeze({
   basic: 100,
   premium: 250,
   vip: 500,
+  official: 1_000,
   official_space: 1_000,
   admin: 1_000,
 } as const);
@@ -39,6 +40,8 @@ const CONTENT_QUOTA_WINDOW_MS = 24 * 60 * 60 * 1_000;
 export const COMMUNITY_PRODUCT_LIMITS = Object.freeze({
   defaultMemberLimit: SELECTABLE_MEMBER_LIMITS[0],
   selectableMemberLimits: SELECTABLE_MEMBER_LIMITS,
+  officialCommunityMemberLimit: MEMBER_LIMIT_BY_SPONSOR_ROLE.official,
+  // Alias compatível com o fluxo legado de Local Oficial.
   officialSpaceMemberLimit: MEMBER_LIMIT_BY_SPONSOR_ROLE.official_space,
   maxPersonalCommunitiesPerOwner: Math.max(...finitePersonalCommunityLimits),
   maxOfficialSpacesPerGrant: 20,

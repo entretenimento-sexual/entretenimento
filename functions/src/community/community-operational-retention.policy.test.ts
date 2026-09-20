@@ -15,6 +15,7 @@ test('classifica todos os receipts idempotentes conhecidos por retenção finita
   assert.deepEqual(COMMUNITY_OPERATIONAL_REQUEST_COLLECTIONS, {
     community_creation_requests: 'administrative_idempotency',
     venue_community_creation_requests: 'administrative_idempotency',
+    official_community_creation_requests: 'administrative_idempotency',
     community_official_claim_requests: 'administrative_idempotency',
     community_settings_requests: 'administrative_idempotency',
     community_lifecycle_requests: 'administrative_idempotency',
@@ -43,6 +44,7 @@ test('mantém conteúdo de alto volume por 7 dias e operações administrativas 
   for (const kind of [
     'creation',
     'venue_creation',
+    'official_creation',
     'official_claim',
     'settings',
     'lifecycle',

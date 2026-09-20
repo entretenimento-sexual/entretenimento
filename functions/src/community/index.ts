@@ -4,6 +4,7 @@ export {
   getCommunityCreationCapability,
 } from './get-community-creation-capability.handler';
 export { createVenueCommunity } from './create-venue-community.handler';
+export { createOfficialCommunity } from './create-official-community.handler';
 export { getCommunityTagCatalog } from './get-community-tag-catalog.handler';
 export { getCommunityDiscoveryPage } from './get-community-discovery-page.handler';
 export {

@@ -17,6 +17,7 @@ export type CommunityOperationalRetentionClass =
 export type CommunityOperationalRequestKind =
   | 'creation'
   | 'venue_creation'
+  | 'official_creation'
   | 'official_claim'
   | 'settings'
   | 'lifecycle'
@@ -32,6 +33,7 @@ export const COMMUNITY_OPERATIONAL_REQUEST_RETENTION_DAYS = Object.freeze({
 export const COMMUNITY_OPERATIONAL_REQUEST_COLLECTIONS = Object.freeze({
   community_creation_requests: 'administrative_idempotency',
   venue_community_creation_requests: 'administrative_idempotency',
+  official_community_creation_requests: 'administrative_idempotency',
   community_official_claim_requests: 'administrative_idempotency',
   community_settings_requests: 'administrative_idempotency',
   community_lifecycle_requests: 'administrative_idempotency',

@@ -37,6 +37,32 @@ const COMMUNITY_DISCOVERY_COMPONENT = path.normalize(
   'src/app/community/discovery/community-discovery-page.component.ts'
 );
 
+const OFFICIAL_CREATE_HANDLER = path.normalize(
+  'functions/src/community/create-official-community.handler.ts'
+);
+const OFFICIAL_CREATE_MODEL = path.normalize(
+  'functions/src/community/create-official-community.model.ts'
+);
+const OFFICIAL_AUTHORITY_CONTEXT = path.normalize(
+  'functions/src/community/community-official-authority-context.service.ts'
+);
+const COMMUNITY_CLAIM_HANDLER = path.normalize(
+  'functions/src/community/community-official-claim.handler.ts'
+);
+const COMMUNITY_CAPACITY_SERVICE = path.normalize(
+  'functions/src/community/community-capacity.service.ts'
+);
+const PERSONAL_CREATE_HANDLER = path.normalize(
+  'functions/src/community/create-community.handler.ts'
+);
+const EVENT_AUTHORITY_SERVICE = path.normalize(
+  'functions/src/authority/event-authority-record.service.ts'
+);
+const EVENT_AUTHORITY_HANDLER = path.normalize(
+  'functions/src/authority/event-authority.handler.ts'
+);
+const FUNCTIONS_ROOT_INDEX = path.normalize('functions/src/index.ts');
+
 const FORBIDDEN_CLIENT_AUTHORITY_FIELDS = Object.freeze([
   'actorUid',
   'viewerUid',
@@ -372,6 +398,232 @@ function validateCommunityNotificationClientBoundary(architectureViolations) {
   }
 }
 
+
+function validateOfficialCreationBoundary(architectureViolations) {
+  const handlerSource = readRequiredSource(
+    OFFICIAL_CREATE_HANDLER,
+    architectureViolations
+  );
+  const modelSource = readRequiredSource(
+    OFFICIAL_CREATE_MODEL,
+    architectureViolations
+  );
+  const contextSource = readRequiredSource(
+    OFFICIAL_AUTHORITY_CONTEXT,
+    architectureViolations
+  );
+  const claimSource = readRequiredSource(
+    COMMUNITY_CLAIM_HANDLER,
+    architectureViolations
+  );
+  const capacitySource = readRequiredSource(
+    COMMUNITY_CAPACITY_SERVICE,
+    architectureViolations
+  );
+  const personalCreateSource = readRequiredSource(
+    PERSONAL_CREATE_HANDLER,
+    architectureViolations
+  );
+
+  if (handlerSource) {
+    for (const required of [
+      'resolveCommunityOfficialAuthorityContext',
+      'OFFICIAL_COMMUNITY_MEMBER_LIMIT',
+      "sponsorType: 'official'",
+      "role: 'owner'",
+      "action: 'official_community_create'",
+    ]) {
+      if (!handlerSource.includes(required)) {
+        architectureViolations.push(
+          `${OFFICIAL_CREATE_HANDLER} (contrato oficial ausente: ${required})`
+        );
+      }
+    }
+
+    for (const forbidden of [
+      'evaluatePlatformSubscriptionEntitlement',
+      'platform_subscription_',
+      'resolveCommunityCapacitySponsorRole',
+      'minimumPersonalCommunityCreationRole',
+    ]) {
+      if (handlerSource.includes(forbidden)) {
+        architectureViolations.push(
+          `${OFFICIAL_CREATE_HANDLER} (criação oficial não pode depender de assinatura pessoal: ${forbidden})`
+        );
+      }
+    }
+  }
+
+  if (modelSource) {
+    for (const forbiddenField of [
+      'authorityRole',
+      'sponsorOrganizationId',
+      'ownerUid',
+      'memberLimit',
+    ]) {
+      const declarationPattern = new RegExp(
+        String.raw`(?:interface\s+CreateOfficialCommunityRequest[\s\S]{0,1200}?\b${forbiddenField}\b|raw\?\.${forbiddenField}|source\.${forbiddenField})`,
+        'm'
+      );
+      if (declarationPattern.test(modelSource)) {
+        architectureViolations.push(
+          `${OFFICIAL_CREATE_MODEL} (payload oficial não pode aceitar ${forbiddenField})`
+        );
+      }
+    }
+  }
+
+  if (
+    contextSource
+    && !contextSource.includes('resolveCommunityOfficialClaimSubmission')
+  ) {
+    architectureViolations.push(
+      `${OFFICIAL_AUTHORITY_CONTEXT} (deve reutilizar a policy canônica dos claims)`
+    );
+  }
+
+  if (
+    claimSource
+    && !claimSource.includes('resolveCommunityOfficialAuthorityContext')
+  ) {
+    architectureViolations.push(
+      `${COMMUNITY_CLAIM_HANDLER} (claim e criação devem compartilhar o mesmo resolver de autoridade)`
+    );
+  }
+
+  if (
+    capacitySource
+    && (
+      !capacitySource.includes("capacity['sponsorType']")
+      || !capacitySource.includes("sponsorRole: 'official'")
+    )
+  ) {
+    architectureViolations.push(
+      `${COMMUNITY_CAPACITY_SERVICE} (capacidade oficial deve ser separada do entitlement pessoal)`
+    );
+  }
+
+  if (
+    personalCreateSource
+    && !personalCreateSource.includes("sponsorType: 'personal'")
+  ) {
+    architectureViolations.push(
+      `${PERSONAL_CREATE_HANDLER} (criação pessoal deve marcar sponsorType personal)`
+    );
+  }
+}
+
+function validateEventAuthorityLifecycleBoundary(architectureViolations) {
+  const serviceSource = readRequiredSource(
+    EVENT_AUTHORITY_SERVICE,
+    architectureViolations
+  );
+  const handlerSource = readRequiredSource(
+    EVENT_AUTHORITY_HANDLER,
+    architectureViolations
+  );
+  const rootIndexSource = readRequiredSource(
+    FUNCTIONS_ROOT_INDEX,
+    architectureViolations
+  );
+
+  if (serviceSource) {
+    for (const required of [
+      "EVENT_AUTHORITY_RECORDS_COLLECTION = 'event_authority_records'",
+      'issueEventAuthorityRecord',
+      'revokeEventAuthorityRecord',
+      'transaction.set(recordRef',
+      'transaction.update(recordRef',
+      'EVENT_AUTHORITY_AUDIT_COLLECTION',
+      'EVENT_AUTHORITY_OPERATIONS_COLLECTION',
+    ]) {
+      if (!serviceSource.includes(required)) {
+        architectureViolations.push(
+          `${EVENT_AUTHORITY_SERVICE} (lifecycle canônico incompleto: ${required})`
+        );
+      }
+    }
+  }
+
+  if (handlerSource) {
+    for (const required of [
+      'issueEventAuthority',
+      'revokeEventAuthority',
+      'issueEventAuthorityRecord',
+      'revokeEventAuthorityRecord',
+      'assertRecentAuthentication',
+      'assertCallableAppCheck',
+    ]) {
+      if (!handlerSource.includes(required)) {
+        architectureViolations.push(
+          `${EVENT_AUTHORITY_HANDLER} (entrypoint de lifecycle incompleto: ${required})`
+        );
+      }
+    }
+
+    for (const forbidden of [
+      'subscription',
+      'CommunityMembership',
+      'viewerRole',
+      'communityRole',
+    ]) {
+      if (handlerSource.includes(forbidden)) {
+        architectureViolations.push(
+          `${EVENT_AUTHORITY_HANDLER} (autoridade de Evento não pode depender de ${forbidden})`
+        );
+      }
+    }
+  }
+
+  if (
+    rootIndexSource
+    && (
+      !rootIndexSource.includes('issueEventAuthority')
+      || !rootIndexSource.includes('revokeEventAuthority')
+    )
+  ) {
+    architectureViolations.push(
+      `${FUNCTIONS_ROOT_INDEX} (callables do lifecycle de Evento não exportadas)`
+    );
+  }
+
+  const allowedEventAuthorityReaders = new Set([
+    EVENT_AUTHORITY_SERVICE,
+    path.normalize('functions/src/authority/event-authority.policy.ts'),
+    OFFICIAL_AUTHORITY_CONTEXT,
+    path.normalize(
+      'functions/src/community/community-official-claim-evidence.service.ts'
+    ),
+    path.normalize(
+      'functions/src/community/get-community-official-claim-capability.handler.ts'
+    ),
+  ]);
+
+  const functionsRoot = path.join(root, 'functions', 'src');
+  for (const absolutePath of walkTypeScriptFiles(functionsRoot)) {
+    const source = fs.readFileSync(absolutePath, 'utf8');
+    const relativePath = normalizeRelativePath(absolutePath);
+
+    if (
+      source.includes('EVENT_AUTHORITY_RECORDS_COLLECTION')
+      && relativePath !== EVENT_AUTHORITY_SERVICE
+    ) {
+      architectureViolations.push(
+        `${relativePath} (somente EventAuthorityRecordService pode importar/usar o identificador de escrita do ledger)`
+      );
+    }
+
+    if (
+      source.includes('event_authority_records')
+      && !allowedEventAuthorityReaders.has(relativePath)
+    ) {
+      architectureViolations.push(
+        `${relativePath} (acesso ao ledger de Evento fora dos readers/writer canônicos)`
+      );
+    }
+  }
+}
+
 if (!fs.existsSync(communityBackendRoot)) {
   console.error(
     `[community-authority] Diretório não encontrado: ${communityBackendRoot}`
@@ -429,6 +681,8 @@ if (uniqueViolations.length > 0) {
 
 const architectureViolations = [];
 validateCommunityNotificationClientBoundary(architectureViolations);
+validateOfficialCreationBoundary(architectureViolations);
+validateEventAuthorityLifecycleBoundary(architectureViolations);
 
 const uniqueArchitectureViolations = [...new Set(architectureViolations)].sort();
 
@@ -451,5 +705,5 @@ console.log(
   '[community-authority] OK: payloads de Comunidades não são usados como autoridade derivada.'
 );
 console.log(
-  '[community-authority] OK: notificações de Comunidades preservam owner único, listener agregado e lazy injection em mine.'
+  '[community-authority] OK: notificações preservam owner único; criação oficial separa autoridade/assinatura/role; Evento possui lifecycle writer único auditável.'
 );
