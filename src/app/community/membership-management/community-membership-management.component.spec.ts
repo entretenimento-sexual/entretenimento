@@ -27,6 +27,7 @@ describe('CommunityMembershipManagementComponent', () => {
   const tagRepositoryMock = { getCommunityTagCatalog$: vi.fn() };
   const errorNotifierMock = {
     showError: vi.fn(),
+    showInfo: vi.fn(),
     showSuccess: vi.fn(),
   };
   const handleError = vi.fn();
@@ -341,7 +342,7 @@ describe('CommunityMembershipManagementComponent', () => {
     action.click();
     fixture.detectChanges();
 
-    expect(errorNotifierMock.showError).toHaveBeenCalledWith(
+    expect(errorNotifierMock.showInfo).toHaveBeenCalledWith(
       'Muitas ações de gestão foram executadas em pouco tempo. Aguarde e tente novamente.'
     );
     expect(handleError).toHaveBeenCalledTimes(1);
