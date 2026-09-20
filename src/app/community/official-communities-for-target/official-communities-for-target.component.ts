@@ -38,6 +38,7 @@ type OfficialCommunitiesStatus = 'loading' | 'ready' | 'empty' | 'error';
 interface OfficialTargetCopy {
   readonly context: string;
   readonly ariaLabel: string;
+  readonly currentAssociationLabel: string;
 }
 
 interface OfficialCommunitiesForTargetVm {
@@ -45,6 +46,7 @@ interface OfficialCommunitiesForTargetVm {
   readonly items: readonly CommunityPreviewCard[];
   readonly context: string;
   readonly ariaLabel: string;
+  readonly currentAssociationLabel: string;
   readonly visible: boolean;
 }
 
@@ -55,18 +57,23 @@ const TARGET_COPY: Readonly<Record<CommunityOfficialTargetType, OfficialTargetCo
     profile: {
       context: 'Associação oficial verificada para este perfil.',
       ariaLabel: 'Comunidade oficialmente vinculada a este perfil',
+      currentAssociationLabel: 'Esta é a comunidade oficial deste perfil',
     },
     organization: {
       context: 'Associação oficial verificada para esta organização.',
       ariaLabel: 'Comunidade oficialmente vinculada a esta organização',
+      currentAssociationLabel:
+        'Esta é a comunidade oficial desta organização',
     },
     venue: {
       context: 'Associação oficial verificada para este local.',
       ariaLabel: 'Comunidade oficialmente vinculada a este local',
+      currentAssociationLabel: 'Esta é a comunidade oficial deste Local',
     },
     event: {
       context: 'Associação oficial verificada para este evento.',
       ariaLabel: 'Comunidade oficialmente vinculada a este evento',
+      currentAssociationLabel: 'Esta é a comunidade oficial deste evento',
     },
   });
 
@@ -93,6 +100,7 @@ function buildVm(
     items,
     context: copy.context,
     ariaLabel: copy.ariaLabel,
+    currentAssociationLabel: copy.currentAssociationLabel,
     visible: status !== 'empty',
   };
 }
