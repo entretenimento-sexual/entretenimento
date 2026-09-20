@@ -4,6 +4,7 @@ import {getMessaging} from 'firebase-admin/messaging';
 import {getFirestore, Timestamp} from 'firebase-admin/firestore';
 
 import {isCommunityNotificationMembershipCycleCurrent} from '../community/community-notification-membership.policy';
+import {evaluateOperationalCostBudget} from '../shared/observability/operational-cost-budget.policy';
 import {
   isCommunityPushMuted,
   isPushNotificationEnabledByPreference,
@@ -267,9 +268,17 @@ export const sendNotification = onDocumentCreated(
       }
     }
 
+    const operationalCostBudget = preferenceKey === 'communities'
+      ? evaluateOperationalCostBudget(
+        'community.notification.push_targets_per_notification',
+        targets.length
+      )
+      : null;
+
     console.info('[sendNotification] push processado', {
       notificationId,
       notificationType,
+      operationalCostBudget,
       hasNavigationRoute: Boolean(navigationData),
       usesNeutralExternalContent: true,
       targetsFreshRegistryOnly: true,
