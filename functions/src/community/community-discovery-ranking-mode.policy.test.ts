@@ -10,8 +10,10 @@ import {
   COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION,
   COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
 } from './community-ranking-candidate-v3.policy';
-import { COMMUNITY_DISCOVERY_V3_RANKING_MODE } from './community-discovery-ranking-mode.policy';
-import { resolveCommunityDiscoveryRankingMode } from './community-discovery-ranking-mode.policy';
+import {
+  COMMUNITY_DISCOVERY_V3_RANKING_MODE,
+  resolveCommunityDiscoveryRankingMode,
+} from './community-discovery-ranking-mode.policy';
 
 test('mantém ranking legado por padrão', () => {
   const decision = resolveCommunityDiscoveryRankingMode({}, {});
