@@ -49,10 +49,13 @@ test('habilita TTL somente nos receipts operacionais de Comunidades', () => {
   }
 });
 
-test('usa expiresAt também para expurgar convites já expirados', () => {
+test('usa expiresAt para convites sem quebrar a consulta por expiração', () => {
   const override = ttlOverride('invites');
   assert.ok(override);
-  assert.deepEqual(override.indexes ?? [], []);
+  assert.deepEqual(override.indexes ?? [], [
+    { order: 'ASCENDING', queryScope: 'COLLECTION' },
+    { order: 'DESCENDING', queryScope: 'COLLECTION' },
+  ]);
 });
 
 test('evidência protegida nunca recebe TTL', () => {

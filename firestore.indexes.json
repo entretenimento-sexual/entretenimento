@@ -432,7 +432,10 @@
       "collectionGroup": "invites",
       "fieldPath": "expiresAt",
       "ttl": true,
-      "indexes": []
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" }
+      ]
     },
     {
       "collectionGroup": "backend_rate_limits",
