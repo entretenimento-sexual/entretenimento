@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
 import { Router } from '@angular/router';
-import { of, Subject, throwError } from 'rxjs';
+import { Observable, of, Subject, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -12,7 +12,10 @@ import {
 } from '../data-access/community-feed-comment.model';
 import { CommunityFeedCommentRepository } from '../data-access/community-feed-comment.repository';
 import { CommunityFeedRepository } from '../data-access/community-feed.repository';
-import { CommunityRealtimeAttentionCoordinatorService } from '../data-access/community-realtime-attention-coordinator.service';
+import {
+  CommunityRealtimeAttentionCoordinatorService,
+  type CommunityRealtimeAttentionMode,
+} from '../data-access/community-realtime-attention-coordinator.service';
 import { CommunityFeedCommentsComponent } from './community-feed-comments.component';
 
 const CREATED_AT = Date.now() - 60_000;
@@ -57,7 +60,9 @@ describe('CommunityFeedCommentsComponent', () => {
     createPost$: vi.fn(),
   };
   const realtimeAttentionMock = {
-    modeForCommunity$: vi.fn(() => of('detailed' as const)),
+    modeForCommunity$: vi.fn(
+      (): Observable<CommunityRealtimeAttentionMode> => of('detailed')
+    ),
   };
   const notificationMock = {
     showError: vi.fn(),
