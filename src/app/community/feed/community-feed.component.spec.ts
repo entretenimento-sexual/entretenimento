@@ -107,6 +107,7 @@ describe('CommunityFeedComponent', () => {
   };
   const errorNotifierMock = {
     showError: vi.fn(),
+    showInfo: vi.fn(),
     showSuccess: vi.fn(),
     showWarning: vi.fn(),
   };
@@ -585,7 +586,7 @@ describe('CommunityFeedComponent', () => {
 
     expect(component.postForm.controls.text.value).toBe('Rascunho preservado.');
     expect(fixture.nativeElement.textContent).toContain('Sua mensagem');
-    expect(errorNotifierMock.showError).toHaveBeenCalledWith(
+    expect(errorNotifierMock.showInfo).toHaveBeenCalledWith(
       'Você atingiu o limite temporário de mensagens. Tente mais tarde.'
     );
     expect(globalErrorMock.handleError).toHaveBeenCalledTimes(1);
