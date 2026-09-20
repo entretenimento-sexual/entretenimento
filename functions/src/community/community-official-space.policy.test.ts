@@ -14,9 +14,10 @@ function activeGrant(overrides: Record<string, unknown> = {}) {
     holderUid: 'user-1',
     scope: 'official_space_creation',
     verificationStatus: 'verified',
-    policyVersion: 1,
+    policyVersion: 2,
     organizationId: 'organization-1',
     maxOfficialSpaces: 10,
+    memberLimit: 250,
     active: true,
     startsAt: NOW - 1_000,
     endsAt: NOW + 10_000,
@@ -24,7 +25,7 @@ function activeGrant(overrides: Record<string, unknown> = {}) {
   };
 }
 
-test('mantém limites comerciais ligados à configuração canônica', () => {
+test('mantém apenas hard ceilings técnicos ligados à configuração canônica', () => {
   assert.equal(
     MAX_OFFICIAL_SPACES_PER_GRANT,
     COMMUNITY_PRODUCT_LIMITS.maxOfficialSpacesPerGrant
@@ -43,10 +44,28 @@ test('mantém capacidade comunitária separada da autoridade comercial', () => {
       allowed: true,
       organizationId: 'organization-1',
       maxOfficialSpaces: 10,
-      memberLimit: COMMUNITY_PRODUCT_LIMITS.officialSpaceMemberLimit,
+      memberLimit: 250,
       denialReason: null,
     }
   );
+});
+
+test('rejeita grant sem capacidade contratada explícita', () => {
+  for (const rawGrant of [
+    activeGrant({ memberLimit: undefined }),
+    activeGrant({ memberLimit: 10_000 }),
+    activeGrant({ maxOfficialSpaces: undefined }),
+  ]) {
+    assert.equal(
+      evaluateOfficialSpaceCreationGrant({
+        actorUid: 'user-1',
+        actorUserRole: null,
+        rawGrant,
+        now: NOW,
+      }).denialReason,
+      'verification_required'
+    );
+  }
 });
 
 test('rejeita concessão comercial válida sem capability de Espaço Oficial', () => {
