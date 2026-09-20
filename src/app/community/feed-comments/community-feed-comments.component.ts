@@ -60,6 +60,7 @@ import {
   CommunityFeedCommentPage,
 } from '../data-access/community-feed-comment.model';
 import { CommunityFeedCommentRepository } from '../data-access/community-feed-comment.repository';
+import { CommunityRealtimeAttentionCoordinatorService } from '../data-access/community-realtime-attention-coordinator.service';
 import {
   CommunityFeedPostCreateRequest,
   CommunityFeedPostCreateResponse,
@@ -208,6 +209,7 @@ function reduceState(
 export class CommunityFeedCommentsComponent implements OnDestroy {
   private readonly repository = inject(CommunityFeedCommentRepository);
   private readonly feedRepository = inject(CommunityFeedRepository);
+  private readonly realtimeAttention = inject(CommunityRealtimeAttentionCoordinatorService);
   private readonly notification = inject(ErrorNotificationService);
   private readonly applicationError = inject(ApplicationErrorService);
   private readonly timeTicker = inject(CommunityFeedTimeTickerService);
@@ -283,18 +285,28 @@ export class CommunityFeedCommentsComponent implements OnDestroy {
     switchMap(([communityId, postId]) => {
       const realtimeRefreshRequests$: Observable<CommentLoadRequest> =
         typeof this.repository.watchCommentCount$ === 'function'
-          ? this.repository.watchCommentCount$(communityId, postId).pipe(
-              skip(1),
-              tap((commentCount) => this.commentCountChanged.emit(commentCount)),
-              filter((commentCount) => !this.consumeLocallyConfirmedCount(commentCount)),
-              map((): CommentLoadRequest => ({
-                cursor: null,
-                append: false,
-                preserve: true,
-              })),
-              catchError((error: unknown) => {
-                this.reportRealtimeError(error);
-                return EMPTY;
+          ? this.realtimeAttention.modeForCommunity$(communityId).pipe(
+              switchMap((attentionMode) => {
+                if (attentionMode !== 'detailed') {
+                  return EMPTY;
+                }
+
+                return this.repository.watchCommentCount$(communityId, postId).pipe(
+                  skip(1),
+                  tap((commentCount) => this.commentCountChanged.emit(commentCount)),
+                  filter((commentCount) =>
+                    !this.consumeLocallyConfirmedCount(commentCount)
+                  ),
+                  map((): CommentLoadRequest => ({
+                    cursor: null,
+                    append: false,
+                    preserve: true,
+                  })),
+                  catchError((error: unknown) => {
+                    this.reportRealtimeError(error);
+                    return EMPTY;
+                  })
+                );
               })
             )
           : EMPTY;
