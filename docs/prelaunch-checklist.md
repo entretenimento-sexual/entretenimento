@@ -64,6 +64,10 @@ working tree clean
 - [ ] Dominio real definido.
 - [ ] Firebase Hosting/domino configurado.
 - [ ] Sentry ou monitoramento externo configurado, se for ativado.
+- [ ] Valor mensal de Cloud Billing Budget definido pelo responsável financeiro/produto.
+- [ ] Alertas de billing configurados em 50%, 75%, 90% e 100% do orçamento, com forecast quando aplicável.
+- [ ] Métricas/alertas de custo de Comunidades configurados conforme `docs/architecture/COMMUNITY_OPERATIONAL_COST_BUDGET.md`.
+- [ ] Baseline de custo por unidade coletado antes de otimizações de Discovery/exposure/notificações/storage.
 
 ## Produto e UX
 
