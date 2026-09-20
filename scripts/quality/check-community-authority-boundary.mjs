@@ -554,6 +554,25 @@ function validateCommunityRankingV3Boundary(architectureViolations) {
     }
   }
 
+  const functionsSourceRoot = path.join(root, 'functions', 'src');
+  for (const absolutePath of walkTypeScriptFiles(functionsSourceRoot)) {
+    const source = fs.readFileSync(absolutePath, 'utf8');
+    const relativePath = normalizeRelativePath(absolutePath);
+    const writePattern = /\bdiscoveryRankingMode\s*:/m;
+    const match = writePattern.exec(source);
+
+    if (
+      match
+      && relativePath !== COMMUNITY_RANKING_CONFIGURE_HANDLER
+    ) {
+      const position = lineAndColumn(source, match.index);
+      architectureViolations.push(
+        `${relativePath}:${position.line}:${position.column} `
+          + '(somente configureCommunityRankingMode pode escrever discoveryRankingMode)'
+      );
+    }
+  }
+
   const rolloutSource = readRequiredSource(
     COMMUNITY_RANKING_ROLLOUT_POLICY,
     architectureViolations
@@ -602,6 +621,8 @@ function validateCommunityRankingV3Boundary(architectureViolations) {
     for (const required of [
       'COMMUNITY_RANKING_V3_MIN_OBSERVED_CYCLES = 7',
       'COMMUNITY_RANKING_V3_MIN_CONSECUTIVE_PASSING_CYCLES = 3',
+      'lastObservedDay',
+      'currentObservationDay',
       'promotionReady',
       'evaluateCommunityRankingV3Acceptance',
     ]) {
