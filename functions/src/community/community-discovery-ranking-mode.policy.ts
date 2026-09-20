@@ -138,12 +138,14 @@ export function resolveCommunityDiscoveryRankingMode(
     requestedVersion !== COMMUNITY_DISCOVERY_SCORE_VERSION
     && requestedVersion !== COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION
   ) {
-    return fallbackDecision(
+    return {
       requestedMode,
-      'score_mode_version_mismatch',
-      config,
-      runtime
-    );
+      effectiveMode: 'legacy',
+      targetMode: COMMUNITY_DISCOVERY_RANKING_MODE,
+      orderField: 'rankScore',
+      scoreVersion: COMMUNITY_DISCOVERY_SCORE_VERSION,
+      fallbackReason: 'score_mode_version_mismatch',
+    };
   }
 
   const v2Denial = v2Ready(config, runtime);
