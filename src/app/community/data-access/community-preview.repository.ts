@@ -6,6 +6,7 @@ import { Observable, defer, from, map, of } from 'rxjs';
 import { normalizeCommunityDiscoveryPageSize } from './community-discovery.contract';
 import {
   CommunityOfficialTarget,
+  normalizeCommunityOfficialTarget,
   retainCommunitiesForOfficialTarget,
 } from './community-official-target.policy';
 import {
@@ -78,15 +79,10 @@ export class CommunityPreviewRepository {
     target: CommunityOfficialTarget,
     limit = 4
   ): Observable<CommunityDiscoveryPage> {
-    const targetId = String(target?.id ?? '').trim();
-    if (!targetId) {
+    const normalizedTarget = normalizeCommunityOfficialTarget(target);
+    if (!normalizedTarget) {
       return of(this.emptyDiscoveryPage());
     }
-
-    const normalizedTarget: CommunityOfficialTarget = {
-      type: target.type,
-      id: targetId,
-    };
 
     return defer(() =>
       from(
@@ -102,19 +98,23 @@ export class CommunityPreviewRepository {
     );
   }
 
+  /**
+   * Compatibilidade para consumidores antigos. Novas superfícies devem usar o
+   * contrato genérico getOfficialCommunitiesForTarget$.
+   */
   getProfileOfficialCommunities$(
     profileId: string,
     limit = 4
   ): Observable<CommunityDiscoveryPage> {
-    const normalizedProfileId = String(profileId ?? '').trim().toLowerCase();
-    if (!normalizedProfileId) {
+    const normalizedTarget = normalizeCommunityOfficialTarget({
+      type: 'profile',
+      id: profileId,
+    });
+    if (!normalizedTarget) {
       return of(this.emptyDiscoveryPage());
     }
 
-    return this.getOfficialCommunitiesForTarget$(
-      { type: 'profile', id: normalizedProfileId },
-      limit
-    );
+    return this.getOfficialCommunitiesForTarget$(normalizedTarget, limit);
   }
 
   getPreview$(communityId: string): Observable<CommunityPreviewResponse> {

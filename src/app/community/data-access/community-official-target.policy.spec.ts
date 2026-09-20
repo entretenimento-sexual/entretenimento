@@ -1,5 +1,8 @@
 import type { CommunityPreviewCard } from './community-preview.model';
-import { retainCommunitiesForOfficialTarget } from './community-official-target.policy';
+import {
+  normalizeCommunityOfficialTarget,
+  retainCommunitiesForOfficialTarget,
+} from './community-official-target.policy';
 
 function createCard(
   communityId: string,
@@ -24,11 +27,43 @@ function createCard(
   };
 }
 
-describe('retainCommunitiesForOfficialTarget', () => {
+describe('community official target policy', () => {
   const target = {
     type: 'profile' as const,
     id: 'profile-12345678-1234-4123-8123-123456789abc',
   };
+
+  it('normaliza o profileId pela identidade pública canônica', () => {
+    expect(normalizeCommunityOfficialTarget({
+      type: 'profile',
+      id: ' PROFILE-12345678-1234-4123-8123-123456789ABC ',
+    })).toEqual(target);
+  });
+
+  it.each([
+    ['organization', 'org:123'],
+    ['venue', 'venue_123'],
+    ['event', 'event-123'],
+  ] as const)(
+    'preserva o id canônico seguro de %s',
+    (type, id) => {
+      expect(normalizeCommunityOfficialTarget({ type, id })).toEqual({
+        type,
+        id,
+      });
+    }
+  );
+
+  it('rejeita tipo ou identificador inválido', () => {
+    expect(normalizeCommunityOfficialTarget({
+      type: 'unknown',
+      id: 'target-1',
+    })).toBeNull();
+    expect(normalizeCommunityOfficialTarget({
+      type: 'venue',
+      id: 'id com espaço',
+    })).toBeNull();
+  });
 
   it('mantém apenas associações verificadas do alvo exato', () => {
     const exact = createCard('exact', {

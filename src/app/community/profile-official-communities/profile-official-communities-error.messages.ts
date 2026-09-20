@@ -1,15 +1,11 @@
 // src/app/community/profile-official-communities/profile-official-communities-error.messages.ts
 // -----------------------------------------------------------------------------
-// PROFILE OFFICIAL COMMUNITIES ERROR MESSAGES
+// PROFILE COMMUNITY RELATIONSHIPS - ERROR MESSAGES
 // -----------------------------------------------------------------------------
-// Mensagens seguras para falhas de integridade da identidade pública do perfil.
-// Não expõem detalhes internos sobre UID, duplicidade de documentos ou estrutura.
+// Compatibilidade nominal para a seção de participação pública do Perfil.
+// A associação oficial usa o catálogo transversal de alvo oficial.
 // -----------------------------------------------------------------------------
 
-export const PROFILE_OFFICIAL_COMMUNITIES_REASON_MESSAGES:
-  Readonly<Record<string, string>> = Object.freeze({
-    public_profile_identity_duplicate:
-      'Não foi possível validar este perfil agora. Tente novamente mais tarde.',
-    public_profile_identity_invalid:
-      'Não foi possível validar este perfil agora. Tente novamente mais tarde.',
-  });
+export {
+  OFFICIAL_COMMUNITIES_FOR_TARGET_REASON_MESSAGES as PROFILE_OFFICIAL_COMMUNITIES_REASON_MESSAGES,
+} from '../official-communities-for-target/official-communities-for-target-error.messages';

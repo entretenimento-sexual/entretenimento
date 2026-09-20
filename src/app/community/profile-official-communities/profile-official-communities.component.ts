@@ -1,4 +1,13 @@
 // src/app/community/profile-official-communities/profile-official-communities.component.ts
+// -----------------------------------------------------------------------------
+// PROFILE COMMUNITY RELATIONSHIPS
+// -----------------------------------------------------------------------------
+// Mantém a compatibilidade da superfície de Perfil, mas a associação oficial
+// deixou de ser responsabilidade deste componente. Ela é delegada ao componente
+// transversal OfficialCommunitiesForTargetComponent, que pode ser reutilizado
+// por Perfil, Organização, Local e Evento.
+// -----------------------------------------------------------------------------
+
 import { AsyncPipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
@@ -20,12 +29,12 @@ import {
   switchMap,
 } from 'rxjs';
 
+import { normalizePublicProfileId } from 'src/app/core/domain/public-user-identity/public-profile-id.model';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
-import { CommunityPreviewCard } from '../data-access/community-preview.model';
-import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
+import type { CommunityPreviewCard } from '../data-access/community-preview.model';
 import { CommunityProfilePublicCommunitiesRepository } from '../data-access/community-profile-public-communities.repository';
-import { CommunityOfficialBadgeComponent } from '../presentation/community-official-badge.component';
+import { OfficialCommunitiesForTargetComponent } from '../official-communities-for-target/official-communities-for-target.component';
 import {
   communityInitials as buildCommunityInitials,
   communityVisualVariant as resolveCommunityVisualVariant,
@@ -34,41 +43,17 @@ import {
   PROFILE_OFFICIAL_COMMUNITIES_REASON_MESSAGES,
 } from './profile-official-communities-error.messages';
 
-type ProfileCommunitySectionStatus =
-  | 'loading'
-  | 'ready'
-  | 'empty'
-  | 'error';
+type ProfileMembershipStatus = 'loading' | 'ready' | 'empty' | 'error';
 
-type ProfileCommunitySectionKind = 'membership' | 'official';
-
-interface ProfileCommunitySectionVm {
-  readonly kind: ProfileCommunitySectionKind;
-  readonly status: ProfileCommunitySectionStatus;
+interface ProfileMembershipVm {
+  readonly status: ProfileMembershipStatus;
   readonly items: readonly CommunityPreviewCard[];
 }
 
-interface ProfileCommunitiesVm {
-  readonly sections: readonly ProfileCommunitySectionVm[];
-  readonly visible: boolean;
-}
-
 const PROFILE_COMMUNITY_LIMIT = 4;
-
-function sectionVm(
-  kind: ProfileCommunitySectionKind,
-  status: ProfileCommunitySectionStatus,
-  items: readonly CommunityPreviewCard[] = []
-): ProfileCommunitySectionVm {
-  return { kind, status, items };
-}
-
-const EMPTY_VM: ProfileCommunitiesVm = Object.freeze({
-  sections: [
-    sectionVm('membership', 'empty'),
-    sectionVm('official', 'empty'),
-  ],
-  visible: false,
+const EMPTY_MEMBERSHIP_VM: ProfileMembershipVm = Object.freeze({
+  status: 'empty',
+  items: [],
 });
 
 @Component({
@@ -78,14 +63,13 @@ const EMPTY_VM: ProfileCommunitiesVm = Object.freeze({
     AsyncPipe,
     RouterLink,
     ImageFallbackDirective,
-    CommunityOfficialBadgeComponent,
+    OfficialCommunitiesForTargetComponent,
   ],
   templateUrl: './profile-official-communities.component.html',
   styleUrl: './profile-official-communities.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProfileOfficialCommunitiesComponent {
-  private readonly repository = inject(CommunityPreviewRepository);
   private readonly publicCommunitiesRepository = inject(
     CommunityProfilePublicCommunitiesRepository
   );
@@ -95,9 +79,13 @@ export class ProfileOfficialCommunitiesComponent {
     new BehaviorSubject<boolean>(false);
   private readonly refreshSubject = new BehaviorSubject<number>(0);
 
+  profileIdValue = '';
+
   @Input({ required: true })
   set profileId(value: string | null | undefined) {
-    this.profileIdSubject.next(String(value ?? '').trim().toLowerCase());
+    const normalized = normalizePublicProfileId(value) ?? '';
+    this.profileIdValue = normalized;
+    this.profileIdSubject.next(normalized);
   }
 
   /**
@@ -110,28 +98,17 @@ export class ProfileOfficialCommunitiesComponent {
     this.includePublicMembershipsSubject.next(value === true);
   }
 
-  readonly vm$: Observable<ProfileCommunitiesVm> = combineLatest([
+  readonly vm$: Observable<ProfileMembershipVm> = combineLatest([
     this.profileIdSubject.pipe(distinctUntilChanged()),
     this.includePublicMembershipsSubject.pipe(distinctUntilChanged()),
     this.refreshSubject,
   ]).pipe(
     switchMap(([profileId, includePublicMemberships]) => {
-      if (!profileId) return of(EMPTY_VM);
+      if (!profileId || !includePublicMemberships) {
+        return of(EMPTY_MEMBERSHIP_VM);
+      }
 
-      const official$ = this.loadOfficial$(profileId);
-      const membership$ = includePublicMemberships
-        ? this.loadPublicMemberships$(profileId)
-        : of(sectionVm('membership', 'empty'));
-
-      return combineLatest([membership$, official$]).pipe(
-        map(([membership, official]): ProfileCommunitiesVm => {
-          const sections = [membership, official] as const;
-          return {
-            sections,
-            visible: sections.some((section) => section.status !== 'empty'),
-          };
-        })
-      );
+      return this.loadPublicMemberships$(profileId);
     }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
@@ -154,49 +131,17 @@ export class ProfileOfficialCommunitiesComponent {
     return resolveCommunityVisualVariant(item);
   }
 
-  private loadOfficial$(
-    profileId: string
-  ): Observable<ProfileCommunitySectionVm> {
-    return this.repository.getProfileOfficialCommunities$(
-      profileId,
-      PROFILE_COMMUNITY_LIMIT
-    ).pipe(
-      map((page) => sectionVm(
-        'official',
-        page.items.length > 0 ? 'ready' : 'empty',
-        page.items
-      )),
-      catchError((error: unknown) => {
-        this.applicationError.report(error, {
-          feature: 'community',
-          operation: 'loadProfileOfficialCommunities',
-          fallbackMessage:
-            'Não foi possível carregar as comunidades oficiais deste perfil.',
-          notification: 'warning',
-          reasonMessages: PROFILE_OFFICIAL_COMMUNITIES_REASON_MESSAGES,
-          metadata: {
-            scope: 'ProfileOfficialCommunitiesComponent',
-            hasProfileId: true,
-          },
-        });
-        return of(sectionVm('official', 'error'));
-      }),
-      startWith(sectionVm('official', 'loading'))
-    );
-  }
-
   private loadPublicMemberships$(
     profileId: string
-  ): Observable<ProfileCommunitySectionVm> {
+  ): Observable<ProfileMembershipVm> {
     return this.publicCommunitiesRepository.getProfilePublicCommunities$(
       profileId,
       PROFILE_COMMUNITY_LIMIT
     ).pipe(
-      map((page) => sectionVm(
-        'membership',
-        page.items.length > 0 ? 'ready' : 'empty',
-        page.items
-      )),
+      map((page) => ({
+        status: page.items.length > 0 ? 'ready' : 'empty',
+        items: page.items,
+      } as ProfileMembershipVm)),
       catchError((error: unknown) => {
         this.applicationError.report(error, {
           feature: 'community',
@@ -211,9 +156,16 @@ export class ProfileOfficialCommunitiesComponent {
             publicMemberships: true,
           },
         });
-        return of(sectionVm('membership', 'error'));
+
+        return of({
+          status: 'error',
+          items: [],
+        } as ProfileMembershipVm);
       }),
-      startWith(sectionVm('membership', 'loading'))
+      startWith({
+        status: 'loading',
+        items: [],
+      } as ProfileMembershipVm)
     );
   }
 }

@@ -1,0 +1,104 @@
+@if (vm$ | async; as vm) {
+  @if (vm.visible) {
+    @if (vm.status === 'loading') {
+      <section
+        class="official-communities official-communities--state"
+        aria-label="Associação oficial"
+        aria-busy="true"
+        role="status"
+        aria-live="polite"
+      >
+        <span class="official-communities__spinner" aria-hidden="true">
+          <i class="fas fa-spinner fa-spin"></i>
+        </span>
+        <span>Carregando associação oficial.</span>
+      </section>
+    } @else if (vm.status === 'error') {
+      <section
+        class="official-communities official-communities--state"
+        aria-label="Associação oficial"
+        role="status"
+      >
+        <span>A associação oficial não pôde ser carregada.</span>
+        <button type="button" (click)="retry()">Tentar novamente</button>
+      </section>
+    } @else {
+      <section
+        class="official-communities"
+        aria-labelledby="official-communities-title"
+      >
+        <header class="official-communities__header">
+          <div>
+            <p class="official-communities__eyebrow">
+              <i class="fas fa-circle-check" aria-hidden="true"></i>
+              Vínculo verificado
+            </p>
+            <h2 id="official-communities-title">Comunidade oficial</h2>
+            <p class="official-communities__context">
+              {{ vm.context }}
+            </p>
+          </div>
+        </header>
+
+        <ul
+          class="official-communities__list"
+          [attr.aria-label]="vm.ariaLabel"
+        >
+          @for (item of vm.items; track item.communityId) {
+            <li>
+              <a
+                class="official-community"
+                [routerLink]="detailsRoute(item)"
+                [attr.aria-label]="'Abrir comunidade ' + item.name"
+              >
+                <span
+                  class="official-community__avatar"
+                  [attr.data-visual-variant]="communityVisualVariant(item)"
+                  aria-hidden="true"
+                >
+                  <span>{{ communityInitials(item) }}</span>
+                  @if (item.avatarUrl) {
+                    <img
+                      [src]="item.avatarUrl"
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      appImageFallback
+                    />
+                  }
+                </span>
+
+                <span class="official-community__body">
+                  <span class="official-community__title-row">
+                    <strong>{{ item.name }}</strong>
+                    <app-community-official-badge [community]="item" />
+                  </span>
+
+                  @if (item.description) {
+                    <span class="official-community__description">
+                      {{ item.description }}
+                    </span>
+                  }
+
+                  <span class="official-community__meta">
+                    <span [attr.aria-label]="item.metrics.memberCount + ' membros'">
+                      <i class="fas fa-users" aria-hidden="true"></i>
+                      {{ item.metrics.memberCount }}
+                    </span>
+                    <span aria-hidden="true">•</span>
+                    <span>Ver comunidade</span>
+                  </span>
+                </span>
+
+                <i
+                  class="fas fa-chevron-right official-community__chevron"
+                  aria-hidden="true"
+                ></i>
+              </a>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+  }
+}
