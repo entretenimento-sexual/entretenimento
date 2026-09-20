@@ -10,6 +10,7 @@
 // -----------------------------------------------------------------------------
 
 import {
+  COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION,
   COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
 } from './community-ranking-candidate-v3.policy';
 import type {
@@ -47,6 +48,8 @@ export interface CommunityRankingV3AcceptanceEvaluation {
 export interface CommunityRankingV3AcceptanceState {
   readonly policyVersion: typeof COMMUNITY_RANKING_V3_ACCEPTANCE_POLICY_VERSION;
   readonly candidateScoreVersion: typeof COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION;
+  readonly candidateActivityMomentumModelVersion:
+    typeof COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION;
   readonly observedCycles: number;
   readonly passingCycles: number;
   readonly consecutivePassingCycles: number;
@@ -141,7 +144,9 @@ export function advanceCommunityRankingV3AcceptanceState(input: {
     Number(previous['policyVersion'])
       === COMMUNITY_RANKING_V3_ACCEPTANCE_POLICY_VERSION
     && Number(previous['candidateScoreVersion'])
-      === COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION;
+      === COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION
+    && Number(previous['candidateActivityMomentumModelVersion'])
+      === COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION;
   const previousCycleCompletedAt = samePolicy
     ? normalizeTimestamp(previous['lastObservedCycleCompletedAt'])
     : null;
@@ -158,6 +163,8 @@ export function advanceCommunityRankingV3AcceptanceState(input: {
     ? {
         policyVersion: COMMUNITY_RANKING_V3_ACCEPTANCE_POLICY_VERSION,
         candidateScoreVersion: COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
+        candidateActivityMomentumModelVersion:
+          COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION,
         observedCycles: normalizeCount(previous['observedCycles']),
         passingCycles: normalizeCount(previous['passingCycles']),
         consecutivePassingCycles: normalizeCount(
@@ -204,6 +211,8 @@ export function advanceCommunityRankingV3AcceptanceState(input: {
   return {
     policyVersion: COMMUNITY_RANKING_V3_ACCEPTANCE_POLICY_VERSION,
     candidateScoreVersion: COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
+    candidateActivityMomentumModelVersion:
+      COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION,
     observedCycles,
     passingCycles,
     consecutivePassingCycles,
