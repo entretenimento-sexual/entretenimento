@@ -194,23 +194,25 @@ export const configureCommunityRankingMode =
           }, { merge: true });
 
           const auditRef = db.collection('community_ranking_mode_audit').doc();
+          const shadowAcceptance = action === 'promote_v3'
+            ? {
+                policyVersion: shadowRuntime['policyVersion'] ?? null,
+                observedCycles: shadowRuntime['observedCycles'] ?? null,
+                consecutivePassingCycles:
+                  shadowRuntime['consecutivePassingCycles'] ?? null,
+                promotionReady: shadowRuntime['promotionReady'] === true,
+                lastObservedCycleCompletedAt:
+                  shadowRuntime['lastObservedCycleCompletedAt'] ?? null,
+              }
+            : null;
+
           transaction.set(auditRef, {
             action,
             actorUid,
             previousMode,
             mode: decision.targetMode,
             scoreVersion: decision.scoreVersion,
-            shadowAcceptance: action === 'promote_v3'
-              ? {
-                  policyVersion: shadowRuntime['policyVersion'] ?? null,
-                  observedCycles: shadowRuntime['observedCycles'] ?? null,
-                  consecutivePassingCycles:
-                    shadowRuntime['consecutivePassingCycles'] ?? null,
-                  promotionReady: shadowRuntime['promotionReady'] === true,
-                  lastObservedCycleCompletedAt:
-                    shadowRuntime['lastObservedCycleCompletedAt'] ?? null,
-                }
-              : null,
+            shadowAcceptance,
             createdAt: now,
           });
         }

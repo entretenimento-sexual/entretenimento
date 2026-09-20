@@ -158,34 +158,37 @@ export function advanceCommunityRankingV3AcceptanceState(input: {
     ? String(previous['lastObservedDay'] ?? '').trim()
     : '';
   const previousEvaluation = asRecord(previous['lastEvaluation']);
-  const previousState: CommunityRankingV3AcceptanceState | null = samePolicy
-    && previousCycleCompletedAt
-    ? {
-        policyVersion: COMMUNITY_RANKING_V3_ACCEPTANCE_POLICY_VERSION,
-        candidateScoreVersion: COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
-        candidateActivityMomentumModelVersion:
-          COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION,
-        observedCycles: normalizeCount(previous['observedCycles']),
-        passingCycles: normalizeCount(previous['passingCycles']),
-        consecutivePassingCycles: normalizeCount(
-          previous['consecutivePassingCycles']
-        ),
-        promotionReady: previous['promotionReady'] === true,
-        firstObservedCycleCompletedAt:
-          previousFirstCycleCompletedAt ?? previousCycleCompletedAt,
-        lastObservedCycleCompletedAt: previousCycleCompletedAt,
-        lastObservedDay:
-          previousObservedDay || observationDay(previousCycleCompletedAt),
-        lastEvaluation: {
-          accepted: previousEvaluation['accepted'] === true,
-          failedCriteria: Array.isArray(previousEvaluation['failedCriteria'])
-            ? previousEvaluation['failedCriteria']
-                .map((value) => String(value ?? '').trim())
-                .filter(Boolean) as CommunityRankingV3AcceptanceCriterion[]
-            : [],
-        },
-      }
-    : null;
+  let previousState: CommunityRankingV3AcceptanceState | null = null;
+
+  if (samePolicy && previousCycleCompletedAt) {
+    const failedCriteria = Array.isArray(previousEvaluation['failedCriteria'])
+      ? previousEvaluation['failedCriteria']
+        .map((value) => String(value ?? '').trim())
+        .filter(Boolean) as CommunityRankingV3AcceptanceCriterion[]
+      : [];
+
+    previousState = {
+      policyVersion: COMMUNITY_RANKING_V3_ACCEPTANCE_POLICY_VERSION,
+      candidateScoreVersion: COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
+      candidateActivityMomentumModelVersion:
+        COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION,
+      observedCycles: normalizeCount(previous['observedCycles']),
+      passingCycles: normalizeCount(previous['passingCycles']),
+      consecutivePassingCycles: normalizeCount(
+        previous['consecutivePassingCycles']
+      ),
+      promotionReady: previous['promotionReady'] === true,
+      firstObservedCycleCompletedAt:
+        previousFirstCycleCompletedAt ?? previousCycleCompletedAt,
+      lastObservedCycleCompletedAt: previousCycleCompletedAt,
+      lastObservedDay:
+        previousObservedDay || observationDay(previousCycleCompletedAt),
+      lastEvaluation: {
+        accepted: previousEvaluation['accepted'] === true,
+        failedCriteria,
+      },
+    };
+  }
 
   // Retry, rerun ou execução manual no mesmo dia não acelera a janela.
   if (

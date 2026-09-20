@@ -85,21 +85,23 @@ export function evaluateCommunityRankingRollout(input: {
   const v2Denial = v2Ready(config, runtime);
 
   if (input.action === 'enable_current' || input.action === 'rollback_v2') {
-    return v2Denial
-      ? {
-          allowed: false,
-          action: input.action,
-          targetMode: COMMUNITY_DISCOVERY_RANKING_MODE,
-          scoreVersion: COMMUNITY_DISCOVERY_SCORE_VERSION,
-          denialReason: v2Denial,
-        }
-      : {
-          allowed: true,
-          action: input.action,
-          targetMode: COMMUNITY_DISCOVERY_RANKING_MODE,
-          scoreVersion: COMMUNITY_DISCOVERY_SCORE_VERSION,
-          denialReason: null,
-        };
+    if (v2Denial) {
+      return {
+        allowed: false,
+        action: input.action,
+        targetMode: COMMUNITY_DISCOVERY_RANKING_MODE,
+        scoreVersion: COMMUNITY_DISCOVERY_SCORE_VERSION,
+        denialReason: v2Denial,
+      };
+    }
+
+    return {
+      allowed: true,
+      action: input.action,
+      targetMode: COMMUNITY_DISCOVERY_RANKING_MODE,
+      scoreVersion: COMMUNITY_DISCOVERY_SCORE_VERSION,
+      denialReason: null,
+    };
   }
 
   if (v2Denial) {

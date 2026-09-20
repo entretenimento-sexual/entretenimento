@@ -399,8 +399,8 @@ export const inspectCommunityRankingReadiness = onCall(
       shadowLastEvaluation['failedCriteria']
     )
       ? shadowLastEvaluation['failedCriteria']
-          .map((value) => String(value ?? '').trim())
-          .filter(Boolean)
+        .map((value) => String(value ?? '').trim())
+        .filter(Boolean)
       : [];
     const runtimeReadyForTarget = runtime['ready'] === true
       && Number(runtime['completedScoreVersion'])
