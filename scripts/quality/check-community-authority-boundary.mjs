@@ -49,6 +49,9 @@ const COMMUNITY_FEED_REALTIME_COORDINATOR = path.normalize(
 const COMMUNITY_FEED_REALTIME_CONSUMER = path.normalize(
   'src/app/community/feed/community-feed.component.ts'
 );
+const COMMUNITY_FEED_COMMENT_REALTIME_CONSUMER = path.normalize(
+  'src/app/community/feed-comments/community-feed-comments.component.ts'
+);
 
 const OFFICIAL_CREATE_HANDLER = path.normalize(
   'functions/src/community/create-official-community.handler.ts'
@@ -369,6 +372,10 @@ function validateCommunityNotificationClientBoundary(architectureViolations) {
     COMMUNITY_FEED_REALTIME_CONSUMER,
     architectureViolations
   );
+  const realtimeCommentConsumerSource = readRequiredSource(
+    COMMUNITY_FEED_COMMENT_REALTIME_CONSUMER,
+    architectureViolations
+  );
 
   if (
     realtimeOwnerSource
@@ -407,6 +414,21 @@ function validateCommunityNotificationClientBoundary(architectureViolations) {
       if (!realtimeConsumerSource.includes(required)) {
         architectureViolations.push(
           `${COMMUNITY_FEED_REALTIME_CONSUMER} (realtime detalhado sem gate canônico: ${required})`
+        );
+      }
+    }
+  }
+
+  if (realtimeCommentConsumerSource) {
+    for (const required of [
+      'CommunityRealtimeAttentionCoordinatorService',
+      '.modeForCommunity$(communityId)',
+      "attentionMode !== 'detailed'",
+      '.watchCommentCount$(communityId, postId)',
+    ]) {
+      if (!realtimeCommentConsumerSource.includes(required)) {
+        architectureViolations.push(
+          `${COMMUNITY_FEED_COMMENT_REALTIME_CONSUMER} (realtime de comentário sem gate do primeiro plano: ${required})`
         );
       }
     }
