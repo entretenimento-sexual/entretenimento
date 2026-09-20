@@ -13,6 +13,8 @@ export const COMMUNITY_RATE_LIMIT_REASON_MESSAGES: Readonly<Record<string, strin
       'Muitas tentativas de criação foram feitas em pouco tempo. Aguarde e tente novamente.',
     official_space_creation_rate_limited:
       'Muitas tentativas de cadastro de Espaços Oficiais foram feitas em pouco tempo. Aguarde e tente novamente.',
+    official_community_creation_rate_limited:
+      'Muitas tentativas de criação de Comunidades Oficiais foram feitas em pouco tempo. Aguarde e tente novamente.',
     community_feed_rate_limited:
       'Você publicou muitas vezes em pouco tempo. Aguarde um instante e tente novamente.',
     community_feed_conversation_rate_limited:

@@ -3,6 +3,7 @@ import type { ApplicationErrorPresentation } from
   'src/app/core/services/error-handler/application-error-presentation.model';
 import {
   COMMUNITY_CREATE_REASON_MESSAGES,
+  COMMUNITY_OFFICIAL_CREATE_REASON_MESSAGES,
   COMMUNITY_FEED_CONVERSATION_REASON_MESSAGES,
   COMMUNITY_FEED_POST_REASON_MESSAGES,
   COMMUNITY_FEED_REACTION_REASON_MESSAGES,
@@ -31,6 +32,7 @@ import {
 
 export const COMMUNITY_PUBLIC_REASON_MESSAGES = Object.freeze({
   ...COMMUNITY_CREATE_REASON_MESSAGES,
+  ...COMMUNITY_OFFICIAL_CREATE_REASON_MESSAGES,
   ...COMMUNITY_MEMBERSHIP_ACTION_REASON_MESSAGES,
   ...COMMUNITY_INVITE_INBOX_REASON_MESSAGES,
   ...COMMUNITY_INVITE_MANAGEMENT_REASON_MESSAGES,
@@ -70,6 +72,12 @@ const BLOCKING_PRESENTATIONS: Readonly<
   community_creation_subscription_required: { surface: 'modal', severity: 'info', title: 'Assinatura necessária para criar', primaryAction: { label: 'Ver planos', route: '/subscription-plan' }, dismissLabel: 'Agora não' },
   community_creation_limit_reached: { surface: 'modal', severity: 'info', title: 'Limite de Comunidades atingido', primaryAction: { label: 'Gerenciar Comunidades', route: '/dashboard/comunidades/minhas' }, dismissLabel: 'Continuar aqui' },
   community_capacity_upgrade_required: { surface: 'modal', severity: 'info', title: 'Capacidade indisponível no plano atual', primaryAction: { label: 'Ver planos', route: '/subscription-plan' }, dismissLabel: 'Revisar capacidade' },
+  official_target_already_associated: { surface: 'modal', severity: 'info', title: 'Comunidade Oficial já existente' },
+  official_creation_verification_required: { surface: 'modal', severity: 'info', title: 'Verificação oficial necessária' },
+  official_creation_verification_inactive: { surface: 'modal', severity: 'warning', title: 'Verificação oficial inativa' },
+  official_creation_target_inactive: { surface: 'modal', severity: 'warning', title: 'Alvo oficial inativo' },
+  official_creation_target_authority_mismatch: { surface: 'modal', severity: 'warning', title: 'Autoridade oficial não confirmada' },
+  official_creation_unsupported_target: { surface: 'modal', severity: 'warning', title: 'Alvo oficial não suportado' },
   owner_transfer_required: { surface: 'modal', severity: 'warning', title: 'Transfira a propriedade antes de sair' },
   owner_protected: { surface: 'modal', severity: 'warning', title: 'Proprietário protegido' },
   membership_blocked: { surface: 'modal', severity: 'warning', title: 'Participação bloqueada' },

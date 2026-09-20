@@ -25,6 +25,9 @@ describe('community public error reason contract', () => {
     expect(COMMUNITY_PUBLIC_REASON_PRESENTATIONS.membership_status_invalid.surface).toBe('modal');
     expect(COMMUNITY_PUBLIC_REASON_PRESENTATIONS.ownership_inconsistent.surface).toBe('modal');
     expect(COMMUNITY_PUBLIC_REASON_PRESENTATIONS.community_capacity_upgrade_required.surface).toBe('modal');
+    expect(COMMUNITY_PUBLIC_REASON_PRESENTATIONS.official_target_already_associated.surface).toBe('modal');
+    expect(COMMUNITY_PUBLIC_REASON_PRESENTATIONS.official_creation_target_authority_mismatch.surface).toBe('modal');
+    expect(COMMUNITY_PUBLIC_REASON_PRESENTATIONS.official_community_creation_rate_limited.surface).toBe('snackbar');
     expect(COMMUNITY_PUBLIC_REASON_PRESENTATIONS.community_feed_rate_limited.surface).toBe('snackbar');
     expect(COMMUNITY_PUBLIC_REASON_PRESENTATIONS.invalid_post_request.surface).toBe('snackbar');
     expect(COMMUNITY_PUBLIC_REASON_PRESENTATIONS.community_feed_post_not_found.surface).toBe('snackbar');

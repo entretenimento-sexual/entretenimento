@@ -29,6 +29,22 @@ export const COMMUNITY_CREATE_REASON_MESSAGES: CommunityErrorMessageMap =
       'Sua conta não pode criar Comunidades neste momento.',
   });
 
+export const COMMUNITY_OFFICIAL_CREATE_REASON_MESSAGES: CommunityErrorMessageMap =
+  Object.freeze({
+    official_target_already_associated:
+      'Este alvo já possui uma Comunidade Oficial ativa.',
+    official_creation_verification_required:
+      'Conclua a verificação exigida para este alvo oficial antes de criar a Comunidade.',
+    official_creation_verification_inactive:
+      'A verificação deste alvo oficial precisa ser renovada antes da criação.',
+    official_creation_target_inactive:
+      'Este alvo oficial não está ativo para criação de Comunidade.',
+    official_creation_target_authority_mismatch:
+      'Sua conta não possui autoridade válida sobre este alvo oficial.',
+    official_creation_unsupported_target:
+      'Este tipo de alvo oficial ainda não pode criar uma Comunidade.',
+  });
+
 export const COMMUNITY_CREATE_CODE_MESSAGES: CommunityErrorMessageMap =
   Object.freeze({
     'already-exists':

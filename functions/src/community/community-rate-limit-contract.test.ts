@@ -57,6 +57,7 @@ const EXPECTED_CANONICAL_ACTION_BY_CALLABLE: Readonly<Record<
   CommunityRateLimitAction
 >> = Object.freeze({
   createCommunity: 'community_create',
+  createOfficialCommunity: 'official_community_create',
   createVenueCommunity: 'official_space_create',
   submitCommunityOfficialClaim: 'official_space_create',
   createCommunityFeedPost: 'feed_post',
