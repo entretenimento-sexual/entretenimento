@@ -547,7 +547,7 @@
 }
 
 .community-preview__management-actions button {
-  min-height: 2.6rem;
+  min-height: var(--tap-target, 2.75rem);
   display: inline-flex;
   align-items: center;
   justify-content: center;
