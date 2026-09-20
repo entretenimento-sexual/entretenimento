@@ -88,20 +88,29 @@
                   @if (item.officialAssociation?.verified) {
                     <app-community-official-badge [community]="item" />
                   }
-                  @if (item.notificationUnreadCount > 0) {
-                    <span
-                      class="profile-my-community__unread"
-                      [class.profile-my-community__unread--priority]="item.notificationHasPriorityUnread"
-                      [attr.aria-label]="item.notificationUnreadCount + ' atividades não lidas'"
-                    >
-                      {{ item.notificationUnreadCount > 99 ? '99+' : item.notificationUnreadCount }}
-                    </span>
+                  @if (notificationStatusPresentation(item); as notificationStatus) {
+                    @if (item.notificationUnreadCount > 0) {
+                      <span
+                        class="profile-my-community__unread"
+                        [attr.data-attention]="notificationStatus.attention"
+                        [attr.aria-label]="item.notificationUnreadCount + ' atividades não lidas'"
+                      >
+                        <i
+                          class="fas {{ notificationStatus.icon }}"
+                          aria-hidden="true"
+                        ></i>
+                        <span>{{ item.notificationUnreadCount > 99 ? '99+' : item.notificationUnreadCount }}</span>
+                      </span>
+                    }
                   }
                 </span>
 
                 <span class="profile-my-community__meta">
-                  @if (membershipRoleLabel(item); as roleLabel) {
-                    <span>{{ roleLabel }}</span>
+                  @if (membershipRolePresentation(item); as role) {
+                    <span class="profile-my-community__relationship">
+                      <i class="fas {{ role.icon }}" aria-hidden="true"></i>
+                      {{ role.label }}
+                    </span>
                     <span aria-hidden="true">•</span>
                   }
                   <span [attr.aria-label]="item.metrics.memberCount + ' membros'">
