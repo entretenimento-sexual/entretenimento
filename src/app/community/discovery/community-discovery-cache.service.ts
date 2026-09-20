@@ -42,16 +42,16 @@ export class CommunityDiscoveryCacheService {
   private activeViewerUid: string | null = null;
 
   constructor() {
+    /**
+     * readyUid$ serve somente para chavear leituras/mutações do cache pelo
+     * viewer atual. Purga e troca de escopo entre sessões pertencem
+     * exclusivamente ao meta-reducer de authSessionChanged.
+     */
     this.session.readyUid$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((uid) => {
-        const viewerUid = normalizeCommunityDiscoveryViewerUid(uid) || null;
-        this.activeViewerUid = viewerUid;
-        this.store.dispatch(
-          CommunityDiscoveryCacheActions.activateCommunityDiscoveryViewer({
-            viewerUid,
-          })
-        );
+        this.activeViewerUid =
+          normalizeCommunityDiscoveryViewerUid(uid) || null;
       });
   }
 

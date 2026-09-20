@@ -12,6 +12,7 @@ import { initialInviteState } from '../../states/states.chat/invite.state';
 import { initialLocationState } from '../../states/states.location/location.state';
 import { initialNearbyProfilesState } from '../../states/states.location/nearby-profiles.state';
 import { initialDiscoveryFeedState } from '../../states/states.discovery/discovery-feed.state';
+import { initialCommunityDiscoveryCacheState } from '../../states/states.discovery/community-discovery-cache.state';
 import { initialFriendsPaginationState } from '../../states/states.interactions/friends-pagination.state';
 import { initialState as initialFriendsState } from '../../states/states.interactions/friends.state';
 import { initialUserState } from '../../states/states.user/user.state';
@@ -35,14 +36,19 @@ import { initialUserPreferencesState } from '../../states/states.user/user-prefe
  * - resetar exclusivamente por mudança do UID canônico cobre logout, hard signout,
  *   expiração e troca de conta sem criar uma segunda verdade.
  *
- * discoveryFeeds é user-scoped porque pode refletir preferências, localização,
- * bloqueios e elegibilidade da conta autenticada.
+ * discoveryFeeds e communityDiscoveryCache são user-scoped porque podem
+ * refletir preferências, localização, bloqueios, membership e elegibilidade
+ * da conta autenticada. O cache recebe o viewerUid da própria action canônica;
+ * nenhum watcher paralelo é responsável por purgar dados entre contas.
  *
  * Chats diretos e salas não aparecem neste reset porque não possuem slice
  * global. Suas facades reabrem os listeners com escopo explícito de UID e emitem
  * estado vazio antes do primeiro snapshot da nova sessão.
  */
-function resetUserScopedSlices(nextState: AppState): AppState {
+function resetUserScopedSlices(
+  nextState: AppState,
+  viewerUid: string | null
+): AppState {
   return {
     ...nextState,
 
@@ -56,6 +62,10 @@ function resetUserScopedSlices(nextState: AppState): AppState {
     [STORE_FEATURE.location]: initialLocationState as any,
     [STORE_FEATURE.nearbyProfiles]: initialNearbyProfilesState as any,
     [STORE_FEATURE.discoveryFeeds]: initialDiscoveryFeedState as any,
+    [STORE_FEATURE.communityDiscoveryCache]: {
+      ...initialCommunityDiscoveryCacheState,
+      activeViewerUid: viewerUid,
+    } as any,
 
     [STORE_FEATURE.friendsPages]: initialFriendsPaginationState as any,
     [STORE_FEATURE.interactionsFriends]: initialFriendsState as any,
@@ -73,7 +83,7 @@ export const resetStoreOnAuthChangeMetaReducer: MetaReducer<AppState> =
         const currentUid = (action as any)?.uid ?? null;
 
         if (previousUid !== currentUid) {
-          return resetUserScopedSlices(nextState);
+          return resetUserScopedSlices(nextState, currentUid);
         }
       }
 

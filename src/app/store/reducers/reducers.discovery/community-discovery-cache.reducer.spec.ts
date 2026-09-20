@@ -33,9 +33,13 @@ describe('communityDiscoveryCacheReducer', () => {
   const query = buildCommunityDiscoveryCacheQuery('viewer-1', {
     sourceType: 'community', discoveryMode: 'explore', tagId: null, pageSize: 12,
   })!;
+  const viewerOneState = {
+    ...initialCommunityDiscoveryCacheState,
+    activeViewerUid: 'viewer-1',
+  };
 
   it('acumula paginas sem duplicar communityId', () => {
-    const first = communityDiscoveryCacheReducer(initialCommunityDiscoveryCacheState,
+    const first = communityDiscoveryCacheReducer(viewerOneState,
       Actions.storeCommunityDiscoveryPage({
         query,
         page: { items: [card('a'), card('b')], nextCursor: 'b', generatedAt: 10 },
@@ -55,22 +59,29 @@ describe('communityDiscoveryCacheReducer', () => {
     expect(slice.query).toEqual(query);
   });
 
-  it('limpa snapshots quando o viewer muda', () => {
-    const populated = communityDiscoveryCacheReducer(initialCommunityDiscoveryCacheState,
+  it('rejeita página atrasada da conta A depois que B assumiu a sessão', () => {
+    const viewerTwoState = {
+      ...initialCommunityDiscoveryCacheState,
+      activeViewerUid: 'viewer-2',
+    };
+
+    const stale = communityDiscoveryCacheReducer(
+      viewerTwoState,
       Actions.storeCommunityDiscoveryPage({
         query,
         page: { items: [card('a')], nextCursor: null, generatedAt: 10 },
         append: false,
         storedAt: 100,
-      }));
-    const switched = communityDiscoveryCacheReducer(populated,
-      Actions.activateCommunityDiscoveryViewer({ viewerUid: 'viewer-2' }));
-    expect(switched.activeViewerUid).toBe('viewer-2');
-    expect(switched.byQuery).toEqual({});
+      })
+    );
+
+    expect(stale).toBe(viewerTwoState);
+    expect(stale.activeViewerUid).toBe('viewer-2');
+    expect(stale.byQuery).toEqual({});
   });
 
   it('invalida todo o viewer sem destruir as listas quando não há escopo', () => {
-    const populated = communityDiscoveryCacheReducer(initialCommunityDiscoveryCacheState,
+    const populated = communityDiscoveryCacheReducer(viewerOneState,
       Actions.storeCommunityDiscoveryPage({
         query,
         page: { items: [card('a')], nextCursor: null, generatedAt: 10 },
@@ -89,7 +100,7 @@ describe('communityDiscoveryCacheReducer', () => {
       sourceType: 'venue', discoveryMode: 'explore', tagId: null, pageSize: 12,
     })!;
     const withCommunity = communityDiscoveryCacheReducer(
-      initialCommunityDiscoveryCacheState,
+      viewerOneState,
       Actions.storeCommunityDiscoveryPage({
         query,
         page: { items: [card('community-a')], nextCursor: null, generatedAt: 10 },
@@ -129,7 +140,7 @@ describe('communityDiscoveryCacheReducer', () => {
       sourceType: 'community', discoveryMode: 'explore', tagId: null, pageSize: 24,
     })!;
     const first = communityDiscoveryCacheReducer(
-      initialCommunityDiscoveryCacheState,
+      viewerOneState,
       Actions.storeCommunityDiscoveryPage({
         query,
         page: { items: [card('a')], nextCursor: null, generatedAt: 10 },
@@ -170,7 +181,7 @@ describe('communityDiscoveryCacheReducer', () => {
       sourceType: 'community', discoveryMode: 'mine', tagId: null, pageSize: 12,
     })!;
     const explored = communityDiscoveryCacheReducer(
-      initialCommunityDiscoveryCacheState,
+      viewerOneState,
       Actions.storeCommunityDiscoveryPage({
         query,
         page: { items: [card('a'), card('b')], nextCursor: null, generatedAt: 10 },
@@ -205,8 +216,28 @@ describe('communityDiscoveryCacheReducer', () => {
     expect(mineSlice.lastLoadedAt).toBe(0);
   });
 
+  it('limpeza funcional do cache preserva o viewer canônico da sessão', () => {
+    const populated = communityDiscoveryCacheReducer(
+      viewerOneState,
+      Actions.storeCommunityDiscoveryPage({
+        query,
+        page: { items: [card('a')], nextCursor: null, generatedAt: 10 },
+        append: false,
+        storedAt: 100,
+      })
+    );
+
+    const cleared = communityDiscoveryCacheReducer(
+      populated,
+      Actions.clearCommunityDiscoveryCache()
+    );
+
+    expect(cleared.activeViewerUid).toBe('viewer-1');
+    expect(cleared.byQuery).toEqual({});
+  });
+
   it('limita consultas por viewer e remove primeiro a menos recente', () => {
-    let state = initialCommunityDiscoveryCacheState;
+    let state = viewerOneState;
 
     for (let index = 0; index <= COMMUNITY_DISCOVERY_CACHE_MAX_QUERIES; index += 1) {
       const cacheQuery = buildCommunityDiscoveryCacheQuery('viewer-1', {

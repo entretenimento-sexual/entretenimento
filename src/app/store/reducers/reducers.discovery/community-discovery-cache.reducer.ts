@@ -14,7 +14,6 @@ import type {
 import * as CommunityDiscoveryCacheActions from '../../actions/actions.discovery/community-discovery-cache.actions';
 import {
   CommunityDiscoveryCacheSlice,
-  CommunityDiscoveryCacheState,
   initialCommunityDiscoveryCacheState,
 } from '../../states/states.discovery/community-discovery-cache.state';
 
@@ -28,19 +27,6 @@ function mergeCards(
   for (const item of incoming) byId.set(item.communityId, item);
 
   return [...byId.values()];
-}
-
-function scopeToViewer(
-  state: CommunityDiscoveryCacheState,
-  viewerUid: string | null
-): CommunityDiscoveryCacheState {
-  if (!viewerUid) return initialCommunityDiscoveryCacheState;
-  if (state.activeViewerUid === viewerUid) return state;
-
-  return {
-    activeViewerUid: viewerUid,
-    byQuery: {},
-  };
 }
 
 function limitCachedQueries(
@@ -85,21 +71,22 @@ export const communityDiscoveryCacheReducer = createReducer(
   initialCommunityDiscoveryCacheState,
 
   on(
-    CommunityDiscoveryCacheActions.activateCommunityDiscoveryViewer,
-    (state, { viewerUid }) => scopeToViewer(state, viewerUid)
-  ),
-
-  on(
     CommunityDiscoveryCacheActions.storeCommunityDiscoveryPage,
     (state, { query, page, append, storedAt }) => {
-      const scoped = scopeToViewer(state, query.viewerUid);
+      // authSessionChanged é a única autoridade que define activeViewerUid.
+      // Uma resposta atrasada de uma sessão anterior deve ser ignorada, nunca
+      // trocar o viewer do cache por conta própria.
+      if (!query.viewerUid || state.activeViewerUid !== query.viewerUid) {
+        return state;
+      }
+
       const key = buildCommunityDiscoveryCacheKey(query);
-      const current = scoped.byQuery[key];
+      const current = state.byQuery[key];
       const items = append && current
         ? mergeCards(current.items, page.items)
         : [...page.items];
       const nextByQuery = {
-        ...scoped.byQuery,
+        ...state.byQuery,
         [key]: {
           query,
           items,
@@ -109,7 +96,7 @@ export const communityDiscoveryCacheReducer = createReducer(
       };
 
       return {
-        ...scoped,
+        ...state,
         byQuery: limitCachedQueries(nextByQuery, key),
       };
     }
@@ -182,6 +169,9 @@ export const communityDiscoveryCacheReducer = createReducer(
 
   on(
     CommunityDiscoveryCacheActions.clearCommunityDiscoveryCache,
-    () => initialCommunityDiscoveryCacheState
+    (state) => ({
+      ...initialCommunityDiscoveryCacheState,
+      activeViewerUid: state.activeViewerUid,
+    })
   )
 );

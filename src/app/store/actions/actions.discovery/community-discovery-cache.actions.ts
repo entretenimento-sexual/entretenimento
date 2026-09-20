@@ -8,11 +8,6 @@ import type {
 } from 'src/app/community/data-access/community-preview.model';
 import type { CommunityDiscoveryCacheQuery } from 'src/app/community/discovery/community-discovery-cache.model';
 
-export const activateCommunityDiscoveryViewer = createAction(
-  '[Community Discovery Cache] Activate Viewer',
-  props<{ viewerUid: string | null }>()
-);
-
 export const storeCommunityDiscoveryPage = createAction(
   '[Community Discovery Cache] Store Page',
   props<{
