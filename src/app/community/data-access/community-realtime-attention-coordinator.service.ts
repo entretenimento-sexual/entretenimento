@@ -90,6 +90,28 @@ export class CommunityRealtimeAttentionCoordinatorService {
     });
   }
 
+  modeForCommunity$(
+    communityIdValue: string
+  ): Observable<CommunityRealtimeAttentionMode> {
+    const communityId = String(communityIdValue ?? '').trim();
+
+    if (!SAFE_COMMUNITY_ID_PATTERN.test(communityId)) {
+      return of('aggregate');
+    }
+
+    return combineLatest([
+      this.activeLeaseSubject,
+      this.documentVisible$,
+    ]).pipe(
+      map(([activeLease, documentVisible]) =>
+        activeLease?.communityId === communityId && documentVisible
+          ? 'detailed' as const
+          : 'aggregate' as const
+      ),
+      distinctUntilChanged()
+    );
+  }
+
   private publishForeground(): void {
     this.activeLeaseSubject.next(this.leases.at(-1) ?? null);
   }
