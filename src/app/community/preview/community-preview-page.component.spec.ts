@@ -416,13 +416,23 @@ describe('CommunityPreviewPageComponent / Local', () => {
 
     const fixture = createFixture();
 
-    expect(
-      fixture.nativeElement.querySelectorAll('.community-preview__tabs button')
-    ).toHaveLength(4);
-    expect(fixture.nativeElement.textContent).toContain('Gestão');
+    const contentNav = fixture.nativeElement.querySelector(
+      '.community-preview__tabs'
+    ) as HTMLElement;
+    const managementNav = fixture.nativeElement.querySelector(
+      '.community-preview__management-nav'
+    ) as HTMLElement;
+    const managementButton = fixture.nativeElement.querySelector(
+      '#community-tab-requests'
+    ) as HTMLButtonElement;
+
+    expect(contentNav.querySelectorAll('button')).toHaveLength(3);
+    expect(contentNav.textContent).not.toContain('Gestão');
+    expect(managementNav.textContent).toContain('Administração');
+    expect(managementButton.textContent).toContain('Gestão');
     expect(membershipRepositoryMock.getMembershipRequests$).not.toHaveBeenCalled();
 
-    sectionButton(fixture, 3).click();
+    managementButton.click();
     fixture.detectChanges();
     fixture.detectChanges();
 
@@ -432,6 +442,33 @@ describe('CommunityPreviewPageComponent / Local', () => {
     expect(fixture.nativeElement.textContent).toContain(
       'Nenhuma solicitação de acesso pendente.'
     );
+  });
+
+  it('mantém identidade e papel sem empilhar badges operacionais', () => {
+    previewRepositoryMock.getPreview$.mockReturnValue(
+      of(preview({
+        viewerMode: 'moderator',
+        viewerRole: 'moderator',
+        canInteract: true,
+        canManageMemberships: true,
+      }))
+    );
+
+    const fixture = createFixture();
+    const labels = fixture.nativeElement.querySelector(
+      '.community-preview__labels'
+    ) as HTMLElement;
+    const relationship = fixture.nativeElement.querySelector(
+      '.community-preview__relationship'
+    ) as HTMLElement;
+
+    expect(labels.textContent?.replace(/\s+/g, ' ').trim()).toContain('Local');
+    expect(labels.textContent).not.toContain('Moderação');
+    expect(labels.textContent).not.toContain('Acesso por aprovação');
+    expect(relationship.textContent?.replace(/\s+/g, ' ').trim()).toBe(
+      'Moderação'
+    );
+    expect(relationship.querySelector('.fa-shield')).not.toBeNull();
   });
 
   it('não inventa Gestão só porque o viewer continua moderador', () => {
