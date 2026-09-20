@@ -16,11 +16,14 @@ import {
 import {
   CollectionReference,
   DocumentData,
+  DocumentReference,
 } from 'firebase/firestore';
 import {
   Firestore,
   collection,
   collectionSnapshots,
+  doc,
+  docSnapshots,
   limit,
   orderBy,
   query,
@@ -29,6 +32,7 @@ import { Functions, httpsCallable } from '@angular/fire/functions';
 import {
   Observable,
   defer,
+  distinctUntilChanged,
   from,
   map,
   of,
@@ -187,6 +191,47 @@ export class CommunityFeedRepository {
         map(([previous, current]) =>
           diffCommunityFeedRealtimeProjections(previous, current)
         )
+      );
+    });
+  }
+
+  watchPostCommentCount$(
+    communityId: string,
+    postId: string
+  ): Observable<number> {
+    return defer(() => {
+      const safeCommunityId = communityId.trim();
+      const safePostId = postId.trim();
+
+      if (
+        !SAFE_ID_PATTERN.test(safeCommunityId)
+        || !SAFE_ID_PATTERN.test(safePostId)
+      ) {
+        return of(0);
+      }
+
+      const source$ = runInInjectionContext(this.environmentInjector, () => {
+        const reference = doc(
+          this.firestore,
+          `community_feed_realtime/${safeCommunityId}/items/${safePostId}`
+        ) as DocumentReference<DocumentData>;
+        return docSnapshots(reference);
+      });
+
+      return source$.pipe(
+        map((snapshot) => {
+          if (!snapshot.exists()) return 0;
+
+          const projection = normalizeCommunityFeedRealtimeProjection(
+            snapshot.id,
+            snapshot.data()
+          );
+
+          return projection?.state === 'active'
+            ? projection.metrics.commentCount
+            : 0;
+        }),
+        distinctUntilChanged()
       );
     });
   }
