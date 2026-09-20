@@ -441,12 +441,13 @@ export const getCommunityDiscoveryPage =
         rankingMode: rankingMode.effectiveMode,
         hasNextPage: Boolean(nextCursor),
       });
-      const deliveryReadAmplification = telemetry['deliveryReadAmplification'];
+      const totalReadAmplificationUpperBound =
+        telemetry['totalReadAmplificationUpperBound'];
       const operationalCostBudget =
-        typeof deliveryReadAmplification === 'number'
+        typeof totalReadAmplificationUpperBound === 'number'
           ? evaluateOperationalCostBudget(
             'community.discovery.reads_per_card',
-            deliveryReadAmplification
+            totalReadAmplificationUpperBound
           )
           : null;
 
