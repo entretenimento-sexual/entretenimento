@@ -839,6 +839,48 @@
         }
       ],
       "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "community_discovery_index",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "source.type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "rankingCandidate.discoveryScore",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "community_discovery_index",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "source.type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "tagIds",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "rankingCandidate.discoveryScore",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
     }
   ],
   "fieldOverrides": [
