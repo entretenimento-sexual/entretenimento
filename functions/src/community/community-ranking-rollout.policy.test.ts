@@ -10,8 +10,10 @@ import {
   COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION,
   COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
 } from './community-ranking-candidate-v3.policy';
-import { COMMUNITY_DISCOVERY_V3_RANKING_MODE } from './community-ranking-rollout.policy';
-import { evaluateCommunityRankingRollout } from './community-ranking-rollout.policy';
+import {
+  COMMUNITY_DISCOVERY_V3_RANKING_MODE,
+  evaluateCommunityRankingRollout,
+} from './community-ranking-rollout.policy';
 
 test('rollback legado permanece sempre disponível', () => {
   const decision = evaluateCommunityRankingRollout({
