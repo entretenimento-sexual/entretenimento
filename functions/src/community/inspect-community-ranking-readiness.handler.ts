@@ -23,6 +23,7 @@ import {
 } from './community-discovery-exposure.policy';
 import {
   type CommunityDiscoveryRankingMode,
+  type CommunityDiscoveryRankingOrderField,
   resolveCommunityDiscoveryRankingMode,
 } from './community-discovery-ranking-mode.policy';
 import { hasCommunityOperationsPermission } from './community-operations.authorization';
@@ -57,12 +58,12 @@ import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 
 const SHADOW_COMPARISON_TOP_K = 25;
 
-type CommunityRankingOrderField = 'rankScore' | 'discoveryScore';
+type CommunityRankingOrderField = CommunityDiscoveryRankingOrderField;
 
 interface CommunityRankingReadinessInspection {
   requestedMode: CommunityDiscoveryRankingMode;
   effectiveMode: CommunityDiscoveryRankingMode;
-  targetMode: typeof COMMUNITY_DISCOVERY_RANKING_MODE;
+  targetMode: CommunityDiscoveryRankingMode;
   orderField: CommunityRankingOrderField;
   fallbackReason: string | null;
   policyScoreVersion: number;
@@ -84,6 +85,7 @@ interface CommunityRankingReadinessInspection {
     configuredMode: string | null;
     targetScoreRequested: boolean;
     scoreIndexReady: boolean;
+    candidateV3IndexReady: boolean;
   };
   shadowComparison: {
     available: boolean;
@@ -98,6 +100,16 @@ interface CommunityRankingReadinessInspection {
     explorationSimulation: CommunityRankingExplorationSimulation | null;
   };
   canEnableTargetScore: boolean;
+  v3Acceptance: {
+    promotionReady: boolean;
+    policyVersion: number | null;
+    observedCycles: number;
+    passingCycles: number;
+    consecutivePassingCycles: number;
+    lastObservedCycleCompletedAt: number | null;
+    failedCriteria: readonly string[];
+  };
+  canPromoteV3: boolean;
   generatedAt: number;
 }
 
@@ -361,16 +373,35 @@ export const inspectCommunityRankingReadiness = onCall(
       (request.auth?.token ?? {}) as Record<string, unknown>
     );
 
-    const [configSnapshot, runtimeSnapshot] = await Promise.all([
-      db.collection('platform_config').doc('community').get(),
-      db.collection('community_ranking_runtime').doc('daily').get(),
-    ]);
+    const [configSnapshot, runtimeSnapshot, shadowRuntimeSnapshot] =
+      await Promise.all([
+        db.collection('platform_config').doc('community').get(),
+        db.collection('community_ranking_runtime').doc('daily').get(),
+        db.collection('community_ranking_shadow_runtime').doc('v3').get(),
+      ]);
     const config = configSnapshot.exists ? configSnapshot.data() ?? {} : {};
     const runtime = runtimeSnapshot.exists ? runtimeSnapshot.data() ?? {} : {};
-    const decision = resolveCommunityDiscoveryRankingMode(config, runtime);
+    const shadowRuntime = shadowRuntimeSnapshot.exists
+      ? shadowRuntimeSnapshot.data() ?? {}
+      : {};
+    const decision = resolveCommunityDiscoveryRankingMode(
+      config,
+      runtime,
+      shadowRuntime
+    );
     const lastCycleStats = asRecord(runtime['lastCycleStats']);
     const configuredMode = normalizeConfiguredMode(config['discoveryRankingMode']);
     const scoreIndexReady = config['discoveryScoreIndexReady'] === true;
+    const candidateV3IndexReady =
+      config['discoveryCandidateV3IndexReady'] === true;
+    const shadowLastEvaluation = asRecord(shadowRuntime['lastEvaluation']);
+    const shadowFailedCriteria = Array.isArray(
+      shadowLastEvaluation['failedCriteria']
+    )
+      ? shadowLastEvaluation['failedCriteria']
+          .map((value) => String(value ?? '').trim())
+          .filter(Boolean)
+      : [];
     const runtimeReadyForTarget = runtime['ready'] === true
       && Number(runtime['completedScoreVersion'])
         === COMMUNITY_DISCOVERY_SCORE_VERSION;
@@ -408,9 +439,27 @@ export const inspectCommunityRankingReadiness = onCall(
         configuredMode,
         targetScoreRequested: configuredMode === COMMUNITY_DISCOVERY_RANKING_MODE,
         scoreIndexReady,
+        candidateV3IndexReady,
       },
       shadowComparison,
       canEnableTargetScore: scoreIndexReady && runtimeReadyForTarget,
+      v3Acceptance: {
+        promotionReady: shadowRuntime['promotionReady'] === true,
+        policyVersion: normalizeVersion(shadowRuntime['policyVersion']),
+        observedCycles: normalizeCount(shadowRuntime['observedCycles']),
+        passingCycles: normalizeCount(shadowRuntime['passingCycles']),
+        consecutivePassingCycles: normalizeCount(
+          shadowRuntime['consecutivePassingCycles']
+        ),
+        lastObservedCycleCompletedAt: normalizeTimestamp(
+          shadowRuntime['lastObservedCycleCompletedAt']
+        ),
+        failedCriteria: shadowFailedCriteria,
+      },
+      canPromoteV3:
+        candidateV3IndexReady
+        && shadowRuntime['promotionReady'] === true
+        && runtimeReadyForTarget,
       generatedAt: Date.now(),
     };
 
@@ -423,6 +472,12 @@ export const inspectCommunityRankingReadiness = onCall(
       runtimeReady: inspection.runtime.ready,
       completedScoreVersion: inspection.runtime.completedScoreVersion,
       canEnableTargetScore: inspection.canEnableTargetScore,
+      canPromoteV3: inspection.canPromoteV3,
+      v3ObservedCycles: inspection.v3Acceptance.observedCycles,
+      v3ConsecutivePassingCycles:
+        inspection.v3Acceptance.consecutivePassingCycles,
+      v3PromotionReady: inspection.v3Acceptance.promotionReady,
+      v3FailedCriteria: inspection.v3Acceptance.failedCriteria,
       shadowAvailable: inspection.shadowComparison.available,
       shadowUnavailableReason:
         inspection.shadowComparison.unavailableReason,
