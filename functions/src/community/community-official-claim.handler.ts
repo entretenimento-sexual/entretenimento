@@ -14,6 +14,7 @@ import {
   buildEventAuthorityRecordId,
 } from '../authority/event-authority.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
+import { buildCommunityOperationalRequestRetention } from './community-operational-retention.policy';
 import { db, FieldValue } from '../firebaseApp';
 import {
   buildOrganizationRepresentationId,
@@ -377,6 +378,7 @@ export const submitCommunityOfficialClaim =
         }
         if (existingStatus === 'disputed') {
           transaction.create(requestRef, {
+          ...buildCommunityOperationalRequestRetention('official_claim', now),
             actorUid,
             associationKey: command.associationKey,
             communityId: command.communityId,
@@ -455,6 +457,7 @@ export const submitCommunityOfficialClaim =
         });
         transaction.set(claimRef, claim);
         transaction.create(requestRef, {
+          ...buildCommunityOperationalRequestRetention('official_claim', now),
           actorUid,
           associationKey: command.associationKey,
           communityId: command.communityId,

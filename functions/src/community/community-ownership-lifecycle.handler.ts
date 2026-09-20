@@ -12,6 +12,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { assertRecentAuthentication } from '../account_lifecycle/_shared';
 import { FUNCTIONS_REGION } from '../config/functions-region';
+import { buildCommunityOperationalRequestRetention } from './community-operational-retention.policy';
 import { db, FieldValue } from '../firebaseApp';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
@@ -639,6 +640,7 @@ export const transferCommunityOwnership =
           source: 'callable',
         });
         transaction.create(requestRef, {
+          ...buildCommunityOperationalRequestRetention('lifecycle', now),
           operation: 'transfer',
           requestId,
           actorUid,
@@ -758,6 +760,7 @@ export const archiveCommunity = onCall<CommunityArchivePayload>(
       if (status === 'archived' && community['archivedBy'] === actorUid) {
         const now = Date.now();
         transaction.create(requestRef, {
+          ...buildCommunityOperationalRequestRetention('lifecycle', now),
           operation: 'archive',
           requestId,
           actorUid,
@@ -849,6 +852,7 @@ export const archiveCommunity = onCall<CommunityArchivePayload>(
         source: 'callable',
       });
       transaction.create(requestRef, {
+          ...buildCommunityOperationalRequestRetention('lifecycle', now),
         operation: 'archive',
         requestId,
         actorUid,

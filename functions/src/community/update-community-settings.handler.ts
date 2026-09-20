@@ -11,6 +11,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { assertRecentAuthentication } from '../account_lifecycle/_shared';
 import { FUNCTIONS_REGION } from '../config/functions-region';
+import { buildCommunityOperationalRequestRetention } from './community-operational-retention.policy';
 import { db } from '../firebaseApp';
 import {
   evaluatePlatformSubscriptionEntitlement,
@@ -402,6 +403,7 @@ export const updateCommunitySettings = onCall<UpdateCommunitySettingsRequest>(
       }
 
       transaction.create(requestRef, {
+          ...buildCommunityOperationalRequestRetention('settings', now),
         actorUid,
         communityId: command.communityId,
         status: 'completed',

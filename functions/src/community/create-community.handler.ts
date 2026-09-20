@@ -17,6 +17,7 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
+import { buildCommunityOperationalRequestRetention } from './community-operational-retention.policy';
 import { db } from '../firebaseApp';
 import {
   evaluatePlatformSubscriptionEntitlement,
@@ -384,6 +385,7 @@ export const createCommunity = onCall<CreateCommunityRequest>(
       });
 
       transaction.create(requestRef, {
+          ...buildCommunityOperationalRequestRetention('creation', now),
         actorUid,
         communityId: command.communityId,
         status: 'completed',

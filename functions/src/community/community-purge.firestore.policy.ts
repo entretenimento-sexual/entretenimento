@@ -26,15 +26,19 @@ export const COMMUNITY_PURGE_REFERENCE_COLLECTIONS: Readonly<
 });
 
 export const COMMUNITY_PURGE_MEMBER_SCOPED_COLLECTIONS = Object.freeze([
+  'community_feed_user_posts',
   'community_feed_user_actions',
   'community_feed_user_reactions',
   'community_feed_user_comments',
   'community_feed_user_replies',
+  'community_notification_summaries',
+  'community_notification_preferences',
   'community_profile_membership_index',
 ] as const);
 
 export const COMMUNITY_PURGE_PROJECTION_ROOT_COLLECTIONS = Object.freeze([
   'community_discovery_index',
+  'community_highlights',
   'community_public_feed',
   'community_public_topics',
   'community_feed_realtime',
@@ -65,6 +69,10 @@ export const COMMUNITY_PURGE_PROTECTED_COLLECTIONS = Object.freeze([
   'community_purge_audit',
   'community_official_associations',
   'community_official_association_audit',
+  'community_settings_audit',
+  'community_official_claims',
+  'community_official_claim_audit',
+  'community_highlight_audit',
   'moderation_reports',
   'admin_logs',
   'compliance_audit',

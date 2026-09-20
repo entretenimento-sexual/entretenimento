@@ -28,10 +28,13 @@ test('mapeia somente referências operacionais explicitamente autorizadas', () =
 
 test('mantém resíduos privados limitados aos namespaces conhecidos por membership', () => {
   assert.deepEqual(COMMUNITY_PURGE_MEMBER_SCOPED_COLLECTIONS, [
+    'community_feed_user_posts',
     'community_feed_user_actions',
     'community_feed_user_reactions',
     'community_feed_user_comments',
     'community_feed_user_replies',
+    'community_notification_summaries',
+    'community_notification_preferences',
     'community_profile_membership_index',
   ]);
 });
@@ -39,6 +42,7 @@ test('mantém resíduos privados limitados aos namespaces conhecidos por members
 test('separa projeções transitórias das raízes canônicas finais', () => {
   assert.deepEqual(COMMUNITY_PURGE_PROJECTION_ROOT_COLLECTIONS, [
     'community_discovery_index',
+    'community_highlights',
     'community_public_feed',
     'community_public_topics',
     'community_feed_realtime',
@@ -48,6 +52,17 @@ test('separa projeções transitórias das raízes canônicas finais', () => {
     'community_topics',
     'communities',
   ]);
+});
+
+test('declara auditoria, claims e evidências oficiais como retenção protegida', () => {
+  for (const collection of [
+    'community_settings_audit',
+    'community_official_claims',
+    'community_official_claim_audit',
+    'community_highlight_audit',
+  ]) {
+    assert.equal(isCommunityPurgeProtectedCollection(collection), true);
+  }
 });
 
 test('nenhum namespace de retenção aparece entre os alvos de purge', () => {

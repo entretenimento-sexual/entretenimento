@@ -11,6 +11,7 @@ import * as logger from 'firebase-functions/logger';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
+import { buildCommunityOperationalRequestRetention } from './community-operational-retention.policy';
 import { db, getDefaultStorageBucket, Timestamp } from '../firebaseApp';
 import {
   estimateCommunityStorageUpperBoundBytes,
@@ -647,6 +648,7 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
             { merge: true }
           );
           transaction.create(requestRef, {
+          ...buildCommunityOperationalRequestRetention('feed', nowMs),
             requestId: command.requestId,
             actorUid,
             communityId,

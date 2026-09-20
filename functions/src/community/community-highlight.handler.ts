@@ -9,6 +9,7 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
+import { buildCommunityOperationalRequestRetention } from './community-operational-retention.policy';
 import { db } from '../firebaseApp';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
@@ -322,6 +323,7 @@ export const manageCommunityHighlight = onCall<CommunityHighlightRequest>(
       };
 
       transaction.create(requestRef, {
+        ...buildCommunityOperationalRequestRetention('highlight', nowMs),
         requestId,
         kind: 'community_highlight_action',
         actorUid,

@@ -10,6 +10,7 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
+import { buildCommunityOperationalRequestRetention } from './community-operational-retention.policy';
 import { db, Timestamp } from '../firebaseApp';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
@@ -331,6 +332,7 @@ export const createCommunityTopic = onCall<CommunityTopicCreateRequest>(
         { merge: true }
       );
       transaction.create(requestRef, {
+          ...buildCommunityOperationalRequestRetention('topic', nowMs),
         requestId: command.requestId,
         kind: 'topic',
         actorUid,
@@ -555,6 +557,7 @@ export const createCommunityTopicReply = onCall<CommunityTopicReplyCreateRequest
         { merge: true }
       );
       transaction.create(requestRef, {
+          ...buildCommunityOperationalRequestRetention('topic', nowMs),
         requestId: command.requestId,
         kind: 'reply',
         actorUid,

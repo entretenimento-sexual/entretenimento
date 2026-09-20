@@ -19,6 +19,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { assertRecentAuthentication } from '../account_lifecycle/_shared';
 import { FUNCTIONS_REGION } from '../config/functions-region';
+import { buildCommunityOperationalRequestRetention } from './community-operational-retention.policy';
 import { db } from '../firebaseApp';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
@@ -446,6 +447,7 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
       });
 
       transaction.create(requestRef, {
+          ...buildCommunityOperationalRequestRetention('venue_creation', now),
         actorUid,
         organizationId: officialSpaceDecision.organizationId,
         officialAssociationKey,

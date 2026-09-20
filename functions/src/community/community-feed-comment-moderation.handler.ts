@@ -5,6 +5,7 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
+import { buildCommunityOperationalRequestRetention } from './community-operational-retention.policy';
 import { db, Timestamp } from '../firebaseApp';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
@@ -376,6 +377,7 @@ export const moderateCommunityFeedComment = onCall<
         }
       }
       transaction.create(requestRef, {
+          ...buildCommunityOperationalRequestRetention('feed', nowMs),
         requestId,
         kind: 'comment_action',
         actorUid,
