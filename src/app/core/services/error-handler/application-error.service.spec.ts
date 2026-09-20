@@ -64,14 +64,14 @@ describe('ApplicationErrorService', () => {
       retryable: true,
       presentation: {
         surface: 'snackbar',
-        severity: 'error',
+        severity: 'info',
       },
     });
     expect(notifier.showApplicationError).toHaveBeenCalledWith(
       'Você atingiu o limite temporário de mensagens. Tente mais tarde.',
       {
         surface: 'snackbar',
-        severity: 'error',
+        severity: 'info',
       }
     );
     expect(notifier.showApplicationError.mock.calls[0]?.[0]).not.toContain(
