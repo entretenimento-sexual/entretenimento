@@ -38,7 +38,10 @@ async function paginateAllCommunities(
   let externalCursor: SyntheticCommunityDocument | null = null;
 
   while (ids.length < total) {
-    const page = await collectCommunityMyPageIncrementally<\n      SyntheticCommunityDocument,\n      string\n    >({
+    const page = await collectCommunityMyPageIncrementally<
+      SyntheticCommunityDocument,
+      string
+    >({
       limit: PAGE_SIZE,
       loadBatch: async (afterDocument, limit) => {
         const cursor = afterDocument ?? externalCursor;
