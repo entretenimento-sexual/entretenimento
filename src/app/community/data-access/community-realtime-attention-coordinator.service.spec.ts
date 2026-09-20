@@ -69,6 +69,27 @@ describe('CommunityRealtimeAttentionCoordinatorService', () => {
     subscription.unsubscribe();
   });
 
+  it('filhos observam o modo da Comunidade sem adquirir outro lease', () => {
+    const observed: CommunityRealtimeAttentionMode[] = [];
+    const observerSubscription = service.modeForCommunity$('community-a')
+      .subscribe((mode) => observed.push(mode));
+
+    expect(observed.at(-1)).toBe('aggregate');
+
+    const foregroundSubscription = service.claimMode$('community-a').subscribe();
+    expect(observed.at(-1)).toBe('detailed');
+
+    const otherForegroundSubscription = service.claimMode$('community-b').subscribe();
+    expect(observed.at(-1)).toBe('aggregate');
+
+    otherForegroundSubscription.unsubscribe();
+    expect(observed.at(-1)).toBe('detailed');
+
+    foregroundSubscription.unsubscribe();
+    expect(observed.at(-1)).toBe('aggregate');
+    observerSubscription.unsubscribe();
+  });
+
   it('não concede realtime detalhado para identificador inválido', () => {
     const modes: CommunityRealtimeAttentionMode[] = [];
     const subscription = service.claimMode$('id com espaço')
