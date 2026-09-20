@@ -17,10 +17,11 @@ export const COMMUNITY_DISCOVERY_COST_SEMANTICS =
 
 /**
  * Toda chamada protegida relê a elegibilidade social do usuário (1 read).
- * O controle do ranking pode reler config + runtime (2 reads) quando o cache
- * de instância de 30s está frio. Usamos 3 como upper bound sem gerar I/O extra.
+ * O controle do ranking pode reler config + runtime + shadow acceptance (3 reads)
+ * quando o cache de instância de 30s está frio. Com a elegibilidade social,
+ * usamos 4 como upper bound sem gerar I/O extra.
  */
-export const COMMUNITY_DISCOVERY_FIXED_CONTROL_READ_UPPER_BOUND = 3;
+export const COMMUNITY_DISCOVERY_FIXED_CONTROL_READ_UPPER_BOUND = 4;
 
 export interface CommunityDiscoveryTelemetryInput {
   readonly requestedLimit: number;
