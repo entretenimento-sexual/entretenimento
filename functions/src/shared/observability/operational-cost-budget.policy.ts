@@ -27,9 +27,13 @@ export type OperationalCostBudgetStatus =
   | 'critical';
 
 export type OperationalCostBudgetAggregation = 'mean' | 'p95' | 'max';
+export type OperationalCostBudgetMeasurementSource =
+  | 'runtime_log'
+  | 'client_synthetic';
 
 export interface OperationalCostBudgetDefinition {
   readonly unit: string;
+  readonly measurementSource: OperationalCostBudgetMeasurementSource;
   readonly targetMax: number;
   readonly warningAbove: number;
   readonly criticalAbove: number;
@@ -57,6 +61,7 @@ export const COMMUNITY_OPERATIONAL_COST_BUDGETS: Readonly<
   Record<OperationalCostBudgetMetric, OperationalCostBudgetDefinition>
 > = Object.freeze({
   'community.discovery.reads_per_card': Object.freeze({
+    measurementSource: 'runtime_log',
     unit: 'document-read-proxy/card',
     targetMax: 2.5,
     warningAbove: 3.5,
@@ -67,6 +72,7 @@ export const COMMUNITY_OPERATIONAL_COST_BUDGETS: Readonly<
     semantics: 'operational_proxy_not_billed_reads',
   }),
   'community.discovery.exposure_writes_per_accepted': Object.freeze({
+    measurementSource: 'runtime_log',
     unit: 'document-write-proxy/accepted-exposure',
     targetMax: 1.25,
     warningAbove: 1.5,
@@ -78,6 +84,7 @@ export const COMMUNITY_OPERATIONAL_COST_BUDGETS: Readonly<
       'counter_writes_plus_one_rate_limit_write_per_successful_batch',
   }),
   'community.discovery.callables_per_session': Object.freeze({
+    measurementSource: 'client_synthetic',
     unit: 'callable-invocations/session',
     targetMax: 4,
     warningAbove: 6,
@@ -89,6 +96,7 @@ export const COMMUNITY_OPERATIONAL_COST_BUDGETS: Readonly<
       'client-session-envelope; do not add server session identifiers only for cost telemetry',
   }),
   'community.notification.push_targets_per_notification': Object.freeze({
+    measurementSource: 'runtime_log',
     unit: 'push-targets/notification',
     targetMax: 3,
     warningAbove: 5,
@@ -99,6 +107,7 @@ export const COMMUNITY_OPERATIONAL_COST_BUDGETS: Readonly<
     semantics: 'fresh_canonical_push_targets_after_ownership_filter',
   }),
   'community.storage.upper_bound_bytes_per_community': Object.freeze({
+    measurementSource: 'runtime_log',
     unit: 'bytes/community',
     targetMax: 256 * MIB,
     warningAbove: 512 * MIB,
