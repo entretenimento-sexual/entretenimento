@@ -16,6 +16,7 @@ const SAFE_TELEMETRY_KEYS = [
   'deliveryDocumentReadProxy',
   'deliveryReadAmplification',
   'durationMs',
+  'fixedControlReadUpperBound',
   'hasCursor',
   'hasNextPage',
   'hasTagFilter',
@@ -30,6 +31,8 @@ const SAFE_TELEMETRY_KEYS = [
   'scanLimit',
   'schemaVersion',
   'sourceType',
+  'totalDocumentReadUpperBoundProxy',
+  'totalReadAmplificationUpperBound',
 ].sort();
 
 const FORBIDDEN_TELEMETRY_KEYS = [
@@ -69,12 +72,15 @@ test('calcula amplificação como proxy operacional sem simular billing', () => 
     hasNextPage: true,
   });
 
-  assert.equal(telemetry['schemaVersion'], 2);
+  assert.equal(telemetry['schemaVersion'], 3);
   assert.equal(
     telemetry['costSemantics'],
     COMMUNITY_DISCOVERY_COST_SEMANTICS
   );
   assert.equal(telemetry['deliveryDocumentReadProxy'], 47);
+  assert.equal(telemetry['fixedControlReadUpperBound'], 3);
+  assert.equal(telemetry['totalDocumentReadUpperBoundProxy'], 50);
+  assert.equal(telemetry['totalReadAmplificationUpperBound'], 4.17);
   assert.equal(telemetry['projectionReadAmplification'], 2.5);
   assert.equal(telemetry['membershipReadAmplification'], 1.33);
   assert.equal(telemetry['deliveryReadAmplification'], 3.92);
@@ -133,5 +139,8 @@ test('evita divisão artificial quando nenhuma carta é retornada', () => {
   assert.equal(telemetry['membershipReadAmplification'], null);
   assert.equal(telemetry['deliveryReadAmplification'], null);
   assert.equal(telemetry['deliveryDocumentReadProxy'], 15);
+  assert.equal(telemetry['fixedControlReadUpperBound'], 3);
+  assert.equal(telemetry['totalDocumentReadUpperBoundProxy'], 18);
+  assert.equal(telemetry['totalReadAmplificationUpperBound'], null);
   assert.equal(telemetry['rankingMode'], 'legacy');
 });
