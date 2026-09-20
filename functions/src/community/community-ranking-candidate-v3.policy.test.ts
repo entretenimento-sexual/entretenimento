@@ -401,3 +401,45 @@ test('segurança continua gate absoluto no candidato v3', () => {
   assert.equal(candidate.safetyScore, 0);
   assert.equal(candidate.discoveryScore, 0);
 });
+
+
+test('sinais comerciais e comportamentais não interferem no score shadow v3', () => {
+  const metrics = {
+    memberCount: 40,
+    postCount: 80,
+    mediaCount: 12,
+    interactionCount: 35,
+  };
+  const organic = buildCommunityDiscoveryRankingCandidateV3({
+    rawCommunity: community(metrics),
+    rawDiscovery: visualDiscovery,
+    now: NOW,
+  });
+  const withNonRankingSignals = buildCommunityDiscoveryRankingCandidateV3({
+    rawCommunity: community(metrics, {
+      sponsorOrganizationId: 'organization-paid',
+      subscriptionRole: 'vip',
+      monetization: { monthlyRevenue: 999999, promoted: true },
+      paidBoost: 100,
+      conversionRate: 100,
+      meaningfulOpenCount: 999999,
+      entryCount: 999999,
+      officialAssociation: {
+        verified: true,
+        target: { type: 'organization', id: 'organization-paid' },
+      },
+    }),
+    rawDiscovery: {
+      ...visualDiscovery,
+      sponsored: true,
+      promoted: true,
+      commercialWeight: 100,
+      conversionRate: 100,
+      meaningfulOpenCount: 999999,
+      entryCount: 999999,
+    },
+    now: NOW,
+  });
+
+  assert.deepEqual(withNonRankingSignals, organic);
+});
