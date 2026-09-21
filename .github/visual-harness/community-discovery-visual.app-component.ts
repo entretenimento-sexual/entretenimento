@@ -327,7 +327,10 @@ const sessionBehavior = {
             <p>Rio de Janeiro/RJ · Perfil verificado para inspeção visual.</p>
           </div>
         </section>
-        <app-profile-official-communities profileId="visual-profile-marina" />
+        <app-official-communities-for-target
+          targetType="profile"
+          targetId="visual-profile-marina"
+        />
       </main>
     } @else {
       <app-community-discovery-page />
