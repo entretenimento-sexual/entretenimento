@@ -221,6 +221,11 @@ const previewRepository = {
   }),
   getMyCommunitiesPage$: () => of({ items: communityCards, nextCursor: null, generatedAt: now }),
   getProfileOfficialCommunities$: () => of({ items: profileCards, nextCursor: null, generatedAt: now }),
+  getOfficialCommunitiesForTarget$: () => of({
+    items: profileCards,
+    nextCursor: null,
+    generatedAt: now,
+  }),
 };
 
 const boostRepository = {

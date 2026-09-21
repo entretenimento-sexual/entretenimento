@@ -89,6 +89,8 @@ import { CommunityDiscoveryExposureService } from './community-discovery-exposur
 import { CommunityDiscoverySessionBehaviorService } from './community-discovery-session-behavior.service';
 import { CommunityDiscoveryVisibilityDirective } from './community-discovery-visibility.directive';
 import {
+  COMMUNITY_BOOST_SESSION_ROTATION_CONTEXTS_MAX,
+  buildCommunityBoostSessionExclusions,
   resolveCommunityBoostInsertionAfterIndex,
 } from './community-boost-display.policy';
 
@@ -304,6 +306,7 @@ export class CommunityDiscoveryPageComponent {
   private readonly loadRequests$ = new Subject<LoadRequest>();
   private readonly tagCatalogReload$ = new Subject<void>();
   private readonly membershipContextResolvedIds = new Set<string>();
+  private readonly lastSponsoredCommunityByContext = new Map<string, string>();
   private sponsoredRequestSequence = 0;
 
   readonly sourceType: CommunityPreviewSourceType =
@@ -1024,8 +1027,17 @@ export class CommunityDiscoveryPageComponent {
     this.sessionBehavior.state$
       .pipe(
         take(1),
-        switchMap((sessionBehavior) =>
-          this.injector
+        switchMap((sessionBehavior) => {
+          const rotationContext = this.communityBoostRotationContext(tagId);
+          const excludedCommunityIds =
+            buildCommunityBoostSessionExclusions({
+              lastSponsoredCommunityId:
+                this.lastSponsoredCommunityByContext.get(rotationContext)
+                  ?? null,
+              hiddenCommunityIds: sessionBehavior.hiddenCommunityIds,
+            });
+
+          return this.injector
             .get(CommunityBoostRepository)
             .getPlacement$({
               sourceType: this.sourceType,
@@ -1033,9 +1045,9 @@ export class CommunityDiscoveryPageComponent {
               organicCommunityIds: organicItems.map(
                 (item) => item.communityId
               ),
-              excludedCommunityIds: sessionBehavior.hiddenCommunityIds,
-            })
-        ),
+              excludedCommunityIds,
+            });
+        }),
         catchError((error: unknown) => {
           this.reportSponsoredTelemetryError(
             error,
@@ -1047,8 +1059,43 @@ export class CommunityDiscoveryPageComponent {
       )
       .subscribe((placement) => {
         if (requestSequence !== this.sponsoredRequestSequence) return;
+
+        if (placement) {
+          this.rememberSponsoredCommunity(
+            this.communityBoostRotationContext(tagId),
+            placement.community.communityId
+          );
+        }
         this.sponsoredPlacement.set(placement);
       });
+  }
+
+  private communityBoostRotationContext(tagId: string | null): string {
+    return [
+      this.sourceType,
+      this.canFilterByTags ? tagId ?? 'all' : 'all',
+    ].join('|');
+  }
+
+  private rememberSponsoredCommunity(
+    context: string,
+    communityId: string
+  ): void {
+    const normalizedCommunityId = String(communityId ?? '').trim();
+    if (!normalizedCommunityId) return;
+
+    this.lastSponsoredCommunityByContext.delete(context);
+    this.lastSponsoredCommunityByContext.set(context, normalizedCommunityId);
+
+    while (
+      this.lastSponsoredCommunityByContext.size
+      > COMMUNITY_BOOST_SESSION_ROTATION_CONTEXTS_MAX
+    ) {
+      const oldestContext =
+        this.lastSponsoredCommunityByContext.keys().next().value;
+      if (typeof oldestContext !== 'string') break;
+      this.lastSponsoredCommunityByContext.delete(oldestContext);
+    }
   }
 
   private reportSponsoredTelemetryError(

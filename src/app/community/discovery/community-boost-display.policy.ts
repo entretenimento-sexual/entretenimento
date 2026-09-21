@@ -14,6 +14,22 @@
 export const COMMUNITY_BOOST_MIN_ORGANIC_CARDS_FOR_SLOT = 4;
 export const COMMUNITY_BOOST_ORGANIC_CARDS_BEFORE_SLOT = 3;
 
+export const COMMUNITY_BOOST_SESSION_ROTATION_CONTEXTS_MAX = 12;
+
+export function buildCommunityBoostSessionExclusions(input: {
+  readonly lastSponsoredCommunityId?: string | null;
+  readonly hiddenCommunityIds?: readonly string[];
+}): readonly string[] {
+  const values = [
+    String(input.lastSponsoredCommunityId ?? '').trim(),
+    ...(input.hiddenCommunityIds ?? []).map((value) =>
+      String(value ?? '').trim()
+    ),
+  ].filter(Boolean);
+
+  return [...new Set(values)];
+}
+
 export function resolveCommunityBoostInsertionAfterIndex(
   organicCardCountValue: unknown
 ): number | null {
