@@ -287,10 +287,6 @@
   cursor: pointer;
 }
 
-.community-card--sponsored {
-  border-style: dashed;
-}
-
 .community-card__sponsorship {
   display: inline-flex;
   align-items: center;

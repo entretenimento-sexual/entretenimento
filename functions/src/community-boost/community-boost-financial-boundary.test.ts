@@ -4,11 +4,14 @@ import path from 'node:path';
 import test from 'node:test';
 
 function source(file: string): string {
-  return readFileSync(path.resolve(__dirname, file), 'utf8');
+  return readFileSync(
+    path.resolve(process.cwd(), 'src', 'community-boost', file),
+    'utf8'
+  );
 }
 
 test('faturamento patrocinado nasce no placement server-side', () => {
-  const selection = source('./community-boost-selection.service.ts');
+  const selection = source('community-boost-selection.service.ts');
 
   assert.equal(selection.includes("billingReason: 'served_placement'"), true);
   assert.equal(selection.includes("collection('billing_ledger')"), true);
