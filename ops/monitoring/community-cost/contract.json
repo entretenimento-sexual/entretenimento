@@ -5,7 +5,8 @@
     "schemaVersion": 1,
     "source": "cloud_logging_runtime_events",
     "environment": "production",
-    "minimumWindowDays": 14
+    "minimumWindowDays": 14,
+    "productionProjectId": "entretenimento-sexual"
   },
   "metrics": [
     {
