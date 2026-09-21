@@ -1,4 +1,5 @@
 // functions/src/notifications/sendNotification.ts
+import {logger} from 'firebase-functions';
 import {onDocumentCreated} from 'firebase-functions/v2/firestore';
 import {getMessaging} from 'firebase-admin/messaging';
 import {getFirestore, Timestamp} from 'firebase-admin/firestore';
@@ -275,7 +276,7 @@ export const sendNotification = onDocumentCreated(
       )
       : null;
 
-    console.info('[sendNotification] push processado', {
+    logger.info('[sendNotification] push processado', {
       notificationId,
       notificationType,
       operationalCostBudget,
