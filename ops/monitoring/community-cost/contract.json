@@ -122,13 +122,13 @@
     },
     {
       "key": "community.boost.reads_proxy_per_served_placement",
-      "metricName": "community_boost_reads_proxy_per_served_placement",
-      "sampleMetricName": "community_boost_reads_proxy_per_served_placement_samples",
-      "description": "Baseline-only: proxy de reads do caminho de Boost por placement servido.",
-      "filter": "jsonPayload.placementServed=true AND jsonPayload.readsProxyPerServedPlacement:*",
-      "valueExtractor": "EXTRACT(jsonPayload.readsProxyPerServedPlacement)",
+      "metricName": "community_boost_reads_proxy_per_request",
+      "sampleMetricName": "community_boost_served_placement_samples_for_reads",
+      "description": "Distribuição do proxy de reads por chamada de Boost; baseline divide custo total por placements servidos.",
+      "filter": "jsonPayload.readsProxy:*",
+      "valueExtractor": "EXTRACT(jsonPayload.readsProxy)",
       "unit": "1",
-      "aggregation": "mean",
+      "aggregation": "ratio_per_served",
       "aligner": "ALIGN_SUM",
       "reducer": "REDUCE_MEAN",
       "windowSeconds": 3600,
@@ -144,17 +144,20 @@
       },
       "chartPlotType": "LINE",
       "alertStrategy": "baseline_only",
-      "valuePath": "jsonPayload.readsProxyPerServedPlacement"
+      "valuePath": "jsonPayload.readsProxy",
+      "sampleFilter": "jsonPayload.readsProxy:* AND jsonPayload.placementServed=true",
+      "denominatorPath": "jsonPayload.placementServed",
+      "dashboardAggregation": "mean_per_request"
     },
     {
       "key": "community.boost.writes_proxy_per_served_placement",
-      "metricName": "community_boost_writes_proxy_per_served_placement",
-      "sampleMetricName": "community_boost_writes_proxy_per_served_placement_samples",
-      "description": "Baseline-only: proxy de writes do caminho de Boost por placement servido.",
-      "filter": "jsonPayload.placementServed=true AND jsonPayload.writesProxyPerServedPlacement:*",
-      "valueExtractor": "EXTRACT(jsonPayload.writesProxyPerServedPlacement)",
+      "metricName": "community_boost_writes_proxy_per_request",
+      "sampleMetricName": "community_boost_served_placement_samples_for_writes",
+      "description": "Distribuição do proxy de writes por chamada de Boost; baseline divide custo total por placements servidos.",
+      "filter": "jsonPayload.writesProxy:*",
+      "valueExtractor": "EXTRACT(jsonPayload.writesProxy)",
       "unit": "1",
-      "aggregation": "mean",
+      "aggregation": "ratio_per_served",
       "aligner": "ALIGN_SUM",
       "reducer": "REDUCE_MEAN",
       "windowSeconds": 3600,
@@ -170,7 +173,10 @@
       },
       "chartPlotType": "LINE",
       "alertStrategy": "baseline_only",
-      "valuePath": "jsonPayload.writesProxyPerServedPlacement"
+      "valuePath": "jsonPayload.writesProxy",
+      "sampleFilter": "jsonPayload.writesProxy:* AND jsonPayload.placementServed=true",
+      "denominatorPath": "jsonPayload.placementServed",
+      "dashboardAggregation": "mean_per_request"
     }
   ]
 }
