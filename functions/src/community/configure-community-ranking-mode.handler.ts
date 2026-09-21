@@ -114,6 +114,9 @@ function rolloutFailureMessage(reason: string | null): string {
   if (reason === 'candidate_shadow_acceptance_not_ready') {
     return 'O ranking v3 ainda não cumpriu a janela mensurável de aceitação em shadow.';
   }
+  if (reason === 'candidate_real_data_not_ready') {
+    return 'O ranking v3 ainda não possui a janela de aceitação comprovada com dados reais de produção.';
+  }
 
   return 'O backfill disponível pertence a outra versão de ranking.';
 }
@@ -203,6 +206,9 @@ export const configureCommunityRankingMode =
               consecutivePassingCycles:
                 shadowRuntime['consecutivePassingCycles'] ?? null,
               promotionReady: shadowRuntime['promotionReady'] === true,
+              realDataQualified: shadowRuntime['realDataQualified'] === true,
+              observationSource: shadowRuntime['observationSource'] ?? null,
+              observedProjectId: shadowRuntime['observedProjectId'] ?? null,
               lastObservedCycleCompletedAt:
                 shadowRuntime['lastObservedCycleCompletedAt'] ?? null,
             };
