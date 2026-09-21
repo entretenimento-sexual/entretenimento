@@ -66,8 +66,10 @@ working tree clean
 - [ ] Sentry ou monitoramento externo configurado, se for ativado.
 - [ ] Valor mensal de Cloud Billing Budget definido pelo responsável financeiro/produto.
 - [ ] Alertas de billing configurados em 50%, 75%, 90% e 100% do orçamento, com forecast quando aplicável.
-- [ ] Métricas/alertas de custo de Comunidades configurados conforme `docs/architecture/COMMUNITY_OPERATIONAL_COST_BUDGET.md`.
-- [ ] Baseline de custo por unidade coletado antes de otimizações de Discovery/exposure/notificações/storage.
+- [ ] Dashboard **Community Cost Operations**, métricas log-based e alertas aplicados com notification channel real conforme `docs/architecture/COMMUNITY_OPERATIONAL_COST_BUDGET.md`.
+- [ ] Baseline operacional real de Comunidades coletado por no mínimo 14 dias, sem truncamento e com amostragem mínima em todas as dimensões exigidas.
+- [ ] Recalibração Business/Official bloqueada enquanto baseline operacional, funil real e custo financeiro realizado não estiverem qualificados.
+- [ ] Recalibração de custo/CPM do Community Boost bloqueada enquanto baseline operacional, placements reais e custo financeiro atribuído não estiverem qualificados.
 
 ## Produto e UX
 
