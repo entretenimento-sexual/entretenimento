@@ -1,0 +1,131 @@
+name: Community Cost Monitoring Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      notification_channel:
+        description: 'Cloud Monitoring notification channel resource name'
+        required: false
+        type: string
+      dry_run:
+        description: 'Validate commands without changing Google Cloud'
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: community-cost-monitoring-production
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '22'
+  PROJECT_ID: 'entretenimento-sexual'
+
+jobs:
+  apply:
+    name: Apply Community cost monitoring
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Resolve production configuration
+        id: config
+        shell: bash
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+          WIF_PROVIDER: ${{ vars.GCP_COMMUNITY_COST_WORKLOAD_IDENTITY_PROVIDER }}
+          SERVICE_ACCOUNT: ${{ vars.GCP_COMMUNITY_COST_SERVICE_ACCOUNT }}
+          INPUT_CHANNEL: ${{ inputs.notification_channel }}
+          DEFAULT_CHANNEL: ${{ vars.COMMUNITY_COST_NOTIFICATION_CHANNEL }}
+        run: |
+          set -euo pipefail
+          channel="$INPUT_CHANNEL"
+          if [[ -z "$channel" ]]; then
+            channel="$DEFAULT_CHANNEL"
+          fi
+
+          echo "notification_channel=$channel" >> "$GITHUB_OUTPUT"
+
+          if [[ "$DRY_RUN" == 'true' ]]; then
+            echo 'Dry-run: autenticação GCP e notification channel não são obrigatórios.'
+            exit 0
+          fi
+
+          if [[ -z "$WIF_PROVIDER" ]]; then
+            echo 'Falta a repository variable GCP_COMMUNITY_COST_WORKLOAD_IDENTITY_PROVIDER.' >&2
+            exit 1
+          fi
+          if [[ -z "$SERVICE_ACCOUNT" ]]; then
+            echo 'Falta a repository variable GCP_COMMUNITY_COST_SERVICE_ACCOUNT.' >&2
+            exit 1
+          fi
+          if [[ -z "$channel" ]]; then
+            echo 'Informe notification_channel ou COMMUNITY_COST_NOTIFICATION_CHANNEL.' >&2
+            exit 1
+          fi
+
+      - name: Authenticate to Google Cloud with Workload Identity Federation
+        if: inputs.dry_run == false
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_COMMUNITY_COST_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_COMMUNITY_COST_SERVICE_ACCOUNT }}
+
+      - name: Set up Google Cloud SDK
+        if: inputs.dry_run == false
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Dry-run monitoring provisioning
+        if: inputs.dry_run == true
+        shell: bash
+        run: |
+          npm run community:cost-monitoring:apply -- \
+            --project="$PROJECT_ID" \
+            --dry-run
+
+      - name: Apply production monitoring
+        if: inputs.dry_run == false
+        shell: bash
+        env:
+          NOTIFICATION_CHANNEL: ${{ steps.config.outputs.notification_channel }}
+        run: |
+          set -euo pipefail
+          gcloud auth list --filter=status:ACTIVE --format='value(account)'
+          gcloud config set project "$PROJECT_ID"
+          npm run community:cost-monitoring:apply -- \
+            --project="$PROJECT_ID" \
+            --notification-channel="$NOTIFICATION_CHANNEL"
+
+      - name: Publish summary
+        if: always()
+        shell: bash
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+          NOTIFICATION_CHANNEL: ${{ steps.config.outputs.notification_channel }}
+        run: |
+          {
+            echo '## Community Cost Monitoring'
+            echo
+            echo "- Project: \`$PROJECT_ID\`"
+            echo "- Dry-run: \`$DRY_RUN\`"
+            if [[ -n "$NOTIFICATION_CHANNEL" ]]; then
+              echo '- Notification channel: configured'
+            else
+              echo '- Notification channel: not configured'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
