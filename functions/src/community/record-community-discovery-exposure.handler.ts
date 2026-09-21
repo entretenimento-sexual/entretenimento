@@ -149,7 +149,7 @@ export const recordCommunityDiscoveryExposure =
             writesPerAcceptedExposure
           );
 
-      logger.debug('community_discovery_exposure_recorded', {
+      logger.info('community_discovery_exposure_recorded', {
         sourceType: command.sourceType,
         submitted: command.communityIds.length,
         accepted,
