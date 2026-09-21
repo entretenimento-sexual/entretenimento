@@ -64,6 +64,40 @@ function normalizeCommunityIds(value: unknown): readonly string[] | null {
   return output;
 }
 
+function logCommunityBoostPlacementCost(input: {
+  readonly placementServed: boolean;
+  readonly sourceType: string;
+  readonly hasTagFilter: boolean;
+  readonly outcome: 'insufficient_organic_cards' | 'selection_completed';
+  readonly campaignDocumentsFetched: number;
+  readonly campaignQueryReadsProxy: number;
+  readonly eligibleCandidateCount: number;
+  readonly frequencyCapReads: number;
+  readonly visibilityReads: number;
+  readonly claimAttempts: number;
+  readonly claimTransactionReads: number;
+  readonly deliveryWrites: number;
+  readonly sharedControlReads: number;
+  readonly sharedControlWrites: number;
+}): void {
+  const readsProxy =
+    input.sharedControlReads
+    + input.campaignQueryReadsProxy
+    + input.frequencyCapReads
+    + input.visibilityReads
+    + input.claimTransactionReads;
+  const writesProxy =
+    input.sharedControlWrites + input.deliveryWrites;
+
+  logger.info('community_boost_placement_cost_observed', {
+    ...input,
+    readsProxy,
+    writesProxy,
+    semantics:
+      'document_operation_proxy_including_social_access_and_rate_limit',
+  });
+}
+
 export const getCommunityBoostPlacement =
   onCall<GetCommunityBoostPlacementRequest>(
     {
@@ -113,6 +147,23 @@ export const getCommunityBoostPlacement =
         organicCommunityIds.length
         < COMMUNITY_BOOST_MIN_ORGANIC_CARDS_FOR_PLACEMENT
       ) {
+        logCommunityBoostPlacementCost({
+          placementServed: false,
+          sourceType,
+          hasTagFilter: tagId !== null,
+          outcome: 'insufficient_organic_cards',
+          campaignDocumentsFetched: 0,
+          campaignQueryReadsProxy: 0,
+          eligibleCandidateCount: 0,
+          frequencyCapReads: 0,
+          visibilityReads: 0,
+          claimAttempts: 0,
+          claimTransactionReads: 0,
+          deliveryWrites: 0,
+          sharedControlReads: 1,
+          sharedControlWrites: 0,
+        });
+
         return {
           placement: null,
           generatedAt: Date.now(),
@@ -151,22 +202,11 @@ export const getCommunityBoostPlacement =
           ].slice(0, MAX_EFFECTIVE_EXCLUSIONS),
           now: Date.now(),
         });
-      const placementServed = selection.placement !== null;
-      const sharedControlReads = 2;
-      const sharedControlWrites = 1;
-      const readsProxy =
-        sharedControlReads
-        + selection.diagnostics.campaignQueryReadsProxy
-        + selection.diagnostics.frequencyCapReads
-        + selection.diagnostics.visibilityReads
-        + selection.diagnostics.claimTransactionReads;
-      const writesProxy =
-        sharedControlWrites + selection.diagnostics.deliveryWrites;
-
-      logger.info('community_boost_placement_cost_observed', {
-        placementServed,
+      logCommunityBoostPlacementCost({
+        placementServed: selection.placement !== null,
         sourceType,
         hasTagFilter: tagId !== null,
+        outcome: 'selection_completed',
         campaignDocumentsFetched:
           selection.diagnostics.campaignDocumentsFetched,
         campaignQueryReadsProxy:
@@ -177,14 +217,8 @@ export const getCommunityBoostPlacement =
         claimAttempts: selection.diagnostics.claimAttempts,
         claimTransactionReads: selection.diagnostics.claimTransactionReads,
         deliveryWrites: selection.diagnostics.deliveryWrites,
-        sharedControlReads,
-        sharedControlWrites,
-        readsProxy,
-        writesProxy,
-        readsProxyPerServedPlacement: placementServed ? readsProxy : null,
-        writesProxyPerServedPlacement: placementServed ? writesProxy : null,
-        semantics:
-          'document_operation_proxy_including_social_access_and_rate_limit',
+        sharedControlReads: 2,
+        sharedControlWrites: 1,
       });
 
       return {
