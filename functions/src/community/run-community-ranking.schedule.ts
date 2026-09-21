@@ -23,6 +23,9 @@ import { COMMUNITY_DISCOVERY_SCORE_VERSION } from './community-ranking.policy';
 import { buildCommunityRankingShadowDiagnostics } from './community-ranking-shadow-diagnostics.policy';
 import { advanceCommunityRankingV3AcceptanceState } from './community-ranking-v3-acceptance.policy';
 import {
+  COMMUNITY_RANKING_V3_REAL_DATA_OBSERVATION_SOURCE,
+} from './community-ranking-v3-promotion-evidence.policy';
+import {
   buildCommunityRankingProjectionPatch,
   isCommunityRankingCandidateRuntimeCurrent,
   isCommunityRankingProjectionCurrent,
@@ -30,7 +33,11 @@ import {
   isCommunityRankingSupportedDocument,
   resolveCommunityRankingMaxPerRun,
 } from './community-ranking-sync.policy';
-import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
+import {
+  COMMUNITY_PRODUCTION_PROJECT_ID,
+  isCommunityPreviewRuntimeAvailable,
+  resolveCommunityRuntimeProjectId,
+} from './community-runtime.guard';
 
 const PAGE_SIZE = 100;
 
@@ -64,6 +71,15 @@ export const runCommunityRanking = onSchedule(
     }
 
     const now = Date.now();
+    const observedProjectId = resolveCommunityRuntimeProjectId({
+      functionsEmulator: process.env.FUNCTIONS_EMULATOR,
+      gcloudProject: process.env.GCLOUD_PROJECT,
+      gcpProject: process.env.GCP_PROJECT,
+      firebaseConfig: process.env.FIREBASE_CONFIG,
+    });
+    const realDataQualified =
+      process.env.FUNCTIONS_EMULATOR !== 'true'
+      && observedProjectId === COMMUNITY_PRODUCTION_PROJECT_ID;
     const configRef = db.collection('platform_config').doc('community');
     const runtimeRef = db.collection('community_ranking_runtime').doc('daily');
     const [configSnapshot, runtimeSnapshot] = await Promise.all([
@@ -270,6 +286,11 @@ export const runCommunityRanking = onSchedule(
       await acceptanceSnapshot.ref.set({
         ...acceptanceState,
         diagnostics,
+        realDataQualified,
+        observationSource: realDataQualified
+          ? COMMUNITY_RANKING_V3_REAL_DATA_OBSERVATION_SOURCE
+          : 'non_production_scheduled_runtime',
+        observedProjectId: observedProjectId || null,
         updatedAt: now,
       }, { merge: false });
     }
