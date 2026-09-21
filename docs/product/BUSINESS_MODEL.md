@@ -112,7 +112,7 @@ A plataforma deve separar três conceitos:
 - **entitlement comercial**: define a capacidade contratada daquele cliente/organização;
 - **role comunitária**: owner/admin/mod/member governa a Comunidade, sem provar representação comercial.
 
-A oferta Business/Official só deve ser recalibrada a partir de uma janela observada da oferta real contendo, no mínimo:
+A oferta Business/Official só deve ser recalibrada depois de uma janela operacional real de produção qualificada (mínimo atual de 14 dias) e de uma janela observada da oferta real contendo, no mínimo:
 
 - quantidade de ofertas apresentadas;
 - conversões efetivas;
@@ -123,9 +123,12 @@ Proxies técnicos de Firestore, Functions, push ou Storage servem para orçament
 
 Os limites globais de Official existentes no runtime são **hard ceilings técnicos de segurança**, não preço, pacote nem recomendação comercial. Grants/entitlements Business/Official devem carregar explicitamente a quantidade contratada e a capacidade de membros dentro desses tetos. Mudanças posteriores de oferta devem ser versionadas e justificadas pelos dados observados, sem alterar score orgânico ou autoridade oficial.
 
-A policy executável que valida se existe evidência mínima real para recalibração é:
+As policies executáveis que validam a sequência são:
 
-`functions/src/community/community-business-official-calibration.policy.ts`
+- baseline operacional: `functions/src/shared/observability/operational-cost-baseline.policy.ts`;
+- calibração Business/Official: `functions/src/community/community-business-official-calibration.policy.ts`.
+
+A calibração falha fechado quando o custo não vier de billing/finanças ou quando o baseline operacional ainda não estiver pronto.
 
 ## Impulsionamento
 
@@ -140,6 +143,17 @@ Requisitos:
 - não exibir perfil incompatível apenas porque pagou;
 - métricas transparentes para o comprador;
 - proteção contra fraude de impressões e views.
+
+### Community Boost — custo orientado por dados reais
+
+O preço patrocinado não deve ser recalibrado a partir do score orgânico, de estimativa de Firestore ou de um único período de tráfego. Antes de analisar custo do Boost, a plataforma exige:
+
+- baseline operacional real de produção qualificado;
+- placements efetivamente servidos;
+- custo financeiro realizado atribuído ao domínio patrocinado, vindo de Cloud Billing export ou alocação financeira;
+- manutenção da separação entre cobrança patrocinada e ranking orgânico.
+
+A policy de análise é `functions/src/community-boost/community-boost-cost-calibration.policy.ts`. Ela calcula custo real por mil placements apenas para análise; não altera automaticamente CPM, orçamento mínimo/máximo nem configuração comercial ativa.
 
 ## Desejos e monetização
 
