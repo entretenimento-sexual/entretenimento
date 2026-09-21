@@ -37,6 +37,14 @@ export const COMMUNITY_OFFICIAL_CREATE_REASON_MESSAGES: CommunityErrorMessageMap
       'Conclua a verificação exigida para este alvo oficial antes de criar a Comunidade.',
     official_creation_verification_inactive:
       'A verificação deste alvo oficial precisa ser renovada antes da criação.',
+    official_creation_entitlement_required:
+      'A capacidade comercial desta Comunidade Oficial ainda não foi liberada.',
+    official_creation_entitlement_inactive:
+      'A capacidade comercial desta Comunidade Oficial precisa ser renovada.',
+    official_creation_entitlement_mismatch:
+      'A capacidade comercial disponível não corresponde ao responsável oficial.',
+    official_creation_limit_reached:
+      'A quantidade contratada de Comunidades Oficiais foi atingida.',
     official_creation_target_inactive:
       'Este alvo oficial não está ativo para criação de Comunidade.',
     official_creation_target_authority_mismatch:

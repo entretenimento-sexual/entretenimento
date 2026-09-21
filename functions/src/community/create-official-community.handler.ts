@@ -21,8 +21,8 @@ import { assertRecentAuthentication } from '../account_lifecycle/_shared';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import {
-  OFFICIAL_COMMUNITY_MEMBER_LIMIT,
-} from './community-capacity.policy';
+  resolveOfficialCommunityCreationEntitlementInTransaction,
+} from './community-official-creation-entitlement.service';
 import {
   REQUIRE_COMMUNITY_APP_CHECK,
   assertCommunityCallableAppCheck,
@@ -240,6 +240,75 @@ export const createOfficialCommunity = onCall<CreateOfficialCommunityRequest>(
 
       const authority = derived.command;
       const verification = derived.verification;
+      const officialCapability =
+        await resolveOfficialCommunityCreationEntitlementInTransaction({
+          transaction,
+          actorUid,
+          sponsorOrganizationId: authority.sponsorOrganizationId,
+          now,
+        });
+      const grantedMemberLimit = officialCapability.memberLimit;
+      const capabilitySubjectType = officialCapability.subjectType;
+      const capabilitySubjectId = officialCapability.subjectId;
+
+      if (
+        !officialCapability.allowed
+        || !officialCapability.entitlementId
+        || !capabilitySubjectType
+        || !capabilitySubjectId
+        || grantedMemberLimit === null
+      ) {
+        const reason = officialCapability.denialReason === 'entitlement_inactive'
+          ? 'official_creation_entitlement_inactive'
+          : officialCapability.denialReason === 'entitlement_mismatch'
+            ? 'official_creation_entitlement_mismatch'
+            : 'official_creation_entitlement_required';
+        throw new HttpsError(
+          'permission-denied',
+          'A capacidade comercial desta Comunidade Oficial não está disponível.',
+          { reason }
+        );
+      }
+
+      if (officialCapability.maxOfficialCommunities !== null) {
+        const officialAssociations = db.collection(
+          'community_official_associations'
+        );
+        const quotaSubjectQuery = capabilitySubjectType === 'organization'
+          ? officialAssociations.where(
+            'sponsorOrganizationId',
+            '==',
+            capabilitySubjectId
+          )
+          : officialAssociations
+            .where('sponsorOrganizationId', '==', null)
+            .where(
+              'authority.holderUid',
+              '==',
+              capabilitySubjectId
+            );
+        const quotaQuery = quotaSubjectQuery
+          .where('status', '==', 'verified')
+          .limit(officialCapability.maxOfficialCommunities + 1);
+        const quotaSnapshot = await transaction.get(quotaQuery);
+
+        if (
+          quotaSnapshot.size
+          >= officialCapability.maxOfficialCommunities
+        ) {
+          throw new HttpsError(
+            'resource-exhausted',
+            'A capacidade contratada de Comunidades Oficiais foi atingida.',
+            {
+              reason: 'official_creation_limit_reached',
+              maxOfficialCommunities:
+                officialCapability.maxOfficialCommunities,
+              currentOfficialCommunities: quotaSnapshot.size,
+            }
+          );
+        }
+      }
+
       const associationCreatedAt = existingAssociation
         ? normalizeCreatedAt(existingAssociation['createdAt'], now)
         : now;
@@ -382,7 +451,7 @@ export const createOfficialCommunity = onCall<CreateOfficialCommunityRequest>(
         moderation,
         metrics,
         capacity: {
-          memberLimit: OFFICIAL_COMMUNITY_MEMBER_LIMIT,
+          memberLimit: grantedMemberLimit,
           sponsorType: 'official',
           policyVersion: 1,
         },
@@ -408,7 +477,7 @@ export const createOfficialCommunity = onCall<CreateOfficialCommunityRequest>(
         visibility: 'public_preview',
         metrics,
         capacity: {
-          memberLimit: OFFICIAL_COMMUNITY_MEMBER_LIMIT,
+          memberLimit: grantedMemberLimit,
           sponsorType: 'official',
           policyVersion: 1,
         },
@@ -477,6 +546,10 @@ export const createOfficialCommunity = onCall<CreateOfficialCommunityRequest>(
           authorityRole: authority.authorityRole,
           verificationSource: verification.verificationSource,
           verificationPolicyVersion: verification.verificationPolicyVersion,
+          capacityEntitlementId: officialCapability.entitlementId,
+          capacityEntitlementPolicyVersion: officialCapability.policyVersion,
+          grantedMemberLimit,
+          maxOfficialCommunities: officialCapability.maxOfficialCommunities,
           previousStatus: existingAssociation?.['status'] ?? null,
           nextStatus: 'verified',
           createdAt: now,
@@ -518,6 +591,10 @@ export const createOfficialCommunity = onCall<CreateOfficialCommunityRequest>(
         declarationAccepted: true,
         declarationAcceptedAt: now,
         status: 'verified',
+        capacityEntitlementId: officialCapability.entitlementId,
+        capacityEntitlementPolicyVersion: officialCapability.policyVersion,
+        grantedMemberLimit,
+        maxOfficialCommunities: officialCapability.maxOfficialCommunities,
         createdAt: now,
         updatedAt: now,
       });
