@@ -78,13 +78,13 @@ const BASELINE_ONLY_MINIMUMS: Readonly<
 
 export const COMMUNITY_OPERATIONAL_COST_REAL_BASELINE_METRICS:
   readonly CommunityOperationalCostObservedMetric[] = Object.freeze([
-  'community.discovery.reads_per_card',
-  'community.discovery.exposure_writes_per_accepted',
-  'community.notification.push_targets_per_notification',
-  'community.storage.upper_bound_bytes_per_community',
-  'community.boost.reads_proxy_per_served_placement',
-  'community.boost.writes_proxy_per_served_placement',
-]);
+    'community.discovery.reads_per_card',
+    'community.discovery.exposure_writes_per_accepted',
+    'community.notification.push_targets_per_notification',
+    'community.storage.upper_bound_bytes_per_community',
+    'community.boost.reads_proxy_per_served_placement',
+    'community.boost.writes_proxy_per_served_placement',
+  ]);
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
