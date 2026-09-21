@@ -166,8 +166,8 @@ function normalizeCommand(
     : typeof rawEndsAt === 'number'
       && Number.isFinite(rawEndsAt)
       && Math.trunc(rawEndsAt) > now
-        ? Math.trunc(rawEndsAt)
-        : Number.NaN;
+      ? Math.trunc(rawEndsAt)
+      : Number.NaN;
 
   if (Number.isNaN(endsAt)) return null;
 
