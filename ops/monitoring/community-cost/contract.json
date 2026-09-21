@@ -33,7 +33,8 @@
         }
       },
       "chartPlotType": "LINE",
-      "alertStrategy": "distribution_percentile_95"
+      "alertStrategy": "distribution_percentile_95",
+      "valuePath": "jsonPayload.operationalCostBudget.value"
     },
     {
       "key": "community.discovery.exposure_writes_per_accepted",
@@ -60,7 +61,8 @@
         }
       },
       "chartPlotType": "LINE",
-      "alertStrategy": "distribution_mean"
+      "alertStrategy": "distribution_mean",
+      "valuePath": "jsonPayload.operationalCostBudget.value"
     },
     {
       "key": "community.notification.push_targets_per_notification",
@@ -87,7 +89,8 @@
         }
       },
       "chartPlotType": "LINE",
-      "alertStrategy": "distribution_percentile_95"
+      "alertStrategy": "distribution_percentile_95",
+      "valuePath": "jsonPayload.operationalCostBudget.value"
     },
     {
       "key": "community.storage.upper_bound_bytes_per_community",
@@ -114,14 +117,15 @@
         }
       },
       "chartPlotType": "HEATMAP",
-      "alertStrategy": "exact_breach_counter"
+      "alertStrategy": "exact_breach_counter",
+      "valuePath": "jsonPayload.operationalCostBudget.value"
     },
     {
       "key": "community.boost.reads_proxy_per_served_placement",
       "metricName": "community_boost_reads_proxy_per_served_placement",
       "sampleMetricName": "community_boost_reads_proxy_per_served_placement_samples",
       "description": "Baseline-only: proxy de reads do caminho de Boost por placement servido.",
-      "filter": "jsonPayload.message=\"community_boost_placement_cost_observed\" AND jsonPayload.placementServed=true",
+      "filter": "jsonPayload.placementServed=true AND jsonPayload.readsProxyPerServedPlacement:*",
       "valueExtractor": "EXTRACT(jsonPayload.readsProxyPerServedPlacement)",
       "unit": "1",
       "aggregation": "mean",
@@ -139,14 +143,15 @@
         }
       },
       "chartPlotType": "LINE",
-      "alertStrategy": "baseline_only"
+      "alertStrategy": "baseline_only",
+      "valuePath": "jsonPayload.readsProxyPerServedPlacement"
     },
     {
       "key": "community.boost.writes_proxy_per_served_placement",
       "metricName": "community_boost_writes_proxy_per_served_placement",
       "sampleMetricName": "community_boost_writes_proxy_per_served_placement_samples",
       "description": "Baseline-only: proxy de writes do caminho de Boost por placement servido.",
-      "filter": "jsonPayload.message=\"community_boost_placement_cost_observed\" AND jsonPayload.placementServed=true",
+      "filter": "jsonPayload.placementServed=true AND jsonPayload.writesProxyPerServedPlacement:*",
       "valueExtractor": "EXTRACT(jsonPayload.writesProxyPerServedPlacement)",
       "unit": "1",
       "aggregation": "mean",
@@ -164,7 +169,8 @@
         }
       },
       "chartPlotType": "LINE",
-      "alertStrategy": "baseline_only"
+      "alertStrategy": "baseline_only",
+      "valuePath": "jsonPayload.writesProxyPerServedPlacement"
     }
   ]
 }
