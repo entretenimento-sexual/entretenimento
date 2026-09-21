@@ -7,6 +7,7 @@ import { ApplicationErrorService } from './core/services/error-handler/applicati
 import { ProfilePreferencesService } from './preferences/services/profile-preferences.service';
 import { CommunityCreationGateService } from './community/community-create/community-creation-gate.service';
 import { CommunityMembershipRepository } from './community/data-access/community-membership.repository';
+import { CommunityBoostRepository } from './community/data-access/community-boost.repository';
 import { CommunityPreviewRepository } from './community/data-access/community-preview.repository';
 import type { CommunityPreviewCard } from './community/data-access/community-preview.model';
 import { CommunityProfilePublicCommunitiesRepository } from './community/data-access/community-profile-public-communities.repository';
@@ -117,6 +118,19 @@ const communityCards: readonly CommunityPreviewCard[] = [
   },
 ];
 
+const sponsoredCommunity: CommunityPreviewCard = {
+  communityId: 'visual-community-sponsored',
+  name: 'Conexões Patrocinadas RJ',
+  slug: 'conexoes-patrocinadas-rj',
+  description: 'Comunidade promovida para validar disclosure, posição e responsividade do Community Boost.',
+  source: { type: 'community', id: 'visual-community-sponsored' },
+  avatarUrl: null,
+  coverUrl: null,
+  metrics: { memberCount: 512, postCount: 91, mediaCount: 28 },
+  access: { join: 'approval', minimumRole: null, requiresActiveSubscription: false },
+  tags: [tags[0], tags[6]],
+};
+
 const venueCards: readonly CommunityPreviewCard[] = [
   {
     communityId: 'visual-venue-copacabana',
@@ -209,6 +223,22 @@ const previewRepository = {
   getProfileOfficialCommunities$: () => of({ items: profileCards, nextCursor: null, generatedAt: now }),
 };
 
+const boostRepository = {
+  getPlacement$: () => visualSourceType === 'community'
+    ? of({
+        placementId: 'visual-placement-sponsored',
+        campaignId: 'visual-campaign-sponsored',
+        disclosure: 'Patrocinado' as const,
+        community: sponsoredCommunity,
+      })
+    : of(null),
+  recordEvent$: () => of({
+    accepted: true,
+    idempotent: false,
+    billable: true,
+  }),
+};
+
 const publicCommunitiesRepository = {
   getProfilePublicCommunities$: () => of({ items: [], nextCursor: null, generatedAt: now }),
 };
@@ -265,6 +295,7 @@ const sessionBehavior = {
     { provide: CommunityPreviewRepository, useValue: previewRepository },
     { provide: CommunityProfilePublicCommunitiesRepository, useValue: publicCommunitiesRepository },
     { provide: CommunityMembershipRepository, useValue: membershipRepository },
+    { provide: CommunityBoostRepository, useValue: boostRepository },
     { provide: CommunityTagRepository, useValue: tagRepository },
     { provide: CommunityDiscoveryCacheService, useValue: discoveryCache },
     { provide: CommunityDiscoveryExposureService, useValue: { recordQualifiedExposure: () => undefined } },

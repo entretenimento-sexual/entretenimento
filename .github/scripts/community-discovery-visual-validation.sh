@@ -46,12 +46,22 @@ run_checked "$OUT/explore/desktop/metrics.log" "async (page) => {
     });
     const create = document.querySelector('.community-discovery__create');
     const filters = document.querySelector('.community-discovery__filter-strip');
+    const sponsoredCards = cards.filter(
+      (card) => card.closest('[data-sponsored="true"]')
+    );
     return {
       viewportWidth: window.innerWidth,
       scrollWidth: document.documentElement.scrollWidth,
       h1Count: document.querySelectorAll('.community-discovery h1').length,
       navCount: document.querySelectorAll('.community-discovery__scope-nav a').length,
       cardCount: cards.length,
+      sponsoredCount: sponsoredCards.length,
+      sponsoredCardIndex: cards.findIndex(
+        (card) => card.closest('[data-sponsored="true"]')
+      ),
+      sponsoredDisclosure: sponsoredCards[0]
+        ?.querySelector('.community-card__sponsorship')
+        ?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
       gridColumns: gridStyle?.gridTemplateColumns?.split(/\\s+/).filter(Boolean).length ?? 0,
       officialBadgeCount: document.querySelectorAll('.community-card .community-official-badge').length,
       filterChipCount: document.querySelectorAll('.community-discovery__filter-chip').length,
@@ -67,7 +77,10 @@ run_checked "$OUT/explore/desktop/metrics.log" "async (page) => {
     metrics.scrollWidth > metrics.viewportWidth + 1
     || metrics.h1Count !== 1
     || metrics.navCount !== 3
-    || metrics.cardCount !== 6
+    || metrics.cardCount !== 7
+    || metrics.sponsoredCount !== 1
+    || metrics.sponsoredCardIndex !== 3
+    || metrics.sponsoredDisclosure !== 'Patrocinado'
     || metrics.gridColumns < 3
     || metrics.officialBadgeCount < 3
     || metrics.filterChipCount < 6
@@ -103,6 +116,10 @@ run_checked "$OUT/explore/mobile/metrics.log" "async (page) => {
     const main = document.querySelector('.community-discovery');
     const header = document.querySelector('.community-discovery__header');
     const create = document.querySelector('.community-discovery__create');
+    const cards = Array.from(document.querySelectorAll('.community-card'));
+    const sponsoredCards = cards.filter(
+      (card) => card.closest('[data-sponsored="true"]')
+    );
     const currentScrollY = window.scrollY;
     window.scrollTo(9999, currentScrollY);
     const windowScrollX = window.scrollX;
@@ -154,6 +171,14 @@ run_checked "$OUT/explore/mobile/metrics.log" "async (page) => {
       navHeight: nav?.getBoundingClientRect().height ?? 0,
       filterClientWidth: filters?.clientWidth ?? 0,
       filterScrollWidth: filters?.scrollWidth ?? 0,
+      cardCount: cards.length,
+      sponsoredCount: sponsoredCards.length,
+      sponsoredCardIndex: cards.findIndex(
+        (card) => card.closest('[data-sponsored="true"]')
+      ),
+      sponsoredDisclosure: sponsoredCards[0]
+        ?.querySelector('.community-card__sponsorship')
+        ?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
       officialBadgeCount: document.querySelectorAll('.community-card .community-official-badge').length,
       dismissCount: document.querySelectorAll('.community-card__dismiss').length,
       createHeight: create?.getBoundingClientRect().height ?? 0,
@@ -168,6 +193,10 @@ run_checked "$OUT/explore/mobile/metrics.log" "async (page) => {
     || Math.abs(metrics.firstCardSurfaceWidth - metrics.gridWidth) > 1
     || metrics.navHeight < 44
     || metrics.filterScrollWidth <= metrics.filterClientWidth
+    || metrics.cardCount !== 7
+    || metrics.sponsoredCount !== 1
+    || metrics.sponsoredCardIndex !== 3
+    || metrics.sponsoredDisclosure !== 'Patrocinado'
     || metrics.officialBadgeCount < 3
     || metrics.dismissCount !== 6
     || metrics.createHeight < 44
