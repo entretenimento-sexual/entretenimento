@@ -42,6 +42,21 @@ export interface CommunityBoostSponsoredPlacement {
   readonly community: CommunityPreviewCard;
 }
 
+export interface CommunityBoostSelectionDiagnostics {
+  readonly campaignDocumentsFetched: number;
+  readonly eligibleCandidateCount: number;
+  readonly frequencyCapReads: number;
+  readonly visibilityReads: number;
+  readonly claimAttempts: number;
+  readonly claimTransactionReads: number;
+  readonly deliveryWrites: number;
+}
+
+export interface CommunityBoostSelectionResult {
+  readonly placement: CommunityBoostSponsoredPlacement | null;
+  readonly diagnostics: CommunityBoostSelectionDiagnostics;
+}
+
 interface RankedCampaignCandidate {
   readonly campaign: Readonly<CommunityBoostCampaign>;
   readonly pacingDebtMilliCents: number;
@@ -397,15 +412,28 @@ async function claimPlacement(input: {
   });
 }
 
-export async function selectCommunityBoostSponsoredPlacement(input: {
+export async function selectCommunityBoostSponsoredPlacementWithDiagnostics(input: {
   readonly viewerUid: string;
   readonly sourceType: CommunityBoostSourceType;
   readonly tagId: string | null;
   readonly excludedCommunityIds: readonly string[];
   readonly now: number;
-}): Promise<CommunityBoostSponsoredPlacement | null> {
+}): Promise<CommunityBoostSelectionResult> {
   const viewerUid = String(input.viewerUid ?? '').trim();
-  if (!viewerUid) return null;
+  if (!viewerUid) {
+    return {
+      placement: null,
+      diagnostics: {
+        campaignDocumentsFetched: 0,
+        eligibleCandidateCount: 0,
+        frequencyCapReads: 0,
+        visibilityReads: 0,
+        claimAttempts: 0,
+        claimTransactionReads: 0,
+        deliveryWrites: 0,
+      },
+    };
+  }
 
   const campaignSnapshot = await db
     .collection('community_boost_campaigns')
@@ -433,22 +461,63 @@ export async function selectCommunityBoostSponsoredPlacement(input: {
     tagId: input.tagId,
     now: input.now,
   });
+  let visibilityReads = 0;
+  let claimAttempts = 0;
 
   for (const candidate of rotatedCandidates) {
+    visibilityReads += 2;
     const card = await resolveVisibleCandidate({
       viewerUid,
       campaign: candidate.campaign,
     });
     if (!card) continue;
 
+    claimAttempts += 1;
     const placement = await claimPlacement({
       viewerUid,
       campaign: candidate.campaign,
       card,
       now: input.now,
     });
-    if (placement) return placement;
+    if (placement) {
+      return {
+        placement,
+        diagnostics: {
+          campaignDocumentsFetched: campaignSnapshot.size,
+          eligibleCandidateCount: candidates.length,
+          frequencyCapReads: candidates.length,
+          visibilityReads,
+          claimAttempts,
+          claimTransactionReads: claimAttempts * 3,
+          deliveryWrites: 5,
+        },
+      };
+    }
   }
 
-  return null;
+  return {
+    placement: null,
+    diagnostics: {
+      campaignDocumentsFetched: campaignSnapshot.size,
+      eligibleCandidateCount: candidates.length,
+      frequencyCapReads: candidates.length,
+      visibilityReads,
+      claimAttempts,
+      claimTransactionReads: claimAttempts * 3,
+      deliveryWrites: 0,
+    },
+  };
+}
+
+export async function selectCommunityBoostSponsoredPlacement(input: {
+  readonly viewerUid: string;
+  readonly sourceType: CommunityBoostSourceType;
+  readonly tagId: string | null;
+  readonly excludedCommunityIds: readonly string[];
+  readonly now: number;
+}): Promise<CommunityBoostSponsoredPlacement | null> {
+  const result = await selectCommunityBoostSponsoredPlacementWithDiagnostics(
+    input
+  );
+  return result.placement;
 }
