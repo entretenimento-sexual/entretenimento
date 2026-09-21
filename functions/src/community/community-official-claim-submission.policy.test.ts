@@ -176,7 +176,7 @@ test('agenda revalidação automática para grant de Local sem expiração', () 
 
   assert.deepEqual(result.verification, {
     verificationSource: 'official_space_creation_grant',
-    verificationPolicyVersion: 2,
+    verificationPolicyVersion: 3,
     revalidationDueAt:
       NOW + COMMUNITY_OFFICIAL_AUTOMATED_REVALIDATION_INTERVAL_MS,
     verificationExpiresAt: null,
