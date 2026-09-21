@@ -84,9 +84,29 @@ try {
   process.exit(1);
 }
 
+const forbiddenLegacyTriggerExports = [
+  'syncCommunityFeedRealtime',
+  'reconcileCommunityMembershipNotifications',
+  'syncCommunityProfileMembershipIndex',
+];
+
 const missingExports = requiredExports.filter(
   (exportName) => typeof compiledFunctions?.[exportName] !== 'function'
 );
+
+const leakedLegacyTriggerExports = forbiddenLegacyTriggerExports.filter(
+  (exportName) => typeof compiledFunctions?.[exportName] === 'function'
+);
+
+if (leakedLegacyTriggerExports.length > 0) {
+  console.error(
+    '[functions:exports] Exports legados de trigger não podem voltar ao root:'
+  );
+  for (const exportName of leakedLegacyTriggerExports) {
+    console.error(`- ${exportName}`);
+  }
+  process.exit(1);
+}
 
 if (missingExports.length > 0) {
   console.error('[functions:exports] Exports públicos ausentes no artefato compilado:');
