@@ -15,6 +15,9 @@ import {
   COMMUNITY_DISCOVERY_RANKING_MODE,
   COMMUNITY_DISCOVERY_SCORE_VERSION,
 } from './community-ranking.policy';
+import {
+  isCommunityRankingV3ProductionEvidenceReady,
+} from './community-ranking-v3-promotion-evidence.policy';
 
 export const COMMUNITY_DISCOVERY_V3_RANKING_MODE =
   `score_v${COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION}` as const;
@@ -35,7 +38,8 @@ export type CommunityDiscoveryRankingFallbackReason =
   | 'score_version_mismatch'
   | 'candidate_index_not_ready'
   | 'candidate_runtime_not_ready'
-  | 'candidate_shadow_acceptance_not_ready';
+  | 'candidate_shadow_acceptance_not_ready'
+  | 'candidate_real_data_not_ready';
 
 export interface CommunityDiscoveryRankingModeDecision {
   requestedMode: CommunityDiscoveryRankingMode;
@@ -191,6 +195,15 @@ export function resolveCommunityDiscoveryRankingMode(
     return fallbackDecision(
       requestedMode,
       'candidate_shadow_acceptance_not_ready',
+      config,
+      runtime
+    );
+  }
+
+  if (!isCommunityRankingV3ProductionEvidenceReady(shadowRuntime)) {
+    return fallbackDecision(
+      requestedMode,
+      'candidate_real_data_not_ready',
       config,
       runtime
     );
