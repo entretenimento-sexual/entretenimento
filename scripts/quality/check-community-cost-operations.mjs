@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
 const contractPath = path.join(root, 'ops', 'monitoring', 'community-cost', 'contract.json');
@@ -33,6 +34,18 @@ const boostCalibrationPath = path.join(
   'community-boost',
   'community-boost-cost-calibration.policy.ts'
 );
+const applyMonitoringPath = path.join(
+  root,
+  'scripts',
+  'admin',
+  'apply-community-cost-monitoring.mjs'
+);
+const captureBaselinePath = path.join(
+  root,
+  'scripts',
+  'admin',
+  'capture-community-cost-baseline.mjs'
+);
 
 for (const file of [
   contractPath,
@@ -40,6 +53,8 @@ for (const file of [
   baselinePath,
   businessCalibrationPath,
   boostCalibrationPath,
+  applyMonitoringPath,
+  captureBaselinePath,
 ]) {
   if (!fs.existsSync(file)) {
     throw new Error('Community cost operations file missing: ' + file);
@@ -54,6 +69,52 @@ const boostSource = fs.readFileSync(boostCalibrationPath, 'utf8');
 
 if (contract.version !== 1 || !Array.isArray(contract.metrics)) {
   throw new Error('Community cost monitoring contract version/metrics invalid.');
+}
+
+if (
+  contract.baseline?.source !== 'cloud_logging_runtime_events'
+  || contract.baseline?.environment !== 'production'
+  || contract.baseline?.minimumWindowDays !== 14
+) {
+  throw new Error(
+    'Real baseline contract must require 14 production days from runtime logs.'
+  );
+}
+
+for (const metric of contract.metrics) {
+  if (!metric.valuePath || !metric.metricName || !metric.sampleMetricName) {
+    throw new Error(
+      'Monitoring metric missing extraction/metric identifiers: ' + metric.key
+    );
+  }
+
+  if (metric.aggregation === 'p95') {
+    if (
+      metric.aligner !== 'ALIGN_PERCENTILE_95'
+      || metric.reducer !== 'REDUCE_PERCENTILE_95'
+      || metric.alertStrategy !== 'distribution_percentile_95'
+    ) {
+      throw new Error('Invalid p95 distribution strategy: ' + metric.key);
+    }
+  } else if (metric.aggregation === 'mean') {
+    if (
+      metric.aligner !== 'ALIGN_SUM'
+      || metric.reducer !== 'REDUCE_MEAN'
+    ) {
+      throw new Error('Invalid mean distribution strategy: ' + metric.key);
+    }
+  } else if (metric.aggregation === 'max') {
+    if (
+      metric.aligner !== 'ALIGN_SUM'
+      || metric.reducer !== 'REDUCE_SUM'
+      || metric.alertStrategy !== 'exact_breach_counter'
+      || metric.chartPlotType !== 'HEATMAP'
+    ) {
+      throw new Error('Invalid exact-max monitoring strategy: ' + metric.key);
+    }
+  } else {
+    throw new Error('Unsupported cost aggregation: ' + metric.aggregation);
+  }
 }
 
 const keys = contract.metrics.map((metric) => metric.key);
@@ -133,6 +194,40 @@ for (const required of [
   }
 }
 
+for (const script of [applyMonitoringPath, captureBaselinePath]) {
+  const syntax = spawnSync(process.execPath, ['--check', script], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  if (syntax.status !== 0) {
+    throw new Error(
+      'Operational cost script syntax failed: '
+      + script
+      + '\n'
+      + (syntax.stderr || syntax.stdout || '')
+    );
+  }
+}
+
+const dryRun = spawnSync(
+  process.execPath,
+  [
+    applyMonitoringPath,
+    '--project=demo-community-cost',
+    '--dry-run',
+  ],
+  {
+    cwd: root,
+    encoding: 'utf8',
+  }
+);
+if (dryRun.status !== 0) {
+  throw new Error(
+    'Monitoring provisioning dry-run failed:\n'
+    + (dryRun.stderr || dryRun.stdout || '')
+  );
+}
+
 console.log(
-  '[community-cost-operations] OK: monitoring, real baseline and commercial calibration gates are aligned.'
+  '[community-cost-operations] OK: monitoring, exact production baseline and commercial calibration gates are aligned.'
 );
