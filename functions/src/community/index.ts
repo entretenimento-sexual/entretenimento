@@ -152,7 +152,10 @@ export {
   syncCommunityOfficialAssociationLifecycle,
 } from './sync-community-official-association-lifecycle.trigger';
 export { syncCommunityFeedActivity } from './sync-community-feed-activity.trigger';
-export { syncCommunityFeedRealtime } from './sync-community-feed-realtime.trigger';
+// Production still has a legacy HTTPS function under the old export name.
+export {
+  syncCommunityFeedRealtime as syncCommunityFeedRealtimeTrigger,
+} from './sync-community-feed-realtime.trigger';
 export {
   syncCommunityHighlightCommunity,
 } from './sync-community-highlight-community.trigger';
@@ -162,8 +165,9 @@ export {
 export {
   syncCommunityMembershipActivity,
 } from './sync-community-membership-activity.trigger';
+// Production still has a legacy HTTPS function under the old export name.
 export {
-  reconcileCommunityMembershipNotifications,
+  reconcileCommunityMembershipNotifications as reconcileCommunityMembershipNotificationsTrigger,
 } from './reconcile-community-membership-notifications.trigger';
 export {
   syncCommunityNotificationSummary,
@@ -173,7 +177,8 @@ export {
   syncCommunityRankingFromDiscovery,
 } from './sync-community-ranking.trigger';
 export { syncCommunityUserIndex } from './sync-community-user-index.trigger';
+// Production still has a legacy HTTPS function under the old export name.
 export {
-  syncCommunityProfileMembershipIndex,
+  syncCommunityProfileMembershipIndex as syncCommunityProfileMembershipIndexTrigger,
 } from './sync-community-profile-membership-index.trigger';
 export { syncVenuePublicLocation } from './sync-venue-public-location.trigger';
