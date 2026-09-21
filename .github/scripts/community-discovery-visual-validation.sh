@@ -70,6 +70,7 @@ run_checked "$OUT/explore/desktop/metrics.log" "async (page) => {
       dismissMinHeight: dismissButtons.length
         ? Math.min(...dismissButtons.map((button) => button.getBoundingClientRect().height))
         : 0,
+      sponsoredDismissCount: document.querySelectorAll('[data-sponsored-dismiss="true"]').length,
       dismissOverlapsCards,
     };
   });
@@ -86,6 +87,7 @@ run_checked "$OUT/explore/desktop/metrics.log" "async (page) => {
     || metrics.filterChipCount < 6
     || metrics.createHeight < 44
     || metrics.dismissMinHeight < 44
+    || metrics.sponsoredDismissCount !== 1
     || metrics.dismissOverlapsCards
   ) {
     throw new Error('Community discovery desktop validation failed: ' + JSON.stringify(metrics));
@@ -95,6 +97,24 @@ run_checked "$OUT/explore/desktop/metrics.log" "async (page) => {
 playwright-cli snapshot --filename="$OUT/explore/desktop/accessibility.yml"
 playwright-cli screenshot --filename="$OUT/explore/desktop/viewport.png"
 playwright-cli screenshot --full-page --filename="$OUT/explore/desktop/full-page.png"
+
+run_checked "$OUT/explore/desktop/sponsored-dismiss.log" "async (page) => {
+  const dismiss = page.locator('[data-sponsored-dismiss=true]');
+  await dismiss.click();
+  await page.waitForTimeout(100);
+
+  const sponsoredCount = await page.locator('[data-sponsored=true]').count();
+  const feedbackCount = await page.locator('.community-discovery__session-feedback').count();
+
+  if (sponsoredCount !== 0 || feedbackCount !== 1) {
+    throw new Error('Sponsored dismiss validation failed: ' + JSON.stringify({
+      sponsoredCount,
+      feedbackCount,
+    }));
+  }
+
+  return { sponsoredCount, feedbackCount };
+}"
 
 playwright-cli resize 390 844
 playwright-cli reload
@@ -181,6 +201,7 @@ run_checked "$OUT/explore/mobile/metrics.log" "async (page) => {
         ?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
       officialBadgeCount: document.querySelectorAll('.community-card .community-official-badge').length,
       dismissCount: document.querySelectorAll('.community-card__dismiss').length,
+      sponsoredDismissCount: document.querySelectorAll('[data-sponsored-dismiss="true"]').length,
       createHeight: create?.getBoundingClientRect().height ?? 0,
       overflowElements,
     };
@@ -198,7 +219,8 @@ run_checked "$OUT/explore/mobile/metrics.log" "async (page) => {
     || metrics.sponsoredCardIndex !== 3
     || metrics.sponsoredDisclosure !== 'Patrocinado'
     || metrics.officialBadgeCount < 3
-    || metrics.dismissCount !== 6
+    || metrics.dismissCount !== 7
+    || metrics.sponsoredDismissCount !== 1
     || metrics.createHeight < 44
   ) {
     throw new Error('Community discovery mobile validation failed: ' + JSON.stringify(metrics));

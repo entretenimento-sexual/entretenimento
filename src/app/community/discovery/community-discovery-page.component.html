@@ -562,6 +562,21 @@
                     </div>
                   </div>
                 </a>
+
+                <button
+                  class="community-card__dismiss community-card__sponsored-dismiss"
+                  type="button"
+                  data-sponsored-dismiss="true"
+                  [attr.aria-label]="
+                    'Não tenho interesse no patrocinado '
+                    + placement.community.name
+                    + ' nesta sessão'
+                  "
+                  (click)="hideSponsoredCommunity(placement, $event)"
+                >
+                  <i class="fas fa-xmark" aria-hidden="true"></i>
+                  <span>Não tenho interesse</span>
+                </button>
               </li>
             }
           }

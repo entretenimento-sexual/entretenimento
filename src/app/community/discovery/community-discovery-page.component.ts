@@ -576,6 +576,31 @@ export class CommunityDiscoveryPageComponent {
       .subscribe();
   }
 
+  hideSponsoredCommunity(
+    placement: CommunitySponsoredPlacement,
+    event: Event
+  ): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.discoveryMode !== 'explore') return;
+
+    const communityId = String(
+      placement.community.communityId ?? ''
+    ).trim();
+    if (!communityId) return;
+
+    this.sessionBehavior.hideCommunity(communityId);
+    this.rememberSponsoredCommunity(
+      this.communityBoostRotationContext(this.selectedTagId()),
+      communityId
+    );
+    this.hiddenCommunityFeedback.set({
+      communityId,
+      name: placement.community.name,
+    });
+    this.sponsoredPlacement.set(null);
+  }
+
   sponsoredPlacementAfter(
     itemIndex: number,
     organicCardCount: number
