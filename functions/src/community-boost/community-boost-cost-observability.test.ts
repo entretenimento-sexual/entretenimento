@@ -16,8 +16,9 @@ test('Boost publica baseline operacional sem entrar no ranking orgânico', () =>
 
   for (const required of [
     'community_boost_placement_cost_observed',
-    'readsProxyPerServedPlacement',
-    'writesProxyPerServedPlacement',
+    'readsProxy',
+    'writesProxy',
+    'placementServed',
     'campaignQueryReadsProxy',
     'sharedControlReads',
     'sharedControlWrites',
