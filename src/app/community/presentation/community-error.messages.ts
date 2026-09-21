@@ -53,6 +53,22 @@ export const COMMUNITY_OFFICIAL_CREATE_REASON_MESSAGES: CommunityErrorMessageMap
       'Este tipo de alvo oficial ainda não pode criar uma Comunidade.',
   });
 
+export const COMMUNITY_OFFICIAL_SPACE_CREATE_REASON_MESSAGES:
+  CommunityErrorMessageMap = Object.freeze({
+    official_space_verification_required:
+      'O cadastro exige uma organização e um responsável comercial verificados.',
+    official_space_grant_inactive:
+      'A autoridade comercial está inativa. Regularize-a para criar outro Espaço Oficial.',
+    official_space_entitlement_required:
+      'A capacidade Business/Official para criar Espaços ainda não foi liberada.',
+    official_space_entitlement_inactive:
+      'A capacidade Business/Official para criar Espaços precisa ser renovada.',
+    official_space_entitlement_mismatch:
+      'A capacidade Business/Official não corresponde à organização responsável.',
+    official_space_creation_limit_reached:
+      'A organização atingiu a quantidade de Espaços Oficiais concedida.',
+  });
+
 export const COMMUNITY_CREATE_CODE_MESSAGES: CommunityErrorMessageMap =
   Object.freeze({
     'already-exists':
