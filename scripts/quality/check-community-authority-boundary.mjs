@@ -65,6 +65,24 @@ const OFFICIAL_AUTHORITY_CONTEXT = path.normalize(
 const OFFICIAL_CREATION_ENTITLEMENT_SERVICE = path.normalize(
   'functions/src/community/community-official-creation-entitlement.service.ts'
 );
+const BUSINESS_OFFICIAL_ENTITLEMENT_POLICY = path.normalize(
+  'functions/src/business-official/business-official-entitlement.policy.ts'
+);
+const BUSINESS_OFFICIAL_MANAGE_HANDLER = path.normalize(
+  'functions/src/business-official/manage-business-official-entitlement.handler.ts'
+);
+const OFFICIAL_SPACE_AUTHORITY_POLICY = path.normalize(
+  'functions/src/community/community-official-space.policy.ts'
+);
+const OFFICIAL_ASSOCIATION_MODEL = path.normalize(
+  'functions/src/community/community-official-association.model.ts'
+);
+const VENUE_CREATE_HANDLER = path.normalize(
+  'functions/src/community/create-venue-community.handler.ts'
+);
+const COMMUNITY_SETTINGS_HANDLER = path.normalize(
+  'functions/src/community/update-community-settings.handler.ts'
+);
 const COMMUNITY_CLAIM_HANDLER = path.normalize(
   'functions/src/community/community-official-claim.handler.ts'
 );
@@ -676,6 +694,30 @@ function validateOfficialCreationBoundary(architectureViolations) {
     OFFICIAL_CREATION_ENTITLEMENT_SERVICE,
     architectureViolations
   );
+  const businessOfficialSource = readRequiredSource(
+    BUSINESS_OFFICIAL_ENTITLEMENT_POLICY,
+    architectureViolations
+  );
+  const businessOfficialManageSource = readRequiredSource(
+    BUSINESS_OFFICIAL_MANAGE_HANDLER,
+    architectureViolations
+  );
+  const officialSpaceAuthoritySource = readRequiredSource(
+    OFFICIAL_SPACE_AUTHORITY_POLICY,
+    architectureViolations
+  );
+  const officialAssociationSource = readRequiredSource(
+    OFFICIAL_ASSOCIATION_MODEL,
+    architectureViolations
+  );
+  const venueCreateSource = readRequiredSource(
+    VENUE_CREATE_HANDLER,
+    architectureViolations
+  );
+  const communitySettingsSource = readRequiredSource(
+    COMMUNITY_SETTINGS_HANDLER,
+    architectureViolations
+  );
   const capacitySource = readRequiredSource(
     COMMUNITY_CAPACITY_SERVICE,
     architectureViolations
@@ -718,13 +760,13 @@ function validateOfficialCreationBoundary(architectureViolations) {
 
   if (entitlementSource) {
     for (const required of [
-      "db.collection('entitlements')",
-      'evaluateOfficialCommunityCreationEntitlement',
-      'official_community_creation:',
+      'resolveBusinessOfficialEntitlementInTransaction',
+      'officialCommunityCreation',
+      'officialVenueCreation',
     ]) {
       if (!entitlementSource.includes(required)) {
         architectureViolations.push(
-          `${OFFICIAL_CREATION_ENTITLEMENT_SERVICE} (contrato de entitlement oficial ausente: ${required})`
+          `${OFFICIAL_CREATION_ENTITLEMENT_SERVICE} (adapter Business/Official incompleto: ${required})`
         );
       }
     }
@@ -732,10 +774,149 @@ function validateOfficialCreationBoundary(architectureViolations) {
     for (const forbidden of [
       'platform_subscription_',
       'evaluatePlatformSubscriptionEntitlement',
+      'community_official_associations',
     ]) {
       if (entitlementSource.includes(forbidden)) {
         architectureViolations.push(
-          `${OFFICIAL_CREATION_ENTITLEMENT_SERVICE} (entitlement oficial não pode herdar assinatura pessoal: ${forbidden})`
+          `${OFFICIAL_CREATION_ENTITLEMENT_SERVICE} (entitlement não pode herdar assinatura pessoal nem associação oficial: ${forbidden})`
+        );
+      }
+    }
+  }
+
+  if (businessOfficialSource) {
+    for (const required of [
+      "BUSINESS_OFFICIAL_ENTITLEMENT_SCOPE = 'business_official'",
+      'officialCommunityCreation',
+      'officialVenueCreation',
+      'buildBusinessOfficialEntitlementId',
+      'FORBIDDEN_OFFER_FIELDS',
+    ]) {
+      if (!businessOfficialSource.includes(required)) {
+        architectureViolations.push(
+          `${BUSINESS_OFFICIAL_ENTITLEMENT_POLICY} (fonte canônica Business/Official incompleta: ${required})`
+        );
+      }
+    }
+
+    for (const forbidden of [
+      'community_official_associations',
+      'platform_subscription_',
+    ]) {
+      if (businessOfficialSource.includes(forbidden)) {
+        architectureViolations.push(
+          `${BUSINESS_OFFICIAL_ENTITLEMENT_POLICY} (entitlement Business/Official acoplado a fonte indevida: ${forbidden})`
+        );
+      }
+    }
+  }
+
+  if (businessOfficialManageSource) {
+    for (const required of [
+      "db.collection('entitlements')",
+      'business_official_entitlement_audit',
+      'buildBusinessOfficialEntitlementDocument',
+      'assertRecentAuthentication',
+    ]) {
+      if (!businessOfficialManageSource.includes(required)) {
+        architectureViolations.push(
+          `${BUSINESS_OFFICIAL_MANAGE_HANDLER} (writer canônico Business/Official incompleto: ${required})`
+        );
+      }
+    }
+
+    for (const forbidden of [
+      'community_official_associations',
+      'planKey',
+      'amountCents',
+      'priceCents',
+    ]) {
+      if (businessOfficialManageSource.includes(forbidden)) {
+        architectureViolations.push(
+          `${BUSINESS_OFFICIAL_MANAGE_HANDLER} (writer de entitlement acoplado a autoridade/oferta: ${forbidden})`
+        );
+      }
+    }
+  }
+
+  if (officialSpaceAuthoritySource) {
+    for (const required of [
+      "scope'] !== 'verified_commercial_authority'",
+      'containsCommercialTerms',
+    ]) {
+      if (!officialSpaceAuthoritySource.includes(required)) {
+        architectureViolations.push(
+          `${OFFICIAL_SPACE_AUTHORITY_POLICY} (fronteira de autoridade comercial incompleta: ${required})`
+        );
+      }
+    }
+
+    for (const forbidden of [
+      'maxOfficialSpaces:',
+      'memberLimit:',
+      'planKey:',
+      'amountCents:',
+    ]) {
+      if (officialSpaceAuthoritySource.includes(forbidden)) {
+        architectureViolations.push(
+          `${OFFICIAL_SPACE_AUTHORITY_POLICY} (autoridade não pode conceder capacidade/preço/plano: ${forbidden})`
+        );
+      }
+    }
+  }
+
+  if (officialAssociationSource) {
+    for (const forbidden of [
+      'memberLimit:',
+      'maxOfficialSpaces:',
+      'maxOfficialCommunities:',
+      'planKey:',
+      'amountCents:',
+      'priceCents:',
+    ]) {
+      if (officialAssociationSource.includes(forbidden)) {
+        architectureViolations.push(
+          `${OFFICIAL_ASSOCIATION_MODEL} (associação oficial não pode conter capacidade/preço/plano: ${forbidden})`
+        );
+      }
+    }
+  }
+
+  if (venueCreateSource) {
+    for (const required of [
+      'resolveOfficialVenueCreationEntitlementInTransaction',
+      'grantedMemberLimit',
+      'business_official_entitlement_usage_audit',
+    ]) {
+      if (!venueCreateSource.includes(required)) {
+        architectureViolations.push(
+          `${VENUE_CREATE_HANDLER} (criação de Local não usa entitlement Business/Official canônico: ${required})`
+        );
+      }
+    }
+
+    for (const forbidden of [
+      'officialSpaceDecision.memberLimit',
+      'officialSpaceDecision.maxOfficialSpaces',
+    ]) {
+      if (venueCreateSource.includes(forbidden)) {
+        architectureViolations.push(
+          `${VENUE_CREATE_HANDLER} (autoridade comercial ainda concede capacidade: ${forbidden})`
+        );
+      }
+    }
+  }
+
+  if (communitySettingsSource) {
+    for (const required of [
+      'isOfficialCommunityCapacity',
+      'resolveOfficialCommunityCreationEntitlementInTransaction',
+      'official_capacity_entitlement_exceeded',
+      'business_official_entitlement_usage_audit',
+    ]) {
+      if (!communitySettingsSource.includes(required)) {
+        architectureViolations.push(
+          `${COMMUNITY_SETTINGS_HANDLER} (mutação de capacidade Official fora do entitlement canônico: ${required})`
         );
       }
     }

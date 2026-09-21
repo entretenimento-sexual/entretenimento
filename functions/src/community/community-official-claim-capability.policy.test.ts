@@ -10,12 +10,10 @@ const NOW = 1_800_000_000_000;
 function activeGrant() {
   return {
     holderUid: 'user-1',
-    scope: 'official_space_creation',
+    scope: 'verified_commercial_authority',
     verificationStatus: 'verified',
-    policyVersion: 2,
+    policyVersion: 3,
     organizationId: 'organization-1',
-    maxOfficialSpaces: 10,
-    memberLimit: 250,
     active: true,
     startsAt: NOW - 1_000,
     endsAt: NOW + 10_000,

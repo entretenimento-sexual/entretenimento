@@ -153,6 +153,9 @@ export const createOfficialCommunity = onCall<CreateOfficialCommunityRequest>(
         .doc(actorUid)
         .collection('items')
         .doc(command.communityId);
+      const entitlementUsageAuditRef = db
+        .collection('business_official_entitlement_usage_audit')
+        .doc(`official-create-${command.requestId}`);
 
       const [
         requestSnapshot,
@@ -546,15 +549,26 @@ export const createOfficialCommunity = onCall<CreateOfficialCommunityRequest>(
           authorityRole: authority.authorityRole,
           verificationSource: verification.verificationSource,
           verificationPolicyVersion: verification.verificationPolicyVersion,
-          capacityEntitlementId: officialCapability.entitlementId,
-          capacityEntitlementPolicyVersion: officialCapability.policyVersion,
-          grantedMemberLimit,
-          maxOfficialCommunities: officialCapability.maxOfficialCommunities,
           previousStatus: existingAssociation?.['status'] ?? null,
           nextStatus: 'verified',
           createdAt: now,
         }
       );
+
+      transaction.create(entitlementUsageAuditRef, {
+        action: 'business_official_entitlement_consumed',
+        entitlementId: officialCapability.entitlementId,
+        entitlementPolicyVersion: officialCapability.policyVersion,
+        capability: 'officialCommunityCreation',
+        subjectType: officialCapability.subjectType,
+        subjectId: officialCapability.subjectId,
+        communityId: command.communityId,
+        target: command.target,
+        grantedMemberLimit,
+        maxOfficialCommunities: officialCapability.maxOfficialCommunities,
+        actorUid,
+        createdAt: now,
+      });
 
       transaction.create(
         db.collection('community_official_claim_audit').doc(),

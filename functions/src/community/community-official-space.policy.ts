@@ -1,53 +1,44 @@
 // -----------------------------------------------------------------------------
-// COMMUNITY OFFICIAL SPACE POLICY
+// COMMUNITY OFFICIAL SPACE AUTHORITY POLICY
 // -----------------------------------------------------------------------------
-// O cadastro comercial é liberado somente por uma concessão backend-only
-// vinculada ao responsável verificado. A organização, e não o plano pessoal,
-// determina a quantidade de Espaços Oficiais que podem ser criados.
+// Compatibilidade de nome: esta policy valida somente autoridade comercial.
+// Capacidade Business/Official pertence exclusivamente ao entitlement canônico.
 // -----------------------------------------------------------------------------
 
 import {
   evaluateVerifiedCommercialAuthority,
 } from '../authority/verified-commercial-authority.policy';
-import {
-  OFFICIAL_SPACE_MEMBER_LIMIT,
-  normalizeCommunityMemberLimit,
-  type CommunityMemberLimit,
-} from './community-capacity.policy';
-import { COMMUNITY_PRODUCT_LIMITS } from './community-product-limits.config';
 
-export const OFFICIAL_SPACE_CREATION_POLICY_VERSION = 2;
-export const MAX_OFFICIAL_SPACES_PER_GRANT =
-  COMMUNITY_PRODUCT_LIMITS.maxOfficialSpacesPerGrant;
+export const OFFICIAL_SPACE_CREATION_POLICY_VERSION = 3;
 
 export interface OfficialSpaceCreationDecision {
   allowed: boolean;
   organizationId: string | null;
-  maxOfficialSpaces: number | null;
-  memberLimit: typeof OFFICIAL_SPACE_MEMBER_LIMIT;
   denialReason: 'verification_required' | 'grant_inactive' | null;
 }
 
-function normalizeMaximum(value: unknown): number | null {
-  return typeof value === 'number'
-    && Number.isInteger(value)
-    && value >= 1
-    && value <= MAX_OFFICIAL_SPACES_PER_GRANT
-    ? value
-    : null;
-}
-
-function normalizeGrantedMemberLimit(
-  value: unknown
-): CommunityMemberLimit | null {
-  const memberLimit = normalizeCommunityMemberLimit(value);
-  return memberLimit !== null && memberLimit <= OFFICIAL_SPACE_MEMBER_LIMIT
-    ? memberLimit
-    : null;
-}
+const FORBIDDEN_COMMERCIAL_FIELDS = Object.freeze([
+  'amountCents',
+  'maxOfficialCommunities',
+  'maxOfficialSpaces',
+  'memberLimit',
+  'plan',
+  'planId',
+  'planKey',
+  'price',
+  'priceCents',
+] as const);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function containsCommercialTerms(
+  grant: Readonly<Record<string, unknown>>
+): boolean {
+  return FORBIDDEN_COMMERCIAL_FIELDS.some(
+    (field) => Object.hasOwn(grant, field)
+  );
 }
 
 export function evaluateOfficialSpaceCreationGrant(input: {
@@ -57,13 +48,31 @@ export function evaluateOfficialSpaceCreationGrant(input: {
   now?: number;
 }): Readonly<OfficialSpaceCreationDecision> {
   if (input.actorUserRole === 'admin') {
-    return {
+    return Object.freeze({
       allowed: true,
       organizationId: 'platform-administration',
-      maxOfficialSpaces: null,
-      memberLimit: OFFICIAL_SPACE_MEMBER_LIMIT,
       denialReason: null,
-    };
+    });
+  }
+
+  if (!isRecord(input.rawGrant)) {
+    return Object.freeze({
+      allowed: false,
+      organizationId: null,
+      denialReason: 'verification_required',
+    });
+  }
+
+  if (
+    input.rawGrant['scope'] !== 'verified_commercial_authority'
+    || input.rawGrant['policyVersion'] !== OFFICIAL_SPACE_CREATION_POLICY_VERSION
+    || containsCommercialTerms(input.rawGrant)
+  ) {
+    return Object.freeze({
+      allowed: false,
+      organizationId: null,
+      denialReason: 'verification_required',
+    });
   }
 
   const commercialAuthority = evaluateVerifiedCommercialAuthority({
@@ -74,39 +83,16 @@ export function evaluateOfficialSpaceCreationGrant(input: {
 
   if (!commercialAuthority.allowed) {
     const inactive = commercialAuthority.denialReason === 'authority_inactive';
-    return {
+    return Object.freeze({
       allowed: false,
       organizationId: inactive ? commercialAuthority.organizationId : null,
-      maxOfficialSpaces: null,
-      memberLimit: OFFICIAL_SPACE_MEMBER_LIMIT,
       denialReason: inactive ? 'grant_inactive' : 'verification_required',
-    };
+    });
   }
 
-  const grant = isRecord(input.rawGrant) ? input.rawGrant : {};
-  const maxOfficialSpaces = normalizeMaximum(grant['maxOfficialSpaces']);
-  const memberLimit = normalizeGrantedMemberLimit(grant['memberLimit']);
-  const hasOfficialSpaceCapability =
-    grant['scope'] === 'official_space_creation'
-    && grant['policyVersion'] === OFFICIAL_SPACE_CREATION_POLICY_VERSION
-    && maxOfficialSpaces !== null
-    && memberLimit !== null;
-
-  if (!hasOfficialSpaceCapability) {
-    return {
-      allowed: false,
-      organizationId: null,
-      maxOfficialSpaces: null,
-      memberLimit: OFFICIAL_SPACE_MEMBER_LIMIT,
-      denialReason: 'verification_required',
-    };
-  }
-
-  return {
+  return Object.freeze({
     allowed: true,
     organizationId: commercialAuthority.organizationId,
-    maxOfficialSpaces,
-    memberLimit,
     denialReason: null,
-  };
+  });
 }

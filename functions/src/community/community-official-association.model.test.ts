@@ -47,6 +47,32 @@ test('cria associação privada de Local sem transformar organização em alvo p
   });
 });
 
+test('vínculo oficial não contém preço, plano ou capacidade comercial', () => {
+  const association = buildVerifiedVenueOfficialAssociation({
+    venueId: 'venue-123',
+    communityId: 'community-123',
+    sponsorOrganizationId: 'organization-1',
+    holderUid: 'user-1',
+    verifiedAt: 1_700_000_000_000,
+    verificationPolicyVersion: 3,
+  });
+
+  assert.ok(association);
+  for (const forbiddenField of [
+    'amountCents',
+    'memberLimit',
+    'maxOfficialCommunities',
+    'maxOfficialSpaces',
+    'plan',
+    'planId',
+    'planKey',
+    'price',
+    'priceCents',
+  ]) {
+    assert.equal(forbiddenField in association, false);
+  }
+});
+
 test('expõe somente alvo e selo verificado na projeção pública', () => {
   const association = buildVerifiedVenueOfficialAssociation({
     venueId: 'venue-123',

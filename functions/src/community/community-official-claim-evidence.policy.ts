@@ -356,12 +356,10 @@ export function evaluateEventOfficialClaimAuthority(input: {
 }
 
 /**
- * Valida o único source de autoridade comercial já canônico no projeto:
- * `official_space_creation_grants/{holderUid}`.
- *
- * A capability de Espaço Oficial continua sendo uma regra de Comunidades. A
- * autoridade atual sobre o Local, porém, é resolvida exclusivamente pelo domínio
- * canônico de autoridade para impedir drift entre capability, submit e revisão.
+ * Valida a prova backend-only de autoridade comercial do Local.
+ * `official_space_creation_grants/{holderUid}` é um nome legado de coleção:
+ * o documento contém somente autoridade/verificação. Capacidade de criação,
+ * quotas, preço e plano pertencem ao entitlement Business/Official separado.
  */
 export function evaluateVenueOfficialClaimAuthorityGrant(input: {
   readonly claimantUid: string;

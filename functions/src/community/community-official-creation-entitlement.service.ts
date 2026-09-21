@@ -2,23 +2,49 @@
 // -----------------------------------------------------------------------------
 // OFFICIAL COMMUNITY CREATION ENTITLEMENT SERVICE
 // -----------------------------------------------------------------------------
-// Resolve, dentro da mesma transação da criação, a capacidade comercial
-// backend-only. A autoridade sobre Perfil/Organização/Local/Evento é resolvida
-// antes por sua fonte canônica; este serviço decide apenas a capacidade do
-// produto e a eventual quota de quantidade.
+// Resolve capacidades de Community exclusivamente a partir do entitlement
+// Business/Official canônico. Associação/verificação oficial não concede
+// capacidade comercial e assinatura pessoal não participa.
 // -----------------------------------------------------------------------------
 
 import type { Transaction } from 'firebase-admin/firestore';
 
-import { db } from '../firebaseApp';
 import {
-  evaluateOfficialCommunityCreationEntitlement,
-  type OfficialCommunityCreationCapability,
-  type OfficialCommunityCreationEntitlementSubjectType,
-} from './community-official-creation-entitlement.policy';
+  buildBusinessOfficialEntitlementId,
+  type BusinessOfficialEntitlementSubjectType,
+} from '../business-official/business-official-entitlement.policy';
+import {
+  resolveBusinessOfficialEntitlementInTransaction,
+} from '../business-official/business-official-entitlement.service';
+import type { CommunityMemberLimit } from './community-capacity.policy';
 
-export interface ResolvedOfficialCommunityCreationCapability
-  extends OfficialCommunityCreationCapability {
+export interface ResolvedOfficialCommunityCreationCapability {
+  readonly allowed: boolean;
+  readonly subjectType: BusinessOfficialEntitlementSubjectType | null;
+  readonly subjectId: string | null;
+  readonly memberLimit: CommunityMemberLimit | null;
+  readonly maxOfficialCommunities: number | null;
+  readonly policyVersion: number | null;
+  readonly denialReason:
+    | 'entitlement_required'
+    | 'entitlement_inactive'
+    | 'entitlement_mismatch'
+    | null;
+  readonly entitlementId: string | null;
+}
+
+export interface ResolvedOfficialVenueCreationCapability {
+  readonly allowed: boolean;
+  readonly subjectType: 'organization' | null;
+  readonly subjectId: string | null;
+  readonly memberLimit: CommunityMemberLimit | null;
+  readonly maxOfficialSpaces: number | null;
+  readonly policyVersion: number | null;
+  readonly denialReason:
+    | 'entitlement_required'
+    | 'entitlement_inactive'
+    | 'entitlement_mismatch'
+    | null;
   readonly entitlementId: string | null;
 }
 
@@ -33,7 +59,7 @@ export function resolveOfficialCommunityCreationEntitlementSubject(input: {
   readonly actorUid: string;
   readonly sponsorOrganizationId: string | null;
 }): Readonly<{
-  subjectType: OfficialCommunityCreationEntitlementSubjectType;
+  subjectType: BusinessOfficialEntitlementSubjectType;
   subjectId: string;
 }> | null {
   const actorUid = cleanId(input.actorUid);
@@ -61,13 +87,31 @@ export function resolveOfficialCommunityCreationEntitlementSubject(input: {
 }
 
 export function buildOfficialCommunityCreationEntitlementId(input: {
-  readonly subjectType: OfficialCommunityCreationEntitlementSubjectType;
+  readonly subjectType: BusinessOfficialEntitlementSubjectType;
   readonly subjectId: string;
 }): string | null {
-  const subjectId = cleanId(input.subjectId);
-  return subjectId
-    ? `official_community_creation:${input.subjectType}:${subjectId}`
-    : null;
+  return buildBusinessOfficialEntitlementId(input);
+}
+
+function deniedCommunityCapability(input: {
+  readonly subjectType: BusinessOfficialEntitlementSubjectType | null;
+  readonly subjectId: string | null;
+  readonly entitlementId: string | null;
+  readonly denialReason:
+    | 'entitlement_required'
+    | 'entitlement_inactive'
+    | 'entitlement_mismatch';
+}): Readonly<ResolvedOfficialCommunityCreationCapability> {
+  return Object.freeze({
+    allowed: false,
+    subjectType: input.subjectType,
+    subjectId: input.subjectId,
+    memberLimit: null,
+    maxOfficialCommunities: null,
+    policyVersion: null,
+    denialReason: input.denialReason,
+    entitlementId: input.entitlementId,
+  });
 }
 
 export async function resolveOfficialCommunityCreationEntitlementInTransaction(
@@ -80,46 +124,115 @@ export async function resolveOfficialCommunityCreationEntitlementInTransaction(
 ): Promise<Readonly<ResolvedOfficialCommunityCreationCapability>> {
   const subject = resolveOfficialCommunityCreationEntitlementSubject(input);
   if (!subject) {
+    return deniedCommunityCapability({
+      subjectType: null,
+      subjectId: null,
+      entitlementId: null,
+      denialReason: 'entitlement_mismatch',
+    });
+  }
+
+  const entitlement = await resolveBusinessOfficialEntitlementInTransaction({
+    transaction: input.transaction,
+    subjectType: subject.subjectType,
+    subjectId: subject.subjectId,
+    now: input.now,
+  });
+
+  if (!entitlement.allowed) {
+    return deniedCommunityCapability({
+      subjectType: entitlement.subjectType,
+      subjectId: entitlement.subjectId,
+      entitlementId: entitlement.entitlementId,
+      denialReason: entitlement.denialReason ?? 'entitlement_required',
+    });
+  }
+
+  const capability = entitlement.capabilities?.officialCommunityCreation;
+  if (!capability) {
+    return deniedCommunityCapability({
+      subjectType: entitlement.subjectType,
+      subjectId: entitlement.subjectId,
+      entitlementId: entitlement.entitlementId,
+      denialReason: 'entitlement_required',
+    });
+  }
+
+  return Object.freeze({
+    allowed: true,
+    subjectType: entitlement.subjectType,
+    subjectId: entitlement.subjectId,
+    memberLimit: capability.memberLimit,
+    maxOfficialCommunities: capability.maxOwned,
+    policyVersion: entitlement.policyVersion,
+    denialReason: null,
+    entitlementId: entitlement.entitlementId,
+  });
+}
+
+export async function resolveOfficialVenueCreationEntitlementInTransaction(
+  input: {
+    readonly transaction: Transaction;
+    readonly organizationId: string;
+    readonly now: number;
+  }
+): Promise<Readonly<ResolvedOfficialVenueCreationCapability>> {
+  const organizationId = cleanId(input.organizationId);
+  if (!organizationId) {
     return Object.freeze({
       allowed: false,
       subjectType: null,
       subjectId: null,
       memberLimit: null,
-      maxOfficialCommunities: null,
+      maxOfficialSpaces: null,
       policyVersion: null,
       denialReason: 'entitlement_mismatch',
       entitlementId: null,
     });
   }
 
-  const entitlementId = buildOfficialCommunityCreationEntitlementId(subject);
-  if (!entitlementId) {
-    return Object.freeze({
-      allowed: false,
-      subjectType: subject.subjectType,
-      subjectId: subject.subjectId,
-      memberLimit: null,
-      maxOfficialCommunities: null,
-      policyVersion: null,
-      denialReason: 'entitlement_mismatch',
-      entitlementId: null,
-    });
-  }
-
-  const entitlementSnapshot = await input.transaction.get(
-    db.collection('entitlements').doc(entitlementId)
-  );
-  const capability = evaluateOfficialCommunityCreationEntitlement({
-    expectedSubjectType: subject.subjectType,
-    expectedSubjectId: subject.subjectId,
-    rawEntitlement: entitlementSnapshot.exists
-      ? entitlementSnapshot.data()
-      : null,
+  const entitlement = await resolveBusinessOfficialEntitlementInTransaction({
+    transaction: input.transaction,
+    subjectType: 'organization',
+    subjectId: organizationId,
     now: input.now,
   });
 
+  if (!entitlement.allowed) {
+    return Object.freeze({
+      allowed: false,
+      subjectType: 'organization',
+      subjectId: organizationId,
+      memberLimit: null,
+      maxOfficialSpaces: null,
+      policyVersion: null,
+      denialReason: entitlement.denialReason ?? 'entitlement_required',
+      entitlementId: entitlement.entitlementId,
+    });
+  }
+
+  const capability = entitlement.capabilities?.officialVenueCreation;
+  if (!capability) {
+    return Object.freeze({
+      allowed: false,
+      subjectType: 'organization',
+      subjectId: organizationId,
+      memberLimit: null,
+      maxOfficialSpaces: null,
+      policyVersion: entitlement.policyVersion,
+      denialReason: 'entitlement_required',
+      entitlementId: entitlement.entitlementId,
+    });
+  }
+
   return Object.freeze({
-    ...capability,
-    entitlementId,
+    allowed: true,
+    subjectType: 'organization',
+    subjectId: organizationId,
+    memberLimit: capability.memberLimit,
+    maxOfficialSpaces: capability.maxOwned,
+    policyVersion: entitlement.policyVersion,
+    denialReason: null,
+    entitlementId: entitlement.entitlementId,
   });
 }

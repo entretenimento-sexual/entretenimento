@@ -35,6 +35,7 @@ export {
   reconcileCommunityMemberCounts,
 } from './community/reconcile-community-member-counts.handler';
 export * from './payments';
+export * from './business-official';
 export * from './account_lifecycle';
 export * from './chat';
 export * from './community';

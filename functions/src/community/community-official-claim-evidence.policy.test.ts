@@ -14,14 +14,12 @@ function grant(overrides: Record<string, unknown> = {}): Record<string, unknown>
   return {
     holderUid: 'user-1',
     organizationId: 'org-1',
-    scope: 'official_space_creation',
+    scope: 'verified_commercial_authority',
     verificationStatus: 'verified',
     policyVersion: OFFICIAL_SPACE_CREATION_POLICY_VERSION,
     active: true,
     startsAt: NOW - 10_000,
     endsAt: NOW + 10_000,
-    maxOfficialSpaces: 5,
-    memberLimit: 250,
     ...overrides,
   };
 }

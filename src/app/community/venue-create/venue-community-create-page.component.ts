@@ -26,6 +26,9 @@ import {
   VenueCommunityCreateKind,
 } from '../data-access/venue-community-create.model';
 import { VenueCommunityRepository } from '../data-access/venue-community.repository';
+import {
+  COMMUNITY_OFFICIAL_SPACE_CREATE_REASON_MESSAGES,
+} from '../presentation/community-error.messages';
 
 type VenueCreateForm = FormGroup<{
   name: FormControl<string>;
@@ -37,22 +40,6 @@ type VenueCreateForm = FormGroup<{
   addressHint: FormControl<string>;
   joinPolicy: FormControl<VenueCommunityCreateJoinPolicy>;
 }>;
-
-const OFFICIAL_SPACE_REASON_MESSAGES: Readonly<Record<string, string>> =
-  Object.freeze({
-    official_space_verification_required:
-      'O cadastro exige uma organização e um responsável comercial verificados.',
-    official_space_grant_inactive:
-      'A autorização comercial está inativa. Regularize-a para criar outro Espaço Oficial.',
-    official_space_creation_limit_reached:
-      'A organização atingiu a quantidade de Espaços Oficiais contratada.',
-    account_restricted:
-      'Sua conta não pode cadastrar Espaços Oficiais neste momento.',
-    adult_access_required:
-      'Confirme o acesso adulto antes de cadastrar um Espaço Oficial.',
-    profile_incomplete:
-      'Complete seu perfil antes de cadastrar um Espaço Oficial.',
-  });
 
 @Component({
   selector: 'app-venue-community-create-page',
@@ -192,7 +179,7 @@ export class VenueCommunityCreatePageComponent {
       feature: 'community',
       operation: 'createVenueCommunity',
       fallbackMessage: 'Não foi possível cadastrar o Espaço Oficial agora.',
-      reasonMessages: OFFICIAL_SPACE_REASON_MESSAGES,
+      reasonMessages: COMMUNITY_OFFICIAL_SPACE_CREATE_REASON_MESSAGES,
       codeMessages: {
         'permission-denied':
           'Sua conta não possui autorização para cadastrar este Espaço Oficial.',

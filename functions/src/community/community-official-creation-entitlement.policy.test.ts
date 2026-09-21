@@ -12,12 +12,17 @@ const NOW = 1_800_000_000_000;
 
 function entitlement(overrides: Record<string, unknown> = {}) {
   return {
-    scope: 'official_community_creation',
+    scope: 'business_official',
     policyVersion: OFFICIAL_COMMUNITY_CREATION_ENTITLEMENT_POLICY_VERSION,
     subjectType: 'organization',
     subjectId: 'organization-1',
-    memberLimit: 250,
-    maxOfficialCommunities: 3,
+    capabilities: {
+      officialCommunityCreation: {
+        memberLimit: 250,
+        maxOwned: 3,
+      },
+      officialVenueCreation: null,
+    },
     active: true,
     startsAt: NOW - 1_000,
     endsAt: NOW + 10_000,
@@ -25,7 +30,7 @@ function entitlement(overrides: Record<string, unknown> = {}) {
   };
 }
 
-test('resolve capacidade Official somente a partir do entitlement explícito', () => {
+test('resolve capacidade Official somente a partir do entitlement Business/Official', () => {
   assert.deepEqual(
     evaluateOfficialCommunityCreationEntitlement({
       expectedSubjectType: 'organization',
@@ -45,14 +50,20 @@ test('resolve capacidade Official somente a partir do entitlement explícito', (
   );
 });
 
-test('aceita ausência explícita de quota sem transformar campo ausente em ilimitado', () => {
+test('ausência explícita de quota é diferente de capability ausente', () => {
   const unlimited = evaluateOfficialCommunityCreationEntitlement({
     expectedSubjectType: 'user',
     expectedSubjectId: 'user-1',
     rawEntitlement: entitlement({
       subjectType: 'user',
       subjectId: 'user-1',
-      maxOfficialCommunities: null,
+      capabilities: {
+        officialCommunityCreation: {
+          memberLimit: 250,
+          maxOwned: null,
+        },
+        officialVenueCreation: null,
+      },
     }),
     now: NOW,
   });
@@ -65,7 +76,13 @@ test('aceita ausência explícita de quota sem transformar campo ausente em ilim
     rawEntitlement: entitlement({
       subjectType: 'user',
       subjectId: 'user-1',
-      maxOfficialCommunities: undefined,
+      capabilities: {
+        officialCommunityCreation: null,
+        officialVenueCreation: {
+          memberLimit: 250,
+          maxOwned: 1,
+        },
+      },
     }),
     now: NOW,
   });
@@ -79,21 +96,27 @@ test('hard ceilings técnicos validam o entitlement mas não viram capacidade im
     COMMUNITY_PRODUCT_LIMITS.officialTechnicalSafety.maxCommunitiesPerGrant
   );
 
-  for (const rawEntitlement of [
-    null,
-    entitlement({ memberLimit: undefined }),
-    entitlement({
-      memberLimit:
-        COMMUNITY_PRODUCT_LIMITS.officialTechnicalSafety.maxMemberLimit + 1,
-    }),
-    entitlement({
-      maxOfficialCommunities: MAX_OFFICIAL_COMMUNITIES_PER_ENTITLEMENT + 1,
-    }),
+  for (const capabilities of [
+    {
+      officialCommunityCreation: {
+        memberLimit:
+          COMMUNITY_PRODUCT_LIMITS.officialTechnicalSafety.maxMemberLimit + 1,
+        maxOwned: 3,
+      },
+      officialVenueCreation: null,
+    },
+    {
+      officialCommunityCreation: {
+        memberLimit: 250,
+        maxOwned: MAX_OFFICIAL_COMMUNITIES_PER_ENTITLEMENT + 1,
+      },
+      officialVenueCreation: null,
+    },
   ]) {
     const result = evaluateOfficialCommunityCreationEntitlement({
       expectedSubjectType: 'organization',
       expectedSubjectId: 'organization-1',
-      rawEntitlement,
+      rawEntitlement: entitlement({ capabilities }),
       now: NOW,
     });
     assert.equal(result.allowed, false);
@@ -101,7 +124,7 @@ test('hard ceilings técnicos validam o entitlement mas não viram capacidade im
   }
 });
 
-test('rejeita entitlement de outro sujeito ou fora da janela vigente', () => {
+test('rejeita entitlement de outro sujeito, fora da janela ou com oferta embutida', () => {
   assert.equal(
     evaluateOfficialCommunityCreationEntitlement({
       expectedSubjectType: 'organization',
@@ -120,5 +143,15 @@ test('rejeita entitlement de outro sujeito ou fora da janela vigente', () => {
       now: NOW,
     }).denialReason,
     'entitlement_inactive'
+  );
+
+  assert.equal(
+    evaluateOfficialCommunityCreationEntitlement({
+      expectedSubjectType: 'organization',
+      expectedSubjectId: 'organization-1',
+      rawEntitlement: entitlement({ planKey: 'business' }),
+      now: NOW,
+    }).denialReason,
+    'entitlement_required'
   );
 });

@@ -85,6 +85,38 @@ describe('Firestore Rules / financial retention audits', () => {
     await assertFails(setDoc(reference, { active: false }));
   });
 
+
+  it('nega leitura e escrita direta no entitlement Business/Official', async () => {
+    const reference = doc(
+      authenticatedDb(),
+      'entitlements',
+      'business_official:organization:organization-1'
+    );
+
+    await assertFails(getDoc(reference));
+    await assertFails(setDoc(reference, {
+      scope: 'business_official',
+      subjectType: 'organization',
+      subjectId: 'organization-1',
+    }));
+  });
+
+  it('mantém requests e auditorias Business/Official backend-only', async () => {
+    for (const collectionName of [
+      'business_official_entitlement_requests',
+      'business_official_entitlement_audit',
+      'business_official_entitlement_usage_audit',
+    ]) {
+      const reference = doc(
+        authenticatedDb(),
+        collectionName,
+        'record-001'
+      );
+      await assertFails(getDoc(reference));
+      await assertFails(setDoc(reference, { active: true }));
+    }
+  });
+
   it('nega leitura sem autenticação nos dois arquivos financeiros', async () => {
     const db = unauthenticatedDb();
     const checkoutReference = doc(

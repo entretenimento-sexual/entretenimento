@@ -236,6 +236,14 @@ export const COMMUNITY_SETTINGS_REASON_MESSAGES: CommunityErrorMessageMap =
       'O limite não pode ser menor que a quantidade atual de membros.',
     community_capacity_upgrade_required:
       'Seu plano atual não permite essa capacidade de membros.',
+    official_capacity_entitlement_required:
+      'A capacidade Business/Official desta Comunidade ainda não foi liberada.',
+    official_capacity_entitlement_inactive:
+      'A capacidade Business/Official desta Comunidade precisa ser renovada.',
+    official_capacity_entitlement_mismatch:
+      'O entitlement Business/Official não corresponde ao responsável oficial.',
+    official_capacity_entitlement_exceeded:
+      'A capacidade escolhida excede o limite concedido ao espaço oficial.',
     community_not_found:
       'Esta Comunidade não está mais disponível.',
     community_settings_forbidden:

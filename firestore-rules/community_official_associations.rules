@@ -1,8 +1,10 @@
 // =============================================================================
 // COMMUNITY OFFICIAL ASSOCIATIONS
 // =============================================================================
-// A associação canônica contém organização patrocinadora, responsável e origem
-// da verificação. Nenhum desses dados pode ser consultado pelo navegador.
+// A associação canônica responde somente se a Comunidade está oficialmente
+// vinculada ao alvo e qual autoridade/verificação sustenta esse vínculo.
+// Preço, plano, capacidade e entitlement Business/Official não pertencem aqui.
+// Nenhum dado privado pode ser consultado pelo navegador.
 // Claims também contêm referências privadas de KYC/KYB/autoridade, identidade
 // do solicitante, revisão e trilha de auditoria. A UI recebe somente projeções
 // sanitizadas por callable/Discovery.

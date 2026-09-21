@@ -32,6 +32,9 @@ import {
   sanitizeCommunityOfficialAssociationPublicProjection,
 } from './community-official-association.model';
 import {
+  resolveOfficialVenueCreationEntitlementInTransaction,
+} from './community-official-creation-entitlement.service';
+import {
   OFFICIAL_SPACE_CREATION_POLICY_VERSION,
   evaluateOfficialSpaceCreationGrant,
 } from './community-official-space.policy';
@@ -141,6 +144,9 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
       const officialAssociationAuditRef = db
         .collection('community_official_association_audit')
         .doc(`venue-create-${command.requestId}`);
+      const entitlementUsageAuditRef = db
+        .collection('business_official_entitlement_usage_audit')
+        .doc(`venue-create-${command.requestId}`);
 
       const [
         requestSnapshot,
@@ -191,6 +197,7 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
       );
 
       const actorUser = userSnapshot.data() ?? {};
+      const now = Date.now();
       const officialSpaceDecision = evaluateOfficialSpaceCreationGrant({
         actorUid,
         actorUserRole: actorUser['role'],
@@ -213,7 +220,34 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
         );
       }
 
-      if (officialSpaceDecision.maxOfficialSpaces !== null) {
+      const officialVenueCapability =
+        await resolveOfficialVenueCreationEntitlementInTransaction({
+          transaction,
+          organizationId: officialSpaceDecision.organizationId,
+          now,
+        });
+
+      if (
+        !officialVenueCapability.allowed
+        || !officialVenueCapability.entitlementId
+        || officialVenueCapability.memberLimit === null
+      ) {
+        const reason =
+          officialVenueCapability.denialReason === 'entitlement_inactive'
+            ? 'official_space_entitlement_inactive'
+            : officialVenueCapability.denialReason === 'entitlement_mismatch'
+              ? 'official_space_entitlement_mismatch'
+              : 'official_space_entitlement_required';
+        throw new HttpsError(
+          'permission-denied',
+          'A capacidade Business/Official deste Espaço não está disponível.',
+          { reason }
+        );
+      }
+
+      const grantedMemberLimit = officialVenueCapability.memberLimit;
+
+      if (officialVenueCapability.maxOfficialSpaces !== null) {
         const ownedOfficialSpacesQuery = db
           .collection('community_official_associations')
           .where(
@@ -223,21 +257,21 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
           )
           .where('target.type', '==', 'venue')
           .where('status', '==', 'verified')
-          .limit(officialSpaceDecision.maxOfficialSpaces + 1);
+          .limit(officialVenueCapability.maxOfficialSpaces + 1);
         const ownedOfficialSpacesSnapshot = await transaction.get(
           ownedOfficialSpacesQuery
         );
 
         if (
           ownedOfficialSpacesSnapshot.size
-          >= officialSpaceDecision.maxOfficialSpaces
+          >= officialVenueCapability.maxOfficialSpaces
         ) {
           throw new HttpsError(
             'resource-exhausted',
             'A organização atingiu a quantidade de Espaços Oficiais contratada.',
             {
               reason: 'official_space_creation_limit_reached',
-              maxOfficialSpaces: officialSpaceDecision.maxOfficialSpaces,
+              maxOfficialSpaces: officialVenueCapability.maxOfficialSpaces,
               currentOfficialSpaces: ownedOfficialSpacesSnapshot.size,
             }
           );
@@ -255,7 +289,6 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
         );
       }
 
-      const now = Date.now();
       const officialAssociation = buildVerifiedVenueOfficialAssociation({
         venueId: command.venueId,
         communityId: command.communityId,
@@ -359,7 +392,7 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
         moderation: communityModeration,
         metrics,
         capacity: {
-          memberLimit: officialSpaceDecision.memberLimit,
+          memberLimit: grantedMemberLimit,
           sponsorType: 'official',
           policyVersion: 1,
         },
@@ -380,7 +413,7 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
         visibility: 'public_preview',
         metrics,
         capacity: {
-          memberLimit: officialSpaceDecision.memberLimit,
+          memberLimit: grantedMemberLimit,
           sponsorType: 'official',
           policyVersion: 1,
         },
@@ -448,11 +481,30 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
         createdAt: now,
       });
 
+      transaction.create(entitlementUsageAuditRef, {
+        action: 'business_official_entitlement_consumed',
+        entitlementId: officialVenueCapability.entitlementId,
+        entitlementPolicyVersion: officialVenueCapability.policyVersion,
+        capability: 'officialVenueCreation',
+        subjectType: officialVenueCapability.subjectType,
+        subjectId: officialVenueCapability.subjectId,
+        communityId: command.communityId,
+        venueId: command.venueId,
+        grantedMemberLimit,
+        maxOfficialSpaces: officialVenueCapability.maxOfficialSpaces,
+        actorUid,
+        createdAt: now,
+      });
+
       transaction.create(requestRef, {
 
         ...buildCommunityOperationalRequestRetention('venue_creation', now),
         actorUid,
         organizationId: officialSpaceDecision.organizationId,
+        entitlementId: officialVenueCapability.entitlementId,
+        entitlementPolicyVersion: officialVenueCapability.policyVersion,
+        grantedMemberLimit,
+        maxOfficialSpaces: officialVenueCapability.maxOfficialSpaces,
         officialAssociationKey,
         venueId: command.venueId,
         communityId: command.communityId,

@@ -237,29 +237,33 @@ test('comunidade legada usa capacidade conservadora e falha fechada sem métrica
   assert.equal(inconsistent.acceptingNewMembers, false);
 });
 
-test('Espaço Oficial usa o teto comercial centralizado de mil participantes', () => {
-  const state = evaluateCommunityCapacity({
+test('Espaço Oficial sem capacidade persistida não herda o teto técnico', () => {
+  const legacy = evaluateCommunityCapacity({
     rawCommunity: {
       source: { type: 'venue' },
-      metrics: { memberCount: 999 },
+      metrics: { memberCount: 24 },
     },
     sponsorRole: 'official_space',
   });
 
-  assert.equal(state.configuredLimit, 1_000);
-  assert.equal(state.effectiveLimit, 1_000);
-  assert.equal(state.acceptingNewMembers, true);
-  assert.equal(state.regularizationRequired, false);
+  assert.equal(legacy.configuredLimit, 25);
+  assert.equal(legacy.effectiveLimit, 25);
+  assert.equal(legacy.acceptingNewMembers, true);
 
-  const serviceState = evaluateCommunityCapacityForOwner({
+  const explicit = evaluateCommunityCapacityForOwner({
     rawCommunity: {
       source: { type: 'venue' },
-      metrics: { memberCount: 999 },
+      capacity: {
+        sponsorType: 'official',
+        memberLimit: 250,
+      },
+      metrics: { memberCount: 100 },
     },
     rawOwnerUser: null,
     rawOwnerEntitlement: null,
   });
-  assert.equal(serviceState?.effectiveLimit, 1_000);
+  assert.equal(explicit?.configuredLimit, 250);
+  assert.equal(explicit?.effectiveLimit, 250);
 });
 
 test('admin preserva teto operacional e assinatura inválida volta para free', () => {
@@ -312,21 +316,19 @@ test('deriva capacidade do entitlement canônico do proprietário', () => {
   assert.equal(expired?.regularizationReason, 'owner_subscription_required');
 });
 
-test('libera Espaço Oficial somente para organização verificada e vigente', () => {
+test('libera autoridade de Espaço Oficial somente para organização verificada e vigente', () => {
   const decision = evaluateOfficialSpaceCreationGrant({
     actorUid: 'owner-1',
     actorUserRole: 'free',
     rawGrant: {
       holderUid: 'owner-1',
       organizationId: 'organization-1',
-      scope: 'official_space_creation',
+      scope: 'verified_commercial_authority',
       active: true,
       verificationStatus: 'verified',
       startsAt: OFFICIAL_SPACE_NOW - 1_000,
       endsAt: OFFICIAL_SPACE_NOW + 1_000,
-      maxOfficialSpaces: 2,
-      memberLimit: 250,
-      policyVersion: 2,
+      policyVersion: 3,
     },
     now: OFFICIAL_SPACE_NOW,
   });
@@ -334,8 +336,6 @@ test('libera Espaço Oficial somente para organização verificada e vigente', (
   assert.deepEqual(decision, {
     allowed: true,
     organizationId: 'organization-1',
-    maxOfficialSpaces: 2,
-    memberLimit: 250,
     denialReason: null,
   });
 });
@@ -359,14 +359,12 @@ test('concessão comercial vencida pausa somente novos cadastros', () => {
     rawGrant: {
       holderUid: 'owner-1',
       organizationId: 'organization-1',
-      scope: 'official_space_creation',
+      scope: 'verified_commercial_authority',
       active: true,
       verificationStatus: 'verified',
       startsAt: OFFICIAL_SPACE_NOW - 2_000,
       endsAt: OFFICIAL_SPACE_NOW - 1,
-      maxOfficialSpaces: 1,
-      memberLimit: 250,
-      policyVersion: 2,
+      policyVersion: 3,
     },
     now: OFFICIAL_SPACE_NOW,
   });
@@ -375,7 +373,7 @@ test('concessão comercial vencida pausa somente novos cadastros', () => {
   assert.equal(decision.denialReason, 'grant_inactive');
 });
 
-test('admin mantém exceção operacional sem usar assinatura pessoal', () => {
+test('admin mantém exceção apenas de autoridade, sem capacidade implícita', () => {
   const decision = evaluateOfficialSpaceCreationGrant({
     actorUid: 'admin-1',
     actorUserRole: 'admin',
@@ -383,7 +381,9 @@ test('admin mantém exceção operacional sem usar assinatura pessoal', () => {
     now: OFFICIAL_SPACE_NOW,
   });
 
-  assert.equal(decision.allowed, true);
-  assert.equal(decision.maxOfficialSpaces, null);
-  assert.equal(decision.memberLimit, 1_000);
+  assert.deepEqual(decision, {
+    allowed: true,
+    organizationId: 'platform-administration',
+    denialReason: null,
+  });
 });

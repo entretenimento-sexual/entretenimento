@@ -65,7 +65,9 @@ match /payment_transactions/{transactionId} {
 
 match /entitlements/{entitlementId} {
   /**
-   * Fonte autorizativa de benefícios pagos.
+   * Fonte autorizativa de benefícios efetivos. Inclui assinatura financeira
+   * e entitlements Business/Official; preço/plano pertencem ao domínio de
+   * oferta/checkout, não ao vínculo de autoridade nem ao entitlement efetivo.
    *
    * Mesmo quando o documento pertence ao próprio usuário, a leitura direta
    * não é necessária hoje: getMyBillingSnapshot devolve apenas o estado
@@ -87,6 +89,18 @@ match /billing_audit/{auditId} {
    * Auditoria técnica/financeira interna.
    * Não deve ser exposta ao cliente.
    */
+  allow read, write: if false;
+}
+
+match /business_official_entitlement_requests/{requestId} {
+  allow read, write: if false;
+}
+
+match /business_official_entitlement_audit/{auditId} {
+  allow read, write: if false;
+}
+
+match /business_official_entitlement_usage_audit/{auditId} {
   allow read, write: if false;
 }
 

@@ -39,12 +39,10 @@ const eventIntent = {
 function activeGrant(overrides: Record<string, unknown> = {}) {
   return {
     holderUid: 'user-1',
-    scope: 'official_space_creation',
+    scope: 'verified_commercial_authority',
     verificationStatus: 'verified',
-    policyVersion: 2,
+    policyVersion: 3,
     organizationId: 'organization-1',
-    maxOfficialSpaces: 10,
-    memberLimit: 250,
     active: true,
     startsAt: NOW - 1_000,
     endsAt: NOW + 10_000,
@@ -155,7 +153,7 @@ test('deriva organização, papel, evidência e validade do Local sem confiar no
     },
     verification: {
       verificationSource: 'official_space_creation_grant',
-      verificationPolicyVersion: 2,
+      verificationPolicyVersion: 3,
       revalidationDueAt: null,
       verificationExpiresAt: NOW + 10_000,
     },

@@ -131,17 +131,48 @@ function installBoundaryProbe(
           [`official_space_creation_grants/${actorUid}`]: {
             holderUid: actorUid,
             organizationId: 'organization-1',
-            scope: 'official_space_creation',
+            scope: 'verified_commercial_authority',
             verificationStatus: 'verified',
-            policyVersion: 2,
-            maxOfficialSpaces: 10,
-            memberLimit: 250,
+            policyVersion: 3,
+            active: true,
+            startsAt: now - 1_000,
+            endsAt: now + 60_000,
+          },
+          ['entitlements/business_official:organization:organization-1']: {
+            scope: 'business_official',
+            policyVersion: 1,
+            subjectType: 'organization',
+            subjectId: 'organization-1',
+            capabilities: {
+              officialCommunityCreation: null,
+              officialVenueCreation: {
+                memberLimit: 250,
+                maxOwned: 10,
+              },
+            },
             active: true,
             startsAt: now - 1_000,
             endsAt: now + 60_000,
           },
         }
-        : {}),
+        : {
+          ['entitlements/business_official:organization:platform-administration']: {
+            scope: 'business_official',
+            policyVersion: 1,
+            subjectType: 'organization',
+            subjectId: 'platform-administration',
+            capabilities: {
+              officialCommunityCreation: null,
+              officialVenueCreation: {
+                memberLimit: 250,
+                maxOwned: null,
+              },
+            },
+            active: true,
+            startsAt: now - 1_000,
+            endsAt: now + 60_000,
+          },
+        }),
     };
     const transaction: TransactionProbe = {
       get: async (ref) => ref.path.startsWith('query:')
@@ -301,6 +332,12 @@ for (const mode of ['grant', 'admin'] as const) {
       assert.equal(
         community?.officialAssociationKey,
         `venue:${VENUE_ID}`
+      );
+      assert.equal(
+        (community as {
+          capacity?: { memberLimit?: unknown };
+        } | undefined)?.capacity?.memberLimit,
+        250
       );
       assert.equal(
         (probe.writes.find((write) =>

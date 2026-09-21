@@ -3,21 +3,18 @@ import test from 'node:test';
 
 import {
   evaluateOfficialSpaceCreationGrant,
-  MAX_OFFICIAL_SPACES_PER_GRANT,
+  OFFICIAL_SPACE_CREATION_POLICY_VERSION,
 } from './community-official-space.policy';
-import { COMMUNITY_PRODUCT_LIMITS } from './community-product-limits.config';
 
 const NOW = 1_800_000_000_000;
 
-function activeGrant(overrides: Record<string, unknown> = {}) {
+function activeAuthority(overrides: Record<string, unknown> = {}) {
   return {
     holderUid: 'user-1',
-    scope: 'official_space_creation',
+    scope: 'verified_commercial_authority',
     verificationStatus: 'verified',
-    policyVersion: 2,
+    policyVersion: OFFICIAL_SPACE_CREATION_POLICY_VERSION,
     organizationId: 'organization-1',
-    maxOfficialSpaces: 10,
-    memberLimit: 250,
     active: true,
     startsAt: NOW - 1_000,
     endsAt: NOW + 10_000,
@@ -25,36 +22,28 @@ function activeGrant(overrides: Record<string, unknown> = {}) {
   };
 }
 
-test('mantém apenas hard ceilings técnicos ligados à configuração canônica', () => {
-  assert.equal(
-    MAX_OFFICIAL_SPACES_PER_GRANT,
-    COMMUNITY_PRODUCT_LIMITS.maxOfficialSpacesPerGrant
-  );
-});
-
-test('mantém capacidade comunitária separada da autoridade comercial', () => {
+test('grant de Espaço Oficial valida somente autoridade comercial', () => {
   assert.deepEqual(
     evaluateOfficialSpaceCreationGrant({
       actorUid: 'user-1',
       actorUserRole: null,
-      rawGrant: activeGrant(),
+      rawGrant: activeAuthority(),
       now: NOW,
     }),
     {
       allowed: true,
       organizationId: 'organization-1',
-      maxOfficialSpaces: 10,
-      memberLimit: 250,
       denialReason: null,
     }
   );
 });
 
-test('rejeita grant sem capacidade contratada explícita', () => {
+test('rejeita capacidade, preço ou plano dentro do vínculo de autoridade', () => {
   for (const rawGrant of [
-    activeGrant({ memberLimit: undefined }),
-    activeGrant({ memberLimit: 10_000 }),
-    activeGrant({ maxOfficialSpaces: undefined }),
+    activeAuthority({ memberLimit: 250 }),
+    activeAuthority({ maxOfficialSpaces: 3 }),
+    activeAuthority({ planKey: 'business' }),
+    activeAuthority({ amountCents: 9999 }),
   ]) {
     assert.equal(
       evaluateOfficialSpaceCreationGrant({
@@ -68,29 +57,32 @@ test('rejeita grant sem capacidade contratada explícita', () => {
   }
 });
 
-test('rejeita concessão comercial válida sem capability de Espaço Oficial', () => {
+test('plano pessoal não cria autoridade comercial', () => {
   assert.equal(
     evaluateOfficialSpaceCreationGrant({
       actorUid: 'user-1',
-      actorUserRole: null,
-      rawGrant: activeGrant({ scope: 'outra_capability' }),
+      actorUserRole: 'vip',
+      rawGrant: null,
       now: NOW,
     }).denialReason,
     'verification_required'
   );
 });
 
-test('preserva bypass explícito da administração da plataforma', () => {
-  const result = evaluateOfficialSpaceCreationGrant({
-    actorUid: 'admin-1',
-    actorUserRole: 'admin',
-    rawGrant: null,
-    now: NOW,
-  });
-
-  assert.equal(result.allowed, true);
-  assert.equal(result.organizationId, 'platform-administration');
-  assert.equal(result.maxOfficialSpaces, null);
+test('preserva bypass explícito de autoridade administrativa, sem conceder capacidade', () => {
+  assert.deepEqual(
+    evaluateOfficialSpaceCreationGrant({
+      actorUid: 'admin-1',
+      actorUserRole: 'admin',
+      rawGrant: null,
+      now: NOW,
+    }),
+    {
+      allowed: true,
+      organizationId: 'platform-administration',
+      denialReason: null,
+    }
+  );
 });
 
 test('mapeia autoridade comercial expirada para grant_inactive', () => {
@@ -98,7 +90,7 @@ test('mapeia autoridade comercial expirada para grant_inactive', () => {
     evaluateOfficialSpaceCreationGrant({
       actorUid: 'user-1',
       actorUserRole: null,
-      rawGrant: activeGrant({ endsAt: NOW }),
+      rawGrant: activeAuthority({ endsAt: NOW }),
       now: NOW,
     }).denialReason,
     'grant_inactive'

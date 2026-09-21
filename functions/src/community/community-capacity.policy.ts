@@ -123,14 +123,12 @@ export function resolveCommunityConfiguredMemberLimit(
 ): CommunityMemberLimit {
   const community = (rawCommunity ?? {}) as Record<string, unknown>;
   const capacity = (community['capacity'] ?? {}) as Record<string, unknown>;
-  const source = (community['source'] ?? {}) as Record<string, unknown>;
-  const officialSponsored = capacity['sponsorType'] === 'official'
-    || (capacity['sponsorType'] !== 'personal' && source['type'] === 'venue');
 
+  // Ausência de capacidade explícita nunca promove hard ceiling técnico a
+  // oferta comercial. Documentos legados falham para o default conservador;
+  // fluxos Business/Official novos persistem o valor vindo do entitlement.
   return normalizeCommunityMemberLimit(capacity['memberLimit'])
-    ?? (officialSponsored
-      ? OFFICIAL_COMMUNITY_MEMBER_LIMIT
-      : DEFAULT_COMMUNITY_MEMBER_LIMIT);
+    ?? DEFAULT_COMMUNITY_MEMBER_LIMIT;
 }
 
 export function resolveCommunityCapacitySponsorRole(

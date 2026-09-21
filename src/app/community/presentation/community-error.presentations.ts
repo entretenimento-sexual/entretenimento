@@ -78,6 +78,34 @@ export const COMMUNITY_SETTINGS_REASON_PRESENTATIONS:
       },
       dismissLabel: 'Manter capacidade atual',
     },
+    official_capacity_entitlement_required: {
+      surface: 'modal',
+      severity: 'info',
+      title: 'Capacidade oficial não liberada',
+      detail:
+        'A capacidade atual permanece inalterada até existir um entitlement Business/Official válido.',
+    },
+    official_capacity_entitlement_inactive: {
+      surface: 'modal',
+      severity: 'warning',
+      title: 'Capacidade oficial inativa',
+      detail:
+        'A capacidade atual permanece inalterada até a renovação do entitlement Business/Official.',
+    },
+    official_capacity_entitlement_mismatch: {
+      surface: 'modal',
+      severity: 'warning',
+      title: 'Entitlement oficial inconsistente',
+      detail:
+        'A capacidade não pode ser alterada até a fonte Business/Official ser reconciliada.',
+    },
+    official_capacity_entitlement_exceeded: {
+      surface: 'modal',
+      severity: 'info',
+      title: 'Capacidade acima do entitlement',
+      detail:
+        'Escolha uma capacidade dentro do limite concedido para este espaço oficial.',
+    },
     account_restricted: {
       surface: 'modal',
       severity: 'warning',

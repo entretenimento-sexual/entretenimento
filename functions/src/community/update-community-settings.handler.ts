@@ -23,10 +23,19 @@ import {
   resolveCommunityOwnerPlanLimit,
 } from './community-capacity.policy';
 import {
+  isOfficialCommunityCapacity,
+} from './community-capacity.service';
+import {
   REQUIRE_COMMUNITY_APP_CHECK,
   assertCommunityCallableAppCheck,
 } from './community-callable-security';
 import { normalizeCommunityMemberCount } from './community-member-count.policy';
+import {
+  normalizeCommunityOfficialAssociationKey,
+} from './community-official-association.model';
+import {
+  resolveOfficialCommunityCreationEntitlementInTransaction,
+} from './community-official-creation-entitlement.service';
 import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
 import {
   CommunityEditableSettings,
@@ -70,6 +79,11 @@ function assertAuthenticatedUid(
   }
 
   return uid;
+}
+
+function normalizeSafeId(value: unknown): string | null {
+  const normalized = String(value ?? '').trim();
+  return /^[A-Za-z0-9:_-]{1,128}$/.test(normalized) ? normalized : null;
 }
 
 function normalizeViewerRole(value: unknown): CommunityViewerRole | null {
@@ -195,9 +209,6 @@ export const updateCommunitySettings = onCall<UpdateCommunitySettingsRequest>(
       const communityRef = db.collection('communities').doc(command.communityId);
       const membershipRef = communityRef.collection('members').doc(actorUid);
       const userRef = db.collection('users').doc(actorUid);
-      const entitlementRef = db
-        .collection('entitlements')
-        .doc(`platform_subscription_${actorUid}`);
       const discoveryRef = db
         .collection('community_discovery_index')
         .doc(command.communityId);
@@ -210,14 +221,12 @@ export const updateCommunitySettings = onCall<UpdateCommunitySettingsRequest>(
         communitySnapshot,
         membershipSnapshot,
         userSnapshot,
-        entitlementSnapshot,
         discoverySnapshot,
       ] = await Promise.all([
         transaction.get(requestRef),
         transaction.get(communityRef),
         transaction.get(membershipRef),
         transaction.get(userRef),
-        transaction.get(entitlementRef),
         transaction.get(discoveryRef),
       ]);
 
@@ -288,6 +297,8 @@ export const updateCommunitySettings = onCall<UpdateCommunitySettingsRequest>(
         throwPolicyError(decision.denialReason);
       }
 
+      let officialCapacityAudit: Readonly<Record<string, unknown>> | null = null;
+
       if (capacityChanged) {
         assertRecentAuthentication(
           (request.auth?.token ?? undefined) as
@@ -295,38 +306,135 @@ export const updateCommunitySettings = onCall<UpdateCommunitySettingsRequest>(
             | undefined
         );
 
-        const entitlement = evaluatePlatformSubscriptionEntitlement(
-          entitlementSnapshot.exists ? entitlementSnapshot.data() : null,
-          actorUid
+        const metrics = (community['metrics'] ?? {}) as Record<
+          string,
+          unknown
+        >;
+        const memberCount = normalizeCommunityMemberCount(
+          metrics['memberCount']
         );
 
-        if (capacityChanged) {
-          const metrics = (community['metrics'] ?? {}) as Record<
-            string,
-            unknown
-          >;
-          const memberCount = normalizeCommunityMemberCount(
-            metrics['memberCount']
+        if (memberCount === null) {
+          throw new HttpsError(
+            'data-loss',
+            'A contagem atual de membros está inconsistente.'
           );
+        }
 
-          if (memberCount === null) {
+        if (command.memberLimit < memberCount) {
+          throw new HttpsError(
+            'failed-precondition',
+            'O limite não pode ser menor que a quantidade atual de membros.',
+            {
+              reason: 'community_capacity_below_member_count',
+              memberCount,
+            }
+          );
+        }
+
+        if (isOfficialCommunityCapacity(community)) {
+          const associationKey = normalizeCommunityOfficialAssociationKey(
+            community['officialAssociationKey']
+          );
+          if (!associationKey) {
             throw new HttpsError(
               'data-loss',
-              'A contagem atual de membros está inconsistente.'
+              'A associação oficial desta Comunidade está inconsistente.'
             );
           }
 
-          if (command.memberLimit < memberCount) {
+          const associationSnapshot = await transaction.get(
+            db.collection('community_official_associations').doc(associationKey)
+          );
+          const association = associationSnapshot.exists
+            ? associationSnapshot.data() ?? {}
+            : {};
+          const associationCommunityId = normalizeSafeId(
+            association['communityId']
+          );
+          const authority = (association['authority'] ?? {}) as Record<
+            string,
+            unknown
+          >;
+          const holderUid = normalizeSafeId(authority['holderUid']);
+          const sponsorOrganizationId = association['sponsorOrganizationId']
+            === null
+            ? null
+            : normalizeSafeId(association['sponsorOrganizationId']);
+
+          if (
+            association['status'] !== 'verified'
+            || associationCommunityId !== command.communityId
+            || !holderUid
+            || (
+              association['sponsorOrganizationId'] !== null
+              && !sponsorOrganizationId
+            )
+          ) {
             throw new HttpsError(
-              'failed-precondition',
-              'O limite não pode ser menor que a quantidade atual de membros.',
+              'data-loss',
+              'A associação oficial desta Comunidade está inconsistente.'
+            );
+          }
+
+          const officialCapability =
+            await resolveOfficialCommunityCreationEntitlementInTransaction({
+              transaction,
+              actorUid: holderUid,
+              sponsorOrganizationId,
+              now: Date.now(),
+            });
+
+          if (
+            !officialCapability.allowed
+            || !officialCapability.entitlementId
+            || officialCapability.memberLimit === null
+          ) {
+            const reason =
+              officialCapability.denialReason === 'entitlement_inactive'
+                ? 'official_capacity_entitlement_inactive'
+                : officialCapability.denialReason === 'entitlement_mismatch'
+                  ? 'official_capacity_entitlement_mismatch'
+                  : 'official_capacity_entitlement_required';
+            throw new HttpsError(
+              'permission-denied',
+              'A capacidade Business/Official desta Comunidade não está disponível.',
+              { reason }
+            );
+          }
+
+          if (command.memberLimit > officialCapability.memberLimit) {
+            throw new HttpsError(
+              'permission-denied',
+              'A capacidade escolhida excede o entitlement Business/Official.',
               {
-                reason: 'community_capacity_below_member_count',
-                memberCount,
+                reason: 'official_capacity_entitlement_exceeded',
+                allowedMemberLimit: officialCapability.memberLimit,
               }
             );
           }
 
+          officialCapacityAudit = Object.freeze({
+            action: 'business_official_entitlement_capacity_validated',
+            entitlementId: officialCapability.entitlementId,
+            entitlementPolicyVersion: officialCapability.policyVersion,
+            capability: 'officialCommunityCreation',
+            subjectType: officialCapability.subjectType,
+            subjectId: officialCapability.subjectId,
+            communityId: command.communityId,
+            requestedMemberLimit: command.memberLimit,
+            allowedMemberLimit: officialCapability.memberLimit,
+            actorUid,
+          });
+        } else {
+          const entitlementSnapshot = await transaction.get(
+            db.collection('entitlements')
+              .doc(`platform_subscription_${actorUid}`)
+          );
+          const entitlement = evaluatePlatformSubscriptionEntitlement(
+            entitlementSnapshot.exists ? entitlementSnapshot.data() : null,
+            actorUid
+          );
           const sponsorRole = resolveCommunityCapacitySponsorRole(
             entitlement.active ? entitlement.role : null,
             (userSnapshot.data() ?? {})['role']
@@ -400,6 +508,17 @@ export const updateCommunitySettings = onCall<UpdateCommunitySettingsRequest>(
           nextMemberLimit: command.memberLimit,
           createdAt: now,
         });
+
+        if (officialCapacityAudit) {
+          transaction.create(
+            db.collection('business_official_entitlement_usage_audit')
+              .doc(`settings-${command.requestId}`),
+            {
+              ...officialCapacityAudit,
+              createdAt: now,
+            }
+          );
+        }
       }
 
       transaction.create(requestRef, {

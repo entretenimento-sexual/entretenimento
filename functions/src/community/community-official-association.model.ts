@@ -42,7 +42,10 @@ export interface CommunityOfficialAssociationRecord {
   communityId: string;
   target: CommunityOfficialTarget;
   status: CommunityOfficialAssociationStatus;
-  /** Contexto comercial privado. Nunca deve ir para projeção pública. */
+  /**
+   * Contexto de autoridade organizacional. Não representa plano, preço,
+   * capacidade ou qualquer entitlement comercial.
+   */
   sponsorOrganizationId: string | null;
   authority: {
     holderUid: string;

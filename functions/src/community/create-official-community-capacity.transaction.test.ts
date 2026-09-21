@@ -15,7 +15,7 @@ const REQUEST_ID = 'request-capacity-1234567890';
 const COMMUNITY_ID = `official-community-${REQUEST_ID}`;
 const ASSOCIATION_KEY = `profile:${PROFILE_ID}`;
 const ENTITLEMENT_ID =
-  `official_community_creation:user:${ACTOR_UID}`;
+  `business_official:user:${ACTOR_UID}`;
 
 const VALID_DATA = {
   requestId: REQUEST_ID,
@@ -163,12 +163,17 @@ function installBoundaryProbe(
       revokedAt: null,
     },
     [`entitlements/${ENTITLEMENT_ID}`]: {
-      scope: 'official_community_creation',
+      scope: 'business_official',
       policyVersion: 1,
       subjectType: 'user',
       subjectId: ACTOR_UID,
-      memberLimit: 250,
-      maxOfficialCommunities: 2,
+      capabilities: {
+        officialCommunityCreation: {
+          memberLimit: 250,
+          maxOwned: 2,
+        },
+        officialVenueCreation: null,
+      },
       active: true,
       startsAt: now - 10_000,
       endsAt: now + 120_000,
@@ -336,6 +341,24 @@ test('createOfficialCommunity persiste a capacidade do entitlement, não o teto 
     assert.equal(receipt?.['capacityEntitlementId'], ENTITLEMENT_ID);
     assert.equal(receipt?.['grantedMemberLimit'], 250);
     assert.equal(receipt?.['maxOfficialCommunities'], 2);
+
+    const associationAudit = probe.writes.find(
+      (write) =>
+        write.path
+        === `community_official_association_audit/official-create-${REQUEST_ID}`
+    )?.data as Record<string, unknown> | undefined;
+    assert.ok(associationAudit);
+    assert.equal('grantedMemberLimit' in associationAudit, false);
+    assert.equal('maxOfficialCommunities' in associationAudit, false);
+    assert.equal('capacityEntitlementId' in associationAudit, false);
+
+    const entitlementUsageAudit = probe.writes.find(
+      (write) =>
+        write.path
+        === `business_official_entitlement_usage_audit/official-create-${REQUEST_ID}`
+    )?.data as Record<string, unknown> | undefined;
+    assert.equal(entitlementUsageAudit?.['entitlementId'], ENTITLEMENT_ID);
+    assert.equal(entitlementUsageAudit?.['capability'], 'officialCommunityCreation');
   } finally {
     probe.restore();
   }
