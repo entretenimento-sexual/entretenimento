@@ -46,6 +46,18 @@ const captureBaselinePath = path.join(
   'admin',
   'capture-community-cost-baseline.mjs'
 );
+const monitoringWorkflowPath = path.join(
+  root,
+  '.github',
+  'workflows',
+  'community-cost-monitoring-production.yml'
+);
+const baselineWorkflowPath = path.join(
+  root,
+  '.github',
+  'workflows',
+  'community-cost-baseline-production.yml'
+);
 
 for (const file of [
   contractPath,
@@ -55,6 +67,8 @@ for (const file of [
   boostCalibrationPath,
   applyMonitoringPath,
   captureBaselinePath,
+  monitoringWorkflowPath,
+  baselineWorkflowPath,
 ]) {
   if (!fs.existsSync(file)) {
     throw new Error('Community cost operations file missing: ' + file);
@@ -66,6 +80,60 @@ const budgetSource = fs.readFileSync(budgetPath, 'utf8');
 const baselineSource = fs.readFileSync(baselinePath, 'utf8');
 const businessSource = fs.readFileSync(businessCalibrationPath, 'utf8');
 const boostSource = fs.readFileSync(boostCalibrationPath, 'utf8');
+const monitoringWorkflowSource = fs.readFileSync(
+  monitoringWorkflowPath,
+  'utf8'
+);
+const baselineWorkflowSource = fs.readFileSync(
+  baselineWorkflowPath,
+  'utf8'
+);
+
+for (const [name, workflow] of [
+  ['monitoring', monitoringWorkflowSource],
+  ['baseline', baselineWorkflowSource],
+]) {
+  for (const required of [
+    'permissions:',
+    'id-token: write',
+    'google-github-actions/auth@v3',
+    'google-github-actions/setup-gcloud@v3',
+    'GCP_COMMUNITY_COST_WORKLOAD_IDENTITY_PROVIDER',
+    'GCP_COMMUNITY_COST_SERVICE_ACCOUNT',
+    "PROJECT_ID: 'entretenimento-sexual'",
+  ]) {
+    if (!workflow.includes(required)) {
+      throw new Error(
+        'Community cost ' + name + ' workflow missing: ' + required
+      );
+    }
+  }
+
+  if (workflow.includes('credentials_json')) {
+    throw new Error(
+      'Community cost workflows must use WIF/OIDC, not long-lived JSON keys.'
+    );
+  }
+}
+
+if (
+  !monitoringWorkflowSource.includes('COMMUNITY_COST_NOTIFICATION_CHANNEL')
+  || !monitoringWorkflowSource.includes('community:cost-monitoring:apply')
+) {
+  throw new Error(
+    'Production monitoring workflow must require a notification channel and apply the canonical provisioning script.'
+  );
+}
+
+if (
+  !baselineWorkflowSource.includes('community:cost-baseline:capture')
+  || !baselineWorkflowSource.includes('days deve ser inteiro >= 14')
+  || baselineWorkflowSource.includes('schedule:')
+) {
+  throw new Error(
+    'Production baseline workflow must be manual, canonical and require at least 14 days.'
+  );
+}
 
 if (contract.version !== 1 || !Array.isArray(contract.metrics)) {
   throw new Error('Community cost monitoring contract version/metrics invalid.');
