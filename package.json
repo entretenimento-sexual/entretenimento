@@ -84,7 +84,9 @@
     "room:deprecation-boundary:check": "node scripts/quality/check-room-deprecation-boundary.mjs",
     "community:cost-operations:check": "node scripts/quality/check-community-cost-operations.mjs",
     "community:cost-monitoring:apply": "node scripts/admin/apply-community-cost-monitoring.mjs",
-    "community:cost-baseline:capture": "node scripts/admin/capture-community-cost-baseline.mjs"
+    "community:cost-baseline:capture": "node scripts/admin/capture-community-cost-baseline.mjs",
+    "community:cost-gcp:bootstrap": "node scripts/admin/bootstrap-community-cost-gcp.mjs",
+    "community:cost-notification-channel:create": "node scripts/admin/create-community-cost-notification-channel.mjs"
   },
   "private": true,
   "dependencies": {
