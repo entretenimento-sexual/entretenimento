@@ -35,7 +35,8 @@
       },
       "chartPlotType": "LINE",
       "alertStrategy": "distribution_percentile_95",
-      "valuePath": "jsonPayload.operationalCostBudget.value"
+      "valuePath": "jsonPayload.operationalCostBudget.value",
+      "resourceType": "cloud_run_revision"
     },
     {
       "key": "community.discovery.exposure_writes_per_accepted",
@@ -63,7 +64,8 @@
       },
       "chartPlotType": "LINE",
       "alertStrategy": "distribution_mean",
-      "valuePath": "jsonPayload.operationalCostBudget.value"
+      "valuePath": "jsonPayload.operationalCostBudget.value",
+      "resourceType": "cloud_run_revision"
     },
     {
       "key": "community.notification.push_targets_per_notification",
@@ -91,7 +93,8 @@
       },
       "chartPlotType": "LINE",
       "alertStrategy": "distribution_percentile_95",
-      "valuePath": "jsonPayload.operationalCostBudget.value"
+      "valuePath": "jsonPayload.operationalCostBudget.value",
+      "resourceType": "cloud_run_revision"
     },
     {
       "key": "community.storage.upper_bound_bytes_per_community",
@@ -119,7 +122,8 @@
       },
       "chartPlotType": "HEATMAP",
       "alertStrategy": "exact_breach_counter",
-      "valuePath": "jsonPayload.operationalCostBudget.value"
+      "valuePath": "jsonPayload.operationalCostBudget.value",
+      "resourceType": "cloud_run_revision"
     },
     {
       "key": "community.boost.reads_proxy_per_served_placement",
@@ -148,7 +152,8 @@
       "valuePath": "jsonPayload.readsProxy",
       "sampleFilter": "jsonPayload.readsProxy:* AND jsonPayload.placementServed=true",
       "denominatorPath": "jsonPayload.placementServed",
-      "dashboardAggregation": "mean_per_request"
+      "dashboardAggregation": "mean_per_request",
+      "resourceType": "cloud_run_revision"
     },
     {
       "key": "community.boost.writes_proxy_per_served_placement",
@@ -177,7 +182,8 @@
       "valuePath": "jsonPayload.writesProxy",
       "sampleFilter": "jsonPayload.writesProxy:* AND jsonPayload.placementServed=true",
       "denominatorPath": "jsonPayload.placementServed",
-      "dashboardAggregation": "mean_per_request"
+      "dashboardAggregation": "mean_per_request",
+      "resourceType": "cloud_run_revision"
     }
   ]
 }
