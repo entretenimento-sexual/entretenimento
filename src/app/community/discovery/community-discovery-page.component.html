@@ -416,6 +416,155 @@
               </button>
             }
           </li>
+
+          @if (discoveryMode === 'explore') {
+            @if (
+              sponsoredPlacementAfter(itemIndex, state.items.length);
+              as placement
+            ) {
+              <li
+                class="community-card-shell community-card-shell--sponsored"
+                data-sponsored="true"
+                [appCommunityDiscoveryVisibility]="placement.placementId"
+                (qualifiedExposure)="
+                  recordSponsoredQualifiedExposure(placement)
+                "
+              >
+                <a
+                  class="community-card community-card--sponsored"
+                  [routerLink]="detailsRoute(placement.community)"
+                  [queryParams]="{
+                    retorno:
+                      placement.community.source.type === 'venue'
+                        ? '/dashboard/locais'
+                        : selectedTagId()
+                          ? '/dashboard/comunidades?interesse='
+                            + selectedTagId()
+                          : '/dashboard/comunidades'
+                  }"
+                  [attr.aria-label]="
+                    'Patrocinado: abrir '
+                    + sourceLabel(placement.community)
+                    + ' '
+                    + placement.community.name
+                  "
+                  (click)="recordSponsoredClick(placement)"
+                >
+                  <div
+                    class="community-card__media"
+                    [attr.data-visual-variant]="
+                      communityVisualVariant(placement.community)
+                    "
+                    aria-hidden="true"
+                  >
+                    @if (placement.community.coverUrl) {
+                      <img
+                        class="community-card__cover"
+                        [src]="placement.community.coverUrl"
+                        alt=""
+                        loading="lazy"
+                        appImageFallback
+                      />
+                    }
+                    <span
+                      class="community-card__identity"
+                      [class.community-card__identity--overlay]="
+                        !!placement.community.coverUrl
+                      "
+                    >
+                      <span class="community-card__initials">
+                        {{ communityInitials(placement.community) }}
+                      </span>
+                      @if (placement.community.avatarUrl) {
+                        <img
+                          [src]="placement.community.avatarUrl"
+                          alt=""
+                          loading="lazy"
+                          appImageFallback
+                        />
+                      }
+                    </span>
+                  </div>
+
+                  <div class="community-card__body">
+                    <div class="community-card__heading">
+                      <div>
+                        <div class="community-card__status-row">
+                          <span
+                            class="community-card__sponsorship"
+                            title="Exibição patrocinada; não altera a ordem orgânica."
+                          >
+                            <i
+                              class="fas fa-bullhorn"
+                              aria-hidden="true"
+                            ></i>
+                            {{ placement.disclosure }}
+                          </span>
+                          <app-community-official-badge
+                            [community]="placement.community"
+                          />
+                        </div>
+
+                        <h2>{{ placement.community.name }}</h2>
+                      </div>
+                    </div>
+
+                    @if (placement.community.description) {
+                      <p>{{ placement.community.description }}</p>
+                    }
+
+                    @if (placement.community.tags.length > 0) {
+                      <div
+                        class="community-card__tags"
+                        aria-label="Interesses desta Comunidade"
+                      >
+                        @for (
+                          tag of placement.community.tags.slice(0, 2);
+                          track tag.id
+                        ) {
+                          <span>#{{ tag.label }}</span>
+                        }
+                      </div>
+                    }
+
+                    <div
+                      class="community-card__metrics community-card__metrics--explore"
+                      role="group"
+                      [attr.aria-label]="
+                        'Resumo do ' + sourceLabel(placement.community)
+                      "
+                    >
+                      <span
+                        [attr.aria-label]="
+                          placement.community.metrics.memberCount + ' membros'
+                        "
+                      >
+                        <i class="fas fa-users" aria-hidden="true"></i>
+                        {{ placement.community.metrics.memberCount }}
+                      </span>
+                      <span
+                        [attr.aria-label]="
+                          placement.community.metrics.postCount
+                          + ' publicações'
+                        "
+                      >
+                        <i class="fas fa-message" aria-hidden="true"></i>
+                        {{ placement.community.metrics.postCount }}
+                      </span>
+                      <span
+                        [attr.aria-label]="
+                          placement.community.metrics.mediaCount + ' mídias'
+                        "
+                      >
+                        <i class="fas fa-image" aria-hidden="true"></i>
+                        {{ placement.community.metrics.mediaCount }}
+                      </span>
+                    </div>
+                  </div>
+                </a>
+              </li>
+            }
+          }
         }
       </ul>
 

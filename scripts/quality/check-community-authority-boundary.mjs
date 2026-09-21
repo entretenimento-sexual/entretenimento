@@ -111,6 +111,33 @@ const COMMUNITY_RANKING_V3_ACCEPTANCE_POLICY = path.normalize(
 const COMMUNITY_RANKING_CONFIGURE_HANDLER = path.normalize(
   'functions/src/community/configure-community-ranking-mode.handler.ts'
 );
+const COMMUNITY_RANKING_V2_POLICY = path.normalize(
+  'functions/src/community/community-ranking.policy.ts'
+);
+const COMMUNITY_RANKING_V3_POLICY = path.normalize(
+  'functions/src/community/community-ranking-candidate-v3.policy.ts'
+);
+const COMMUNITY_BOOST_SELECTION_SERVICE = path.normalize(
+  'functions/src/community-boost/community-boost-selection.service.ts'
+);
+const COMMUNITY_DISCOVERY_HANDLER = path.normalize(
+  'functions/src/community/get-community-discovery-page.handler.ts'
+);
+const COMMUNITY_BOOST_PLACEMENT_HANDLER = path.normalize(
+  'functions/src/community-boost/get-community-boost-placement.handler.ts'
+);
+const COMMUNITY_BOOST_MANAGE_CAMPAIGN = path.normalize(
+  'functions/src/community-boost/manage-community-boost-campaign.handler.ts'
+);
+const COMMUNITY_BOOST_RECORD_EVENT = path.normalize(
+  'functions/src/community-boost/record-community-boost-event.handler.ts'
+);
+const COMMUNITY_BOOST_DISPLAY_POLICY = path.normalize(
+  'src/app/community/discovery/community-boost-display.policy.ts'
+);
+const COMMUNITY_BOOST_DISCOVERY_TEMPLATE = path.normalize(
+  'src/app/community/discovery/community-discovery-page.component.html'
+);
 
 const FORBIDDEN_CLIENT_AUTHORITY_FIELDS = Object.freeze([
   'actorUid',
@@ -610,6 +637,255 @@ function validateCommunityRankingV3Boundary(architectureViolations) {
     COMMUNITY_RANKING_CONFIGURE_HANDLER,
     architectureViolations
   );
+  const rankingV2Source = readRequiredSource(
+    COMMUNITY_RANKING_V2_POLICY,
+    architectureViolations
+  );
+  const rankingV3Source = readRequiredSource(
+    COMMUNITY_RANKING_V3_POLICY,
+    architectureViolations
+  );
+  const boostSelectionSource = readRequiredSource(
+    COMMUNITY_BOOST_SELECTION_SERVICE,
+    architectureViolations
+  );
+  const discoveryHandlerSource = readRequiredSource(
+    COMMUNITY_DISCOVERY_HANDLER,
+    architectureViolations
+  );
+  const boostPlacementHandlerSource = readRequiredSource(
+    COMMUNITY_BOOST_PLACEMENT_HANDLER,
+    architectureViolations
+  );
+  const boostManageCampaignSource = readRequiredSource(
+    COMMUNITY_BOOST_MANAGE_CAMPAIGN,
+    architectureViolations
+  );
+  const boostRecordEventSource = readRequiredSource(
+    COMMUNITY_BOOST_RECORD_EVENT,
+    architectureViolations
+  );
+  const boostDisplayPolicySource = readRequiredSource(
+    COMMUNITY_BOOST_DISPLAY_POLICY,
+    architectureViolations
+  );
+  const boostDiscoveryTemplateSource = readRequiredSource(
+    COMMUNITY_BOOST_DISCOVERY_TEMPLATE,
+    architectureViolations
+  );
+  const discoveryComponentSource = readRequiredSource(
+    COMMUNITY_DISCOVERY_COMPONENT,
+    architectureViolations
+  );
+
+  for (const [rankingPath, rankingSource] of [
+    [COMMUNITY_RANKING_V2_POLICY, rankingV2Source],
+    [COMMUNITY_RANKING_V3_POLICY, rankingV3Source],
+  ]) {
+    if (!rankingSource) continue;
+
+    for (const forbidden of [
+      'community-boost',
+      'CommunityBoost',
+      'community_boost_',
+      'rateCpmCents',
+      'budgetCents',
+      'campaignId',
+      'Patrocinado',
+    ]) {
+      if (rankingSource.includes(forbidden)) {
+        architectureViolations.push(
+          `${rankingPath} (score orgânico não pode incorporar sinal patrocinado: ${forbidden})`
+        );
+      }
+    }
+  }
+
+  if (boostSelectionSource) {
+    for (const required of [
+      'excludedCommunityIds',
+      'COMMUNITY_BOOST_DISCLOSURE',
+      'evaluateCommunityBoostPacing',
+      'orderCommunityBoostRotationCandidates',
+      'community_boost_frequency_caps',
+      'community_boost_advertiser_accounts',
+      'billing_ledger',
+      "billingReason: 'served_placement'",
+    ]) {
+      if (!boostSelectionSource.includes(required)) {
+        architectureViolations.push(
+          `${COMMUNITY_BOOST_SELECTION_SERVICE} (domínio patrocinado incompleto: ${required})`
+        );
+      }
+    }
+
+    for (const forbidden of [
+      'buildCommunityDiscoveryRanking(',
+      'buildCommunityDiscoveryRankingCandidateV3(',
+      'discoveryScore:',
+      'rankScore:',
+      'rankingCandidate.discoveryScore',
+    ]) {
+      if (boostSelectionSource.includes(forbidden)) {
+        architectureViolations.push(
+          `${COMMUNITY_BOOST_SELECTION_SERVICE} (Boost não pode escrever/derivar score orgânico: ${forbidden})`
+        );
+      }
+    }
+  }
+
+  if (discoveryHandlerSource) {
+    for (const forbidden of [
+      'CommunityBoost',
+      'community-boost',
+      'community_boost_',
+      'sponsoredItems',
+      'Patrocinado',
+    ]) {
+      if (discoveryHandlerSource.includes(forbidden)) {
+        architectureViolations.push(
+          `${COMMUNITY_DISCOVERY_HANDLER} (handler orgânico não pode depender de Community Boost: ${forbidden})`
+        );
+      }
+    }
+  }
+
+  if (boostPlacementHandlerSource) {
+    for (const required of [
+      'selectCommunityBoostSponsoredPlacement',
+      'organicCommunityIds',
+      'excludedCommunityIds',
+      'COMMUNITY_BOOST_MIN_ORGANIC_CARDS_FOR_PLACEMENT',
+      'consumeBackendRateLimitQuota',
+      'assertCommunitySocialAccessForUid',
+    ]) {
+      if (!boostPlacementHandlerSource.includes(required)) {
+        architectureViolations.push(
+          `${COMMUNITY_BOOST_PLACEMENT_HANDLER} (entrypoint patrocinado incompleto: ${required})`
+        );
+      }
+    }
+
+    for (const forbidden of [
+      'buildCommunityDiscoveryRanking(',
+      'buildCommunityDiscoveryRankingCandidateV3(',
+      'discoveryRankingMode',
+    ]) {
+      if (boostPlacementHandlerSource.includes(forbidden)) {
+        architectureViolations.push(
+          `${COMMUNITY_BOOST_PLACEMENT_HANDLER} (entrypoint patrocinado não pode resolver ranking orgânico: ${forbidden})`
+        );
+      }
+    }
+  }
+
+  if (boostManageCampaignSource) {
+    for (const required of [
+      "community_boost_billing_config",
+      "community_boost_advertiser_accounts",
+      "community_boost_active_slots",
+      "community_boost_audit",
+      "normalizeCommunityBoostAdvertiserAccount",
+    ]) {
+      if (!boostManageCampaignSource.includes(required)) {
+        architectureViolations.push(
+          `${COMMUNITY_BOOST_MANAGE_CAMPAIGN} (campanha patrocinada sem fronteira comercial/lifecycle: ${required})`
+        );
+      }
+    }
+
+    for (const forbidden of [
+      'platform_subscription_',
+      'business_official',
+      'community_official_associations',
+      'discoveryScore',
+      'rankScore',
+    ]) {
+      if (boostManageCampaignSource.includes(forbidden)) {
+        architectureViolations.push(
+          `${COMMUNITY_BOOST_MANAGE_CAMPAIGN} (Boost acoplado a plano/oficialidade/ranking: ${forbidden})`
+        );
+      }
+    }
+  }
+
+  if (boostRecordEventSource) {
+    for (const required of [
+      "'qualified_exposure'",
+      "'click'",
+      "qualifiedExposureCount",
+      "clickCount",
+      "consumeBackendRateLimitQuota",
+    ]) {
+      if (!boostRecordEventSource.includes(required)) {
+        architectureViolations.push(
+          `${COMMUNITY_BOOST_RECORD_EVENT} (telemetria patrocinada incompleta: ${required})`
+        );
+      }
+    }
+
+    for (const forbidden of [
+      "billing_ledger",
+      "spentMilliCents",
+      "rateCpmCentsSnapshot",
+      "dailySpentMilliCents",
+    ]) {
+      if (boostRecordEventSource.includes(forbidden)) {
+        architectureViolations.push(
+          `${COMMUNITY_BOOST_RECORD_EVENT} (evento do navegador não pode conceder autoridade financeira: ${forbidden})`
+        );
+      }
+    }
+  }
+
+  if (boostDisplayPolicySource) {
+    for (const required of [
+      'COMMUNITY_BOOST_MIN_ORGANIC_CARDS_FOR_SLOT = 4',
+      'COMMUNITY_BOOST_ORGANIC_CARDS_BEFORE_SLOT = 3',
+      'resolveCommunityBoostInsertionAfterIndex',
+    ]) {
+      if (!boostDisplayPolicySource.includes(required)) {
+        architectureViolations.push(
+          `${COMMUNITY_BOOST_DISPLAY_POLICY} (política de densidade/posição patrocinada ausente: ${required})`
+        );
+      }
+    }
+  }
+
+  if (discoveryComponentSource) {
+    for (const required of [
+      'sponsoredPlacementAfter',
+      'loadSponsoredPlacement',
+      '.get(CommunityBoostRepository)',
+    ]) {
+      if (!discoveryComponentSource.includes(required)) {
+        architectureViolations.push(
+          `${COMMUNITY_DISCOVERY_COMPONENT} (integração patrocinada visual/lazy incompleta: ${required})`
+        );
+      }
+    }
+
+    if (discoveryComponentSource.includes('inject(CommunityBoostRepository)')) {
+      architectureViolations.push(
+        `${COMMUNITY_DISCOVERY_COMPONENT} (Boost deve permanecer lazy e fora da dependência eager de Explore)`
+      );
+    }
+  }
+
+  if (boostDiscoveryTemplateSource) {
+    for (const required of [
+      'data-sponsored="true"',
+      'placement.disclosure',
+      'recordSponsoredQualifiedExposure',
+      'recordSponsoredClick',
+    ]) {
+      if (!boostDiscoveryTemplateSource.includes(required)) {
+        architectureViolations.push(
+          `${COMMUNITY_BOOST_DISCOVERY_TEMPLATE} (disclosure/mensuração patrocinada ausente: ${required})`
+        );
+      }
+    }
+  }
 
   if (rolloutSource) {
     for (const required of [
@@ -1188,5 +1464,5 @@ console.log(
   '[community-authority] OK: payloads de Comunidades não são usados como autoridade derivada.'
 );
 console.log(
-  '[community-authority] OK: notificações preservam owner único; v3 permanece backend-only com promoção mensurável/rollback canônico; criação oficial separa autoridade/assinatura/role; Evento possui lifecycle writer único auditável.'
+  '[community-authority] OK: notificações preservam owner único; v3 permanece backend-only com promoção mensurável/rollback canônico; Community Boost é patrocinado e separado do score orgânico; criação oficial separa autoridade/assinatura/role; Evento possui lifecycle writer único auditável.'
 );

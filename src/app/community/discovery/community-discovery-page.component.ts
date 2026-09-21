@@ -31,6 +31,7 @@ import {
   startWith,
   Subject,
   switchMap,
+  take,
   tap,
 } from 'rxjs';
 
@@ -47,6 +48,10 @@ import { ProfilePreferencesService } from 'src/app/preferences/services/profile-
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import { CommunityCreationGateService } from '../community-create/community-creation-gate.service';
 import { CommunityMembershipRepository } from '../data-access/community-membership.repository';
+import { CommunityBoostRepository } from '../data-access/community-boost.repository';
+import type {
+  CommunitySponsoredPlacement,
+} from '../data-access/community-boost.model';
 import {
   CommunityDiscoveryPage,
   CommunityPreviewCard,
@@ -83,6 +88,9 @@ import {
 import { CommunityDiscoveryExposureService } from './community-discovery-exposure.service';
 import { CommunityDiscoverySessionBehaviorService } from './community-discovery-session-behavior.service';
 import { CommunityDiscoveryVisibilityDirective } from './community-discovery-visibility.directive';
+import {
+  resolveCommunityBoostInsertionAfterIndex,
+} from './community-boost-display.policy';
 
 type CommunityDiscoveryStatus = 'loading' | 'ready' | 'empty' | 'error';
 type CommunityTagFilterState =
@@ -296,6 +304,7 @@ export class CommunityDiscoveryPageComponent {
   private readonly loadRequests$ = new Subject<LoadRequest>();
   private readonly tagCatalogReload$ = new Subject<void>();
   private readonly membershipContextResolvedIds = new Set<string>();
+  private sponsoredRequestSequence = 0;
 
   readonly sourceType: CommunityPreviewSourceType =
     this.route.snapshot.data['sourceType'] === 'venue' ? 'venue' : 'community';
@@ -349,6 +358,7 @@ export class CommunityDiscoveryPageComponent {
       : of(EMPTY_MUTED_COMMUNITY_IDS);
 
   readonly selectedTagId = signal<string | null>(this.initialTagId);
+  readonly sponsoredPlacement = signal<CommunitySponsoredPlacement | null>(null);
   readonly creationGateBusy = signal(false);
   readonly hiddenCommunityFeedback = signal<HiddenCommunityFeedback | null>(null);
   readonly notificationPreferenceBusyCommunityIds = signal<ReadonlySet<string>>(
@@ -521,6 +531,59 @@ export class CommunityDiscoveryPageComponent {
   recordQualifiedExposure(communityId: string): void {
     if (this.discoveryMode !== 'explore') return;
     this.exposureService.recordQualifiedExposure(communityId, this.sourceType);
+  }
+
+  recordSponsoredQualifiedExposure(
+    placement: CommunitySponsoredPlacement
+  ): void {
+    if (this.discoveryMode !== 'explore') return;
+
+    this.injector
+      .get(CommunityBoostRepository)
+      .recordEvent$(placement.placementId, 'qualified_exposure')
+      .pipe(
+        catchError((error: unknown) => {
+          this.reportSponsoredTelemetryError(
+            error,
+            'recordCommunityBoostExposure'
+          );
+          return of(null);
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
+  }
+
+  recordSponsoredClick(placement: CommunitySponsoredPlacement): void {
+    if (this.discoveryMode !== 'explore') return;
+
+    this.injector
+      .get(CommunityBoostRepository)
+      .recordEvent$(placement.placementId, 'click')
+      .pipe(
+        catchError((error: unknown) => {
+          this.reportSponsoredTelemetryError(
+            error,
+            'recordCommunityBoostClick'
+          );
+          return of(null);
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
+  }
+
+  sponsoredPlacementAfter(
+    itemIndex: number,
+    organicCardCount: number
+  ): CommunitySponsoredPlacement | null {
+    const placement = this.sponsoredPlacement();
+    if (!placement) return null;
+
+    return resolveCommunityBoostInsertionAfterIndex(organicCardCount)
+      === itemIndex
+      ? placement
+      : null;
   }
 
   selectTagFilter(tagId: string | null): void {
@@ -778,21 +841,50 @@ export class CommunityDiscoveryPageComponent {
       return this.fetchPageEvent$(request, context);
     }
 
+    const sponsoredRequestSequence = ++this.sponsoredRequestSequence;
+    this.sponsoredPlacement.set(null);
+
+    const requestSponsored = (event: LoadEvent): void => {
+      if (
+        event.type !== 'success'
+        || this.discoveryMode !== 'explore'
+      ) {
+        return;
+      }
+
+      this.loadSponsoredPlacement(
+        event.page.items,
+        request.tagId,
+        sponsoredRequestSequence
+      );
+    };
+
     return this.discoveryCache.readSnapshot$(context).pipe(
       switchMap((snapshot) => {
         if (!snapshot) {
-          return this.fetchPageEvent$(request, context);
+          return this.fetchPageEvent$(request, context).pipe(
+            tap(requestSponsored)
+          );
         }
 
-        const cached$ = of<LoadEvent>({
+        const cachedEvent: LoadEvent = {
           type: 'success',
           request,
           page: snapshot.page,
-        });
+        };
+        const cached$ = of(cachedEvent);
 
-        return snapshot.fresh
-          ? cached$
-          : concat(cached$, this.fetchPageEvent$(request, context));
+        if (snapshot.fresh) {
+          requestSponsored(cachedEvent);
+          return cached$;
+        }
+
+        return concat(
+          cached$,
+          this.fetchPageEvent$(request, context).pipe(
+            tap(requestSponsored)
+          )
+        );
       })
     );
   }
@@ -915,6 +1007,64 @@ export class CommunityDiscoveryPageComponent {
         'Os filtros por interesse não puderam ser carregados agora.',
       notification: 'warning',
       metadata: this.errorMetadata(),
+    });
+  }
+
+  private loadSponsoredPlacement(
+    organicItems: readonly CommunityPreviewCard[],
+    tagId: string | null,
+    requestSequence: number
+  ): void {
+    if (
+      resolveCommunityBoostInsertionAfterIndex(organicItems.length) === null
+    ) {
+      return;
+    }
+
+    this.sessionBehavior.state$
+      .pipe(
+        take(1),
+        switchMap((sessionBehavior) =>
+          this.injector
+            .get(CommunityBoostRepository)
+            .getPlacement$({
+              sourceType: this.sourceType,
+              tagId: this.canFilterByTags ? tagId : null,
+              organicCommunityIds: organicItems.map(
+                (item) => item.communityId
+              ),
+              excludedCommunityIds: sessionBehavior.hiddenCommunityIds,
+            })
+        ),
+        catchError((error: unknown) => {
+          this.reportSponsoredTelemetryError(
+            error,
+            'getCommunityBoostPlacement'
+          );
+          return of(null);
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe((placement) => {
+        if (requestSequence !== this.sponsoredRequestSequence) return;
+        this.sponsoredPlacement.set(placement);
+      });
+  }
+
+  private reportSponsoredTelemetryError(
+    error: unknown,
+    operation: string
+  ): void {
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation,
+      fallbackMessage:
+        'O conteúdo patrocinado não pôde ser atualizado agora.',
+      notification: 'none',
+      metadata: {
+        ...this.errorMetadata(),
+        sponsored: true,
+      },
     });
   }
 

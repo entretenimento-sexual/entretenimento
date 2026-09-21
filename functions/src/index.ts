@@ -36,6 +36,7 @@ export {
 } from './community/reconcile-community-member-counts.handler';
 export * from './payments';
 export * from './business-official';
+export * from './community-boost';
 export * from './account_lifecycle';
 export * from './chat';
 export * from './community';
