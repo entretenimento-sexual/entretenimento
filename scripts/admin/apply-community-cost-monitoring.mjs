@@ -354,7 +354,9 @@ function distributionValueCondition(metric, level) {
       comparison: 'COMPARISON_GT',
       thresholdValue: threshold,
       duration:
-        level === 'warning' ? metric.windowSeconds + 's' : '0s',
+        level === 'warning'
+          ? (metric.windowSeconds * 2) + 's'
+          : '0s',
       trigger: { count: 1 },
     },
   };
