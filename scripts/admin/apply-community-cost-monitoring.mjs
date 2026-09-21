@@ -145,7 +145,7 @@ function buildSampleMetric(metric) {
   return buildCounterMetric(
     metric.sampleMetricName,
     'Amostras para gate de alerta/baseline de ' + metric.key + '.',
-    metric.filter
+    metric.sampleFilter ?? metric.filter
   );
 }
 
@@ -211,7 +211,12 @@ function dashboardThresholds(metric) {
 
 function buildDashboardWidget(metric) {
   return {
-    title: metric.key + ' [' + metric.aggregation.toUpperCase() + ']',
+    title:
+      metric.key
+      + ' ['
+      + String(metric.dashboardAggregation ?? metric.aggregation)
+        .toUpperCase()
+      + ']',
     xyChart: {
       dataSets: [
         {
