@@ -59,7 +59,9 @@ const requiredExports = [
   'getCommunityMembersForManagement',
   'manageCommunityMember',
   'syncCommunityArchiveProjections',
-  'syncCommunityFeedRealtime',
+  'syncCommunityFeedRealtimeTrigger',
+  'reconcileCommunityMembershipNotificationsTrigger',
+  'syncCommunityProfileMembershipIndexTrigger',
 ];
 
 if (!existsSync(entryPath)) {
