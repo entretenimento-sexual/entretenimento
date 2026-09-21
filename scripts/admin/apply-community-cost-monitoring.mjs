@@ -118,6 +118,13 @@ function metricType(metricName) {
   return 'logging.googleapis.com/user/' + metricName;
 }
 
+function monitoringFilter(metricName, resourceType) {
+  return (
+    'metric.type="' + metricType(metricName) + '"'
+    + ' AND resource.type="' + resourceType + '"'
+  );
+}
+
 function buildDistributionMetric(metric) {
   return {
     name: metric.metricName,
@@ -229,8 +236,10 @@ function buildDashboardWidget(metric) {
         {
           timeSeriesQuery: {
             timeSeriesFilter: {
-              filter:
-                'metric.type="' + metricType(metric.metricName) + '"',
+              filter: monitoringFilter(
+                metric.metricName,
+                metric.resourceType
+              ),
               aggregation: {
                 alignmentPeriod: metric.windowSeconds + 's',
                 perSeriesAligner: metric.aligner,
@@ -341,7 +350,7 @@ function distributionValueCondition(metric, level) {
   return {
     displayName: 'valor agregado acima do budget',
     conditionThreshold: {
-      filter: 'metric.type="' + metricType(metric.metricName) + '"',
+      filter: monitoringFilter(metric.metricName, metric.resourceType),
       aggregations: [
         {
           alignmentPeriod: metric.windowSeconds + 's',
@@ -365,8 +374,10 @@ function sampleCountCondition(metric) {
   return {
     displayName: 'amostragem mínima',
     conditionThreshold: {
-      filter:
-        'metric.type="' + metricType(metric.sampleMetricName) + '"',
+      filter: monitoringFilter(
+        metric.sampleMetricName,
+        metric.resourceType
+      ),
       aggregations: [
         {
           alignmentPeriod: metric.windowSeconds + 's',
@@ -387,10 +398,10 @@ function exactBreachCondition(metric, level) {
   return {
     displayName: 'evento acima do budget',
     conditionThreshold: {
-      filter:
-        'metric.type="'
-        + metricType(breachMetricName(metric, level))
-        + '"',
+      filter: monitoringFilter(
+        breachMetricName(metric, level),
+        metric.resourceType
+      ),
       aggregations: [
         {
           alignmentPeriod: metric.windowSeconds + 's',
