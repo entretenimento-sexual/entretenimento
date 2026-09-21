@@ -62,6 +62,9 @@ const OFFICIAL_CREATE_MODEL = path.normalize(
 const OFFICIAL_AUTHORITY_CONTEXT = path.normalize(
   'functions/src/community/community-official-authority-context.service.ts'
 );
+const OFFICIAL_CREATION_ENTITLEMENT_SERVICE = path.normalize(
+  'functions/src/community/community-official-creation-entitlement.service.ts'
+);
 const COMMUNITY_CLAIM_HANDLER = path.normalize(
   'functions/src/community/community-official-claim.handler.ts'
 );
@@ -669,6 +672,10 @@ function validateOfficialCreationBoundary(architectureViolations) {
     COMMUNITY_CLAIM_HANDLER,
     architectureViolations
   );
+  const entitlementSource = readRequiredSource(
+    OFFICIAL_CREATION_ENTITLEMENT_SERVICE,
+    architectureViolations
+  );
   const capacitySource = readRequiredSource(
     COMMUNITY_CAPACITY_SERVICE,
     architectureViolations
@@ -681,7 +688,8 @@ function validateOfficialCreationBoundary(architectureViolations) {
   if (handlerSource) {
     for (const required of [
       'resolveCommunityOfficialAuthorityContext',
-      'OFFICIAL_COMMUNITY_MEMBER_LIMIT',
+      'resolveOfficialCommunityCreationEntitlementInTransaction',
+      'grantedMemberLimit',
       "sponsorType: 'official'",
       "role: 'owner'",
       "action: 'official_community_create'",
@@ -698,10 +706,36 @@ function validateOfficialCreationBoundary(architectureViolations) {
       'platform_subscription_',
       'resolveCommunityCapacitySponsorRole',
       'minimumPersonalCommunityCreationRole',
+      'OFFICIAL_COMMUNITY_MEMBER_LIMIT',
     ]) {
       if (handlerSource.includes(forbidden)) {
         architectureViolations.push(
           `${OFFICIAL_CREATE_HANDLER} (criação oficial não pode depender de assinatura pessoal: ${forbidden})`
+        );
+      }
+    }
+  }
+
+  if (entitlementSource) {
+    for (const required of [
+      "db.collection('entitlements')",
+      'evaluateOfficialCommunityCreationEntitlement',
+      'official_community_creation:',
+    ]) {
+      if (!entitlementSource.includes(required)) {
+        architectureViolations.push(
+          `${OFFICIAL_CREATION_ENTITLEMENT_SERVICE} (contrato de entitlement oficial ausente: ${required})`
+        );
+      }
+    }
+
+    for (const forbidden of [
+      'platform_subscription_',
+      'evaluatePlatformSubscriptionEntitlement',
+    ]) {
+      if (entitlementSource.includes(forbidden)) {
+        architectureViolations.push(
+          `${OFFICIAL_CREATION_ENTITLEMENT_SERVICE} (entitlement oficial não pode herdar assinatura pessoal: ${forbidden})`
         );
       }
     }

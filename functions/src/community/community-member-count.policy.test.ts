@@ -325,7 +325,8 @@ test('libera Espaço Oficial somente para organização verificada e vigente', (
       startsAt: OFFICIAL_SPACE_NOW - 1_000,
       endsAt: OFFICIAL_SPACE_NOW + 1_000,
       maxOfficialSpaces: 2,
-      policyVersion: 1,
+      memberLimit: 250,
+      policyVersion: 2,
     },
     now: OFFICIAL_SPACE_NOW,
   });
@@ -334,7 +335,7 @@ test('libera Espaço Oficial somente para organização verificada e vigente', (
     allowed: true,
     organizationId: 'organization-1',
     maxOfficialSpaces: 2,
-    memberLimit: 1_000,
+    memberLimit: 250,
     denialReason: null,
   });
 });
@@ -364,7 +365,8 @@ test('concessão comercial vencida pausa somente novos cadastros', () => {
       startsAt: OFFICIAL_SPACE_NOW - 2_000,
       endsAt: OFFICIAL_SPACE_NOW - 1,
       maxOfficialSpaces: 1,
-      policyVersion: 1,
+      memberLimit: 250,
+      policyVersion: 2,
     },
     now: OFFICIAL_SPACE_NOW,
   });

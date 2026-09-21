@@ -21,6 +21,7 @@ function grant(overrides: Record<string, unknown> = {}): Record<string, unknown>
     startsAt: NOW - 10_000,
     endsAt: NOW + 10_000,
     maxOfficialSpaces: 5,
+    memberLimit: 250,
     ...overrides,
   };
 }

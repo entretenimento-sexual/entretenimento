@@ -41,9 +41,10 @@ function activeGrant(overrides: Record<string, unknown> = {}) {
     holderUid: 'user-1',
     scope: 'official_space_creation',
     verificationStatus: 'verified',
-    policyVersion: 1,
+    policyVersion: 2,
     organizationId: 'organization-1',
     maxOfficialSpaces: 10,
+    memberLimit: 250,
     active: true,
     startsAt: NOW - 1_000,
     endsAt: NOW + 10_000,
@@ -154,7 +155,7 @@ test('deriva organização, papel, evidência e validade do Local sem confiar no
     },
     verification: {
       verificationSource: 'official_space_creation_grant',
-      verificationPolicyVersion: 1,
+      verificationPolicyVersion: 2,
       revalidationDueAt: null,
       verificationExpiresAt: NOW + 10_000,
     },
@@ -177,7 +178,7 @@ test('agenda revalidação automática para grant de Local sem expiração', () 
 
   assert.deepEqual(result.verification, {
     verificationSource: 'official_space_creation_grant',
-    verificationPolicyVersion: 1,
+    verificationPolicyVersion: 2,
     revalidationDueAt:
       NOW + COMMUNITY_OFFICIAL_AUTOMATED_REVALIDATION_INTERVAL_MS,
     verificationExpiresAt: null,
