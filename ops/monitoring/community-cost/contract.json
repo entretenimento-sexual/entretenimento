@@ -1,0 +1,158 @@
+{
+  "version": 1,
+  "dashboardDisplayName": "Community Cost Operations",
+  "baseline": {
+    "schemaVersion": 1,
+    "source": "cloud_monitoring_log_metrics",
+    "environment": "production",
+    "minimumWindowDays": 14
+  },
+  "metrics": [
+    {
+      "key": "community.discovery.reads_per_card",
+      "metricName": "community_discovery_reads_per_card",
+      "sampleMetricName": "community_discovery_reads_per_card_samples",
+      "description": "Proxy operacional de reads por card entregue em Discovery.",
+      "filter": "jsonPayload.operationalCostBudget.metric=\"community.discovery.reads_per_card\"",
+      "valueExtractor": "EXTRACT(jsonPayload.operationalCostBudget.value)",
+      "unit": "1",
+      "aggregation": "p95",
+      "aligner": "ALIGN_PERCENTILE_95",
+      "reducer": "REDUCE_PERCENTILE_95",
+      "windowSeconds": 900,
+      "minimumSamples": 100,
+      "minimumObservedDays": 7,
+      "warningAbove": 3.5,
+      "criticalAbove": 5,
+      "budgeted": true,
+      "bucketOptions": {
+        "exponentialBuckets": {
+          "numFiniteBuckets": 16,
+          "growthFactor": 2,
+          "scale": 0.25
+        }
+      }
+    },
+    {
+      "key": "community.discovery.exposure_writes_per_accepted",
+      "metricName": "community_discovery_exposure_writes_per_accepted",
+      "sampleMetricName": "community_discovery_exposure_writes_per_accepted_samples",
+      "description": "Proxy operacional de writes por exposure aceita.",
+      "filter": "jsonPayload.operationalCostBudget.metric=\"community.discovery.exposure_writes_per_accepted\"",
+      "valueExtractor": "EXTRACT(jsonPayload.operationalCostBudget.value)",
+      "unit": "1",
+      "aggregation": "mean",
+      "aligner": "ALIGN_MEAN",
+      "reducer": "REDUCE_MEAN",
+      "windowSeconds": 900,
+      "minimumSamples": 100,
+      "minimumObservedDays": 7,
+      "warningAbove": 1.5,
+      "criticalAbove": 2,
+      "budgeted": true,
+      "bucketOptions": {
+        "exponentialBuckets": {
+          "numFiniteBuckets": 14,
+          "growthFactor": 2,
+          "scale": 0.125
+        }
+      }
+    },
+    {
+      "key": "community.notification.push_targets_per_notification",
+      "metricName": "community_notification_push_targets_per_notification",
+      "sampleMetricName": "community_notification_push_targets_per_notification_samples",
+      "description": "Fan-out real de push por notificação de Comunidades.",
+      "filter": "jsonPayload.operationalCostBudget.metric=\"community.notification.push_targets_per_notification\"",
+      "valueExtractor": "EXTRACT(jsonPayload.operationalCostBudget.value)",
+      "unit": "1",
+      "aggregation": "p95",
+      "aligner": "ALIGN_PERCENTILE_95",
+      "reducer": "REDUCE_PERCENTILE_95",
+      "windowSeconds": 900,
+      "minimumSamples": 100,
+      "minimumObservedDays": 7,
+      "warningAbove": 5,
+      "criticalAbove": 8,
+      "budgeted": true,
+      "bucketOptions": {
+        "exponentialBuckets": {
+          "numFiniteBuckets": 12,
+          "growthFactor": 2,
+          "scale": 0.5
+        }
+      }
+    },
+    {
+      "key": "community.storage.upper_bound_bytes_per_community",
+      "metricName": "community_storage_upper_bound_bytes_per_community",
+      "sampleMetricName": "community_storage_upper_bound_bytes_per_community_samples",
+      "description": "Upper bound conservador de Storage por Comunidade.",
+      "filter": "jsonPayload.operationalCostBudget.metric=\"community.storage.upper_bound_bytes_per_community\"",
+      "valueExtractor": "EXTRACT(jsonPayload.operationalCostBudget.value)",
+      "unit": "By",
+      "aggregation": "max",
+      "aligner": "ALIGN_MAX",
+      "reducer": "REDUCE_MAX",
+      "windowSeconds": 86400,
+      "minimumSamples": 1,
+      "minimumObservedDays": 1,
+      "warningAbove": 536870912,
+      "criticalAbove": 1073741824,
+      "budgeted": true,
+      "bucketOptions": {
+        "exponentialBuckets": {
+          "numFiniteBuckets": 16,
+          "growthFactor": 2,
+          "scale": 1048576
+        }
+      }
+    },
+    {
+      "key": "community.boost.reads_proxy_per_served_placement",
+      "metricName": "community_boost_reads_proxy_per_served_placement",
+      "sampleMetricName": "community_boost_reads_proxy_per_served_placement_samples",
+      "description": "Baseline-only: proxy de reads do caminho de Boost por placement servido.",
+      "filter": "jsonPayload.message=\"community_boost_placement_cost_observed\" AND jsonPayload.placementServed=true",
+      "valueExtractor": "EXTRACT(jsonPayload.readsProxyPerServedPlacement)",
+      "unit": "1",
+      "aggregation": "mean",
+      "aligner": "ALIGN_MEAN",
+      "reducer": "REDUCE_MEAN",
+      "windowSeconds": 3600,
+      "minimumSamples": 100,
+      "minimumObservedDays": 7,
+      "budgeted": false,
+      "bucketOptions": {
+        "exponentialBuckets": {
+          "numFiniteBuckets": 16,
+          "growthFactor": 2,
+          "scale": 1
+        }
+      }
+    },
+    {
+      "key": "community.boost.writes_proxy_per_served_placement",
+      "metricName": "community_boost_writes_proxy_per_served_placement",
+      "sampleMetricName": "community_boost_writes_proxy_per_served_placement_samples",
+      "description": "Baseline-only: proxy de writes do caminho de Boost por placement servido.",
+      "filter": "jsonPayload.message=\"community_boost_placement_cost_observed\" AND jsonPayload.placementServed=true",
+      "valueExtractor": "EXTRACT(jsonPayload.writesProxyPerServedPlacement)",
+      "unit": "1",
+      "aggregation": "mean",
+      "aligner": "ALIGN_MEAN",
+      "reducer": "REDUCE_MEAN",
+      "windowSeconds": 3600,
+      "minimumSamples": 100,
+      "minimumObservedDays": 7,
+      "budgeted": false,
+      "bucketOptions": {
+        "exponentialBuckets": {
+          "numFiniteBuckets": 12,
+          "growthFactor": 2,
+          "scale": 0.5
+        }
+      }
+    }
+  ]
+}
