@@ -40,7 +40,7 @@ function baseline(overrides: Record<string, unknown> = {}) {
 
   return {
     schemaVersion: COMMUNITY_OPERATIONAL_COST_BASELINE_VERSION,
-    source: 'cloud_monitoring_log_metrics',
+    source: 'cloud_logging_runtime_events',
     environment: 'production',
     projectId: 'entretenimento-sexual',
     windowStartedAt: START,
