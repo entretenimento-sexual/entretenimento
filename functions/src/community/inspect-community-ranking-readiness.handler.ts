@@ -54,6 +54,9 @@ import {
   COMMUNITY_DISCOVERY_RANKING_MODE,
   COMMUNITY_DISCOVERY_SCORE_VERSION,
 } from './community-ranking.policy';
+import {
+  isCommunityRankingV3ProductionEvidenceReady,
+} from './community-ranking-v3-promotion-evidence.policy';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 
 const SHADOW_COMPARISON_TOP_K = 25;
@@ -106,6 +109,9 @@ interface CommunityRankingReadinessInspection {
     observedCycles: number;
     passingCycles: number;
     consecutivePassingCycles: number;
+    realDataQualified: boolean;
+    observationSource: string | null;
+    observedProjectId: string | null;
     lastObservedCycleCompletedAt: number | null;
     failedCriteria: readonly string[];
   };
@@ -137,6 +143,11 @@ function normalizeVersion(value: unknown): number | null {
 function normalizeConfiguredMode(value: unknown): string | null {
   const normalized = String(value ?? '').trim();
   return normalized ? normalized.slice(0, 64) : null;
+}
+
+function normalizeShortText(value: unknown): string | null {
+  const normalized = String(value ?? '').trim();
+  return normalized ? normalized.slice(0, 128) : null;
 }
 
 function assertRuntime(): void {
@@ -451,6 +462,13 @@ export const inspectCommunityRankingReadiness = onCall(
         consecutivePassingCycles: normalizeCount(
           shadowRuntime['consecutivePassingCycles']
         ),
+        realDataQualified: shadowRuntime['realDataQualified'] === true,
+        observationSource: normalizeShortText(
+          shadowRuntime['observationSource']
+        ),
+        observedProjectId: normalizeShortText(
+          shadowRuntime['observedProjectId']
+        ),
         lastObservedCycleCompletedAt: normalizeTimestamp(
           shadowRuntime['lastObservedCycleCompletedAt']
         ),
@@ -458,8 +476,9 @@ export const inspectCommunityRankingReadiness = onCall(
       },
       canPromoteV3:
         candidateV3IndexReady
-        && shadowRuntime['promotionReady'] === true
-        && runtimeReadyForTarget,
+        && runtimeReadyForTarget
+        && shadowReadiness.available
+        && isCommunityRankingV3ProductionEvidenceReady(shadowRuntime),
       generatedAt: Date.now(),
     };
 
@@ -477,6 +496,9 @@ export const inspectCommunityRankingReadiness = onCall(
       v3ConsecutivePassingCycles:
         inspection.v3Acceptance.consecutivePassingCycles,
       v3PromotionReady: inspection.v3Acceptance.promotionReady,
+      v3RealDataQualified: inspection.v3Acceptance.realDataQualified,
+      v3ObservationSource: inspection.v3Acceptance.observationSource,
+      v3ObservedProjectId: inspection.v3Acceptance.observedProjectId,
       v3FailedCriteria: inspection.v3Acceptance.failedCriteria,
       shadowAvailable: inspection.shadowComparison.available,
       shadowUnavailableReason:

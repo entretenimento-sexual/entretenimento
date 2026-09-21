@@ -14,6 +14,15 @@ import {
   COMMUNITY_DISCOVERY_V3_RANKING_MODE,
   evaluateCommunityRankingRollout,
 } from './community-ranking-rollout.policy';
+import {
+  COMMUNITY_RANKING_V3_ACCEPTANCE_POLICY_VERSION,
+  COMMUNITY_RANKING_V3_MIN_CONSECUTIVE_PASSING_CYCLES,
+  COMMUNITY_RANKING_V3_MIN_OBSERVED_CYCLES,
+} from './community-ranking-v3-acceptance.policy';
+import {
+  COMMUNITY_RANKING_V3_REAL_DATA_OBSERVATION_SOURCE,
+} from './community-ranking-v3-promotion-evidence.policy';
+import { COMMUNITY_PRODUCTION_PROJECT_ID } from './community-runtime.guard';
 
 test('rollback legado permanece sempre disponível', () => {
   const decision = evaluateCommunityRankingRollout({
@@ -133,7 +142,7 @@ test('v3 continua shadow até a janela mensurável marcar promotionReady', () =>
   assert.equal(decision.denialReason, 'candidate_shadow_acceptance_not_ready');
 });
 
-test('promove v3 somente com índice, runtime e aceitação shadow prontos', () => {
+test('promotionReady sem evidência real continua bloqueado', () => {
   const decision = evaluateCommunityRankingRollout({
     action: 'promote_v3',
     rawConfig: {
@@ -149,6 +158,43 @@ test('promove v3 somente com índice, runtime e aceitação shadow prontos', () 
     rawShadowRuntime: {
       candidateScoreVersion: COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
       promotionReady: true,
+    },
+  });
+
+  assert.equal(decision.allowed, false);
+  assert.equal(decision.denialReason, 'candidate_real_data_not_ready');
+});
+
+test('promove v3 somente com índice, runtime e aceitação shadow prontos', () => {
+  const decision = evaluateCommunityRankingRollout({
+    action: 'promote_v3',
+    rawConfig: {
+      discoveryScoreIndexReady: true,
+      discoveryCandidateV3IndexReady: true,
+    },
+    rawRuntime: {
+      ready: true,
+      completedScoreVersion: COMMUNITY_DISCOVERY_SCORE_VERSION,
+      completedCandidateActivityMomentumModelVersion:
+        COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION,
+    },
+    rawShadowRuntime: {
+      policyVersion: COMMUNITY_RANKING_V3_ACCEPTANCE_POLICY_VERSION,
+      candidateScoreVersion: COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
+      candidateActivityMomentumModelVersion:
+        COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION,
+      observedCycles: COMMUNITY_RANKING_V3_MIN_OBSERVED_CYCLES,
+      consecutivePassingCycles:
+        COMMUNITY_RANKING_V3_MIN_CONSECUTIVE_PASSING_CYCLES,
+      promotionReady: true,
+      lastObservedCycleCompletedAt: Date.UTC(2026, 8, 21, 6, 25, 0),
+      lastEvaluation: {
+        accepted: true,
+        failedCriteria: [],
+      },
+      realDataQualified: true,
+      observationSource: COMMUNITY_RANKING_V3_REAL_DATA_OBSERVATION_SOURCE,
+      observedProjectId: COMMUNITY_PRODUCTION_PROJECT_ID,
     },
   });
 
