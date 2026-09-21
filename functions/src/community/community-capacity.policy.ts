@@ -41,6 +41,8 @@ export type CommunityRecommendedUpgradeRole =
 export type CommunityCapacityRegularizationReason =
   | 'owner_subscription_required'
   | 'capacity_over_plan'
+  | 'official_entitlement_required'
+  | 'capacity_over_entitlement'
   | null;
 
 export interface PersonalCommunityCreationPolicy {
@@ -254,14 +256,16 @@ export function resolveCommunityCreationCapability(input: {
   };
 }
 
-export function evaluateCommunityCapacity(input: {
+export function evaluateCommunityCapacityAgainstLimit(input: {
   rawCommunity: unknown;
-  sponsorRole: CommunityCapacitySponsorRole;
+  sponsorLimit: CommunityEffectiveMemberLimit;
+  zeroLimitReason: Exclude<CommunityCapacityRegularizationReason, null>;
+  restrictedReason: Exclude<CommunityCapacityRegularizationReason, null>;
 }): Readonly<CommunityCapacityState> {
   const community = (input.rawCommunity ?? {}) as Record<string, unknown>;
   const metrics = (community['metrics'] ?? {}) as Record<string, unknown>;
   const configuredLimit = resolveCommunityConfiguredMemberLimit(community);
-  const ownerPlanLimit = resolveCommunityOwnerPlanLimit(input.sponsorRole);
+  const ownerPlanLimit = input.sponsorLimit;
   const effectiveLimit = Math.min(
     configuredLimit,
     ownerPlanLimit
@@ -274,8 +278,8 @@ export function evaluateCommunityCapacity(input: {
     !restrictedByOwnerPlan
       ? null
       : ownerPlanLimit === 0
-        ? 'owner_subscription_required'
-        : 'capacity_over_plan';
+        ? input.zeroLimitReason
+        : input.restrictedReason;
 
   return {
     configuredLimit,
@@ -288,4 +292,16 @@ export function evaluateCommunityCapacity(input: {
     regularizationReason,
     atCapacity: !acceptingNewMembers,
   };
+}
+
+export function evaluateCommunityCapacity(input: {
+  rawCommunity: unknown;
+  sponsorRole: CommunityCapacitySponsorRole;
+}): Readonly<CommunityCapacityState> {
+  return evaluateCommunityCapacityAgainstLimit({
+    rawCommunity: input.rawCommunity,
+    sponsorLimit: resolveCommunityOwnerPlanLimit(input.sponsorRole),
+    zeroLimitReason: 'owner_subscription_required',
+    restrictedReason: 'capacity_over_plan',
+  });
 }

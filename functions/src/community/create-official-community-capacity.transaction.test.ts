@@ -327,6 +327,10 @@ test('createOfficialCommunity persiste a capacidade do entitlement, não o teto 
     );
 
     assert.equal(communityCapacity['memberLimit'], 250);
+    assert.equal(
+      communityCapacity['entitlementCapability'],
+      'officialCommunityCreation'
+    );
     assert.equal(discoveryCapacity['memberLimit'], 250);
     assert.notEqual(
       communityCapacity['memberLimit'],

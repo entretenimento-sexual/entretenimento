@@ -237,7 +237,7 @@ test('comunidade legada usa capacidade conservadora e falha fechada sem métrica
   assert.equal(inconsistent.acceptingNewMembers, false);
 });
 
-test('Espaço Oficial sem capacidade persistida não herda o teto técnico', () => {
+test('Espaço Oficial sem entitlement vigente não herda o teto técnico', () => {
   const legacy = evaluateCommunityCapacity({
     rawCommunity: {
       source: { type: 'venue' },
@@ -250,20 +250,36 @@ test('Espaço Oficial sem capacidade persistida não herda o teto técnico', () 
   assert.equal(legacy.effectiveLimit, 25);
   assert.equal(legacy.acceptingNewMembers, true);
 
-  const explicit = evaluateCommunityCapacityForOwner({
+  const officialWithoutEntitlement = evaluateCommunityCapacityForOwner({
     rawCommunity: {
+      officialAssociationKey: 'venue:venue-1',
       source: { type: 'venue' },
       capacity: {
         sponsorType: 'official',
+        entitlementCapability: 'officialVenueCreation',
         memberLimit: 250,
       },
       metrics: { memberCount: 100 },
     },
     rawOwnerUser: null,
     rawOwnerEntitlement: null,
+    rawOfficialAssociation: {
+      associationKey: 'venue:venue-1',
+      status: 'verified',
+      sponsorOrganizationId: 'organization-1',
+      authority: { holderUid: 'owner-1' },
+    },
+    rawOfficialEntitlement: null,
+    now: OFFICIAL_SPACE_NOW,
   });
-  assert.equal(explicit?.configuredLimit, 250);
-  assert.equal(explicit?.effectiveLimit, 250);
+
+  assert.equal(officialWithoutEntitlement?.configuredLimit, 250);
+  assert.equal(officialWithoutEntitlement?.effectiveLimit, 0);
+  assert.equal(officialWithoutEntitlement?.acceptingNewMembers, false);
+  assert.equal(
+    officialWithoutEntitlement?.regularizationReason,
+    'official_entitlement_required'
+  );
 });
 
 test('admin preserva teto operacional e assinatura inválida volta para free', () => {

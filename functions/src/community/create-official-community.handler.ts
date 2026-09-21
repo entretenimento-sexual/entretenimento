@@ -456,6 +456,7 @@ export const createOfficialCommunity = onCall<CreateOfficialCommunityRequest>(
         capacity: {
           memberLimit: grantedMemberLimit,
           sponsorType: 'official',
+          entitlementCapability: 'officialCommunityCreation',
           policyVersion: 1,
         },
         lifecycle,

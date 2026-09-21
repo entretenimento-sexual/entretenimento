@@ -733,6 +733,7 @@ function validateOfficialCreationBoundary(architectureViolations) {
       'resolveOfficialCommunityCreationEntitlementInTransaction',
       'grantedMemberLimit',
       "sponsorType: 'official'",
+      "entitlementCapability: 'officialCommunityCreation'",
       "role: 'owner'",
       "action: 'official_community_create'",
     ]) {
@@ -888,6 +889,7 @@ function validateOfficialCreationBoundary(architectureViolations) {
       'resolveOfficialVenueCreationEntitlementInTransaction',
       'grantedMemberLimit',
       'business_official_entitlement_usage_audit',
+      "entitlementCapability: 'officialVenueCreation'",
     ]) {
       if (!venueCreateSource.includes(required)) {
         architectureViolations.push(
@@ -911,7 +913,8 @@ function validateOfficialCreationBoundary(architectureViolations) {
   if (communitySettingsSource) {
     for (const required of [
       'isOfficialCommunityCapacity',
-      'resolveOfficialCommunityCreationEntitlementInTransaction',
+      'resolveBusinessOfficialEntitlementInTransaction',
+      'resolveOfficialCommunityCapacityCapabilityName',
       'official_capacity_entitlement_exceeded',
       'business_official_entitlement_usage_audit',
     ]) {
@@ -960,16 +963,26 @@ function validateOfficialCreationBoundary(architectureViolations) {
     );
   }
 
-  if (
-    capacitySource
-    && (
-      !capacitySource.includes("capacity['sponsorType']")
-      || !capacitySource.includes("sponsorRole: 'official'")
-    )
-  ) {
-    architectureViolations.push(
-      `${COMMUNITY_CAPACITY_SERVICE} (capacidade oficial deve ser separada do entitlement pessoal)`
-    );
+  if (capacitySource) {
+    for (const required of [
+      "capacity['sponsorType']",
+      'resolveBusinessOfficialEntitlementInTransaction',
+      "db.collection('community_official_associations')",
+      'official_entitlement_required',
+      'capacity_over_entitlement',
+    ]) {
+      if (!capacitySource.includes(required)) {
+        architectureViolations.push(
+          `${COMMUNITY_CAPACITY_SERVICE} (admissão Official deve revalidar associação + entitlement Business/Official: ${required})`
+        );
+      }
+    }
+
+    if (capacitySource.includes("sponsorRole: 'official'")) {
+      architectureViolations.push(
+        `${COMMUNITY_CAPACITY_SERVICE} (admissão Official não pode usar teto técnico como capacidade vigente)`
+      );
+    }
   }
 
   if (

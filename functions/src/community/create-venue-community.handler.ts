@@ -394,6 +394,7 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
         capacity: {
           memberLimit: grantedMemberLimit,
           sponsorType: 'official',
+          entitlementCapability: 'officialVenueCreation',
           policyVersion: 1,
         },
         createdAt: now,

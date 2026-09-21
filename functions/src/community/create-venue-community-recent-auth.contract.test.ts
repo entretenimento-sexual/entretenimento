@@ -335,9 +335,18 @@ for (const mode of ['grant', 'admin'] as const) {
       );
       assert.equal(
         (community as {
-          capacity?: { memberLimit?: unknown };
+          capacity?: {
+            memberLimit?: unknown;
+            entitlementCapability?: unknown;
+          };
         } | undefined)?.capacity?.memberLimit,
         250
+      );
+      assert.equal(
+        (community as {
+          capacity?: { entitlementCapability?: unknown };
+        } | undefined)?.capacity?.entitlementCapability,
+        'officialVenueCreation'
       );
       assert.equal(
         (probe.writes.find((write) =>

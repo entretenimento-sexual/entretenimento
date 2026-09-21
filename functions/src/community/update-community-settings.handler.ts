@@ -11,6 +11,9 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { assertRecentAuthentication } from '../account_lifecycle/_shared';
 import { FUNCTIONS_REGION } from '../config/functions-region';
+import {
+  resolveBusinessOfficialEntitlementInTransaction,
+} from '../business-official/business-official-entitlement.service';
 import { buildCommunityOperationalRequestRetention } from './community-operational-retention.policy';
 import { db } from '../firebaseApp';
 import {
@@ -24,6 +27,8 @@ import {
 } from './community-capacity.policy';
 import {
   isOfficialCommunityCapacity,
+  resolveOfficialCommunityCapacityCapabilityName,
+  resolveOfficialCommunityEntitlementSubject,
 } from './community-capacity.service';
 import {
   REQUIRE_COMMUNITY_APP_CHECK,
@@ -33,9 +38,6 @@ import { normalizeCommunityMemberCount } from './community-member-count.policy';
 import {
   normalizeCommunityOfficialAssociationKey,
 } from './community-official-association.model';
-import {
-  resolveOfficialCommunityCreationEntitlementInTransaction,
-} from './community-official-creation-entitlement.service';
 import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
 import {
   CommunityEditableSettings,
@@ -352,24 +354,15 @@ export const updateCommunitySettings = onCall<UpdateCommunitySettingsRequest>(
           const associationCommunityId = normalizeSafeId(
             association['communityId']
           );
-          const authority = (association['authority'] ?? {}) as Record<
-            string,
-            unknown
-          >;
-          const holderUid = normalizeSafeId(authority['holderUid']);
-          const sponsorOrganizationId = association['sponsorOrganizationId']
-            === null
-            ? null
-            : normalizeSafeId(association['sponsorOrganizationId']);
+          const subject = resolveOfficialCommunityEntitlementSubject(
+            community,
+            association
+          );
 
           if (
             association['status'] !== 'verified'
             || associationCommunityId !== command.communityId
-            || !holderUid
-            || (
-              association['sponsorOrganizationId'] !== null
-              && !sponsorOrganizationId
-            )
+            || !subject
           ) {
             throw new HttpsError(
               'data-loss',
@@ -377,23 +370,28 @@ export const updateCommunitySettings = onCall<UpdateCommunitySettingsRequest>(
             );
           }
 
-          const officialCapability =
-            await resolveOfficialCommunityCreationEntitlementInTransaction({
+          const officialEntitlement =
+            await resolveBusinessOfficialEntitlementInTransaction({
               transaction,
-              actorUid: holderUid,
-              sponsorOrganizationId,
+              subjectType: subject.subjectType,
+              subjectId: subject.subjectId,
               now: Date.now(),
             });
+          const capabilityName =
+            resolveOfficialCommunityCapacityCapabilityName(community);
+          const officialCapability = officialEntitlement.allowed
+            ? officialEntitlement.capabilities?.[capabilityName] ?? null
+            : null;
 
           if (
-            !officialCapability.allowed
-            || !officialCapability.entitlementId
-            || officialCapability.memberLimit === null
+            !officialEntitlement.allowed
+            || !officialEntitlement.entitlementId
+            || !officialCapability
           ) {
             const reason =
-              officialCapability.denialReason === 'entitlement_inactive'
+              officialEntitlement.denialReason === 'entitlement_inactive'
                 ? 'official_capacity_entitlement_inactive'
-                : officialCapability.denialReason === 'entitlement_mismatch'
+                : officialEntitlement.denialReason === 'entitlement_mismatch'
                   ? 'official_capacity_entitlement_mismatch'
                   : 'official_capacity_entitlement_required';
             throw new HttpsError(
@@ -416,11 +414,11 @@ export const updateCommunitySettings = onCall<UpdateCommunitySettingsRequest>(
 
           officialCapacityAudit = Object.freeze({
             action: 'business_official_entitlement_capacity_validated',
-            entitlementId: officialCapability.entitlementId,
-            entitlementPolicyVersion: officialCapability.policyVersion,
-            capability: 'officialCommunityCreation',
-            subjectType: officialCapability.subjectType,
-            subjectId: officialCapability.subjectId,
+            entitlementId: officialEntitlement.entitlementId,
+            entitlementPolicyVersion: officialEntitlement.policyVersion,
+            capability: capabilityName,
+            subjectType: officialEntitlement.subjectType,
+            subjectId: officialEntitlement.subjectId,
             communityId: command.communityId,
             requestedMemberLimit: command.memberLimit,
             allowedMemberLimit: officialCapability.memberLimit,
@@ -486,10 +484,8 @@ export const updateCommunitySettings = onCall<UpdateCommunitySettingsRequest>(
               join: command.joinPolicy,
               contentAccess,
             },
-            capacity: {
-              memberLimit: command.memberLimit,
-              policyVersion: 1,
-            },
+            'capacity.memberLimit': command.memberLimit,
+            'capacity.policyVersion': 1,
             updatedAt: now,
           });
         }
