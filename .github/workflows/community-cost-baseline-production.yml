@@ -1,0 +1,117 @@
+name: Community Cost Baseline Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: 'Production observation window in days (minimum 14)'
+        required: true
+        default: '14'
+        type: string
+      max_entries:
+        description: 'Maximum Cloud Logging entries per metric before fail-closed'
+        required: true
+        default: '200000'
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: community-cost-baseline-production
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '22'
+  PROJECT_ID: 'entretenimento-sexual'
+
+jobs:
+  capture:
+    name: Capture Community cost baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Validate production configuration
+        shell: bash
+        env:
+          DAYS: ${{ inputs.days }}
+          MAX_ENTRIES: ${{ inputs.max_entries }}
+          WIF_PROVIDER: ${{ vars.GCP_COMMUNITY_COST_WORKLOAD_IDENTITY_PROVIDER }}
+          SERVICE_ACCOUNT: ${{ vars.GCP_COMMUNITY_COST_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$DAYS" =~ ^[0-9]+$ ]] || (( DAYS < 14 )); then
+            echo 'days deve ser inteiro >= 14.' >&2
+            exit 1
+          fi
+          if ! [[ "$MAX_ENTRIES" =~ ^[0-9]+$ ]] || (( MAX_ENTRIES < 1000 )); then
+            echo 'max_entries deve ser inteiro >= 1000.' >&2
+            exit 1
+          fi
+          if [[ -z "$WIF_PROVIDER" ]]; then
+            echo 'Falta a repository variable GCP_COMMUNITY_COST_WORKLOAD_IDENTITY_PROVIDER.' >&2
+            exit 1
+          fi
+          if [[ -z "$SERVICE_ACCOUNT" ]]; then
+            echo 'Falta a repository variable GCP_COMMUNITY_COST_SERVICE_ACCOUNT.' >&2
+            exit 1
+          fi
+
+      - name: Authenticate to Google Cloud with Workload Identity Federation
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_COMMUNITY_COST_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_COMMUNITY_COST_SERVICE_ACCOUNT }}
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Capture production baseline
+        shell: bash
+        env:
+          DAYS: ${{ inputs.days }}
+          MAX_ENTRIES: ${{ inputs.max_entries }}
+        run: |
+          set -euo pipefail
+          gcloud auth list --filter=status:ACTIVE --format='value(account)'
+          gcloud config set project "$PROJECT_ID"
+          npm run community:cost-baseline:capture -- \
+            --project="$PROJECT_ID" \
+            --days="$DAYS" \
+            --max-entries="$MAX_ENTRIES" \
+            --output=.dev-logs/community-cost-baseline.json
+
+      - name: Upload baseline artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: community-cost-baseline-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .dev-logs/community-cost-baseline.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish summary
+        if: always()
+        shell: bash
+        env:
+          DAYS: ${{ inputs.days }}
+        run: |
+          {
+            echo '## Community Cost Baseline'
+            echo
+            echo "- Project: \`$PROJECT_ID\`"
+            echo "- Requested window: \`$DAYS days\`"
+            echo '- Baseline artifact is not committed to Git.'
+          } >> "$GITHUB_STEP_SUMMARY"
