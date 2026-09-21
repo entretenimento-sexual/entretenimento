@@ -7,6 +7,7 @@
 // score v2/v3, cursor ou ordem orgânica.
 // -----------------------------------------------------------------------------
 
+import { logger } from 'firebase-functions';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { assertCommunitySocialAccessForUid } from '../community/community-social-access.service';
@@ -19,7 +20,7 @@ import {
   consumeBackendRateLimitQuota,
 } from '../shared/security/backend-rate-limit.service';
 import {
-  selectCommunityBoostSponsoredPlacement,
+  selectCommunityBoostSponsoredPlacementWithDiagnostics,
 } from './community-boost-selection.service';
 import {
   COMMUNITY_BOOST_MIN_ORGANIC_CARDS_FOR_PLACEMENT,
@@ -137,21 +138,55 @@ export const getCommunityBoostPlacement =
         message: 'Muitas solicitações patrocinadas foram recebidas em pouco tempo.',
       });
 
-      const placement = await selectCommunityBoostSponsoredPlacement({
-        viewerUid: uid,
+      const selection =
+        await selectCommunityBoostSponsoredPlacementWithDiagnostics({
+          viewerUid: uid,
+          sourceType,
+          tagId,
+          excludedCommunityIds: [
+            ...new Set([
+              ...organicCommunityIds,
+              ...additionalExcludedCommunityIds,
+            ]),
+          ].slice(0, MAX_EFFECTIVE_EXCLUSIONS),
+          now: Date.now(),
+        });
+      const placementServed = selection.placement !== null;
+      const sharedControlReads = 2;
+      const sharedControlWrites = 1;
+      const readsProxy =
+        sharedControlReads
+        + selection.diagnostics.campaignDocumentsFetched
+        + selection.diagnostics.frequencyCapReads
+        + selection.diagnostics.visibilityReads
+        + selection.diagnostics.claimTransactionReads;
+      const writesProxy =
+        sharedControlWrites + selection.diagnostics.deliveryWrites;
+
+      logger.info('community_boost_placement_cost_observed', {
+        placementServed,
         sourceType,
-        tagId,
-        excludedCommunityIds: [
-          ...new Set([
-            ...organicCommunityIds,
-            ...additionalExcludedCommunityIds,
-          ]),
-        ].slice(0, MAX_EFFECTIVE_EXCLUSIONS),
-        now: Date.now(),
+        hasTagFilter: tagId !== null,
+        campaignDocumentsFetched:
+          selection.diagnostics.campaignDocumentsFetched,
+        eligibleCandidateCount: selection.diagnostics.eligibleCandidateCount,
+        frequencyCapReads: selection.diagnostics.frequencyCapReads,
+        visibilityReads: selection.diagnostics.visibilityReads,
+        claimAttempts: selection.diagnostics.claimAttempts,
+        claimTransactionReads: selection.diagnostics.claimTransactionReads,
+        deliveryWrites: selection.diagnostics.deliveryWrites,
+        sharedControlReads,
+        sharedControlWrites,
+        readsProxy,
+        writesProxy,
+        readsProxyPerServedPlacement: placementServed ? readsProxy : null,
+        writesProxyPerServedPlacement: placementServed ? writesProxy : null,
+        semantics:
+          'document_operation_proxy_including_social_access_and_rate_limit',
       });
 
       return {
-        placement,
+        placement: selection.placement,
         generatedAt: Date.now(),
       };
     }
