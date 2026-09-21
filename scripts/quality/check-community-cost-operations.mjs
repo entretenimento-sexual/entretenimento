@@ -146,6 +146,35 @@ if (keys.includes('community.discovery.callables_per_session')) {
   );
 }
 
+function budgetFieldExpression(block, field) {
+  const match = block.match(new RegExp(field + ':\\s*([^,\\n]+)'));
+  return match?.[1]?.trim() ?? null;
+}
+
+function evaluateBudgetNumber(expression) {
+  if (!expression) return null;
+
+  const factors = expression.split('*').map((part) => part.trim());
+  let value = 1;
+
+  for (const factor of factors) {
+    if (factor === 'MIB') {
+      value *= 1024 * 1024;
+      continue;
+    }
+    if (factor === 'GIB') {
+      value *= 1024 * 1024 * 1024;
+      continue;
+    }
+
+    const numeric = Number(factor);
+    if (!Number.isFinite(numeric)) return null;
+    value *= numeric;
+  }
+
+  return value;
+}
+
 for (const metric of contract.metrics.filter((item) => item.budgeted === true)) {
   const anchor = "'" + metric.key + "': Object.freeze({";
   const start = budgetSource.indexOf(anchor);
@@ -158,21 +187,46 @@ for (const metric of contract.metrics.filter((item) => item.budgeted === true)) 
   }
   const block = budgetSource.slice(start, end);
 
-  for (const [field, value] of [
+  for (const [field, expected] of [
     ['warningAbove', metric.warningAbove],
     ['criticalAbove', metric.criticalAbove],
     ['minimumSamples', metric.minimumSamples],
   ]) {
-    if (!block.includes(field + ': ' + value)) {
+    const actual = evaluateBudgetNumber(
+      budgetFieldExpression(block, field)
+    );
+    if (actual !== expected) {
       throw new Error(
         'Monitoring contract drift for '
         + metric.key
         + ': '
         + field
-        + '='
-        + value
+        + ' expected='
+        + expected
+        + ' actual='
+        + String(actual)
       );
     }
+  }
+
+  if (!block.includes("aggregation: '" + metric.aggregation + "'")) {
+    throw new Error(
+      'Monitoring aggregation drift for ' + metric.key
+    );
+  }
+  if (
+    evaluateBudgetNumber(
+      budgetFieldExpression(block, 'windowMinutes')
+    ) * 60 !== metric.windowSeconds
+  ) {
+    throw new Error(
+      'Monitoring window drift for ' + metric.key
+    );
+  }
+  if (!block.includes("measurementSource: 'runtime_log'")) {
+    throw new Error(
+      'Real monitoring metric must come from runtime_log: ' + metric.key
+    );
   }
 }
 
