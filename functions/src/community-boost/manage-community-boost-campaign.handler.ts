@@ -143,8 +143,8 @@ function assertCommunityEligible(
     sourceType,
     tagIds: Array.isArray(discovery['tagIds'])
       ? discovery['tagIds']
-          .map((value) => String(value ?? '').trim())
-          .filter(Boolean)
+        .map((value) => String(value ?? '').trim())
+        .filter(Boolean)
       : [],
   };
 }
