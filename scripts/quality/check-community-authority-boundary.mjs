@@ -892,6 +892,8 @@ function validateCommunityRankingV3Boundary(architectureViolations) {
       "'promote_v3'",
       "'rollback_v2'",
       'candidate_shadow_acceptance_not_ready',
+      'candidate_real_data_not_ready',
+      'isCommunityRankingV3ProductionEvidenceReady',
       "shadowRuntime['promotionReady'] !== true",
       'discoveryCandidateV3IndexReady',
     ]) {
