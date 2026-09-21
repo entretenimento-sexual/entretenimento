@@ -150,7 +150,7 @@ function percentile(values, fraction) {
   return sorted[lower] * (1 - weight) + sorted[upper] * weight;
 }
 
-function aggregate(metric, values) {
+function aggregate(metric, values, denominatorCount) {
   if (values.length === 0) return null;
 
   if (metric.aggregation === 'mean') {
@@ -161,6 +161,10 @@ function aggregate(metric, values) {
   }
   if (metric.aggregation === 'p95') {
     return percentile(values, 0.95);
+  }
+  if (metric.aggregation === 'ratio_per_served') {
+    if (denominatorCount <= 0) return null;
+    return values.reduce((sum, value) => sum + value, 0) / denominatorCount;
   }
 
   throw new Error(
@@ -214,7 +218,9 @@ const metrics = {};
 for (const metric of contract.metrics) {
   const entries = readMetricEntries(metric);
   const values = [];
-  const observedDays = new Set();
+  const valueObservedDays = new Set();
+  const denominatorObservedDays = new Set();
+  let denominatorCount = 0;
 
   for (const entry of entries) {
     const rawValue = getPath(entry, metric.valuePath);
@@ -223,11 +229,29 @@ for (const metric of contract.metrics) {
     if (Number.isFinite(value) && value >= 0) {
       values.push(value);
       const day = observationDay(entry.timestamp);
-      if (day) observedDays.add(day);
+      if (day) valueObservedDays.add(day);
+    }
+
+    if (
+      metric.denominatorPath
+      && getPath(entry, metric.denominatorPath) === true
+    ) {
+      denominatorCount += 1;
+      const day = observationDay(entry.timestamp);
+      if (day) denominatorObservedDays.add(day);
     }
   }
 
-  const baselineValueRaw = aggregate(metric, values);
+  const ratioMetric = metric.aggregation === 'ratio_per_served';
+  const sampleCount = ratioMetric ? denominatorCount : values.length;
+  const observedDays = ratioMetric
+    ? denominatorObservedDays.size
+    : valueObservedDays.size;
+  const baselineValueRaw = aggregate(
+    metric,
+    values,
+    denominatorCount
+  );
   const baselineValue =
     baselineValueRaw === null ? null : round(baselineValueRaw);
   const minValue =
@@ -236,12 +260,21 @@ for (const metric of contract.metrics) {
     values.length === 0 ? null : round(Math.max(...values));
 
   metrics[metric.key] = {
-    sampleCount: values.length,
-    observedDays: observedDays.size,
+    sampleCount,
+    observedDays,
     aggregation: metric.aggregation,
     baselineValue,
     minValue,
     maxValue,
+    ...(ratioMetric
+      ? {
+          requestCount: values.length,
+          servedPlacementCount: denominatorCount,
+          totalProxyUnits: round(
+            values.reduce((sum, value) => sum + value, 0)
+          ),
+        }
+      : {}),
     status: budgetStatus(metric, baselineValue),
     unit: metric.unit,
     minimumSamples: metric.minimumSamples,
@@ -252,9 +285,9 @@ for (const metric of contract.metrics) {
     '[community-cost-baseline] '
     + metric.key
     + ': samples='
-    + values.length
+    + sampleCount
     + ', days='
-    + observedDays.size
+    + observedDays
     + ', value='
     + String(baselineValue)
   );
