@@ -47,7 +47,14 @@ function run(commandArgs, options = {}) {
     return { status: 0, stdout: '' };
   }
 
-  const result = spawnSync('gcloud', commandArgs, {
+  const executable = process.platform === 'win32'
+    ? process.env.ComSpec || 'cmd.exe'
+    : 'gcloud';
+  const executableArgs = process.platform === 'win32'
+    ? ['/d', '/s', '/c', 'gcloud.cmd', ...commandArgs]
+    : commandArgs;
+
+  const result = spawnSync(executable, executableArgs, {
     encoding: 'utf8',
     stdio: options.capture ? 'pipe' : 'inherit',
   });

@@ -160,6 +160,8 @@ const notificationChannelSource = fs.readFileSync(
   notificationChannelPath,
   'utf8'
 );
+const applyMonitoringSource = fs.readFileSync(applyMonitoringPath, 'utf8');
+const captureBaselineSource = fs.readFileSync(captureBaselinePath, 'utf8');
 
 for (const required of [
   "assertion.repository == '",
@@ -187,6 +189,26 @@ if (
   throw new Error(
     'GCP bootstrap must not grant broad roles or create service-account keys.'
   );
+}
+
+for (const [name, source] of [
+  ['gcp-bootstrap', gcpBootstrapSource],
+  ['notification-channel', notificationChannelSource],
+  ['monitoring-apply', applyMonitoringSource],
+  ['baseline-capture', captureBaselineSource],
+]) {
+  for (const required of [
+    "process.platform === 'win32'",
+    "process.env.ComSpec || 'cmd.exe'",
+    "'gcloud.cmd'",
+  ]) {
+    if (!source.includes(required)) {
+      throw new Error(
+        'Community cost ' + name + ' missing Windows gcloud support: '
+        + required
+      );
+    }
+  }
 }
 
 if (
