@@ -3,7 +3,7 @@
   "dashboardDisplayName": "Community Cost Operations",
   "baseline": {
     "schemaVersion": 1,
-    "source": "cloud_monitoring_log_metrics",
+    "source": "cloud_logging_runtime_events",
     "environment": "production",
     "minimumWindowDays": 14
   },
@@ -31,7 +31,9 @@
           "growthFactor": 2,
           "scale": 0.25
         }
-      }
+      },
+      "chartPlotType": "LINE",
+      "alertStrategy": "distribution_percentile_95"
     },
     {
       "key": "community.discovery.exposure_writes_per_accepted",
@@ -42,7 +44,7 @@
       "valueExtractor": "EXTRACT(jsonPayload.operationalCostBudget.value)",
       "unit": "1",
       "aggregation": "mean",
-      "aligner": "ALIGN_MEAN",
+      "aligner": "ALIGN_SUM",
       "reducer": "REDUCE_MEAN",
       "windowSeconds": 900,
       "minimumSamples": 100,
@@ -56,7 +58,9 @@
           "growthFactor": 2,
           "scale": 0.125
         }
-      }
+      },
+      "chartPlotType": "LINE",
+      "alertStrategy": "distribution_mean"
     },
     {
       "key": "community.notification.push_targets_per_notification",
@@ -81,7 +85,9 @@
           "growthFactor": 2,
           "scale": 0.5
         }
-      }
+      },
+      "chartPlotType": "LINE",
+      "alertStrategy": "distribution_percentile_95"
     },
     {
       "key": "community.storage.upper_bound_bytes_per_community",
@@ -92,8 +98,8 @@
       "valueExtractor": "EXTRACT(jsonPayload.operationalCostBudget.value)",
       "unit": "By",
       "aggregation": "max",
-      "aligner": "ALIGN_MAX",
-      "reducer": "REDUCE_MAX",
+      "aligner": "ALIGN_SUM",
+      "reducer": "REDUCE_SUM",
       "windowSeconds": 86400,
       "minimumSamples": 1,
       "minimumObservedDays": 1,
@@ -106,7 +112,9 @@
           "growthFactor": 2,
           "scale": 1048576
         }
-      }
+      },
+      "chartPlotType": "HEATMAP",
+      "alertStrategy": "exact_breach_counter"
     },
     {
       "key": "community.boost.reads_proxy_per_served_placement",
@@ -117,7 +125,7 @@
       "valueExtractor": "EXTRACT(jsonPayload.readsProxyPerServedPlacement)",
       "unit": "1",
       "aggregation": "mean",
-      "aligner": "ALIGN_MEAN",
+      "aligner": "ALIGN_SUM",
       "reducer": "REDUCE_MEAN",
       "windowSeconds": 3600,
       "minimumSamples": 100,
@@ -129,7 +137,9 @@
           "growthFactor": 2,
           "scale": 1
         }
-      }
+      },
+      "chartPlotType": "LINE",
+      "alertStrategy": "baseline_only"
     },
     {
       "key": "community.boost.writes_proxy_per_served_placement",
@@ -140,7 +150,7 @@
       "valueExtractor": "EXTRACT(jsonPayload.writesProxyPerServedPlacement)",
       "unit": "1",
       "aggregation": "mean",
-      "aligner": "ALIGN_MEAN",
+      "aligner": "ALIGN_SUM",
       "reducer": "REDUCE_MEAN",
       "windowSeconds": 3600,
       "minimumSamples": 100,
@@ -152,7 +162,9 @@
           "growthFactor": 2,
           "scale": 0.5
         }
-      }
+      },
+      "chartPlotType": "LINE",
+      "alertStrategy": "baseline_only"
     }
   ]
 }
