@@ -163,6 +163,15 @@ const notificationChannelSource = fs.readFileSync(
 const applyMonitoringSource = fs.readFileSync(applyMonitoringPath, 'utf8');
 const captureBaselineSource = fs.readFileSync(captureBaselinePath, 'utf8');
 
+if (
+  !applyMonitoringSource.includes('function monitoringFilter(')
+  || !applyMonitoringSource.includes('resource.type="')
+) {
+  throw new Error(
+    'Monitoring provisioning must constrain time-series filters by resource.type.'
+  );
+}
+
 for (const required of [
   "assertion.repository == '",
   "assertion.ref == 'refs/heads/main'",
@@ -260,6 +269,30 @@ for (const metric of contract.metrics) {
   if (!metric.valuePath || !metric.metricName || !metric.sampleMetricName) {
     throw new Error(
       'Monitoring metric missing extraction/metric identifiers: ' + metric.key
+    );
+  }
+
+  if (metric.resourceType !== 'cloud_run_revision') {
+    throw new Error(
+      'Community cost Monitoring metric must declare cloud_run_revision: '
+      + metric.key
+    );
+  }
+  if (!String(metric.filter ?? '').includes(
+    'resource.type="cloud_run_revision"'
+  )) {
+    throw new Error(
+      'Community cost runtime log filter must be resource-scoped: '
+      + metric.key
+    );
+  }
+  if (
+    metric.sampleFilter
+    && !metric.sampleFilter.includes('resource.type="cloud_run_revision"')
+  ) {
+    throw new Error(
+      'Community cost sample filter must be resource-scoped: '
+      + metric.key
     );
   }
 
