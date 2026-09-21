@@ -7,6 +7,7 @@
 // score v2/v3, cursor ou ordem orgânica.
 // -----------------------------------------------------------------------------
 
+import { logger } from 'firebase-functions';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { assertCommunitySocialAccessForUid } from '../community/community-social-access.service';
@@ -19,7 +20,7 @@ import {
   consumeBackendRateLimitQuota,
 } from '../shared/security/backend-rate-limit.service';
 import {
-  selectCommunityBoostSponsoredPlacement,
+  selectCommunityBoostSponsoredPlacementWithDiagnostics,
 } from './community-boost-selection.service';
 import {
   COMMUNITY_BOOST_MIN_ORGANIC_CARDS_FOR_PLACEMENT,
@@ -61,6 +62,40 @@ function normalizeCommunityIds(value: unknown): readonly string[] | null {
   }
 
   return output;
+}
+
+function logCommunityBoostPlacementCost(input: {
+  readonly placementServed: boolean;
+  readonly sourceType: string;
+  readonly hasTagFilter: boolean;
+  readonly outcome: 'insufficient_organic_cards' | 'selection_completed';
+  readonly campaignDocumentsFetched: number;
+  readonly campaignQueryReadsProxy: number;
+  readonly eligibleCandidateCount: number;
+  readonly frequencyCapReads: number;
+  readonly visibilityReads: number;
+  readonly claimAttempts: number;
+  readonly claimTransactionReads: number;
+  readonly deliveryWrites: number;
+  readonly sharedControlReads: number;
+  readonly sharedControlWrites: number;
+}): void {
+  const readsProxy =
+    input.sharedControlReads
+    + input.campaignQueryReadsProxy
+    + input.frequencyCapReads
+    + input.visibilityReads
+    + input.claimTransactionReads;
+  const writesProxy =
+    input.sharedControlWrites + input.deliveryWrites;
+
+  logger.info('community_boost_placement_cost_observed', {
+    ...input,
+    readsProxy,
+    writesProxy,
+    semantics:
+      'document_operation_proxy_including_social_access_and_rate_limit',
+  });
 }
 
 export const getCommunityBoostPlacement =
@@ -112,6 +147,23 @@ export const getCommunityBoostPlacement =
         organicCommunityIds.length
         < COMMUNITY_BOOST_MIN_ORGANIC_CARDS_FOR_PLACEMENT
       ) {
+        logCommunityBoostPlacementCost({
+          placementServed: false,
+          sourceType,
+          hasTagFilter: tagId !== null,
+          outcome: 'insufficient_organic_cards',
+          campaignDocumentsFetched: 0,
+          campaignQueryReadsProxy: 0,
+          eligibleCandidateCount: 0,
+          frequencyCapReads: 0,
+          visibilityReads: 0,
+          claimAttempts: 0,
+          claimTransactionReads: 0,
+          deliveryWrites: 0,
+          sharedControlReads: 1,
+          sharedControlWrites: 0,
+        });
+
         return {
           placement: null,
           generatedAt: Date.now(),
@@ -137,21 +189,40 @@ export const getCommunityBoostPlacement =
         message: 'Muitas solicitações patrocinadas foram recebidas em pouco tempo.',
       });
 
-      const placement = await selectCommunityBoostSponsoredPlacement({
-        viewerUid: uid,
+      const selection =
+        await selectCommunityBoostSponsoredPlacementWithDiagnostics({
+          viewerUid: uid,
+          sourceType,
+          tagId,
+          excludedCommunityIds: [
+            ...new Set([
+              ...organicCommunityIds,
+              ...additionalExcludedCommunityIds,
+            ]),
+          ].slice(0, MAX_EFFECTIVE_EXCLUSIONS),
+          now: Date.now(),
+        });
+      logCommunityBoostPlacementCost({
+        placementServed: selection.placement !== null,
         sourceType,
-        tagId,
-        excludedCommunityIds: [
-          ...new Set([
-            ...organicCommunityIds,
-            ...additionalExcludedCommunityIds,
-          ]),
-        ].slice(0, MAX_EFFECTIVE_EXCLUSIONS),
-        now: Date.now(),
+        hasTagFilter: tagId !== null,
+        outcome: 'selection_completed',
+        campaignDocumentsFetched:
+          selection.diagnostics.campaignDocumentsFetched,
+        campaignQueryReadsProxy:
+          selection.diagnostics.campaignQueryReadsProxy,
+        eligibleCandidateCount: selection.diagnostics.eligibleCandidateCount,
+        frequencyCapReads: selection.diagnostics.frequencyCapReads,
+        visibilityReads: selection.diagnostics.visibilityReads,
+        claimAttempts: selection.diagnostics.claimAttempts,
+        claimTransactionReads: selection.diagnostics.claimTransactionReads,
+        deliveryWrites: selection.diagnostics.deliveryWrites,
+        sharedControlReads: 2,
+        sharedControlWrites: 1,
       });
 
       return {
-        placement,
+        placement: selection.placement,
         generatedAt: Date.now(),
       };
     }

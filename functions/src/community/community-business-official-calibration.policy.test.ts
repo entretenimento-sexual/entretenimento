@@ -2,8 +2,42 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  COMMUNITY_OPERATIONAL_COST_BASELINE_VERSION,
+  COMMUNITY_OPERATIONAL_COST_REAL_BASELINE_METRICS,
+} from '../shared/observability/operational-cost-baseline.policy';
+import {
   evaluateCommunityBusinessOfficialCalibration,
 } from './community-business-official-calibration.policy';
+
+const DAY_MS = 24 * 60 * 60 * 1_000;
+const START = Date.UTC(2026, 8, 1);
+
+function operationalBaseline() {
+  return {
+    schemaVersion: COMMUNITY_OPERATIONAL_COST_BASELINE_VERSION,
+    source: 'cloud_logging_runtime_events',
+    environment: 'production',
+    projectId: 'entretenimento-sexual',
+    windowStartedAt: START,
+    windowEndedAt: START + 14 * DAY_MS,
+    generatedAt: START + 14 * DAY_MS + 1,
+    metrics: Object.fromEntries(
+      COMMUNITY_OPERATIONAL_COST_REAL_BASELINE_METRICS.map((metric) => [
+        metric,
+        {
+          sampleCount:
+            metric === 'community.storage.upper_bound_bytes_per_community'
+              ? 1
+              : 150,
+          observedDays:
+            metric === 'community.storage.upper_bound_bytes_per_community'
+              ? 1
+              : 7,
+        },
+      ])
+    ),
+  };
+}
 
 test('libera calibração somente com oferta, conversão, criação e custo reais', () => {
   assert.deepEqual(
@@ -12,6 +46,8 @@ test('libera calibração somente com oferta, conversão, criação e custo reai
       conversions: 40,
       communitiesCreated: 52,
       actualCostCents: 26_000,
+      actualCostSource: 'cloud_billing_export',
+      operationalBaseline: operationalBaseline(),
     }),
     {
       offersPresented: 200,
@@ -96,4 +132,34 @@ test('falha fechado para observações inválidas ou funil inconsistente', () =>
     assert.equal(result.status, 'invalid_observation');
     assert.equal(result.canCalibrateCommercialOffer, false);
   }
+});
+
+
+test('não calibra sem fonte financeira real e baseline operacional pronto', () => {
+  assert.equal(
+    evaluateCommunityBusinessOfficialCalibration({
+      offersPresented: 100,
+      conversions: 10,
+      communitiesCreated: 12,
+      actualCostCents: 5_000,
+      actualCostSource: 'operational_proxy',
+      operationalBaseline: operationalBaseline(),
+    }).status,
+    'actual_cost_source_invalid'
+  );
+
+  assert.equal(
+    evaluateCommunityBusinessOfficialCalibration({
+      offersPresented: 100,
+      conversions: 10,
+      communitiesCreated: 12,
+      actualCostCents: 5_000,
+      actualCostSource: 'cloud_billing_export',
+      operationalBaseline: {
+        ...operationalBaseline(),
+        environment: 'staging',
+      },
+    }).status,
+    'operational_baseline_not_ready'
+  );
 });

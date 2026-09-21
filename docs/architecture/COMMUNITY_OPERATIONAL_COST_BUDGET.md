@@ -7,9 +7,11 @@ Este documento define o orçamento operacional de custo de Comunidades **antes d
 1. otimizar por intuição sem evidência de custo real;
 2. descobrir crescimento de custo apenas pela fatura.
 
-A fonte canônica executável dos thresholds é:
+As fontes canônicas executáveis são:
 
-`functions/src/shared/observability/operational-cost-budget.policy.ts`
+- thresholds: `functions/src/shared/observability/operational-cost-budget.policy.ts`;
+- qualificação de baseline real: `functions/src/shared/observability/operational-cost-baseline.policy.ts`;
+- contrato de Monitoring: `ops/monitoring/community-cost/contract.json`.
 
 Os valores abaixo são **unidades operacionais**, não uma simulação de billing do Firebase/Google Cloud. Preços, free tiers, edição e região podem mudar. O runtime não deve incorporar preços monetários.
 
@@ -25,7 +27,7 @@ Os valores abaixo são **unidades operacionais**, não uma simulação de billin
 
 ### Relação com Business/Official
 
-Este orçamento mede proxies operacionais e envelopes técnicos. Ele **não** calcula preço de plano nem custo financeiro em BRL. Para calibrar monetização/capacidade Business/Official, o campo `actualCostCents` deve vir de custo realizado em billing/finanças e ser combinado com oferta apresentada, conversão e quantidade de Comunidades criadas. Sem esses quatro sinais reais, a configuração comercial não deve ser reajustada por estimativa.
+Este orçamento mede proxies operacionais e envelopes técnicos. Ele **não** calcula preço de plano nem custo financeiro em BRL. Para calibrar monetização/capacidade Business/Official, o campo `actualCostCents` deve vir de custo realizado em billing/finanças e ser combinado com oferta apresentada, conversão e quantidade de Comunidades criadas. Além disso, a janela operacional real precisa estar qualificada pela policy de baseline. Sem esses sinais reais, a configuração comercial não deve ser reajustada por estimativa.
 
 ## Orçamento canônico
 
@@ -209,6 +211,59 @@ O upper bound é deliberadamente conservador:
 
 Warning/critical de storage significa **medir inventário físico e retenção antes de otimizar**, não bloquear upload automaticamente.
 
+## Camada operacional versionada
+
+A infraestrutura observável de Comunidades é definida em código, mas aplicada explicitamente no projeto real. O contrato `ops/monitoring/community-cost/contract.json` mantém os nomes das métricas, extração dos logs, janelas, amostras mínimas e estratégia de visualização/alerta.
+
+O provisionamento idempotente é feito por:
+
+```bash
+npm run community:cost-monitoring:apply -- \
+  --project=entretenimento-sexual \
+  --notification-channel=projects/PROJECT_ID/notificationChannels/CHANNEL_ID
+```
+
+O comando cria/atualiza:
+
+- distribution log-based metrics para as dimensões observáveis;
+- contadores de amostras usados no gate dos alertas;
+- breach counters exatos quando o budget é `max`;
+- dashboard **Community Cost Operations**;
+- alertas warning/critical das métricas que possuem budget real.
+
+A estratégia respeita o tipo `DISTRIBUTION` do Cloud Logging:
+
+- `p95`: percentil 95;
+- `mean`: distribuição agregada convertida para média;
+- `max`: heatmap no dashboard e breach counter exato nos alertas.
+
+`community.discovery.callables_per_session` continua fora do baseline real porque sua fonte é client/synthetic. Não criar sessão servidor-side apenas para medi-la.
+
+### Baseline real
+
+O baseline é capturado dos eventos estruturados de **produção**, sem inferir custo a partir de fixtures, staging ou emulador:
+
+```bash
+npm run community:cost-baseline:capture -- \
+  --project=entretenimento-sexual \
+  --days=14
+```
+
+Por padrão, o artefato fica em `.dev-logs/community-cost-baseline.json`, diretório ignorado pelo Git. A captura:
+
+- usa uma janela mínima de 14 dias;
+- calcula a agregação canônica de cada dimensão diretamente dos eventos;
+- exige amostragem e dias observados mínimos;
+- falha se atingir o limite de entradas, em vez de aceitar baseline truncado;
+- exclui o orçamento sintético de callables/sessão.
+
+O Boost adiciona duas dimensões **baseline-only**, sem thresholds antecipados:
+
+- reads proxy por placement patrocinado servido;
+- writes proxy por placement patrocinado servido.
+
+Essas duas dimensões não alteram v2/v3, não definem CPM e não representam custo financeiro. Servem para conhecer o custo unitário observado antes de qualquer recalibração.
+
 ## Alertas operacionais
 
 Os logs possuem o objeto `operationalCostBudget`, com:
@@ -225,7 +280,7 @@ Os logs possuem o objeto `operationalCostBudget`, com:
 - `measurementSource`;
 - `semantics`.
 
-Ao configurar Cloud Logging / Cloud Monitoring, criar uma distribution metric por dimensão e alertar usando a agregação e janela da política canônica.
+O bundle de Cloud Logging / Cloud Monitoring deve ser aplicado pelo script versionado acima. Warning exige persistência por duas janelas; critical usa a janela canônica com a amostragem mínima. O provisioning exige ao menos um notification channel, salvo override operacional explícito.
 
 ### Resposta a alertas
 
@@ -297,7 +352,10 @@ Este bloco está tecnicamente fechado quando:
 - push publica fan-out contra o budget;
 - storage publica upper bound/comunidade sem I/O extra;
 - callables/sessão está explicitamente classificado como client/synthetic;
+- dashboard, métricas e alertas possuem contrato e provisioning idempotente versionados;
+- baseline real possui captura exata, janela mínima e gate de amostragem;
+- Business/Official e custo do Boost falham fechado sem baseline operacional real e custo financeiro realizado;
 - o checklist de pré-lançamento exige Cloud Billing Budget e alertas operacionais;
 - Quality Gate permanece verde.
 
-A criação efetiva dos recursos de Cloud Monitoring/Billing em um projeto real é configuração de infraestrutura/conta e não deve ocorrer implicitamente durante desenvolvimento local.
+A aplicação dos recursos de Cloud Monitoring e a captura do baseline são operações explícitas contra o projeto real. Cloud Billing Budget continua separado porque seu valor mensal é uma decisão financeira e não deve ser inventado no código.

@@ -1,0 +1,183 @@
+{
+  "version": 1,
+  "dashboardDisplayName": "Community Cost Operations",
+  "baseline": {
+    "schemaVersion": 1,
+    "source": "cloud_logging_runtime_events",
+    "environment": "production",
+    "minimumWindowDays": 14,
+    "productionProjectId": "entretenimento-sexual"
+  },
+  "metrics": [
+    {
+      "key": "community.discovery.reads_per_card",
+      "metricName": "community_discovery_reads_per_card",
+      "sampleMetricName": "community_discovery_reads_per_card_samples",
+      "description": "Proxy operacional de reads por card entregue em Discovery.",
+      "filter": "jsonPayload.operationalCostBudget.metric=\"community.discovery.reads_per_card\"",
+      "valueExtractor": "EXTRACT(jsonPayload.operationalCostBudget.value)",
+      "unit": "1",
+      "aggregation": "p95",
+      "aligner": "ALIGN_PERCENTILE_95",
+      "reducer": "REDUCE_PERCENTILE_95",
+      "windowSeconds": 900,
+      "minimumSamples": 100,
+      "minimumObservedDays": 7,
+      "warningAbove": 3.5,
+      "criticalAbove": 5,
+      "budgeted": true,
+      "bucketOptions": {
+        "exponentialBuckets": {
+          "numFiniteBuckets": 16,
+          "growthFactor": 2,
+          "scale": 0.25
+        }
+      },
+      "chartPlotType": "LINE",
+      "alertStrategy": "distribution_percentile_95",
+      "valuePath": "jsonPayload.operationalCostBudget.value"
+    },
+    {
+      "key": "community.discovery.exposure_writes_per_accepted",
+      "metricName": "community_discovery_exposure_writes_per_accepted",
+      "sampleMetricName": "community_discovery_exposure_writes_per_accepted_samples",
+      "description": "Proxy operacional de writes por exposure aceita.",
+      "filter": "jsonPayload.operationalCostBudget.metric=\"community.discovery.exposure_writes_per_accepted\"",
+      "valueExtractor": "EXTRACT(jsonPayload.operationalCostBudget.value)",
+      "unit": "1",
+      "aggregation": "mean",
+      "aligner": "ALIGN_SUM",
+      "reducer": "REDUCE_MEAN",
+      "windowSeconds": 900,
+      "minimumSamples": 100,
+      "minimumObservedDays": 7,
+      "warningAbove": 1.5,
+      "criticalAbove": 2,
+      "budgeted": true,
+      "bucketOptions": {
+        "exponentialBuckets": {
+          "numFiniteBuckets": 14,
+          "growthFactor": 2,
+          "scale": 0.125
+        }
+      },
+      "chartPlotType": "LINE",
+      "alertStrategy": "distribution_mean",
+      "valuePath": "jsonPayload.operationalCostBudget.value"
+    },
+    {
+      "key": "community.notification.push_targets_per_notification",
+      "metricName": "community_notification_push_targets_per_notification",
+      "sampleMetricName": "community_notification_push_targets_per_notification_samples",
+      "description": "Fan-out real de push por notificação de Comunidades.",
+      "filter": "jsonPayload.operationalCostBudget.metric=\"community.notification.push_targets_per_notification\"",
+      "valueExtractor": "EXTRACT(jsonPayload.operationalCostBudget.value)",
+      "unit": "1",
+      "aggregation": "p95",
+      "aligner": "ALIGN_PERCENTILE_95",
+      "reducer": "REDUCE_PERCENTILE_95",
+      "windowSeconds": 900,
+      "minimumSamples": 100,
+      "minimumObservedDays": 7,
+      "warningAbove": 5,
+      "criticalAbove": 8,
+      "budgeted": true,
+      "bucketOptions": {
+        "exponentialBuckets": {
+          "numFiniteBuckets": 12,
+          "growthFactor": 2,
+          "scale": 0.5
+        }
+      },
+      "chartPlotType": "LINE",
+      "alertStrategy": "distribution_percentile_95",
+      "valuePath": "jsonPayload.operationalCostBudget.value"
+    },
+    {
+      "key": "community.storage.upper_bound_bytes_per_community",
+      "metricName": "community_storage_upper_bound_bytes_per_community",
+      "sampleMetricName": "community_storage_upper_bound_bytes_per_community_samples",
+      "description": "Upper bound conservador de Storage por Comunidade.",
+      "filter": "jsonPayload.operationalCostBudget.metric=\"community.storage.upper_bound_bytes_per_community\"",
+      "valueExtractor": "EXTRACT(jsonPayload.operationalCostBudget.value)",
+      "unit": "By",
+      "aggregation": "max",
+      "aligner": "ALIGN_SUM",
+      "reducer": "REDUCE_SUM",
+      "windowSeconds": 86400,
+      "minimumSamples": 1,
+      "minimumObservedDays": 1,
+      "warningAbove": 536870912,
+      "criticalAbove": 1073741824,
+      "budgeted": true,
+      "bucketOptions": {
+        "exponentialBuckets": {
+          "numFiniteBuckets": 16,
+          "growthFactor": 2,
+          "scale": 1048576
+        }
+      },
+      "chartPlotType": "HEATMAP",
+      "alertStrategy": "exact_breach_counter",
+      "valuePath": "jsonPayload.operationalCostBudget.value"
+    },
+    {
+      "key": "community.boost.reads_proxy_per_served_placement",
+      "metricName": "community_boost_reads_proxy_per_request",
+      "sampleMetricName": "community_boost_served_placement_samples_for_reads",
+      "description": "Distribuição do proxy de reads por chamada de Boost; baseline divide custo total por placements servidos.",
+      "filter": "jsonPayload.readsProxy:*",
+      "valueExtractor": "EXTRACT(jsonPayload.readsProxy)",
+      "unit": "1",
+      "aggregation": "ratio_per_served",
+      "aligner": "ALIGN_SUM",
+      "reducer": "REDUCE_MEAN",
+      "windowSeconds": 3600,
+      "minimumSamples": 100,
+      "minimumObservedDays": 7,
+      "budgeted": false,
+      "bucketOptions": {
+        "exponentialBuckets": {
+          "numFiniteBuckets": 16,
+          "growthFactor": 2,
+          "scale": 1
+        }
+      },
+      "chartPlotType": "LINE",
+      "alertStrategy": "baseline_only",
+      "valuePath": "jsonPayload.readsProxy",
+      "sampleFilter": "jsonPayload.readsProxy:* AND jsonPayload.placementServed=true",
+      "denominatorPath": "jsonPayload.placementServed",
+      "dashboardAggregation": "mean_per_request"
+    },
+    {
+      "key": "community.boost.writes_proxy_per_served_placement",
+      "metricName": "community_boost_writes_proxy_per_request",
+      "sampleMetricName": "community_boost_served_placement_samples_for_writes",
+      "description": "Distribuição do proxy de writes por chamada de Boost; baseline divide custo total por placements servidos.",
+      "filter": "jsonPayload.writesProxy:*",
+      "valueExtractor": "EXTRACT(jsonPayload.writesProxy)",
+      "unit": "1",
+      "aggregation": "ratio_per_served",
+      "aligner": "ALIGN_SUM",
+      "reducer": "REDUCE_MEAN",
+      "windowSeconds": 3600,
+      "minimumSamples": 100,
+      "minimumObservedDays": 7,
+      "budgeted": false,
+      "bucketOptions": {
+        "exponentialBuckets": {
+          "numFiniteBuckets": 12,
+          "growthFactor": 2,
+          "scale": 0.5
+        }
+      },
+      "chartPlotType": "LINE",
+      "alertStrategy": "baseline_only",
+      "valuePath": "jsonPayload.writesProxy",
+      "sampleFilter": "jsonPayload.writesProxy:* AND jsonPayload.placementServed=true",
+      "denominatorPath": "jsonPayload.placementServed",
+      "dashboardAggregation": "mean_per_request"
+    }
+  ]
+}
