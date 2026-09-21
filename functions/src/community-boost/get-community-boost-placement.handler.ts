@@ -156,7 +156,7 @@ export const getCommunityBoostPlacement =
       const sharedControlWrites = 1;
       const readsProxy =
         sharedControlReads
-        + selection.diagnostics.campaignDocumentsFetched
+        + selection.diagnostics.campaignQueryReadsProxy
         + selection.diagnostics.frequencyCapReads
         + selection.diagnostics.visibilityReads
         + selection.diagnostics.claimTransactionReads;
@@ -169,6 +169,8 @@ export const getCommunityBoostPlacement =
         hasTagFilter: tagId !== null,
         campaignDocumentsFetched:
           selection.diagnostics.campaignDocumentsFetched,
+        campaignQueryReadsProxy:
+          selection.diagnostics.campaignQueryReadsProxy,
         eligibleCandidateCount: selection.diagnostics.eligibleCandidateCount,
         frequencyCapReads: selection.diagnostics.frequencyCapReads,
         visibilityReads: selection.diagnostics.visibilityReads,
