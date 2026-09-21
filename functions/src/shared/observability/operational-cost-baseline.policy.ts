@@ -3,7 +3,7 @@
 // OPERATIONAL COST BASELINE
 // -----------------------------------------------------------------------------
 // Qualifica uma janela REAL de produção antes de qualquer recalibração comercial.
-// O baseline vem de Cloud Monitoring sobre métricas derivadas dos logs existentes;
+// O baseline vem dos eventos estruturados reais do Cloud Logging;
 // não adiciona reads/writes ao caminho do usuário e não transforma proxies em BRL.
 // -----------------------------------------------------------------------------
 
@@ -75,7 +75,7 @@ const BASELINE_ONLY_MINIMUMS: Readonly<
 });
 
 export const COMMUNITY_OPERATIONAL_COST_REAL_BASELINE_METRICS:
-readonly CommunityOperationalCostObservedMetric[] = Object.freeze([
+  readonly CommunityOperationalCostObservedMetric[] = Object.freeze([
   'community.discovery.reads_per_card',
   'community.discovery.exposure_writes_per_accepted',
   'community.notification.push_targets_per_notification',
