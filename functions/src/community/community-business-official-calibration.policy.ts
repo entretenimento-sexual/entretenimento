@@ -12,7 +12,13 @@
 // - actualCostCents: custo financeiro realizado, importado de billing/finanças.
 //
 // Proxies operacionais (reads/card, writes/exposure etc.) NÃO são custo em moeda.
+// A recalibração também exige baseline operacional real de produção qualificado.
 // -----------------------------------------------------------------------------
+
+import {
+  evaluateCommunityOperationalCostBaseline,
+  type CommunityOperationalCostBaselineInput,
+} from '../shared/observability/operational-cost-baseline.policy';
 
 export type CommunityBusinessOfficialCalibrationStatus =
   | 'invalid_observation'
@@ -20,6 +26,8 @@ export type CommunityBusinessOfficialCalibrationStatus =
   | 'no_conversion_observation'
   | 'no_creation_observation'
   | 'actual_cost_missing'
+  | 'actual_cost_source_invalid'
+  | 'operational_baseline_not_ready'
   | 'observed';
 
 export interface CommunityBusinessOfficialCalibrationInput {
@@ -27,6 +35,8 @@ export interface CommunityBusinessOfficialCalibrationInput {
   readonly conversions: unknown;
   readonly communitiesCreated: unknown;
   readonly actualCostCents: unknown;
+  readonly actualCostSource?: unknown;
+  readonly operationalBaseline?: CommunityOperationalCostBaselineInput;
 }
 
 export interface CommunityBusinessOfficialCalibrationSnapshot {
@@ -91,16 +101,31 @@ export function evaluateCommunityBusinessOfficialCalibration(
     });
   }
 
-  const status: CommunityBusinessOfficialCalibrationStatus =
-    offersPresented === 0
-      ? 'no_supply_observation'
-      : conversions === 0
-        ? 'no_conversion_observation'
-        : communitiesCreated === 0
-          ? 'no_creation_observation'
-          : actualCostCents === null
-            ? 'actual_cost_missing'
-            : 'observed';
+  let status: CommunityBusinessOfficialCalibrationStatus;
+
+  if (offersPresented === 0) {
+    status = 'no_supply_observation';
+  } else if (conversions === 0) {
+    status = 'no_conversion_observation';
+  } else if (communitiesCreated === 0) {
+    status = 'no_creation_observation';
+  } else if (actualCostCents === null) {
+    status = 'actual_cost_missing';
+  } else if (
+    input.actualCostSource !== 'cloud_billing_export'
+    && input.actualCostSource !== 'finance_actual_allocation'
+  ) {
+    status = 'actual_cost_source_invalid';
+  } else if (
+    !input.operationalBaseline
+    || !evaluateCommunityOperationalCostBaseline(
+      input.operationalBaseline
+    ).ready
+  ) {
+    status = 'operational_baseline_not_ready';
+  } else {
+    status = 'observed';
+  }
 
   return Object.freeze({
     offersPresented,
