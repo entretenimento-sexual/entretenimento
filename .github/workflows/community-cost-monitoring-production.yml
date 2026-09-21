@@ -46,7 +46,7 @@ jobs:
         env:
           DRY_RUN: ${{ inputs.dry_run }}
           WIF_PROVIDER: ${{ vars.GCP_COMMUNITY_COST_WORKLOAD_IDENTITY_PROVIDER }}
-          SERVICE_ACCOUNT: ${{ vars.GCP_COMMUNITY_COST_SERVICE_ACCOUNT }}
+          SERVICE_ACCOUNT: ${{ vars.GCP_COMMUNITY_COST_MONITORING_SERVICE_ACCOUNT }}
           INPUT_CHANNEL: ${{ inputs.notification_channel }}
           DEFAULT_CHANNEL: ${{ vars.COMMUNITY_COST_NOTIFICATION_CHANNEL }}
         run: |
@@ -68,7 +68,7 @@ jobs:
             exit 1
           fi
           if [[ -z "$SERVICE_ACCOUNT" ]]; then
-            echo 'Falta a repository variable GCP_COMMUNITY_COST_SERVICE_ACCOUNT.' >&2
+            echo 'Falta a repository variable GCP_COMMUNITY_COST_MONITORING_SERVICE_ACCOUNT.' >&2
             exit 1
           fi
           if [[ -z "$channel" ]]; then
@@ -82,7 +82,7 @@ jobs:
         with:
           project_id: ${{ env.PROJECT_ID }}
           workload_identity_provider: ${{ vars.GCP_COMMUNITY_COST_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.GCP_COMMUNITY_COST_SERVICE_ACCOUNT }}
+          service_account: ${{ vars.GCP_COMMUNITY_COST_MONITORING_SERVICE_ACCOUNT }}
 
       - name: Set up Google Cloud SDK
         if: inputs.dry_run == false

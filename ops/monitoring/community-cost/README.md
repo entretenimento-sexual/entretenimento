@@ -26,28 +26,86 @@ Repository variables esperadas:
 
 - `GCP_COMMUNITY_COST_WORKLOAD_IDENTITY_PROVIDER` — resource name completo
   do provider WIF;
-- `GCP_COMMUNITY_COST_SERVICE_ACCOUNT` — service account usado pelo domínio
-  de observabilidade de custo;
+- `GCP_COMMUNITY_COST_MONITORING_SERVICE_ACCOUNT` — identidade com escrita
+  estritamente necessária para métricas, dashboard e alert policies;
+- `GCP_COMMUNITY_COST_BASELINE_SERVICE_ACCOUNT` — identidade read-only usada
+  exclusivamente para consultar Cloud Logging no baseline;
 - `COMMUNITY_COST_NOTIFICATION_CHANNEL` — opcional quando o channel for
   informado manualmente no dispatch do workflow de Monitoring.
 
-O principal do workflow de Monitoring precisa, no projeto de produção, de
-permissões equivalentes a:
+O principal do workflow de Monitoring recebe somente:
 
-- `roles/logging.configWriter` para métricas baseadas em logs;
-- `roles/monitoring.dashboardEditor` para dashboard;
-- `roles/monitoring.alertPolicyEditor` para alert policies;
-- permissão `serviceusage.services.use` quando exigida pelo uso de `gcloud`.
+- `roles/logging.configWriter`;
+- `roles/monitoring.dashboardEditor`;
+- `roles/monitoring.alertPolicyEditor`;
+- `roles/monitoring.notificationChannelViewer`;
+- `roles/serviceusage.serviceUsageConsumer`.
 
-Para a captura do baseline, o principal precisa apenas de leitura suficiente
-dos logs de produção, além do uso do serviço via CLI. Não conceder papéis de
-edição se o mesmo principal puder ser separado em uma identidade read-only.
+O principal do baseline é separado e recebe somente:
+
+- `roles/logging.viewer`;
+- `roles/serviceusage.serviceUsageConsumer`.
+
+Nenhuma das identidades recebe `roles/editor`, `roles/owner` ou chave JSON.
 
 O workflow de Monitoring inicia em `dry_run=true`. A aplicação real exige
 explicitamente `dry_run=false` e um notification channel válido.
 
 O workflow de baseline é exclusivamente manual e recusa `days < 14`. Ele
 faz upload do JSON como artifact temporário; o baseline não é commitado no Git.
+
+O provider WIF canônico restringe tokens ao repositório
+`entretenimento-sexual/entretenimento` e ao ref `refs/heads/main`. Os dois
+service accounts recebem `roles/iam.workloadIdentityUser` somente para o
+`principalSet` desse repositório.
+
+## Bootstrap inicial de GCP/WIF
+
+O bootstrap é seguro por padrão: sem `--apply` ele apenas imprime o plano.
+
+```bash
+npm run community:cost-gcp:bootstrap
+```
+
+Para aplicar no projeto canônico, usando uma sessão administrativa do
+`gcloud`:
+
+```bash
+npm run community:cost-gcp:bootstrap -- --apply
+```
+
+Se o GitHub CLI estiver autenticado com permissão para Repository Variables, o
+mesmo comando pode publicar os três valores não secretos:
+
+```bash
+npm run community:cost-gcp:bootstrap -- \
+  --apply \
+  --configure-github-variables
+```
+
+O bootstrap é idempotente: cria os service accounts/pool quando ausentes,
+atualiza o provider OIDC para a condição canônica e reaplica bindings IAM.
+
+## Canal de notificação
+
+O endereço de destino é uma decisão operacional e não fica hardcoded. Primeiro
+inspecione:
+
+```bash
+npm run community:cost-notification-channel:create -- \
+  --email=OPERACAO@EXEMPLO.COM
+```
+
+Para criar/reutilizar o canal de e-mail:
+
+```bash
+npm run community:cost-notification-channel:create -- \
+  --email=OPERACAO@EXEMPLO.COM \
+  --apply
+```
+
+O comando retorna o resource name a ser salvo em
+`COMMUNITY_COST_NOTIFICATION_CHANNEL`.
 
 ## Aplicar dashboard e alertas
 

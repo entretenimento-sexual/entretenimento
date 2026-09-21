@@ -47,7 +47,7 @@ jobs:
           DAYS: ${{ inputs.days }}
           MAX_ENTRIES: ${{ inputs.max_entries }}
           WIF_PROVIDER: ${{ vars.GCP_COMMUNITY_COST_WORKLOAD_IDENTITY_PROVIDER }}
-          SERVICE_ACCOUNT: ${{ vars.GCP_COMMUNITY_COST_SERVICE_ACCOUNT }}
+          SERVICE_ACCOUNT: ${{ vars.GCP_COMMUNITY_COST_BASELINE_SERVICE_ACCOUNT }}
         run: |
           set -euo pipefail
           if ! [[ "$DAYS" =~ ^[0-9]+$ ]] || (( DAYS < 14 )); then
@@ -63,7 +63,7 @@ jobs:
             exit 1
           fi
           if [[ -z "$SERVICE_ACCOUNT" ]]; then
-            echo 'Falta a repository variable GCP_COMMUNITY_COST_SERVICE_ACCOUNT.' >&2
+            echo 'Falta a repository variable GCP_COMMUNITY_COST_BASELINE_SERVICE_ACCOUNT.' >&2
             exit 1
           fi
 
@@ -72,7 +72,7 @@ jobs:
         with:
           project_id: ${{ env.PROJECT_ID }}
           workload_identity_provider: ${{ vars.GCP_COMMUNITY_COST_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.GCP_COMMUNITY_COST_SERVICE_ACCOUNT }}
+          service_account: ${{ vars.GCP_COMMUNITY_COST_BASELINE_SERVICE_ACCOUNT }}
 
       - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v3

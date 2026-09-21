@@ -58,6 +58,18 @@ const baselineWorkflowPath = path.join(
   'workflows',
   'community-cost-baseline-production.yml'
 );
+const gcpBootstrapPath = path.join(
+  root,
+  'scripts',
+  'admin',
+  'bootstrap-community-cost-gcp.mjs'
+);
+const notificationChannelPath = path.join(
+  root,
+  'scripts',
+  'admin',
+  'create-community-cost-notification-channel.mjs'
+);
 
 for (const file of [
   contractPath,
@@ -69,6 +81,8 @@ for (const file of [
   captureBaselinePath,
   monitoringWorkflowPath,
   baselineWorkflowPath,
+  gcpBootstrapPath,
+  notificationChannelPath,
 ]) {
   if (!fs.existsSync(file)) {
     throw new Error('Community cost operations file missing: ' + file);
@@ -99,7 +113,6 @@ for (const [name, workflow] of [
     'google-github-actions/auth@v3',
     'google-github-actions/setup-gcloud@v3',
     'GCP_COMMUNITY_COST_WORKLOAD_IDENTITY_PROVIDER',
-    'GCP_COMMUNITY_COST_SERVICE_ACCOUNT',
     "PROJECT_ID: 'entretenimento-sexual'",
   ]) {
     if (!workflow.includes(required)) {
@@ -114,6 +127,78 @@ for (const [name, workflow] of [
       'Community cost workflows must use WIF/OIDC, not long-lived JSON keys.'
     );
   }
+}
+
+if (
+  !monitoringWorkflowSource.includes(
+    'GCP_COMMUNITY_COST_MONITORING_SERVICE_ACCOUNT'
+  )
+  || monitoringWorkflowSource.includes(
+    'GCP_COMMUNITY_COST_BASELINE_SERVICE_ACCOUNT'
+  )
+) {
+  throw new Error(
+    'Monitoring workflow must use the dedicated monitoring service account.'
+  );
+}
+
+if (
+  !baselineWorkflowSource.includes(
+    'GCP_COMMUNITY_COST_BASELINE_SERVICE_ACCOUNT'
+  )
+  || baselineWorkflowSource.includes(
+    'GCP_COMMUNITY_COST_MONITORING_SERVICE_ACCOUNT'
+  )
+) {
+  throw new Error(
+    'Baseline workflow must use the dedicated read-only service account.'
+  );
+}
+
+const gcpBootstrapSource = fs.readFileSync(gcpBootstrapPath, 'utf8');
+const notificationChannelSource = fs.readFileSync(
+  notificationChannelPath,
+  'utf8'
+);
+
+for (const required of [
+  "assertion.repository == '",
+  "assertion.ref == 'refs/heads/main'",
+  'roles/iam.workloadIdentityUser',
+  'roles/logging.configWriter',
+  'roles/monitoring.dashboardEditor',
+  'roles/monitoring.alertPolicyEditor',
+  'roles/monitoring.notificationChannelViewer',
+  'roles/logging.viewer',
+  'roles/serviceusage.serviceUsageConsumer',
+  'GCP_COMMUNITY_COST_MONITORING_SERVICE_ACCOUNT',
+  'GCP_COMMUNITY_COST_BASELINE_SERVICE_ACCOUNT',
+]) {
+  if (!gcpBootstrapSource.includes(required)) {
+    throw new Error('GCP bootstrap missing security invariant: ' + required);
+  }
+}
+
+if (
+  gcpBootstrapSource.includes('roles/editor')
+  || gcpBootstrapSource.includes('roles/owner')
+  || gcpBootstrapSource.includes('service-account-key')
+) {
+  throw new Error(
+    'GCP bootstrap must not grant broad roles or create service-account keys.'
+  );
+}
+
+if (
+  !notificationChannelSource.includes("'beta'")
+  || !notificationChannelSource.includes("'monitoring'")
+  || !notificationChannelSource.includes("'channels'")
+  || !notificationChannelSource.includes("'--type=email'")
+  || !notificationChannelSource.includes('email_address=')
+) {
+  throw new Error(
+    'Notification channel bootstrap must use the canonical Monitoring email channel.'
+  );
 }
 
 if (
@@ -328,7 +413,12 @@ for (const required of [
   }
 }
 
-for (const script of [applyMonitoringPath, captureBaselinePath]) {
+for (const script of [
+  applyMonitoringPath,
+  captureBaselinePath,
+  gcpBootstrapPath,
+  notificationChannelPath,
+]) {
   const syntax = spawnSync(process.execPath, ['--check', script], {
     cwd: root,
     encoding: 'utf8',
@@ -341,6 +431,39 @@ for (const script of [applyMonitoringPath, captureBaselinePath]) {
       + (syntax.stderr || syntax.stdout || '')
     );
   }
+}
+
+const gcpBootstrapDryRun = spawnSync(
+  process.execPath,
+  [gcpBootstrapPath],
+  {
+    cwd: root,
+    encoding: 'utf8',
+  }
+);
+if (gcpBootstrapDryRun.status !== 0) {
+  throw new Error(
+    'GCP bootstrap dry-run failed:\n'
+    + (gcpBootstrapDryRun.stderr || gcpBootstrapDryRun.stdout || '')
+  );
+}
+
+const notificationDryRun = spawnSync(
+  process.execPath,
+  [
+    notificationChannelPath,
+    '--email=community-cost@example.com',
+  ],
+  {
+    cwd: root,
+    encoding: 'utf8',
+  }
+);
+if (notificationDryRun.status !== 0) {
+  throw new Error(
+    'Notification channel dry-run failed:\n'
+    + (notificationDryRun.stderr || notificationDryRun.stdout || '')
+  );
 }
 
 const dryRun = spawnSync(
