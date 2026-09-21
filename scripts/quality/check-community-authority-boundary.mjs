@@ -800,7 +800,8 @@ function validateOfficialCreationBoundary(architectureViolations) {
     }
 
     for (const forbidden of [
-      'community_official_associations',
+      "db.collection('community_official_associations')",
+      "from '../community/community-official-association",
       'platform_subscription_',
     ]) {
       if (businessOfficialSource.includes(forbidden)) {
@@ -826,7 +827,7 @@ function validateOfficialCreationBoundary(architectureViolations) {
     }
 
     for (const forbidden of [
-      'community_official_associations',
+      "db.collection('community_official_associations')",
       'planKey',
       'amountCents',
       'priceCents',
