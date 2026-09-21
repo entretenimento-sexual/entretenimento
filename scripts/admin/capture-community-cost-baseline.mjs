@@ -51,6 +51,12 @@ if (!args.project) {
     'Informe --project=<id> ou GOOGLE_CLOUD_PROJECT/GCLOUD_PROJECT.'
   );
 }
+if (args.project !== contract.baseline.productionProjectId) {
+  throw new Error(
+    'Baseline comercial só pode ser capturado do projeto canônico de produção: '
+    + contract.baseline.productionProjectId
+  );
+}
 if (
   !Number.isInteger(args.days)
   || args.days < Number(contract.baseline.minimumWindowDays)
