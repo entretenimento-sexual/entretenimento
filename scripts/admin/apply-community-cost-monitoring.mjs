@@ -111,15 +111,6 @@ function metricType(metricName) {
   return 'logging.googleapis.com/user/' + metricName;
 }
 
-function metricDescriptorName(metricName) {
-  return (
-    'projects/'
-    + args.project
-    + '/metricDescriptors/'
-    + metricType(metricName)
-  );
-}
-
 function buildDistributionMetric(metric) {
   return {
     name: metric.metricName,
@@ -128,8 +119,6 @@ function buildDistributionMetric(metric) {
     valueExtractor: metric.valueExtractor,
     bucketOptions: metric.bucketOptions,
     metricDescriptor: {
-      name: metricDescriptorName(metric.metricName),
-      type: metricType(metric.metricName),
       metricKind: 'DELTA',
       valueType: 'DISTRIBUTION',
       unit: metric.unit,
@@ -144,8 +133,6 @@ function buildCounterMetric(name, description, filter) {
     description,
     filter,
     metricDescriptor: {
-      name: metricDescriptorName(name),
-      type: metricType(name),
       metricKind: 'DELTA',
       valueType: 'INT64',
       unit: '1',
