@@ -44,6 +44,7 @@ export interface CommunityBoostSponsoredPlacement {
 
 export interface CommunityBoostSelectionDiagnostics {
   readonly campaignDocumentsFetched: number;
+  readonly campaignQueryReadsProxy: number;
   readonly eligibleCandidateCount: number;
   readonly frequencyCapReads: number;
   readonly visibilityReads: number;
@@ -425,6 +426,7 @@ export async function selectCommunityBoostSponsoredPlacementWithDiagnostics(inpu
       placement: null,
       diagnostics: {
         campaignDocumentsFetched: 0,
+        campaignQueryReadsProxy: 0,
         eligibleCandidateCount: 0,
         frequencyCapReads: 0,
         visibilityReads: 0,
@@ -484,6 +486,7 @@ export async function selectCommunityBoostSponsoredPlacementWithDiagnostics(inpu
         placement,
         diagnostics: {
           campaignDocumentsFetched: campaignSnapshot.size,
+          campaignQueryReadsProxy: Math.max(1, campaignSnapshot.size),
           eligibleCandidateCount: candidates.length,
           frequencyCapReads: candidates.length,
           visibilityReads,
@@ -499,6 +502,7 @@ export async function selectCommunityBoostSponsoredPlacementWithDiagnostics(inpu
     placement: null,
     diagnostics: {
       campaignDocumentsFetched: campaignSnapshot.size,
+      campaignQueryReadsProxy: Math.max(1, campaignSnapshot.size),
       eligibleCandidateCount: candidates.length,
       frequencyCapReads: candidates.length,
       visibilityReads,
