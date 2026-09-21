@@ -151,7 +151,7 @@ export function evaluateCommunityOperationalCostBaseline(
   const windowDays = Math.floor((endedAt - startedAt) / DAY_MS);
 
   if (
-    input.source !== 'cloud_monitoring_log_metrics'
+    input.source !== 'cloud_logging_runtime_events'
     || input.environment !== 'production'
     || String(input.projectId ?? '').trim().length === 0
   ) {
