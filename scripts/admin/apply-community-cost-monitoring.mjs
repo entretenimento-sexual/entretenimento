@@ -15,7 +15,10 @@ const contract = JSON.parse(fs.readFileSync(contractPath, 'utf8'));
 
 function parseArgs(argv) {
   const result = {
-    project: process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT || '',
+    project:
+      process.env.GOOGLE_CLOUD_PROJECT
+      || process.env.GCLOUD_PROJECT
+      || '',
     notificationChannels: String(
       process.env.COMMUNITY_COST_NOTIFICATION_CHANNELS || ''
     ).split(',').map((value) => value.trim()).filter(Boolean),
@@ -43,11 +46,13 @@ function parseArgs(argv) {
 }
 
 const args = parseArgs(process.argv.slice(2));
+
 if (!args.project) {
   throw new Error(
     'Informe --project=<id> ou GOOGLE_CLOUD_PROJECT/GCLOUD_PROJECT.'
   );
 }
+
 if (
   !args.dryRun
   && args.notificationChannels.length === 0
@@ -67,6 +72,7 @@ const tempDir = fs.mkdtempSync(
 
 function runGcloud(commandArgs, options = {}) {
   const printable = ['gcloud', ...commandArgs].join(' ');
+
   if (args.dryRun) {
     console.log('[dry-run] ' + printable);
     return { status: 0, stdout: '' };
@@ -79,6 +85,7 @@ function runGcloud(commandArgs, options = {}) {
   });
 
   if (result.error) throw result.error;
+
   if (result.status !== 0 && !options.allowFailure) {
     throw new Error(
       'Falha executando: '
@@ -104,6 +111,15 @@ function metricType(metricName) {
   return 'logging.googleapis.com/user/' + metricName;
 }
 
+function metricDescriptorName(metricName) {
+  return (
+    'projects/'
+    + args.project
+    + '/metricDescriptors/'
+    + metricType(metricName)
+  );
+}
+
 function buildDistributionMetric(metric) {
   return {
     name: metric.metricName,
@@ -112,6 +128,8 @@ function buildDistributionMetric(metric) {
     valueExtractor: metric.valueExtractor,
     bucketOptions: metric.bucketOptions,
     metricDescriptor: {
+      name: metricDescriptorName(metric.metricName),
+      type: metricType(metric.metricName),
       metricKind: 'DELTA',
       valueType: 'DISTRIBUTION',
       unit: metric.unit,
@@ -120,18 +138,44 @@ function buildDistributionMetric(metric) {
   };
 }
 
-function buildSampleMetric(metric) {
+function buildCounterMetric(name, description, filter) {
   return {
-    name: metric.sampleMetricName,
-    description: 'Amostras para gate de alerta/baseline de ' + metric.key + '.',
-    filter: metric.filter,
+    name,
+    description,
+    filter,
     metricDescriptor: {
+      name: metricDescriptorName(name),
+      type: metricType(name),
       metricKind: 'DELTA',
       valueType: 'INT64',
       unit: '1',
-      displayName: metric.key + ' samples',
+      displayName: name,
     },
   };
+}
+
+function buildSampleMetric(metric) {
+  return buildCounterMetric(
+    metric.sampleMetricName,
+    'Amostras para gate de alerta/baseline de ' + metric.key + '.',
+    metric.filter
+  );
+}
+
+function breachMetricName(metric, level) {
+  return metric.metricName + '_' + level + '_breaches';
+}
+
+function buildBreachMetric(metric, level) {
+  const threshold =
+    level === 'warning' ? metric.warningAbove : metric.criticalAbove;
+  return buildCounterMetric(
+    breachMetricName(metric, level),
+    'Eventos acima do threshold ' + level + ' de ' + metric.key + '.',
+    metric.filter
+      + ' AND jsonPayload.operationalCostBudget.value > '
+      + threshold
+  );
 }
 
 function upsertLogMetric(name, config) {
@@ -149,6 +193,7 @@ function upsertLogMetric(name, config) {
   );
 
   const verb = existing.status === 0 ? 'update' : 'create';
+
   runGcloud([
     'logging',
     'metrics',
@@ -160,69 +205,73 @@ function upsertLogMetric(name, config) {
   ]);
 }
 
+function dashboardThresholds(metric) {
+  if (!metric.budgeted || metric.chartPlotType === 'HEATMAP') return [];
+
+  return [
+    {
+      label: 'warning',
+      value: metric.warningAbove,
+      targetAxis: 'Y1',
+    },
+    {
+      label: 'critical',
+      value: metric.criticalAbove,
+      targetAxis: 'Y1',
+    },
+  ];
+}
+
+function buildDashboardWidget(metric) {
+  return {
+    title: metric.key + ' [' + metric.aggregation.toUpperCase() + ']',
+    xyChart: {
+      dataSets: [
+        {
+          timeSeriesQuery: {
+            timeSeriesFilter: {
+              filter:
+                'metric.type="' + metricType(metric.metricName) + '"',
+              aggregation: {
+                alignmentPeriod: metric.windowSeconds + 's',
+                perSeriesAligner: metric.aligner,
+                crossSeriesReducer: metric.reducer,
+                groupByFields: [],
+              },
+            },
+            unitOverride: metric.unit,
+          },
+          plotType: metric.chartPlotType,
+          targetAxis: 'Y1',
+          minAlignmentPeriod: metric.windowSeconds + 's',
+        },
+      ],
+      thresholds: dashboardThresholds(metric),
+      yAxis: {
+        label: metric.unit,
+        scale: 'LINEAR',
+      },
+      chartOptions: {
+        mode: 'COLOR',
+      },
+    },
+  };
+}
+
 function buildDashboard() {
   const widgets = [
     {
       text: {
         content:
-          'Baseline real de custo de Comunidades. Métricas de Boost são '
-          + 'baseline-only até existir evidência suficiente para calibrar custo.',
+          'Baseline real de custo de Comunidades. '
+          + 'Os budgets são proxies operacionais, não preços. '
+          + 'Boost permanece baseline-only até existir evidência suficiente '
+          + 'para calibrar custo financeiro.',
         format: 'MARKDOWN',
       },
     },
+    ...contract.metrics.map(buildDashboardWidget),
   ];
-
-  for (const metric of contract.metrics) {
-    const thresholds = metric.budgeted
-      ? [
-          {
-            value: metric.warningAbove,
-            color: 'YELLOW',
-            direction: 'ABOVE',
-            targetAxis: 'Y1',
-          },
-          {
-            value: metric.criticalAbove,
-            color: 'RED',
-            direction: 'ABOVE',
-            targetAxis: 'Y1',
-          },
-        ]
-      : [];
-
-    widgets.push({
-      title: metric.key,
-      xyChart: {
-        dataSets: [
-          {
-            timeSeriesQuery: {
-              timeSeriesFilter: {
-                filter: 'metric.type="' + metricType(metric.metricName) + '"',
-                aggregation: {
-                  alignmentPeriod: metric.windowSeconds + 's',
-                  perSeriesAligner: metric.aligner,
-                  crossSeriesReducer: metric.reducer,
-                  groupByFields: [],
-                },
-              },
-              unitOverride: metric.unit,
-            },
-            plotType: 'LINE',
-            targetAxis: 'Y1',
-            minAlignmentPeriod: metric.windowSeconds + 's',
-          },
-        ],
-        thresholds,
-        yAxis: {
-          label: metric.unit,
-          scale: 'LINEAR',
-        },
-        chartOptions: {
-          mode: 'COLOR',
-        },
-      },
-    });
-  }
 
   return {
     displayName: contract.dashboardDisplayName,
@@ -231,7 +280,7 @@ function buildDashboard() {
       purpose: 'operational-cost',
     },
     gridLayout: {
-      columns: '2',
+      columns: 2,
       widgets,
     },
   };
@@ -249,9 +298,7 @@ function upsertDashboard() {
     ],
     { capture: true }
   );
-  const existing = args.dryRun
-    ? []
-    : JSON.parse(list.stdout || '[]');
+  const existing = args.dryRun ? [] : JSON.parse(list.stdout || '[]');
   const dashboard = buildDashboard();
 
   if (existing.length > 1) {
@@ -288,16 +335,91 @@ function upsertDashboard() {
   ]);
 }
 
-function buildAlertPolicy(metric, level) {
+function distributionValueCondition(metric, level) {
   const threshold =
     level === 'warning' ? metric.warningAbove : metric.criticalAbove;
+
+  return {
+    displayName: 'valor agregado acima do budget',
+    conditionThreshold: {
+      filter: 'metric.type="' + metricType(metric.metricName) + '"',
+      aggregations: [
+        {
+          alignmentPeriod: metric.windowSeconds + 's',
+          perSeriesAligner: metric.aligner,
+          crossSeriesReducer: metric.reducer,
+          groupByFields: [],
+        },
+      ],
+      comparison: 'COMPARISON_GT',
+      thresholdValue: threshold,
+      duration:
+        level === 'warning' ? metric.windowSeconds + 's' : '0s',
+      trigger: { count: 1 },
+    },
+  };
+}
+
+function sampleCountCondition(metric) {
+  return {
+    displayName: 'amostragem mínima',
+    conditionThreshold: {
+      filter:
+        'metric.type="' + metricType(metric.sampleMetricName) + '"',
+      aggregations: [
+        {
+          alignmentPeriod: metric.windowSeconds + 's',
+          perSeriesAligner: 'ALIGN_SUM',
+          crossSeriesReducer: 'REDUCE_SUM',
+          groupByFields: [],
+        },
+      ],
+      comparison: 'COMPARISON_GT',
+      thresholdValue: Math.max(0, metric.minimumSamples - 1),
+      duration: '0s',
+      trigger: { count: 1 },
+    },
+  };
+}
+
+function exactBreachCondition(metric, level) {
+  return {
+    displayName: 'evento acima do budget',
+    conditionThreshold: {
+      filter:
+        'metric.type="'
+        + metricType(breachMetricName(metric, level))
+        + '"',
+      aggregations: [
+        {
+          alignmentPeriod: metric.windowSeconds + 's',
+          perSeriesAligner: 'ALIGN_SUM',
+          crossSeriesReducer: 'REDUCE_SUM',
+          groupByFields: [],
+        },
+      ],
+      comparison: 'COMPARISON_GT',
+      thresholdValue: 0,
+      duration: '0s',
+      trigger: { count: 1 },
+    },
+  };
+}
+
+function buildAlertPolicy(metric, level) {
   const displayName =
     '[Community Cost] '
     + level.toUpperCase()
     + ' '
     + metric.key;
-  const valueDuration =
-    level === 'warning' ? metric.windowSeconds + 's' : '0s';
+
+  const exactMax = metric.alertStrategy === 'exact_breach_counter';
+  const conditions = exactMax
+    ? [exactBreachCondition(metric, level)]
+    : [
+        distributionValueCondition(metric, level),
+        sampleCountCondition(metric),
+      ];
 
   return {
     displayName,
@@ -307,6 +429,8 @@ function buildAlertPolicy(metric, level) {
         + metric.key
         + '. Nível: '
         + level
+        + '. Estratégia: '
+        + metric.alertStrategy
         + '. Validar volume, baseline e billing real antes de otimizar.',
       mimeType: 'text/markdown',
     },
@@ -314,45 +438,8 @@ function buildAlertPolicy(metric, level) {
       domain: 'communities',
       cost_level: level,
     },
-    conditions: [
-      {
-        displayName: 'valor acima do budget',
-        conditionThreshold: {
-          filter: 'metric.type="' + metricType(metric.metricName) + '"',
-          aggregations: [
-            {
-              alignmentPeriod: metric.windowSeconds + 's',
-              perSeriesAligner: metric.aligner,
-              crossSeriesReducer: metric.reducer,
-              groupByFields: [],
-            },
-          ],
-          comparison: 'COMPARISON_GT',
-          thresholdValue: threshold,
-          duration: valueDuration,
-          trigger: { count: 1 },
-        },
-      },
-      {
-        displayName: 'amostragem mínima',
-        conditionThreshold: {
-          filter: 'metric.type="' + metricType(metric.sampleMetricName) + '"',
-          aggregations: [
-            {
-              alignmentPeriod: metric.windowSeconds + 's',
-              perSeriesAligner: 'ALIGN_SUM',
-              crossSeriesReducer: 'REDUCE_SUM',
-              groupByFields: [],
-            },
-          ],
-          comparison: 'COMPARISON_GT',
-          thresholdValue: Math.max(0, metric.minimumSamples - 1),
-          duration: '0s',
-          trigger: { count: 1 },
-        },
-      },
-    ],
-    combiner: 'AND',
+    conditions,
+    combiner: conditions.length > 1 ? 'AND' : 'OR',
     enabled: true,
     notificationChannels: args.notificationChannels,
   };
@@ -412,6 +499,20 @@ function upsertAlertPolicy(metric, level) {
 for (const metric of contract.metrics) {
   upsertLogMetric(metric.metricName, buildDistributionMetric(metric));
   upsertLogMetric(metric.sampleMetricName, buildSampleMetric(metric));
+
+  if (
+    metric.budgeted === true
+    && metric.alertStrategy === 'exact_breach_counter'
+  ) {
+    upsertLogMetric(
+      breachMetricName(metric, 'warning'),
+      buildBreachMetric(metric, 'warning')
+    );
+    upsertLogMetric(
+      breachMetricName(metric, 'critical'),
+      buildBreachMetric(metric, 'critical')
+    );
+  }
 }
 
 upsertDashboard();
