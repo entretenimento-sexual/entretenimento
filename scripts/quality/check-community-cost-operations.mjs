@@ -112,6 +112,18 @@ for (const metric of contract.metrics) {
     ) {
       throw new Error('Invalid exact-max monitoring strategy: ' + metric.key);
     }
+  } else if (metric.aggregation === 'ratio_per_served') {
+    if (
+      metric.aligner !== 'ALIGN_SUM'
+      || metric.reducer !== 'REDUCE_MEAN'
+      || metric.alertStrategy !== 'baseline_only'
+      || !metric.denominatorPath
+      || !metric.sampleFilter
+    ) {
+      throw new Error(
+        'Invalid served-unit baseline strategy: ' + metric.key
+      );
+    }
   } else {
     throw new Error('Unsupported cost aggregation: ' + metric.aggregation);
   }
