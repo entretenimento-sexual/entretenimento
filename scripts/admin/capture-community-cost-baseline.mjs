@@ -157,7 +157,10 @@ function aggregate(metric, values, denominatorCount) {
     return values.reduce((sum, value) => sum + value, 0) / values.length;
   }
   if (metric.aggregation === 'max') {
-    return Math.max(...values);
+    return values.reduce(
+      (currentMax, value) => Math.max(currentMax, value),
+      Number.NEGATIVE_INFINITY
+    );
   }
   if (metric.aggregation === 'p95') {
     return percentile(values, 0.95);
@@ -221,25 +224,41 @@ for (const metric of contract.metrics) {
   const valueObservedDays = new Set();
   const denominatorObservedDays = new Set();
   let denominatorCount = 0;
+  let invalidValueCount = 0;
 
   for (const entry of entries) {
     const rawValue = getPath(entry, metric.valuePath);
     const value = Number(rawValue);
 
-    if (Number.isFinite(value) && value >= 0) {
+    const validValue = Number.isFinite(value) && value >= 0;
+
+    if (validValue) {
       values.push(value);
       const day = observationDay(entry.timestamp);
       if (day) valueObservedDays.add(day);
+    } else {
+      invalidValueCount += 1;
     }
 
     if (
-      metric.denominatorPath
+      validValue
+      && metric.denominatorPath
       && getPath(entry, metric.denominatorPath) === true
     ) {
       denominatorCount += 1;
       const day = observationDay(entry.timestamp);
       if (day) denominatorObservedDays.add(day);
     }
+  }
+
+  if (invalidValueCount > 0) {
+    throw new Error(
+      'Baseline recusado para '
+      + metric.key
+      + ': '
+      + invalidValueCount
+      + ' eventos possuem valor operacional inválido.'
+    );
   }
 
   const ratioMetric = metric.aggregation === 'ratio_per_served';
@@ -254,10 +273,18 @@ for (const metric of contract.metrics) {
   );
   const baselineValue =
     baselineValueRaw === null ? null : round(baselineValueRaw);
-  const minValue =
-    values.length === 0 ? null : round(Math.min(...values));
-  const maxValue =
-    values.length === 0 ? null : round(Math.max(...values));
+  const minValue = values.length === 0
+    ? null
+    : round(values.reduce(
+      (currentMin, value) => Math.min(currentMin, value),
+      Number.POSITIVE_INFINITY
+    ));
+  const maxValue = values.length === 0
+    ? null
+    : round(values.reduce(
+      (currentMax, value) => Math.max(currentMax, value),
+      Number.NEGATIVE_INFINITY
+    ));
 
   metrics[metric.key] = {
     sampleCount,
