@@ -14,6 +14,8 @@ import {
 
 export const COMMUNITY_OPERATIONAL_COST_BASELINE_VERSION = 1;
 export const COMMUNITY_OPERATIONAL_COST_BASELINE_MIN_DAYS = 14;
+export const COMMUNITY_OPERATIONAL_COST_PRODUCTION_PROJECT_ID =
+  'entretenimento-sexual';
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
 
@@ -153,7 +155,8 @@ export function evaluateCommunityOperationalCostBaseline(
   if (
     input.source !== 'cloud_logging_runtime_events'
     || input.environment !== 'production'
-    || String(input.projectId ?? '').trim().length === 0
+    || String(input.projectId ?? '').trim()
+      !== COMMUNITY_OPERATIONAL_COST_PRODUCTION_PROJECT_ID
   ) {
     return Object.freeze({
       status: 'non_production_source',
