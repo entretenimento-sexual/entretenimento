@@ -249,17 +249,18 @@ playwright-cli goto "${BASE}?visualState=profile"
 playwright-cli resize 900 900
 
 run_checked "$OUT/profile/desktop/metrics.log" "async (page) => {
-  await page.waitForSelector('.profile-official-communities', { state: 'visible' });
+  await page.waitForSelector('.official-communities', { state: 'visible' });
   const metrics = await page.evaluate(() => {
-    const links = Array.from(document.querySelectorAll('.profile-official-community'));
+    const links = Array.from(document.querySelectorAll('.official-community'));
     return {
       viewportWidth: window.innerWidth,
       scrollWidth: document.documentElement.scrollWidth,
       h1Count: document.querySelectorAll('.visual-profile h1').length,
-      sectionCount: document.querySelectorAll('.profile-official-communities').length,
+      sectionCount: document.querySelectorAll('.official-communities').length,
       itemCount: links.length,
-      officialBadgeCount: document.querySelectorAll('.profile-official-community .community-official-badge').length,
-      locationCount: document.querySelectorAll('.profile-official-community .community-official-location').length,
+      officialBadgeCount: document.querySelectorAll('.official-community .community-official-badge').length,
+      contextText: document.querySelector('.official-communities__context')
+        ?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
       minLinkHeight: links.length ? Math.min(...links.map((link) => link.getBoundingClientRect().height)) : 0,
     };
   });
@@ -269,7 +270,7 @@ run_checked "$OUT/profile/desktop/metrics.log" "async (page) => {
     || metrics.sectionCount !== 1
     || metrics.itemCount !== 3
     || metrics.officialBadgeCount !== 3
-    || metrics.locationCount !== 1
+    || !metrics.contextText.includes('Associação oficial verificada')
     || metrics.minLinkHeight < 72
   ) {
     throw new Error('Official profile desktop validation failed: ' + JSON.stringify(metrics));
@@ -284,17 +285,18 @@ playwright-cli resize 390 844
 playwright-cli reload
 
 run_checked "$OUT/profile/mobile/metrics.log" "async (page) => {
-  await page.waitForSelector('.profile-official-communities', { state: 'visible' });
+  await page.waitForSelector('.official-communities', { state: 'visible' });
   const metrics = await page.evaluate(() => {
-    const section = document.querySelector('.profile-official-communities')?.getBoundingClientRect();
-    const links = Array.from(document.querySelectorAll('.profile-official-community'));
+    const section = document.querySelector('.official-communities')?.getBoundingClientRect();
+    const links = Array.from(document.querySelectorAll('.official-community'));
     return {
       viewportWidth: window.innerWidth,
       scrollWidth: document.documentElement.scrollWidth,
       sectionWidth: section?.width ?? 0,
       itemCount: links.length,
-      officialBadgeCount: document.querySelectorAll('.profile-official-community .community-official-badge').length,
-      locationCount: document.querySelectorAll('.profile-official-community .community-official-location').length,
+      officialBadgeCount: document.querySelectorAll('.official-community .community-official-badge').length,
+      contextText: document.querySelector('.official-communities__context')
+        ?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
       minLinkHeight: links.length ? Math.min(...links.map((link) => link.getBoundingClientRect().height)) : 0,
     };
   });
@@ -303,7 +305,7 @@ run_checked "$OUT/profile/mobile/metrics.log" "async (page) => {
     || metrics.sectionWidth > metrics.viewportWidth + 1
     || metrics.itemCount !== 3
     || metrics.officialBadgeCount !== 3
-    || metrics.locationCount !== 1
+    || !metrics.contextText.includes('Associação oficial verificada')
     || metrics.minLinkHeight < 72
   ) {
     throw new Error('Official profile mobile validation failed: ' + JSON.stringify(metrics));
