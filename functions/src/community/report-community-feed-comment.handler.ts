@@ -12,6 +12,9 @@ import { db, FieldValue } from '../firebaseApp';
 import {
   safeRecordModerationOpenSignal,
 } from '../moderation/moderation-automation.service';
+import {
+  safeNotifyModerationReportOpened,
+} from '../moderation/moderation-safety-notification.service';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   REQUIRE_COMMUNITY_APP_CHECK,
@@ -232,6 +235,8 @@ export const reportCommunityFeedComment = onCall<
       critical: command.reason === 'minor_content_safety',
       quarantined: automationTarget.quarantined,
     });
+
+    await safeNotifyModerationReportOpened(reportId);
 
     return { reportId };
   }
