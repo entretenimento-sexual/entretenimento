@@ -10,7 +10,7 @@ import { ChatReplyQuotePipe } from '../pipes/chat-reply-quote.pipe';
 import { FirestoreUserQueryService } from '../../core/services/data-handling/firestore-user-query.service';
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '../../core/services/error-handler/application-error.service';
 import { PrivacyDebugLoggerService } from '../../core/services/privacy/privacy-debug-logger.service';
 
 @Pipe({ name: 'dateFormat', standalone: false })
@@ -49,9 +49,9 @@ describe('ChatMessageComponent', () => {
           },
         },
         {
-          provide: GlobalErrorHandlerService,
+          provide: ApplicationErrorService,
           useValue: {
-            handleError: vi.fn(),
+            report: vi.fn(),
           },
         },
         {
