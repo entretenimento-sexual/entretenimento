@@ -58,6 +58,10 @@ describe('video-report-safety', () => {
       true
     );
     assert.equal(
+      shouldQuarantineVideoAfterReport('minor_content_safety', 1),
+      true
+    );
+    assert.equal(
       shouldQuarantineVideoAfterReport('illegal_content', 1),
       true
     );
@@ -79,6 +83,7 @@ describe('video-report-safety', () => {
 
   it('preserva evidência somente para categorias de risco grave', () => {
     assert.equal(shouldPreserveMediaEvidence('minor_safety'), true);
+    assert.equal(shouldPreserveMediaEvidence('minor_content_safety'), true);
     assert.equal(shouldPreserveMediaEvidence('illegal_content'), true);
     assert.equal(shouldPreserveMediaEvidence('sexual_boundary'), true);
     assert.equal(shouldPreserveMediaEvidence('spam'), false);
