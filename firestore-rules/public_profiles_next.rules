@@ -7,7 +7,7 @@
 // editoriais; métricas, compatibilidade, moderação e capas são backend-only.
 // =========================================================================
 match /public_profiles/{userId} {
-  allow get, list: if signedIn();
+  allow get, list: if currentUserCanUseAdultSocialPlatform();
 
   function hasPublicField(field) {
     return request.resource.data.keys().hasAny([field]);
@@ -25,6 +25,7 @@ match /public_profiles/{userId} {
       && user.profileCompleted == true
       && user.publicVisibility == "visible"
       && user.interactionBlocked == false
+      && canonicalAgeEligibilityAllowsAdultAccess(userId)
       && user.acceptedTerms.accepted == true
       && user.acceptedTerms.version == "v3"
       && user.acceptedTerms.acknowledgedPrivacyNotice == true
