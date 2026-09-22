@@ -17,7 +17,11 @@ describe('PLATFORM_ARCHITECTURE_MANIFESTO', () => {
       'vip',
     ]);
     expect(PLATFORM_ARCHITECTURE_MANIFESTO.priorities).toContain('venues');
-    expect(PLATFORM_ARCHITECTURE_MANIFESTO.priorities).toContain('rooms');
+    expect(PLATFORM_ARCHITECTURE_MANIFESTO.priorities).toContain('communities');
+    expect(PLATFORM_ARCHITECTURE_MANIFESTO.priorities).not.toContain('rooms');
+    expect(PLATFORM_ARCHITECTURE_MANIFESTO.priorities).not.toContain(
+      'venue-linked-rooms-and-walls'
+    );
     expect(
       PLATFORM_ARCHITECTURE_MANIFESTO.security.directStructuralWrites
     ).toBe(false);
