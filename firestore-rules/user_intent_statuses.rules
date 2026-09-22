@@ -21,7 +21,8 @@ match /user_intent_statuses/{statusId} {
   }
 
   function isDiscoverableStatus() {
-    return resource.data.moderation.state == "active"
+    return resource.data.ageEligibilityVerifiedAdult == true
+      && resource.data.moderation.state == "active"
       && resource.data.visibility == "public_discovery";
   }
 
