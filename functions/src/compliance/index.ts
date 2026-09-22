@@ -41,3 +41,7 @@ export {
 export {
   processAgeVerificationProviderAssertion,
 } from './age-verification-provider-assertion.trigger';
+
+export {
+  expireAgeEligibilityRecords,
+} from './expire-age-eligibility.schedule';
