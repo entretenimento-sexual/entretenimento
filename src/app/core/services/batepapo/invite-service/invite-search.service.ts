@@ -25,8 +25,7 @@ import {
 import { Observable, of, defer } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
 
-import { ErrorNotificationService } from '../../error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '../../error-handler/application-error.service';
 import { environment } from 'src/environments/environment';
 
 
@@ -34,8 +33,7 @@ import { environment } from 'src/environments/environment';
 export class InviteSearchService {
   constructor(
     private firestoreQueryService: FirestoreQueryService,
-    private notify: ErrorNotificationService,
-    private globalError: GlobalErrorHandlerService
+    private applicationError: ApplicationErrorService
   ) { }
 
   /** Helper: log apenas em dev/staging */
@@ -140,19 +138,21 @@ export class InviteSearchService {
 
   /**
    * Centraliza roteamento de erro:
-   * - GlobalErrorHandlerService para log/telemetria
-   * - ErrorNotificationService para feedback da UI
+   * - ApplicationErrorService para diagnóstico e feedback seguro
    */
   private routeError(err: unknown, context: string, userMessage?: string): void {
-    const e = err instanceof Error ? err : new Error(`[InviteSearchService] ${context}`);
-    (e as any).silent = true;
-    (e as any).original = err;
-    (e as any).context = context;
-
-    this.globalError.handleError(e);
-
-    if (userMessage) {
-      this.notify.showError(userMessage);
+    try {
+      this.applicationError.report(err, {
+        feature: 'room-invite-search',
+        operation: context,
+        fallbackMessage: userMessage ?? 'Erro ao buscar usuários elegíveis.',
+        presentation: userMessage
+          ? { surface: 'snackbar', severity: 'error' }
+          : { surface: 'none', severity: 'error' },
+        metadata: { scope: 'InviteSearchService' },
+      });
+    } catch {
+      // Busca elegível mantém fallback reativo mesmo sem diagnóstico.
     }
   }
 
