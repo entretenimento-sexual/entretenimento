@@ -114,8 +114,9 @@ getMyDirectChats$(): Observable<IChat[]> {
    * Resolve ou cria o chat direto 1:1 com outro usuário.
    *
    * Regras:
-   * - exige uid autenticado
-   * - não permite abrir chat consigo mesmo
+   * - exige uid autenticado;
+   * - não permite abrir chat consigo mesmo;
+   * - falhas do callable usam uma única fronteira canônica de erro.
    */
   ensureDirectChatIdWithUser$(otherUserUid: string): Observable<string | null> {
     const safeOtherUid = (otherUserUid ?? '').trim();
@@ -129,40 +130,48 @@ getMyDirectChats$(): Observable<IChat[]> {
         const safeCurrentUid = (currentUid ?? '').trim();
 
         if (!safeCurrentUid) {
-          this.notifyUser('Você precisa estar autenticado para abrir este chat.');
+          this.notifyUser(
+            'Você precisa estar autenticado para abrir este chat.'
+          );
           return of(null);
         }
 
         if (safeCurrentUid === safeOtherUid) {
-          this.notifyUser('Não é possível abrir um chat com o próprio perfil.');
+          this.notifyUser(
+            'Não é possível abrir um chat com o próprio perfil.'
+          );
           return of(null);
         }
 
-return defer(() =>
-  from(
-    this.ensureDirectChatCallable({
-      otherUserUid: safeOtherUid,
-    })
-  )
-).pipe(
-  map((result) => {
-    const chatId = String(result.data?.chatId ?? '').trim();
+        return defer(() =>
+          from(
+            this.ensureDirectChatCallable({
+              otherUserUid: safeOtherUid,
+            })
+          )
+        ).pipe(
+          map((result) => {
+            const chatId = String(result.data?.chatId ?? '').trim();
 
-    if (!chatId) {
-      throw new Error('Resposta inválida ao abrir conversa direta.');
-    }
+            if (!chatId) {
+              throw new Error(
+                'Resposta inválida ao abrir conversa direta.'
+              );
+            }
 
-    return chatId;
-  }),
-
-  catchError((error) => {
-    this.reportOpenChatError(error);
-    return of(null);
-  })
-);
+            return chatId;
+          }),
+          catchError((error) => {
+            this.reportOpenChatError(error);
+            return of(null);
+          })
+        );
       }),
       catchError((error) => {
-        this.reportSilent(error, 'DirectChatService.ensureDirectChatIdWithUser$');
+        this.reportSilent(
+          error,
+          'DirectChatService.ensureDirectChatIdWithUser$'
+        );
         return of(null);
       })
     );
@@ -183,36 +192,36 @@ return defer(() =>
   }
 
   private getOpenChatUserMessage(error: unknown): string {
-  const code = String(
-    (error as { code?: unknown } | null)?.code ?? ''
-  ).toLowerCase();
+    const code = String(
+      (error as { code?: unknown } | null)?.code ?? ''
+    ).toLowerCase();
 
-  const message = String(
-    (error as { message?: unknown } | null)?.message ?? ''
-  ).toLowerCase();
+    const message = String(
+      (error as { message?: unknown } | null)?.message ?? ''
+    ).toLowerCase();
 
-  if (code.includes('unauthenticated')) {
-    return 'Entre novamente para iniciar uma conversa.';
-  }
-
-  if (code.includes('failed-precondition')) {
-    if (message.includes('conexão precisa estar aceita')) {
-      return 'Vocês precisam estar conectados para iniciar uma conversa.';
+    if (code.includes('unauthenticated')) {
+      return 'Entre novamente para iniciar uma conversa.';
     }
 
-    if (message.includes('verifique seu e-mail')) {
-      return 'Verifique seu e-mail antes de iniciar conversas.';
+    if (code.includes('failed-precondition')) {
+      if (message.includes('conexão precisa estar aceita')) {
+        return 'Vocês precisam estar conectados para iniciar uma conversa.';
+      }
+
+      if (message.includes('verifique seu e-mail')) {
+        return 'Verifique seu e-mail antes de iniciar conversas.';
+      }
+
+      return 'Não foi possível iniciar a conversa nas condições atuais.';
     }
 
-    return 'Não foi possível iniciar a conversa nas condições atuais.';
-  }
+    if (code.includes('permission-denied')) {
+      return 'Esta conversa não está disponível.';
+    }
 
-  if (code.includes('permission-denied')) {
-    return 'Esta conversa não está disponível.';
+    return 'Não foi possível abrir a conversa agora.';
   }
-
-  return 'Não foi possível abrir a conversa agora.';
-}
 
   private reportOpenChatError(error: unknown): void {
     const userMessage = this.getOpenChatUserMessage(error);
