@@ -5,8 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { IUserDados } from '@core/interfaces/iuser-dados';
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
-import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 
 import { PreferencesEditorFacade } from './preferences-editor.facade';
 import { IntentStateService } from '../services/intent-state.service';
@@ -34,13 +33,8 @@ describe('PreferencesEditorFacade', () => {
     saveIntentState$: vi.fn(() => of(void 0)),
   };
 
-  const globalErrorMock = {
-    handleError: vi.fn(),
-  };
-
-  const notifierMock = {
-    showError: vi.fn(),
-    showSuccess: vi.fn(),
+  const applicationErrorMock = {
+    report: vi.fn(),
   };
 
   let facade: PreferencesEditorFacade;
@@ -69,12 +63,8 @@ describe('PreferencesEditorFacade', () => {
           useValue: intentStateMock,
         },
         {
-          provide: GlobalErrorHandlerService,
-          useValue: globalErrorMock,
-        },
-        {
-          provide: ErrorNotificationService,
-          useValue: notifierMock,
+          provide: ApplicationErrorService,
+          useValue: applicationErrorMock,
         },
       ],
     });
@@ -97,7 +87,7 @@ describe('PreferencesEditorFacade', () => {
     expect(state.uid).toBe('owner');
     expect(profilePreferencesMock.getProfile$).toHaveBeenCalledWith('owner');
     expect(intentStateMock.getIntentState$).toHaveBeenCalledWith('owner');
-    expect(globalErrorMock.handleError).not.toHaveBeenCalled();
+    expect(applicationErrorMock.report).not.toHaveBeenCalled();
   });
 
   it('não recria leituras privadas quando apenas a projeção do usuário muda', async () => {
@@ -133,7 +123,18 @@ describe('PreferencesEditorFacade', () => {
 
     expect(profilePreferencesMock.getProfile$).not.toHaveBeenCalled();
     expect(intentStateMock.getIntentState$).not.toHaveBeenCalled();
-    expect(globalErrorMock.handleError).toHaveBeenCalledTimes(1);
+    expect(applicationErrorMock.report).toHaveBeenCalledTimes(1);
+    expect(applicationErrorMock.report).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        feature: 'preferences',
+        operation: 'getEditorState$',
+        fallbackMessage: 'Não foi possível carregar o editor de preferências.',
+        metadata: {
+          scope: 'PreferencesEditorFacade',
+        },
+      })
+    );
   });
 
   it('salva o perfil pelo writer atômico que também atualiza discovery', async () => {

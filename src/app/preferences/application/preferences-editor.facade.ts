@@ -29,8 +29,7 @@ import {
 } from 'rxjs/operators';
 
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
-import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import type { IUserDados } from '@core/interfaces/iuser-dados';
 
 import type { IntentState } from '../models/intent-state.model';
@@ -59,8 +58,7 @@ export interface PreferencesEditorState {
 @Injectable({ providedIn: 'root' })
 export class PreferencesEditorFacade {
   private readonly currentUserStore = inject(CurrentUserStoreService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
-  private readonly notifier = inject(ErrorNotificationService);
+  private readonly applicationError = inject(ApplicationErrorService);
 
   private readonly profilePreferences = inject(ProfilePreferencesService);
   private readonly profilePersistence = inject(PreferenceProfilePersistenceService);
@@ -403,25 +401,13 @@ export class PreferencesEditorFacade {
     context: string,
     userMessage: string
   ): void {
-    const error =
-      err instanceof Error
-        ? err
-        : new Error(`[PreferencesEditorFacade] ${context}`);
-
-    (error as Error & {
-      silent?: boolean;
-      original?: unknown;
-      context?: unknown;
-      feature?: string;
-    }).silent = true;
-    (error as Error & { original?: unknown }).original = err;
-    (error as Error & { context?: unknown }).context = {
-      existing: (error as Error & { context?: unknown }).context ?? null,
+    this.applicationError.report(err, {
+      feature: 'preferences',
       operation: context,
-    };
-    (error as Error & { feature?: string }).feature = 'preferences';
-
-    this.globalError.handleError(error);
-    this.notifier.showError(userMessage);
+      fallbackMessage: userMessage,
+      metadata: {
+        scope: 'PreferencesEditorFacade',
+      },
+    });
   }
 }
