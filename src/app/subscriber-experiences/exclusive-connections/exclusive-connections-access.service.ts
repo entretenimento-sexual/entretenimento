@@ -28,8 +28,7 @@ import {
   areContentAccessDecisionsEqual,
   ContentAccessPolicyService,
 } from 'src/app/core/access/content-access-policy.service';
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { BillingSnapshotResult } from 'src/app/payments-core/domain/models/billing-return.model';
 import { BillingRepository } from 'src/app/payments-core/infrastructure/repositories/billing.repository';
 import {
@@ -113,8 +112,7 @@ export function evaluateExclusiveConnectionsBillingSnapshot(
 export class ExclusiveConnectionsAccessService {
   private readonly contentAccess = inject(ContentAccessPolicyService);
   private readonly billingRepository = inject(BillingRepository);
-  private readonly errorNotifier = inject(ErrorNotificationService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly refreshRequests$ = new Subject<void>();
 
   evaluate$(): Observable<ContentAccessDecision> {
@@ -146,30 +144,16 @@ export class ExclusiveConnectionsAccessService {
 
   private reportSnapshotError(error: unknown): void {
     try {
-      this.errorNotifier.showError(
-        'Não foi possível verificar sua assinatura agora.'
-      );
-    } catch {
-      // O diagnóstico técnico abaixo continua se o feedback visual falhar.
-    }
-
-    try {
-      const normalizedError =
-        error instanceof Error ? error : new Error(String(error));
-      const contextualError = normalizedError as Error & {
-        context?: unknown;
-        skipUserNotification?: boolean;
-      };
-
-      contextualError.context = {
-        scope: 'ExclusiveConnectionsAccessService',
-        op: 'getMyBillingSnapshot',
-      };
-      contextualError.skipUserNotification = true;
-
-      this.globalError.handleError(contextualError);
+      this.applicationError.report(error, {
+        feature: 'exclusive-connections',
+        operation: 'getMyBillingSnapshot',
+        fallbackMessage: 'Não foi possível verificar sua assinatura agora.',
+        presentation: { surface: 'snackbar', severity: 'error' },
+        metadata: { scope: 'ExclusiveConnectionsAccessService' },
+      });
     } catch {
       // Observabilidade não deve produzir uma nova falha para o usuário.
     }
   }
+
 }
