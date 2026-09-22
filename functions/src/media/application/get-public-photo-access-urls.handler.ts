@@ -127,6 +127,7 @@ async function resolveAccessItem(
     .toUpperCase();
 
   if (
+    publicPhoto?.ageEligibilityVerifiedAdult !== true ||
     !canReadPublishedPhotoAudience({
       visibility,
       viewerIsOwner,
@@ -256,7 +257,12 @@ export const getPublicPhotoAccessUrls = onCall<PublicPhotoAccessRequest>(
           const snapshot = await db.doc(`public_profiles/${ownerUid}`).get();
           return [
             ownerUid,
-            { exists: snapshot.exists, technicalFailure: false },
+            {
+              exists:
+                snapshot.exists &&
+                snapshot.data()?.ageEligibilityVerifiedAdult === true,
+              technicalFailure: false,
+            },
           ] as const;
         } catch (error) {
           logger.warn(
