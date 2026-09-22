@@ -45,7 +45,7 @@ import { catchError, filter, map, take } from 'rxjs/operators';
 
 import { AccessControlService } from '../../services/autentication/auth/access-control.service';
 import { AuthReturnUrlService } from '../../services/autentication/auth/auth-return-url.service';
-import { GlobalErrorHandlerService } from '../../services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '../../services/error-handler/application-error.service';
 import { ErrorNotificationService } from '../../services/error-handler/error-notification.service';
 
 import {
@@ -115,7 +115,7 @@ function decideGuestAccess$(
   const router = inject(Router);
   const access = inject(AccessControlService);
   const returnUrl = inject(AuthReturnUrlService);
-  const globalError = inject(GlobalErrorHandlerService);
+  const applicationError = inject(ApplicationErrorService);
   const notify = inject(ErrorNotificationService);
 
   const tryingWelcome = isRegisterWelcomePath(attemptedUrl);
@@ -231,15 +231,15 @@ function decideGuestAccess$(
 
     catchError((err) => {
       try {
-        (err as any).silent = true;
-        (err as any).context = {
-          guard: 'guest-only',
-          attemptedUrl,
-        };
-
-        globalError.handleError(err);
+        applicationError.report(err, {
+          feature: 'auth-guard',
+          operation: 'guestOnly',
+          fallbackMessage: 'Falha ao validar acesso.',
+          presentation: { surface: 'none', severity: 'error' },
+          metadata: { scope: 'guestOnlyGuard' },
+        });
       } catch {
-        // noop
+        // Guard continua fail-safe mesmo se o diagnóstico falhar.
       }
 
       notify.showError('Falha ao validar acesso.');
