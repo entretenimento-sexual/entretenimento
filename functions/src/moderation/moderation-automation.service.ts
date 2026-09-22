@@ -51,6 +51,10 @@ function cleanId(value: unknown): string {
   return /^[A-Za-z0-9:_-]{1,180}$/.test(normalized) ? normalized : '';
 }
 
+function cleanTargetKey(value: unknown): string {
+  return String(value ?? '').trim().slice(0, 800);
+}
+
 function hashId(...parts: string[]): string {
   return createHash('sha256')
     .update(parts.join('|'))
@@ -300,7 +304,7 @@ export async function recordModerationOpenSignal(
   const reportId = cleanId(input.reportId);
   const targetUid = cleanId(input.targetUid);
   const reporterUid = cleanId(input.reporterUid);
-  const targetKey = cleanId(input.targetKey);
+  const targetKey = cleanTargetKey(input.targetKey);
 
   if (!reportId || !targetUid || !reporterUid || !targetKey) return null;
 
