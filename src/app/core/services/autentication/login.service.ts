@@ -43,7 +43,7 @@ import {
 import { Auth } from '@angular/fire/auth';
 
 import { IUserDados } from '../../interfaces/iuser-dados';
-import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '../error-handler/application-error.service';
 import { FirestoreUserQueryService } from '../data-handling/firestore-user-query.service';
 import { environment } from 'src/environments/environment';
 import { FirestoreContextService } from '@core/services/data-handling/firestore/core/firestore-context.service';
@@ -68,7 +68,7 @@ export class LoginService {
 
   constructor(
     private readonly firestoreUserQuery: FirestoreUserQueryService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly auth: Auth,
     private readonly ctx: FirestoreContextService
   ) {}
@@ -131,17 +131,21 @@ export class LoginService {
     extra?: Record<string, unknown>
   ): void {
     try {
-      const error = new Error(message) as Error & {
-        silent?: boolean;
-        skipUserNotification?: boolean;
-        original?: unknown;
-        context?: unknown;
-      };
-      error.silent = true;
-      error.skipUserNotification = true;
-      error.original = original;
-      error.context = { scope: 'LoginService', ...(extra ?? {}) };
-      this.globalErrorHandler.handleError(error);
+      const operation =
+        typeof extra?.['operation'] === 'string' && extra['operation'].trim()
+          ? extra['operation'].trim()
+          : 'internal';
+
+      this.applicationError.report(original, {
+        feature: 'login',
+        operation,
+        fallbackMessage: message,
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'LoginService',
+          ...(extra ?? {}),
+        },
+      });
     } catch {
       // Diagnóstico secundário não altera o resultado principal.
     }
