@@ -19,8 +19,7 @@ import {
 } from 'rxjs/operators';
 
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
-import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { IUserDados } from '@core/interfaces/iuser-dados';
 
 import {
@@ -44,8 +43,7 @@ export interface DiscoverySettingsVm {
 @Injectable({ providedIn: 'root' })
 export class DiscoverySettingsFacade {
   private readonly currentUserStore = inject(CurrentUserStoreService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
-  private readonly notifier = inject(ErrorNotificationService);
+  private readonly applicationError = inject(ApplicationErrorService);
 
   private readonly profilePreferences = inject(ProfilePreferencesService);
   private readonly capabilities = inject(PreferencesCapabilityService);
@@ -186,22 +184,16 @@ export class DiscoverySettingsFacade {
     context: string,
     userMessage: string
   ): void {
-    const error =
-      err instanceof Error
-        ? err
-        : new Error(`[DiscoverySettingsFacade] ${context}`);
-
-    (error as Error & {
-      silent?: boolean;
-      original?: unknown;
-      context?: unknown;
-      feature?: string;
-    }).silent = true;
-    (error as Error & { original?: unknown }).original = err;
-    (error as Error & { context?: unknown }).context = context;
-    (error as Error & { feature?: string }).feature = 'discovery_settings';
-
-    this.globalError.handleError(error);
-    this.notifier.showError(userMessage);
+    try {
+      this.applicationError.report(err, {
+        feature: 'discovery-settings',
+        operation: context,
+        fallbackMessage: userMessage,
+        presentation: { surface: 'snackbar', severity: 'error' },
+        metadata: { scope: 'DiscoverySettingsFacade' },
+      });
+    } catch {
+      // A falha do pipeline de erro não altera o contrato reativo da fachada.
+    }
   }
 }

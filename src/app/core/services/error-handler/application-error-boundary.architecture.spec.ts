@@ -91,9 +91,6 @@ const LEGACY_MANUAL_COMPOSITION_BASELINE = new Set<string>([
   'payments-core/application/billing-return.facade.ts',
   'payments-core/application/checkout.facade.ts',
   'photo-editor/photo-editor/photo-editor.component.ts',
-  'preferences/application/compatibility-preview.facade.ts',
-  'preferences/application/discovery-settings.facade.ts',
-  'preferences/application/match-profile.facade.ts',
   'register-module/finalizar-cadastro/finalizar-cadastro.component.ts',
   'register-module/terms-acceptance/terms-acceptance-page.component.ts',
   'register-module/welcome/welcome.component.ts',
@@ -203,6 +200,6 @@ describe('Application error ownership boundary', () => {
   });
 
   it('mantém explícito o tamanho atual da dívida fora de Comunidades', () => {
-    expect(LEGACY_MANUAL_COMPOSITION_BASELINE.size).toBe(78);
+    expect(LEGACY_MANUAL_COMPOSITION_BASELINE.size).toBe(75);
   });
 });
