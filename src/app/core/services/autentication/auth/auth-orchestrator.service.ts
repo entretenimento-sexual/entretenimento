@@ -58,8 +58,7 @@ import {
 } from './account-lifecycle.policy';
 import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
-import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 
 import { environment } from 'src/environments/environment';
 import { LogoutService } from './logout.service';
@@ -122,8 +121,7 @@ export class AuthOrchestratorService {
     private readonly userRepo: UserRepositoryService,
     private readonly router: Router,
     private readonly logoutService: LogoutService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService,
-    private readonly errorNotifier: ErrorNotificationService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly appBlock: AuthAppBlockService,
     private readonly currentUserStore: CurrentUserStoreService,
     private readonly privacyDebug: PrivacyDebugLoggerService
@@ -542,16 +540,21 @@ export class AuthOrchestratorService {
    * Não notifica o usuário diretamente.
    */
   private reportSilent(err: unknown, context: Record<string, unknown>): void {
-    try {
-      const error = new Error('[AuthOrchestrator] internal error');
-      (error as any).silent = true;
-      (error as any).skipUserNotification = true;
-      (error as any).original = err;
-      (error as any).context = context;
-      this.globalErrorHandler.handleError(error);
-    } catch {
-      // noop
-    }
+    const phase =
+      typeof context['phase'] === 'string' && context['phase'].trim()
+        ? context['phase'].trim()
+        : 'internal';
+
+    this.applicationError.report(err, {
+      feature: 'auth-orchestrator',
+      operation: phase,
+      fallbackMessage: 'Não foi possível concluir uma verificação interna da sessão.',
+      presentation: { surface: 'none', severity: 'error' },
+      metadata: {
+        scope: 'AuthOrchestratorService',
+        ...context,
+      },
+    });
   }
 
   /**
@@ -564,11 +567,17 @@ export class AuthOrchestratorService {
     const url = this.router.url || '';
     if (this.isRegistrationFlowUrl(url)) return;
 
-    this.errorNotifier.showError(
-      'Sua conta precisa de atenção. Finalize as etapas para continuar.'
-    );
-
-    this.reportSilent(new Error('App session blocked'), { reason });
+    this.applicationError.report(new Error('App session blocked'), {
+      feature: 'auth-orchestrator',
+      operation: 'blockAppSession',
+      fallbackMessage:
+        'Sua conta precisa de atenção. Finalize as etapas para continuar.',
+      presentation: { surface: 'snackbar', severity: 'error' },
+      metadata: {
+        scope: 'AuthOrchestratorService',
+        reason,
+      },
+    });
   }
 
   /**
