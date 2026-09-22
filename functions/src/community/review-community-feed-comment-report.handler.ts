@@ -6,6 +6,9 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
+import {
+  safeRecordModerationReviewSignal,
+} from '../moderation/moderation-automation.service';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   REQUIRE_COMMUNITY_APP_CHECK,
@@ -106,7 +109,7 @@ export const reviewCommunityFeedCommentReport = onCall<
       actorUid: adminUid,
     });
 
-    await db.runTransaction(async (transaction) => {
+    const automationTarget = await db.runTransaction(async (transaction) => {
       const reportRef = db.collection('moderation_reports').doc(reportId);
       const reportSnapshot = await transaction.get(reportRef);
       if (!reportSnapshot.exists) {
@@ -118,6 +121,7 @@ export const reviewCommunityFeedCommentReport = onCall<
       const postId = cleanId(report['parentTargetId']);
       const commentId = cleanId(report['targetId']);
       const authorUid = cleanId(report['targetAuthorUid']);
+      const critical = report['reason'] === 'minor_content_safety';
       if (
         report['targetType'] !== 'community_feed_comment'
         || !communityId
@@ -181,19 +185,31 @@ export const reviewCommunityFeedCommentReport = onCall<
       }
       const contentActive = comment['status'] === 'active'
         && comment['moderationState'] === 'active';
+      const contentQuarantined = comment['status'] === 'active'
+        && comment['moderationState'] === 'quarantined';
+      const contentReviewable = contentActive || contentQuarantined;
       const timestamp = FieldValue.serverTimestamp();
       const authorUser = authorUserSnapshot.data() as
         | CommunityNotificationUser
         | undefined;
       const shouldNotifyRemoval = decision === 'REMOVE'
-        && contentActive
+        && contentReviewable
         && canReceiveCommunityEssentialNotification(
           authorUser,
           authorUid,
           adminUid
         );
 
-      if (decision === 'REMOVE' && contentActive) {
+      if (decision === 'KEEP' && contentQuarantined) {
+        transaction.update(commentRef, {
+          moderationState: 'active',
+          moderationQuarantineReason: FieldValue.delete(),
+          moderationQuarantinedAt: FieldValue.delete(),
+          updatedAt: timestamp,
+        });
+      }
+
+      if (decision === 'REMOVE' && contentReviewable) {
         const metrics = (post['metrics'] ?? {}) as Record<string, unknown>;
         const commentCount = Math.max(
           0,
@@ -270,6 +286,15 @@ export const reviewCommunityFeedCommentReport = onCall<
         },
         timestamp,
       });
+
+      return { authorUid, critical };
+    });
+
+    await safeRecordModerationReviewSignal({
+      reportId,
+      targetUid: automationTarget.authorUid,
+      critical: automationTarget.critical,
+      confirmed: decision === 'REMOVE',
     });
 
     return { reportId, decision, targetType: 'community_feed_comment' };
