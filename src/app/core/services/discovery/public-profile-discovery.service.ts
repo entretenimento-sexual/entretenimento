@@ -9,6 +9,7 @@ import {
   limit,
   orderBy,
   query,
+  where,
 } from '@angular/fire/firestore';
 import { Observable, of } from 'rxjs';
 import { catchError, map, shareReplay } from 'rxjs/operators';
@@ -28,6 +29,7 @@ export class PublicProfileDiscoveryService {
     const safeLimit = Math.min(Math.max(options.limit ?? 80, 1), 120);
     const q = query(
       collection(this.firestore, 'public_profiles'),
+      where('ageEligibilityVerifiedAdult', '==', true),
       orderBy('updatedAt', 'desc'),
       limit(safeLimit)
     );
