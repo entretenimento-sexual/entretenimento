@@ -336,6 +336,33 @@ describe('Firestore Rules / public media age visibility', () => {
     await assertFails(getDocs(videoQuery));
   });
 
+  it('bloqueia mídia durante hold automático vigente e libera após expiração', async () => {
+    const db = viewerDb();
+    const videoRef = doc(
+      db,
+      'public_profiles',
+      OWNER_UID,
+      'public_videos',
+      VIDEO_ID
+    );
+
+    await setViewerCompliance({
+      moderationAutomationHold: {
+        active: true,
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    });
+    await assertFails(getDoc(videoRef));
+
+    await setViewerCompliance({
+      moderationAutomationHold: {
+        active: true,
+        expiresAt: new Date(Date.now() - 60_000),
+      },
+    });
+    await assertSucceeds(getDoc(videoRef));
+  });
+
   it('bloqueia vídeo quando os termos do viewer estão desatualizados', async () => {
     await setViewerCompliance({
       acceptedTerms: {
