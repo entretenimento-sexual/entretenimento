@@ -195,4 +195,5 @@ export class DiscoverySettingsFacade {
     } catch {
       // A falha do pipeline de erro não altera o contrato reativo da fachada.
     }
-  }}
+  }
+}
