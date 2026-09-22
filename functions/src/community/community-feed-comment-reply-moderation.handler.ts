@@ -23,7 +23,7 @@ import {
 } from './community-feed-comment.model';
 import { evaluateCommunityFeedCommentAction } from './community-feed-comment.policy';
 import { isCommunityMemberActivityEnabledStatus } from './community-lifecycle.policy';
-import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
+import { assertCommunityMembershipActorEligibleInTransaction } from './community-membership-eligibility.service';
 import {
   buildCommunityModerationNotificationCopy,
   buildCommunityModerationNotificationId,
@@ -255,9 +255,10 @@ export const moderateCommunityFeedCommentReply = onCall<
         );
       }
 
-      assertCommunityMembershipActorEligible(
-        userSnapshot.exists ? userSnapshot.data() : null,
-        actorUid
+      await assertCommunityMembershipActorEligibleInTransaction(
+        transaction,
+        actorUid,
+        userSnapshot.exists ? userSnapshot.data() : null
       );
 
       const community = communitySnapshot.data() ?? {};
