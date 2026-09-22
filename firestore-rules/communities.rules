@@ -45,7 +45,7 @@ match /communities/{communityId} {
       && resource.data.access.preview == "authenticated";
   }
 
-  allow get: if signedIn()
+  allow get: if currentUserCanUseAdultSocialPlatform()
     && !hasBlockedCommunityMembership()
     && (
       isPublicPreviewCommunity()
@@ -61,7 +61,8 @@ match /communities/{communityId} {
 
 match /communities/{communityId}/members/{memberUid} {
   // O usuário conhece somente o próprio vínculo e papel.
-  allow get: if signedIn() && memberUid == uid();
+  allow get: if currentUserCanUseAdultSocialPlatform()
+    && memberUid == uid();
 
   // Listas de membros, adesão e mudanças de papel passam pelo backend.
   allow list, create, update, delete: if false;
@@ -113,7 +114,7 @@ match /community_feed_realtime/{communityId}/items/{postId} {
   }
 
   function canReadRealtimeCommunityFeed() {
-    return signedIn()
+    return currentUserCanUseAdultSocialPlatform()
       && !realtimeMembershipHasStatus("blocked")
       && (
         realtimeCommunityAllowsPreview()
