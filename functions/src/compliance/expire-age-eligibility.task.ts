@@ -63,11 +63,20 @@ function toMillis(value: unknown): number | null {
 
 function resolveNextScheduleAtMs(
   expiresAtMs: number,
-  nowMs: number
+  expectedUpdatedAtMs: number,
+  referenceMs: number
 ): number {
+  if (expiresAtMs <= referenceMs) {
+    return expiresAtMs;
+  }
+
+  const elapsedMs = Math.max(0, referenceMs - expectedUpdatedAtMs);
+  const nextHop =
+    Math.floor(elapsedMs / TASK_SCHEDULE_HORIZON_MS) + 1;
+
   return Math.min(
     expiresAtMs,
-    nowMs + TASK_SCHEDULE_HORIZON_MS
+    expectedUpdatedAtMs + nextHop * TASK_SCHEDULE_HORIZON_MS
   );
 }
 
@@ -193,7 +202,11 @@ export const scheduleAgeEligibilityExpirationTask = onDocumentWritten(
       uid,
       expiresAtMs,
       expectedUpdatedAtMs,
-      scheduledForMs: resolveNextScheduleAtMs(expiresAtMs, nowMs),
+      scheduledForMs: resolveNextScheduleAtMs(
+        expiresAtMs,
+        expectedUpdatedAtMs,
+        nowMs
+      ),
     };
 
     await enqueueExpirationTask(payload);
@@ -257,7 +270,11 @@ export const expireAgeEligibilityAtBoundary = onTaskDispatched(
         uid,
         expiresAtMs,
         expectedUpdatedAtMs,
-        scheduledForMs: resolveNextScheduleAtMs(expiresAtMs, nowMs),
+        scheduledForMs: resolveNextScheduleAtMs(
+          expiresAtMs,
+          expectedUpdatedAtMs,
+          Math.max(nowMs, scheduledForMs)
+        ),
       };
 
       await enqueueExpirationTask(nextPayload);

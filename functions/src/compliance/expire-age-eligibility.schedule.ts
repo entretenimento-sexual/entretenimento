@@ -2,7 +2,7 @@
 // -----------------------------------------------------------------------------
 // AGE ELIGIBILITY EXPIRATION RECOVERY SWEEP
 // -----------------------------------------------------------------------------
-// A expiração pontual é agendada por Cloud Tasks no expiresAt. Este job não é
+// A expiração pontual avança por Cloud Tasks até o expiresAt. Este job não é
 // mais a fronteira primária de segurança: funciona como fallback de recuperação
 // para tarefas perdidas/atrasadas e para registros antigos ainda não agendados.
 //

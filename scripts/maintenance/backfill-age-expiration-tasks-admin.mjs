@@ -12,7 +12,8 @@
 // - não altera age_eligibility_records, users ou projeções públicas;
 // - payload inclui updatedAtMs para que reverificações tornem tarefas antigas
 //   inofensivas;
-// - IDs determinísticos tornam a repetição idempotente.
+// - checkpoints são ancorados em updatedAtMs, tornando retries e reexecuções
+//   da mesma geração idempotentes dentro de cada janela.
 //
 // Execute somente depois de implantar expireAgeEligibilityAtBoundary.
 //
@@ -113,8 +114,23 @@ function cleanUid(value) {
   return /^[A-Za-z0-9_-]{1,128}$/.test(uid) ? uid : '';
 }
 
-function resolveNextScheduleAtMs(expiresAtMs, nowMs) {
-  return Math.min(expiresAtMs, nowMs + TASK_SCHEDULE_HORIZON_MS);
+function resolveNextScheduleAtMs(
+  expiresAtMs,
+  expectedUpdatedAtMs,
+  referenceMs
+) {
+  if (expiresAtMs <= referenceMs) {
+    return expiresAtMs;
+  }
+
+  const elapsedMs = Math.max(0, referenceMs - expectedUpdatedAtMs);
+  const nextHop =
+    Math.floor(elapsedMs / TASK_SCHEDULE_HORIZON_MS) + 1;
+
+  return Math.min(
+    expiresAtMs,
+    expectedUpdatedAtMs + nextHop * TASK_SCHEDULE_HORIZON_MS
+  );
 }
 
 function buildTaskId({
@@ -228,7 +244,11 @@ async function main() {
         uid,
         expiresAtMs,
         expectedUpdatedAtMs,
-        scheduledForMs: resolveNextScheduleAtMs(expiresAtMs, Date.now()),
+        scheduledForMs: resolveNextScheduleAtMs(
+          expiresAtMs,
+          expectedUpdatedAtMs,
+          Date.now()
+        ),
       };
 
       wouldEnqueue += 1;
