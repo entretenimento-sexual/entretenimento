@@ -7,7 +7,7 @@
 // - removidos mocks/testes de RoomService, RoomMessagesService,
 //   RoomManagementService, InviteService e encerramento de Sala;
 // - motivo: Salas foram retiradas da inbox ativa e permanecem somente na rota
-//   legada `/chat/rooms` para histórico/encerramento seguro.
+//   legada /chat/rooms para histórico/encerramento seguro.
 // - estes testes agora protegem o contrato atual: a inbox seleciona apenas chat
 //   direto e não depende da infraestrutura de Salas.
 // -----------------------------------------------------------------------------
@@ -23,19 +23,23 @@ import { AuthSessionService } from '../../core/services/autentication/auth/auth-
 import { AccessControlService } from '../../core/services/autentication/auth/access-control.service';
 import { PublicUserPreviewTriggerDirective } from '../../core/components/public-user-preview-popover/public-user-preview-trigger.directive';
 import { DirectChatFacade } from '../../messaging/direct-chat/application/direct-chat.facade';
-import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';
-import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
+import { ApplicationErrorService } from '../../core/services/error-handler/application-error.service';
 import { PrivacyDebugLoggerService } from '../../core/services/privacy/privacy-debug-logger.service';
 import { ContentStateComponent } from '../../shared/content-state/content-state.component';
 import type { DirectChatListItem } from '../../messaging/direct-chat/models/direct-chat.models';
+
+const DIRECT_ITEMS_CONTEXT =
+  'ChatList.directChatItems' + String.fromCharCode(36);
 
 describe('ChatListComponent', () => {
   let component: ChatListComponent;
   let fixture: ComponentFixture<ChatListComponent>;
   let selectChatMock: ReturnType<typeof vi.fn>;
+  let applicationErrorReportMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     selectChatMock = vi.fn();
+    applicationErrorReportMock = vi.fn();
 
     TestBed.configureTestingModule({
       declarations: [ChatListComponent],
@@ -55,7 +59,7 @@ describe('ChatListComponent', () => {
         {
           provide: AccessControlService,
           useValue: {
-            canRunChatRealtime$: of(true),
+            canListenRealtime$: of(true),
           },
         },
         {
@@ -72,15 +76,9 @@ describe('ChatListComponent', () => {
           },
         },
         {
-          provide: GlobalErrorHandlerService,
+          provide: ApplicationErrorService,
           useValue: {
-            handleError: vi.fn(),
-          },
-        },
-        {
-          provide: ErrorNotificationService,
-          useValue: {
-            showError: vi.fn(),
+            report: applicationErrorReportMock,
           },
         },
         {
@@ -139,5 +137,57 @@ describe('ChatListComponent', () => {
 
     expect(selectChatMock).not.toHaveBeenCalled();
     expect(selected).not.toHaveBeenCalled();
+  });
+
+  it('mantém erro de stream explicitamente silencioso', () => {
+    const error = new Error('stream failed');
+
+    (
+      component as unknown as {
+        handleError(
+          context: string,
+          error: unknown,
+          notifyUser: boolean
+        ): void;
+      }
+    ).handleError(DIRECT_ITEMS_CONTEXT, error, false);
+
+    expect(applicationErrorReportMock).toHaveBeenCalledTimes(1);
+    expect(applicationErrorReportMock).toHaveBeenCalledWith(error, {
+      feature: 'chat-list',
+      operation: DIRECT_ITEMS_CONTEXT,
+      fallbackMessage: 'Falha ao carregar o chat. Tente novamente.',
+      presentation: { surface: 'none', severity: 'error' },
+      metadata: {
+        scope: 'ChatListComponent',
+        context: DIRECT_ITEMS_CONTEXT,
+      },
+    });
+  });
+
+  it('preserva feedback visível quando a fronteira solicitar notificação', () => {
+    const error = new Error('visible failure');
+
+    (
+      component as unknown as {
+        handleError(
+          context: string,
+          error: unknown,
+          notifyUser: boolean
+        ): void;
+      }
+    ).handleError('ChatList.load', error, true);
+
+    expect(applicationErrorReportMock).toHaveBeenCalledTimes(1);
+    expect(applicationErrorReportMock).toHaveBeenCalledWith(error, {
+      feature: 'chat-list',
+      operation: 'ChatList.load',
+      fallbackMessage: 'Falha ao carregar o chat. Tente novamente.',
+      presentation: { surface: 'snackbar', severity: 'error' },
+      metadata: {
+        scope: 'ChatListComponent',
+        context: 'ChatList.load',
+      },
+    });
   });
 });
