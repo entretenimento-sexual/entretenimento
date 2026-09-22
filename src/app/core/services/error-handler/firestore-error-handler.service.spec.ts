@@ -123,6 +123,35 @@ describe('FirestoreErrorHandlerService', () => {
     expect(options.fallbackMessage).not.toContain('sensitive backend detail');
   });
 
+  it('não rediagnostica a mesma instância em camadas Firestore aninhadas', () => {
+    const error = new FirebaseError('unavailable', 'offline');
+
+    service.report(error, { silent: true, context: 'lower-layer' });
+    service.handleFirestoreErrorAndReturn(error, [], {
+      silent: true,
+      context: 'upper-layer',
+    }).subscribe();
+
+    expect(applicationError.report).toHaveBeenCalledTimes(1);
+    expect(service.hasDiagnosticOwnership(error)).toBe(true);
+  });
+
+  it('não assume ownership quando o pipeline canônico falha', () => {
+    const error = new FirebaseError('unavailable', 'offline');
+    applicationError.report.mockImplementationOnce(() => {
+      throw new Error('diagnostic pipeline failed');
+    });
+
+    service.report(error, { silent: true });
+
+    expect(service.hasDiagnosticOwnership(error)).toBe(false);
+
+    service.report(error, { silent: true });
+
+    expect(applicationError.report).toHaveBeenCalledTimes(2);
+    expect(service.hasDiagnosticOwnership(error)).toBe(true);
+  });
+
   it('mantém modo complete sem emissão e com diagnóstico canônico', () => {
     const error = new FirebaseError('aborted', 'transaction conflict');
     const next = vi.fn();
