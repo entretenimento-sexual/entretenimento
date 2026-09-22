@@ -21,6 +21,7 @@ function vm(
     userResolved: true,
     userExists: true,
     termsAccepted: true,
+    ageEligibilityVerified: true,
     profileCompleted: false,
     adultConsentAccepted: false,
     currentStep,

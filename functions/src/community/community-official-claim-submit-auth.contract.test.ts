@@ -64,28 +64,28 @@ function installBoundaryProbe(
           exists: true,
           data: () => path === 'users'
             ? {
-                uid,
-                interactionBlocked: false,
-                acceptedTerms: {
-                  accepted: true,
-                  version: TERMS_ACCEPTANCE_VERSION,
-                  acknowledgedPrivacyNotice: true,
-                },
-                adultConsent: {
-                  accepted: true,
-                  version: ADULT_CONSENT_VERSION,
-                },
-              }
-            : {
-                uid,
-                status: 'VERIFIED_ADULT',
-                policyVersion: 1,
-                source: 'INITIAL_VERIFICATION',
-                method: 'EXTERNAL_PROVIDER',
-                caseId: 'contract-age-1',
-                verifiedAtMs: Date.now() - 1_000,
-                expiresAtMs: null,
+              uid,
+              interactionBlocked: false,
+              acceptedTerms: {
+                accepted: true,
+                version: TERMS_ACCEPTANCE_VERSION,
+                acknowledgedPrivacyNotice: true,
               },
+              adultConsent: {
+                accepted: true,
+                version: ADULT_CONSENT_VERSION,
+              },
+            }
+            : {
+              uid,
+              status: 'VERIFIED_ADULT',
+              policyVersion: 1,
+              source: 'INITIAL_VERIFICATION',
+              method: 'EXTERNAL_PROVIDER',
+              caseId: 'contract-age-1',
+              verifiedAtMs: Date.now() - 1_000,
+              expiresAtMs: null,
+            },
         }),
       }),
     };
