@@ -271,8 +271,10 @@ async function applyConfirmedAutomaticSuspension(input: {
         userId: input.targetUid,
         type: 'compliance.action.taken',
         title: 'Conta suspensa por segurança',
-        body:
-          'A conta foi suspensa após confirmação de violações de segurança. Consulte o status da conta e os canais de revisão.',
+        body: [
+          'A conta foi suspensa após confirmação de violações de segurança.',
+          'Consulte o status da conta e os canais de revisão.',
+        ].join(' '),
         route: '/conta/status',
         actionRequired: true,
         readAt: null,
