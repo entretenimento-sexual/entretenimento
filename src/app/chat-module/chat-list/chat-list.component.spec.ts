@@ -7,7 +7,7 @@
 // - removidos mocks/testes de RoomService, RoomMessagesService,
 //   RoomManagementService, InviteService e encerramento de Sala;
 // - motivo: Salas foram retiradas da inbox ativa e permanecem somente na rota
-//   legada `/chat/rooms` para histórico/encerramento seguro.
+//   legada /chat/rooms para histórico/encerramento seguro.
 // - estes testes agora protegem o contrato atual: a inbox seleciona apenas chat
 //   direto e não depende da infraestrutura de Salas.
 // -----------------------------------------------------------------------------
@@ -27,6 +27,9 @@ import { ApplicationErrorService } from '../../core/services/error-handler/appli
 import { PrivacyDebugLoggerService } from '../../core/services/privacy/privacy-debug-logger.service';
 import { ContentStateComponent } from '../../shared/content-state/content-state.component';
 import type { DirectChatListItem } from '../../messaging/direct-chat/models/direct-chat.models';
+
+const DIRECT_ITEMS_CONTEXT =
+  'ChatList.directChatItems' + String.fromCharCode(36);
 
 describe('ChatListComponent', () => {
   let component: ChatListComponent;
@@ -147,284 +150,17 @@ describe('ChatListComponent', () => {
           notifyUser: boolean
         ): void;
       }
-    ).handleError('ChatList.directChatItems\
+    ).handleError(DIRECT_ITEMS_CONTEXT, error, false);
 
     expect(applicationErrorReportMock).toHaveBeenCalledTimes(1);
     expect(applicationErrorReportMock).toHaveBeenCalledWith(error, {
       feature: 'chat-list',
-      operation: 'ChatList.directChatItems\
+      operation: DIRECT_ITEMS_CONTEXT,
       fallbackMessage: 'Falha ao carregar o chat. Tente novamente.',
       presentation: { surface: 'none', severity: 'error' },
       metadata: {
         scope: 'ChatListComponent',
-        context: 'ChatList.directChatItems\
-      },
-    });
-  });
-
-  it('preserva feedback visível quando a fronteira solicitar notificação', () => {
-    const error = new Error('visible failure');
-
-    (
-      component as unknown as {
-        handleError(
-          context: string,
-          error: unknown,
-          notifyUser: boolean
-        ): void;
-      }
-    ).handleError('ChatList.load', error, true);
-
-    expect(applicationErrorReportMock).toHaveBeenCalledTimes(1);
-    expect(applicationErrorReportMock).toHaveBeenCalledWith(error, {
-      feature: 'chat-list',
-      operation: 'ChatList.load',
-      fallbackMessage: 'Falha ao carregar o chat. Tente novamente.',
-      presentation: { surface: 'snackbar', severity: 'error' },
-      metadata: {
-        scope: 'ChatListComponent',
-        context: 'ChatList.load',
-      },
-    });
-  });
-});
-, error, false);
-
-    expect(applicationErrorReportMock).toHaveBeenCalledTimes(1);
-    expect(applicationErrorReportMock).toHaveBeenCalledWith(error, {
-      feature: 'chat-list',
-      operation: 'ChatList.directChatItems,
-      fallbackMessage: 'Falha ao carregar o chat. Tente novamente.',
-      presentation: { surface: 'none', severity: 'error' },
-      metadata: {
-        scope: 'ChatListComponent',
-        context: 'ChatList.directChatItems,
-      },
-    });
-  });
-
-  it('preserva feedback visível quando a fronteira solicitar notificação', () => {
-    const error = new Error('visible failure');
-
-    (
-      component as unknown as {
-        handleError(
-          context: string,
-          error: unknown,
-          notifyUser: boolean
-        ): void;
-      }
-    ).handleError('ChatList.load', error, true);
-
-    expect(applicationErrorReportMock).toHaveBeenCalledTimes(1);
-    expect(applicationErrorReportMock).toHaveBeenCalledWith(error, {
-      feature: 'chat-list',
-      operation: 'ChatList.load',
-      fallbackMessage: 'Falha ao carregar o chat. Tente novamente.',
-      presentation: { surface: 'snackbar', severity: 'error' },
-      metadata: {
-        scope: 'ChatListComponent',
-        context: 'ChatList.load',
-      },
-    });
-  });
-});
-,
-      fallbackMessage: 'Falha ao carregar o chat. Tente novamente.',
-      presentation: { surface: 'none', severity: 'error' },
-      metadata: {
-        scope: 'ChatListComponent',
-        context: 'ChatList.directChatItems,
-      },
-    });
-  });
-
-  it('preserva feedback visível quando a fronteira solicitar notificação', () => {
-    const error = new Error('visible failure');
-
-    (
-      component as unknown as {
-        handleError(
-          context: string,
-          error: unknown,
-          notifyUser: boolean
-        ): void;
-      }
-    ).handleError('ChatList.load', error, true);
-
-    expect(applicationErrorReportMock).toHaveBeenCalledTimes(1);
-    expect(applicationErrorReportMock).toHaveBeenCalledWith(error, {
-      feature: 'chat-list',
-      operation: 'ChatList.load',
-      fallbackMessage: 'Falha ao carregar o chat. Tente novamente.',
-      presentation: { surface: 'snackbar', severity: 'error' },
-      metadata: {
-        scope: 'ChatListComponent',
-        context: 'ChatList.load',
-      },
-    });
-  });
-});
-, error, false);
-
-    expect(applicationErrorReportMock).toHaveBeenCalledTimes(1);
-    expect(applicationErrorReportMock).toHaveBeenCalledWith(error, {
-      feature: 'chat-list',
-      operation: 'ChatList.directChatItems,
-      fallbackMessage: 'Falha ao carregar o chat. Tente novamente.',
-      presentation: { surface: 'none', severity: 'error' },
-      metadata: {
-        scope: 'ChatListComponent',
-        context: 'ChatList.directChatItems,
-      },
-    });
-  });
-
-  it('preserva feedback visível quando a fronteira solicitar notificação', () => {
-    const error = new Error('visible failure');
-
-    (
-      component as unknown as {
-        handleError(
-          context: string,
-          error: unknown,
-          notifyUser: boolean
-        ): void;
-      }
-    ).handleError('ChatList.load', error, true);
-
-    expect(applicationErrorReportMock).toHaveBeenCalledTimes(1);
-    expect(applicationErrorReportMock).toHaveBeenCalledWith(error, {
-      feature: 'chat-list',
-      operation: 'ChatList.load',
-      fallbackMessage: 'Falha ao carregar o chat. Tente novamente.',
-      presentation: { surface: 'snackbar', severity: 'error' },
-      metadata: {
-        scope: 'ChatListComponent',
-        context: 'ChatList.load',
-      },
-    });
-  });
-});
-,
-      },
-    });
-  });
-
-  it('preserva feedback visível quando a fronteira solicitar notificação', () => {
-    const error = new Error('visible failure');
-
-    (
-      component as unknown as {
-        handleError(
-          context: string,
-          error: unknown,
-          notifyUser: boolean
-        ): void;
-      }
-    ).handleError('ChatList.load', error, true);
-
-    expect(applicationErrorReportMock).toHaveBeenCalledTimes(1);
-    expect(applicationErrorReportMock).toHaveBeenCalledWith(error, {
-      feature: 'chat-list',
-      operation: 'ChatList.load',
-      fallbackMessage: 'Falha ao carregar o chat. Tente novamente.',
-      presentation: { surface: 'snackbar', severity: 'error' },
-      metadata: {
-        scope: 'ChatListComponent',
-        context: 'ChatList.load',
-      },
-    });
-  });
-});
-, error, false);
-
-    expect(applicationErrorReportMock).toHaveBeenCalledTimes(1);
-    expect(applicationErrorReportMock).toHaveBeenCalledWith(error, {
-      feature: 'chat-list',
-      operation: 'ChatList.directChatItems,
-      fallbackMessage: 'Falha ao carregar o chat. Tente novamente.',
-      presentation: { surface: 'none', severity: 'error' },
-      metadata: {
-        scope: 'ChatListComponent',
-        context: 'ChatList.directChatItems,
-      },
-    });
-  });
-
-  it('preserva feedback visível quando a fronteira solicitar notificação', () => {
-    const error = new Error('visible failure');
-
-    (
-      component as unknown as {
-        handleError(
-          context: string,
-          error: unknown,
-          notifyUser: boolean
-        ): void;
-      }
-    ).handleError('ChatList.load', error, true);
-
-    expect(applicationErrorReportMock).toHaveBeenCalledTimes(1);
-    expect(applicationErrorReportMock).toHaveBeenCalledWith(error, {
-      feature: 'chat-list',
-      operation: 'ChatList.load',
-      fallbackMessage: 'Falha ao carregar o chat. Tente novamente.',
-      presentation: { surface: 'snackbar', severity: 'error' },
-      metadata: {
-        scope: 'ChatListComponent',
-        context: 'ChatList.load',
-      },
-    });
-  });
-});
-,
-      fallbackMessage: 'Falha ao carregar o chat. Tente novamente.',
-      presentation: { surface: 'none', severity: 'error' },
-      metadata: {
-        scope: 'ChatListComponent',
-        context: 'ChatList.directChatItems,
-      },
-    });
-  });
-
-  it('preserva feedback visível quando a fronteira solicitar notificação', () => {
-    const error = new Error('visible failure');
-
-    (
-      component as unknown as {
-        handleError(
-          context: string,
-          error: unknown,
-          notifyUser: boolean
-        ): void;
-      }
-    ).handleError('ChatList.load', error, true);
-
-    expect(applicationErrorReportMock).toHaveBeenCalledTimes(1);
-    expect(applicationErrorReportMock).toHaveBeenCalledWith(error, {
-      feature: 'chat-list',
-      operation: 'ChatList.load',
-      fallbackMessage: 'Falha ao carregar o chat. Tente novamente.',
-      presentation: { surface: 'snackbar', severity: 'error' },
-      metadata: {
-        scope: 'ChatListComponent',
-        context: 'ChatList.load',
-      },
-    });
-  });
-});
-, error, false);
-
-    expect(applicationErrorReportMock).toHaveBeenCalledTimes(1);
-    expect(applicationErrorReportMock).toHaveBeenCalledWith(error, {
-      feature: 'chat-list',
-      operation: 'ChatList.directChatItems,
-      fallbackMessage: 'Falha ao carregar o chat. Tente novamente.',
-      presentation: { surface: 'none', severity: 'error' },
-      metadata: {
-        scope: 'ChatListComponent',
-        context: 'ChatList.directChatItems,
+        context: DIRECT_ITEMS_CONTEXT,
       },
     });
   });
