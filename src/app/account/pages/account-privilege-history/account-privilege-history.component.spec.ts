@@ -56,7 +56,7 @@ describe('AccountPrivilegeHistoryComponent', () => {
       feature: 'account-privilege-history',
       operation: 'loadPrivilegeHistory',
       fallbackMessage: 'Não foi possível carregar o histórico de privilégios.',
-      notification: 'none',
+      presentation: { surface: 'none', severity: 'error' },
       metadata: {
         scope: 'AccountPrivilegeHistoryComponent',
       },
@@ -78,7 +78,6 @@ describe('AccountPrivilegeHistoryComponent', () => {
       feature: 'account-privilege-history',
       operation: 'loadMorePrivilegeHistory',
       fallbackMessage: 'Não foi possível carregar registros mais antigos.',
-      notification: 'error',
       metadata: {
         scope: 'AccountPrivilegeHistoryComponent',
       },
