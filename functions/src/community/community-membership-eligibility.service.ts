@@ -15,9 +15,10 @@ import {
 
 export function assertCommunityMembershipActorEligible(
   rawUser: unknown,
-  uid: string
+  uid: string,
+  rawAgeEligibility: unknown
 ): void {
-  assertCommunitySocialAccessEligible(rawUser, uid);
+  assertCommunitySocialAccessEligible(rawUser, uid, rawAgeEligibility);
 
   const user = (rawUser ?? {}) as Record<string, unknown>;
   if (user['profileCompleted'] !== true) {
