@@ -14,7 +14,9 @@
 // - /register/welcome só é etapa de verificação de e-mail;
 // - /register/recuperar-conta só é etapa de recuperação do documento privado;
 // - /register/aceitar-termos só é etapa de aceite explícito;
-// - /register/finalizar-cadastro só é etapa de conclusão de perfil;
+// - /adulto/verificar-idade é a etapa de prova etária backend;
+/// - /adulto/confirmar é a etapa de consentimento adulto;
+/// - /register/finalizar-cadastro só é etapa de conclusão de perfil;
 // - se o usuário estiver em outro passo, o guard retorna UrlTree para vm.nextRoute.
 //
 // Não faz:
@@ -89,6 +91,7 @@ function resolveSafeRedirectTo(router: Router, currentUrl: string): string | nul
       raw.startsWith('//') ||
       raw.startsWith('/login') ||
       raw.startsWith('/register') ||
+      raw.startsWith('/adulto/verificar-idade') ||
       raw.startsWith('/adulto/confirmar')
     ) {
       return null;
@@ -107,8 +110,9 @@ function targetSupportsRedirect(target: string): boolean {
     path === '/register/welcome' ||
     path === '/register/recuperar-conta' ||
     path === '/register/aceitar-termos' ||
-    path === '/register/finalizar-cadastro' ||
-    path === '/adulto/confirmar'
+    path === '/adulto/verificar-idade' ||
+    path === '/adulto/confirmar' ||
+    path === '/register/finalizar-cadastro'
   );
 }
 
