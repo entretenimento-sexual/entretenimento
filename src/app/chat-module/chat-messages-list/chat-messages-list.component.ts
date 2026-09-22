@@ -48,7 +48,7 @@ import { DirectThreadFacade } from 'src/app/messaging/direct-chat/application/di
 import { RoomMessagesService } from 'src/app/core/services/batepapo/room-services/room-messages.service';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 
 type ThreadViewItem = {
@@ -98,7 +98,7 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
     private readonly directThreadFacade: DirectThreadFacade,
     private readonly roomMessage: RoomMessagesService,
     private readonly errorNotifier: ErrorNotificationService,
-    private readonly globalError: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly privacyDebug: PrivacyDebugLoggerService,
     private readonly authSession: AuthSessionService,
     private readonly dateTime: DateTimeService,
@@ -747,21 +747,24 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
     if (notifyUser) {
       try {
         this.errorNotifier.showError(userMessage);
-      } catch {}
+      } catch {
+        // Diagnóstico técnico permanece independente da apresentação local.
+      }
     }
 
     try {
-      const err = error instanceof Error ? error : new Error(userMessage);
-
-      (err as any).original = error;
-      (err as any).context = {
-        scope: 'ChatMessagesListComponent',
-        ...(context ?? {}),
-      };
-      (err as any).skipUserNotification = true;
-      (err as any).silent = !notifyUser;
-
-      this.globalError.handleError(err);
-    } catch {}
+      this.applicationError.report(error, {
+        feature: 'chat-message-list',
+        operation: String(context?.['op'] ?? 'reportError'),
+        fallbackMessage: userMessage,
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'ChatMessagesListComponent',
+          contextKeys: Object.keys(context ?? {}).sort().slice(0, 12),
+        },
+      });
+    } catch {
+      // Falha secundária de diagnóstico não altera o fluxo público.
+    }
   }
 }
