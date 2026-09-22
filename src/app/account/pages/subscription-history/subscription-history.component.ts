@@ -299,7 +299,9 @@ export class SubscriptionHistoryComponent {
       feature: 'subscription-history',
       operation,
       fallbackMessage: userMessage,
-      notification: notifyUser ? 'error' : 'none',
+      presentation: notifyUser
+        ? undefined
+        : { surface: 'none', severity: 'error' },
       metadata: {
         scope: 'SubscriptionHistoryComponent',
       },
