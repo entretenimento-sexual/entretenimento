@@ -8,7 +8,10 @@ export {
 } from './user-intent-status.handler';
 
 export { syncPublicProfileDiscovery } from './sync-public-profile-discovery.handler';
-export { syncPublicPreferenceProjection } from './sync-public-preference-projection.handler';
+// Production still has a legacy HTTPS function under the old export name.
+export {
+  syncPublicPreferenceProjection as syncPublicPreferenceProjectionTrigger,
+} from './sync-public-preference-projection.handler';
 
 /**
  * Reexport defensivo.
