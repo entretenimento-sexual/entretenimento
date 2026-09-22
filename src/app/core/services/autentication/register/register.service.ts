@@ -23,7 +23,7 @@ import {
   type User,
 } from 'firebase/auth';
 
-import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '../../error-handler/application-error.service';
 import { FirestoreValidationService } from '../../data-handling/firestore/validation/firestore-validation.service';
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 import { EmailVerificationService } from './email-verification.service';
@@ -60,7 +60,7 @@ export class RegisterService {
     private readonly emailVerificationService: EmailVerificationService,
     private readonly registrationBootstrap: RegistrationBootstrapService,
     private readonly termsAcceptance: TermsAcceptanceService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly firestoreValidation: FirestoreValidationService,
     private readonly cache: CacheService,
     private readonly auth: Auth
@@ -124,6 +124,7 @@ export class RegisterService {
                     '[RegisterService] Falha ao rollback do Auth após erro no Firestore.',
                     delErr,
                     {
+                      operation: 'rollbackAuthAfterBootstrapFailure',
                       traceId,
                       uid: cred.user.uid,
                     }
@@ -158,6 +159,7 @@ export class RegisterService {
               '[RegisterService] Falha ao registrar aceite auditável dos termos (warn).',
               err,
               {
+                operation: 'acceptTermsAudit',
                 traceId: ctx2.traceId,
                 uid: ctx2.cred.user.uid,
               }
@@ -179,6 +181,7 @@ export class RegisterService {
           }),
           catchError((err) => {
             this.safeHandle('[RegisterService] Falha ao enviar e-mail de verificação (warn).', err, {
+              operation: 'sendVerificationEmail',
               traceId: ctx2.traceId,
               uid: ctx2.cred.user.uid,
             });
@@ -195,6 +198,7 @@ export class RegisterService {
           timeout({ each: this.NET_TIMEOUT_MS }),
           catchError((err) => {
             this.safeHandle('[RegisterService] Falha no updateProfile (warn).', err, {
+              operation: 'updateAuthProfile',
               traceId: ctx2.traceId,
               uid: ctx2.cred.user.uid,
             });
@@ -237,6 +241,7 @@ export class RegisterService {
       timeout({ each: this.NET_TIMEOUT_MS }),
       catchError((err) => {
         this.safeHandle('[RegisterService] getIdToken(true) falhou (warn).', err, {
+          operation: 'refreshAuthToken',
           traceId,
           expectedUid,
         });
@@ -335,7 +340,10 @@ export class RegisterService {
     if (currentUser?.uid === uid) {
       return from(currentUser.delete()).pipe(
         catchError((error) => {
-          this.safeHandle('[RegisterService] Falha ao deletar usuário no rollback.', error, { uid });
+          this.safeHandle('[RegisterService] Falha ao deletar usuário no rollback.', error, {
+            operation: 'deleteAuthUserOnFailure',
+            uid,
+          });
           return throwError(() => new Error('Erro ao deletar usuário.'));
         })
       );
@@ -350,9 +358,23 @@ export class RegisterService {
     this.cache.set(this.HOT_KEY_CURRENT_USER_UID, safeUid, undefined, { persist: false });
   }
 
-  private handleRegisterError(error: any, context: string, traceId: string): Observable<never> {
+  private handleRegisterError(
+    error: any,
+    context: string,
+    traceId: string
+  ): Observable<never> {
+    if ((error as { registerApplicationErrorReported?: unknown } | null)
+      ?.registerApplicationErrorReported === true) {
+      return throwError(() => error);
+    }
+
     const message = this.mapErrorMessage(error);
-    this.safeHandle(`[RegisterService] ${context}`, error, { traceId, mappedMessage: message });
+    this.safeHandle(`[RegisterService] ${context}`, error, {
+      operation: 'handleRegisterError',
+      context,
+      traceId,
+      mappedMessage: message,
+    });
 
     const userErr: any = new Error(message);
     const originalCode = String((error as any)?.code ?? '');
@@ -364,6 +386,7 @@ export class RegisterService {
     userErr.code = originalCode === 'auth/email-already-in-use'
       ? 'email-exists-soft'
       : originalCode || undefined;
+    userErr.registerApplicationErrorReported = true;
 
     return throwError(() => userErr);
   }
@@ -398,19 +421,34 @@ export class RegisterService {
     return 'Erro inesperado no processo de registro.';
   }
 
-  private safeHandle(msg: string, original: unknown, meta?: Record<string, unknown>): void {
+  private safeHandle(
+    msg: string,
+    original: unknown,
+    meta?: Record<string, unknown>
+  ): void {
     try {
-      const e = new Error(msg);
-      (e as any).original = original;
-      (e as any).meta = meta;
-      (e as any).skipUserNotification = true;
-
       if (!environment.production && environment.enableDebugTools) {
         console.error(msg, { original, meta });
       }
 
-      this.globalErrorHandler.handleError(e);
-    } catch { }
+      const operation =
+        typeof meta?.['operation'] === 'string' && meta['operation'].trim()
+          ? meta['operation'].trim()
+          : 'internal';
+
+      this.applicationError.report(original, {
+        feature: 'register',
+        operation,
+        fallbackMessage: msg,
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'RegisterService',
+          ...(meta ?? {}),
+        },
+      });
+    } catch {
+      // Diagnóstico secundário não interfere no cadastro.
+    }
   }
 
   private normalizeNickname(nickname: string): string {
