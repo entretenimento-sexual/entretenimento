@@ -140,7 +140,11 @@ export class ReportContentDialogComponent {
     }
 
     return [
-      ...GENERAL_REPORT_REASONS.slice(0, -1),
+      ...GENERAL_REPORT_REASONS.filter(
+        (reason) =>
+          reason.value !== 'minor_content_safety' &&
+          reason.value !== 'other'
+      ),
       MINOR_PROFILE_REASON,
       GENERAL_REPORT_REASONS[GENERAL_REPORT_REASONS.length - 1],
     ];
