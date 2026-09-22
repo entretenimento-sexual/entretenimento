@@ -108,44 +108,22 @@
 
 .community-discovery__mine-controls {
   display: grid;
-  gap: 0.55rem;
+  gap: 0.5rem;
   min-width: 0;
-  margin: 0 0 0.9rem;
-  padding: 0.65rem;
-  border: 1px solid color-mix(
-    in oklab,
-    var(--surface-border, #d5d5d5) 78%,
-    transparent
-  );
-  border-radius: 0.9rem;
-  background: color-mix(
-    in oklab,
-    var(--surface-color, #fff) 97%,
-    var(--primary-color, #d83768) 3%
-  );
+  margin: 0 0 0.85rem;
 }
 
 .community-discovery__mine-search {
-  position: relative;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.45rem;
   align-items: center;
-  min-width: 0;
-}
-
-.community-discovery__mine-search > i {
-  position: absolute;
-  left: 0.78rem;
-  color: color-mix(in oklab, var(--text-color, #222) 54%, transparent);
-  font-size: 0.78rem;
-  pointer-events: none;
 }
 
 .community-discovery__mine-search input {
-  width: 100%;
   min-width: 0;
-  min-height: 2.55rem;
-  box-sizing: border-box;
-  padding: 0.52rem 0.8rem 0.52rem 2.15rem;
+  min-height: 2.45rem;
+  padding: 0.5rem 0.7rem;
   border: 1px solid var(--surface-border, #d5d5d5);
   border-radius: 999px;
   background: var(--surface-color, #fff);
@@ -154,48 +132,22 @@
   font-size: 0.82rem;
 }
 
-.community-discovery__mine-search input:focus-visible {
-  outline: 2px solid var(--primary-color, #d83768);
-  outline-offset: 2px;
-}
-
-.community-discovery__mine-filter-strip {
-  display: flex;
-  gap: 0.4rem;
-  min-width: 0;
-  overflow-x: auto;
-  padding: 0.05rem 0 0.15rem;
-  scrollbar-width: none;
-}
-
-.community-discovery__mine-filter-strip::-webkit-scrollbar {
-  display: none;
-}
-
 .community-discovery__mine-results {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.6rem;
-  min-height: 1.8rem;
   color: color-mix(in oklab, var(--text-color, #222) 68%, transparent);
   font-size: 0.74rem;
 }
 
 .community-discovery__mine-results button {
-  padding: 0.25rem 0.4rem;
   border: 0;
   background: transparent;
   color: var(--primary-color, #d83768);
   font: inherit;
   font-weight: 720;
   cursor: pointer;
-}
-
-.community-discovery__mine-results button:focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: 2px;
-  border-radius: 0.35rem;
 }
 
 .community-discovery__filters {
