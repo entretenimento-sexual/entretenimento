@@ -8,6 +8,9 @@ import { db, FieldValue } from '../firebaseApp';
 import {
   safeRecordModerationReviewSignal,
 } from '../moderation/moderation-automation.service';
+import {
+  safeRecordModerationReviewSignal,
+} from '../moderation/moderation-automation.service';
 import { isProfileMinorSafetyReport } from './profile-age-reverification.policy';
 
 interface ReviewProfileMinorSafetyReportRequest {
