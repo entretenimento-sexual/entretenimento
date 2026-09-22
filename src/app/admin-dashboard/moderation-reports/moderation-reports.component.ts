@@ -232,6 +232,11 @@ export class ModerationReportsComponent {
     }
   }
 
+  isCriticalSafetyReport(report: AdminModerationReportVm): boolean {
+    return report.reason === 'minor_safety' ||
+      report.reason === 'minor_content_safety';
+  }
+
   reasonLabel(reason: ModerationReportReason | null): string {
     switch (reason) {
       case 'spam':
@@ -320,7 +325,10 @@ export class ModerationReportsComponent {
     searchTerm: string,
     historyItems: ModerationReviewHistoryItem[]
   ): AdminModerationReportsVm {
-    const safeReports = [...reports];
+    const safeReports = [...reports].sort(
+      (left, right) =>
+        this.reportPriority(right) - this.reportPriority(left)
+    );
     const normalizedSearch = this.normalizeSearchTerm(searchTerm);
 
     const statusFilteredReports = selected === 'all'
@@ -472,6 +480,12 @@ export class ModerationReportsComponent {
     return value && typeof value === 'object' && !Array.isArray(value)
       ? value as Record<string, unknown>
       : {};
+  }
+
+  private reportPriority(report: AdminModerationReportVm): number {
+    if (report.reason === 'minor_content_safety') return 2;
+    if (report.reason === 'minor_safety') return 1;
+    return 0;
   }
 
   private safeStatus(value: unknown): ModerationReportStatus | null {
