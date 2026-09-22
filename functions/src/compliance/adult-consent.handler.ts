@@ -62,7 +62,7 @@ export const acceptAdultConsent = onCall(
       if (!userSnapshot.exists) {
         throw new HttpsError(
           'failed-precondition',
-          'Recupere os dados da sua conta antes de confirmar a maioridade.'
+          'Recupere os dados da sua conta antes de aceitar o acesso adulto.'
         );
       }
 
@@ -71,7 +71,7 @@ export const acceptAdultConsent = onCall(
       if (!hasAcceptedCurrentTerms(user['acceptedTerms'])) {
         throw new HttpsError(
           'failed-precondition',
-          'Aceite os termos vigentes antes de confirmar a maioridade.'
+          'Aceite os termos vigentes antes de aceitar o acesso adulto.'
         );
       }
 
