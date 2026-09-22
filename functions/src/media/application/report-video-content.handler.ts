@@ -92,6 +92,7 @@ interface VideoRatingDocument {
 
 interface ReportVideoTransactionResult {
   publishedStoragePath: string | null;
+  targetAuthorUid: string;
   quarantine: boolean;
   evidenceRequired: boolean;
   binaryEvidenceRequired: boolean;
@@ -328,17 +329,32 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
         }
 
         const safetyState = buildMediaReportSafetyState(video, 'OPEN');
-        const quarantine = targetType === 'video' &&
+        const videoQuarantine = targetType === 'video' &&
           shouldQuarantineMediaAfterReport(reason, safetyState.openReportsCount);
+        const commentQuarantine =
+          targetType === 'video_comment' &&
+          reason === 'minor_content_safety';
+        const quarantine = videoQuarantine || commentQuarantine;
         const binaryEvidenceRequired = targetType === 'video' &&
           shouldPreserveMediaEvidence(reason);
         const textEvidenceRequired = targetType === 'video_comment';
         const evidenceRequired = binaryEvidenceRequired || textEvidenceRequired;
+        const commentsCount = Math.max(
+          0,
+          normalizeMediaCount(video.commentsCount) -
+            (
+              commentQuarantine &&
+              reportedComment &&
+              !reportedComment.parentCommentId
+                ? 1
+                : 0
+            )
+        );
         const nextScore = buildMediaEngagementScore({
           reactionsCount: normalizeMediaCount(
             video.reactionsCount ?? video.likesCount
           ),
-          commentsCount: normalizeMediaCount(video.commentsCount),
+          commentsCount,
           ratingsCount: normalizeMediaCount(video.ratingsCount),
           ratingAverage: Number(video.ratingAverage ?? 0),
           currentBreakdown: {
@@ -395,16 +411,19 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
           safetyScore: safetyState.safetyScore,
           score: nextScore.score,
           scoreBreakdown: nextScore.scoreBreakdown,
-          ...(quarantine
+          ...(videoQuarantine
             ? {
               moderationStatus: 'HIDDEN',
               moderationReason: QUARANTINE_REASON,
             }
             : {}),
+          ...(commentQuarantine
+            ? { commentsCount }
+            : {}),
           updatedAt: Date.now(),
         });
 
-        if (quarantine && publicationSnap?.exists) {
+        if (videoQuarantine && publicationSnap?.exists) {
           transaction.set(
             publicationRef,
             {
@@ -423,6 +442,9 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
           transaction.update(targetRef, {
             reportsCount: targetReportsCount + 1,
             openReportsCount: targetOpenReportsCount + 1,
+            ...(commentQuarantine
+              ? { status: 'HIDDEN' }
+              : {}),
             updatedAt: Date.now(),
           });
         }
@@ -434,6 +456,7 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
         return {
           publishedStoragePath:
             String(publication?.publishedStoragePath ?? '').trim() || null,
+          targetAuthorUid: targetAuthorUid || ownerUid,
           quarantine,
           evidenceRequired,
           binaryEvidenceRequired,
@@ -454,7 +477,7 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
 
     await safeRecordModerationOpenSignal({
       reportId,
-      targetUid: ownerUid,
+      targetUid: result.targetAuthorUid,
       reporterUid,
       targetKey: `${targetType}:${ownerUid}:${videoId}:${targetId}`,
       critical: reason === 'minor_content_safety',
