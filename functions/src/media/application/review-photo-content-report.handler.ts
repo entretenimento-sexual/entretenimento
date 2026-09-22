@@ -3,6 +3,9 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue } from '../../firebaseApp';
+import {
+  safeRecordModerationReviewSignal,
+} from '../../moderation/moderation-automation.service';
 import { deleteProfilePhotoResources } from './delete-profile-photo.handler';
 import {
   buildMediaReportSafetyState,
@@ -377,6 +380,13 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
         };
       }
     );
+
+    await safeRecordModerationReviewSignal({
+      reportId,
+      targetUid: result.ownerUid,
+      critical: result.reason === 'minor_content_safety',
+      confirmed: decision === 'REMOVE',
+    });
 
     let cleanupPending = false;
     let evidenceReleasePending = false;
