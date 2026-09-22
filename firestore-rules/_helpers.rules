@@ -45,11 +45,15 @@ service cloud.firestore {
     function adultMediaLifecycleAllowsAccess(user) {
       let accountStatus = mapFieldOrNull(user, "accountStatus");
       let suspended = mapFieldOrNull(user, "suspended");
+      let interactionBlocked = mapFieldOrNull(user, "interactionBlocked");
+      let accountLocked = mapFieldOrNull(user, "accountLocked");
+      let loginAllowed = mapFieldOrNull(user, "loginAllowed");
+
       return suspended != true
-        && accountStatus != "self_suspended"
-        && accountStatus != "moderation_suspended"
-        && accountStatus != "pending_deletion"
-        && accountStatus != "deleted";
+        && interactionBlocked != true
+        && accountLocked != true
+        && loginAllowed != false
+        && (accountStatus == null || accountStatus == "active");
     }
 
     function adultMediaHasCurrentTerms(user) {
