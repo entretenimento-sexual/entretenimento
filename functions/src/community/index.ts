@@ -156,8 +156,9 @@ export { syncCommunityFeedActivity } from './sync-community-feed-activity.trigge
 export {
   syncCommunityFeedRealtime as syncCommunityFeedRealtimeTrigger,
 } from './sync-community-feed-realtime.trigger';
+// Production still has a legacy HTTPS function under the old export name.
 export {
-  syncCommunityHighlightCommunity,
+  syncCommunityHighlightCommunity as syncCommunityHighlightCommunityTrigger,
 } from './sync-community-highlight-community.trigger';
 export {
   syncCommunityHighlightTarget,
