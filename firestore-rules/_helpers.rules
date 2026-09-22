@@ -48,11 +48,20 @@ service cloud.firestore {
       let interactionBlocked = mapFieldOrNull(user, "interactionBlocked");
       let accountLocked = mapFieldOrNull(user, "accountLocked");
       let loginAllowed = mapFieldOrNull(user, "loginAllowed");
+      let automationHold = mapFieldOrNull(user, "moderationAutomationHold");
+      let automationHoldExpiresAt = automationHold is map
+        ? mapFieldOrNull(automationHold, "expiresAt")
+        : null;
+      let automationHoldActive = automationHold is map
+        && mapFieldOrNull(automationHold, "active") == true
+        && automationHoldExpiresAt is timestamp
+        && request.time < automationHoldExpiresAt;
 
       return suspended != true
         && interactionBlocked != true
         && accountLocked != true
         && loginAllowed != false
+        && !automationHoldActive
         && (accountStatus == null || accountStatus == "active");
     }
 
