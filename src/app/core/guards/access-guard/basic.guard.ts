@@ -20,7 +20,7 @@ import { catchError, filter, map, take } from 'rxjs/operators';
 import { AccessControlService } from '../../services/autentication/auth/access-control.service';
 import { CurrentUserStoreService } from '../../services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from '../../services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '../../services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '../../services/error-handler/application-error.service';
 
 @Injectable({ providedIn: 'root' })
 export class BasicGuard implements CanActivate {
@@ -33,7 +33,7 @@ export class BasicGuard implements CanActivate {
     private readonly currentUser: CurrentUserStoreService,
     private readonly toast: ErrorNotificationService,
     private readonly router: Router,
-    private readonly geh: GlobalErrorHandlerService
+    private readonly applicationError: ApplicationErrorService
   ) { }
 
   canActivate(
@@ -62,7 +62,18 @@ export class BasicGuard implements CanActivate {
         });
       }),
       catchError((err): Observable<GuardResult> => {
-        try { this.geh.handleError(err); } catch { }
+        try {
+          this.applicationError.report(err, {
+            feature: 'access-guard',
+            operation: 'canActivateBasic',
+            fallbackMessage: 'Não foi possível validar seu acesso agora.',
+            presentation: { surface: 'none', severity: 'error' },
+            metadata: {
+              scope: 'BasicGuard',
+              requiredTier: 'basic',
+            },
+          });
+        } catch { }
 
         const tree: UrlTree = this.router.createUrlTree(['/login'], {
           queryParams: { redirect: state.url, reason: 'guard_error' },
