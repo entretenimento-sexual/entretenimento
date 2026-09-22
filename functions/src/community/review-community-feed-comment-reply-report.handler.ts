@@ -12,6 +12,9 @@ import { db, FieldValue } from '../firebaseApp';
 import {
   safeRecordModerationReviewSignal,
 } from '../moderation/moderation-automation.service';
+import {
+  safeNotifyModerationReportReviewed,
+} from '../moderation/moderation-safety-notification.service';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   REQUIRE_COMMUNITY_APP_CHECK,
@@ -303,6 +306,8 @@ export const reviewCommunityFeedCommentReplyReport = onCall<
       critical: automationTarget.critical,
       confirmed: decision === 'REMOVE',
     });
+
+    await safeNotifyModerationReportReviewed(reportId);
 
     return {
       reportId,
