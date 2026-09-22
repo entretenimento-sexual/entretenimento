@@ -22,3 +22,8 @@ export {
  * caso o compilador resolva o módulo antes da inferência nominal.
  */
 export * from './backfill-public-profile-discovery.handler';
+
+export {
+  initializePublicAgeEligibilityProjection,
+  syncPublicAgeEligibilityProjection,
+} from './public-age-eligibility-projection.handler';
