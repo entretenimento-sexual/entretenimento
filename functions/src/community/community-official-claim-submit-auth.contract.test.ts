@@ -55,25 +55,37 @@ function installBoundaryProbe(
 
   firestore.collection = (path: string): unknown => {
     firestoreOperations.push(`collection:${path}`);
-    if (!allowSocialAccess || path !== 'users') {
+    if (!allowSocialAccess || !['users', 'age_eligibility_records'].includes(path)) {
       throw new Error('Firestore acessado antes da autenticação recente.');
     }
     return {
       doc: (uid: string) => ({
         get: async () => ({
           exists: true,
-          data: () => ({
-            uid,
-            acceptedTerms: {
-              accepted: true,
-              version: TERMS_ACCEPTANCE_VERSION,
-              acknowledgedPrivacyNotice: true,
-            },
-            adultConsent: {
-              accepted: true,
-              version: ADULT_CONSENT_VERSION,
-            },
-          }),
+          data: () => path === 'users'
+            ? {
+                uid,
+                interactionBlocked: false,
+                acceptedTerms: {
+                  accepted: true,
+                  version: TERMS_ACCEPTANCE_VERSION,
+                  acknowledgedPrivacyNotice: true,
+                },
+                adultConsent: {
+                  accepted: true,
+                  version: ADULT_CONSENT_VERSION,
+                },
+              }
+            : {
+                uid,
+                status: 'VERIFIED_ADULT',
+                policyVersion: 1,
+                source: 'INITIAL_VERIFICATION',
+                method: 'EXTERNAL_PROVIDER',
+                caseId: 'contract-age-1',
+                verifiedAtMs: Date.now() - 1_000,
+                expiresAtMs: null,
+              },
         }),
       }),
     };
@@ -162,7 +174,10 @@ test('submitCommunityOfficialClaim aceita auth_time recente e alcança a valida�
       }),
       (error: unknown) => assertCallableError(error, 'invalid-argument')
     );
-    assert.deepEqual(probe.firestoreOperations, ['collection:users']);
+    assert.deepEqual(
+      probe.firestoreOperations,
+      ['collection:users', 'collection:age_eligibility_records']
+    );
     assert.deepEqual(probe.rateLimitOperations, []);
   } finally {
     probe.restore();
