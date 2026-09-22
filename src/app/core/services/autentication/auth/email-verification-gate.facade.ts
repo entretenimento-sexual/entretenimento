@@ -38,7 +38,7 @@ import { AccessControlService } from './access-control.service';
 import { AuthSessionService } from './auth-session.service';
 import { CurrentUserStoreService } from './current-user-store.service';
 import { ErrorNotificationService } from '../../error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '../../error-handler/application-error.service';
 import { EmailVerificationService } from '../register/email-verification.service';
 
 type BannerMode = 'soft' | 'hard';
@@ -67,7 +67,7 @@ export class EmailVerificationGateFacade {
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly router = inject(Router);
   private readonly notify = inject(ErrorNotificationService);
-  private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly emailVerificationService = inject(EmailVerificationService);
 
   private readonly resendClick$ = new Subject<void>();
@@ -195,8 +195,9 @@ export class EmailVerificationGateFacade {
           tap(() => {
             this.notify.showSuccess('E-mail de verificação reenviado.');
           }),
-          catchError((err) => {
-            this.reportSilent(err, 'EmailVerificationGateFacade.resendEffect$');
+          catchError(() => {
+            // EmailVerificationService já é o owner técnico das falhas de envio.
+            // Este facade mantém apenas a apresentação UX para evitar duplicidade.
             this.notifyOnce('Não foi possível reenviar o e-mail de verificação.');
             return of(void 0);
           })
@@ -250,16 +251,19 @@ export class EmailVerificationGateFacade {
 
   private reportSilent(err: unknown, context: string): void {
     try {
-      const e = err instanceof Error ? err : new Error(context);
-
-      (e as any).silent = true;
-      (e as any).context = context;
-      (e as any).original = err;
-      (e as any).skipUserNotification = true;
-
-      this.globalErrorHandler.handleError(e);
+      this.applicationError.report(err, {
+        feature: 'email-verification-gate',
+        operation: context,
+        fallbackMessage:
+          'Não foi possível atualizar o estado interno da verificação de e-mail.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'EmailVerificationGateFacade',
+          context,
+        },
+      });
     } catch {
-      // noop
+      // Diagnóstico secundário não interfere no gate nem no banner.
     }
   }
 
