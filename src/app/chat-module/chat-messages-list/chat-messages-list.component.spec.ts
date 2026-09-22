@@ -6,7 +6,7 @@ import { of } from 'rxjs';
 import { ChatMessagesListComponent } from './chat-messages-list.component';
 import { RoomMessagesService } from '../../core/services/batepapo/room-services/room-messages.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '../../core/services/error-handler/application-error.service';
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
 import { PrivacyDebugLoggerService } from '../../core/services/privacy/privacy-debug-logger.service';
 import { DateTimeService } from '../../core/services/general/date-time.service';
@@ -46,9 +46,9 @@ describe('ChatMessagesListComponent', () => {
           },
         },
         {
-          provide: GlobalErrorHandlerService,
+          provide: ApplicationErrorService,
           useValue: {
-            handleError: vi.fn(),
+            report: vi.fn(),
           },
         },
         {
