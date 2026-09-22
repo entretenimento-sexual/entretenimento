@@ -355,6 +355,46 @@ export async function notifyInitialAgeEligibilityOutcome(input: {
   });
 }
 
+export function writeAgeEligibilityExpiredNotificationInTransaction(
+  transaction: FirebaseFirestore.Transaction,
+  input: { uid: string; expiresAtMs: number }
+): void {
+  const uid = cleanId(input.uid);
+  const expiresAtMs = Number(input.expiresAtMs);
+
+  if (!uid || !Number.isFinite(expiresAtMs) || expiresAtMs <= 0) {
+    return;
+  }
+
+  const id = notificationId(
+    `age-expiration:${uid}:${Math.trunc(expiresAtMs)}`,
+    'target',
+    'age-eligibility-expired'
+  );
+
+  transaction.set(
+    db.collection('notifications').doc(id),
+    {
+      userId: uid,
+      type: 'compliance.action.taken',
+      title: 'Verificação de idade expirada',
+      body: [
+        'Sua verificação de maioridade expirou.',
+        'Renove a verificação para retomar as superfícies adultas da plataforma.',
+      ].join(' '),
+      route: '/conta/status',
+      actionRequired: true,
+      caseId: null,
+      pushMode: 'ESSENTIAL',
+      responseDueAt: null,
+      readAt: null,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: false }
+  );
+}
+
 export async function notifyAgeEligibilityExpired(input: {
   uid: string;
   expiresAtMs: number;
