@@ -514,7 +514,7 @@ export const reviewVideoContentReport = onCall<
         transaction.set(adminLogRef, {
           adminUid,
           action: 'moderationReportReview',
-          targetUserUid: ownerUid,
+          targetUserUid: targetAuthorUid,
           details: {
             reportId,
             previousStatus: status,
