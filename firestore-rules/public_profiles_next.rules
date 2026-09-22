@@ -29,10 +29,7 @@ match /public_profiles/{userId} {
       && user.acceptedTerms.accepted == true
       && user.acceptedTerms.version == "v3"
       && user.acceptedTerms.acknowledgedPrivacyNotice == true
-      && (
-        user.initialAdultConsentRequired == false
-        || user.adultConsent.accepted == true
-      );
+      && user.adultConsent.accepted == true;
   }
 
   function createKeysValid() {
