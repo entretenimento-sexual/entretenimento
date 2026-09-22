@@ -32,7 +32,7 @@ import { IChat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
 import { ChatService } from '@core/services/batepapo/chat-service/chat.service';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 
 interface EnsureDirectChatPayload {
@@ -61,7 +61,7 @@ export class DirectChatService {
     private readonly functions: Functions,
     private readonly authSession: AuthSessionService,
     private readonly accessControl: AccessControlService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly errorNotifier: ErrorNotificationService
   ) {}
 
@@ -94,7 +94,10 @@ getMyDirectChats$(): Observable<IChat[]> {
       return this.chatService.watchChats$(safeUid, 50).pipe(
         map((items) => {
           return (items ?? []).filter((chat) => !chat?.isRoom);
-        })
+        }),
+        // ChatService já é o dono do diagnóstico do transporte realtime.
+        // Aqui apenas convertemos o rethrow em fallback do adapter.
+        catchError(() => of([] as IChat[]))
       );
     }),
 
@@ -153,13 +156,7 @@ return defer(() =>
   }),
 
   catchError((error) => {
-    this.reportSilent(
-      error,
-      'DirectChatService.ensureDirectChatIdWithUser$'
-    );
-
-    this.notifyUser(this.getOpenChatUserMessage(error));
-
+    this.reportOpenChatError(error);
     return of(null);
   })
 );
@@ -217,21 +214,46 @@ return defer(() =>
   return 'Não foi possível abrir a conversa agora.';
 }
 
+  private reportOpenChatError(error: unknown): void {
+    const userMessage = this.getOpenChatUserMessage(error);
+
+    try {
+      this.applicationError.report(error, {
+        feature: 'direct-chat',
+        operation: 'DirectChatService.ensureDirectChatIdWithUser$',
+        fallbackMessage: userMessage,
+        codeMessages: {
+          unauthenticated: userMessage,
+          'failed-precondition': userMessage,
+          'permission-denied': userMessage,
+        },
+        presentation: { surface: 'snackbar', severity: 'error' },
+        metadata: {
+          scope: 'DirectChatService',
+          context: 'DirectChatService.ensureDirectChatIdWithUser$',
+        },
+      });
+    } catch {
+      // Se a camada canônica falhar antes de apresentar a UX, mantém feedback.
+      this.notifyUser(userMessage);
+    }
+  }
+
   private reportSilent(error: unknown, context: string): void {
     try {
-      const err =
-        error instanceof Error
-          ? error
-          : new Error('[DirectChatService] operation failed');
-
-      (err as any).original = error;
-      (err as any).context = context;
-      (err as any).skipUserNotification = true;
-      (err as any).silent = true;
-
-      this.globalErrorHandler.handleError(err);
+      this.applicationError.report(error, {
+        feature: 'direct-chat',
+        operation: context,
+        fallbackMessage:
+          'Não foi possível concluir uma operação interna do chat direto.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'DirectChatService',
+          context,
+        },
+      });
     } catch {
-      // noop
+      // Diagnóstico secundário nunca interrompe os fallbacks do serviço.
     }
   }
 
