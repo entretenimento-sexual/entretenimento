@@ -14,6 +14,7 @@ describe('RegisterNavigationService', () => {
     userResolved: true,
     userExists: true,
     termsAccepted: true,
+    ageEligibilityVerified: true,
     profileCompleted: true,
     adultConsentAccepted: true,
     initialAdultConsentRequired: true,
@@ -51,17 +52,19 @@ describe('RegisterNavigationService', () => {
     expect(vm.nextRoute).toBe('/register/aceitar-termos');
   });
 
-  it('deve concluir o perfil depois dos termos', () => {
+  it('deve exigir verificação etária backend depois dos termos', () => {
     const vm = service.resolveVm({
       ...readyState,
+      ageEligibilityVerified: false,
       profileCompleted: false,
+      adultConsentAccepted: false,
     });
 
-    expect(vm.currentStep).toBe('profileCompletion');
-    expect(vm.nextRoute).toBe('/register/finalizar-cadastro');
+    expect(vm.currentStep).toBe('ageVerification');
+    expect(vm.nextRoute).toBe('/adulto/verificar-idade');
   });
 
-  it('deve exigir consentimento adulto depois do perfil em cadastro versionado', () => {
+  it('deve exigir consentimento adulto depois da verificação etária', () => {
     const vm = service.resolveVm({
       ...readyState,
       adultConsentAccepted: false,
@@ -70,6 +73,16 @@ describe('RegisterNavigationService', () => {
 
     expect(vm.currentStep).toBe('adultConsent');
     expect(vm.nextRoute).toBe('/adulto/confirmar');
+  });
+
+  it('deve concluir o perfil somente depois da verificação e do consentimento', () => {
+    const vm = service.resolveVm({
+      ...readyState,
+      profileCompleted: false,
+    });
+
+    expect(vm.currentStep).toBe('profileCompletion');
+    expect(vm.nextRoute).toBe('/register/finalizar-cadastro');
   });
 
   it('não deve reabrir consentimento inicial em conta legada registrada', () => {
