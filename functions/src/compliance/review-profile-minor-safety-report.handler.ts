@@ -65,7 +65,7 @@ export const reviewProfileMinorSafetyReport = onCall<
 
     const reportRef = db.collection('moderation_reports').doc(reportId);
 
-    await db.runTransaction(async (transaction) => {
+    const targetUid = await db.runTransaction(async (transaction) => {
       const reportSnapshot = await transaction.get(reportRef);
 
       if (!reportSnapshot.exists) {
@@ -135,6 +135,8 @@ export const reviewProfileMinorSafetyReport = onCall<
         },
         timestamp,
       });
+
+      return targetUid;
     });
 
     await safeRecordModerationReviewSignal({
