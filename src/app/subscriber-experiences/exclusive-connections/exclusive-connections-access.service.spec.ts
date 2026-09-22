@@ -4,8 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ContentAccessDecision } from 'src/app/core/access/content-access-policy.model';
 import { ContentAccessPolicyService } from 'src/app/core/access/content-access-policy.service';
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { BillingRepository } from 'src/app/payments-core/infrastructure/repositories/billing.repository';
 import {
   evaluateExclusiveConnectionsBillingSnapshot,
@@ -92,11 +91,8 @@ describe('ExclusiveConnectionsAccessService', () => {
   const billingRepositoryMock = {
     getMyBillingSnapshot$: vi.fn(),
   };
-  const errorNotifierMock = {
-    showError: vi.fn(),
-  };
-  const globalErrorMock = {
-    handleError: vi.fn(),
+  const applicationErrorMock = {
+    report: vi.fn(),
   };
 
   beforeEach(() => {
@@ -107,8 +103,7 @@ describe('ExclusiveConnectionsAccessService', () => {
         ExclusiveConnectionsAccessService,
         { provide: ContentAccessPolicyService, useValue: contentAccessMock },
         { provide: BillingRepository, useValue: billingRepositoryMock },
-        { provide: ErrorNotificationService, useValue: errorNotifierMock },
-        { provide: GlobalErrorHandlerService, useValue: globalErrorMock },
+        { provide: ApplicationErrorService, useValue: applicationErrorMock },
       ],
     });
   });
@@ -172,10 +167,15 @@ describe('ExclusiveConnectionsAccessService', () => {
         minimumRole: 'premium',
       })
     );
-    expect(errorNotifierMock.showError).toHaveBeenCalledWith(
-      'Não foi possível verificar sua assinatura agora.'
+    expect(applicationErrorMock.report).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        feature: 'exclusive-connections',
+        operation: 'getMyBillingSnapshot',
+        fallbackMessage: 'Não foi possível verificar sua assinatura agora.',
+        presentation: { surface: 'snackbar', severity: 'error' },
+      })
     );
-    expect(globalErrorMock.handleError).toHaveBeenCalledTimes(1);
   });
 
   it('refaz somente o snapshot ao receber uma nova tentativa', () => {
