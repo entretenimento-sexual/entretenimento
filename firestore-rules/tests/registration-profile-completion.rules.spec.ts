@@ -268,6 +268,52 @@ describe('Firestore Rules / registration and profile completion', () => {
     await assertFails(batch.commit());
   });
 
+  it('nega conclusão atômica sem elegibilidade etária canônica', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, 'users', UID), {
+        uid: UID,
+        nickname: 'Pessoa Segura',
+        accountStatus: 'active',
+        emailVerified: true,
+        profileCompleted: false,
+        publicVisibility: 'hidden',
+        interactionBlocked: true,
+        loginAllowed: true,
+        registrationFlowVersion: 'v3-private-by-default',
+        initialAdultConsentRequired: false,
+        registrationCompletedAt: null,
+        acceptedTerms: {
+          accepted: true,
+          version: 'v3',
+          acknowledgedPrivacyNotice: true,
+        },
+        adultConsent: { accepted: true, version: 'v1' },
+      });
+    });
+
+    const db = authenticatedDb(true);
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'users', UID), {
+      nickname: 'Pessoa Segura',
+      gender: 'mulher',
+      declaredIdentityCode: 'mulher',
+      identityCatalogVersion: IDENTITY_CATALOG_VERSION,
+      orientation: 'bissexual',
+      estado: 'RJ',
+      municipio: 'Rio de Janeiro',
+      profileCompleted: true,
+      publicVisibility: 'visible',
+      interactionBlocked: false,
+      registrationCompletedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      updatedAtMs: Date.now(),
+    });
+    batch.set(doc(db, 'public_profiles', UID), publicProfilePayload());
+
+    await assertFails(batch.commit());
+  });
+
   it('nega conclusão atômica sem termos aceitos', async () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {
       const db = context.firestore();
