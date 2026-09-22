@@ -12,7 +12,7 @@ import { CurrentUserStoreService } from '../../../core/services/autentication/au
 import { IBGELocationService } from '../../../core/services/general/api/ibge-location.service';
 import { RegionFilterService } from '../../../core/services/filtering/filters/region-filter.service';
 import { InviteSearchService } from '../../../core/services/batepapo/invite-service/invite-search.service';
-import { GlobalErrorHandlerService } from '../../../core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '../../../core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from '../../../core/services/error-handler/error-notification.service';
 import {
   afterEach,
@@ -44,7 +44,7 @@ describe('InviteUserModalComponent', () => {
   let ibgeStub: { getEstados: Mock; getMunicipios: Mock };
   let regionFilterStub: { getUserRegion: Mock };
   let inviteSearchStub: { searchEligibleUsers: Mock };
-  let globalErrorHandlerMock: { handleError: Mock };
+  let applicationErrorMock: { report: Mock };
   let errorNotifierMock: {
     showError: Mock;
     showWarning: Mock;
@@ -91,8 +91,8 @@ describe('InviteUserModalComponent', () => {
       searchEligibleUsers: vi.fn(() => of([])),
     };
 
-    globalErrorHandlerMock = {
-      handleError: vi.fn(),
+    applicationErrorMock = {
+      report: vi.fn(),
     };
 
     errorNotifierMock = {
@@ -114,7 +114,7 @@ describe('InviteUserModalComponent', () => {
         { provide: IBGELocationService, useValue: ibgeStub },
         { provide: RegionFilterService, useValue: regionFilterStub },
         { provide: InviteSearchService, useValue: inviteSearchStub },
-        { provide: GlobalErrorHandlerService, useValue: globalErrorHandlerMock },
+        { provide: ApplicationErrorService, useValue: applicationErrorMock },
         { provide: ErrorNotificationService, useValue: errorNotifierMock },
       ],
       schemas: [NO_ERRORS_SCHEMA],
