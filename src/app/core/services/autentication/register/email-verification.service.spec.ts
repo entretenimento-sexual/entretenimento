@@ -7,16 +7,11 @@ const firebaseAuthMocks = vi.hoisted(() => ({
   sendEmailVerification: vi.fn(),
 }));
 
-vi.mock('firebase/auth', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('firebase/auth')>();
-
-  return {
-    ...actual,
-    applyActionCode: firebaseAuthMocks.applyActionCode,
-    checkActionCode: firebaseAuthMocks.checkActionCode,
-    sendEmailVerification: firebaseAuthMocks.sendEmailVerification,
-  };
-});
+vi.mock('firebase/auth', () => ({
+  applyActionCode: firebaseAuthMocks.applyActionCode,
+  checkActionCode: firebaseAuthMocks.checkActionCode,
+  sendEmailVerification: firebaseAuthMocks.sendEmailVerification,
+}));
 
 import { EmailVerificationService } from './email-verification.service';
 
