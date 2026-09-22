@@ -3,7 +3,7 @@
 // - Busca por nicknameLowerCase (prefix search)
 // - Permite filtros adicionais (QueryConstraint[])
 // - Filtra no client usuários já vinculados à sala (roomIds)
-// - Tratamento de erros centralizado (GlobalErrorHandlerService + ErrorNotificationService)
+// - Tratamento de erros centralizado no ApplicationErrorService
 // - Observable-first (evita try/catch “falso” e Promises na API pública)
 // - Ferramentas de debug para facilitar manutenção futura (log condicional por ambiente)
 // Observação: este serviço é focado apenas em busca de usuários para convite. Para criação/envio de convites, use o InviteService.
