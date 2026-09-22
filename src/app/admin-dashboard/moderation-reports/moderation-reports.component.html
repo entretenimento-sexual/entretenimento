@@ -210,6 +210,14 @@
                 <h3>{{ reasonLabel(report.reason) }}</h3>
               </div>
 
+              @if (report.automationPriority === 'HIGH' && !isCriticalSafetyReport(report)) {
+                <mat-chip-set class="report-card__priority" aria-label="Prioridade automatizada">
+                  <mat-chip color="primary" highlighted>
+                    Prioridade elevada · {{ report.automationMode === 'SHADOW' ? 'shadow' : 'automação' }}
+                  </mat-chip>
+                </mat-chip-set>
+              }
+
               @if (isCriticalSafetyReport(report)) {
                 <mat-chip-set class="report-card__priority" aria-label="Prioridade crítica de segurança">
                   <mat-chip color="warn" highlighted>
