@@ -1,129 +1,110 @@
 import { HttpsError } from 'firebase-functions/v2/https';
 
 import {
-  ADULT_CONSENT_VERSION,
-  TERMS_ACCEPTANCE_VERSION,
-} from '../../compliance/platform-legal.constants';
-import { isAgeReverificationAccessRestricted } from '../../compliance/profile-age-reverification.policy';
+  assertInteractionAccessData,
+} from '../../account_lifecycle/interaction-access.policy';
 import { db } from '../../firebaseApp';
 
 export type PublicMediaConsumptionAccessReason =
   | 'ACCOUNT_UNAVAILABLE'
   | 'TERMS_REQUIRED'
   | 'ADULT_CONSENT_REQUIRED'
+  | 'AGE_VERIFICATION_REQUIRED'
+  | 'AGE_ACCESS_DENIED'
   | 'AGE_REVERIFICATION_REQUIRED';
 
 interface PublicMediaConsumptionAccessUserDocument {
   accountStatus?: unknown;
   suspended?: unknown;
-  suspensionSource?: unknown;
-  acceptedTerms?: {
-    accepted?: unknown;
-    version?: unknown;
-    acknowledgedPrivacyNotice?: unknown;
-  } | null;
-  adultConsent?: {
-    accepted?: unknown;
-    version?: unknown;
-  } | null;
-  initialAdultConsentRequired?: unknown;
+  interactionBlocked?: unknown;
+  acceptedTerms?: unknown;
+  adultConsent?: unknown;
   ageReverification?: {
     status?: unknown;
   } | null;
 }
 
-function normalizeAccountStatus(
-  user: PublicMediaConsumptionAccessUserDocument
-): string {
-  const raw = String(user.accountStatus ?? '')
-    .trim()
-    .toLowerCase();
+function mapInteractionReason(error: HttpsError):
+PublicMediaConsumptionAccessReason {
+  const reason = String(
+    (error.details as { reason?: unknown } | undefined)?.reason ?? ''
+  ).trim();
+
+  if (reason === 'terms_required') {
+    return 'TERMS_REQUIRED';
+  }
+
+  if (reason === 'adult_consent_required') {
+    return 'ADULT_CONSENT_REQUIRED';
+  }
+
+  if (reason === 'age_reverification_required') {
+    return 'AGE_REVERIFICATION_REQUIRED';
+  }
+
+  if (reason === 'underage') {
+    return 'AGE_ACCESS_DENIED';
+  }
 
   if (
-    raw === 'active' ||
-    raw === 'self_suspended' ||
-    raw === 'moderation_suspended' ||
-    raw === 'pending_deletion' ||
-    raw === 'deleted'
+    reason === 'verification_required' ||
+    reason === 'review_required' ||
+    reason === 'verification_expired' ||
+    reason === 'record_mismatch' ||
+    reason === 'policy_outdated'
   ) {
-    return raw;
+    return 'AGE_VERIFICATION_REQUIRED';
   }
 
-  if (user.suspended === true) {
-    return user.suspensionSource === 'self'
-      ? 'self_suspended'
-      : 'moderation_suspended';
-  }
-
-  return 'active';
-}
-
-function hasAcceptedCurrentTerms(
-  value: PublicMediaConsumptionAccessUserDocument['acceptedTerms']
-): boolean {
-  return value?.accepted === true &&
-    String(value.version ?? '').trim() === TERMS_ACCEPTANCE_VERSION &&
-    value.acknowledgedPrivacyNotice === true;
-}
-
-function hasAcceptedCurrentAdultConsent(
-  value: PublicMediaConsumptionAccessUserDocument['adultConsent']
-): boolean {
-  return value?.accepted === true &&
-    String(value.version ?? '').trim() === ADULT_CONSENT_VERSION;
+  return 'ACCOUNT_UNAVAILABLE';
 }
 
 function consumptionAccessError(
   message: string,
-  reason: PublicMediaConsumptionAccessReason
+  reason: PublicMediaConsumptionAccessReason,
+  cause?: HttpsError
 ): HttpsError {
   return new HttpsError(
-    'failed-precondition',
+    cause?.code === 'permission-denied'
+      ? 'permission-denied'
+      : 'failed-precondition',
     message,
     { reason }
   );
 }
 
 export function assertPublicMediaConsumptionAccessData(
-  user: PublicMediaConsumptionAccessUserDocument | null | undefined
+  user: PublicMediaConsumptionAccessUserDocument | null | undefined,
+  ageEligibilityRecord: unknown,
+  uid: string
 ): void {
-  if (!user) {
-    throw new HttpsError('not-found', 'Conta não encontrada.');
-  }
-
-  if (
-    normalizeAccountStatus(user) !== 'active' ||
-    user.suspended === true
-  ) {
-    throw consumptionAccessError(
-      'Esta conta não pode acessar conteúdo público no momento.',
-      'ACCOUNT_UNAVAILABLE'
+  try {
+    assertInteractionAccessData(
+      user,
+      ageEligibilityRecord,
+      uid
     );
-  }
+  } catch (error) {
+    if (!(error instanceof HttpsError)) {
+      throw error;
+    }
 
-  if (!hasAcceptedCurrentTerms(user.acceptedTerms)) {
+    const reason = mapInteractionReason(error);
+
     throw consumptionAccessError(
-      'Aceite os termos vigentes antes de acessar conteúdo adulto.',
-      'TERMS_REQUIRED'
-    );
-  }
-
-  const adultConsentRequired = user.initialAdultConsentRequired !== false;
-
-  if (
-    adultConsentRequired &&
-    !hasAcceptedCurrentAdultConsent(user.adultConsent)
-  ) {
-    throw consumptionAccessError(
-      'Confirme o consentimento de acesso adulto antes de continuar.',
-      'ADULT_CONSENT_REQUIRED'
-    );
-  }
-
-  if (isAgeReverificationAccessRestricted(user.ageReverification?.status)) {
-    throw consumptionAccessError(
-      'Conclua a revalidação de idade antes de acessar este conteúdo.',
-      'AGE_REVERIFICATION_REQUIRED'
+      reason === 'TERMS_REQUIRED'
+        ? 'Aceite os termos vigentes antes de acessar conteúdo adulto.'
+        : reason === 'ADULT_CONSENT_REQUIRED'
+          ? 'Aceite o acesso à experiência adulta antes de continuar.'
+          : reason === 'AGE_VERIFICATION_REQUIRED'
+            ? 'Conclua a verificação de maioridade antes de acessar este conteúdo.'
+            : reason === 'AGE_ACCESS_DENIED'
+              ? 'O acesso adulto não está disponível para esta conta.'
+              : reason === 'AGE_REVERIFICATION_REQUIRED'
+                ? 'Conclua a revalidação de idade antes de acessar este conteúdo.'
+                : 'Esta conta não pode acessar conteúdo público no momento.',
+      reason,
+      error
     );
   }
 }
@@ -131,11 +112,18 @@ export function assertPublicMediaConsumptionAccessData(
 export async function assertPublicMediaConsumptionAccess(
   uid: string
 ): Promise<void> {
-  const userSnapshot = await db.collection('users').doc(uid).get();
+  const [userSnapshot, ageEligibilitySnapshot] = await Promise.all([
+    db.collection('users').doc(uid).get(),
+    db.collection('age_eligibility_records').doc(uid).get(),
+  ]);
 
   assertPublicMediaConsumptionAccessData(
     userSnapshot.exists
       ? userSnapshot.data() as PublicMediaConsumptionAccessUserDocument
-      : null
+      : null,
+    ageEligibilitySnapshot.exists
+      ? ageEligibilitySnapshot.data()
+      : null,
+    uid
   );
 }
