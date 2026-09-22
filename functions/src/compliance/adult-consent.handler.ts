@@ -3,6 +3,9 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
+  evaluateCanonicalAgeEligibility,
+} from './age-eligibility.policy';
+import {
   ADULT_CONSENT_VERSION,
   TERMS_ACCEPTANCE_VERSION,
 } from './platform-legal.constants';
@@ -48,7 +51,13 @@ export const acceptAdultConsent = onCall(
       .doc(`adult_consent_${uid}_${acceptedAtMs}`);
 
     await db.runTransaction(async (transaction) => {
-      const userSnapshot = await transaction.get(userRef);
+      const ageEligibilityRef = db
+        .collection('age_eligibility_records')
+        .doc(uid);
+      const [userSnapshot, ageEligibilitySnapshot] = await Promise.all([
+        transaction.get(userRef),
+        transaction.get(ageEligibilityRef),
+      ]);
 
       if (!userSnapshot.exists) {
         throw new HttpsError(
@@ -66,10 +75,26 @@ export const acceptAdultConsent = onCall(
         );
       }
 
-      if (user['profileCompleted'] !== true) {
+      const ageDecision = evaluateCanonicalAgeEligibility({
+        uid,
+        rawRecord: ageEligibilitySnapshot.exists
+          ? ageEligibilitySnapshot.data()
+          : null,
+        nowMs: acceptedAtMs,
+      });
+
+      if (!ageDecision.allowed) {
         throw new HttpsError(
-          'failed-precondition',
-          'Conclua seu perfil antes de confirmar a maioridade.'
+          ageDecision.denialReason === 'underage'
+            ? 'permission-denied'
+            : 'failed-precondition',
+          ageDecision.denialReason === 'underage'
+            ? 'O acesso adulto não está disponível para esta conta.'
+            : 'Conclua a verificação de maioridade antes de aceitar o acesso adulto.',
+          {
+            reason: ageDecision.denialReason,
+            recommendedAction: 'complete_age_verification',
+          }
         );
       }
 
@@ -84,15 +109,11 @@ export const acceptAdultConsent = onCall(
       const now = FieldValue.serverTimestamp();
 
       if (alreadyAccepted) {
-        if (
-          user['initialAdultConsentRequired'] === true ||
-          !user['registrationCompletedAt']
-        ) {
+        if (user['initialAdultConsentRequired'] === true) {
           transaction.set(
             userRef,
             {
               initialAdultConsentRequired: false,
-              registrationCompletedAt: user['registrationCompletedAt'] || now,
               updatedAt: now,
             },
             { merge: true }
@@ -114,7 +135,6 @@ export const acceptAdultConsent = onCall(
             source: 'web',
           },
           initialAdultConsentRequired: false,
-          registrationCompletedAt: now,
           updatedAt: now,
         },
         { merge: true }
@@ -122,7 +142,7 @@ export const acceptAdultConsent = onCall(
 
       transaction.create(auditRef, {
         uid,
-        type: 'adult_consent.accepted',
+        type: 'adult_experience_consent.accepted',
         version: ADULT_CONSENT_VERSION,
         termsAcceptanceVersion: TERMS_ACCEPTANCE_VERSION,
         source: 'web',
