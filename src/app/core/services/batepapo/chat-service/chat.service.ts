@@ -5,7 +5,7 @@
 // - Service de domínio: NÃO despacha NgRx, NÃO é dono da Store.
 // - Realtime → Store fica em Effects (watchChats$, watchMessages$).
 // - Gating de sessão continua aqui (ready/auth/block/emailVerified).
-// - Erros: globalError (silent) + notify só em validações de UX (ex: msg vazia).
+// - Erros: ApplicationErrorService centraliza diagnóstico e apresentação declarativa.
 // =============================================================================
 import { Injectable, OnDestroy } from '@angular/core';
 import { Observable, Subject, combineLatest, of, throwError } from 'rxjs';
@@ -33,8 +33,7 @@ import { AuthAppBlockService } from '@core/services/autentication/auth/auth-app-
 import { ChatRepository } from '@core/services/data-handling/firestore/repositories/chat.repository';
 import { ChatMessagesRepository } from '@core/services/data-handling/firestore/repositories/chat-messages.repository';
 
-import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 
 // ✅ garanta que esse import aponta para o DONO real (o service que você ajustou pra ser owner do getUser$)
 
@@ -57,8 +56,7 @@ export class ChatService implements OnDestroy {
     private readonly chatsRepo: ChatRepository,
     private readonly msgsRepo: ChatMessagesRepository,
 
-    private readonly notify: ErrorNotificationService,
-    private readonly globalError: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
   ) { }
 
   ngOnDestroy(): void {
@@ -68,28 +66,71 @@ export class ChatService implements OnDestroy {
 
   /**
    * reportSilent:
-   * - Envia para GlobalErrorHandlerService com "silent=true"
-   * - Não exibe toast automaticamente (o Effect decide)
+   * - Registra diagnóstico técnico pelo ApplicationErrorService.
+   * - Mantém surface=none para o chamador decidir eventual feedback de UX.
+   * - Marca o Error para evitar diagnóstico duplicado em catches aninhados.
    */
   private reportSilent(action: string, err: unknown): Observable<never> {
-    const e = err instanceof Error ? err : new Error(`[ChatService] ${action}`);
-    (e as any).silent = true;
-    (e as any).original = err;
-    (e as any).context = { action };
-    this.globalError.handleError(e);
-    return throwError(() => e);
+    const error = this.asChatError(action, err);
+
+    if (!(error as any).chatApplicationErrorReported) {
+      this.applicationError.report(error, {
+        feature: 'chat',
+        operation: action,
+        fallbackMessage:
+          'Não foi possível concluir uma operação interna do chat.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'ChatService',
+          action,
+        },
+      });
+      (error as any).chatApplicationErrorReported = true;
+    }
+
+    return throwError(() => error);
   }
 
   /**
    * failUi:
-   * - Para validações UX (ex: mensagem vazia), mostra toast aqui
-   * - Marca uiShown=true para Effects evitarem toast duplicado
+   * - Para validações de UX, apresenta a mensagem segura pelo pipeline canônico.
+   * - Marca uiShown=true para consumidores legados não repetirem o snackbar.
+   * - Reaproveita a mesma marca de diagnóstico para catches aninhados.
    */
-  private failUi(action: string, userMsg: string, err: unknown): Observable<never> {
-    this.notify.showError(userMsg);
-    const e = err instanceof Error ? err : new Error(String(err));
-    (e as any).uiShown = true;
-    return this.reportSilent(action, e);
+  private failUi(
+    action: string,
+    userMsg: string,
+    err: unknown
+  ): Observable<never> {
+    const error = this.asChatError(action, err);
+    (error as any).uiShown = true;
+
+    if (!(error as any).chatApplicationErrorReported) {
+      this.applicationError.report(error, {
+        feature: 'chat',
+        operation: action,
+        fallbackMessage: userMsg,
+        presentation: { surface: 'snackbar', severity: 'error' },
+        metadata: {
+          scope: 'ChatService',
+          action,
+          uiShown: true,
+        },
+      });
+      (error as any).chatApplicationErrorReported = true;
+    }
+
+    return throwError(() => error);
+  }
+
+  private asChatError(action: string, err: unknown): Error {
+    if (err instanceof Error) {
+      return err;
+    }
+
+    const error = new Error(`[ChatService] ${action}`);
+    (error as any).original = err;
+    return error;
   }
 
   /**
