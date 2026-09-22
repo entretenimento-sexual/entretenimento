@@ -20,16 +20,12 @@ match /public_profiles/{userId} {
   function privateUserEligibleAfter() {
     let user = getAfter(privateUserPath()).data;
     return existsAfter(privateUserPath())
-      && user.accountStatus == "active"
-      && user.emailVerified == true
       && user.profileCompleted == true
       && user.publicVisibility == "visible"
       && user.interactionBlocked == false
       && canonicalAgeEligibilityAllowsAdultAccess(userId)
-      && user.acceptedTerms.accepted == true
-      && user.acceptedTerms.version == "v3"
-      && user.acceptedTerms.acknowledgedPrivacyNotice == true
-      && user.adultConsent.accepted == true;
+      && adultMediaHasCurrentTerms(user)
+      && adultMediaHasRequiredConsent(user);
   }
 
   function createKeysValid() {
