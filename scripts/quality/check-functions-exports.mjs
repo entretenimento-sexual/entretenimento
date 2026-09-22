@@ -62,6 +62,8 @@ const requiredExports = [
   'syncCommunityFeedRealtimeTrigger',
   'reconcileCommunityMembershipNotificationsTrigger',
   'syncCommunityProfileMembershipIndexTrigger',
+  'syncCommunityHighlightCommunityTrigger',
+  'syncPublicPreferenceProjectionTrigger',
 ];
 
 if (!existsSync(entryPath)) {
@@ -88,6 +90,8 @@ const forbiddenLegacyTriggerExports = [
   'syncCommunityFeedRealtime',
   'reconcileCommunityMembershipNotifications',
   'syncCommunityProfileMembershipIndex',
+  'syncCommunityHighlightCommunity',
+  'syncPublicPreferenceProjection',
 ];
 
 const missingExports = requiredExports.filter(
