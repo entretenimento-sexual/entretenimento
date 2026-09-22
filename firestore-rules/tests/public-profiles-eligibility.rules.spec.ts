@@ -79,13 +79,24 @@ function authenticatedDb() {
 }
 
 async function seedUser(
-  overrides: Record<string, unknown> = {}
+  overrides: Record<string, unknown> = {},
+  includeAgeEligibility = true
 ): Promise<void> {
   await testEnv.withSecurityRulesDisabled(async (context) => {
-    await setDoc(
-      doc(context.firestore(), 'users', UID),
-      privateUser(overrides)
-    );
+    const db = context.firestore();
+    await setDoc(doc(db, 'users', UID), privateUser(overrides));
+
+    if (includeAgeEligibility) {
+      await setDoc(doc(db, 'age_eligibility_records', UID), {
+        uid: UID,
+        status: 'VERIFIED_ADULT',
+        policyVersion: 1,
+        source: 'AGE_REVERIFICATION',
+        method: 'MANUAL_REVIEW',
+        verifiedAt: new Date(Date.now() - 1_000),
+        expiresAt: null,
+      });
+    }
   });
 }
 
@@ -149,6 +160,15 @@ describe('Firestore Rules / public profile eligibility', () => {
         gender: 'homem',
         identityCode: 'homem',
       })
+    );
+  });
+
+  it('nega projeção sem verificação etária canônica', async () => {
+    await seedUser({}, false);
+    const db = authenticatedDb();
+
+    await assertFails(
+      setDoc(doc(db, 'public_profiles', UID), publicProfile())
     );
   });
 
