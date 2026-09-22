@@ -53,6 +53,7 @@ export const FIRESTORE_RULE_PARTS = Object.freeze([
   // Moderação, preservação e auditoria operacional.
   'moderation_reports.rules',
   'moderation_evidence.rules',
+  'moderation_automation.rules',
 
   // Demais módulos.
   'communities.rules',
