@@ -7,6 +7,9 @@ import {
 } from '../../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue } from '../../firebaseApp';
+import {
+  safeRecordModerationOpenSignal,
+} from '../../moderation/moderation-automation.service';
 import { consumeBackendRateLimitQuota } from './backend-rate-limit.service';
 import {
   buildMediaReportSafetyState,
@@ -290,6 +293,15 @@ export const reportPhotoContent = onCall<ReportPhotoContentRequest>(
         sourceStoragePath: result.publishedStoragePath,
       });
     }
+
+    await safeRecordModerationOpenSignal({
+      reportId,
+      targetUid: ownerUid,
+      reporterUid,
+      targetKey: `photo:${ownerUid}:${photoId}`,
+      critical: reason === 'minor_content_safety',
+      quarantined: result.quarantine,
+    });
 
     return {
       reportId,
