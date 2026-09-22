@@ -483,8 +483,14 @@ export class ModerationReportsComponent {
   }
 
   private reportPriority(report: AdminModerationReportVm): number {
-    if (report.reason === 'minor_content_safety') return 2;
-    if (report.reason === 'minor_safety') return 1;
+    if (
+      report.reason === 'minor_content_safety' ||
+      report.automationPriority === 'CRITICAL'
+    ) {
+      return 3;
+    }
+    if (report.reason === 'minor_safety') return 2;
+    if (report.automationPriority === 'HIGH') return 1;
     return 0;
   }
 
