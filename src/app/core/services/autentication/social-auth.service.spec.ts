@@ -21,7 +21,7 @@ import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { SocialAuthService } from './social-auth.service';
 import { FirestoreReadService } from '../data-handling/firestore/core/firestore-read.service';
 import { FirestoreWriteService } from '../data-handling/firestore/core/firestore-write.service';
-import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '../error-handler/application-error.service';
 import { RegistrationBootstrapService } from './register/registration-bootstrap.service';
 
 describe('SocialAuthService', () => {
@@ -41,8 +41,8 @@ describe('SocialAuthService', () => {
     createSocialSeed$: Mock;
   };
 
-  let globalErrorHandlerMock: {
-    handleError: Mock;
+  let applicationErrorMock: {
+    report: Mock;
   };
 
   beforeEach(() => {
@@ -60,8 +60,8 @@ describe('SocialAuthService', () => {
       createSocialSeed$: vi.fn(),
     };
 
-    globalErrorHandlerMock = {
-      handleError: vi.fn(),
+    applicationErrorMock = {
+      report: vi.fn(),
     };
 
     TestBed.configureTestingModule({
@@ -71,7 +71,7 @@ describe('SocialAuthService', () => {
         { provide: FirestoreReadService, useValue: readMock },
         { provide: FirestoreWriteService, useValue: writeMock },
         { provide: RegistrationBootstrapService, useValue: registrationBootstrapMock },
-        { provide: GlobalErrorHandlerService, useValue: globalErrorHandlerMock },
+        { provide: ApplicationErrorService, useValue: applicationErrorMock },
       ],
     });
 
@@ -320,7 +320,23 @@ describe('SocialAuthService', () => {
 
     const result = await firstValueFrom(service.googleLogin());
 
-    expect(globalErrorHandlerMock.handleError).toHaveBeenCalled();
+    expect(applicationErrorMock.report).toHaveBeenCalledTimes(1);
+    expect(applicationErrorMock.report).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'auth/popup-blocked' }),
+      {
+        feature: 'social-auth',
+        operation: 'googleLogin.popup',
+        fallbackMessage:
+          'Não foi possível concluir uma etapa interna da autenticação social.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'SocialAuthService',
+          phase: 'googleLogin.popup',
+          code: 'auth/popup-blocked',
+          expected: false,
+        },
+      }
+    );
     expect(result).toEqual(
       expect.objectContaining({
         success: false,
@@ -338,7 +354,7 @@ describe('SocialAuthService', () => {
 
     const result = await firstValueFrom(service.googleLogin());
 
-    expect(globalErrorHandlerMock.handleError).toHaveBeenCalled();
+    expect(applicationErrorMock.report).not.toHaveBeenCalled();
     expect(result).toEqual(
       expect.objectContaining({
         success: false,
@@ -348,4 +364,71 @@ describe('SocialAuthService', () => {
       })
     );
   });
+
+  it('deve diagnosticar silenciosamente falha de bootstrap e manter resultado estruturado', async () => {
+    const firebaseUser = makeFirebaseUser({
+      uid: 'bootstrap-failed',
+      email: 'bootstrap-failed@test.com',
+    });
+    const error = new Error('firestore unavailable');
+
+    vi.spyOn(service as any, 'signInWithPopupInCtx$').mockReturnValue(
+      of({ user: firebaseUser } as any)
+    );
+
+    readMock.getDocument.mockReturnValue(
+      throwError(() => error)
+    );
+
+    const result = await firstValueFrom(service.googleLogin());
+
+    expect(applicationErrorMock.report).toHaveBeenCalledTimes(1);
+    expect(applicationErrorMock.report).toHaveBeenCalledWith(error, {
+      feature: 'social-auth',
+      operation: 'bootstrapUserAfterAuth',
+      fallbackMessage:
+        'Não foi possível concluir uma etapa interna da autenticação social.',
+      presentation: { surface: 'none', severity: 'error' },
+      metadata: {
+        scope: 'SocialAuthService',
+        phase: 'bootstrapUserAfterAuth',
+        uid: 'bootstrap-failed',
+      },
+    });
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: false,
+        outcome: 'error',
+        code: 'social-auth/bootstrap-failed',
+        message: 'Não foi possível preparar sua conta agora.',
+        nextRoute: null,
+      })
+    );
+  });
+
+  it('deve manter o resultado público quando a própria camada canônica falhar', async () => {
+    const error = { code: 'auth/popup-blocked' };
+
+    vi.spyOn(service as any, 'signInWithPopupInCtx$').mockReturnValue(
+      throwError(() => error)
+    );
+    applicationErrorMock.report.mockImplementationOnce(() => {
+      throw new Error('diagnostic unavailable');
+    });
+
+    const result = await firstValueFrom(service.googleLogin());
+
+    expect(applicationErrorMock.report).toHaveBeenCalledTimes(1);
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: false,
+        outcome: 'error',
+        code: 'auth/popup-blocked',
+        message:
+          'O navegador bloqueou o popup do Google. Permita popups e tente novamente.',
+        nextRoute: null,
+      })
+    );
+  });
+
 });
