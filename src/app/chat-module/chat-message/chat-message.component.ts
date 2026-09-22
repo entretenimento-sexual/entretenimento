@@ -53,7 +53,7 @@ import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
 type ChatMessageType = 'chat' | 'room';
@@ -115,7 +115,7 @@ export class ChatMessageComponent implements OnInit {
     private readonly firestoreUserQuery: FirestoreUserQueryService,
     private readonly authSession: AuthSessionService,
     private readonly errorNotifier: ErrorNotificationService,
-    private readonly globalError: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly privacyDebug: PrivacyDebugLoggerService,
   ) {}
 
@@ -475,20 +475,26 @@ export class ChatMessageComponent implements OnInit {
     notifyUser = true
   ): void {
     if (notifyUser) {
-      try { this.errorNotifier.showError(userMessage); } catch { }
+      try {
+        this.errorNotifier.showError(userMessage);
+      } catch {
+        // Diagnóstico técnico permanece independente da apresentação local.
+      }
     }
 
     try {
-      const err = error instanceof Error ? error : new Error(userMessage);
-      (err as any).original = error;
-      (err as any).context = {
-        scope: 'ChatMessageComponent',
-        ...(context ?? {}),
-      };
-      (err as any).skipUserNotification = true;
-      this.globalError.handleError(err);
+      this.applicationError.report(error, {
+        feature: 'chat-message',
+        operation: String(context?.['op'] ?? 'reportError'),
+        fallbackMessage: userMessage,
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'ChatMessageComponent',
+          contextKeys: Object.keys(context ?? {}).sort().slice(0, 12),
+        },
+      });
     } catch {
-      // noop
+      // Falha secundária de diagnóstico não altera o fluxo público.
     }
   }
 }
