@@ -1,0 +1,15 @@
+// =============================================================================
+// MODERATION AUTOMATION STATE
+// =============================================================================
+// Sinais agregados, decisões de shadow mode e enforcement são backend-only.
+// O cliente não pode ler contadores que facilitem gaming do sistema nem
+// fabricar risco para terceiros.
+// =============================================================================
+
+match /moderation_automation_state/{userId} {
+  allow read, write: if false;
+}
+
+match /moderation_automation_events/{eventId} {
+  allow read, write: if false;
+}
