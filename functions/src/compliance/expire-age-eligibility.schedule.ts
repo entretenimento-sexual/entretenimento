@@ -18,7 +18,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue, Timestamp } from '../firebaseApp';
 import {
-  safeNotifyAgeEligibilityExpired,
+  writeAgeEligibilityExpiredNotificationInTransaction,
 } from '../moderation/moderation-safety-notification.service';
 import {
   evaluateCanonicalAgeEligibility,
@@ -32,8 +32,6 @@ const TRANSACTION_CONCURRENCY = 10;
 
 interface ExpirationResult {
   readonly expired: boolean;
-  readonly notify: boolean;
-  readonly expiresAtMs: number | null;
 }
 
 async function materializeExpiredRecord(
@@ -50,7 +48,7 @@ async function materializeExpiredRecord(
     ]);
 
     if (!recordSnapshot.exists) {
-      return { expired: false, notify: false, expiresAtMs: null };
+      return { expired: false };
     }
 
     const rawRecord = recordSnapshot.data() ?? {};
@@ -68,11 +66,7 @@ async function materializeExpiredRecord(
       decision.source === null ||
       decision.method === null
     ) {
-      return {
-        expired: false,
-        notify: false,
-        expiresAtMs: decision.expiresAtMs,
-      };
+      return { expired: false };
     }
 
     const ageEligibility = writeCanonicalAgeEligibilityInTransaction(
@@ -98,6 +92,14 @@ async function materializeExpiredRecord(
         },
         { merge: true }
       );
+
+      writeAgeEligibilityExpiredNotificationInTransaction(
+        transaction,
+        {
+          uid,
+          expiresAtMs: decision.expiresAtMs,
+        }
+      );
     }
 
     transaction.set(
@@ -120,11 +122,7 @@ async function materializeExpiredRecord(
       { merge: false }
     );
 
-    return {
-      expired: true,
-      notify: userSnapshot.exists,
-      expiresAtMs: decision.expiresAtMs,
-    };
+    return { expired: true };
   });
 }
 
@@ -135,14 +133,6 @@ async function processChunk(
   const results = await Promise.all(
     uids.map(async (uid) => {
       const result = await materializeExpiredRecord(uid, nowMs);
-
-      if (result.expired && result.notify && result.expiresAtMs !== null) {
-        await safeNotifyAgeEligibilityExpired({
-          uid,
-          expiresAtMs: result.expiresAtMs,
-        });
-      }
-
       return result.expired ? 1 : 0;
     })
   );
