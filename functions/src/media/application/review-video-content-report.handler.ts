@@ -3,6 +3,9 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue } from '../../firebaseApp';
+import {
+  safeRecordModerationReviewSignal,
+} from '../../moderation/moderation-automation.service';
 import { deleteProfileVideoResources } from './delete-profile-video.handler';
 import {
   shouldPreserveMediaEvidence,
@@ -512,6 +515,15 @@ export const reviewVideoContentReport = onCall<
         };
       }
     );
+
+    if (result.targetType === 'video') {
+      await safeRecordModerationReviewSignal({
+        reportId,
+        targetUid: result.ownerUid,
+        critical: result.reason === 'minor_content_safety',
+        confirmed: decision === 'REMOVE',
+      });
+    }
 
     let cleanupPending = false;
     let evidenceReleasePending = false;
