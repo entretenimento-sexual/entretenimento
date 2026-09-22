@@ -125,8 +125,6 @@ export const reportProfileMinorSafety = onCall<ReportProfileMinorSafetyRequest>(
 
     await safeNotifyModerationReportOpened(reportRef.id);
 
-    await safeNotifyModerationReportOpened(reportId);
-
     return { reportId: reportRef.id };
   }
 );
