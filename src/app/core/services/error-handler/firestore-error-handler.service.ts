@@ -1,18 +1,32 @@
 // src/app/core/services/error-handler/firestore-error-handler.service.ts
-// Não esqueça os comentários
-// Serviço para tratamento centralizado de erros do Firestore, com notificações e logging
-// notifica e depois chama o global, que pode notificar de novo (consertar)
+// -----------------------------------------------------------------------------
+// FIRESTORE ERROR HANDLER SERVICE
+// -----------------------------------------------------------------------------
+// Adaptador de compatibilidade para fluxos Firestore que ainda dependem das
+// APIs handle/return/complete/report deste serviço.
+//
+// Responsabilidades:
+// - preservar a semântica reativa dos consumidores atuais;
+// - mapear códigos do Firestore para mensagens públicas específicas;
+// - delegar apresentação e diagnóstico ao ApplicationErrorService;
+// - impedir nova composição manual ErrorNotificationService + GlobalErrorHandlerService;
+// - marcar o erro original para evitar uma segunda notificação caso ele escape
+//   até o ErrorHandler global.
+//
+// Este serviço não possui mais responsabilidade própria de snackbar/log.
+// -----------------------------------------------------------------------------
+
 import { Injectable } from '@angular/core';
 import { FirebaseError } from 'firebase/app';
-import { Observable, EMPTY, of, throwError } from 'rxjs';
-import { ErrorNotificationService } from './error-notification.service';
-import { GlobalErrorHandlerService } from './global-error-handler.service';
+import { EMPTY, Observable, of, throwError } from 'rxjs';
+
+import { ApplicationErrorService } from './application-error.service';
 
 export type FirestoreErrorHandlerOptions = {
-  /** Quando true, não exibe toast/snackbar — mas mantém log para dev */
+  /** Quando true, não exibe feedback global, mas mantém diagnóstico técnico. */
   silent?: boolean;
 
-  /** Contexto para facilitar debug (ex: nickname-soft, register-submit etc) */
+  /** Contexto operacional para facilitar triagem (ex.: register-submit). */
   context?: string;
 };
 
@@ -23,219 +37,239 @@ type NormalizedError = {
   consolePrefix: string;
 };
 
+const FIRESTORE_ERROR_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
+  'permission-denied':
+    'Você não tem permissão para realizar esta ação. Verifique suas credenciais.',
+  unavailable:
+    'O serviço do Firestore está temporariamente indisponível. Por favor, tente novamente mais tarde.',
+  'not-found':
+    'O documento solicitado não foi encontrado. Pode ter sido removido ou o ID está incorreto.',
+  'already-exists':
+    'O documento que você está tentando criar já existe. Por favor, use um nome diferente.',
+  'resource-exhausted':
+    'Limite de requisições ao Firestore excedido. Por favor, tente novamente mais tarde ou contate o suporte.',
+  'deadline-exceeded':
+    'A operação demorou muito para ser concluída. Verifique sua conexão com a internet e tente novamente.',
+  aborted:
+    'A operação foi abortada. Isso pode ocorrer devido a conflitos de transação. Tente novamente.',
+  cancelled:
+    'A operação foi cancelada. Isso pode acontecer se a requisição foi interrompida.',
+  'data-loss':
+    'Houve um problema de integridade de dados. Por favor, contate o suporte.',
+  internal:
+    'Ocorreu um erro interno no servidor do Firestore. Por favor, tente novamente mais tarde.',
+  'invalid-argument':
+    'Um argumento inválido foi fornecido para a operação. Verifique os dados e tente novamente.',
+  'out-of-range':
+    'Um valor fornecido está fora do intervalo permitido.',
+  unauthenticated:
+    'Você precisa estar autenticado para realizar esta ação.',
+  unimplemented:
+    'Esta funcionalidade ainda não foi implementada.',
+  unknown:
+    'Ocorreu um erro desconhecido no Firestore.',
+});
+
+const FIRESTORE_FALLBACK_MESSAGE =
+  'Ocorreu um erro inesperado no Firestore. Por favor, tente novamente.';
+
 @Injectable({ providedIn: 'root' })
 export class FirestoreErrorHandlerService {
-  constructor(private notifier: ErrorNotificationService,
-              private globalErrorHandler: GlobalErrorHandlerService
-              ) { }
+  constructor(
+    private readonly applicationError: ApplicationErrorService
+  ) {}
 
-  private tagRawError(raw: any, n: NormalizedError, opts?: FirestoreErrorHandlerOptions): void {
-    try {
-      if (!raw || typeof raw !== 'object') return;
+  // ===========================================================================
+  // 1) MODO “FALHA”
+  // - preserva o erro original e mantém o stream em falha.
+  // ===========================================================================
+  handleFirestoreError(
+    error: unknown,
+    opts?: FirestoreErrorHandlerOptions
+  ): Observable<never> {
+    const normalized = this.normalize(error, opts);
 
-      // “silent” significa: não notificar usuário em nenhum lugar
-      (raw as any).silent = opts?.silent === true;
-
-      // evita duplicar snackbar/toast no GlobalErrorHandler quando o erro vazar
-      (raw as any).skipUserNotification = true;
-
-      // contexto/feature ajudam debug
-      (raw as any).context = opts?.context;
-      (raw as any).feature = 'firestore';
-      (raw as any).consolePrefix = n.consolePrefix;
-
-      // opcional: padroniza detalhes/código também no raw
-      if (!(raw as any).code && n.code) (raw as any).code = n.code;
-      if (!(raw as any).details && n.details) (raw as any).details = n.details;
-    } catch {
-      // noop
-    }
-  }
-
-  // ============================================================================
-  // 1) MODO “FALHA” (mantém seu comportamento atual)
-  // - Use quando você QUER que o fluxo quebre (ex.: submit/commit crítico)
-  // ============================================================================
-  handleFirestoreError(error: any, opts?: FirestoreErrorHandlerOptions): Observable<never> {
-    const n = this.normalize(error, opts);
-
-    this.notifyIfNeeded(n, opts);
-    this.logError(n, error, opts);
-
-    // ✅ CRÍTICO: marca o erro original para evitar toast duplicado caso ele vaze
-    this.tagRawError(error, n, opts);
+    this.reportCanonical(
+      error,
+      normalized,
+      opts,
+      'handleFirestoreError'
+    );
+    this.tagRawError(error, normalized, opts);
 
     return throwError(() => error);
   }
 
-  // ============================================================================
-  // 2) MODO “FALLBACK” (mais genérico)
-  // - Use quando você NÃO quer derrubar o stream
-  // - Ideal pra realtime/presença/listagens/VM selectors via effects
-  // ============================================================================
-  handleFirestoreErrorAndReturn<T>(error: any, fallback: T, opts?: FirestoreErrorHandlerOptions): Observable<T> {
-    const n = this.normalize(error, opts);
+  // ===========================================================================
+  // 2) MODO “FALLBACK”
+  // - diagnostica a falha e devolve o fallback sem encerrar o stream em erro.
+  // ===========================================================================
+  handleFirestoreErrorAndReturn<T>(
+    error: unknown,
+    fallback: T,
+    opts?: FirestoreErrorHandlerOptions
+  ): Observable<T> {
+    const normalized = this.normalize(error, opts);
 
-    this.notifyIfNeeded(n, opts);
-    this.logError(n, error, opts);
-
-    // (não é obrigatório, mas ajuda consistência se alguém logar “raw” depois)
-    this.tagRawError(error, n, opts);
+    this.reportCanonical(
+      error,
+      normalized,
+      opts,
+      'handleFirestoreErrorAndReturn'
+    );
+    this.tagRawError(error, normalized, opts);
 
     return of(fallback);
   }
 
-  /** Atalho: retorna [] (muito comum em queries/listas) */
+  /** Atalho: retorna [] (muito comum em queries/listas). */
   handleFirestoreErrorAndReturnEmptyArray<T>(
-    error: any,
+    error: unknown,
     opts?: FirestoreErrorHandlerOptions
   ): Observable<T[]> {
     return this.handleFirestoreErrorAndReturn<T[]>(error, [], opts);
   }
 
-  /** Atalho: retorna null (muito comum em docById) */
+  /** Atalho: retorna null (muito comum em docById). */
   handleFirestoreErrorAndReturnNull<T>(
-    error: any,
+    error: unknown,
     opts?: FirestoreErrorHandlerOptions
   ): Observable<T | null> {
     return this.handleFirestoreErrorAndReturn<T | null>(error, null, opts);
   }
 
-  /** Atalho: completa sem emitir (quando UI não precisa nem de fallback) */
-  handleFirestoreErrorAndComplete<T>(error: any, opts?: FirestoreErrorHandlerOptions): Observable<T> {
-    const n = this.normalize(error, opts);
+  /** Completa sem emitir quando a UI não precisa de fallback. */
+  handleFirestoreErrorAndComplete<T>(
+    error: unknown,
+    opts?: FirestoreErrorHandlerOptions
+  ): Observable<T> {
+    const normalized = this.normalize(error, opts);
 
-    this.notifyIfNeeded(n, opts);
-    this.logError(n, error, opts);
-
-    this.tagRawError(error, n, opts);
+    this.reportCanonical(
+      error,
+      normalized,
+      opts,
+      'handleFirestoreErrorAndComplete'
+    );
+    this.tagRawError(error, normalized, opts);
 
     return EMPTY;
   }
 
+  // ===========================================================================
+  // 3) MODO “SIDE-EFFECT ONLY”
+  // - diagnostica sem alterar o controle do fluxo do chamador.
+  // ===========================================================================
+  report(error: unknown, opts?: FirestoreErrorHandlerOptions): void {
+    const normalized = this.normalize(error, opts);
 
-  // ============================================================================
-  // 3) MODO “SIDE-EFFECT ONLY” (mais genérico ainda)
-  // - Só notifica/loga, sem mexer no controle do fluxo
-  // - Útil quando você quer tratar fora do catchError
-  // ============================================================================
-  report(error: any, opts?: FirestoreErrorHandlerOptions): void {
-    const n = this.normalize(error, opts);
-    this.notifyIfNeeded(n, opts);
-    this.logError(n, error, opts);
-
-    this.tagRawError(error, n, opts);
+    this.reportCanonical(error, normalized, opts, 'report');
+    this.tagRawError(error, normalized, opts);
   }
 
-  // ============================================================================
-  // Internals (genéricos)
-  // ============================================================================
+  // ===========================================================================
+  // Internals
+  // ===========================================================================
 
-  private normalize(error: any, opts?: FirestoreErrorHandlerOptions): NormalizedError {
+  private reportCanonical(
+    error: unknown,
+    normalized: NormalizedError,
+    opts: FirestoreErrorHandlerOptions | undefined,
+    operation:
+      | 'handleFirestoreError'
+      | 'handleFirestoreErrorAndReturn'
+      | 'handleFirestoreErrorAndComplete'
+      | 'report'
+  ): void {
+    this.applicationError.report(error, {
+      feature: 'firestore',
+      operation,
+      fallbackMessage: normalized.userMessage,
+      codeMessages: FIRESTORE_ERROR_MESSAGES,
+      presentation: opts?.silent === true
+        ? { surface: 'none', severity: 'error' }
+        : { surface: 'snackbar', severity: 'error' },
+      metadata: {
+        scope: 'FirestoreErrorHandlerService',
+        firestoreContext: opts?.context ?? null,
+        silent: opts?.silent === true,
+      },
+    });
+  }
+
+  private normalize(
+    error: unknown,
+    opts?: FirestoreErrorHandlerOptions
+  ): NormalizedError {
     const silent = opts?.silent === true;
     const context = opts?.context ? ` | ctx=${opts.context}` : '';
-
-    const details = typeof error?.message === 'string' ? error.message : undefined;
+    const details =
+      error instanceof Error && typeof error.message === 'string'
+        ? error.message
+        : undefined;
 
     if (error instanceof FirebaseError) {
-      const userMessage = this.getErrorMessage(error.code);
+      const code = this.normalizeCode(error.code);
+      const userMessage = FIRESTORE_ERROR_MESSAGES[code]
+        ?? FIRESTORE_FALLBACK_MESSAGE;
+
       return {
         userMessage,
         details,
-        code: error.code,
-        consolePrefix: `[FirestoreErrorHandler] FirebaseError (${error.code})${context}${silent ? ' [silent]' : ''}`,
+        code,
+        consolePrefix:
+          `[FirestoreErrorHandler] FirebaseError (${code})${context}`
+          + (silent ? ' [silent]' : ''),
       };
     }
 
     return {
-      userMessage: 'Ocorreu um erro inesperado no Firestore.',
+      userMessage: FIRESTORE_FALLBACK_MESSAGE,
       details,
-      consolePrefix: `[FirestoreErrorHandler] Erro inesperado${context}${silent ? ' [silent]' : ''}`,
+      consolePrefix:
+        `[FirestoreErrorHandler] Erro inesperado${context}`
+        + (silent ? ' [silent]' : ''),
     };
   }
 
-  private notifyIfNeeded(n: NormalizedError, opts?: FirestoreErrorHandlerOptions): void {
-    if (opts?.silent === true) return;
-    // Mantém seu padrão showError(msg, details)
-    this.notifier.showError(n.userMessage, n.details);
+  private normalizeCode(code: string): string {
+    return code.replace(/^firestore\//, '');
   }
 
-  private logError(n: NormalizedError, raw: any, opts?: FirestoreErrorHandlerOptions): void {
-    /**
-     * O FirestoreErrorHandler pode notificar o usuário (notifier.showError).
-     * Em seguida, encaminhamos para o GlobalErrorHandler apenas para log/observabilidade,
-     * mas marcamos `skipUserNotification` para evitar duplicação de snackbar.
-     */
-    const e = new Error(n.userMessage);
+  /**
+   * Preserva a proteção de compatibilidade quando o mesmo erro relançado chega
+   * posteriormente ao ErrorHandler global. A UI já foi resolvida pelo pipeline
+   * canônico, portanto uma segunda notificação deve ser bloqueada.
+   */
+  private tagRawError(
+    raw: unknown,
+    normalized: NormalizedError,
+    opts?: FirestoreErrorHandlerOptions
+  ): void {
+    if (
+      (typeof raw !== 'object' || raw === null)
+      && typeof raw !== 'function'
+    ) {
+      return;
+    }
 
-    (e as any).code = n.code;
-    (e as any).details = n.details;
-    (e as any).original = raw;
+    try {
+      const target = raw as Record<string, unknown>;
 
-    // Contexto do ponto de falha (ex.: register-submit, presence-heartbeat, etc)
-    (e as any).context = opts?.context;
+      target['silent'] = opts?.silent === true;
+      target['skipUserNotification'] = true;
+      target['context'] = opts?.context;
+      target['feature'] = 'firestore';
+      target['consolePrefix'] = normalized.consolePrefix;
 
-    // “silent” significa: não notificar usuário em lugar nenhum
-    (e as any).silent = opts?.silent === true;
-
-    // Tag da feature para triagem
-    (e as any).feature = 'firestore';
-
-    // Prefixo útil no console (não vai para UI)
-    (e as any).consolePrefix = n.consolePrefix;
-
-    // ✅ Evita que o GlobalErrorHandler dispare snackbar novamente
-    (e as any).skipUserNotification = true;
-
-    this.globalErrorHandler.handleError(e);
-  }
-
-  private getErrorMessage(code: string): string {
-    switch (code) {
-      case 'permission-denied':
-        return 'Você não tem permissão para realizar esta ação. Verifique suas credenciais.';
-      case 'unavailable':
-        return 'O serviço do Firestore está temporariamente indisponível. Por favor, tente novamente mais tarde.';
-      case 'not-found':
-        return 'O documento solicitado não foi encontrado. Pode ter sido removido ou o ID está incorreto.';
-      case 'already-exists':
-        return 'O documento que você está tentando criar já existe. Por favor, use um nome diferente.';
-      case 'resource-exhausted':
-        return 'Limite de requisições ao Firestore excedido. Por favor, tente novamente mais tarde ou contate o suporte.';
-      case 'deadline-exceeded':
-        return 'A operação demorou muito para ser concluída. Verifique sua conexão com a internet e tente novamente.';
-      case 'aborted':
-        return 'A operação foi abortada. Isso pode ocorrer devido a conflitos de transação. Tente novamente.';
-      case 'cancelled':
-        return 'A operação foi cancelada. Isso pode acontecer se a requisição foi interrompida.';
-      case 'data-loss':
-        return 'Houve um problema de integridade de dados. Por favor, contate o suporte.';
-      case 'internal':
-        return 'Ocorreu um erro interno no servidor do Firestore. Por favor, tente novamente mais tarde.';
-      case 'invalid-argument':
-        return 'Um argumento inválido foi fornecido para a operação. Verifique os dados e tente novamente.';
-      case 'out-of-range':
-        return 'Um valor fornecido está fora do intervalo permitido.';
-      case 'unauthenticated':
-        return 'Você precisa estar autenticado para realizar esta ação.';
-      case 'unimplemented':
-        return 'Esta funcionalidade ainda não foi implementada.';
-      case 'unknown':
-        return 'Ocorreu um erro desconhecido no Firestore.';
-      default:
-        return 'Ocorreu um erro inesperado no Firestore. Por favor, tente novamente.';
+      if (!target['code'] && normalized.code) {
+        target['code'] = normalized.code;
+      }
+      if (!target['details'] && normalized.details) {
+        target['details'] = normalized.details;
+      }
+    } catch {
+      // Erros congelados/imutáveis continuam sendo tratados sem mutação.
     }
   }
-}// Linha 202 - Há métodos aqui no FirestoreErrorHandlerService que não sejam tão específicos?
-/*
-src/app/core/services/error-handler/global-error-handler.service.ts
-→ fallback “última linha” (erros não tratados)
-
-src/app/core/services/error-handler/error-notification.service.ts
-→ único ponto para notificar usuário (toast/snackbar/modal)
-
-src/app/core/services/error-handler/firestore-error-handler.service.ts
-→ padronizar erro do Firebase/Firestore (mapear codes, contextos)
-
-Regra prática: em qualquer service com Observable, faça catchError(err => this.firestoreErrorHandler.handle$(...) ) e deixe o notifier centralizar UX.
-*/
+}
