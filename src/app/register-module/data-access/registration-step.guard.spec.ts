@@ -35,6 +35,9 @@ describe('registrationStepGuard', () => {
     userResolved: true,
     userExists: true,
     termsAccepted: currentStep !== 'termsAcceptance',
+    ageEligibilityVerified:
+      currentStep !== 'ageVerification' &&
+      currentStep !== 'termsAcceptance',
     profileCompleted:
       currentStep === 'adultConsent' || currentStep === 'preferences',
     adultConsentAccepted: currentStep === 'preferences',
@@ -92,6 +95,19 @@ describe('registrationStepGuard', () => {
     expect(result).toBeInstanceOf(UrlTree);
     expect(router.serializeUrl(result as UrlTree)).toBe(
       '/register/aceitar-termos?redirectTo=%2Fdashboard%2Fprincipal'
+    );
+  });
+
+  it('deve redirecionar para verificação etária após os termos', async () => {
+    currentVm = makeVm('ageVerification', '/adulto/verificar-idade');
+
+    const result = await runGuard(
+      '/adulto/confirmar?redirectTo=%2Fdashboard%2Fprincipal'
+    );
+
+    expect(result).toBeInstanceOf(UrlTree);
+    expect(router.serializeUrl(result as UrlTree)).toBe(
+      '/adulto/verificar-idade?redirectTo=%2Fdashboard%2Fprincipal'
     );
   });
 
