@@ -142,6 +142,7 @@ function installBoundaryProbe(
       profileId: PROFILE_ID,
       profileCompleted: true,
       accountStatus: 'active',
+      interactionBlocked: false,
       acceptedTerms: {
         accepted: true,
         version: TERMS_ACCEPTANCE_VERSION,
@@ -151,6 +152,16 @@ function installBoundaryProbe(
         accepted: true,
         version: ADULT_CONSENT_VERSION,
       },
+    },
+    [`age_eligibility_records/${ACTOR_UID}`]: {
+      uid: ACTOR_UID,
+      status: 'VERIFIED_ADULT',
+      policyVersion: 1,
+      source: 'INITIAL_VERIFICATION',
+      method: 'EXTERNAL_PROVIDER',
+      caseId: 'capacity-age-1',
+      verifiedAtMs: now - 10_000,
+      expiresAtMs: null,
     },
     [`profile_kyc_records/${ACTOR_UID}`]: {
       uid: ACTOR_UID,
