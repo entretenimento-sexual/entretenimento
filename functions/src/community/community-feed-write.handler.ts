@@ -46,7 +46,7 @@ import {
   resolveCommunityFeedWriteLimit,
 } from './community-feed-write.policy';
 import { isCommunityMemberActivityEnabledStatus } from './community-lifecycle.policy';
-import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
+import { assertCommunityMembershipActorEligibleInTransaction } from './community-membership-eligibility.service';
 import {
   resolveCommunityNotificationMembershipCycleStartedAtMs,
 } from './community-notification-membership.policy';
@@ -430,7 +430,7 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
             return existing;
           }
 
-          assertCommunityMembershipActorEligible(
+          assertCommunityMembershipActorEligibleInTransaction(
             userSnapshot.exists ? userSnapshot.data() : null,
             actorUid
           );
