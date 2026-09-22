@@ -42,8 +42,6 @@ import {
 } from '@core/services/notifications/push-notification-device.service';
 
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
-import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 import { inRegistrationFlow as isRegFlow, type TerminateReason } from './auth.types';
 import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
 
@@ -70,8 +68,6 @@ export class LogoutService {
     private readonly appBlock: AuthAppBlockService,
     private readonly authSession: AuthSessionService,
     private readonly applicationError: ApplicationErrorService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService,
-    private readonly errorNotifier: ErrorNotificationService,
     private readonly envInjector: EnvironmentInjector,
     private readonly privacyDebug: PrivacyDebugLoggerService,
     private readonly cache: CacheService,
@@ -179,9 +175,18 @@ export class LogoutService {
     const url = this.router.url || '';
 
     if (!this.inRegistrationFlow(url)) {
-      this.errorNotifier.showError(
-        'Sua sessão foi encerrada. Faça login novamente.'
-      );
+      this.applicationError.report(new Error('Hard sign-out initiated'), {
+        feature: 'auth',
+        operation: 'hardSignOutToWelcome',
+        fallbackMessage:
+          'Sua sessão foi encerrada. Faça login novamente.',
+        presentation: { surface: 'snackbar', severity: 'error' },
+        metadata: {
+          scope: 'LogoutService',
+          reason,
+          expectedTermination: true,
+        },
+      });
     }
 
     let shared$: Observable<void>;
@@ -269,8 +274,9 @@ export class LogoutService {
           feature: 'auth',
           operation: 'logout',
           fallbackMessage: 'Não foi possível sair agora. Tente novamente.',
-          notification: 'error',
+          presentation: { surface: 'snackbar', severity: 'error' },
           metadata: {
+            scope: 'LogoutService',
             sessionRestored: true,
           },
         });
@@ -419,22 +425,27 @@ export class LogoutService {
   }
 
   private reportSilent(err: unknown, context: Record<string, unknown>): void {
-    try {
-      this.dbg('reportSilent()', {
-        context,
-        error: err,
-      });
+    this.dbg('reportSilent()', {
+      context,
+      error: err,
+    });
 
-      const error = new Error('[LogoutService] internal error');
-      (error as any).silent = true;
-      (error as any).skipUserNotification = true;
-      (error as any).original = err;
-      (error as any).context = context;
+    const phase =
+      typeof context['phase'] === 'string' && context['phase'].trim()
+        ? context['phase'].trim()
+        : 'internal';
 
-      this.globalErrorHandler.handleError(error);
-    } catch {
-      // noop
-    }
+    this.applicationError.report(err, {
+      feature: 'auth',
+      operation: phase,
+      fallbackMessage:
+        'Não foi possível concluir uma etapa interna do encerramento da sessão.',
+      presentation: { surface: 'none', severity: 'error' },
+      metadata: {
+        scope: 'LogoutService',
+        ...context,
+      },
+    });
   }
 
   private cleanupTimeoutFallback$(phase: string): Observable<void> {

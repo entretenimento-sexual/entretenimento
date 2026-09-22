@@ -122,14 +122,6 @@ function createHarness(options: HarnessOptions = {}) {
     report: vi.fn(),
   };
 
-  const globalErrorHandler = {
-    handleError: vi.fn(),
-  };
-
-  const errorNotifier = {
-    showError: vi.fn(),
-  };
-
   const privacyDebug = {
     log: vi.fn(),
   };
@@ -158,8 +150,6 @@ function createHarness(options: HarnessOptions = {}) {
     appBlock as any,
     authSession as any,
     applicationError as any,
-    globalErrorHandler as any,
-    errorNotifier as any,
     {} as any,
     privacyDebug as any,
     cache as any
@@ -191,8 +181,6 @@ function createHarness(options: HarnessOptions = {}) {
     appBlock,
     authSession,
     applicationError,
-    globalErrorHandler,
-    errorNotifier,
     executeSignOut,
   };
 }
@@ -297,10 +285,25 @@ describe('LogoutService global session lifecycle', () => {
     expect(pushNotifications.activate$).toHaveBeenCalledTimes(1);
     expect(currentUserStore.clear).not.toHaveBeenCalled();
     expect(applicationError.report).toHaveBeenCalledTimes(1);
+    expect(applicationError.report).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'signout unavailable',
+      }),
+      {
+        feature: 'auth',
+        operation: 'logout',
+        fallbackMessage: 'Não foi possível sair agora. Tente novamente.',
+        presentation: { surface: 'snackbar', severity: 'error' },
+        metadata: {
+          scope: 'LogoutService',
+          sessionRestored: true,
+        },
+      }
+    );
   });
 
   it('falha do Web Push é reportada silenciosamente e não bloqueia o logout', async () => {
-    const { service, calls, globalErrorHandler } = createHarness({
+    const { service, calls, applicationError } = createHarness({
       pushMode: 'error',
     });
 
@@ -309,7 +312,22 @@ describe('LogoutService global session lifecycle', () => {
     expect(calls).toContain('signout:strict');
     expect(calls).toContain('cache');
     expect(calls).toContain('navigate');
-    expect(globalErrorHandler.handleError).toHaveBeenCalledTimes(1);
+    expect(applicationError.report).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'push unavailable',
+      }),
+      {
+        feature: 'auth',
+        operation: 'deactivatePushBestEffort$',
+        fallbackMessage:
+          'Não foi possível concluir uma etapa interna do encerramento da sessão.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'LogoutService',
+          phase: 'deactivatePushBestEffort$',
+        },
+      }
+    );
   });
 
   it('Observable vazio do cleanup de Web Push não encerra a cadeia de logout', async () => {
@@ -324,7 +342,7 @@ describe('LogoutService global session lifecycle', () => {
   it('cleanups best-effort que nunca completam não prendem o logout', async () => {
     vi.useFakeTimers();
 
-    const { service, calls, globalErrorHandler } = createHarness({
+    const { service, calls, applicationError } = createHarness({
       presenceMode: 'never',
       pushMode: 'never',
       cacheMode: 'never',
@@ -345,11 +363,44 @@ describe('LogoutService global session lifecycle', () => {
       'navigate',
       'session:end',
     ]);
-    expect(globalErrorHandler.handleError).toHaveBeenCalledTimes(3);
+    expect(applicationError.report).toHaveBeenCalledTimes(3);
+    expect(applicationError.report).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        message: '[LogoutService] best-effort cleanup timeout',
+      }),
+      expect.objectContaining({
+        feature: 'auth',
+        operation: 'stopPresenceBestEffort$',
+        presentation: { surface: 'none', severity: 'error' },
+      })
+    );
+    expect(applicationError.report).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        message: '[LogoutService] best-effort cleanup timeout',
+      }),
+      expect.objectContaining({
+        feature: 'auth',
+        operation: 'deactivatePushBestEffort$',
+        presentation: { surface: 'none', severity: 'error' },
+      })
+    );
+    expect(applicationError.report).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        message: '[LogoutService] best-effort cleanup timeout',
+      }),
+      expect.objectContaining({
+        feature: 'auth',
+        operation: 'clearLocalSessionDataBestEffort$',
+        presentation: { surface: 'none', severity: 'error' },
+      })
+    );
   });
 
-  it('hard signout usa o mesmo lifecycle e remove Web Push antes do signOut best-effort', async () => {
-    const { service, calls, errorNotifier, authSession } = createHarness();
+  it('hard signout usa o mesmo lifecycle e centraliza o aviso de sessão encerrada', async () => {
+    const { service, calls, applicationError, authSession } = createHarness();
 
     await firstValueFrom(service.hardSignOutToWelcome$('auth-invalid'));
 
@@ -363,10 +414,33 @@ describe('LogoutService global session lifecycle', () => {
       'navigate',
       'session:end',
     ]);
-    expect(errorNotifier.showError).toHaveBeenCalledWith(
-      'Sua sessão foi encerrada. Faça login novamente.'
+    expect(applicationError.report).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Hard sign-out initiated',
+      }),
+      {
+        feature: 'auth',
+        operation: 'hardSignOutToWelcome',
+        fallbackMessage:
+          'Sua sessão foi encerrada. Faça login novamente.',
+        presentation: { surface: 'snackbar', severity: 'error' },
+        metadata: {
+          scope: 'LogoutService',
+          reason: 'auth-invalid',
+          expectedTermination: true,
+        },
+      }
     );
     expect(authSession.beginTermination).toHaveBeenCalledTimes(1);
     expect(authSession.endTermination).toHaveBeenCalledTimes(1);
+  });
+
+  it('não apresenta aviso de hard signout durante o fluxo de registro', async () => {
+    const { service, router, applicationError } = createHarness();
+    router.url = '/register/welcome';
+
+    await firstValueFrom(service.hardSignOutToWelcome$('auth-invalid'));
+
+    expect(applicationError.report).not.toHaveBeenCalled();
   });
 });
