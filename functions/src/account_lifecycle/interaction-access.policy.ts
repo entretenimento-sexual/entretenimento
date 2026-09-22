@@ -14,6 +14,10 @@ interface InteractionAccessUserDocument {
   accountStatus?: unknown;
   suspended?: unknown;
   interactionBlocked?: unknown;
+  moderationAutomationHold?: {
+    active?: unknown;
+    expiresAtMs?: unknown;
+  } | null;
   acceptedTerms?: unknown;
   adultConsent?: unknown;
   ageReverification?: {
@@ -61,11 +65,19 @@ export function assertInteractionAccessData(
     ageStatus === 'SUBMITTED' ||
     ageStatus === 'UNDER_REVIEW' ||
     ageStatus === 'EXPIRED';
+  const holdExpiresAtMs = Number(
+    user.moderationAutomationHold?.expiresAtMs ?? 0
+  );
+  const automationHoldActive =
+    user.moderationAutomationHold?.active === true &&
+    Number.isFinite(holdExpiresAtMs) &&
+    Date.now() < holdExpiresAtMs;
 
   if (
     accountStatus !== 'active' ||
     user.suspended === true ||
     user.interactionBlocked === true ||
+    automationHoldActive ||
     ageRestricted
   ) {
     throw new HttpsError(
@@ -76,7 +88,9 @@ export function assertInteractionAccessData(
       {
         reason: ageRestricted
           ? 'age_reverification_required'
-          : 'account_interaction_blocked',
+          : automationHoldActive
+            ? 'moderation_automation_hold'
+            : 'account_interaction_blocked',
       }
     );
   }
