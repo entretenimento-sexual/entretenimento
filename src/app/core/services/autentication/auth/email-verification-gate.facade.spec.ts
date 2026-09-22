@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { NavigationEnd, Router } from '@angular/router';
+import { Router } from '@angular/router';
 import { BehaviorSubject, Subject, firstValueFrom, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -198,20 +198,25 @@ describe('EmailVerificationGateFacade canonical errors', () => {
     expect(report).not.toHaveBeenCalled();
   });
 
-  it('preserva fallback interno se a própria camada canônica falhar', async () => {
+  it('preserva o fallback de rota se a própria camada canônica falhar', () => {
     report.mockImplementationOnce(() => {
       throw new Error('diagnostic unavailable');
     });
 
     const facade = TestBed.inject(EmailVerificationGateFacade);
-    const fallback = await firstValueFrom(
-      (facade as any).reportSilent(
-        new Error('route failed'),
-        'EmailVerificationGateFacade.test$'
-      ) ?? of(void 0)
+    const values: any[] = [];
+    const subscription = (facade as any).activeRouteMeta$.subscribe((value: any) =>
+      values.push(value)
     );
 
-    expect(fallback).toBeUndefined();
+    routerEvents$.error(new Error('route failed'));
+
+    expect(values.at(-1)).toEqual({
+      currentUrl: '/dashboard/principal',
+      requireVerified: false,
+    });
     expect(report).toHaveBeenCalledTimes(1);
+
+    subscription.unsubscribe();
   });
 });
