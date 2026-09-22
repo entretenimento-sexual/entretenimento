@@ -78,10 +78,12 @@ match /users/{userId}/photos/{photoId} {
   allow get, list: if isSelf(userId);
 
   allow create: if isSelf(userId)
+    && currentUserCanUseAdultSocialPlatform()
     && validPhotoPayload()
     && displayDateCreateAllowed();
 
   allow update: if isSelf(userId)
+    && currentUserCanUseAdultSocialPlatform()
     && validPhotoPayload()
     && displayDateUpdateAllowed();
 
@@ -99,7 +101,9 @@ match /users/{userId}/photos/{photoId} {
     }
 
     allow get, list: if isSelf(userId);
-    allow create: if isSelf(userId) && validCommentPayload();
+    allow create: if isSelf(userId)
+      && currentUserCanUseAdultSocialPlatform()
+      && validCommentPayload();
     allow update, delete: if false;
   }
 }
@@ -119,7 +123,9 @@ match /users/{userId}/imageStates/{stateId} {
   }
 
   allow get, list: if isSelf(userId);
-  allow create: if isSelf(userId) && validPayload();
+  allow create: if isSelf(userId)
+    && currentUserCanUseAdultSocialPlatform()
+    && validPayload();
   allow update, delete: if false;
 }
 // ===============================================================
