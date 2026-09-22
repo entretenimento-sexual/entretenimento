@@ -65,7 +65,9 @@ export class ChatWindowComponent {
 
           return this.chatService.sendMessage('chatId', newMessage, currentUser.uid).pipe(
             catchError((error) => {
-              this.errorNotifier.showError('Erro ao enviar mensagem.');
+              if (!this.isUiShownError(error)) {
+                this.errorNotifier.showError('Erro ao enviar mensagem.');
+              }
               console.log('Erro ao enviar mensagem:', error);
               return of(null);
             })
@@ -78,5 +80,13 @@ export class ChatWindowComponent {
         })
       )
       .subscribe();
+  }
+
+  private isUiShownError(error: unknown): boolean {
+    return (
+      error !== null
+      && typeof error === 'object'
+      && (error as { uiShown?: unknown }).uiShown === true
+    );
   }
 }
