@@ -19,7 +19,7 @@ import {
   isCommunityMembershipContextActive,
   normalizeCommunityMembershipContextIds,
 } from './community-membership-context.policy';
-import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
+import { assertCommunityMembershipActorEligibleForUid } from './community-membership-eligibility.service';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 
 interface CommunityMembershipContextPayload {
@@ -72,11 +72,7 @@ export const getCommunityMembershipContext =
         );
       }
 
-      const userSnapshot = await db.collection('users').doc(uid).get();
-      assertCommunityMembershipActorEligible(
-        userSnapshot.exists ? userSnapshot.data() : null,
-        uid
-      );
+      await assertCommunityMembershipActorEligibleForUid(uid);
 
       const membershipRefs = communityIds.map((communityId) =>
         db.collection('communities').doc(communityId).collection('members').doc(uid)
