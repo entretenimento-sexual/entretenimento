@@ -49,7 +49,7 @@ export interface AccountLifecycleState {
   statusUpdatedBy: string | AccountLifecycleSource;
 
   suspensionReason: string | null;
-  suspensionSource: 'self' | 'moderator' | null;
+  suspensionSource: 'self' | 'moderator' | 'automation' | null;
   suspensionEndsAt: number | null;
 
   deletionRequestedAt: number | null;
