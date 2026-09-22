@@ -34,7 +34,7 @@ import { IBGELocationService } from '../../../core/services/general/api/ibge-loc
 import { AuthSessionService } from '../../../core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from '../../../core/services/autentication/auth/current-user-store.service';
 
-import { GlobalErrorHandlerService } from '../../../core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '../../../core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from '../../../core/services/error-handler/error-notification.service';
 
 import { ValidGenders } from '../../../core/enums/valid-genders.enum';
@@ -78,7 +78,7 @@ export class InviteUserModalComponent implements OnInit {
     private readonly ibgeLocationService: IBGELocationService,
     private readonly inviteSearchService: InviteSearchService,
     private readonly regionFilter: RegionFilterService,
-    private readonly globalError: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly errorNotifier: ErrorNotificationService
   ) {}
 
@@ -364,21 +364,23 @@ export class InviteUserModalComponent implements OnInit {
       try {
         this.errorNotifier.showError(userMessage);
       } catch {
-        // O diagnóstico técnico abaixo permanece ativo.
+        // Diagnóstico técnico permanece independente da apresentação local.
       }
     }
 
     try {
-      const err = error instanceof Error ? error : new Error(userMessage);
-      (err as any).original = error;
-      (err as any).context = {
-        scope: 'InviteUserModalComponent',
-        ...(context ?? {}),
-      };
-      (err as any).skipUserNotification = true;
-      this.globalError.handleError(err);
+      this.applicationError.report(error, {
+        feature: 'room-invite-modal',
+        operation: String(context?.['op'] ?? 'reportError'),
+        fallbackMessage: userMessage,
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'InviteUserModalComponent',
+          contextKeys: Object.keys(context ?? {}).sort().slice(0, 12),
+        },
+      });
     } catch {
-      // Falha secundária não interrompe o modal.
+      // Falha secundária de diagnóstico não altera o fluxo público.
     }
   }
 }
