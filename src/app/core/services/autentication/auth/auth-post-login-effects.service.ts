@@ -27,7 +27,7 @@ import type { User } from 'firebase/auth';
 
 import { FirestoreUserWriteService } from '../../data-handling/firestore-user-write.service';
 import { GeolocationTrackingService } from '../../geolocation/geolocation-tracking.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
 
 @Injectable({ providedIn: 'root' })
@@ -36,7 +36,7 @@ export class AuthPostLoginEffectsService {
   constructor(
     private readonly userWrite: FirestoreUserWriteService,
     private readonly geoloc: GeolocationTrackingService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly privacyDebug: PrivacyDebugLoggerService,
   ) {}
 
@@ -102,15 +102,24 @@ private dbg(message: string, extra?: unknown): void {
     this.dbg('reportSilent()', context);
 
     try {
-      const error = new Error('[AuthPostLoginEffects] internal error');
-      (error as any).silent = true;
-      (error as any).skipUserNotification = true;
-      (error as any).original = err;
-      (error as any).context = context;
+      const phase =
+        typeof context['phase'] === 'string' && context['phase'].trim()
+          ? context['phase'].trim()
+          : 'internal';
 
-      this.globalErrorHandler.handleError(error);
+      this.applicationError.report(err, {
+        feature: 'auth-post-login-effects',
+        operation: phase,
+        fallbackMessage:
+          'Não foi possível concluir uma etapa interna após o login.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'AuthPostLoginEffectsService',
+          ...context,
+        },
+      });
     } catch {
-      // noop
+      // Diagnóstico secundário não interfere nos efeitos pós-login.
     }
   }
 } // fim do auth-post-login-effects.service.ts // Linha 109
