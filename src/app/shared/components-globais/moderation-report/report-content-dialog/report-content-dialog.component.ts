@@ -8,7 +8,7 @@
 // - não grava Firestore diretamente;
 // - retorna somente dados já normalizados para o botão/orquestrador;
 // - usa formulário reativo para validação simples e acessível;
-// - possível menoridade aparece somente em denúncia de perfil;
+// - possível perfil menor e possível conteúdo envolvendo menor são categorias distintas;
 // - mantém textos claros e sem expor termos técnicos ao usuário.
 // -----------------------------------------------------------------------------
 
@@ -81,6 +81,12 @@ const GENERAL_REPORT_REASONS: readonly ReportReasonOption[] = [
     value: 'sexual_boundary',
     label: 'Limite sexual violado',
     helper: 'Conteúdo ou abordagem sexual fora do consentimento ou das regras.',
+  },
+  {
+    value: 'minor_content_safety',
+    label: 'Possível menor em conteúdo',
+    helper:
+      'Use quando houver indício de criança ou adolescente em conteúdo sexual, íntimo, exploratório ou incompatível com a plataforma.',
   },
   {
     value: 'illegal_content',
