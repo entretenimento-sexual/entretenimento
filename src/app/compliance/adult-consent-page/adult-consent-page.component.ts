@@ -6,7 +6,7 @@ import { catchError, finalize, switchMap, take } from 'rxjs/operators';
 
 import { LogoutService } from 'src/app/core/services/autentication/auth/logout.service';
 import { AdultConsentService } from 'src/app/core/services/compliance/adult-consent.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 
 @Component({
@@ -24,7 +24,7 @@ export class AdultConsentPageComponent {
     private readonly router: Router,
     private readonly adultConsent: AdultConsentService,
     private readonly logout: LogoutService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly errorNotifier: ErrorNotificationService,
   ) {}
 
@@ -127,17 +127,18 @@ export class AdultConsentPageComponent {
     target: string
   ): void {
     try {
-      const reportable = new Error(
-        '[AdultConsentPageComponent] Falha ao avançar após registrar a confirmação de maioridade.'
-      );
-
-      (reportable as any).context = 'AdultConsentPageComponent.navigateAfterConsent';
-      (reportable as any).target = target;
-      (reportable as any).primaryError = primaryError;
-      (reportable as any).fallbackError = fallbackError;
-      (reportable as any).skipUserNotification = true;
-
-      this.globalErrorHandler.handleError(reportable);
+      this.applicationError.report(primaryError, {
+        feature: 'adult-consent',
+        operation: 'navigateAfterConsent',
+        fallbackMessage:
+          'Sua confirmação de maioridade foi registrada, mas não foi possível avançar.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'AdultConsentPageComponent',
+          targetPath: String(target ?? '').split('?')[0].split('#')[0],
+          fallbackNavigationFailed: fallbackError !== undefined && fallbackError !== null,
+        },
+      });
     } catch {
       // O diagnóstico não pode invalidar uma confirmação já persistida.
     }
