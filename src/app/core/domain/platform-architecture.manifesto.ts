@@ -14,10 +14,12 @@
 // reativo e Firebase concentra autoridade, sigilo, discrição e proteção contra
 // exposição indevida de identidade ou dados nas interações.
 //
-// Antes de produção, as prioridades são Locais e Salas, fotos e vídeos como
-// vitrine pessoal, geolocalização lógica e check-ins seguros, além de salas de
-// conversa ou murais vinculados a Locais. A arquitetura permanece preparada para
-// monetização, rotas Premium/VIP e gateways compatíveis com o mercado adulto.
+// As prioridades coletivas são Locais e Comunidades. Salas independentes são
+// legado congelado e permanecem apenas na superfície compatível /chat/rooms para
+// consulta histórica e encerramento seguro. Novas capacidades coletivas devem
+// nascer em Comunidades, sem social graph, membership ou monetização paralelos.
+// Fotos e vídeos, geolocalização lógica, check-ins seguros, monetização e rotas
+// Premium/VIP continuam como capacidades transversais da plataforma.
 // =============================================================================
 
 export const PLATFORM_ARCHITECTURE_MANIFESTO = Object.freeze({
@@ -49,11 +51,11 @@ export const PLATFORM_ARCHITECTURE_MANIFESTO = Object.freeze({
   }),
   priorities: Object.freeze([
     'venues',
-    'rooms',
+    'communities',
     'user-photo-video-showcase',
     'logical-geolocation',
     'safe-check-ins',
-    'venue-linked-rooms-and-walls',
+    'venue-community-associations',
     'adult-market-monetization',
   ] as const),
 });
