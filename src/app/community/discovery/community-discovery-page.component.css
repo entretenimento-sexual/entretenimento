@@ -106,6 +106,98 @@
   opacity: 0.74;
 }
 
+.community-discovery__mine-controls {
+  display: grid;
+  gap: 0.55rem;
+  min-width: 0;
+  margin: 0 0 0.9rem;
+  padding: 0.65rem;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--surface-border, #d5d5d5) 78%,
+    transparent
+  );
+  border-radius: 0.9rem;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #fff) 97%,
+    var(--primary-color, #d83768) 3%
+  );
+}
+
+.community-discovery__mine-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.community-discovery__mine-search > i {
+  position: absolute;
+  left: 0.78rem;
+  color: color-mix(in oklab, var(--text-color, #222) 54%, transparent);
+  font-size: 0.78rem;
+  pointer-events: none;
+}
+
+.community-discovery__mine-search input {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.55rem;
+  box-sizing: border-box;
+  padding: 0.52rem 0.8rem 0.52rem 2.15rem;
+  border: 1px solid var(--surface-border, #d5d5d5);
+  border-radius: 999px;
+  background: var(--surface-color, #fff);
+  color: var(--text-color, #222);
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.community-discovery__mine-search input:focus-visible {
+  outline: 2px solid var(--primary-color, #d83768);
+  outline-offset: 2px;
+}
+
+.community-discovery__mine-filter-strip {
+  display: flex;
+  gap: 0.4rem;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 0.05rem 0 0.15rem;
+  scrollbar-width: none;
+}
+
+.community-discovery__mine-filter-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.community-discovery__mine-results {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  min-height: 1.8rem;
+  color: color-mix(in oklab, var(--text-color, #222) 68%, transparent);
+  font-size: 0.74rem;
+}
+
+.community-discovery__mine-results button {
+  padding: 0.25rem 0.4rem;
+  border: 0;
+  background: transparent;
+  color: var(--primary-color, #d83768);
+  font: inherit;
+  font-weight: 720;
+  cursor: pointer;
+}
+
+.community-discovery__mine-results button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+  border-radius: 0.35rem;
+}
+
 .community-discovery__filters {
   min-width: 0;
   margin: 0 0 0.85rem;
@@ -220,18 +312,21 @@
   font-size: 1.2rem;
 }
 
-.community-discovery__state--mine-empty {
+.community-discovery__state--mine-empty,
+.community-discovery__state--mine-filter-empty {
   min-height: 8rem;
   place-content: start center;
   padding-top: 1.35rem;
 }
 
-.community-discovery__state--mine-empty strong {
+.community-discovery__state--mine-empty strong,
+.community-discovery__state--mine-filter-empty strong {
   font-size: 1rem;
   line-height: 1.3;
 }
 
-.community-discovery__state--mine-empty p {
+.community-discovery__state--mine-empty p,
+.community-discovery__state--mine-filter-empty p {
   max-width: 34rem;
   margin: -0.1rem 0 0.2rem;
   color: color-mix(in oklab, var(--text-color, #222) 72%, transparent);
@@ -925,12 +1020,12 @@
   }
 
   .community-card__actions {
-    justify-content: stretch;
+    justify-content: flex-end;
   }
 
   .community-card__notification-action {
-    width: 100%;
-    justify-content: flex-start;
+    width: auto;
+    justify-content: center;
   }
 
   .community-card-shell:has(.community-card__dismiss) .community-card__dismiss {
