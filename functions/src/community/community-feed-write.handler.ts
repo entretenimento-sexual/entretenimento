@@ -430,9 +430,10 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
             return existing;
           }
 
-          assertCommunityMembershipActorEligibleInTransaction(
-            userSnapshot.exists ? userSnapshot.data() : null,
-            actorUid
+          await assertCommunityMembershipActorEligibleInTransaction(
+            transaction,
+            actorUid,
+            userSnapshot.exists ? userSnapshot.data() : null
           );
 
           const community = communitySnapshot.data() ?? {};
