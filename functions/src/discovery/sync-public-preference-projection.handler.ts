@@ -56,12 +56,23 @@ export const syncPublicPreferenceProjection = onDocumentWritten(
           : null,
       });
 
-      if (
-        isPublicProfileProjectionBlocked(user) ||
-        !ageDecision.allowed
-      ) {
+      if (isPublicProfileProjectionBlocked(user)) {
         if (publicSnapshot.exists) {
           transaction.delete(publicRef);
+        }
+        return;
+      }
+
+      if (!ageDecision.allowed) {
+        if (
+          publicSnapshot.exists &&
+          publicSnapshot.data()?.['ageEligibilityVerifiedAdult'] !== false
+        ) {
+          transaction.set(
+            publicRef,
+            { ageEligibilityVerifiedAdult: false },
+            { merge: true }
+          );
         }
         return;
       }
@@ -78,13 +89,17 @@ export const syncPublicPreferenceProjection = onDocumentWritten(
       });
       const current = publicSnapshot.data() ?? {};
 
-      if (publicPreferenceProjectionMatches(current, expected)) {
+      if (
+        current['ageEligibilityVerifiedAdult'] === true &&
+        publicPreferenceProjectionMatches(current, expected)
+      ) {
         return;
       }
 
       transaction.set(
         publicRef,
         {
+          ageEligibilityVerifiedAdult: true,
           ...expected,
           publicPreferencesUpdatedAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
