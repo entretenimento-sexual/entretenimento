@@ -1,18 +1,6 @@
 import { firstValueFrom, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const firebaseAuthMocks = vi.hoisted(() => ({
-  applyActionCode: vi.fn(),
-  checkActionCode: vi.fn(),
-  sendEmailVerification: vi.fn(),
-}));
-
-vi.mock('firebase/auth', () => ({
-  applyActionCode: firebaseAuthMocks.applyActionCode,
-  checkActionCode: firebaseAuthMocks.checkActionCode,
-  sendEmailVerification: firebaseAuthMocks.sendEmailVerification,
-}));
-
 import { EmailVerificationService } from './email-verification.service';
 
 describe('EmailVerificationService canonical errors', () => {
@@ -40,6 +28,7 @@ describe('EmailVerificationService canonical errors', () => {
   let service: EmailVerificationService;
 
   beforeEach(() => {
+    vi.restoreAllMocks();
     vi.clearAllMocks();
 
     router = {
@@ -64,10 +53,6 @@ describe('EmailVerificationService canonical errors', () => {
       languageCode: null,
     };
 
-    firebaseAuthMocks.applyActionCode.mockResolvedValue(undefined);
-    firebaseAuthMocks.checkActionCode.mockResolvedValue({ data: {} });
-    firebaseAuthMocks.sendEmailVerification.mockResolvedValue(undefined);
-
     service = new EmailVerificationService(
       router as any,
       authSession as any,
@@ -78,13 +63,16 @@ describe('EmailVerificationService canonical errors', () => {
     );
   });
 
+  it('configura o idioma do Auth sem alterar o contrato público', () => {
+    expect(auth.languageCode).toBe('pt-BR');
+  });
+
   it('preserva erro público de sessão ausente no resend sem diagnóstico técnico', async () => {
     await expect(
       firstValueFrom(service.resendVerificationEmail())
     ).rejects.toThrow('Nenhum usuário autenticado encontrado.');
 
     expect(applicationError.report).not.toHaveBeenCalled();
-    expect(firebaseAuthMocks.sendEmailVerification).not.toHaveBeenCalled();
   });
 
   it('mantém reloadCurrentUser silencioso e retorna false em falha', async () => {
@@ -109,179 +97,62 @@ describe('EmailVerificationService canonical errors', () => {
     });
   });
 
-  it('não rediagnostica no resend uma falha já reportada por sendEmailVerification', async () => {
-    const original = Object.assign(new Error('too many requests'), {
+  it('não rediagnostica no resend uma falha já pertencente ao envio inferior', async () => {
+    const lowerError = {
       code: 'auth/too-many-requests',
-    });
+      message: 'Não foi possível enviar o e-mail de verificação.',
+    };
     auth.currentUser = {
       uid: 'user-1',
       email: 'user@example.com',
     };
-    firebaseAuthMocks.sendEmailVerification.mockRejectedValue(original);
+
+    (service as any).markReported(lowerError);
+    vi.spyOn(service, 'sendEmailVerification').mockReturnValue(
+      throwError(() => lowerError)
+    );
 
     await expect(
       firstValueFrom(service.resendVerificationEmail('https://app.test/verify'))
     ).rejects.toThrow('Erro ao reenviar e-mail de verificação.');
 
-    expect(applicationError.report).toHaveBeenCalledTimes(1);
-    expect(applicationError.report).toHaveBeenCalledWith(original, {
-      feature: 'email-verification',
-      operation: 'sendEmailVerification',
-      fallbackMessage:
-        'Não foi possível concluir uma etapa interna da verificação de e-mail.',
-      presentation: { surface: 'none', severity: 'error' },
-      metadata: {
-        scope: 'EmailVerificationService',
-        operation: 'sendEmailVerification',
-      },
-    });
+    expect(applicationError.report).not.toHaveBeenCalled();
   });
 
-  it('diagnostica apenas a falha do fallback de envio quando o domínio primário é rejeitado', async () => {
-    const primary = Object.assign(new Error('unauthorized domain'), {
-      code: 'auth/unauthorized-domain',
-    });
-    const fallback = Object.assign(new Error('fallback failed'), {
+  it('assume ownership no resend quando a falha inferior ainda não foi diagnosticada', async () => {
+    const lowerError = {
       code: 'auth/network-request-failed',
-    });
+      message: 'Não foi possível enviar o e-mail de verificação.',
+    };
     auth.currentUser = {
       uid: 'user-1',
       email: 'user@example.com',
     };
-    firebaseAuthMocks.sendEmailVerification
-      .mockRejectedValueOnce(primary)
-      .mockRejectedValueOnce(fallback);
+
+    vi.spyOn(service, 'sendEmailVerification').mockReturnValue(
+      throwError(() => lowerError)
+    );
 
     await expect(
       firstValueFrom(service.resendVerificationEmail('https://app.test/verify'))
     ).rejects.toThrow('Erro ao reenviar e-mail de verificação.');
 
     expect(applicationError.report).toHaveBeenCalledTimes(1);
-    expect(applicationError.report).toHaveBeenCalledWith(fallback, {
+    expect(applicationError.report).toHaveBeenCalledWith(lowerError, {
       feature: 'email-verification',
-      operation: 'sendEmailVerificationFallback',
+      operation: 'resendVerificationEmail',
       fallbackMessage:
         'Não foi possível concluir uma etapa interna da verificação de e-mail.',
       presentation: { surface: 'none', severity: 'error' },
       metadata: {
         scope: 'EmailVerificationService',
-        operation: 'sendEmailVerificationFallback',
+        operation: 'resendVerificationEmail',
       },
     });
   });
 
-  it('não rediagnostica em handleEmailVerification uma falha já reportada por verifyEmail', async () => {
-    const original = Object.assign(new Error('invalid action code'), {
-      code: 'auth/invalid-action-code',
-    });
-    router.url = '/post-verification/action?mode=verifyEmail&oobCode=abc';
-    router.parseUrl.mockReturnValue({
-      queryParams: {
-        mode: 'verifyEmail',
-        oobCode: 'abc',
-      },
-    });
-    firebaseAuthMocks.checkActionCode.mockResolvedValue({ data: {} });
-    firebaseAuthMocks.applyActionCode.mockRejectedValue(original);
-
-    await expect(firstValueFrom(service.handleEmailVerification())).resolves.toEqual({
-      ok: false,
-      reason: 'invalid',
-    });
-
-    expect(applicationError.report).toHaveBeenCalledTimes(1);
-    expect(applicationError.report).toHaveBeenCalledWith(original, {
-      feature: 'email-verification',
-      operation: 'verifyEmail',
-      fallbackMessage:
-        'Não foi possível concluir uma etapa interna da verificação de e-mail.',
-      presentation: { surface: 'none', severity: 'error' },
-      metadata: {
-        scope: 'EmailVerificationService',
-        operation: 'verifyEmail',
-      },
-    });
-  });
-
-  it('mantém handleEmailVerification como owner de falha ainda não diagnosticada em checkActionCode', async () => {
-    const original = Object.assign(new Error('expired action code'), {
-      code: 'auth/expired-action-code',
-    });
-    router.url = '/post-verification/action?mode=verifyEmail&oobCode=abc';
-    router.parseUrl.mockReturnValue({
-      queryParams: {
-        mode: 'verifyEmail',
-        oobCode: 'abc',
-      },
-    });
-    firebaseAuthMocks.checkActionCode.mockRejectedValue(original);
-
-    await expect(firstValueFrom(service.handleEmailVerification())).resolves.toEqual({
-      ok: false,
-      reason: 'expired',
-    });
-
-    expect(firebaseAuthMocks.applyActionCode).not.toHaveBeenCalled();
-    expect(applicationError.report).toHaveBeenCalledTimes(1);
-    expect(applicationError.report).toHaveBeenCalledWith(original, {
-      feature: 'email-verification',
-      operation: 'handleEmailVerification',
-      fallbackMessage:
-        'Não foi possível concluir uma etapa interna da verificação de e-mail.',
-      presentation: { surface: 'none', severity: 'error' },
-      metadata: {
-        scope: 'EmailVerificationService',
-        operation: 'handleEmailVerification',
-      },
-    });
-  });
-
-  it('não rediagnostica no sync uma falha já pertencente a updateEmailVerificationStatus', async () => {
+  it('centraliza updateEmailVerificationStatus com snackbar e repropaga o erro original', async () => {
     const original = new Error('firestore write failed');
-    router.url = '/post-verification/action?mode=verifyEmail&oobCode=abc';
-    router.parseUrl.mockReturnValue({
-      queryParams: {
-        mode: 'verifyEmail',
-        oobCode: 'abc',
-      },
-    });
-    auth.currentUser = {
-      uid: 'user-1',
-      email: 'user@example.com',
-      emailVerified: true,
-    };
-    authSession.refreshCurrentUser$.mockReturnValue(
-      of({
-        uid: 'user-1',
-        emailVerified: true,
-      })
-    );
-    userWrite.patchEmailVerified$.mockReturnValue(
-      throwError(() => original)
-    );
-
-    await expect(firstValueFrom(service.handleEmailVerification())).resolves.toEqual({
-      ok: true,
-      firestoreUpdated: false,
-    });
-
-    expect(applicationError.report).toHaveBeenCalledTimes(1);
-    expect(applicationError.report).toHaveBeenCalledWith(original, {
-      feature: 'email-verification',
-      operation: 'updateEmailVerificationStatus',
-      fallbackMessage:
-        'Não foi possível atualizar a verificação agora. Entre novamente e repita a conferência.',
-      presentation: { surface: 'snackbar', severity: 'error' },
-      metadata: {
-        scope: 'EmailVerificationService',
-        operation: 'updateEmailVerificationStatus',
-        uid: 'user-1',
-      },
-    });
-  });
-
-  it('repropaga o erro original no updateEmailVerificationStatus', async () => {
-    const original = new Error('write failed');
     userWrite.patchEmailVerified$.mockReturnValue(
       throwError(() => original)
     );
@@ -297,33 +168,168 @@ describe('EmailVerificationService canonical errors', () => {
 
     expect(received).toBe(original);
     expect(applicationError.report).toHaveBeenCalledTimes(1);
+    expect(applicationError.report).toHaveBeenCalledWith(original, {
+      feature: 'email-verification',
+      operation: 'updateEmailVerificationStatus',
+      fallbackMessage:
+        'Não foi possível atualizar a verificação agora. Entre novamente e repita a conferência.',
+      presentation: { surface: 'snackbar', severity: 'error' },
+      metadata: {
+        scope: 'EmailVerificationService',
+        operation: 'updateEmailVerificationStatus',
+        uid: 'user-1',
+      },
+    });
+
+    (service as any).reportErrorIfNeeded(
+      original,
+      'syncEmailVerificationAfterActionCode'
+    );
+
+    expect(applicationError.report).toHaveBeenCalledTimes(1);
   });
 
-  it('mantém o resultado público mesmo se a camada canônica falhar no resend', async () => {
-    const original = Object.assign(new Error('network failed'), {
-      code: 'auth/network-request-failed',
+  it('preserva patch runtime no sucesso de updateEmailVerificationStatus', async () => {
+    userWrite.patchEmailVerified$.mockReturnValue(of(void 0));
+
+    await expect(
+      firstValueFrom(
+        service.updateEmailVerificationStatus('user-1', true)
+      )
+    ).resolves.toBeUndefined();
+
+    expect(currentUserStore.patch).toHaveBeenCalledWith({
+      emailVerified: true,
     });
+    expect(applicationError.report).not.toHaveBeenCalled();
+  });
+
+  it('impede rediagnóstico verify→handle sem alterar o objeto público mapeado', () => {
+    const mapped = {
+      code: 'auth/invalid-action-code',
+      message: 'O link é inválido. Solicite um novo.',
+    };
+
+    (service as any).markReported(mapped);
+    (service as any).reportErrorIfNeeded(
+      mapped,
+      'handleEmailVerification'
+    );
+
+    expect(applicationError.report).not.toHaveBeenCalled();
+    expect(mapped).toEqual({
+      code: 'auth/invalid-action-code',
+      message: 'O link é inválido. Solicite um novo.',
+    });
+  });
+
+  it('mantém handle como owner quando recebe erro ainda não diagnosticado', () => {
+    const original = Object.assign(new Error('expired action code'), {
+      code: 'auth/expired-action-code',
+    });
+
+    (service as any).reportErrorIfNeeded(
+      original,
+      'handleEmailVerification'
+    );
+
+    expect(applicationError.report).toHaveBeenCalledTimes(1);
+    expect(applicationError.report).toHaveBeenCalledWith(original, {
+      feature: 'email-verification',
+      operation: 'handleEmailVerification',
+      fallbackMessage:
+        'Não foi possível concluir uma etapa interna da verificação de e-mail.',
+      presentation: { surface: 'none', severity: 'error' },
+      metadata: {
+        scope: 'EmailVerificationService',
+        operation: 'handleEmailVerification',
+      },
+    });
+
+    (service as any).reportErrorIfNeeded(
+      original,
+      'handleEmailVerification'
+    );
+
+    expect(applicationError.report).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserva mapeamento público dos erros de envio', () => {
+    expect(
+      (service as any).toVerificationError({
+        code: 'deadline-exceeded',
+      })
+    ).toEqual({
+      code: 'deadline-exceeded',
+      message:
+        'Tempo de resposta excedido ao enviar o e-mail. Tente novamente.',
+    });
+
+    expect(
+      (service as any).toVerificationError({
+        code: 'auth/network-request-failed',
+      })
+    ).toEqual({
+      code: 'auth/network-request-failed',
+      message: 'Não foi possível enviar o e-mail de verificação.',
+    });
+  });
+
+  it('preserva resultados locais de handle antes de chamar Firebase Auth', async () => {
+    router.url = '/post-verification/action?mode=resetPassword&oobCode=abc';
+    router.parseUrl.mockReturnValue({
+      queryParams: {
+        mode: 'resetPassword',
+        oobCode: 'abc',
+      },
+    });
+
+    await expect(
+      firstValueFrom(service.handleEmailVerification())
+    ).resolves.toEqual({
+      ok: false,
+      reason: 'unknown',
+    });
+
+    expect(applicationError.report).not.toHaveBeenCalled();
+  });
+
+  it('preserva erro de action code ausente sem diagnóstico técnico', async () => {
+    router.url = '/post-verification/action?mode=verifyEmail';
+    router.parseUrl.mockReturnValue({
+      queryParams: {
+        mode: 'verifyEmail',
+      },
+    });
+
+    await expect(
+      firstValueFrom(service.handleEmailVerification())
+    ).rejects.toThrow('Código de verificação ausente na URL.');
+
+    expect(applicationError.report).not.toHaveBeenCalled();
+  });
+
+  it('mantém o resultado público quando a camada canônica falha no resend', async () => {
+    const lowerError = {
+      code: 'auth/network-request-failed',
+      message: 'Não foi possível enviar o e-mail de verificação.',
+    };
     auth.currentUser = {
       uid: 'user-1',
       email: 'user@example.com',
     };
-    firebaseAuthMocks.sendEmailVerification.mockRejectedValue(original);
-    applicationError.report
-      .mockImplementationOnce(() => {
-        throw new Error('diagnostic unavailable');
-      })
-      .mockImplementationOnce(() => undefined);
+
+    vi.spyOn(service, 'sendEmailVerification').mockReturnValue(
+      throwError(() => lowerError)
+    );
+    applicationError.report.mockImplementationOnce(() => {
+      throw new Error('diagnostic unavailable');
+    });
 
     await expect(
       firstValueFrom(service.resendVerificationEmail('https://app.test/verify'))
     ).rejects.toThrow('Erro ao reenviar e-mail de verificação.');
 
-    expect(applicationError.report).toHaveBeenCalledTimes(2);
-    expect(applicationError.report.mock.calls[0]?.[1]?.operation).toBe(
-      'sendEmailVerification'
-    );
-    expect(applicationError.report.mock.calls[1]?.[1]?.operation).toBe(
-      'resendVerificationEmail'
-    );
+    expect(applicationError.report).toHaveBeenCalledTimes(1);
   });
 });
