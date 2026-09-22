@@ -30,20 +30,13 @@ match /rooms/{roomId}/participants/{userId} {
     return roomData().participants is list ? roomData().participants : [];
   }
 
-  function isRoomOwnerRequester() {
-    return currentUserCanUseAdultSocialPlatform()
-      && roomExists()
-      && roomData().createdBy == uid();
-  }
-
-  function isRoomParticipantRequester() {
-    return currentUserCanUseAdultSocialPlatform()
-      && roomExists()
-      && (uid() in roomParticipants());
-  }
-
   function canReadParticipantDocs() {
-    return isRoomParticipantRequester() || isRoomOwnerRequester();
+    return currentUserCanUseAdultSocialPlatform()
+      && roomExists()
+      && (
+        roomData().createdBy == uid()
+        || (uid() in roomParticipants())
+      );
   }
 
   allow get, list: if canReadParticipantDocs();
