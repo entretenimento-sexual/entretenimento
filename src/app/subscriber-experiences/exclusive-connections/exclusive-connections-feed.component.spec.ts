@@ -3,8 +3,7 @@ import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import {
   ExclusiveConnectionsFeedComponent,
   INITIAL_EXCLUSIVE_CONNECTIONS_FEED_STATE,
@@ -38,11 +37,8 @@ describe('ExclusiveConnectionsFeedComponent', () => {
   const repositoryMock = {
     getPage$: vi.fn(),
   };
-  const errorNotifierMock = {
-    showError: vi.fn(),
-  };
-  const globalErrorMock = {
-    handleError: vi.fn(),
+  const applicationErrorMock = {
+    report: vi.fn(),
   };
 
   beforeEach(() => {
@@ -53,8 +49,7 @@ describe('ExclusiveConnectionsFeedComponent', () => {
       providers: [
         provideRouter([]),
         { provide: ExclusiveConnectionsRepository, useValue: repositoryMock },
-        { provide: ErrorNotificationService, useValue: errorNotifierMock },
-        { provide: GlobalErrorHandlerService, useValue: globalErrorMock },
+        { provide: ApplicationErrorService, useValue: applicationErrorMock },
       ],
     });
   });
@@ -103,8 +98,15 @@ describe('ExclusiveConnectionsFeedComponent', () => {
     expect(fixture.nativeElement.textContent).toContain(
       'Não foi possível carregar.'
     );
-    expect(errorNotifierMock.showError).toHaveBeenCalledTimes(1);
-    expect(globalErrorMock.handleError).toHaveBeenCalledTimes(1);
+    expect(applicationErrorMock.report).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        feature: 'exclusive-connections',
+        operation: 'loadPage',
+        fallbackMessage: 'Não foi possível carregar as conexões agora.',
+        presentation: { surface: 'snackbar', severity: 'error' },
+      })
+    );
   });
 
   it('acumula páginas sem duplicar candidatos', () => {
