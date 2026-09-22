@@ -82,15 +82,26 @@ async function seedBase(visibility: 'PUBLIC' | 'FRIENDS' = 'FRIENDS') {
         uid: OWNER_UID,
         accountStatus: 'active',
       }),
+      setDoc(doc(db, 'age_eligibility_records', OWNER_UID), {
+        uid: OWNER_UID,
+        status: 'VERIFIED_ADULT',
+        policyVersion: 1,
+        source: 'AGE_REVERIFICATION',
+        method: 'MANUAL_REVIEW',
+        verifiedAt: new Date(Date.now() - 1_000),
+        expiresAt: null,
+      }),
       setDoc(doc(db, 'public_profiles', OWNER_UID), {
         uid: OWNER_UID,
         nickname: 'Owner',
+        ageEligibilityVerifiedAdult: true,
       }),
       setDoc(
         doc(db, 'public_profiles', OWNER_UID, 'public_photos', PHOTO_ID),
         {
           id: PHOTO_ID,
           ownerUid: OWNER_UID,
+          ageEligibilityVerifiedAdult: true,
           visibility,
           moderationStatus: 'APPROVED',
           publishedAt: 1,
@@ -120,6 +131,23 @@ async function seedBase(visibility: 'PUBLIC' | 'FRIENDS' = 'FRIENDS') {
         }
       ),
     ]);
+  });
+}
+
+async function setOwnerCanonicalAgeExpiry(expiresAt: Date | null) {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await setDoc(
+      doc(context.firestore(), 'age_eligibility_records', OWNER_UID),
+      {
+        uid: OWNER_UID,
+        status: 'VERIFIED_ADULT',
+        policyVersion: 1,
+        source: 'AGE_REVERIFICATION',
+        method: 'MANUAL_REVIEW',
+        verifiedAt: new Date(Date.now() - 10_000),
+        expiresAt,
+      }
+    );
   });
 }
 
@@ -217,6 +245,13 @@ describe('Firestore Rules / FRIENDS photo comments', () => {
     )));
 
     expect(comments.size).toBe(1);
+  });
+
+  it('expiração canônica do proprietário revoga comentários sem aguardar a projeção', async () => {
+    await setFriendEdges({ viewerToOwner: true, ownerToViewer: true });
+    await setOwnerCanonicalAgeExpiry(new Date(Date.now() - 1_000));
+
+    await assertFails(getDoc(commentRef(viewerDb())));
   });
 
   it('bloqueio em qualquer direção revoga leitura mesmo entre amigos', async () => {
