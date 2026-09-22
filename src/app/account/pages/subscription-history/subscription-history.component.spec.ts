@@ -64,7 +64,7 @@ describe('SubscriptionHistoryComponent', () => {
       feature: 'subscription-history',
       operation: 'loadHistory',
       fallbackMessage: 'Não foi possível carregar o histórico da assinatura.',
-      notification: 'none',
+      presentation: { surface: 'none', severity: 'error' },
       metadata: {
         scope: 'SubscriptionHistoryComponent',
       },
@@ -86,7 +86,6 @@ describe('SubscriptionHistoryComponent', () => {
       feature: 'subscription-history',
       operation: 'loadMoreHistory',
       fallbackMessage: 'Não foi possível carregar registros mais antigos.',
-      notification: 'error',
       metadata: {
         scope: 'SubscriptionHistoryComponent',
       },
