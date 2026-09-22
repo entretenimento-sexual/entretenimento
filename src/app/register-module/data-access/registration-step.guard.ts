@@ -15,8 +15,8 @@
 // - /register/recuperar-conta só é etapa de recuperação do documento privado;
 // - /register/aceitar-termos só é etapa de aceite explícito;
 // - /adulto/verificar-idade é a etapa de prova etária backend;
-/// - /adulto/confirmar é a etapa de consentimento adulto;
-/// - /register/finalizar-cadastro só é etapa de conclusão de perfil;
+// - /adulto/confirmar é a etapa de consentimento adulto;
+// - /register/finalizar-cadastro só é etapa de conclusão de perfil;
 // - se o usuário estiver em outro passo, o guard retorna UrlTree para vm.nextRoute.
 //
 // Não faz:
