@@ -37,7 +37,7 @@ import {
   type CommunityInviteResult,
 } from './community-invite.shared';
 import {
-  assertCommunityMembershipActorEligible,
+  assertCommunityMembershipActorEligibleInTransaction,
 } from './community-membership-eligibility.service';
 import {
   buildCommunityInviteResponseNotificationCopy,
@@ -215,9 +215,10 @@ async function respondCommunityInvite(
     }
 
     if (action === 'accept') {
-      assertCommunityMembershipActorEligible(
-        receiverUserSnapshot.exists ? receiverUserSnapshot.data() : null,
-        receiverId
+      await assertCommunityMembershipActorEligibleInTransaction(
+        transaction,
+        receiverId,
+        receiverUserSnapshot.exists ? receiverUserSnapshot.data() : null
       );
       await assertNoActiveBilateralBlockInTransaction(
         transaction,
