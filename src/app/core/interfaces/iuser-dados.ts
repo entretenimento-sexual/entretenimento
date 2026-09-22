@@ -15,6 +15,36 @@ export type PublicVisibility = 'visible' | 'hidden';
 
 export type LifecycleActorSource = 'self' | 'moderator' | 'system';
 
+export type AgeEligibilityStatus =
+  | 'UNVERIFIED'
+  | 'REVIEW_REQUIRED'
+  | 'VERIFIED_ADULT'
+  | 'DENIED_UNDERAGE'
+  | 'EXPIRED';
+
+export type AgeEligibilitySource =
+  | 'INITIAL_VERIFICATION'
+  | 'AGE_REVERIFICATION'
+  | 'PROFILE_KYC'
+  | 'MIGRATION';
+
+export type AgeEligibilityMethod =
+  | 'EXTERNAL_PROVIDER'
+  | 'MANUAL_REVIEW'
+  | 'KYC'
+  | 'MIGRATED_REVIEW';
+
+export interface IUserAgeEligibility {
+  status: AgeEligibilityStatus;
+  policyVersion: number;
+  source: AgeEligibilitySource;
+  method: AgeEligibilityMethod;
+  caseId?: string | null;
+  verifiedAtMs?: number | null;
+  expiresAtMs?: number | null;
+  updatedAtMs?: number | null;
+}
+
 export type AgeReverificationStatus =
   | 'NONE'
   | 'REQUIRED'
@@ -118,6 +148,12 @@ export interface IUserDados {
   // ---------------------------------------------------------------------------
   adultConsent?: IUserAdultConsent | null;
   acceptedTerms?: IUserTermsAcceptance | null;
+
+  /**
+   * Projeção sanitizada da autoridade etária backend-only.
+   * Nunca é fonte de autorização para Rules/Functions.
+   */
+  ageEligibility?: IUserAgeEligibility | null;
 
   /**
    * Apenas contas criadas no fluxo versionado recebem `true`.
