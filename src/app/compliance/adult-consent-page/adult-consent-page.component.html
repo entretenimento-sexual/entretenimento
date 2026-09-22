@@ -10,14 +10,14 @@
 
       <p class="adult-consent__kicker">Acesso adulto</p>
 
-      <h1 id="adult-consent-title">Confirme sua maioridade</h1>
+      <h1 id="adult-consent-title">Aceite o acesso à experiência adulta</h1>
 
       <p class="adult-consent__lead">
-        Uma etapa rápida para manter a plataforma restrita a adultos e preservar uma experiência mais segura.
+        Esta etapa registra seu aceite para acessar conteúdo e interações adultas. A maioridade é verificada separadamente pela plataforma.
       </p>
 
       <ul class="adult-consent__checks" aria-label="Condições para continuar">
-        <li>Você confirma ter 18 anos ou mais.</li>
+        <li>Sua maioridade já precisa estar confirmada pela plataforma.</li>
         <li>Você aceita acessar conteúdo e interações para adultos.</li>
         <li>Você entende que respeito, consentimento e privacidade são obrigatórios.</li>
       </ul>
@@ -29,7 +29,7 @@
           [disabled]="isSaving"
           (click)="accept()"
         >
-          {{ isSaving ? 'Salvando...' : 'Entrar na plataforma' }}
+          {{ isSaving ? 'Salvando...' : 'Aceitar e continuar' }}
         </button>
 
         <button
