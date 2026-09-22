@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { BehaviorSubject, Subject, firstValueFrom, of, throwError } from 'rxjs';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AccessControlService } from './access-control.service';
 import { AuthSessionService } from './auth-session.service';
@@ -105,6 +105,11 @@ describe('EmailVerificationGateFacade canonical errors', () => {
         },
       ],
     });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    TestBed.resetTestingModule();
   });
 
   it('mantém o banner derivado sem diagnóstico no caminho normal', async () => {
