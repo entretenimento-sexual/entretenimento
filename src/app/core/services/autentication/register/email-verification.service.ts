@@ -25,8 +25,7 @@ import { environment } from 'src/environments/environment';
 import { AuthSessionService } from '../auth/auth-session.service';
 import { CurrentUserStoreService } from '../auth/current-user-store.service';
 import { FirestoreUserWriteService } from '../../data-handling/firestore-user-write.service';
-import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
-import { ErrorNotificationService } from '../../error-handler/error-notification.service';
+import { ApplicationErrorService } from '../../error-handler/application-error.service';
 
 export type VerifyEmailReason =
   | 'expired'
@@ -44,14 +43,14 @@ export interface VerifyEmailResult {
 @Injectable({ providedIn: 'root' })
 export class EmailVerificationService {
   private readonly NET_TIMEOUT_MS = 12_000;
+  private readonly reportedErrors = new WeakSet<object>();
 
   constructor(
     private readonly router: Router,
     private readonly authSession: AuthSessionService,
     private readonly currentUserStore: CurrentUserStoreService,
     private readonly userWrite: FirestoreUserWriteService,
-    private readonly globalError: GlobalErrorHandlerService,
-    private readonly notify: ErrorNotificationService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly auth: Auth
   ) {
     try {
@@ -187,19 +186,29 @@ export class EmailVerificationService {
             timeout({ each: this.NET_TIMEOUT_MS }),
             map(() => void 0),
             catchError((fallbackError: unknown) => {
-              this.reportError(
+              const mapped = this.toVerificationError(fallbackError);
+              const reported = this.reportError(
                 fallbackError,
                 'sendEmailVerificationFallback'
               );
-              return throwError(() =>
-                this.toVerificationError(fallbackError)
-              );
+
+              if (reported) {
+                this.markReported(mapped);
+              }
+
+              return throwError(() => mapped);
             })
           );
         }
 
-        this.reportError(error, 'sendEmailVerification');
-        return throwError(() => this.toVerificationError(error));
+        const mapped = this.toVerificationError(error);
+        const reported = this.reportError(error, 'sendEmailVerification');
+
+        if (reported) {
+          this.markReported(mapped);
+        }
+
+        return throwError(() => mapped);
       })
     );
   }
@@ -216,11 +225,17 @@ export class EmailVerificationService {
       timeout({ each: this.NET_TIMEOUT_MS }),
       map(() => void 0),
       catchError((error: unknown) => {
-        this.reportError(error, 'verifyEmail');
-        return throwError(() => ({
+        const mapped = {
           code: this.errorCode(error),
           message: this.mapErrorCodeToMessage(this.errorCode(error)),
-        }));
+        };
+        const reported = this.reportError(error, 'verifyEmail');
+
+        if (reported) {
+          this.markReported(mapped);
+        }
+
+        return throwError(() => mapped);
       })
     );
   }
@@ -283,10 +298,11 @@ export class EmailVerificationService {
                 firestoreUpdated: true,
               } as VerifyEmailResult)),
               catchError((error: unknown) => {
-                this.reportError(
+                this.reportErrorIfNeeded(
                   error,
                   'syncEmailVerificationAfterActionCode'
                 );
+
                 return of<VerifyEmailResult>({
                   ok: true,
                   firestoreUpdated: false,
@@ -297,7 +313,7 @@ export class EmailVerificationService {
         );
       }),
       catchError((error: unknown) => {
-        this.reportError(error, 'handleEmailVerification');
+        this.reportErrorIfNeeded(error, 'handleEmailVerification');
         const code = this.errorCode(error);
         const reason: VerifyEmailReason =
           code === 'auth/expired-action-code'
@@ -322,12 +338,21 @@ export class EmailVerificationService {
         });
       }),
       catchError((error: unknown) => {
-        this.notify.showError(
-          'Não foi possível atualizar a verificação agora. Entre novamente e repita a conferência.'
+        const reported = this.reportError(
+          error,
+          'updateEmailVerificationStatus',
+          { uid },
+          {
+            fallbackMessage:
+              'Não foi possível atualizar a verificação agora. Entre novamente e repita a conferência.',
+            presentation: { surface: 'snackbar', severity: 'error' },
+          }
         );
-        this.reportError(error, 'updateEmailVerificationStatus', {
-          uid,
-        });
+
+        if (reported) {
+          this.markReported(error);
+        }
+
         return throwError(() => error);
       })
     );
@@ -358,7 +383,8 @@ export class EmailVerificationService {
         `E-mail reenviado para ${user.email}. Verifique sua caixa de entrada.`
       ),
       catchError((error: unknown) => {
-        this.reportError(error, 'resendVerificationEmail');
+        this.reportErrorIfNeeded(error, 'resendVerificationEmail');
+
         return throwError(
           () => new Error('Erro ao reenviar e-mail de verificação.')
         );
@@ -400,28 +426,66 @@ export class EmailVerificationService {
   private reportError(
     error: unknown,
     operation: string,
-    extra: Record<string, unknown> = {}
-  ): void {
+    extra: Record<string, unknown> = {},
+    options: {
+      fallbackMessage?: string;
+      presentation?:
+        | { surface: 'none'; severity: 'error' }
+        | { surface: 'snackbar'; severity: 'error' };
+    } = {}
+  ): boolean {
     try {
-      const normalized =
-        error instanceof Error
-          ? error
-          : new Error('[EmailVerificationService] operação falhou');
-      const contextual = normalized as Error & {
-        original?: unknown;
-        context?: unknown;
-        skipUserNotification?: boolean;
-      };
-      contextual.original = error;
-      contextual.context = {
-        scope: 'EmailVerificationService',
+      this.applicationError.report(error, {
+        feature: 'email-verification',
         operation,
-        ...extra,
-      };
-      contextual.skipUserNotification = true;
-      this.globalError.handleError(contextual);
+        fallbackMessage:
+          options.fallbackMessage ??
+          'Não foi possível concluir uma etapa interna da verificação de e-mail.',
+        presentation:
+          options.presentation ??
+          { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'EmailVerificationService',
+          operation,
+          ...extra,
+        },
+      });
+
+      return true;
     } catch {
       // Diagnóstico não interfere no fluxo de verificação.
+      return false;
     }
+  }
+
+  private reportErrorIfNeeded(
+    error: unknown,
+    operation: string,
+    extra: Record<string, unknown> = {}
+  ): void {
+    if (this.wasReported(error)) {
+      return;
+    }
+
+    if (this.reportError(error, operation, extra)) {
+      this.markReported(error);
+    }
+  }
+
+  private markReported(error: unknown): void {
+    if (
+      (typeof error === 'object' && error !== null) ||
+      typeof error === 'function'
+    ) {
+      this.reportedErrors.add(error as object);
+    }
+  }
+
+  private wasReported(error: unknown): boolean {
+    return (
+      ((typeof error === 'object' && error !== null) ||
+        typeof error === 'function') &&
+      this.reportedErrors.has(error as object)
+    );
   }
 }
