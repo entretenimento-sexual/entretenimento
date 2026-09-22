@@ -97,16 +97,18 @@ export class RegisterNavigationService {
       };
     }
 
-    if (!state.profileCompleted) {
+    if (!state.ageEligibilityVerified) {
       return {
         ...state,
         uid,
         email,
-        currentStep: 'profileCompletion',
-        nextRoute: '/register/finalizar-cadastro',
-        progress: 55,
+        currentStep: 'ageVerification',
+        nextRoute: '/adulto/verificar-idade',
+        progress: 50,
         canContinue: true,
-        primaryActionLabel: 'Completar perfil',
+        primaryActionLabel: 'Verificar maioridade',
+        blockingMessage:
+          'A plataforma exige confirmação backend de maioridade antes do acesso adulto.',
       };
     }
 
@@ -120,9 +122,22 @@ export class RegisterNavigationService {
         email,
         currentStep: 'adultConsent',
         nextRoute: '/adulto/confirmar',
-        progress: 75,
+        progress: 65,
         canContinue: true,
-        primaryActionLabel: 'Confirmar maioridade',
+        primaryActionLabel: 'Aceitar acesso adulto',
+      };
+    }
+
+    if (!state.profileCompleted) {
+      return {
+        ...state,
+        uid,
+        email,
+        currentStep: 'profileCompletion',
+        nextRoute: '/register/finalizar-cadastro',
+        progress: 80,
+        canContinue: true,
+        primaryActionLabel: 'Completar perfil',
       };
     }
 
