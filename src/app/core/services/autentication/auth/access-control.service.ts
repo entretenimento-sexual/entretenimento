@@ -52,8 +52,7 @@ import {
   type RuntimeAccountLifecycleStatus,
 } from './account-lifecycle.policy';
 
-import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
-import { ErrorNotificationService } from '../../error-handler/error-notification.service';
+import { ApplicationErrorService } from '../../error-handler/application-error.service';
 import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 import { PlatformSubscriptionAccessService } from '@core/services/subscriptions/platform-subscription-access.service';
 
@@ -85,8 +84,7 @@ export class AccessControlService {
   private readonly appBlock = inject(AuthAppBlockService);
   private readonly routeContext = inject(AuthRouteContextService);
 
-  private readonly globalError = inject(GlobalErrorHandlerService);
-  private readonly notify = inject(ErrorNotificationService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
 
   private _lastNotifyAt = 0;
@@ -135,23 +133,28 @@ export class AccessControlService {
     fallback: T
   ): (err: unknown) => Observable<T> {
     return (err: unknown) => {
-      const e =
-        err instanceof Error
-          ? err
-          : new Error(`AccessControlService stream error: ${context}`);
-
-      (e as any).silent = true;
-      (e as any).original = err;
-      (e as any).context = context;
-      (e as any).skipUserNotification = true;
-
-      this.globalError.handleError(e);
-
       const now = Date.now();
+      const shouldNotify = now - this._lastNotifyAt > 15_000;
 
-      if (now - this._lastNotifyAt > 15_000) {
+      if (shouldNotify) {
         this._lastNotifyAt = now;
-        this.notify.showError('Falha ao validar acesso. Tente novamente.');
+      }
+
+      try {
+        this.applicationError.report(err, {
+          feature: 'access-control',
+          operation: context,
+          fallbackMessage: 'Falha ao validar acesso. Tente novamente.',
+          presentation: shouldNotify
+            ? { surface: 'snackbar', severity: 'error' }
+            : { surface: 'none', severity: 'error' },
+          metadata: {
+            scope: 'AccessControlService',
+            context,
+          },
+        });
+      } catch {
+        // Diagnóstico secundário não impede o fallback fail-closed do stream.
       }
 
       return of(fallback);
