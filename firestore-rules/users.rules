@@ -176,6 +176,7 @@ match /users/{userId} {
       "initialAdultConsentRequired",
       "registrationCompletedAt",
       "profileCompleted",
+      "ageVerification",
       "ageReverification",
       "ageReverificationRestrictedAt",
 
@@ -271,6 +272,7 @@ match /users/{userId} {
       && !data.keys().hasAny([
         "profileId",
         "adultConsent",
+        "ageVerification",
         "ageReverification",
         "ageReverificationRestrictedAt"
       ])
