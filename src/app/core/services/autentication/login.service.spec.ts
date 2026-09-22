@@ -20,7 +20,7 @@ describe('LoginService', () => {
 
     authMock = { currentUser: null };
     deferPromise$ = vi.fn(
-      <T>(task: () => Promise<T>): Observable<T> => of(task() as T)
+      <T>(task: () => Promise<T>): Observable<T> => of(task() as unknown as T)
     );
 
     TestBed.configureTestingModule({
