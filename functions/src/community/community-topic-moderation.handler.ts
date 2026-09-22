@@ -90,9 +90,7 @@ function normalizeModerationState(
 
 function assertTransactionalModerator(
   rawCommunity: unknown,
-  rawMembership: unknown,
-  rawUser: unknown,
-  actorUid: string
+  rawMembership: unknown
 ): CommunityViewerRole {
   const community = (rawCommunity ?? {}) as Record<string, unknown>;
   const moderation = (community['moderation'] ?? {}) as Record<string, unknown>;
@@ -303,9 +301,7 @@ export const moderateCommunityTopic = onCall<CommunityTopicModerationRequest>(
 
       const actorRole = assertTransactionalModerator(
         communitySnapshot.data(),
-        membershipSnapshot.exists ? membershipSnapshot.data() : null,
-        userSnapshot.exists ? userSnapshot.data() : null,
-        actorUid
+        membershipSnapshot.exists ? membershipSnapshot.data() : null
       );
       const topic = topicSnapshot.data() ?? {};
       const currentStatus = normalizeTopicStatus(topic['status']);
