@@ -21,13 +21,13 @@ match /friends/{friendId} {
 
   function isParticipantData(data) {
     let parts = participantsFrom(data);
-    return signedIn() && (uid() in parts);
+    return currentUserCanUseAdultSocialPlatform() && (uid() in parts);
   }
 
   allow get: if signedIn() && isParticipantData(resource.data);
   allow list: if false;
 
-  allow create: if signedIn()
+  allow create: if currentUserCanUseAdultSocialPlatform()
     && hasField("participants")
     && request.resource.data.participants is list
     && request.resource.data.participants.size() == 2
