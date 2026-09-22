@@ -8,7 +8,7 @@ import {
   createLifecycleAudit,
   getNicknameIndexDocId,
 } from '../account_lifecycle/_shared';
-import { db, FieldValue } from '../firebaseApp';
+import { db, FieldValue, Timestamp } from '../firebaseApp';
 import {
   DEFAULT_MODERATION_AUTOMATION_THRESHOLDS,
   evaluateModerationAutomation,
@@ -152,6 +152,7 @@ async function applyTemporaryInteractionHold(input: {
           triggerReportId: input.reportId,
           appliedAtMs: input.nowMs,
           expiresAtMs,
+          expiresAt: Timestamp.fromMillis(expiresAtMs),
         },
         updatedAt: FieldValue.serverTimestamp(),
       },
@@ -245,6 +246,7 @@ async function applyConfirmedAutomaticSuspension(input: {
           triggerReportId: input.reportId,
           appliedAtMs: input.nowMs,
           expiresAtMs: null,
+          expiresAt: null,
         },
         updatedAt: FieldValue.serverTimestamp(),
       },
