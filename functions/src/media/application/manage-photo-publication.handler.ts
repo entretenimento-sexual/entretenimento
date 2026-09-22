@@ -371,6 +371,7 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
         id: photoId,
         ownerUid,
         mediaType: 'PHOTO',
+        ageEligibilityVerifiedAdult: true,
         assetAccess: 'SIGNED_URL',
         url: FieldValue.delete(),
         alt: privatePhoto.alt ?? privatePhoto.fileName ?? 'Foto do perfil',
