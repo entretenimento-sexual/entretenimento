@@ -90,6 +90,44 @@ service cloud.firestore {
         && status != "EXPIRED";
     }
 
+    // ===============================================================
+    // Elegibilidade etária canônica
+    // ===============================================================
+    // A projeção users/{uid}.ageEligibility existe apenas para UX.
+    // Autorização consulta exclusivamente o registro backend-only.
+    function canonicalAgeEligibilityPath(userId) {
+      return /databases/$(database)/documents/age_eligibility_records/$(userId);
+    }
+
+    function canonicalAgeEligibilityAllowsAdultAccess(userId) {
+      let eligibilityPath = canonicalAgeEligibilityPath(userId);
+      let eligibility = signedIn() && exists(eligibilityPath)
+        ? get(eligibilityPath).data
+        : null;
+      let verifiedAt = eligibility is map
+        ? mapFieldOrNull(eligibility, "verifiedAt")
+        : null;
+      let expiresAt = eligibility is map
+        ? mapFieldOrNull(eligibility, "expiresAt")
+        : null;
+
+      return eligibility is map
+        && eligibility.uid == userId
+        && eligibility.status == "VERIFIED_ADULT"
+        && eligibility.policyVersion == 1
+        && verifiedAt is timestamp
+        && verifiedAt <= request.time
+        && (
+          expiresAt == null
+          || (expiresAt is timestamp && request.time < expiresAt)
+        );
+    }
+
+    function currentUserHasVerifiedAdultAge() {
+      return signedIn()
+        && canonicalAgeEligibilityAllowsAdultAccess(uid());
+    }
+
     function canConsumeAdultPublicMedia() {
       let userPath = currentPrivateUserPath();
       let user = signedIn() && exists(userPath)
