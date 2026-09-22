@@ -6,6 +6,9 @@ import {
   safeRecordModerationOpenSignal,
 } from '../moderation/moderation-automation.service';
 import {
+  safeRecordModerationOpenSignal,
+} from '../moderation/moderation-automation.service';
+import {
   type AgeReverificationUserDocument,
   assertComplianceAuthenticatedUid,
   cleanComplianceId,
@@ -109,6 +112,15 @@ export const reportProfileMinorSafety = onCall<ReportProfileMinorSafetyRequest>(
         reason: 'minor_safety',
         updatedAt: timestamp,
       });
+    });
+
+    await safeRecordModerationOpenSignal({
+      reportId: reportRef.id,
+      targetUid,
+      reporterUid,
+      targetKey: `profile:${targetUid}`,
+      critical: true,
+      quarantined: false,
     });
 
     await safeRecordModerationOpenSignal({
