@@ -292,7 +292,7 @@ const routes: Routes = [
           import('./payments-core/payments-core.routes').then(
             (m) => m.PAYMENTS_CORE_ROUTES
           ),
-        canActivate: [authGuard, accountLifecycleGuard, ageEligibilityGuard, adultContentConsentGuard, ageReverificationGuard],
+        canActivate: [authGuard],
         data: {
           requireVerified: false,
         },
