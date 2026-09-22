@@ -158,7 +158,9 @@ export class DiscoveryPublicProfilesRepository {
     request: DiscoveryFeedRequest,
     cursor: DiscoveryFeedCursor | null
   ): QueryConstraint[] {
-    const constraints: QueryConstraint[] = [];
+    const constraints: QueryConstraint[] = [
+      where('ageEligibilityVerifiedAdult', '==', true),
+    ];
 
     if (request.mode === 'compatible') {
       constraints.push(where('compatibilityReady', '==', true));
