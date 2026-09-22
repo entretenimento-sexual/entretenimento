@@ -128,51 +128,7 @@ describe('PreferencesEditorFacade', () => {
       expect.any(Error),
       expect.objectContaining({
         feature: 'preferences',
-        operation: 'getEditorState
-  });
-
-  it('salva o perfil pelo writer atômico que também atualiza discovery', async () => {
-    userSubject.next(freeUser('owner'));
-
-    const profile = createEmptyPreferenceProfile('owner');
-    profile.hardRules.acceptedGenders = ['women'];
-    profile.hardRules.acceptsCouples = false;
-
-    await firstValueFrom(
-      facade.saveProfileOnly$('owner', profile).pipe(take(1))
-    );
-
-    expect(
-      profilePersistenceMock.saveProfileWithProjection$
-    ).toHaveBeenCalledTimes(1);
-    expect(
-      profilePersistenceMock.saveProfileWithProjection$
-    ).toHaveBeenCalledWith(
-      'owner',
-      expect.objectContaining({
-        userId: 'owner',
-        hardRules: expect.objectContaining({
-          acceptedGenders: ['women'],
-          acceptsCouples: false,
-        }),
-      })
-    );
-  });
-});
-
-function freeUser(uid: string): IUserDados {
-  return {
-    uid,
-    email: null,
-    photoURL: null,
-    role: 'free',
-    tier: 'free',
-    lastLogin: 0,
-    descricao: '',
-    isSubscriber: false,
-  };
-}
-,
+        operation: 'getEditorState$',
         fallbackMessage: 'Não foi possível carregar o editor de preferências.',
         metadata: {
           scope: 'PreferencesEditorFacade',
