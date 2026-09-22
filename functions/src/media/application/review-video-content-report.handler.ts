@@ -99,6 +99,7 @@ interface VideoRatingDocument {
 
 interface TransactionResult {
   ownerUid: string;
+  targetAuthorUid: string;
   videoId: string;
   targetType: VideoReportTargetType;
   contentAvailableAtReview: boolean;
@@ -274,12 +275,19 @@ export const reviewVideoContentReport = onCall<
         const report = reportSnap.data() as ModerationReportDocument;
         const targetType = cleanTargetType(report.targetType);
         const ownerUid = cleanId(report.targetOwnerUid);
+        const targetAuthorUid = cleanId(report.targetAuthorUid) || ownerUid;
         const videoId = cleanId(report.parentTargetId);
         const targetId = cleanId(report.targetId);
         const status = String(report.status ?? '').trim().toLowerCase();
         const reason = cleanReason(report.reason);
 
-        if (!targetType || !ownerUid || !videoId || !targetId) {
+        if (
+          !targetType ||
+          !ownerUid ||
+          !targetAuthorUid ||
+          !videoId ||
+          !targetId
+        ) {
           throw new HttpsError(
             'failed-precondition',
             'A denúncia não possui referências válidas.'
@@ -365,20 +373,39 @@ export const reviewVideoContentReport = onCall<
             throw new HttpsError('not-found', 'Vídeo denunciado não encontrado.');
           }
 
-          transaction.update(videoRef, {
-            ...scorePatch(video, event),
-            updatedAt: now,
-          });
+          let commentsCount = normalizeMediaCount(video.commentsCount);
+          let targetPatch: Record<string, unknown> = {};
 
           if (targetRef && targetSnap?.exists) {
+            const target = targetSnap.data() as VideoCommentDocument;
+
+            targetPatch = {
+              ...targetCounterPatch(target, event),
+            };
+
+            if (
+              targetType === 'video_comment' &&
+              report.contentQuarantined === true &&
+              target.status === 'HIDDEN'
+            ) {
+              targetPatch['status'] = 'VISIBLE';
+
+              if (!target.parentCommentId) {
+                commentsCount += 1;
+              }
+            }
+
             transaction.update(targetRef, {
-              ...targetCounterPatch(
-                targetSnap.data() as VideoCommentDocument,
-                event
-              ),
+              ...targetPatch,
               updatedAt: now,
             });
           }
+
+          transaction.update(videoRef, {
+            ...scorePatch(video, event, commentsCount),
+            commentsCount,
+            updatedAt: now,
+          });
         } else if (targetType === 'video') {
           if (video) {
             transaction.update(videoRef, {
@@ -506,6 +533,7 @@ export const reviewVideoContentReport = onCall<
 
         return {
           ownerUid,
+          targetAuthorUid,
           videoId,
           targetType,
           contentAvailableAtReview,
@@ -519,14 +547,12 @@ export const reviewVideoContentReport = onCall<
       }
     );
 
-    if (result.targetType === 'video') {
-      await safeRecordModerationReviewSignal({
-        reportId,
-        targetUid: result.ownerUid,
-        critical: result.reason === 'minor_content_safety',
-        confirmed: decision === 'REMOVE',
-      });
-    }
+    await safeRecordModerationReviewSignal({
+      reportId,
+      targetUid: result.targetAuthorUid,
+      critical: result.reason === 'minor_content_safety',
+      confirmed: decision === 'REMOVE',
+    });
 
     await safeNotifyModerationReportReviewed(reportId);
 
