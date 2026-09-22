@@ -160,6 +160,9 @@ export const requestCommunityMembership =
           .doc(communityId);
         const membershipRef = communityRef.collection('members').doc(uid);
         const userRef = db.collection('users').doc(uid);
+        const ageEligibilityRef = db
+          .collection('age_eligibility_records')
+          .doc(uid);
         const auditRef = db.collection('community_membership_audit').doc();
 
         const [
@@ -167,11 +170,13 @@ export const requestCommunityMembership =
           discoverySnapshot,
           membershipSnapshot,
           userSnapshot,
+          ageEligibilitySnapshot,
         ] = await Promise.all([
           transaction.get(communityRef),
           transaction.get(discoveryRef),
           transaction.get(membershipRef),
           transaction.get(userRef),
+          transaction.get(ageEligibilityRef),
         ]);
 
         if (!communitySnapshot.exists) {
@@ -180,7 +185,10 @@ export const requestCommunityMembership =
 
         assertCommunityMembershipActorEligible(
           userSnapshot.exists ? userSnapshot.data() : null,
-          uid
+          uid,
+          ageEligibilitySnapshot.exists
+            ? ageEligibilitySnapshot.data()
+            : null
         );
 
         const community = (communitySnapshot.data() ?? {}) as Record<
