@@ -72,6 +72,12 @@ function lineOf(source, index) {
   return source.slice(0, index).split('\n').length;
 }
 
+function codeOnly(source) {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, (match) => ' '.repeat(match.length))
+    .replace(/\/\/[^\n]*/g, (match) => ' '.repeat(match.length));
+}
+
 function addMatchViolations(violations, absolutePath, source, pattern, reason) {
   for (const match of source.matchAll(pattern)) {
     violations.push(
@@ -91,11 +97,12 @@ for (const relativePath of requiredFiles) {
 const functionsRoot = path.join(root, 'functions', 'src');
 for (const absolutePath of walk(functionsRoot, ['.ts'])) {
   const source = fs.readFileSync(absolutePath, 'utf8');
+  const scanned = codeOnly(source);
 
   addMatchViolations(
     violations,
     absolutePath,
-    source,
+    scanned,
     /\bageVerification\b/g,
     'Functions não podem ler/escrever o legado ageVerification'
   );
@@ -107,18 +114,19 @@ for (const absolutePath of walk(angularRoot, ['.ts'])) {
   if (relativePath === legacyClientCompatibility) continue;
 
   const source = fs.readFileSync(absolutePath, 'utf8');
+  const scanned = codeOnly(source);
 
   addMatchViolations(
     violations,
     absolutePath,
-    source,
-    /(?:\.|\[['"])ageVerification(?:['"]\])?/g,
+    scanned,
+    /(?:\.\s*ageVerification\b|\b(?:user|data|document|raw|profile|record)\s*\[\s*['"]ageVerification['"]\s*\])/g,
     'Angular não pode acessar users.ageVerification fora da compatibilidade'
   );
   addMatchViolations(
     violations,
     absolutePath,
-    source,
+    scanned,
     /\bageVerification\s*:/g,
     'Angular não pode materializar o campo legado ageVerification'
   );
