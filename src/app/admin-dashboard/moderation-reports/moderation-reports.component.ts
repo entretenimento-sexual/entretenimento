@@ -249,7 +249,9 @@ export class ModerationReportsComponent {
       case 'privacy':
         return 'Privacidade';
       case 'minor_safety':
-        return 'Segurança de menores';
+        return 'Possível perfil menor';
+      case 'minor_content_safety':
+        return 'Possível menor em conteúdo';
       case 'other':
         return 'Outro motivo';
       default:
@@ -488,6 +490,7 @@ export class ModerationReportsComponent {
       'illegal_content',
       'privacy',
       'minor_safety',
+      'minor_content_safety',
       'other',
     ].includes(reason) ? reason : null;
   }
