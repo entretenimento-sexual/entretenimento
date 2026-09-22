@@ -22,8 +22,7 @@ import {
 import { AccountPrivilegeHistoryRepository } from '../../application/account-privilege-history.repository';
 import { AccountPrivilegeHistoryItem } from '../../models/account-privilege-history.model';
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
-import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 
 interface PrivilegeHistoryState {
   status: 'loading' | 'ready' | 'error';
@@ -55,8 +54,7 @@ export class AccountPrivilegeHistoryComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly repository = inject(AccountPrivilegeHistoryRepository);
   private readonly currentUserStore = inject(CurrentUserStoreService);
-  private readonly notifier = inject(ErrorNotificationService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
 
   private readonly reload$ = new Subject<void>();
   private readonly loadMore$ = new Subject<void>();
@@ -197,32 +195,16 @@ export class AccountPrivilegeHistoryComponent {
     operation: string,
     notifyUser: boolean
   ): void {
-    if (notifyUser) {
-      try {
-        this.notifier.showError(
-          'Não foi possível carregar registros mais antigos.'
-        );
-      } catch {
-        // O diagnóstico central permanece ativo.
-      }
-    }
-
-    try {
-      const normalized = error instanceof Error ? error : new Error(String(error));
-      const contextual = normalized as Error & {
-        context?: unknown;
-        skipUserNotification?: boolean;
-      };
-      contextual.context = {
-        feature: 'account-privilege-history',
-        operation,
+    this.applicationError.report(error, {
+      feature: 'account-privilege-history',
+      operation,
+      fallbackMessage: notifyUser
+        ? 'Não foi possível carregar registros mais antigos.'
+        : 'Não foi possível carregar o histórico de privilégios.',
+      notification: notifyUser ? 'error' : 'none',
+      metadata: {
         scope: 'AccountPrivilegeHistoryComponent',
-        op: operation,
-      };
-      contextual.skipUserNotification = true;
-      this.globalError.handleError(contextual);
-    } catch {
-      // Observabilidade não pode quebrar o estado visual da página.
-    }
+      },
+    });
   }
 }
