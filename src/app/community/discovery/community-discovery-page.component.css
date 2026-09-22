@@ -925,12 +925,12 @@
   }
 
   .community-card__actions {
-    justify-content: stretch;
+    justify-content: flex-end;
   }
 
   .community-card__notification-action {
-    width: 100%;
-    justify-content: flex-start;
+    width: auto;
+    justify-content: center;
   }
 
   .community-card-shell:has(.community-card__dismiss) .community-card__dismiss {

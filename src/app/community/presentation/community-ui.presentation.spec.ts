@@ -40,17 +40,17 @@ describe('community UI presentation contract', () => {
   it('usa um único estado de atenção com prioridade sobre unread comum', () => {
     expect(resolveCommunityAttentionPresentation(2, true)).toEqual({
       key: 'priority',
-      label: 'Requer atenção',
+      label: 'Precisa de atenção',
       icon: 'fa-bolt',
     });
     expect(resolveCommunityAttentionPresentation(7, false)).toEqual({
       key: 'unread',
-      label: 'Novidades',
+      label: 'Novas atividades',
       icon: 'fa-bell',
     });
     expect(resolveCommunityAttentionPresentation(0, false)).toEqual({
       key: 'quiet',
-      label: 'Em dia',
+      label: 'Demais',
       icon: 'fa-check',
     });
   });

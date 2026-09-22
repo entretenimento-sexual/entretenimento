@@ -169,7 +169,7 @@ describe('CommunityDiscoveryPageComponent / escopo de atenção carregada', () =
       'community-mine-attention-scope'
     );
     expect(loadMore?.getAttribute('aria-busy')).toBe('false');
-    expect(headings).toEqual(['Em dia']);
+    expect(headings).toEqual(['Demais']);
     expect(getMyCommunitiesPage$).toHaveBeenCalledWith({
       limit: 12,
       cursor: null,
@@ -206,7 +206,7 @@ describe('CommunityDiscoveryPageComponent / escopo de atenção carregada', () =
         if (request.cursor === null) {
           return of({
             items: [
-              communityCard('community-quiet', 'Em dia'),
+              communityCard('community-quiet', 'Demais'),
               communityCard('community-unread', 'Com novidades'),
             ],
             nextCursor: 'cursor-2',
@@ -238,7 +238,7 @@ describe('CommunityDiscoveryPageComponent / escopo de atenção carregada', () =
       'button[aria-label="Ver mais comunidades"]'
     ) as HTMLButtonElement;
 
-    expect(initialHeadings).toEqual(['Novidades', 'Em dia']);
+    expect(initialHeadings).toEqual(['Novas atividades', 'Demais']);
 
     loadMore.focus();
     expect(document.activeElement).toBe(loadMore);
@@ -268,11 +268,11 @@ describe('CommunityDiscoveryPageComponent / escopo de atenção carregada', () =
     ) as HTMLButtonElement;
 
     expect(state.nextCursor).toBe('cursor-3');
-    expect(headings).toEqual(['Requer atenção', 'Novidades', 'Em dia']);
+    expect(headings).toEqual(['Precisa de atenção', 'Novas atividades', 'Demais']);
     expect(names).toEqual([
       'Prioritária',
       'Com novidades atualizada',
-      'Em dia',
+      'Demais',
     ]);
     expect(cards).toHaveLength(3);
     expect(nextLoadMore).toBe(loadMore);
