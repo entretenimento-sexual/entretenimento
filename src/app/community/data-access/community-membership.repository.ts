@@ -14,6 +14,7 @@ import {
   CommunityNotificationUnreadSummaryService,
 } from 'src/app/core/services/notifications/community-notification-unread-summary.service';
 import { CommunityDiscoveryCacheService } from '../discovery/community-discovery-cache.service';
+import { resolveCommunityMembershipReviewDiscoveryInvalidation } from '../discovery/community-discovery-cache-invalidation.policy';
 import { CommunityDiscoverySessionBehaviorService } from '../discovery/community-discovery-session-behavior.service';
 import {
   CommunityMembershipContextResponse,
@@ -191,10 +192,12 @@ export class CommunityMembershipRepository {
     memberId: string,
     action: CommunityMembershipReviewAction
   ): Observable<CommunityMembershipReviewResponse> {
+    const normalizedCommunityId = communityId.trim();
+
     return defer(() =>
       from(
         this.reviewMembershipCallable({
-          communityId: communityId.trim(),
+          communityId: normalizedCommunityId,
           memberId: memberId.trim(),
           action,
         })
@@ -211,10 +214,15 @@ export class CommunityMembershipRepository {
 
         return normalized;
       }),
-      tap(() => this.discoveryCache.invalidateCurrentViewer({
-        sourceType: 'community',
-        communityId,
-      }))
+      tap(() => {
+        const invalidation = resolveCommunityMembershipReviewDiscoveryInvalidation(
+          action,
+          normalizedCommunityId
+        );
+        if (invalidation) {
+          this.discoveryCache.invalidateCurrentViewer(invalidation);
+        }
+      })
     );
   }
 
