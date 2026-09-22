@@ -21,7 +21,7 @@ import { RouterModule, Routes } from '@angular/router';
 import { ChatModuleLayoutComponent } from './chat-module-layout/chat-module-layout.component';
 import { ChatRoomsComponent } from './chat-rooms/chat-rooms.component';
 
-const routes: Routes = [
+export const CHAT_ROUTES: Routes = [
   {
     path: '',
     component: ChatModuleLayoutComponent,
@@ -37,7 +37,7 @@ const routes: Routes = [
 ];
 
 @NgModule({
-  imports: [RouterModule.forChild(routes)],
+  imports: [RouterModule.forChild(CHAT_ROUTES)],
   exports: [RouterModule],
 })
 export class ChatModuleRoutingModule {}
