@@ -21,6 +21,9 @@
 import { createHash } from 'node:crypto';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
+import {
+  assertInteractionAccessData,
+} from '../../../account_lifecycle/interaction-access.policy';
 import { db, FieldValue } from '../../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../../config/functions-region';
 
@@ -188,6 +191,8 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
 
     const actorRef = db.collection('users').doc(actorUid);
     const targetRef = db.collection('users').doc(targetUid);
+    const actorAgeRef = db.collection('age_eligibility_records').doc(actorUid);
+    const targetAgeRef = db.collection('age_eligibility_records').doc(targetUid);
 
     const actorFriendRef = actorRef.collection('friends').doc(targetUid);
     const targetFriendRef = targetRef.collection('friends').doc(actorUid);
@@ -226,6 +231,8 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
         registrySnapshot,
         deterministicChatSnapshot,
         legacySnapshot,
+        actorAgeSnapshot,
+        targetAgeSnapshot,
       ] = await Promise.all([
         transaction.get(actorRef),
         transaction.get(targetRef),
@@ -234,6 +241,8 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
         transaction.get(registryRef),
         transaction.get(deterministicChatRef),
         transaction.get(legacyQuery),
+        transaction.get(actorAgeRef),
+        transaction.get(targetAgeRef),
       ]);
 
       const actor = actorSnapshot.data() as MessagingUserDoc | undefined;
@@ -248,6 +257,16 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
         operation: 'ensure-direct-chat',
         perspective: 'target',
       });
+      assertInteractionAccessData(
+        actor,
+        actorAgeSnapshot.exists ? actorAgeSnapshot.data() : null,
+        actorUid
+      );
+      assertInteractionAccessData(
+        target,
+        targetAgeSnapshot.exists ? targetAgeSnapshot.data() : null,
+        targetUid
+      );
 
       /**
        * CONSENTIMENTO BILATERAL OBRIGATÓRIO.
