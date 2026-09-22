@@ -1,12 +1,19 @@
 // src/app/messaging/direct-chat/application/direct-chat.facade.spec.ts
 import { DestroyRef } from '@angular/core';
-import { BehaviorSubject, Observable, of, Subject } from 'rxjs';
-import { describe, expect, it } from 'vitest';
+import {
+  BehaviorSubject,
+  firstValueFrom,
+  Observable,
+  of,
+  Subject,
+  throwError,
+} from 'rxjs';
+import { describe, expect, it, vi } from 'vitest';
 
 import { IChat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { FirestoreUserQueryService } from '@core/services/data-handling/firestore-user-query.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { DirectChatService } from '../services/direct-chat.service';
 import { DirectChatFacade } from './direct-chat.facade';
 
@@ -29,10 +36,23 @@ function buildDestroyRef(): DestroyRef {
   } as unknown as DestroyRef;
 }
 
-function buildGlobalErrorHandler(): GlobalErrorHandlerService {
+function buildApplicationError() {
+  const report = vi.fn();
+
   return {
-    handleError: () => undefined,
-  } as unknown as GlobalErrorHandlerService;
+    report,
+    service: {
+      report,
+    } as unknown as ApplicationErrorService,
+  };
+}
+
+function buildAuthSession(
+  uidSubject: BehaviorSubject<string | null>
+): AuthSessionService {
+  return {
+    uid$: uidSubject.asObservable(),
+  } as unknown as AuthSessionService;
 }
 
 describe('DirectChatFacade session isolation', () => {
@@ -54,19 +74,17 @@ describe('DirectChatFacade session isolation', () => {
       ensureDirectChatIdWithUser$: () => of(null),
     } as unknown as DirectChatService;
 
-    const authSession = {
-      uid$: uidSubject.asObservable(),
-    } as unknown as AuthSessionService;
-
     const firestoreUserQuery = {
       getUsersPublicMap$: () => of({}),
     } as unknown as FirestoreUserQueryService;
 
+    const applicationError = buildApplicationError();
+
     const facade = new DirectChatFacade(
       directChatService,
-      authSession,
+      buildAuthSession(uidSubject),
       firestoreUserQuery,
-      buildGlobalErrorHandler(),
+      applicationError.service,
       buildDestroyRef()
     );
 
@@ -119,6 +137,7 @@ describe('DirectChatFacade session isolation', () => {
     ]);
 
     expect(last(selectedEmissions)).toBeNull();
+    expect(applicationError.report).not.toHaveBeenCalled();
 
     chatsSubscription.unsubscribe();
     selectedSubscription.unsubscribe();
@@ -135,10 +154,6 @@ describe('DirectChatFacade session isolation', () => {
       getMyDirectChats$: () => chats.asObservable(),
       ensureDirectChatIdWithUser$: () => of(null),
     } as unknown as DirectChatService;
-
-    const authSession = {
-      uid$: uidSubject.asObservable(),
-    } as unknown as AuthSessionService;
 
     const firestoreUserQuery = {
       getUsersPublicMap$: () => of({
@@ -166,11 +181,13 @@ describe('DirectChatFacade session isolation', () => {
       }),
     } as unknown as FirestoreUserQueryService;
 
+    const applicationError = buildApplicationError();
+
     const facade = new DirectChatFacade(
       directChatService,
-      authSession,
+      buildAuthSession(uidSubject),
       firestoreUserQuery,
-      buildGlobalErrorHandler(),
+      applicationError.service,
       buildDestroyRef()
     );
 
@@ -213,7 +230,179 @@ describe('DirectChatFacade session isolation', () => {
     expect(item?.otherParticipantPhotoURL).toBe('https://example.com/casal.webp');
     expect('cpf' in (item?.otherParticipantIdentity ?? {})).toBe(false);
     expect('cpf' in (item?.otherParticipantPreview ?? {})).toBe(false);
+    expect(applicationError.report).not.toHaveBeenCalled();
 
     subscription.unsubscribe();
+  });
+});
+
+describe('DirectChatFacade canonical errors', () => {
+  it('mantém falha do listener silenciosa e devolve lista vazia', async () => {
+    const uidSubject = new BehaviorSubject<string | null>('user-a');
+    const error = new Error('listener failed');
+    const applicationError = buildApplicationError();
+
+    const directChatService = {
+      getMyDirectChats$: () => throwError(() => error),
+      ensureDirectChatIdWithUser$: () => of(null),
+    } as unknown as DirectChatService;
+
+    const firestoreUserQuery = {
+      getUsersPublicMap$: () => of({}),
+    } as unknown as FirestoreUserQueryService;
+
+    const facade = new DirectChatFacade(
+      directChatService,
+      buildAuthSession(uidSubject),
+      firestoreUserQuery,
+      applicationError.service,
+      buildDestroyRef()
+    );
+
+    const emissions: IChat[][] = [];
+    const subscription = facade.chats$.subscribe((items) => {
+      emissions.push(items);
+    });
+
+    expect(last(emissions)).toEqual([]);
+    expect(applicationError.report).toHaveBeenCalledTimes(1);
+    expect(applicationError.report).toHaveBeenCalledWith(error, {
+      feature: 'direct-chat',
+      operation: 'DirectChatFacade.sessionChats$',
+      fallbackMessage:
+        'Não foi possível concluir uma operação interna do chat direto.',
+      presentation: { surface: 'none', severity: 'error' },
+      metadata: {
+        scope: 'DirectChatFacade',
+        context: 'DirectChatFacade.sessionChats$',
+      },
+    });
+
+    subscription.unsubscribe();
+  });
+
+  it('mantém itens básicos quando o enriquecimento público falha', () => {
+    const uidSubject = new BehaviorSubject<string | null>('user-a');
+    const error = new Error('public profile unavailable');
+    const applicationError = buildApplicationError();
+
+    const directChatService = {
+      getMyDirectChats$: () =>
+        of([buildChat('chat-1', ['user-a', 'peer-b'])]),
+      ensureDirectChatIdWithUser$: () => of(null),
+    } as unknown as DirectChatService;
+
+    const firestoreUserQuery = {
+      getUsersPublicMap$: () => throwError(() => error),
+    } as unknown as FirestoreUserQueryService;
+
+    const facade = new DirectChatFacade(
+      directChatService,
+      buildAuthSession(uidSubject),
+      firestoreUserQuery,
+      applicationError.service,
+      buildDestroyRef()
+    );
+
+    const emissions: any[][] = [];
+    const subscription = facade.items$.subscribe((items) => {
+      emissions.push(items);
+    });
+
+    const item = last(emissions)?.[0];
+    expect(item?.id).toBe('chat-1');
+    expect(item?.otherParticipantUid).toBe('peer-b');
+    expect(item?.otherParticipantIdentity).toBeNull();
+    expect(item?.otherParticipantPreview).toBeNull();
+
+    expect(applicationError.report).toHaveBeenCalledTimes(1);
+    expect(applicationError.report).toHaveBeenCalledWith(error, {
+      feature: 'direct-chat',
+      operation: 'DirectChatFacade.enrichListItemsWithPublicProfiles$',
+      fallbackMessage:
+        'Não foi possível concluir uma operação interna do chat direto.',
+      presentation: { surface: 'none', severity: 'error' },
+      metadata: {
+        scope: 'DirectChatFacade',
+        context: 'DirectChatFacade.enrichListItemsWithPublicProfiles$',
+      },
+    });
+
+    subscription.unsubscribe();
+  });
+
+  it('mantém openChatWithUser$ fail-safe e silencioso', async () => {
+    const uidSubject = new BehaviorSubject<string | null>('user-a');
+    const error = new Error('ensure failed');
+    const applicationError = buildApplicationError();
+
+    const directChatService = {
+      getMyDirectChats$: () => of([] as IChat[]),
+      ensureDirectChatIdWithUser$: () => throwError(() => error),
+    } as unknown as DirectChatService;
+
+    const firestoreUserQuery = {
+      getUsersPublicMap$: () => of({}),
+    } as unknown as FirestoreUserQueryService;
+
+    const facade = new DirectChatFacade(
+      directChatService,
+      buildAuthSession(uidSubject),
+      firestoreUserQuery,
+      applicationError.service,
+      buildDestroyRef()
+    );
+
+    await expect(
+      firstValueFrom(facade.openChatWithUser$('peer-b'))
+    ).resolves.toBeNull();
+
+    expect(applicationError.report).toHaveBeenCalledTimes(1);
+    expect(applicationError.report).toHaveBeenCalledWith(error, {
+      feature: 'direct-chat',
+      operation: 'DirectChatFacade.openChatWithUser$',
+      fallbackMessage:
+        'Não foi possível concluir uma operação interna do chat direto.',
+      presentation: { surface: 'none', severity: 'error' },
+      metadata: {
+        scope: 'DirectChatFacade',
+        context: 'DirectChatFacade.openChatWithUser$',
+      },
+    });
+  });
+
+  it('não quebra fallback se a própria camada de diagnóstico falhar', () => {
+    const uidSubject = new BehaviorSubject<string | null>('user-a');
+    const applicationError = buildApplicationError();
+    applicationError.report.mockImplementation(() => {
+      throw new Error('diagnostic unavailable');
+    });
+
+    const directChatService = {
+      getMyDirectChats$: () => throwError(() => new Error('listener failed')),
+      ensureDirectChatIdWithUser$: () => of(null),
+    } as unknown as DirectChatService;
+
+    const firestoreUserQuery = {
+      getUsersPublicMap$: () => of({}),
+    } as unknown as FirestoreUserQueryService;
+
+    const facade = new DirectChatFacade(
+      directChatService,
+      buildAuthSession(uidSubject),
+      firestoreUserQuery,
+      applicationError.service,
+      buildDestroyRef()
+    );
+
+    const emissions: IChat[][] = [];
+    expect(() => {
+      const subscription = facade.chats$.subscribe((items) => {
+        emissions.push(items);
+      });
+      subscription.unsubscribe();
+    }).not.toThrow();
+
+    expect(last(emissions)).toEqual([]);
   });
 });
