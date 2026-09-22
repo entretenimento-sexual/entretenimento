@@ -4,6 +4,7 @@ import { Functions, httpsCallable } from '@angular/fire/functions';
 import { defer, from, map, Observable, tap } from 'rxjs';
 
 import { CommunityDiscoveryCacheService } from '../discovery/community-discovery-cache.service';
+import { resolveCommunityMemberManagementDiscoveryInvalidation } from '../discovery/community-discovery-cache-invalidation.policy';
 import {
   CommunityAssignableMemberRole,
   CommunityManagedMembersPage,
@@ -88,11 +89,12 @@ export class CommunityMemberManagementRepository {
         return normalized;
       }),
       tap(() => {
-        if (action === 'remove' || action === 'block') {
-          this.discoveryCache.invalidateCurrentViewer({
-            sourceType: 'community',
-            communityId: normalizedCommunityId,
-          });
+        const invalidation = resolveCommunityMemberManagementDiscoveryInvalidation(
+          action,
+          normalizedCommunityId
+        );
+        if (invalidation) {
+          this.discoveryCache.invalidateCurrentViewer(invalidation);
         }
       })
     );
