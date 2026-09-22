@@ -146,6 +146,7 @@ for (const absolutePath of walk(rulesRoot, ['.rules'])) {
 
 const legacyDerivedProjectionPaths = Object.freeze([
   'functions/src/discovery/sync-public-profile-discovery.handler.ts',
+  'functions/src/discovery/backfill-public-profile-discovery.handler.ts',
   'functions/src/discovery/user-intent-status.handler.ts',
   'functions/src/community/community-social-access.service.ts',
 ]);
