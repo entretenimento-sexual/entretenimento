@@ -43,7 +43,7 @@ import {
   type SubmitCommunityOfficialClaimIntentCommand,
 } from './community-official-claim.model';
 import {
-  assertCommunityMembershipActorEligible,
+  assertCommunityMembershipActorEligibleInTransaction,
 } from './community-membership-eligibility.service';
 import {
   assertCommunitySocialAccessForUid,
@@ -192,9 +192,10 @@ export const createOfficialCommunity = onCall<CreateOfficialCommunityRequest>(
         };
       }
 
-      assertCommunityMembershipActorEligible(
-        userSnapshot.exists ? userSnapshot.data() : null,
-        actorUid
+      await assertCommunityMembershipActorEligibleInTransaction(
+        transaction,
+        actorUid,
+        userSnapshot.exists ? userSnapshot.data() : null
       );
 
       if (communitySnapshot.exists) {
