@@ -23,7 +23,7 @@
     // uso de helpers globais
     // =========================================================================
     match /friendRequests/{reqId} {
-      allow read: if signedIn() &&
+      allow read: if currentUserCanUseAdultSocialPlatform() &&
         (resource.data.requesterUid == uid() ||
          resource.data.targetUid == uid());
 
