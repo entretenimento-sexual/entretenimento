@@ -26,11 +26,37 @@ import {
 import { Observable, defer, throwError } from 'rxjs';
 import { catchError, map, switchMap, timeout } from 'rxjs/operators';
 
-import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import type { AccountReauthenticationMode } from '../models/account-lifecycle.model';
 
 const REAUTHENTICATION_TIMEOUT_MS = 30_000;
+
+const REAUTHENTICATION_CODE_MESSAGES: Readonly<Record<string, string>> =
+  Object.freeze({
+    'auth/wrong-password': 'A senha informada não confere.',
+    'auth/invalid-credential': 'A senha informada não confere.',
+    'auth/invalid-login-credentials': 'A senha informada não confere.',
+    'validation/password-required':
+      'Informe sua senha atual para confirmar esta ação.',
+    'auth/email-unavailable':
+      'Não foi possível localizar o e-mail desta conta para confirmar a identidade.',
+    'auth/user-mismatch':
+      'Confirme com a mesma conta Google vinculada ao seu perfil.',
+    'auth/popup-closed-by-user':
+      'A confirmação com Google foi cancelada.',
+    'auth/cancelled-popup-request':
+      'A confirmação com Google foi cancelada.',
+    'auth/popup-blocked':
+      'O navegador bloqueou a confirmação com Google. Libere pop-ups e tente novamente.',
+    'auth/too-many-requests':
+      'Muitas tentativas. Aguarde alguns minutos antes de tentar novamente.',
+    'auth/network-request-failed':
+      'Falha de conexão durante a confirmação. Verifique sua internet e tente novamente.',
+    'auth/unauthenticated':
+      'Sua sessão terminou. Entre novamente para continuar.',
+    'auth/reauthentication-provider-unsupported':
+      'O provedor desta conta ainda não possui confirmação segura nesta versão.',
+  });
 
 export function resolveAccountReauthenticationMode(
   providerIds: readonly string[]
@@ -48,8 +74,7 @@ export function resolveAccountReauthenticationMode(
 export class AccountReauthenticationService {
   private readonly auth = inject(Auth);
   private readonly envInjector = inject(EnvironmentInjector);
-  private readonly globalError = inject(GlobalErrorHandlerService);
-  private readonly notify = inject(ErrorNotificationService);
+  private readonly applicationError = inject(ApplicationErrorService);
 
   getCurrentMode(): AccountReauthenticationMode {
     const user = this.auth.currentUser;
@@ -87,8 +112,16 @@ export class AccountReauthenticationService {
       timeout({ first: REAUTHENTICATION_TIMEOUT_MS }),
       map(() => void 0),
       catchError((error: unknown) => {
-        this.report(error, mode);
-        this.notify.showError(this.resolveUserMessage(error));
+        this.applicationError.report(error, {
+          feature: 'account-reauthentication',
+          operation: 'reauthenticateForSensitiveAction$',
+          fallbackMessage: 'Não foi possível confirmar sua identidade agora.',
+          codeMessages: REAUTHENTICATION_CODE_MESSAGES,
+          metadata: {
+            scope: 'AccountReauthenticationService',
+            mode,
+          },
+        });
         return throwError(() => error);
       })
     );
@@ -157,89 +190,4 @@ export class AccountReauthenticationService {
     return throwError(() => error);
   }
 
-  private resolveUserMessage(error: unknown): string {
-    const code = String(
-      (error as { code?: unknown } | null)?.code ?? ''
-    ).toLowerCase();
-
-    if (
-      code.includes('wrong-password') ||
-      code.includes('invalid-credential') ||
-      code.includes('invalid-login-credentials')
-    ) {
-      return 'A senha informada não confere.';
-    }
-
-    if (code.includes('password-required')) {
-      return 'Informe sua senha atual para confirmar esta ação.';
-    }
-
-    if (code.includes('email-unavailable')) {
-      return 'Não foi possível localizar o e-mail desta conta para confirmar a identidade.';
-    }
-
-    if (code.includes('user-mismatch')) {
-      return 'Confirme com a mesma conta Google vinculada ao seu perfil.';
-    }
-
-    if (
-      code.includes('popup-closed-by-user') ||
-      code.includes('cancelled-popup-request')
-    ) {
-      return 'A confirmação com Google foi cancelada.';
-    }
-
-    if (code.includes('popup-blocked')) {
-      return 'O navegador bloqueou a confirmação com Google. Libere pop-ups e tente novamente.';
-    }
-
-    if (code.includes('too-many-requests')) {
-      return 'Muitas tentativas. Aguarde alguns minutos antes de tentar novamente.';
-    }
-
-    if (code.includes('network-request-failed')) {
-      return 'Falha de conexão durante a confirmação. Verifique sua internet e tente novamente.';
-    }
-
-    if (code.includes('unauthenticated')) {
-      return 'Sua sessão terminou. Entre novamente para continuar.';
-    }
-
-    if (code.includes('provider-unsupported')) {
-      return 'O provedor desta conta ainda não possui confirmação segura nesta versão.';
-    }
-
-    return 'Não foi possível confirmar sua identidade agora.';
-  }
-
-  private report(
-    error: unknown,
-    mode: AccountReauthenticationMode
-  ): void {
-    try {
-      const normalized =
-        error instanceof Error
-          ? error
-          : new Error('[AccountReauthenticationService] operation failed');
-      const contextual = normalized as Error & {
-        original?: unknown;
-        context?: unknown;
-        skipUserNotification?: boolean;
-        silent?: boolean;
-      };
-
-      contextual.original = error;
-      contextual.context = {
-        scope: 'AccountReauthenticationService',
-        operation: 'reauthenticateForSensitiveAction$',
-        mode,
-      };
-      contextual.skipUserNotification = true;
-      contextual.silent = true;
-
-      this.globalError.handleError(contextual);
-    } catch {
-      // Diagnóstico secundário não altera a falha principal.
-    }
-  }
 }
