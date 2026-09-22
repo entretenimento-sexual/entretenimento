@@ -50,6 +50,13 @@ function activeUser(uid: string): Record<string, unknown> {
     uid,
     profileCompleted: true,
     accountStatus: 'active',
+    acceptedTerms: {
+      accepted: true,
+      version: 'v3',
+      acknowledgedPrivacyNotice: true,
+    },
+    adultConsent: { accepted: true, version: 'v1' },
+    ageReverification: { status: 'NONE' },
     interactionBlocked: false,
     accountLocked: false,
     loginAllowed: true,
@@ -70,6 +77,17 @@ async function seedDatabase(): Promise<void> {
       setDoc(doc(db, 'users', SENDER_UID), activeUser(SENDER_UID)),
       setDoc(doc(db, 'users', RECEIVER_UID), activeUser(RECEIVER_UID)),
       setDoc(doc(db, 'users', OUTSIDER_UID), activeUser(OUTSIDER_UID)),
+      ...[SENDER_UID, RECEIVER_UID, OUTSIDER_UID].map((uid) =>
+        setDoc(doc(db, 'age_eligibility_records', uid), {
+          uid,
+          status: 'VERIFIED_ADULT',
+          policyVersion: 1,
+          source: 'AGE_REVERIFICATION',
+          method: 'MANUAL_REVIEW',
+          verifiedAt: new Date(Date.now() - 1_000),
+          expiresAt: null,
+        })
+      ),
       setDoc(doc(db, 'rooms', ROOM_ID), {
         roomName: 'Sala por convite',
         createdBy: SENDER_UID,
@@ -205,15 +223,16 @@ describe('Firestore Rules / invites backend response boundary', () => {
     );
   });
 
-  it('preserva cancelamento direto do convite legado de Sala pelo sender', async () => {
+  it('nega cancelamento direto do convite legado de Sala pelo sender', async () => {
     const db = authenticatedDb(SENDER_UID);
 
-    await assertSucceeds(
+    await assertFails(
       updateDoc(doc(db, 'invites', INVITE_ID), {
         status: 'canceled',
         updatedAt: serverTimestamp(),
       })
     );
+    await assertFails(deleteDoc(doc(db, 'invites', INVITE_ID)));
   });
 
   it('obriga sender a usar revokeCommunityInvite para convite de Comunidade', async () => {
