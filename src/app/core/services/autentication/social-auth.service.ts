@@ -773,6 +773,10 @@ export class SocialAuthService {
     meta: Record<string, unknown>
   ): void {
     try {
+      if (this.registrationBootstrap.hasDiagnosticOwnership(err)) {
+        return;
+      }
+
       const operation =
         typeof meta['phase'] === 'string' && meta['phase'].trim()
           ? meta['phase'].trim()
