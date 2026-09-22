@@ -109,12 +109,23 @@ function installTransactionProbe(
     [`users/${actorUid}`]: {
       uid: actorUid,
       profileCompleted: true,
+      interactionBlocked: false,
       acceptedTerms: {
         accepted: true,
         version: TERMS_ACCEPTANCE_VERSION,
         acknowledgedPrivacyNotice: true,
       },
       adultConsent: { accepted: true, version: ADULT_CONSENT_VERSION },
+    },
+    [`age_eligibility_records/${actorUid}`]: {
+      uid: actorUid,
+      status: 'VERIFIED_ADULT',
+      policyVersion: 1,
+      source: 'INITIAL_VERIFICATION',
+      method: 'EXTERNAL_PROVIDER',
+      caseId: 'contract-age-1',
+      verifiedAtMs: Date.now() - 1_000,
+      expiresAtMs: null,
     },
   };
   const transaction: TransactionProbe = {
