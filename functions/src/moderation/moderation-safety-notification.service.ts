@@ -11,6 +11,7 @@
 
 import { createHash } from 'node:crypto';
 
+import type { Transaction } from 'firebase-admin/firestore';
 import * as logger from 'firebase-functions/logger';
 
 import { db, FieldValue } from '../firebaseApp';
@@ -356,7 +357,7 @@ export async function notifyInitialAgeEligibilityOutcome(input: {
 }
 
 export function writeAgeEligibilityExpiredNotificationInTransaction(
-  transaction: FirebaseFirestore.Transaction,
+  transaction: Transaction,
   input: { uid: string; expiresAtMs: number }
 ): void {
   const uid = cleanId(input.uid);
