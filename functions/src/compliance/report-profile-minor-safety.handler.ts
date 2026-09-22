@@ -3,6 +3,9 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
+  safeRecordModerationOpenSignal,
+} from '../moderation/moderation-automation.service';
+import {
   type AgeReverificationUserDocument,
   assertComplianceAuthenticatedUid,
   cleanComplianceId,
@@ -106,6 +109,15 @@ export const reportProfileMinorSafety = onCall<ReportProfileMinorSafetyRequest>(
         reason: 'minor_safety',
         updatedAt: timestamp,
       });
+    });
+
+    await safeRecordModerationOpenSignal({
+      reportId: reportRef.id,
+      targetUid,
+      reporterUid,
+      targetKey: `profile:${targetUid}`,
+      critical: true,
+      quarantined: false,
     });
 
     return { reportId: reportRef.id };
