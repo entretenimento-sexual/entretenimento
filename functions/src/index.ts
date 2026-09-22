@@ -49,3 +49,7 @@ export * from './discovery';
 export * from './friendship';
 export * from './media';
 export * from './subscriber-experiences';
+export {
+  onModerationReportOpenedAutomationSignal,
+  onModerationReportClosedAutomationSignal,
+} from './moderation/moderation-automation-events.trigger';
