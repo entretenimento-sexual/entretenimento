@@ -51,10 +51,36 @@ export const processAgeVerificationProviderAssertion = onDocumentCreated(
       const recordRef = db
         .collection('age_eligibility_records')
         .doc(assertion.uid);
-      const [userSnapshot, recordSnapshot] = await Promise.all([
-        transaction.get(userRef),
-        transaction.get(recordRef),
-      ]);
+      const [assertionSnapshot, userSnapshot, recordSnapshot] =
+        await Promise.all([
+          transaction.get(snapshot.ref),
+          transaction.get(userRef),
+          transaction.get(recordRef),
+        ]);
+
+      const processingStatus = String(
+        assertionSnapshot.data()?.['processingStatus'] ?? ''
+      ).trim().toUpperCase();
+      const existingCanonicalStatus = String(
+        assertionSnapshot.data()?.['canonicalStatus'] ?? ''
+      ).trim().toUpperCase();
+
+      if (
+        processingStatus === 'PROCESSED' ||
+        processingStatus === 'REVIEW_REQUIRED'
+      ) {
+        if (
+          existingCanonicalStatus === 'VERIFIED_ADULT' ||
+          existingCanonicalStatus === 'DENIED_UNDERAGE' ||
+          existingCanonicalStatus === 'REVIEW_REQUIRED'
+        ) {
+          return existingCanonicalStatus;
+        }
+      }
+
+      if (processingStatus === 'USER_NOT_FOUND') {
+        return 'USER_NOT_FOUND' as const;
+      }
 
       if (!userSnapshot.exists) {
         transaction.set(snapshot.ref, {
@@ -107,7 +133,11 @@ export const processAgeVerificationProviderAssertion = onDocumentCreated(
         processedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
 
-      transaction.create(db.collection('compliance_audit').doc(), {
+      const auditRef = db
+        .collection('compliance_audit')
+        .doc(`age_provider_${assertion.assertionId}`);
+
+      transaction.set(auditRef, {
         uid: assertion.uid,
         type: 'age_eligibility.provider_assertion_processed',
         source: 'provider',
@@ -118,7 +148,7 @@ export const processAgeVerificationProviderAssertion = onDocumentCreated(
         providerReferenceHash: assertion.providerReferenceHash,
         createdAt: FieldValue.serverTimestamp(),
         createdAtMs: decidedAtMs,
-      });
+      }, { merge: false });
 
       return nextStatus;
     });
