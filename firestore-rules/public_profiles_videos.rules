@@ -12,6 +12,11 @@ match /public_profiles/{userId}/public_videos/{videoId} {
     return exists(publicProfilePath());
   }
 
+  function publicProfileAllowsAdultExposure() {
+    return publicProfileExists()
+      && get(publicProfilePath()).data.ageEligibilityVerifiedAdult == true;
+  }
+
   function videoPath() {
     return /databases/$(database)/documents/public_profiles/$(userId)/public_videos/$(videoId);
   }
@@ -25,12 +30,14 @@ match /public_profiles/{userId}/public_videos/{videoId} {
   }
 
   function isApprovedPublicVideoData(data) {
-    return data.visibility == "PUBLIC"
+    return data.ageEligibilityVerifiedAdult == true
+      && data.visibility == "PUBLIC"
       && data.moderationStatus == "APPROVED";
   }
 
   function isPublicReadableVideo() {
-    return publicProfileExists()
+    return publicProfileAllowsAdultExposure()
+      && resource.data.ageEligibilityVerifiedAdult == true
       && resource.data.visibility == "PUBLIC"
       && resource.data.moderationStatus == "APPROVED";
   }
@@ -100,6 +107,7 @@ match /public_profiles/{userId}/public_videos/{videoId} {
 // ------------------------------------------------------------
 match /{path=**}/public_videos/{videoId} {
   allow list: if canConsumeAdultPublicMedia()
+    && resource.data.ageEligibilityVerifiedAdult == true
     && resource.data.visibility == "PUBLIC"
     && resource.data.moderationStatus == "APPROVED";
 
