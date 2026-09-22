@@ -94,6 +94,35 @@ async function seedVenues(): Promise<void> {
     const db = context.firestore();
 
     await Promise.all([
+      setDoc(doc(db, 'users', USER_UID), {
+        uid: USER_UID,
+        accountStatus: 'active',
+        suspended: false,
+        interactionBlocked: false,
+        accountLocked: false,
+        loginAllowed: true,
+        acceptedTerms: {
+          accepted: true,
+          version: 'v3',
+          acknowledgedPrivacyNotice: true,
+        },
+        adultConsent: {
+          accepted: true,
+          version: 'v1',
+        },
+        ageReverification: {
+          status: 'NONE',
+        },
+      }),
+      setDoc(doc(db, 'age_eligibility_records', USER_UID), {
+        uid: USER_UID,
+        status: 'VERIFIED_ADULT',
+        policyVersion: 1,
+        source: 'AGE_REVERIFICATION',
+        method: 'MANUAL_REVIEW',
+        verifiedAt: new Date(Date.now() - 1_000),
+        expiresAt: null,
+      }),
       setDoc(doc(db, 'venues', ACTIVE_VENUE_ID), venueDocument()),
       setDoc(
         doc(db, 'venues', HIDDEN_VENUE_ID),
