@@ -355,6 +355,33 @@ export async function notifyInitialAgeEligibilityOutcome(input: {
   });
 }
 
+export async function notifyAgeEligibilityExpired(input: {
+  uid: string;
+  expiresAtMs: number;
+}): Promise<void> {
+  const uid = cleanId(input.uid);
+  const expiresAtMs = Number(input.expiresAtMs);
+
+  if (!uid || !Number.isFinite(expiresAtMs) || expiresAtMs <= 0) return;
+
+  await writeNotification({
+    id: notificationId(
+      `age-expiration:${uid}:${Math.trunc(expiresAtMs)}`,
+      'target',
+      'age-eligibility-expired'
+    ),
+    userId: uid,
+    type: 'compliance.action.taken',
+    title: 'Verificação de idade expirada',
+    body: [
+      'Sua verificação de maioridade expirou.',
+      'Renove a verificação para retomar as superfícies adultas da plataforma.',
+    ].join(' '),
+    route: '/conta/status',
+    actionRequired: true,
+  });
+}
+
 export async function notifyAgeReverificationOutcome(
   reportIdValue: string
 ): Promise<void> {
@@ -494,6 +521,25 @@ export async function safeNotifyInitialAgeEligibilityOutcome(
         assertionId: input.assertionId,
         uid: input.uid,
         status: input.status,
+        error: error instanceof Error
+          ? error.message
+          : String(error),
+      }
+    );
+  }
+}
+
+export async function safeNotifyAgeEligibilityExpired(
+  input: { uid: string; expiresAtMs: number }
+): Promise<void> {
+  try {
+    await notifyAgeEligibilityExpired(input);
+  } catch (error) {
+    logger.error(
+      '[moderationNotification] falha ao notificar expiração etária',
+      {
+        uid: input.uid,
+        expiresAtMs: input.expiresAtMs,
         error: error instanceof Error
           ? error.message
           : String(error),
