@@ -14,7 +14,7 @@ import { Observable, of } from 'rxjs';
 import { catchError, map, timeout } from 'rxjs/operators';
 
 import { FirestoreContextService } from '@core/services/data-handling/firestore/core/firestore-context.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 
 export type PasswordResetCodeValidationReason =
   | 'valid'
@@ -68,7 +68,7 @@ export class PasswordResetCodeValidationService {
   constructor(
     private readonly auth: Auth,
     private readonly ctx: FirestoreContextService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService
+    private readonly applicationError: ApplicationErrorService
   ) {}
 
   validate$(oobCode: string): Observable<PasswordResetCodeValidationResult> {
@@ -106,24 +106,18 @@ export class PasswordResetCodeValidationService {
 
   private reportOperationalError(error: unknown, codeLength: number): void {
     try {
-      const normalized = new Error(
-        '[PasswordResetCodeValidationService] Falha ao validar o link de redefinição.'
-      ) as Error & {
-        original?: unknown;
-        context?: unknown;
-        skipUserNotification?: boolean;
-        silent?: boolean;
-      };
-
-      normalized.original = error;
-      normalized.context = {
-        scope: 'PasswordResetCodeValidationService',
+      this.applicationError.report(error, {
+        feature: 'password-reset-code-validation',
         operation: 'validate$',
-        codePresent: codeLength > 0,
-      };
-      normalized.skipUserNotification = true;
-      normalized.silent = true;
-      this.globalErrorHandler.handleError(normalized);
+        fallbackMessage:
+          'Não foi possível validar o link de redefinição de senha.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'PasswordResetCodeValidationService',
+          operation: 'validate$',
+          codePresent: codeLength > 0,
+        },
+      });
     } catch {
       // O diagnóstico secundário não pode alterar o fluxo de recuperação.
     }
