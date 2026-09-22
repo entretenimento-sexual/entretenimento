@@ -39,6 +39,7 @@ describe('SocialAuthService', () => {
 
   let registrationBootstrapMock: {
     createSocialSeed$: Mock;
+    hasDiagnosticOwnership: Mock;
   };
 
   let applicationErrorMock: {
@@ -58,6 +59,7 @@ describe('SocialAuthService', () => {
 
     registrationBootstrapMock = {
       createSocialSeed$: vi.fn(),
+      hasDiagnosticOwnership: vi.fn(() => false),
     };
 
     applicationErrorMock = {
@@ -365,7 +367,7 @@ describe('SocialAuthService', () => {
     );
   });
 
-  it('deve diagnosticar silenciosamente falha de bootstrap e manter resultado estruturado', async () => {
+  it('deve diagnosticar silenciosamente falha de leitura no bootstrap pós-auth e manter resultado estruturado', async () => {
     const firebaseUser = makeFirebaseUser({
       uid: 'bootstrap-failed',
       email: 'bootstrap-failed@test.com',
@@ -401,6 +403,82 @@ describe('SocialAuthService', () => {
         outcome: 'error',
         code: 'social-auth/bootstrap-failed',
         message: 'Não foi possível preparar sua conta agora.',
+        nextRoute: null,
+      })
+    );
+  });
+
+  it('não rediagnostica falha de criação social já pertencente ao RegistrationBootstrapService', async () => {
+    const firebaseUser = makeFirebaseUser({
+      uid: 'bootstrap-owned',
+      email: 'bootstrap-owned@test.com',
+    });
+    const error = new Error('bootstrap write failed');
+
+    vi.spyOn(service as any, 'signInWithPopupInCtx$').mockReturnValue(
+      of({ user: firebaseUser } as any)
+    );
+    readMock.getDocument.mockReturnValue(of(null));
+    registrationBootstrapMock.createSocialSeed$.mockReturnValue(
+      throwError(() => error)
+    );
+    registrationBootstrapMock.hasDiagnosticOwnership.mockImplementation(
+      (candidate: unknown) => candidate === error
+    );
+
+    const result = await firstValueFrom(service.googleLogin());
+
+    expect(
+      registrationBootstrapMock.hasDiagnosticOwnership
+    ).toHaveBeenCalledWith(error);
+    expect(applicationErrorMock.report).not.toHaveBeenCalled();
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: false,
+        outcome: 'error',
+        code: 'social-auth/new-user-write-failed',
+        message:
+          'Não foi possível concluir a criação da conta com Google.',
+        nextRoute: null,
+      })
+    );
+  });
+
+  it('assume diagnóstico social quando a falha de criação não tem ownership do bootstrap', async () => {
+    const firebaseUser = makeFirebaseUser({
+      uid: 'bootstrap-unowned',
+      email: 'bootstrap-unowned@test.com',
+    });
+    const error = new Error('bootstrap diagnostic unavailable');
+
+    vi.spyOn(service as any, 'signInWithPopupInCtx$').mockReturnValue(
+      of({ user: firebaseUser } as any)
+    );
+    readMock.getDocument.mockReturnValue(of(null));
+    registrationBootstrapMock.createSocialSeed$.mockReturnValue(
+      throwError(() => error)
+    );
+
+    const result = await firstValueFrom(service.googleLogin());
+
+    expect(applicationErrorMock.report).toHaveBeenCalledTimes(1);
+    expect(applicationErrorMock.report).toHaveBeenCalledWith(error, {
+      feature: 'social-auth',
+      operation: 'handleNewUserLogin',
+      fallbackMessage:
+        'Não foi possível concluir uma etapa interna da autenticação social.',
+      presentation: { surface: 'none', severity: 'error' },
+      metadata: {
+        scope: 'SocialAuthService',
+        phase: 'handleNewUserLogin',
+        uid: 'bootstrap-unowned',
+      },
+    });
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: false,
+        outcome: 'error',
+        code: 'social-auth/new-user-write-failed',
         nextRoute: null,
       })
     );

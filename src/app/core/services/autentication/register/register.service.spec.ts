@@ -41,6 +41,7 @@ describe('RegisterService', () => {
     };
   };
   let checkIfNicknameExists: ReturnType<typeof vi.fn>;
+  let hasDiagnosticOwnership: ReturnType<typeof vi.fn>;
   let report: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -53,6 +54,7 @@ describe('RegisterService', () => {
       currentUser: null,
     };
     checkIfNicknameExists = vi.fn(() => of(false));
+    hasDiagnosticOwnership = vi.fn(() => false);
     report = vi.fn();
 
     TestBed.configureTestingModule({
@@ -68,6 +70,7 @@ describe('RegisterService', () => {
           provide: RegistrationBootstrapService,
           useValue: {
             createEmailPasswordSeed$: vi.fn(() => of(void 0)),
+            hasDiagnosticOwnership,
           },
         },
         {
@@ -203,6 +206,38 @@ describe('RegisterService', () => {
 
     expect(received).toBe(error);
     expect(report).not.toHaveBeenCalled();
+  });
+
+  it('não rediagnostica falha já pertencente ao RegistrationBootstrapService', async () => {
+    const original = new FirebaseError(
+      'permission-denied',
+      'firestore denied'
+    );
+    hasDiagnosticOwnership.mockImplementation(
+      (error: unknown) => error === original
+    );
+
+    let received: any = null;
+    try {
+      await firstValueFrom(
+        (service as any).handleRegisterError(
+          original,
+          'Registro',
+          'trace-bootstrap'
+        )
+      );
+    } catch (error) {
+      received = error;
+    }
+
+    expect(hasDiagnosticOwnership).toHaveBeenCalledWith(original);
+    expect(report).not.toHaveBeenCalled();
+    expect(received).toBeInstanceOf(Error);
+    expect(received.message).toBe(
+      'Permissão negada ao salvar seus dados. Tente novamente.'
+    );
+    expect(received.code).toBe('permission-denied');
+    expect(received.registerApplicationErrorReported).toBe(true);
   });
 
   it('reporta falha de rollback silenciosamente e preserva o erro público existente', async () => {

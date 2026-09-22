@@ -427,6 +427,10 @@ export class RegisterService {
     meta?: Record<string, unknown>
   ): void {
     try {
+      if (this.registrationBootstrap.hasDiagnosticOwnership(original)) {
+        return;
+      }
+
       if (!environment.production && environment.enableDebugTools) {
         console.error(msg, { original, meta });
       }

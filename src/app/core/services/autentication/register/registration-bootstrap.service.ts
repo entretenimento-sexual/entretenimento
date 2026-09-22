@@ -23,7 +23,7 @@ import { Observable, throwError } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
-import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '../../error-handler/application-error.service';
 import { FirestoreContextService } from '../../data-handling/firestore/core/firestore-context.service';
 import { NicknameUtils } from '@core/utils/nickname-utils';
 
@@ -48,11 +48,12 @@ export interface SocialRegistrationBootstrapInput {
 @Injectable({ providedIn: 'root' })
 export class RegistrationBootstrapService {
   private readonly NICKNAME_NORM_RE = /^[a-z0-9._-]{3,40}$/;
+  private readonly diagnosedErrors = new WeakSet<object>();
 
   constructor(
     private readonly db: Firestore,
     private readonly ctx: FirestoreContextService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService
+    private readonly applicationError: ApplicationErrorService
   ) {}
 
   createEmailPasswordSeed$(
@@ -150,14 +151,14 @@ export class RegistrationBootstrapService {
       .pipe(
         map(() => void 0),
         catchError((error) => {
-          this.safeHandle(
-            '[RegistrationBootstrapService] createEmailPasswordSeed$ falhou.',
+          this.reportOperationalError(
             error,
+            'createEmailPasswordSeed',
             {
               uid,
               traceId: input.traceId ?? null,
-              nickname,
-              normalized,
+              nicknamePresent: !!nickname,
+              normalizedLength: normalized.length,
             }
           );
           return throwError(() => error);
@@ -243,9 +244,9 @@ export class RegistrationBootstrapService {
       .pipe(
         map(() => void 0),
         catchError((error) => {
-          this.safeHandle(
-            '[RegistrationBootstrapService] createSocialSeed$ falhou.',
+          this.reportOperationalError(
             error,
+            'createSocialSeed',
             {
               uid,
               emailPresent: !!email,
@@ -273,25 +274,53 @@ export class RegistrationBootstrapService {
       .filter(Boolean);
   }
 
-  private safeHandle(
-    message: string,
-    original: unknown,
-    meta?: Record<string, unknown>
+  /**
+   * Informa aos consumidores se esta instância já assumiu o diagnóstico técnico
+   * do mesmo objeto de erro. O WeakSet evita mutar erros de Firebase/Firestore.
+   */
+  hasDiagnosticOwnership(error: unknown): boolean {
+    return this.isTrackableError(error)
+      && this.diagnosedErrors.has(error as object);
+  }
+
+  private reportOperationalError(
+    error: unknown,
+    operation: 'createEmailPasswordSeed' | 'createSocialSeed',
+    metadata: Record<string, unknown>
   ): void {
-    try {
-      const error = new Error(message) as Error & {
-        original?: unknown;
-        meta?: unknown;
-        skipUserNotification?: boolean;
-        silent?: boolean;
-      };
-      error.original = original;
-      error.meta = meta;
-      error.skipUserNotification = true;
-      error.silent = true;
-      this.globalErrorHandler.handleError(error);
-    } catch {
-      // Falha de diagnóstico não interrompe a operação principal.
+    if (this.hasDiagnosticOwnership(error)) {
+      return;
     }
+
+    try {
+      this.applicationError.report(error, {
+        feature: 'registration-bootstrap',
+        operation,
+        fallbackMessage:
+          'Não foi possível concluir a preparação inicial da conta.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'RegistrationBootstrapService',
+          ...metadata,
+        },
+      });
+
+      this.markDiagnosticOwnership(error);
+    } catch {
+      // O consumidor poderá assumir o fallback sem alterar o erro público.
+    }
+  }
+
+  private markDiagnosticOwnership(error: unknown): void {
+    if (this.isTrackableError(error)) {
+      this.diagnosedErrors.add(error as object);
+    }
+  }
+
+  private isTrackableError(error: unknown): boolean {
+    return (
+      (typeof error === 'object' && error !== null) ||
+      typeof error === 'function'
+    );
   }
 }
