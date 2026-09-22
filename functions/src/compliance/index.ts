@@ -35,3 +35,6 @@ export {
 export {
   reviewProfileMinorSafetyReport,
 } from './review-profile-minor-safety-report.handler';
+export {
+  refreshMyAgeEligibility,
+} from './refresh-my-age-eligibility.handler';
