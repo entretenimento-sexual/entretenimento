@@ -75,20 +75,23 @@ match /public_profiles/{userId}/public_photos/{photoId} {
       && resource.data.moderationStatus == "APPROVED";
   }
 
-  allow get: if signedIn() && (isSelf(userId) || isPublicReadable());
+  allow get: if currentUserCanUseAdultSocialPlatform()
+    && (isSelf(userId) || isPublicReadable());
 
-  allow list: if signedIn() && isPublicReadable();
+  allow list: if currentUserCanUseAdultSocialPlatform()
+    && isPublicReadable();
 
   allow create, update, delete: if false;
 
   match /likes/{viewerUid} {
-    allow get: if signedIn() && request.auth.uid == viewerUid;
+    allow get: if currentUserCanUseAdultSocialPlatform()
+      && request.auth.uid == viewerUid;
     allow list: if false;
     allow create, update, delete: if false;
   }
 
   match /comments/{commentId} {
-    allow get: if signedIn()
+    allow get: if currentUserCanUseAdultSocialPlatform()
       && (
         isSelf(userId)
         || (
@@ -99,7 +102,7 @@ match /public_profiles/{userId}/public_photos/{photoId} {
         )
       );
 
-    allow list: if signedIn()
+    allow list: if currentUserCanUseAdultSocialPlatform()
       && (
         isSelf(userId)
         || (
@@ -124,7 +127,7 @@ match /public_profiles/{userId}/public_photos/{photoId} {
 // confirma a existência do perfil público pai.
 // ------------------------------------------------------------
 match /{path=**}/public_photos/{photoId} {
-  allow list: if signedIn()
+  allow list: if currentUserCanUseAdultSocialPlatform()
     && resource.data.visibility == "PUBLIC"
     && resource.data.moderationStatus == "APPROVED";
 
