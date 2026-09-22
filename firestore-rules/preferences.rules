@@ -4,7 +4,8 @@
 match /preferences/{userId} {
   allow get: if isSelf(userId);
   allow list: if false;
-  allow create, update: if isSelf(userId);
+  allow create, update: if isSelf(userId)
+    && currentUserCanUseAdultSocialPlatform();
   allow delete: if false;
 }
 
@@ -171,7 +172,11 @@ match /users/{userId}/preferences/{docId} {
   }
 
   allow get, list: if isSelf(userId);
-  allow create: if isSelf(userId) && validCreateForDocument();
-  allow update: if isSelf(userId) && validUpdateForDocument();
+  allow create: if isSelf(userId)
+    && currentUserCanUseAdultSocialPlatform()
+    && validCreateForDocument();
+  allow update: if isSelf(userId)
+    && currentUserCanUseAdultSocialPlatform()
+    && validUpdateForDocument();
   allow delete: if false;
 }
