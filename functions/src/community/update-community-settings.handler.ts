@@ -38,7 +38,7 @@ import { normalizeCommunityMemberCount } from './community-member-count.policy';
 import {
   normalizeCommunityOfficialAssociationKey,
 } from './community-official-association.model';
-import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
+import { assertCommunityMembershipActorEligibleInTransaction } from './community-membership-eligibility.service';
 import {
   CommunityEditableSettings,
   UpdateCommunitySettingsRequest,
@@ -253,9 +253,10 @@ export const updateCommunitySettings = onCall<UpdateCommunitySettingsRequest>(
         throw new HttpsError('not-found', 'Comunidade não encontrada.');
       }
 
-      assertCommunityMembershipActorEligible(
-        userSnapshot.exists ? userSnapshot.data() : null,
-        actorUid
+      await assertCommunityMembershipActorEligibleInTransaction(
+        transaction,
+        actorUid,
+        userSnapshot.exists ? userSnapshot.data() : null
       );
 
       const community = communitySnapshot.data() ?? {};
