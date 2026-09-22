@@ -16,6 +16,17 @@ import { registrationStepGuard } from './register-module/data-access/registratio
 
 const routes: Routes = [
   {
+    path: 'adulto/verificar-idade',
+    loadComponent: () =>
+      import('./compliance/age-verification-page/age-verification-page.component')
+        .then(m => m.AgeVerificationPageComponent),
+    canActivate: [authGuard, accountLifecycleGuard, registrationStepGuard],
+    data: {
+      allowUnverified: true,
+      allowedRegisterSteps: ['ageVerification'],
+    },
+  },
+  {
     path: 'adulto/confirmar',
     loadComponent: () =>
       import('./compliance/adult-consent-page/adult-consent-page.component')
