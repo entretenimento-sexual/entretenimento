@@ -51,7 +51,7 @@ import {
 
 import { FirestoreReadService } from '../data-handling/firestore/core/firestore-read.service';
 import { FirestoreWriteService } from '../data-handling/firestore/core/firestore-write.service';
-import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '../error-handler/application-error.service';
 import { RegistrationBootstrapService } from './register/registration-bootstrap.service';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
@@ -170,7 +170,7 @@ export class SocialAuthService {
     private readonly read: FirestoreReadService,
     private readonly write: FirestoreWriteService,
     private readonly registrationBootstrap: RegistrationBootstrapService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly envInjector: EnvironmentInjector
   ) {}
 
@@ -722,8 +722,7 @@ export class SocialAuthService {
       code === 'auth/popup-closed-by-user' ||
       code === 'auth/cancelled-popup-request'
     ) {
-      this.reportSilent(err, {
-        phase: 'googleLogin.popup',
+      this.dbg('googleLogin:cancelled', {
         code,
         expected: true,
       });
@@ -774,13 +773,24 @@ export class SocialAuthService {
     meta: Record<string, unknown>
   ): void {
     try {
-      const error = err instanceof Error ? err : new Error(String(err ?? 'Erro desconhecido'));
-      (error as any).meta = meta;
-      (error as any).skipUserNotification = true;
-      (error as any).silent = true;
-      this.globalErrorHandler.handleError(error);
+      const operation =
+        typeof meta['phase'] === 'string' && meta['phase'].trim()
+          ? meta['phase'].trim()
+          : 'internal';
+
+      this.applicationError.report(err, {
+        feature: 'social-auth',
+        operation,
+        fallbackMessage:
+          'Não foi possível concluir uma etapa interna da autenticação social.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'SocialAuthService',
+          ...meta,
+        },
+      });
     } catch {
-      // noop defensivo: relatório de erro não pode quebrar auth
+      // Diagnóstico secundário não pode quebrar autenticação social.
     }
   }
 
