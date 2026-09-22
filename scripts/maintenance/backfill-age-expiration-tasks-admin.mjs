@@ -2,8 +2,9 @@
 // -----------------------------------------------------------------------------
 // BACKFILL DE CLOUD TASKS PARA EXPIRAÇÃO ETÁRIA
 // -----------------------------------------------------------------------------
-// Agenda a fronteira temporal dos registros VERIFIED_ADULT finitos que já
-// existiam antes do trigger scheduleAgeEligibilityExpirationTask.
+// Agenda o primeiro checkpoint temporal dos registros VERIFIED_ADULT finitos
+// que já existiam antes do trigger scheduleAgeEligibilityExpirationTask.
+// Expirações além do limite do Cloud Tasks avançam em checkpoints de 29 dias.
 //
 // Segurança:
 // - dry-run por padrão;
@@ -41,6 +42,7 @@ import {
 import { getFunctions } from 'firebase-admin/functions';
 
 const FUNCTIONS_REGION = 'us-central1';
+const TASK_SCHEDULE_HORIZON_MS = 29 * 24 * 60 * 60 * 1000;
 const projectId =
   String(process.env.FIREBASE_PROJECT_ID || 'entretenimento-sexual').trim();
 
@@ -111,9 +113,23 @@ function cleanUid(value) {
   return /^[A-Za-z0-9_-]{1,128}$/.test(uid) ? uid : '';
 }
 
-function buildTaskId({ uid, expiresAtMs, expectedUpdatedAtMs }) {
+function resolveNextScheduleAtMs(expiresAtMs, nowMs) {
+  return Math.min(expiresAtMs, nowMs + TASK_SCHEDULE_HORIZON_MS);
+}
+
+function buildTaskId({
+  uid,
+  expiresAtMs,
+  expectedUpdatedAtMs,
+  scheduledForMs,
+}) {
   const digest = createHash('sha256')
-    .update([uid, expectedUpdatedAtMs, expiresAtMs].join(':'))
+    .update([
+      uid,
+      expectedUpdatedAtMs,
+      expiresAtMs,
+      scheduledForMs,
+    ].join(':'))
     .digest('hex')
     .slice(0, 32);
 
@@ -212,6 +228,7 @@ async function main() {
         uid,
         expiresAtMs,
         expectedUpdatedAtMs,
+        scheduledForMs: resolveNextScheduleAtMs(expiresAtMs, Date.now()),
       };
 
       wouldEnqueue += 1;
@@ -223,7 +240,9 @@ async function main() {
       try {
         await queue.enqueue(payload, {
           id: buildTaskId(payload),
-          scheduleTime: new Date(Math.max(expiresAtMs, Date.now() + 1_000)),
+          scheduleTime: new Date(
+            Math.max(payload.scheduledForMs, Date.now() + 1_000)
+          ),
           dispatchDeadlineSeconds: 60,
         });
         enqueued += 1;

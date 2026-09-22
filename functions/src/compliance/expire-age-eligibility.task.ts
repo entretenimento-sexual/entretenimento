@@ -2,11 +2,13 @@
 // -----------------------------------------------------------------------------
 // AGE ELIGIBILITY EXPIRATION TASK
 // -----------------------------------------------------------------------------
-// Cada registro VERIFIED_ADULT com expiresAt finito agenda uma Cloud Task para
-// sua fronteira temporal. O payload inclui a geração canônica (updatedAtMs), de
-// modo que tarefas antigas são no-op depois de uma reverificação.
+// Cada registro VERIFIED_ADULT com expiresAt finito agenda uma Cloud Task. Como
+// Cloud Tasks limita scheduleTime a 30 dias, expirações mais distantes avançam
+// em checkpoints de 29 dias até a fronteira final.
 //
-// O sweep periódico permanece apenas como recuperação operacional.
+// O payload inclui a geração canônica (updatedAtMs), de modo que tarefas antigas
+// são no-op depois de uma reverificação. O sweep periódico permanece apenas como
+// recuperação operacional.
 // -----------------------------------------------------------------------------
 
 import { createHash } from 'node:crypto';
@@ -23,10 +25,13 @@ import {
   materializeExpiredAgeEligibility,
 } from './expire-age-eligibility.service';
 
+const TASK_SCHEDULE_HORIZON_MS = 29 * 24 * 60 * 60 * 1000;
+
 interface AgeEligibilityExpirationTaskPayload {
   readonly uid: string;
   readonly expiresAtMs: number;
   readonly expectedUpdatedAtMs: number;
+  readonly scheduledForMs: number;
 }
 
 function cleanUid(value: unknown): string {
@@ -56,6 +61,16 @@ function toMillis(value: unknown): number | null {
   return null;
 }
 
+function resolveNextScheduleAtMs(
+  expiresAtMs: number,
+  nowMs: number
+): number {
+  return Math.min(
+    expiresAtMs,
+    nowMs + TASK_SCHEDULE_HORIZON_MS
+  );
+}
+
 function buildTaskId(payload: AgeEligibilityExpirationTaskPayload): string {
   const digest = createHash('sha256')
     .update(
@@ -63,6 +78,7 @@ function buildTaskId(payload: AgeEligibilityExpirationTaskPayload): string {
         payload.uid,
         payload.expectedUpdatedAtMs,
         payload.expiresAtMs,
+        payload.scheduledForMs,
       ].join(':')
     )
     .digest('hex')
@@ -93,7 +109,7 @@ async function enqueueExpirationTask(
       {
         id: buildTaskId(payload),
         scheduleTime: new Date(
-          Math.max(payload.expiresAtMs, Date.now() + 1_000)
+          Math.max(payload.scheduledForMs, Date.now() + 1_000)
         ),
         dispatchDeadlineSeconds: 60,
       }
@@ -172,17 +188,20 @@ export const scheduleAgeEligibilityExpirationTask = onDocumentWritten(
       return;
     }
 
+    const nowMs = Date.now();
     const payload: AgeEligibilityExpirationTaskPayload = {
       uid,
       expiresAtMs,
       expectedUpdatedAtMs,
+      scheduledForMs: resolveNextScheduleAtMs(expiresAtMs, nowMs),
     };
 
     await enqueueExpirationTask(payload);
 
-    console.log('[ageEligibility] Expiração pontual agendada.', {
+    console.log('[ageEligibility] Checkpoint de expiração agendado.', {
       ...payload,
-      alreadyDue: expiresAtMs <= Date.now(),
+      finalBoundaryScheduled: payload.scheduledForMs === expiresAtMs,
+      alreadyDue: expiresAtMs <= nowMs,
     });
   }
 );
@@ -206,12 +225,19 @@ export const expireAgeEligibilityAtBoundary = onTaskDispatched(
     const uid = cleanUid(data.uid);
     const expiresAtMs = positiveTime(data.expiresAtMs);
     const expectedUpdatedAtMs = positiveTime(data.expectedUpdatedAtMs);
+    const scheduledForMs = positiveTime(data.scheduledForMs);
 
-    if (!uid || expiresAtMs === null || expectedUpdatedAtMs === null) {
+    if (
+      !uid ||
+      expiresAtMs === null ||
+      expectedUpdatedAtMs === null ||
+      scheduledForMs === null
+    ) {
       console.warn('[ageEligibility] Task de expiração inválida ignorada.', {
         hasUid: !!uid,
         expiresAtMs,
         expectedUpdatedAtMs,
+        scheduledForMs,
       });
       return;
     }
@@ -227,15 +253,28 @@ export const expireAgeEligibilityAtBoundary = onTaskDispatched(
     );
 
     if (result.reason === 'not-due') {
-      throw new Error(
-        `Expiração de maioridade despachada antes da hora para ${uid}.`
-      );
+      const nextPayload: AgeEligibilityExpirationTaskPayload = {
+        uid,
+        expiresAtMs,
+        expectedUpdatedAtMs,
+        scheduledForMs: resolveNextScheduleAtMs(expiresAtMs, nowMs),
+      };
+
+      await enqueueExpirationTask(nextPayload);
+
+      console.log('[ageEligibility] Próximo checkpoint agendado.', {
+        ...nextPayload,
+        previousScheduledForMs: scheduledForMs,
+        finalBoundaryScheduled: nextPayload.scheduledForMs === expiresAtMs,
+      });
+      return;
     }
 
     console.log('[ageEligibility] Task de expiração processada.', {
       uid,
       expiresAtMs,
       expectedUpdatedAtMs,
+      scheduledForMs,
       nowMs,
       ...result,
     });
