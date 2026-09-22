@@ -64,6 +64,7 @@ const requiredExports = [
   'syncCommunityProfileMembershipIndexTrigger',
   'syncCommunityHighlightCommunityTrigger',
   'syncPublicPreferenceProjectionTrigger',
+  'syncCommunityNotificationSummaryTrigger',
 ];
 
 if (!existsSync(entryPath)) {
@@ -92,6 +93,7 @@ const forbiddenLegacyTriggerExports = [
   'syncCommunityProfileMembershipIndex',
   'syncCommunityHighlightCommunity',
   'syncPublicPreferenceProjection',
+  'syncCommunityNotificationSummary',
 ];
 
 const missingExports = requiredExports.filter(
