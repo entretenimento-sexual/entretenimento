@@ -20,7 +20,7 @@ import {
   assertCommunityCallableAppCheck,
 } from './community-callable-security';
 import { isCommunityMemberActivityEnabledStatus } from './community-lifecycle.policy';
-import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
+import { assertCommunityMembershipActorEligibleInTransaction } from './community-membership-eligibility.service';
 import {
   resolveCommunityNotificationMembershipCycleStartedAtMs,
 } from './community-notification-membership.policy';
@@ -202,9 +202,10 @@ export const toggleCommunityFeedReaction = onCall<
           { reason: 'community_feed_post_not_found' }
         );
       }
-      assertCommunityMembershipActorEligible(
-        userSnapshot.exists ? userSnapshot.data() : null,
-        actorUid
+      await assertCommunityMembershipActorEligibleInTransaction(
+        transaction,
+        actorUid,
+        userSnapshot.exists ? userSnapshot.data() : null
       );
 
       const community = communitySnapshot.data() ?? {};
