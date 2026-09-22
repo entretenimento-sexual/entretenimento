@@ -13,7 +13,7 @@ import { Observable, of } from 'rxjs';
 import { catchError, filter, map, switchMap, take, timeout } from 'rxjs/operators';
 
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { buildRedirectTree, guardLog } from '../_shared-guard/guard-utils';
 /**
@@ -34,7 +34,7 @@ const AUTH_REFRESH_GRACE_MS = 2000;
 export const authGuard: CanActivateFn = (_route, state): Observable<GuardResult> => {
   const router = inject(Router);
   const currentUserStore = inject(CurrentUserStoreService);
-  const globalError = inject(GlobalErrorHandlerService);
+  const applicationError = inject(ApplicationErrorService);
   const notify = inject(ErrorNotificationService);
 
   const toLogin = () => buildRedirectTree(router, '/login', state.url);
@@ -102,7 +102,17 @@ export const authGuard: CanActivateFn = (_route, state): Observable<GuardResult>
      * 4) Falha segura.
      */
     catchError((err): Observable<GuardResult> => {
-      globalError.handleError(err);
+      try {
+        applicationError.report(err, {
+          feature: 'auth-guard',
+          operation: 'authGuard',
+          fallbackMessage: 'Erro ao verificar sua sessão. Faça login novamente.',
+          presentation: { surface: 'none', severity: 'error' },
+          metadata: { scope: 'authGuard' },
+        });
+      } catch {
+        // Guard continua fail-safe mesmo se o diagnóstico falhar.
+      }
       notify.showError('Erro ao verificar sua sessão. Faça login novamente.');
       return of(buildRedirectTree(router, '/login', state.url, { reason: 'auth_error' }));
     })
