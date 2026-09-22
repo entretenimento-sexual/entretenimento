@@ -170,8 +170,9 @@ export {
 export {
   reconcileCommunityMembershipNotifications as reconcileCommunityMembershipNotificationsTrigger,
 } from './reconcile-community-membership-notifications.trigger';
+// Production still has a legacy HTTPS function under the old export name.
 export {
-  syncCommunityNotificationSummary,
+  syncCommunityNotificationSummary as syncCommunityNotificationSummaryTrigger,
 } from './sync-community-notification-summary.trigger';
 export {
   syncCommunityRankingFromCommunity,
