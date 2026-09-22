@@ -249,7 +249,7 @@ export function mapPublicProfileCard(
       'orientacao',
       'orientacaoSexual',
     ]),
-    age: firstNumber(source, ['age', 'idade']),
+    age: firstNumber(source, ['age']),
 
     normalizedGender: firstText(source, ['normalizedGender']),
     normalizedOrientation: firstText(source, ['normalizedOrientation']),
