@@ -72,7 +72,7 @@ import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/f
 import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
 import { DirectChatService } from 'src/app/messaging/direct-chat/services/direct-chat.service';
@@ -121,7 +121,7 @@ export class ChatModuleLayoutComponent implements OnInit {
   private readonly router = inject(Router);
 
   private readonly errorNotifier = inject(ErrorNotificationService);
-  private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
 
   // ---------------------------------------------------------------------------
@@ -1040,23 +1040,23 @@ if (this.isMessageTooLong) {
       try {
         this.errorNotifier.showError(userMessage);
       } catch {
-        // noop
+        // Diagnóstico técnico permanece independente da apresentação local.
       }
     }
 
     try {
-      const err = error instanceof Error ? error : new Error(userMessage);
-
-      (err as any).original = error;
-      (err as any).context = {
-        scope: 'ChatModuleLayoutComponent',
-        ...(context ?? {}),
-      };
-      (err as any).skipUserNotification = true;
-
-      this.globalErrorHandler.handleError(err);
+      this.applicationError.report(error, {
+        feature: 'chat-layout',
+        operation: String(context?.['op'] ?? 'reportError'),
+        fallbackMessage: userMessage,
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'ChatModuleLayoutComponent',
+          contextKeys: Object.keys(context ?? {}).sort().slice(0, 12),
+        },
+      });
     } catch {
-      // noop
+      // Falha secundária de diagnóstico não altera o fluxo público.
     }
   }
 
