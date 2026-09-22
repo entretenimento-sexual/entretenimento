@@ -17,8 +17,7 @@
 import { Injectable, inject, isDevMode } from '@angular/core';
 import { ParamMap, Router } from '@angular/router';
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
-import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { from, Observable, combineLatest, of } from 'rxjs';
 import {
   catchError,
@@ -46,8 +45,7 @@ export interface SubscriptionCheckoutReturnState {
 export class SubscriptionCheckoutFacade {
   private readonly router = inject(Router);
   private readonly currentUserStore = inject(CurrentUserStoreService);
-  private readonly errorNotifier = inject(ErrorNotificationService);
-  private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly noticeService = inject(IncompleteProfileSubscriptionNoticeService);
 
   readonly currentUser$ = this.currentUserStore.user$.pipe(
@@ -125,10 +123,14 @@ export class SubscriptionCheckoutFacade {
         );
       }),
       catchError((error) => {
-        this.globalErrorHandler.handleError(error);
-        this.errorNotifier.showError(
-          'Não foi possível processar o retorno da assinatura.'
-        );
+        this.applicationError.report(error, {
+          feature: 'subscription-checkout',
+          operation: 'processBillingReturn',
+          fallbackMessage:
+            'Não foi possível processar o retorno da assinatura.',
+          presentation: { surface: 'snackbar', severity: 'error' },
+          metadata: { scope: 'SubscriptionCheckoutFacade' },
+        });
         return of(false);
       }),
       shareReplay({ bufferSize: 1, refCount: true })
