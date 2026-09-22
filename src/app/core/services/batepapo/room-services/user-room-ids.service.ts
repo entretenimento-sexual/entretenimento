@@ -5,13 +5,13 @@ import { Injectable } from '@angular/core';
 import { Observable, defer, firstValueFrom, of, throwError } from 'rxjs';
 
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 
 @Injectable({ providedIn: 'root' })
 export class UserRoomIdsService {
   constructor(
     private readonly notify: ErrorNotificationService,
-    private readonly globalError: GlobalErrorHandlerService
+    private readonly applicationError: ApplicationErrorService
   ) {}
 
   /**
@@ -78,7 +78,19 @@ export class UserRoomIdsService {
       };
 
       try {
-        this.globalError.handleError(error);
+        this.applicationError.report(error, {
+          feature: 'legacy-rooms',
+          operation,
+          fallbackMessage:
+            'A projeção legada de Salas do usuário não pode mais ser alterada pelo cliente.',
+          presentation: { surface: 'none', severity: 'error' },
+          metadata: {
+            scope: 'UserRoomIdsService',
+            productState: 'deprecated_compatibility_only',
+            userIdPresent: !!uid,
+            roomIdPresent: !!rid,
+          },
+        });
       } catch {
         // O bloqueio local continua mesmo se a telemetria falhar.
       }
