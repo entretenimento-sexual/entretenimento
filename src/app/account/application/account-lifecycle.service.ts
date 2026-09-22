@@ -5,8 +5,7 @@
 // - Centraliza callables do lifecycle da conta.
 // - Mantém API Observable-first e nomes públicos existentes.
 // - Normaliza entradas antes da rede.
-// - Evita notificação duplicada: feedback fica aqui e diagnóstico técnico segue
-//   para o GlobalErrorHandlerService com skipUserNotification.
+// - Centraliza apresentação e diagnóstico técnico no ApplicationErrorService.
 // -----------------------------------------------------------------------------
 import {
   EnvironmentInjector,
@@ -18,9 +17,7 @@ import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable, defer, throwError } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
-import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
-import { environment } from 'src/environments/environment';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { AccountStatus } from '../models/account-lifecycle.model';
 
 export interface AccountLifecycleCommandResult {
@@ -70,10 +67,7 @@ interface ModerateScheduleDeletionPayload {
 export class AccountLifecycleService {
   private readonly functions = inject(Functions);
   private readonly envInjector = inject(EnvironmentInjector);
-  private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
-  private readonly errorNotifier = inject(ErrorNotificationService);
-
-  private readonly debug = !!environment.enableDebugTools;
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly maxReasonLength = 500;
 
   // ---------------------------------------------------------------------------
@@ -274,16 +268,27 @@ export class AccountLifecycleService {
     ).pipe(
       map((result) => result.data),
       catchError((error: unknown) => {
-        this.report(error, {
-          phase: 'callFunction$',
-          functionName,
-          context: opts.context,
-          payloadKeys: Object.keys((payload as object | null) ?? {}),
+        this.applicationError.report(error, {
+          feature: 'account-lifecycle',
+          operation: opts.context,
+          fallbackMessage: opts.userMessage,
+          codeMessages: {
+            unauthenticated:
+              'Sua sessão terminou. Entre novamente para continuar.',
+            'permission-denied':
+              'Sua conta não pode executar esta ação no estado atual.',
+            'invalid-argument':
+              'Revise os dados informados e tente novamente.',
+          },
+          reasonMessages: this.resolveReasonMessages(error),
+          metadata: {
+            scope: 'AccountLifecycleService',
+            phase: 'callFunction$',
+            functionName,
+            payloadKeys: Object.keys((payload as object | null) ?? {}),
+          },
         });
 
-        this.errorNotifier.showError(
-          this.resolveUserMessage(error, opts.userMessage)
-        );
         return throwError(() => error);
       })
     );
@@ -347,57 +352,56 @@ export class AccountLifecycleService {
   private invalidInput$<T>(message: string, code: string): Observable<T> {
     const error = new Error(message) as Error & {
       code?: string;
-      skipUserNotification?: boolean;
     };
     error.code = code;
-    error.skipUserNotification = true;
 
-    this.report(error, { phase: 'invalidInput', code });
-    this.errorNotifier.showError(message);
+    this.applicationError.report(error, {
+      feature: 'account-lifecycle',
+      operation: 'invalidInput',
+      fallbackMessage: message,
+      codeMessages: {
+        [code]: message,
+      },
+      metadata: {
+        scope: 'AccountLifecycleService',
+        phase: 'invalidInput',
+        code,
+      },
+    });
+
     return throwError(() => error);
   }
 
-  private resolveUserMessage(error: unknown, fallback: string): string {
-    const source = (error ?? {}) as {
-      code?: unknown;
-      message?: unknown;
-      details?: unknown;
-    };
-    const code = String(source.code ?? '').toLowerCase();
-    const details = (source.details ?? {}) as Record<string, unknown>;
-    const reason = String(details['reason'] ?? '').toLowerCase();
+  private resolveReasonMessages(
+    error: unknown
+  ): Readonly<Record<string, string>> {
+    const source = this.asRecord(error);
+    const details = this.asRecord(source?.['details']);
+    const rawReason = this.safeString(details?.['reason']);
+    if (!rawReason) return {};
 
-    if (reason === 'recent-authentication-required') {
-      return 'Por segurança, saia e entre novamente antes de repetir esta ação.';
+    switch (rawReason.toLowerCase()) {
+      case 'recent-authentication-required':
+        return {
+          [rawReason]:
+            'Por segurança, saia e entre novamente antes de repetir esta ação.',
+        };
+      case 'moderation-suspension-active':
+        return {
+          [rawReason]:
+            'Uma suspensão aplicada pela moderação não pode ser alterada por esta ação.',
+        };
+      case 'deletion-undo-window-expired':
+        return {
+          [rawReason]: 'O prazo para cancelar a exclusão já terminou.',
+        };
+      case 'owned-resources-require-resolution':
+        return {
+          [rawReason]: this.resolveOwnedResourcesMessage(details ?? {}),
+        };
+      default:
+        return {};
     }
-
-    if (reason === 'moderation-suspension-active') {
-      return 'Uma suspensão aplicada pela moderação não pode ser alterada por esta ação.';
-    }
-
-    if (reason === 'deletion-undo-window-expired') {
-      return 'O prazo para cancelar a exclusão já terminou.';
-    }
-
-    if (reason === 'owned-resources-require-resolution') {
-      return this.resolveOwnedResourcesMessage(details);
-    }
-
-    if (code.includes('unauthenticated')) {
-      return 'Sua sessão terminou. Entre novamente para continuar.';
-    }
-
-    if (code.includes('permission-denied')) {
-      return 'Sua conta não pode executar esta ação no estado atual.';
-    }
-
-    if (code.includes('invalid-argument')) {
-      return typeof source.message === 'string' && source.message.trim()
-        ? source.message
-        : 'Revise os dados informados e tente novamente.';
-    }
-
-    return fallback;
   }
 
   private resolveOwnedResourcesMessage(
@@ -430,35 +434,15 @@ export class AccountLifecycleService {
     return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : 0;
   }
 
-  // ---------------------------------------------------------------------------
-  // ERROR REPORT
-  // ---------------------------------------------------------------------------
+  private asRecord(value: unknown): Record<string, unknown> | null {
+    return value !== null && typeof value === 'object' && !Array.isArray(value)
+      ? value as Record<string, unknown>
+      : null;
+  }
 
-  private report(error: unknown, context: Record<string, unknown>): void {
-    try {
-      if (this.debug) {
-        // eslint-disable-next-line no-console
-        console.debug('[AccountLifecycleService]', context, error);
-      }
-
-      const normalized =
-        error instanceof Error
-          ? error
-          : new Error('[AccountLifecycleService] operação falhou');
-      const contextual = normalized as Error & {
-        original?: unknown;
-        context?: unknown;
-        skipUserNotification?: boolean;
-        silent?: boolean;
-      };
-      contextual.original = error;
-      contextual.context = context;
-      contextual.skipUserNotification = true;
-      contextual.silent = true;
-
-      this.globalErrorHandler.handleError(contextual);
-    } catch {
-      // Falha de telemetria não interrompe a operação principal.
-    }
+  private safeString(value: unknown): string | null {
+    if (typeof value !== 'string') return null;
+    const normalized = value.trim();
+    return normalized || null;
   }
 }
