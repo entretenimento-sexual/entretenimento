@@ -110,9 +110,7 @@ function buildAuthor(rawUser: unknown): {
 
 function assertTransactionalInteractionAllowed(
   rawCommunity: unknown,
-  rawMembership: unknown,
-  rawUser: unknown,
-  uid: string
+  rawMembership: unknown
 ): void {
   const community = (rawCommunity ?? {}) as Record<string, unknown>;
   const moderation = (community['moderation'] ?? {}) as Record<string, unknown>;
@@ -265,9 +263,7 @@ export const createCommunityTopic = onCall<CommunityTopicCreateRequest>(
 
       assertTransactionalInteractionAllowed(
         communitySnapshot.data(),
-        membershipSnapshot.exists ? membershipSnapshot.data() : null,
-        userSnapshot.exists ? userSnapshot.data() : null,
-        actorUid
+        membershipSnapshot.exists ? membershipSnapshot.data() : null
       );
 
       if (topicSnapshot.exists || projectionSnapshot.exists) {
@@ -491,9 +487,7 @@ export const createCommunityTopicReply = onCall<CommunityTopicReplyCreateRequest
 
       assertTransactionalInteractionAllowed(
         communitySnapshot.data(),
-        membershipSnapshot.exists ? membershipSnapshot.data() : null,
-        userSnapshot.exists ? userSnapshot.data() : null,
-        actorUid
+        membershipSnapshot.exists ? membershipSnapshot.data() : null
       );
 
       if (!topicSnapshot.exists || !projectionSnapshot.exists) {
