@@ -216,6 +216,9 @@ export const reportCommunityFeedCommentReply = onCall<
         route: command.route,
         status: 'open',
         moderationAction: null,
+        legalReviewStatus: command.reason === 'minor_content_safety'
+          ? 'PENDING_LEGAL_REVIEW'
+          : null,
         source: 'web',
         createdAt: timestamp,
         updatedAt: timestamp,
