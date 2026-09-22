@@ -21,7 +21,11 @@ import {
 } from './community-callable-security';
 import { hasCommunityLifecycleHold } from './community-lifecycle.policy';
 import { resolveCommunityMemberCountDelta } from './community-member-count.policy';
-import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
+import {
+  assertCommunityMembershipActorEligible,
+  assertCommunityMembershipActorEligibleForUid,
+  assertCommunityMembershipActorEligibleInTransaction,
+} from './community-membership-eligibility.service';
 import {
   CommunityOwnershipMembershipRole,
   CommunityOwnershipMembershipStatus,
@@ -242,9 +246,17 @@ function assertCommunityOwnerPointer(
   }
 }
 
-function isTargetAccountEligible(rawUser: unknown, uid: string): boolean {
+function isTargetAccountEligible(
+  rawUser: unknown,
+  uid: string,
+  rawAgeEligibility: unknown
+): boolean {
   try {
-    assertCommunityMembershipActorEligible(rawUser, uid);
+    assertCommunityMembershipActorEligible(
+      rawUser,
+      uid,
+      rawAgeEligibility
+    );
     return true;
   } catch {
     return false;
@@ -352,22 +364,17 @@ export const getCommunityOwnershipCandidates = onCall<CommunityIdPayload>(
 
     const communityRef = db.collection('communities').doc(communityId);
     const actorMembershipRef = communityRef.collection('members').doc(actorUid);
-    const actorUserRef = db.collection('users').doc(actorUid);
-    const [communitySnapshot, actorMembershipSnapshot, actorUserSnapshot] =
+    const [communitySnapshot, actorMembershipSnapshot] =
       await Promise.all([
         communityRef.get(),
         actorMembershipRef.get(),
-        actorUserRef.get(),
       ]);
+    await assertCommunityMembershipActorEligibleForUid(actorUid);
 
     if (!communitySnapshot.exists) {
       throw new HttpsError('not-found', 'Comunidade não encontrada.');
     }
 
-    assertCommunityMembershipActorEligible(
-      actorUserSnapshot.exists ? actorUserSnapshot.data() : null,
-      actorUid
-    );
     assertOwnerMembership(
       actorMembershipSnapshot.exists ? actorMembershipSnapshot.data() : null
     );
@@ -396,11 +403,18 @@ export const getCommunityOwnershipCandidates = onCall<CommunityIdPayload>(
         normalizeMembershipRole(document.data()?.['role'])
       );
     });
-    const userSnapshots = await Promise.all(
-      candidateMemberships.map((membership) =>
-        db.collection('users').doc(membership.id).get()
-      )
-    );
+    const [userSnapshots, ageEligibilitySnapshots] = await Promise.all([
+      Promise.all(
+        candidateMemberships.map((membership) =>
+          db.collection('users').doc(membership.id).get()
+        )
+      ),
+      Promise.all(
+        candidateMemberships.map((membership) =>
+          db.collection('age_eligibility_records').doc(membership.id).get()
+        )
+      ),
+    ]);
 
     const items = candidateMemberships
       .map((membership, index): CommunityOwnershipCandidate | null => {
@@ -411,7 +425,13 @@ export const getCommunityOwnershipCandidates = onCall<CommunityIdPayload>(
         if (
           !user
           || !isTransferCandidateRole(role)
-          || !isTargetAccountEligible(user, membership.id)
+          || !isTargetAccountEligible(
+            user,
+            membership.id,
+            ageEligibilitySnapshots[index]?.exists
+              ? ageEligibilitySnapshots[index].data()
+              : null
+          )
         ) {
           return null;
         }
@@ -531,14 +551,22 @@ export const transferCommunityOwnership =
           throw new HttpsError('not-found', 'Comunidade não encontrada.');
         }
 
-        assertCommunityMembershipActorEligible(
-          actorUserSnapshot.exists ? actorUserSnapshot.data() : null,
-          actorUid
+        await assertCommunityMembershipActorEligibleInTransaction(
+          transaction,
+          actorUid,
+          actorUserSnapshot.exists ? actorUserSnapshot.data() : null
         );
-        const targetEligible = isTargetAccountEligible(
-          targetUserSnapshot.exists ? targetUserSnapshot.data() : null,
-          targetUid
-        );
+
+        let targetEligible = true;
+        try {
+          await assertCommunityMembershipActorEligibleInTransaction(
+            transaction,
+            targetUid,
+            targetUserSnapshot.exists ? targetUserSnapshot.data() : null
+          );
+        } catch {
+          targetEligible = false;
+        }
         const community = communitySnapshot.data() ?? {};
         assertCommunityOwnerPointer(community, actorUid);
         const source = (community['source'] ?? {}) as Record<string, unknown>;
@@ -746,9 +774,10 @@ export const archiveCommunity = onCall<CommunityArchivePayload>(
         throw new HttpsError('not-found', 'Comunidade não encontrada.');
       }
 
-      assertCommunityMembershipActorEligible(
-        actorUserSnapshot.exists ? actorUserSnapshot.data() : null,
-        actorUid
+      await assertCommunityMembershipActorEligibleInTransaction(
+        transaction,
+        actorUid,
+        actorUserSnapshot.exists ? actorUserSnapshot.data() : null
       );
       const community = communitySnapshot.data() ?? {};
       const source = (community['source'] ?? {}) as Record<string, unknown>;
