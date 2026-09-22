@@ -36,6 +36,11 @@ export class PublicProfileDiscoveryService {
 
     return collectionData(q, { idField: 'uid' }).pipe(
       map((docs) => docs
+        .filter((raw) =>
+          (raw as unknown as Record<string, unknown>)[
+            'ageEligibilityVerifiedAdult'
+          ] === true
+        )
         .map((raw) => this.toUserDadosFromPublicProfile(
           raw as unknown as Record<string, unknown>
         ))
@@ -53,11 +58,13 @@ export class PublicProfileDiscoveryService {
     if (!safeUid) return of(null);
 
     return docData(doc(this.firestore, `public_profiles/${safeUid}`), { idField: 'uid' }).pipe(
-      map((raw) => raw
-        ? this.toUserDadosFromPublicProfile(
-            raw as unknown as Record<string, unknown>
-          )
-        : null),
+      map((raw) => {
+        const source = raw as unknown as Record<string, unknown> | undefined;
+
+        return source?.['ageEligibilityVerifiedAdult'] === true
+          ? this.toUserDadosFromPublicProfile(source)
+          : null;
+      }),
       catchError((err) => {
         this.reportSilentError('PublicProfileDiscoveryService.getPublicProfileByUid$', err);
         return of(null);
