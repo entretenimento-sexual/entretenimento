@@ -112,9 +112,12 @@ export const startPublicVideoPlaybackSession = onCall<
       throw new HttpsError('not-found', 'Vídeo público não encontrado.');
     }
 
+    const publicProfile = publicProfileSnapshot.data() ?? {};
     const publicVideo = publicVideoSnapshot.data() ?? {};
 
     if (
+      publicProfile.ageEligibilityVerifiedAdult !== true ||
+      publicVideo.ageEligibilityVerifiedAdult !== true ||
       publicVideo.visibility !== 'PUBLIC' ||
       publicVideo.moderationStatus !== 'APPROVED'
     ) {
