@@ -47,13 +47,17 @@ match /users/{userId}/profileData/socialLinks {
   allow list: if false;
 
   allow create: if isSelf(userId)
+    && currentUserCanUseAdultSocialPlatform()
     && isActiveSubscriber(userId)
     && validPayload();
 
   allow update: if isSelf(userId)
     && validPayload()
     && (
-      isActiveSubscriber(userId)
+      (
+        currentUserCanUseAdultSocialPlatform()
+        && isActiveSubscriber(userId)
+      )
       || removesOnly()
     );
 
