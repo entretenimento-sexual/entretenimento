@@ -265,6 +265,7 @@ export class UserIntentStatusService {
           where('destination.region.city', '==', normalizedRegion.city),
           where('moderation.state', '==', 'active'),
           where('visibility', '==', 'public_discovery'),
+          where('ageEligibilityVerifiedAdult', '==', true),
         ];
 
         if (venueId) {
