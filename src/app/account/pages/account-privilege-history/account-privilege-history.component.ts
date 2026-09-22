@@ -201,7 +201,9 @@ export class AccountPrivilegeHistoryComponent {
       fallbackMessage: notifyUser
         ? 'Não foi possível carregar registros mais antigos.'
         : 'Não foi possível carregar o histórico de privilégios.',
-      notification: notifyUser ? 'error' : 'none',
+      presentation: notifyUser
+        ? undefined
+        : { surface: 'none', severity: 'error' },
       metadata: {
         scope: 'AccountPrivilegeHistoryComponent',
       },
