@@ -26,10 +26,21 @@ match /user_intent_statuses/{statusId} {
       && resource.data.visibility == "public_discovery";
   }
 
+  function targetCanonicalAgeEligibilityAllowsAdultExposure() {
+    return resource.data.uid is string
+      && canonicalAgeEligibilityAllowsAdultAccess(resource.data.uid);
+  }
+
   allow get: if isCurrentStatusPath()
     || (
       currentUserCanUseAdultSocialPlatform()
-      && (isDiscoverableStatus() || isOwnerStatus())
+      && (
+        isOwnerStatus()
+        || (
+          isDiscoverableStatus()
+          && targetCanonicalAgeEligibilityAllowsAdultExposure()
+        )
+      )
     );
 
   allow list: if currentUserCanUseAdultSocialPlatform()

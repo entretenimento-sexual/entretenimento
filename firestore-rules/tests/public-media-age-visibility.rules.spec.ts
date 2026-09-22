@@ -92,6 +92,15 @@ async function seedPublicMedia(): Promise<void> {
         verifiedAt: new Date(Date.now() - 1_000),
         expiresAt: null,
       }),
+      setDoc(doc(db, 'age_eligibility_records', OWNER_UID), {
+        uid: OWNER_UID,
+        status: 'VERIFIED_ADULT',
+        policyVersion: 1,
+        source: 'AGE_REVERIFICATION',
+        method: 'MANUAL_REVIEW',
+        verifiedAt: new Date(Date.now() - 1_000),
+        expiresAt: null,
+      }),
       setDoc(doc(db, 'public_profiles', OWNER_UID), {
         uid: OWNER_UID,
         nickname: 'Perfil adulto',
@@ -135,6 +144,15 @@ async function seedPublicMedia(): Promise<void> {
         }
       ),
     ]);
+  });
+}
+
+async function setOwnerCanonicalAgeExpiry(expiresAt: Date | null) {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(
+      doc(context.firestore(), 'age_eligibility_records', OWNER_UID),
+      { expiresAt }
+    );
   });
 }
 
@@ -268,6 +286,34 @@ describe('Firestore Rules / public media age visibility', () => {
     await setMediaVisibility('PRIVATE');
 
     await assertFails(getDoc(videoRef));
+  });
+
+  it('bloqueia deep links imediatamente quando a autoridade do proprietário expira', async () => {
+    await setOwnerCanonicalAgeExpiry(new Date(Date.now() - 1_000));
+    const db = viewerDb();
+
+    await assertFails(
+      getDoc(
+        doc(
+          db,
+          'public_profiles',
+          OWNER_UID,
+          'public_videos',
+          VIDEO_ID
+        )
+      )
+    );
+    await assertFails(
+      getDoc(
+        doc(
+          db,
+          'public_profiles',
+          OWNER_UID,
+          'public_photos',
+          PHOTO_ID
+        )
+      )
+    );
   });
 
   it('bloqueia acesso direto quando o perfil pai foi ocultado', async () => {

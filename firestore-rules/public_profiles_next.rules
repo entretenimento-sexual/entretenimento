@@ -11,7 +11,15 @@ match /public_profiles/{userId} {
     return resource.data.ageEligibilityVerifiedAdult == true;
   }
 
-  allow get, list: if currentUserCanUseAdultSocialPlatform()
+  function targetCanonicalAgeEligibilityAllowsAdultExposure() {
+    return canonicalAgeEligibilityAllowsAdultAccess(userId);
+  }
+
+  allow get: if currentUserCanUseAdultSocialPlatform()
+    && targetAgeProjectionAllowsAdultExposure()
+    && targetCanonicalAgeEligibilityAllowsAdultExposure();
+
+  allow list: if currentUserCanUseAdultSocialPlatform()
     && targetAgeProjectionAllowsAdultExposure();
 
   function hasPublicField(field) {

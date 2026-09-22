@@ -15,7 +15,8 @@ match /public_profiles/{userId}/public_photos/{photoId} {
 
   function publicProfileAllowsAdultExposure() {
     return publicProfileExists()
-      && get(publicProfilePath()).data.ageEligibilityVerifiedAdult == true;
+      && get(publicProfilePath()).data.ageEligibilityVerifiedAdult == true
+      && canonicalAgeEligibilityAllowsAdultAccess(userId);
   }
 
   function photoPath() {
@@ -103,7 +104,7 @@ match /public_profiles/{userId}/public_photos/{photoId} {
       && (
         isSelf(userId)
         || (
-          publicProfileExists()
+          publicProfileAllowsAdultExposure()
           && resource.data.status == "VISIBLE"
           && photoExists()
           && isApprovedCommentReadablePhotoData(photoData())
@@ -114,7 +115,7 @@ match /public_profiles/{userId}/public_photos/{photoId} {
       && (
         isSelf(userId)
         || (
-          publicProfileExists()
+          publicProfileAllowsAdultExposure()
           && resource.data.status == "VISIBLE"
           && photoExists()
           && isApprovedCommentReadablePhotoData(photoData())

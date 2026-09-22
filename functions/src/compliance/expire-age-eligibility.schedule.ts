@@ -1,14 +1,15 @@
 // functions/src/compliance/expire-age-eligibility.schedule.ts
 // -----------------------------------------------------------------------------
-// AGE ELIGIBILITY EXPIRATION MATERIALIZER
+// AGE ELIGIBILITY EXPIRATION RECOVERY SWEEP
 // -----------------------------------------------------------------------------
-// O relógio não gera eventos no Firestore. Este job materializa a passagem
-// VERIFIED_ADULT -> EXPIRED somente para registros cujo expiresAt venceu.
+// A expiração pontual é agendada por Cloud Tasks no expiresAt. Este job não é
+// mais a fronteira primária de segurança: funciona como fallback de recuperação
+// para tarefas perdidas/atrasadas e para registros antigos ainda não agendados.
 //
 // Segurança/custo:
 // - consulta indexada apenas a autoridade canônica;
 // - lote limitado por execução;
-// - cada candidato é relido em transação;
+// - cada candidato é relido no materializador transacional;
 // - uma reverificação concorrente sempre vence;
 // - nunca deriva maioridade de campos do usuário.
 // -----------------------------------------------------------------------------
@@ -16,115 +17,13 @@
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
-import { db, FieldValue, Timestamp } from '../firebaseApp';
+import { db, Timestamp } from '../firebaseApp';
 import {
-  writeAgeEligibilityExpiredNotificationInTransaction,
-} from '../moderation/moderation-safety-notification.service';
-import {
-  evaluateCanonicalAgeEligibility,
-} from './age-eligibility.policy';
-import {
-  writeCanonicalAgeEligibilityInTransaction,
-} from './age-eligibility.service';
+  materializeExpiredAgeEligibility,
+} from './expire-age-eligibility.service';
 
 const MAX_RECORDS_PER_RUN = 500;
 const TRANSACTION_CONCURRENCY = 10;
-
-interface ExpirationResult {
-  readonly expired: boolean;
-}
-
-async function materializeExpiredRecord(
-  uid: string,
-  nowMs: number
-): Promise<ExpirationResult> {
-  const recordRef = db.collection('age_eligibility_records').doc(uid);
-  const userRef = db.collection('users').doc(uid);
-
-  return db.runTransaction(async (transaction) => {
-    const [recordSnapshot, userSnapshot] = await Promise.all([
-      transaction.get(recordRef),
-      transaction.get(userRef),
-    ]);
-
-    if (!recordSnapshot.exists) {
-      return { expired: false };
-    }
-
-    const rawRecord = recordSnapshot.data() ?? {};
-    const decision = evaluateCanonicalAgeEligibility({
-      uid,
-      rawRecord,
-      nowMs,
-    });
-
-    if (
-      String(rawRecord['status'] ?? '').trim().toUpperCase() !==
-        'VERIFIED_ADULT' ||
-      decision.denialReason !== 'verification_expired' ||
-      decision.expiresAtMs === null ||
-      decision.source === null ||
-      decision.method === null
-    ) {
-      return { expired: false };
-    }
-
-    const ageEligibility = writeCanonicalAgeEligibilityInTransaction(
-      transaction,
-      {
-        uid,
-        status: 'EXPIRED',
-        source: decision.source,
-        method: decision.method,
-        caseId: decision.caseId,
-        verifiedAtMs: decision.verifiedAtMs,
-        decidedAtMs: nowMs,
-        expiresAtMs: decision.expiresAtMs,
-      }
-    );
-
-    if (userSnapshot.exists) {
-      transaction.set(
-        userRef,
-        {
-          ageEligibility,
-          updatedAt: FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      );
-
-      writeAgeEligibilityExpiredNotificationInTransaction(
-        transaction,
-        {
-          uid,
-          expiresAtMs: decision.expiresAtMs,
-        }
-      );
-    }
-
-    transaction.set(
-      db
-        .collection('compliance_audit')
-        .doc(`age_expired_${uid}_${decision.expiresAtMs}`),
-      {
-        uid,
-        type: 'age_eligibility.expired',
-        previousStatus: 'VERIFIED_ADULT',
-        nextStatus: 'EXPIRED',
-        source: decision.source,
-        method: decision.method,
-        caseId: decision.caseId,
-        verifiedAtMs: decision.verifiedAtMs,
-        expiresAtMs: decision.expiresAtMs,
-        materializedAtMs: nowMs,
-        createdAt: FieldValue.serverTimestamp(),
-      },
-      { merge: false }
-    );
-
-    return { expired: true };
-  });
-}
 
 async function processChunk(
   uids: readonly string[],
@@ -132,7 +31,7 @@ async function processChunk(
 ): Promise<number> {
   const results = await Promise.all(
     uids.map(async (uid) => {
-      const result = await materializeExpiredRecord(uid, nowMs);
+      const result = await materializeExpiredAgeEligibility(uid, nowMs);
       return result.expired ? 1 : 0;
     })
   );
@@ -171,7 +70,7 @@ export const expireAgeEligibilityRecords = onSchedule(
       );
     }
 
-    console.log('[ageEligibility] Expiração temporal materializada.', {
+    console.log('[ageEligibility] Sweep de recuperação concluído.', {
       candidates: uids.length,
       expired,
       capped: snapshot.size >= MAX_RECORDS_PER_RUN,

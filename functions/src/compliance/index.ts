@@ -43,5 +43,9 @@ export {
 } from './age-verification-provider-assertion.trigger';
 
 export {
+  expireAgeEligibilityAtBoundary,
+  scheduleAgeEligibilityExpirationTask,
+} from './expire-age-eligibility.task';
+export {
   expireAgeEligibilityRecords,
 } from './expire-age-eligibility.schedule';

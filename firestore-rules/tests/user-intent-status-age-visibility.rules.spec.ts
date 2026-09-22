@@ -60,6 +60,15 @@ async function seedViewerAndStatuses(): Promise<void> {
         verifiedAt: new Date(Date.now() - 1_000),
         expiresAt: null,
       }),
+      setDoc(doc(db, 'age_eligibility_records', OWNER_UID), {
+        uid: OWNER_UID,
+        status: 'VERIFIED_ADULT',
+        policyVersion: 1,
+        source: 'AGE_REVERIFICATION',
+        method: 'MANUAL_REVIEW',
+        verifiedAt: new Date(Date.now() - 1_000),
+        expiresAt: null,
+      }),
       setDoc(doc(db, 'user_intent_statuses', `current_${OWNER_UID}`), {
         uid: OWNER_UID,
         ageEligibilityVerifiedAdult: true,
@@ -75,6 +84,23 @@ async function seedViewerAndStatuses(): Promise<void> {
         expiresAt: Date.now() + 60_000,
       }),
     ]);
+  });
+}
+
+async function setOwnerCanonicalAgeExpiry(expiresAt: Date | null) {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await setDoc(
+      doc(context.firestore(), 'age_eligibility_records', OWNER_UID),
+      {
+        uid: OWNER_UID,
+        status: 'VERIFIED_ADULT',
+        policyVersion: 1,
+        source: 'AGE_REVERIFICATION',
+        method: 'MANUAL_REVIEW',
+        verifiedAt: new Date(Date.now() - 10_000),
+        expiresAt,
+      }
+    );
   });
 }
 
@@ -112,6 +138,15 @@ describe('Firestore Rules / user intent status age visibility', () => {
     );
     await assertFails(
       getDoc(doc(db, 'user_intent_statuses', 'current_hidden_age_owner'))
+    );
+  });
+
+  it('bloqueia leitura pública direta quando a autoridade do autor expira', async () => {
+    await setOwnerCanonicalAgeExpiry(new Date(Date.now() - 1_000));
+    const db = testEnv.authenticatedContext(VIEWER_UID).firestore();
+
+    await assertFails(
+      getDoc(doc(db, 'user_intent_statuses', `current_${OWNER_UID}`))
     );
   });
 

@@ -14,7 +14,8 @@ match /public_profiles/{userId}/public_videos/{videoId} {
 
   function publicProfileAllowsAdultExposure() {
     return publicProfileExists()
-      && get(publicProfilePath()).data.ageEligibilityVerifiedAdult == true;
+      && get(publicProfilePath()).data.ageEligibilityVerifiedAdult == true
+      && canonicalAgeEligibilityAllowsAdultAccess(userId);
   }
 
   function videoPath() {
@@ -76,7 +77,7 @@ match /public_profiles/{userId}/public_videos/{videoId} {
       && (
         isSelf(userId)
         || (
-          publicProfileExists()
+          publicProfileAllowsAdultExposure()
           && resource.data.status == "VISIBLE"
           && videoExists()
           && isApprovedPublicVideoData(videoData())
@@ -87,7 +88,7 @@ match /public_profiles/{userId}/public_videos/{videoId} {
       && (
         isSelf(userId)
         || (
-          publicProfileExists()
+          publicProfileAllowsAdultExposure()
           && resource.data.status == "VISIBLE"
           && videoExists()
           && isApprovedPublicVideoData(videoData())
