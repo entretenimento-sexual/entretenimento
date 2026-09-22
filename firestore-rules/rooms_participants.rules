@@ -37,7 +37,7 @@ match /rooms/{roomId}/participants/{userId} {
   }
 
   function isRoomParticipantRequester() {
-    return signedIn()
+    return currentUserCanUseAdultSocialPlatform()
       && roomExists()
       && (uid() in roomParticipants());
   }
