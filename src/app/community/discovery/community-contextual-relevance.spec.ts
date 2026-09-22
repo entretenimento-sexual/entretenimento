@@ -139,7 +139,7 @@ describe('community contextual relevance', () => {
     expect(relevance?.rank).toBe(3);
   });
 
-  it('mantém a primeira posição orgânica e personaliza somente a janela próxima', () => {
+  it('preserva integralmente a ordem canônica recebida do backend', () => {
     const personalized = personalizeCommunityDiscoveryCards(
       [
         card('organic-first', []),
@@ -154,22 +154,19 @@ describe('community contextual relevance', () => {
 
     expect(personalized.map((item) => item.communityId)).toEqual([
       'organic-first',
+      'neutral',
       'friendship',
       'bdsm',
-      'neutral',
       'organic-last',
     ]);
   });
 
-  it('limita a promoção contextual a três posições da sequência orgânica disponível', () => {
+  it('não promove um candidato forte através da fronteira orgânica da página', () => {
     const personalized = personalizeCommunityDiscoveryCards(
       [
-        card('organic-first', []),
         card('neutral-1', []),
         card('neutral-2', []),
         card('neutral-3', []),
-        card('neutral-4', []),
-        card('neutral-5', []),
         card('friendship', ['intent:friendship']),
       ],
       CATALOG,
@@ -177,59 +174,14 @@ describe('community contextual relevance', () => {
     );
 
     expect(personalized.map((item) => item.communityId)).toEqual([
-      'organic-first',
       'neutral-1',
       'neutral-2',
-      'friendship',
       'neutral-3',
-      'neutral-4',
-      'neutral-5',
-    ]);
-  });
-
-  it('preserva âncoras orgânicas periódicas mesmo com candidatos contextuais próximos', () => {
-    const personalized = personalizeCommunityDiscoveryCards(
-      [
-        card('organic-first', []),
-        card('organic-anchor', []),
-        card('friendship', ['intent:friendship']),
-        card('dating', ['intent:dating']),
-        card('bdsm', ['practice:bdsm']),
-      ],
-      CATALOG,
-      profile()
-    );
-
-    expect(personalized.map((item) => item.communityId)).toEqual([
-      'organic-first',
       'friendship',
-      'dating',
-      'bdsm',
-      'organic-anchor',
     ]);
   });
 
-  it('reduz repetição recente quando candidatos têm afinidade equivalente', () => {
-    const personalized = personalizeCommunityDiscoveryCards(
-      [
-        card('organic-first', []),
-        card('friendship-a', ['intent:friendship']),
-        card('friendship-b', ['intent:friendship']),
-        card('dating', ['intent:dating']),
-      ],
-      CATALOG,
-      profile()
-    );
-
-    expect(personalized.map((item) => item.communityId)).toEqual([
-      'organic-first',
-      'friendship-a',
-      'dating',
-      'friendship-b',
-    ]);
-  });
-
-  it('não transforma afinidade contextual em percentual público', () => {
+  it('mantém afinidade contextual somente como explicação visual', () => {
     const [personalized] = personalizeCommunityDiscoveryCards(
       [card('community-a', ['intent:friendship', 'practice:bdsm'])],
       CATALOG,
