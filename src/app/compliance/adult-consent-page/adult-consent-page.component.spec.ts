@@ -6,7 +6,7 @@ import { vi } from 'vitest';
 
 import { LogoutService } from 'src/app/core/services/autentication/auth/logout.service';
 import { AdultConsentService } from 'src/app/core/services/compliance/adult-consent.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { AdultConsentPageComponent } from './adult-consent-page.component';
 
@@ -22,7 +22,7 @@ describe('AdultConsentPageComponent', () => {
     clearCurrentConsentCache$: MockFn;
   };
   let logoutMock: { logout$: MockFn };
-  let globalErrorHandlerMock: { handleError: MockFn };
+  let applicationErrorMock: { report: MockFn };
   let errorNotifierMock: {
     showError: MockFn;
     showSuccess: MockFn;
@@ -40,8 +40,8 @@ describe('AdultConsentPageComponent', () => {
       logout$: vi.fn(() => of(void 0)),
     };
 
-    globalErrorHandlerMock = {
-      handleError: vi.fn(),
+    applicationErrorMock = {
+      report: vi.fn(),
     };
 
     errorNotifierMock = {
@@ -73,8 +73,8 @@ describe('AdultConsentPageComponent', () => {
           useValue: logoutMock,
         },
         {
-          provide: GlobalErrorHandlerService,
-          useValue: globalErrorHandlerMock,
+          provide: ApplicationErrorService,
+          useValue: applicationErrorMock,
         },
         {
           provide: ErrorNotificationService,
@@ -103,7 +103,7 @@ describe('AdultConsentPageComponent', () => {
     expect(errorNotifierMock.showError).toHaveBeenCalledWith(
       'Não foi possível confirmar sua maioridade agora. Verifique a conexão e tente novamente.'
     );
-    expect(globalErrorHandlerMock.handleError).not.toHaveBeenCalled();
+    expect(applicationErrorMock.report).not.toHaveBeenCalled();
     expect(component.isSaving).toBe(false);
   });
 
@@ -119,7 +119,7 @@ describe('AdultConsentPageComponent', () => {
       );
     });
 
-    expect(globalErrorHandlerMock.handleError).not.toHaveBeenCalled();
+    expect(applicationErrorMock.report).not.toHaveBeenCalled();
     expect(errorNotifierMock.showError).not.toHaveBeenCalled();
   });
 
@@ -130,14 +130,23 @@ describe('AdultConsentPageComponent', () => {
     component.accept();
 
     await vi.waitFor(() => {
-      expect(globalErrorHandlerMock.handleError).toHaveBeenCalledTimes(1);
+      expect(applicationErrorMock.report).toHaveBeenCalledTimes(1);
     });
 
-    const [reportedError] = globalErrorHandlerMock.handleError.mock.calls[0];
-    expect(reportedError.context).toBe(
-      'AdultConsentPageComponent.navigateAfterConsent'
+    const [reportedError, reportOptions] =
+      applicationErrorMock.report.mock.calls[0];
+    expect(reportedError).toBeInstanceOf(Error);
+    expect(reportOptions).toEqual(
+      expect.objectContaining({
+        feature: 'adult-consent',
+        operation: 'navigateAfterConsent',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: expect.objectContaining({
+          scope: 'AdultConsentPageComponent',
+          fallbackNavigationFailed: true,
+        }),
+      })
     );
-    expect(reportedError.skipUserNotification).toBe(true);
     expect(errorNotifierMock.showError).toHaveBeenCalledTimes(1);
     expect(errorNotifierMock.showError).toHaveBeenCalledWith(
       'Sua confirmação de maioridade foi registrada, mas não foi possível avançar. Recarregue a página e tente novamente.'
@@ -159,7 +168,7 @@ describe('AdultConsentPageComponent', () => {
     expect(errorNotifierMock.showError).toHaveBeenCalledWith(
       'Não foi possível encerrar sua sessão. Tente novamente.'
     );
-    expect(globalErrorHandlerMock.handleError).not.toHaveBeenCalled();
+    expect(applicationErrorMock.report).not.toHaveBeenCalled();
     expect(component.isSaving).toBe(false);
   });
 
