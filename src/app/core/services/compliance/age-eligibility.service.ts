@@ -42,9 +42,11 @@ const UNVERIFIED: IUserAgeEligibility = Object.freeze({
 
 @Injectable({ providedIn: 'root' })
 export class AgeEligibilityService {
-  private readonly environmentInjector = inject(EnvironmentInjector);
-  private readonly currentUser = inject(CurrentUserStoreService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  constructor(
+    private readonly environmentInjector: EnvironmentInjector,
+    private readonly currentUser: CurrentUserStoreService,
+    private readonly globalError: GlobalErrorHandlerService,
+  ) {}
 
   readonly current$: Observable<IUserAgeEligibility> =
     this.currentUser.user$.pipe(
