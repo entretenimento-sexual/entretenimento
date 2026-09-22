@@ -108,6 +108,7 @@ async function resolveAccessItem(
   const publication = publicationSnap.data();
 
   if (
+    publicVideo?.ageEligibilityVerifiedAdult !== true ||
     publicVideo?.visibility !== 'PUBLIC' ||
     publicVideo?.moderationStatus !== 'APPROVED' ||
     publication?.isPublished !== true
@@ -278,7 +279,12 @@ export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
           const snapshot = await db.doc(`public_profiles/${ownerUid}`).get();
           return [
             ownerUid,
-            { exists: snapshot.exists, technicalFailure: false },
+            {
+              exists:
+                snapshot.exists &&
+                snapshot.data()?.ageEligibilityVerifiedAdult === true,
+              technicalFailure: false,
+            },
           ] as const;
         } catch (error) {
           logger.warn(
