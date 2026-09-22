@@ -15,6 +15,9 @@
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
+import {
+  assertInteractionAccessData,
+} from '../../account_lifecycle/interaction-access.policy';
 import { db, FieldValue } from '../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 
@@ -184,6 +187,12 @@ export const acceptFriendRequest = onCall<AcceptFriendRequestPayload>(
 
       const requesterRef = db.collection('users').doc(requesterUid);
       const targetRef = db.collection('users').doc(targetUid);
+      const requesterAgeRef = db
+        .collection('age_eligibility_records')
+        .doc(requesterUid);
+      const targetAgeRef = db
+        .collection('age_eligibility_records')
+        .doc(targetUid);
 
       const requesterFriendRef = requesterRef.collection('friends').doc(targetUid);
       const targetFriendRef = targetRef.collection('friends').doc(requesterUid);
@@ -203,6 +212,8 @@ export const acceptFriendRequest = onCall<AcceptFriendRequestPayload>(
         requesterBlockSnapshot,
         targetBlockSnapshot,
         requesterPreferencesSnapshot,
+        requesterAgeSnapshot,
+        targetAgeSnapshot,
       ] = await Promise.all([
         transaction.get(requesterRef),
         transaction.get(targetRef),
@@ -211,6 +222,8 @@ export const acceptFriendRequest = onCall<AcceptFriendRequestPayload>(
         transaction.get(requesterBlockRef),
         transaction.get(targetBlockRef),
         transaction.get(requesterPreferencesRef),
+        transaction.get(requesterAgeRef),
+        transaction.get(targetAgeRef),
       ]);
 
       const requester = requesterSnapshot.data() as FriendshipUserDoc | undefined;
@@ -219,6 +232,16 @@ export const acceptFriendRequest = onCall<AcceptFriendRequestPayload>(
 
       assertUserCanUseFriendship(target, 'actor');
       assertUserCanUseFriendship(requester, 'target');
+      assertInteractionAccessData(
+        target,
+        targetAgeSnapshot.exists ? targetAgeSnapshot.data() : null,
+        targetUid
+      );
+      assertInteractionAccessData(
+        requester,
+        requesterAgeSnapshot.exists ? requesterAgeSnapshot.data() : null,
+        requesterUid
+      );
 
       if (
         isActiveBlock(requesterBlockSnapshot.data()) ||
