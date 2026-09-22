@@ -15,6 +15,9 @@ import {
   safeRecordModerationReviewSignal,
 } from '../moderation/moderation-automation.service';
 import {
+  safeNotifyModerationReportReviewed,
+} from '../moderation/moderation-safety-notification.service';
+import {
   deletePublishedPhotoAssetOrQueue,
   stagePublishedPhotoAssetCleanup,
   type StagedPublishedPhotoAssetCleanup,
@@ -374,6 +377,8 @@ export const reviewCommunityFeedPostReport = onCall<
       critical: transactionResult.critical,
       confirmed: decision === 'REMOVE',
     });
+
+    await safeNotifyModerationReportReviewed(reportId);
 
     if (transactionResult.cleanup) {
       try {
