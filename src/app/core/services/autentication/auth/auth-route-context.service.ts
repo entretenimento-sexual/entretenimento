@@ -14,7 +14,7 @@ import {
 } from 'rxjs/operators';
 
 import { inRegistrationFlow as isRegistrationFlow } from './auth.types';
-import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '../../error-handler/application-error.service';
 import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
 
 export type AuthRouteContext = {
@@ -27,7 +27,7 @@ export type AuthRouteContext = {
 @Injectable({ providedIn: 'root' })
 export class AuthRouteContextService {
   private readonly router = inject(Router);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
 
 private readonly privacyDebug = inject(PrivacyDebugLoggerService);
 
@@ -63,19 +63,27 @@ private dbg(msg: string, extra?: unknown): void {
     };
   }
 
-  private handleStreamError<T>(context: string, fallback: T): (err: unknown) => Observable<T> {
+  private handleStreamError<T>(
+    context: string,
+    fallback: T
+  ): (err: unknown) => Observable<T> {
     return (err: unknown) => {
-      const e =
-        err instanceof Error
-          ? err
-          : new Error(`AuthRouteContextService stream error: ${context}`);
+      try {
+        this.applicationError.report(err, {
+          feature: 'auth-route-context',
+          operation: context,
+          fallbackMessage:
+            'Não foi possível atualizar o contexto interno de navegação.',
+          presentation: { surface: 'none', severity: 'error' },
+          metadata: {
+            scope: 'AuthRouteContextService',
+            context,
+          },
+        });
+      } catch {
+        // Diagnóstico secundário não altera o fallback seguro de navegação.
+      }
 
-      (e as any).silent = true;
-      (e as any).skipUserNotification = true;
-      (e as any).original = err;
-      (e as any).context = context;
-
-      this.globalError.handleError(e);
       return of(fallback);
     };
   }
