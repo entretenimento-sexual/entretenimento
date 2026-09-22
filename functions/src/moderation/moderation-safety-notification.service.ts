@@ -82,24 +82,41 @@ async function writeNotification(input: {
   const userId = cleanId(input.userId);
   if (!userId) return;
 
-  await db.collection('notifications').doc(input.id).set({
-    userId,
-    type: input.type,
-    title: input.title,
-    body: input.body,
-    route: input.route,
-    actionRequired: input.actionRequired === true,
-    caseId: cleanId(input.caseId) || null,
-    pushMode: input.pushMode ?? 'ESSENTIAL',
-    responseDueAt:
-      Number.isFinite(Number(input.responseDueAt)) &&
-      Number(input.responseDueAt) > 0
-        ? Math.trunc(Number(input.responseDueAt))
-        : null,
-    readAt: null,
-    createdAt: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp(),
-  }, { merge: true });
+  const ref = db.collection('notifications').doc(input.id);
+
+  try {
+    await ref.create({
+      userId,
+      type: input.type,
+      title: input.title,
+      body: input.body,
+      route: input.route,
+      actionRequired: input.actionRequired === true,
+      caseId: cleanId(input.caseId) || null,
+      pushMode: input.pushMode ?? 'ESSENTIAL',
+      responseDueAt:
+        Number.isFinite(Number(input.responseDueAt)) &&
+        Number(input.responseDueAt) > 0
+          ? Math.trunc(Number(input.responseDueAt))
+          : null,
+      readAt: null,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  } catch (error) {
+    const code = (error as { code?: unknown } | null)?.code;
+    const normalized = String(code ?? '').trim().toLowerCase();
+
+    if (
+      code === 6 ||
+      normalized === 'already-exists' ||
+      normalized.includes('already_exists')
+    ) {
+      return;
+    }
+
+    throw error;
+  }
 }
 
 async function readReport(
@@ -155,7 +172,7 @@ export async function notifyModerationReportOpened(
       type: 'compliance.action.taken',
       title: 'Conteúdo temporariamente indisponível',
       body:
-        `Uma ${label} foi temporariamente retirada da distribuição enquanto passa por análise de segurança. A medida é preventiva e não representa conclusão da revisão.`,
+        `Um conteúdo do tipo ${label} foi temporariamente retirado da distribuição enquanto passa por análise de segurança. A medida é preventiva e não representa conclusão da revisão.`,
       route: '/notificacoes',
       actionRequired: false,
     });
@@ -201,7 +218,7 @@ export async function notifyModerationReportReviewed(
       type: 'compliance.action.taken',
       title: 'Conteúdo restaurado',
       body:
-        `A ${targetLabel(targetType)} que estava temporariamente indisponível foi restaurada após revisão.`,
+        `O conteúdo (${targetLabel(targetType)}) que estava temporariamente indisponível foi restaurado após revisão.`,
       route: '/notificacoes',
       pushMode: 'IN_APP_ONLY',
     });
@@ -216,7 +233,7 @@ export async function notifyModerationReportReviewed(
       type: 'compliance.action.taken',
       title: 'Conteúdo removido após revisão',
       body:
-        `A ${targetLabel(targetType)} denunciada foi removida após revisão de moderação. Consulte a Central de Notificações para acompanhar medidas aplicadas à conta.`,
+        `O conteúdo denunciado (${targetLabel(targetType)}) foi removido após revisão de moderação. Consulte a Central de Notificações para acompanhar medidas aplicadas à conta.`,
       route: '/notificacoes',
       actionRequired: false,
     });
