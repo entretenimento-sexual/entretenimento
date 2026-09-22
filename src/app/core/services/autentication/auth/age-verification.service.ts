@@ -6,8 +6,7 @@ import { catchError, map, take } from 'rxjs/operators';
 import { IUserDados } from '@core/interfaces/iuser-dados';
 import { FirestoreWriteService } from '@core/services/data-handling/firestore/core/firestore-write.service';
 import { CurrentUserStoreService } from './current-user-store.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
-import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { environment } from 'src/environments/environment';
 
 type AgeVerificationStatus =
@@ -45,8 +44,7 @@ export class AgeVerificationService {
   constructor(
     private readonly write: FirestoreWriteService,
     private readonly currentUserStore: CurrentUserStoreService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService,
-    private readonly notify: ErrorNotificationService,
+    private readonly applicationError: ApplicationErrorService,
   ) {}
 
   /**
@@ -124,13 +122,20 @@ export class AgeVerificationService {
         return evaluated;
       }),
       catchError((err) => {
-        this.reportSilent(err, {
-          phase: 'submitAgeDeclaration',
-          uid,
-          declaredBirthDate,
-        });
+        this.reportError(
+          err,
+          {
+            phase: 'submitAgeDeclaration',
+            uid,
+            declaredBirthDate,
+          },
+          {
+            fallbackMessage:
+              'Não foi possível validar a idade agora. Tente novamente.',
+            presentation: { surface: 'snackbar', severity: 'error' },
+          }
+        );
 
-        this.notify.showError('Não foi possível validar a idade agora. Tente novamente.');
         return throwError(() => err);
       })
     );
@@ -296,21 +301,50 @@ export class AgeVerificationService {
   }
 
   private reportSilent(err: unknown, context: Record<string, unknown>): void {
+    this.reportError(
+      err,
+      context,
+      {
+        fallbackMessage:
+          'Não foi possível concluir uma etapa interna da validação de idade.',
+        presentation: { surface: 'none', severity: 'error' },
+      }
+    );
+  }
+
+  private reportError(
+    err: unknown,
+    context: Record<string, unknown>,
+    options: {
+      fallbackMessage: string;
+      presentation:
+        | { surface: 'none'; severity: 'error' }
+        | { surface: 'snackbar'; severity: 'error' };
+    }
+  ): void {
     try {
       if (this.debug) {
         // eslint-disable-next-line no-console
         console.log('[AgeVerificationService]', context, err);
       }
 
-      const error = new Error('[AgeVerificationService] operation failed');
-      (error as any).silent = true;
-      (error as any).skipUserNotification = true;
-      (error as any).original = err;
-      (error as any).context = context;
+      const operation =
+        typeof context['phase'] === 'string' && context['phase'].trim()
+          ? context['phase'].trim()
+          : 'internal';
 
-      this.globalErrorHandler.handleError(error);
+      this.applicationError.report(err, {
+        feature: 'age-verification',
+        operation,
+        fallbackMessage: options.fallbackMessage,
+        presentation: options.presentation,
+        metadata: {
+          scope: 'AgeVerificationService',
+          ...context,
+        },
+      });
     } catch {
-      // noop
+      // Diagnóstico secundário não altera o fluxo de validação etária.
     }
   }
 }
