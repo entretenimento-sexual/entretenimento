@@ -66,16 +66,11 @@ service cloud.firestore {
     }
 
     function adultMediaHasRequiredConsent(user) {
-      let consentRequired =
-        mapFieldOrNull(user, "initialAdultConsentRequired") != false;
       let adultConsent = mapFieldOrNull(user, "adultConsent");
-      return !consentRequired
-        || (
-          adultConsent is map
-          && adultConsent.keys().hasAll(["accepted", "version"])
-          && adultConsent.accepted == true
-          && adultConsent.version == "v1"
-        );
+      return adultConsent is map
+        && adultConsent.keys().hasAll(["accepted", "version"])
+        && adultConsent.accepted == true
+        && adultConsent.version == "v1";
     }
 
     function adultMediaAgeReverificationAllowsAccess(user) {
