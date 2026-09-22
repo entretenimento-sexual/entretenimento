@@ -5,8 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IUserDados } from '../../../interfaces/iuser-dados';
 import { PlatformSubscriptionAccessService } from '../../subscriptions/platform-subscription-access.service';
 import type { PlatformSubscriptionAccessState } from '../../subscriptions/platform-subscription-access.model';
-import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
-import { ErrorNotificationService } from '../../error-handler/error-notification.service';
+import { ApplicationErrorService } from '../../error-handler/application-error.service';
 import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
 import { AccessControlService } from './access-control.service';
 import { AuthAppBlockService } from './auth-app-block.service';
@@ -50,6 +49,8 @@ function createSubscriptionState(
 }
 
 describe('AccessControlService canonical subscription roles', () => {
+  const applicationErrorReport = vi.fn();
+
   let user$: BehaviorSubject<IUserDados | null | undefined>;
   let authReady$: BehaviorSubject<boolean>;
   let authUser$: BehaviorSubject<{ uid: string; emailVerified: boolean } | null>;
@@ -58,6 +59,8 @@ describe('AccessControlService canonical subscription roles', () => {
   let subscriptionIsSubscriber$: BehaviorSubject<boolean>;
 
   beforeEach(() => {
+    vi.clearAllMocks();
+
     user$ = new BehaviorSubject<IUserDados | null | undefined>(createUser());
     authReady$ = new BehaviorSubject<boolean>(true);
     authUser$ = new BehaviorSubject<{ uid: string; emailVerified: boolean } | null>({
@@ -116,12 +119,8 @@ describe('AccessControlService canonical subscription roles', () => {
           },
         },
         {
-          provide: GlobalErrorHandlerService,
-          useValue: { handleError: vi.fn() },
-        },
-        {
-          provide: ErrorNotificationService,
-          useValue: { showError: vi.fn() },
+          provide: ApplicationErrorService,
+          useValue: { report: applicationErrorReport },
         },
         {
           provide: PrivacyDebugLoggerService,
@@ -135,7 +134,761 @@ describe('AccessControlService canonical subscription roles', () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     TestBed.resetTestingModule();
+  });
+
+
+  it('diagnostica toda falha e limita feedback visual a uma vez por 15 segundos', async () => {
+    const service = TestBed.inject(AccessControlService);
+    const firstError = new Error('first');
+    const secondError = new Error('second');
+
+    vi.spyOn(Date, 'now')
+      .mockReturnValueOnce(20_000)
+      .mockReturnValueOnce(25_000);
+
+    const firstFallback = await firstValueFrom(
+      (service as any).handleStreamError('test
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.hasAtLeast$('basic'))).toBe(false);
+
+    subscriptionState$.next(createSubscriptionState('premium'));
+
+    expect(await firstValueFrom(service.hasAtLeast$('basic'))).toBe(true);
+    expect(await firstValueFrom(service.hasAny$(['premium']))).toBe(true);
+    expect(await firstValueFrom(service.hasAny$(['vip']))).toBe(false);
+  });
+
+  it('preserva admin como papel administrativo separado da assinatura', async () => {
+    user$.next(createUser('admin'));
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.hasAny$(['admin']))).toBe(true);
+    expect(await firstValueFrom(service.hasAtLeast$('vip'))).toBe(true);
+  });
+
+  it('propaga free e subscriber diretamente da fonte canônica', () => {
+    const service = TestBed.inject(AccessControlService);
+    const freeStates: boolean[] = [];
+    const subscriberStates: boolean[] = [];
+
+    const freeSubscription = service.isFree$.subscribe((value) =>
+      freeStates.push(value)
+    );
+    const subscriberSubscription = service.isSubscriber$.subscribe((value) =>
+      subscriberStates.push(value)
+    );
+
+    subscriptionIsFree$.next(false);
+    subscriptionIsSubscriber$.next(true);
+
+    expect(freeStates).toEqual([true, false]);
+    expect(subscriberStates).toEqual([false, true]);
+
+    freeSubscription.unsubscribe();
+    subscriberSubscription.unsubscribe();
+  });
+
+  it('falha fechado enquanto o perfil do usuário autenticado não foi hidratado', async () => {
+    user$.next(undefined);
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.accountStatus$)).toBe('unknown');
+    expect(await firstValueFrom(service.isLifecycleBlocked$)).toBe(true);
+    expect(await firstValueFrom(service.canRunApp$)).toBe(false);
+  });
+
+  it('trata lock técnico como lifecycle bloqueado mesmo com status nominal ativo', async () => {
+    user$.next({
+      ...createUser(),
+      accountStatus: 'active',
+      accountLocked: true,
+    });
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.accountStatus$)).toBe('locked');
+    expect(await firstValueFrom(service.isLifecycleBlocked$)).toBe(true);
+    expect(await firstValueFrom(service.canEnterCore$)).toBe(false);
+  });
+
+  it('não classifica guest resolvido como conta bloqueada', async () => {
+    authUser$.next(null);
+    user$.next(null);
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.accountStatus$)).toBe('active');
+    expect(await firstValueFrom(service.isLifecycleBlocked$)).toBe(false);
+    expect(await firstValueFrom(service.isAuthenticated$)).toBe(false);
+  });
+});
+, false)(firstError)
+    );
+    const secondFallback = await firstValueFrom(
+      (service as any).handleStreamError('test
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.hasAtLeast$('basic'))).toBe(false);
+
+    subscriptionState$.next(createSubscriptionState('premium'));
+
+    expect(await firstValueFrom(service.hasAtLeast$('basic'))).toBe(true);
+    expect(await firstValueFrom(service.hasAny$(['premium']))).toBe(true);
+    expect(await firstValueFrom(service.hasAny$(['vip']))).toBe(false);
+  });
+
+  it('preserva admin como papel administrativo separado da assinatura', async () => {
+    user$.next(createUser('admin'));
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.hasAny$(['admin']))).toBe(true);
+    expect(await firstValueFrom(service.hasAtLeast$('vip'))).toBe(true);
+  });
+
+  it('propaga free e subscriber diretamente da fonte canônica', () => {
+    const service = TestBed.inject(AccessControlService);
+    const freeStates: boolean[] = [];
+    const subscriberStates: boolean[] = [];
+
+    const freeSubscription = service.isFree$.subscribe((value) =>
+      freeStates.push(value)
+    );
+    const subscriberSubscription = service.isSubscriber$.subscribe((value) =>
+      subscriberStates.push(value)
+    );
+
+    subscriptionIsFree$.next(false);
+    subscriptionIsSubscriber$.next(true);
+
+    expect(freeStates).toEqual([true, false]);
+    expect(subscriberStates).toEqual([false, true]);
+
+    freeSubscription.unsubscribe();
+    subscriberSubscription.unsubscribe();
+  });
+
+  it('falha fechado enquanto o perfil do usuário autenticado não foi hidratado', async () => {
+    user$.next(undefined);
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.accountStatus$)).toBe('unknown');
+    expect(await firstValueFrom(service.isLifecycleBlocked$)).toBe(true);
+    expect(await firstValueFrom(service.canRunApp$)).toBe(false);
+  });
+
+  it('trata lock técnico como lifecycle bloqueado mesmo com status nominal ativo', async () => {
+    user$.next({
+      ...createUser(),
+      accountStatus: 'active',
+      accountLocked: true,
+    });
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.accountStatus$)).toBe('locked');
+    expect(await firstValueFrom(service.isLifecycleBlocked$)).toBe(true);
+    expect(await firstValueFrom(service.canEnterCore$)).toBe(false);
+  });
+
+  it('não classifica guest resolvido como conta bloqueada', async () => {
+    authUser$.next(null);
+    user$.next(null);
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.accountStatus$)).toBe('active');
+    expect(await firstValueFrom(service.isLifecycleBlocked$)).toBe(false);
+    expect(await firstValueFrom(service.isAuthenticated$)).toBe(false);
+  });
+});
+, false)(secondError)
+    );
+
+    expect(firstFallback).toBe(false);
+    expect(secondFallback).toBe(false);
+    expect(applicationErrorReport).toHaveBeenCalledTimes(2);
+
+    expect(applicationErrorReport).toHaveBeenNthCalledWith(1, firstError, {
+      feature: 'access-control',
+      operation: 'test
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.hasAtLeast$('basic'))).toBe(false);
+
+    subscriptionState$.next(createSubscriptionState('premium'));
+
+    expect(await firstValueFrom(service.hasAtLeast$('basic'))).toBe(true);
+    expect(await firstValueFrom(service.hasAny$(['premium']))).toBe(true);
+    expect(await firstValueFrom(service.hasAny$(['vip']))).toBe(false);
+  });
+
+  it('preserva admin como papel administrativo separado da assinatura', async () => {
+    user$.next(createUser('admin'));
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.hasAny$(['admin']))).toBe(true);
+    expect(await firstValueFrom(service.hasAtLeast$('vip'))).toBe(true);
+  });
+
+  it('propaga free e subscriber diretamente da fonte canônica', () => {
+    const service = TestBed.inject(AccessControlService);
+    const freeStates: boolean[] = [];
+    const subscriberStates: boolean[] = [];
+
+    const freeSubscription = service.isFree$.subscribe((value) =>
+      freeStates.push(value)
+    );
+    const subscriberSubscription = service.isSubscriber$.subscribe((value) =>
+      subscriberStates.push(value)
+    );
+
+    subscriptionIsFree$.next(false);
+    subscriptionIsSubscriber$.next(true);
+
+    expect(freeStates).toEqual([true, false]);
+    expect(subscriberStates).toEqual([false, true]);
+
+    freeSubscription.unsubscribe();
+    subscriberSubscription.unsubscribe();
+  });
+
+  it('falha fechado enquanto o perfil do usuário autenticado não foi hidratado', async () => {
+    user$.next(undefined);
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.accountStatus$)).toBe('unknown');
+    expect(await firstValueFrom(service.isLifecycleBlocked$)).toBe(true);
+    expect(await firstValueFrom(service.canRunApp$)).toBe(false);
+  });
+
+  it('trata lock técnico como lifecycle bloqueado mesmo com status nominal ativo', async () => {
+    user$.next({
+      ...createUser(),
+      accountStatus: 'active',
+      accountLocked: true,
+    });
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.accountStatus$)).toBe('locked');
+    expect(await firstValueFrom(service.isLifecycleBlocked$)).toBe(true);
+    expect(await firstValueFrom(service.canEnterCore$)).toBe(false);
+  });
+
+  it('não classifica guest resolvido como conta bloqueada', async () => {
+    authUser$.next(null);
+    user$.next(null);
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.accountStatus$)).toBe('active');
+    expect(await firstValueFrom(service.isLifecycleBlocked$)).toBe(false);
+    expect(await firstValueFrom(service.isAuthenticated$)).toBe(false);
+  });
+});
+,
+      fallbackMessage: 'Falha ao validar acesso. Tente novamente.',
+      presentation: { surface: 'snackbar', severity: 'error' },
+      metadata: {
+        scope: 'AccessControlService',
+        context: 'test
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.hasAtLeast$('basic'))).toBe(false);
+
+    subscriptionState$.next(createSubscriptionState('premium'));
+
+    expect(await firstValueFrom(service.hasAtLeast$('basic'))).toBe(true);
+    expect(await firstValueFrom(service.hasAny$(['premium']))).toBe(true);
+    expect(await firstValueFrom(service.hasAny$(['vip']))).toBe(false);
+  });
+
+  it('preserva admin como papel administrativo separado da assinatura', async () => {
+    user$.next(createUser('admin'));
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.hasAny$(['admin']))).toBe(true);
+    expect(await firstValueFrom(service.hasAtLeast$('vip'))).toBe(true);
+  });
+
+  it('propaga free e subscriber diretamente da fonte canônica', () => {
+    const service = TestBed.inject(AccessControlService);
+    const freeStates: boolean[] = [];
+    const subscriberStates: boolean[] = [];
+
+    const freeSubscription = service.isFree$.subscribe((value) =>
+      freeStates.push(value)
+    );
+    const subscriberSubscription = service.isSubscriber$.subscribe((value) =>
+      subscriberStates.push(value)
+    );
+
+    subscriptionIsFree$.next(false);
+    subscriptionIsSubscriber$.next(true);
+
+    expect(freeStates).toEqual([true, false]);
+    expect(subscriberStates).toEqual([false, true]);
+
+    freeSubscription.unsubscribe();
+    subscriberSubscription.unsubscribe();
+  });
+
+  it('falha fechado enquanto o perfil do usuário autenticado não foi hidratado', async () => {
+    user$.next(undefined);
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.accountStatus$)).toBe('unknown');
+    expect(await firstValueFrom(service.isLifecycleBlocked$)).toBe(true);
+    expect(await firstValueFrom(service.canRunApp$)).toBe(false);
+  });
+
+  it('trata lock técnico como lifecycle bloqueado mesmo com status nominal ativo', async () => {
+    user$.next({
+      ...createUser(),
+      accountStatus: 'active',
+      accountLocked: true,
+    });
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.accountStatus$)).toBe('locked');
+    expect(await firstValueFrom(service.isLifecycleBlocked$)).toBe(true);
+    expect(await firstValueFrom(service.canEnterCore$)).toBe(false);
+  });
+
+  it('não classifica guest resolvido como conta bloqueada', async () => {
+    authUser$.next(null);
+    user$.next(null);
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.accountStatus$)).toBe('active');
+    expect(await firstValueFrom(service.isLifecycleBlocked$)).toBe(false);
+    expect(await firstValueFrom(service.isAuthenticated$)).toBe(false);
+  });
+});
+,
+      },
+    });
+
+    expect(applicationErrorReport).toHaveBeenNthCalledWith(2, secondError, {
+      feature: 'access-control',
+      operation: 'test
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.hasAtLeast$('basic'))).toBe(false);
+
+    subscriptionState$.next(createSubscriptionState('premium'));
+
+    expect(await firstValueFrom(service.hasAtLeast$('basic'))).toBe(true);
+    expect(await firstValueFrom(service.hasAny$(['premium']))).toBe(true);
+    expect(await firstValueFrom(service.hasAny$(['vip']))).toBe(false);
+  });
+
+  it('preserva admin como papel administrativo separado da assinatura', async () => {
+    user$.next(createUser('admin'));
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.hasAny$(['admin']))).toBe(true);
+    expect(await firstValueFrom(service.hasAtLeast$('vip'))).toBe(true);
+  });
+
+  it('propaga free e subscriber diretamente da fonte canônica', () => {
+    const service = TestBed.inject(AccessControlService);
+    const freeStates: boolean[] = [];
+    const subscriberStates: boolean[] = [];
+
+    const freeSubscription = service.isFree$.subscribe((value) =>
+      freeStates.push(value)
+    );
+    const subscriberSubscription = service.isSubscriber$.subscribe((value) =>
+      subscriberStates.push(value)
+    );
+
+    subscriptionIsFree$.next(false);
+    subscriptionIsSubscriber$.next(true);
+
+    expect(freeStates).toEqual([true, false]);
+    expect(subscriberStates).toEqual([false, true]);
+
+    freeSubscription.unsubscribe();
+    subscriberSubscription.unsubscribe();
+  });
+
+  it('falha fechado enquanto o perfil do usuário autenticado não foi hidratado', async () => {
+    user$.next(undefined);
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.accountStatus$)).toBe('unknown');
+    expect(await firstValueFrom(service.isLifecycleBlocked$)).toBe(true);
+    expect(await firstValueFrom(service.canRunApp$)).toBe(false);
+  });
+
+  it('trata lock técnico como lifecycle bloqueado mesmo com status nominal ativo', async () => {
+    user$.next({
+      ...createUser(),
+      accountStatus: 'active',
+      accountLocked: true,
+    });
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.accountStatus$)).toBe('locked');
+    expect(await firstValueFrom(service.isLifecycleBlocked$)).toBe(true);
+    expect(await firstValueFrom(service.canEnterCore$)).toBe(false);
+  });
+
+  it('não classifica guest resolvido como conta bloqueada', async () => {
+    authUser$.next(null);
+    user$.next(null);
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.accountStatus$)).toBe('active');
+    expect(await firstValueFrom(service.isLifecycleBlocked$)).toBe(false);
+    expect(await firstValueFrom(service.isAuthenticated$)).toBe(false);
+  });
+});
+,
+      fallbackMessage: 'Falha ao validar acesso. Tente novamente.',
+      presentation: { surface: 'none', severity: 'error' },
+      metadata: {
+        scope: 'AccessControlService',
+        context: 'test
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.hasAtLeast$('basic'))).toBe(false);
+
+    subscriptionState$.next(createSubscriptionState('premium'));
+
+    expect(await firstValueFrom(service.hasAtLeast$('basic'))).toBe(true);
+    expect(await firstValueFrom(service.hasAny$(['premium']))).toBe(true);
+    expect(await firstValueFrom(service.hasAny$(['vip']))).toBe(false);
+  });
+
+  it('preserva admin como papel administrativo separado da assinatura', async () => {
+    user$.next(createUser('admin'));
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.hasAny$(['admin']))).toBe(true);
+    expect(await firstValueFrom(service.hasAtLeast$('vip'))).toBe(true);
+  });
+
+  it('propaga free e subscriber diretamente da fonte canônica', () => {
+    const service = TestBed.inject(AccessControlService);
+    const freeStates: boolean[] = [];
+    const subscriberStates: boolean[] = [];
+
+    const freeSubscription = service.isFree$.subscribe((value) =>
+      freeStates.push(value)
+    );
+    const subscriberSubscription = service.isSubscriber$.subscribe((value) =>
+      subscriberStates.push(value)
+    );
+
+    subscriptionIsFree$.next(false);
+    subscriptionIsSubscriber$.next(true);
+
+    expect(freeStates).toEqual([true, false]);
+    expect(subscriberStates).toEqual([false, true]);
+
+    freeSubscription.unsubscribe();
+    subscriberSubscription.unsubscribe();
+  });
+
+  it('falha fechado enquanto o perfil do usuário autenticado não foi hidratado', async () => {
+    user$.next(undefined);
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.accountStatus$)).toBe('unknown');
+    expect(await firstValueFrom(service.isLifecycleBlocked$)).toBe(true);
+    expect(await firstValueFrom(service.canRunApp$)).toBe(false);
+  });
+
+  it('trata lock técnico como lifecycle bloqueado mesmo com status nominal ativo', async () => {
+    user$.next({
+      ...createUser(),
+      accountStatus: 'active',
+      accountLocked: true,
+    });
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.accountStatus$)).toBe('locked');
+    expect(await firstValueFrom(service.isLifecycleBlocked$)).toBe(true);
+    expect(await firstValueFrom(service.canEnterCore$)).toBe(false);
+  });
+
+  it('não classifica guest resolvido como conta bloqueada', async () => {
+    authUser$.next(null);
+    user$.next(null);
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.accountStatus$)).toBe('active');
+    expect(await firstValueFrom(service.isLifecycleBlocked$)).toBe(false);
+    expect(await firstValueFrom(service.isAuthenticated$)).toBe(false);
+  });
+});
+,
+      },
+    });
+  });
+
+  it('volta a permitir feedback visual após a janela de 15 segundos', async () => {
+    const service = TestBed.inject(AccessControlService);
+
+    vi.spyOn(Date, 'now')
+      .mockReturnValueOnce(20_000)
+      .mockReturnValueOnce(36_001);
+
+    await firstValueFrom(
+      (service as any).handleStreamError('first
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.hasAtLeast$('basic'))).toBe(false);
+
+    subscriptionState$.next(createSubscriptionState('premium'));
+
+    expect(await firstValueFrom(service.hasAtLeast$('basic'))).toBe(true);
+    expect(await firstValueFrom(service.hasAny$(['premium']))).toBe(true);
+    expect(await firstValueFrom(service.hasAny$(['vip']))).toBe(false);
+  });
+
+  it('preserva admin como papel administrativo separado da assinatura', async () => {
+    user$.next(createUser('admin'));
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.hasAny$(['admin']))).toBe(true);
+    expect(await firstValueFrom(service.hasAtLeast$('vip'))).toBe(true);
+  });
+
+  it('propaga free e subscriber diretamente da fonte canônica', () => {
+    const service = TestBed.inject(AccessControlService);
+    const freeStates: boolean[] = [];
+    const subscriberStates: boolean[] = [];
+
+    const freeSubscription = service.isFree$.subscribe((value) =>
+      freeStates.push(value)
+    );
+    const subscriberSubscription = service.isSubscriber$.subscribe((value) =>
+      subscriberStates.push(value)
+    );
+
+    subscriptionIsFree$.next(false);
+    subscriptionIsSubscriber$.next(true);
+
+    expect(freeStates).toEqual([true, false]);
+    expect(subscriberStates).toEqual([false, true]);
+
+    freeSubscription.unsubscribe();
+    subscriberSubscription.unsubscribe();
+  });
+
+  it('falha fechado enquanto o perfil do usuário autenticado não foi hidratado', async () => {
+    user$.next(undefined);
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.accountStatus$)).toBe('unknown');
+    expect(await firstValueFrom(service.isLifecycleBlocked$)).toBe(true);
+    expect(await firstValueFrom(service.canRunApp$)).toBe(false);
+  });
+
+  it('trata lock técnico como lifecycle bloqueado mesmo com status nominal ativo', async () => {
+    user$.next({
+      ...createUser(),
+      accountStatus: 'active',
+      accountLocked: true,
+    });
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.accountStatus$)).toBe('locked');
+    expect(await firstValueFrom(service.isLifecycleBlocked$)).toBe(true);
+    expect(await firstValueFrom(service.canEnterCore$)).toBe(false);
+  });
+
+  it('não classifica guest resolvido como conta bloqueada', async () => {
+    authUser$.next(null);
+    user$.next(null);
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.accountStatus$)).toBe('active');
+    expect(await firstValueFrom(service.isLifecycleBlocked$)).toBe(false);
+    expect(await firstValueFrom(service.isAuthenticated$)).toBe(false);
+  });
+});
+, false)(new Error('first'))
+    );
+    await firstValueFrom(
+      (service as any).handleStreamError('second
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.hasAtLeast$('basic'))).toBe(false);
+
+    subscriptionState$.next(createSubscriptionState('premium'));
+
+    expect(await firstValueFrom(service.hasAtLeast$('basic'))).toBe(true);
+    expect(await firstValueFrom(service.hasAny$(['premium']))).toBe(true);
+    expect(await firstValueFrom(service.hasAny$(['vip']))).toBe(false);
+  });
+
+  it('preserva admin como papel administrativo separado da assinatura', async () => {
+    user$.next(createUser('admin'));
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.hasAny$(['admin']))).toBe(true);
+    expect(await firstValueFrom(service.hasAtLeast$('vip'))).toBe(true);
+  });
+
+  it('propaga free e subscriber diretamente da fonte canônica', () => {
+    const service = TestBed.inject(AccessControlService);
+    const freeStates: boolean[] = [];
+    const subscriberStates: boolean[] = [];
+
+    const freeSubscription = service.isFree$.subscribe((value) =>
+      freeStates.push(value)
+    );
+    const subscriberSubscription = service.isSubscriber$.subscribe((value) =>
+      subscriberStates.push(value)
+    );
+
+    subscriptionIsFree$.next(false);
+    subscriptionIsSubscriber$.next(true);
+
+    expect(freeStates).toEqual([true, false]);
+    expect(subscriberStates).toEqual([false, true]);
+
+    freeSubscription.unsubscribe();
+    subscriberSubscription.unsubscribe();
+  });
+
+  it('falha fechado enquanto o perfil do usuário autenticado não foi hidratado', async () => {
+    user$.next(undefined);
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.accountStatus$)).toBe('unknown');
+    expect(await firstValueFrom(service.isLifecycleBlocked$)).toBe(true);
+    expect(await firstValueFrom(service.canRunApp$)).toBe(false);
+  });
+
+  it('trata lock técnico como lifecycle bloqueado mesmo com status nominal ativo', async () => {
+    user$.next({
+      ...createUser(),
+      accountStatus: 'active',
+      accountLocked: true,
+    });
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.accountStatus$)).toBe('locked');
+    expect(await firstValueFrom(service.isLifecycleBlocked$)).toBe(true);
+    expect(await firstValueFrom(service.canEnterCore$)).toBe(false);
+  });
+
+  it('não classifica guest resolvido como conta bloqueada', async () => {
+    authUser$.next(null);
+    user$.next(null);
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.accountStatus$)).toBe('active');
+    expect(await firstValueFrom(service.isLifecycleBlocked$)).toBe(false);
+    expect(await firstValueFrom(service.isAuthenticated$)).toBe(false);
+  });
+});
+, true)(new Error('second'))
+    );
+
+    expect(applicationErrorReport.mock.calls[0]?.[1]?.presentation).toEqual({
+      surface: 'snackbar',
+      severity: 'error',
+    });
+    expect(applicationErrorReport.mock.calls[1]?.[1]?.presentation).toEqual({
+      surface: 'snackbar',
+      severity: 'error',
+    });
+  });
+
+  it('preserva o fallback fail-closed se a camada canônica de diagnóstico falhar', async () => {
+    const service = TestBed.inject(AccessControlService);
+    applicationErrorReport.mockImplementationOnce(() => {
+      throw new Error('diagnostic unavailable');
+    });
+
+    vi.spyOn(Date, 'now').mockReturnValueOnce(20_000);
+
+    await expect(
+      firstValueFrom(
+        (service as any).handleStreamError('canRunApp
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.hasAtLeast$('basic'))).toBe(false);
+
+    subscriptionState$.next(createSubscriptionState('premium'));
+
+    expect(await firstValueFrom(service.hasAtLeast$('basic'))).toBe(true);
+    expect(await firstValueFrom(service.hasAny$(['premium']))).toBe(true);
+    expect(await firstValueFrom(service.hasAny$(['vip']))).toBe(false);
+  });
+
+  it('preserva admin como papel administrativo separado da assinatura', async () => {
+    user$.next(createUser('admin'));
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.hasAny$(['admin']))).toBe(true);
+    expect(await firstValueFrom(service.hasAtLeast$('vip'))).toBe(true);
+  });
+
+  it('propaga free e subscriber diretamente da fonte canônica', () => {
+    const service = TestBed.inject(AccessControlService);
+    const freeStates: boolean[] = [];
+    const subscriberStates: boolean[] = [];
+
+    const freeSubscription = service.isFree$.subscribe((value) =>
+      freeStates.push(value)
+    );
+    const subscriberSubscription = service.isSubscriber$.subscribe((value) =>
+      subscriberStates.push(value)
+    );
+
+    subscriptionIsFree$.next(false);
+    subscriptionIsSubscriber$.next(true);
+
+    expect(freeStates).toEqual([true, false]);
+    expect(subscriberStates).toEqual([false, true]);
+
+    freeSubscription.unsubscribe();
+    subscriberSubscription.unsubscribe();
+  });
+
+  it('falha fechado enquanto o perfil do usuário autenticado não foi hidratado', async () => {
+    user$.next(undefined);
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.accountStatus$)).toBe('unknown');
+    expect(await firstValueFrom(service.isLifecycleBlocked$)).toBe(true);
+    expect(await firstValueFrom(service.canRunApp$)).toBe(false);
+  });
+
+  it('trata lock técnico como lifecycle bloqueado mesmo com status nominal ativo', async () => {
+    user$.next({
+      ...createUser(),
+      accountStatus: 'active',
+      accountLocked: true,
+    });
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.accountStatus$)).toBe('locked');
+    expect(await firstValueFrom(service.isLifecycleBlocked$)).toBe(true);
+    expect(await firstValueFrom(service.canEnterCore$)).toBe(false);
+  });
+
+  it('não classifica guest resolvido como conta bloqueada', async () => {
+    authUser$.next(null);
+    user$.next(null);
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.accountStatus$)).toBe('active');
+    expect(await firstValueFrom(service.isLifecycleBlocked$)).toBe(false);
+    expect(await firstValueFrom(service.isAuthenticated$)).toBe(false);
+  });
+});
+, false)(
+          new Error('stream failed')
+        )
+      )
+    ).resolves.toBe(false);
+
+    expect(applicationErrorReport).toHaveBeenCalledTimes(1);
   });
 
   it('usa a assinatura canônica para basic/premium/vip', async () => {
