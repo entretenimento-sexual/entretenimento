@@ -100,6 +100,7 @@ const ALLOWED_REASONS = new Set<VideoReportReason>([
   'illegal_content',
   'privacy',
   'minor_safety',
+  'minor_content_safety',
   'other',
 ]);
 const REPORT_BURST_WINDOW_MS = 60 * 1000;
@@ -359,6 +360,9 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
             : textEvidenceRequired
               ? 'PRESERVED'
               : 'NOT_REQUIRED',
+          legalReviewStatus: reason === 'minor_content_safety'
+            ? 'PENDING_LEGAL_REVIEW'
+            : null,
           source: 'web',
           createdAt: timestamp,
           updatedAt: timestamp,
