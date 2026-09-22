@@ -210,6 +210,16 @@
                 <h3>{{ reasonLabel(report.reason) }}</h3>
               </div>
 
+              @if (isCriticalSafetyReport(report)) {
+                <mat-chip-set class="report-card__priority" aria-label="Prioridade crítica de segurança">
+                  <mat-chip color="warn" highlighted>
+                    {{ report.reason === 'minor_content_safety'
+                      ? 'CRÍTICO · possível menor em conteúdo'
+                      : 'CRÍTICO · possível perfil menor' }}
+                  </mat-chip>
+                </mat-chip-set>
+              }
+
               @if (report | agedOpenModerationReport; as agedOpenLabel) {
                 <mat-chip-set class="report-card__priority" aria-label="Prioridade da denúncia">
                   <mat-chip color="warn" highlighted>
