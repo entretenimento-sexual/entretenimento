@@ -45,8 +45,7 @@ import { DirectChatFacade } from 'src/app/messaging/direct-chat/application/dire
 import { DirectChatListItem } from 'src/app/messaging/direct-chat/models/direct-chat.models';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
-import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 
 type ChatSelection = {
@@ -103,8 +102,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
     private readonly access: AccessControlService,
     private readonly directChatFacade: DirectChatFacade,
     private readonly router: Router,
-    private readonly globalError: GlobalErrorHandlerService,
-    private readonly notifier: ErrorNotificationService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly privacyDebug: PrivacyDebugLoggerService
   ) {}
 
@@ -429,15 +427,17 @@ export class ChatListComponent implements OnInit, OnDestroy {
   }
 
   private handleError(context: string, err: unknown, notifyUser: boolean): void {
-    const error = err instanceof Error ? err : new Error(`ChatList error: ${context}`);
-    (error as any).silent = !notifyUser;
-    (error as any).original = err;
-    (error as any).context = context;
-    (error as any).skipUserNotification = true;
-    this.globalError.handleError(error);
-
-    if (notifyUser) {
-      this.notifier.showError('Falha ao carregar o chat. Tente novamente.');
-    }
+    this.applicationError.report(err, {
+      feature: 'chat-list',
+      operation: context,
+      fallbackMessage: 'Falha ao carregar o chat. Tente novamente.',
+      presentation: notifyUser
+        ? { surface: 'snackbar', severity: 'error' }
+        : { surface: 'none', severity: 'error' },
+      metadata: {
+        scope: 'ChatListComponent',
+        context,
+      },
+    });
   }
 }
