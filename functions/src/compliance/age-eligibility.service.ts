@@ -8,7 +8,7 @@
 
 import { HttpsError } from 'firebase-functions/v2/https';
 
-import { db, FieldValue } from '../firebaseApp';
+import { db, FieldValue, Timestamp } from '../firebaseApp';
 import {
   AGE_ELIGIBILITY_POLICY_VERSION,
   type AgeEligibilityMethod,
@@ -122,6 +122,13 @@ export function writeCanonicalAgeEligibilityInTransaction(
     recordRef,
     {
       ...state.record,
+      verifiedAt: state.record.verifiedAtMs === null
+        ? null
+        : Timestamp.fromMillis(state.record.verifiedAtMs),
+      decidedAt: Timestamp.fromMillis(state.record.decidedAtMs),
+      expiresAt: state.record.expiresAtMs === null
+        ? null
+        : Timestamp.fromMillis(state.record.expiresAtMs),
       updatedAt: FieldValue.serverTimestamp(),
     },
     { merge: true }
