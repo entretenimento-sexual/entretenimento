@@ -3,8 +3,7 @@ import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable, defer, from, throwError } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 
 export interface IssueSuspectedViolationNoticeInput {
   targetUid: string;
@@ -25,8 +24,7 @@ export interface IssueSuspectedViolationNoticeResult {
 @Injectable({ providedIn: 'root' })
 export class StaffComplianceService {
   private readonly functions = inject(Functions);
-  private readonly globalError = inject(GlobalErrorHandlerService);
-  private readonly notifier = inject(ErrorNotificationService);
+  private readonly applicationError = inject(ApplicationErrorService);
 
   private readonly issueNoticeCallable = httpsCallable<
     IssueSuspectedViolationNoticeInput,
@@ -46,9 +44,6 @@ export class StaffComplianceService {
       map((response) => response.data),
       catchError((error) => {
         this.report(error, payload.targetUid);
-        this.notifier.showError(
-          'Não foi possível emitir o aviso de possível violação.'
-        );
         return throwError(() => error);
       })
     );
@@ -74,17 +69,19 @@ export class StaffComplianceService {
 
   private report(error: unknown, targetUid: string): void {
     try {
-      const reportable = error instanceof Error
-        ? error
-        : new Error('[StaffComplianceService] issue notice failed');
-      (reportable as any).context = 'StaffComplianceService';
-      (reportable as any).operation = 'issueSuspectedViolationNotice';
-      (reportable as any).extra = { targetUid };
-      (reportable as any).original = error;
-      (reportable as any).skipUserNotification = true;
-      this.globalError.handleError(reportable);
+      this.applicationError.report(error, {
+        feature: 'staff-compliance',
+        operation: 'issueSuspectedViolationNotice',
+        fallbackMessage: 'Não foi possível emitir o aviso de possível violação.',
+        presentation: { surface: 'snackbar', severity: 'error' },
+        metadata: {
+          scope: 'StaffComplianceService',
+          targetUidPresent: !!targetUid,
+        },
+      });
     } catch {
-      // noop
+      // Observabilidade não altera a falha pública do callable.
     }
   }
+
 }
