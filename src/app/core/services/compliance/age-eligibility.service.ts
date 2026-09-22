@@ -6,9 +6,16 @@
 // Não escreve, não calcula idade e não transforma autodeclaração em autorização.
 // -----------------------------------------------------------------------------
 
-import { Injectable } from '@angular/core';
-import { Observable } from 'rxjs';
 import {
+  EnvironmentInjector,
+  Injectable,
+  inject,
+  runInInjectionContext,
+} from '@angular/core';
+import { Functions, httpsCallable } from '@angular/fire/functions';
+import { Observable, from, throwError } from 'rxjs';
+import {
+  catchError,
   distinctUntilChanged,
   map,
   shareReplay,
@@ -19,6 +26,8 @@ import {
   IUserAgeEligibility,
 } from 'src/app/core/interfaces/iuser-dados';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
+import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { toErrorInstance } from 'src/app/core/utils/firebase-error-utils';
 
 const UNVERIFIED: IUserAgeEligibility = Object.freeze({
   status: 'UNVERIFIED',
@@ -33,9 +42,9 @@ const UNVERIFIED: IUserAgeEligibility = Object.freeze({
 
 @Injectable({ providedIn: 'root' })
 export class AgeEligibilityService {
-  constructor(
-    private readonly currentUser: CurrentUserStoreService
-  ) {}
+  private readonly environmentInjector = inject(EnvironmentInjector);
+  private readonly currentUser = inject(CurrentUserStoreService);
+  private readonly globalError = inject(GlobalErrorHandlerService);
 
   readonly current$: Observable<IUserAgeEligibility> =
     this.currentUser.user$.pipe(
@@ -62,6 +71,50 @@ export class AgeEligibilityService {
 
   getCurrentOnce$(): Observable<IUserAgeEligibility> {
     return this.current$.pipe(take(1));
+  }
+
+  refreshTrustedSources$(): Observable<IUserAgeEligibility['status']> {
+    const callable = runInInjectionContext(
+      this.environmentInjector,
+      () => httpsCallable<
+        Record<string, never>,
+        {
+          status: IUserAgeEligibility['status'];
+          migrated: boolean;
+        }
+      >(
+        inject(Functions),
+        'refreshMyAgeEligibility'
+      )
+    );
+
+    return from(callable({})).pipe(
+      map((response) => response.data.status),
+      catchError((error) => {
+        try {
+          this.globalError.handleError(
+            Object.assign(
+              toErrorInstance(
+                error,
+                '[AgeEligibilityService.refreshTrustedSources] falhou.'
+              ),
+              {
+                feature: 'age-eligibility',
+                operation: 'refreshTrustedSources',
+                context: {
+                  scope: 'AgeEligibilityService',
+                },
+                original: error,
+              }
+            )
+          );
+        } catch {
+          // Diagnóstico não altera a fronteira etária.
+        }
+
+        return throwError(() => error);
+      })
+    );
   }
 
   private normalize(
