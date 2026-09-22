@@ -67,6 +67,81 @@
       <p class="community-discovery__definition">{{ description }}</p>
     }
 
+    @if (
+      discoveryMode === 'mine'
+      && state.status === 'ready'
+      && state.mineLoadedItemCount > 1
+    ) {
+      <section
+        class="community-discovery__mine-controls"
+        aria-label="Organizar Minhas comunidades"
+      >
+        @if (state.mineSearchVisible) {
+          <label class="community-discovery__mine-search">
+            <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
+            <span class="visually-hidden">Buscar em Minhas comunidades</span>
+            <input
+              type="search"
+              maxlength="80"
+              autocomplete="off"
+              placeholder="Buscar comunidade"
+              [value]="mineSearchValue()"
+              (input)="changeMineSearch($event)"
+            />
+          </label>
+        }
+
+        <div
+          class="community-discovery__mine-filter-strip"
+          role="group"
+          aria-label="Filtrar Minhas comunidades por participação"
+        >
+          <button
+            class="community-discovery__filter-chip"
+            type="button"
+            [class.is-active]="isMineParticipationFilterSelected('all')"
+            [attr.aria-pressed]="isMineParticipationFilterSelected('all')"
+            (click)="selectMineParticipationFilter('all')"
+          >Todas</button>
+          <button
+            class="community-discovery__filter-chip"
+            type="button"
+            [class.is-active]="isMineParticipationFilterSelected('managed')"
+            [attr.aria-pressed]="isMineParticipationFilterSelected('managed')"
+            (click)="selectMineParticipationFilter('managed')"
+          >Administradas</button>
+          <button
+            class="community-discovery__filter-chip"
+            type="button"
+            [class.is-active]="isMineParticipationFilterSelected('member')"
+            [attr.aria-pressed]="isMineParticipationFilterSelected('member')"
+            (click)="selectMineParticipationFilter('member')"
+          >Participo</button>
+          <button
+            class="community-discovery__filter-chip"
+            type="button"
+            [class.is-active]="isMineParticipationFilterSelected('muted')"
+            [attr.aria-pressed]="isMineParticipationFilterSelected('muted')"
+            (click)="selectMineParticipationFilter('muted')"
+          >Silenciadas</button>
+        </div>
+
+        @if (state.mineControlsActive) {
+          <div
+            class="community-discovery__mine-results"
+            role="status"
+            aria-live="polite"
+          >
+            <span>{{ state.items.length }} visíveis agora</span>
+            <button
+              type="button"
+              (click)="clearMineParticipationControls()"
+            >Limpar filtros</button>
+          </div>
+        }
+      </section>
+    }
+
     @if (canFilterByTags) {
       @if (tagFilterState$ | async; as tagFilterState) {
         <section class="community-discovery__filters" aria-label="Filtrar Comunidades por interesse">
@@ -218,6 +293,38 @@
           }
         </div>
       }
+    } @else if (discoveryMode === 'mine' && state.items.length === 0) {
+      <div
+        class="community-discovery__state community-discovery__state--mine-filter-empty"
+        role="status"
+        aria-live="polite"
+      >
+        <i class="fas fa-filter-circle-xmark" aria-hidden="true"></i>
+        <strong>Nenhuma comunidade corresponde a este recorte</strong>
+        <p>Ajuste a busca ou os filtros para ver outras participações.</p>
+        <button
+          type="button"
+          (click)="clearMineParticipationControls()"
+        >Limpar filtros</button>
+
+        @if (state.nextCursor) {
+          <button
+            type="button"
+            aria-label="Carregar mais comunidades para ampliar os resultados"
+            [disabled]="state.loadingMore"
+            [attr.aria-busy]="state.loadingMore"
+            (click)="loadMore(state.nextCursor)"
+          >
+            @if (state.loadingMore) {
+              <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+              <span>Carregando</span>
+            } @else {
+              <i class="fas fa-chevron-down" aria-hidden="true"></i>
+              <span>Ver mais</span>
+            }
+          </button>
+        }
+      </div>
     } @else {
       <ul
         class="community-discovery__grid"
@@ -377,7 +484,7 @@
               <div
                 class="community-card__actions"
                 role="group"
-                [attr.aria-label]="'Preferências de alertas de ' + item.name"
+                [attr.aria-label]="'Ações rápidas de ' + item.name"
               >
                 <button
                   class="community-card__notification-action"
@@ -394,13 +501,13 @@
                 >
                   @if (isNotificationPreferenceBusy(item.communityId)) {
                     <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
-                    <span>Atualizando alertas</span>
+                    <span>Atualizando</span>
                   } @else if (item.notificationsMuted) {
                     <i class="fas fa-bell" aria-hidden="true"></i>
-                    <span>Reativar alertas</span>
+                    <span>Reativar</span>
                   } @else {
                     <i class="fas fa-bell-slash" aria-hidden="true"></i>
-                    <span>Silenciar alertas</span>
+                    <span>Silenciar</span>
                   }
                 </button>
               </div>
