@@ -7,11 +7,16 @@ const firebaseAuthMocks = vi.hoisted(() => ({
   sendEmailVerification: vi.fn(),
 }));
 
-vi.mock('firebase/auth', () => ({
-  applyActionCode: firebaseAuthMocks.applyActionCode,
-  checkActionCode: firebaseAuthMocks.checkActionCode,
-  sendEmailVerification: firebaseAuthMocks.sendEmailVerification,
-}));
+vi.mock('firebase/auth', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('firebase/auth')>();
+
+  return {
+    ...actual,
+    applyActionCode: firebaseAuthMocks.applyActionCode,
+    checkActionCode: firebaseAuthMocks.checkActionCode,
+    sendEmailVerification: firebaseAuthMocks.sendEmailVerification,
+  };
+});
 
 import { EmailVerificationService } from './email-verification.service';
 
@@ -76,6 +81,15 @@ describe('EmailVerificationService canonical errors', () => {
       applicationError as any,
       auth as any
     );
+  });
+
+  it('preserva erro público de sessão ausente no resend sem diagnóstico técnico', async () => {
+    await expect(
+      firstValueFrom(service.resendVerificationEmail())
+    ).rejects.toThrow('Nenhum usuário autenticado encontrado.');
+
+    expect(applicationError.report).not.toHaveBeenCalled();
+    expect(firebaseAuthMocks.sendEmailVerification).not.toHaveBeenCalled();
   });
 
   it('mantém reloadCurrentUser silencioso e retorna false em falha', async () => {
