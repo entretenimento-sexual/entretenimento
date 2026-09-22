@@ -248,6 +248,37 @@ export async function notifyAgeReverificationRequired(input: {
   });
 }
 
+export async function notifyInitialAgeEligibilityOutcome(input: {
+  assertionId: string;
+  uid: string;
+  status: 'VERIFIED_ADULT' | 'DENIED_UNDERAGE' | 'REVIEW_REQUIRED';
+}): Promise<void> {
+  const assertionId = cleanId(input.assertionId);
+  const uid = cleanId(input.uid);
+  if (!assertionId || !uid) return;
+
+  const verified = input.status === 'VERIFIED_ADULT';
+  const denied = input.status === 'DENIED_UNDERAGE';
+
+  await writeNotification({
+    id: notificationId(assertionId, 'target', 'initial-age-outcome'),
+    userId: uid,
+    type: 'compliance.action.taken',
+    title: verified
+      ? 'Maioridade verificada'
+      : denied
+        ? 'Verificação de idade concluída'
+        : 'Verificação de idade em revisão',
+    body: verified
+      ? 'Sua maioridade foi confirmada por uma fonte confiável. Você pode seguir para o aceite da experiência adulta.'
+      : denied
+        ? 'A verificação de idade foi concluída e o acesso adulto não está disponível para esta conta.'
+        : 'A verificação de idade apresentou informações conflitantes e precisa de revisão antes da liberação do acesso adulto.',
+    route: verified ? '/adulto/confirmar' : '/conta/status',
+    actionRequired: !verified,
+  });
+}
+
 export async function notifyAgeReverificationOutcome(
   reportIdValue: string
 ): Promise<void> {
@@ -332,6 +363,25 @@ export async function safeNotifyAgeReverificationRequired(
     logger.error('[moderationNotification] falha ao notificar revalidação', {
       reportId: input.reportId,
       targetUid: input.targetUid,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+export async function safeNotifyInitialAgeEligibilityOutcome(
+  input: {
+    assertionId: string;
+    uid: string;
+    status: 'VERIFIED_ADULT' | 'DENIED_UNDERAGE' | 'REVIEW_REQUIRED';
+  }
+): Promise<void> {
+  try {
+    await notifyInitialAgeEligibilityOutcome(input);
+  } catch (error) {
+    logger.error('[moderationNotification] falha ao notificar verificação inicial', {
+      assertionId: input.assertionId,
+      uid: input.uid,
+      status: input.status,
       error: error instanceof Error ? error.message : String(error),
     });
   }
