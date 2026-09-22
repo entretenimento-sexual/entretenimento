@@ -1,5 +1,13 @@
 export const PUSH_NOTIFICATION_TTL_SECONDS = 7 * 24 * 60 * 60;
 
+export type NotificationPushMode = 'ESSENTIAL' | 'IN_APP_ONLY';
+
+export function shouldAttemptExternalPush(
+  value: unknown
+): boolean {
+  return String(value ?? 'ESSENTIAL').trim().toUpperCase() !== 'IN_APP_ONLY';
+}
+
 export interface PushNotificationDeliveryOptions {
   android: {
     ttl: number;
