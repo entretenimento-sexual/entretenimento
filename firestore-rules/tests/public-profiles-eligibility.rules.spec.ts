@@ -9,16 +9,22 @@ import {
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
 import {
+  collection,
   doc,
+  getDoc,
+  getDocs,
+  query,
   serverTimestamp,
   setDoc,
   updateDoc,
+  where,
 } from 'firebase/firestore';
 import {
   afterAll,
   beforeAll,
   beforeEach,
   describe,
+  expect,
   it,
 } from 'vitest';
 
@@ -255,6 +261,7 @@ describe('Firestore Rules / public profile eligibility', () => {
       setDoc(doc(db, 'public_profiles', UID), {
         ...publicProfile(),
         age: 31,
+        ageEligibilityVerifiedAdult: true,
         publicRelationshipIntents: ['dating'],
         publicSexualPractices: ['bdsm'],
         publicBodyTraits: ['tattoos'],
@@ -281,6 +288,34 @@ describe('Firestore Rules / public profile eligibility', () => {
         updatedAt: serverTimestamp(),
       })
     );
+  });
+
+  it('permite ler perfil-alvo somente com projeção etária backend-only ativa', async () => {
+    await seedUser();
+    await seedPublicProfile({ ageEligibilityVerifiedAdult: true });
+    const db = authenticatedDb();
+
+    await assertSucceeds(getDoc(doc(db, 'public_profiles', UID)));
+
+    await seedPublicProfile({ ageEligibilityVerifiedAdult: false });
+
+    await assertFails(getDoc(doc(db, 'public_profiles', UID)));
+  });
+
+  it('exige filtro etário nas consultas de public_profiles', async () => {
+    await seedUser();
+    await seedPublicProfile({ ageEligibilityVerifiedAdult: true });
+    const db = authenticatedDb();
+
+    const guardedQuery = query(
+      collection(db, 'public_profiles'),
+      where('ageEligibilityVerifiedAdult', '==', true)
+    );
+
+    const guardedResult = await assertSucceeds(getDocs(guardedQuery));
+    expect(guardedResult.size).toBe(1);
+
+    await assertFails(getDocs(collection(db, 'public_profiles')));
   });
 
   it('nega atualizar perfil público depois que a conta deixa de ser elegível', async () => {
