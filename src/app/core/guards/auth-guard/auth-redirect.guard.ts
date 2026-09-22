@@ -18,7 +18,7 @@ import { catchError, filter, map, take } from 'rxjs/operators';
 
 import { AccessControlService } from '../../services/autentication/auth/access-control.service';
 import { AuthReturnUrlService } from '../../services/autentication/auth/auth-return-url.service';
-import { GlobalErrorHandlerService } from '../../services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '../../services/error-handler/application-error.service';
 import { ErrorNotificationService } from '../../services/error-handler/error-notification.service';
 
 import {
@@ -32,7 +32,7 @@ export const authRedirectGuard: CanActivateFn = (route, _state) => {
   const router = inject(Router);
   const access = inject(AccessControlService);
   const returnUrl = inject(AuthReturnUrlService);
-  const globalError = inject(GlobalErrorHandlerService);
+  const applicationError = inject(ApplicationErrorService);
   const notify = inject(ErrorNotificationService);
 
   const allowAuthenticated = route.data?.['allowAuthenticated'] === true;
@@ -116,14 +116,15 @@ export const authRedirectGuard: CanActivateFn = (route, _state) => {
 
     catchError((err) => {
       try {
-        (err as any).silent = true;
-        (err as any).context = {
-          guard: 'authRedirectGuard',
-        };
-
-        globalError.handleError(err);
+        applicationError.report(err, {
+          feature: 'auth-guard',
+          operation: 'authRedirect',
+          fallbackMessage: 'Falha ao validar redirecionamento.',
+          presentation: { surface: 'none', severity: 'error' },
+          metadata: { scope: 'authRedirectGuard' },
+        });
       } catch {
-        // noop
+        // Diagnóstico não altera a decisão segura do guard.
       }
 
       notify.showError('Falha ao validar redirecionamento.');

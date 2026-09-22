@@ -15,7 +15,6 @@ import {
   normalizeGeoPermissionState,
 } from '../../interfaces/geolocation.interface';
 import { FirestoreWriteService } from '../data-handling/firestore/core/firestore-write.service';
-import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
 import { geohashForLocation } from 'geofire-common';
 import { isValidGeoCoordinatePair } from './utils/geolocation-coordinate.utils';
@@ -55,7 +54,6 @@ export class GeolocationTrackingService {
   constructor(
     private readonly ngZone: NgZone,
     private readonly write: FirestoreWriteService,
-    private readonly globalError: GlobalErrorHandlerService,
     private readonly notifier: ErrorNotificationService,
   ) {}
 
@@ -351,18 +349,12 @@ export class GeolocationTrackingService {
     );
   }
 
-  private handleWriteError(err: unknown): void {
-    try {
-      const e = err instanceof Error ? err : new Error('Falha ao persistir localização.');
-      (e as any).context = 'GeolocationTrackingService.persistLocation$';
-      (e as any).original = err;
-      (e as any).silent = true;
-      (e as any).skipUserNotification = true;
-      this.globalError.handleError(e);
-    } catch {
-      // no-op
-    }
-
+  private handleWriteError(_err: unknown): void {
+    /**
+     * FirestoreWriteService -> FirestoreErrorHandlerService já é o owner do
+     * diagnóstico técnico. Aqui preservamos somente o feedback throttled da UI,
+     * evitando rediagnosticar a mesma falha em uma camada superior.
+     */
     const now = Date.now();
     if (now - this.lastNotifyAt > this.notifyThrottleMs) {
       this.lastNotifyAt = now;

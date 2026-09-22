@@ -24,7 +24,7 @@ import { QueryConstraint } from 'firebase/firestore';
 import { IUserDados } from '@core/interfaces/iuser-dados';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { environment } from 'src/environments/environment';
 
 import { UserDiscoveryQueryService } from './user-discovery.query.service';
@@ -60,7 +60,7 @@ export class UserDiscoveryPresenceFacade {
     private readonly discovery: UserDiscoveryQueryService,
     private readonly presence: UserPresenceQueryService,
     private readonly access: AccessControlService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly errorNotifier: ErrorNotificationService
   ) {}
 
@@ -169,17 +169,18 @@ export class UserDiscoveryPresenceFacade {
 
   private reportSilent(error: unknown, context: string): void {
     try {
-      const normalized =
-        error instanceof Error ? error : new Error(context);
-
-      (normalized as any).silent = true;
-      (normalized as any).skipUserNotification = true;
-      (normalized as any).context = context;
-      (normalized as any).original = error;
-
-      this.globalErrorHandler.handleError(normalized);
+      this.applicationError.report(error, {
+        feature: 'user-discovery-presence',
+        operation: 'loadOnlinePresence',
+        fallbackMessage: 'Não foi possível atualizar o status online.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'UserDiscoveryPresenceFacade',
+          context,
+        },
+      });
     } catch {
-      // noop
+      // A degradação para perfis sem presença deve continuar mesmo sem diagnóstico.
     }
   }
 

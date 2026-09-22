@@ -6,8 +6,7 @@ import { Firestore } from '@angular/fire/firestore';
 import { collection, onSnapshot, query, QueryConstraint } from 'firebase/firestore';
 import { Observable, defer, throwError } from 'rxjs';
 import { catchError, finalize, shareReplay } from 'rxjs/operators';
-import { GlobalErrorHandlerService } from '../../../error-handler/global-error-handler.service';
-import { ErrorNotificationService } from '../../../error-handler/error-notification.service';
+import { ApplicationErrorService } from '../../../error-handler/application-error.service';
 
 @Injectable({ providedIn: 'root' })
 export class FirestoreLiveQueryService {
@@ -20,8 +19,7 @@ export class FirestoreLiveQueryService {
 
   constructor(
     private readonly db: Firestore,
-    private readonly globalError: GlobalErrorHandlerService,
-    private readonly notify: ErrorNotificationService
+    private readonly applicationError: ApplicationErrorService
   ) { }
 
   getFirestoreInstance(): Firestore {
@@ -88,27 +86,7 @@ export class FirestoreLiveQueryService {
             observer.next(rows);
           },
           (err) => {
-            // Tratamento centralizado: log/observabilidade + feedback ao usuário
-            this.globalError.handleError(
-              this.enrichError(err, {
-                collectionName: col,
-                keyUsed: key ?? '(no-cache)',
-                idField: idField ?? null,
-                constraintsSig: this.safeConstraintsSig(constraints),
-                source: 'FirestoreLiveQueryService.liveQuery$',
-              })
-            );
-
-            // Notificação visual (se existir no serviço)
-            // Evita vazar detalhes internos, mas dá contexto suficiente.
-            const code = String((err as any)?.code ?? '').toLowerCase();
-            const msg =
-              code === 'permission-denied'
-                ? 'Sem permissão para ouvir atualizações.'
-                : 'Erro ao ouvir atualizações do Firestore.';
-
-            this.notify.showError?.(msg);
-
+            // O catchError externo é o único owner de diagnóstico/apresentação.
             observer.error(err);
           }
         );
@@ -124,15 +102,30 @@ export class FirestoreLiveQueryService {
       shareReplay({ bufferSize: 1, refCount: true }),
       // ✅ se qualquer coisa “escapar”, cai no tratamento centralizado
       catchError((err) => {
-        this.globalError.handleError(
-          this.enrichError(err, {
+        const code = String((err as any)?.code ?? '')
+          .replace(/^firestore\//, '')
+          .toLowerCase();
+
+        this.applicationError.report(err, {
+          feature: 'firestore-live-query',
+          operation: 'liveQuery',
+          fallbackMessage:
+            code === 'permission-denied'
+              ? 'Sem permissão para ouvir atualizações.'
+              : 'Erro ao ouvir atualizações do Firestore.',
+          codeMessages: {
+            'permission-denied': 'Sem permissão para ouvir atualizações.',
+          },
+          presentation: { surface: 'snackbar', severity: 'error' },
+          metadata: {
+            scope: 'FirestoreLiveQueryService',
             collectionName,
             keyUsed: key ?? '(no-cache)',
             idField: idField ?? null,
-            source: 'FirestoreLiveQueryService.liveQuery$ (outer)',
-          })
-        );
-        this.notify.showError?.('Erro ao ouvir atualizações do Firestore.');
+            constraintsSig: this.safeConstraintsSig(constraints),
+          },
+        });
+
         return throwError(() => err);
       })
     );

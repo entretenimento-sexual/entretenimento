@@ -20,7 +20,7 @@ import {
 import { filter, map, pairwise, scan, share, startWith, tap, auditTime, catchError } from 'rxjs/operators';
 import { EMPTY } from 'rxjs';
 
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 import { environment } from 'src/environments/environment';
 
@@ -45,7 +45,7 @@ export class RouterDiagnosticsService {
 
   constructor(
     private readonly router: Router,
-    private readonly geh: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly notify: ErrorNotificationService
   ) { }
 
@@ -357,19 +357,26 @@ export class RouterDiagnosticsService {
   }
 
   private reportSilent(context: string, err: unknown, event?: unknown): void {
-    const e = err instanceof Error ? err : new Error(String(err));
-    (e as any).silent = true;
-    (e as any).skipUserNotification = true;
-    (e as any).context = this.buildErrorContext(context, event);
-    try { this.geh.handleError(e); } catch { }
+    this.reportDiagnostic(context, err, event);
   }
 
   private reportNotSilent(context: string, err: unknown, event?: unknown): void {
-    const e = err instanceof Error ? err : new Error(String(err));
-    (e as any).silent = false;
-    (e as any).skipUserNotification = true;
-    (e as any).context = this.buildErrorContext(context, event);
-    try { this.geh.handleError(e); } catch { }
+    // A apresentação continua pertencendo ao notifyThrottled().
+    this.reportDiagnostic(context, err, event);
+  }
+
+  private reportDiagnostic(context: string, err: unknown, event?: unknown): void {
+    try {
+      this.applicationError.report(err, {
+        feature: 'router',
+        operation: context,
+        fallbackMessage: 'Não foi possível concluir a navegação.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: this.buildErrorContext(context, event),
+      });
+    } catch {
+      // Diagnóstico não pode afetar o Router.
+    }
   }
 
   private buildErrorContext(context: string, event?: unknown): Record<string, unknown> {
