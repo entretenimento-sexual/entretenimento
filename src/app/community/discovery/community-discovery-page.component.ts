@@ -16,6 +16,7 @@ import {
   RouterLinkActive,
 } from '@angular/router';
 import {
+  BehaviorSubject,
   catchError,
   combineLatest,
   concat,
@@ -93,6 +94,11 @@ import {
   buildCommunityBoostSessionExclusions,
   resolveCommunityBoostInsertionAfterIndex,
 } from './community-boost-display.policy';
+import {
+  CommunityMineParticipationFilter,
+  filterMineCommunityItems,
+  shouldShowMineCommunitySearch,
+} from './community-mine-participation.policy';
 
 type CommunityDiscoveryStatus = 'loading' | 'ready' | 'empty' | 'error';
 type CommunityTagFilterState =
@@ -119,6 +125,9 @@ interface CommunityDiscoveryViewState {
   items: readonly CommunityDiscoveryCardView[];
   nextCursor: string | null;
   loadingMore: boolean;
+  mineLoadedItemCount: number;
+  mineSearchVisible: boolean;
+  mineControlsActive: boolean;
 }
 
 interface LoadRequest {
@@ -360,6 +369,10 @@ export class CommunityDiscoveryPageComponent {
         )
       : of(EMPTY_MUTED_COMMUNITY_IDS);
 
+  private readonly mineSearchTermSubject = new BehaviorSubject<string>('');
+  private readonly mineParticipationFilterSubject =
+    new BehaviorSubject<CommunityMineParticipationFilter>('all');
+
   readonly selectedTagId = signal<string | null>(this.initialTagId);
   readonly sponsoredPlacement = signal<CommunitySponsoredPlacement | null>(null);
   readonly creationGateBusy = signal(false);
@@ -432,6 +445,8 @@ export class CommunityDiscoveryPageComponent {
     this.sessionBehavior.state$,
     this.mineUnreadSummaryMap$,
     this.mineMutedCommunityIds$,
+    this.mineSearchTermSubject,
+    this.mineParticipationFilterSubject,
   ]).pipe(
     map(([
       state,
@@ -440,6 +455,8 @@ export class CommunityDiscoveryPageComponent {
       sessionBehavior,
       unreadSummaryMap,
       mutedCommunityIds,
+      mineSearchTerm,
+      mineParticipationFilter,
     ]): CommunityDiscoveryViewState => {
       let status = state.status;
       let items = state.items;
@@ -471,12 +488,35 @@ export class CommunityDiscoveryPageComponent {
         };
       });
 
+      if (this.discoveryMode !== 'mine') {
+        return {
+          ...state,
+          status,
+          items: cardViews,
+          mineLoadedItemCount: 0,
+          mineSearchVisible: false,
+          mineControlsActive: false,
+        };
+      }
+
+      const filteredMineItems = filterMineCommunityItems(
+        cardViews,
+        mineParticipationFilter,
+        mineSearchTerm
+      );
+
       return {
         ...state,
         status,
-        items: this.discoveryMode === 'mine'
-          ? orderMineCommunityCardsByAttention(cardViews)
-          : cardViews,
+        items: orderMineCommunityCardsByAttention(filteredMineItems),
+        mineLoadedItemCount: cardViews.length,
+        mineSearchVisible: shouldShowMineCommunitySearch(
+          cardViews.length,
+          mineSearchTerm
+        ),
+        mineControlsActive:
+          mineParticipationFilter !== 'all'
+          || mineSearchTerm.trim().length > 0,
       };
     }),
     shareReplay({ bufferSize: 1, refCount: true })
@@ -744,6 +784,51 @@ export class CommunityDiscoveryPageComponent {
     const previous = index > 0 ? items[index - 1] : null;
     return !previous
       || communityAttentionGroupKey(previous) !== communityAttentionGroupKey(item);
+  }
+
+  selectMineParticipationFilter(
+    filterValue: CommunityMineParticipationFilter
+  ): void {
+    if (
+      this.discoveryMode !== 'mine'
+      || filterValue === this.mineParticipationFilterSubject.value
+    ) {
+      return;
+    }
+
+    this.mineParticipationFilterSubject.next(filterValue);
+  }
+
+  isMineParticipationFilterSelected(
+    filterValue: CommunityMineParticipationFilter
+  ): boolean {
+    return this.mineParticipationFilterSubject.value === filterValue;
+  }
+
+  changeMineSearch(event: Event): void {
+    if (this.discoveryMode !== 'mine') return;
+
+    const value = event.target instanceof HTMLInputElement
+      ? event.target.value.slice(0, 80)
+      : '';
+
+    if (value === this.mineSearchTermSubject.value) return;
+    this.mineSearchTermSubject.next(value);
+  }
+
+  mineSearchValue(): string {
+    return this.mineSearchTermSubject.value;
+  }
+
+  clearMineParticipationControls(): void {
+    if (this.discoveryMode !== 'mine') return;
+
+    if (this.mineSearchTermSubject.value) {
+      this.mineSearchTermSubject.next('');
+    }
+    if (this.mineParticipationFilterSubject.value !== 'all') {
+      this.mineParticipationFilterSubject.next('all');
+    }
   }
 
   isNotificationPreferenceBusy(communityId: string): boolean {
