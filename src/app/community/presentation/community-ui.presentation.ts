@@ -47,17 +47,17 @@ const COMMUNITY_ATTENTION_PRESENTATIONS: Readonly<
 > = Object.freeze({
   priority: {
     key: 'priority',
-    label: 'Requer atenção',
+    label: 'Precisa de atenção',
     icon: 'fa-bolt',
   },
   unread: {
     key: 'unread',
-    label: 'Novidades',
+    label: 'Novas atividades',
     icon: 'fa-bell',
   },
   quiet: {
     key: 'quiet',
-    label: 'Em dia',
+    label: 'Demais',
     icon: 'fa-check',
   },
 });
