@@ -8,6 +8,7 @@ import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { AdultConsentService } from 'src/app/core/services/compliance/adult-consent.service';
+import { AgeEligibilityService } from 'src/app/core/services/compliance/age-eligibility.service';
 import { isCurrentLegalAcceptanceSatisfied } from 'src/app/core/services/compliance/terms-acceptance.service';
 
 import { RegisterNavigationService } from './register-navigation.service';
@@ -22,9 +23,16 @@ export class RegisterFlowFacade {
     this.session.ready$,
     this.session.authUser$,
     this.currentUser.user$,
+    this.ageEligibility.verifiedAdult$,
     this.adultConsent.currentConsentAccepted$,
   ]).pipe(
-    map(([authReady, authUser, appUser, adultConsentAccepted]) => {
+    map(([
+      authReady,
+      authUser,
+      appUser,
+      ageEligibilityVerified,
+      adultConsentAccepted,
+    ]) => {
       const user = this.asResolvedUser(appUser);
 
       const state: RegisterFlowAccessState = {
@@ -36,6 +44,7 @@ export class RegisterFlowFacade {
         userResolved: appUser !== undefined,
         userExists: user !== null,
         termsAccepted: isCurrentLegalAcceptanceSatisfied(user?.acceptedTerms),
+        ageEligibilityVerified: ageEligibilityVerified === true,
         profileCompleted: user?.profileCompleted === true,
         adultConsentAccepted: adultConsentAccepted === true,
         initialAdultConsentRequired:
@@ -56,6 +65,7 @@ export class RegisterFlowFacade {
   constructor(
     private readonly session: AuthSessionService,
     private readonly currentUser: CurrentUserStoreService,
+    private readonly ageEligibility: AgeEligibilityService,
     private readonly adultConsent: AdultConsentService,
     private readonly navigation: RegisterNavigationService
   ) {}
@@ -73,6 +83,7 @@ export class RegisterFlowFacade {
       a.userResolved === b.userResolved &&
       a.userExists === b.userExists &&
       a.termsAccepted === b.termsAccepted &&
+      a.ageEligibilityVerified === b.ageEligibilityVerified &&
       a.profileCompleted === b.profileCompleted &&
       a.adultConsentAccepted === b.adultConsentAccepted &&
       a.initialAdultConsentRequired === b.initialAdultConsentRequired &&
