@@ -20,7 +20,7 @@ import {
 } from 'src/app/core/interfaces/interfaces-chat/room.interface';
 import { ActionRegistryService } from 'src/app/core/services/action-state/action-registry.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '../../error-handler/application-error.service';
 
 type CreateRoomDetails = Partial<Omit<IRoom, 'placeIntent'>> & {
   placeIntent?: IRoomPlaceIntent | IRoomPlaceIntentInput | null;
@@ -39,7 +39,7 @@ interface ClosePrivateRoomResponse {
 @Injectable({ providedIn: 'root' })
 export class RoomManagementService {
   private readonly functions = inject(Functions);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly notify = inject(ErrorNotificationService);
   private readonly actionRegistry = inject(ActionRegistryService);
   private readonly closeOperations = new Map<
@@ -183,21 +183,18 @@ export class RoomManagementService {
 
   private reportError(error: unknown, operation: string): void {
     try {
-      const normalizedError = new Error(
-        `[RoomManagementService.${operation}] falhou`
-      );
-
-      (normalizedError as any).context = {
-        scope: 'RoomManagementService',
+      this.applicationError.report(error, {
+        feature: 'legacy-rooms',
         operation,
-      };
-      (normalizedError as any).original = error;
-      (normalizedError as any).skipUserNotification = true;
-      (normalizedError as any).silent = true;
-
-      this.globalError.handleError(normalizedError);
+        fallbackMessage: 'Não foi possível concluir a operação da Sala legada.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'RoomManagementService',
+          productState: 'deprecated_compatibility_only',
+        },
+      });
     } catch {
-      // Falha de telemetria não deve interromper a operação principal.
+      // Falha de telemetria não interrompe a operação principal.
     }
   }
 }
