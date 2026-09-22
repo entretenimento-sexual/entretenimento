@@ -141,6 +141,7 @@ function cleanReason(value: unknown): MediaReportSafetyReason | null {
     'illegal_content',
     'privacy',
     'minor_safety',
+    'minor_content_safety',
     'other',
   ].includes(normalized)
     ? normalized as MediaReportSafetyReason
