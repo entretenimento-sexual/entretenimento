@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { COMMUNITY_CREATE_RETURN_URL } from 'src/app/subscriptions/domain/subscription-flow-context.model';
 import { BillingRepository } from '../infrastructure/repositories/billing.repository';
 import { BillingReturnFacade } from './billing-return.facade';
@@ -16,7 +16,7 @@ describe('BillingReturnFacade', () => {
   const navigate = vi.fn();
   const navigateByUrl = vi.fn();
   const showError = vi.fn();
-  const handleError = vi.fn();
+  const report = vi.fn();
   let queryParamMap$: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
   let facade: BillingReturnFacade;
 
@@ -61,7 +61,7 @@ describe('BillingReturnFacade', () => {
           useValue: { processBillingReturn$, getMyBillingSnapshot$ },
         },
         { provide: ErrorNotificationService, useValue: { showError } },
-        { provide: GlobalErrorHandlerService, useValue: { handleError } },
+        { provide: ApplicationErrorService, useValue: { report } },
       ],
     });
 
