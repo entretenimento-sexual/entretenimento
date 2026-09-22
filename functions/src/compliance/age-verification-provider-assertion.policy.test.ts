@@ -47,6 +47,25 @@ describe('age-verification-provider-assertion.policy', () => {
     assert.equal(result, null);
   });
 
+  it('rejeita assertion com dado pessoal extra', () => {
+    const result = normalizeProviderAgeAssertion({
+      assertionId: 'assertion-1',
+      nowMs: NOW,
+      raw: {
+        uid: 'user-1',
+        provider: 'trusted-provider',
+        result: 'VERIFIED_ADULT',
+        assuranceLevel: 'HIGH',
+        verifiedAtMs: NOW - 1_000,
+        expiresAtMs: null,
+        providerReferenceHash: HASH,
+        birthDate: '1990-01-01',
+      },
+    });
+
+    assert.equal(result, null);
+  });
+
   it('transforma decisão conflitante em revisão obrigatória', () => {
     assert.equal(
       resolveProviderAssertionCanonicalStatus({
