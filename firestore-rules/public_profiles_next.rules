@@ -7,7 +7,13 @@
 // editoriais; métricas, compatibilidade, moderação e capas são backend-only.
 // =========================================================================
 match /public_profiles/{userId} {
-  allow get, list: if currentUserCanUseAdultSocialPlatform();
+  function targetAgeProjectionAllowsAdultExposure() {
+    return resource.data.keys().hasAny(["ageEligibilityVerifiedAdult"])
+      && resource.data.ageEligibilityVerifiedAdult == true;
+  }
+
+  allow get, list: if currentUserCanUseAdultSocialPlatform()
+    && targetAgeProjectionAllowsAdultExposure();
 
   function hasPublicField(field) {
     return request.resource.data.keys().hasAny([field]);
