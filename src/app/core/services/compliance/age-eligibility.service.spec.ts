@@ -7,9 +7,11 @@ import { AgeEligibilityService } from './age-eligibility.service';
 describe('AgeEligibilityService', () => {
   it('falha fechado quando a projeção não existe', async () => {
     const user$ = new BehaviorSubject<IUserDados | null | undefined>(null);
-    const service = new AgeEligibilityService({
-      user$: user$.asObservable(),
-    } as any);
+    const service = new AgeEligibilityService(
+      {} as any,
+      { user$: user$.asObservable() } as any,
+      { handleError: () => undefined } as any
+    );
 
     await expect(firstValueFrom(service.verifiedAdult$))
       .resolves.toBe(false);
@@ -29,9 +31,11 @@ describe('AgeEligibilityService', () => {
         updatedAtMs: 1_800_000_000_000,
       },
     } as unknown as IUserDados);
-    const service = new AgeEligibilityService({
-      user$: user$.asObservable(),
-    } as any);
+    const service = new AgeEligibilityService(
+      {} as any,
+      { user$: user$.asObservable() } as any,
+      { handleError: () => undefined } as any
+    );
 
     await expect(firstValueFrom(service.verifiedAdult$))
       .resolves.toBe(true);
@@ -47,9 +51,11 @@ describe('AgeEligibilityService', () => {
         method: 'MANUAL_REVIEW',
       },
     } as unknown as IUserDados);
-    const service = new AgeEligibilityService({
-      user$: user$.asObservable(),
-    } as any);
+    const service = new AgeEligibilityService(
+      {} as any,
+      { user$: user$.asObservable() } as any,
+      { handleError: () => undefined } as any
+    );
 
     const state = await firstValueFrom(service.getCurrentOnce$());
 
