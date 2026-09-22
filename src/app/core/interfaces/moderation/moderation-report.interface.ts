@@ -105,6 +105,12 @@ export interface IModerationReportDocument {
   ageReverificationCaseId?: string | null;
   ageReverificationStatus?: ModerationAgeReverificationStatus | null;
   ageReverificationSubmittedAt?: Timestamp | FieldValue | null;
+  automationPriority?: 'NORMAL' | 'HIGH' | 'CRITICAL' | null;
+  automationDecision?: string | null;
+  automationReason?: string | null;
+  automationMode?: 'SHADOW' | 'ENFORCE' | null;
+  automationWindowId?: string | null;
+  automationEvaluatedAtMs?: number | null;
   source: 'web';
   createdAt: Timestamp | FieldValue;
   updatedAt: Timestamp | FieldValue;
