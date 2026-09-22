@@ -75,6 +75,8 @@ const FIRESTORE_FALLBACK_MESSAGE =
 
 @Injectable({ providedIn: 'root' })
 export class FirestoreErrorHandlerService {
+  private readonly diagnosedErrors = new WeakSet<object>();
+
   constructor(
     private readonly applicationError: ApplicationErrorService
   ) {}
@@ -171,6 +173,11 @@ export class FirestoreErrorHandlerService {
   // Internals
   // ===========================================================================
 
+  hasDiagnosticOwnership(error: unknown): boolean {
+    return this.isTrackableError(error)
+      && this.diagnosedErrors.has(error as object);
+  }
+
   private reportCanonical(
     error: unknown,
     normalized: NormalizedError,
@@ -181,20 +188,41 @@ export class FirestoreErrorHandlerService {
       | 'handleFirestoreErrorAndComplete'
       | 'report'
   ): void {
-    this.applicationError.report(error, {
-      feature: 'firestore',
-      operation,
-      fallbackMessage: normalized.userMessage,
-      codeMessages: FIRESTORE_ERROR_MESSAGES,
-      presentation: opts?.silent === true
-        ? { surface: 'none', severity: 'error' }
-        : { surface: 'snackbar', severity: 'error' },
-      metadata: {
-        scope: 'FirestoreErrorHandlerService',
-        firestoreContext: opts?.context ?? null,
-        silent: opts?.silent === true,
-      },
-    });
+    if (this.hasDiagnosticOwnership(error)) return;
+
+    try {
+      this.applicationError.report(error, {
+        feature: 'firestore',
+        operation,
+        fallbackMessage: normalized.userMessage,
+        codeMessages: FIRESTORE_ERROR_MESSAGES,
+        presentation: opts?.silent === true
+          ? { surface: 'none', severity: 'error' }
+          : { surface: 'snackbar', severity: 'error' },
+        metadata: {
+          scope: 'FirestoreErrorHandlerService',
+          firestoreContext: opts?.context ?? null,
+          silent: opts?.silent === true,
+        },
+      });
+
+      this.markDiagnosticOwnership(error);
+    } catch {
+      // O consumidor superior pode assumir o diagnóstico se o pipeline falhar.
+    }
+  }
+
+  private markDiagnosticOwnership(error: unknown): void {
+    if (this.isTrackableError(error)) {
+      this.diagnosedErrors.add(error as object);
+    }
+  }
+
+  private isTrackableError(error: unknown): boolean {
+    return (
+      (typeof error === 'object' && error !== null)
+      || typeof error === 'function'
+    );
   }
 
   private normalize(
