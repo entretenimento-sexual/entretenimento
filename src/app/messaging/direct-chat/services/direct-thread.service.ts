@@ -33,7 +33,7 @@ import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interfa
 
 import { ChatService } from '@core/services/batepapo/chat-service/chat.service';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
@@ -51,22 +51,22 @@ interface SendDirectMessageResponse {
 
 @Injectable({ providedIn: 'root' })
 export class DirectThreadService {
-   private readonly sendDirectMessageCallable: ReturnType<
-  typeof httpsCallable<SendDirectMessagePayload, SendDirectMessageResponse>
->;
+  private readonly sendDirectMessageCallable: ReturnType<
+    typeof httpsCallable<SendDirectMessagePayload, SendDirectMessageResponse>
+  >;
 
   constructor(
     private readonly functions: Functions,
     private readonly chatService: ChatService,
     private readonly accessControl: AccessControlService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly errorNotifier: ErrorNotificationService,
     private readonly privacyDebug: PrivacyDebugLoggerService,
   ) {
     this.sendDirectMessageCallable = httpsCallable<
-    SendDirectMessagePayload,
-    SendDirectMessageResponse
-  >(this.functions, 'sendDirectMessage');
+      SendDirectMessagePayload,
+      SendDirectMessageResponse
+    >(this.functions, 'sendDirectMessage');
   }
 
   // ---------------------------------------------------------------------------
@@ -93,7 +93,10 @@ export class DirectThreadService {
           return of([] as Message[]);
         }
 
-        return this.chatService.monitorChat(safeChatId);
+        return this.chatService.monitorChat(safeChatId).pipe(
+          // ChatService já diagnosticou a falha do transporte antes do rethrow.
+          catchError(() => of([] as Message[]))
+        );
       }),
       tap((messages) => {
         this.dbg('observeMessages$', {
@@ -175,13 +178,7 @@ sendMessage$(
     }),
 
     catchError((error) => {
-      this.reportUi(
-        error,
-        'DirectThreadService.sendMessage$',
-        this.getSendMessageUserMessage(error),
-        { chatId: safeChatId }
-      );
-
+      this.reportSendMessageError(error, safeChatId);
       return of(null);
     })
   );
@@ -220,16 +217,10 @@ sendMessage$(
               messageId: safeMessageId,
             });
           }),
-          catchError((error) => {
-            this.reportUi(
-              error,
-              'DirectThreadService.deleteMessage$',
-              'Não foi possível excluir a mensagem.',
-              {
-                chatId: safeChatId,
-                messageId: safeMessageId,
-              }
-            );
+          catchError(() => {
+            // ChatService já é o dono do diagnóstico técnico desta falha.
+            // O thread mantém apenas o feedback de UX da operação solicitada.
+            this.notifyError('Não foi possível excluir a mensagem.');
             return of(void 0);
           })
         );
@@ -318,41 +309,65 @@ private dbg(message: string, extra?: unknown): void {
   this.privacyDebug.log('chat', `DirectThreadService: ${message}`, extra);
 }
 
+  private reportSendMessageError(
+    error: unknown,
+    chatId: string
+  ): void {
+    const userMessage = this.getSendMessageUserMessage(error);
+
+    try {
+      this.applicationError.report(error, {
+        feature: 'direct-thread',
+        operation: 'DirectThreadService.sendMessage$',
+        fallbackMessage: userMessage,
+        codeMessages: {
+          unauthenticated: userMessage,
+          'invalid-argument': userMessage,
+          'failed-precondition': userMessage,
+          'permission-denied': userMessage,
+        },
+        presentation: { surface: 'snackbar', severity: 'error' },
+        metadata: {
+          scope: 'DirectThreadService',
+          context: 'DirectThreadService.sendMessage$',
+          chatId,
+        },
+      });
+    } catch {
+      // Mantém a mensagem de UX se a própria camada canônica falhar.
+      this.notifyError(userMessage);
+    }
+  }
+
   private reportSilent(
     error: unknown,
     context: string,
     extra?: Record<string, unknown>
   ): void {
     try {
-      const err =
-        error instanceof Error
-          ? error
-          : new Error('[DirectThreadService] operation failed');
-
-      (err as any).original = error;
-      (err as any).context = context;
-      (err as any).extra = extra;
-      (err as any).skipUserNotification = true;
-      (err as any).silent = true;
-
-      this.globalErrorHandler.handleError(err);
+      this.applicationError.report(error, {
+        feature: 'direct-thread',
+        operation: context,
+        fallbackMessage:
+          'Não foi possível concluir uma operação interna da conversa direta.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'DirectThreadService',
+          context,
+          ...(extra ?? {}),
+        },
+      });
     } catch {
-      // noop
+      // Diagnóstico secundário não pode interromper os fallbacks do thread.
     }
   }
 
-  private reportUi(
-    error: unknown,
-    context: string,
-    message: string,
-    extra?: Record<string, unknown>
-  ): void {
+  private notifyError(message: string): void {
     try {
       this.errorNotifier.showError(message);
     } catch {
-      // noop
+      // Feedback visual não interfere no retorno seguro da operação.
     }
-
-    this.reportSilent(error, context, extra);
   }
+
 }
