@@ -294,8 +294,18 @@ export interface IUserDados {
 
   /** Suspensão. */
   suspensionReason?: string | null;
-  suspensionSource?: 'self' | 'moderator' | null;
+  suspensionSource?: 'self' | 'moderator' | 'automation' | null;
   suspensionEndsAt?: number | null;
+
+  moderationAutomationHold?: {
+    active: boolean;
+    source: 'automation';
+    reason: string;
+    triggerReportId: string;
+    appliedAtMs: number;
+    expiresAt?: unknown;
+    expiresAtMs: number | null;
+  } | null;
 
   /** Campos legados/compatíveis com serviços de moderação atuais. */
   suspendedAtMs?: number | null;
