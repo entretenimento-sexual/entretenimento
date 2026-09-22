@@ -13,6 +13,11 @@ match /public_profiles/{userId}/public_photos/{photoId} {
     return exists(publicProfilePath());
   }
 
+  function publicProfileAllowsAdultExposure() {
+    return publicProfileExists()
+      && get(publicProfilePath()).data.ageEligibilityVerifiedAdult == true;
+  }
+
   function photoPath() {
     return /databases/$(database)/documents/public_profiles/$(userId)/public_photos/$(photoId);
   }
@@ -56,12 +61,14 @@ match /public_profiles/{userId}/public_photos/{photoId} {
   }
 
   function isApprovedPublicPhotoData(data) {
-    return data.visibility == "PUBLIC"
+    return data.ageEligibilityVerifiedAdult == true
+      && data.visibility == "PUBLIC"
       && data.moderationStatus == "APPROVED";
   }
 
   function isApprovedCommentReadablePhotoData(data) {
-    return data.moderationStatus == "APPROVED"
+    return data.ageEligibilityVerifiedAdult == true
+      && data.moderationStatus == "APPROVED"
       && !hasActiveBilateralBlock()
       && (
         data.visibility == "PUBLIC"
@@ -70,7 +77,8 @@ match /public_profiles/{userId}/public_photos/{photoId} {
   }
 
   function isPublicReadable() {
-    return publicProfileExists()
+    return publicProfileAllowsAdultExposure()
+      && resource.data.ageEligibilityVerifiedAdult == true
       && resource.data.visibility == "PUBLIC"
       && resource.data.moderationStatus == "APPROVED";
   }
@@ -128,6 +136,7 @@ match /public_profiles/{userId}/public_photos/{photoId} {
 // ------------------------------------------------------------
 match /{path=**}/public_photos/{photoId} {
   allow list: if currentUserCanUseAdultSocialPlatform()
+    && resource.data.ageEligibilityVerifiedAdult == true
     && resource.data.visibility == "PUBLIC"
     && resource.data.moderationStatus == "APPROVED";
 
