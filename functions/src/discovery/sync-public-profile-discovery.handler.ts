@@ -91,12 +91,23 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
           : null,
       });
 
-      if (
-        isPublicProfileProjectionBlocked(user) ||
-        !ageDecision.allowed
-      ) {
+      if (isPublicProfileProjectionBlocked(user)) {
         if (publicProfileSnapshot.exists) {
           transaction.delete(publicProfileRef);
+        }
+        return;
+      }
+
+      if (!ageDecision.allowed) {
+        if (
+          publicProfileSnapshot.exists &&
+          publicProfileSnapshot.data()?.['ageEligibilityVerifiedAdult'] !== false
+        ) {
+          transaction.set(
+            publicProfileRef,
+            { ageEligibilityVerifiedAdult: false },
+            { merge: true }
+          );
         }
         return;
       }
@@ -131,6 +142,7 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
         publicProfileDiscoveryProjectionMatches(currentPublic, canonical) &&
         publicIdentityProjectionMatches(currentPublic, publicIdentity) &&
         (currentPublic['age'] ?? null) === age &&
+        currentPublic['ageEligibilityVerifiedAdult'] === true &&
         publicPreferenceProjectionMatches(currentPublic, publicPreferences) &&
         publicLocationProjectionMatches(currentPublic, publicLocation) &&
         publicAvatarProjectionMatches(currentPublic, publicAvatar)
@@ -151,6 +163,7 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
           interestedInOrientations: canonical.interestedInOrientations,
           compatibilityReady: canonical.compatibilityReady,
           age,
+          ageEligibilityVerifiedAdult: true,
           ...publicPreferences,
           ...publicLocation,
           discoveryNormalizedAt: FieldValue.serverTimestamp(),
