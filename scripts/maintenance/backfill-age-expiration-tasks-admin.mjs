@@ -26,6 +26,8 @@
 // node scripts/maintenance/backfill-age-expiration-tasks-admin.mjs
 // -----------------------------------------------------------------------------
 
+import { createHash } from 'node:crypto';
+
 import {
   applicationDefault,
   cert,
@@ -110,12 +112,12 @@ function cleanUid(value) {
 }
 
 function buildTaskId({ uid, expiresAtMs, expectedUpdatedAtMs }) {
-  return [
-    'age-expiry',
-    uid,
-    expectedUpdatedAtMs,
-    expiresAtMs,
-  ].join('-');
+  const digest = createHash('sha256')
+    .update([uid, expectedUpdatedAtMs, expiresAtMs].join(':'))
+    .digest('hex')
+    .slice(0, 32);
+
+  return `age-expiry-${digest}`;
 }
 
 function isAlreadyExistsError(error) {

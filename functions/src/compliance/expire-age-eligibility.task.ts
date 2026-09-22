@@ -9,6 +9,8 @@
 // O sweep periódico permanece apenas como recuperação operacional.
 // -----------------------------------------------------------------------------
 
+import { createHash } from 'node:crypto';
+
 import { getFunctions } from 'firebase-admin/functions';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { onTaskDispatched } from 'firebase-functions/v2/tasks';
@@ -55,12 +57,18 @@ function toMillis(value: unknown): number | null {
 }
 
 function buildTaskId(payload: AgeEligibilityExpirationTaskPayload): string {
-  return [
-    'age-expiry',
-    payload.uid,
-    payload.expectedUpdatedAtMs,
-    payload.expiresAtMs,
-  ].join('-');
+  const digest = createHash('sha256')
+    .update(
+      [
+        payload.uid,
+        payload.expectedUpdatedAtMs,
+        payload.expiresAtMs,
+      ].join(':')
+    )
+    .digest('hex')
+    .slice(0, 32);
+
+  return `age-expiry-${digest}`;
 }
 
 function isAlreadyExistsError(error: unknown): boolean {

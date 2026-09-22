@@ -36,7 +36,7 @@ async function processChunk(
     })
   );
 
-  return results.reduce((sum, value) => sum + value, 0);
+  return results.reduce<number>((sum, value) => sum + value, 0);
 }
 
 export const expireAgeEligibilityRecords = onSchedule(
