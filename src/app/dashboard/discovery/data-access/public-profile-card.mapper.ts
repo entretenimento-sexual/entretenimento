@@ -212,7 +212,11 @@ export function mapPublicProfileCard(
     firstText(source, ['uid', 'id']) ?? String(fallbackUid ?? '').trim();
   const nickname = firstText(source, ['nickname']);
 
-  if (!uid || !nickname) {
+  if (
+    source['ageEligibilityVerifiedAdult'] !== true ||
+    !uid ||
+    !nickname
+  ) {
     return null;
   }
 
