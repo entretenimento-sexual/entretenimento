@@ -38,7 +38,7 @@ import {
 import { DirectChatService } from '../services/direct-chat.service';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { FirestoreUserQueryService } from '@core/services/data-handling/firestore-user-query.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 
 interface DirectChatSessionIdentity {
   uid: string | null;
@@ -227,7 +227,7 @@ export class DirectChatFacade {
     private readonly directChatService: DirectChatService,
     private readonly authSession: AuthSessionService,
     private readonly firestoreUserQuery: FirestoreUserQueryService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
     destroyRef: DestroyRef
   ) {
     this.authSession.uid$
@@ -389,19 +389,19 @@ export class DirectChatFacade {
 
   private reportSilent(error: unknown, context: string): void {
     try {
-      const err =
-        error instanceof Error
-          ? error
-          : new Error('[DirectChatFacade] operation failed');
-
-      (err as any).original = error;
-      (err as any).context = context;
-      (err as any).skipUserNotification = true;
-      (err as any).silent = true;
-
-      this.globalErrorHandler.handleError(err);
+      this.applicationError.report(error, {
+        feature: 'direct-chat',
+        operation: context,
+        fallbackMessage:
+          'Não foi possível concluir uma operação interna do chat direto.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'DirectChatFacade',
+          context,
+        },
+      });
     } catch {
-      // noop
+      // Diagnóstico secundário nunca interrompe os fallbacks reativos da facade.
     }
   }
 }
