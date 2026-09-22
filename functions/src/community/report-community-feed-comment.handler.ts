@@ -9,6 +9,9 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { assertInteractionAccess } from '../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
+import {
+  safeRecordModerationOpenSignal,
+} from '../moderation/moderation-automation.service';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   REQUIRE_COMMUNITY_APP_CHECK,
@@ -115,7 +118,7 @@ export const reportCommunityFeedComment = onCall<
     );
     const reportRef = db.collection('moderation_reports').doc(reportId);
 
-    await db.runTransaction(async (transaction) => {
+    const automationTarget = await db.runTransaction(async (transaction) => {
       const [
         reportAccess,
         postSnapshot,
@@ -183,6 +186,7 @@ export const reportCommunityFeedComment = onCall<
       }
 
       const timestamp = FieldValue.serverTimestamp();
+      const criticalQuarantine = command.reason === 'minor_content_safety';
       transaction.create(reportRef, {
         reporterUid,
         targetType: 'community_feed_comment',
@@ -196,6 +200,7 @@ export const reportCommunityFeedComment = onCall<
         route: command.route,
         status: 'open',
         moderationAction: null,
+        contentQuarantined: criticalQuarantine,
         legalReviewStatus: command.reason === 'minor_content_safety'
           ? 'PENDING_LEGAL_REVIEW'
           : null,
@@ -203,6 +208,29 @@ export const reportCommunityFeedComment = onCall<
         createdAt: timestamp,
         updatedAt: timestamp,
       });
+
+      if (criticalQuarantine) {
+        transaction.update(commentRef, {
+          moderationState: 'quarantined',
+          moderationQuarantineReason: 'minor_content_safety',
+          moderationQuarantinedAt: timestamp,
+          updatedAt: timestamp,
+        });
+      }
+
+      return {
+        authorUid: comment.actorUid,
+        quarantined: criticalQuarantine,
+      };
+    });
+
+    await safeRecordModerationOpenSignal({
+      reportId,
+      targetUid: automationTarget.authorUid,
+      reporterUid,
+      targetKey: `community-comment:${command.communityId}:${command.postId}:${command.commentId}`,
+      critical: command.reason === 'minor_content_safety',
+      quarantined: automationTarget.quarantined,
     });
 
     return { reportId };
