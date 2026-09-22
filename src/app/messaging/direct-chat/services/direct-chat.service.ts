@@ -32,7 +32,7 @@ import { IChat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
 import { ChatService } from '@core/services/batepapo/chat-service/chat.service';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 
 interface EnsureDirectChatPayload {
@@ -61,7 +61,7 @@ export class DirectChatService {
     private readonly functions: Functions,
     private readonly authSession: AuthSessionService,
     private readonly accessControl: AccessControlService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly errorNotifier: ErrorNotificationService
   ) {}
 
@@ -94,7 +94,10 @@ getMyDirectChats$(): Observable<IChat[]> {
       return this.chatService.watchChats$(safeUid, 50).pipe(
         map((items) => {
           return (items ?? []).filter((chat) => !chat?.isRoom);
-        })
+        }),
+        // ChatService já é o dono do diagnóstico do transporte realtime.
+        // Aqui apenas convertemos o rethrow em fallback do adapter.
+        catchError(() => of([] as IChat[]))
       );
     }),
 
@@ -111,8 +114,9 @@ getMyDirectChats$(): Observable<IChat[]> {
    * Resolve ou cria o chat direto 1:1 com outro usuário.
    *
    * Regras:
-   * - exige uid autenticado
-   * - não permite abrir chat consigo mesmo
+   * - exige uid autenticado;
+   * - não permite abrir chat consigo mesmo;
+   * - falhas do callable usam uma única fronteira canônica de erro.
    */
   ensureDirectChatIdWithUser$(otherUserUid: string): Observable<string | null> {
     const safeOtherUid = (otherUserUid ?? '').trim();
@@ -126,46 +130,48 @@ getMyDirectChats$(): Observable<IChat[]> {
         const safeCurrentUid = (currentUid ?? '').trim();
 
         if (!safeCurrentUid) {
-          this.notifyUser('Você precisa estar autenticado para abrir este chat.');
+          this.notifyUser(
+            'Você precisa estar autenticado para abrir este chat.'
+          );
           return of(null);
         }
 
         if (safeCurrentUid === safeOtherUid) {
-          this.notifyUser('Não é possível abrir um chat com o próprio perfil.');
+          this.notifyUser(
+            'Não é possível abrir um chat com o próprio perfil.'
+          );
           return of(null);
         }
 
-return defer(() =>
-  from(
-    this.ensureDirectChatCallable({
-      otherUserUid: safeOtherUid,
-    })
-  )
-).pipe(
-  map((result) => {
-    const chatId = String(result.data?.chatId ?? '').trim();
+        return defer(() =>
+          from(
+            this.ensureDirectChatCallable({
+              otherUserUid: safeOtherUid,
+            })
+          )
+        ).pipe(
+          map((result) => {
+            const chatId = String(result.data?.chatId ?? '').trim();
 
-    if (!chatId) {
-      throw new Error('Resposta inválida ao abrir conversa direta.');
-    }
+            if (!chatId) {
+              throw new Error(
+                'Resposta inválida ao abrir conversa direta.'
+              );
+            }
 
-    return chatId;
-  }),
-
-  catchError((error) => {
-    this.reportSilent(
-      error,
-      'DirectChatService.ensureDirectChatIdWithUser$'
-    );
-
-    this.notifyUser(this.getOpenChatUserMessage(error));
-
-    return of(null);
-  })
-);
+            return chatId;
+          }),
+          catchError((error) => {
+            this.reportOpenChatError(error);
+            return of(null);
+          })
+        );
       }),
       catchError((error) => {
-        this.reportSilent(error, 'DirectChatService.ensureDirectChatIdWithUser$');
+        this.reportSilent(
+          error,
+          'DirectChatService.ensureDirectChatIdWithUser$'
+        );
         return of(null);
       })
     );
@@ -186,52 +192,77 @@ return defer(() =>
   }
 
   private getOpenChatUserMessage(error: unknown): string {
-  const code = String(
-    (error as { code?: unknown } | null)?.code ?? ''
-  ).toLowerCase();
+    const code = String(
+      (error as { code?: unknown } | null)?.code ?? ''
+    ).toLowerCase();
 
-  const message = String(
-    (error as { message?: unknown } | null)?.message ?? ''
-  ).toLowerCase();
+    const message = String(
+      (error as { message?: unknown } | null)?.message ?? ''
+    ).toLowerCase();
 
-  if (code.includes('unauthenticated')) {
-    return 'Entre novamente para iniciar uma conversa.';
-  }
-
-  if (code.includes('failed-precondition')) {
-    if (message.includes('conexão precisa estar aceita')) {
-      return 'Vocês precisam estar conectados para iniciar uma conversa.';
+    if (code.includes('unauthenticated')) {
+      return 'Entre novamente para iniciar uma conversa.';
     }
 
-    if (message.includes('verifique seu e-mail')) {
-      return 'Verifique seu e-mail antes de iniciar conversas.';
+    if (code.includes('failed-precondition')) {
+      if (message.includes('conexão precisa estar aceita')) {
+        return 'Vocês precisam estar conectados para iniciar uma conversa.';
+      }
+
+      if (message.includes('verifique seu e-mail')) {
+        return 'Verifique seu e-mail antes de iniciar conversas.';
+      }
+
+      return 'Não foi possível iniciar a conversa nas condições atuais.';
     }
 
-    return 'Não foi possível iniciar a conversa nas condições atuais.';
+    if (code.includes('permission-denied')) {
+      return 'Esta conversa não está disponível.';
+    }
+
+    return 'Não foi possível abrir a conversa agora.';
   }
 
-  if (code.includes('permission-denied')) {
-    return 'Esta conversa não está disponível.';
-  }
+  private reportOpenChatError(error: unknown): void {
+    const userMessage = this.getOpenChatUserMessage(error);
 
-  return 'Não foi possível abrir a conversa agora.';
-}
+    try {
+      this.applicationError.report(error, {
+        feature: 'direct-chat',
+        operation: 'DirectChatService.ensureDirectChatIdWithUser$',
+        fallbackMessage: userMessage,
+        codeMessages: {
+          unauthenticated: userMessage,
+          'failed-precondition': userMessage,
+          'permission-denied': userMessage,
+        },
+        presentation: { surface: 'snackbar', severity: 'error' },
+        metadata: {
+          scope: 'DirectChatService',
+          context: 'DirectChatService.ensureDirectChatIdWithUser$',
+        },
+      });
+    } catch {
+      // Se a camada canônica falhar antes de apresentar a UX, mantém feedback.
+      this.notifyUser(userMessage);
+    }
+  }
 
   private reportSilent(error: unknown, context: string): void {
     try {
-      const err =
-        error instanceof Error
-          ? error
-          : new Error('[DirectChatService] operation failed');
-
-      (err as any).original = error;
-      (err as any).context = context;
-      (err as any).skipUserNotification = true;
-      (err as any).silent = true;
-
-      this.globalErrorHandler.handleError(err);
+      this.applicationError.report(error, {
+        feature: 'direct-chat',
+        operation: context,
+        fallbackMessage:
+          'Não foi possível concluir uma operação interna do chat direto.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'DirectChatService',
+          context,
+        },
+      });
     } catch {
-      // noop
+      // Diagnóstico secundário nunca interrompe os fallbacks do serviço.
     }
   }
 
