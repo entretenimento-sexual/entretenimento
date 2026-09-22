@@ -13,3 +13,11 @@ match /moderation_automation_state/{userId} {
 match /moderation_automation_events/{eventId} {
   allow read, write: if false;
 }
+
+match /moderation_automation_reporters/{dedupId} {
+  allow read, write: if false;
+}
+
+match /moderation_automation_targets/{dedupId} {
+  allow read, write: if false;
+}
