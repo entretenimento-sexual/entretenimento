@@ -1,0 +1,38 @@
+.age-verification {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.age-verification__card {
+  width: min(100%, 640px);
+  display: grid;
+  gap: 20px;
+}
+
+.age-verification__card header,
+.age-verification__status,
+.age-verification__actions {
+  display: grid;
+  gap: 12px;
+}
+
+.age-verification__mark {
+  font-weight: 700;
+  font-size: 1.25rem;
+}
+
+.age-verification__actions {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.age-verification button,
+.age-verification a {
+  min-height: 44px;
+}
+
+.age-verification__note {
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
