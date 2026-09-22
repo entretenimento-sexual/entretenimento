@@ -45,6 +45,23 @@ async function seedDatabase(): Promise<void> {
       interactionBlocked: false,
       accountLocked: false,
       loginAllowed: true,
+      acceptedTerms: {
+        accepted: true,
+        version: 'v3',
+        acknowledgedPrivacyNotice: true,
+      },
+      adultConsent: { accepted: true, version: 'v1' },
+      ageReverification: { status: 'NONE' },
+    });
+
+    await setDoc(doc(db, 'age_eligibility_records', OWNER_UID), {
+      uid: OWNER_UID,
+      status: 'VERIFIED_ADULT',
+      policyVersion: 1,
+      source: 'AGE_REVERIFICATION',
+      method: 'MANUAL_REVIEW',
+      verifiedAt: new Date(Date.now() - 1_000),
+      expiresAt: null,
     });
 
     await setDoc(doc(db, 'rooms', ROOM_ID), {
