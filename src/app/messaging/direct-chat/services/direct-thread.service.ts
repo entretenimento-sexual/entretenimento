@@ -33,7 +33,7 @@ import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interfa
 
 import { ChatService } from '@core/services/batepapo/chat-service/chat.service';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
@@ -51,22 +51,22 @@ interface SendDirectMessageResponse {
 
 @Injectable({ providedIn: 'root' })
 export class DirectThreadService {
-   private readonly sendDirectMessageCallable: ReturnType<
-  typeof httpsCallable<SendDirectMessagePayload, SendDirectMessageResponse>
->;
+  private readonly sendDirectMessageCallable: ReturnType<
+    typeof httpsCallable<SendDirectMessagePayload, SendDirectMessageResponse>
+  >;
 
   constructor(
     private readonly functions: Functions,
     private readonly chatService: ChatService,
     private readonly accessControl: AccessControlService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly errorNotifier: ErrorNotificationService,
     private readonly privacyDebug: PrivacyDebugLoggerService,
   ) {
     this.sendDirectMessageCallable = httpsCallable<
-    SendDirectMessagePayload,
-    SendDirectMessageResponse
-  >(this.functions, 'sendDirectMessage');
+      SendDirectMessagePayload,
+      SendDirectMessageResponse
+    >(this.functions, 'sendDirectMessage');
   }
 
   // ---------------------------------------------------------------------------
@@ -93,7 +93,10 @@ export class DirectThreadService {
           return of([] as Message[]);
         }
 
-        return this.chatService.monitorChat(safeChatId);
+        return this.chatService.monitorChat(safeChatId).pipe(
+          // ChatService já diagnosticou a falha do transporte antes do rethrow.
+          catchError(() => of([] as Message[]))
+        );
       }),
       tap((messages) => {
         this.dbg('observeMessages$', {
@@ -122,70 +125,63 @@ export class DirectThreadService {
    *
    * O perfil runtime é usado apenas para nickname.
    */
-sendMessage$(
-  chatId: string,
-  content: string,
-  clientRequestId = this.createClientRequestId()
-): Observable<string | null> {
-  const safeChatId = (chatId ?? '').trim();
-  const safeContent = (content ?? '').trim();
-  const safeClientRequestId = (clientRequestId ?? '').trim();
+  sendMessage$(
+    chatId: string,
+    content: string,
+    clientRequestId = this.createClientRequestId()
+  ): Observable<string | null> {
+    const safeChatId = (chatId ?? '').trim();
+    const safeContent = (content ?? '').trim();
+    const safeClientRequestId = (clientRequestId ?? '').trim();
 
-  if (!safeChatId || !safeContent) {
-    return of(null);
-  }
-
-  if (safeContent.length > 1000) {
-    this.errorNotifier.showWarning(
-      'A mensagem deve ter no máximo 1000 caracteres.'
-    );
-    return of(null);
-  }
-
-  if (!safeClientRequestId) {
-    this.errorNotifier.showError(
-      'Não foi possível preparar o envio da mensagem.'
-    );
-    return of(null);
-  }
-
-  return defer(() =>
-    from(
-      this.sendDirectMessageCallable({
-        chatId: safeChatId,
-        content: safeContent,
-        clientRequestId: safeClientRequestId,
-      })
-    )
-  ).pipe(
-    map((result) => {
-      const messageId = String(result.data?.messageId ?? '').trim();
-
-      if (!messageId) {
-        throw new Error('Resposta inválida ao enviar mensagem direta.');
-      }
-
-      this.dbg('sendMessage$ callable ok', {
-        chatId: safeChatId,
-        messageId,
-        deduplicated: result.data?.deduplicated === true,
-      });
-
-      return messageId;
-    }),
-
-    catchError((error) => {
-      this.reportUi(
-        error,
-        'DirectThreadService.sendMessage$',
-        this.getSendMessageUserMessage(error),
-        { chatId: safeChatId }
-      );
-
+    if (!safeChatId || !safeContent) {
       return of(null);
-    })
-  );
-}
+    }
+
+    if (safeContent.length > 1000) {
+      this.errorNotifier.showWarning(
+        'A mensagem deve ter no máximo 1000 caracteres.'
+      );
+      return of(null);
+    }
+
+    if (!safeClientRequestId) {
+      this.errorNotifier.showError(
+        'Não foi possível preparar o envio da mensagem.'
+      );
+      return of(null);
+    }
+
+    return defer(() =>
+      from(
+        this.sendDirectMessageCallable({
+          chatId: safeChatId,
+          content: safeContent,
+          clientRequestId: safeClientRequestId,
+        })
+      )
+    ).pipe(
+      map((result) => {
+        const messageId = String(result.data?.messageId ?? '').trim();
+
+        if (!messageId) {
+          throw new Error('Resposta inválida ao enviar mensagem direta.');
+        }
+
+        this.dbg('sendMessage$ callable ok', {
+          chatId: safeChatId,
+          messageId,
+          deduplicated: result.data?.deduplicated === true,
+        });
+
+        return messageId;
+      }),
+      catchError((error) => {
+        this.reportSendMessageError(error, safeChatId);
+        return of(null);
+      })
+    );
+  }
 
   // ---------------------------------------------------------------------------
   // Delete
@@ -220,16 +216,10 @@ sendMessage$(
               messageId: safeMessageId,
             });
           }),
-          catchError((error) => {
-            this.reportUi(
-              error,
-              'DirectThreadService.deleteMessage$',
-              'Não foi possível excluir a mensagem.',
-              {
-                chatId: safeChatId,
-                messageId: safeMessageId,
-              }
-            );
+          catchError(() => {
+            // ChatService já é o dono do diagnóstico técnico desta falha.
+            // O thread mantém apenas o feedback de UX da operação solicitada.
+            this.notifyError('Não foi possível excluir a mensagem.');
             return of(void 0);
           })
         );
@@ -248,75 +238,105 @@ sendMessage$(
   // Helpers
   // ---------------------------------------------------------------------------
 
-private createClientRequestId(): string {
-  const cryptoApi = globalThis.crypto;
+  private createClientRequestId(): string {
+    const cryptoApi = globalThis.crypto;
 
-  if (typeof cryptoApi?.randomUUID === 'function') {
-    return cryptoApi.randomUUID();
-  }
-
-  return [
-    'dm',
-    Date.now().toString(36),
-    Math.random().toString(36).slice(2),
-    Math.random().toString(36).slice(2),
-  ].join('_');
-}
-
-private getSendMessageUserMessage(error: unknown): string {
-  const code = String(
-    (error as { code?: unknown } | null)?.code ?? ''
-  ).toLowerCase();
-
-  const message = String(
-    (error as { message?: unknown } | null)?.message ?? ''
-  ).toLowerCase();
-
-  if (code.includes('unauthenticated')) {
-    return 'Entre novamente para enviar mensagens.';
-  }
-
-  if (code.includes('invalid-argument')) {
-    if (message.includes('máximo') || message.includes('limite')) {
-      return 'A mensagem deve ter no máximo 1000 caracteres.';
+    if (typeof cryptoApi?.randomUUID === 'function') {
+      return cryptoApi.randomUUID();
     }
 
-    return 'Revise a mensagem antes de enviar.';
+    return [
+      'dm',
+      Date.now().toString(36),
+      Math.random().toString(36).slice(2),
+      Math.random().toString(36).slice(2),
+    ].join('_');
   }
 
-  if (code.includes('failed-precondition')) {
-    if (message.includes('verifique seu e-mail')) {
-      return 'Verifique seu e-mail antes de enviar mensagens.';
+  private getSendMessageUserMessage(error: unknown): string {
+    const code = String(
+      (error as { code?: unknown } | null)?.code ?? ''
+    ).toLowerCase();
+
+    const message = String(
+      (error as { message?: unknown } | null)?.message ?? ''
+    ).toLowerCase();
+
+    if (code.includes('unauthenticated')) {
+      return 'Entre novamente para enviar mensagens.';
     }
 
-    if (message.includes('complete seu perfil')) {
-      return 'Complete seu perfil antes de enviar mensagens.';
+    if (code.includes('invalid-argument')) {
+      if (message.includes('máximo') || message.includes('limite')) {
+        return 'A mensagem deve ter no máximo 1000 caracteres.';
+      }
+
+      return 'Revise a mensagem antes de enviar.';
     }
 
-    return 'Não foi possível enviar a mensagem nas condições atuais.';
+    if (code.includes('failed-precondition')) {
+      if (message.includes('verifique seu e-mail')) {
+        return 'Verifique seu e-mail antes de enviar mensagens.';
+      }
+
+      if (message.includes('complete seu perfil')) {
+        return 'Complete seu perfil antes de enviar mensagens.';
+      }
+
+      return 'Não foi possível enviar a mensagem nas condições atuais.';
+    }
+
+    if (code.includes('permission-denied')) {
+      return 'Esta conversa não está disponível para mensagens.';
+    }
+
+    return 'Não foi possível enviar a mensagem.';
   }
 
-  if (code.includes('permission-denied')) {
-    return 'Esta conversa não está disponível para mensagens.';
+  /**
+   * Debug seguro do chat direto.
+   *
+   * Canal:
+   * localStorage.setItem('DEBUG_CHAT', '1');
+   *
+   * Regra:
+   * - nunca logar conteúdo da mensagem;
+   * - permitir apenas metadados operacionais, como chatId/messageId/count;
+   * - o PrivacyDebugLoggerService mascara identificadores sensíveis.
+   */
+  private dbg(message: string, extra?: unknown): void {
+    this.privacyDebug.log('chat', `DirectThreadService: ${message}`, extra);
   }
 
-  return 'Não foi possível enviar a mensagem.';
-}
+  private reportSendMessageError(
+    error: unknown,
+    chatId: string
+  ): void {
+    const userMessage = this.getSendMessageUserMessage(error);
 
-/**
- * Debug seguro do chat direto.
- *
- * Canal:
- * localStorage.setItem('DEBUG_CHAT', '1');
- *
- * Regra:
- * - nunca logar conteúdo da mensagem;
- * - permitir apenas metadados operacionais, como chatId/messageId/count;
- * - o PrivacyDebugLoggerService mascara identificadores sensíveis.
- */
-private dbg(message: string, extra?: unknown): void {
-  this.privacyDebug.log('chat', `DirectThreadService: ${message}`, extra);
-}
+    try {
+      this.applicationError.report(error, {
+        feature: 'direct-thread',
+        operation: 'DirectThreadService.sendMessage$',
+        fallbackMessage: userMessage,
+        codeMessages: {
+          unauthenticated: userMessage,
+          'invalid-argument': userMessage,
+          'failed-precondition': userMessage,
+          'permission-denied': userMessage,
+        },
+        presentation: { surface: 'snackbar', severity: 'error' },
+        metadata: {
+          scope: 'DirectThreadService',
+          context: 'DirectThreadService.sendMessage$',
+          chatId,
+        },
+      });
+    } catch {
+      // Mantém a mensagem de UX se a própria camada canônica falhar.
+      this.notifyError(userMessage);
+    }
+  }
 
   private reportSilent(
     error: unknown,
@@ -324,35 +344,28 @@ private dbg(message: string, extra?: unknown): void {
     extra?: Record<string, unknown>
   ): void {
     try {
-      const err =
-        error instanceof Error
-          ? error
-          : new Error('[DirectThreadService] operation failed');
-
-      (err as any).original = error;
-      (err as any).context = context;
-      (err as any).extra = extra;
-      (err as any).skipUserNotification = true;
-      (err as any).silent = true;
-
-      this.globalErrorHandler.handleError(err);
+      this.applicationError.report(error, {
+        feature: 'direct-thread',
+        operation: context,
+        fallbackMessage:
+          'Não foi possível concluir uma operação interna da conversa direta.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'DirectThreadService',
+          context,
+          ...(extra ?? {}),
+        },
+      });
     } catch {
-      // noop
+      // Diagnóstico secundário não pode interromper os fallbacks do thread.
     }
   }
 
-  private reportUi(
-    error: unknown,
-    context: string,
-    message: string,
-    extra?: Record<string, unknown>
-  ): void {
+  private notifyError(message: string): void {
     try {
       this.errorNotifier.showError(message);
     } catch {
-      // noop
+      // Feedback visual não interfere no retorno seguro da operação.
     }
-
-    this.reportSilent(error, context, extra);
   }
 }
