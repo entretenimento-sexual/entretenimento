@@ -11,6 +11,7 @@ export const FIRESTORE_RULE_PARTS = Object.freeze([
 
   // Documentos privados e domínios internos sensíveis.
   'users.rules',
+  'age_eligibility_records.rules',
   'push_devices.rules',
   'billing.rules',
   'community_boost.rules',
