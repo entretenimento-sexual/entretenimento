@@ -128,16 +128,22 @@ service cloud.firestore {
         && canonicalAgeEligibilityAllowsAdultAccess(uid());
     }
 
-    function canConsumeAdultPublicMedia() {
+    function currentUserCanUseAdultSocialPlatform() {
       let userPath = currentPrivateUserPath();
       let user = signedIn() && exists(userPath)
         ? get(userPath).data
         : null;
+
       return user is map
         && adultMediaLifecycleAllowsAccess(user)
         && adultMediaHasCurrentTerms(user)
         && adultMediaHasRequiredConsent(user)
-        && adultMediaAgeReverificationAllowsAccess(user);
+        && adultMediaAgeReverificationAllowsAccess(user)
+        && currentUserHasVerifiedAdultAge();
+    }
+
+    function canConsumeAdultPublicMedia() {
+      return currentUserCanUseAdultSocialPlatform();
     }
 
     // ===============================================================
