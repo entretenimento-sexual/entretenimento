@@ -274,8 +274,9 @@ export class LogoutService {
           feature: 'auth',
           operation: 'logout',
           fallbackMessage: 'Não foi possível sair agora. Tente novamente.',
-          notification: 'error',
+          presentation: { surface: 'snackbar', severity: 'error' },
           metadata: {
+            scope: 'LogoutService',
             sessionRestored: true,
           },
         });
