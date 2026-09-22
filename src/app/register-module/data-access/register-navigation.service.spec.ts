@@ -85,15 +85,15 @@ describe('RegisterNavigationService', () => {
     expect(vm.nextRoute).toBe('/register/finalizar-cadastro');
   });
 
-  it('não deve reabrir consentimento inicial em conta legada registrada', () => {
+  it('deve exigir consentimento vigente também de conta legada', () => {
     const vm = service.resolveVm({
       ...readyState,
       adultConsentAccepted: false,
       initialAdultConsentRequired: undefined,
     });
 
-    expect(vm.currentStep).toBe('preferences');
-    expect(vm.nextRoute).toBe('/preferencias/editar/u1');
+    expect(vm.currentStep).toBe('adultConsent');
+    expect(vm.nextRoute).toBe('/adulto/confirmar');
   });
 
   it('deve finalizar em preferências quando todas as etapas estiverem concluídas', () => {
