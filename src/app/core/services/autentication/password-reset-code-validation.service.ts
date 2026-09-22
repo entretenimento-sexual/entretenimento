@@ -4,7 +4,7 @@
 // -----------------------------------------------------------------------------
 // - valida o oobCode antes de exibir o formulário de nova senha;
 // - trata expiração e código inválido como estados esperados de produto;
-// - encaminha falhas operacionais ao GlobalErrorHandlerService sem duplicar toast;
+// - encaminha falhas operacionais ao ApplicationErrorService sem feedback duplicado;
 // - mantém contrato Observable-first e falha fechado.
 // -----------------------------------------------------------------------------
 import { Injectable } from '@angular/core';
