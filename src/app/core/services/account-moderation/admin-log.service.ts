@@ -12,8 +12,7 @@ import { limit, orderBy, serverTimestamp } from 'firebase/firestore';
 import { IAdminLog } from '../../interfaces/logs/iadming-log';
 import { FirestoreWriteService } from '@core/services/data-handling/firestore/core/firestore-write.service';
 import { FirestoreReadService } from '@core/services/data-handling/firestore/core/firestore-read.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
-import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 
 import { environment } from 'src/environments/environment';
 
@@ -31,8 +30,7 @@ export class AdminLogService {
     private readonly auth: Auth,
     private readonly write: FirestoreWriteService,
     private readonly read: FirestoreReadService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService,
-    private readonly errorNotifier: ErrorNotificationService
+    private readonly applicationError: ApplicationErrorService
   ) { }
 
   logAdminAction(
@@ -75,11 +73,19 @@ export class AdminLogService {
       map(() => logEntry),
       take(1),
       catchError((err) => {
-        this.report(err, { phase: 'logAdminAction', action: a, targetUserUid: t }, silent);
-
-        if (!silent) {
-          this.errorNotifier.showError('Falha ao registrar ação administrativa.');
-        }
+        this.applicationError.report(err, {
+          feature: 'admin-log',
+          operation: 'logAdminAction',
+          fallbackMessage: 'Falha ao registrar ação administrativa.',
+          presentation: silent
+            ? { surface: 'none', severity: 'error' }
+            : undefined,
+          metadata: {
+            scope: 'AdminLogService',
+            action: a,
+            targetUserUid: t,
+          },
+        });
 
         return throwError(() => err);
       })
@@ -96,7 +102,16 @@ export class AdminLogService {
       }
     ).pipe(
       catchError((err) => {
-        this.report(err, { phase: 'listAdminActions', maxResults }, true);
+        this.applicationError.report(err, {
+          feature: 'admin-log',
+          operation: 'listAdminActions',
+          fallbackMessage: 'Não foi possível carregar o histórico administrativo.',
+          presentation: { surface: 'none', severity: 'error' },
+          metadata: {
+            scope: 'AdminLogService',
+            maxResults,
+          },
+        });
         return throwError(() => err);
       })
     );
@@ -121,13 +136,4 @@ export class AdminLogService {
     return e;
   }
 
-  private report(err: any, context: any, silent: boolean): void {
-    try {
-      const e = new Error('[AdminLogService] error');
-      (e as any).silent = silent;
-      (e as any).original = err;
-      (e as any).context = context;
-      this.globalErrorHandler.handleError(e);
-    } catch { }
-  }
 }
