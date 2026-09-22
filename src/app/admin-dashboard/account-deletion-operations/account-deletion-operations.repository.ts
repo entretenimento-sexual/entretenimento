@@ -14,7 +14,7 @@ import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable, defer, throwError } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 import { GlobalActivityService } from '@core/services/network/global-activity.service';
 import {
@@ -36,7 +36,7 @@ import {
 export class AccountDeletionOperationsRepository {
   private readonly functions = inject(Functions);
   private readonly environmentInjector = inject(EnvironmentInjector);
-  private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly notifications = inject(ErrorNotificationService);
   private readonly activity = inject(GlobalActivityService);
   private readonly networkStatus = inject(NetworkStatusService);
@@ -298,22 +298,21 @@ export class AccountDeletionOperationsRepository {
         console.debug('[AccountDeletionOperationsRepository]', context, error);
       }
 
-      const normalized = error instanceof Error
-        ? error
-        : new Error('[AccountDeletionOperationsRepository] operação falhou');
-      const contextual = normalized as Error & {
-        original?: unknown;
-        context?: unknown;
-        skipUserNotification?: boolean;
-        silent?: boolean;
-      };
-      contextual.original = error;
-      contextual.context = context;
-      contextual.skipUserNotification = true;
-      contextual.silent = true;
-      this.globalErrorHandler.handleError(contextual);
+      this.applicationError.report(error, {
+        feature: 'admin-account-deletion-operations',
+        operation: 'listOperations',
+        fallbackMessage: 'Não foi possível carregar as operações de exclusão.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'AccountDeletionOperationsRepository',
+          filter: context['filter'] ?? null,
+          pageSize: context['pageSize'] ?? null,
+          hasCursor: context['hasCursor'] === true,
+        },
+      });
     } catch {
       // A telemetria não interrompe o fluxo principal.
     }
   }
+
 }
