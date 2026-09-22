@@ -106,48 +106,15 @@
   opacity: 0.74;
 }
 
-.community-discovery__mine-controls {
-  display: grid;
-  gap: 0.5rem;
-  min-width: 0;
-  margin: 0 0 0.85rem;
-}
-
-.community-discovery__mine-search {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.45rem;
-  align-items: center;
-}
-
 .community-discovery__mine-search input {
-  min-width: 0;
+  width: min(100%, 20rem);
   min-height: 2.45rem;
-  padding: 0.5rem 0.7rem;
+  padding: 0.5rem 0.75rem;
   border: 1px solid var(--surface-border, #d5d5d5);
   border-radius: 999px;
   background: var(--surface-color, #fff);
-  color: var(--text-color, #222);
+  color: inherit;
   font: inherit;
-  font-size: 0.82rem;
-}
-
-.community-discovery__mine-results {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.6rem;
-  color: color-mix(in oklab, var(--text-color, #222) 68%, transparent);
-  font-size: 0.74rem;
-}
-
-.community-discovery__mine-results button {
-  border: 0;
-  background: transparent;
-  color: var(--primary-color, #d83768);
-  font: inherit;
-  font-weight: 720;
-  cursor: pointer;
 }
 
 .community-discovery__filters {
@@ -264,21 +231,18 @@
   font-size: 1.2rem;
 }
 
-.community-discovery__state--mine-empty,
-.community-discovery__state--mine-filter-empty {
+.community-discovery__state--mine-empty {
   min-height: 8rem;
   place-content: start center;
   padding-top: 1.35rem;
 }
 
-.community-discovery__state--mine-empty strong,
-.community-discovery__state--mine-filter-empty strong {
+.community-discovery__state--mine-empty strong {
   font-size: 1rem;
   line-height: 1.3;
 }
 
-.community-discovery__state--mine-empty p,
-.community-discovery__state--mine-filter-empty p {
+.community-discovery__state--mine-empty p {
   max-width: 34rem;
   margin: -0.1rem 0 0.2rem;
   color: color-mix(in oklab, var(--text-color, #222) 72%, transparent);
