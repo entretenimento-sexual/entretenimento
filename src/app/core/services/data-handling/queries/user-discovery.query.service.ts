@@ -262,7 +262,10 @@ export class UserDiscoveryQueryService {
         const server$ = this.read
           .getDocumentsOnce<Record<string, unknown>>(
             UserDiscoveryQueryService.DISCOVERY_COL,
-            constraints ?? [],
+            [
+              where('ageEligibilityVerifiedAdult', '==', true),
+              ...(constraints ?? []),
+            ],
             {
               source: 'server',
               mapIdField: 'uid',
@@ -375,7 +378,7 @@ export class UserDiscoveryQueryService {
       ]),
       role: this.firstText(raw, ['role']) ?? 'free',
       gender: this.firstText(raw, ['gender', 'genero']),
-      age: this.firstValue(raw, ['age', 'idade']) ?? null,
+      age: this.firstValue(raw, ['age']) ?? null,
       orientation: this.firstText(raw, [
         'orientation',
         'sexualOrientation',
