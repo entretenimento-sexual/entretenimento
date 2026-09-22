@@ -10,6 +10,9 @@ import { db, FieldValue } from '../../firebaseApp';
 import {
   safeRecordModerationOpenSignal,
 } from '../../moderation/moderation-automation.service';
+import {
+  safeNotifyModerationReportOpened,
+} from '../../moderation/moderation-safety-notification.service';
 import { consumeBackendRateLimitQuota } from './backend-rate-limit.service';
 import {
   buildMediaReportSafetyState,
@@ -457,6 +460,8 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
       critical: reason === 'minor_content_safety',
       quarantined: result.quarantine,
     });
+
+    await safeNotifyModerationReportOpened(reportId);
 
     return {
       reportId,
