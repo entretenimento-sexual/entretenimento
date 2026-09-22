@@ -30,7 +30,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 
 import { PresenceService } from './presence.service';
@@ -45,7 +45,7 @@ export class PresenceOrchestratorService {
   constructor(
     private readonly access: AccessControlService,
     private readonly presence: PresenceService,
-    private readonly globalError: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly notify: ErrorNotificationService,
     private readonly privacyDebug: PrivacyDebugLoggerService
   ) { }
@@ -143,12 +143,20 @@ export class PresenceOrchestratorService {
   // ---------------------------------------------------------------------------
 
   private handleStreamError(err: unknown, context: string): void {
-    const e = err instanceof Error ? err : new Error(context);
-    (e as any).silent = true;
-    (e as any).original = err;
-    (e as any).context = context;
-
-    this.globalError.handleError(e);
+    try {
+      this.applicationError.report(err, {
+        feature: 'presence',
+        operation: 'orchestratePresence',
+        fallbackMessage: 'Falha ao atualizar presença.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'PresenceOrchestratorService',
+          context,
+        },
+      });
+    } catch {
+      // Presença é best-effort; falha de diagnóstico não interrompe a sessão.
+    }
 
     const now = Date.now();
     if (now - this.lastNotifyAt > 20_000) {
