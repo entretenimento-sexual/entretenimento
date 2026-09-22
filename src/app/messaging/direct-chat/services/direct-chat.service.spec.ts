@@ -1,14 +1,5 @@
 import { firstValueFrom, Observable, of, throwError } from 'rxjs';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-const firebaseMocks = vi.hoisted(() => ({
-  httpsCallable: vi.fn(),
-}));
-
-vi.mock('@angular/fire/functions', () => ({
-  Functions: class Functions {},
-  httpsCallable: firebaseMocks.httpsCallable,
-}));
+import { describe, expect, it, vi } from 'vitest';
 
 import type { Functions } from '@angular/fire/functions';
 
@@ -35,7 +26,6 @@ function createHarness(options?: {
   refreshParticipantDetailsIfNeeded?: ReturnType<typeof vi.fn>;
 }) {
   const callable = vi.fn();
-  firebaseMocks.httpsCallable.mockReturnValue(callable);
 
   const chatService = {
     watchChats$:
@@ -70,6 +60,12 @@ function createHarness(options?: {
     errorNotifier as unknown as ErrorNotificationService
   );
 
+  (
+    service as unknown as {
+      ensureDirectChatCallable: typeof callable;
+    }
+  ).ensureDirectChatCallable = callable;
+
   return {
     service,
     callable,
@@ -78,10 +74,6 @@ function createHarness(options?: {
     errorNotifier,
   };
 }
-
-beforeEach(() => {
-  firebaseMocks.httpsCallable.mockReset();
-});
 
 describe('DirectChatService canonical errors', () => {
   it('mantém somente chats diretos sem alterar o contrato da lista', async () => {
