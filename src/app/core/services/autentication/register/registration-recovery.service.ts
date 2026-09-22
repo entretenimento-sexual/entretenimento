@@ -13,7 +13,7 @@ import {
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { FirestoreUserQueryService } from '../../data-handling/firestore-user-query.service';
-import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '../../error-handler/application-error.service';
 import { AuthSessionService } from '../auth/auth-session.service';
 import { CurrentUserStoreService } from '../auth/current-user-store.service';
 
@@ -36,7 +36,7 @@ export class RegistrationRecoveryService {
   private readonly session = inject(AuthSessionService);
   private readonly users = inject(FirestoreUserQueryService);
   private readonly currentUserStore = inject(CurrentUserStoreService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
 
   private readonly ACTION_TIMEOUT_MS = 15_000;
 
@@ -109,19 +109,19 @@ export class RegistrationRecoveryService {
 
   private reportError(error: unknown, uid: string): void {
     try {
-      const err = error instanceof Error
-        ? error
-        : new Error('[RegistrationRecoveryService] recovery failed');
-
-      (err as any).context = 'RegistrationRecoveryService';
-      (err as any).operation = 'recoverForUser';
-      (err as any).extra = { uid };
-      (err as any).original = error;
-      (err as any).skipUserNotification = true;
-
-      this.globalError.handleError(err);
+      this.applicationError.report(error, {
+        feature: 'registration-recovery',
+        operation: 'recoverForUser',
+        fallbackMessage:
+          'Não foi possível recuperar os dados básicos da conta.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'RegistrationRecoveryService',
+          uid,
+        },
+      });
     } catch {
-      // noop
+      // Diagnóstico secundário não altera o fluxo de recuperação.
     }
   }
 }
