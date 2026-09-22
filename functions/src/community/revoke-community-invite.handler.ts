@@ -128,9 +128,10 @@ export const revokeCommunityInvite = onCall<RevokeCommunityInviteRequest>(
       const actorMembership = actorMembershipSnapshot.data() ?? {};
 
       if (!actorIsOriginalSender) {
-        assertCommunityMembershipActorEligibleInTransaction(
-          actorUserSnapshot.exists ? actorUserSnapshot.data() : null,
-          actorUid
+        await assertCommunityMembershipActorEligibleInTransaction(
+          transaction,
+          actorUid,
+          actorUserSnapshot.exists ? actorUserSnapshot.data() : null
         );
       }
 
