@@ -125,64 +125,63 @@ export class DirectThreadService {
    *
    * O perfil runtime é usado apenas para nickname.
    */
-sendMessage$(
-  chatId: string,
-  content: string,
-  clientRequestId = this.createClientRequestId()
-): Observable<string | null> {
-  const safeChatId = (chatId ?? '').trim();
-  const safeContent = (content ?? '').trim();
-  const safeClientRequestId = (clientRequestId ?? '').trim();
+  sendMessage$(
+    chatId: string,
+    content: string,
+    clientRequestId = this.createClientRequestId()
+  ): Observable<string | null> {
+    const safeChatId = (chatId ?? '').trim();
+    const safeContent = (content ?? '').trim();
+    const safeClientRequestId = (clientRequestId ?? '').trim();
 
-  if (!safeChatId || !safeContent) {
-    return of(null);
-  }
-
-  if (safeContent.length > 1000) {
-    this.errorNotifier.showWarning(
-      'A mensagem deve ter no máximo 1000 caracteres.'
-    );
-    return of(null);
-  }
-
-  if (!safeClientRequestId) {
-    this.errorNotifier.showError(
-      'Não foi possível preparar o envio da mensagem.'
-    );
-    return of(null);
-  }
-
-  return defer(() =>
-    from(
-      this.sendDirectMessageCallable({
-        chatId: safeChatId,
-        content: safeContent,
-        clientRequestId: safeClientRequestId,
-      })
-    )
-  ).pipe(
-    map((result) => {
-      const messageId = String(result.data?.messageId ?? '').trim();
-
-      if (!messageId) {
-        throw new Error('Resposta inválida ao enviar mensagem direta.');
-      }
-
-      this.dbg('sendMessage$ callable ok', {
-        chatId: safeChatId,
-        messageId,
-        deduplicated: result.data?.deduplicated === true,
-      });
-
-      return messageId;
-    }),
-
-    catchError((error) => {
-      this.reportSendMessageError(error, safeChatId);
+    if (!safeChatId || !safeContent) {
       return of(null);
-    })
-  );
-}
+    }
+
+    if (safeContent.length > 1000) {
+      this.errorNotifier.showWarning(
+        'A mensagem deve ter no máximo 1000 caracteres.'
+      );
+      return of(null);
+    }
+
+    if (!safeClientRequestId) {
+      this.errorNotifier.showError(
+        'Não foi possível preparar o envio da mensagem.'
+      );
+      return of(null);
+    }
+
+    return defer(() =>
+      from(
+        this.sendDirectMessageCallable({
+          chatId: safeChatId,
+          content: safeContent,
+          clientRequestId: safeClientRequestId,
+        })
+      )
+    ).pipe(
+      map((result) => {
+        const messageId = String(result.data?.messageId ?? '').trim();
+
+        if (!messageId) {
+          throw new Error('Resposta inválida ao enviar mensagem direta.');
+        }
+
+        this.dbg('sendMessage$ callable ok', {
+          chatId: safeChatId,
+          messageId,
+          deduplicated: result.data?.deduplicated === true,
+        });
+
+        return messageId;
+      }),
+      catchError((error) => {
+        this.reportSendMessageError(error, safeChatId);
+        return of(null);
+      })
+    );
+  }
 
   // ---------------------------------------------------------------------------
   // Delete
@@ -239,75 +238,75 @@ sendMessage$(
   // Helpers
   // ---------------------------------------------------------------------------
 
-private createClientRequestId(): string {
-  const cryptoApi = globalThis.crypto;
+  private createClientRequestId(): string {
+    const cryptoApi = globalThis.crypto;
 
-  if (typeof cryptoApi?.randomUUID === 'function') {
-    return cryptoApi.randomUUID();
-  }
-
-  return [
-    'dm',
-    Date.now().toString(36),
-    Math.random().toString(36).slice(2),
-    Math.random().toString(36).slice(2),
-  ].join('_');
-}
-
-private getSendMessageUserMessage(error: unknown): string {
-  const code = String(
-    (error as { code?: unknown } | null)?.code ?? ''
-  ).toLowerCase();
-
-  const message = String(
-    (error as { message?: unknown } | null)?.message ?? ''
-  ).toLowerCase();
-
-  if (code.includes('unauthenticated')) {
-    return 'Entre novamente para enviar mensagens.';
-  }
-
-  if (code.includes('invalid-argument')) {
-    if (message.includes('máximo') || message.includes('limite')) {
-      return 'A mensagem deve ter no máximo 1000 caracteres.';
+    if (typeof cryptoApi?.randomUUID === 'function') {
+      return cryptoApi.randomUUID();
     }
 
-    return 'Revise a mensagem antes de enviar.';
+    return [
+      'dm',
+      Date.now().toString(36),
+      Math.random().toString(36).slice(2),
+      Math.random().toString(36).slice(2),
+    ].join('_');
   }
 
-  if (code.includes('failed-precondition')) {
-    if (message.includes('verifique seu e-mail')) {
-      return 'Verifique seu e-mail antes de enviar mensagens.';
+  private getSendMessageUserMessage(error: unknown): string {
+    const code = String(
+      (error as { code?: unknown } | null)?.code ?? ''
+    ).toLowerCase();
+
+    const message = String(
+      (error as { message?: unknown } | null)?.message ?? ''
+    ).toLowerCase();
+
+    if (code.includes('unauthenticated')) {
+      return 'Entre novamente para enviar mensagens.';
     }
 
-    if (message.includes('complete seu perfil')) {
-      return 'Complete seu perfil antes de enviar mensagens.';
+    if (code.includes('invalid-argument')) {
+      if (message.includes('máximo') || message.includes('limite')) {
+        return 'A mensagem deve ter no máximo 1000 caracteres.';
+      }
+
+      return 'Revise a mensagem antes de enviar.';
     }
 
-    return 'Não foi possível enviar a mensagem nas condições atuais.';
+    if (code.includes('failed-precondition')) {
+      if (message.includes('verifique seu e-mail')) {
+        return 'Verifique seu e-mail antes de enviar mensagens.';
+      }
+
+      if (message.includes('complete seu perfil')) {
+        return 'Complete seu perfil antes de enviar mensagens.';
+      }
+
+      return 'Não foi possível enviar a mensagem nas condições atuais.';
+    }
+
+    if (code.includes('permission-denied')) {
+      return 'Esta conversa não está disponível para mensagens.';
+    }
+
+    return 'Não foi possível enviar a mensagem.';
   }
 
-  if (code.includes('permission-denied')) {
-    return 'Esta conversa não está disponível para mensagens.';
+  /**
+   * Debug seguro do chat direto.
+   *
+   * Canal:
+   * localStorage.setItem('DEBUG_CHAT', '1');
+   *
+   * Regra:
+   * - nunca logar conteúdo da mensagem;
+   * - permitir apenas metadados operacionais, como chatId/messageId/count;
+   * - o PrivacyDebugLoggerService mascara identificadores sensíveis.
+   */
+  private dbg(message: string, extra?: unknown): void {
+    this.privacyDebug.log('chat', `DirectThreadService: ${message}`, extra);
   }
-
-  return 'Não foi possível enviar a mensagem.';
-}
-
-/**
- * Debug seguro do chat direto.
- *
- * Canal:
- * localStorage.setItem('DEBUG_CHAT', '1');
- *
- * Regra:
- * - nunca logar conteúdo da mensagem;
- * - permitir apenas metadados operacionais, como chatId/messageId/count;
- * - o PrivacyDebugLoggerService mascara identificadores sensíveis.
- */
-private dbg(message: string, extra?: unknown): void {
-  this.privacyDebug.log('chat', `DirectThreadService: ${message}`, extra);
-}
 
   private reportSendMessageError(
     error: unknown,
@@ -369,5 +368,4 @@ private dbg(message: string, extra?: unknown): void {
       // Feedback visual não interfere no retorno seguro da operação.
     }
   }
-
 }
