@@ -11,6 +11,7 @@ export type CommunityFeedReportReason =
   | 'illegal_content'
   | 'privacy'
   | 'minor_safety'
+  | 'minor_content_safety'
   | 'other';
 
 export interface CommunityFeedReportRequest {
@@ -59,6 +60,7 @@ const ALLOWED_REASONS = new Set<CommunityFeedReportReason>([
   'illegal_content',
   'privacy',
   'minor_safety',
+  'minor_content_safety',
   'other',
 ]);
 
