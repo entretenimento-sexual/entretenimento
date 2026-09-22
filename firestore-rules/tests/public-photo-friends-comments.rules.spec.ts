@@ -66,7 +66,17 @@ async function seedBase(visibility: 'PUBLIC' | 'FRIENDS' = 'FRIENDS') {
           acknowledgedPrivacyNotice: true,
         },
         initialAdultConsentRequired: false,
+        adultConsent: { accepted: true, version: 'v1' },
         ageReverification: { status: 'NONE' },
+      }),
+      setDoc(doc(db, 'age_eligibility_records', VIEWER_UID), {
+        uid: VIEWER_UID,
+        status: 'VERIFIED_ADULT',
+        policyVersion: 1,
+        source: 'AGE_REVERIFICATION',
+        method: 'MANUAL_REVIEW',
+        verifiedAt: new Date(Date.now() - 1_000),
+        expiresAt: null,
       }),
       setDoc(doc(db, 'users', OWNER_UID), {
         uid: OWNER_UID,
