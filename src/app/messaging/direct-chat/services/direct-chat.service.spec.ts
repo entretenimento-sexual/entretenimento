@@ -1,4 +1,4 @@
-import { firstValueFrom, of, throwError } from 'rxjs';
+import { firstValueFrom, Observable, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const firebaseMocks = vi.hoisted(() => ({
@@ -29,8 +29,8 @@ function buildChat(id: string, isRoom = false): IChat {
 }
 
 function createHarness(options?: {
-  uid$?: ReturnType<typeof of<string | null>>;
-  canListen$?: ReturnType<typeof of<boolean>>;
+  uid$?: Observable<string | null>;
+  canListen$?: Observable<boolean>;
   watchChats$?: ReturnType<typeof vi.fn>;
   refreshParticipantDetailsIfNeeded?: ReturnType<typeof vi.fn>;
 }) {
@@ -119,13 +119,9 @@ describe('DirectChatService canonical errors', () => {
 
   it('diagnostica silenciosamente erro originado no gate da própria lista', async () => {
     const error = new Error('access stream failed');
-    const { service, applicationError } = createHarness();
-
-    (
-      service as unknown as {
-        accessControl: { canListenRealtime$: unknown };
-      }
-    ).accessControl.canListenRealtime$ = throwError(() => error);
+    const { service, applicationError } = createHarness({
+      canListen$: throwError(() => error),
+    });
 
     await expect(
       firstValueFrom(service.getMyDirectChats$())
