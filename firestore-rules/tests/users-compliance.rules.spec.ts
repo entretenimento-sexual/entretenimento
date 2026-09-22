@@ -115,6 +115,22 @@ describe('Firestore Rules / users compliance', () => {
     await assertFails(setDoc(doc(db, 'users', USER_UID), invalid));
   });
 
+  it('nega criação com projeção ageEligibility controlada pelo cliente', async () => {
+    const db = authenticatedDb();
+
+    await assertFails(
+      setDoc(
+        doc(db, 'users', USER_UID),
+        validUserSeed({
+          ageEligibility: {
+            status: 'VERIFIED_ADULT',
+            policyVersion: 1,
+          },
+        })
+      )
+    );
+  });
+
   it('nega criação com ageVerification legado controlado pelo cliente', async () => {
     const db = authenticatedDb();
 
@@ -151,6 +167,15 @@ describe('Firestore Rules / users compliance', () => {
   it('nega alteração cliente-side do legado, marcador e revalidação', async () => {
     await seedUserAsAdmin();
     const db = authenticatedDb();
+
+    await assertFails(
+      updateDoc(doc(db, 'users', USER_UID), {
+        ageEligibility: {
+          status: 'VERIFIED_ADULT',
+          policyVersion: 1,
+        },
+      })
+    );
 
     await assertFails(
       updateDoc(doc(db, 'users', USER_UID), {
