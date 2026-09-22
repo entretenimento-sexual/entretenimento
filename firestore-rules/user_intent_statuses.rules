@@ -26,9 +26,13 @@ match /user_intent_statuses/{statusId} {
   }
 
   allow get: if isCurrentStatusPath()
-    || (signedIn() && (isDiscoverableStatus() || isOwnerStatus()));
+    || (
+      currentUserCanUseAdultSocialPlatform()
+      && (isDiscoverableStatus() || isOwnerStatus())
+    );
 
-  allow list: if signedIn() && isDiscoverableStatus();
+  allow list: if currentUserCanUseAdultSocialPlatform()
+    && isDiscoverableStatus();
 
   allow create, update, delete: if false;
 }
