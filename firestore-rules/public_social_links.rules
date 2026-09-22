@@ -13,7 +13,10 @@
 match /public_social_links/{userId} {
 
   allow get: if isSelf(userId)
-    || (signedIn() && isActiveSubscriber(userId));
+    || (
+      currentUserCanUseAdultSocialPlatform()
+      && isActiveSubscriber(userId)
+    );
   allow list: if false;
 
   function allowedKeys() {
@@ -63,6 +66,7 @@ match /public_social_links/{userId} {
   }
 
   allow create: if isSelf(userId)
+    && currentUserCanUseAdultSocialPlatform()
     && isActiveSubscriber(userId)
     && validPayload()
     && request.resource.data.updatedAt == request.time;
@@ -73,7 +77,10 @@ match /public_social_links/{userId} {
     && request.resource.data.updatedAt == request.time
     && changedKeysAllowed()
     && (
-      isActiveSubscriber(userId)
+      (
+        currentUserCanUseAdultSocialPlatform()
+        && isActiveSubscriber(userId)
+      )
       || removesOnly()
     );
 
