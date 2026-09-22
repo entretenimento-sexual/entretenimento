@@ -526,9 +526,9 @@ export const reviewVideoContentReport = onCall<
         critical: result.reason === 'minor_content_safety',
         confirmed: decision === 'REMOVE',
       });
+    }
 
     await safeNotifyModerationReportReviewed(reportId);
-    }
 
     let cleanupPending = false;
     let evidenceReleasePending = false;
