@@ -101,7 +101,7 @@ describe('AdultConsentPageComponent', () => {
 
     expect(errorNotifierMock.showError).toHaveBeenCalledTimes(1);
     expect(errorNotifierMock.showError).toHaveBeenCalledWith(
-      'Não foi possível confirmar sua maioridade agora. Verifique a conexão e tente novamente.'
+      'Não foi possível registrar o aceite do acesso adulto. Verifique a conexão e tente novamente.'
     );
     expect(applicationErrorMock.report).not.toHaveBeenCalled();
     expect(component.isSaving).toBe(false);
@@ -149,7 +149,7 @@ describe('AdultConsentPageComponent', () => {
     );
     expect(errorNotifierMock.showError).toHaveBeenCalledTimes(1);
     expect(errorNotifierMock.showError).toHaveBeenCalledWith(
-      'Sua confirmação de maioridade foi registrada, mas não foi possível avançar. Recarregue a página e tente novamente.'
+      'Seu aceite do acesso adulto foi registrado, mas não foi possível avançar. Recarregue a página e tente novamente.'
     );
   });
 
@@ -161,7 +161,7 @@ describe('AdultConsentPageComponent', () => {
     component.decline();
 
     expect(errorNotifierMock.showWarning).toHaveBeenCalledWith(
-      'Acesso permitido apenas para maiores de 18 anos.',
+      'O acesso à experiência adulta não foi aceito.',
       4200
     );
     expect(errorNotifierMock.showError).toHaveBeenCalledTimes(1);
