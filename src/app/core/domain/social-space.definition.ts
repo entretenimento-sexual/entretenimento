@@ -23,6 +23,8 @@
 // agora quebraria consumidores persistidos antes da etapa final de migração.
 // -----------------------------------------------------------------------------
 
+import { ROOM_COMPATIBILITY_SURFACE } from './room-compatibility.policy';
+
 export type SocialSpaceKind = 'venue' | 'community' | 'room';
 
 export interface SocialSpaceDefinition {
@@ -62,7 +64,7 @@ export const SOCIAL_SPACE_DEFINITIONS: Readonly<
     description:
       'Registro legado mantido somente para compatibilidade e encerramento seguro. Novas interações coletivas pertencem a Comunidades.',
     primaryAction: 'Ver histórico',
-    navigationRoute: '/chat/rooms',
+    navigationRoute: ROOM_COMPATIBILITY_SURFACE.canonicalRoute,
   }),
 });
 
