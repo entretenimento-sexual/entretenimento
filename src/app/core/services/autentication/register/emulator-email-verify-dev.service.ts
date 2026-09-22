@@ -10,7 +10,7 @@ import { Observable, defer, from, of, throwError } from 'rxjs';
 import { catchError, map, switchMap, take, tap, timeout } from 'rxjs/operators';
 
 import { environment } from 'src/environments/environment';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 
 type OobCodeItem = {
@@ -63,7 +63,7 @@ export class EmulatorEmailVerifyDevService {
   constructor(
     private readonly http: HttpClient,
     private readonly auth: Auth,
-    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly errorNotifier: ErrorNotificationService,
   ) { }
 
@@ -246,12 +246,19 @@ export class EmulatorEmailVerifyDevService {
 
   private routeError(err: unknown, context: string): void {
     try {
-      const e = err instanceof Error ? err : new Error(String(err));
-      (e as any).silent = true;
-      (e as any).context = context;
-      (e as any).original = err;
-      this.globalErrorHandler.handleError(e);
-    } catch { /* noop */ }
+      this.applicationError.report(err, {
+        feature: 'emulator-email-verification',
+        operation: 'markVerifiedInEmulator',
+        fallbackMessage: 'Falha ao marcar e-mail como verificado no emulador.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'EmulatorEmailVerifyDevService',
+          context,
+        },
+      });
+    } catch {
+      // Ferramenta dev não deve alterar a semântica pública por falha de diagnóstico.
+    }
   }
 
   private notifyOnce(msg: string): void {
