@@ -36,6 +36,7 @@
     "functions:audit:prod": "npm --prefix functions run audit:prod",
     "functions:audit:all": "npm --prefix functions run audit:all",
     "admin:discovery-backfill": "node scripts/admin/run-discovery-backfill.mjs",
+    "maintenance:age-legacy-cleanup": "node scripts/maintenance/cleanup-legacy-age-verification-admin.mjs",
     "emu:save": "node scripts/dev/save-emulator-data.mjs --require-running",
     "emu:pre": "node scripts/dev/safe-emulator-pre.mjs",
     "preemu:start": "npm run functions:prepare",
