@@ -352,12 +352,10 @@ match /users/{userId} {
   }
 
   function adultConsentReady(data) {
-    return (data.keys().hasAny(["initialAdultConsentRequired"])
-        && data.initialAdultConsentRequired == false)
-      || (data.keys().hasAny(["adultConsent"])
-        && data.adultConsent is map
-        && data.adultConsent.keys().hasAny(["accepted"])
-        && data.adultConsent.accepted == true);
+    return data.keys().hasAny(["adultConsent"])
+      && data.adultConsent is map
+      && data.adultConsent.keys().hasAny(["accepted"])
+      && data.adultConsent.accepted == true;
   }
 
   function selfCompletingRegistration(changedKeys) {
