@@ -26,7 +26,7 @@ import {
 } from '../../core/services/batepapo/room-services/room.service';
 import { RoomManagementService } from '../../core/services/batepapo/room-services/room-management.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '../../core/services/error-handler/application-error.service';
 
 describe('ChatRoomsComponent — compatibilidade legada', () => {
   let component: ChatRoomsComponent;
@@ -40,7 +40,7 @@ describe('ChatRoomsComponent — compatibilidade legada', () => {
     showWarning: Mock;
     showSuccess: Mock;
   };
-  let globalErrorHandlerMock: { handleError: Mock };
+  let applicationErrorMock: { report: Mock };
 
   function buildRoom(overrides: Partial<RoomListItem> = {}): RoomListItem {
     return {
@@ -74,7 +74,7 @@ describe('ChatRoomsComponent — compatibilidade legada', () => {
       showWarning: vi.fn(),
       showSuccess: vi.fn(),
     };
-    globalErrorHandlerMock = { handleError: vi.fn() };
+    applicationErrorMock = { report: vi.fn() };
 
     await TestBed.configureTestingModule({
       imports: [CommonModule],
@@ -88,7 +88,7 @@ describe('ChatRoomsComponent — compatibilidade legada', () => {
         { provide: RoomManagementService, useValue: roomManagementMock },
         { provide: MatDialog, useValue: { open: dialogOpenMock } },
         { provide: ErrorNotificationService, useValue: errorNotifierMock },
-        { provide: GlobalErrorHandlerService, useValue: globalErrorHandlerMock },
+        { provide: ApplicationErrorService, useValue: applicationErrorMock },
       ],
       schemas: [NO_ERRORS_SCHEMA],
     }).compileComponents();
@@ -216,6 +216,13 @@ describe('ChatRoomsComponent — compatibilidade legada', () => {
     expect(errorNotifierMock.showError).toHaveBeenCalledWith(
       'Erro ao carregar suas salas antigas.'
     );
-    expect(globalErrorHandlerMock.handleError).toHaveBeenCalled();
+    expect(applicationErrorMock.report).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        feature: 'legacy-rooms',
+        operation: 'loadRooms',
+        presentation: { surface: 'none', severity: 'error' },
+      })
+    );
   });
 });

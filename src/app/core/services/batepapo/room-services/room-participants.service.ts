@@ -24,7 +24,7 @@ import {
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { FirestoreContextService } from '@core/services/data-handling/firestore/core/firestore-context.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 
 @Injectable({ providedIn: 'root' })
 export class RoomParticipantsService {
@@ -33,7 +33,7 @@ export class RoomParticipantsService {
     private readonly zone: NgZone,
     private readonly ctx: FirestoreContextService,
     private readonly notify: ErrorNotificationService,
-    private readonly globalError: GlobalErrorHandlerService
+    private readonly applicationError: ApplicationErrorService
   ) {}
 
   private norm(value: string | null | undefined): string {
@@ -52,19 +52,17 @@ export class RoomParticipantsService {
 
   private reportSilent(err: unknown, context?: Record<string, unknown>): void {
     try {
-      const error =
-        err instanceof Error
-          ? err
-          : new Error('[RoomParticipantsService] stream error');
-
-      (error as any).original = err;
-      (error as any).context = {
-        scope: 'RoomParticipantsService',
-        ...(context ?? {}),
-      };
-      (error as any).silent = true;
-      (error as any).skipUserNotification = true;
-      this.globalError.handleError(error);
+      this.applicationError.report(err, {
+        feature: 'legacy-rooms',
+        operation: String(context?.['op'] ?? 'participants'),
+        fallbackMessage: 'Erro ao carregar participantes.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'RoomParticipantsService',
+          productState: 'deprecated_compatibility_only',
+          contextKeys: Object.keys(context ?? {}).sort().slice(0, 8),
+        },
+      });
     } catch {
       // Telemetria nunca deve substituir a falha original.
     }

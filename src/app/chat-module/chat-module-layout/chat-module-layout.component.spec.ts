@@ -13,7 +13,7 @@ import { AccessControlService } from '../../core/services/autentication/auth/acc
 import { FirestoreUserQueryService } from '../../core/services/data-handling/firestore-user-query.service';
 import { FriendshipService } from '../../core/services/interactions/friendship/friendship.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '../../core/services/error-handler/application-error.service';
 import { PrivacyDebugLoggerService } from '../../core/services/privacy/privacy-debug-logger.service';
 import { DirectChatService } from '../../messaging/direct-chat/services/direct-chat.service';
 import { DirectChatFacade } from '../../messaging/direct-chat/application/direct-chat.facade';
@@ -34,7 +34,7 @@ describe('ChatModuleLayoutComponent', () => {
         { provide: FirestoreUserQueryService, useValue: { getPublicUserById$: vi.fn(() => of(null)) } },
         { provide: FriendshipService, useValue: {} },
         { provide: ErrorNotificationService, useValue: { showError: vi.fn(), showWarning: vi.fn(), showInfo: vi.fn(), showSuccess: vi.fn() } },
-        { provide: GlobalErrorHandlerService, useValue: { handleError: vi.fn() } },
+        { provide: ApplicationErrorService, useValue: { report: vi.fn() } },
         { provide: PrivacyDebugLoggerService, useValue: { log: vi.fn() } },
         { provide: DirectChatService, useValue: { ensureDirectChatIdWithUser$: vi.fn(() => of('chat-id')) } },
         { provide: DirectChatFacade, useValue: { selectedChat$: of(null), selectChat: vi.fn(), clearSelection: vi.fn() } },

@@ -22,7 +22,7 @@ import { Invite } from 'src/app/core/interfaces/interfaces-chat/invite.interface
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { UserDiscoveryQueryService } from '../../data-handling/queries/user-discovery.query.service';
 import { ErrorNotificationService } from '../../error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '../../error-handler/application-error.service';
 import { DistanceCalculationService } from '../../geolocation/distance-calculation.service';
 
 interface SendRoomInviteCallablePayload {
@@ -51,7 +51,7 @@ export class InviteService {
     private readonly db: Firestore,
     functions: Functions,
     private readonly errorNotifier: ErrorNotificationService,
-    private readonly globalError: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly discoveryQuery: UserDiscoveryQueryService,
     private readonly distanceService: DistanceCalculationService
   ) {
@@ -63,14 +63,18 @@ export class InviteService {
 
   private report(error: unknown, context: Record<string, unknown>): void {
     try {
-      const wrapped = new Error('[InviteService] operação falhou');
-      (wrapped as any).feature = 'room-invites';
-      (wrapped as any).original = error;
-      (wrapped as any).context = context;
-      (wrapped as any).skipUserNotification = true;
-      this.globalError.handleError(wrapped);
+      this.applicationError.report(error, {
+        feature: 'room-invites',
+        operation: String(context['op'] ?? 'inviteOperation'),
+        fallbackMessage: 'Não foi possível concluir a operação de convite.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'InviteService',
+          contextKeys: Object.keys(context).sort().slice(0, 12),
+        },
+      });
     } catch {
-      // noop
+      // O erro original e o feedback local permanecem inalterados.
     }
   }
 

@@ -4,14 +4,14 @@
 import { Injectable } from '@angular/core';
 import { Observable, defer, firstValueFrom, of } from 'rxjs';
 
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 import { Message } from '@core/interfaces/interfaces-chat/message.interface';
 
 @Injectable({ providedIn: 'root' })
 export class RoomMessagesService {
   constructor(
-    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly errorNotifier: ErrorNotificationService
   ) {}
 
@@ -86,20 +86,24 @@ export class RoomMessagesService {
     action: string,
     extra?: Record<string, unknown>
   ): void {
+    const error = new Error(
+      `[RoomMessagesService.${action}] operação bloqueada: Salas depreciadas.`
+    );
+    (error as any).code = 'failed-precondition';
+
     try {
-      const error = new Error(
-        `[RoomMessagesService.${action}] operação bloqueada: Salas depreciadas.`
-      );
-      (error as any).code = 'failed-precondition';
-      (error as any).silent = true;
-      (error as any).skipUserNotification = true;
-      (error as any).context = {
-        scope: 'RoomMessagesService',
-        action,
-        productState: 'deprecated_compatibility_only',
-        ...(extra ?? {}),
-      };
-      this.globalErrorHandler.handleError(error);
+      this.applicationError.report(error, {
+        feature: 'legacy-rooms',
+        operation: action,
+        fallbackMessage:
+          'Mensagens em Salas foram descontinuadas. Use Comunidades ou o chat direto.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'RoomMessagesService',
+          productState: 'deprecated_compatibility_only',
+          contextKeys: Object.keys(extra ?? {}).sort().slice(0, 8),
+        },
+      });
     } catch {
       // Feedback de produto e retorno compatível não dependem da telemetria.
     }

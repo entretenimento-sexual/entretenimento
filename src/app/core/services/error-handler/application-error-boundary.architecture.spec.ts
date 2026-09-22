@@ -32,20 +32,6 @@ const INFRASTRUCTURE_EXCEPTIONS = new Set<string>([
  * - Comunidades ficam fora deste boundary por decisão arquitetural do projeto.
  */
 const LEGACY_MANUAL_COMPOSITION_BASELINE = new Set<string>([
-  'chat-module/chat-message/chat-message.component.ts',
-  'chat-module/chat-messages-list/chat-messages-list.component.ts',
-  'chat-module/chat-module-layout/chat-module-layout.component.ts',
-  'chat-module/chat-rooms/chat-rooms.component.ts',
-  'chat-module/directives/delete-direct-message.directive.ts',
-  'chat-module/modals/invite-user-modal/invite-user-modal.component.ts',
-  'core/services/batepapo/chat-notification.service.ts',
-  'core/services/batepapo/invite-service/invite-search.service.ts',
-  'core/services/batepapo/invite-service/invite.service.ts',
-  'core/services/batepapo/room-services/room-management.service.ts',
-  'core/services/batepapo/room-services/room-messages.service.ts',
-  'core/services/batepapo/room-services/room-participants.service.ts',
-  'core/services/batepapo/room-services/room-reports.service.ts',
-  'core/services/batepapo/room-services/user-room-ids.service.ts',
   'core/services/filtering/filters/region-filter.service.ts',
   'core/services/image-handling/photo-firestore.service.ts',
   'core/services/image-handling/photo-upload-flow.service.ts',
@@ -193,6 +179,6 @@ describe('Application error ownership boundary', () => {
   });
 
   it('mantém explícito o tamanho atual da dívida fora de Comunidades', () => {
-    expect(LEGACY_MANUAL_COMPOSITION_BASELINE.size).toBe(68);
+    expect(LEGACY_MANUAL_COMPOSITION_BASELINE.size).toBe(54);
   });
 });
