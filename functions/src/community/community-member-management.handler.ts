@@ -434,12 +434,20 @@ export const getCommunityMembersForManagement = onCall<ManagedMembersPagePayload
     const communityRef = db.collection('communities').doc(communityId);
     const actorMembershipRef = communityRef.collection('members').doc(actorUid);
     const actorUserRef = db.collection('users').doc(actorUid);
-    const [communitySnapshot, actorMembershipSnapshot, actorUserSnapshot] =
-      await Promise.all([
-        communityRef.get(),
-        actorMembershipRef.get(),
-        actorUserRef.get(),
-      ]);
+    const actorAgeEligibilityRef = db
+      .collection('age_eligibility_records')
+      .doc(actorUid);
+    const [
+      communitySnapshot,
+      actorMembershipSnapshot,
+      actorUserSnapshot,
+      actorAgeEligibilitySnapshot,
+    ] = await Promise.all([
+      communityRef.get(),
+      actorMembershipRef.get(),
+      actorUserRef.get(),
+      actorAgeEligibilityRef.get(),
+    ]);
 
     if (!communitySnapshot.exists) {
       throw new HttpsError(
@@ -451,7 +459,10 @@ export const getCommunityMembersForManagement = onCall<ManagedMembersPagePayload
 
     assertCommunityMembershipActorEligible(
       actorUserSnapshot.exists ? actorUserSnapshot.data() : null,
-      actorUid
+      actorUid,
+      actorAgeEligibilitySnapshot.exists
+        ? actorAgeEligibilitySnapshot.data()
+        : null
     );
     const community = communitySnapshot.data() ?? {};
     assertCommunityManageable(community);
@@ -587,6 +598,9 @@ export const manageCommunityMember = onCall<ManageCommunityMemberPayload>(
       const targetMembershipRef = communityRef.collection('members').doc(memberId);
       const actorUserRef = db.collection('users').doc(actorUid);
       const targetUserRef = db.collection('users').doc(memberId);
+      const actorAgeEligibilityRef = db
+        .collection('age_eligibility_records')
+        .doc(actorUid);
       const auditRef = db.collection('community_membership_audit').doc();
       const [
         communitySnapshot,
@@ -594,12 +608,14 @@ export const manageCommunityMember = onCall<ManageCommunityMemberPayload>(
         actorMembershipSnapshot,
         targetMembershipSnapshot,
         actorUserSnapshot,
+        actorAgeEligibilitySnapshot,
       ] = await Promise.all([
         transaction.get(communityRef),
         transaction.get(discoveryRef),
         transaction.get(actorMembershipRef),
         transaction.get(targetMembershipRef),
         transaction.get(actorUserRef),
+        transaction.get(actorAgeEligibilityRef),
       ]);
 
       if (!communitySnapshot.exists) {
@@ -612,7 +628,10 @@ export const manageCommunityMember = onCall<ManageCommunityMemberPayload>(
 
       assertCommunityMembershipActorEligible(
         actorUserSnapshot.exists ? actorUserSnapshot.data() : null,
-        actorUid
+        actorUid,
+        actorAgeEligibilitySnapshot.exists
+          ? actorAgeEligibilitySnapshot.data()
+          : null
       );
       const community = communitySnapshot.data() ?? {};
       assertCommunityManageable(community);
