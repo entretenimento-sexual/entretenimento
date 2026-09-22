@@ -8,8 +8,7 @@
 // =========================================================================
 match /public_profiles/{userId} {
   function targetAgeProjectionAllowsAdultExposure() {
-    return resource.data.keys().hasAny(["ageEligibilityVerifiedAdult"])
-      && resource.data.ageEligibilityVerifiedAdult == true;
+    return resource.data.ageEligibilityVerifiedAdult == true;
   }
 
   allow get, list: if currentUserCanUseAdultSocialPlatform()
