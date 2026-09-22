@@ -8,6 +8,9 @@ import {
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
+  writeCanonicalAgeEligibilityInTransaction,
+} from './age-eligibility.service';
+import {
   readProfileMediaVisibilitySnapshots,
   restoreProfileMediaVisibility,
 } from './profile-age-reverification-media';
@@ -164,6 +167,21 @@ export const reviewProfileAgeReverification = onCall<
       const dedupRef = db
         .collection('moderation_report_dedup')
         .doc(profileMinorReportDedupId(reporterUid, targetUid));
+      const ageEligibility = writeCanonicalAgeEligibilityInTransaction(
+        transaction,
+        {
+          uid: targetUid,
+          status: decision === 'VERIFY'
+            ? 'VERIFIED_ADULT'
+            : 'DENIED_UNDERAGE',
+          source: 'AGE_REVERIFICATION',
+          method: 'MANUAL_REVIEW',
+          caseId,
+          verifiedAtMs: decision === 'VERIFY' ? reviewedAt : null,
+          decidedAtMs: reviewedAt,
+          expiresAtMs: null,
+        }
+      );
 
       if (decision === 'VERIFY') {
         transaction.set(
@@ -177,6 +195,7 @@ export const reviewProfileAgeReverification = onCall<
               result: 'ADULT',
               resolution,
             },
+            ageEligibility,
             ...(canRestoreAccess
               ? {
                 publicVisibility: 'visible',
@@ -246,6 +265,7 @@ export const reviewProfileAgeReverification = onCall<
               result: 'UNDERAGE',
               resolution,
             },
+            ageEligibility,
             accountStatus: 'moderation_suspended',
             publicVisibility: 'hidden',
             interactionBlocked: true,
