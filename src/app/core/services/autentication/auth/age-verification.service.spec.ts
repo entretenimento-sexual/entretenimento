@@ -1,12 +1,10 @@
-import { BehaviorSubject, firstValueFrom, of, throwError } from 'rxjs';
+import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { IUserDados } from '@core/interfaces/iuser-dados';
 import { AgeVerificationService } from './age-verification.service';
 
-describe('AgeVerificationService canonical errors', () => {
-  const updateDocument = vi.fn();
-  const patch = vi.fn();
+describe('AgeVerificationService legacy boundary', () => {
   const report = vi.fn();
   const user$ = new BehaviorSubject<IUserDados | null | undefined>(null);
 
@@ -17,13 +15,12 @@ describe('AgeVerificationService canonical errors', () => {
     user$.next(null);
 
     service = new AgeVerificationService(
-      { updateDocument } as any,
-      { user$: user$.asObservable(), patch } as any,
+      { user$: user$.asObservable() } as any,
       { report } as any
     );
   });
 
-  it('diagnostica validação local silenciosamente e preserva a mensagem pública', async () => {
+  it('preserva erro de sessão inválida sem qualquer caminho de persistência', async () => {
     await expect(
       firstValueFrom(
         service.submitAgeDeclaration$({
@@ -34,7 +31,6 @@ describe('AgeVerificationService canonical errors', () => {
       )
     ).rejects.toThrow('Sessão inválida para validar idade.');
 
-    expect(updateDocument).not.toHaveBeenCalled();
     expect(report).toHaveBeenCalledTimes(1);
     expect(report).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -54,98 +50,70 @@ describe('AgeVerificationService canonical errors', () => {
     );
   });
 
-  it('usa snackbar canônico em falha de persistência e repropaga o erro original', async () => {
-    const original = Object.assign(new Error('firestore unavailable'), {
-      code: 'firestore/unavailable',
-    });
-    updateDocument.mockReturnValue(
-      throwError(() => original)
-    );
-
-    let received: unknown;
-    try {
-      await firstValueFrom(
+  it('bloqueia submissão válida porque a decisão etária não pode mais nascer no cliente', async () => {
+    await expect(
+      firstValueFrom(
         service.submitAgeDeclaration$({
           uid: 'user-1',
           declaredBirthDate: '1990-01-01',
           declaredAdult: true,
         })
-      );
-    } catch (error) {
-      received = error;
-    }
+      )
+    ).rejects.toThrow(
+      'A verificação etária legada foi desativada. Use o fluxo de verificação de maioridade da plataforma.'
+    );
 
-    expect(received).toBe(original);
     expect(report).toHaveBeenCalledTimes(1);
-    expect(report).toHaveBeenCalledWith(original, {
-      feature: 'age-verification',
-      operation: 'submitAgeDeclaration',
-      fallbackMessage:
-        'Não foi possível validar a idade agora. Tente novamente.',
-      presentation: { surface: 'snackbar', severity: 'error' },
-      metadata: {
-        scope: 'AgeVerificationService',
-        phase: 'submitAgeDeclaration',
-        uid: 'user-1',
+  });
+
+  it('não trata verified-adult legado como autorização', async () => {
+    user$.next({
+      uid: 'user-1',
+      ageVerification: {
         declaredBirthDate: '1990-01-01',
+        declaredAdult: true,
+        status: 'verified-adult',
+        checkedAt: Date.now(),
       },
+    } as unknown as IUserDados);
+
+    const result = await firstValueFrom(service.eligibility$);
+
+    expect(result).toEqual({
+      status: 'verified-adult',
+      isEligible: false,
+      isResolved: false,
+      reason:
+        'A verificação etária legada não é fonte válida de autorização.',
     });
   });
 
-  it('persiste, atualiza o runtime e não diagnostica no caminho de sucesso', async () => {
-    updateDocument.mockReturnValue(of(void 0));
+  it('preserva rejeição de menor como estado não elegível', async () => {
+    user$.next({
+      uid: 'user-1',
+      ageVerification: {
+        status: 'rejected-minor',
+        reason: 'Cadastro incompatível com a idade mínima da plataforma.',
+      },
+    } as unknown as IUserDados);
 
-    const result = await firstValueFrom(
-      service.submitAgeDeclaration$({
-        uid: 'user-1',
-        declaredBirthDate: '1990-01-01',
-        declaredAdult: true,
-      })
-    );
+    const result = await firstValueFrom(service.getEligibilityOnce$());
 
-    expect(updateDocument).toHaveBeenCalledWith(
-      'users',
-      'user-1',
-      expect.objectContaining({
-        ageVerification: expect.objectContaining({
-          declaredBirthDate: '1990-01-01',
-          declaredAdult: true,
-          status: 'verified-adult',
-        }),
-      }),
-      {
-        context: 'AgeVerificationService.submitAgeDeclaration',
-      }
-    );
-    expect(patch).toHaveBeenCalledWith(
-      expect.objectContaining({
-        ageVerification: expect.objectContaining({
-          status: 'verified-adult',
-          declaredBirthDate: '1990-01-01',
-          declaredAdult: true,
-        }),
-      })
-    );
-    expect(result).toEqual(
-      expect.objectContaining({
-        status: 'verified-adult',
-        isEligible: true,
-        isResolved: true,
-      })
-    );
-    expect(report).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      status: 'rejected-minor',
+      isEligible: false,
+      isResolved: true,
+      reason: 'Cadastro incompatível com a idade mínima da plataforma.',
+    });
   });
 
-  it('não altera o erro original se a própria camada canônica falhar', async () => {
-    const original = new Error('write failed');
-    updateDocument.mockReturnValue(
-      throwError(() => original)
-    );
+  it('não altera o erro original se a camada canônica de diagnóstico falhar', async () => {
     report.mockImplementationOnce(() => {
       throw new Error('diagnostic unavailable');
     });
 
     let received: unknown;
+
     try {
       await firstValueFrom(
         service.submitAgeDeclaration$({
@@ -158,7 +126,10 @@ describe('AgeVerificationService canonical errors', () => {
       received = error;
     }
 
-    expect(received).toBe(original);
+    expect(received).toBeInstanceOf(Error);
+    expect((received as Error).message).toContain(
+      'verificação etária legada foi desativada'
+    );
     expect(report).toHaveBeenCalledTimes(1);
   });
 });
