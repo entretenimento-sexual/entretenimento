@@ -8,6 +8,9 @@ import { db, FieldValue } from '../firebaseApp';
 import {
   safeRecordModerationReviewSignal,
 } from '../moderation/moderation-automation.service';
+import {
+  safeNotifyModerationReportReviewed,
+} from '../moderation/moderation-safety-notification.service';
 import { isProfileMinorSafetyReport } from './profile-age-reverification.policy';
 
 interface ReviewProfileMinorSafetyReportRequest {
@@ -145,6 +148,8 @@ export const reviewProfileMinorSafetyReport = onCall<
       critical: true,
       confirmed: false,
     });
+
+    await safeNotifyModerationReportReviewed(reportId);
 
     return { reportId, status: 'rejected' };
   }
