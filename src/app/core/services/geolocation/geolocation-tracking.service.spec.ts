@@ -52,7 +52,6 @@ describe('GeolocationTrackingService session isolation', () => {
     service = new GeolocationTrackingService(
       { runOutsideAngular: (fn: () => void) => fn() } as any,
       { updateDocument } as any,
-      { handleError: vi.fn() } as any,
       { showError: vi.fn() } as any,
     );
   });
