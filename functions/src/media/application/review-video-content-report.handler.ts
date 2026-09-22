@@ -6,6 +6,9 @@ import { db, FieldValue } from '../../firebaseApp';
 import {
   safeRecordModerationReviewSignal,
 } from '../../moderation/moderation-automation.service';
+import {
+  safeNotifyModerationReportReviewed,
+} from '../../moderation/moderation-safety-notification.service';
 import { deleteProfileVideoResources } from './delete-profile-video.handler';
 import {
   shouldPreserveMediaEvidence,
@@ -523,6 +526,8 @@ export const reviewVideoContentReport = onCall<
         critical: result.reason === 'minor_content_safety',
         confirmed: decision === 'REMOVE',
       });
+
+    await safeNotifyModerationReportReviewed(reportId);
     }
 
     let cleanupPending = false;
