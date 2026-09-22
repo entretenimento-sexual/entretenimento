@@ -61,7 +61,7 @@ function authenticatedDb(uid = 'viewer') {
 }
 
 async function seedAdultSocialUser(
-  db: ReturnType<RulesTestEnvironment['authenticatedContext']>['firestore'],
+  db: ReturnType<typeof authenticatedDb>,
   uid: string
 ) {
   await setDoc(doc(db, 'users', uid), {
