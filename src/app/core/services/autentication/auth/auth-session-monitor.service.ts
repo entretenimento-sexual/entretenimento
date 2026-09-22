@@ -25,7 +25,7 @@ import { catchError, exhaustMap, map } from 'rxjs/operators';
 
 import { AuthSessionService } from './auth-session.service';
 import { LogoutService } from './logout.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
 
 @Injectable({ providedIn: 'root' })
@@ -37,7 +37,7 @@ export class AuthSessionMonitorService {
   constructor(
     private readonly authSession: AuthSessionService,
     private readonly logoutService: LogoutService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly privacyDebug: PrivacyDebugLoggerService,
   ) {}
 
@@ -122,15 +122,24 @@ private dbg(message: string, extra?: unknown): void {
 
   private reportSilent(err: unknown, context: Record<string, unknown>): void {
     try {
-      const error = new Error('[AuthSessionMonitor] internal error');
-      (error as any).silent = true;
-      (error as any).skipUserNotification = true;
-      (error as any).original = err;
-      (error as any).context = context;
+      const phase =
+        typeof context['phase'] === 'string' && context['phase'].trim()
+          ? context['phase'].trim()
+          : 'internal';
 
-      this.globalErrorHandler.handleError(error);
+      this.applicationError.report(err, {
+        feature: 'auth-session-monitor',
+        operation: phase,
+        fallbackMessage:
+          'Não foi possível concluir uma verificação técnica da sessão.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'AuthSessionMonitorService',
+          ...context,
+        },
+      });
     } catch {
-      // noop
+      // Diagnóstico secundário não interfere no monitor da sessão.
     }
   }
 } // linha 130, fim do auth-session-monitor.service.ts
