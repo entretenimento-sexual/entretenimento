@@ -93,7 +93,7 @@ export const reviewProfileAgeReverification = onCall<
       ? 'VERIFIED'
       : 'REJECTED';
 
-    await db.runTransaction(async (transaction) => {
+    const targetUid = await db.runTransaction(async (transaction) => {
       const reportSnapshot = await transaction.get(reportRef);
 
       if (!reportSnapshot.exists) {
@@ -363,6 +363,8 @@ export const reviewProfileAgeReverification = onCall<
         createdAt: timestamp,
         createdAtMs: reviewedAt,
       });
+
+      return targetUid;
     });
 
     await safeRecordModerationReviewSignal({
