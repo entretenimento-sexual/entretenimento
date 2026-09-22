@@ -18,7 +18,7 @@ import { catchError, filter, map, take } from 'rxjs/operators';
 
 import { environment } from 'src/environments/environment';
 import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import {
   buildRedirectTree,
@@ -36,7 +36,7 @@ export const emailVerifiedGuard: CanActivateFn = (route, state) => {
   const router = inject(Router);
   const auth = inject(Auth);
   const access = inject(AccessControlService);
-  const globalError = inject(GlobalErrorHandlerService);
+  const applicationError = inject(ApplicationErrorService);
   const notify = inject(ErrorNotificationService);
 
   return combineLatest([
@@ -105,7 +105,17 @@ export const emailVerifiedGuard: CanActivateFn = (route, state) => {
     }),
 
     catchError((err) => {
-      globalError.handleError(err);
+      try {
+        applicationError.report(err, {
+          feature: 'profile-guard',
+          operation: 'emailVerified',
+          fallbackMessage: 'Erro ao validar verificação de e-mail. Tente novamente.',
+          presentation: { surface: 'none', severity: 'error' },
+          metadata: { scope: 'emailVerifiedGuard' },
+        });
+      } catch {
+        // Guard mantém o redirecionamento seguro mesmo sem diagnóstico.
+      }
       notify.showError('Erro ao validar verificação de e-mail. Tente novamente.');
 
       return of(
