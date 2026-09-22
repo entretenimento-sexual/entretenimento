@@ -18,7 +18,7 @@ import { catchError, switchMap, take } from 'rxjs/operators';
 
 import { DirectMessageActionsService } from 'src/app/messaging/direct-chat/services/direct-message-actions.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { DeleteMessageConfirmDialogComponent } from '../modals/delete-message-confirm-dialog/delete-message-confirm-dialog.component';
 
 @Directive({
@@ -47,7 +47,7 @@ export class DeleteDirectMessageDirective implements OnDestroy {
     private readonly directMessageActions: DirectMessageActionsService,
     private readonly dialog: MatDialog,
     private readonly errorNotifier: ErrorNotificationService,
-    private readonly globalError: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
   ) {}
 
   ngOnDestroy(): void {
@@ -123,21 +123,19 @@ export class DeleteDirectMessageDirective implements OnDestroy {
 
   private reportError(error: unknown, chatId: string, messageId: string): void {
     try {
-      const err = error instanceof Error
-        ? error
-        : new Error('Falha ao apagar mensagem direta.');
-
-      (err as any).original = error;
-      (err as any).context = {
-        scope: 'DeleteDirectMessageDirective',
-        chatId,
-        messageId,
-      };
-      (err as any).skipUserNotification = true;
-
-      this.globalError.handleError(err);
+      this.applicationError.report(error, {
+        feature: 'direct-chat',
+        operation: 'deleteMessage',
+        fallbackMessage: 'Não foi possível apagar a mensagem.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'DeleteDirectMessageDirective',
+          chatIdPresent: !!String(chatId ?? '').trim(),
+          messageIdPresent: !!String(messageId ?? '').trim(),
+        },
+      });
     } catch {
-      // noop
+      // A apresentação local e o fallback do fluxo permanecem ativos.
     }
   }
 }
