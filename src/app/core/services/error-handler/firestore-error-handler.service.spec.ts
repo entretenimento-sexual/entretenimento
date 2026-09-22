@@ -187,12 +187,9 @@ describe('FirestoreErrorHandlerService', () => {
 
     expect(arrays).toEqual([[]]);
     expect(nulls).toEqual([null]);
-    expect(applicationError.report).toHaveBeenCalledTimes(2);
-    expect(
-      applicationError.report.mock.calls.map((call) => call[1]?.operation)
-    ).toEqual([
-      'handleFirestoreErrorAndReturn',
-      'handleFirestoreErrorAndReturn',
-    ]);
+    // A mesma instância atravessou dois atalhos: diagnóstico técnico é único.
+    expect(applicationError.report).toHaveBeenCalledTimes(1);
+    expect(applicationError.report.mock.calls[0]?.[1]?.operation)
+      .toBe('handleFirestoreErrorAndReturn');
   });
 });
