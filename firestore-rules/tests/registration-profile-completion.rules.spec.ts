@@ -10,7 +10,6 @@ import {
 } from '@firebase/rules-unit-testing';
 import {
   doc,
-  runTransaction,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -163,27 +162,36 @@ describe('Firestore Rules / registration and profile completion', () => {
     );
   });
 
-  it('permite o bootstrap transacional sem a claim email_verified inicial', async () => {
+  it('permite o bootstrap privado sem a claim email_verified inicial', async () => {
     const db = authenticatedDbWithoutEmailClaim();
 
     await assertSucceeds(
-      runTransaction(db, async (transaction) => {
-        const userRef = doc(db, 'users', UID);
-        const indexRef = doc(db, 'public_index', 'nickname:pessoa_segura');
-        const indexSnapshot = await transaction.get(indexRef);
+      setDoc(
+        doc(db, 'users', UID),
+        privateRegistrationSeed(),
+        { merge: true }
+      )
+    );
+  });
 
-        if (indexSnapshot.exists()) {
-          throw new Error('Reserva de nickname inesperadamente existente.');
-        }
+  it('nega reservar nickname público antes do onboarding adulto completo', async () => {
+    const db = authenticatedDbWithoutEmailClaim();
 
-        transaction.set(userRef, privateRegistrationSeed(), { merge: true });
-        transaction.set(indexRef, {
-          uid: UID,
-          type: 'nickname',
-          value: 'pessoa_segura',
-          createdAt: serverTimestamp(),
-          lastChangedAt: serverTimestamp(),
-        });
+    await assertSucceeds(
+      setDoc(
+        doc(db, 'users', UID),
+        privateRegistrationSeed(),
+        { merge: true }
+      )
+    );
+
+    await assertFails(
+      setDoc(doc(db, 'public_index', 'nickname:pessoa_segura'), {
+        uid: UID,
+        type: 'nickname',
+        value: 'pessoa_segura',
+        createdAt: serverTimestamp(),
+        lastChangedAt: serverTimestamp(),
       })
     );
   });
