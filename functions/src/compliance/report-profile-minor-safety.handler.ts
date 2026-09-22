@@ -6,6 +6,9 @@ import {
   safeRecordModerationOpenSignal,
 } from '../moderation/moderation-automation.service';
 import {
+  safeNotifyModerationReportOpened,
+} from '../moderation/moderation-safety-notification.service';
+import {
   type AgeReverificationUserDocument,
   assertComplianceAuthenticatedUid,
   cleanComplianceId,
@@ -119,6 +122,10 @@ export const reportProfileMinorSafety = onCall<ReportProfileMinorSafetyRequest>(
       critical: true,
       quarantined: false,
     });
+
+    await safeNotifyModerationReportOpened(reportRef.id);
+
+    await safeNotifyModerationReportOpened(reportId);
 
     return { reportId: reportRef.id };
   }
