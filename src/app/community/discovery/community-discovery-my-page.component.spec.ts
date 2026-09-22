@@ -19,7 +19,8 @@ import { CommunityDiscoveryPageComponent } from './community-discovery-page.comp
 
 function communityCard(
   communityId = 'community-owned-1',
-  name = 'Minha Comunidade'
+  name = 'Minha Comunidade',
+  viewerRole: 'owner' | 'admin' | 'moderator' | 'member' = 'owner'
 ) {
   return {
     communityId,
@@ -38,7 +39,7 @@ function communityCard(
     tags: [
       { id: 'intent:friendship', label: 'Amizade', category: 'intent' as const },
     ],
-    viewerRole: 'owner' as const,
+    viewerRole,
   };
 }
 
@@ -255,7 +256,7 @@ describe('CommunityDiscoveryPageComponent / Minhas comunidades', () => {
     expect(unread?.textContent?.replace(/\s+/g, ' ').trim()).toBe('7 não lidas');
     expect(unread?.querySelector('.fa-bolt')).not.toBeNull();
     expect(operationalStatuses).toHaveLength(1);
-    expect(preferenceButton?.textContent).toContain('Reativar alertas');
+    expect(preferenceButton?.textContent).toContain('Reativar');
   });
 
   it('ordena Minhas por atenção sem deixar mute reduzir a prioridade', () => {
@@ -308,7 +309,127 @@ describe('CommunityDiscoveryPageComponent / Minhas comunidades', () => {
     expect(names).toEqual(['Prioritária', 'Com novidades', 'Em dia']);
     expect(firstShell?.getAttribute('data-attention')).toBe('priority');
     expect(firstShell?.classList.contains('is-muted')).toBe(true);
-    expect(firstShell?.textContent).toContain('Reativar alertas');
+    expect(firstShell?.textContent).toContain('Reativar');
+  });
+
+  it('nomeia os grupos de triagem para alta participação', () => {
+    getMyCommunitiesPage$.mockReturnValue(
+      of({
+        items: [
+          communityCard('community-quiet', 'Demais'),
+          communityCard('community-unread', 'Novas'),
+          communityCard('community-priority', 'Atenção'),
+        ],
+        nextCursor: null,
+        generatedAt: 123,
+      })
+    );
+    unreadSummaryMap$.next(new Map([
+      [
+        'community-unread',
+        {
+          communityId: 'community-unread',
+          unreadCount: 3,
+          priorityUnreadCount: 0,
+          hasPriorityUnread: false,
+          updatedAt: 200,
+        },
+      ],
+      [
+        'community-priority',
+        {
+          communityId: 'community-priority',
+          unreadCount: 1,
+          priorityUnreadCount: 1,
+          hasPriorityUnread: true,
+          updatedAt: 300,
+        },
+      ],
+    ]));
+
+    const fixture = TestBed.createComponent(CommunityDiscoveryPageComponent);
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const headings = Array.from(
+      fixture.nativeElement.querySelectorAll(
+        '.community-discovery__attention-heading h2'
+      )
+    ).map((heading) =>
+      (heading as HTMLElement).textContent?.replace(/\s+/g, ' ').trim()
+    );
+
+    expect(headings).toEqual([
+      'Precisa de atenção',
+      'Novas atividades',
+      'Demais',
+    ]);
+  });
+
+  it('habilita busca apenas com volume e filtra participações sem nova chamada', () => {
+    const items = [
+      communityCard('community-owner', 'Alpha', 'owner'),
+      communityCard('community-admin', 'Beta', 'admin'),
+      communityCard('community-moderator', 'Gamma', 'moderator'),
+      communityCard('community-member-1', 'Música Brasileira', 'member'),
+      communityCard('community-member-2', 'Delta', 'member'),
+      communityCard('community-member-3', 'Epsilon', 'member'),
+      communityCard('community-member-4', 'Zeta', 'member'),
+      communityCard('community-member-5', 'Eta', 'member'),
+    ];
+    getMyCommunitiesPage$.mockReturnValue(
+      of({ items, nextCursor: 'cursor-2', generatedAt: 123 })
+    );
+    mutedCommunityIds$.next(new Set(['community-member-2']));
+
+    const fixture = TestBed.createComponent(CommunityDiscoveryPageComponent);
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const search = fixture.nativeElement.querySelector(
+      '.community-discovery__mine-search input'
+    ) as HTMLInputElement | null;
+    const buttons = Array.from(
+      fixture.nativeElement.querySelectorAll(
+        '.community-discovery__mine-filter-strip button'
+      )
+    ) as HTMLButtonElement[];
+
+    expect(search).not.toBeNull();
+    expect(buttons.map((button) => button.textContent?.trim())).toEqual([
+      'Todas',
+      'Administradas',
+      'Participo',
+      'Silenciadas',
+    ]);
+
+    buttons.find((button) => button.textContent?.trim() === 'Administradas')
+      ?.click();
+    fixture.detectChanges();
+
+    expect(
+      Array.from(
+        fixture.nativeElement.querySelectorAll('.community-card--mine h2')
+      ).map((heading) => (heading as HTMLElement).textContent?.trim())
+    ).toEqual(['Alpha', 'Beta', 'Gamma']);
+
+    buttons.find((button) => button.textContent?.trim() === 'Todas')?.click();
+    fixture.detectChanges();
+
+    const searchAfterFilter = fixture.nativeElement.querySelector(
+      '.community-discovery__mine-search input'
+    ) as HTMLInputElement;
+    searchAfterFilter.value = 'musica';
+    searchAfterFilter.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    expect(
+      Array.from(
+        fixture.nativeElement.querySelectorAll('.community-card--mine h2')
+      ).map((heading) => (heading as HTMLElement).textContent?.trim())
+    ).toEqual(['Música Brasileira']);
+
+    expect(getMyCommunitiesPage$).toHaveBeenCalledTimes(1);
   });
 
   it('integra mute ao card visual sem aninhar botão no link navegável', () => {
@@ -323,7 +444,7 @@ describe('CommunityDiscoveryPageComponent / Minhas comunidades', () => {
       '.community-card--mine'
     ) as HTMLAnchorElement | null;
     const actions = fixture.nativeElement.querySelector(
-      '[role="group"][aria-label="Preferências de alertas de Minha Comunidade"]'
+      '[role="group"][aria-label="Ações rápidas de Minha Comunidade"]'
     ) as HTMLElement | null;
     const preferenceButton = fixture.nativeElement.querySelector(
       'button[aria-label="Silenciar alertas push de Minha Comunidade"]'
