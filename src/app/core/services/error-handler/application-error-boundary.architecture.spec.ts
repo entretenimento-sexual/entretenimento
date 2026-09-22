@@ -32,15 +32,12 @@ const INFRASTRUCTURE_EXCEPTIONS = new Set<string>([
  * - Comunidades ficam fora deste boundary por decisão arquitetural do projeto.
  */
 const LEGACY_MANUAL_COMPOSITION_BASELINE = new Set<string>([
-  'admin-dashboard/account-deletion-operations/account-deletion-operations.repository.ts',
-  'admin-dashboard/operational-overview/operational-overview.component.ts',
   'chat-module/chat-message/chat-message.component.ts',
   'chat-module/chat-messages-list/chat-messages-list.component.ts',
   'chat-module/chat-module-layout/chat-module-layout.component.ts',
   'chat-module/chat-rooms/chat-rooms.component.ts',
   'chat-module/directives/delete-direct-message.directive.ts',
   'chat-module/modals/invite-user-modal/invite-user-modal.component.ts',
-  'compliance/adult-consent-page/adult-consent-page.component.ts',
   'core/services/batepapo/chat-notification.service.ts',
   'core/services/batepapo/invite-service/invite-search.service.ts',
   'core/services/batepapo/invite-service/invite.service.ts',
@@ -49,8 +46,6 @@ const LEGACY_MANUAL_COMPOSITION_BASELINE = new Set<string>([
   'core/services/batepapo/room-services/room-participants.service.ts',
   'core/services/batepapo/room-services/room-reports.service.ts',
   'core/services/batepapo/room-services/user-room-ids.service.ts',
-  'core/services/compliance/compliance-case.service.ts',
-  'core/services/compliance/staff-compliance.service.ts',
   'core/services/filtering/filters/region-filter.service.ts',
   'core/services/image-handling/photo-firestore.service.ts',
   'core/services/image-handling/photo-upload-flow.service.ts',
@@ -88,8 +83,6 @@ const LEGACY_MANUAL_COMPOSITION_BASELINE = new Set<string>([
   'media/shared/components/profile-media-showcase/profile-media-showcase.component.ts',
   'media/shared/services/public-mixed-media-viewer-launcher.service.ts',
   'media/videos/public-profile-videos/public-profile-videos.component.ts',
-  'payments-core/application/billing-return.facade.ts',
-  'payments-core/application/checkout.facade.ts',
   'photo-editor/photo-editor/photo-editor.component.ts',
   'preferences/application/compatibility-preview.facade.ts',
   'preferences/application/discovery-settings.facade.ts',
@@ -101,9 +94,6 @@ const LEGACY_MANUAL_COMPOSITION_BASELINE = new Set<string>([
   'shared/components-globais/upload-photo/upload-photo.component.ts',
   'store/effects/effects.location/nearby-profiles.effects.ts',
   'store/effects/effects.user/online-users-effect-feedback.service.ts',
-  'subscriber-experiences/exclusive-connections/exclusive-connections-access.service.ts',
-  'subscriber-experiences/exclusive-connections/exclusive-connections-feed.component.ts',
-  'subscriptions/application/subscription-checkout.facade.ts',
   'user-profile/user-photo-manager/user-photo-manager.component.ts',
   'user-profile/user-profile-edit/edit-preferences/edit-profile-preferences.component.ts',
   'user-profile/user-profile-edit/edit-profile-social-links/edit-profile-social-links.component.ts',
@@ -203,6 +193,6 @@ describe('Application error ownership boundary', () => {
   });
 
   it('mantém explícito o tamanho atual da dívida fora de Comunidades', () => {
-    expect(LEGACY_MANUAL_COMPOSITION_BASELINE.size).toBe(78);
+    expect(LEGACY_MANUAL_COMPOSITION_BASELINE.size).toBe(68);
   });
 });

@@ -54,7 +54,7 @@ import {
 } from '../domain/models/billing-return.model';
 
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import {
   normalizeSubscriptionFlowContext,
@@ -70,7 +70,7 @@ export class BillingReturnFacade {
   private readonly authSession = inject(AuthSessionService);
   private readonly billingRepository = inject(BillingRepository);
   private readonly errorNotifier = inject(ErrorNotificationService);
-  private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
 
   private readonly pollIntervalMs = 1500;
   private readonly pollTimeoutMs = 30_000;
@@ -565,28 +565,21 @@ export class BillingReturnFacade {
     }
 
     try {
-      const normalizedError =
-        error instanceof Error ? error : new Error(String(error));
-
-      (normalizedError as Error & {
-        context?: { scope: string };
-        skipUserNotification?: boolean;
-      }).context = {
-        scope: 'BillingReturnFacade',
-      };
-
-      (normalizedError as Error & {
-        skipUserNotification?: boolean;
-      }).skipUserNotification = true;
-
-      this.globalErrorHandler.handleError(normalizedError);
+      this.applicationError.report(error, {
+        feature: 'billing-return',
+        operation: 'processReturn',
+        fallbackMessage: userMessage,
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: { scope: 'BillingReturnFacade' },
+      });
     } catch {
-      // O handler global é observacional; não pode interromper a UX.
+      // O diagnóstico é observacional; não pode interromper a UX.
     }
 
     this.dbg('billing return error', {
       message:
         error instanceof Error ? error.message : String(error),
     });
+
   }
 }//linha542

@@ -19,7 +19,7 @@ import {
   ComplianceCasesVm,
 } from 'src/app/core/interfaces/compliance-case.interface';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 
 interface GetMyComplianceCasesResponse {
@@ -51,7 +51,7 @@ export class ComplianceCaseService {
   private readonly functions = inject(Functions);
   private readonly session = inject(AuthSessionService);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly notifier = inject(ErrorNotificationService);
 
   private readonly stateSubject = new BehaviorSubject<ComplianceCasesVm>(
@@ -285,17 +285,19 @@ export class ComplianceCaseService {
     extra: Record<string, unknown>
   ): void {
     try {
-      const reportable = error instanceof Error
-        ? error
-        : new Error('[ComplianceCaseService] operation failed');
-      (reportable as any).context = 'ComplianceCaseService';
-      (reportable as any).operation = operation;
-      (reportable as any).extra = extra;
-      (reportable as any).original = error;
-      (reportable as any).skipUserNotification = true;
-      this.globalError.handleError(reportable);
+      this.applicationError.report(error, {
+        feature: 'compliance-case',
+        operation,
+        fallbackMessage: 'Não foi possível concluir a operação de compliance.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'ComplianceCaseService',
+          contextKeys: Object.keys(extra).sort().slice(0, 12),
+        },
+      });
     } catch {
       // Falha de diagnóstico não interfere no feedback já apresentado.
     }
   }
+
 }

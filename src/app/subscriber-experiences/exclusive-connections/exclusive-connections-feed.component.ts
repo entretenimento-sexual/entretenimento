@@ -24,8 +24,7 @@ import {
   Subject,
 } from 'rxjs';
 
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import {
   ExclusiveConnectionCard,
@@ -141,8 +140,7 @@ export function reduceExclusiveConnectionsFeedState(
 })
 export class ExclusiveConnectionsFeedComponent {
   private readonly repository = inject(ExclusiveConnectionsRepository);
-  private readonly errorNotifier = inject(ErrorNotificationService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly loadRequests$ = new Subject<ExclusiveConnectionsLoadRequest>();
 
   readonly state$ = this.loadRequests$.pipe(
@@ -195,30 +193,16 @@ export class ExclusiveConnectionsFeedComponent {
 
   private reportLoadError(error: unknown): void {
     try {
-      this.errorNotifier.showError(
-        'Não foi possível carregar as conexões agora.'
-      );
+      this.applicationError.report(error, {
+        feature: 'exclusive-connections',
+        operation: 'loadPage',
+        fallbackMessage: 'Não foi possível carregar as conexões agora.',
+        presentation: { surface: 'snackbar', severity: 'error' },
+        metadata: { scope: 'ExclusiveConnectionsFeedComponent' },
+      });
     } catch {
-      // O diagnóstico técnico abaixo continua mesmo se o feedback visual falhar.
-    }
-
-    try {
-      const normalizedError =
-        error instanceof Error ? error : new Error(String(error));
-      const contextualError = normalizedError as Error & {
-        context?: unknown;
-        skipUserNotification?: boolean;
-      };
-
-      contextualError.context = {
-        scope: 'ExclusiveConnectionsFeedComponent',
-        op: 'loadPage',
-      };
-      contextualError.skipUserNotification = true;
-
-      this.globalError.handleError(contextualError);
-    } catch {
-      // Falhas secundárias de observabilidade não devem quebrar a experiência.
+      // Falhas secundárias de observabilidade não quebram a experiência.
     }
   }
+
 }

@@ -30,8 +30,7 @@ import {
 
 import { BillingPlan } from '../domain/models/billing-plan.model';
 import { BillingRepository } from '../infrastructure/repositories/billing.repository';
-import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import {
   normalizeSubscriptionFlowContext,
   subscriptionFlowQueryParams,
@@ -47,8 +46,7 @@ export class CheckoutFacade {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly billingRepository = inject(BillingRepository);
-  private readonly errorNotifier = inject(ErrorNotificationService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly planLoadFailedSubject = new BehaviorSubject(false);
 
   readonly planLoadFailed$ = this.planLoadFailedSubject.pipe(
@@ -191,29 +189,18 @@ export class CheckoutFacade {
     operation: string,
     notifyUser: boolean
   ): void {
-    if (notifyUser) {
-      try {
-        this.errorNotifier.showError(userMessage);
-      } catch {
-        // O diagnóstico central permanece ativo.
-      }
-    }
-
     try {
-      const normalizedError =
-        error instanceof Error ? error : new Error(String(error));
-
-      (normalizedError as any).context = {
+      this.applicationError.report(error, {
         feature: 'checkout',
         operation,
-        scope: 'CheckoutFacade',
-        op: operation,
-      };
-      (normalizedError as any).skipUserNotification = true;
-
-      this.globalError.handleError(normalizedError);
+        fallbackMessage: userMessage,
+        presentation: notifyUser
+          ? { surface: 'snackbar', severity: 'error' }
+          : { surface: 'none', severity: 'error' },
+        metadata: { scope: 'CheckoutFacade' },
+      });
     } catch {
-      // Observabilidade não pode interromper o checkout.
+      // Diagnóstico/apresentação não podem interromper o checkout.
     }
   }
 

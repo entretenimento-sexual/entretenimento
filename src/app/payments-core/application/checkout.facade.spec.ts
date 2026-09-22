@@ -3,8 +3,7 @@ import { ActivatedRoute, convertToParamMap, Router } from '@angular/router';
 import { BehaviorSubject, firstValueFrom, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { COMMUNITY_CREATE_RETURN_URL } from 'src/app/subscriptions/domain/subscription-flow-context.model';
 import { BillingPlan } from '../domain/models/billing-plan.model';
 import { BillingRepository } from '../infrastructure/repositories/billing.repository';
@@ -25,8 +24,7 @@ describe('CheckoutFacade', () => {
   const getPlatformPlanByKey$ = vi.fn();
   const createPlatformCheckoutSession$ = vi.fn();
   const navigate = vi.fn();
-  const showError = vi.fn();
-  const handleError = vi.fn();
+  const report = vi.fn();
   let queryParamMap$: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
   let facade: CheckoutFacade;
 
@@ -60,8 +58,7 @@ describe('CheckoutFacade', () => {
             createPlatformCheckoutSession$,
           },
         },
-        { provide: ErrorNotificationService, useValue: { showError } },
-        { provide: GlobalErrorHandlerService, useValue: { handleError } },
+        { provide: ApplicationErrorService, useValue: { report } },
       ],
     });
 

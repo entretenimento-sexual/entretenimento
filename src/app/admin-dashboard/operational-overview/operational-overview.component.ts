@@ -14,7 +14,7 @@ import {
   AdminModerationReportVm,
 } from 'src/app/core/services/moderation/admin-moderation-report.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 
  type OperationalSeverity = 'danger' | 'warning' | 'info' | 'success';
  type OperationalReportFilter = 'priority' | 'open' | 'reviewing' | 'all';
@@ -108,7 +108,7 @@ export class OperationalOverviewComponent {
   private readonly userManagement = inject(UserManagementService);
   private readonly reportsService = inject(AdminModerationReportService);
   private readonly notifications = inject(ErrorNotificationService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly reportFilterSubject = new BehaviorSubject<OperationalReportFilter>('priority');
   private readonly reportSortSubject = new BehaviorSubject<OperationalReportSort>('priority');
   private readonly reportActionIdsSubject = new BehaviorSubject<ReadonlySet<string>>(new Set<string>());
@@ -695,14 +695,15 @@ export class OperationalOverviewComponent {
 
   private reportError(error: unknown): void {
     try {
-      const normalized = error instanceof Error
-        ? error
-        : new Error('Falha ao carregar visão operacional.');
-
-      (normalized as any).feature = 'admin_operational_overview';
-      this.globalError.handleError(normalized);
+      this.applicationError.report(error, {
+        feature: 'admin-operational-overview',
+        operation: 'loadOverview',
+        fallbackMessage: 'Falha ao carregar visão operacional.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: { scope: 'OperationalOverviewComponent' },
+      });
     } catch {
-      // Não interrompe a UI de operação por falha de logging.
+      // Não interrompe a UI de operação por falha de diagnóstico.
     }
   }
 }
