@@ -6,6 +6,9 @@ import { db, FieldValue } from '../../firebaseApp';
 import {
   safeRecordModerationReviewSignal,
 } from '../../moderation/moderation-automation.service';
+import {
+  safeNotifyModerationReportReviewed,
+} from '../../moderation/moderation-safety-notification.service';
 import { deleteProfilePhotoResources } from './delete-profile-photo.handler';
 import {
   buildMediaReportSafetyState,
@@ -387,6 +390,8 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
       critical: result.reason === 'minor_content_safety',
       confirmed: decision === 'REMOVE',
     });
+
+    await safeNotifyModerationReportReviewed(reportId);
 
     let cleanupPending = false;
     let evidenceReleasePending = false;
