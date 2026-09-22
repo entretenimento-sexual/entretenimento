@@ -8,6 +8,9 @@ import {
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
+  safeRecordModerationReviewSignal,
+} from '../moderation/moderation-automation.service';
+import {
   writeCanonicalAgeEligibilityInTransaction,
 } from './age-eligibility.service';
 import {
@@ -360,6 +363,13 @@ export const reviewProfileAgeReverification = onCall<
         createdAt: timestamp,
         createdAtMs: reviewedAt,
       });
+    });
+
+    await safeRecordModerationReviewSignal({
+      reportId,
+      targetUid,
+      critical: true,
+      confirmed: decision === 'REJECT',
     });
 
     return { reportId, status: finalStatus };
