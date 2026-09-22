@@ -268,7 +268,7 @@ describe('CommunityDiscoveryPageComponent / escopo de atenção carregada', () =
     ) as HTMLButtonElement;
 
     expect(state.nextCursor).toBe('cursor-3');
-    expect(headings).toEqual(['Requer atenção', 'Novas atividades', 'Demais']);
+    expect(headings).toEqual(['Precisa de atenção', 'Novas atividades', 'Demais']);
     expect(names).toEqual([
       'Prioritária',
       'Com novidades atualizada',
