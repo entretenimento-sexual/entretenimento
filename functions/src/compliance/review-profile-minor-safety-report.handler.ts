@@ -5,6 +5,9 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { assertStaffAuthorization } from '../account_lifecycle/_shared';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
+import {
+  safeRecordModerationReviewSignal,
+} from '../moderation/moderation-automation.service';
 import { isProfileMinorSafetyReport } from './profile-age-reverification.policy';
 
 interface ReviewProfileMinorSafetyReportRequest {
@@ -132,6 +135,13 @@ export const reviewProfileMinorSafetyReport = onCall<
         },
         timestamp,
       });
+    });
+
+    await safeRecordModerationReviewSignal({
+      reportId,
+      targetUid,
+      critical: true,
+      confirmed: false,
     });
 
     return { reportId, status: 'rejected' };
