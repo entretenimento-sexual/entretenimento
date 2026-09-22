@@ -31,8 +31,7 @@ import {
   PlatformSubscriptionHistorySnapshot,
 } from 'src/app/payments-core/domain/models/platform-subscription-history.model';
 import { PlatformSubscriptionAccessService } from '@core/services/subscriptions/platform-subscription-access.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
-import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 
 type SubscriptionHistoryState = {
   status: 'loading' | 'ready' | 'error';
@@ -64,8 +63,7 @@ export class SubscriptionHistoryComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly repository = inject(BillingRepository);
   private readonly subscriptionAccess = inject(PlatformSubscriptionAccessService);
-  private readonly errorNotifier = inject(ErrorNotificationService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
 
   private readonly reload$ = new Subject<void>();
   private readonly loadMore$ = new Subject<void>();
@@ -297,30 +295,14 @@ export class SubscriptionHistoryComponent {
     operation: string,
     notifyUser: boolean
   ): void {
-    if (notifyUser) {
-      try {
-        this.errorNotifier.showError(userMessage);
-      } catch {
-        // O diagnóstico técnico abaixo permanece ativo.
-      }
-    }
-
-    try {
-      const normalized = error instanceof Error ? error : new Error(String(error));
-      const contextual = normalized as Error & {
-        context?: unknown;
-        skipUserNotification?: boolean;
-      };
-      contextual.context = {
-        feature: 'subscription-history',
-        operation,
+    this.applicationError.report(error, {
+      feature: 'subscription-history',
+      operation,
+      fallbackMessage: userMessage,
+      notification: notifyUser ? 'error' : 'none',
+      metadata: {
         scope: 'SubscriptionHistoryComponent',
-        op: operation,
-      };
-      contextual.skipUserNotification = true;
-      this.globalError.handleError(contextual);
-    } catch {
-      // Falha secundária não interrompe o estado visual da página.
-    }
+      },
+    });
   }
 }
