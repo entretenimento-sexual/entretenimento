@@ -193,12 +193,16 @@ export async function hydrateCommunityFeedItemsForViewer(params: {
         && raw['status'] === 'active'
         && raw['moderationState'] === 'active'
         && authorUid.length > 0;
-      const ownPost = activePost && authorUid === uid;
-      const canModerate = activePost
+      if (!activePost) {
+        return null;
+      }
+
+      const ownPost = authorUid === uid;
+      const canModerate = !ownPost
         && !ownPost
         && context.activeMembership
         && isManagementRole(context.viewerRole);
-      const canReact = activePost && context.canInteract;
+      const canReact = context.canInteract;
       const author = buildCommunityPublicAuthor(
         publicProfilesByUid.get(authorUid),
         item.author
@@ -214,11 +218,11 @@ export async function hydrateCommunityFeedItemsForViewer(params: {
         capabilities: {
           canDeleteOwn: ownPost,
           canModerate,
-          canReport: activePost && !ownPost,
+          canReport: !ownPost,
           canReact,
           viewerReacted: canReact && reactionSnapshots[index]?.exists === true,
-          canViewComments: activePost,
-          canComment: activePost && context.canInteract,
+          canViewComments: true,
+          canComment: context.canInteract,
         },
       };
     })
