@@ -38,3 +38,6 @@ export {
 export {
   refreshMyAgeEligibility,
 } from './refresh-my-age-eligibility.handler';
+export {
+  processAgeVerificationProviderAssertion,
+} from './age-verification-provider-assertion.trigger';
