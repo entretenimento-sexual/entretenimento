@@ -4,7 +4,6 @@ import { RouterModule, Routes } from '@angular/router';
 
 import { FeaturedProfilesComponent } from './featured-profiles/featured-profiles.component';
 import { PrincipalComponent } from './principal/principal.component';
-import { ChatRoomsComponent } from '../chat-module/chat-rooms/chat-rooms.component';
 import { DashboardLayoutComponent } from './dashboard-layout/dashboard-layout.component';
 import { OnlineUsersComponent } from './online/online-users/online-users.component';
 import { OnlineUsersFullComponent } from './online/online-users-full/online-users-full.component';
@@ -14,8 +13,9 @@ import { authGuard } from '../core/guards/auth-guard/auth.guard';
 import { requireFeatureFlag } from '../core/guards/access-guard/feature-flag.guard';
 import { emailVerifiedGuard } from '../core/guards/profile-guard/email-verified.guard';
 import { profileCompletedGuard } from '../core/guards/profile-guard/profile-completed.guard';
+import { ROOM_COMPATIBILITY_SURFACE } from '../core/domain/room-compatibility.policy';
 
-const routes: Routes = [
+export const DASHBOARD_ROUTES: Routes = [
   {
     path: '',
     component: DashboardLayoutComponent,
@@ -191,14 +191,17 @@ const routes: Routes = [
         },
       },
 
+      /**
+       * Alias temporário de compatibilidade.
+       *
+       * `/chat/rooms` é a única superfície de Salas legadas. O dashboard não
+       * monta nem possui uma segunda instância de ChatRoomsComponent.
+       * Nenhuma feature nova deve nascer neste alias.
+       */
       {
         path: 'chat-rooms',
-        component: ChatRoomsComponent,
-        canActivate: [authGuard, emailVerifiedGuard, profileCompletedGuard],
-        data: {
-          requireVerified: true,
-          requireProfileCompleted: true,
-        },
+        redirectTo: ROOM_COMPATIBILITY_SURFACE.canonicalRoute,
+        pathMatch: 'full',
       },
 
       {
@@ -234,7 +237,7 @@ const routes: Routes = [
 ];
 
 @NgModule({
-  imports: [RouterModule.forChild(routes)],
+  imports: [RouterModule.forChild(DASHBOARD_ROUTES)],
   exports: [RouterModule]
 })
 export class DashboardRoutingModule { }
