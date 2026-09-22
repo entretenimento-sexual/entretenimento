@@ -5,13 +5,13 @@ import { Injectable } from '@angular/core';
 import { Observable, defer, firstValueFrom, throwError } from 'rxjs';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 
 @Injectable({ providedIn: 'root' })
 export class RoomReportsService {
   constructor(
     private readonly errorNotifier: ErrorNotificationService,
-    private readonly globalError: GlobalErrorHandlerService
+    private readonly applicationError: ApplicationErrorService
   ) {}
 
   /**
@@ -43,7 +43,19 @@ export class RoomReportsService {
       };
 
       try {
-        this.globalError.handleError(error);
+        this.applicationError.report(error, {
+          feature: 'legacy-rooms',
+          operation: 'reportRoom',
+          fallbackMessage:
+            'Novas denúncias vinculadas a Salas legadas não estão disponíveis.',
+          presentation: { surface: 'none', severity: 'error' },
+          metadata: {
+            scope: 'RoomReportsService',
+            productState: 'deprecated_compatibility_only',
+            roomIdPresent: !!rid,
+            reporterUidPresent: !!reporterUid,
+          },
+        });
       } catch {
         // O bloqueio local não depende da telemetria.
       }
