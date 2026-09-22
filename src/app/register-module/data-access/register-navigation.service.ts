@@ -112,10 +112,7 @@ export class RegisterNavigationService {
       };
     }
 
-    if (
-      state.initialAdultConsentRequired === true &&
-      !state.adultConsentAccepted
-    ) {
+    if (!state.adultConsentAccepted) {
       return {
         ...state,
         uid,
