@@ -109,7 +109,7 @@ service cloud.firestore {
 
     function canonicalAgeEligibilityAllowsAdultAccess(userId) {
       let eligibilityPath = canonicalAgeEligibilityPath(userId);
-      let eligibility = signedIn() && exists(eligibilityPath)
+      let eligibility = signedIn()
         ? get(eligibilityPath).data
         : null;
       let verifiedAt = eligibility is map
@@ -138,7 +138,7 @@ service cloud.firestore {
 
     function currentUserCanUseAdultSocialPlatform() {
       let userPath = currentPrivateUserPath();
-      let user = signedIn() && exists(userPath)
+      let user = signedIn()
         ? get(userPath).data
         : null;
 
