@@ -40,7 +40,7 @@ export class AdultConsentPageComponent {
         take(1),
         catchError(() => {
           this.errorNotifier.showError(
-            'Não foi possível confirmar sua maioridade agora. Verifique a conexão e tente novamente.'
+            'Não foi possível registrar o aceite do acesso adulto. Verifique a conexão e tente novamente.'
           );
           return EMPTY;
         }),
@@ -62,7 +62,7 @@ export class AdultConsentPageComponent {
     this.adultConsent.clearCurrentConsentCache$()
       .pipe(
         switchMap(() => {
-          this.errorNotifier.showWarning('Acesso permitido apenas para maiores de 18 anos.', 4200);
+          this.errorNotifier.showWarning('O acesso à experiência adulta não foi aceito.', 4200);
           return this.logout.logout$();
         }),
         take(1),
@@ -131,7 +131,7 @@ export class AdultConsentPageComponent {
         feature: 'adult-consent',
         operation: 'navigateAfterConsent',
         fallbackMessage:
-          'Sua confirmação de maioridade foi registrada, mas não foi possível avançar.',
+          'Seu aceite do acesso adulto foi registrado, mas não foi possível avançar.',
         presentation: { surface: 'none', severity: 'error' },
         metadata: {
           scope: 'AdultConsentPageComponent',
@@ -144,7 +144,7 @@ export class AdultConsentPageComponent {
     }
 
     this.errorNotifier.showError(
-      'Sua confirmação de maioridade foi registrada, mas não foi possível avançar. Recarregue a página e tente novamente.'
+      'Seu aceite do acesso adulto foi registrado, mas não foi possível avançar. Recarregue a página e tente novamente.'
     );
   }
 
