@@ -11,6 +11,9 @@ import {
   safeRecordModerationReviewSignal,
 } from '../moderation/moderation-automation.service';
 import {
+  safeNotifyAgeReverificationOutcome,
+} from '../moderation/moderation-safety-notification.service';
+import {
   writeCanonicalAgeEligibilityInTransaction,
 } from './age-eligibility.service';
 import {
@@ -373,6 +376,8 @@ export const reviewProfileAgeReverification = onCall<
       critical: true,
       confirmed: decision === 'REJECT',
     });
+
+    await safeNotifyAgeReverificationOutcome(reportId);
 
     return { reportId, status: finalStatus };
   }
