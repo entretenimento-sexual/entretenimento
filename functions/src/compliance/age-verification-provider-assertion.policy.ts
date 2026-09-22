@@ -50,6 +50,20 @@ export function normalizeProviderAgeAssertion(input: {
   }
 
   const raw = input.raw as Record<string, unknown>;
+  const allowedKeys = new Set([
+    'uid',
+    'provider',
+    'result',
+    'assuranceLevel',
+    'verifiedAtMs',
+    'expiresAtMs',
+    'providerReferenceHash',
+  ]);
+
+  if (Object.keys(raw).some((key) => !allowedKeys.has(key))) {
+    return null;
+  }
+
   const assertionId = cleanId(input.assertionId);
   const uid = cleanId(raw['uid']);
   const provider = cleanProvider(raw['provider']);
