@@ -28,6 +28,13 @@ interface ModerationReportSnapshot {
   ageReverificationStatus?: unknown;
 }
 
+type SafetyNotificationType =
+  | 'system'
+  | 'compliance.violation.suspected'
+  | 'compliance.action.taken';
+
+type SafetyNotificationPushMode = 'ESSENTIAL' | 'IN_APP_ONLY';
+
 function cleanId(value: unknown): string {
   const normalized = String(value ?? '').trim();
   return /^[A-Za-z0-9:_-]{1,180}$/.test(normalized) ? normalized : '';
@@ -45,39 +52,47 @@ function notificationId(
 }
 
 function targetLabel(targetType: string): string {
-  switch (targetType) {
-    case 'photo':
-      return 'foto';
-    case 'video':
-      return 'vídeo';
-    case 'video_comment':
-      return 'comentário';
-    case 'video_rating':
-      return 'avaliação';
-    case 'community_feed_post':
-      return 'publicação';
-    case 'community_feed_comment':
-      return 'comentário';
-    case 'community_feed_comment_reply':
-      return 'resposta';
-    case 'profile':
-      return 'perfil';
-    default:
-      return 'conteúdo';
-  }
+  const labels: Readonly<Record<string, string>> = {
+    photo: 'foto',
+    video: 'vídeo',
+    video_comment: 'comentário',
+    video_rating: 'avaliação',
+    community_feed_post: 'publicação',
+    community_feed_comment: 'comentário',
+    community_feed_comment_reply: 'resposta',
+    profile: 'perfil',
+  };
+
+  return labels[targetType] ?? 'conteúdo';
+}
+
+function normalizedResponseDueAt(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0
+    ? Math.trunc(parsed)
+    : null;
+}
+
+function isAlreadyExistsError(error: unknown): boolean {
+  const code = (error as { code?: unknown } | null)?.code;
+  const normalized = String(code ?? '').trim().toLowerCase();
+
+  return code === 6 ||
+    normalized === 'already-exists' ||
+    normalized.includes('already_exists');
 }
 
 async function writeNotification(input: {
   id: string;
   userId: string;
-  type: 'system' | 'compliance.violation.suspected' | 'compliance.action.taken';
+  type: SafetyNotificationType;
   title: string;
   body: string;
   route: string;
   actionRequired?: boolean;
   caseId?: string | null;
   responseDueAt?: number | null;
-  pushMode?: 'ESSENTIAL' | 'IN_APP_ONLY';
+  pushMode?: SafetyNotificationPushMode;
 }): Promise<void> {
   const userId = cleanId(input.userId);
   if (!userId) return;
@@ -94,44 +109,42 @@ async function writeNotification(input: {
       actionRequired: input.actionRequired === true,
       caseId: cleanId(input.caseId) || null,
       pushMode: input.pushMode ?? 'ESSENTIAL',
-      responseDueAt:
-        Number.isFinite(Number(input.responseDueAt)) &&
-        Number(input.responseDueAt) > 0
-          ? Math.trunc(Number(input.responseDueAt))
-          : null,
+      responseDueAt: normalizedResponseDueAt(input.responseDueAt),
       readAt: null,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
   } catch (error) {
-    const code = (error as { code?: unknown } | null)?.code;
-    const normalized = String(code ?? '').trim().toLowerCase();
-
-    if (
-      code === 6 ||
-      normalized === 'already-exists' ||
-      normalized.includes('already_exists')
-    ) {
-      return;
-    }
-
+    if (isAlreadyExistsError(error)) return;
     throw error;
   }
 }
 
 async function readReport(
   reportIdValue: string
-): Promise<{ reportId: string; report: ModerationReportSnapshot } | null> {
+): Promise<{
+  reportId: string;
+  report: ModerationReportSnapshot;
+} | null> {
   const reportId = cleanId(reportIdValue);
   if (!reportId) return null;
 
-  const snapshot = await db.collection('moderation_reports').doc(reportId).get();
+  const snapshot = await db
+    .collection('moderation_reports')
+    .doc(reportId)
+    .get();
+
   if (!snapshot.exists) return null;
 
   return {
     reportId,
     report: snapshot.data() as ModerationReportSnapshot,
   };
+}
+
+function reportTargetUid(report: ModerationReportSnapshot): string {
+  return cleanId(report.targetAuthorUid) ||
+    cleanId(report.targetOwnerUid);
 }
 
 export async function notifyModerationReportOpened(
@@ -142,8 +155,7 @@ export async function notifyModerationReportOpened(
 
   const { reportId, report } = loaded;
   const reporterUid = cleanId(report.reporterUid);
-  const targetUid = cleanId(report.targetAuthorUid) ||
-    cleanId(report.targetOwnerUid);
+  const targetUid = reportTargetUid(report);
   const targetType = String(report.targetType ?? '').trim();
   const critical =
     report.reason === 'minor_safety' ||
@@ -155,9 +167,14 @@ export async function notifyModerationReportOpened(
       id: notificationId(reportId, 'reporter', 'received'),
       userId: reporterUid,
       type: 'system',
-      title: critical ? 'Denúncia de segurança recebida' : 'Denúncia recebida',
+      title: critical
+        ? 'Denúncia de segurança recebida'
+        : 'Denúncia recebida',
       body: critical
-        ? 'Recebemos sua denúncia e ela foi priorizada para análise de segurança.'
+        ? [
+          'Recebemos sua denúncia e ela foi priorizada',
+          'para análise de segurança.',
+        ].join(' ')
         : 'Recebemos sua denúncia e ela foi encaminhada para análise.',
       route: '/notificacoes',
       pushMode: 'IN_APP_ONLY',
@@ -166,13 +183,17 @@ export async function notifyModerationReportOpened(
 
   if (quarantined && targetUid && targetUid !== reporterUid) {
     const label = targetLabel(targetType);
+
     await writeNotification({
       id: notificationId(reportId, 'target', 'quarantined'),
       userId: targetUid,
       type: 'compliance.action.taken',
       title: 'Conteúdo temporariamente indisponível',
-      body:
-        `Um conteúdo do tipo ${label} foi temporariamente retirado da distribuição enquanto passa por análise de segurança. A medida é preventiva e não representa conclusão da revisão.`,
+      body: [
+        `Um conteúdo do tipo ${label} foi temporariamente retirado`,
+        'da distribuição enquanto passa por análise de segurança.',
+        'A medida é preventiva e não representa conclusão da revisão.',
+      ].join(' '),
       route: '/notificacoes',
       actionRequired: false,
     });
@@ -187,10 +208,11 @@ export async function notifyModerationReportReviewed(
 
   const { reportId, report } = loaded;
   const reporterUid = cleanId(report.reporterUid);
-  const targetUid = cleanId(report.targetAuthorUid) ||
-    cleanId(report.targetOwnerUid);
+  const targetUid = reportTargetUid(report);
   const targetType = String(report.targetType ?? '').trim();
-  const action = String(report.moderationAction ?? '').trim().toUpperCase();
+  const action = String(report.moderationAction ?? '')
+    .trim()
+    .toUpperCase();
   const wasQuarantined = report.contentQuarantined === true;
   const isCommunity = targetType.startsWith('community_feed_');
 
@@ -200,14 +222,21 @@ export async function notifyModerationReportReviewed(
       userId: reporterUid,
       type: 'system',
       title: 'Análise da denúncia concluída',
-      body:
-        'A análise foi concluída. Quando necessário, medidas compatíveis com as políticas da plataforma foram aplicadas.',
+      body: [
+        'A análise foi concluída.',
+        'Quando necessário, medidas compatíveis com as políticas',
+        'da plataforma foram aplicadas.',
+      ].join(' '),
       route: '/notificacoes',
       pushMode: 'IN_APP_ONLY',
     });
   }
 
-  if (!targetUid || targetUid === reporterUid || targetType === 'profile') {
+  if (
+    !targetUid ||
+    targetUid === reporterUid ||
+    targetType === 'profile'
+  ) {
     return;
   }
 
@@ -217,8 +246,10 @@ export async function notifyModerationReportReviewed(
       userId: targetUid,
       type: 'compliance.action.taken',
       title: 'Conteúdo restaurado',
-      body:
-        `O conteúdo (${targetLabel(targetType)}) que estava temporariamente indisponível foi restaurado após revisão.`,
+      body: [
+        `O conteúdo (${targetLabel(targetType)}) que estava`,
+        'temporariamente indisponível foi restaurado após revisão.',
+      ].join(' '),
       route: '/notificacoes',
       pushMode: 'IN_APP_ONLY',
     });
@@ -232,8 +263,12 @@ export async function notifyModerationReportReviewed(
       userId: targetUid,
       type: 'compliance.action.taken',
       title: 'Conteúdo removido após revisão',
-      body:
-        `O conteúdo denunciado (${targetLabel(targetType)}) foi removido após revisão de moderação. Consulte a Central de Notificações para acompanhar medidas aplicadas à conta.`,
+      body: [
+        `O conteúdo denunciado (${targetLabel(targetType)}) foi removido`,
+        'após revisão de moderação.',
+        'Consulte a Central de Notificações para acompanhar medidas',
+        'aplicadas à conta.',
+      ].join(' '),
       route: '/notificacoes',
       actionRequired: false,
     });
@@ -249,15 +284,23 @@ export async function notifyAgeReverificationRequired(input: {
   const reportId = cleanId(input.reportId);
   const caseId = cleanId(input.caseId);
   const targetUid = cleanId(input.targetUid);
+
   if (!reportId || !caseId || !targetUid) return;
 
   await writeNotification({
-    id: notificationId(reportId, 'target', 'age-reverification-required'),
+    id: notificationId(
+      reportId,
+      'target',
+      'age-reverification-required'
+    ),
     userId: targetUid,
     type: 'compliance.violation.suspected',
     title: 'Revalidação de idade necessária',
-    body:
-      'Sua conta precisa concluir uma revalidação de idade. O perfil e algumas interações permanecem restritos enquanto a verificação estiver pendente.',
+    body: [
+      'Sua conta precisa concluir uma revalidação de idade.',
+      'O perfil e algumas interações permanecem restritos enquanto',
+      'a verificação estiver pendente.',
+    ].join(' '),
     route: '/adulto/revalidar',
     actionRequired: true,
     caseId,
@@ -272,25 +315,41 @@ export async function notifyInitialAgeEligibilityOutcome(input: {
 }): Promise<void> {
   const assertionId = cleanId(input.assertionId);
   const uid = cleanId(input.uid);
+
   if (!assertionId || !uid) return;
 
   const verified = input.status === 'VERIFIED_ADULT';
   const denied = input.status === 'DENIED_UNDERAGE';
+  const title = verified
+    ? 'Maioridade verificada'
+    : denied
+      ? 'Verificação de idade concluída'
+      : 'Verificação de idade em revisão';
+  const body = verified
+    ? [
+      'Sua maioridade foi confirmada por uma fonte confiável.',
+      'Você pode seguir para o aceite da experiência adulta.',
+    ].join(' ')
+    : denied
+      ? [
+        'A verificação de idade foi concluída e o acesso adulto',
+        'não está disponível para esta conta.',
+      ].join(' ')
+      : [
+        'A verificação de idade apresentou informações conflitantes',
+        'e precisa de revisão antes da liberação do acesso adulto.',
+      ].join(' ');
 
   await writeNotification({
-    id: notificationId(assertionId, 'target', 'initial-age-outcome'),
+    id: notificationId(
+      assertionId,
+      'target',
+      'initial-age-outcome'
+    ),
     userId: uid,
     type: 'compliance.action.taken',
-    title: verified
-      ? 'Maioridade verificada'
-      : denied
-        ? 'Verificação de idade concluída'
-        : 'Verificação de idade em revisão',
-    body: verified
-      ? 'Sua maioridade foi confirmada por uma fonte confiável. Você pode seguir para o aceite da experiência adulta.'
-      : denied
-        ? 'A verificação de idade foi concluída e o acesso adulto não está disponível para esta conta.'
-        : 'A verificação de idade apresentou informações conflitantes e precisa de revisão antes da liberação do acesso adulto.',
+    title,
+    body,
     route: verified ? '/adulto/confirmar' : '/conta/status',
     actionRequired: !verified,
   });
@@ -312,14 +371,27 @@ export async function notifyAgeReverificationOutcome(
 
   if (targetUid) {
     const verified = status === 'VERIFIED';
+    const body = verified
+      ? [
+        'A revalidação de idade foi concluída.',
+        'Consulte o status da conta para confirmar o acesso disponível.',
+      ].join(' ')
+      : [
+        'A revalidação de idade foi concluída e a conta permanece',
+        'sujeita a restrições de segurança.',
+        'Consulte o status da conta e os canais de revisão.',
+      ].join(' ');
+
     await writeNotification({
-      id: notificationId(reportId, 'target', 'age-reverification-outcome'),
+      id: notificationId(
+        reportId,
+        'target',
+        'age-reverification-outcome'
+      ),
       userId: targetUid,
       type: 'compliance.action.taken',
       title: 'Revalidação de idade concluída',
-      body: verified
-        ? 'A revalidação de idade foi concluída. Consulte o status da conta para confirmar o acesso disponível.'
-        : 'A revalidação de idade foi concluída e a conta permanece sujeita a restrições de segurança. Consulte o status da conta e os canais de revisão.',
+      body,
       route: '/conta/status',
       actionRequired: !verified,
       caseId,
@@ -328,12 +400,18 @@ export async function notifyAgeReverificationOutcome(
 
   if (reporterUid) {
     await writeNotification({
-      id: notificationId(reportId, 'reporter', 'age-reverification-outcome'),
+      id: notificationId(
+        reportId,
+        'reporter',
+        'age-reverification-outcome'
+      ),
       userId: reporterUid,
       type: 'system',
       title: 'Denúncia de segurança analisada',
-      body:
-        'A análise relacionada à denúncia de segurança foi concluída. Por privacidade, detalhes da conta analisada não são compartilhados.',
+      body: [
+        'A análise relacionada à denúncia de segurança foi concluída.',
+        'Por privacidade, detalhes da conta analisada não são compartilhados.',
+      ].join(' '),
       route: '/notificacoes',
       pushMode: 'IN_APP_ONLY',
     });
@@ -346,10 +424,15 @@ export async function safeNotifyModerationReportOpened(
   try {
     await notifyModerationReportOpened(reportId);
   } catch (error) {
-    logger.error('[moderationNotification] falha ao notificar abertura', {
-      reportId,
-      error: error instanceof Error ? error.message : String(error),
-    });
+    logger.error(
+      '[moderationNotification] falha ao notificar abertura',
+      {
+        reportId,
+        error: error instanceof Error
+          ? error.message
+          : String(error),
+      }
+    );
   }
 }
 
@@ -359,10 +442,15 @@ export async function safeNotifyModerationReportReviewed(
   try {
     await notifyModerationReportReviewed(reportId);
   } catch (error) {
-    logger.error('[moderationNotification] falha ao notificar revisão', {
-      reportId,
-      error: error instanceof Error ? error.message : String(error),
-    });
+    logger.error(
+      '[moderationNotification] falha ao notificar revisão',
+      {
+        reportId,
+        error: error instanceof Error
+          ? error.message
+          : String(error),
+      }
+    );
   }
 }
 
@@ -377,11 +465,16 @@ export async function safeNotifyAgeReverificationRequired(
   try {
     await notifyAgeReverificationRequired(input);
   } catch (error) {
-    logger.error('[moderationNotification] falha ao notificar revalidação', {
-      reportId: input.reportId,
-      targetUid: input.targetUid,
-      error: error instanceof Error ? error.message : String(error),
-    });
+    logger.error(
+      '[moderationNotification] falha ao notificar revalidação',
+      {
+        reportId: input.reportId,
+        targetUid: input.targetUid,
+        error: error instanceof Error
+          ? error.message
+          : String(error),
+      }
+    );
   }
 }
 
@@ -395,12 +488,17 @@ export async function safeNotifyInitialAgeEligibilityOutcome(
   try {
     await notifyInitialAgeEligibilityOutcome(input);
   } catch (error) {
-    logger.error('[moderationNotification] falha ao notificar verificação inicial', {
-      assertionId: input.assertionId,
-      uid: input.uid,
-      status: input.status,
-      error: error instanceof Error ? error.message : String(error),
-    });
+    logger.error(
+      '[moderationNotification] falha ao notificar verificação inicial',
+      {
+        assertionId: input.assertionId,
+        uid: input.uid,
+        status: input.status,
+        error: error instanceof Error
+          ? error.message
+          : String(error),
+      }
+    );
   }
 }
 
@@ -410,9 +508,14 @@ export async function safeNotifyAgeReverificationOutcome(
   try {
     await notifyAgeReverificationOutcome(reportId);
   } catch (error) {
-    logger.error('[moderationNotification] falha ao notificar resultado etário', {
-      reportId,
-      error: error instanceof Error ? error.message : String(error),
-    });
+    logger.error(
+      '[moderationNotification] falha ao notificar resultado etário',
+      {
+        reportId,
+        error: error instanceof Error
+          ? error.message
+          : String(error),
+      }
+    );
   }
 }
