@@ -285,6 +285,21 @@ describe('LogoutService global session lifecycle', () => {
     expect(pushNotifications.activate$).toHaveBeenCalledTimes(1);
     expect(currentUserStore.clear).not.toHaveBeenCalled();
     expect(applicationError.report).toHaveBeenCalledTimes(1);
+    expect(applicationError.report).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'signout unavailable',
+      }),
+      {
+        feature: 'auth',
+        operation: 'logout',
+        fallbackMessage: 'Não foi possível sair agora. Tente novamente.',
+        presentation: { surface: 'snackbar', severity: 'error' },
+        metadata: {
+          scope: 'LogoutService',
+          sessionRestored: true,
+        },
+      }
+    );
   });
 
   it('falha do Web Push é reportada silenciosamente e não bloqueia o logout', async () => {
