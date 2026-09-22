@@ -77,6 +77,7 @@ async function writeNotification(input: {
   actionRequired?: boolean;
   caseId?: string | null;
   responseDueAt?: number | null;
+  pushMode?: 'ESSENTIAL' | 'IN_APP_ONLY';
 }): Promise<void> {
   const userId = cleanId(input.userId);
   if (!userId) return;
@@ -89,6 +90,7 @@ async function writeNotification(input: {
     route: input.route,
     actionRequired: input.actionRequired === true,
     caseId: cleanId(input.caseId) || null,
+    pushMode: input.pushMode ?? 'ESSENTIAL',
     responseDueAt:
       Number.isFinite(Number(input.responseDueAt)) &&
       Number(input.responseDueAt) > 0
@@ -141,6 +143,7 @@ export async function notifyModerationReportOpened(
         ? 'Recebemos sua denúncia e ela foi priorizada para análise de segurança.'
         : 'Recebemos sua denúncia e ela foi encaminhada para análise.',
       route: '/notificacoes',
+      pushMode: 'IN_APP_ONLY',
     });
   }
 
@@ -183,6 +186,7 @@ export async function notifyModerationReportReviewed(
       body:
         'A análise foi concluída. Quando necessário, medidas compatíveis com as políticas da plataforma foram aplicadas.',
       route: '/notificacoes',
+      pushMode: 'IN_APP_ONLY',
     });
   }
 
@@ -199,6 +203,7 @@ export async function notifyModerationReportReviewed(
       body:
         `A ${targetLabel(targetType)} que estava temporariamente indisponível foi restaurada após revisão.`,
       route: '/notificacoes',
+      pushMode: 'IN_APP_ONLY',
     });
     return;
   }
@@ -282,6 +287,7 @@ export async function notifyAgeReverificationOutcome(
       body:
         'A análise relacionada à denúncia de segurança foi concluída. Por privacidade, detalhes da conta analisada não são compartilhados.',
       route: '/notificacoes',
+      pushMode: 'IN_APP_ONLY',
     });
   }
 }
