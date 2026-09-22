@@ -1,4 +1,4 @@
-import { firstValueFrom, of, throwError } from 'rxjs';
+import { firstValueFrom, Observable, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { IUserDados } from 'src/app/core/interfaces/iuser-dados';
@@ -7,7 +7,7 @@ import { RegistrationRecoveryService } from './registration-recovery.service';
 describe('RegistrationRecoveryService canonical errors', () => {
   let service: RegistrationRecoveryService;
   let recoverCallable: ReturnType<typeof vi.fn>;
-  let uid$: ReturnType<typeof of<string | null>>;
+  let uid$: Observable<string | null>;
   let getUserOnceFromFirestore$: ReturnType<typeof vi.fn>;
   let setCurrentUser: ReturnType<typeof vi.fn>;
   let report: ReturnType<typeof vi.fn>;
