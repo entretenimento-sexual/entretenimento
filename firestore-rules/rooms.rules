@@ -13,7 +13,8 @@ match /rooms/{roomId} {
   }
 
   function actorUserExists() {
-    return signedIn() && exists(actorUserPath());
+    return currentUserCanUseAdultSocialPlatform()
+      && exists(actorUserPath());
   }
 
   function actorIsOperationallyActive() {
