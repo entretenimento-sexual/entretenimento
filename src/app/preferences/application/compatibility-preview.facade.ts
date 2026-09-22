@@ -10,8 +10,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, combineLatest, of, throwError } from 'rxjs';
 import { catchError, map, shareReplay, switchMap } from 'rxjs/operators';
 
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
-import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 
 import { MatchProfile } from '../models/match-profile.model';
 import { CompatibilityPreview } from '../models/compatibility-preview.model';
@@ -28,8 +27,7 @@ export interface CompatibilityPreviewVm {
 
 @Injectable({ providedIn: 'root' })
 export class CompatibilityPreviewFacade {
-  private readonly globalError = inject(GlobalErrorHandlerService);
-  private readonly notifier = inject(ErrorNotificationService);
+  private readonly applicationError = inject(ApplicationErrorService);
 
   private readonly matchProfileFacade = inject(MatchProfileFacade);
   private readonly matchProfileStore = inject(MatchProfileStoreService);
@@ -82,13 +80,16 @@ export class CompatibilityPreviewFacade {
   }
 
   private handleError(err: unknown, context: string, userMessage: string): void {
-    const e = err instanceof Error ? err : new Error(`[CompatibilityPreviewFacade] ${context}`);
-    (e as any).silent = true;
-    (e as any).original = err;
-    (e as any).context = context;
-    (e as any).feature = 'compatibility_preview';
-
-    this.globalError.handleError(e);
-    this.notifier.showError(userMessage);
+    try {
+      this.applicationError.report(err, {
+        feature: 'compatibility-preview',
+        operation: context,
+        fallbackMessage: userMessage,
+        presentation: { surface: 'snackbar', severity: 'error' },
+        metadata: { scope: 'CompatibilityPreviewFacade' },
+      });
+    } catch {
+      // A falha do pipeline de erro não altera o fallback da fachada.
+    }
   }
 }
