@@ -1,4 +1,12 @@
 export { acceptAdultConsent } from './adult-consent.handler';
+export {
+  assertVerifiedAdultAgeEligibility,
+  getCanonicalAgeEligibilityForUid,
+} from './age-eligibility.service';
+export {
+  AGE_ELIGIBILITY_POLICY_VERSION,
+  evaluateCanonicalAgeEligibility,
+} from './age-eligibility.policy';
 export { acceptPlatformTerms } from './terms-acceptance.handler';
 export {
   ensureCurrentLegalNotice,
