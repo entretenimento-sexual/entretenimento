@@ -144,6 +144,32 @@ for (const absolutePath of walk(rulesRoot, ['.rules'])) {
   }
 }
 
+const legacyDerivedProjectionPaths = Object.freeze([
+  'functions/src/discovery/sync-public-profile-discovery.handler.ts',
+  'functions/src/discovery/user-intent-status.handler.ts',
+  'functions/src/community/community-social-access.service.ts',
+]);
+
+for (const relativePath of legacyDerivedProjectionPaths) {
+  const absolutePath = path.join(root, relativePath);
+  if (!fs.existsSync(absolutePath)) continue;
+
+  const source = codeOnly(fs.readFileSync(absolutePath, 'utf8'));
+
+  for (const [pattern, reason] of [
+    [/\[['"]idade['"]\]|\.idade\b/g, 'idade legada não pode alimentar autorização/projeção adulta'],
+    [/declaredAdult/g, 'autodeclaração adulta não pode alimentar autoridade etária'],
+  ]) {
+    addMatchViolations(
+      violations,
+      absolutePath,
+      source,
+      pattern,
+      reason
+    );
+  }
+}
+
 const legacyServicePath = path.join(root, legacyClientCompatibility);
 if (fs.existsSync(legacyServicePath)) {
   const source = fs.readFileSync(legacyServicePath, 'utf8');
