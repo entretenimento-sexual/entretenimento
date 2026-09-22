@@ -207,6 +207,7 @@ match /users/{userId} {
       "accountStatus",
       "publicVisibility",
       "interactionBlocked",
+      "moderationAutomationHold",
       "loginAllowed",
 
       "suspended",
