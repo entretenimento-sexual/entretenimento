@@ -403,6 +403,7 @@ export const publishVideo = onCall<PublishVideoRequest>(
         id: videoId,
         ownerUid,
         mediaType: 'VIDEO',
+        ageEligibilityVerifiedAdult: true,
         assetAccess: 'SIGNED_URL',
         posterAccess: publishedAssets.posterStoragePath
           ? 'SIGNED_URL'
