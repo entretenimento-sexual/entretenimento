@@ -38,7 +38,7 @@ import {
   OFFICIAL_SPACE_CREATION_POLICY_VERSION,
   evaluateOfficialSpaceCreationGrant,
 } from './community-official-space.policy';
-import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
+import { assertCommunityMembershipActorEligibleInTransaction } from './community-membership-eligibility.service';
 import { consumeCommunityRateLimit } from './community-rate-limit.service';
 import { buildCommunityRankingProjectionPatch } from './community-ranking-sync.policy';
 import {
@@ -191,9 +191,10 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
         };
       }
 
-      assertCommunityMembershipActorEligible(
-        userSnapshot.exists ? userSnapshot.data() : null,
-        actorUid
+      await assertCommunityMembershipActorEligibleInTransaction(
+        transaction,
+        actorUid,
+        userSnapshot.exists ? userSnapshot.data() : null
       );
 
       const actorUser = userSnapshot.data() ?? {};
