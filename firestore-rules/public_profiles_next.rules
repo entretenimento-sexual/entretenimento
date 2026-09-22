@@ -20,6 +20,7 @@ match /public_profiles/{userId} {
   function privateUserEligibleAfter() {
     let user = getAfter(privateUserPath()).data;
     return existsAfter(privateUserPath())
+      && user.emailVerified == true
       && user.profileCompleted == true
       && user.publicVisibility == "visible"
       && user.interactionBlocked == false
