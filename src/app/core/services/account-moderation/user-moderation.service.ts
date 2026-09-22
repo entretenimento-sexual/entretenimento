@@ -7,7 +7,7 @@
 // - FirestoreService legado foi descontinuado -> usa FirestoreWriteService
 // - Observable-first: sem subscribe dentro do service
 // - Logs/auditoria e notificações são best-effort (não quebram a ação principal)
-// - Erros sempre passam pelo GlobalErrorHandlerService + feedback via ErrorNotificationService
+// - Erros de aplicação passam pela fronteira canônica ApplicationErrorService
 //
 // Observação importante:
 // - providedIn:'root' => NÃO precisa registrar em app.module.ts providers.
@@ -20,8 +20,7 @@ import { Observable, of } from 'rxjs';
 import { catchError, map, switchMap, take } from 'rxjs/operators';
 
 import { FirestoreWriteService } from '@core/services/data-handling/firestore/core/firestore-write.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
-import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 
 import { AdminLogService } from './admin-log.service';
 import { environment } from 'src/environments/environment';
@@ -40,8 +39,7 @@ export class UserModerationService {
     private readonly write: FirestoreWriteService,
     private readonly auth: Auth,
     private readonly adminLogService: AdminLogService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService,
-    private readonly errorNotifier: ErrorNotificationService
+    private readonly applicationError: ApplicationErrorService
   ) { }
 
   // ---------------------------------------------------------------------------
@@ -54,7 +52,15 @@ export class UserModerationService {
     const actorUid = this.resolveActorUid();
 
     if (!actorUid) {
-      this.errorNotifier.showError('Ação indisponível: admin não autenticado.');
+      this.reportApplicationError(
+        this.domainError(
+          'Ação indisponível: admin não autenticado.',
+          'auth/not-authenticated'
+        ),
+        'resolveActorUid',
+        'Ação indisponível: admin não autenticado.',
+        { uid }
+      );
       return of(void 0);
     }
 
@@ -74,8 +80,12 @@ export class UserModerationService {
       map(() => void 0),
       take(1),
       catchError((err) => {
-        this.report(err, { phase: 'lockAccount', uid });
-        this.errorNotifier.showError('Não foi possível bloquear a conta.');
+        this.reportApplicationError(
+          err,
+          'lockAccount',
+          'Não foi possível bloquear a conta.',
+          { uid }
+        );
         return of(void 0);
       })
     );
@@ -87,7 +97,15 @@ export class UserModerationService {
     const actorUid = this.resolveActorUid();
 
     if (!actorUid) {
-      this.errorNotifier.showError('Ação indisponível: admin não autenticado.');
+      this.reportApplicationError(
+        this.domainError(
+          'Ação indisponível: admin não autenticado.',
+          'auth/not-authenticated'
+        ),
+        'resolveActorUid',
+        'Ação indisponível: admin não autenticado.',
+        { uid }
+      );
       return of(void 0);
     }
 
@@ -107,8 +125,12 @@ export class UserModerationService {
       map(() => void 0),
       take(1),
       catchError((err) => {
-        this.report(err, { phase: 'unlockAccount', uid });
-        this.errorNotifier.showError('Não foi possível desbloquear a conta.');
+        this.reportApplicationError(
+          err,
+          'unlockAccount',
+          'Não foi possível desbloquear a conta.',
+          { uid }
+        );
         return of(void 0);
       })
     );
@@ -128,7 +150,15 @@ export class UserModerationService {
     const actorUid = this.resolveActorUid(adminUid);
 
     if (!actorUid) {
-      this.errorNotifier.showError('Ação indisponível: admin não autenticado.');
+      this.reportApplicationError(
+        this.domainError(
+          'Ação indisponível: admin não autenticado.',
+          'auth/not-authenticated'
+        ),
+        'resolveActorUid',
+        'Ação indisponível: admin não autenticado.',
+        { uid }
+      );
       return of(void 0);
     }
 
@@ -156,7 +186,13 @@ export class UserModerationService {
         this.sendAccountActionNotification(uid, 'suspensa', cleanReason).pipe(
           catchError((err) => {
             // notificação é best-effort
-            this.report(err, { phase: 'sendAccountActionNotification', uid, action: 'suspensa' }, true);
+            this.reportApplicationError(
+              err,
+              'sendAccountActionNotification',
+              'Não foi possível enviar a notificação da suspensão.',
+              { uid, action: 'suspensa' },
+              true
+            );
             return of(void 0);
           })
         )
@@ -164,8 +200,12 @@ export class UserModerationService {
       map(() => void 0),
       take(1),
       catchError((err) => {
-        this.report(err, { phase: 'suspendUser', uid });
-        this.errorNotifier.showError('Não foi possível suspender o usuário.');
+        this.reportApplicationError(
+          err,
+          'suspendUser',
+          'Não foi possível suspender o usuário.',
+          { uid }
+        );
         return of(void 0);
       })
     );
@@ -177,7 +217,15 @@ export class UserModerationService {
     const actorUid = this.resolveActorUid(adminUid);
 
     if (!actorUid) {
-      this.errorNotifier.showError('Ação indisponível: admin não autenticado.');
+      this.reportApplicationError(
+        this.domainError(
+          'Ação indisponível: admin não autenticado.',
+          'auth/not-authenticated'
+        ),
+        'resolveActorUid',
+        'Ação indisponível: admin não autenticado.',
+        { uid }
+      );
       return of(void 0);
     }
 
@@ -200,7 +248,13 @@ export class UserModerationService {
       switchMap(() =>
         this.sendAccountActionNotification(uid, 'reativada').pipe(
           catchError((err) => {
-            this.report(err, { phase: 'sendAccountActionNotification', uid, action: 'reativada' }, true);
+            this.reportApplicationError(
+              err,
+              'sendAccountActionNotification',
+              'Não foi possível enviar a notificação da reativação.',
+              { uid, action: 'reativada' },
+              true
+            );
             return of(void 0);
           })
         )
@@ -208,8 +262,12 @@ export class UserModerationService {
       map(() => void 0),
       take(1),
       catchError((err) => {
-        this.report(err, { phase: 'unsuspendUser', uid });
-        this.errorNotifier.showError('Não foi possível reativar o usuário.');
+        this.reportApplicationError(
+          err,
+          'unsuspendUser',
+          'Não foi possível reativar o usuário.',
+          { uid }
+        );
         return of(void 0);
       })
     );
@@ -252,9 +310,9 @@ export class UserModerationService {
              //.logAdminAction(actorUid, action, targetUid, details, { silent: true })
     .pipe(
       take(1),
-      catchError((err) => {
-        // auditoria não pode impedir a moderação (best-effort)
-        this.report(err, { phase: 'adminLogService.logAdminAction', action, targetUid }, true);
+      catchError(() => {
+        // AdminLogService já centraliza o diagnóstico; aqui apenas preservamos
+        // a semântica best-effort para não bloquear a moderação.
         return of(void 0);
       }),
       map(() => void 0)
@@ -280,21 +338,30 @@ export class UserModerationService {
     return current ?? passedAdminUid ?? null;
   }
 
-  /**
-   * Report central (alinhado ao seu padrão de services)
-   * - silent: evita poluir UX quando for erro esperado/best-effort
-   */
-  private report(err: any, context: any, silent = false): void {
-    try {
-      if (this.debug) {
-        // eslint-disable-next-line no-console
-        console.log('[UserModerationService]', context, err);
-      }
-      const e = new Error('[UserModerationService] error');
-      (e as any).silent = silent;
-      (e as any).original = err;
-      (e as any).context = context;
-      this.globalErrorHandler.handleError(e);
-    } catch { }
+  private reportApplicationError(
+    error: unknown,
+    operation: string,
+    fallbackMessage: string,
+    metadata: Record<string, unknown> = {},
+    silent = false
+  ): void {
+    this.applicationError.report(error, {
+      feature: 'account-moderation',
+      operation,
+      fallbackMessage,
+      presentation: silent
+        ? { surface: 'none', severity: 'error' }
+        : undefined,
+      metadata: {
+        scope: 'UserModerationService',
+        ...metadata,
+      },
+    });
+  }
+
+  private domainError(message: string, code: string): Error & { code?: string } {
+    const error = new Error(message) as Error & { code?: string };
+    error.code = code;
+    return error;
   }
 }
