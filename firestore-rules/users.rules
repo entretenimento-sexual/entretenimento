@@ -395,6 +395,7 @@ match /users/{userId} {
       && authEmailVerified()
       && data.emailVerified == true
       && acceptedTermsReady(data)
+      && currentUserHasVerifiedAdultAge()
       && adultConsentReady(data)
       && data.publicVisibility == "visible"
       && data.interactionBlocked == false
