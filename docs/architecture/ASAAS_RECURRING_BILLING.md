@@ -73,6 +73,7 @@ Eventos relevantes:
 - `PAYMENT_RECEIVED_IN_CASH_UNDONE`
 - `PAYMENT_CHARGEBACK_REQUESTED`
 - `PAYMENT_CHARGEBACK_DISPUTE`
+- `PAYMENT_AWAITING_CHARGEBACK_REVERSAL`
 
 Eventos adicionais podem chegar sem quebrar o fluxo; eventos desconhecidos são
 ignorados de forma segura.
@@ -126,7 +127,12 @@ Um estorno só revoga acesso imediatamente se a cobrança estornada ainda for a
 fonte do entitlement atual. Estorno de uma cobrança antiga não apaga um período
 posterior já quitado.
 
-Chargeback também desabilita a renovação e agenda cancelamento no provider.
+Chargeback solicitado desabilita a renovação e agenda cancelamento no provider.
+A abertura da disputa apenas atualiza a trilha; não executa um segundo
+cancelamento. Se o Asaas sinalizar reversão e reenviar CONFIRMED/RECEIVED para a
+mesma cobrança, o ledger volta a `paid` e somente o período original daquela
+cobrança pode ser reativado. A restauração nunca acrescenta um segundo mês e
+nunca reativa automaticamente a renovação cancelada.
 
 Estorno parcial não revoga automaticamente todo o período.
 
