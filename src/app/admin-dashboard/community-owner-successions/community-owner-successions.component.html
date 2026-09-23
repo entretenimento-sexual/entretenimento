@@ -1,0 +1,149 @@
+<!-- src/app/admin-dashboard/community-owner-successions/community-owner-successions.component.html -->
+@if (action$ | async; as action) {
+  <section class="succession-admin" aria-labelledby="succession-admin-title">
+    <header class="succession-admin__header">
+      <div>
+        <span class="succession-admin__eyebrow">Continuidade de Comunidades</span>
+        <h2 id="succession-admin-title">Sucessões de propriedade</h2>
+        <p>
+          Casos terminais têm prazo finito. Sem sucessor aceito, a Comunidade
+          será arquivada automaticamente.
+        </p>
+      </div>
+      <button
+        type="button"
+        [appActionState]="false"
+        [actionDisabled]="action.status === 'loading'"
+        (click)="refresh()"
+      >
+        Atualizar
+      </button>
+    </header>
+
+    @if (queue$ | async; as queue) {
+      @if (queue.items.length === 0) {
+        <p class="succession-admin__empty">Nenhuma sucessão terminal aberta.</p>
+      } @else {
+        <div class="succession-admin__layout">
+          <ul class="succession-admin__cases" aria-label="Casos abertos">
+            @for (item of queue.items; track item.communityId) {
+              <li>
+                <button
+                  type="button"
+                  class="succession-admin__case"
+                  (click)="selectCase(item)"
+                >
+                  <strong>{{ item.communityName }}</strong>
+                  <span>{{ triggerLabel(item.trigger) }}</span>
+                  <span>
+                    Owner anterior: {{ item.previousOwnerLabel }}
+                  </span>
+                  <span>
+                    Prazo: {{ item.deadlineAt | date:'dd/MM/yyyy HH:mm' }}
+                  </span>
+                  @if (item.activeCandidateLabel) {
+                    <span>
+                      Convite pendente: {{ item.activeCandidateLabel }}
+                    </span>
+                  }
+                </button>
+              </li>
+            }
+          </ul>
+
+          @if (selectedCaseView$ | async; as selected) {
+            <article class="succession-admin__detail">
+              <header>
+                <h3>{{ selected.communityName }}</h3>
+                <p>
+                  {{ triggerLabel(selected.trigger) }} ·
+                  {{ selected.communityStatus }}
+                </p>
+              </header>
+
+              @if (selected.activeRequestId) {
+                <div class="succession-admin__notice" role="status">
+                  <strong>Convite aguardando resposta</strong>
+                  <span>
+                    {{ selected.activeCandidateLabel || selected.activeCandidateUid }}
+                  </span>
+                  @if (selected.activeRequestExpiresAt) {
+                    <span>
+                      Expira em
+                      {{ selected.activeRequestExpiresAt | date:'dd/MM/yyyy HH:mm' }}
+                    </span>
+                  }
+                </div>
+              } @else if (candidates$ | async; as candidates) {
+                <section aria-labelledby="succession-candidates-title">
+                  <h4 id="succession-candidates-title">Indicar sucessor</h4>
+
+                  @if (candidates.status === 'loading') {
+                    <p>Carregando candidatos...</p>
+                  } @else if (candidates.status === 'error') {
+                    <p>Não foi possível carregar os candidatos.</p>
+                  } @else if (candidates.items.length === 0) {
+                    <p>Nenhum membro elegível nesta página.</p>
+                  } @else {
+                    <ul class="succession-admin__candidates">
+                      @for (candidate of candidates.items; track candidate.uid) {
+                        <li>
+                          <div>
+                            <strong>{{ candidate.label }}</strong>
+                            <span>{{ candidate.role }}</span>
+                          </div>
+                          <button
+                            type="button"
+                            [appActionState]="
+                              action.status === 'loading'
+                              && action.kind === 'nominate'
+                              && action.targetUid === candidate.uid
+                            "
+                            [actionDisabled]="action.status === 'loading'"
+                            (click)="requestNomination(selected, candidate)"
+                          >
+                            Indicar
+                          </button>
+                        </li>
+                      }
+                    </ul>
+
+                    @if (candidates.nextCursor) {
+                      <button
+                        type="button"
+                        class="succession-admin__secondary"
+                        [appActionState]="candidates.loadingMore"
+                        [actionDisabled]="
+                          candidates.loadingMore || action.status === 'loading'
+                        "
+                        (click)="loadMore(candidates.nextCursor)"
+                      >
+                        Carregar mais
+                      </button>
+                    }
+                  }
+                </section>
+              }
+
+              <footer>
+                <button
+                  type="button"
+                  class="succession-admin__danger"
+                  [appActionState]="
+                    action.status === 'loading'
+                    && action.kind === 'cancel'
+                    && action.communityId === selected.communityId
+                  "
+                  [actionDisabled]="action.status === 'loading'"
+                  (click)="requestCancel(selected)"
+                >
+                  Cancelar sucessão
+                </button>
+              </footer>
+            </article>
+          }
+        </div>
+      }
+    }
+  </section>
+}
