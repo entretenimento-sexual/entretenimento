@@ -96,6 +96,7 @@ interface OwnershipTransferCancelPayload {
 interface TerminalSuccessionCasePayload {
   communityId?: unknown;
   trigger?: unknown;
+  reason?: unknown;
 }
 
 interface TerminalSuccessionNominationPayload {
@@ -1714,8 +1715,19 @@ export const openCommunityOwnerTerminalSuccessionCase =
 
       const communityId = normalizeCommunityId(request.data?.communityId);
       const trigger = normalizeTerminalTrigger(request.data?.trigger);
+      const confirmationReason = normalizeText(request.data?.reason, 240);
       if (!communityId || !trigger) {
         throw new HttpsError('invalid-argument', 'Caso de sucessão inválido.');
+      }
+      if (
+        trigger === 'confirmed_abandonment'
+        && confirmationReason.length < 10
+      ) {
+        throw new HttpsError(
+          'invalid-argument',
+          'Informe a justificativa usada para confirmar o abandono.',
+          { reason: 'community_ownership_succession_reason_required' }
+        );
       }
 
       const now = Date.now();
@@ -1813,6 +1825,7 @@ export const openCommunityOwnerTerminalSuccessionCase =
           status: 'open',
           activeRequestId: null,
           openedByUid: actorUid,
+          confirmationReason: confirmationReason || null,
           openedAt: now,
           deadlineAt,
           updatedAt: now,
@@ -1823,6 +1836,7 @@ export const openCommunityOwnerTerminalSuccessionCase =
             mode: 'terminal_succession',
             trigger,
             previousOwnerUid,
+            confirmationReason: confirmationReason || null,
             openedAt: now,
             deadlineAt,
             updatedAt: now,
@@ -1837,6 +1851,7 @@ export const openCommunityOwnerTerminalSuccessionCase =
             actorUid,
             previousOwnerUid,
             trigger,
+            confirmationReason: confirmationReason || null,
             deadlineAt,
             createdAt: now,
             source: 'staff-callable',
