@@ -486,6 +486,67 @@ if (fs.existsSync(rulesOptionalFieldHelperPath)) {
   }
 }
 
+const ageVerificationUxFiles = Object.freeze([
+  {
+    path: 'src/app/compliance/age-verification-page/age-verification-page.component.ts',
+    required: [
+      'verifyNow(): void',
+      'refreshTrustedSources$()',
+      'requestInitialReview$()',
+      "?? '/dashboard/principal'",
+      "goToNotifications(): void",
+      "goToAccount(): void",
+    ],
+    forbidden: [
+      'refresh(): void',
+      'showWarning(',
+      'showInfo(',
+    ],
+  },
+  {
+    path: 'src/app/compliance/age-verification-page/age-verification-page.component.html',
+    required: [
+      'Verificar maioridade',
+      'Você não precisa reenviar nada nem atualizar a página.',
+      'O que você precisa fazer agora?',
+      'Ver notificações',
+      'Ir para minha conta',
+    ],
+    forbidden: [
+      'Já concluiu? Atualizar status',
+      '(click)="refresh()"',
+    ],
+  },
+]);
+
+for (const boundary of ageVerificationUxFiles) {
+  const absolutePath = path.join(root, boundary.path);
+  if (!fs.existsSync(absolutePath)) {
+    violations.push(
+      `${boundary.path} (jornada guiada de maioridade ausente)`
+    );
+    continue;
+  }
+
+  const source = fs.readFileSync(absolutePath, 'utf8');
+
+  for (const required of boundary.required) {
+    if (!source.includes(required)) {
+      violations.push(
+        `${boundary.path} (UX de maioridade deve preservar: ${required})`
+      );
+    }
+  }
+
+  for (const forbidden of boundary.forbidden) {
+    if (source.includes(forbidden)) {
+      violations.push(
+        `${boundary.path} (UX de maioridade não pode reintroduzir: ${forbidden})`
+      );
+    }
+  }
+}
+
 const communityAgeBoundaryFiles = Object.freeze([
   'functions/src/community/community-social-access.service.ts',
   'functions/src/account_lifecycle/interaction-access.policy.ts',
