@@ -119,17 +119,6 @@ export function evaluateCommunityRankingRollout(input: {
     };
   }
 
-  // promote_v3 é deliberadamente impossível durante OBSERVE_ONLY.
-  if (!isCommunityCalibrationChangeAllowed()) {
-    return {
-      allowed: false,
-      action: input.action,
-      targetMode: COMMUNITY_DISCOVERY_V3_RANKING_MODE,
-      scoreVersion: COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
-      denialReason: 'calibration_observation_only',
-    };
-  }
-
   if (v2Denial) {
     return {
       allowed: false,
@@ -184,6 +173,18 @@ export function evaluateCommunityRankingRollout(input: {
       targetMode: COMMUNITY_DISCOVERY_V3_RANKING_MODE,
       scoreVersion: COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
       denialReason: 'candidate_real_data_not_ready',
+    };
+  }
+
+  // Mesmo com evidência suficiente, o cutover permanece congelado até decisão
+  // explícita de saída da fase OBSERVE_ONLY.
+  if (!isCommunityCalibrationChangeAllowed()) {
+    return {
+      allowed: false,
+      action: input.action,
+      targetMode: COMMUNITY_DISCOVERY_V3_RANKING_MODE,
+      scoreVersion: COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
+      denialReason: 'calibration_observation_only',
     };
   }
 
