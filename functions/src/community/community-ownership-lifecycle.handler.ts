@@ -4,8 +4,10 @@
 // -----------------------------------------------------------------------------
 // Callables backend-only para:
 // - listar membros elegíveis à transferência;
-// - transferir a propriedade com idempotência e auditoria;
 // - arquivar uma Comunidade sem exclusão física.
+//
+// A troca de owner é exclusiva do workflow acceptance-based em
+// community-ownership-transfer.workflow.handler.ts.
 // -----------------------------------------------------------------------------
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
