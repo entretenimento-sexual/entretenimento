@@ -756,6 +756,7 @@ async function createOwnershipOffer(input: {
 
     return {
       requestId: input.requestId,
+      communityId: input.communityId,
       candidateUid: input.targetUid,
       status: 'pending',
       mode: input.mode,
@@ -1698,7 +1699,7 @@ export const openCommunityOwnerTerminalSuccessionCase =
         actorUid,
         authToken:
           (request.auth?.token ?? undefined) as Record<string, unknown> | undefined,
-        requiredPermission: 'users:lifecycle',
+        requiredPermission: 'users:delete',
       });
 
       const communityId = normalizeCommunityId(request.data?.communityId);
@@ -1837,7 +1838,7 @@ export const nominateCommunityOwnerTerminalSuccessor =
         actorUid,
         authToken:
           (request.auth?.token ?? undefined) as Record<string, unknown> | undefined,
-        requiredPermission: 'users:lifecycle',
+        requiredPermission: 'users:delete',
       });
 
       const communityId = normalizeCommunityId(request.data?.communityId);
@@ -1908,7 +1909,7 @@ export const cancelCommunityOwnerTerminalSuccession =
         actorUid,
         authToken:
           (request.auth?.token ?? undefined) as Record<string, unknown> | undefined,
-        requiredPermission: 'users:lifecycle',
+        requiredPermission: 'users:delete',
       });
 
       const communityId = normalizeCommunityId(request.data?.communityId);
@@ -2035,7 +2036,7 @@ export const openCommunityOwnerTerminalSuccession =
         actorUid,
         authToken:
           (request.auth?.token ?? undefined) as Record<string, unknown> | undefined,
-        requiredPermission: 'users:lifecycle',
+        requiredPermission: 'users:delete',
       });
 
       const communityId = normalizeCommunityId(request.data?.communityId);
