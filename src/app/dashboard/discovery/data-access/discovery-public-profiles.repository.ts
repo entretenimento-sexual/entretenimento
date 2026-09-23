@@ -2,30 +2,12 @@
 // -----------------------------------------------------------------------------
 // Repositório paginado da Discovery V2.
 //
-// Responsabilidades:
-// - consultar public_profiles em páginas limitadas;
-// - usar cursor serializável updatedAtMs + uid;
-// - aplicar chave de cache determinística por usuário/modo/página;
-// - emitir cache primeiro e revalidar no servidor;
-// - mapear somente a projeção pública segura.
-//
-// Não calcula compatibilidade, score, distância ou presença.
+// A listagem passa exclusivamente pela fronteira backend-time
+// getPublicProfilesPage. O cliente não decide elegibilidade temporal.
 // -----------------------------------------------------------------------------
 
 import { Injectable, inject } from '@angular/core';
-import {
-  Firestore,
-  Timestamp,
-  collection,
-  documentId,
-  getDocsFromServer,
-  limit,
-  orderBy,
-  query,
-  startAfter,
-  where,
-} from '@angular/fire/firestore';
-import type { QueryConstraint } from 'firebase/firestore';
+import { Functions, httpsCallable } from '@angular/fire/functions';
 
 import { EMPTY, Observable, concat, of, throwError } from 'rxjs';
 import { switchMap, take, tap } from 'rxjs/operators';
@@ -43,19 +25,34 @@ import {
   normalizeDiscoveryRequest,
 } from '../models/discovery-feed-page.model';
 import { PublicProfileCard } from '../models/public-profile-card.model';
-import {
-  mapPublicProfileCard,
-  toSerializableEpoch,
-} from './public-profile-card.mapper';
+import { mapPublicProfileCard } from './public-profile-card.mapper';
 
-const PUBLIC_PROFILES_COLLECTION = 'public_profiles';
 const DISCOVERY_PAGE_CACHE_TTL_MS = 60_000;
+
+interface GetPublicProfilesPageRequest {
+  readonly mode: 'all' | 'compatible';
+  readonly pageSize: number;
+  readonly cursor: DiscoveryFeedCursor | null;
+}
+
+interface GetPublicProfilesPageResponse {
+  readonly items: readonly Record<string, unknown>[];
+  readonly nextCursor: DiscoveryFeedCursor | null;
+  readonly reachedEnd: boolean;
+  readonly fetchedAt: number;
+  readonly scanned: number;
+}
 
 @Injectable({ providedIn: 'root' })
 export class DiscoveryPublicProfilesRepository {
-  private readonly firestore = inject(Firestore);
+  private readonly functions = inject(Functions);
   private readonly firestoreContext = inject(FirestoreContextService);
   private readonly cache = inject(CacheService);
+
+  private readonly getPublicProfilesPageCallable = httpsCallable<
+    GetPublicProfilesPageRequest,
+    GetPublicProfilesPageResponse
+  >(this.functions, 'getPublicProfilesPage');
 
   loadPage$(
     request: DiscoveryFeedRequest,
@@ -117,89 +114,28 @@ export class DiscoveryPublicProfilesRepository {
     cursor: DiscoveryFeedCursor | null
   ): Observable<DiscoveryFeedPage> {
     return this.firestoreContext.deferPromise$(async () => {
-      const collectionRef = collection(
-        this.firestore,
-        PUBLIC_PROFILES_COLLECTION
-      );
+      const response = await this.getPublicProfilesPageCallable({
+        mode: request.mode,
+        pageSize: request.pageSize,
+        cursor,
+      });
 
-      const constraints = this.buildConstraints(request, cursor);
-      const snapshot = await getDocsFromServer(
-        query(collectionRef, ...constraints)
-      );
-
-      const items = snapshot.docs
-        .map((documentSnapshot) =>
-          mapPublicProfileCard(
-            {
-              ...documentSnapshot.data(),
-              uid: documentSnapshot.id,
-            },
-            documentSnapshot.id
-          )
-        )
+      const payload = response.data;
+      const items = (payload.items ?? [])
+        .map((raw) => mapPublicProfileCard(raw))
         .filter((item): item is PublicProfileCard => item !== null);
-
-      const lastDocument = snapshot.docs.at(-1) ?? null;
-      const nextCursor = this.toCursor(lastDocument?.id, lastDocument?.data());
-      const reachedEnd =
-        snapshot.docs.length < request.pageSize || nextCursor === null;
+      const nextCursor = normalizeDiscoveryCursor(payload.nextCursor);
 
       return {
         items,
         nextCursor,
-        reachedEnd,
+        reachedEnd: payload.reachedEnd === true || nextCursor === null,
         source: 'server' as const,
-        fetchedAt: Date.now(),
+        fetchedAt:
+          Number.isFinite(payload.fetchedAt) && payload.fetchedAt > 0
+            ? Math.trunc(payload.fetchedAt)
+            : Date.now(),
       };
     });
-  }
-
-  private buildConstraints(
-    request: DiscoveryFeedRequest,
-    cursor: DiscoveryFeedCursor | null
-  ): QueryConstraint[] {
-    const constraints: QueryConstraint[] = [
-      where('ageEligibilityVerifiedAdult', '==', true),
-    ];
-
-    if (request.mode === 'compatible') {
-      constraints.push(where('compatibilityReady', '==', true));
-    }
-
-    constraints.push(
-      orderBy('updatedAt', 'desc'),
-      orderBy(documentId(), 'desc')
-    );
-
-    if (cursor) {
-      constraints.push(
-        startAfter(Timestamp.fromMillis(cursor.updatedAtMs), cursor.uid)
-      );
-    }
-
-    constraints.push(limit(request.pageSize));
-
-    return constraints;
-  }
-
-  private toCursor(
-    uidValue: unknown,
-    raw: unknown
-  ): DiscoveryFeedCursor | null {
-    const uid = String(uidValue ?? '').trim();
-    const source =
-      typeof raw === 'object' && raw !== null
-        ? (raw as Record<string, unknown>)
-        : {};
-    const updatedAtMs = toSerializableEpoch(source['updatedAt']);
-
-    if (!uid || updatedAtMs === null) {
-      return null;
-    }
-
-    return {
-      uid,
-      updatedAtMs,
-    };
   }
 }
