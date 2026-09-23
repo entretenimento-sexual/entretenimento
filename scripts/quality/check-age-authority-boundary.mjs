@@ -39,6 +39,10 @@ const requiredFiles = Object.freeze([
   'functions/src/compliance/adult-consent.handler.ts',
   'src/app/core/services/compliance/age-eligibility.service.ts',
   'src/app/core/guards/compliance/age-eligibility.guard.ts',
+  'src/app/core/guards/compliance/current-terms.guard.ts',
+  'src/app/core/services/autentication/auth/access-control.service.ts',
+  'src/app/core/services/presence/presence-orchestrator.service.ts',
+  'src/app/store/effects/effects.interactions/friends/network.effects.ts',
   'firestore-rules/age_eligibility_records.rules',
   'functions/src/discovery/get-public-profiles-page.handler.ts',
   'functions/src/discovery/get-user-intent-statuses.handler.ts',
@@ -291,6 +295,8 @@ for (const relativePath of trustedAgeDecisionFiles) {
     'normalizeAgeReviewEvidence',
     'evidenceReferenceHash',
     'writeCanonicalAgeEligibilityInTransaction',
+    'enforceAppCheck',
+    'consumeBackendRateLimitQuota',
   ]) {
     if (!source.includes(required)) {
       violations.push(
@@ -550,6 +556,204 @@ if (fs.existsSync(mediaAgeExpiryPolicyPath)) {
     violations.push(
       'functions/src/media/application/public-media-age-expiry.policy.ts (TTL deve ser limitado por técnica + viewer + owner + mídia)'
     );
+  }
+}
+
+
+const runtimeAdultAccessPath = path.join(
+  root,
+  'src/app/core/services/autentication/auth/access-control.service.ts'
+);
+if (fs.existsSync(runtimeAdultAccessPath)) {
+  const source = codeOnly(fs.readFileSync(runtimeAdultAccessPath, 'utf8'));
+
+  for (const required of [
+    'canRunAdultSessionRealtime
+if (unique.length > 0) {
+  console.error('[age-authority] Fronteira etária canônica violada:');
+  for (const violation of unique) {
+    console.error(`  - ${violation}`);
+  }
+  console.error(
+    '[age-authority] Não derive maioridade de ageVerification, idade ou adultConsent. ' +
+      'Use age_eligibility_records backend-only e a projeção sanitizada somente para UX.'
+  );
+  process.exit(1);
+}
+
+console.log(
+  '[age-authority] OK: maioridade permanece backend-only, decisões humanas exigem evidência e consentimento não substitui prova etária.'
+);
+,
+    'this.ageEligibility.verifiedAdult
+if (unique.length > 0) {
+  console.error('[age-authority] Fronteira etária canônica violada:');
+  for (const violation of unique) {
+    console.error(`  - ${violation}`);
+  }
+  console.error(
+    '[age-authority] Não derive maioridade de ageVerification, idade ou adultConsent. ' +
+      'Use age_eligibility_records backend-only e a projeção sanitizada somente para UX.'
+  );
+  process.exit(1);
+}
+
+console.log(
+  '[age-authority] OK: maioridade permanece backend-only, decisões humanas exigem evidência e consentimento não substitui prova etária.'
+);
+,
+    'isCurrentLegalAcceptanceSatisfied',
+    'ADULT_CONSENT_VERSION',
+    'readonly canRunPresence
+if (unique.length > 0) {
+  console.error('[age-authority] Fronteira etária canônica violada:');
+  for (const violation of unique) {
+    console.error(`  - ${violation}`);
+  }
+  console.error(
+    '[age-authority] Não derive maioridade de ageVerification, idade ou adultConsent. ' +
+      'Use age_eligibility_records backend-only e a projeção sanitizada somente para UX.'
+  );
+  process.exit(1);
+}
+
+console.log(
+  '[age-authority] OK: maioridade permanece backend-only, decisões humanas exigem evidência e consentimento não substitui prova etária.'
+);
+,
+  ]) {
+    if (!source.includes(required)) {
+      violations.push(
+        `src/app/core/services/autentication/auth/access-control.service.ts (runtime adulto deve usar gate canônico: ${required})`
+      );
+    }
+  }
+}
+
+const friendsRuntimePath = path.join(
+  root,
+  'src/app/store/effects/effects.interactions/friends/network.effects.ts'
+);
+if (fs.existsSync(friendsRuntimePath)) {
+  const source = codeOnly(fs.readFileSync(friendsRuntimePath, 'utf8'));
+
+  if (!source.includes('this.access.canRunSensitiveRealtime
+if (unique.length > 0) {
+  console.error('[age-authority] Fronteira etária canônica violada:');
+  for (const violation of unique) {
+    console.error(`  - ${violation}`);
+  }
+  console.error(
+    '[age-authority] Não derive maioridade de ageVerification, idade ou adultConsent. ' +
+      'Use age_eligibility_records backend-only e a projeção sanitizada somente para UX.'
+  );
+  process.exit(1);
+}
+
+console.log(
+  '[age-authority] OK: maioridade permanece backend-only, decisões humanas exigem evidência e consentimento não substitui prova etária.'
+);
+)) {
+    violations.push(
+      'src/app/store/effects/effects.interactions/friends/network.effects.ts (Friends deve pausar até o gate social adulto)'
+    );
+  }
+
+  if (source.includes('this.access.canEnterCore
+if (unique.length > 0) {
+  console.error('[age-authority] Fronteira etária canônica violada:');
+  for (const violation of unique) {
+    console.error(`  - ${violation}`);
+  }
+  console.error(
+    '[age-authority] Não derive maioridade de ageVerification, idade ou adultConsent. ' +
+      'Use age_eligibility_records backend-only e a projeção sanitizada somente para UX.'
+  );
+  process.exit(1);
+}
+
+console.log(
+  '[age-authority] OK: maioridade permanece backend-only, decisões humanas exigem evidência e consentimento não substitui prova etária.'
+);
+)) {
+    violations.push(
+      'src/app/store/effects/effects.interactions/friends/network.effects.ts (canEnterCore não pode iniciar listeners sociais adultos)'
+    );
+  }
+}
+
+const presenceRuntimePath = path.join(
+  root,
+  'src/app/core/services/presence/presence-orchestrator.service.ts'
+);
+if (fs.existsSync(presenceRuntimePath)) {
+  const source = codeOnly(fs.readFileSync(presenceRuntimePath, 'utf8'));
+
+  if (!source.includes('this.access.canRunPresence
+if (unique.length > 0) {
+  console.error('[age-authority] Fronteira etária canônica violada:');
+  for (const violation of unique) {
+    console.error(`  - ${violation}`);
+  }
+  console.error(
+    '[age-authority] Não derive maioridade de ageVerification, idade ou adultConsent. ' +
+      'Use age_eligibility_records backend-only e a projeção sanitizada somente para UX.'
+  );
+  process.exit(1);
+}
+
+console.log(
+  '[age-authority] OK: maioridade permanece backend-only, decisões humanas exigem evidência e consentimento não substitui prova etária.'
+);
+)) {
+    violations.push(
+      'src/app/core/services/presence/presence-orchestrator.service.ts (Presence deve depender do gate adulto canônico)'
+    );
+  }
+}
+
+const pendingRequestsRepoPath = path.join(
+  root,
+  'src/app/core/services/interactions/friendship/repo/requests.repo.ts'
+);
+if (fs.existsSync(pendingRequestsRepoPath)) {
+  const source = codeOnly(fs.readFileSync(pendingRequestsRepoPath, 'utf8'));
+
+  if (!source.includes('this.inCtxSync(() => httpsCallable')) {
+    violations.push(
+      'src/app/core/services/interactions/friendship/repo/requests.repo.ts (httpsCallable deve nascer no injection context)'
+    );
+  }
+}
+
+if (fs.existsSync(helperPath)) {
+  const source = codeOnly(fs.readFileSync(helperPath, 'utf8'));
+  const nullSafeOptionalReads = (
+    source.match(/mapFieldOrNull\(request\.resource\.data, k\)/g) ?? []
+  ).length;
+
+  if (nullSafeOptionalReads < 3) {
+    violations.push(
+      'firestore-rules/_helpers.rules (campos opcionais devem usar leitura dinâmica null-safe)'
+    );
+  }
+}
+
+const adultFlowRoutingPath = path.join(root, 'src/app/app-routing.module.ts');
+if (fs.existsSync(adultFlowRoutingPath)) {
+  const source = codeOnly(fs.readFileSync(adultFlowRoutingPath, 'utf8'));
+
+  for (const required of [
+    'currentTermsGuard',
+    'ageEligibilityGuard',
+    "path: 'adulto/verificar-idade'",
+    "path: 'adulto/confirmar'",
+  ]) {
+    if (!source.includes(required)) {
+      violations.push(
+        `src/app/app-routing.module.ts (sequência de compliance incompleta: ${required})`
+      );
+    }
   }
 }
 
