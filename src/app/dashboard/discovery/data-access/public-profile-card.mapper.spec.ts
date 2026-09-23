@@ -7,9 +7,15 @@ import {
   toSerializableEpoch,
 } from './public-profile-card.mapper';
 
+const ACTIVE_AGE_PROJECTION = Object.freeze({
+  ageEligibilityVerifiedAdult: true,
+  ageEligibilityValidUntil: new Date(Date.now() + 60_000),
+});
+
 describe('public-profile-card.mapper', () => {
   it('deve normalizar aliases, métricas e timestamps para valores serializáveis', () => {
     const card = mapPublicProfileCard({
+      ...ACTIVE_AGE_PROJECTION,
       uid: 'profile-1',
       nickname: 'Pessoa Teste',
       avatarUrl: 'https://example.com/avatar.webp',
@@ -54,11 +60,13 @@ describe('public-profile-card.mapper', () => {
     });
   });
 
-  it('deve preservar idade e sinais públicos usados pelo matching', () => {
+  it('não deve reprojetar idade exata legada e deve preservar sinais públicos de matching', () => {
     const card = mapPublicProfileCard({
+      ...ACTIVE_AGE_PROJECTION,
       uid: 'profile-matching',
       nickname: 'Compatível',
       age: 34,
+      idade: 35,
       publicRelationshipIntents: ['dating', 'dating', 'serious'],
       publicSexualPractices: ['bdsm', 'tantra'],
       publicBodyTraits: ['athletic', 'tattoos'],
@@ -70,7 +78,7 @@ describe('public-profile-card.mapper', () => {
     });
 
     expect(card).toMatchObject({
-      age: 34,
+      age: null,
       publicRelationshipIntents: ['dating', 'serious'],
       publicSexualPractices: ['bdsm', 'tantra'],
       publicBodyTraits: ['athletic', 'tattoos'],
@@ -79,18 +87,20 @@ describe('public-profile-card.mapper', () => {
     });
   });
 
-  it('deve aceitar alias legado de idade sem perder o valor público', () => {
+  it('deve ignorar alias legado de idade mesmo em projeção adulta ativa', () => {
     const card = mapPublicProfileCard({
+      ...ACTIVE_AGE_PROJECTION,
       uid: 'profile-age-alias',
-      nickname: 'Idade pública',
+      nickname: 'Sem idade pública',
       idade: '29',
     });
 
-    expect(card?.age).toBe(29);
+    expect(card?.age).toBeNull();
   });
 
   it('deve priorizar o contador único do perfil sobre o alias legado', () => {
     const card = mapPublicProfileCard({
+      ...ACTIVE_AGE_PROJECTION,
       uid: 'profile-viewers',
       nickname: 'Audiência',
       profileUniqueViewersCount: 3,
@@ -103,6 +113,7 @@ describe('public-profile-card.mapper', () => {
 
   it('deve remover duplicidades das preferências públicas', () => {
     const card = mapPublicProfileCard({
+      ...ACTIVE_AGE_PROJECTION,
       uid: 'profile-2',
       nickname: 'Teste',
       interestedInGenders: ['man', 'man', 'woman'],
@@ -113,6 +124,7 @@ describe('public-profile-card.mapper', () => {
 
   it('deve tratar 0,0 legado como localização pública ausente', () => {
     const card = mapPublicProfileCard({
+      ...ACTIVE_AGE_PROJECTION,
       uid: 'profile-zero-location',
       nickname: 'Sem posição válida',
       latitude: 0,
@@ -127,8 +139,31 @@ describe('public-profile-card.mapper', () => {
     });
   });
 
+  it('deve recusar projeção sem elegibilidade etária pública vigente', () => {
+    expect(
+      mapPublicProfileCard({
+        uid: 'profile-no-age-projection',
+        nickname: 'Sem boundary',
+      })
+    ).toBeNull();
+
+    expect(
+      mapPublicProfileCard({
+        uid: 'profile-expired-age-projection',
+        nickname: 'Expirado',
+        ageEligibilityVerifiedAdult: true,
+        ageEligibilityValidUntil: new Date(Date.now() - 1_000),
+      })
+    ).toBeNull();
+  });
+
   it('deve recusar projeção sem nickname público', () => {
-    expect(mapPublicProfileCard({ uid: 'profile-3' })).toBeNull();
+    expect(
+      mapPublicProfileCard({
+        ...ACTIVE_AGE_PROJECTION,
+        uid: 'profile-3',
+      })
+    ).toBeNull();
   });
 
   it('deve converter Date e Timestamp-like sem manter objetos no resultado', () => {
