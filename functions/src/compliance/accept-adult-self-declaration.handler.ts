@@ -29,6 +29,8 @@ import {
   TERMS_ACCEPTANCE_VERSION,
 } from './platform-legal.constants';
 
+const ENFORCE_APP_CHECK = process.env.FUNCTIONS_EMULATOR !== 'true';
+
 const AGE_ADMISSION_MODE =
   String(process.env.AGE_ADMISSION_MODE ?? 'SELF_DECLARATION')
     .trim()
@@ -54,7 +56,10 @@ function hasAcceptedCurrentTerms(value: unknown): boolean {
 
 export const acceptAdultSelfDeclaration =
   onCall<AcceptAdultSelfDeclarationRequest>(
-    { region: FUNCTIONS_REGION },
+    {
+      region: FUNCTIONS_REGION,
+      enforceAppCheck: ENFORCE_APP_CHECK,
+    },
     async (request): Promise<{
       status: 'SELF_DECLARED_ADULT' | 'VERIFIED_ADULT';
       declaredAtMs: number | null;
