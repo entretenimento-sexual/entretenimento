@@ -13,7 +13,8 @@ import type {
 export type ProviderWebhookResourceType =
   | 'checkout'
   | 'subscription'
-  | 'payment';
+  | 'payment'
+  | 'other';
 
 export interface VerifiedProviderWebhookEvent {
   provider: BillingProviderId;
