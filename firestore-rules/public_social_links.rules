@@ -19,6 +19,12 @@ match /public_social_links/{userId} {
     );
   allow list: if false;
 
+  function currentActorHasActiveSubscription() {
+    let user = get(currentPrivateUserPath()).data;
+    return user is map
+      && activeSubscriptionRankFromProjection(user) > 0;
+  }
+
   function allowedKeys() {
     return request.resource.data.keys().hasOnly([
       "uid",
@@ -65,21 +71,23 @@ match /public_social_links/{userId} {
       && diff.removedKeys().size() > 0;
   }
 
-  allow create: if isSelf(userId)
+  allow create: if resource == null
+    && isSelf(userId)
+    && currentActorHasActiveSubscription()
     && currentUserCanUseAdultSocialPlatform()
-    && isActiveSubscriber(userId)
     && validPayload()
     && request.resource.data.updatedAt == request.time;
 
-  allow update: if isSelf(userId)
+  allow update: if resource != null
+    && isSelf(userId)
     && request.resource.data.uid == resource.data.uid
     && request.resource.data.updatedAt == request.time
     && changedKeysAllowed()
     && (
       removesOnly()
       || (
-        currentUserCanUseAdultSocialPlatform()
-        && isActiveSubscriber(userId)
+        currentActorHasActiveSubscription()
+        && currentUserCanUseAdultSocialPlatform()
       )
     )
     && validPayload();
