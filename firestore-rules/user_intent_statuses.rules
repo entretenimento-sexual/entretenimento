@@ -47,7 +47,9 @@ match /user_intent_statuses/{statusId} {
     );
 
   allow list: if currentUserCanUseAdultSocialPlatform()
-    && isDiscoverableStatus();
+    && resource.data.ageEligibilityVerifiedAdult == true
+    && resource.data.moderation.state == "active"
+    && resource.data.visibility == "public_discovery";
 
   allow create, update, delete: if false;
 }
