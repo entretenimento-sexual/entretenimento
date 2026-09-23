@@ -111,11 +111,7 @@ export class CommunityOwnershipRepository {
         }
 
         return normalized;
-      }),
-      tap(() => this.discoveryCache.invalidateCurrentViewer({
-        sourceType: 'community',
-        communityId: normalizedCommunityId,
-      }))
+      })
     );
   }
 
