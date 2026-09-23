@@ -38,11 +38,6 @@ interface DiscoveryFiltersInput {
   nicknamePrefix?: unknown;
 }
 
-interface DiscoveryNearbyBoundInput {
-  start?: unknown;
-  end?: unknown;
-}
-
 interface DiscoveryNearbyInput {
   latitude?: unknown;
   longitude?: unknown;
