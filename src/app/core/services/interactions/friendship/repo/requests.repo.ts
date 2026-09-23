@@ -47,14 +47,14 @@ export class RequestsRepo extends FirestoreRepoBase {
   }
 
   private getPendingRequestsCallable() {
-    return httpsCallable<
+    return this.inCtxSync(() => httpsCallable<
       { direction: 'inbound' | 'outbound'; limit: number },
       {
         items: (FriendRequest & { id: string })[];
         fetchedAt: number;
         scanned: number;
       }
-    >(this.functions, 'getPendingFriendRequests');
+    >(this.functions, 'getPendingFriendRequests'));
   }
 
   getDocExists(path: string) {
