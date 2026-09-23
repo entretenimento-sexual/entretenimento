@@ -404,7 +404,14 @@ export class AsaasPaymentProvider extends PaymentProviderPort {
     const expected = this.webhookToken;
     const supplied = firstHeader(input.headers, 'asaas-access-token');
 
-    if (!expected || !safeEqualSecret(expected, supplied)) {
+    if (expected.length < 32 || expected.length > 255) {
+      throw new HttpsError(
+        'failed-precondition',
+        'ASAAS_WEBHOOK_TOKEN possui configuração inválida.'
+      );
+    }
+
+    if (!safeEqualSecret(expected, supplied)) {
       throw new HttpsError(
         'permission-denied',
         'Webhook financeiro sem autenticação válida.'
