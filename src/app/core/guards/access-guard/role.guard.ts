@@ -1,73 +1,142 @@
 // src/app/core/guards/access-guard/role.guard.ts
-// Guard de acesso: permite rota apenas para usuários com roles específicas.
+// Guard genérico de acesso por role.
 //
-// Boas práticas adotadas:
-// - Fluxo one-shot (take(1)) → guard não fica "vivo" nem cria listeners.
-// - Fail-safe: qualquer erro resulta em redirect controlado (não quebra navegação).
-// - Preferência por dados locais (CurrentUserStore) quando disponíveis, com fallback
-//   para Firestore only-once (evita leitura desnecessária em cada navegação).
+// Fronteira canônica:
+// - sessão/UID: CurrentUserStoreService/AuthSessionService;
+// - hidratação do perfil: CurrentUserStoreService;
+// - free/basic/premium/vip: AccessControlService, que deriva a capacidade da
+//   projeção canônica de assinatura;
+// - admin: preservado pelo próprio AccessControlService.
+//
+// Este guard não lê role diretamente do documento do usuário e não consulta
+// Firestore como autoridade alternativa de assinatura.
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { combineLatest, of } from 'rxjs';
-import { catchError, map, switchMap, take, filter } from 'rxjs/operators';
+import {
+  catchError,
+  filter,
+  map,
+  switchMap,
+  take,
+} from 'rxjs/operators';
 
+import {
+  AccessControlService,
+  type UserRole,
+} from 'src/app/core/services/autentication/auth/access-control.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
-import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { buildRedirectTree, guardLog } from '../_shared-guard/guard-utils';
+
+const VALID_ROLES = new Set<UserRole>([
+  'visitante',
+  'free',
+  'basic',
+  'premium',
+  'vip',
+  'admin',
+]);
+
+function normalizeAllowedRoles(value: unknown): UserRole[] {
+  if (!Array.isArray(value)) return [];
+
+  return Array.from(
+    new Set(
+      value
+        .map((item) => String(item ?? '').trim().toLowerCase())
+        .filter((item): item is UserRole =>
+          VALID_ROLES.has(item as UserRole)
+        )
+    )
+  );
+}
 
 export const roleGuard: CanActivateFn = (route, state) => {
   const router = inject(Router);
   const currentUserStore = inject(CurrentUserStoreService);
-  const userQuery = inject(FirestoreUserQueryService);
-  const geh = inject(GlobalErrorHandlerService);
+  const access = inject(AccessControlService);
+  const applicationError = inject(ApplicationErrorService);
 
-  const allowed = (route.data?.['allowedRoles'] as string[] | undefined) ?? [];
-  const allowedNormalized = allowed.map((x) => (x ?? '').toLowerCase());
+  const allowed = normalizeAllowedRoles(route.data?.['allowedRoles']);
 
-  // 1) UID (fonte de sessão)
   const uid$ = currentUserStore.getLoggedUserUID$().pipe(take(1));
-
-  // 2) Snapshot de user do store (pode ser null; ignorar undefined inicial)
   const storeUser$ = currentUserStore.user$.pipe(
-    filter((u) => u !== undefined),
+    filter((user) => user !== undefined),
     take(1)
   );
 
   return combineLatest([uid$, storeUser$]).pipe(
     switchMap(([uid, storeUser]) => {
-      if (!uid) return of(buildRedirectTree(router, '/login', state.url));
+      if (!uid) {
+        return of(buildRedirectTree(router, '/login', state.url));
+      }
 
-      // Preferência: role já resolvida no store (evita Firestore)
-      const roleFromStore = (storeUser as any)?.role ? String((storeUser as any).role).toLowerCase() : '';
-
-      if (roleFromStore) {
-        const ok = allowedNormalized.length ? allowedNormalized.includes(roleFromStore) : true;
-
-        guardLog('role', 'uid:', uid, 'role(store):', roleFromStore, 'allowed:', allowed, 'ok:', ok);
-
+      if (!storeUser) {
         return of(
-          ok ? true : buildRedirectTree(router, '/dashboard/principal', state.url, { reason: 'role_denied' })
+          buildRedirectTree(
+            router,
+            '/dashboard/principal',
+            state.url,
+            { reason: 'role_profile_unavailable' }
+          )
         );
       }
 
-      // Fallback: busca one-shot no Firestore
-      return userQuery.getUserOnce$(uid).pipe(
+      if (allowed.length === 0) {
+        return of(true);
+      }
+
+      return access.hasAny$(allowed).pipe(
         take(1),
-        map((user) => {
-          const role = (user?.role || '').toLowerCase();
-          const ok = allowedNormalized.length ? allowedNormalized.includes(role) : true;
+        map((ok) => {
+          guardLog(
+            'role',
+            'uid:',
+            uid,
+            'source:',
+            'AccessControlService',
+            'allowed:',
+            allowed,
+            'ok:',
+            ok
+          );
 
-          guardLog('role', 'uid:', uid, 'role(fs):', role, 'allowed:', allowed, 'ok:', ok);
-
-          return ok ? true : buildRedirectTree(router, '/dashboard/principal', state.url, { reason: 'role_denied' });
+          return ok
+            ? true
+            : buildRedirectTree(
+                router,
+                '/dashboard/principal',
+                state.url,
+                { reason: 'role_denied' }
+              );
         })
       );
     }),
-    catchError((err) => {
-      // Fail-safe: log central e redirect seguro (não derruba navegação)
-      try { geh.handleError(err); } catch { }
-      return of(buildRedirectTree(router, '/dashboard/principal', state.url, { reason: 'role_guard_error' }));
+    catchError((error: unknown) => {
+      try {
+        applicationError.report(error, {
+          feature: 'access-guard',
+          operation: 'roleGuard',
+          fallbackMessage: 'Não foi possível validar seu acesso agora.',
+          presentation: { surface: 'none', severity: 'error' },
+          metadata: {
+            scope: 'roleGuard',
+            allowedRoles: allowed,
+          },
+        });
+      } catch {
+        // O guard permanece fail-closed mesmo se o diagnóstico falhar.
+      }
+
+      return of(
+        buildRedirectTree(
+          router,
+          '/dashboard/principal',
+          state.url,
+          { reason: 'role_guard_error' }
+        )
+      );
     })
   );
 };
