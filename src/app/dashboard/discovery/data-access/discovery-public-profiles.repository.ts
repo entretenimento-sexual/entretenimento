@@ -2,17 +2,18 @@
 // -----------------------------------------------------------------------------
 // Repositório paginado da Discovery V2.
 //
-// A listagem passa exclusivamente pela fronteira backend-time
-// getPublicProfilesPage. O cliente não decide elegibilidade temporal.
+// A listagem passa exclusivamente pela fronteira backend-time canônica.
+// O cliente não enumera public_profiles nem decide elegibilidade temporal.
 // -----------------------------------------------------------------------------
 
 import { Injectable, inject } from '@angular/core';
-import { Functions, httpsCallable } from '@angular/fire/functions';
 
 import { EMPTY, Observable, concat, of, throwError } from 'rxjs';
-import { switchMap, take, tap } from 'rxjs/operators';
+import { map, switchMap, take, tap } from 'rxjs/operators';
 
-import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
+import {
+  PublicProfileReadBoundaryService,
+} from 'src/app/core/services/discovery/public-profile-read-boundary.service';
 import { CacheService } from 'src/app/core/services/general/cache/cache.service';
 
 import {
@@ -29,30 +30,12 @@ import { mapPublicProfileCard } from './public-profile-card.mapper';
 
 const DISCOVERY_PAGE_CACHE_TTL_MS = 60_000;
 
-interface GetPublicProfilesPageRequest {
-  readonly mode: 'all' | 'compatible';
-  readonly pageSize: number;
-  readonly cursor: DiscoveryFeedCursor | null;
-}
-
-interface GetPublicProfilesPageResponse {
-  readonly items: readonly Record<string, unknown>[];
-  readonly nextCursor: DiscoveryFeedCursor | null;
-  readonly reachedEnd: boolean;
-  readonly fetchedAt: number;
-  readonly scanned: number;
-}
-
 @Injectable({ providedIn: 'root' })
 export class DiscoveryPublicProfilesRepository {
-  private readonly functions = inject(Functions);
-  private readonly firestoreContext = inject(FirestoreContextService);
+  private readonly publicProfileRead = inject(
+    PublicProfileReadBoundaryService
+  );
   private readonly cache = inject(CacheService);
-
-  private readonly getPublicProfilesPageCallable = httpsCallable<
-    GetPublicProfilesPageRequest,
-    GetPublicProfilesPageResponse
-  >(this.functions, 'getPublicProfilesPage');
 
   loadPage$(
     request: DiscoveryFeedRequest,
@@ -113,29 +96,28 @@ export class DiscoveryPublicProfilesRepository {
     request: DiscoveryFeedRequest,
     cursor: DiscoveryFeedCursor | null
   ): Observable<DiscoveryFeedPage> {
-    return this.firestoreContext.deferPromise$(async () => {
-      const response = await this.getPublicProfilesPageCallable({
-        mode: request.mode,
-        pageSize: request.pageSize,
-        cursor,
-      });
+    return this.publicProfileRead.read$({
+      mode: request.mode,
+      pageSize: request.pageSize,
+      cursor,
+    }).pipe(
+      map((payload) => {
+        const items = (payload.items ?? [])
+          .map((raw) => mapPublicProfileCard(raw))
+          .filter((item): item is PublicProfileCard => item !== null);
+        const nextCursor = normalizeDiscoveryCursor(payload.nextCursor);
 
-      const payload = response.data;
-      const items = (payload.items ?? [])
-        .map((raw) => mapPublicProfileCard(raw))
-        .filter((item): item is PublicProfileCard => item !== null);
-      const nextCursor = normalizeDiscoveryCursor(payload.nextCursor);
-
-      return {
-        items,
-        nextCursor,
-        reachedEnd: payload.reachedEnd === true || nextCursor === null,
-        source: 'server' as const,
-        fetchedAt:
-          Number.isFinite(payload.fetchedAt) && payload.fetchedAt > 0
-            ? Math.trunc(payload.fetchedAt)
-            : Date.now(),
-      };
-    });
+        return {
+          items,
+          nextCursor,
+          reachedEnd: payload.reachedEnd === true || nextCursor === null,
+          source: 'server' as const,
+          fetchedAt:
+            Number.isFinite(payload.fetchedAt) && payload.fetchedAt > 0
+              ? Math.trunc(payload.fetchedAt)
+              : Date.now(),
+        };
+      })
+    );
   }
 }
