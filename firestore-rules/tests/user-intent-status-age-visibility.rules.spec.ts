@@ -72,6 +72,7 @@ async function seedViewerAndStatuses(): Promise<void> {
       setDoc(doc(db, 'user_intent_statuses', `current_${OWNER_UID}`), {
         uid: OWNER_UID,
         ageEligibilityVerifiedAdult: true,
+        ageEligibilityValidUntil: new Date(Date.now() + 60_000),
         visibility: 'public_discovery',
         moderation: { state: 'active' },
         expiresAt: Date.now() + 60_000,
@@ -79,6 +80,7 @@ async function seedViewerAndStatuses(): Promise<void> {
       setDoc(doc(db, 'user_intent_statuses', 'current_hidden_age_owner'), {
         uid: 'hidden_age_owner',
         ageEligibilityVerifiedAdult: false,
+        ageEligibilityValidUntil: new Date(Date.now() - 60_000),
         visibility: 'public_discovery',
         moderation: { state: 'active' },
         expiresAt: Date.now() + 60_000,
@@ -179,6 +181,7 @@ describe('Firestore Rules / user intent status age visibility', () => {
         {
           uid: VIEWER_UID,
           ageEligibilityVerifiedAdult: false,
+        ageEligibilityValidUntil: new Date(Date.now() - 60_000),
           visibility: 'hidden',
           moderation: { state: 'hidden' },
           expiresAt: Date.now() + 60_000,
