@@ -350,7 +350,7 @@ describe('Firestore Rules / public media age visibility', () => {
     );
   });
 
-  it('nega collection-group client-side e mantém galerias owner-scoped', async () => {
+  it('nega qualquer listagem client-side de mídia pública e mantém deep links documentais', async () => {
     const db = viewerDb();
     const globalVideoQuery = query(
       collectionGroup(db, 'public_videos'),
@@ -391,19 +391,38 @@ describe('Firestore Rules / public media age visibility', () => {
       where('moderationStatus', '==', 'APPROVED')
     );
 
-    const [videos, photos] = await Promise.all([
-      assertSucceeds(getDocs(ownerVideoQuery)),
-      assertSucceeds(getDocs(ownerPhotoQuery)),
-    ]);
+    await assertFails(getDocs(ownerVideoQuery));
+    await assertFails(getDocs(ownerPhotoQuery));
 
-    expect(videos.size).toBe(1);
-    expect(photos.size).toBe(1);
+    await assertSucceeds(
+      getDoc(
+        doc(
+          db,
+          'public_profiles',
+          OWNER_UID,
+          'public_videos',
+          VIDEO_ID
+        )
+      )
+    );
+    await assertSucceeds(
+      getDoc(
+        doc(
+          db,
+          'public_profiles',
+          OWNER_UID,
+          'public_photos',
+          PHOTO_ID
+        )
+      )
+    );
   });
 
-  it('volta a incluir a galeria owner-scoped após restauração para PUBLIC', async () => {
+  it('mantém listagem owner-scoped bloqueada após restauração para PUBLIC', async () => {
     await setMediaVisibility('PRIVATE');
     await setMediaVisibility('PUBLIC');
     const db = viewerDb();
+
     const videoQuery = query(
       collection(db, 'public_profiles', OWNER_UID, 'public_videos'),
       where('ageEligibilityVerifiedAdult', '==', true),
@@ -417,13 +436,20 @@ describe('Firestore Rules / public media age visibility', () => {
       where('moderationStatus', '==', 'APPROVED')
     );
 
-    const [videos, photos] = await Promise.all([
-      assertSucceeds(getDocs(videoQuery)),
-      assertSucceeds(getDocs(photoQuery)),
-    ]);
+    await assertFails(getDocs(videoQuery));
+    await assertFails(getDocs(photoQuery));
 
-    expect(videos.size).toBe(1);
-    expect(photos.size).toBe(1);
+    await assertSucceeds(
+      getDoc(
+        doc(
+          db,
+          'public_profiles',
+          OWNER_UID,
+          'public_videos',
+          VIDEO_ID
+        )
+      )
+    );
   });
 
   it('bloqueia mídia e consultas globais quando o proprietário perde elegibilidade etária', async () => {
