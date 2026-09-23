@@ -3,7 +3,9 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
+  PROFILE_AGE_REVERIFICATION_RESPONSE_WINDOW_BASIS,
   calculateAgeBand,
+  isAgeReverificationSubmissionAcceptedStatus,
   type ProfileAgeBand,
 } from './profile-age-reverification.policy';
 import {
@@ -19,18 +21,25 @@ interface SubmitProfileAgeReverificationRequest {
   birthDate?: string;
   confirmsTruthfulness?: boolean;
   acceptsRestrictedProcessing?: boolean;
+  requestsAlternativeReview?: boolean;
 }
 
 interface SubmissionTransactionResult {
   caseId: string;
-  expired: boolean;
+  submittedAfterOperationalTarget: boolean;
+  alternativeReviewRequested: boolean;
 }
 
 export const submitProfileAgeReverification = onCall<
   SubmitProfileAgeReverificationRequest
 >(
   { region: FUNCTIONS_REGION },
-  async (request): Promise<{ caseId: string; status: 'SUBMITTED' }> => {
+  async (request): Promise<{
+    caseId: string;
+    status: 'SUBMITTED';
+    submittedAfterOperationalTarget: boolean;
+    alternativeReviewRequested: boolean;
+  }> => {
     const uid = assertComplianceAuthenticatedUid(request.auth);
 
     if (request.auth?.token?.email_verified !== true) {
@@ -40,21 +49,31 @@ export const submitProfileAgeReverification = onCall<
       );
     }
 
-    if (
-      request.data?.confirmsTruthfulness !== true ||
-      request.data?.acceptsRestrictedProcessing !== true
-    ) {
+    const alternativeReviewRequested =
+      request.data?.requestsAlternativeReview === true;
+
+    if (request.data?.acceptsRestrictedProcessing !== true) {
       throw new HttpsError(
         'invalid-argument',
-        'Confirme a veracidade dos dados e o processamento restrito.'
+        'Confirme a ciência sobre o processamento restrito.'
       );
     }
 
-    const ageBand: ProfileAgeBand | null = calculateAgeBand(
-      String(request.data?.birthDate ?? '')
-    );
+    if (
+      !alternativeReviewRequested &&
+      request.data?.confirmsTruthfulness !== true
+    ) {
+      throw new HttpsError(
+        'invalid-argument',
+        'Confirme a veracidade dos dados informados.'
+      );
+    }
 
-    if (!ageBand) {
+    const ageBand: ProfileAgeBand | null = alternativeReviewRequested
+      ? null
+      : calculateAgeBand(String(request.data?.birthDate ?? ''));
+
+    if (!alternativeReviewRequested && !ageBand) {
       throw new HttpsError(
         'invalid-argument',
         'Data de nascimento inválida.'
@@ -81,7 +100,11 @@ export const submitProfileAgeReverification = onCall<
         const reportId = cleanComplianceId(ageReverification.reportId);
         const dueAt = Number(ageReverification.dueAt ?? 0);
 
-        if (currentStatus !== 'REQUIRED' || !caseId || !reportId) {
+        if (
+          !isAgeReverificationSubmissionAcceptedStatus(currentStatus) ||
+          !caseId ||
+          !reportId
+        ) {
           throw new HttpsError(
             'failed-precondition',
             'Não há revalidação de idade pendente para esta conta.'
@@ -117,52 +140,18 @@ export const submitProfileAgeReverification = onCall<
         }
 
         const timestamp = FieldValue.serverTimestamp();
-        const expired = Number.isFinite(dueAt) &&
+        const submittedAfterOperationalTarget =
+          Number.isFinite(dueAt) &&
           dueAt > 0 &&
           submittedAt > dueAt;
-
-        if (expired) {
-          transaction.set(
-            userRef,
-            {
-              ageReverification: {
-                ...ageReverification,
-                status: 'EXPIRED',
-                resolution: 'Prazo de envio expirado.',
-              },
-              updatedAt: timestamp,
-            },
-            { merge: true }
-          );
-          transaction.set(
-            caseRef,
-            {
-              status: 'EXPIRED',
-              expiredAt: submittedAt,
-              updatedAt: timestamp,
-            },
-            { merge: true }
-          );
-          transaction.update(reportRef, {
-            ageReverificationStatus: 'EXPIRED',
-            updatedAt: timestamp,
-          });
-          transaction.create(auditRef, {
-            uid,
-            type: 'age_reverification.expired',
-            reportId,
-            caseId,
-            source: 'system',
-            createdAt: timestamp,
-            createdAtMs: submittedAt,
-          });
-
-          return { caseId, expired: true };
-        }
-
-        const submissionResult = ageBand === '18_PLUS'
+        const submissionResult = alternativeReviewRequested
           ? 'INCONCLUSIVE'
-          : 'UNDERAGE';
+          : ageBand === '18_PLUS'
+            ? 'INCONCLUSIVE'
+            : 'UNDERAGE';
+        const submissionMethod = alternativeReviewRequested
+          ? 'ALTERNATIVE_TRUSTED_REVIEW_REQUEST'
+          : 'SELF_DECLARATION_REVIEW';
 
         transaction.set(
           userRef,
@@ -172,9 +161,13 @@ export const submitProfileAgeReverification = onCall<
               status: 'SUBMITTED',
               submittedAt,
               result: submissionResult,
-              method: 'SELF_DECLARATION_REVIEW',
+              method: submissionMethod,
               declaredAgeBand: ageBand,
               resolution: null,
+              submittedAfterOperationalTarget,
+              alternativeReviewRequested,
+              responseWindowBasis:
+                PROFILE_AGE_REVERIFICATION_RESPONSE_WINDOW_BASIS,
             },
             updatedAt: timestamp,
           },
@@ -187,9 +180,13 @@ export const submitProfileAgeReverification = onCall<
             status: 'SUBMITTED',
             submittedAt,
             result: submissionResult,
-            method: 'SELF_DECLARATION_REVIEW',
+            method: submissionMethod,
             declaredAgeBand: ageBand,
             birthDateStored: false,
+            submittedAfterOperationalTarget,
+            alternativeReviewRequested,
+            responseWindowBasis:
+              PROFILE_AGE_REVERIFICATION_RESPONSE_WINDOW_BASIS,
             updatedAt: timestamp,
           },
           { merge: true }
@@ -198,6 +195,10 @@ export const submitProfileAgeReverification = onCall<
         transaction.update(reportRef, {
           ageReverificationStatus: 'SUBMITTED',
           ageReverificationSubmittedAt: timestamp,
+          ageReverificationSubmittedAfterOperationalTarget:
+            submittedAfterOperationalTarget,
+          ageReverificationAlternativeReviewRequested:
+            alternativeReviewRequested,
           updatedAt: timestamp,
         });
 
@@ -209,22 +210,30 @@ export const submitProfileAgeReverification = onCall<
           result: submissionResult,
           declaredAgeBand: ageBand,
           birthDateStored: false,
+          dueAt: Number.isFinite(dueAt) && dueAt > 0 ? dueAt : null,
+          submittedAfterOperationalTarget,
+          alternativeReviewRequested,
+          responseWindowBasis:
+            PROFILE_AGE_REVERIFICATION_RESPONSE_WINDOW_BASIS,
           source: 'web',
           createdAt: timestamp,
           createdAtMs: submittedAt,
         });
 
-        return { caseId, expired: false };
+        return {
+          caseId,
+          submittedAfterOperationalTarget,
+          alternativeReviewRequested,
+        };
       }
     );
 
-    if (result.expired) {
-      throw new HttpsError(
-        'deadline-exceeded',
-        'O prazo desta revalidação expirou. Entre em contato com o suporte.'
-      );
-    }
-
-    return { caseId: result.caseId, status: 'SUBMITTED' };
+    return {
+      caseId: result.caseId,
+      status: 'SUBMITTED',
+      submittedAfterOperationalTarget:
+        result.submittedAfterOperationalTarget,
+      alternativeReviewRequested: result.alternativeReviewRequested,
+    };
   }
 );
