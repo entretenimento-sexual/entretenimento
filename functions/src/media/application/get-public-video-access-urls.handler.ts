@@ -20,33 +20,15 @@ import {
 import {
   consumePublicVideoAccessQuota,
 } from './public-video-access-rate-limit.service';
+import {
+  publicAgeProjectionValidUntilMs,
+  resolvePublicMediaSignedUrlExpiresAt,
+} from './public-media-age-expiry.policy';
 import { createTemporaryStorageReadUrl } from './temporary-storage-read-url.service';
 import {
   normalizeOwnedPublishedVideoPath,
   normalizeOwnedPublishedVideoPosterPath,
 } from './video-storage-path';
-
-function publicAgeEligibilityValidUntilMs(
-  data: Record<string, unknown> | undefined
-): number | null {
-  if (data?.['ageEligibilityVerifiedAdult'] !== true) return null;
-
-  const validUntil = data?.['ageEligibilityValidUntil'] as
-    | { toMillis?: unknown }
-    | null
-    | undefined;
-
-  if (!validUntil || typeof validUntil.toMillis !== 'function') {
-    return null;
-  }
-
-  try {
-    const value = (validUntil as { toMillis: () => number }).toMillis();
-    return Number.isFinite(value) ? value : null;
-  } catch {
-    return null;
-  }
-}
 
 interface PublicVideoAccessRequestItem {
   ownerUid?: string;
@@ -105,7 +87,9 @@ function buildRequestKey(ownerUid: string, videoId: string): string {
 async function resolveAccessItem(
   ownerUid: string,
   videoId: string,
-  maxExpiresAt: number,
+  technicalExpiresAt: number,
+  viewerExpiresAt: number,
+  ownerExpiresAt: number,
   publicProfileExists: boolean,
   mode: TPublicVideoAccessMode
 ): Promise<PublicVideoAccessResponseItem | null> {
@@ -132,7 +116,7 @@ async function resolveAccessItem(
   const publication = publicationSnap.data();
 
   const mediaValidUntilMs =
-    publicAgeEligibilityValidUntilMs(publicVideo);
+    publicAgeProjectionValidUntilMs(publicVideo);
 
   if (
     mediaValidUntilMs === null ||
@@ -154,9 +138,15 @@ async function resolveAccessItem(
     return null;
   }
 
-  const expiresAt = Math.min(maxExpiresAt, mediaValidUntilMs);
+  const expiresAt = resolvePublicMediaSignedUrlExpiresAt({
+    nowMs: Date.now(),
+    technicalExpiresAtMs: technicalExpiresAt,
+    viewerExpiresAtMs: viewerExpiresAt,
+    ownerExpiresAtMs: ownerExpiresAt,
+    mediaExpiresAtMs: mediaValidUntilMs,
+  });
 
-  if (expiresAt <= Date.now()) {
+  if (expiresAt === null) {
     return null;
   }
 
@@ -323,7 +313,7 @@ export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
             ]);
           const profileValidUntilMs =
             profileSnapshot.exists
-              ? publicAgeEligibilityValidUntilMs(profileSnapshot.data())
+              ? publicAgeProjectionValidUntilMs(profileSnapshot.data())
               : null;
           const ownerAgeDecision = evaluateCanonicalAgeEligibility({
             uid: ownerUid,
@@ -399,12 +389,10 @@ export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
               item: await resolveAccessItem(
                 ownerUid,
                 videoId,
-                Math.min(
-                  technicalExpiresAt,
-                  viewerExpiresAt,
-                  profileAccess?.validUntilMs ??
-                    Number.NEGATIVE_INFINITY
-                ),
+                technicalExpiresAt,
+                viewerExpiresAt,
+                profileAccess?.validUntilMs ??
+                  Number.NEGATIVE_INFINITY,
                 profileAccess?.exists === true,
                 mode
               ),
