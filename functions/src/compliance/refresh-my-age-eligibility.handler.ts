@@ -20,6 +20,7 @@ import {
 interface RefreshMyAgeEligibilityResponse {
   status:
     | 'UNVERIFIED'
+    | 'DECLARED_ADULT'
     | 'VERIFIED_ADULT'
     | 'DENIED_UNDERAGE'
     | 'REVIEW_REQUIRED'
@@ -67,6 +68,7 @@ export const refreshMyAgeEligibility = onCall(
       });
 
       if (
+        currentDecision.allowed ||
         currentDecision.status === 'VERIFIED_ADULT' ||
         currentDecision.status === 'DENIED_UNDERAGE' ||
         currentDecision.status === 'REVIEW_REQUIRED' ||
