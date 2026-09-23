@@ -329,6 +329,15 @@ export const processBillingReturn = onCall<ProcessBillingReturnRequest>(
       });
     }
 
+    if (!isFunctionsEmulatorRuntime()) {
+      return buildProcessingResult({
+        scope: checkout.scope,
+        checkoutSessionId: checkout.id,
+        providerSessionId: checkout.providerSessionId ?? null,
+        message: 'Aguardando confirmação segura do provedor de pagamento.',
+      });
+    }
+
     if (!isPlatformCheckoutPriceLockActive(checkout)) {
       return {
         status: 'failed',
@@ -341,15 +350,6 @@ export const processBillingReturn = onCall<ProcessBillingReturnRequest>(
         message:
           'O preço desta sessão expirou. Volte aos planos para carregar o valor vigente.',
       };
-    }
-
-    if (!isFunctionsEmulatorRuntime()) {
-      return buildProcessingResult({
-        scope: checkout.scope,
-        checkoutSessionId: checkout.id,
-        providerSessionId: checkout.providerSessionId ?? null,
-        message: 'Aguardando confirmação segura do provedor de pagamento.',
-      });
     }
 
     const settlement = await settleVerifiedPaidEvent(
