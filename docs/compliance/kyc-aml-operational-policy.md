@@ -49,11 +49,21 @@ A experiência recomendada é:
 - nova solicitação somente por expiração, mudança relevante de identidade, invalidação do provedor ou suspeita fundamentada;
 - canal de contestação quando houver restrição por possível menoridade.
 
-Enquanto não existir integração de produção com mecanismo confiável, autodeclaração deve permanecer identificada tecnicamente como `SELF_DECLARATION_REVIEW` e resultado adulto como `INCONCLUSIVE`, sem alegação de KYC concluído.
+Enquanto não existir integração de produção com mecanismo confiável e não houver equipe operacional de revisão inicial, o onboarding usa **autodeclaração adulta provisória** como política de acesso. Essa decisão é registrada pelo backend como `DECLARED_ADULT` / `SELF_DECLARATION` e **não** pode ser apresentada, auditada ou tratada como `VERIFIED_ADULT`, KYC ou prova documental.
 
-O fallback operacional de revisão humana também não pode promover a autodeclaração. Uma decisão `VERIFIED_ADULT` exige evidência confiável revisada por staff autorizado. A aplicação recebe somente uma referência operacional da evidência e persiste apenas seu hash e o método da revisão; a referência bruta, documento, CPF, nome civil e data de nascimento não pertencem ao registro etário canônico.
+No modo inicial `DECLARATION_FIRST`:
 
-No onboarding atual, uma conta sem assertion confiável pode abrir uma solicitação de revisão. Enquanto o caso estiver aberto, `age_eligibility_records/{uid}` permanece em `REVIEW_REQUIRED` e todas as superfícies adultas continuam bloqueadas. O consentimento adulto ocorre somente depois de `VERIFIED_ADULT`.
+- o usuário confirma explicitamente ter 18 anos ou mais;
+- o backend registra a declaração e a trilha de auditoria;
+- o consentimento adulto continua sendo uma etapa separada;
+- o usuário não precisa aguardar revisão humana inexistente nem enviar documento sem um fluxo operacional real;
+- denúncias de possível menoridade permanecem disponíveis, protegidas por App Check, rate limit, deduplicação e detecção de abuso;
+- uma denúncia isolada não equivale a prova de menoridade nem deve produzir bloqueio permanente sem caminho de contestação;
+- estados de segurança já fundamentados, conflito com provedor ou reverificação ativa não podem ser anulados por nova autodeclaração.
+
+A arquitetura de prova forte permanece pronta. `VERIFIED_ADULT` continua reservado a assertion de provedor, KYC ou revisão baseada em evidência confiável. Quando um provedor etário for contratado e integrado, a política canônica pode migrar de `DECLARATION_FIRST` para `VERIFIED_ONLY` sem reutilizar a autodeclaração como prova.
+
+O fallback operacional de revisão humana também não pode promover a autodeclaração por si só. Uma decisão `VERIFIED_ADULT` exige evidência confiável revisada por staff autorizado ou assertion equivalente. A aplicação recebe somente uma referência operacional da evidência e persiste apenas seu hash e o método da revisão; a referência bruta, documento, CPF, nome civil e data de nascimento não pertencem ao registro etário canônico.
 
 ## KYC financeiro proporcional
 
