@@ -5,6 +5,7 @@ import {
   buildAgeReverificationDueAt,
   calculateAgeBand,
   isAgeReverificationAccessRestricted,
+  isAgeReverificationSubmissionAcceptedStatus,
   isProfileMinorSafetyReport,
 } from './profile-age-reverification.policy';
 
@@ -33,6 +34,13 @@ describe('profile-age-reverification policy', () => {
     assert.equal(calculateAgeBand('1890-01-01', now), null);
   });
 
+  it('aceita envio inicial ou tardio sem transformar prazo em barreira', () => {
+    assert.equal(isAgeReverificationSubmissionAcceptedStatus('REQUIRED'), true);
+    assert.equal(isAgeReverificationSubmissionAcceptedStatus('EXPIRED'), true);
+    assert.equal(isAgeReverificationSubmissionAcceptedStatus('SUBMITTED'), false);
+    assert.equal(isAgeReverificationSubmissionAcceptedStatus('REJECTED'), false);
+  });
+
   it('restringe somente estados pendentes de revalidação', () => {
     assert.equal(isAgeReverificationAccessRestricted('REQUIRED'), true);
     assert.equal(isAgeReverificationAccessRestricted('SUBMITTED'), true);
@@ -42,7 +50,7 @@ describe('profile-age-reverification policy', () => {
     assert.equal(isAgeReverificationAccessRestricted('REJECTED'), false);
   });
 
-  it('define prazo padrão de sete dias', () => {
+  it('define meta operacional padrão de sete dias', () => {
     const requestedAt = Date.UTC(2026, 6, 16);
 
     assert.equal(
