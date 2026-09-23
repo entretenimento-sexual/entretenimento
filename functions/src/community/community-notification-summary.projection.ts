@@ -79,6 +79,36 @@ export const COMMUNITY_NOTIFICATION_SUMMARY_MATRIX = Object.freeze({
     priority: true,
     requiresActiveMembershipCycle: false,
   },
+  'community.ownership.transfer_requested': {
+    category: 'management',
+    priority: true,
+    requiresActiveMembershipCycle: false,
+  },
+  'community.ownership.transfer_accepted': {
+    category: 'management',
+    priority: false,
+    requiresActiveMembershipCycle: false,
+  },
+  'community.ownership.transfer_declined': {
+    category: 'management',
+    priority: false,
+    requiresActiveMembershipCycle: false,
+  },
+  'community.ownership.transfer_canceled': {
+    category: 'management',
+    priority: false,
+    requiresActiveMembershipCycle: false,
+  },
+  'community.ownership.transfer_expired': {
+    category: 'management',
+    priority: true,
+    requiresActiveMembershipCycle: false,
+  },
+  'community.ownership.succession_archived': {
+    category: 'access',
+    priority: true,
+    requiresActiveMembershipCycle: false,
+  },
 } as const);
 
 type CommunityNotificationSummaryType =
