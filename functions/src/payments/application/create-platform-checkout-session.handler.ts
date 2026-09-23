@@ -66,8 +66,45 @@ import {
 interface CreatePlatformCheckoutSessionRequest {
   planId?: string;
   planKey?: string;
+  expectedAmountCents?: number;
+  expectedCurrency?: string;
+  expectedInterval?: string;
+  expectedCatalogVersion?: number;
   minimumRole?: string;
   returnUrl?: string;
+}
+
+function assertDisplayedPlanStillCurrent(
+  plan: ReturnType<typeof requirePlatformPlanByKey>,
+  request: CreatePlatformCheckoutSessionRequest | undefined
+): void {
+  if (!request) return;
+
+  const quoteWasProvided =
+    request.expectedAmountCents !== undefined
+    || request.expectedCurrency !== undefined
+    || request.expectedInterval !== undefined
+    || request.expectedCatalogVersion !== undefined;
+
+  if (!quoteWasProvided) return;
+
+  const matches =
+    request.expectedAmountCents === plan.amountCents
+    && request.expectedCurrency === plan.currency
+    && request.expectedInterval === plan.interval
+    && request.expectedCatalogVersion === plan.catalogVersion;
+
+  if (matches) return;
+
+  throw new HttpsError(
+    'failed-precondition',
+    'O catálogo do plano foi atualizado. Recarregue os valores antes de continuar.',
+    {
+      reason: 'plan_quote_changed',
+      planKey: plan.key,
+      catalogVersion: plan.catalogVersion,
+    }
+  );
 }
 
 export const createPlatformCheckoutSession =
@@ -100,6 +137,7 @@ export const createPlatformCheckoutSession =
         request.data?.planKey,
         request.data?.planId
       );
+      assertDisplayedPlanStillCurrent(plan, request.data);
 
       const now = Date.now();
       const planSnapshot = createBillingPlanSnapshot(plan, now);
