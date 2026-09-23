@@ -219,16 +219,17 @@ export async function settleRecurringPlatformSubscriptionPayment(
       const currentPayment =
         existingEntitlement?.sourcePaymentTransactionId === transactionId;
       const restoringChargeback =
-        transaction?.status === 'chargeback' &&
-        currentPayment &&
-        existingEntitlement !== null;
+        transaction?.status === 'chargeback';
 
       if (restoringChargeback) {
-        const restoredEntitlement: EntitlementDoc = {
-          ...existingEntitlement!,
-          active: true,
-          updatedAt: now,
-        };
+        const restoredEntitlement =
+          currentPayment && existingEntitlement !== null
+            ? {
+              ...existingEntitlement,
+              active: true,
+              updatedAt: now,
+            } satisfies EntitlementDoc
+            : existingEntitlement;
         const restoredStatus = evaluatePlatformSubscriptionEntitlement(
           restoredEntitlement,
           contract.buyerUid,
@@ -256,7 +257,9 @@ export async function settleRecurringPlatformSubscriptionPayment(
           },
           { merge: true }
         );
-        tx.set(entitlementRef, restoredEntitlement, { merge: true });
+        if (currentPayment && restoredEntitlement) {
+          tx.set(entitlementRef, restoredEntitlement, { merge: true });
+        }
         tx.set(
           contractRef,
           {
@@ -303,9 +306,9 @@ export async function settleRecurringPlatformSubscriptionPayment(
           providerPaymentId: payment.paymentId,
           transactionId,
           entitlementId,
-          restoredOriginalPeriod: true,
+          restoredOriginalPeriod: currentPayment,
           renewalRestored: false,
-          accessRestored: restoredStatus.active,
+          accessRestored: currentPayment && restoredStatus.active,
           createdAt: now,
         });
 
