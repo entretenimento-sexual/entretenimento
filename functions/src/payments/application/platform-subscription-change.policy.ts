@@ -2,14 +2,13 @@
 // -----------------------------------------------------------------------------
 // POLICY DE MUDANÇA DE PLANO
 // -----------------------------------------------------------------------------
-// Define a semântica suportada pelo checkout atual.
+// Define a semântica financeira/temporal suportada pelo checkout atual.
 //
-// - nova assinatura: permitida;
-// - renovação do mesmo plano: permitida no backend;
-// - upgrade: permitido e entra em vigor após confirmação financeira;
-// - downgrade: bloqueado enquanto não houver agendamento real para o próximo
-//   ciclo de cobrança. Isso evita retirar benefício já pago ou cobrar agora por
-//   uma redução futura que o backend ainda não sabe programar.
+// - nova assinatura: preço vigente do catálogo, um mês a partir do pagamento;
+// - renovação: preço vigente do catálogo, estende um mês do término atual;
+// - upgrade: preço integral vigente do plano alvo, sem proration, acesso maior
+//   após pagamento e extensão de um mês a partir do término já pago;
+// - downgrade: bloqueado até existir contratação segura após o ciclo atual.
 // -----------------------------------------------------------------------------
 
 import type { PlatformRole } from '../domain/billing.model';
@@ -20,11 +19,30 @@ export type PlatformSubscriptionPlanChangeKind =
   | 'upgrade'
   | 'downgrade_blocked';
 
+export type PlatformSubscriptionPriceTreatment =
+  | 'current_catalog_snapshot_full_period'
+  | 'not_available';
+
+export type PlatformSubscriptionPeriodTreatment =
+  | 'start_from_payment'
+  | 'extend_from_current_end'
+  | 'blocked';
+
+export type PlatformSubscriptionAccessTreatment =
+  | 'activate_after_payment'
+  | 'upgrade_after_payment'
+  | 'preserve_current_access'
+  | 'blocked';
+
 export interface PlatformSubscriptionPlanChangePolicy {
   allowed: boolean;
   kind: PlatformSubscriptionPlanChangeKind;
   currentRole: PlatformRole | null;
   requestedRole: PlatformRole;
+  priceTreatment: PlatformSubscriptionPriceTreatment;
+  periodTreatment: PlatformSubscriptionPeriodTreatment;
+  accessTreatment: PlatformSubscriptionAccessTreatment;
+  prorationSupported: false;
 }
 
 const PLATFORM_ROLE_RANK: Readonly<Record<PlatformRole, number>> = Object.freeze({
@@ -45,6 +63,10 @@ export function resolvePlatformSubscriptionPlanChangePolicy(params: {
       kind: 'new_subscription',
       currentRole,
       requestedRole,
+      priceTreatment: 'current_catalog_snapshot_full_period',
+      periodTreatment: 'start_from_payment',
+      accessTreatment: 'activate_after_payment',
+      prorationSupported: false,
     };
   }
 
@@ -54,6 +76,10 @@ export function resolvePlatformSubscriptionPlanChangePolicy(params: {
       kind: 'renewal',
       currentRole,
       requestedRole,
+      priceTreatment: 'current_catalog_snapshot_full_period',
+      periodTreatment: 'extend_from_current_end',
+      accessTreatment: 'preserve_current_access',
+      prorationSupported: false,
     };
   }
 
@@ -63,6 +89,10 @@ export function resolvePlatformSubscriptionPlanChangePolicy(params: {
       kind: 'upgrade',
       currentRole,
       requestedRole,
+      priceTreatment: 'current_catalog_snapshot_full_period',
+      periodTreatment: 'extend_from_current_end',
+      accessTreatment: 'upgrade_after_payment',
+      prorationSupported: false,
     };
   }
 
@@ -71,5 +101,9 @@ export function resolvePlatformSubscriptionPlanChangePolicy(params: {
     kind: 'downgrade_blocked',
     currentRole,
     requestedRole,
+    priceTreatment: 'not_available',
+    periodTreatment: 'blocked',
+    accessTreatment: 'blocked',
+    prorationSupported: false,
   };
 }
