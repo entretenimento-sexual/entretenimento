@@ -35,6 +35,7 @@ interface DiscoveryFiltersInput {
   orientation?: unknown;
   municipio?: unknown;
   estado?: unknown;
+  nicknamePrefix?: unknown;
 }
 
 interface DiscoveryPageRequest {
@@ -55,6 +56,7 @@ interface DiscoveryFilters {
   orientation: string | null;
   municipio: string | null;
   estado: string | null;
+  nicknamePrefix: string | null;
 }
 
 interface DiscoveryPageResponse {
@@ -173,6 +175,7 @@ function normalizeFilters(value: unknown): DiscoveryFilters {
     orientation: normalizedComparableText(raw['orientation']),
     municipio: normalizedComparableText(raw['municipio']),
     estado: normalizedComparableText(raw['estado']),
+    nicknamePrefix: normalizedComparableText(raw['nicknamePrefix']),
   };
 }
 
@@ -220,6 +223,10 @@ function matchesDiscoveryFilters(
       || normalizedComparableText(card['municipio']) === filters.municipio)
     && (!filters.estado
       || normalizedComparableText(card['estado']) === filters.estado)
+    && (!filters.nicknamePrefix
+      || String(card['nicknameNormalized'] ?? '')
+        .toLocaleLowerCase('pt-BR')
+        .startsWith(filters.nicknamePrefix))
   );
 }
 
@@ -439,24 +446,35 @@ export const getPublicProfilesPage = onCall<DiscoveryPageRequest>(
       && scanned < maxScanned
       && !reachedEnd
     ) {
+      const nicknamePrefix = filters.nicknamePrefix;
       let profilesQuery: FirebaseFirestore.Query = db
-        .collection('public_profiles')
-        .where('ageEligibilityVerifiedAdult', '==', true);
+        .collection('public_profiles');
 
-      if (mode === 'compatible') {
+      if (nicknamePrefix) {
         profilesQuery = profilesQuery
-          .where('compatibilityReady', '==', true);
-      }
+          .where('nicknameNormalized', '>=', nicknamePrefix)
+          .where('nicknameNormalized', '<=', nicknamePrefix + '\uf8ff')
+          .orderBy('nicknameNormalized', 'asc')
+          .orderBy(FieldPath.documentId(), 'asc');
+      } else {
+        profilesQuery = profilesQuery
+          .where('ageEligibilityVerifiedAdult', '==', true);
 
-      profilesQuery = profilesQuery
-        .orderBy('updatedAt', 'desc')
-        .orderBy(FieldPath.documentId(), 'desc');
+        if (mode === 'compatible') {
+          profilesQuery = profilesQuery
+            .where('compatibilityReady', '==', true);
+        }
 
-      if (cursor) {
-        profilesQuery = profilesQuery.startAfter(
-          Timestamp.fromMillis(cursor.updatedAtMs),
-          cursor.uid
-        );
+        profilesQuery = profilesQuery
+          .orderBy('updatedAt', 'desc')
+          .orderBy(FieldPath.documentId(), 'desc');
+
+        if (cursor) {
+          profilesQuery = profilesQuery.startAfter(
+            Timestamp.fromMillis(cursor.updatedAtMs),
+            cursor.uid
+          );
+        }
       }
 
       const remainingScan = maxScanned - scanned;
@@ -504,8 +522,8 @@ export const getPublicProfilesPage = onCall<DiscoveryPageRequest>(
 
     return {
       items,
-      nextCursor: reachedEnd ? null : cursor,
-      reachedEnd,
+      nextCursor: filters.nicknamePrefix || reachedEnd ? null : cursor,
+      reachedEnd: filters.nicknamePrefix ? true : reachedEnd,
       fetchedAt: nowMs,
       scanned,
     };
