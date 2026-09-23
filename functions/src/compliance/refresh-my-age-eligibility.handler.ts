@@ -11,11 +11,25 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
+  REQUIRE_CALLABLE_APP_CHECK,
+  assertCallableAppCheck,
+} from '../shared/security/callable-app-check';
+import {
+  consumeBackendRateLimitQuota,
+} from '../shared/security/backend-rate-limit.service';
+import {
   evaluateCanonicalAgeEligibility,
 } from './age-eligibility.policy';
 import {
   writeCanonicalAgeEligibilityInTransaction,
 } from './age-eligibility.service';
+
+const AGE_ELIGIBILITY_REFRESH_RATE_LIMIT = Object.freeze({
+  burstWindowMs: 60_000,
+  burstMax: 12,
+  sustainedWindowMs: 24 * 60 * 60 * 1_000,
+  sustainedMax: 120,
+});
 
 interface RefreshMyAgeEligibilityResponse {
   status:
@@ -38,13 +52,25 @@ function positiveTime(value: unknown): number | null {
 }
 
 export const refreshMyAgeEligibility = onCall(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_CALLABLE_APP_CHECK,
+  },
   async (request): Promise<RefreshMyAgeEligibilityResponse> => {
+    assertCallableAppCheck(request.app);
     const uid = cleanUid(request.auth?.uid);
 
     if (!uid) {
       throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
     }
+
+    await consumeBackendRateLimitQuota({
+      action: 'compliance:refresh-age-eligibility',
+      subject: uid,
+      config: AGE_ELIGIBILITY_REFRESH_RATE_LIMIT,
+      message:
+        'Muitas atualizações foram solicitadas em pouco tempo. Aguarde um instante e tente novamente.',
+    });
 
     return db.runTransaction(async (transaction) => {
       const userRef = db.collection('users').doc(uid);
