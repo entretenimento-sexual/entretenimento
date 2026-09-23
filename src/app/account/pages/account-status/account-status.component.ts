@@ -57,6 +57,16 @@ export class AccountStatusComponent {
 
   readonly lifecycleState$ = this.accountLifecycleFacade.lifecycleState$;
   readonly vm$ = this.accountLifecycleFacade.statusVm$;
+  readonly canRequestAgeReverificationAppeal$ =
+    this.currentUserStore.user$.pipe(
+      map((user) => {
+        const status = String(user?.ageReverification?.status ?? '')
+          .trim()
+          .toUpperCase();
+
+        return status === 'REJECTED' || status === 'EXPIRED';
+      })
+    );
 
   readonly busyAction = signal<'reactivate' | 'cancel_deletion' | null>(null);
   readonly lifecycleDialogIntent =
