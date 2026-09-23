@@ -43,7 +43,9 @@ const routes: Routes = [
     loadComponent: () =>
       import('./compliance/age-reverification-page/age-reverification-page.component')
         .then(m => m.AgeReverificationPageComponent),
-    canActivate: [authGuard, accountLifecycleGuard],
+    // Precisa permanecer acessível durante suspensão etária para permitir
+    // contestação/reenvio. O backend valida se existe caso elegível.
+    canActivate: [authGuard],
   },
   {
     path: '',
