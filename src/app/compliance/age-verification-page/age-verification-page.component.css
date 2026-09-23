@@ -3,17 +3,17 @@
 }
 
 .age-verification {
-  min-height: min(76vh, 820px);
+  min-height: min(74vh, 760px);
   display: grid;
   place-items: center;
   padding: clamp(24px, 5vw, 64px) 20px;
 }
 
 .age-verification__card {
-  width: min(100%, 720px);
+  width: min(100%, 680px);
   display: grid;
-  gap: 22px;
-  padding: clamp(24px, 4vw, 42px);
+  gap: 20px;
+  padding: clamp(24px, 4vw, 40px);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.045);
@@ -45,12 +45,11 @@
 
 .age-verification__eyebrow,
 .age-verification__intro,
+.age-verification__statement p,
+.age-verification__notice p,
 .age-verification__status p,
 .age-verification__feedback p,
-.age-verification__guidance p,
-.age-verification__step p,
-.age-verification__how p,
-.age-verification__privacy-note {
+.age-verification__safety p {
   margin: 0;
 }
 
@@ -63,7 +62,7 @@
 
 .age-verification h1 {
   margin: 0;
-  font-size: clamp(1.7rem, 3vw, 2.15rem);
+  font-size: clamp(1.7rem, 3vw, 2.1rem);
   line-height: 1.12;
   text-wrap: balance;
 }
@@ -72,15 +71,33 @@
   margin-top: 10px;
   max-width: 58ch;
   line-height: 1.55;
-  opacity: 0.78;
+  opacity: 0.8;
 }
 
+.age-verification__statement,
+.age-verification__notice,
 .age-verification__status,
 .age-verification__feedback,
-.age-verification__guidance,
-.age-verification__how {
+.age-verification__safety {
   border-radius: 16px;
+  padding: 17px 18px;
   background: rgba(255, 255, 255, 0.06);
+}
+
+.age-verification__statement,
+.age-verification__notice,
+.age-verification__feedback,
+.age-verification__safety {
+  display: grid;
+  gap: 8px;
+}
+
+.age-verification__statement p,
+.age-verification__notice p,
+.age-verification__status p,
+.age-verification__feedback p,
+.age-verification__safety p {
+  line-height: 1.52;
 }
 
 .age-verification__status {
@@ -88,7 +105,6 @@
   grid-template-columns: auto 1fr;
   gap: 14px;
   align-items: start;
-  padding: 18px;
 }
 
 .age-verification__status-icon {
@@ -96,117 +112,70 @@
   place-items: center;
   min-width: 34px;
   min-height: 34px;
-  padding: 4px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.1);
   font-weight: 800;
-  font-size: 0.88rem;
 }
 
-.age-verification__status > div,
-.age-verification__feedback {
+.age-verification__status > div {
   display: grid;
   gap: 7px;
 }
 
-.age-verification__status p,
-.age-verification__feedback p,
-.age-verification__guidance p,
-.age-verification__step p,
-.age-verification__how p {
-  line-height: 1.5;
-}
-
-.age-verification__status--success,
-.age-verification__feedback--success {
-  border: 1px solid rgba(255, 255, 255, 0.18);
-}
-
-.age-verification__status--warning,
-.age-verification__feedback--warning {
-  border: 1px solid rgba(255, 255, 255, 0.16);
-}
-
-.age-verification__status--progress {
+.age-verification__notice {
   border: 1px solid rgba(255, 255, 255, 0.14);
 }
 
-.age-verification__feedback {
-  padding: 14px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-}
-
+.age-verification__status--restricted,
 .age-verification__feedback--error {
-  border-color: rgba(255, 255, 255, 0.24);
+  border: 1px solid rgba(255, 255, 255, 0.22);
 }
 
-.age-verification__steps {
-  display: grid;
-  gap: 12px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+.age-verification__feedback--success {
+  border: 1px solid rgba(255, 255, 255, 0.16);
 }
 
-.age-verification__step {
-  display: grid;
-  grid-template-columns: 36px 1fr;
-  gap: 12px;
-  align-items: start;
-  padding: 12px 0;
-  opacity: 0.68;
+.age-verification__safety {
+  font-size: 0.9rem;
+  opacity: 0.82;
 }
 
-.age-verification__step > span,
-.age-verification__how-grid span {
-  display: grid;
-  place-items: center;
-  min-width: 30px;
-  min-height: 30px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
-  font-weight: 800;
-  font-size: 0.8rem;
+.age-verification__primary,
+.age-verification__secondary,
+.age-verification__link {
+  width: 100%;
+  border-radius: 12px;
+  padding: 0 18px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
 }
 
-.age-verification__step--done,
-.age-verification__step--active {
-  opacity: 1;
+.age-verification__primary {
+  min-height: 54px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.94);
+  color: #111;
 }
 
-.age-verification__step--active > span {
-  outline: 2px solid rgba(255, 255, 255, 0.28);
-  outline-offset: 2px;
+.age-verification__secondary {
+  min-height: 48px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.075);
+  color: inherit;
 }
 
-.age-verification__guidance {
-  display: grid;
-  gap: 8px;
-  padding: 16px 18px;
+.age-verification__link {
+  min-height: 40px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  opacity: 0.72;
 }
 
-.age-verification__how {
-  display: grid;
-  gap: 14px;
-  padding: 18px;
-}
-
-.age-verification__how-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
-}
-
-.age-verification__how-grid > div {
-  display: grid;
-  gap: 9px;
-  align-content: start;
-}
-
-.age-verification__actions,
-.age-verification__footer-actions {
-  display: grid;
-  gap: 10px;
+.age-verification button:disabled {
+  cursor: wait;
+  opacity: 0.55;
 }
 
 .age-verification__secondary-grid {
@@ -215,57 +184,8 @@
   gap: 10px;
 }
 
-.age-verification button {
-  min-height: 48px;
-  width: 100%;
-  border-radius: 12px;
-  padding: 0 18px;
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-  transition:
-    transform 120ms ease,
-    opacity 120ms ease,
-    background-color 120ms ease;
-}
-
-.age-verification button:not(:disabled):active {
-  transform: translateY(1px);
-}
-
-.age-verification button:disabled {
-  cursor: wait;
-  opacity: 0.55;
-}
-
-.age-verification__primary {
-  min-height: 52px !important;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  background: rgba(255, 255, 255, 0.94);
-  color: #111;
-}
-
-.age-verification__secondary {
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.075);
-  color: inherit;
-}
-
-.age-verification__link {
-  min-height: 40px !important;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  opacity: 0.72;
-}
-
-.age-verification__privacy-note {
-  font-size: 0.88rem;
-  line-height: 1.55;
-  opacity: 0.7;
-}
-
 .age-verification__footer-actions {
+  display: grid;
   padding-top: 2px;
 }
 
@@ -292,7 +212,6 @@
     border-radius: 14px;
   }
 
-  .age-verification__how-grid,
   .age-verification__secondary-grid {
     grid-template-columns: 1fr;
   }
