@@ -4,22 +4,18 @@
 import { Injectable, inject } from '@angular/core';
 import {
   Firestore,
-  collection,
-  getDocs,
-  query,
-  where,
   doc,
   getDoc,
-  CollectionReference,
-  QuerySnapshot
 } from '@angular/fire/firestore';
-import { DocumentData } from 'firebase/firestore';
 import { FriendsRepo } from './friends.repo';
 import { BlocksRepo } from './blocks.repo';
 import { CooldownRepo } from './cooldown.repo';
 import { RequestsRepo } from './requests.repo';
 import { map, from, Observable, of } from 'rxjs';
 import { IUserDados } from '../../../../interfaces/iuser-dados';
+import {
+  PublicProfileReadBoundaryService,
+} from '../../../discovery/public-profile-read-boundary.service';
 
 @Injectable({ providedIn: 'root' })
 export class FriendshipRepo {
@@ -28,6 +24,7 @@ export class FriendshipRepo {
   private blocks = inject(BlocksRepo);
   private cd = inject(CooldownRepo);
   private reqs = inject(RequestsRepo);
+  private publicProfileRead = inject(PublicProfileReadBoundaryService);
 
   /* Friends */
   getFriendDoc$(a: string, b: string) { return this.friends.getFriendDoc$(a, b); }
@@ -77,26 +74,22 @@ watchFriends(uid: string) {
    * - fluxo social/público deve consultar /public_profiles
    * - suas rules públicas já permitem leitura autenticada nessa coleção
    */
-  searchUsers(term: string) {
+  searchUsers(term: string): Observable<IUserDados[]> {
     const q = (term ?? '').trim().toLowerCase();
     if (!q) return of([] as IUserDados[]);
 
-    const profilesCol = collection(this.db, 'public_profiles') as CollectionReference<DocumentData>;
-    const qRef = query(
-      profilesCol,
-      where('nicknameNormalized', '>=', q),
-      where('nicknameNormalized', '<=', q + '\uf8ff')
-    );
-
-    return from(getDocs(qRef)).pipe(
-      map((snap: QuerySnapshot<DocumentData>) =>
-        snap.docs.map(d => {
-          const data = d.data() as any;
-          return {
-            uid: data.uid ?? d.id,
-            ...data,
-          } as IUserDados;
-        })
+    return this.publicProfileRead.read$({
+      mode: 'all',
+      pageSize: 40,
+      filters: { nicknamePrefix: q },
+    }).pipe(
+      map((response) =>
+        (response.items ?? []).map((raw) => ({
+          ...(raw as unknown as IUserDados),
+          uid: String(raw['uid'] ?? '').trim(),
+          // Idade exata não integra a projeção pública.
+          age: null,
+        }))
       )
     );
   }
