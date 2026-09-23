@@ -314,6 +314,49 @@ for (const relativePath of temporalReadBoundaries) {
   }
 }
 
+const signedMediaAgeBoundaryFiles = Object.freeze([
+  'functions/src/media/application/get-public-photo-access-urls.handler.ts',
+  'functions/src/media/application/get-public-video-access-urls.handler.ts',
+]);
+
+for (const relativePath of signedMediaAgeBoundaryFiles) {
+  const absolutePath = path.join(root, relativePath);
+  if (!fs.existsSync(absolutePath)) continue;
+
+  const source = fs.readFileSync(absolutePath, 'utf8');
+  for (const required of [
+    'resolvePublicMediaSignedUrlExpiresAt',
+    'evaluateCanonicalAgeEligibility',
+    'age_eligibility_records',
+    'ageEligibilityExpiresAtMs',
+  ]) {
+    if (!source.includes(required)) {
+      violations.push(
+        `${relativePath} (URL assinada deve respeitar ${required})`
+      );
+    }
+  }
+}
+
+const mediaAgeExpiryPolicyPath = path.join(
+  root,
+  'functions/src/media/application/public-media-age-expiry.policy.ts'
+);
+
+if (fs.existsSync(mediaAgeExpiryPolicyPath)) {
+  const source = fs.readFileSync(mediaAgeExpiryPolicyPath, 'utf8');
+  if (
+    !source.includes('technicalExpiresAtMs') ||
+    !source.includes('viewerExpiresAtMs') ||
+    !source.includes('ownerExpiresAtMs') ||
+    !source.includes('mediaExpiresAtMs')
+  ) {
+    violations.push(
+      'functions/src/media/application/public-media-age-expiry.policy.ts (TTL deve ser limitado por técnica + viewer + owner + mídia)'
+    );
+  }
+}
+
 const unique = [...new Set(violations)].sort();
 if (unique.length > 0) {
   console.error('[age-authority] Fronteira etária canônica violada:');
