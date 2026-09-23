@@ -110,6 +110,7 @@ const BLOCKING_PRESENTATIONS: Readonly<
   community_ownership_transfer_conflict: { surface: 'modal', severity: 'warning', title: 'Propriedade alterada durante o fluxo', primaryAction: { label: 'Atualizar transferências', route: '/dashboard/comunidades/propriedade' }, dismissLabel: 'Fechar' },
   community_ownership_succession_closed: { surface: 'modal', severity: 'warning', title: 'Sucessão encerrada' },
   community_ownership_succession_owner_not_terminal: { surface: 'modal', severity: 'warning', title: 'Proprietário ainda disponível' },
+  community_ownership_succession_reason_required: { surface: 'modal', severity: 'info', title: 'Justificativa necessária' },
   community_settings_idempotency_invalid: { surface: 'modal', severity: 'warning', title: 'Confirmação de configuração inconsistente' },
   community_lifecycle_hold: { surface: 'modal', severity: 'warning', title: 'Operação retida' },
   membership_disclosure_invalid: { surface: 'modal', severity: 'warning', title: 'Política de privacidade inconsistente' },
