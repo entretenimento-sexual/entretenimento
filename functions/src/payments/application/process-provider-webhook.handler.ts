@@ -13,7 +13,7 @@ import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
 import {
   ASAAS_API_KEY,
-  resolveAsaasRuntimeConfig,
+  resolveAsaasApiRuntimeConfig,
 } from '../config/asaas.config';
 import {
   AsaasPaymentProvider,
@@ -36,7 +36,7 @@ import type {
 
 function createProvider(): AsaasPaymentProvider {
   return new AsaasPaymentProvider({
-    runtime: resolveAsaasRuntimeConfig(),
+    runtime: resolveAsaasApiRuntimeConfig(),
     apiKey: ASAAS_API_KEY.value(),
   });
 }
