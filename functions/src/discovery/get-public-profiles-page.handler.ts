@@ -19,6 +19,9 @@ import {
   REQUIRE_CALLABLE_APP_CHECK,
   assertCallableAppCheck,
 } from '../shared/security/callable-app-check';
+import {
+  consumeBackendRateLimitQuota,
+} from '../shared/security/backend-rate-limit.service';
 
 type DiscoveryMode = 'all' | 'compatible';
 
@@ -67,6 +70,29 @@ const MAX_PAGE_SIZE = 120;
 const MAX_SCAN_MULTIPLIER = 4;
 const MAX_SCAN_ABSOLUTE = 480;
 const MAX_UIDS_PER_REQUEST = 50;
+
+const DISCOVERY_READ_RATE_LIMIT = Object.freeze({
+  burstWindowMs: 60_000,
+  burstMax: 20,
+  sustainedWindowMs: 10 * 60_000,
+  sustainedMax: 100,
+});
+
+export function discoveryReadRateLimitCost(input: {
+  pageSize?: number;
+  uidCount?: number;
+}): number {
+  const uidCount = Number(input.uidCount ?? 0);
+  if (Number.isFinite(uidCount) && uidCount > 0) {
+    return Math.max(1, Math.ceil(uidCount / 25));
+  }
+
+  const pageSize = Number(input.pageSize ?? 24);
+  return Math.max(
+    1,
+    Math.ceil((Number.isFinite(pageSize) && pageSize > 0 ? pageSize : 24) / 24)
+  );
+}
 
 function cleanUid(value: unknown): string {
   const uid = String(value ?? '').trim();
@@ -372,10 +398,28 @@ export const getPublicProfilesPage = onCall<DiscoveryPageRequest>(
     const requestedUids = normalizeUidList(request.data?.uids);
 
     if (requestedUids.length) {
+      await consumeBackendRateLimitQuota({
+        action: 'discovery-public-profile-read',
+        subject: viewerUid,
+        cost: discoveryReadRateLimitCost({ uidCount: requestedUids.length }),
+        config: DISCOVERY_READ_RATE_LIMIT,
+        message: 'Muitas consultas de perfis foram feitas em pouco tempo.',
+        now: nowMs,
+      });
+
       return getProfilesByUids(requestedUids, nowMs);
     }
 
     const pageSize = normalizePageSize(request.data?.pageSize);
+
+    await consumeBackendRateLimitQuota({
+      action: 'discovery-public-profile-read',
+      subject: viewerUid,
+      cost: discoveryReadRateLimitCost({ pageSize }),
+      config: DISCOVERY_READ_RATE_LIMIT,
+      message: 'Muitas consultas de perfis foram feitas em pouco tempo.',
+      now: nowMs,
+    });
     const mode = normalizeMode(request.data?.mode);
     const filters = normalizeFilters(request.data?.filters);
     const initialCursor = normalizeCursor(request.data?.cursor);
