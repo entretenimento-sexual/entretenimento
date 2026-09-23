@@ -90,7 +90,7 @@ export const acceptAdultConsent = onCall(
             : 'failed-precondition',
           ageDecision.denialReason === 'underage'
             ? 'O acesso adulto não está disponível para esta conta.'
-            : 'Conclua a verificação de maioridade antes de aceitar o acesso adulto.',
+            : 'Conclua a etapa de maioridade antes de aceitar o acesso adulto.',
           {
             reason: ageDecision.denialReason,
             recommendedAction: 'complete_age_verification',
