@@ -87,6 +87,7 @@
     "community:calibration-freeze:check": "node scripts/quality/check-community-calibration-freeze.mjs",
     "billing:pricing-boundary:check": "node scripts/quality/check-billing-pricing-boundary.mjs",
     "billing:asaas-recurring:check": "node scripts/quality/check-asaas-recurring-billing.mjs",
+    "billing:asaas:webhook:configure": "node scripts/admin/configure-asaas-recurring-webhook.mjs",
     "community:cost-monitoring:apply": "node scripts/admin/apply-community-cost-monitoring.mjs",
     "community:cost-baseline:capture": "node scripts/admin/capture-community-cost-baseline.mjs",
     "community:cost-gcp:bootstrap": "node scripts/admin/bootstrap-community-cost-gcp.mjs",
