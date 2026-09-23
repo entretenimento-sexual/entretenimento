@@ -3,7 +3,8 @@
 // FINANCIAL RECORDS AND ENTITLEMENTS RETENTION EXECUTOR
 // -----------------------------------------------------------------------------
 // Cancela intenções pendentes, revoga benefícios e preserva registros financeiros
-// liquidados com pseudonimização. Não inventa saldo, saque ou assinatura recorrente.
+// liquidados com pseudonimização. Recorrências externas precisam ser encerradas
+// antes do expurgo para impedir cobranças após a exclusão.
 // -----------------------------------------------------------------------------
 import type {
   AccountDataDeletionDomainExecution,
@@ -216,6 +217,8 @@ async function executePagedStep(
     result.pendingCheckoutsCanceled += summary.pendingCheckoutsCanceled ?? 0;
     result.entitlementsArchived += summary.entitlementsArchived ?? 0;
     result.entitlementsRevoked += summary.entitlementsRevoked ?? 0;
+    result.externalRecurringSubscriptionsCanceled +=
+      summary.externalRecurringSubscriptionsCanceled ?? 0;
     result.pages = page;
 
     if (summary.processed < pageSize) {
