@@ -7,14 +7,15 @@
 // - Iniciar/parar PresenceService de forma idempotente e determinística.
 // - Não duplicar "verdades" (ready$, uid$, router, inReg) aqui.
 //
-// Gate usado aqui (OPÇÃO A — recomendado no seu caso):
-// - access.canRunInfraRealtime$
-//   => roda somente em “modo app” (fora de /register e /login)
-//   => não exige emailVerified/profileEligible
+// Gate usado aqui:
+// - access.canRunPresence$
+//   => sessão válida + camada adulta de compliance válida;
+//   => não exige e-mail verificado, porque presença própria não depende dele.
 //
-// Motivação (produto):
-// - Durante /register o usuário ainda não está “habilitado” no app.
-// - Evita writes de presença prematuros e ruído (permission-denied / logs / custo).
+// Motivação:
+// - não iniciar heartbeat antes de idade/termos/consentimento estarem válidos;
+// - evitar writes que Rules recusariam, ruído de permission-denied e custo;
+// - retomar automaticamente quando a projeção canônica liberar o usuário.
 // =============================================================================
 import { DestroyRef, Injectable, inject } from '@angular/core';
 import { defer, of } from 'rxjs';
@@ -73,7 +74,7 @@ export class PresenceOrchestratorService {
     /**
      * ✅ DRIVER EXTERNO = authUid$
      * - Qualquer troca de UID cancela o inner stream imediatamente.
-     * - can$ continua sendo a fonte única do “modo app”.
+     * - can$ continua sendo a fonte única de elegibilidade operacional.
      * - Resultado final: uid desejado (string) ou null
      */
     const desiredUid$ = authUid$.pipe(
