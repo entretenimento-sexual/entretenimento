@@ -81,8 +81,17 @@ export interface IUserAgeReverification {
   reviewedAt?: number | null;
   reviewedBy?: string | null;
   result?: AgeReverificationResult | null;
-  method?: 'SELF_DECLARATION_REVIEW' | 'EXTERNAL_PROVIDER' | 'MANUAL_REVIEW' | null;
+  method?:
+    | 'SELF_DECLARATION_REVIEW'
+    | 'ALTERNATIVE_TRUSTED_REVIEW_REQUEST'
+    | 'EXTERNAL_PROVIDER'
+    | 'MANUAL_REVIEW'
+    | null;
   declaredAgeBand?: '18_PLUS' | 'UNDER_18' | null;
+  responseWindowDays?: number | null;
+  responseWindowBasis?: 'PLATFORM_OPERATIONAL_POLICY' | null;
+  submittedAfterOperationalTarget?: boolean | null;
+  alternativeReviewRequested?: boolean | null;
   resolution?: string | null;
   evidenceMethod?:
     | 'MANUAL_DOCUMENT_REVIEW'
