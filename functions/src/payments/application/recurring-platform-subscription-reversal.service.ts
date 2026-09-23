@@ -78,6 +78,7 @@ export async function reverseRecurringPlatformSubscriptionPayment(
     .doc(contractId);
   const reversalStatus =
     event.eventName === 'PAYMENT_CHARGEBACK_REQUESTED'
+    || event.eventName === 'PAYMENT_CHARGEBACK_DISPUTE'
       ? 'chargeback'
       : 'refunded';
   const now = Date.now();
