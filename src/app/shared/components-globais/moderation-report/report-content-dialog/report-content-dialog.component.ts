@@ -86,7 +86,7 @@ const GENERAL_REPORT_REASONS: readonly ReportReasonOption[] = [
     value: 'minor_content_safety',
     label: 'Possível menor em conteúdo',
     helper:
-      'Use quando houver indício de criança ou adolescente em conteúdo sexual, íntimo, exploratório ou incompatível com a plataforma.',
+      'Use quando houver indício de criança ou adolescente em conteúdo sexual, íntimo ou exploratório. Não baixe, copie ou redistribua o material; descreva apenas o contexto necessário.',
   },
   {
     value: 'illegal_content',
@@ -109,7 +109,7 @@ const MINOR_PROFILE_REASON: ReportReasonOption = {
   value: 'minor_safety',
   label: 'Possível pessoa menor de 18 anos',
   helper:
-    'Use esta opção apenas quando acreditar que a pessoa responsável pelo perfil é menor de idade.',
+    'Use quando houver indícios de que a pessoa responsável pelo perfil pode ter menos de 18 anos. A denúncia inicia uma análise e, sozinha, não confirma a idade. Não envie documentos ou dados pessoais de terceiros.',
 };
 
 @Component({
