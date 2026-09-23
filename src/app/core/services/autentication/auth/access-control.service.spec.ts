@@ -7,6 +7,7 @@ import { PlatformSubscriptionAccessService } from '../../subscriptions/platform-
 import type { PlatformSubscriptionAccessState } from '../../subscriptions/platform-subscription-access.model';
 import { ApplicationErrorService } from '../../error-handler/application-error.service';
 import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
+import { AgeEligibilityService } from '../../compliance/age-eligibility.service';
 import { AccessControlService } from './access-control.service';
 import { AuthAppBlockService } from './auth-app-block.service';
 import { AuthRouteContextService } from './auth-route-context.service';
@@ -23,6 +24,20 @@ function createUser(role: IUserDados['role'] = 'free'): IUserDados {
     lastLogin: 1,
     profileCompleted: true,
     isSubscriber: role !== 'free' && role !== 'admin',
+    acceptedTerms: {
+      accepted: true,
+      date: 1,
+      version: 'v3',
+      acknowledgedPrivacyNotice: true,
+    },
+    initialAdultConsentRequired: true,
+    adultConsent: {
+      accepted: true,
+      version: 'v1',
+    },
+    ageReverification: {
+      status: 'NONE',
+    },
   } as IUserDados;
 }
 
@@ -57,6 +72,7 @@ describe('AccessControlService canonical subscription roles', () => {
   let subscriptionState$: BehaviorSubject<PlatformSubscriptionAccessState>;
   let subscriptionIsFree$: BehaviorSubject<boolean>;
   let subscriptionIsSubscriber$: BehaviorSubject<boolean>;
+  let ageVerified$: BehaviorSubject<boolean>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -72,6 +88,7 @@ describe('AccessControlService canonical subscription roles', () => {
     );
     subscriptionIsFree$ = new BehaviorSubject<boolean>(true);
     subscriptionIsSubscriber$ = new BehaviorSubject<boolean>(false);
+    ageVerified$ = new BehaviorSubject<boolean>(true);
 
     TestBed.configureTestingModule({
       providers: [
@@ -99,6 +116,12 @@ describe('AccessControlService canonical subscription roles', () => {
             state$: subscriptionState$.asObservable(),
             isFree$: subscriptionIsFree$.asObservable(),
             isSubscriber$: subscriptionIsSubscriber$.asObservable(),
+          },
+        },
+        {
+          provide: AgeEligibilityService,
+          useValue: {
+            verifiedAdult$: ageVerified$.asObservable(),
           },
         },
         {
@@ -294,6 +317,51 @@ describe('AccessControlService canonical subscription roles', () => {
     expect(await firstValueFrom(service.accountStatus$)).toBe('locked');
     expect(await firstValueFrom(service.isLifecycleBlocked$)).toBe(true);
     expect(await firstValueFrom(service.canEnterCore$)).toBe(false);
+  });
+
+  it('não inicia infraestrutura social adulta antes da maioridade validada', async () => {
+    ageVerified$.next(false);
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.canRunPresence$)).toBe(false);
+    expect(await firstValueFrom(service.canRunSensitiveRealtime$)).toBe(false);
+
+    ageVerified$.next(true);
+
+    expect(await firstValueFrom(service.canRunPresence$)).toBe(true);
+    expect(await firstValueFrom(service.canRunSensitiveRealtime$)).toBe(true);
+  });
+
+  it('pausa a camada adulta quando termos, consentimento ou revalidação deixam de ser válidos', async () => {
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.canRunPresence$)).toBe(true);
+
+    user$.next({
+      ...createUser(),
+      acceptedTerms: {
+        accepted: false,
+        date: null,
+      },
+    });
+    expect(await firstValueFrom(service.canRunPresence$)).toBe(false);
+
+    user$.next({
+      ...createUser(),
+      adultConsent: {
+        accepted: false,
+        version: 'v1',
+      },
+    });
+    expect(await firstValueFrom(service.canRunPresence$)).toBe(false);
+
+    user$.next({
+      ...createUser(),
+      ageReverification: {
+        status: 'UNDER_REVIEW',
+      },
+    });
+    expect(await firstValueFrom(service.canRunPresence$)).toBe(false);
   });
 
   it('não classifica guest resolvido como conta bloqueada', async () => {
