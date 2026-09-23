@@ -177,16 +177,18 @@ export async function applyAsaasCheckoutLifecycleEvent(
   const checkoutRef = db
     .collection('checkout_sessions')
     .doc(resolvedCheckout.id);
-  const status =
+  const lifecycleStatus =
     event.eventName === 'CHECKOUT_PAID'
       ? 'processing'
       : event.eventName === 'CHECKOUT_CANCELED'
         ? 'canceled'
         : event.eventName === 'CHECKOUT_EXPIRED'
           ? 'expired'
-          : null;
+          : event.eventName === 'CHECKOUT_CREATED'
+            ? resolvedCheckout.status
+            : null;
 
-  if (!status) return 'ignored';
+  if (!lifecycleStatus) return 'ignored';
 
   const now = Date.now();
   const metadata = {
@@ -201,23 +203,29 @@ export async function applyAsaasCheckoutLifecycleEvent(
     {
       providerCustomerId:
         event.customerId ?? resolvedCheckout.providerCustomerId ?? null,
-      status,
+      status: lifecycleStatus,
       updatedAt: now,
       metadata,
-      statusHistory: [
-        ...(resolvedCheckout.statusHistory ?? []),
-        {
-          status,
-          at: event.occurredAt,
-          source: 'provider',
-          eventId: event.providerEventId,
-        },
-      ],
+      statusHistory:
+        event.eventName === 'CHECKOUT_CREATED'
+          ? (resolvedCheckout.statusHistory ?? [])
+          : [
+            ...(resolvedCheckout.statusHistory ?? []),
+            {
+              status: lifecycleStatus,
+              at: event.occurredAt,
+              source: 'provider',
+              eventId: event.providerEventId,
+            },
+          ],
     },
     { merge: true }
   );
 
-  if (status === 'canceled' || status === 'expired') {
+  if (
+    lifecycleStatus === 'canceled' ||
+    lifecycleStatus === 'expired'
+  ) {
     await releasePlatformCheckoutLock({
       buyerUid: resolvedCheckout.buyerUid,
       checkoutSessionId: resolvedCheckout.id,
