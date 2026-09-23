@@ -49,11 +49,34 @@ A experiência recomendada é:
 - nova solicitação somente por expiração, mudança relevante de identidade, invalidação do provedor ou suspeita fundamentada;
 - canal de contestação quando houver restrição por possível menoridade.
 
-Enquanto não existir integração de produção com mecanismo confiável, autodeclaração deve permanecer identificada tecnicamente como `SELF_DECLARATION_REVIEW` e resultado adulto como `INCONCLUSIVE`, sem alegação de KYC concluído.
+### Política transitória sem provedor contratado
 
-O fallback operacional de revisão humana também não pode promover a autodeclaração. Uma decisão `VERIFIED_ADULT` exige evidência confiável revisada por staff autorizado. A aplicação recebe somente uma referência operacional da evidência e persiste apenas seu hash e o método da revisão; a referência bruta, documento, CPF, nome civil e data de nascimento não pertencem ao registro etário canônico.
+Enquanto não existir provedor etário de produção nem equipe operacional de moderação, o onboarding usa **autodeclaração explícita de 18+** como requisito de acesso. Essa declaração:
 
-No onboarding atual, uma conta sem assertion confiável pode abrir uma solicitação de revisão. Enquanto o caso estiver aberto, `age_eligibility_records/{uid}` permanece em `REVIEW_REQUIRED` e todas as superfícies adultas continuam bloqueadas. O consentimento adulto ocorre somente depois de `VERIFIED_ADULT`.
+- é recebida por Callable backend, com App Check em produção;
+- é persistida em `age_eligibility_records/{uid}`, que continua backend-only;
+- usa status `DECLARED_ADULT`, método `SELF_ATTESTATION` e nível de garantia `SELF_ATTESTED`;
+- pode liberar a experiência adulta no modo operacional `SELF_ATTESTATION_ALLOWED`;
+- **não** é chamada de verificação documental, KYC ou `VERIFIED_ADULT`;
+- não contém cópia de documento nem data de nascimento completa;
+- não pode sobrepor uma decisão `DENIED_UNDERAGE` nem uma revalidação etária ativa.
+
+`VERIFIED_ADULT` permanece reservado a evidência forte: assertion de provedor confiável, KYC compatível ou revisão autorizada com evidência verificável. Quando houver provedor contratado, a política pode evoluir para `VERIFIED_ONLY` sem reclassificar retroativamente autodeclarações como verificações.
+
+O consentimento de acesso adulto continua sendo uma etapa distinta. No estágio atual, ele pode ocorrer depois de um estado canônico que **permita acesso adulto**, seja `DECLARED_ADULT` na política transitória ou `VERIFIED_ADULT` quando houver garantia forte.
+
+### Denúncia de possível menoridade
+
+A denúncia de perfil por possível menoridade permanece disponível desde o início. Uma denúncia isolada é tratada como **sinal de risco**, não como decisão definitiva de idade. O fluxo preserva:
+
+- App Check e rate limit;
+- deduplicação por denunciante/perfil;
+- avaliação de abuso do denunciante;
+- agregação de sinais e trilha de auditoria;
+- capacidade futura de revalidação, provedor ou revisão humana;
+- medidas automáticas reversíveis quando a política de automação estiver em modo de enforcement e os critérios agregados forem satisfeitos.
+
+Uma autodeclaração não pode limpar uma revalidação originada por denúncia de segurança. Casos `REVIEW_REQUIRED` criados apenas pelo antigo onboarding sem provedor podem ser encerrados automaticamente pela nova política transitória, evitando deixar contas presas em uma fila operacional inexistente.
 
 ## KYC financeiro proporcional
 
