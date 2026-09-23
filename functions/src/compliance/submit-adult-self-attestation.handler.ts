@@ -264,19 +264,19 @@ export const submitAdultSelfAttestation = onCall<
         String(legacyInitialReportSnapshot.data()?.['reason'] ?? '') ===
           'age_verification_request'
       ) {
-          transaction.set(
-            legacyInitialReportRef,
-            {
-              status: 'resolved',
-              moderationAction: 'KEEP',
-              resolution:
-                'Fluxo inicial encerrado pela política transitória de autodeclaração adulta.',
-              reviewedBy: 'system:age-self-attestation',
-              reviewedAt: timestamp,
-              updatedAt: timestamp,
-            },
-            { merge: true }
-          );
+        transaction.set(
+          legacyInitialReportRef,
+          {
+            status: 'resolved',
+            moderationAction: 'KEEP',
+            resolution:
+              'Fluxo inicial encerrado pela política transitória de autodeclaração adulta.',
+            reviewedBy: 'system:age-self-attestation',
+            reviewedAt: timestamp,
+            updatedAt: timestamp,
+          },
+          { merge: true }
+        );
       }
 
       transaction.create(db.collection('compliance_audit').doc(), {
