@@ -8,6 +8,9 @@
 // -----------------------------------------------------------------------------
 
 import {
+  isCommunityCalibrationChangeAllowed,
+} from '../community/community-calibration-stage.policy';
+import {
   evaluateCommunityOperationalCostBaseline,
   type CommunityOperationalCostBaselineInput,
 } from '../shared/observability/operational-cost-baseline.policy';
@@ -112,6 +115,6 @@ export function evaluateCommunityBoostCostCalibration(
     actualCostPerThousandServedCents:
       Math.round((actualCost / servedPlacements) * 100_000) / 100,
     status: 'observed',
-    canCalibrateBoostCost: true,
+    canCalibrateBoostCost: isCommunityCalibrationChangeAllowed(),
   });
 }

@@ -16,6 +16,9 @@
 // -----------------------------------------------------------------------------
 
 import {
+  isCommunityCalibrationChangeAllowed,
+} from './community-calibration-stage.policy';
+import {
   evaluateCommunityOperationalCostBaseline,
   type CommunityOperationalCostBaselineInput,
 } from '../shared/observability/operational-cost-baseline.policy';
@@ -139,6 +142,7 @@ export function evaluateCommunityBusinessOfficialCalibration(
         ? null
         : Math.round((actualCostCents / communitiesCreated) * 100) / 100,
     status,
-    canCalibrateCommercialOffer: status === 'observed',
+    canCalibrateCommercialOffer:
+      status === 'observed' && isCommunityCalibrationChangeAllowed(),
   });
 }

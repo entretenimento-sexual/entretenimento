@@ -98,6 +98,10 @@ async function assertAuthorized(
 }
 
 function rolloutFailureMessage(reason: string | null): string {
+  if (reason === 'calibration_observation_only') {
+    return 'O ranking v3 permanece em shadow durante a fase de observação e coleta de baseline.';
+  }
+
   if (reason === 'score_index_not_ready') {
     return 'O índice do ranking atual ainda não foi homologado.';
   }

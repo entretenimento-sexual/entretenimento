@@ -165,7 +165,7 @@ test('promotionReady sem evidência real continua bloqueado', () => {
   assert.equal(decision.denialReason, 'candidate_real_data_not_ready');
 });
 
-test('promove v3 somente com índice, runtime e aceitação shadow prontos', () => {
+test('mantém v3 em shadow mesmo quando todos os gates técnicos estão prontos', () => {
   const decision = evaluateCommunityRankingRollout({
     action: 'promote_v3',
     rawConfig: {
@@ -199,11 +199,11 @@ test('promove v3 somente com índice, runtime e aceitação shadow prontos', () 
   });
 
   assert.deepEqual(decision, {
-    allowed: true,
+    allowed: false,
     action: 'promote_v3',
     targetMode: COMMUNITY_DISCOVERY_V3_RANKING_MODE,
     scoreVersion: COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
-    denialReason: null,
+    denialReason: 'calibration_observation_only',
   });
 });
 

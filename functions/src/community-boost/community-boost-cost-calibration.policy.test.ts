@@ -39,7 +39,7 @@ function operationalBaseline() {
   };
 }
 
-test('calcula custo real por mil placements sem sugerir preço', () => {
+test('calcula custo real por mil placements sem liberar calibração durante OBSERVE_ONLY', () => {
   const result = evaluateCommunityBoostCostCalibration({
     servedPlacements: 2_000,
     actualAttributedCostCents: 5_000,
@@ -49,7 +49,7 @@ test('calcula custo real por mil placements sem sugerir preço', () => {
 
   assert.equal(result.status, 'observed');
   assert.equal(result.actualCostPerThousandServedCents, 2_500);
-  assert.equal(result.canCalibrateBoostCost, true);
+  assert.equal(result.canCalibrateBoostCost, false);
 });
 
 test('não calibra Boost com proxy, sem entrega ou baseline incompleto', () => {

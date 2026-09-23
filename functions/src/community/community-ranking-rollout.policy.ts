@@ -2,10 +2,14 @@
 // -----------------------------------------------------------------------------
 // COMMUNITY RANKING ROLLOUT POLICY
 // -----------------------------------------------------------------------------
-// Cutover canônico de ranking. v3 só pode sair do shadow após evidência agregada
-// persistida cumprir a política mensurável. Rollback para v2/legacy é explícito.
+// Cutover canônico de ranking. Durante OBSERVE_ONLY, v3 permanece shadow mesmo
+// que a evidência técnica já esteja pronta. Rollback para v2/legacy continua
+// explícito e disponível.
 // -----------------------------------------------------------------------------
 
+import {
+  isCommunityCalibrationChangeAllowed,
+} from './community-calibration-stage.policy';
 import {
   COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION,
   COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
@@ -35,6 +39,7 @@ export type CommunityRankingRolloutDenialReason =
   | 'candidate_runtime_not_ready'
   | 'candidate_shadow_acceptance_not_ready'
   | 'candidate_real_data_not_ready'
+  | 'calibration_observation_only'
   | null;
 
 export interface CommunityRankingRolloutDecision {
@@ -54,14 +59,20 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
-function v2Ready(config: Record<string, unknown>, runtime: Record<string, unknown>) {
+function v2Ready(
+  config: Record<string, unknown>,
+  runtime: Record<string, unknown>
+) {
   if (config['discoveryScoreIndexReady'] !== true) {
     return 'score_index_not_ready' as const;
   }
   if (runtime['ready'] !== true) {
     return 'score_backfill_not_ready' as const;
   }
-  if (Number(runtime['completedScoreVersion']) !== COMMUNITY_DISCOVERY_SCORE_VERSION) {
+  if (
+    Number(runtime['completedScoreVersion'])
+      !== COMMUNITY_DISCOVERY_SCORE_VERSION
+  ) {
     return 'score_version_mismatch' as const;
   }
   return null;
@@ -162,6 +173,18 @@ export function evaluateCommunityRankingRollout(input: {
       targetMode: COMMUNITY_DISCOVERY_V3_RANKING_MODE,
       scoreVersion: COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
       denialReason: 'candidate_real_data_not_ready',
+    };
+  }
+
+  // Mesmo com evidência suficiente, o cutover permanece congelado até decisão
+  // explícita de saída da fase OBSERVE_ONLY.
+  if (!isCommunityCalibrationChangeAllowed()) {
+    return {
+      allowed: false,
+      action: input.action,
+      targetMode: COMMUNITY_DISCOVERY_V3_RANKING_MODE,
+      scoreVersion: COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
+      denialReason: 'calibration_observation_only',
     };
   }
 
