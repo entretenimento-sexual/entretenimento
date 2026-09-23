@@ -35,10 +35,13 @@ export interface AgeReverificationRecord {
   resolution?: string | null;
   evidenceMethod?: string | null;
   evidenceReferenceHash?: string | null;
+  appealCaseId?: string | null;
+  appealRequestedAt?: number | null;
 }
 
 export interface AgeReverificationUserDocument extends UserDoc {
   ageReverification?: AgeReverificationRecord | null;
+  ageReverificationSuspensionCaseId?: string | null;
   suspended?: boolean;
 }
 

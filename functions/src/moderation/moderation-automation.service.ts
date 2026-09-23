@@ -34,6 +34,7 @@ export interface ModerationReviewSignalInput {
   targetUid: string;
   critical: boolean;
   confirmed: boolean;
+  enforcementEligible?: boolean;
 }
 
 interface ModerationAutomationState extends ModerationAutomationSignals {
@@ -44,6 +45,15 @@ interface ModerationAutomationState extends ModerationAutomationSignals {
 interface OpenAutomationEvent {
   stateId?: string;
   critical?: boolean;
+}
+
+interface ReviewAutomationEvent {
+  stateId?: string;
+  critical?: boolean;
+  confirmed?: boolean;
+  decision?: ModerationAutomationDecision['action'];
+  decisionReason?: ModerationAutomationDecision['reason'];
+  enforce?: boolean;
 }
 
 function cleanId(value: unknown): string {
@@ -452,27 +462,15 @@ export async function recordModerationReviewSignal(
       transaction.get(reviewEventRef),
     ]);
 
-    if (reviewEventSnapshot.exists) {
-      const existing = reviewEventSnapshot.data() ?? {};
-      return {
-        created: false,
-        decision: {
-          action: String(
-            existing['decision'] ?? 'NONE'
-          ) as ModerationAutomationDecision['action'],
-          enforce: existing['enforce'] === true,
-          reason: String(
-            existing['decisionReason'] ?? 'none'
-          ) as ModerationAutomationDecision['reason'],
-        },
-      };
-    }
-
     const openEvent = openEventSnapshot.exists
       ? openEventSnapshot.data() as OpenAutomationEvent
       : {};
     const fallbackWindow = windowFor(nowMs);
-    const stateId = cleanId(openEvent.stateId) ||
+    const existingReview = reviewEventSnapshot.exists
+      ? reviewEventSnapshot.data() as ReviewAutomationEvent
+      : null;
+    const stateId = cleanId(existingReview?.stateId) ||
+      cleanId(openEvent.stateId) ||
       `${targetUid}_${fallbackWindow.windowId}`;
     const stateRef = db.collection('moderation_automation_state').doc(stateId);
     const stateSnapshot = await transaction.get(stateRef);
@@ -481,9 +479,78 @@ export async function recordModerationReviewSignal(
         ? stateSnapshot.data() as ModerationAutomationState
         : undefined
     );
-    const critical = openEventSnapshot.exists
-      ? openEvent.critical === true
-      : input.critical;
+    const critical = existingReview
+      ? existingReview.critical === true
+      : openEventSnapshot.exists
+        ? openEvent.critical === true
+        : input.critical;
+
+    if (existingReview) {
+      const previousConfirmed = existingReview.confirmed === true;
+
+      if (previousConfirmed === input.confirmed) {
+        return {
+          changed: false,
+          decision: {
+            action: String(
+              existingReview.decision ?? 'NONE'
+            ) as ModerationAutomationDecision['action'],
+            enforce: existingReview.enforce === true,
+            reason: String(
+              existingReview.decisionReason ?? 'none'
+            ) as ModerationAutomationDecision['reason'],
+          },
+        };
+      }
+
+      const confirmationDelta =
+        (input.confirmed ? 1 : 0) - (previousConfirmed ? 1 : 0);
+      const next: ModerationAutomationSignals = {
+        ...existing,
+        confirmedViolations: Math.max(
+          0,
+          existing.confirmedViolations + confirmationDelta
+        ),
+        confirmedCriticalViolations: Math.max(
+          0,
+          existing.confirmedCriticalViolations +
+            (critical ? confirmationDelta : 0)
+        ),
+      };
+      const decision = evaluateModerationAutomation({ mode, signals: next });
+
+      transaction.set(stateRef, {
+        targetUid,
+        ...next,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      transaction.set(reviewEventRef, {
+        kind: 'REVIEW',
+        reportId,
+        stateId,
+        targetUid,
+        critical,
+        confirmed: input.confirmed,
+        decision: decision.action,
+        decisionReason: decision.reason,
+        enforce: decision.enforce,
+        correctedAtMs: nowMs,
+      }, { merge: true });
+
+      transaction.set(
+        db.collection('moderation_reports').doc(reportId),
+        {
+          automationDecision: decision.action,
+          automationReason: decision.reason,
+          automationMode: mode,
+          automationEvaluatedAtMs: nowMs,
+        },
+        { merge: true }
+      );
+
+      return { changed: true, decision };
+    }
 
     const next: ModerationAutomationSignals = {
       ...existing,
@@ -530,14 +597,15 @@ export async function recordModerationReviewSignal(
       { merge: true }
     );
 
-    return { created: true, decision };
+    return { changed: true, decision };
   });
 
   if (
-    result.created &&
+    result.changed &&
     result.decision.action === 'SUSPEND_CONFIRMED' &&
     result.decision.enforce &&
-    input.confirmed
+    input.confirmed &&
+    input.enforcementEligible !== false
   ) {
     await applyConfirmedAutomaticSuspension({
       targetUid,

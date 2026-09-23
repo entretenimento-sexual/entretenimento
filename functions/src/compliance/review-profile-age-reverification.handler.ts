@@ -11,6 +11,9 @@ import {
   safeRecordModerationReviewSignal,
 } from '../moderation/moderation-automation.service';
 import {
+  safeRecordModerationReporterOutcome,
+} from '../moderation/moderation-reporter-abuse.service';
+import {
   safeNotifyAgeReverificationOutcome,
 } from '../moderation/moderation-safety-notification.service';
 import {
@@ -45,6 +48,7 @@ interface ReviewProfileAgeReverificationRequest {
 
 interface AgeReverificationCaseDocument {
   result?: string | null;
+  activeAppealCaseId?: string | null;
   declaredAgeBand?: string | null;
   publicProfileBackup?: Record<string, unknown> | null;
   nicknameIndexBackup?: Record<string, unknown> | null;
@@ -107,7 +111,7 @@ export const reviewProfileAgeReverification = onCall<
       ? 'VERIFIED'
       : 'REJECTED';
 
-    const targetUid = await db.runTransaction(async (transaction) => {
+    const reviewResult = await db.runTransaction(async (transaction) => {
       const reportSnapshot = await transaction.get(reportRef);
 
       if (!reportSnapshot.exists) {
@@ -144,6 +148,9 @@ export const reviewProfileAgeReverification = onCall<
 
       const user = userSnapshot.data() as AgeReverificationUserDocument;
       const ageCase = caseSnapshot.data() as AgeReverificationCaseDocument;
+      const activeAppealCaseId = cleanComplianceId(
+        ageCase.activeAppealCaseId
+      );
       const currentStatus = normalizeAgeReverificationStatus(
         user.ageReverification?.status
       );
@@ -158,7 +165,7 @@ export const reviewProfileAgeReverification = onCall<
       const declaredUnderage = ageCase.result === 'UNDERAGE' ||
         ageCase.declaredAgeBand === 'UNDER_18';
 
-      if (decision === 'VERIFY' && declaredUnderage) {
+      if (decision === 'VERIFY' && declaredUnderage && !activeAppealCaseId) {
         throw new HttpsError(
           'failed-precondition',
           'Uma declaração abaixo de 18 anos não pode ser aprovada como adulta.'
@@ -166,9 +173,12 @@ export const reviewProfileAgeReverification = onCall<
       }
 
       const accountStatus = String(user.accountStatus ?? 'active').trim();
-      const canRestoreAccess = decision === 'VERIFY' &&
-        accountStatus === 'active' &&
-        user.suspended !== true;
+      const ageDecisionOwnsSuspension =
+        cleanComplianceId(user.ageReverificationSuspensionCaseId) === caseId;
+      const canRestoreAccess = decision === 'VERIFY' && (
+        (accountStatus === 'active' && user.suspended !== true) ||
+        ageDecisionOwnsSuspension
+      );
       const mediaSnapshots = canRestoreAccess
         ? await readProfileMediaVisibilitySnapshots(transaction, targetUid)
         : null;
@@ -213,6 +223,8 @@ export const reviewProfileAgeReverification = onCall<
               resolution,
               evidenceMethod: evidence.method,
               evidenceReferenceHash: evidence.referenceHash,
+              appealCaseId: null,
+              appealRequestedAt: null,
             },
             ageEligibility,
             ...(canRestoreAccess
@@ -220,6 +232,20 @@ export const reviewProfileAgeReverification = onCall<
                 publicVisibility: 'visible',
                 interactionBlocked: false,
                 ageReverificationRestrictedAt: null,
+                ...(ageDecisionOwnsSuspension
+                  ? {
+                    accountStatus: 'active',
+                    suspended: false,
+                    suspensionReason: null,
+                    suspensionSource: null,
+                    suspensionEndsAt: null,
+                    suspendedAtMs: null,
+                    suspendedBy: null,
+                    statusUpdatedAt: reviewedAt,
+                    statusUpdatedBy: adminUid,
+                    ageReverificationSuspensionCaseId: null,
+                  }
+                  : {}),
               }
               : {}),
             updatedAt: timestamp,
@@ -285,6 +311,8 @@ export const reviewProfileAgeReverification = onCall<
               resolution,
               evidenceMethod: evidence.method,
               evidenceReferenceHash: evidence.referenceHash,
+              appealCaseId: null,
+              appealRequestedAt: null,
             },
             ageEligibility,
             accountStatus: 'moderation_suspended',
@@ -296,6 +324,7 @@ export const reviewProfileAgeReverification = onCall<
             suspensionSource: 'moderator',
             suspendedAtMs: reviewedAt,
             suspendedBy: adminUid,
+            ageReverificationSuspensionCaseId: caseId,
             statusUpdatedAt: reviewedAt,
             statusUpdatedBy: adminUid,
             updatedAt: timestamp,
@@ -323,6 +352,7 @@ export const reviewProfileAgeReverification = onCall<
           evidenceMethod: evidence.method,
           evidenceReferenceHash: evidence.referenceHash,
           restoredMediaDocumentCount: mediaSnapshots?.totalDocuments ?? 0,
+          activeAppealCaseId: null,
           publicProfileBackup: FieldValue.delete(),
           nicknameIndexBackup: FieldValue.delete(),
           nicknameIndexDocId: FieldValue.delete(),
@@ -353,6 +383,22 @@ export const reviewProfileAgeReverification = onCall<
         },
         { merge: true }
       );
+
+      if (activeAppealCaseId) {
+        transaction.set(
+          db.collection('compliance_cases').doc(activeAppealCaseId),
+          {
+            status: decision === 'VERIFY'
+              ? 'RESOLVED_NO_VIOLATION'
+              : 'RESOLVED_ACTION_TAKEN',
+            resolution,
+            resolvedAt: timestamp,
+            resolvedBy: adminUid,
+            updatedAt: timestamp,
+          },
+          { merge: true }
+        );
+      }
 
       transaction.create(db.collection('admin_logs').doc(), {
         adminUid,
@@ -388,13 +434,19 @@ export const reviewProfileAgeReverification = onCall<
         createdAtMs: reviewedAt,
       });
 
-      return targetUid;
+      return { targetUid, reporterUid };
     });
 
     await safeRecordModerationReviewSignal({
       reportId,
-      targetUid,
+      targetUid: reviewResult.targetUid,
       critical: true,
+      confirmed: decision === 'REJECT',
+      enforcementEligible: false,
+    });
+    await safeRecordModerationReporterOutcome({
+      reporterUid: reviewResult.reporterUid,
+      reportId,
       confirmed: decision === 'REJECT',
     });
 
