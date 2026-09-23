@@ -80,13 +80,14 @@ export const syncPublicPreferenceProjection = onDocumentWritten(
         if (
           publicSnapshot.exists &&
           (
-            current['ageEligibilityVerifiedAdult'] !== false ||
+            current['ageEligibilityAdultAccessAllowed'] !== false ||
             publicAgeValidUntilMs(current) !== 0
           )
         ) {
           transaction.set(
             publicRef,
             {
+              ageEligibilityAdultAccessAllowed: false,
               ageEligibilityVerifiedAdult: false,
               ageEligibilityValidUntil: Timestamp.fromMillis(0),
             },
@@ -111,9 +112,12 @@ export const syncPublicPreferenceProjection = onDocumentWritten(
         ageDecision.expiresAtMs ?? PUBLIC_AGE_ELIGIBILITY_MAX_VALID_UNTIL_MS;
       const ageEligibilityValidUntil =
         Timestamp.fromMillis(ageEligibilityValidUntilMs);
+      const ageEligibilityVerifiedAdult =
+        ageDecision.status === 'VERIFIED_ADULT';
 
       if (
-        current['ageEligibilityVerifiedAdult'] === true &&
+        current['ageEligibilityAdultAccessAllowed'] === true &&
+        current['ageEligibilityVerifiedAdult'] === ageEligibilityVerifiedAdult &&
         publicAgeValidUntilMs(current) === ageEligibilityValidUntilMs &&
         publicPreferenceProjectionMatches(current, expected)
       ) {
@@ -123,7 +127,8 @@ export const syncPublicPreferenceProjection = onDocumentWritten(
       transaction.set(
         publicRef,
         {
-          ageEligibilityVerifiedAdult: true,
+          ageEligibilityAdultAccessAllowed: true,
+          ageEligibilityVerifiedAdult,
           ageEligibilityValidUntil,
           ...expected,
           publicPreferencesUpdatedAt: FieldValue.serverTimestamp(),
