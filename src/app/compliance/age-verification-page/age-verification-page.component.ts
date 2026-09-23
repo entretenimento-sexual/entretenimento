@@ -71,11 +71,11 @@ export class AgeVerificationPageComponent {
         filter((verified) => verified),
         takeUntilDestroyed(this.destroyRef)
       )
-      .subscribe(() => this.navigateToAdultConsent());
+      .subscribe(() => this.resumeOriginalDestination());
   }
 
   continueAfterVerification(): void {
-    this.navigateToAdultConsent();
+    this.resumeOriginalDestination();
   }
 
   requestReview(): void {
@@ -99,7 +99,7 @@ export class AgeVerificationPageComponent {
       .subscribe((result) => {
         if (result.status === 'VERIFIED_ADULT') {
           this.notification.showSuccess('Sua maioridade já está confirmada.');
-          this.navigateToAdultConsent();
+          this.resumeOriginalDestination();
           return;
         }
 
@@ -130,7 +130,7 @@ export class AgeVerificationPageComponent {
       .subscribe((status) => {
         if (status === 'VERIFIED_ADULT') {
           this.notification.showSuccess('Maioridade confirmada.');
-          this.navigateToAdultConsent();
+          this.resumeOriginalDestination();
           return;
         }
 
@@ -172,11 +172,8 @@ export class AgeVerificationPageComponent {
       .subscribe();
   }
 
-  private navigateToAdultConsent(): void {
-    const redirectTo = this.resolveSafeRedirectTo();
-    const target = redirectTo
-      ? `/adulto/confirmar?redirectTo=${encodeURIComponent(redirectTo)}`
-      : '/adulto/confirmar';
+  private resumeOriginalDestination(): void {
+    const target = this.resolveSafeRedirectTo() ?? '/dashboard/principal';
 
     void this.router.navigateByUrl(target, {
       replaceUrl: true,
