@@ -11,6 +11,7 @@ import { HttpsError } from 'firebase-functions/v2/https';
 import { db, FieldValue, Timestamp } from '../firebaseApp';
 import {
   AGE_ELIGIBILITY_POLICY_VERSION,
+  type AgeEligibilityAssuranceLevel,
   type AgeEligibilityMethod,
   type AgeEligibilitySource,
   type AgeEligibilityStatus,
@@ -34,6 +35,7 @@ export interface AgeEligibilityProjection {
   policyVersion: number;
   source: AgeEligibilitySource;
   method: AgeEligibilityMethod;
+  assuranceLevel: AgeEligibilityAssuranceLevel;
   caseId: string | null;
   verifiedAtMs: number | null;
   expiresAtMs: number | null;
@@ -82,6 +84,28 @@ export function buildCanonicalAgeEligibility(
     );
   }
 
+  if (
+    input.status === 'DECLARED_ADULT' &&
+    (
+      input.source !== 'SELF_ATTESTATION' ||
+      input.method !== 'SELF_ATTESTATION' ||
+      verifiedAtMs !== null
+    )
+  ) {
+    throw new HttpsError(
+      'invalid-argument',
+      'Autodeclaração adulta deve permanecer distinta de prova verificada.'
+    );
+  }
+
+  const assuranceLevel: AgeEligibilityAssuranceLevel =
+    input.status === 'DECLARED_ADULT' &&
+    input.method === 'SELF_ATTESTATION'
+      ? 'SELF_ATTESTED'
+      : input.status === 'VERIFIED_ADULT'
+        ? 'VERIFIED'
+        : 'NONE';
+
   const updatedAtMs = decidedAtMs;
   const record: CanonicalAgeEligibilityRecord = {
     uid,
@@ -89,6 +113,7 @@ export function buildCanonicalAgeEligibility(
     policyVersion: AGE_ELIGIBILITY_POLICY_VERSION,
     source: input.source,
     method: input.method,
+    assuranceLevel,
     caseId,
     verifiedAtMs,
     decidedAtMs,
@@ -100,6 +125,7 @@ export function buildCanonicalAgeEligibility(
     policyVersion: record.policyVersion,
     source: record.source,
     method: record.method,
+    assuranceLevel: record.assuranceLevel,
     caseId: record.caseId,
     verifiedAtMs: record.verifiedAtMs,
     expiresAtMs: record.expiresAtMs,
