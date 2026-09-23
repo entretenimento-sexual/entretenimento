@@ -115,12 +115,6 @@ service cloud.firestore {
       let status = eligibility is map
         ? mapFieldOrNull(eligibility, "status")
         : null;
-      let source = eligibility is map
-        ? mapFieldOrNull(eligibility, "source")
-        : null;
-      let method = eligibility is map
-        ? mapFieldOrNull(eligibility, "method")
-        : null;
       let verifiedAt = eligibility is map
         ? mapFieldOrNull(eligibility, "verifiedAt")
         : null;
@@ -130,19 +124,22 @@ service cloud.firestore {
       let expiresAt = eligibility is map
         ? mapFieldOrNull(eligibility, "expiresAt")
         : null;
-      let verifiedAccess = status == "VERIFIED_ADULT"
-        && verifiedAt is timestamp
-        && verifiedAt <= request.time;
-      let selfDeclaredAccess = status == "SELF_DECLARED_ADULT"
-        && source == "SELF_DECLARATION"
-        && method == "SELF_DECLARATION"
-        && decidedAt is timestamp
-        && decidedAt <= request.time;
 
       return eligibility is map
         && eligibility.uid == userId
         && eligibility.policyVersion == 1
-        && (verifiedAccess || selfDeclaredAccess)
+        && (
+          (
+            status == "VERIFIED_ADULT"
+            && verifiedAt is timestamp
+            && verifiedAt <= request.time
+          )
+          || (
+            status == "SELF_DECLARED_ADULT"
+            && decidedAt is timestamp
+            && decidedAt <= request.time
+          )
+        )
         && (
           expiresAt == null
           || (expiresAt is timestamp && request.time < expiresAt)
