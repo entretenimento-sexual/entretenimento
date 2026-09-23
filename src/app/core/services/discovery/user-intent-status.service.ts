@@ -380,7 +380,8 @@ export class UserIntentStatusService {
         uid,
         nickname: nickname.slice(0, 40),
         photoURL: this.normalizeOptionalText(input.profile.photoURL),
-        age: this.toNullableNumber(input.profile.age),
+        // Compatibilidade estrutural apenas: idade exata não é publicada.
+        age: null,
       },
       availability: this.normalizeAvailability(input.availability),
       visibility: this.normalizeVisibility(input.visibility),
@@ -458,7 +459,8 @@ export class UserIntentStatusService {
       uid,
       nickname,
       photoURL: this.normalizeOptionalText(source?.photoURL),
-      age: this.toNullableNumber(source?.age),
+      // Documentos legados podem conter age; o cliente nunca a reprojeta.
+      age: null,
     };
   }
 
