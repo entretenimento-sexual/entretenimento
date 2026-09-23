@@ -68,6 +68,30 @@ function cleanId(value: unknown): string {
   return normalized;
 }
 
+function hasCurrentPublicAgeEligibility(
+  data: FirebaseFirestore.DocumentData | undefined,
+  nowMs: number
+): boolean {
+  if (data?.['ageEligibilityVerifiedAdult'] !== true) return false;
+
+  const validUntil = data?.['ageEligibilityValidUntil'] as
+    | { toMillis?: unknown }
+    | null
+    | undefined;
+
+  if (!validUntil || typeof validUntil.toMillis !== 'function') {
+    return false;
+  }
+
+  try {
+    const validUntilMs =
+      (validUntil as { toMillis: () => number }).toMillis();
+    return Number.isFinite(validUntilMs) && validUntilMs > nowMs;
+  } catch {
+    return false;
+  }
+}
+
 function normalizeOwnerUids(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
 
@@ -134,7 +158,8 @@ async function consumeAuthorizedPhotoPageQuota(
 }
 
 async function resolveExistingPublicProfileOwnerUids(
-  ownerUids: readonly string[]
+  ownerUids: readonly string[],
+  nowMs: number
 ): Promise<Set<string>> {
   if (!ownerUids.length) return new Set<string>();
 
@@ -144,7 +169,11 @@ async function resolveExistingPublicProfileOwnerUids(
   const existing = new Set<string>();
 
   ownerUids.forEach((ownerUid, index) => {
-    if (snapshots[index]?.exists === true) {
+    const snapshot = snapshots[index];
+    if (
+      snapshot?.exists === true &&
+      hasCurrentPublicAgeEligibility(snapshot.data(), nowMs)
+    ) {
       existing.add(ownerUid);
     }
   });
@@ -157,12 +186,14 @@ async function loadVisibilityPage(input: {
   visibility: 'PUBLIC' | 'FRIENDS';
   pageSize: number;
   cursor: AuthorizedPhotoOwnerPageCursor | null;
+  nowMs: number;
 }): Promise<RawPhotoDocument[]> {
   if (!input.ownerUids.length) return [];
 
   let photoQuery = db
     .collectionGroup('public_photos')
     .where('ownerUid', 'in', [...input.ownerUids])
+    .where('ageEligibilityVerifiedAdult', '==', true)
     .where('moderationStatus', '==', 'APPROVED')
     .where('visibility', '==', input.visibility)
     .orderBy('publishedAt', 'desc')
@@ -182,7 +213,12 @@ async function loadVisibilityPage(input: {
     const ownerUid = cleanId(data?.ownerUid);
     const publishedAt = Number(data?.publishedAt ?? 0);
 
-    if (!ownerUid || !Number.isFinite(publishedAt) || publishedAt < 0) {
+    if (
+      !ownerUid ||
+      !Number.isFinite(publishedAt) ||
+      publishedAt < 0 ||
+      !hasCurrentPublicAgeEligibility(data, input.nowMs)
+    ) {
       return [];
     }
 
@@ -225,6 +261,7 @@ export const getAuthorizedPhotoOwnerPage = onCall<AuthorizedPhotoOwnerPageReques
     const ownerUids = normalizeOwnerUids(request.data?.ownerUids);
     const pageSize = normalizePageSize(request.data?.pageSize);
     const cursor = normalizeCursor(request.data?.cursor);
+    const nowMs = Date.now();
 
     if (!ownerUids.length) {
       throw new HttpsError(
@@ -238,7 +275,7 @@ export const getAuthorizedPhotoOwnerPage = onCall<AuthorizedPhotoOwnerPageReques
 
     try {
       const [existingOwnerUids, socialAccess] = await Promise.all([
-        resolveExistingPublicProfileOwnerUids(ownerUids),
+        resolveExistingPublicProfileOwnerUids(ownerUids, nowMs),
         resolveSocialConnectionAccess(viewerUid, ownerUids),
       ]);
       const publicOwnerUids = ownerUids.filter(
@@ -256,6 +293,7 @@ export const getAuthorizedPhotoOwnerPage = onCall<AuthorizedPhotoOwnerPageReques
           visibility: 'PUBLIC',
           pageSize,
           cursor,
+          nowMs,
         }),
         loadVisibilityPage({
           ownerUids: friendOwnerUids,
