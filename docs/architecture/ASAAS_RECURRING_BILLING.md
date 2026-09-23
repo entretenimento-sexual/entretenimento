@@ -42,6 +42,33 @@ Configuração não secreta exigida no runtime:
 A chave de produção precisa ter prefixo de produção. Sandbox e produção não
 podem ser misturados.
 
+
+## Configuração automatizada do webhook
+
+Há um configurador idempotente e seguro:
+
+```bash
+npm run billing:asaas:webhook:configure -- \
+  --environment=sandbox \
+  --url=https://<endpoint-publico>/paymentWebhook \
+  --email=<email-operacional>
+```
+
+Por padrão ele executa somente **DRY-RUN**, mostra a configuração sem revelar
+segredos e não altera a conta Asaas. Para aplicar:
+
+```bash
+npm run billing:asaas:webhook:configure -- \
+  --environment=sandbox \
+  --url=https://<endpoint-publico>/paymentWebhook \
+  --email=<email-operacional> \
+  --apply
+```
+
+O script lê `ASAAS_API_KEY` e `ASAAS_WEBHOOK_TOKEN` do ambiente local,
+valida que a chave pertence ao ambiente escolhido e cria ou atualiza o webhook
+com envio sequencial e a lista canônica de eventos da recorrência.
+
 ## Webhook
 
 O endpoint é a Cloud Function `paymentWebhook`.
