@@ -40,7 +40,7 @@ import {
 } from './account-financial-retention.firestore';
 import {
   ASAAS_API_KEY,
-  resolveAsaasRuntimeConfig,
+  resolveAsaasApiRuntimeConfig,
 } from '../payments/config/asaas.config';
 import {
   AsaasPaymentProvider,
@@ -105,7 +105,7 @@ export const purgeDeletedAccounts = onSchedule(
     const financialRetentionAdapter =
       new FirestoreAccountFinancialRetentionAdapter(
         new AsaasPaymentProvider({
-          runtime: resolveAsaasRuntimeConfig(),
+          runtime: resolveAsaasApiRuntimeConfig(),
           apiKey: ASAAS_API_KEY.value(),
         })
       );
