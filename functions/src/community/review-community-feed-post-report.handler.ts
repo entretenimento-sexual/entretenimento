@@ -15,6 +15,9 @@ import {
   safeRecordModerationReviewSignal,
 } from '../moderation/moderation-automation.service';
 import {
+  safeRecordModerationReporterOutcome,
+} from '../moderation/moderation-reporter-abuse.service';
+import {
   safeNotifyModerationReportReviewed,
 } from '../moderation/moderation-safety-notification.service';
 import {
@@ -50,6 +53,7 @@ type ReviewDecision = 'KEEP' | 'REMOVE';
 interface ReviewTransactionResult {
   cleanup: StagedPublishedPhotoAssetCleanup | null;
   authorUid: string;
+  reporterUid: string;
   critical: boolean;
 }
 
@@ -140,6 +144,7 @@ export const reviewCommunityFeedPostReport = onCall<
       }
 
       const report = reportSnapshot.data() ?? {};
+      const reporterUid = cleanId(report['reporterUid']);
       const status = String(report['status'] ?? '').trim().toLowerCase();
       const communityId = cleanId(report['parentTargetId']);
       const postId = cleanId(report['targetId']);
@@ -368,7 +373,7 @@ export const reviewCommunityFeedPostReport = onCall<
         timestamp,
       });
 
-      return { cleanup, authorUid, critical };
+      return { cleanup, authorUid, reporterUid, critical };
     });
 
     await safeRecordModerationReviewSignal({
@@ -377,6 +382,14 @@ export const reviewCommunityFeedPostReport = onCall<
       critical: transactionResult.critical,
       confirmed: decision === 'REMOVE',
     });
+
+    if (transactionResult.critical && transactionResult.reporterUid) {
+      await safeRecordModerationReporterOutcome({
+        reportId,
+        reporterUid: transactionResult.reporterUid,
+        outcome: decision === 'REMOVE' ? 'CONFIRMED' : 'REJECTED',
+      });
+    }
 
     await safeNotifyModerationReportReviewed(reportId);
 

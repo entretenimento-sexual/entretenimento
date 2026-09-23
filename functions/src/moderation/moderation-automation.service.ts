@@ -451,28 +451,16 @@ export async function recordModerationReviewSignal(
       transaction.get(openEventRef),
       transaction.get(reviewEventRef),
     ]);
-
-    if (reviewEventSnapshot.exists) {
-      const existing = reviewEventSnapshot.data() ?? {};
-      return {
-        created: false,
-        decision: {
-          action: String(
-            existing['decision'] ?? 'NONE'
-          ) as ModerationAutomationDecision['action'],
-          enforce: existing['enforce'] === true,
-          reason: String(
-            existing['decisionReason'] ?? 'none'
-          ) as ModerationAutomationDecision['reason'],
-        },
-      };
-    }
-
     const openEvent = openEventSnapshot.exists
       ? openEventSnapshot.data() as OpenAutomationEvent
       : {};
+    const reviewEvent = reviewEventSnapshot.exists
+      ? reviewEventSnapshot.data() ?? {}
+      : {};
     const fallbackWindow = windowFor(nowMs);
-    const stateId = cleanId(openEvent.stateId) ||
+    const stateId =
+      cleanId(reviewEvent['stateId']) ||
+      cleanId(openEvent.stateId) ||
       `${targetUid}_${fallbackWindow.windowId}`;
     const stateRef = db.collection('moderation_automation_state').doc(stateId);
     const stateSnapshot = await transaction.get(stateRef);
@@ -481,23 +469,57 @@ export async function recordModerationReviewSignal(
         ? stateSnapshot.data() as ModerationAutomationState
         : undefined
     );
-    const critical = openEventSnapshot.exists
-      ? openEvent.critical === true
-      : input.critical;
+    const critical = reviewEventSnapshot.exists
+      ? reviewEvent['critical'] === true
+      : openEventSnapshot.exists
+        ? openEvent.critical === true
+        : input.critical;
+    const previousConfirmed = reviewEventSnapshot.exists
+      ? reviewEvent['confirmed'] === true
+      : null;
 
-    const next: ModerationAutomationSignals = {
-      ...existing,
-      openReports: Math.max(0, existing.openReports - 1),
-      openCriticalReports: Math.max(
-        0,
-        existing.openCriticalReports - (critical ? 1 : 0)
-      ),
-      confirmedViolations:
-        existing.confirmedViolations + (input.confirmed ? 1 : 0),
-      confirmedCriticalViolations:
-        existing.confirmedCriticalViolations +
-        (input.confirmed && critical ? 1 : 0),
-    };
+    if (
+      reviewEventSnapshot.exists &&
+      previousConfirmed === input.confirmed
+    ) {
+      return {
+        changed: false,
+        decision: evaluateModerationAutomation({
+          mode,
+          signals: existing,
+        }),
+      };
+    }
+
+    const next: ModerationAutomationSignals = reviewEventSnapshot.exists
+      ? {
+        ...existing,
+        confirmedViolations: Math.max(
+          0,
+          existing.confirmedViolations +
+            (input.confirmed ? 1 : -1)
+        ),
+        confirmedCriticalViolations: critical
+          ? Math.max(
+            0,
+            existing.confirmedCriticalViolations +
+              (input.confirmed ? 1 : -1)
+          )
+          : existing.confirmedCriticalViolations,
+      }
+      : {
+        ...existing,
+        openReports: Math.max(0, existing.openReports - 1),
+        openCriticalReports: Math.max(
+          0,
+          existing.openCriticalReports - (critical ? 1 : 0)
+        ),
+        confirmedViolations:
+          existing.confirmedViolations + (input.confirmed ? 1 : 0),
+        confirmedCriticalViolations:
+          existing.confirmedCriticalViolations +
+          (input.confirmed && critical ? 1 : 0),
+      };
     const decision = evaluateModerationAutomation({ mode, signals: next });
 
     transaction.set(stateRef, {
@@ -506,18 +528,32 @@ export async function recordModerationReviewSignal(
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
 
-    transaction.create(reviewEventRef, {
-      kind: 'REVIEW',
-      reportId,
-      stateId,
-      targetUid,
-      critical,
-      confirmed: input.confirmed,
-      decision: decision.action,
-      decisionReason: decision.reason,
-      enforce: decision.enforce,
-      createdAtMs: nowMs,
-    });
+    if (reviewEventSnapshot.exists) {
+      transaction.set(
+        reviewEventRef,
+        {
+          confirmed: input.confirmed,
+          decision: decision.action,
+          decisionReason: decision.reason,
+          enforce: decision.enforce,
+          revisedAtMs: nowMs,
+        },
+        { merge: true }
+      );
+    } else {
+      transaction.create(reviewEventRef, {
+        kind: 'REVIEW',
+        reportId,
+        stateId,
+        targetUid,
+        critical,
+        confirmed: input.confirmed,
+        decision: decision.action,
+        decisionReason: decision.reason,
+        enforce: decision.enforce,
+        createdAtMs: nowMs,
+      });
+    }
 
     transaction.set(
       db.collection('moderation_reports').doc(reportId),
@@ -530,11 +566,11 @@ export async function recordModerationReviewSignal(
       { merge: true }
     );
 
-    return { created: true, decision };
+    return { changed: true, decision };
   });
 
   if (
-    result.created &&
+    result.changed &&
     result.decision.action === 'SUSPEND_CONFIRMED' &&
     result.decision.enforce &&
     input.confirmed

@@ -7,6 +7,12 @@ import {
   safeRecordModerationReviewSignal,
 } from '../../moderation/moderation-automation.service';
 import {
+  isMinorSafetyReportReason,
+} from '../../moderation/moderation-minor-safety-report-security.service';
+import {
+  safeRecordModerationReporterOutcome,
+} from '../../moderation/moderation-reporter-abuse.service';
+import {
   safeNotifyModerationReportReviewed,
 } from '../../moderation/moderation-safety-notification.service';
 import { deleteProfilePhotoResources } from './delete-profile-photo.handler';
@@ -34,6 +40,7 @@ interface ReviewPhotoContentReportRequest {
 }
 
 interface ModerationReportDocument {
+  reporterUid?: string;
   targetType?: string;
   targetId?: string;
   targetOwnerUid?: string;
@@ -58,6 +65,7 @@ interface PhotoPublicationDocument {
 }
 
 interface TransactionResult {
+  reporterUid: string;
   ownerUid: string;
   photoId: string;
   contentAvailableAtReview: boolean;
@@ -214,6 +222,7 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
         }
 
         const report = reportSnap.data() as ModerationReportDocument;
+        const reporterUid = cleanId(report.reporterUid);
         const targetType = String(report.targetType ?? '').trim().toLowerCase();
         const ownerUid = cleanId(report.targetOwnerUid);
         const photoId = cleanId(report.targetId);
@@ -372,6 +381,7 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
         });
 
         return {
+          reporterUid,
           ownerUid,
           photoId,
           contentAvailableAtReview,
@@ -390,6 +400,17 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
       critical: result.reason === 'minor_content_safety',
       confirmed: decision === 'REMOVE',
     });
+
+    if (
+      result.reporterUid &&
+      isMinorSafetyReportReason(result.reason)
+    ) {
+      await safeRecordModerationReporterOutcome({
+        reportId,
+        reporterUid: result.reporterUid,
+        outcome: decision === 'REMOVE' ? 'CONFIRMED' : 'REJECTED',
+      });
+    }
 
     await safeNotifyModerationReportReviewed(reportId);
 

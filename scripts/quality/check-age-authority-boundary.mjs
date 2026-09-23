@@ -32,6 +32,11 @@ const requiredFiles = Object.freeze([
   'functions/src/compliance/request-initial-age-verification-review.handler.ts',
   'functions/src/compliance/review-initial-age-verification.handler.ts',
   'functions/src/compliance/review-profile-age-reverification.handler.ts',
+  'functions/src/compliance/report-profile-minor-safety.handler.ts',
+  'functions/src/compliance/request-profile-age-reverification-appeal.handler.ts',
+  'functions/src/moderation/moderation-reporter-abuse.policy.ts',
+  'functions/src/moderation/moderation-reporter-abuse.service.ts',
+  'functions/src/moderation/moderation-minor-safety-report-security.service.ts',
   'functions/src/compliance/adult-consent.handler.ts',
   'src/app/core/services/compliance/age-eligibility.service.ts',
   'src/app/core/guards/compliance/age-eligibility.guard.ts',
@@ -367,6 +372,119 @@ for (const relativePath of communityAgeBoundaryFiles) {
     violations.push(
       `${relativePath} (acesso social/Comunidades deve depender da autoridade etária canônica)`
     );
+  }
+}
+
+const minorSafetyReportPath = path.join(
+  root,
+  'functions/src/compliance/report-profile-minor-safety.handler.ts'
+);
+if (fs.existsSync(minorSafetyReportPath)) {
+  const source = codeOnly(fs.readFileSync(minorSafetyReportPath, 'utf8'));
+
+  for (const required of [
+    'REQUIRE_CALLABLE_APP_CHECK',
+    'assertCallableAppCheck',
+    'consumeMinorSafetyReporterQuota',
+    'safeRecordModerationOpenSignal',
+  ]) {
+    if (!source.includes(required)) {
+      violations.push(
+        `functions/src/compliance/report-profile-minor-safety.handler.ts (denúncia de menoridade precisa manter proteção transversal: ${required})`
+      );
+    }
+  }
+}
+
+
+const minorSafetySecurityPath = path.join(
+  root,
+  'functions/src/moderation/moderation-minor-safety-report-security.service.ts'
+);
+if (fs.existsSync(minorSafetySecurityPath)) {
+  const source = codeOnly(fs.readFileSync(minorSafetySecurityPath, 'utf8'));
+
+  for (const required of [
+    'safeGetModerationReporterAbuseAssessment',
+    'consumeBackendRateLimitQuota',
+    "action: 'minorSafetyReport'",
+    'minorSafetyReportRateLimitConfig',
+  ]) {
+    if (!source.includes(required)) {
+      violations.push(
+        `functions/src/moderation/moderation-minor-safety-report-security.service.ts (quota transversal de menoridade incompleta: ${required})`
+      );
+    }
+  }
+}
+
+const ageAppealPath = path.join(
+  root,
+  'functions/src/compliance/request-profile-age-reverification-appeal.handler.ts'
+);
+if (fs.existsSync(ageAppealPath)) {
+  const source = codeOnly(fs.readFileSync(ageAppealPath, 'utf8'));
+
+  for (const required of [
+    'REQUIRE_CALLABLE_APP_CHECK',
+    'consumeBackendRateLimitQuota',
+    "status: 'REVIEW_REQUIRED'",
+    'writeCanonicalAgeEligibilityInTransaction',
+    'age_reverification.appeal_requested',
+  ]) {
+    if (!source.includes(required)) {
+      violations.push(
+        `functions/src/compliance/request-profile-age-reverification-appeal.handler.ts (contestação etária precisa permanecer segura e reversível: ${required})`
+      );
+    }
+  }
+
+  if (
+    /request\.data[\s\S]{0,160}(?:evidenceReference|evidenceMethod)/.test(source) ||
+    /interface\s+Request[^}]{0,800}(?:evidenceReference|evidenceMethod)/.test(source)
+  ) {
+    violations.push(
+      'functions/src/compliance/request-profile-age-reverification-appeal.handler.ts (pedido de contestação não pode exigir prova documental como pré-condição)'
+    );
+  }
+}
+
+const moderationReportRulesPath = path.join(
+  root,
+  'firestore-rules/moderation_reports.rules'
+);
+if (fs.existsSync(moderationReportRulesPath)) {
+  const source = fs.readFileSync(moderationReportRulesPath, 'utf8');
+
+  if (
+    !source.includes('isCallableOnlyCreate') ||
+    !/targetType\s*==\s*"profile"[\s\S]{0,180}reason\s*==\s*"minor_safety"/.test(source)
+  ) {
+    violations.push(
+      'firestore-rules/moderation_reports.rules (minor_safety de perfil não pode contornar a Callable endurecida)'
+    );
+  }
+}
+
+const reporterAbuseRulesPath = path.join(
+  root,
+  'firestore-rules/moderation_automation.rules'
+);
+if (fs.existsSync(reporterAbuseRulesPath)) {
+  const source = fs.readFileSync(reporterAbuseRulesPath, 'utf8');
+
+  for (const collection of [
+    'moderation_reporter_abuse_state',
+    'moderation_reporter_abuse_outcomes',
+  ]) {
+    const pattern = new RegExp(
+      `match\\s+\\/${collection}\\/\\{[^}]+\\}\\s*\\{[\\s\\S]*?allow\\s+read\\s*,\\s*write\\s*:\\s*if\\s+false\\s*;`
+    );
+    if (!pattern.test(source)) {
+      violations.push(
+        `firestore-rules/moderation_automation.rules (${collection} deve permanecer backend-only)`
+      );
+    }
   }
 }
 

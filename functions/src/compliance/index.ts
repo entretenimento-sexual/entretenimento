@@ -27,6 +27,9 @@ export {
   requestProfileAgeReverification,
 } from './request-profile-age-reverification.handler';
 export {
+  requestProfileAgeReverificationAppeal,
+} from './request-profile-age-reverification-appeal.handler';
+export {
   submitProfileAgeReverification,
 } from './submit-profile-age-reverification.handler';
 export {

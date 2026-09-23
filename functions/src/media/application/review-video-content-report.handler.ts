@@ -7,6 +7,12 @@ import {
   safeRecordModerationReviewSignal,
 } from '../../moderation/moderation-automation.service';
 import {
+  isMinorSafetyReportReason,
+} from '../../moderation/moderation-minor-safety-report-security.service';
+import {
+  safeRecordModerationReporterOutcome,
+} from '../../moderation/moderation-reporter-abuse.service';
+import {
   safeNotifyModerationReportReviewed,
 } from '../../moderation/moderation-safety-notification.service';
 import { deleteProfileVideoResources } from './delete-profile-video.handler';
@@ -98,6 +104,7 @@ interface VideoRatingDocument {
 }
 
 interface TransactionResult {
+  reporterUid: string;
   ownerUid: string;
   targetAuthorUid: string;
   videoId: string;
@@ -273,6 +280,7 @@ export const reviewVideoContentReport = onCall<
         }
 
         const report = reportSnap.data() as ModerationReportDocument;
+        const reporterUid = cleanId(report.reporterUid);
         const targetType = cleanTargetType(report.targetType);
         const ownerUid = cleanId(report.targetOwnerUid);
         const targetAuthorUid = cleanId(report.targetAuthorUid) || ownerUid;
@@ -532,6 +540,7 @@ export const reviewVideoContentReport = onCall<
         });
 
         return {
+          reporterUid,
           ownerUid,
           targetAuthorUid,
           videoId,
@@ -553,6 +562,17 @@ export const reviewVideoContentReport = onCall<
       critical: result.reason === 'minor_content_safety',
       confirmed: decision === 'REMOVE',
     });
+
+    if (
+      result.reporterUid &&
+      isMinorSafetyReportReason(result.reason)
+    ) {
+      await safeRecordModerationReporterOutcome({
+        reportId,
+        reporterUid: result.reporterUid,
+        outcome: decision === 'REMOVE' ? 'CONFIRMED' : 'REJECTED',
+      });
+    }
 
     await safeNotifyModerationReportReviewed(reportId);
 

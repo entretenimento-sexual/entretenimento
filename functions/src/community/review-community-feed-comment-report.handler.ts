@@ -10,6 +10,9 @@ import {
   safeRecordModerationReviewSignal,
 } from '../moderation/moderation-automation.service';
 import {
+  safeRecordModerationReporterOutcome,
+} from '../moderation/moderation-reporter-abuse.service';
+import {
   safeNotifyModerationReportReviewed,
 } from '../moderation/moderation-safety-notification.service';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
@@ -119,6 +122,7 @@ export const reviewCommunityFeedCommentReport = onCall<
         throw new HttpsError('not-found', 'Denúncia não encontrada.');
       }
       const report = reportSnapshot.data() ?? {};
+      const reporterUid = cleanId(report['reporterUid']);
       const status = String(report['status'] ?? '').trim().toLowerCase();
       const communityId = cleanId(report['containerTargetId']);
       const postId = cleanId(report['parentTargetId']);
@@ -290,7 +294,7 @@ export const reviewCommunityFeedCommentReport = onCall<
         timestamp,
       });
 
-      return { authorUid, critical };
+      return { authorUid, reporterUid, critical };
     });
 
     await safeRecordModerationReviewSignal({
@@ -299,6 +303,14 @@ export const reviewCommunityFeedCommentReport = onCall<
       critical: automationTarget.critical,
       confirmed: decision === 'REMOVE',
     });
+
+    if (automationTarget.critical && automationTarget.reporterUid) {
+      await safeRecordModerationReporterOutcome({
+        reportId,
+        reporterUid: automationTarget.reporterUid,
+        outcome: decision === 'REMOVE' ? 'CONFIRMED' : 'REJECTED',
+      });
+    }
 
     await safeNotifyModerationReportReviewed(reportId);
 

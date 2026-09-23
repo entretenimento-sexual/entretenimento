@@ -16,6 +16,10 @@ import {
   safeRecordModerationOpenSignal,
 } from '../moderation/moderation-automation.service';
 import {
+  consumeMinorSafetyReporterQuota,
+  isMinorSafetyReportReason,
+} from '../moderation/moderation-minor-safety-report-security.service';
+import {
   safeNotifyModerationReportOpened,
 } from '../moderation/moderation-safety-notification.service';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
@@ -108,6 +112,9 @@ export const reportCommunityFeedCommentReply = onCall<
       action: 'feed_report_reply',
       actorUid: reporterUid,
     });
+    if (isMinorSafetyReportReason(command.reason)) {
+      await consumeMinorSafetyReporterQuota({ reporterUid });
+    }
     await assertInteractionAccess(reporterUid);
     await getCommunityViewerContext(reporterUid, command.communityId);
 

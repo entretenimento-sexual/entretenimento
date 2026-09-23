@@ -13,6 +13,9 @@ import {
   safeRecordModerationReviewSignal,
 } from '../moderation/moderation-automation.service';
 import {
+  safeRecordModerationReporterOutcome,
+} from '../moderation/moderation-reporter-abuse.service';
+import {
   safeNotifyModerationReportReviewed,
 } from '../moderation/moderation-safety-notification.service';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
@@ -127,6 +130,7 @@ export const reviewCommunityFeedCommentReplyReport = onCall<
       }
 
       const report = reportSnapshot.data() ?? {};
+      const reporterUid = cleanId(report['reporterUid']);
       const status = String(report['status'] ?? '').trim().toLowerCase();
       const communityId = cleanId(report['containerTargetId']);
       const postId = cleanId(report['grandparentTargetId']);
@@ -297,7 +301,7 @@ export const reviewCommunityFeedCommentReplyReport = onCall<
         timestamp,
       });
 
-      return { authorUid, critical };
+      return { authorUid, reporterUid, critical };
     });
 
     await safeRecordModerationReviewSignal({
@@ -306,6 +310,14 @@ export const reviewCommunityFeedCommentReplyReport = onCall<
       critical: automationTarget.critical,
       confirmed: decision === 'REMOVE',
     });
+
+    if (automationTarget.critical && automationTarget.reporterUid) {
+      await safeRecordModerationReporterOutcome({
+        reportId,
+        reporterUid: automationTarget.reporterUid,
+        outcome: decision === 'REMOVE' ? 'CONFIRMED' : 'REJECTED',
+      });
+    }
 
     await safeNotifyModerationReportReviewed(reportId);
 

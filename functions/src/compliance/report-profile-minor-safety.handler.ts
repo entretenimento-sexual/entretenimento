@@ -6,8 +6,15 @@ import {
   safeRecordModerationOpenSignal,
 } from '../moderation/moderation-automation.service';
 import {
+  consumeMinorSafetyReporterQuota,
+} from '../moderation/moderation-minor-safety-report-security.service';
+import {
   safeNotifyModerationReportOpened,
 } from '../moderation/moderation-safety-notification.service';
+import {
+  assertCallableAppCheck,
+  REQUIRE_CALLABLE_APP_CHECK,
+} from '../shared/security/callable-app-check';
 import {
   type AgeReverificationUserDocument,
   assertComplianceAuthenticatedUid,
@@ -24,8 +31,13 @@ interface ReportProfileMinorSafetyRequest {
 }
 
 export const reportProfileMinorSafety = onCall<ReportProfileMinorSafetyRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_CALLABLE_APP_CHECK,
+  },
   async (request): Promise<{ reportId: string }> => {
+    assertCallableAppCheck(request.app);
+
     const reporterUid = assertComplianceAuthenticatedUid(request.auth);
     const targetUid = cleanComplianceId(request.data?.targetUid);
     const details = cleanComplianceText(request.data?.details, 1200);
@@ -41,6 +53,10 @@ export const reportProfileMinorSafety = onCall<ReportProfileMinorSafetyRequest>(
         'Não é possível denunciar o próprio perfil.'
       );
     }
+
+    const reporterAbuse = await consumeMinorSafetyReporterQuota({
+      reporterUid,
+    });
 
     const reportRef = db.collection('moderation_reports').doc();
     const dedupRef = db
@@ -99,6 +115,7 @@ export const reportProfileMinorSafety = onCall<ReportProfileMinorSafetyRequest>(
         moderationAction: null,
         ageReverificationCaseId: null,
         ageReverificationStatus: null,
+        reporterAbuseLevel: reporterAbuse.level,
         source: 'web',
         createdAt: timestamp,
         updatedAt: timestamp,

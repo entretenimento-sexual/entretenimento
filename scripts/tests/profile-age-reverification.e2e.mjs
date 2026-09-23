@@ -243,6 +243,10 @@ async function run() {
       moderatorClient.functions,
       'reviewProfileAgeReverification'
     );
+    const appealAsTarget = httpsCallable(
+      targetClient.functions,
+      'requestProfileAgeReverificationAppeal'
+    );
 
     await expectCallableFailure(reportAsTarget, {
       targetUid,
@@ -325,6 +329,8 @@ async function run() {
       reportId: firstReportId,
       decision: 'VERIFY',
       resolution: 'Maioridade confirmada após revisão administrativa.',
+      evidenceMethod: 'PROVIDER_ESCALATION',
+      evidenceReference: `provider-review-${firstReportId}`,
     });
 
     await waitFor(
@@ -364,12 +370,16 @@ async function run() {
       reportId: secondReportId,
       decision: 'VERIFY',
       resolution: 'Esta aprovação deve ser bloqueada pelo backend.',
+      evidenceMethod: 'PROVIDER_ESCALATION',
+      evidenceReference: `provider-review-${secondReportId}-invalid`,
     });
 
     await reviewAsAdmin({
       reportId: secondReportId,
       decision: 'REJECT',
-      resolution: 'Menoridade confirmada pela declaração enviada no caso.',
+      resolution: 'Menoridade confirmada após revisão de evidência confiável.',
+      evidenceMethod: 'PROVIDER_ESCALATION',
+      evidenceReference: `provider-review-${secondReportId}-underage`,
     });
 
     await waitFor(
@@ -387,6 +397,74 @@ async function run() {
         state.publicProfile === null
     );
 
+    const rejectedState = await readData(targetUserRef);
+    const rejectedCaseId = rejectedState.ageReverification.caseId;
+
+    const appealResult = await appealAsTarget({});
+    assert.equal(appealResult.data.caseId, rejectedCaseId);
+    assert.equal(appealResult.data.reportId, secondReportId);
+
+    await waitFor(
+      'contestação reabrir o mesmo caso sem desbloqueio imediato',
+      async () => ({
+        user: await readData(targetUserRef),
+        report: await readData(secondReportRef),
+        ageCase: await readData(db.doc(
+          `age_reverification_cases/${rejectedCaseId}`
+        )),
+        publicProfile: await readData(targetPublicProfileRef),
+      }),
+      (state) =>
+        state.user?.ageReverification?.status === 'REQUIRED' &&
+        state.user?.ageReverification?.caseId === rejectedCaseId &&
+        state.user?.ageEligibility?.status === 'REVIEW_REQUIRED' &&
+        state.user?.accountStatus === 'moderation_suspended' &&
+        state.user?.suspended === true &&
+        state.report?.status === 'reviewing' &&
+        state.report?.ageReverificationStatus === 'REQUIRED' &&
+        state.ageCase?.status === 'REQUIRED' &&
+        state.publicProfile === null
+    );
+
+    await submitAsTarget({
+      birthDate: '2000-01-01',
+      confirmsTruthfulness: true,
+      acceptsRestrictedProcessing: true,
+    });
+
+    await reviewAsAdmin({
+      reportId: secondReportId,
+      decision: 'VERIFY',
+      resolution: 'Maioridade confirmada após contestação do mesmo caso.',
+      evidenceMethod: 'PROVIDER_ESCALATION',
+      evidenceReference: `provider-appeal-${secondReportId}`,
+    });
+
+    await waitFor(
+      'contestação favorável remover somente a suspensão etária',
+      async () => ({
+        user: await readData(targetUserRef),
+        report: await readData(secondReportRef),
+        publicProfile: await readData(targetPublicProfileRef),
+      }),
+      (state) =>
+        state.user?.ageReverification?.status === 'VERIFIED' &&
+        state.user?.accountStatus === 'active' &&
+        state.user?.suspended === false &&
+        state.user?.publicVisibility === 'visible' &&
+        state.user?.interactionBlocked === false &&
+        state.report?.status === 'resolved' &&
+        state.report?.moderationAction === 'KEEP' &&
+        state.publicProfile?.uid === targetUid
+    );
+
+    const appealAudit = await db
+      .collection('compliance_audit')
+      .where('uid', '==', targetUid)
+      .where('type', '==', 'age_reverification.appeal_requested')
+      .get();
+    assert.ok(!appealAudit.empty, 'A contestação precisa deixar trilha auditável.');
+
     console.log('✔ autodenúncia, duplicidade e decisão por usuário comum bloqueadas');
     console.log('✔ denúncia isolada não restringiu a conta');
     console.log('✔ moderação solicitou revalidação apenas para perfil/minor_safety');
@@ -394,6 +472,9 @@ async function run() {
     console.log('✔ maioridade confirmada restaurou perfil e interações');
     console.log('✔ declaração abaixo de 18 anos não pôde ser aprovada como adulta');
     console.log('✔ menoridade confirmada suspendeu a conta após decisão administrativa');
+    console.log('✔ contestação reabriu o mesmo caso sem exigir documento no pedido');
+    console.log('✔ conta permaneceu restrita durante a contestação');
+    console.log('✔ revisão favorável removeu somente a suspensão etária e restaurou o perfil');
   } finally {
     const cleanupTasks = [];
 

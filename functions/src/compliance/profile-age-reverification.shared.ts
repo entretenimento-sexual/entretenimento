@@ -35,11 +35,21 @@ export interface AgeReverificationRecord {
   resolution?: string | null;
   evidenceMethod?: string | null;
   evidenceReferenceHash?: string | null;
+  appealCount?: number | null;
+  lastAppealedAt?: number | null;
 }
 
 export interface AgeReverificationUserDocument extends UserDoc {
   ageReverification?: AgeReverificationRecord | null;
   suspended?: boolean;
+  suspensionReasonCode?: string | null;
+  ageReverificationSuspension?: {
+    active?: boolean;
+    caseId?: string | null;
+    reportId?: string | null;
+    appliedAtMs?: number | null;
+    appliedBy?: string | null;
+  } | null;
 }
 
 export function cleanComplianceId(value: unknown): string {

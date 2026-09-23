@@ -51,6 +51,11 @@
           <a class="btn btn-secondary" routerLink="/conta/conformidade">
             Abrir avisos e manifestações
           </a>
+          @if (canRequestAgeReverificationAppeal$ | async) {
+            <a class="btn btn-secondary" routerLink="/adulto/revalidar">
+              Solicitar nova análise de idade
+            </a>
+          }
         </section>
       }
 

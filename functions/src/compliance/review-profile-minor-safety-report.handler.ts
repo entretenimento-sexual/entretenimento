@@ -9,6 +9,9 @@ import {
   safeRecordModerationReviewSignal,
 } from '../moderation/moderation-automation.service';
 import {
+  safeRecordModerationReporterOutcome,
+} from '../moderation/moderation-reporter-abuse.service';
+import {
   safeNotifyModerationReportReviewed,
 } from '../moderation/moderation-safety-notification.service';
 import { isProfileMinorSafetyReport } from './profile-age-reverification.policy';
@@ -68,7 +71,7 @@ export const reviewProfileMinorSafetyReport = onCall<
 
     const reportRef = db.collection('moderation_reports').doc(reportId);
 
-    const targetUid = await db.runTransaction(async (transaction) => {
+    const result = await db.runTransaction(async (transaction) => {
       const reportSnapshot = await transaction.get(reportRef);
 
       if (!reportSnapshot.exists) {
@@ -139,14 +142,20 @@ export const reviewProfileMinorSafetyReport = onCall<
         timestamp,
       });
 
-      return targetUid;
+      return { targetUid, reporterUid };
     });
 
     await safeRecordModerationReviewSignal({
       reportId,
-      targetUid,
+      targetUid: result.targetUid,
       critical: true,
       confirmed: false,
+    });
+
+    await safeRecordModerationReporterOutcome({
+      reportId,
+      reporterUid: result.reporterUid,
+      outcome: 'REJECTED',
     });
 
     await safeNotifyModerationReportReviewed(reportId);

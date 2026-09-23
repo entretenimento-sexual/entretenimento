@@ -87,6 +87,8 @@ export interface IUserAgeReverification {
     | 'PROFILE_KYC'
     | null;
   evidenceReferenceHash?: string | null;
+  appealCount?: number | null;
+  lastAppealedAt?: number | null;
 }
 
 export type TermsAcceptanceContext = 'initial' | 'material_update';
@@ -300,7 +302,15 @@ export interface IUserDados {
 
   /** Suspensão. */
   suspensionReason?: string | null;
+  suspensionReasonCode?: string | null;
   suspensionSource?: 'self' | 'moderator' | 'automation' | null;
+  ageReverificationSuspension?: {
+    active: boolean;
+    caseId: string;
+    reportId: string;
+    appliedAtMs: number;
+    appliedBy: string;
+  } | null;
   suspensionEndsAt?: number | null;
 
   moderationAutomationHold?: {

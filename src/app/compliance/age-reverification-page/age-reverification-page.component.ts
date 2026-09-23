@@ -20,6 +20,7 @@ interface AgeReverificationPageVm {
   status: IUserAgeReverification['status'] | 'NONE';
   label: string;
   canSubmit: boolean;
+  canAppeal: boolean;
   isPendingReview: boolean;
 }
 
@@ -38,6 +39,7 @@ export class AgeReverificationPageComponent {
   private readonly router = inject(Router);
 
   readonly isSaving = signal(false);
+  readonly isRequestingAppeal = signal(false);
   readonly form = new FormGroup({
     birthDate: new FormControl('', {
       nonNullable: true,
@@ -63,6 +65,7 @@ export class AgeReverificationPageComponent {
           status,
           label: this.ageReverification.statusLabel(state),
           canSubmit: status === 'REQUIRED',
+          canAppeal: status === 'REJECTED' || status === 'EXPIRED',
           isPendingReview: status === 'SUBMITTED' || status === 'UNDER_REVIEW',
         };
       })
@@ -95,12 +98,38 @@ export class AgeReverificationPageComponent {
       });
   }
 
+  requestAppeal(): void {
+    if (this.isSaving() || this.isRequestingAppeal()) {
+      return;
+    }
+
+    this.isRequestingAppeal.set(true);
+
+    this.ageReverification.requestAppeal$()
+      .pipe(
+        take(1),
+        catchError(() => EMPTY),
+        finalize(() => this.isRequestingAppeal.set(false))
+      )
+      .subscribe(() => {
+        this.form.enable({ emitEvent: false });
+        this.form.reset({
+          birthDate: '',
+          confirmsTruthfulness: false,
+          acceptsRestrictedProcessing: false,
+        }, { emitEvent: false });
+        this.notification.showSuccess(
+          'Nova análise solicitada. Envie novamente os dados de revalidação.'
+        );
+      });
+  }
+
   goToAccount(): void {
     this.router.navigate(['/conta']).catch(() => undefined);
   }
 
   logout(): void {
-    if (this.isSaving()) {
+    if (this.isSaving() || this.isRequestingAppeal()) {
       return;
     }
 
