@@ -97,7 +97,7 @@ export class RegisterNavigationService {
       };
     }
 
-    if (!state.ageEligibilityVerified) {
+    if (!state.ageAccessAllowed) {
       return {
         ...state,
         uid,
@@ -106,9 +106,9 @@ export class RegisterNavigationService {
         nextRoute: '/adulto/verificar-idade',
         progress: 50,
         canContinue: true,
-        primaryActionLabel: 'Verificar maioridade',
+        primaryActionLabel: 'Confirmar que tenho 18 anos ou mais',
         blockingMessage:
-          'A plataforma exige confirmação backend de maioridade antes do acesso adulto.',
+          'Confirme que você tem 18 anos ou mais para continuar.',
       };
     }
 
