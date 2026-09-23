@@ -85,7 +85,6 @@ const EXPECTED_CANONICAL_ACTION_BY_CALLABLE: Readonly<Record<
   updateCommunityMembershipDisclosurePolicy: 'settings_update',
   updateCommunityMembershipProfileVisibility: 'settings_update',
   updateCommunityNotificationPreference: 'notification_preference_update',
-  transferCommunityOwnership: 'ownership_mutation',
   requestCommunityOwnershipTransfer: 'ownership_mutation',
   respondCommunityOwnershipTransfer: 'ownership_mutation',
   cancelCommunityOwnershipTransfer: 'ownership_mutation',
