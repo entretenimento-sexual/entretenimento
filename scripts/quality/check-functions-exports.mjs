@@ -30,6 +30,7 @@ const requiredExports = [
   'deleteDirectMessage',
   'acceptPlatformTerms',
   'acceptAdultConsent',
+  'declareAdultAgeAccess',
   'refreshMyAgeEligibility',
   'requestInitialAgeVerificationReview',
   'reviewInitialAgeVerification',
