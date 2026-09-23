@@ -55,6 +55,9 @@ import {
 import { ApplicationErrorService } from '../../error-handler/application-error.service';
 import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 import { PlatformSubscriptionAccessService } from '@core/services/subscriptions/platform-subscription-access.service';
+import { AgeEligibilityService } from '@core/services/compliance/age-eligibility.service';
+import { AdultConsentService } from '@core/services/compliance/adult-consent.service';
+import { isCurrentLegalAcceptanceSatisfied } from '@core/services/compliance/terms-acceptance.service';
 
 export type UserRole = IUserDados['role'];
 
@@ -81,6 +84,8 @@ export class AccessControlService {
   private readonly session = inject(AuthSessionService);
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly subscriptionAccess = inject(PlatformSubscriptionAccessService);
+  private readonly ageEligibility = inject(AgeEligibilityService);
+  private readonly adultConsent = inject(AdultConsentService);
   private readonly appBlock = inject(AuthAppBlockService);
   private readonly routeContext = inject(AuthRouteContextService);
 
@@ -546,48 +551,759 @@ export class AccessControlService {
   );
 
   /**
-   * Presença é infraestrutura de sessão.
-   * Não deve depender de e-mail verificado.
+   * Gate canônico de UX para a camada adulta.
+   *
+   * Importante:
+   * - não substitui Rules/Functions;
+   * - apenas evita iniciar recursos que o backend recusaria;
+   * - reage em tempo real à projeção etária e ao consentimento;
+   * - preserva rotas essenciais de conta/compliance fora deste gate.
    */
-  readonly canRunPresence$: Observable<boolean> = this.canRunInfraRealtime$;
+  readonly canRunAdultSessionRealtime$: Observable<boolean> = combineLatest([
+    this.canRunInfraRealtime$,
+    this.ageEligibility.verifiedAdult$,
+    this.appUser$,
+    this.adultConsent.currentConsentAccepted$,
+  ]).pipe(
+    map(([infraOk, ageOk, user, adultConsentAccepted]) => {
+      if (!infraOk || !ageOk || !user) return false;
+
+      const ageReverificationStatus = String(
+        user.ageReverification?.status ?? 'NONE'
+      ).trim().toUpperCase();
+
+      const ageReverificationAllowsAccess = ![
+        'REQUIRED',
+        'SUBMITTED',
+        'UNDER_REVIEW',
+        'EXPIRED',
+      ].includes(ageReverificationStatus);
+
+      const consentRequired = user.initialAdultConsentRequired !== false;
+      const consentOk = !consentRequired || adultConsentAccepted === true;
+      const termsOk = isCurrentLegalAcceptanceSatisfied(user.acceptedTerms);
+
+      return termsOk && consentOk && ageReverificationAllowsAccess;
+    }),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('canRunAdultSessionRealtime
+
+  /**
+   * Recursos sensíveis genéricos.
+   *
+   * Use este gate para features que exponham interação forte entre usuários.
+   */
+  readonly canRunSensitiveRealtime$: Observable<boolean> = combineLatest([
+    this.canRunDiscoveryRealtime$,
+    this.emailVerified$,
+  ]).pipe(
+    map(([discoveryOk, emailOk]) =>
+      discoveryOk === true &&
+      emailOk === true
+    ),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('canRunSensitiveRealtime$', false))
+  );
+
+  /**
+   * Mantido por compatibilidade.
+   *
+   * Interpretação:
+   * canRunProductRealtime$ = produto sensível.
+   * Para discovery/online use canRunDiscoveryRealtime$ ou canRunOnlineUsers$.
+   */
+  readonly canRunProductRealtime$: Observable<boolean> =
+    this.canRunSensitiveRealtime$.pipe(
+      distinctUntilChanged(),
+
+      tap((can) => {
+        if (!this.canDebug()) return;
+
+        const user = this.currentUserStore.getSnapshot() as any;
+
+        this.dbg('canRunProductRealtime$', {
+          can,
+          uid: user?.uid,
+          profileCompleted: user?.profileCompleted,
+          emailVerified: this.session.currentAuthUser?.emailVerified ?? null,
+          accountStatus: user?.accountStatus,
+        });
+      }),
+
+      shareReplay({ bufferSize: 1, refCount: true }),
+      catchError(this.handleStreamError('canRunProductRealtime$', false))
+    );
+
+  /**
+   * Listener de outros usuários online.
+   *
+   * Diferente da presença do próprio usuário, esta escuta só deve existir em
+   * rotas que realmente exibem cards ou modos de descoberta.
+   */
+  readonly canRunOnlineUsers$: Observable<boolean> = combineLatest([
+    this.canRunAdultSessionRealtime$,
+    this.profileEligible$,
+    this.emailVerified$,
+    this.authUid$,
+    this.routeCtx$,
+  ]).pipe(
+    map(([adultSessionOk, profileEligible, emailVerified, uid, routeCtx]) => {
+      const routeConsumesOnlineUsers =
+        routeCtx.routerReady === true &&
+        this.isOnlineUsersConsumptionRoute(routeCtx.currentUrl);
+
+      return {
+        can:
+          adultSessionOk === true &&
+          profileEligible === true &&
+          emailVerified === true &&
+          !!uid &&
+          routeConsumesOnlineUsers,
+        url: routeCtx.currentUrl,
+        routerReady: routeCtx.routerReady,
+        routeConsumesOnlineUsers,
+      };
+    }),
+
+    distinctUntilChanged(
+      (previous, current) =>
+        previous.can === current.can &&
+        previous.url === current.url &&
+        previous.routerReady === current.routerReady &&
+        previous.routeConsumesOnlineUsers === current.routeConsumesOnlineUsers
+    ),
+
+    tap(({ can, url, routerReady, routeConsumesOnlineUsers }) => {
+      if (!this.canDebug() || !routerReady) return;
+
+      const user = this.currentUserStore.getSnapshot() as any;
+
+      this.dbg('canRunOnlineUsers$', {
+        can,
+        url,
+        routeConsumesOnlineUsers,
+        uid: user?.uid,
+        profileCompleted: user?.profileCompleted,
+        emailVerified: this.session.currentAuthUser?.emailVerified ?? null,
+      });
+    }),
+
+    map(({ can }) => can),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('canRunOnlineUsers$', false))
+  );
+
+  // ---------------------------------------------------------------------------
+  // Capacidades de alto nível
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Entrada no núcleo do app.
+   *
+   * Corrigido:
+   * - NÃO exige emailVerified.
+   * - Exige apenas sessão, profileCompleted e conta não bloqueada.
+   */
+  readonly canEnterCore$: Observable<boolean> = combineLatest([
+    this.isAuthenticated$,
+    this.profileCompleted$,
+    this.isBlocked$,
+  ]).pipe(
+    map(([isAuth, profileCompleted, blocked]) =>
+      isAuth === true &&
+      profileCompleted === true &&
+      blocked === false
+    ),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('canEnterCore$', false))
+  );
+
+  /**
+   * Compatibilidade.
+   *
+   * Mantido apontando para produto sensível.
+   * Quando precisar de listeners não sensíveis, use canRunDiscoveryRealtime$.
+   */
+  readonly canListenRealtime$: Observable<boolean> =
+    this.canRunProductRealtime$.pipe(
+      distinctUntilChanged(),
+      shareReplay({ bufferSize: 1, refCount: true }),
+      catchError(this.handleStreamError('canListenRealtime$', false))
+    );
+
+  /**
+   * Etapas de registro/onboarding:
+   * só exigem autenticação e ausência de bloqueio.
+   */
+  readonly canEnterRegistrationSteps$: Observable<boolean> = combineLatest([
+    this.isAuthenticated$,
+    this.isBlocked$,
+  ]).pipe(
+    map(([isAuth, blocked]) => !!isAuth && !blocked),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('canEnterRegistrationSteps$', false))
+  );
+
+  // ---------------------------------------------------------------------------
+  // Roles
+  // ---------------------------------------------------------------------------
+
+  private readonly role$: Observable<UserRole> = combineLatest([
+    this.appUser$,
+    this.subscriptionAccess.state$,
+  ]).pipe(
+    map(([user, subscriptionState]) => {
+      if (!user) return 'visitante' as UserRole;
+      if (user.role === 'admin') return 'admin' as UserRole;
+
+      return this.safeRole(
+        subscriptionState.active && subscriptionState.role
+          ? subscriptionState.role
+          : 'free'
+      );
+    }),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('role$', 'visitante' as UserRole))
+  );
+
+  hasAtLeast$(min: UserRole): Observable<boolean> {
+    return this.role$.pipe(
+      map((role) => this.safeRank(role) >= this.safeRank(min)),
+      distinctUntilChanged(),
+      catchError(this.handleStreamError(`hasAtLeast$(${String(min)})`, false))
+    );
+  }
+
+  hasAny$(allowed: UserRole[]): Observable<boolean> {
+    const allowedSet = new Set((allowed ?? []).map((item) => String(item)));
+
+    return this.role$.pipe(
+      map((role) => allowedSet.has(String(role))),
+      distinctUntilChanged(),
+      catchError(this.handleStreamError('hasAny$', false))
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Conveniências
+  // ---------------------------------------------------------------------------
+
+  readonly isFree$: Observable<boolean> = combineLatest([
+    this.isAuthenticated$,
+    this.subscriptionAccess.isFree$,
+  ]).pipe(
+    map(([isAuth, subscriptionIsFree]) => !isAuth || subscriptionIsFree),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('isFree$', true))
+  );
+
+  readonly isSubscriber$: Observable<boolean> =
+    this.subscriptionAccess.isSubscriber$.pipe(
+      distinctUntilChanged(),
+      shareReplay({ bufferSize: 1, refCount: true }),
+      catchError(this.handleStreamError('isSubscriber$', false))
+    );
+}
+, false))
+  );
+
+  /**
+   * Presença representa participação ativa na experiência social adulta.
+   * Não exige e-mail verificado, mas só inicia após a sequência de compliance
+   * já estar válida. Enquanto isso, a sessão permanece acessível para concluir
+   * termos, idade, consentimento, ajuda e configurações de conta.
+   */
+  readonly canRunPresence$: Observable<boolean> =
+    this.canRunAdultSessionRealtime$;
 
   /**
    * Chat é recurso sensível:
-   * exige perfil completo + e-mail verificado.
+   * exige camada adulta válida + perfil completo + e-mail verificado.
    */
   readonly canRunChatRealtime$: Observable<boolean> = combineLatest([
-    this.canRunInfraRealtime$,
+    this.canRunAdultSessionRealtime$,
     this.profileEligible$,
     this.emailVerified$,
   ]).pipe(
-    map(([infraOk, profileOk, emailOk]) =>
-      infraOk === true &&
+    map(([adultSessionOk, profileOk, emailOk]) =>
+      adultSessionOk === true &&
       profileOk === true &&
       emailOk === true
     ),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true }),
-    catchError(this.handleStreamError('canRunChatRealtime$', false))
+    catchError(this.handleStreamError('canRunChatRealtime
+
+  /**
+   * Recursos sensíveis genéricos.
+   *
+   * Use este gate para features que exponham interação forte entre usuários.
+   */
+  readonly canRunSensitiveRealtime$: Observable<boolean> = combineLatest([
+    this.canRunDiscoveryRealtime$,
+    this.emailVerified$,
+  ]).pipe(
+    map(([discoveryOk, emailOk]) =>
+      discoveryOk === true &&
+      emailOk === true
+    ),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('canRunSensitiveRealtime$', false))
+  );
+
+  /**
+   * Mantido por compatibilidade.
+   *
+   * Interpretação:
+   * canRunProductRealtime$ = produto sensível.
+   * Para discovery/online use canRunDiscoveryRealtime$ ou canRunOnlineUsers$.
+   */
+  readonly canRunProductRealtime$: Observable<boolean> =
+    this.canRunSensitiveRealtime$.pipe(
+      distinctUntilChanged(),
+
+      tap((can) => {
+        if (!this.canDebug()) return;
+
+        const user = this.currentUserStore.getSnapshot() as any;
+
+        this.dbg('canRunProductRealtime$', {
+          can,
+          uid: user?.uid,
+          profileCompleted: user?.profileCompleted,
+          emailVerified: this.session.currentAuthUser?.emailVerified ?? null,
+          accountStatus: user?.accountStatus,
+        });
+      }),
+
+      shareReplay({ bufferSize: 1, refCount: true }),
+      catchError(this.handleStreamError('canRunProductRealtime$', false))
+    );
+
+  /**
+   * Listener de outros usuários online.
+   *
+   * Diferente da presença do próprio usuário, esta escuta só deve existir em
+   * rotas que realmente exibem cards ou modos de descoberta.
+   */
+  readonly canRunOnlineUsers$: Observable<boolean> = combineLatest([
+    this.canRunInfraRealtime$,
+    this.profileEligible$,
+    this.authUid$,
+    this.routeCtx$,
+  ]).pipe(
+    map(([infraOk, profileEligible, uid, routeCtx]) => {
+      const routeConsumesOnlineUsers =
+        routeCtx.routerReady === true &&
+        this.isOnlineUsersConsumptionRoute(routeCtx.currentUrl);
+
+      return {
+        can:
+          infraOk === true &&
+          profileEligible === true &&
+          !!uid &&
+          routeConsumesOnlineUsers,
+        url: routeCtx.currentUrl,
+        routerReady: routeCtx.routerReady,
+        routeConsumesOnlineUsers,
+      };
+    }),
+
+    distinctUntilChanged(
+      (previous, current) =>
+        previous.can === current.can &&
+        previous.url === current.url &&
+        previous.routerReady === current.routerReady &&
+        previous.routeConsumesOnlineUsers === current.routeConsumesOnlineUsers
+    ),
+
+    tap(({ can, url, routerReady, routeConsumesOnlineUsers }) => {
+      if (!this.canDebug() || !routerReady) return;
+
+      const user = this.currentUserStore.getSnapshot() as any;
+
+      this.dbg('canRunOnlineUsers$', {
+        can,
+        url,
+        routeConsumesOnlineUsers,
+        uid: user?.uid,
+        profileCompleted: user?.profileCompleted,
+        emailVerified: this.session.currentAuthUser?.emailVerified ?? null,
+      });
+    }),
+
+    map(({ can }) => can),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('canRunOnlineUsers$', false))
+  );
+
+  // ---------------------------------------------------------------------------
+  // Capacidades de alto nível
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Entrada no núcleo do app.
+   *
+   * Corrigido:
+   * - NÃO exige emailVerified.
+   * - Exige apenas sessão, profileCompleted e conta não bloqueada.
+   */
+  readonly canEnterCore$: Observable<boolean> = combineLatest([
+    this.isAuthenticated$,
+    this.profileCompleted$,
+    this.isBlocked$,
+  ]).pipe(
+    map(([isAuth, profileCompleted, blocked]) =>
+      isAuth === true &&
+      profileCompleted === true &&
+      blocked === false
+    ),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('canEnterCore$', false))
+  );
+
+  /**
+   * Compatibilidade.
+   *
+   * Mantido apontando para produto sensível.
+   * Quando precisar de listeners não sensíveis, use canRunDiscoveryRealtime$.
+   */
+  readonly canListenRealtime$: Observable<boolean> =
+    this.canRunProductRealtime$.pipe(
+      distinctUntilChanged(),
+      shareReplay({ bufferSize: 1, refCount: true }),
+      catchError(this.handleStreamError('canListenRealtime$', false))
+    );
+
+  /**
+   * Etapas de registro/onboarding:
+   * só exigem autenticação e ausência de bloqueio.
+   */
+  readonly canEnterRegistrationSteps$: Observable<boolean> = combineLatest([
+    this.isAuthenticated$,
+    this.isBlocked$,
+  ]).pipe(
+    map(([isAuth, blocked]) => !!isAuth && !blocked),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('canEnterRegistrationSteps$', false))
+  );
+
+  // ---------------------------------------------------------------------------
+  // Roles
+  // ---------------------------------------------------------------------------
+
+  private readonly role$: Observable<UserRole> = combineLatest([
+    this.appUser$,
+    this.subscriptionAccess.state$,
+  ]).pipe(
+    map(([user, subscriptionState]) => {
+      if (!user) return 'visitante' as UserRole;
+      if (user.role === 'admin') return 'admin' as UserRole;
+
+      return this.safeRole(
+        subscriptionState.active && subscriptionState.role
+          ? subscriptionState.role
+          : 'free'
+      );
+    }),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('role$', 'visitante' as UserRole))
+  );
+
+  hasAtLeast$(min: UserRole): Observable<boolean> {
+    return this.role$.pipe(
+      map((role) => this.safeRank(role) >= this.safeRank(min)),
+      distinctUntilChanged(),
+      catchError(this.handleStreamError(`hasAtLeast$(${String(min)})`, false))
+    );
+  }
+
+  hasAny$(allowed: UserRole[]): Observable<boolean> {
+    const allowedSet = new Set((allowed ?? []).map((item) => String(item)));
+
+    return this.role$.pipe(
+      map((role) => allowedSet.has(String(role))),
+      distinctUntilChanged(),
+      catchError(this.handleStreamError('hasAny$', false))
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Conveniências
+  // ---------------------------------------------------------------------------
+
+  readonly isFree$: Observable<boolean> = combineLatest([
+    this.isAuthenticated$,
+    this.subscriptionAccess.isFree$,
+  ]).pipe(
+    map(([isAuth, subscriptionIsFree]) => !isAuth || subscriptionIsFree),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('isFree$', true))
+  );
+
+  readonly isSubscriber$: Observable<boolean> =
+    this.subscriptionAccess.isSubscriber$.pipe(
+      distinctUntilChanged(),
+      shareReplay({ bufferSize: 1, refCount: true }),
+      catchError(this.handleStreamError('isSubscriber$', false))
+    );
+}
+, false))
   );
 
   /**
    * Discovery/Online Users:
-   * exige perfil completo, mas não exige e-mail verificado.
+   * exige camada adulta válida + perfil completo.
    *
-   * O e-mail não verificado deve entrar na policy de limitação:
-   * raio menor, menor precisão, interações bloqueadas etc.
+   * E-mail verificado continua sendo exigido apenas onde a boundary específica
+   * realmente precisa dele (por exemplo, listagem de presença de terceiros).
    */
   readonly canRunDiscoveryRealtime$: Observable<boolean> = combineLatest([
-    this.canRunInfraRealtime$,
+    this.canRunAdultSessionRealtime$,
     this.profileEligible$,
   ]).pipe(
-    map(([infraOk, profileOk]) =>
-      infraOk === true &&
+    map(([adultSessionOk, profileOk]) =>
+      adultSessionOk === true &&
       profileOk === true
     ),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true }),
-    catchError(this.handleStreamError('canRunDiscoveryRealtime$', false))
+    catchError(this.handleStreamError('canRunDiscoveryRealtime
+
+  /**
+   * Recursos sensíveis genéricos.
+   *
+   * Use este gate para features que exponham interação forte entre usuários.
+   */
+  readonly canRunSensitiveRealtime$: Observable<boolean> = combineLatest([
+    this.canRunDiscoveryRealtime$,
+    this.emailVerified$,
+  ]).pipe(
+    map(([discoveryOk, emailOk]) =>
+      discoveryOk === true &&
+      emailOk === true
+    ),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('canRunSensitiveRealtime$', false))
+  );
+
+  /**
+   * Mantido por compatibilidade.
+   *
+   * Interpretação:
+   * canRunProductRealtime$ = produto sensível.
+   * Para discovery/online use canRunDiscoveryRealtime$ ou canRunOnlineUsers$.
+   */
+  readonly canRunProductRealtime$: Observable<boolean> =
+    this.canRunSensitiveRealtime$.pipe(
+      distinctUntilChanged(),
+
+      tap((can) => {
+        if (!this.canDebug()) return;
+
+        const user = this.currentUserStore.getSnapshot() as any;
+
+        this.dbg('canRunProductRealtime$', {
+          can,
+          uid: user?.uid,
+          profileCompleted: user?.profileCompleted,
+          emailVerified: this.session.currentAuthUser?.emailVerified ?? null,
+          accountStatus: user?.accountStatus,
+        });
+      }),
+
+      shareReplay({ bufferSize: 1, refCount: true }),
+      catchError(this.handleStreamError('canRunProductRealtime$', false))
+    );
+
+  /**
+   * Listener de outros usuários online.
+   *
+   * Diferente da presença do próprio usuário, esta escuta só deve existir em
+   * rotas que realmente exibem cards ou modos de descoberta.
+   */
+  readonly canRunOnlineUsers$: Observable<boolean> = combineLatest([
+    this.canRunInfraRealtime$,
+    this.profileEligible$,
+    this.authUid$,
+    this.routeCtx$,
+  ]).pipe(
+    map(([infraOk, profileEligible, uid, routeCtx]) => {
+      const routeConsumesOnlineUsers =
+        routeCtx.routerReady === true &&
+        this.isOnlineUsersConsumptionRoute(routeCtx.currentUrl);
+
+      return {
+        can:
+          infraOk === true &&
+          profileEligible === true &&
+          !!uid &&
+          routeConsumesOnlineUsers,
+        url: routeCtx.currentUrl,
+        routerReady: routeCtx.routerReady,
+        routeConsumesOnlineUsers,
+      };
+    }),
+
+    distinctUntilChanged(
+      (previous, current) =>
+        previous.can === current.can &&
+        previous.url === current.url &&
+        previous.routerReady === current.routerReady &&
+        previous.routeConsumesOnlineUsers === current.routeConsumesOnlineUsers
+    ),
+
+    tap(({ can, url, routerReady, routeConsumesOnlineUsers }) => {
+      if (!this.canDebug() || !routerReady) return;
+
+      const user = this.currentUserStore.getSnapshot() as any;
+
+      this.dbg('canRunOnlineUsers$', {
+        can,
+        url,
+        routeConsumesOnlineUsers,
+        uid: user?.uid,
+        profileCompleted: user?.profileCompleted,
+        emailVerified: this.session.currentAuthUser?.emailVerified ?? null,
+      });
+    }),
+
+    map(({ can }) => can),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('canRunOnlineUsers$', false))
+  );
+
+  // ---------------------------------------------------------------------------
+  // Capacidades de alto nível
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Entrada no núcleo do app.
+   *
+   * Corrigido:
+   * - NÃO exige emailVerified.
+   * - Exige apenas sessão, profileCompleted e conta não bloqueada.
+   */
+  readonly canEnterCore$: Observable<boolean> = combineLatest([
+    this.isAuthenticated$,
+    this.profileCompleted$,
+    this.isBlocked$,
+  ]).pipe(
+    map(([isAuth, profileCompleted, blocked]) =>
+      isAuth === true &&
+      profileCompleted === true &&
+      blocked === false
+    ),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('canEnterCore$', false))
+  );
+
+  /**
+   * Compatibilidade.
+   *
+   * Mantido apontando para produto sensível.
+   * Quando precisar de listeners não sensíveis, use canRunDiscoveryRealtime$.
+   */
+  readonly canListenRealtime$: Observable<boolean> =
+    this.canRunProductRealtime$.pipe(
+      distinctUntilChanged(),
+      shareReplay({ bufferSize: 1, refCount: true }),
+      catchError(this.handleStreamError('canListenRealtime$', false))
+    );
+
+  /**
+   * Etapas de registro/onboarding:
+   * só exigem autenticação e ausência de bloqueio.
+   */
+  readonly canEnterRegistrationSteps$: Observable<boolean> = combineLatest([
+    this.isAuthenticated$,
+    this.isBlocked$,
+  ]).pipe(
+    map(([isAuth, blocked]) => !!isAuth && !blocked),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('canEnterRegistrationSteps$', false))
+  );
+
+  // ---------------------------------------------------------------------------
+  // Roles
+  // ---------------------------------------------------------------------------
+
+  private readonly role$: Observable<UserRole> = combineLatest([
+    this.appUser$,
+    this.subscriptionAccess.state$,
+  ]).pipe(
+    map(([user, subscriptionState]) => {
+      if (!user) return 'visitante' as UserRole;
+      if (user.role === 'admin') return 'admin' as UserRole;
+
+      return this.safeRole(
+        subscriptionState.active && subscriptionState.role
+          ? subscriptionState.role
+          : 'free'
+      );
+    }),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('role$', 'visitante' as UserRole))
+  );
+
+  hasAtLeast$(min: UserRole): Observable<boolean> {
+    return this.role$.pipe(
+      map((role) => this.safeRank(role) >= this.safeRank(min)),
+      distinctUntilChanged(),
+      catchError(this.handleStreamError(`hasAtLeast$(${String(min)})`, false))
+    );
+  }
+
+  hasAny$(allowed: UserRole[]): Observable<boolean> {
+    const allowedSet = new Set((allowed ?? []).map((item) => String(item)));
+
+    return this.role$.pipe(
+      map((role) => allowedSet.has(String(role))),
+      distinctUntilChanged(),
+      catchError(this.handleStreamError('hasAny$', false))
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Conveniências
+  // ---------------------------------------------------------------------------
+
+  readonly isFree$: Observable<boolean> = combineLatest([
+    this.isAuthenticated$,
+    this.subscriptionAccess.isFree$,
+  ]).pipe(
+    map(([isAuth, subscriptionIsFree]) => !isAuth || subscriptionIsFree),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('isFree$', true))
+  );
+
+  readonly isSubscriber$: Observable<boolean> =
+    this.subscriptionAccess.isSubscriber$.pipe(
+      distinctUntilChanged(),
+      shareReplay({ bufferSize: 1, refCount: true }),
+      catchError(this.handleStreamError('isSubscriber$', false))
+    );
+}
+, false))
   );
 
   /**
