@@ -234,7 +234,10 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
             interestedInOrientations: canonical.interestedInOrientations,
             compatibilityReady: canonical.compatibilityReady,
             age: null,
-            ageEligibilityVerifiedAdult: ageDecision.allowed,
+            ageEligibilityAdultAccessAllowed: ageDecision.allowed,
+            ageEligibilityVerifiedAdult:
+              ageDecision.allowed &&
+              ageDecision.status === 'VERIFIED_ADULT',
             ageEligibilityValidUntil,
             ...publicPreferences,
             ...publicLocation,
