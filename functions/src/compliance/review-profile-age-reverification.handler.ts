@@ -48,6 +48,7 @@ interface ReviewProfileAgeReverificationRequest {
 
 interface AgeReverificationCaseDocument {
   result?: string | null;
+  activeAppealCaseId?: string | null;
   declaredAgeBand?: string | null;
   publicProfileBackup?: Record<string, unknown> | null;
   nicknameIndexBackup?: Record<string, unknown> | null;
@@ -147,6 +148,9 @@ export const reviewProfileAgeReverification = onCall<
 
       const user = userSnapshot.data() as AgeReverificationUserDocument;
       const ageCase = caseSnapshot.data() as AgeReverificationCaseDocument;
+      const activeAppealCaseId = cleanComplianceId(
+        ageCase.activeAppealCaseId
+      );
       const currentStatus = normalizeAgeReverificationStatus(
         user.ageReverification?.status
       );
@@ -216,6 +220,8 @@ export const reviewProfileAgeReverification = onCall<
               resolution,
               evidenceMethod: evidence.method,
               evidenceReferenceHash: evidence.referenceHash,
+              appealCaseId: null,
+              appealRequestedAt: null,
             },
             ageEligibility,
             ...(canRestoreAccess
@@ -288,6 +294,8 @@ export const reviewProfileAgeReverification = onCall<
               resolution,
               evidenceMethod: evidence.method,
               evidenceReferenceHash: evidence.referenceHash,
+              appealCaseId: null,
+              appealRequestedAt: null,
             },
             ageEligibility,
             accountStatus: 'moderation_suspended',
@@ -326,6 +334,7 @@ export const reviewProfileAgeReverification = onCall<
           evidenceMethod: evidence.method,
           evidenceReferenceHash: evidence.referenceHash,
           restoredMediaDocumentCount: mediaSnapshots?.totalDocuments ?? 0,
+          activeAppealCaseId: null,
           publicProfileBackup: FieldValue.delete(),
           nicknameIndexBackup: FieldValue.delete(),
           nicknameIndexDocId: FieldValue.delete(),
@@ -356,6 +365,22 @@ export const reviewProfileAgeReverification = onCall<
         },
         { merge: true }
       );
+
+      if (activeAppealCaseId) {
+        transaction.set(
+          db.collection('compliance_cases').doc(activeAppealCaseId),
+          {
+            status: decision === 'VERIFY'
+              ? 'RESOLVED_NO_VIOLATION'
+              : 'RESOLVED_ACTION_TAKEN',
+            resolution,
+            resolvedAt: timestamp,
+            resolvedBy: adminUid,
+            updatedAt: timestamp,
+          },
+          { merge: true }
+        );
+      }
 
       transaction.create(db.collection('admin_logs').doc(), {
         adminUid,
