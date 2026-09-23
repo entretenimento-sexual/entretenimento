@@ -65,6 +65,45 @@ function normalizeLimit(value: unknown): number {
   return Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 12) : 4;
 }
 
+
+function timestampToMillis(value: unknown): number | null {
+  if (
+    value &&
+    typeof value === 'object' &&
+    typeof (value as { toMillis?: unknown }).toMillis === 'function'
+  ) {
+    try {
+      const millis = (value as { toMillis: () => number }).toMillis();
+      return Number.isFinite(millis) ? millis : null;
+    } catch {
+      return null;
+    }
+  }
+
+  if (value instanceof Date) {
+    const millis = value.getTime();
+    return Number.isFinite(millis) ? millis : null;
+  }
+
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+}
+
+export function isCurrentPublicProfileForCommunityDisclosure(
+  profile: Record<string, unknown> | null | undefined,
+  nowMs: number
+): boolean {
+  if (!profile || profile['ageEligibilityVerifiedAdult'] !== true) {
+    return false;
+  }
+
+  const validUntilMs = timestampToMillis(
+    profile['ageEligibilityValidUntil']
+  );
+
+  return validUntilMs !== null && validUntilMs > nowMs;
+}
+
 export const getProfilePublicCommunities = onCall<ProfilePublicCommunitiesRequest>(
   {
     region: FUNCTIONS_REGION,
@@ -75,6 +114,7 @@ export const getProfilePublicCommunities = onCall<ProfilePublicCommunitiesReques
     assertRuntime();
     const viewerUid = assertAuthenticatedUid(request.auth);
     await assertCommunitySocialAccessForUid(viewerUid);
+    const nowMs = Date.now();
 
     const profileId = normalizePublicProfileId(request.data?.profileId);
     const limit = normalizeLimit(request.data?.limit);
@@ -101,7 +141,18 @@ export const getProfilePublicCommunities = onCall<ProfilePublicCommunitiesReques
 
     const publicProfileSnapshot = publicProfilesSnapshot.docs[0];
     if (!publicProfileSnapshot) {
-      return { items: [], nextCursor: null, generatedAt: Date.now() };
+      return { items: [], nextCursor: null, generatedAt: nowMs };
+    }
+
+    const publicProfile = publicProfileSnapshot.data()
+      as Record<string, unknown>;
+    if (
+      !isCurrentPublicProfileForCommunityDisclosure(
+        publicProfile,
+        nowMs
+      )
+    ) {
+      return { items: [], nextCursor: null, generatedAt: nowMs };
     }
 
     const profileUid = String(publicProfileSnapshot.id ?? '').trim();
@@ -225,7 +276,7 @@ export const getProfilePublicCommunities = onCall<ProfilePublicCommunitiesReques
     return {
       items: [...result.items],
       nextCursor: null,
-      generatedAt: Date.now(),
+      generatedAt: nowMs,
     };
   }
 );
