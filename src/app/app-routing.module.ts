@@ -10,6 +10,7 @@ import { profileCompletedGuard } from './core/guards/profile-guard/profile-compl
 import { adultContentConsentGuard } from './core/guards/compliance/adult-content-consent.guard';
 import { ageEligibilityGuard } from './core/guards/compliance/age-eligibility.guard';
 import { ageReverificationGuard } from './core/guards/compliance/age-reverification.guard';
+import { currentTermsGuard } from './core/guards/compliance/current-terms.guard';
 
 import { LayoutShellComponent } from './layout/layout-shell/layout-shell.component';
 import { accountLifecycleGuard } from './account/guards/account-lifecycle.guard';
@@ -21,7 +22,12 @@ const routes: Routes = [
     loadComponent: () =>
       import('./compliance/age-verification-page/age-verification-page.component')
         .then(m => m.AgeVerificationPageComponent),
-    canActivate: [authGuard, accountLifecycleGuard, registrationStepGuard],
+    canActivate: [
+      authGuard,
+      accountLifecycleGuard,
+      registrationStepGuard,
+      currentTermsGuard,
+    ],
     data: {
       allowUnverified: true,
       allowedRegisterSteps: ['ageVerification'],
@@ -32,7 +38,13 @@ const routes: Routes = [
     loadComponent: () =>
       import('./compliance/adult-consent-page/adult-consent-page.component')
         .then(m => m.AdultConsentPageComponent),
-    canActivate: [authGuard, accountLifecycleGuard, registrationStepGuard],
+    canActivate: [
+      authGuard,
+      accountLifecycleGuard,
+      registrationStepGuard,
+      currentTermsGuard,
+      ageEligibilityGuard,
+    ],
     data: {
       allowUnverified: true,
       allowedRegisterSteps: ['adultConsent'],
