@@ -491,7 +491,10 @@ export class ModerationReportsComponent {
     ) {
       return 3;
     }
-    if (report.reason === 'minor_safety') return 2;
+    if (
+      report.reason === 'minor_safety' ||
+      report.reason === 'age_verification_request'
+    ) return 2;
     if (report.automationPriority === 'HIGH') return 1;
     return 0;
   }
@@ -513,6 +516,7 @@ export class ModerationReportsComponent {
       'privacy',
       'minor_safety',
       'minor_content_safety',
+      'age_verification_request',
       'other',
     ].includes(reason) ? reason : null;
   }
