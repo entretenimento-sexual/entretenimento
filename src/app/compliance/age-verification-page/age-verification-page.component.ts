@@ -7,13 +7,14 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { EMPTY, Observable } from 'rxjs';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { EMPTY, Observable, of } from 'rxjs';
 import {
   catchError,
   finalize,
   map,
+  switchMap,
   take,
 } from 'rxjs/operators';
 
@@ -24,7 +25,6 @@ import { LogoutService } from 'src/app/core/services/autentication/auth/logout.s
 import {
   AgeEligibilityService,
 } from 'src/app/core/services/compliance/age-eligibility.service';
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 
 interface AgeVerificationPageVm {
   state: IUserAgeEligibility;
@@ -33,6 +33,19 @@ interface AgeVerificationPageVm {
   reviewRequired: boolean;
   expired: boolean;
 }
+
+type FeedbackTone = 'info' | 'success' | 'warning' | 'error';
+
+interface AgeVerificationFeedback {
+  tone: FeedbackTone;
+  title: string;
+  message: string;
+}
+
+type VerificationActionResult =
+  | 'VERIFIED_ADULT'
+  | 'DENIED_UNDERAGE'
+  | 'REVIEW_REQUIRED';
 
 @Component({
   selector: 'app-age-verification-page',
@@ -44,14 +57,13 @@ interface AgeVerificationPageVm {
 })
 export class AgeVerificationPageComponent implements OnInit {
   private readonly ageEligibility = inject(AgeEligibilityService);
-  private readonly notification = inject(ErrorNotificationService);
   private readonly logout = inject(LogoutService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
 
-  readonly refreshing = signal(false);
-  readonly requestingReview = signal(false);
+  readonly processing = signal(false);
+  readonly feedback = signal<AgeVerificationFeedback | null>(null);
 
   readonly vm$: Observable<AgeVerificationPageVm> =
     this.ageEligibility.current$.pipe(
@@ -74,87 +86,158 @@ export class AgeVerificationPageComponent implements OnInit {
       });
   }
 
-  requestReview(): void {
-    if (this.refreshing() || this.requestingReview()) {
+  /**
+   * Um único CTA para o usuário:
+   * 1. reaproveita silenciosamente qualquer fonte confiável já reconhecida;
+   * 2. se ainda não houver prova válida, abre a revisão backend;
+   * 3. nunca transforma autodeclaração em autorização.
+   */
+  verifyNow(): void {
+    if (this.processing()) {
       return;
     }
 
-    this.requestingReview.set(true);
+    this.processing.set(true);
+    this.feedback.set({
+      tone: 'info',
+      title: 'Verificando sua conta',
+      message:
+        'Primeiro vamos procurar uma confirmação confiável que já esteja vinculada à sua conta.',
+    });
+
+    this.ageEligibility.refreshTrustedSources$()
+      .pipe(
+        take(1),
+        switchMap((status) => {
+          if (status === 'VERIFIED_ADULT') {
+            return of<VerificationActionResult>('VERIFIED_ADULT');
+          }
+
+          if (status === 'DENIED_UNDERAGE') {
+            return of<VerificationActionResult>('DENIED_UNDERAGE');
+          }
+
+          if (status === 'REVIEW_REQUIRED') {
+            return of<VerificationActionResult>('REVIEW_REQUIRED');
+          }
+
+          return this.ageEligibility.requestInitialReview$().pipe(
+            map((result) => result.status as VerificationActionResult)
+          );
+        }),
+        catchError(() => {
+          this.feedback.set({
+            tone: 'error',
+            title: 'Não foi possível continuar',
+            message:
+              'A verificação não pôde ser iniciada agora. Tente novamente em alguns instantes. Nenhuma solicitação duplicada será criada.',
+          });
+          return EMPTY;
+        }),
+        finalize(() => this.processing.set(false))
+      )
+      .subscribe((result) => this.handleVerificationResult(result));
+  }
+
+  requestDecisionReview(): void {
+    if (this.processing()) {
+      return;
+    }
+
+    this.processing.set(true);
+    this.feedback.set({
+      tone: 'info',
+      title: 'Registrando sua contestação',
+      message:
+        'Vamos reabrir a análise para que uma nova evidência confiável possa ser considerada.',
+    });
 
     this.ageEligibility.requestInitialReview$()
       .pipe(
         take(1),
         catchError(() => {
-          this.notification.showError(
-            'Não foi possível solicitar a revisão de maioridade.'
-          );
+          this.feedback.set({
+            tone: 'error',
+            title: 'Não foi possível registrar a revisão',
+            message:
+              'Tente novamente em alguns instantes. Se o problema continuar, consulte a área de suporte da conta.',
+          });
           return EMPTY;
         }),
-        finalize(() => this.requestingReview.set(false))
+        finalize(() => this.processing.set(false))
       )
-      .subscribe((result) => {
-        if (result.status === 'VERIFIED_ADULT') {
-          this.notification.showSuccess(
-            'Sua maioridade já está confirmada.'
-          );
-          this.continueAfterVerification();
-          return;
-        }
-
-        this.notification.showInfo(
-          'Solicitação registrada. O acesso adulto permanece bloqueado até a revisão da evidência.'
-        );
-      });
+      .subscribe((result) => this.handleVerificationResult(result.status));
   }
 
-  refresh(): void {
-    if (this.refreshing() || this.requestingReview()) {
+  goToNotifications(): void {
+    void this.router.navigate(['/notificacoes']);
+  }
+
+  goToAccount(): void {
+    void this.router.navigate(['/conta']);
+  }
+
+  logoutCurrentSession(): void {
+    if (this.processing()) {
       return;
     }
 
-    this.refreshing.set(true);
+    this.processing.set(true);
 
-    this.ageEligibility.refreshTrustedSources$()
+    this.logout.logout$()
       .pipe(
         take(1),
         catchError(() => {
-          this.notification.showError(
-            'Não foi possível atualizar o status da verificação de maioridade.'
-          );
+          this.feedback.set({
+            tone: 'error',
+            title: 'Não foi possível sair da conta',
+            message: 'Tente novamente em alguns instantes.',
+          });
           return EMPTY;
         }),
-        finalize(() => this.refreshing.set(false))
+        finalize(() => this.processing.set(false))
       )
-      .subscribe((status) => {
-        if (status === 'VERIFIED_ADULT') {
-          this.notification.showSuccess(
-            'Maioridade confirmada por uma fonte confiável.'
-          );
-          this.continueAfterVerification();
-          return;
-        }
+      .subscribe();
+  }
 
-        if (status === 'DENIED_UNDERAGE') {
-          this.notification.showWarning(
-            'O acesso adulto não está disponível para esta conta.'
-          );
-          return;
-        }
-
-        this.notification.showWarning(
-          'Ainda não há uma verificação de maioridade válida para esta conta.'
-        );
+  private handleVerificationResult(result: VerificationActionResult): void {
+    if (result === 'VERIFIED_ADULT') {
+      this.feedback.set({
+        tone: 'success',
+        title: 'Maioridade confirmada',
+        message: 'Tudo certo. Estamos liberando seu acesso.',
       });
+      this.continueAfterVerification();
+      return;
+    }
+
+    if (result === 'DENIED_UNDERAGE') {
+      this.feedback.set({
+        tone: 'warning',
+        title: 'Acesso adulto não liberado',
+        message:
+          'A verificação atual não autoriza o acesso adulto. Se a decisão estiver incorreta, você pode solicitar uma nova revisão.',
+      });
+      return;
+    }
+
+    this.feedback.set({
+      tone: 'success',
+      title: 'Solicitação recebida',
+      message:
+        'Você não precisa enviar outra solicitação nem ficar atualizando esta página. O status muda automaticamente quando a análise for concluída.',
+    });
   }
 
   private continueAfterVerification(): void {
-    const redirectTo = this.safeRedirectTo(
-      this.route.snapshot.queryParamMap.get('redirectTo')
-    );
+    const redirectTo =
+      this.safeRedirectTo(
+        this.route.snapshot.queryParamMap.get('redirectTo')
+      ) ?? '/dashboard/principal';
 
     void this.router.navigate(['/adulto/confirmar'], {
       replaceUrl: true,
-      queryParams: redirectTo ? { redirectTo } : undefined,
+      queryParams: { redirectTo },
     });
   }
 
@@ -164,29 +247,14 @@ export class AgeVerificationPageComponent implements OnInit {
     if (
       !candidate.startsWith('/') ||
       candidate.startsWith('//') ||
-      candidate.includes('://')
+      candidate.includes('://') ||
+      candidate.startsWith('/login') ||
+      candidate.startsWith('/register') ||
+      candidate.startsWith('/adulto/')
     ) {
       return null;
     }
 
     return candidate;
-  }
-
-  logoutCurrentSession(): void {
-    if (this.refreshing() || this.requestingReview()) {
-      return;
-    }
-
-    this.logout.logout$()
-      .pipe(
-        take(1),
-        catchError(() => {
-          this.notification.showError(
-            'Não foi possível encerrar sua sessão.'
-          );
-          return EMPTY;
-        })
-      )
-      .subscribe();
   }
 }
