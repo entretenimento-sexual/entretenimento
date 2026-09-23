@@ -66,6 +66,12 @@ export class AgeEligibilityService {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
+  readonly adultAccessAllowed$: Observable<boolean> = this.current$.pipe(
+    switchMap((state) => this.observeAdultAccessWindow$(state)),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
   readonly verifiedAdult$: Observable<boolean> = this.current$.pipe(
     switchMap((state) => this.observeVerifiedWindow$(state)),
     distinctUntilChanged(),
@@ -121,6 +127,52 @@ export class AgeEligibilityService {
   }
 
 
+  acceptSelfDeclaration$(): Observable<
+    'SELF_DECLARED_ADULT' | 'VERIFIED_ADULT'
+  > {
+    const callable = runInInjectionContext(
+      this.environmentInjector,
+      () => httpsCallable<
+        { confirmsAdult: true },
+        {
+          status: 'SELF_DECLARED_ADULT' | 'VERIFIED_ADULT';
+          declaredAtMs: number | null;
+        }
+      >(
+        inject(Functions),
+        'acceptAdultSelfDeclaration'
+      )
+    );
+
+    return from(callable({ confirmsAdult: true })).pipe(
+      map((response) => response.data.status),
+      catchError((error) => {
+        try {
+          this.globalError.handleError(
+            Object.assign(
+              toErrorInstance(
+                error,
+                '[AgeEligibilityService.acceptSelfDeclaration] falhou.'
+              ),
+              {
+                feature: 'age-eligibility',
+                operation: 'acceptSelfDeclaration',
+                context: {
+                  scope: 'AgeEligibilityService',
+                },
+                original: error,
+              }
+            )
+          );
+        } catch {
+          // Diagnóstico não altera a fronteira etária.
+        }
+
+        return throwError(() => error);
+      })
+    );
+  }
+
   requestInitialReview$(): Observable<{
     reportId: string | null;
     status: 'VERIFIED_ADULT' | 'REVIEW_REQUIRED';
@@ -165,6 +217,61 @@ export class AgeEligibilityService {
 
         return throwError(() => error);
       })
+    );
+  }
+
+  private observeAdultAccessWindow$(
+    state: IUserAgeEligibility
+  ): Observable<boolean> {
+    const now = Date.now();
+    const active = this.isAdultAccessAllowedAt(state, now);
+    const futureBoundaries = [state.expiresAtMs].filter(
+      (value): value is number =>
+        typeof value === 'number' &&
+        Number.isFinite(value) &&
+        value > now
+    );
+
+    if (futureBoundaries.length === 0) {
+      return of(active);
+    }
+
+    const nextBoundary = Math.min(...futureBoundaries);
+    const delayMs = Math.max(1, nextBoundary - now + 1);
+
+    return concat(
+      of(active),
+      timer(delayMs).pipe(
+        switchMap(() => this.observeAdultAccessWindow$(state))
+      )
+    );
+  }
+
+  private isAdultAccessAllowedAt(
+    state: IUserAgeEligibility,
+    now: number
+  ): boolean {
+    if (
+      state.policyVersion !== 1 ||
+      (
+        state.status !== 'SELF_DECLARED_ADULT' &&
+        state.status !== 'VERIFIED_ADULT'
+      )
+    ) {
+      return false;
+    }
+
+    if (
+      state.status === 'VERIFIED_ADULT' &&
+      state.verifiedAtMs != null &&
+      state.verifiedAtMs > now
+    ) {
+      return false;
+    }
+
+    return (
+      state.expiresAtMs == null ||
+      now < state.expiresAtMs
     );
   }
 
@@ -237,18 +344,21 @@ export class AgeEligibilityService {
     if (
       ![
         'UNVERIFIED',
+        'SELF_DECLARED_ADULT',
         'REVIEW_REQUIRED',
         'VERIFIED_ADULT',
         'DENIED_UNDERAGE',
         'EXPIRED',
       ].includes(status) ||
       ![
+        'SELF_DECLARATION',
         'INITIAL_VERIFICATION',
         'AGE_REVERIFICATION',
         'PROFILE_KYC',
         'MIGRATION',
       ].includes(source) ||
       ![
+        'SELF_DECLARATION',
         'EXTERNAL_PROVIDER',
         'MANUAL_REVIEW',
         'KYC',
