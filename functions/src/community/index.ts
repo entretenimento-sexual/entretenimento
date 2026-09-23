@@ -124,7 +124,6 @@ export {
   respondCommunityOwnershipTransfer,
   cancelCommunityOwnershipTransfer,
   getMyCommunityOwnershipTransfers,
-  openCommunityOwnerTerminalSuccession,
   openCommunityOwnerTerminalSuccessionCase,
   nominateCommunityOwnerTerminalSuccessor,
   cancelCommunityOwnerTerminalSuccession,
