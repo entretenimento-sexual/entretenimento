@@ -14,6 +14,7 @@ import {
 } from '../community-boost/community-boost-authority.service';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
+import { resolveCommunityMemberCountDelta } from './community-member-count.policy';
 import {
   isCommunityOwnershipTransferExpired,
 } from './community-ownership-transfer.workflow.policy';
@@ -248,6 +249,24 @@ async function archiveExpiredTerminalCase(
 
     const community = communitySnapshot.data() ?? {};
     const status = String(community['status'] ?? '').trim();
+    const previousOwnerMembership = previousOwnerMembershipSnapshot.exists
+      ? previousOwnerMembershipSnapshot.data() ?? {}
+      : {};
+    const previousOwnerWasActive =
+      previousOwnerMembershipSnapshot.exists
+      && previousOwnerMembership['status'] === 'active';
+    const metrics = (community['metrics'] ?? {}) as Record<string, unknown>;
+    const nextMemberCount = previousOwnerWasActive
+      ? resolveCommunityMemberCountDelta(metrics['memberCount'], -1)
+      : null;
+
+    if (previousOwnerWasActive && nextMemberCount === null) {
+      logger.error('community_ownership_succession_member_count_inconsistent', {
+        communityId,
+        previousOwnerUid,
+      });
+      return false;
+    }
 
     if (activeRequestRef && activeRequestSnapshot?.exists) {
       transaction.set(activeRequestRef, {
@@ -304,6 +323,9 @@ async function archiveExpiredTerminalCase(
       'lifecycle.scheduledForDeletionAt': null,
       'lifecycle.interactionBlocked': true,
       'lifecycle.updatedAt': now,
+      ...(previousOwnerWasActive && nextMemberCount !== null
+        ? { 'metrics.memberCount': nextMemberCount }
+        : {}),
       updatedAt: now,
     });
 
