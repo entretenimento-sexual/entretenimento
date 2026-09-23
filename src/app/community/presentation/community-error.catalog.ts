@@ -56,12 +56,30 @@ export const COMMUNITY_PUBLIC_REASON_MESSAGES = Object.freeze({
   ...COMMUNITY_SOCIAL_ACCESS_REASON_MESSAGES,
 }) as Readonly<Record<CommunityPublicErrorReason, string>>;
 
-const SNACKBAR_ERROR: Readonly<ApplicationErrorPresentation> =
-  Object.freeze({ surface: 'snackbar', severity: 'error' });
-const SNACKBAR_INFO: Readonly<ApplicationErrorPresentation> =
-  Object.freeze({ surface: 'snackbar', severity: 'info' });
+export const COMMUNITY_ERROR_PRESENTATION_CONTEXTS = Object.freeze({
+  DEFAULT: 'default',
+  SILENT_NON_BLOCKING: 'silent_non_blocking',
+} as const);
 
-const BLOCKING_PRESENTATIONS: Readonly<
+export type CommunityErrorPresentationContext =
+  (typeof COMMUNITY_ERROR_PRESENTATION_CONTEXTS)[
+    keyof typeof COMMUNITY_ERROR_PRESENTATION_CONTEXTS
+  ];
+
+const BASE_ERROR_PRESENTATION: Readonly<ApplicationErrorPresentation> =
+  Object.freeze({ surface: 'snackbar', severity: 'error' });
+const RATE_LIMIT_PRESENTATION: Readonly<ApplicationErrorPresentation> =
+  Object.freeze({ surface: 'snackbar', severity: 'info' });
+const SILENT_NON_BLOCKING_PRESENTATION:
+  Readonly<ApplicationErrorPresentation> =
+    Object.freeze({ surface: 'none', severity: 'error' });
+
+/**
+ * Únicos desvios do presentation base. Entradas aqui devem representar
+ * bloqueios estruturais que exigem ação/decisão do usuário, não preferência
+ * visual de uma tela específica.
+ */
+const COMMUNITY_REASON_PRESENTATION_OVERRIDES: Readonly<
   Partial<Record<CommunityPublicErrorReason, ApplicationErrorPresentation>>
 > = Object.freeze({
   'recent-authentication-required': { surface: 'modal', severity: 'warning', title: 'Confirme sua identidade novamente' },
@@ -125,8 +143,10 @@ export const COMMUNITY_PUBLIC_REASON_PRESENTATIONS = Object.freeze(
   Object.fromEntries(
     COMMUNITY_PUBLIC_ERROR_REASONS.map((reason) => [
       reason,
-      BLOCKING_PRESENTATIONS[reason]
-        ?? (reason.endsWith('_rate_limited') ? SNACKBAR_INFO : SNACKBAR_ERROR),
+      COMMUNITY_REASON_PRESENTATION_OVERRIDES[reason]
+        ?? (reason.endsWith('_rate_limited')
+          ? RATE_LIMIT_PRESENTATION
+          : BASE_ERROR_PRESENTATION),
     ])
   )
 ) as Readonly<Record<CommunityPublicErrorReason, ApplicationErrorPresentation>>;
@@ -138,9 +158,19 @@ export function resolveCommunityPublicErrorMessage(reason: unknown): string | nu
 }
 
 export function resolveCommunityPublicErrorPresentation(
-  reason: unknown
+  reason: unknown,
+  context: CommunityErrorPresentationContext =
+    COMMUNITY_ERROR_PRESENTATION_CONTEXTS.DEFAULT
 ): ApplicationErrorPresentation | null {
-  return isCommunityPublicErrorReason(reason)
-    ? COMMUNITY_PUBLIC_REASON_PRESENTATIONS[reason]
-    : null;
+  if (!isCommunityPublicErrorReason(reason)) return null;
+
+  const canonical = COMMUNITY_PUBLIC_REASON_PRESENTATIONS[reason];
+  if (
+    context === COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING
+    && canonical.surface !== 'modal'
+  ) {
+    return SILENT_NON_BLOCKING_PRESENTATION;
+  }
+
+  return canonical;
 }
