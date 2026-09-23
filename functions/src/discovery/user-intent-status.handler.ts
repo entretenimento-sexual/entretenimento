@@ -228,7 +228,6 @@ function publicProfileFromUser(uid: string, user: MessagingUserDoc): {
   uid: string;
   nickname: string;
   photoURL: string | null;
-  age: number | null;
 } {
   const nickname = normalizeText(user.nickname, { min: 2, max: 40 });
   const photoURL = String(user.photoURL ?? '').trim();
@@ -236,9 +235,6 @@ function publicProfileFromUser(uid: string, user: MessagingUserDoc): {
     uid,
     nickname,
     photoURL: photoURL ? photoURL.slice(0, 600) : null,
-    // A autoridade etária comprova elegibilidade 18+, não idade exata.
-    // Não projetamos o legado `idade` como dado público.
-    age: null,
   };
 }
 
