@@ -4,6 +4,7 @@ import type { IUserIntentStatusCardVm } from 'src/app/core/interfaces/discovery/
 import {
   formatUserIntentStatusExpiresIn,
   getNextUserIntentStatusTransitionAt,
+  getUserIntentStatusExposureExpiresAt,
   projectActiveUserIntentStatusCards,
   watchUserIntentStatusTime$,
 } from './user-intent-status-time.utils';
@@ -51,6 +52,35 @@ describe('user intent status time utils', () => {
     }
   });
 
+  it('remove o Momento no validUntil etário mesmo antes da duração normal', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-15T20:00:00.000Z'));
+
+    try {
+      const now = Date.now();
+      const item = status('age-expiring', now + 60 * 60 * 1000);
+      item.ageEligibilityValidUntil = now + 1_000;
+
+      expect(getUserIntentStatusExposureExpiresAt(item)).toBe(now + 1_000);
+
+      const emissions: IUserIntentStatusCardVm[][] = [];
+      const subscription = watchUserIntentStatusTime$([item]).subscribe(
+        (items) => emissions.push([...items])
+      );
+
+      expect(emissions.at(-1)?.map((current) => current.id)).toEqual([
+        'age-expiring',
+      ]);
+
+      await vi.advanceTimersByTimeAsync(1_001);
+
+      expect(emissions.at(-1)).toEqual([]);
+      subscription.unsubscribe();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('agenda apenas a próxima transição relevante entre vários Momentos', () => {
     const now = 1_800_000_000_000;
     const first = status('first', now + 20 * 60 * 1000);
@@ -84,6 +114,7 @@ function status(id: string, expiresAt: number): IUserIntentStatusCardVm {
     moderation: { state: 'active' },
     startsAt,
     expiresAt,
+    ageEligibilityValidUntil: expiresAt + 12 * 60 * 60 * 1000,
     createdAt: startsAt,
     updatedAt: startsAt,
     destinationLabel: 'Niterói · niterói, RJ',
