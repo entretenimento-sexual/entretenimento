@@ -19,7 +19,7 @@ export interface RegisterFlowVm {
   userResolved: boolean;
   userExists: boolean;
   termsAccepted: boolean;
-  ageEligibilityVerified: boolean;
+  ageEligibilityAllowed: boolean;
   profileCompleted: boolean;
   adultConsentAccepted: boolean;
   initialAdultConsentRequired?: boolean;
@@ -40,7 +40,7 @@ export interface RegisterFlowAccessState {
   userResolved: boolean;
   userExists: boolean;
   termsAccepted: boolean;
-  ageEligibilityVerified: boolean;
+  ageEligibilityAllowed: boolean;
   profileCompleted: boolean;
   adultConsentAccepted: boolean;
   initialAdultConsentRequired?: boolean;
