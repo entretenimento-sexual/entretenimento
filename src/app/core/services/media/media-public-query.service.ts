@@ -112,7 +112,7 @@ export class MediaPublicQueryService {
 
       return collectionData(publicPhotosQuery, { idField: 'id' });
     }).pipe(
-      map((items) => items as IPublicPhotoProjection[]),
+      map((items) => items as unknown as readonly IPublicPhotoProjection[]),
       switchMap((items) =>
         this.publicPhotoAccess.hydratePublicPhotoUrls$(items)
       ),
@@ -202,7 +202,7 @@ export class MediaPublicQueryService {
       ownerUids: safeOwnerUids,
       limit: safeTakeCount,
     }).pipe(
-      map((items) => items as IPublicPhotoProjection[]),
+      map((items) => items as unknown as readonly IPublicPhotoProjection[]),
       switchMap((items) =>
         this.publicPhotoAccess.hydratePublicPhotoUrls$(items)
       ),
@@ -357,7 +357,7 @@ export class MediaPublicQueryService {
       mode: 'LATEST',
       limit: safeTakeCount,
     }).pipe(
-      map((items) => items as IPublicPhotoProjection[]),
+      map((items) => items as unknown as readonly IPublicPhotoProjection[]),
       switchMap((items) =>
         this.publicPhotoAccess.hydratePublicPhotoUrls$(items)
       ),
@@ -382,7 +382,7 @@ export class MediaPublicQueryService {
       mode: 'TOP',
       limit: safeTakeCount,
     }).pipe(
-      map((items) => items as IPublicPhotoProjection[]),
+      map((items) => items as unknown as readonly IPublicPhotoProjection[]),
       switchMap((items) =>
         this.publicPhotoAccess.hydratePublicPhotoUrls$(items)
       ),
@@ -410,7 +410,7 @@ export class MediaPublicQueryService {
       mode: 'BOOSTED',
       limit: safeTakeCount,
     }).pipe(
-      map((items) => items as IPublicPhotoProjection[]),
+      map((items) => items as unknown as readonly IPublicPhotoProjection[]),
       switchMap((items) =>
         this.publicPhotoAccess.hydratePublicPhotoUrls$(items)
       ),
