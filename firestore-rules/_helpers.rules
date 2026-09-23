@@ -118,13 +118,26 @@ service cloud.firestore {
       let expiresAt = eligibility is map
         ? mapFieldOrNull(eligibility, "expiresAt")
         : null;
+      let decidedAt = eligibility is map
+        ? mapFieldOrNull(eligibility, "decidedAt")
+        : null;
+      let verifiedAdult = eligibility is map
+        && eligibility.status == "VERIFIED_ADULT"
+        && verifiedAt is timestamp
+        && verifiedAt <= request.time;
+      let declaredAdult = eligibility is map
+        && ageAccessPolicyAllowsSelfDeclaration()
+        && eligibility.status == "DECLARED_ADULT"
+        && eligibility.source == "INITIAL_DECLARATION"
+        && eligibility.method == "SELF_DECLARATION"
+        && verifiedAt == null
+        && decidedAt is timestamp
+        && decidedAt <= request.time;
 
       return eligibility is map
         && eligibility.uid == userId
-        && eligibility.status == "VERIFIED_ADULT"
         && eligibility.policyVersion == 1
-        && verifiedAt is timestamp
-        && verifiedAt <= request.time
+        && (verifiedAdult || declaredAdult)
         && (
           expiresAt == null
           || (expiresAt is timestamp && request.time < expiresAt)
@@ -141,7 +154,7 @@ service cloud.firestore {
         && request.time < validUntil;
     }
 
-    function currentUserHasVerifiedAdultAge() {
+    function currentUserHasAdultAgeAccess() {
       return signedIn()
         && canonicalAgeEligibilityAllowsAdultAccess(uid());
     }
@@ -157,7 +170,7 @@ service cloud.firestore {
         && adultMediaHasCurrentTerms(user)
         && adultMediaHasRequiredConsent(user)
         && adultMediaAgeReverificationAllowsAccess(user)
-        && currentUserHasVerifiedAdultAge();
+        && currentUserHasAdultAgeAccess();
     }
 
     function canConsumeAdultPublicMedia() {
