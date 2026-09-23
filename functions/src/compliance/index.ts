@@ -1,5 +1,6 @@
 export { acceptAdultConsent } from './adult-consent.handler';
 export {
+  assertAdultAgeEligibility,
   assertVerifiedAdultAgeEligibility,
   getCanonicalAgeEligibilityForUid,
 } from './age-eligibility.service';
