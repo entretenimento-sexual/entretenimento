@@ -76,6 +76,8 @@ export interface IUserIntentStatus {
   moderation: IUserIntentStatusModeration;
   startsAt: number;
   expiresAt: number;
+  /** Relógio backend-only usado somente para encerrar exposição local. */
+  ageEligibilityValidUntil?: number | null;
   createdAt?: number | null;
   updatedAt?: number | null;
 }
