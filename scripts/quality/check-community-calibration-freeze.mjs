@@ -129,6 +129,27 @@ for (const fragment of [
   );
 }
 
+
+const businessEntitlement = read(
+  'functions/src/business-official/business-official-entitlement.policy.ts'
+);
+for (const fragment of [
+  "'amountCents'",
+  "'currency'",
+  "'plan'",
+  "'planId'",
+  "'planKey'",
+  "'price'",
+  "'priceCents'",
+  'hasForbiddenOfferFields',
+]) {
+  requireIncludes(
+    businessEntitlement,
+    fragment,
+    'Business/Official entitlement must remain price-free: ' + fragment
+  );
+}
+
 const baseline = read(
   'functions/src/shared/observability/operational-cost-baseline.policy.ts'
 );
