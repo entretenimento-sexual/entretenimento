@@ -11,6 +11,9 @@ import {
   safeRecordModerationReviewSignal,
 } from '../moderation/moderation-automation.service';
 import {
+  safeRecordModerationReporterOutcome,
+} from '../moderation/moderation-reporter-abuse.service';
+import {
   safeNotifyAgeReverificationOutcome,
 } from '../moderation/moderation-safety-notification.service';
 import {
@@ -107,7 +110,7 @@ export const reviewProfileAgeReverification = onCall<
       ? 'VERIFIED'
       : 'REJECTED';
 
-    const targetUid = await db.runTransaction(async (transaction) => {
+    const reviewResult = await db.runTransaction(async (transaction) => {
       const reportSnapshot = await transaction.get(reportRef);
 
       if (!reportSnapshot.exists) {
@@ -388,13 +391,18 @@ export const reviewProfileAgeReverification = onCall<
         createdAtMs: reviewedAt,
       });
 
-      return targetUid;
+      return { targetUid, reporterUid };
     });
 
     await safeRecordModerationReviewSignal({
       reportId,
-      targetUid,
+      targetUid: reviewResult.targetUid,
       critical: true,
+      confirmed: decision === 'REJECT',
+    });
+    await safeRecordModerationReporterOutcome({
+      reporterUid: reviewResult.reporterUid,
+      reportId,
       confirmed: decision === 'REJECT',
     });
 
