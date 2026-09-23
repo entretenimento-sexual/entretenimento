@@ -15,6 +15,7 @@ import {
   assertCallableAppCheck,
 } from '../../shared/security/callable-app-check';
 import type {
+  PlatformRecurringSubscriptionDoc,
   PlatformRecurringSubscriptionStateDoc,
 } from '../domain/platform-recurring-subscription.model';
 import {
@@ -38,7 +39,8 @@ interface BillingSnapshotResponse {
   projectionVersion: number;
   recurringConfigured: boolean;
   renewalEnabled: boolean;
-  renewalStatus: 'active' | 'canceled' | 'none';
+  renewalStatus: 'active' | 'cancel_pending' | 'canceled' | 'none';
+  renewalCancellationPending: boolean;
 }
 
 export const getMyBillingSnapshot = onCall<Record<string, never>>(
@@ -67,12 +69,27 @@ export const getMyBillingSnapshot = onCall<Record<string, never>>(
       : null;
     const recurringConfigured = !!recurringState?.currentContractId;
     const renewalEnabled = recurringState?.renewalEnabled === true;
-    const renewalStatus: 'active' | 'canceled' | 'none' =
+    const recurringContractSnapshot = recurringState?.currentContractId
+      ? await db
+        .collection('subscriptions')
+        .doc(recurringState.currentContractId)
+        .get()
+      : null;
+    const recurringContract =
+      recurringContractSnapshot?.exists
+        ? recurringContractSnapshot.data() as PlatformRecurringSubscriptionDoc
+        : null;
+    const renewalCancellationPending =
+      recurringContract?.needsProviderCancellation === true;
+    const renewalStatus:
+      'active' | 'cancel_pending' | 'canceled' | 'none' =
       renewalEnabled
         ? 'active'
-        : recurringConfigured
-          ? 'canceled'
-          : 'none';
+        : renewalCancellationPending
+          ? 'cancel_pending'
+          : recurringConfigured
+            ? 'canceled'
+            : 'none';
 
     if (!platformEntitlement.active || !platformEntitlement.role) {
       return {
@@ -88,6 +105,7 @@ export const getMyBillingSnapshot = onCall<Record<string, never>>(
         recurringConfigured,
         renewalEnabled,
         renewalStatus,
+        renewalCancellationPending,
       };
     }
 
@@ -104,6 +122,7 @@ export const getMyBillingSnapshot = onCall<Record<string, never>>(
       recurringConfigured,
       renewalEnabled,
       renewalStatus,
+      renewalCancellationPending,
     };
   }
 );
