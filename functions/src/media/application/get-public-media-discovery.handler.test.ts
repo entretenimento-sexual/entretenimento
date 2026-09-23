@@ -12,7 +12,7 @@ const NOW = 1_800_000_000_000;
 function media(overrides: Record<string, unknown> = {}) {
   return {
     ownerUid: 'owner-1',
-    ageEligibilityVerifiedAdult: true,
+    ageEligibilityAdultAccessAllowed: true,
     ageEligibilityValidUntil: {
       toMillis: () => NOW + 60_000,
     },
@@ -54,7 +54,7 @@ describe('get-public-media-discovery backend-time boundary', () => {
   it('falha fechado para projeção etária ausente, não adulta ou mídia não pública', () => {
     assert.equal(
       isCurrentPublicMediaExposure(
-        media({ ageEligibilityVerifiedAdult: false }),
+        media({ ageEligibilityAdultAccessAllowed: false }),
         NOW
       ),
       false
