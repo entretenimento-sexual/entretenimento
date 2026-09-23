@@ -49,3 +49,10 @@ export {
 export {
   expireAgeEligibilityRecords,
 } from './expire-age-eligibility.schedule';
+
+export {
+  requestInitialAgeVerificationReview,
+} from './request-initial-age-verification-review.handler';
+export {
+  reviewInitialAgeVerification,
+} from './review-initial-age-verification.handler';
