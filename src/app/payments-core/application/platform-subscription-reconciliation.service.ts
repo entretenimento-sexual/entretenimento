@@ -3,8 +3,9 @@
 // PLATFORM SUBSCRIPTION RECONCILIATION SERVICE
 // -----------------------------------------------------------------------------
 // No bootstrap autenticado, consulta o snapshot sanitizado do entitlement.
-// Aguarda a sessão e o perfil atual apontarem para o mesmo UID, evitando perder
-// a resposta antes da hidratação do CurrentUserStoreService.
+// A callable reconcilia a projeção backend-authoritative em users/{uid}; o
+// listener realtime oficial do usuário publica essa mudança no runtime.
+// Este serviço nunca fabrica role/tier/isSubscriber localmente.
 // -----------------------------------------------------------------------------
 
 import { Injectable, inject } from '@angular/core';
@@ -15,18 +16,12 @@ import {
   filter,
   map,
   switchMap,
-  tap,
 } from 'rxjs/operators';
 
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { BillingRepository } from '../infrastructure/repositories/billing.repository';
-import type { BillingSnapshotResult } from '../domain/models/billing-return.model';
-import {
-  PLATFORM_SUBSCRIPTION_PROJECTION_VERSION,
-  isPlatformSubscriptionRole,
-} from '@core/services/subscriptions/platform-subscription-access.model';
 
 @Injectable({ providedIn: 'root' })
 export class PlatformSubscriptionReconciliationService {
@@ -57,7 +52,6 @@ export class PlatformSubscriptionReconciliationService {
         filter((uid): uid is string => !!uid),
         switchMap((uid) =>
           this.billingRepository.getMyBillingSnapshot$().pipe(
-            tap((snapshot) => this.applySnapshot(uid, snapshot)),
             catchError((error) => {
               this.reportError(error, uid);
               return of(null);
@@ -66,54 +60,6 @@ export class PlatformSubscriptionReconciliationService {
         )
       )
       .subscribe();
-  }
-
-  private applySnapshot(
-    uid: string,
-    snapshot: BillingSnapshotResult | null
-  ): void {
-    const current = this.currentUserStore.getSnapshot();
-    if (!current || current.uid !== uid || !snapshot) return;
-
-    const now = Date.now();
-    const role = isPlatformSubscriptionRole(snapshot.role)
-      ? snapshot.role
-      : isPlatformSubscriptionRole(snapshot.tier)
-        ? snapshot.tier
-        : null;
-    const startsAt = this.toFiniteNumber(snapshot.startsAt);
-    const endsAt = this.toFiniteNumber(snapshot.endsAt);
-    const active =
-      snapshot.projectionVersion === PLATFORM_SUBSCRIPTION_PROJECTION_VERSION &&
-      snapshot.status === 'active' &&
-      snapshot.isSubscriber === true &&
-      snapshot.entitlements?.includes('platform_subscription') === true &&
-      role !== null &&
-      startsAt !== null &&
-      startsAt <= now &&
-      endsAt !== null &&
-      endsAt > now;
-    const preserveAdmin = current.role === 'admin';
-
-    this.currentUserStore.patch({
-      role: preserveAdmin ? 'admin' : active ? role! : 'free',
-      tier: active ? role : 'free',
-      billingProjectionVersion: PLATFORM_SUBSCRIPTION_PROJECTION_VERSION,
-      isSubscriber: active,
-      monthlyPayer: active,
-      subscriptionStatus: active ? 'active' : 'inactive',
-      subscriptionScope: active ? 'platform_subscription' : null,
-      subscriptionStartedAt: startsAt,
-      subscriptionEndsAt: endsAt,
-      subscriptionExpires: endsAt,
-      billingUpdatedAt: this.toFiniteNumber(snapshot.updatedAt),
-    });
-  }
-
-  private toFiniteNumber(value: unknown): number | null {
-    return typeof value === 'number' && Number.isFinite(value)
-      ? value
-      : null;
   }
 
   private reportError(error: unknown, uid: string): void {
