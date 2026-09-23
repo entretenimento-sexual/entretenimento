@@ -209,3 +209,15 @@ Antes de ativar `ASAAS_RECURRING_ENABLED=true` em produção:
 Merge de código não prova deploy nem configuração do Asaas. A ativação só deve
 ser considerada concluída após secrets, runtime, webhook, deploy e uma
 homologação financeira controlada.
+
+
+## Link hospedado por ambiente
+
+O backend prefere o campo `link` devolvido pelo próprio Asaas ao criar o
+Checkout e valida o host antes de redirecionar:
+
+- Sandbox: `sandbox.asaas.com`;
+- Produção: `asaas.com`.
+
+Se a resposta não trouxer um link utilizável, o fallback é montado com o host
+correspondente ao ambiente. Um link retornado por host diferente é descartado.
