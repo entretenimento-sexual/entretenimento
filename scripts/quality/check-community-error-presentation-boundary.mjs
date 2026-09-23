@@ -43,8 +43,14 @@ function isTestFile(file) {
 }
 
 function isCommunityAdminSurface(file, source) {
-  return file.startsWith(path.normalize('src/app/admin-dashboard/'))
-    && /\bfeature\s*:\s*['"]community['"]/.test(source);
+  if (!file.startsWith(path.normalize('src/app/admin-dashboard/'))) {
+    return false;
+  }
+
+  const normalized = file.replaceAll('\\', '/');
+  return normalized.includes('/admin-dashboard/community-')
+    || /\bfeature\s*:\s*['"]community['"]/.test(source)
+    || /from\s+['"]src\/app\/community\//.test(source);
 }
 
 function lineFor(source, index) {
