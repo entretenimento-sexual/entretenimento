@@ -32,6 +32,5 @@ export const COMMUNITY_CALIBRATION_REQUIRED_EVIDENCE = Object.freeze({
 } as const);
 
 export function isCommunityCalibrationChangeAllowed(): boolean {
-  return COMMUNITY_CALIBRATION_STAGE ===
-    ('CALIBRATION_ALLOWED' as CommunityCalibrationStage);
+  return String(COMMUNITY_CALIBRATION_STAGE) === 'CALIBRATION_ALLOWED';
 }
