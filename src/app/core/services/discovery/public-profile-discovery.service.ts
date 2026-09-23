@@ -37,11 +37,9 @@ export class PublicProfileDiscoveryService {
 
     return collectionData(q, { idField: 'uid' }).pipe(
       map((docs) => docs
-        .filter((raw) =>
-          (raw as unknown as Record<string, unknown>)[
-            'ageEligibilityVerifiedAdult'
-          ] === true
-        )
+        .filter((raw) => this.hasCurrentAgeEligibility(
+          raw as unknown as Record<string, unknown>
+        ))
         .map((raw) => this.toUserDadosFromPublicProfile(
           raw as unknown as Record<string, unknown>
         ))
@@ -62,7 +60,7 @@ export class PublicProfileDiscoveryService {
       map((raw) => {
         const source = raw as unknown as Record<string, unknown> | undefined;
 
-        return source?.['ageEligibilityVerifiedAdult'] === true
+        return source && this.hasCurrentAgeEligibility(source)
           ? this.toUserDadosFromPublicProfile(source)
           : null;
       }),
@@ -125,6 +123,26 @@ export class PublicProfileDiscoveryService {
       && !!this.text(profile.gender)
       && !!this.text(profile.estado)
       && !!this.text(profile.municipio);
+  }
+
+  private hasCurrentAgeEligibility(
+    source: Record<string, unknown>
+  ): boolean {
+    if (source['ageEligibilityVerifiedAdult'] !== true) return false;
+
+    const validUntil = source['ageEligibilityValidUntil'] as
+      | { toMillis?: unknown }
+      | Date
+      | null
+      | undefined;
+
+    if (validUntil instanceof Date) {
+      return validUntil.getTime() > Date.now();
+    }
+
+    return !!validUntil &&
+      typeof (validUntil as { toMillis?: unknown }).toMillis === 'function' &&
+      (validUntil as { toMillis: () => number }).toMillis() > Date.now();
   }
 
   private text(value: unknown): string | null {
