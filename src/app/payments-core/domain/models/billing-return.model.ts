@@ -52,7 +52,8 @@ export interface BillingSnapshotResult {
   projectionVersion?: number | null;
   recurringConfigured?: boolean;
   renewalEnabled?: boolean;
-  renewalStatus?: 'active' | 'canceled' | 'none';
+  renewalStatus?: 'active' | 'cancel_pending' | 'canceled' | 'none';
+  renewalCancellationPending?: boolean;
 }
 
 export interface CancelPlatformSubscriptionRenewalResult {
