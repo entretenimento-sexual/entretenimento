@@ -33,7 +33,11 @@ function campaign(overrides: Record<string, unknown> = {}) {
   const built = buildCommunityBoostCampaign({
     campaignId: 'campaign-1',
     communityId: 'community-1',
+    advertiserUid: 'owner-1',
     ownerUid: 'owner-1',
+    communityOwnerUidSnapshot: 'owner-1',
+    communityOwnerTransferredAtSnapshot: null,
+    authorityRoleSnapshot: 'owner',
     targetSourceType: 'community',
     targetTagId: null,
     budgetCents: 10_000,
@@ -86,6 +90,11 @@ test('elegibilidade anunciante é distinta de plano e preço', () => {
 test('campanha recebe snapshot de faturamento sem alterar score orgânico', () => {
   const value = campaign();
 
+  assert.equal(value.advertiserUid, 'owner-1');
+  assert.equal(value.ownerUid, value.advertiserUid);
+  assert.equal(value.authoritySnapshotVersion, 1);
+  assert.equal(value.communityOwnerUidSnapshot, 'owner-1');
+  assert.equal(value.authorityRoleSnapshot, 'owner');
   assert.equal(value.billingBasis, COMMUNITY_BOOST_BILLING_BASIS);
   assert.equal(value.rateCpmCentsSnapshot, 850);
   assert.equal(value.billingConfigVersion, 4);
@@ -98,7 +107,11 @@ test('frequency cap é explícito e limitado pela policy patrocinada', () => {
   const valid = buildCommunityBoostCampaign({
     campaignId: 'campaign-cap',
     communityId: 'community-1',
+    advertiserUid: 'owner-1',
     ownerUid: 'owner-1',
+    communityOwnerUidSnapshot: 'owner-1',
+    communityOwnerTransferredAtSnapshot: null,
+    authorityRoleSnapshot: 'owner',
     targetSourceType: 'community',
     targetTagId: null,
     budgetCents: 10_000,
@@ -114,7 +127,11 @@ test('frequency cap é explícito e limitado pela policy patrocinada', () => {
   const invalid = buildCommunityBoostCampaign({
     campaignId: 'campaign-cap-invalid',
     communityId: 'community-1',
+    advertiserUid: 'owner-1',
     ownerUid: 'owner-1',
+    communityOwnerUidSnapshot: 'owner-1',
+    communityOwnerTransferredAtSnapshot: null,
+    authorityRoleSnapshot: 'owner',
     targetSourceType: 'community',
     targetTagId: null,
     budgetCents: 10_000,
