@@ -11,8 +11,7 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 import { buildCommunityOperationalRequestRetention } from './community-operational-retention.policy';
 import { db, Timestamp } from '../firebaseApp';
 import {
-  buildBilateralBlockPaths,
-  isBilateralBlockActive,
+  assertNoActiveBilateralBlocksInTransaction,
 } from '../friendship/application/bilateral-block-access.policy';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
@@ -343,7 +342,14 @@ export const createCommunityFeedCommentReply = onCall<
       if (!decision.allowed) throwDenied(decision.denialReason);
 
       const nowMs = Date.now();
+      const postAuthorUid = String(post['actorUid'] ?? '').trim();
       const parentAuthorUid = parentComment.actorUid;
+
+      await assertNoActiveBilateralBlocksInTransaction(
+        transaction,
+        actorUid,
+        [postAuthorUid, parentAuthorUid]
+      );
       let notificationRef: FirebaseFirestore.DocumentReference | null = null;
       let membershipCycleStartedAtMs: number | null = null;
       let shouldNotify = false;
@@ -355,22 +361,14 @@ export const createCommunityFeedCommentReply = onCall<
         const recipientMembershipRef = communityRef
           .collection('members')
           .doc(parentAuthorUid);
-        const [actorBlockPath, recipientBlockPath] = buildBilateralBlockPaths(
-          actorUid,
-          parentAuthorUid
-        );
         const [
           recipientUserSnapshot,
           recipientPreferencesSnapshot,
           recipientMembershipSnapshot,
-          actorBlockSnapshot,
-          recipientBlockSnapshot,
         ] = await Promise.all([
           transaction.get(recipientUserRef),
           transaction.get(recipientPreferencesRef),
           transaction.get(recipientMembershipRef),
-          transaction.get(db.doc(actorBlockPath)),
-          transaction.get(db.doc(recipientBlockPath)),
         ]);
         const recipientUser = recipientUserSnapshot.data() as
           | CommunityNotificationUser
@@ -390,11 +388,7 @@ export const createCommunityFeedCommentReply = onCall<
             parentAuthorUid,
             actorUid
           )
-          && allowsCommunityActivityNotifications(recipientPreferences)
-          && !isBilateralBlockActive({
-            actorBlock: actorBlockSnapshot.data(),
-            targetBlock: recipientBlockSnapshot.data(),
-          });
+          && allowsCommunityActivityNotifications(recipientPreferences);
 
         if (shouldNotify && membershipCycleStartedAtMs !== null) {
           notificationRef = db.collection('notifications').doc(
