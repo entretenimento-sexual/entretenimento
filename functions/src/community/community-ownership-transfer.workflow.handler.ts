@@ -793,10 +793,12 @@ export const getMyCommunityOwnershipTransfers = onCall(
     const [incomingSnapshot, outgoingSnapshot] = await Promise.all([
       db.collection(REQUEST_COLLECTION)
         .where('candidateUid', '==', actorUid)
+        .where('status', '==', 'pending')
         .limit(MAX_INBOX_ITEMS)
         .get(),
       db.collection(REQUEST_COLLECTION)
         .where('previousOwnerUid', '==', actorUid)
+        .where('status', '==', 'pending')
         .limit(MAX_INBOX_ITEMS)
         .get(),
     ]);
@@ -807,10 +809,6 @@ export const getMyCommunityOwnershipTransfers = onCall(
     ): OwnershipInboxItem[] => docs
       .map((doc) => requestDocumentToInboxItem(doc.data()))
       .filter((item): item is OwnershipInboxItem => !!item)
-      .filter((item) =>
-        item.status === 'pending'
-        || item.createdAt >= now - 30 * 24 * 60 * 60 * 1_000
-      )
       .sort((left, right) => right.createdAt - left.createdAt)
       .slice(0, MAX_INBOX_ITEMS);
 
