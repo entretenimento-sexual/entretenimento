@@ -15,8 +15,10 @@ import {
   BillingPlanSnapshot,
   BillingProviderId,
   BillingScope,
-  VerifiedPaymentEvent,
 } from './billing.model';
+import type {
+  VerifiedProviderWebhookEvent,
+} from './provider-webhook.model';
 
 export interface CreateCheckoutInput {
   checkoutSessionId: string;
@@ -70,5 +72,5 @@ export abstract class PaymentProviderPort {
    */
   abstract verifyWebhook(
     input: ProviderWebhookInput
-  ): Promise<VerifiedPaymentEvent>;
+  ): Promise<VerifiedProviderWebhookEvent>;
 }
