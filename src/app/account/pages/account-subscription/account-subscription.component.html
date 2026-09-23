@@ -29,6 +29,57 @@
         </a>
       </section>
 
+      @if (renewalState$ | async; as renewal) {
+        @if (renewal?.recurringConfigured) {
+          <section
+            class="account-surface"
+            aria-labelledby="account-subscription-renewal-title"
+          >
+            <div class="account-list">
+              <div class="account-list__row">
+                <div class="account-list__copy">
+                  <strong id="account-subscription-renewal-title">
+                    Renovação automática
+                  </strong>
+
+                  @if (renewal.renewalEnabled) {
+                    <small>
+                      Ativa. A próxima cobrança será processada automaticamente
+                      pelo provedor no próximo ciclo.
+                    </small>
+                  } @else {
+                    <small>
+                      Cancelada. O período já pago continua válido até o
+                      vencimento atual.
+                    </small>
+                  }
+                </div>
+
+                @if (renewal.renewalEnabled) {
+                  <button
+                    type="button"
+                    class="account-support-link"
+                    [disabled]="cancelingRenewal()"
+                    [attr.aria-busy]="cancelingRenewal() ? 'true' : null"
+                    (click)="cancelRenewal()"
+                  >
+                    {{
+                      cancelingRenewal()
+                        ? 'Cancelando...'
+                        : 'Cancelar renovação'
+                    }}
+                  </button>
+                } @else {
+                  <span class="account-plan-hero__badge">
+                    Não renova
+                  </span>
+                }
+              </div>
+            </div>
+          </section>
+        }
+      }
+
       <section class="account-surface" aria-labelledby="account-subscription-history-title">
         <div class="account-list">
           <div class="account-list__row">
