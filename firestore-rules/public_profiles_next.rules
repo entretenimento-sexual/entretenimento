@@ -36,7 +36,7 @@ match /public_profiles/{userId} {
 
   function privateUserEligibleAfter() {
     let user = getAfter(privateUserPath()).data;
-    return existsAfter(privateUserPath())
+    return user is map
       && user.emailVerified == true
       && user.profileCompleted == true
       && user.publicVisibility == "visible"
@@ -206,7 +206,8 @@ match /public_profiles/{userId} {
   // Validações baratas vêm antes das leituras canônicas. Isso preserva a
   // política, mas impede que payloads já inválidos consumam o orçamento de
   // expressões das Rules antes de serem negados.
-  allow create: if isSelf(userId)
+  allow create: if resource == null
+    && isSelf(userId)
     && createKeysValid()
     && editablePayloadValid()
     && identityProjectionPresent()
@@ -216,7 +217,8 @@ match /public_profiles/{userId} {
     && identityMatchesPrivateDeclaration()
     && privateUserEligibleAfter();
 
-  allow update: if isSelf(userId)
+  allow update: if resource != null
+    && isSelf(userId)
     && (
       avatarOnlyUpdate()
       || (
@@ -226,7 +228,7 @@ match /public_profiles/{userId} {
         && request.resource.data.updatedAt == request.time
       )
     )
-    && privateUserEligibleAfter();
+    && currentUserCanUseAdultSocialPlatform();
 
   allow delete: if false;
 
