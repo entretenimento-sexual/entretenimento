@@ -13,12 +13,13 @@ import {
   runInInjectionContext,
 } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable, from, throwError } from 'rxjs';
+import { Observable, concat, from, of, throwError, timer } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
   map,
   shareReplay,
+  switchMap,
   take,
 } from 'rxjs/operators';
 
@@ -66,7 +67,7 @@ export class AgeEligibilityService {
     );
 
   readonly verifiedAdult$: Observable<boolean> = this.current$.pipe(
-    map((state) => state.status === 'VERIFIED_ADULT'),
+    switchMap((state) => this.observeVerifiedWindow$(state)),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
   );
@@ -164,6 +165,60 @@ export class AgeEligibilityService {
 
         return throwError(() => error);
       })
+    );
+  }
+
+  private observeVerifiedWindow$(
+    state: IUserAgeEligibility
+  ): Observable<boolean> {
+    const now = Date.now();
+    const active = this.isVerifiedAdultAt(state, now);
+    const futureBoundaries = [
+      state.verifiedAtMs,
+      state.expiresAtMs,
+    ].filter(
+      (value): value is number =>
+        typeof value === 'number' &&
+        Number.isFinite(value) &&
+        value > now
+    );
+
+    if (futureBoundaries.length === 0) {
+      return of(active);
+    }
+
+    const nextBoundary = Math.min(...futureBoundaries);
+    const delayMs = Math.max(1, nextBoundary - now + 1);
+
+    return concat(
+      of(active),
+      timer(delayMs).pipe(
+        switchMap(() => this.observeVerifiedWindow$(state))
+      )
+    );
+  }
+
+  private isVerifiedAdultAt(
+    state: IUserAgeEligibility,
+    now: number
+  ): boolean {
+    if (
+      state.status !== 'VERIFIED_ADULT' ||
+      state.policyVersion !== 1
+    ) {
+      return false;
+    }
+
+    if (
+      state.verifiedAtMs != null &&
+      state.verifiedAtMs > now
+    ) {
+      return false;
+    }
+
+    return (
+      state.expiresAtMs == null ||
+      now < state.expiresAtMs
     );
   }
 
