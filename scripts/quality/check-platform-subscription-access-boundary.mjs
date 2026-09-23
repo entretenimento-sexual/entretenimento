@@ -102,6 +102,8 @@ for (const fragment of [
   'AccessControlService',
   'access.hasAny$(allowed)',
   'normalizeAllowedRoles',
+  'hasConfiguredRestriction',
+  "'role_configuration_invalid'",
   "source:',",
   "'AccessControlService'",
 ]) {
