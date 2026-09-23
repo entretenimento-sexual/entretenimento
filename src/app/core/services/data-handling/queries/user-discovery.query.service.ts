@@ -264,6 +264,7 @@ export class UserDiscoveryQueryService {
             UserDiscoveryQueryService.DISCOVERY_COL,
             [
               where('ageEligibilityVerifiedAdult', '==', true),
+      where('ageEligibilityValidUntil', '>', new Date()),
               ...(constraints ?? []),
             ],
             {
