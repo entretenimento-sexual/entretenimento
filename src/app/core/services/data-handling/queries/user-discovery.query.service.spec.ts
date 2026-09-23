@@ -14,10 +14,8 @@ describe('UserDiscoveryQueryService', () => {
     set: vi.fn(),
   };
 
-  const firestoreErrorMock = {
-    handleFirestoreErrorAndReturn: vi.fn(
-      (_error: unknown, fallback: IUserDados[]) => of(fallback)
-    ),
+  const globalErrorHandlerMock = {
+    handleError: vi.fn(),
   };
 
   const authSessionMock = {
@@ -55,9 +53,9 @@ describe('UserDiscoveryQueryService', () => {
 
     service = new UserDiscoveryQueryService(
       cacheMock as any,
-      firestoreErrorMock as any,
       authSessionMock as any,
-      publicProfileReadMock as any
+      publicProfileReadMock as any,
+      globalErrorHandlerMock as any
     );
   });
 
@@ -72,14 +70,12 @@ describe('UserDiscoveryQueryService', () => {
 
     expect(result).toEqual([]);
     expect(publicProfileReadMock.read$).not.toHaveBeenCalled();
-    expect(
-      firestoreErrorMock.handleFirestoreErrorAndReturn
-    ).toHaveBeenCalledWith(
-      expect.any(Error),
-      [],
+    expect(globalErrorHandlerMock.handleError).toHaveBeenCalledWith(
       expect.objectContaining({
-        silent: true,
+        message: expect.stringContaining('Consulta genérica'),
         context: 'user-discovery.searchUsers.legacy-query-constraint',
+        skipUserNotification: true,
+        silent: true,
       })
     );
   });
