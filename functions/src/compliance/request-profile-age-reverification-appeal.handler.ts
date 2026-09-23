@@ -111,10 +111,14 @@ export const requestProfileAgeReverificationAppeal = onCall(
       const caseId = cleanComplianceId(ageReverification.caseId);
       const reportId = cleanComplianceId(ageReverification.reportId);
 
-      if (currentStatus !== 'REJECTED' || !caseId || !reportId) {
+      if (
+        (currentStatus !== 'REJECTED' && currentStatus !== 'EXPIRED') ||
+        !caseId ||
+        !reportId
+      ) {
         throw new HttpsError(
           'failed-precondition',
-          'Não há decisão de menoridade disponível para nova análise.'
+          'Não há revalidação encerrada disponível para nova análise.'
         );
       }
 
