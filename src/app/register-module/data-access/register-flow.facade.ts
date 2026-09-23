@@ -23,14 +23,14 @@ export class RegisterFlowFacade {
     this.session.ready$,
     this.session.authUser$,
     this.currentUser.user$,
-    this.ageEligibility.verifiedAdult$,
+    this.ageEligibility.adultAccessAllowed$,
     this.adultConsent.currentConsentAccepted$,
   ]).pipe(
     map(([
       authReady,
       authUser,
       appUser,
-      ageEligibilityVerified,
+      ageAccessAllowed,
       adultConsentAccepted,
     ]) => {
       const user = this.asResolvedUser(appUser);
@@ -44,7 +44,7 @@ export class RegisterFlowFacade {
         userResolved: appUser !== undefined,
         userExists: user !== null,
         termsAccepted: isCurrentLegalAcceptanceSatisfied(user?.acceptedTerms),
-        ageEligibilityVerified: ageEligibilityVerified === true,
+        ageAccessAllowed: ageAccessAllowed === true,
         profileCompleted: user?.profileCompleted === true,
         adultConsentAccepted: adultConsentAccepted === true,
         initialAdultConsentRequired:
@@ -83,7 +83,7 @@ export class RegisterFlowFacade {
       a.userResolved === b.userResolved &&
       a.userExists === b.userExists &&
       a.termsAccepted === b.termsAccepted &&
-      a.ageEligibilityVerified === b.ageEligibilityVerified &&
+      a.ageAccessAllowed === b.ageAccessAllowed &&
       a.profileCompleted === b.profileCompleted &&
       a.adultConsentAccepted === b.adultConsentAccepted &&
       a.initialAdultConsentRequired === b.initialAdultConsentRequired &&
