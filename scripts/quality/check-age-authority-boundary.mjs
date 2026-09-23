@@ -267,7 +267,6 @@ if (fs.existsSync(helperPath)) {
     'currentUserHasAdultAgeAccess',
     'currentUserCanUseAdultSocialPlatform',
     'SELF_DECLARED_ADULT',
-    'SELF_DECLARATION',
   ]) {
     if (!source.includes(required)) {
       violations.push(
