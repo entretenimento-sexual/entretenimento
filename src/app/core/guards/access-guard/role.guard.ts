@@ -58,7 +58,11 @@ export const roleGuard: CanActivateFn = (route, state) => {
   const access = inject(AccessControlService);
   const applicationError = inject(ApplicationErrorService);
 
-  const allowed = normalizeAllowedRoles(route.data?.['allowedRoles']);
+  const configuredAllowedRoles = route.data?.['allowedRoles'];
+  const allowed = normalizeAllowedRoles(configuredAllowedRoles);
+  const hasConfiguredRestriction =
+    Array.isArray(configuredAllowedRoles) &&
+    configuredAllowedRoles.length > 0;
 
   const uid$ = currentUserStore.getLoggedUserUID$().pipe(take(1));
   const storeUser$ = currentUserStore.user$.pipe(
@@ -84,7 +88,16 @@ export const roleGuard: CanActivateFn = (route, state) => {
       }
 
       if (allowed.length === 0) {
-        return of(true);
+        return of(
+          hasConfiguredRestriction
+            ? buildRedirectTree(
+                router,
+                '/dashboard/principal',
+                state.url,
+                { reason: 'role_configuration_invalid' }
+              )
+            : true
+        );
       }
 
       return access.hasAny$(allowed).pipe(
