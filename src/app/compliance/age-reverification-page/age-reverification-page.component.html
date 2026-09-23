@@ -20,13 +20,23 @@
           <h2>Como funciona</h2>
           <p>
             Informe sua data de nascimento para uma triagem restrita. A data é
-            usada pela Callable apenas para calcular a faixa etária e não é
-            armazenada no perfil, no caso de moderação ou no histórico público.
+            usada apenas para calcular a faixa etária e não é armazenada no
+            perfil, no caso de moderação ou no histórico público.
           </p>
           <p>
-            O envio não libera a conta automaticamente. A moderação ainda precisa
-            concluir a análise.
+            Esta informação é um sinal de triagem, não uma prova definitiva de
+            maioridade. A decisão exige análise de evidência confiável pela
+            moderação e o envio não libera a conta automaticamente.
           </p>
+          @if (vm.state?.dueAt) {
+            <p>
+              <strong>Meta operacional:</strong>
+              envie preferencialmente até
+              {{ vm.state?.dueAt | date:'dd/MM/yyyy HH:mm' }}.
+              Esse marco organiza a fila e não impede um envio posterior nem
+              confirma menoridade por atraso.
+            </p>
+          }
         </section>
 
         <form class="age-reverification__form" [formGroup]="form" (ngSubmit)="submit()">
@@ -58,8 +68,8 @@
           <label class="age-reverification__check">
             <input type="checkbox" formControlName="acceptsRestrictedProcessing" />
             <span>
-              Autorizo o processamento restrito desta informação exclusivamente
-              para a revalidação de idade.
+              Estou ciente de que esta informação será processada de forma
+              restrita exclusivamente para a revalidação de idade.
             </span>
           </label>
 
@@ -79,6 +89,23 @@
           >
             {{ isSaving() ? 'Enviando...' : 'Enviar para análise' }}
           </button>
+
+          <div class="age-reverification__notice" role="note">
+            <strong>Precisa de outra forma de análise?</strong>
+            <p>
+              Você pode pedir revisão por outro sinal confiável, sem informar sua
+              data de nascimento neste formulário. A conta continua limitada
+              enquanto a moderação analisa o caso.
+            </p>
+            <button
+              class="age-reverification__secondary"
+              type="button"
+              (click)="requestAlternativeReview()"
+              [disabled]="isSaving()"
+            >
+              {{ isSaving() ? 'Enviando...' : 'Solicitar análise alternativa' }}
+            </button>
+          </div>
         </form>
       } @else if (vm.isPendingReview) {
         <section class="age-reverification__pending" role="status">
@@ -90,14 +117,6 @@
           @if (vm.state?.submittedAt) {
             <small>Enviado em {{ vm.state?.submittedAt | date:'dd/MM/yyyy HH:mm' }}.</small>
           }
-        </section>
-      } @else if (vm.status === 'EXPIRED') {
-        <section class="age-reverification__pending age-reverification__pending--warning" role="alert">
-          <h2>Prazo expirado</h2>
-          <p>
-            A revalidação não foi enviada dentro do prazo. Use a área da conta para
-            consultar as opções de suporte.
-          </p>
         </section>
       } @else if (vm.status === 'VERIFIED') {
         <section class="age-reverification__pending" role="status">
