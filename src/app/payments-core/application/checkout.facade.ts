@@ -177,7 +177,7 @@ export class CheckoutFacade {
       : '';
 
     if (reason === 'downgrade_requires_next_cycle') {
-      return 'A redução de plano ficará disponível quando puder ser programada para o próximo ciclo.';
+      return 'A redução de plano ficará disponível depois que o ciclo atual terminar.';
     }
 
     return 'Não foi possível iniciar o checkout.';
