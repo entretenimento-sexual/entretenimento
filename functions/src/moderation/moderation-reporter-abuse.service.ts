@@ -104,6 +104,25 @@ export async function getModerationReporterAbuseAssessment(
   return evaluateModerationReporterAbuse(signals);
 }
 
+export async function safeGetModerationReporterAbuseAssessment(
+  reporterUid: string
+): Promise<Readonly<ModerationReporterAbuseAssessment>> {
+  try {
+    return await getModerationReporterAbuseAssessment(reporterUid);
+  } catch (error) {
+    logger.error('[moderationReporterAbuse] assessment failed', {
+      reporterUid,
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    return evaluateModerationReporterAbuse({
+      reviewedReports: 0,
+      rejectedReports: 0,
+      confirmedReports: 0,
+    });
+  }
+}
+
 export async function recordModerationReporterOutcome(input: {
   reportId: string;
   reporterUid: string;
