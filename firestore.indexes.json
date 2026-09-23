@@ -933,10 +933,6 @@
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "ageEligibilityValidUntil",
-          "order": "ASCENDING"
-        },
-        {
           "fieldPath": "moderationStatus",
           "order": "ASCENDING"
         },
@@ -961,10 +957,6 @@
       "fields": [
         {
           "fieldPath": "ageEligibilityVerifiedAdult",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "ageEligibilityValidUntil",
           "order": "ASCENDING"
         },
         {
@@ -999,10 +991,6 @@
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "ageEligibilityValidUntil",
-          "order": "ASCENDING"
-        },
-        {
           "fieldPath": "boostActive",
           "order": "ASCENDING"
         },
@@ -1031,10 +1019,6 @@
       "fields": [
         {
           "fieldPath": "ageEligibilityVerifiedAdult",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "ageEligibilityValidUntil",
           "order": "ASCENDING"
         },
         {
@@ -1069,10 +1053,6 @@
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "ageEligibilityValidUntil",
-          "order": "ASCENDING"
-        },
-        {
           "fieldPath": "moderationStatus",
           "order": "ASCENDING"
         },
@@ -1104,10 +1084,6 @@
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "ageEligibilityValidUntil",
-          "order": "ASCENDING"
-        },
-        {
           "fieldPath": "visibility",
           "order": "ASCENDING"
         },
@@ -1136,10 +1112,6 @@
       "fields": [
         {
           "fieldPath": "ageEligibilityVerifiedAdult",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "ageEligibilityValidUntil",
           "order": "ASCENDING"
         },
         {
@@ -1182,10 +1154,6 @@
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "ageEligibilityValidUntil",
-          "order": "ASCENDING"
-        },
-        {
           "fieldPath": "visibility",
           "order": "ASCENDING"
         },
@@ -1210,10 +1178,6 @@
       "fields": [
         {
           "fieldPath": "ageEligibilityVerifiedAdult",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "ageEligibilityValidUntil",
           "order": "ASCENDING"
         },
         {
@@ -1248,10 +1212,6 @@
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "ageEligibilityValidUntil",
-          "order": "ASCENDING"
-        },
-        {
           "fieldPath": "destination.region.uf",
           "order": "ASCENDING"
         },
@@ -1284,10 +1244,6 @@
       "fields": [
         {
           "fieldPath": "ageEligibilityVerifiedAdult",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "ageEligibilityValidUntil",
           "order": "ASCENDING"
         },
         {
@@ -1330,10 +1286,6 @@
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "ageEligibilityValidUntil",
-          "order": "ASCENDING"
-        },
-        {
           "fieldPath": "destination.region.uf",
           "order": "ASCENDING"
         },
@@ -1370,10 +1322,6 @@
       "fields": [
         {
           "fieldPath": "ageEligibilityVerifiedAdult",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "ageEligibilityValidUntil",
           "order": "ASCENDING"
         },
         {
@@ -1417,10 +1365,6 @@
       "fields": [
         {
           "fieldPath": "ageEligibilityVerifiedAdult",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "ageEligibilityValidUntil",
           "order": "ASCENDING"
         },
         {
@@ -1440,10 +1384,6 @@
       "fields": [
         {
           "fieldPath": "ageEligibilityVerifiedAdult",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "ageEligibilityValidUntil",
           "order": "ASCENDING"
         },
         {
