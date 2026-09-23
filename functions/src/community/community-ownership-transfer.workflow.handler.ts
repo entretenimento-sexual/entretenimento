@@ -530,7 +530,6 @@ async function createOwnershipOffer(input: {
 
     const community = (communitySnapshot.data() ?? {}) as Record<string, unknown>;
     const source = (community['source'] ?? {}) as Record<string, unknown>;
-    const communityStatus = normalizeCommunityStatus(community['status']);
     const rawCommunityStatus = String(community['status'] ?? '').trim();
     const currentOwnerUid = normalizeSafeId(community['ownerUid']);
     const ownerTransferredAt = normalizeEpoch(community['ownerTransferredAt']);
