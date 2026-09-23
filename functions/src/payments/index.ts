@@ -15,3 +15,10 @@ export {
   reconcileProviderWebhookEvents,
   reconcileRecurringProviderCancellations,
 } from './application/process-provider-webhook.handler';
+
+export { cancelPlatformSubscriptionRenewal } from './application/cancel-platform-subscription-renewal.handler';
+export {
+  processProviderWebhookEventTrigger,
+  reconcileProviderWebhookEvents,
+  reconcileRecurringProviderCancellations,
+} from './application/process-provider-webhook.handler';
