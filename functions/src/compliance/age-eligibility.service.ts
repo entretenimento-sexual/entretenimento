@@ -181,7 +181,7 @@ export async function getCanonicalAgeEligibilityForUid(uid: string) {
   });
 }
 
-export async function assertVerifiedAdultAgeEligibility(
+export async function assertAdultAgeEligibility(
   uid: string
 ): Promise<void> {
   const decision = await getCanonicalAgeEligibilityForUid(uid);
@@ -205,4 +205,14 @@ export async function assertVerifiedAdultAgeEligibility(
           : 'complete_age_verification',
     }
   );
+}
+
+/**
+ * @deprecated O nome antigo implicava prova forte. Use assertAdultAgeEligibility.
+ * Mantido apenas para consumidores ainda não migrados.
+ */
+export async function assertVerifiedAdultAgeEligibility(
+  uid: string
+): Promise<void> {
+  return assertAdultAgeEligibility(uid);
 }
