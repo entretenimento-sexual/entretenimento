@@ -18,7 +18,7 @@ import {
 } from '../../shared/security/backend-rate-limit.service';
 import {
   ASAAS_API_KEY,
-  resolveAsaasRuntimeConfig,
+  resolveAsaasApiRuntimeConfig,
 } from '../config/asaas.config';
 import type {
   PlatformRecurringSubscriptionStateDoc,
@@ -119,7 +119,7 @@ export const cancelPlatformSubscriptionRenewal =
       }
 
       const provider = new AsaasPaymentProvider({
-        runtime: resolveAsaasRuntimeConfig(),
+        runtime: resolveAsaasApiRuntimeConfig(),
         apiKey: ASAAS_API_KEY.value(),
       });
 
