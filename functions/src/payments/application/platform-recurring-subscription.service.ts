@@ -382,3 +382,54 @@ export async function applyAsaasSubscriptionLifecycleEvent(
 
   return 'processed';
 }
+
+
+export async function markRecurringSubscriptionPaymentProblem(
+  event: VerifiedProviderWebhookEvent
+): Promise<void> {
+  if (event.resourceType !== 'payment' || !event.subscriptionId) {
+    return;
+  }
+
+  const contractId = buildRecurringSubscriptionContractId(
+    event.subscriptionId
+  );
+  const contractRef = db
+    .collection(PLATFORM_SUBSCRIPTION_COLLECTION)
+    .doc(contractId);
+  const snapshot = await contractRef.get();
+
+  if (!snapshot.exists) {
+    throw new RetryableProviderWebhookError(
+      'payment-problem-contract-pending',
+      'Contrato recorrente ainda não foi conciliado.'
+    );
+  }
+
+  const current = snapshot.data() as PlatformRecurringSubscriptionDoc;
+  const status =
+    event.eventName === 'PAYMENT_OVERDUE'
+      ? 'past_due'
+      : 'payment_failed';
+
+  await contractRef.set(
+    {
+      status,
+      lastPaymentStatus: event.eventName,
+      lastPaymentOccurredAt: event.occurredAt,
+      updatedAt: Date.now(),
+    },
+    { merge: true }
+  );
+
+  await db.collection('billing_audit').add({
+    action: 'recurring_payment_problem',
+    buyerUid: current.buyerUid,
+    contractId,
+    providerSubscriptionId: current.providerSubscriptionId,
+    providerPaymentId: event.paymentId,
+    providerEventName: event.eventName,
+    accessRevoked: false,
+    createdAt: Date.now(),
+  });
+}
