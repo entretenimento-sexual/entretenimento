@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  discoveryReadRateLimitCost,
   isCurrentPublicProfileAgeProjection,
   serializePublicProfileForDiscovery,
 } from './get-public-profiles-page.handler';
@@ -89,5 +90,14 @@ describe('get-public-profiles-page temporal boundary', () => {
     );
 
     assert.equal(serialized, null);
+  });
+
+  it('dimensiona a quota de leitura proporcionalmente ao custo da consulta', () => {
+    assert.equal(discoveryReadRateLimitCost({ pageSize: 24 }), 1);
+    assert.equal(discoveryReadRateLimitCost({ pageSize: 48 }), 2);
+    assert.equal(discoveryReadRateLimitCost({ pageSize: 120 }), 5);
+    assert.equal(discoveryReadRateLimitCost({ uidCount: 25 }), 1);
+    assert.equal(discoveryReadRateLimitCost({ uidCount: 50 }), 2);
+    assert.equal(discoveryReadRateLimitCost({}), 1);
   });
 });
