@@ -25,6 +25,7 @@ import {
 
 type PublicMediaDiscoveryType = 'PHOTO' | 'VIDEO';
 type PublicMediaDiscoveryMode =
+  | 'PROFILE'
   | 'RECENT_BY_OWNERS'
   | 'LATEST'
   | 'TOP'
@@ -37,6 +38,7 @@ interface PublicMediaDiscoveryCursorInput {
   uniqueViewersCount?: unknown;
   viewsCount?: unknown;
   boostedUntil?: unknown;
+  orderIndex?: unknown;
 }
 
 interface PublicMediaDiscoveryRequest {
@@ -54,6 +56,7 @@ interface PublicMediaDiscoveryCursor {
   uniqueViewersCount: number;
   viewsCount: number;
   boostedUntil: number;
+  orderIndex: number;
 }
 
 interface PublicMediaDiscoveryResponse {
@@ -116,6 +119,7 @@ function normalizeMediaType(value: unknown): PublicMediaDiscoveryType {
 
 function normalizeMode(value: unknown): PublicMediaDiscoveryMode {
   if (
+    value === 'PROFILE' ||
     value === 'RECENT_BY_OWNERS' ||
     value === 'LATEST' ||
     value === 'TOP' ||
@@ -210,6 +214,7 @@ function normalizeCursor(
     uniqueViewersCount: nonNegativeNumber(value.uniqueViewersCount),
     viewsCount: nonNegativeNumber(value.viewsCount),
     boostedUntil: nonNegativeNumber(value.boostedUntil),
+    orderIndex: nonNegativeNumber(value.orderIndex),
   };
 }
 
@@ -259,6 +264,13 @@ function assertSupportedMode(
   mode: PublicMediaDiscoveryMode,
   ownerUids: readonly string[]
 ): void {
+  if (mode === 'PROFILE' && ownerUids.length !== 1) {
+    throw new HttpsError(
+      'invalid-argument',
+      'Informe exatamente um proprietário para a galeria pública.'
+    );
+  }
+
   if (mode === 'RECENT_BY_OWNERS' && !ownerUids.length) {
     throw new HttpsError(
       'invalid-argument',
@@ -282,6 +294,23 @@ function applyOrderingAndCursor(input: {
   nowMs: number;
 }): FirebaseFirestore.Query {
   let query = input.query;
+
+  if (input.mode === 'PROFILE') {
+    query = query
+      .orderBy('orderIndex', 'asc')
+      .orderBy('publishedAt', 'desc')
+      .orderBy(FieldPath.documentId(), 'desc');
+
+    if (input.cursor) {
+      query = query.startAfter(
+        input.cursor.orderIndex,
+        input.cursor.publishedAt,
+        db.doc(input.cursor.documentPath)
+      );
+    }
+
+    return query;
+  }
 
   if (input.mode === 'RECENT_BY_OWNERS' || input.mode === 'LATEST') {
     query = query
@@ -364,6 +393,7 @@ function buildCursor(
     uniqueViewersCount: nonNegativeNumber(data['uniqueViewersCount']),
     viewsCount: nonNegativeNumber(data['viewsCount']),
     boostedUntil: nonNegativeNumber(data['boostedUntil']),
+    orderIndex: nonNegativeNumber(data['orderIndex']),
   };
 }
 
@@ -402,8 +432,15 @@ export const getPublicMediaDiscovery = onCall<PublicMediaDiscoveryRequest>(
 
     const collectionId =
       mediaType === 'PHOTO' ? 'public_photos' : 'public_videos';
-    let mediaQuery: FirebaseFirestore.Query = db
-      .collectionGroup(collectionId)
+    let mediaQuery: FirebaseFirestore.Query =
+      mode === 'PROFILE'
+        ? db
+          .collection('public_profiles')
+          .doc(ownerUids[0]!)
+          .collection(collectionId)
+        : db.collectionGroup(collectionId);
+
+    mediaQuery = mediaQuery
       .where('ageEligibilityVerifiedAdult', '==', true)
       .where('visibility', '==', 'PUBLIC')
       .where('moderationStatus', '==', 'APPROVED');
