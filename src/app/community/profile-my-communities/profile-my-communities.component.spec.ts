@@ -177,6 +177,26 @@ describe('ProfileMyCommunitiesComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Silenciada');
   });
 
+  it('agrega comunidades prioritárias sem criar nova leitura por Comunidade', () => {
+    fixture.detectChanges();
+
+    const attention = fixture.nativeElement.querySelector(
+      '.profile-my-communities__attention'
+    ) as HTMLElement | null;
+    const action = attention?.querySelector(
+      '.profile-my-communities__attention-action'
+    ) as HTMLAnchorElement | null;
+
+    expect(attention?.textContent?.replace(/\s+/g, ' ').trim()).toContain(
+      'Comunidades que precisam da sua atenção'
+    );
+    expect(attention?.textContent?.replace(/\s+/g, ' ').trim()).toContain(
+      '1 comunidade tem avisos ou ações prioritárias.'
+    );
+    expect(action?.getAttribute('href')).toBe('/notificacoes');
+    expect(getMyCommunitiesPage$).toHaveBeenCalledTimes(1);
+  });
+
   it('mantém o cache vencido visível se a revalidação falhar e reporta sem novo aviso', () => {
     readSnapshot$.mockImplementation((context) =>
       of(
