@@ -148,7 +148,15 @@ export const acceptAdultSelfDeclaration =
           );
         }
 
-        if (current.status === 'REVIEW_REQUIRED') {
+        const obsoleteInitialReview =
+          current.status === 'REVIEW_REQUIRED' &&
+          current.source === 'INITIAL_VERIFICATION' &&
+          current.method === 'MANUAL_REVIEW';
+
+        if (
+          current.status === 'REVIEW_REQUIRED' &&
+          !obsoleteInitialReview
+        ) {
           throw new HttpsError(
             'failed-precondition',
             'Sua conta possui uma verificação de segurança em andamento.'
@@ -176,14 +184,32 @@ export const acceptAdultSelfDeclaration =
           }
         );
 
+        const timestamp = FieldValue.serverTimestamp();
+
         transaction.set(
           userRef,
           {
             ageEligibility: projection,
-            updatedAt: FieldValue.serverTimestamp(),
+            updatedAt: timestamp,
           },
           { merge: true }
         );
+
+        if (obsoleteInitialReview && current.caseId) {
+          transaction.set(
+            db.collection('moderation_reports').doc(current.caseId),
+            {
+              status: 'resolved',
+              moderationAction: 'KEEP',
+              resolution:
+                'Fluxo inicial substituído pela política provisória de autodeclaração 18+.',
+              reviewedBy: 'system:age-policy',
+              reviewedAt: timestamp,
+              updatedAt: timestamp,
+            },
+            { merge: true }
+          );
+        }
 
         transaction.create(auditRef, {
           uid,
@@ -191,7 +217,9 @@ export const acceptAdultSelfDeclaration =
           policyVersion: projection.policyVersion,
           source: 'web',
           declaration: '18_PLUS',
-          createdAt: FieldValue.serverTimestamp(),
+          supersededInitialReviewCaseId:
+            obsoleteInitialReview ? current.caseId : null,
+          createdAt: timestamp,
           createdAtMs: nowMs,
         });
 
