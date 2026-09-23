@@ -13,6 +13,10 @@ test('permite nova assinatura quando não há plano ativo', () => {
 
   assert.equal(policy.allowed, true);
   assert.equal(policy.kind, 'new_subscription');
+  assert.equal(policy.priceTreatment, 'current_catalog_snapshot_full_period');
+  assert.equal(policy.periodTreatment, 'start_from_payment');
+  assert.equal(policy.accessTreatment, 'activate_after_payment');
+  assert.equal(policy.prorationSupported, false);
 });
 
 test('permite upgrade imediato', () => {
@@ -23,6 +27,10 @@ test('permite upgrade imediato', () => {
 
   assert.equal(policy.allowed, true);
   assert.equal(policy.kind, 'upgrade');
+  assert.equal(policy.priceTreatment, 'current_catalog_snapshot_full_period');
+  assert.equal(policy.periodTreatment, 'extend_from_current_end');
+  assert.equal(policy.accessTreatment, 'upgrade_after_payment');
+  assert.equal(policy.prorationSupported, false);
 });
 
 test('permite renovação do mesmo plano no backend', () => {
@@ -33,6 +41,8 @@ test('permite renovação do mesmo plano no backend', () => {
 
   assert.equal(policy.allowed, true);
   assert.equal(policy.kind, 'renewal');
+  assert.equal(policy.periodTreatment, 'extend_from_current_end');
+  assert.equal(policy.accessTreatment, 'preserve_current_access');
 });
 
 test('bloqueia downgrade até existir agendamento para o próximo ciclo', () => {
@@ -43,4 +53,7 @@ test('bloqueia downgrade até existir agendamento para o próximo ciclo', () => 
 
   assert.equal(policy.allowed, false);
   assert.equal(policy.kind, 'downgrade_blocked');
+  assert.equal(policy.priceTreatment, 'not_available');
+  assert.equal(policy.periodTreatment, 'blocked');
+  assert.equal(policy.accessTreatment, 'blocked');
 });
