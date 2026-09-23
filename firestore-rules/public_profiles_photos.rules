@@ -148,11 +148,10 @@ match /public_profiles/{userId}/public_photos/{photoId} {
 // Leituras diretas permanecem no match específico acima, que também
 // confirma a existência do perfil público pai.
 // ------------------------------------------------------------
-match /{path=**}/public_photos/{photoId} {
-  allow list: if currentUserCanUseAdultSocialPlatform()
-    && resource.data.ageEligibilityVerifiedAdult == true
-    && resource.data.visibility == "PUBLIC"
-    && resource.data.moderationStatus == "APPROVED";
+match /{path=**}/public_photos/{mediaId} {
+  // Collection-group discovery é backend-only. Galerias de proprietário
+  // conhecido continuam autorizadas pelo match específico acima.
+  allow list: if false;
 
   allow create, update, delete: if false;
 }
