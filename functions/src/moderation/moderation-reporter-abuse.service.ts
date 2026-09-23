@@ -72,13 +72,63 @@ export async function recordModerationReporterOutcome(input: {
       transaction.get(stateRef),
       transaction.get(eventRef),
     ]);
-
-    if (eventSnapshot.exists) return;
-
-    const outcome = applyModerationReporterOutcome({
+    const current = normalizeModerationReporterAbuseState({
       state: stateSnapshot.exists
         ? stateSnapshot.data() as Partial<ModerationReporterAbuseState>
         : null,
+      nowMs,
+    });
+
+    if (eventSnapshot.exists) {
+      const existingEvent = eventSnapshot.data() ?? {};
+      const previousConfirmed = existingEvent['confirmed'] === true;
+
+      if (previousConfirmed === input.confirmed) return;
+
+      const eventWindowStartedAtMs = Number(
+        existingEvent['windowStartedAtMs'] ?? 0
+      );
+      const sameWindow =
+        eventWindowStartedAtMs > 0 &&
+        eventWindowStartedAtMs === current.windowStartedAtMs;
+      const nextState: ModerationReporterAbuseState = sameWindow
+        ? {
+          ...current,
+          rejectedReports: Math.max(
+            0,
+            current.rejectedReports -
+              (previousConfirmed ? 0 : 1) +
+              (input.confirmed ? 0 : 1)
+          ),
+          confirmedReports: Math.max(
+            0,
+            current.confirmedReports -
+              (previousConfirmed ? 1 : 0) +
+              (input.confirmed ? 1 : 0)
+          ),
+        }
+        : current;
+      const risk = moderationReporterAbuseRisk(nextState);
+
+      transaction.set(stateRef, {
+        reporterUid,
+        ...nextState,
+        risk,
+        updatedAtMs: nowMs,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: false });
+
+      transaction.set(eventRef, {
+        confirmed: input.confirmed,
+        reporterAbuseRisk: risk,
+        correctedAtMs: nowMs,
+      }, { merge: true });
+
+      return;
+    }
+
+    const outcome = applyModerationReporterOutcome({
+      state: current,
       nowMs,
       confirmed: input.confirmed,
     });
@@ -97,6 +147,7 @@ export async function recordModerationReporterOutcome(input: {
       reporterUid,
       confirmed: input.confirmed,
       reporterAbuseRisk: outcome.risk,
+      windowStartedAtMs: outcome.state.windowStartedAtMs,
       createdAtMs: nowMs,
     });
   });
