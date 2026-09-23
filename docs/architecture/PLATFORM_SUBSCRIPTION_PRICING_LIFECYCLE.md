@@ -22,6 +22,13 @@ retroativamente:
 
 Cada checkout armazena um `planSnapshot` imutável e uma expiração do preço.
 
+Antes de criar a sessão, o cliente devolve ao backend o valor/moeda/intervalo e
+versão de catálogo que acabou de exibir. Esses campos **não são autoridade
+financeira**: servem apenas como pré-condição. O backend compara com o catálogo
+vigente; se estiverem ausentes ou divergentes, recusa o checkout e exige recarga.
+Assim uma mudança de preço entre a renderização e o clique nunca é cobrada
+silenciosamente.
+
 ### Janela de preço do checkout
 
 O preço fica congelado por até **30 minutos**. Se o provider informar expiração
