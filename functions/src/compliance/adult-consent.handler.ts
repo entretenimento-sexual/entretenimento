@@ -3,12 +3,26 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
+  REQUIRE_CALLABLE_APP_CHECK,
+  assertCallableAppCheck,
+} from '../shared/security/callable-app-check';
+import {
+  consumeBackendRateLimitQuota,
+} from '../shared/security/backend-rate-limit.service';
+import {
   evaluateCanonicalAgeEligibility,
 } from './age-eligibility.policy';
 import {
   ADULT_CONSENT_VERSION,
   TERMS_ACCEPTANCE_VERSION,
 } from './platform-legal.constants';
+
+const ADULT_CONSENT_RATE_LIMIT = Object.freeze({
+  burstWindowMs: 10 * 60 * 1_000,
+  burstMax: 10,
+  sustainedWindowMs: 24 * 60 * 60 * 1_000,
+  sustainedMax: 50,
+});
 
 function hasAcceptedCurrentTerms(value: unknown): boolean {
   if (!value || typeof value !== 'object') {
@@ -26,8 +40,12 @@ function hasAcceptedCurrentTerms(value: unknown): boolean {
 }
 
 export const acceptAdultConsent = onCall(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_CALLABLE_APP_CHECK,
+  },
   async (request): Promise<{ ok: true; version: string }> => {
+    assertCallableAppCheck(request.app);
     const uid = request.auth?.uid?.trim();
 
     if (!uid) {
@@ -37,14 +55,17 @@ export const acceptAdultConsent = onCall(
       );
     }
 
-    if (request.auth?.token?.email_verified !== true) {
-      throw new HttpsError(
-        'failed-precondition',
-        'Confirme seu e-mail antes de acessar esta etapa.'
-      );
-    }
-
     const acceptedAtMs = Date.now();
+
+    await consumeBackendRateLimitQuota({
+      action: 'compliance:adult-consent',
+      subject: uid,
+      config: ADULT_CONSENT_RATE_LIMIT,
+      message:
+        'Muitas confirmações foram enviadas em pouco tempo. Tente novamente mais tarde.',
+      now: acceptedAtMs,
+    });
+
     const userRef = db.collection('users').doc(uid);
     const auditRef = db
       .collection('compliance_audit')
