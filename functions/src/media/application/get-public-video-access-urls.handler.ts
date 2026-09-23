@@ -25,6 +25,17 @@ import {
   normalizeOwnedPublishedVideoPosterPath,
 } from './video-storage-path';
 
+function hasCurrentPublicAgeEligibility(
+  data: Record<string, any> | undefined
+): boolean {
+  if (data?.['ageEligibilityVerifiedAdult'] !== true) return false;
+
+  const validUntil = data?.['ageEligibilityValidUntil'];
+  return !!validUntil &&
+    typeof validUntil.toMillis === 'function' &&
+    validUntil.toMillis() > Date.now();
+}
+
 interface PublicVideoAccessRequestItem {
   ownerUid?: string;
   videoId?: string;
@@ -108,7 +119,7 @@ async function resolveAccessItem(
   const publication = publicationSnap.data();
 
   if (
-    publicVideo?.ageEligibilityVerifiedAdult !== true ||
+    !hasCurrentPublicAgeEligibility(publicVideo) ||
     publicVideo?.visibility !== 'PUBLIC' ||
     publicVideo?.moderationStatus !== 'APPROVED' ||
     publication?.isPublished !== true
@@ -282,7 +293,7 @@ export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
             {
               exists:
                 snapshot.exists &&
-                snapshot.data()?.ageEligibilityVerifiedAdult === true,
+                hasCurrentPublicAgeEligibility(snapshot.data()),
               technicalFailure: false,
             },
           ] as const;
