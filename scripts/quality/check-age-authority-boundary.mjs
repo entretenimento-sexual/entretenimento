@@ -295,8 +295,6 @@ for (const relativePath of trustedAgeDecisionFiles) {
     'normalizeAgeReviewEvidence',
     'evidenceReferenceHash',
     'writeCanonicalAgeEligibilityInTransaction',
-    'enforceAppCheck',
-    'consumeBackendRateLimitQuota',
   ]) {
     if (!source.includes(required)) {
       violations.push(
@@ -324,6 +322,8 @@ if (fs.existsSync(initialAgeRequestPath)) {
     "source: 'INITIAL_VERIFICATION'",
     "reason: 'age_verification_request'",
     'writeCanonicalAgeEligibilityInTransaction',
+    'enforceAppCheck',
+    'consumeBackendRateLimitQuota',
   ]) {
     if (!source.includes(required)) {
       violations.push(
@@ -568,59 +568,11 @@ if (fs.existsSync(runtimeAdultAccessPath)) {
   const source = codeOnly(fs.readFileSync(runtimeAdultAccessPath, 'utf8'));
 
   for (const required of [
-    'canRunAdultSessionRealtime
-if (unique.length > 0) {
-  console.error('[age-authority] Fronteira etária canônica violada:');
-  for (const violation of unique) {
-    console.error(`  - ${violation}`);
-  }
-  console.error(
-    '[age-authority] Não derive maioridade de ageVerification, idade ou adultConsent. ' +
-      'Use age_eligibility_records backend-only e a projeção sanitizada somente para UX.'
-  );
-  process.exit(1);
-}
-
-console.log(
-  '[age-authority] OK: maioridade permanece backend-only, decisões humanas exigem evidência e consentimento não substitui prova etária.'
-);
-,
-    'this.ageEligibility.verifiedAdult
-if (unique.length > 0) {
-  console.error('[age-authority] Fronteira etária canônica violada:');
-  for (const violation of unique) {
-    console.error(`  - ${violation}`);
-  }
-  console.error(
-    '[age-authority] Não derive maioridade de ageVerification, idade ou adultConsent. ' +
-      'Use age_eligibility_records backend-only e a projeção sanitizada somente para UX.'
-  );
-  process.exit(1);
-}
-
-console.log(
-  '[age-authority] OK: maioridade permanece backend-only, decisões humanas exigem evidência e consentimento não substitui prova etária.'
-);
-,
+    'canRunAdultSessionRealtime$',
+    'this.ageEligibility.verifiedAdult$',
     'isCurrentLegalAcceptanceSatisfied',
     'ADULT_CONSENT_VERSION',
-    'readonly canRunPresence
-if (unique.length > 0) {
-  console.error('[age-authority] Fronteira etária canônica violada:');
-  for (const violation of unique) {
-    console.error(`  - ${violation}`);
-  }
-  console.error(
-    '[age-authority] Não derive maioridade de ageVerification, idade ou adultConsent. ' +
-      'Use age_eligibility_records backend-only e a projeção sanitizada somente para UX.'
-  );
-  process.exit(1);
-}
-
-console.log(
-  '[age-authority] OK: maioridade permanece backend-only, decisões humanas exigem evidência e consentimento não substitui prova etária.'
-);
-,
+    'readonly canRunPresence$',
   ]) {
     if (!source.includes(required)) {
       violations.push(
@@ -637,45 +589,13 @@ const friendsRuntimePath = path.join(
 if (fs.existsSync(friendsRuntimePath)) {
   const source = codeOnly(fs.readFileSync(friendsRuntimePath, 'utf8'));
 
-  if (!source.includes('this.access.canRunSensitiveRealtime
-if (unique.length > 0) {
-  console.error('[age-authority] Fronteira etária canônica violada:');
-  for (const violation of unique) {
-    console.error(`  - ${violation}`);
-  }
-  console.error(
-    '[age-authority] Não derive maioridade de ageVerification, idade ou adultConsent. ' +
-      'Use age_eligibility_records backend-only e a projeção sanitizada somente para UX.'
-  );
-  process.exit(1);
-}
-
-console.log(
-  '[age-authority] OK: maioridade permanece backend-only, decisões humanas exigem evidência e consentimento não substitui prova etária.'
-);
-)) {
+  if (!source.includes('this.access.canRunSensitiveRealtime$')) {
     violations.push(
       'src/app/store/effects/effects.interactions/friends/network.effects.ts (Friends deve pausar até o gate social adulto)'
     );
   }
 
-  if (source.includes('this.access.canEnterCore
-if (unique.length > 0) {
-  console.error('[age-authority] Fronteira etária canônica violada:');
-  for (const violation of unique) {
-    console.error(`  - ${violation}`);
-  }
-  console.error(
-    '[age-authority] Não derive maioridade de ageVerification, idade ou adultConsent. ' +
-      'Use age_eligibility_records backend-only e a projeção sanitizada somente para UX.'
-  );
-  process.exit(1);
-}
-
-console.log(
-  '[age-authority] OK: maioridade permanece backend-only, decisões humanas exigem evidência e consentimento não substitui prova etária.'
-);
-)) {
+  if (source.includes('this.access.canEnterCore$')) {
     violations.push(
       'src/app/store/effects/effects.interactions/friends/network.effects.ts (canEnterCore não pode iniciar listeners sociais adultos)'
     );
@@ -689,23 +609,7 @@ const presenceRuntimePath = path.join(
 if (fs.existsSync(presenceRuntimePath)) {
   const source = codeOnly(fs.readFileSync(presenceRuntimePath, 'utf8'));
 
-  if (!source.includes('this.access.canRunPresence
-if (unique.length > 0) {
-  console.error('[age-authority] Fronteira etária canônica violada:');
-  for (const violation of unique) {
-    console.error(`  - ${violation}`);
-  }
-  console.error(
-    '[age-authority] Não derive maioridade de ageVerification, idade ou adultConsent. ' +
-      'Use age_eligibility_records backend-only e a projeção sanitizada somente para UX.'
-  );
-  process.exit(1);
-}
-
-console.log(
-  '[age-authority] OK: maioridade permanece backend-only, decisões humanas exigem evidência e consentimento não substitui prova etária.'
-);
-)) {
+  if (!source.includes('this.access.canRunPresence$')) {
     violations.push(
       'src/app/core/services/presence/presence-orchestrator.service.ts (Presence deve depender do gate adulto canônico)'
     );
