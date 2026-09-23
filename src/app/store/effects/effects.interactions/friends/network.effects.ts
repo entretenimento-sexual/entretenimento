@@ -31,18 +31,23 @@ private dbg(msg: string, extra?: unknown): void {
    *
    * Regras:
    * - só inicia em core
+   * - exige elegibilidade social adulta já confirmada
    * - exige uid válido
-   * - quando sai do core, para listeners e limpa estado derivado
+   * - quando qualquer gate fecha, para listeners e limpa estado derivado
    */
   private readonly gate$ = combineLatest([
     this.access.canEnterCore$,
+    this.access.canUseAdultSocial$,
     this.access.authUid$,
   ]).pipe(
-    map(([canEnterCore, uid]) => {
+    map(([canEnterCore, canUseAdultSocial, uid]) => {
       const cleanUid = (uid ?? '').trim() || null;
 
       return {
-        canRun: canEnterCore === true && !!cleanUid,
+        canRun:
+          canEnterCore === true &&
+          canUseAdultSocial === true &&
+          !!cleanUid,
         uid: cleanUid,
       };
     }),

@@ -419,6 +419,73 @@ if (fs.existsSync(adultConsentPath)) {
   }
 }
 
+const angularAdultSocialBoundaryFiles = Object.freeze([
+  {
+    path: 'src/app/core/services/autentication/auth/access-control.service.ts',
+    required: [
+      'canUseAdultSocial$',
+      'this.ageEligibility.verifiedAdult$',
+      'TERMS_ACCEPTANCE_VERSION',
+      'ADULT_CONSENT_VERSION',
+      'canRunPresence$',
+    ],
+  },
+  {
+    path: 'src/app/store/effects/effects.interactions/friends/network.effects.ts',
+    required: [
+      'this.access.canUseAdultSocial$',
+      'canUseAdultSocial === true',
+    ],
+  },
+  {
+    path: 'src/app/core/services/interactions/friendship/repo/requests.repo.ts',
+    required: [
+      'this.inCtxSync(() =>',
+      "'getPendingFriendRequests'",
+    ],
+  },
+]);
+
+for (const boundary of angularAdultSocialBoundaryFiles) {
+  const absolutePath = path.join(root, boundary.path);
+  if (!fs.existsSync(absolutePath)) {
+    violations.push(
+      `${boundary.path} (fronteira social adulta Angular ausente)`
+    );
+    continue;
+  }
+
+  const source = fs.readFileSync(absolutePath, 'utf8');
+  for (const required of boundary.required) {
+    if (!source.includes(required)) {
+      violations.push(
+        `${boundary.path} (fronteira social adulta deve preservar: ${required})`
+      );
+    }
+  }
+}
+
+const rulesOptionalFieldHelperPath = path.join(
+  root,
+  'firestore-rules',
+  '_helpers.rules'
+);
+if (fs.existsSync(rulesOptionalFieldHelperPath)) {
+  const source = fs.readFileSync(rulesOptionalFieldHelperPath, 'utf8');
+  for (const required of [
+    'let value = mapFieldOrNull(request.resource.data, k);',
+    'return value == null || value is string;',
+    'return value == null || value is number;',
+    'return value == null || isTs(value);',
+  ]) {
+    if (!source.includes(required)) {
+      violations.push(
+        `firestore-rules/_helpers.rules (helper opcional deve ser null-safe: ${required})`
+      );
+    }
+  }
+}
+
 const communityAgeBoundaryFiles = Object.freeze([
   'functions/src/community/community-social-access.service.ts',
   'functions/src/account_lifecycle/interaction-access.policy.ts',

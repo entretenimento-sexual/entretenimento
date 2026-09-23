@@ -55,6 +55,9 @@ import {
 import { ApplicationErrorService } from '../../error-handler/application-error.service';
 import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 import { PlatformSubscriptionAccessService } from '@core/services/subscriptions/platform-subscription-access.service';
+import { AgeEligibilityService } from '@core/services/compliance/age-eligibility.service';
+import { TERMS_ACCEPTANCE_VERSION } from '@core/services/compliance/platform-legal.constants';
+import { ADULT_CONSENT_VERSION } from '@core/guards/compliance/adult-content-consent.storage';
 
 export type UserRole = IUserDados['role'];
 
@@ -81,6 +84,7 @@ export class AccessControlService {
   private readonly session = inject(AuthSessionService);
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly subscriptionAccess = inject(PlatformSubscriptionAccessService);
+  private readonly ageEligibility = inject(AgeEligibilityService);
   private readonly appBlock = inject(AuthAppBlockService);
   private readonly routeContext = inject(AuthRouteContextService);
 
@@ -522,6 +526,57 @@ export class AccessControlService {
   );
 
   /**
+   * Gate canônico de UX/runtime para a experiência social adulta.
+   *
+   * Não substitui Functions nem Firestore Rules. Ele apenas evita iniciar
+   * listeners e writes que a autoridade backend já recusaria.
+   */
+  readonly canUseAdultSocial$: Observable<boolean> = combineLatest([
+    this.isAuthenticated$,
+    this.isBlocked$,
+    this.appUser$,
+    this.ageEligibility.verifiedAdult$,
+  ]).pipe(
+    map(([isAuthenticated, blocked, user, ageVerified]) => {
+      if (
+        isAuthenticated !== true ||
+        blocked === true ||
+        !user ||
+        ageVerified !== true
+      ) {
+        return false;
+      }
+
+      const terms = user.acceptedTerms;
+      const adultConsent = user.adultConsent;
+      const reverificationStatus = String(
+        user.ageReverification?.status ?? 'NONE'
+      ).toUpperCase();
+
+      const termsOk =
+        terms?.accepted === true &&
+        terms.version === TERMS_ACCEPTANCE_VERSION &&
+        terms.acknowledgedPrivacyNotice === true;
+
+      const adultConsentOk =
+        adultConsent?.accepted === true &&
+        adultConsent.version === ADULT_CONSENT_VERSION;
+
+      const ageReverificationOk = ![
+        'REQUIRED',
+        'SUBMITTED',
+        'UNDER_REVIEW',
+        'EXPIRED',
+      ].includes(reverificationStatus);
+
+      return termsOk && adultConsentOk && ageReverificationOk;
+    }),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('canUseAdultSocial$', false))
+  );
+
+  /**
    * Infra realtime:
    * sessão autenticada, fora do fluxo de registro e app liberado.
    *
@@ -546,10 +601,21 @@ export class AccessControlService {
   );
 
   /**
-   * Presença é infraestrutura de sessão.
-   * Não deve depender de e-mail verificado.
+   * Presença é social, embora tecnicamente seja infraestrutura de sessão.
+   * Não gera writes enquanto a conta ainda não pode usar a experiência adulta.
+   * A liberação ocorre reativamente, sem login ou reload adicionais.
    */
-  readonly canRunPresence$: Observable<boolean> = this.canRunInfraRealtime$;
+  readonly canRunPresence$: Observable<boolean> = combineLatest([
+    this.canRunInfraRealtime$,
+    this.canUseAdultSocial$,
+  ]).pipe(
+    map(([infraOk, adultSocialOk]) =>
+      infraOk === true && adultSocialOk === true
+    ),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('canRunPresence$', false))
+  );
 
   /**
    * Chat é recurso sensível:

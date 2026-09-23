@@ -2,10 +2,13 @@ import { CommonModule } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
+  OnInit,
   inject,
   signal,
 } from '@angular/core';
-import { Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { EMPTY, Observable } from 'rxjs';
 import {
   catchError,
@@ -39,11 +42,13 @@ interface AgeVerificationPageVm {
   styleUrls: ['./age-verification-page.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class AgeVerificationPageComponent {
+export class AgeVerificationPageComponent implements OnInit {
   private readonly ageEligibility = inject(AgeEligibilityService);
   private readonly notification = inject(ErrorNotificationService);
   private readonly logout = inject(LogoutService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly refreshing = signal(false);
   readonly requestingReview = signal(false);
@@ -58,6 +63,16 @@ export class AgeVerificationPageComponent {
         expired: state.status === 'EXPIRED',
       }))
     );
+
+  ngOnInit(): void {
+    this.ageEligibility.verifiedAdult$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((verified) => {
+        if (verified) {
+          this.continueAfterVerification();
+        }
+      });
+  }
 
   requestReview(): void {
     if (this.refreshing() || this.requestingReview()) {
@@ -82,9 +97,7 @@ export class AgeVerificationPageComponent {
           this.notification.showSuccess(
             'Sua maioridade já está confirmada.'
           );
-          void this.router.navigateByUrl('/adulto/confirmar', {
-            replaceUrl: true,
-          });
+          this.continueAfterVerification();
           return;
         }
 
@@ -117,9 +130,7 @@ export class AgeVerificationPageComponent {
           this.notification.showSuccess(
             'Maioridade confirmada por uma fonte confiável.'
           );
-          void this.router.navigateByUrl('/adulto/confirmar', {
-            replaceUrl: true,
-          });
+          this.continueAfterVerification();
           return;
         }
 
@@ -134,6 +145,31 @@ export class AgeVerificationPageComponent {
           'Ainda não há uma verificação de maioridade válida para esta conta.'
         );
       });
+  }
+
+  private continueAfterVerification(): void {
+    const redirectTo = this.safeRedirectTo(
+      this.route.snapshot.queryParamMap.get('redirectTo')
+    );
+
+    void this.router.navigate(['/adulto/confirmar'], {
+      replaceUrl: true,
+      queryParams: redirectTo ? { redirectTo } : undefined,
+    });
+  }
+
+  private safeRedirectTo(value: string | null): string | null {
+    const candidate = String(value ?? '').trim();
+
+    if (
+      !candidate.startsWith('/') ||
+      candidate.startsWith('//') ||
+      candidate.includes('://')
+    ) {
+      return null;
+    }
+
+    return candidate;
   }
 
   logoutCurrentSession(): void {
