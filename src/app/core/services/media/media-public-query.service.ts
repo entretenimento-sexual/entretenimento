@@ -100,7 +100,6 @@ export class MediaPublicQueryService {
       const publicPhotosQuery = query(
         publicPhotosCollection,
         where('ageEligibilityVerifiedAdult', '==', true),
-        where('ageEligibilityValidUntil', '>', new Date()),
         where('visibility', '==', 'PUBLIC'),
         where('moderationStatus', '==', 'APPROVED'),
         orderBy('orderIndex', 'asc'),
@@ -148,7 +147,6 @@ export class MediaPublicQueryService {
       const publicVideosQuery = query(
         publicVideosCollection,
         where('ageEligibilityVerifiedAdult', '==', true),
-        where('ageEligibilityValidUntil', '>', new Date()),
         where('visibility', '==', 'PUBLIC'),
         where('moderationStatus', '==', 'APPROVED'),
         orderBy('orderIndex', 'asc'),
@@ -203,7 +201,6 @@ export class MediaPublicQueryService {
         publicPhotosGroup,
         where('ownerUid', 'in', safeOwnerUids),
         where('ageEligibilityVerifiedAdult', '==', true),
-        where('ageEligibilityValidUntil', '>', new Date()),
         where('visibility', '==', 'PUBLIC'),
         where('moderationStatus', '==', 'APPROVED'),
         orderBy('publishedAt', 'desc'),
@@ -262,7 +259,6 @@ export class MediaPublicQueryService {
         publicVideosGroup,
         where('ownerUid', 'in', safeOwnerUids),
         where('ageEligibilityVerifiedAdult', '==', true),
-        where('ageEligibilityValidUntil', '>', new Date()),
         where('visibility', '==', 'PUBLIC'),
         where('moderationStatus', '==', 'APPROVED'),
         orderBy('publishedAt', 'desc'),
@@ -381,7 +377,6 @@ export class MediaPublicQueryService {
       const latestPhotosQuery = query(
         publicPhotosGroup,
         where('ageEligibilityVerifiedAdult', '==', true),
-        where('ageEligibilityValidUntil', '>', new Date()),
         where('visibility', '==', 'PUBLIC'),
         where('moderationStatus', '==', 'APPROVED'),
         orderBy('publishedAt', 'desc'),
@@ -417,7 +412,6 @@ export class MediaPublicQueryService {
       const topPhotosQuery = query(
         publicPhotosGroup,
         where('ageEligibilityVerifiedAdult', '==', true),
-        where('ageEligibilityValidUntil', '>', new Date()),
         where('visibility', '==', 'PUBLIC'),
         where('moderationStatus', '==', 'APPROVED'),
         orderBy('score', 'desc'),
@@ -457,7 +451,6 @@ export class MediaPublicQueryService {
       const boostedPhotosQuery = query(
         publicPhotosGroup,
         where('ageEligibilityVerifiedAdult', '==', true),
-        where('ageEligibilityValidUntil', '>', new Date()),
         where('visibility', '==', 'PUBLIC'),
         where('moderationStatus', '==', 'APPROVED'),
         where('boostActive', '==', true),
