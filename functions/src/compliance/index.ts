@@ -33,6 +33,9 @@ export {
   reviewProfileAgeReverification,
 } from './review-profile-age-reverification.handler';
 export {
+  appealProfileAgeReverification,
+} from './appeal-profile-age-reverification.handler';
+export {
   reviewProfileMinorSafetyReport,
 } from './review-profile-minor-safety-report.handler';
 export {
