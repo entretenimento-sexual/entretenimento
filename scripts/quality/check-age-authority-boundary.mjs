@@ -31,6 +31,11 @@ const requiredFiles = Object.freeze([
   'src/app/core/services/compliance/age-eligibility.service.ts',
   'src/app/core/guards/compliance/age-eligibility.guard.ts',
   'firestore-rules/age_eligibility_records.rules',
+  'functions/src/discovery/get-public-profiles-page.handler.ts',
+  'functions/src/discovery/get-user-intent-statuses.handler.ts',
+  'functions/src/media/application/get-public-media-discovery.handler.ts',
+  'src/app/core/services/discovery/public-profile-read-boundary.service.ts',
+  'src/app/core/services/media/public-media-read-boundary.service.ts',
 ]);
 
 const legacyClientCompatibility = path.normalize(
@@ -130,6 +135,28 @@ for (const absolutePath of walk(angularRoot, ['.ts'])) {
     /\bageVerification\s*:/g,
     'Angular não pode materializar o campo legado ageVerification'
   );
+
+  addMatchViolations(
+    violations,
+    absolutePath,
+    scanned,
+    /collectionGroup\s*\([^)]*['"]public_(?:photos|videos)['"]/g,
+    'Angular não pode enumerar mídia pública global; use PublicMediaReadBoundaryService'
+  );
+  addMatchViolations(
+    violations,
+    absolutePath,
+    scanned,
+    /collection\s*\([^)]*['"]user_intent_statuses['"]\s*\)/g,
+    'Angular não pode enumerar Status de Hoje; use getUserIntentStatuses'
+  );
+  addMatchViolations(
+    violations,
+    absolutePath,
+    scanned,
+    /collection\s*\([^)]*['"]public_profiles['"]\s*\)/g,
+    'Angular não pode enumerar public_profiles; use PublicProfileReadBoundaryService'
+  );
 }
 
 const rulesRoot = path.join(root, 'firestore-rules');
@@ -228,6 +255,62 @@ if (fs.existsSync(helperPath)) {
         `firestore-rules/_helpers.rules (helper canônico ausente: ${required})`
       );
     }
+  }
+}
+
+
+const backendOnlyListRules = Object.freeze([
+  {
+    path: 'firestore-rules/public_profiles_next.rules',
+    pattern: /allow\s+list\s*:\s*if\s+false\s*;/,
+    reason: 'public_profiles deve permanecer sem enumeração client-side',
+  },
+  {
+    path: 'firestore-rules/user_intent_statuses.rules',
+    pattern: /allow\s+list\s*:\s*if\s+false\s*;/,
+    reason: 'Status de Hoje deve permanecer sem enumeração client-side',
+  },
+  {
+    path: 'firestore-rules/public_profiles_photos.rules',
+    pattern: /match\s+\/\{path=\*\*\}\/public_photos\/\{[^}]+\}\s*\{[\s\S]*?allow\s+list\s*:\s*if\s+false\s*;/,
+    reason: 'collection-group public_photos deve permanecer backend-only',
+  },
+  {
+    path: 'firestore-rules/public_profiles_videos.rules',
+    pattern: /match\s+\/\{path=\*\*\}\/public_videos\/\{[^}]+\}\s*\{[\s\S]*?allow\s+list\s*:\s*if\s+false\s*;/,
+    reason: 'collection-group public_videos deve permanecer backend-only',
+  },
+]);
+
+for (const rule of backendOnlyListRules) {
+  const absolutePath = path.join(root, rule.path);
+  if (!fs.existsSync(absolutePath)) continue;
+
+  const source = fs.readFileSync(absolutePath, 'utf8');
+  if (!rule.pattern.test(source)) {
+    violations.push(`${rule.path} (${rule.reason})`);
+  }
+}
+
+const temporalReadBoundaries = Object.freeze([
+  'functions/src/discovery/get-public-profiles-page.handler.ts',
+  'functions/src/discovery/get-user-intent-statuses.handler.ts',
+  'functions/src/media/application/get-public-media-discovery.handler.ts',
+]);
+
+for (const relativePath of temporalReadBoundaries) {
+  const absolutePath = path.join(root, relativePath);
+  if (!fs.existsSync(absolutePath)) continue;
+
+  const source = fs.readFileSync(absolutePath, 'utf8');
+  if (
+    !source.includes('ageEligibilityVerifiedAdult') ||
+    !source.includes('ageEligibilityValidUntil') ||
+    !source.includes('Date.now()')
+  ) {
+    violations.push(
+      `${relativePath} (boundary público deve validar projeção adulta e relógio do backend)`
+    );
   }
 }
 
