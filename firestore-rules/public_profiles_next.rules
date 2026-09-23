@@ -22,8 +22,10 @@ match /public_profiles/{userId} {
     && targetAgeProjectionAllowsAdultExposure()
     && targetCanonicalAgeEligibilityAllowsAdultExposure();
 
+  // Listas usam a projeção materializada pelo boundary task. O get direto
+  // mantém a defesa temporal request.time + autoridade canônica.
   allow list: if currentUserCanUseAdultSocialPlatform()
-    && targetAgeProjectionAllowsAdultExposure();
+    && resource.data.ageEligibilityVerifiedAdult == true;
 
   function hasPublicField(field) {
     return request.resource.data.keys().hasAny([field]);
