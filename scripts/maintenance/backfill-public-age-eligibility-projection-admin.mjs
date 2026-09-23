@@ -229,16 +229,20 @@ async function main() {
 
   const queueProjection = async (
     ref,
-    current,
+    currentAccess,
+    currentLegacyAccess,
     currentValidUntil,
+    currentAssurance,
     desired,
     desiredValidUntilMs,
     assurance,
     kind
   ) => {
     if (
-      current === desired &&
-      projectionValidUntilMillis(currentValidUntil) === desiredValidUntilMs
+      currentAccess === desired &&
+      currentLegacyAccess === desired &&
+      projectionValidUntilMillis(currentValidUntil) === desiredValidUntilMs &&
+      (String(currentAssurance ?? '') || null) === assurance
     ) return;
 
     if (kind === 'profile') profileWrites += 1;
@@ -317,8 +321,10 @@ async function main() {
 
       await queueProjection(
         profileDoc.ref,
+        profileDoc.data()?.ageEligibilityAdultAccessAllowed,
         profileDoc.data()?.ageEligibilityVerifiedAdult,
         profileDoc.data()?.ageEligibilityValidUntil,
+        profileDoc.data()?.ageEligibilityAssurance,
         ageEligible,
         ageValidUntilMs,
         ageEligible
@@ -334,8 +340,10 @@ async function main() {
       for (const photoDoc of photosSnapshot.docs) {
         await queueProjection(
           photoDoc.ref,
+          photoDoc.data()?.ageEligibilityAdultAccessAllowed,
           photoDoc.data()?.ageEligibilityVerifiedAdult,
           photoDoc.data()?.ageEligibilityValidUntil,
+          photoDoc.data()?.ageEligibilityAssurance,
           ageEligible,
           ageValidUntilMs,
           ageEligible
@@ -350,8 +358,10 @@ async function main() {
       for (const videoDoc of videosSnapshot.docs) {
         await queueProjection(
           videoDoc.ref,
+          videoDoc.data()?.ageEligibilityAdultAccessAllowed,
           videoDoc.data()?.ageEligibilityVerifiedAdult,
           videoDoc.data()?.ageEligibilityValidUntil,
+          videoDoc.data()?.ageEligibilityAssurance,
           ageEligible,
           ageValidUntilMs,
           ageEligible
@@ -373,8 +383,10 @@ async function main() {
 
         await queueProjection(
           statusSnapshot.ref,
+          statusData.ageEligibilityAdultAccessAllowed,
           statusData.ageEligibilityVerifiedAdult,
           statusData.ageEligibilityValidUntil,
+          statusData.ageEligibilityAssurance,
           desiredStatusProjection,
           desiredStatusProjection ? ageValidUntilMs : 0,
           desiredStatusProjection
