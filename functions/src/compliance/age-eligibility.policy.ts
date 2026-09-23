@@ -2,30 +2,51 @@
 // -----------------------------------------------------------------------------
 // CANONICAL AGE ELIGIBILITY POLICY
 // -----------------------------------------------------------------------------
-// Decide se um registro backend-only autoriza a conta como adulta.
-// Nenhuma autodeclaração client-side é tratada como prova.
+// age_eligibility_records/{uid} permanece backend-only.
+//
+// O modelo separa explicitamente:
+// - DECLARED_ADULT / SELF_ATTESTED: autodeclaração aceita no estágio atual;
+// - VERIFIED_ADULT / VERIFIED: prova forte por provedor, KYC ou revisão.
+//
+// Assim a plataforma pode operar sem fingir que autodeclaração é verificação e
+// pode endurecer a política futuramente sem reescrever o domínio.
 // -----------------------------------------------------------------------------
 
 export const AGE_ELIGIBILITY_POLICY_VERSION = 1;
 
+export type AgeAccessPolicyMode =
+  | 'SELF_ATTESTATION_ALLOWED'
+  | 'VERIFIED_ONLY';
+
+export const AGE_ACCESS_POLICY_MODE: AgeAccessPolicyMode =
+  'SELF_ATTESTATION_ALLOWED';
+
 export type AgeEligibilityStatus =
   | 'UNVERIFIED'
+  | 'DECLARED_ADULT'
   | 'REVIEW_REQUIRED'
   | 'VERIFIED_ADULT'
   | 'DENIED_UNDERAGE'
   | 'EXPIRED';
 
 export type AgeEligibilitySource =
+  | 'SELF_ATTESTATION'
   | 'INITIAL_VERIFICATION'
   | 'AGE_REVERIFICATION'
   | 'PROFILE_KYC'
   | 'MIGRATION';
 
 export type AgeEligibilityMethod =
+  | 'SELF_ATTESTATION'
   | 'EXTERNAL_PROVIDER'
   | 'MANUAL_REVIEW'
   | 'KYC'
   | 'MIGRATED_REVIEW';
+
+export type AgeEligibilityAssuranceLevel =
+  | 'NONE'
+  | 'SELF_ATTESTED'
+  | 'VERIFIED';
 
 export type AgeEligibilityDenialReason =
   | 'verification_required'
@@ -41,6 +62,7 @@ export interface CanonicalAgeEligibilityRecord {
   policyVersion: number;
   source: AgeEligibilitySource;
   method: AgeEligibilityMethod;
+  assuranceLevel: AgeEligibilityAssuranceLevel;
   caseId: string | null;
   verifiedAtMs: number | null;
   decidedAtMs: number;
@@ -55,6 +77,7 @@ export interface AgeEligibilityDecision {
   policyVersion: number | null;
   source: AgeEligibilitySource | null;
   method: AgeEligibilityMethod | null;
+  assuranceLevel: AgeEligibilityAssuranceLevel | null;
   verifiedAtMs: number | null;
   expiresAtMs: number | null;
   caseId: string | null;
@@ -80,6 +103,7 @@ function positiveTime(value: unknown): number | null {
 function normalizeStatus(value: unknown): AgeEligibilityStatus | null {
   const normalized = String(value ?? '').trim().toUpperCase();
   return normalized === 'UNVERIFIED' ||
+    normalized === 'DECLARED_ADULT' ||
     normalized === 'REVIEW_REQUIRED' ||
     normalized === 'VERIFIED_ADULT' ||
     normalized === 'DENIED_UNDERAGE' ||
@@ -90,7 +114,8 @@ function normalizeStatus(value: unknown): AgeEligibilityStatus | null {
 
 function normalizeSource(value: unknown): AgeEligibilitySource | null {
   const normalized = String(value ?? '').trim().toUpperCase();
-  return normalized === 'INITIAL_VERIFICATION' ||
+  return normalized === 'SELF_ATTESTATION' ||
+    normalized === 'INITIAL_VERIFICATION' ||
     normalized === 'AGE_REVERIFICATION' ||
     normalized === 'PROFILE_KYC' ||
     normalized === 'MIGRATION'
@@ -100,12 +125,45 @@ function normalizeSource(value: unknown): AgeEligibilitySource | null {
 
 function normalizeMethod(value: unknown): AgeEligibilityMethod | null {
   const normalized = String(value ?? '').trim().toUpperCase();
-  return normalized === 'EXTERNAL_PROVIDER' ||
+  return normalized === 'SELF_ATTESTATION' ||
+    normalized === 'EXTERNAL_PROVIDER' ||
     normalized === 'MANUAL_REVIEW' ||
     normalized === 'KYC' ||
     normalized === 'MIGRATED_REVIEW'
     ? normalized
     : null;
+}
+
+function normalizeAssurance(
+  value: unknown
+): AgeEligibilityAssuranceLevel | null {
+  const normalized = String(value ?? '').trim().toUpperCase();
+  return normalized === 'NONE' ||
+    normalized === 'SELF_ATTESTED' ||
+    normalized === 'VERIFIED'
+    ? normalized
+    : null;
+}
+
+function expectedAssurance(
+  status: AgeEligibilityStatus,
+  method: AgeEligibilityMethod
+): AgeEligibilityAssuranceLevel {
+  if (
+    status === 'DECLARED_ADULT' &&
+    method === 'SELF_ATTESTATION'
+  ) {
+    return 'SELF_ATTESTED';
+  }
+
+  if (
+    status === 'VERIFIED_ADULT' &&
+    method !== 'SELF_ATTESTATION'
+  ) {
+    return 'VERIFIED';
+  }
+
+  return 'NONE';
 }
 
 function denied(
@@ -120,6 +178,7 @@ function denied(
     policyVersion: input.policyVersion ?? null,
     source: input.source ?? null,
     method: input.method ?? null,
+    assuranceLevel: input.assuranceLevel ?? null,
     verifiedAtMs: input.verifiedAtMs ?? null,
     expiresAtMs: input.expiresAtMs ?? null,
     caseId: input.caseId ?? null,
@@ -150,10 +209,11 @@ export function evaluateCanonicalAgeEligibility(input: {
   const method = normalizeMethod(record['method']);
   const caseId = cleanCaseId(record['caseId']);
   const policyVersion = Number(record['policyVersion']);
-  const verifiedAtMs = record['verifiedAtMs'] === null
+  const verifiedAtMs = record['verifiedAtMs'] == null
     ? null
     : positiveTime(record['verifiedAtMs']);
-  const expiresAtMs = record['expiresAtMs'] === null
+  const decidedAtMs = positiveTime(record['decidedAtMs']);
+  const expiresAtMs = record['expiresAtMs'] == null
     ? null
     : positiveTime(record['expiresAtMs']);
 
@@ -168,10 +228,14 @@ export function evaluateCanonicalAgeEligibility(input: {
     return denied(status ?? 'UNVERIFIED', 'record_mismatch');
   }
 
+  const derivedAssurance = expectedAssurance(status, method);
+  const storedAssurance = normalizeAssurance(record['assuranceLevel']);
+  const assuranceLevel = storedAssurance ?? derivedAssurance;
   const common = {
     policyVersion,
     source,
     method,
+    assuranceLevel,
     verifiedAtMs,
     expiresAtMs,
     caseId,
@@ -193,14 +257,42 @@ export function evaluateCanonicalAgeEligibility(input: {
     return denied(status, 'verification_expired', common);
   }
 
+  if (status === 'DECLARED_ADULT') {
+    if (
+      AGE_ACCESS_POLICY_MODE !== 'SELF_ATTESTATION_ALLOWED' ||
+      source !== 'SELF_ATTESTATION' ||
+      method !== 'SELF_ATTESTATION' ||
+      assuranceLevel !== 'SELF_ATTESTED' ||
+      decidedAtMs === null ||
+      decidedAtMs > nowMs
+    ) {
+      return denied(status, 'record_mismatch', common);
+    }
+
+    return Object.freeze({
+      allowed: true,
+      status,
+      denialReason: null,
+      policyVersion,
+      source,
+      method,
+      assuranceLevel: 'SELF_ATTESTED',
+      verifiedAtMs: null,
+      expiresAtMs: null,
+      caseId,
+    });
+  }
+
   if (status !== 'VERIFIED_ADULT') {
     return denied('UNVERIFIED', 'verification_required', common);
   }
 
   if (
+    method === 'SELF_ATTESTATION' ||
+    assuranceLevel !== 'VERIFIED' ||
     verifiedAtMs === null ||
     verifiedAtMs > nowMs ||
-    (record['expiresAtMs'] !== null && expiresAtMs === null) ||
+    (record['expiresAtMs'] != null && expiresAtMs === null) ||
     (expiresAtMs !== null && expiresAtMs <= nowMs)
   ) {
     return denied('EXPIRED', 'verification_expired', common);
@@ -213,6 +305,7 @@ export function evaluateCanonicalAgeEligibility(input: {
     policyVersion,
     source,
     method,
+    assuranceLevel: 'VERIFIED',
     verifiedAtMs,
     expiresAtMs,
     caseId,

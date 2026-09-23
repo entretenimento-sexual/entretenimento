@@ -121,29 +121,29 @@ service cloud.firestore {
 
       return eligibility is map
         && eligibility.uid == userId
-        && eligibility.status == "VERIFIED_ADULT"
         && eligibility.policyVersion == 1
-        && verifiedAt is timestamp
-        && verifiedAt <= request.time
         && (
-          expiresAt == null
-          || (expiresAt is timestamp && request.time < expiresAt)
+          eligibility.status == "DECLARED_ADULT"
+          || (
+            eligibility.status == "VERIFIED_ADULT"
+            && verifiedAt is timestamp
+            && verifiedAt <= request.time
+            && (
+              expiresAt == null
+              || (expiresAt is timestamp && request.time < expiresAt)
+            )
+          )
         );
     }
 
-    function publicAgeProjectionAllowsAdultExposure(data) {
-      let validUntil = data is map
-        ? mapFieldOrNull(data, "ageEligibilityValidUntil")
-        : null;
-      return data is map
-        && mapFieldOrNull(data, "ageEligibilityVerifiedAdult") == true
-        && validUntil is timestamp
-        && request.time < validUntil;
-    }
-
-    function currentUserHasVerifiedAdultAge() {
+    function currentUserHasAdultAgeAccess() {
       return signedIn()
         && canonicalAgeEligibilityAllowsAdultAccess(uid());
+    }
+
+    // Alias temporário para Rules legadas. O nome antigo implicava prova forte.
+    function currentUserHasVerifiedAdultAge() {
+      return currentUserHasAdultAgeAccess();
     }
 
     function currentUserCanUseAdultSocialPlatform() {
@@ -157,7 +157,7 @@ service cloud.firestore {
         && adultMediaHasCurrentTerms(user)
         && adultMediaHasRequiredConsent(user)
         && adultMediaAgeReverificationAllowsAccess(user)
-        && currentUserHasVerifiedAdultAge();
+        && currentUserHasAdultAgeAccess();
     }
 
     function canConsumeAdultPublicMedia() {

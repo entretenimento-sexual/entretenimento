@@ -39,6 +39,25 @@ describe('interaction access policy', () => {
     ));
   });
 
+  it('permite interação com autodeclaração adulta backend no modo atual', () => {
+    assert.doesNotThrow(() => assertInteractionAccessData(
+      validUser,
+      {
+        uid: 'user-1',
+        status: 'DECLARED_ADULT',
+        policyVersion: 1,
+        source: 'SELF_ATTESTATION',
+        method: 'SELF_ATTESTATION',
+        assuranceLevel: 'SELF_ATTESTED',
+        caseId: null,
+        verifiedAtMs: null,
+        decidedAtMs: Date.now() - 1_000,
+        expiresAtMs: null,
+      },
+      'user-1'
+    ));
+  });
+
   it('bloqueia conta com interactionBlocked', () => {
     assert.throws(() => assertInteractionAccessData(
       {

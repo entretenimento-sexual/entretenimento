@@ -114,6 +114,36 @@ describe('Firestore Rules / presence adult social boundary', () => {
     );
   });
 
+  it('aceita presença com autodeclaração adulta registrada somente pelo backend', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const now = Timestamp.now();
+
+      await setDoc(doc(context.firestore(), 'age_eligibility_records', UID), {
+        uid: UID,
+        status: 'DECLARED_ADULT',
+        policyVersion: 1,
+        source: 'SELF_ATTESTATION',
+        method: 'SELF_ATTESTATION',
+        assuranceLevel: 'SELF_ATTESTED',
+        decidedAt: now,
+        verifiedAt: null,
+        expiresAt: null,
+      });
+    });
+
+    const db = testEnv.authenticatedContext(UID).firestore();
+
+    await assertSucceeds(
+      updateDoc(doc(db, 'presence', UID), {
+        presenceSessionId: 'session-1',
+        presenceState: 'online',
+        isOnline: true,
+        lastSeen: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
   it('nega presença quando a autoridade etária deixa de autorizar acesso adulto', async () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {
       await setDoc(doc(context.firestore(), 'age_eligibility_records', UID), {

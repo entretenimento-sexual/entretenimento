@@ -14,7 +14,7 @@ describe('RegisterNavigationService', () => {
     userResolved: true,
     userExists: true,
     termsAccepted: true,
-    ageEligibilityVerified: true,
+    ageEligibilityAllowed: true,
     profileCompleted: true,
     adultConsentAccepted: true,
     initialAdultConsentRequired: true,
@@ -52,10 +52,10 @@ describe('RegisterNavigationService', () => {
     expect(vm.nextRoute).toBe('/register/aceitar-termos');
   });
 
-  it('deve exigir verificação etária backend depois dos termos', () => {
+  it('deve exigir confirmação etária canônica depois dos termos', () => {
     const vm = service.resolveVm({
       ...readyState,
-      ageEligibilityVerified: false,
+      ageEligibilityAllowed: false,
       profileCompleted: false,
       adultConsentAccepted: false,
     });
@@ -64,7 +64,7 @@ describe('RegisterNavigationService', () => {
     expect(vm.nextRoute).toBe('/adulto/verificar-idade');
   });
 
-  it('deve exigir consentimento adulto depois da verificação etária', () => {
+  it('deve exigir consentimento adulto depois da confirmação etária', () => {
     const vm = service.resolveVm({
       ...readyState,
       adultConsentAccepted: false,
@@ -75,7 +75,7 @@ describe('RegisterNavigationService', () => {
     expect(vm.nextRoute).toBe('/adulto/confirmar');
   });
 
-  it('deve concluir o perfil somente depois da verificação e do consentimento', () => {
+  it('deve concluir o perfil somente depois da confirmação e do consentimento', () => {
     const vm = service.resolveVm({
       ...readyState,
       profileCompleted: false,

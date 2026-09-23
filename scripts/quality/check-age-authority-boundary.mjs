@@ -7,6 +7,7 @@
 // - users/{uid}.ageEligibility é somente projeção sanitizada;
 // - adultConsent é consentimento e nunca prova de idade;
 // - ageReverification é processo/caso e não substitui a autoridade canônica;
+// - SELF_ATTESTATION pode liberar acesso no rollout atual, mas nunca vira VERIFIED;
 // - users/{uid}.ageVerification é legado e não pode voltar a conceder acesso.
 //
 // O identificador legado só pode existir:
@@ -30,6 +31,7 @@ const requiredFiles = Object.freeze([
   'functions/src/compliance/age-verification-provider-assertion.trigger.ts',
   'functions/src/compliance/age-review-evidence.policy.ts',
   'functions/src/compliance/request-initial-age-verification-review.handler.ts',
+  'functions/src/compliance/submit-adult-self-attestation.handler.ts',
   'functions/src/compliance/review-initial-age-verification.handler.ts',
   'functions/src/compliance/review-profile-age-reverification.handler.ts',
   'functions/src/compliance/appeal-profile-age-reverification.handler.ts',
@@ -263,7 +265,7 @@ if (fs.existsSync(helperPath)) {
   const source = fs.readFileSync(helperPath, 'utf8');
   for (const required of [
     'canonicalAgeEligibilityAllowsAdultAccess',
-    'currentUserHasVerifiedAdultAge',
+    'currentUserHasAdultAgeAccess',
     'currentUserCanUseAdultSocialPlatform',
   ]) {
     if (!source.includes(required)) {
@@ -329,6 +331,38 @@ if (fs.existsSync(initialAgeRequestPath)) {
   if (/VERIFIED_ADULT[\s\S]{0,240}request\.data/.test(source)) {
     violations.push(
       'functions/src/compliance/request-initial-age-verification-review.handler.ts (input do cliente não pode promover diretamente VERIFIED_ADULT)'
+    );
+  }
+}
+
+const selfAttestationPath = path.join(
+  root,
+  'functions/src/compliance/submit-adult-self-attestation.handler.ts'
+);
+if (fs.existsSync(selfAttestationPath)) {
+  const source = codeOnly(fs.readFileSync(selfAttestationPath, 'utf8'));
+
+  for (const required of [
+    'enforceAppCheck',
+    'AGE_ACCESS_POLICY_MODE',
+    "status: 'DECLARED_ADULT'",
+    "source: 'SELF_ATTESTATION'",
+    "method: 'SELF_ATTESTATION'",
+    'writeCanonicalAgeEligibilityInTransaction',
+    'age_reverification_required',
+    "reverificationResult === 'UNDERAGE'",
+    "status: 'resolved'",
+  ]) {
+    if (!source.includes(required)) {
+      violations.push(
+        `functions/src/compliance/submit-adult-self-attestation.handler.ts (autodeclaração backend deve preservar: ${required})`
+      );
+    }
+  }
+
+  if (/status:\s*['"]VERIFIED_ADULT['"][\s\S]{0,320}declaredAdult/.test(source)) {
+    violations.push(
+      'functions/src/compliance/submit-adult-self-attestation.handler.ts (autodeclaração não pode promover diretamente VERIFIED_ADULT)'
     );
   }
 }
@@ -424,7 +458,7 @@ const angularAdultSocialBoundaryFiles = Object.freeze([
     path: 'src/app/core/services/autentication/auth/access-control.service.ts',
     required: [
       'canUseAdultSocial$',
-      'this.ageEligibility.verifiedAdult$',
+      'this.ageEligibility.adultAccessAllowed$',
       'TERMS_ACCEPTANCE_VERSION',
       'ADULT_CONSENT_VERSION',
       'canRunPresence$',
@@ -490,29 +524,29 @@ const ageVerificationUxFiles = Object.freeze([
   {
     path: 'src/app/compliance/age-verification-page/age-verification-page.component.ts',
     required: [
-      'verifyNow(): void',
-      'refreshTrustedSources$()',
-      'requestInitialReview$()',
+      'confirmAdult(): void',
+      'submitSelfAttestation$()',
+      'adultAccessAllowed$',
       "?? '/dashboard/principal'",
-      "goToNotifications(): void",
-      "goToAccount(): void",
+      'goToNotifications(): void',
+      'goToAccount(): void',
     ],
     forbidden: [
+      'verifyNow(): void',
+      'requestInitialReview$()',
       'refresh(): void',
-      'showWarning(',
-      'showInfo(',
     ],
   },
   {
     path: 'src/app/compliance/age-verification-page/age-verification-page.component.html',
     required: [
-      'Verificar maioridade',
-      'Você não precisa reenviar nada nem atualizar a página.',
-      'O que você precisa fazer agora?',
+      'Confirmo que tenho 18 anos ou mais',
+      'Esta é uma autodeclaração, não uma verificação documental.',
       'Ver notificações',
       'Ir para minha conta',
     ],
     forbidden: [
+      'Verificação em análise',
       'Já concluiu? Atualizar status',
       '(click)="refresh()"',
     ],
@@ -695,5 +729,5 @@ if (unique.length > 0) {
 }
 
 console.log(
-  '[age-authority] OK: maioridade permanece backend-only, decisões humanas exigem evidência e consentimento não substitui prova etária.'
+  '[age-authority] OK: acesso adulto permanece backend-authoritative; SELF_ATTESTED e VERIFIED são níveis distintos, denúncias/revalidação não podem ser apagadas pela autodeclaração e consentimento continua separado.'
 );

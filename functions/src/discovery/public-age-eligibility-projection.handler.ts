@@ -5,6 +5,10 @@
 // Materializa apenas o booleano sanitizado que informa se a autoridade etária
 // permite exposição adulta neste momento. Idade exata nunca é projetada.
 //
+// O nome legado ageEligibilityVerifiedAdult permanece por compatibilidade, mas
+// semanticamente significa "acesso adulto permitido pela política vigente":
+// pode decorrer de SELF_ATTESTED no rollout atual ou VERIFIED futuramente.
+//
 // O campo permite filtrar discovery/mídia/status sem uma leitura da autoridade
 // canônica por item e preserva public_profiles para restauração após reverificar.
 // -----------------------------------------------------------------------------

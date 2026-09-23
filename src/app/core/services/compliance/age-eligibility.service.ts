@@ -3,7 +3,8 @@
 // AGE ELIGIBILITY CLIENT PROJECTION
 // -----------------------------------------------------------------------------
 // Observa somente a projeção sanitizada de users/{uid}.ageEligibility.
-// Não escreve, não calcula idade e não transforma autodeclaração em autorização.
+// A autodeclaração só libera acesso quando já foi registrada pelo backend como
+// DECLARED_ADULT/SELF_ATTESTED. O cliente nunca promove o próprio estado.
 // -----------------------------------------------------------------------------
 
 import {
@@ -58,6 +59,7 @@ export class AgeEligibilityService {
           left.policyVersion === right.policyVersion &&
           left.source === right.source &&
           left.method === right.method &&
+          left.assuranceLevel === right.assuranceLevel &&
           left.caseId === right.caseId &&
           left.verifiedAtMs === right.verifiedAtMs &&
           left.expiresAtMs === right.expiresAtMs &&
@@ -66,6 +68,21 @@ export class AgeEligibilityService {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
+  /**
+   * Gate operacional atual da experiência adulta.
+   *
+   * DECLARED_ADULT é suficiente enquanto a política transitória aceita
+   * autodeclaração. VERIFIED_ADULT continua reservado para prova forte.
+   */
+  readonly adultAccessAllowed$: Observable<boolean> = this.current$.pipe(
+    switchMap((state) => this.observeAdultAccessWindow$(state)),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  /**
+   * Sinal estrito de prova forte. Não usar como sinônimo de acesso social.
+   */
   readonly verifiedAdult$: Observable<boolean> = this.current$.pipe(
     switchMap((state) => this.observeVerifiedWindow$(state)),
     distinctUntilChanged(),
@@ -121,9 +138,64 @@ export class AgeEligibilityService {
   }
 
 
+  submitSelfAttestation$(): Observable<{
+    status: 'DECLARED_ADULT' | 'VERIFIED_ADULT';
+    assuranceLevel: 'SELF_ATTESTED' | 'VERIFIED';
+  }> {
+    const callable = runInInjectionContext(
+      this.environmentInjector,
+      () => httpsCallable<
+        {
+          declaredAdult: true;
+          attestationVersion: 1;
+        },
+        {
+          status: 'DECLARED_ADULT' | 'VERIFIED_ADULT';
+          assuranceLevel: 'SELF_ATTESTED' | 'VERIFIED';
+        }
+      >(
+        inject(Functions),
+        'submitAdultSelfAttestation'
+      )
+    );
+
+    return from(
+      callable({
+        declaredAdult: true,
+        attestationVersion: 1,
+      })
+    ).pipe(
+      map((response) => response.data),
+      catchError((error) => {
+        try {
+          this.globalError.handleError(
+            Object.assign(
+              toErrorInstance(
+                error,
+                '[AgeEligibilityService.submitSelfAttestation] falhou.'
+              ),
+              {
+                feature: 'age-eligibility',
+                operation: 'submitSelfAttestation',
+                context: {
+                  scope: 'AgeEligibilityService',
+                },
+                original: error,
+              }
+            )
+          );
+        } catch {
+          // Diagnóstico não altera a fronteira etária.
+        }
+
+        return throwError(() => error);
+      })
+    );
+  }
+
   requestInitialReview$(): Observable<{
     reportId: string | null;
-    status: 'VERIFIED_ADULT' | 'REVIEW_REQUIRED';
+    status: 'DECLARED_ADULT' | 'VERIFIED_ADULT' | 'REVIEW_REQUIRED';
   }> {
     const callable = runInInjectionContext(
       this.environmentInjector,
@@ -131,7 +203,7 @@ export class AgeEligibilityService {
         Record<string, never>,
         {
           reportId: string | null;
-          status: 'VERIFIED_ADULT' | 'REVIEW_REQUIRED';
+          status: 'DECLARED_ADULT' | 'VERIFIED_ADULT' | 'REVIEW_REQUIRED';
         }
       >(
         inject(Functions),
@@ -166,6 +238,22 @@ export class AgeEligibilityService {
         return throwError(() => error);
       })
     );
+  }
+
+  private observeAdultAccessWindow$(
+    state: IUserAgeEligibility
+  ): Observable<boolean> {
+    if (
+      state.status === 'DECLARED_ADULT' &&
+      state.policyVersion === 1 &&
+      state.source === 'SELF_ATTESTATION' &&
+      state.method === 'SELF_ATTESTATION' &&
+      state.assuranceLevel === 'SELF_ATTESTED'
+    ) {
+      return of(true);
+    }
+
+    return this.observeVerifiedWindow$(state);
   }
 
   private observeVerifiedWindow$(
@@ -204,7 +292,9 @@ export class AgeEligibilityService {
   ): boolean {
     if (
       state.status !== 'VERIFIED_ADULT' ||
-      state.policyVersion !== 1
+      state.policyVersion !== 1 ||
+      state.assuranceLevel !== 'VERIFIED' ||
+      state.method === 'SELF_ATTESTATION'
     ) {
       return false;
     }
@@ -237,18 +327,21 @@ export class AgeEligibilityService {
     if (
       ![
         'UNVERIFIED',
+        'DECLARED_ADULT',
         'REVIEW_REQUIRED',
         'VERIFIED_ADULT',
         'DENIED_UNDERAGE',
         'EXPIRED',
       ].includes(status) ||
       ![
+        'SELF_ATTESTATION',
         'INITIAL_VERIFICATION',
         'AGE_REVERIFICATION',
         'PROFILE_KYC',
         'MIGRATION',
       ].includes(source) ||
       ![
+        'SELF_ATTESTATION',
         'EXTERNAL_PROVIDER',
         'MANUAL_REVIEW',
         'KYC',
@@ -265,6 +358,16 @@ export class AgeEligibilityService {
       policyVersion,
       source,
       method,
+      assuranceLevel:
+        raw.assuranceLevel === 'SELF_ATTESTED' ||
+        raw.assuranceLevel === 'VERIFIED' ||
+        raw.assuranceLevel === 'NONE'
+          ? raw.assuranceLevel
+          : status === 'DECLARED_ADULT' && method === 'SELF_ATTESTATION'
+            ? 'SELF_ATTESTED'
+            : status === 'VERIFIED_ADULT'
+              ? 'VERIFIED'
+              : 'NONE',
       caseId: String(raw.caseId ?? '').trim() || null,
       verifiedAtMs: this.safeTime(raw.verifiedAtMs),
       expiresAtMs: this.safeTime(raw.expiresAtMs),

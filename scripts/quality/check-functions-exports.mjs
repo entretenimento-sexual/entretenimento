@@ -31,6 +31,7 @@ const requiredExports = [
   'acceptPlatformTerms',
   'acceptAdultConsent',
   'refreshMyAgeEligibility',
+  'submitAdultSelfAttestation',
   'requestInitialAgeVerificationReview',
   'reviewInitialAgeVerification',
   'ensureCurrentLegalNotice',

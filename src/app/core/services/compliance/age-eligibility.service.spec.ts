@@ -16,6 +16,8 @@ describe('AgeEligibilityService', () => {
       { handleError: () => undefined } as any
     );
 
+    await expect(firstValueFrom(service.adultAccessAllowed$))
+      .resolves.toBe(false);
     await expect(firstValueFrom(service.verifiedAdult$))
       .resolves.toBe(false);
   });
@@ -42,6 +44,33 @@ describe('AgeEligibilityService', () => {
 
     await expect(firstValueFrom(service.verifiedAdult$))
       .resolves.toBe(true);
+  });
+
+  it('libera acesso com autodeclaração backend sem marcar como verificação forte', async () => {
+    const user$ = new BehaviorSubject<IUserDados | null | undefined>({
+      uid: 'user-1',
+      ageEligibility: {
+        status: 'DECLARED_ADULT',
+        policyVersion: 1,
+        source: 'SELF_ATTESTATION',
+        method: 'SELF_ATTESTATION',
+        assuranceLevel: 'SELF_ATTESTED',
+        caseId: null,
+        verifiedAtMs: null,
+        expiresAtMs: null,
+        updatedAtMs: Date.now(),
+      },
+    } as unknown as IUserDados);
+    const service = new AgeEligibilityService(
+      {} as any,
+      { user$: user$.asObservable() } as any,
+      { handleError: () => undefined } as any
+    );
+
+    await expect(firstValueFrom(service.adultAccessAllowed$))
+      .resolves.toBe(true);
+    await expect(firstValueFrom(service.verifiedAdult$))
+      .resolves.toBe(false);
   });
 
   it('não aceita projeção estruturalmente inválida', async () => {
@@ -90,7 +119,7 @@ describe('AgeEligibilityService', () => {
       { handleError: () => undefined } as any
     );
     const states: boolean[] = [];
-    const subscription = service.verifiedAdult$.subscribe((value) =>
+    const subscription = service.adultAccessAllowed$.subscribe((value) =>
       states.push(value)
     );
 

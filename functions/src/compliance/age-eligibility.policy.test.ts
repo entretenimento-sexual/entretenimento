@@ -30,6 +30,51 @@ describe('age-eligibility.policy', () => {
     assert.equal(decision.denialReason, null);
   });
 
+  it('libera autodeclaração adulta sem tratá-la como verificação forte', () => {
+    const decision = evaluateCanonicalAgeEligibility({
+      uid: 'user-1',
+      nowMs: NOW,
+      rawRecord: {
+        uid: 'user-1',
+        status: 'DECLARED_ADULT',
+        policyVersion: AGE_ELIGIBILITY_POLICY_VERSION,
+        source: 'SELF_ATTESTATION',
+        method: 'SELF_ATTESTATION',
+        assuranceLevel: 'SELF_ATTESTED',
+        caseId: null,
+        verifiedAtMs: null,
+        decidedAtMs: NOW - 1_000,
+        expiresAtMs: null,
+      },
+    });
+
+    assert.equal(decision.allowed, true);
+    assert.equal(decision.status, 'DECLARED_ADULT');
+    assert.equal(decision.assuranceLevel, 'SELF_ATTESTED');
+    assert.equal(decision.verifiedAtMs, null);
+  });
+
+  it('não aceita autodeclaração disfarçada de VERIFIED_ADULT', () => {
+    const decision = evaluateCanonicalAgeEligibility({
+      uid: 'user-1',
+      nowMs: NOW,
+      rawRecord: {
+        uid: 'user-1',
+        status: 'VERIFIED_ADULT',
+        policyVersion: AGE_ELIGIBILITY_POLICY_VERSION,
+        source: 'SELF_ATTESTATION',
+        method: 'SELF_ATTESTATION',
+        assuranceLevel: 'SELF_ATTESTED',
+        caseId: null,
+        verifiedAtMs: NOW - 1_000,
+        decidedAtMs: NOW - 1_000,
+        expiresAtMs: null,
+      },
+    });
+
+    assert.equal(decision.allowed, false);
+  });
+
   it('falha fechado quando o registro não existe', () => {
     const decision = evaluateCanonicalAgeEligibility({
       uid: 'user-1',
