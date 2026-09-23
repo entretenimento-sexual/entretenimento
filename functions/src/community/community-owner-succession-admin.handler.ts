@@ -10,7 +10,6 @@ import { FieldPath } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import {
-  assertRecentAuthentication,
   assertStaffAuthorization,
 } from '../account_lifecycle/_shared';
 import { FUNCTIONS_REGION } from '../config/functions-region';
@@ -349,16 +348,3 @@ export const getCommunityOwnerSuccessionCandidatesPage =
     }
   );
 
-export const acknowledgeCommunityOwnerSuccessionSensitiveRead = onCall(
-  {
-    region: FUNCTIONS_REGION,
-    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
-  },
-  async (request): Promise<{ ok: true }> => {
-    await assertStaff(request);
-    assertRecentAuthentication(
-      (request.auth?.token ?? undefined) as Record<string, unknown> | undefined
-    );
-    return { ok: true };
-  }
-);
