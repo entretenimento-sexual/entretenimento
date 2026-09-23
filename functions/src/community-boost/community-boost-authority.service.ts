@@ -186,9 +186,16 @@ export async function stopOpenCommunityBoostForCommunityInTransaction(input: {
   readonly reason:
     | 'community_ownership_transferred'
     | 'community_archived'
-    | 'community_lifecycle_archived';
+    | 'community_lifecycle_archived'
+    | 'advertiser_authority_lost';
   readonly now: number;
   readonly actorUid: string;
+  /**
+   * Quando informado, só cancela se a campanha aberta pertencer economicamente
+   * a este anunciante. Evita que uma mudança de role de outro membro encerre o
+   * Boost de quem continua autorizado.
+   */
+  readonly expectedAdvertiserUid?: string;
 }): Promise<Readonly<CommunityBoostStopResult> | null> {
   const activeSlotRef = db
     .collection('community_boost_active_slots')
@@ -212,6 +219,10 @@ export async function stopOpenCommunityBoostForCommunityInTransaction(input: {
   if (
     !campaign
     || campaign.communityId !== input.communityId
+    || (
+      input.expectedAdvertiserUid !== undefined
+      && campaign.advertiserUid !== input.expectedAdvertiserUid
+    )
     || (
       campaign.status !== 'active'
       && campaign.status !== 'paused'
