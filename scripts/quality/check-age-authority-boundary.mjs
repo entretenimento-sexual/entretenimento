@@ -344,11 +344,13 @@ if (fs.existsSync(selfAttestationPath)) {
 
   for (const required of [
     'enforceAppCheck',
+    'AGE_ACCESS_POLICY_MODE',
     "status: 'DECLARED_ADULT'",
     "source: 'SELF_ATTESTATION'",
     "method: 'SELF_ATTESTATION'",
     'writeCanonicalAgeEligibilityInTransaction',
     'age_reverification_required',
+    "reverificationResult === 'UNDERAGE'",
     "status: 'resolved'",
   ]) {
     if (!source.includes(required)) {
