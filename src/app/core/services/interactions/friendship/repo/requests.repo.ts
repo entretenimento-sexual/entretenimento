@@ -1,5 +1,5 @@
 // src/app/core/services/interactions/friendship/repo/requests.repo.ts
-import { Injectable, EnvironmentInjector, inject } from '@angular/core';
+import { Injectable, EnvironmentInjector } from '@angular/core';
 import {
   Firestore,
   addDoc,
@@ -37,19 +37,24 @@ import { CooldownRepo } from './cooldown.repo';
 
 @Injectable({ providedIn: 'root' })
 export class RequestsRepo extends FirestoreRepoBase {
-  private readonly functions = inject(Functions);
-
-  private readonly getPendingRequestsCallable = httpsCallable<
-    { direction: 'inbound' | 'outbound'; limit: number },
-    {
-      items: (FriendRequest & { id: string })[];
-      fetchedAt: number;
-      scanned: number;
-    }
-  >(this.functions, 'getPendingFriendRequests');
-
-  constructor(db: Firestore, env: EnvironmentInjector, private cooldown: CooldownRepo) {
+  constructor(
+    db: Firestore,
+    env: EnvironmentInjector,
+    private cooldown: CooldownRepo,
+    private readonly functions: Functions
+  ) {
     super(db, env);
+  }
+
+  private getPendingRequestsCallable() {
+    return httpsCallable<
+      { direction: 'inbound' | 'outbound'; limit: number },
+      {
+        items: (FriendRequest & { id: string })[];
+        fetchedAt: number;
+        scanned: number;
+      }
+    >(this.functions, 'getPendingFriendRequests');
   }
 
   getDocExists(path: string) {
@@ -62,7 +67,7 @@ export class RequestsRepo extends FirestoreRepoBase {
   listInboundRequests(_uid: string) {
     return defer(() =>
       from(
-        this.getPendingRequestsCallable({
+        this.getPendingRequestsCallable()({
           direction: 'inbound',
           limit: 60,
         })
@@ -73,7 +78,7 @@ export class RequestsRepo extends FirestoreRepoBase {
   listOutboundRequests(_uid: string) {
     return defer(() =>
       from(
-        this.getPendingRequestsCallable({
+        this.getPendingRequestsCallable()({
           direction: 'outbound',
           limit: 60,
         })
