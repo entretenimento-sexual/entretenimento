@@ -19,6 +19,17 @@ import {
 import { assertPublicMediaConsumptionAccess } from './public-media-consumption-access.policy';
 import { createTemporaryStorageReadUrl } from './temporary-storage-read-url.service';
 
+function hasCurrentPublicAgeEligibility(
+  data: Record<string, any> | undefined
+): boolean {
+  if (data?.['ageEligibilityVerifiedAdult'] !== true) return false;
+
+  const validUntil = data?.['ageEligibilityValidUntil'];
+  return !!validUntil &&
+    typeof validUntil.toMillis === 'function' &&
+    validUntil.toMillis() > Date.now();
+}
+
 interface PublicPhotoAccessRequestItem {
   ownerUid?: string;
   photoId?: string;
@@ -127,7 +138,7 @@ async function resolveAccessItem(
     .toUpperCase();
 
   if (
-    publicPhoto?.ageEligibilityVerifiedAdult !== true ||
+    !hasCurrentPublicAgeEligibility(publicPhoto) ||
     !canReadPublishedPhotoAudience({
       visibility,
       viewerIsOwner,
@@ -260,7 +271,7 @@ export const getPublicPhotoAccessUrls = onCall<PublicPhotoAccessRequest>(
             {
               exists:
                 snapshot.exists &&
-                snapshot.data()?.ageEligibilityVerifiedAdult === true,
+                hasCurrentPublicAgeEligibility(snapshot.data()),
               technicalFailure: false,
             },
           ] as const;
