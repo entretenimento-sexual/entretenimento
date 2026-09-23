@@ -248,7 +248,7 @@ export class SubscriptionPlanComponent implements OnInit {
     }
 
     if (this.isDowngrade(plan, vm)) {
-      return 'Redução no próximo ciclo';
+      return 'Disponível após ciclo atual';
     }
 
     if (!vm.subscriptionActive) {
