@@ -5,7 +5,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { EMPTY, Observable } from 'rxjs';
 import {
   catchError,
@@ -44,7 +44,9 @@ export class AgeVerificationPageComponent {
   private readonly notification = inject(ErrorNotificationService);
   private readonly logout = inject(LogoutService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
+  readonly redirectTo = this.resolveRedirectTo();
   readonly refreshing = signal(false);
   readonly requestingReview = signal(false);
 
@@ -82,9 +84,7 @@ export class AgeVerificationPageComponent {
           this.notification.showSuccess(
             'Sua maioridade já está confirmada.'
           );
-          void this.router.navigateByUrl('/adulto/confirmar', {
-            replaceUrl: true,
-          });
+          void this.navigateToConsent();
           return;
         }
 
@@ -117,9 +117,7 @@ export class AgeVerificationPageComponent {
           this.notification.showSuccess(
             'Maioridade confirmada por uma fonte confiável.'
           );
-          void this.router.navigateByUrl('/adulto/confirmar', {
-            replaceUrl: true,
-          });
+          void this.navigateToConsent();
           return;
         }
 
@@ -134,6 +132,38 @@ export class AgeVerificationPageComponent {
           'Ainda não há uma verificação de maioridade válida para esta conta.'
         );
       });
+  }
+
+  private navigateToConsent(): Promise<boolean> {
+    return this.router.navigate(
+      ['/adulto/confirmar'],
+      {
+        replaceUrl: true,
+        queryParams: {
+          redirectTo: this.redirectTo,
+        },
+      }
+    );
+  }
+
+  private resolveRedirectTo(): string {
+    const value = String(
+      this.route.snapshot.queryParamMap.get('redirectTo') ?? ''
+    ).trim();
+
+    if (
+      value &&
+      value.startsWith('/') &&
+      !value.startsWith('//') &&
+      !value.startsWith('/login') &&
+      !value.startsWith('/register') &&
+      !value.startsWith('/adulto/verificar-idade') &&
+      !value.startsWith('/adulto/confirmar')
+    ) {
+      return value;
+    }
+
+    return '/dashboard/principal';
   }
 
   logoutCurrentSession(): void {
