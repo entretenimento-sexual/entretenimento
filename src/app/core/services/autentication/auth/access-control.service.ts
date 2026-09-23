@@ -535,14 +535,14 @@ export class AccessControlService {
     this.isAuthenticated$,
     this.isBlocked$,
     this.appUser$,
-    this.ageEligibility.verifiedAdult$,
+    this.ageEligibility.adultAccessAllowed$,
   ]).pipe(
-    map(([isAuthenticated, blocked, user, ageVerified]) => {
+    map(([isAuthenticated, blocked, user, adultAgeAccessAllowed]) => {
       if (
         isAuthenticated !== true ||
         blocked === true ||
         !user ||
-        ageVerified !== true
+        adultAgeAccessAllowed !== true
       ) {
         return false;
       }
