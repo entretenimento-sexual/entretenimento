@@ -72,17 +72,17 @@ match /public_social_links/{userId} {
     && request.resource.data.updatedAt == request.time;
 
   allow update: if isSelf(userId)
-    && validPayload()
     && request.resource.data.uid == resource.data.uid
     && request.resource.data.updatedAt == request.time
     && changedKeysAllowed()
     && (
-      (
+      removesOnly()
+      || (
         currentUserCanUseAdultSocialPlatform()
         && isActiveSubscriber(userId)
       )
-      || removesOnly()
-    );
+    )
+    && validPayload();
 
   allow delete: if isSelf(userId);
 }

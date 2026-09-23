@@ -203,18 +203,20 @@ match /public_profiles/{userId} {
       && optionalHttpsUrlValid("avatarUrl");
   }
 
+  // Validações baratas vêm antes das leituras canônicas. Isso preserva a
+  // política, mas impede que payloads já inválidos consumam o orçamento de
+  // expressões das Rules antes de serem negados.
   allow create: if isSelf(userId)
-    && privateUserEligibleAfter()
     && createKeysValid()
     && editablePayloadValid()
     && identityProjectionPresent()
-    && identityMatchesPrivateDeclaration()
     && request.resource.data.role == "free"
     && request.resource.data.createdAt == request.time
-    && request.resource.data.updatedAt == request.time;
+    && request.resource.data.updatedAt == request.time
+    && identityMatchesPrivateDeclaration()
+    && privateUserEligibleAfter();
 
   allow update: if isSelf(userId)
-    && privateUserEligibleAfter()
     && (
       avatarOnlyUpdate()
       || (
@@ -223,7 +225,8 @@ match /public_profiles/{userId} {
         && identityChangeSafe()
         && request.resource.data.updatedAt == request.time
       )
-    );
+    )
+    && privateUserEligibleAfter();
 
   allow delete: if false;
 
