@@ -32,7 +32,10 @@ import {
 
 interface RequestInitialAgeVerificationReviewResponse {
   reportId: string | null;
-  status: 'VERIFIED_ADULT' | 'REVIEW_REQUIRED';
+  status:
+    | 'SELF_DECLARED_ADULT'
+    | 'VERIFIED_ADULT'
+    | 'REVIEW_REQUIRED';
 }
 
 function initialAgeReportId(uid: string): string {
