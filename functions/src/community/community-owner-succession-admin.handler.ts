@@ -141,7 +141,7 @@ async function assertLifecycleStaff(
   await assertStaffAuthorization({
     actorUid,
     authToken,
-    requiredPermission: 'users:lifecycle',
+    requiredPermission: 'users:delete',
   });
 }
 
@@ -335,11 +335,12 @@ export const getCommunityOwnerSuccessionCandidatesPage =
           }
 
           const rawRole = String(membership.data()?.['role'] ?? '');
-          const role = rawRole === 'admin'
+          const role: 'admin' | 'moderator' | 'member' | null =
+            rawRole === 'admin'
             || rawRole === 'moderator'
             || rawRole === 'member'
-            ? rawRole
-            : null;
+              ? rawRole
+              : null;
           if (!role) return null;
 
           return {
