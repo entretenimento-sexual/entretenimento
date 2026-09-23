@@ -258,6 +258,7 @@ export const createPlatformCheckoutSession =
 
           amountCents: planSnapshot.amountCents,
           currency: planSnapshot.currency,
+          expiresAt: initialExpiresAt,
 
           successUrl: buildPlatformSubscriptionProviderReturnUrl({
             appBaseUrl,
