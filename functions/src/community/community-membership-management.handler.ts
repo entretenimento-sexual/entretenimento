@@ -8,6 +8,9 @@
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
+import {
+  stopOpenCommunityBoostForCommunityInTransaction,
+} from '../community-boost/community-boost-authority.service';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
@@ -516,6 +519,17 @@ export const leaveCommunityMembership = onCall<CommunityIdPayload>(
       }
 
       if (!decision.idempotent) {
+        if (existingRole === 'admin' || existingRole === 'owner') {
+          await stopOpenCommunityBoostForCommunityInTransaction({
+            transaction,
+            communityId,
+            reason: 'advertiser_authority_lost',
+            now: Date.now(),
+            actorUid: uid,
+            expectedAdvertiserUid: uid,
+          });
+        }
+
         const nextMemberCount = decision.decrementMemberCount
           ? resolveMemberCountDelta(community, -1)
           : null;
