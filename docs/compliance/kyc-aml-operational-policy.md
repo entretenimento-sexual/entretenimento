@@ -29,11 +29,19 @@ Após o aceite, não é criada notificação de confirmação. O backend mantém
 
 ## Verificação etária
 
-A simples caixa “sou maior de 18 anos” não deve ser tratada como verificação efetiva.
+A simples confirmação “tenho 18 anos ou mais” **não é verificação efetiva**. No estágio inicial do produto, porém, ela é a base operacional provisória de admissão adulta enquanto não houver provedor etário contratado nem equipe de revisão dedicada.
 
-O desenho de produção deve usar provedor ou mecanismo confiável e armazenar apenas a evidência mínima necessária, por exemplo:
+O domínio distingue explicitamente os níveis de garantia:
 
-- status `18_PLUS_VERIFIED`;
+- `SELF_DECLARED_ADULT`: autodeclaração 18+ registrada pelo backend, suficiente para o acesso inicial na política provisória;
+- `VERIFIED_ADULT`: maioridade confirmada por fonte confiável, KYC, provedor ou revisão com evidência verificável;
+- `REVIEW_REQUIRED` / `DENIED_UNDERAGE`: estados fortes de segurança que não podem ser sobrescritos por uma nova autodeclaração.
+
+A autodeclaração nunca deve ser exibida, auditada ou projetada como “idade verificada”. O navegador também não escreve a autoridade etária diretamente: uma callable backend registra a declaração, sua versão de política e a trilha de auditoria.
+
+Quando houver integração de produção com mecanismo confiável, o desenho deve armazenar apenas a evidência mínima necessária, por exemplo:
+
+- status `VERIFIED_ADULT`;
 - identificador opaco da verificação;
 - método ou provedor;
 - data da verificação;
@@ -42,18 +50,17 @@ O desenho de produção deve usar provedor ou mecanismo confiável e armazenar a
 
 A plataforma não deve armazenar cópia de documento ou data de nascimento completa quando um token ou sinal etário suficiente puder ser utilizado.
 
-A experiência recomendada é:
+A evolução recomendada é:
 
-- uma verificação antes do primeiro acesso adulto;
-- validação silenciosa da credencial nos acessos seguintes;
-- nova solicitação somente por expiração, mudança relevante de identidade, invalidação do provedor ou suspeita fundamentada;
+- autodeclaração explícita 18+ no primeiro acesso durante a fase provisória;
+- validação silenciosa de qualquer credencial confiável já existente;
+- migração progressiva para provedor/KYC quando a integração estiver operacional;
+- nova solicitação de verificação forte somente por política, expiração, mudança relevante de identidade ou sinal fundamentado de segurança;
 - canal de contestação quando houver restrição por possível menoridade.
 
-Enquanto não existir integração de produção com mecanismo confiável, autodeclaração deve permanecer identificada tecnicamente como `SELF_DECLARATION_REVIEW` e resultado adulto como `INCONCLUSIVE`, sem alegação de KYC concluído.
+Denúncias de possível menoridade são registradas com deduplicação, rate limit e detecção de abuso. Uma denúncia isolada não suspende a conta. Volume crítico proveniente de denunciantes independentes pode produzir apenas uma limitação temporária e reversível; suspensão definitiva continua exigindo evidência confirmada.
 
-O fallback operacional de revisão humana também não pode promover a autodeclaração. Uma decisão `VERIFIED_ADULT` exige evidência confiável revisada por staff autorizado. A aplicação recebe somente uma referência operacional da evidência e persiste apenas seu hash e o método da revisão; a referência bruta, documento, CPF, nome civil e data de nascimento não pertencem ao registro etário canônico.
-
-No onboarding atual, uma conta sem assertion confiável pode abrir uma solicitação de revisão. Enquanto o caso estiver aberto, `age_eligibility_records/{uid}` permanece em `REVIEW_REQUIRED` e todas as superfícies adultas continuam bloqueadas. O consentimento adulto ocorre somente depois de `VERIFIED_ADULT`.
+O consentimento adulto permanece uma decisão separada e posterior à etapa etária. Ele não serve como prova de idade.
 
 ## KYC financeiro proporcional
 
