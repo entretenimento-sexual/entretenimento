@@ -62,13 +62,13 @@ match /public_profiles/{userId}/public_photos/{photoId} {
   }
 
   function isApprovedPublicPhotoData(data) {
-    return publicAgeProjectionAllowsAdultExposure(data)
+    return data.ageEligibilityVerifiedAdult == true
       && data.visibility == "PUBLIC"
       && data.moderationStatus == "APPROVED";
   }
 
   function isApprovedCommentReadablePhotoData(data) {
-    return publicAgeProjectionAllowsAdultExposure(data)
+    return data.ageEligibilityVerifiedAdult == true
       && data.moderationStatus == "APPROVED"
       && !hasActiveBilateralBlock()
       && (
@@ -79,7 +79,13 @@ match /public_profiles/{userId}/public_photos/{photoId} {
 
   function isPublicReadable() {
     return publicProfileAllowsAdultExposure()
-      && resource.publicAgeProjectionAllowsAdultExposure(data)
+      && resource.data.ageEligibilityVerifiedAdult == true
+      && resource.data.visibility == "PUBLIC"
+      && resource.data.moderationStatus == "APPROVED";
+  }
+
+  function isPublicListReadable() {
+    return resource.data.ageEligibilityVerifiedAdult == true
       && resource.data.visibility == "PUBLIC"
       && resource.data.moderationStatus == "APPROVED";
   }
@@ -87,8 +93,11 @@ match /public_profiles/{userId}/public_photos/{photoId} {
   allow get: if currentUserCanUseAdultSocialPlatform()
     && (isSelf(userId) || isPublicReadable());
 
+  // A expiração das listas é materializada pela Cloud Task canônica.
+  // O get direto permanece protegido também por request.time no perfil pai.
   allow list: if currentUserCanUseAdultSocialPlatform()
-    && isPublicReadable();
+    && publicProfileAllowsAdultExposure()
+    && isPublicListReadable();
 
   allow create, update, delete: if false;
 
@@ -137,7 +146,7 @@ match /public_profiles/{userId}/public_photos/{photoId} {
 // ------------------------------------------------------------
 match /{path=**}/public_photos/{photoId} {
   allow list: if currentUserCanUseAdultSocialPlatform()
-    && resource.publicAgeProjectionAllowsAdultExposure(data)
+    && resource.data.ageEligibilityVerifiedAdult == true
     && resource.data.visibility == "PUBLIC"
     && resource.data.moderationStatus == "APPROVED";
 
