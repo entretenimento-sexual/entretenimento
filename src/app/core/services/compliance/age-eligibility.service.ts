@@ -3,7 +3,8 @@
 // AGE ELIGIBILITY CLIENT PROJECTION
 // -----------------------------------------------------------------------------
 // Observa somente a projeção sanitizada de users/{uid}.ageEligibility.
-// Não escreve, não calcula idade e não transforma autodeclaração em autorização.
+// A autodeclaração só libera acesso quando já foi registrada pelo backend como
+// DECLARED_ADULT/SELF_ATTESTED. O cliente nunca promove o próprio estado.
 // -----------------------------------------------------------------------------
 
 import {
