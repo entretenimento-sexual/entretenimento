@@ -41,6 +41,7 @@ export type ModerationReportReason =
   | 'privacy'
   | 'minor_safety'
   | 'minor_content_safety'
+  | 'age_verification_request'
   | 'other';
 
 export type ModerationReportStatus =
@@ -111,7 +112,7 @@ export interface IModerationReportDocument {
   automationMode?: 'SHADOW' | 'ENFORCE' | null;
   automationWindowId?: string | null;
   automationEvaluatedAtMs?: number | null;
-  source: 'web';
+  source: 'web' | 'system';
   createdAt: Timestamp | FieldValue;
   updatedAt: Timestamp | FieldValue;
 }
