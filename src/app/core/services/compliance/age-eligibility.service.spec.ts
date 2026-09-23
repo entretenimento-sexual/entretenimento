@@ -29,9 +29,9 @@ describe('AgeEligibilityService', () => {
         source: 'AGE_REVERIFICATION',
         method: 'MANUAL_REVIEW',
         caseId: 'case-1',
-        verifiedAtMs: 1_800_000_000_000,
+        verifiedAtMs: Date.now() - 1_000,
         expiresAtMs: null,
-        updatedAtMs: 1_800_000_000_000,
+        updatedAtMs: Date.now(),
       },
     } as unknown as IUserDados);
     const service = new AgeEligibilityService(
