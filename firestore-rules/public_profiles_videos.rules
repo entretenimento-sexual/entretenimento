@@ -35,20 +35,20 @@ match /public_profiles/{userId}/public_videos/{videoId} {
   }
 
   function isApprovedPublicVideoData(data) {
-    return data.ageEligibilityVerifiedAdult == true
+    return data.ageEligibilityAdultAccessAllowed == true
       && data.visibility == "PUBLIC"
       && data.moderationStatus == "APPROVED";
   }
 
   function isPublicReadableVideo() {
     return publicProfileAllowsAdultExposure()
-      && resource.data.ageEligibilityVerifiedAdult == true
+      && resource.data.ageEligibilityAdultAccessAllowed == true
       && resource.data.visibility == "PUBLIC"
       && resource.data.moderationStatus == "APPROVED";
   }
 
   function isPublicListReadableVideo() {
-    return resource.data.ageEligibilityVerifiedAdult == true
+    return resource.data.ageEligibilityAdultAccessAllowed == true
       && resource.data.visibility == "PUBLIC"
       && resource.data.moderationStatus == "APPROVED";
   }
