@@ -46,6 +46,18 @@ match /public_profiles/{userId} {
       && adultMediaHasRequiredConsent(user);
   }
 
+  function privateUserEligibleCurrent() {
+    let user = get(privateUserPath()).data;
+    return user is map
+      && user.emailVerified == true
+      && user.profileCompleted == true
+      && user.publicVisibility == "visible"
+      && user.interactionBlocked == false
+      && canonicalAgeEligibilityAllowsAdultAccess(userId)
+      && adultMediaHasCurrentTerms(user)
+      && adultMediaHasRequiredConsent(user);
+  }
+
   function createKeysValid() {
     return request.resource.data.keys().hasOnly([
       "uid",
@@ -228,7 +240,7 @@ match /public_profiles/{userId} {
         && request.resource.data.updatedAt == request.time
       )
     )
-    && currentUserCanUseAdultSocialPlatform();
+    && privateUserEligibleCurrent();
 
   allow delete: if false;
 
