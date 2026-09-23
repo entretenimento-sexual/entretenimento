@@ -130,6 +130,7 @@ export class PublicProfileVideoPaginationService {
   ): QueryConstraint[] {
     const constraints: QueryConstraint[] = [
       where('ageEligibilityVerifiedAdult', '==', true),
+        where('ageEligibilityValidUntil', '>', new Date()),
       where('visibility', '==', 'PUBLIC'),
       where('moderationStatus', '==', 'APPROVED'),
       orderBy('orderIndex', 'asc'),
