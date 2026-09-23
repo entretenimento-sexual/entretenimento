@@ -133,6 +133,8 @@ export interface VerifiedPaymentEvent {
   provider: BillingProviderId;
   providerEventId: string;
   providerSessionId?: string | null;
+  providerPaymentId?: string | null;
+  providerSubscriptionId?: string | null;
   checkoutSessionId: string;
 
   financialStatus: 'paid' | 'refunded' | 'chargeback';
@@ -188,6 +190,8 @@ export interface PaymentTransactionDoc {
   scope: BillingScope;
   provider: BillingProviderId;
   providerSessionId?: string | null;
+  providerPaymentId?: string | null;
+  providerSubscriptionId?: string | null;
 
   status: PaymentTransactionStatus;
 
