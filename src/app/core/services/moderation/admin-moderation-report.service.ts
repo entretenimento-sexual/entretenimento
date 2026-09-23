@@ -823,6 +823,18 @@ export class AdminModerationReportService {
     );
   }
 
+  private createReviewInitialAgeVerificationCallable() {
+    return runInInjectionContext(this.environmentInjector, () =>
+      httpsCallable<
+        ReviewInitialAgeVerificationRequest,
+        ReviewInitialAgeVerificationResponse
+      >(
+        inject(Functions),
+        'reviewInitialAgeVerification'
+      )
+    );
+  }
+
   private createReviewProfileMinorSafetyReportCallable() {
     return runInInjectionContext(this.environmentInjector, () =>
       httpsCallable<
