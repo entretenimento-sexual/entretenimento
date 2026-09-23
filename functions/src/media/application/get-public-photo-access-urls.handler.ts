@@ -1,6 +1,7 @@
 import { logger } from 'firebase-functions';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
+import { evaluateCanonicalAgeEligibility } from '../../compliance/age-eligibility.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
 import { resolveSocialConnectionAccess } from '../../friendship/application/social-connection-access.policy';
@@ -19,19 +20,34 @@ import {
 import { assertPublicMediaConsumptionAccess } from './public-media-consumption-access.policy';
 import { createTemporaryStorageReadUrl } from './temporary-storage-read-url.service';
 
-function hasCurrentPublicAgeEligibility(
+function publicAgeEligibilityValidUntilMs(
   data: Record<string, unknown> | undefined
-): boolean {
-  if (data?.['ageEligibilityVerifiedAdult'] !== true) return false;
+): number | null {
+  if (data?.['ageEligibilityVerifiedAdult'] !== true) return null;
 
   const validUntil = data?.['ageEligibilityValidUntil'] as
     | { toMillis?: unknown }
     | null
     | undefined;
 
-  return !!validUntil &&
-    typeof validUntil.toMillis === 'function' &&
-    (validUntil as { toMillis: () => number }).toMillis() > Date.now();
+  if (!validUntil || typeof validUntil.toMillis !== 'function') {
+    return null;
+  }
+
+  try {
+    const value = (validUntil as { toMillis: () => number }).toMillis();
+    return Number.isFinite(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function hasCurrentPublicAgeEligibility(
+  data: Record<string, unknown> | undefined,
+  nowMs = Date.now()
+): boolean {
+  const validUntilMs = publicAgeEligibilityValidUntilMs(data);
+  return validUntilMs !== null && validUntilMs > nowMs;
 }
 
 interface PublicPhotoAccessRequestItem {
@@ -62,6 +78,7 @@ interface PublicPhotoAccessResolution {
 interface PublicProfileAccessResolution {
   exists: boolean;
   technicalFailure: boolean;
+  validUntilMs: number | null;
 }
 
 const MAX_ITEMS_PER_REQUEST = 32;
@@ -111,7 +128,7 @@ async function consumePublicPhotoAccessQuota(
 async function resolveAccessItem(
   ownerUid: string,
   photoId: string,
-  expiresAt: number,
+  maxExpiresAt: number,
   publicProfileExists: boolean,
   viewerIsOwner: boolean,
   viewerIsFriend: boolean
@@ -141,8 +158,12 @@ async function resolveAccessItem(
     .trim()
     .toUpperCase();
 
+  const mediaValidUntilMs =
+    publicAgeEligibilityValidUntilMs(publicPhoto);
+
   if (
-    !hasCurrentPublicAgeEligibility(publicPhoto) ||
+    mediaValidUntilMs === null ||
+    mediaValidUntilMs <= Date.now() ||
     !canReadPublishedPhotoAudience({
       visibility,
       viewerIsOwner,
@@ -170,6 +191,12 @@ async function resolveAccessItem(
 
   if (!exists) {
     throw new Error('O ativo publicado não foi encontrado no Storage.');
+  }
+
+  const expiresAt = Math.min(maxExpiresAt, mediaValidUntilMs);
+
+  if (expiresAt <= Date.now()) {
+    return null;
   }
 
   return {
@@ -232,7 +259,9 @@ export const getPublicPhotoAccessUrls = onCall<PublicPhotoAccessRequest>(
     }
 
     await consumePublicPhotoAccessQuota(viewerUid, uniqueItems.size);
-    await assertPublicMediaConsumptionAccess(viewerUid);
+    const viewerAccess =
+      await assertPublicMediaConsumptionAccess(viewerUid);
+    const nowMs = Date.now();
 
     const ownerUids = [
       ...new Set([...uniqueItems.values()].map(({ ownerUid }) => ownerUid)),
@@ -264,19 +293,52 @@ export const getPublicPhotoAccessUrls = onCall<PublicPhotoAccessRequest>(
         if (socialAccess.blockedTargetUids.has(ownerUid)) {
           return [
             ownerUid,
-            { exists: false, technicalFailure: false },
+            {
+              exists: false,
+              technicalFailure: false,
+              validUntilMs: null,
+            },
           ] as const;
         }
 
         try {
-          const snapshot = await db.doc(`public_profiles/${ownerUid}`).get();
+          const [profileSnapshot, ageEligibilitySnapshot] =
+            await Promise.all([
+              db.doc(`public_profiles/${ownerUid}`).get(),
+              db.doc(`age_eligibility_records/${ownerUid}`).get(),
+            ]);
+          const profileValidUntilMs =
+            profileSnapshot.exists
+              ? publicAgeEligibilityValidUntilMs(profileSnapshot.data())
+              : null;
+          const ownerAgeDecision = evaluateCanonicalAgeEligibility({
+            uid: ownerUid,
+            rawRecord: ageEligibilitySnapshot.exists
+              ? ageEligibilitySnapshot.data()
+              : null,
+            nowMs,
+          });
+          const ownerCanonicalValidUntilMs =
+            ownerAgeDecision.allowed
+              ? ownerAgeDecision.expiresAtMs ?? Number.POSITIVE_INFINITY
+              : null;
+          const validUntilMs =
+            profileValidUntilMs !== null &&
+            ownerCanonicalValidUntilMs !== null
+              ? Math.min(
+                  profileValidUntilMs,
+                  ownerCanonicalValidUntilMs
+                )
+              : null;
+
           return [
             ownerUid,
             {
               exists:
-                snapshot.exists &&
-                hasCurrentPublicAgeEligibility(snapshot.data()),
+                validUntilMs !== null &&
+                validUntilMs > nowMs,
               technicalFailure: false,
+              validUntilMs,
             },
           ] as const;
         } catch (error) {
@@ -292,7 +354,11 @@ export const getPublicPhotoAccessUrls = onCall<PublicPhotoAccessRequest>(
 
           return [
             ownerUid,
-            { exists: false, technicalFailure: true },
+            {
+              exists: false,
+              technicalFailure: true,
+              validUntilMs: null,
+            },
           ] as const;
         }
       })
@@ -301,7 +367,10 @@ export const getPublicPhotoAccessUrls = onCall<PublicPhotoAccessRequest>(
       string,
       PublicProfileAccessResolution
     >(ownerProfileEntries);
-    const expiresAt = Date.now() + SIGNED_URL_TTL_MS;
+    const technicalExpiresAt = nowMs + SIGNED_URL_TTL_MS;
+    const viewerExpiresAt =
+      viewerAccess.ageEligibilityExpiresAtMs ??
+      Number.POSITIVE_INFINITY;
     const resolutions = await Promise.all(
       [...uniqueItems.values()].map(
         async ({ ownerUid, photoId }): Promise<PublicPhotoAccessResolution> => {
@@ -316,7 +385,12 @@ export const getPublicPhotoAccessUrls = onCall<PublicPhotoAccessRequest>(
               item: await resolveAccessItem(
                 ownerUid,
                 photoId,
-                expiresAt,
+                Math.min(
+                  technicalExpiresAt,
+                  viewerExpiresAt,
+                  profileAccess?.validUntilMs ??
+                    Number.NEGATIVE_INFINITY
+                ),
                 profileAccess?.exists === true,
                 ownerUid === viewerUid,
                 socialAccess.friendTargetUids.has(ownerUid)
