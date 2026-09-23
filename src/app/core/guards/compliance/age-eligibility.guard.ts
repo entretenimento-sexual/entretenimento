@@ -18,10 +18,10 @@ export const ageEligibilityGuard: CanActivateFn = (
   const ageEligibility = inject(AgeEligibilityService);
   const router = inject(Router);
 
-  return ageEligibility.current$.pipe(
+  return ageEligibility.adultAccessAllowed$.pipe(
     take(1),
-    map((eligibility) => {
-      if (eligibility.status === 'VERIFIED_ADULT') {
+    map((allowed) => {
+      if (allowed) {
         return true;
       }
 
