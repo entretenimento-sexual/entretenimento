@@ -21,7 +21,6 @@ import {
   beforeAll,
   beforeEach,
   describe,
-  expect,
   it,
 } from 'vitest';
 
@@ -152,7 +151,7 @@ describe('Firestore Rules / user intent status age visibility', () => {
     );
   });
 
-  it('exige o filtro etário na consulta pública de Status de Hoje', async () => {
+  it('nega qualquer enumeração client-side de Status de Hoje', async () => {
     const db = testEnv.authenticatedContext(VIEWER_UID).firestore();
 
     const guardedQuery = query(
@@ -162,16 +161,13 @@ describe('Firestore Rules / user intent status age visibility', () => {
       where('visibility', '==', 'public_discovery')
     );
 
-    const result = await assertSucceeds(getDocs(guardedQuery));
-    expect(result.size).toBe(1);
+    await assertFails(getDocs(guardedQuery));
+    await assertFails(getDocs(collection(db, 'user_intent_statuses')));
 
-    const unguardedQuery = query(
-      collection(db, 'user_intent_statuses'),
-      where('moderation.state', '==', 'active'),
-      where('visibility', '==', 'public_discovery')
+    // Deep link documental permanece protegido pela fronteira temporal forte.
+    await assertSucceeds(
+      getDoc(doc(db, 'user_intent_statuses', `current_${OWNER_UID}`))
     );
-
-    await assertFails(getDocs(unguardedQuery));
   });
 
   it('mantém a leitura do próprio current_ disponível para reduzir exposição', async () => {
