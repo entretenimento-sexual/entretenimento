@@ -41,6 +41,21 @@ describe('moderation-automation.policy', () => {
     assert.equal(decision.enforce, false);
   });
 
+  it('gera hold reversível após denúncias críticas independentes suficientes', () => {
+    const decision = evaluateModerationAutomation({
+      mode: 'SHADOW',
+      signals: {
+        ...base,
+        openCriticalReports: 3,
+        uniqueReporters: 3,
+      },
+    });
+
+    assert.equal(decision.action, 'TEMPORARY_INTERACTION_HOLD');
+    assert.equal(decision.reason, 'critical_report_volume');
+    assert.equal(decision.enforce, false);
+  });
+
   it('pode sugerir hold por múltiplos alvos e denunciantes independentes', () => {
     const decision = evaluateModerationAutomation({
       mode: 'SHADOW',
