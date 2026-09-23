@@ -149,7 +149,7 @@ service cloud.firestore {
         ? mapFieldOrNull(data, "ageEligibilityValidUntil")
         : null;
       return data is map
-        && mapFieldOrNull(data, "ageEligibilityVerifiedAdult") == true
+        && mapFieldOrNull(data, "ageEligibilityAdultAccessAllowed") == true
         && validUntil is timestamp
         && request.time < validUntil;
     }
