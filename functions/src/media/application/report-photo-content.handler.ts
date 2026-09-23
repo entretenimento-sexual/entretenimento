@@ -11,6 +11,10 @@ import {
   safeRecordModerationOpenSignal,
 } from '../../moderation/moderation-automation.service';
 import {
+  consumeMinorSafetyReporterQuota,
+  isMinorSafetyReportReason,
+} from '../../moderation/moderation-minor-safety-report-security.service';
+import {
   safeNotifyModerationReportOpened,
 } from '../../moderation/moderation-safety-notification.service';
 import { consumeBackendRateLimitQuota } from './backend-rate-limit.service';
@@ -158,6 +162,9 @@ export const reportPhotoContent = onCall<ReportPhotoContentRequest>(
       },
       message: 'Muitas denúncias foram enviadas em pouco tempo.',
     });
+    if (isMinorSafetyReportReason(reason)) {
+      await consumeMinorSafetyReporterQuota({ reporterUid });
+    }
     await assertInteractionAccess(reporterUid);
     await assertPublicMediaConsumptionAccess(reporterUid);
 
