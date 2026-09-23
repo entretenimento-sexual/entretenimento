@@ -279,8 +279,18 @@ const backendOnlyListRules = Object.freeze([
   },
   {
     path: 'firestore-rules/public_profiles_photos.rules',
+    pattern: /match\s+\/public_profiles\/\{userId\}\/public_photos\/\{photoId\}\s*\{[\s\S]*?allow\s+list\s*:\s*if\s+false\s*;/,
+    reason: 'galeria owner-scoped public_photos deve permanecer backend-only',
+  },
+  {
+    path: 'firestore-rules/public_profiles_photos.rules',
     pattern: /match\s+\/\{path=\*\*\}\/public_photos\/\{[^}]+\}\s*\{[\s\S]*?allow\s+list\s*:\s*if\s+false\s*;/,
     reason: 'collection-group public_photos deve permanecer backend-only',
+  },
+  {
+    path: 'firestore-rules/public_profiles_videos.rules',
+    pattern: /match\s+\/public_profiles\/\{userId\}\/public_videos\/\{videoId\}\s*\{[\s\S]*?allow\s+list\s*:\s*if\s+false\s*;/,
+    reason: 'galeria owner-scoped public_videos deve permanecer backend-only',
   },
   {
     path: 'firestore-rules/public_profiles_videos.rules',
