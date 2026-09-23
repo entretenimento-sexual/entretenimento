@@ -30,6 +30,7 @@ const requiredFiles = Object.freeze([
   'functions/src/compliance/age-verification-provider-assertion.trigger.ts',
   'functions/src/compliance/age-review-evidence.policy.ts',
   'functions/src/compliance/request-initial-age-verification-review.handler.ts',
+  'functions/src/compliance/refresh-my-age-eligibility.handler.ts',
   'functions/src/compliance/review-initial-age-verification.handler.ts',
   'functions/src/compliance/review-profile-age-reverification.handler.ts',
   'functions/src/compliance/appeal-profile-age-reverification.handler.ts',
@@ -345,6 +346,27 @@ if (fs.existsSync(initialAgeRequestPath)) {
   }
 }
 
+
+const ageRefreshPath = path.join(
+  root,
+  'functions/src/compliance/refresh-my-age-eligibility.handler.ts'
+);
+if (fs.existsSync(ageRefreshPath)) {
+  const source = codeOnly(fs.readFileSync(ageRefreshPath, 'utf8'));
+
+  for (const required of [
+    'enforceAppCheck',
+    'assertCallableAppCheck',
+    'consumeBackendRateLimitQuota',
+    'evaluateCanonicalAgeEligibility',
+  ]) {
+    if (!source.includes(required)) {
+      violations.push(
+        `functions/src/compliance/refresh-my-age-eligibility.handler.ts (refresh etário deve ser protegido e backend-only: ${required})`
+      );
+    }
+  }
+}
 
 const minorSafetyReportPath = path.join(
   root,
