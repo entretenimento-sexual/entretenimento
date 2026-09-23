@@ -30,11 +30,11 @@ import type {
 } from '../../domain/provider-webhook.model';
 import {
   assertAsaasApiKeyMatchesEnvironment,
-  type AsaasRuntimeConfig,
+  type AsaasApiRuntimeConfig,
 } from '../../config/asaas.config';
 
 interface AsaasProviderOptions {
-  runtime: AsaasRuntimeConfig;
+  runtime: AsaasApiRuntimeConfig;
   apiKey?: string | null;
   webhookToken?: string | null;
 }
@@ -299,7 +299,7 @@ function parseAsaasApiError(
 export class AsaasPaymentProvider extends PaymentProviderPort {
   readonly providerId = 'asaas' as const;
 
-  private readonly runtime: AsaasRuntimeConfig;
+  private readonly runtime: AsaasApiRuntimeConfig;
   private readonly apiKey: string;
   private readonly webhookToken: string;
 
