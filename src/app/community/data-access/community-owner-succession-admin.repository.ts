@@ -26,6 +26,15 @@ export class CommunityOwnerSuccessionAdminRepository {
     unknown
   >(this.functions, 'getCommunityOwnerSuccessionCandidatesPage');
 
+  private readonly openCaseCallable = httpsCallable<
+    {
+      communityId: string;
+      trigger: 'confirmed_abandonment';
+      reason: string;
+    },
+    unknown
+  >(this.functions, 'openCommunityOwnerTerminalSuccessionCase');
+
   private readonly nominateCallable = httpsCallable<
     { communityId: string; targetUid: string; requestId: string },
     unknown
@@ -35,6 +44,51 @@ export class CommunityOwnerSuccessionAdminRepository {
     { communityId: string; reason: string },
     unknown
   >(this.functions, 'cancelCommunityOwnerTerminalSuccession');
+
+  openConfirmedAbandonmentCase$(
+    communityId: string,
+    reason: string
+  ): Observable<{
+    communityId: string;
+    status: 'open';
+    deadlineAt: number;
+  }> {
+    const normalizedCommunityId = communityId.trim();
+    const normalizedReason = reason.replace(/\s+/g, ' ').trim();
+
+    return defer(() =>
+      from(this.openCaseCallable({
+        communityId: normalizedCommunityId,
+        trigger: 'confirmed_abandonment',
+        reason: normalizedReason,
+      }))
+    ).pipe(
+      map((result) => {
+        const source = (result.data ?? {}) as Record<string, unknown>;
+        const returnedCommunityId = String(
+          source['communityId'] ?? ''
+        ).trim();
+        const deadlineAt = Math.trunc(Number(source['deadlineAt']));
+
+        if (
+          returnedCommunityId !== normalizedCommunityId
+          || source['status'] !== 'open'
+          || !Number.isFinite(deadlineAt)
+          || deadlineAt <= 0
+        ) {
+          throw new Error(
+            'Resposta de abertura de sucessão por abandono inválida.'
+          );
+        }
+
+        return {
+          communityId: returnedCommunityId,
+          status: 'open' as const,
+          deadlineAt,
+        };
+      })
+    );
+  }
 
   getQueue$(): Observable<CommunityOwnerSuccessionAdminQueue> {
     return defer(() => from(this.queueCallable())).pipe(
