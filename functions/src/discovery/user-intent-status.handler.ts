@@ -508,7 +508,7 @@ export const publishUserIntentStatus = onCall<PublishUserIntentStatusRequest>(
       tx.set(statusRef, {
         uid,
         profile,
-        ageEligibilityVerifiedAdult: true,
+        ageEligibilityAdultAccessAllowed: true,
         ageEligibilityValidUntil,
         availability,
         visibility,
