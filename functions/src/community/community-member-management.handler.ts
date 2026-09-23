@@ -11,6 +11,9 @@ import { FieldPath } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { assertRecentAuthentication } from '../account_lifecycle/_shared';
+import {
+  stopOpenCommunityBoostForCommunityInTransaction,
+} from '../community-boost/community-boost-authority.service';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
@@ -725,6 +728,24 @@ export const manageCommunityMember = onCall<ManageCommunityMemberPayload>(
         : normalizeTimestamp(targetMembership['joinedAt'])
           ?? normalizeTimestamp(targetMembership['updatedAt'])
           ?? commandStartedAtMs;
+
+      const losesBoostAuthority =
+        currentTargetRole === 'admin'
+        && (
+          decision.targetNextStatus !== 'active'
+          || decision.targetNextRole !== 'admin'
+        );
+
+      if (!decision.idempotent && losesBoostAuthority) {
+        await stopOpenCommunityBoostForCommunityInTransaction({
+          transaction,
+          communityId,
+          reason: 'advertiser_authority_lost',
+          now: commandStartedAtMs,
+          actorUid,
+          expectedAdvertiserUid: memberId,
+        });
+      }
 
       const nextMemberCount = decision.decrementMemberCount
         ? resolveMemberCountDelta(community, -1)
