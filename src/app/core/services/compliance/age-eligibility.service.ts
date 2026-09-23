@@ -119,6 +119,54 @@ export class AgeEligibilityService {
     );
   }
 
+
+  requestInitialReview$(): Observable<{
+    reportId: string | null;
+    status: 'VERIFIED_ADULT' | 'REVIEW_REQUIRED';
+  }> {
+    const callable = runInInjectionContext(
+      this.environmentInjector,
+      () => httpsCallable<
+        Record<string, never>,
+        {
+          reportId: string | null;
+          status: 'VERIFIED_ADULT' | 'REVIEW_REQUIRED';
+        }
+      >(
+        inject(Functions),
+        'requestInitialAgeVerificationReview'
+      )
+    );
+
+    return from(callable({})).pipe(
+      map((response) => response.data),
+      catchError((error) => {
+        try {
+          this.globalError.handleError(
+            Object.assign(
+              toErrorInstance(
+                error,
+                '[AgeEligibilityService.requestInitialReview] falhou.'
+              ),
+              {
+                feature: 'age-eligibility',
+                operation: 'requestInitialReview',
+                context: {
+                  scope: 'AgeEligibilityService',
+                },
+                original: error,
+              }
+            )
+          );
+        } catch {
+          // Diagnóstico não altera a fronteira etária.
+        }
+
+        return throwError(() => error);
+      })
+    );
+  }
+
   private normalize(
     raw: IUserAgeEligibility | null | undefined
   ): IUserAgeEligibility {
