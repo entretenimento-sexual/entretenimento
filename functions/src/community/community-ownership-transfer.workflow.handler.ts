@@ -265,6 +265,14 @@ function normalizeEpoch(value: unknown): number | null {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
+function isCommunityStatusAvailableForOwnershipWorkflow(
+  value: unknown,
+  mode: CommunityOwnershipTransferMode
+): boolean {
+  if (value === 'active' || value === 'paused') return true;
+  return mode === 'terminal_succession' && value === 'dormant';
+}
+
 function labelForUser(rawUser: unknown): string {
   const user = (rawUser ?? {}) as Record<string, unknown>;
   return normalizeText(user['nickname'], 60)
@@ -333,7 +341,6 @@ function requestDocumentToInboxItem(raw: unknown): OwnershipInboxItem | null {
 async function resolveCandidateEligibilityInTransaction(input: {
   transaction: FirebaseFirestore.Transaction;
   community: Readonly<Record<string, unknown>>;
-  communityId: string;
   candidateUid: string;
   candidateMembership: Readonly<Record<string, unknown>>;
   candidateUser: Readonly<Record<string, unknown>> | null;
@@ -524,6 +531,7 @@ async function createOwnershipOffer(input: {
     const community = (communitySnapshot.data() ?? {}) as Record<string, unknown>;
     const source = (community['source'] ?? {}) as Record<string, unknown>;
     const communityStatus = normalizeCommunityStatus(community['status']);
+    const rawCommunityStatus = String(community['status'] ?? '').trim();
     const currentOwnerUid = normalizeSafeId(community['ownerUid']);
     const ownerTransferredAt = normalizeEpoch(community['ownerTransferredAt']);
     const actorMembership = actorMembershipSnapshot.exists
@@ -541,7 +549,10 @@ async function createOwnershipOffer(input: {
 
     if (
       normalizeSourceType(source['type']) !== 'community'
-      || (communityStatus !== 'active' && communityStatus !== 'paused')
+      || !isCommunityStatusAvailableForOwnershipWorkflow(
+        rawCommunityStatus,
+        input.mode
+      )
       || !currentOwnerUid
     ) {
       throw new HttpsError(
@@ -613,7 +624,6 @@ async function createOwnershipOffer(input: {
     const eligibility = await resolveCandidateEligibilityInTransaction({
       transaction,
       community,
-      communityId: input.communityId,
       candidateUid: input.targetUid,
       candidateMembership,
       candidateUser,
@@ -690,7 +700,6 @@ async function createOwnershipOffer(input: {
 
     transaction.set(activeSlotRef, {
       requestId: input.requestId,
-      communityId: input.communityId,
       candidateUid: input.targetUid,
       previousOwnerUid: currentOwnerUid,
       mode: input.mode,
@@ -748,7 +757,6 @@ async function createOwnershipOffer(input: {
 
     return {
       requestId: input.requestId,
-      communityId: input.communityId,
       candidateUid: input.targetUid,
       status: 'pending',
       mode: input.mode,
@@ -1110,6 +1118,10 @@ export const respondCommunityOwnershipTransfer =
                 ownershipRequestId: requestId,
                 actorUid,
                 actionRequired: mode === 'terminal_succession',
+                membershipCycleStartedAtMs:
+                  resolveCommunityNotificationMembershipCycleStartedAtMs(
+                    previousOwnerMembership
+                  ),
                 readAt: null,
                 createdAt: FieldValue.serverTimestamp(),
                 updatedAt: FieldValue.serverTimestamp(),
@@ -1144,7 +1156,6 @@ export const respondCommunityOwnershipTransfer =
         const eligibility = await resolveCandidateEligibilityInTransaction({
           transaction,
           community,
-          communityId,
           candidateUid: actorUid,
           candidateMembership,
           candidateUser,
@@ -1153,10 +1164,14 @@ export const respondCommunityOwnershipTransfer =
 
         const source = (community['source'] ?? {}) as Record<string, unknown>;
         const currentStatus = normalizeCommunityStatus(community['status']);
+        const rawCurrentStatus = String(community['status'] ?? '').trim();
 
         if (
           normalizeSourceType(source['type']) !== 'community'
-          || (currentStatus !== 'active' && currentStatus !== 'paused')
+          || !isCommunityStatusAvailableForOwnershipWorkflow(
+            rawCurrentStatus,
+            mode
+          )
         ) {
           throw new HttpsError(
             'failed-precondition',
@@ -1166,6 +1181,14 @@ export const respondCommunityOwnershipTransfer =
         }
 
         if (mode === 'voluntary') {
+          if (!currentStatus) {
+            throw new HttpsError(
+              'failed-precondition',
+              'A Comunidade não pode concluir a transferência agora.',
+              { reason: 'community_unavailable' }
+            );
+          }
+
           const transferDecision = evaluateCommunityOwnershipTransfer({
             sourceType: 'community',
             communityStatus: currentStatus,
@@ -1525,12 +1548,19 @@ export const cancelCommunityOwnershipTransfer =
 
         const activeSlotRef = db.collection(ACTIVE_SLOT_COLLECTION).doc(communityId);
         const candidateUserRef = db.collection('users').doc(candidateUid);
+        const candidateMembershipRef = db
+          .collection('communities')
+          .doc(communityId)
+          .collection('members')
+          .doc(candidateUid);
         const [
           activeSlotSnapshot,
           candidateUserSnapshot,
+          candidateMembershipSnapshot,
         ] = await Promise.all([
           transaction.get(activeSlotRef),
           transaction.get(candidateUserRef),
+          transaction.get(candidateMembershipRef),
         ]);
 
         if (isCommunityOwnershipTransferExpired(status, expiresAt, now)) {
@@ -1609,6 +1639,12 @@ export const cancelCommunityOwnershipTransfer =
               ownershipRequestId: requestId,
               actorUid,
               actionRequired: false,
+              membershipCycleStartedAtMs:
+                resolveCommunityNotificationMembershipCycleStartedAtMs(
+                  candidateMembershipSnapshot.exists
+                    ? candidateMembershipSnapshot.data()
+                    : null
+                ),
               readAt: null,
               createdAt: FieldValue.serverTimestamp(),
               updatedAt: FieldValue.serverTimestamp(),
@@ -1693,12 +1729,12 @@ export const openCommunityOwnerTerminalSuccessionCase =
         const community = communitySnapshot.data() ?? {};
         const previousOwnerUid = normalizeSafeId(community['ownerUid']);
         const source = (community['source'] ?? {}) as Record<string, unknown>;
-        const status = normalizeCommunityStatus(community['status']);
+        const status = String(community['status'] ?? '').trim();
 
         if (
           !previousOwnerUid
           || normalizeSourceType(source['type']) !== 'community'
-          || (status !== 'active' && status !== 'paused')
+          || !['active', 'paused', 'dormant'].includes(status)
         ) {
           throw new HttpsError(
             'failed-precondition',
