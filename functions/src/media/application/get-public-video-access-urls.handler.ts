@@ -330,9 +330,9 @@ export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
             profileValidUntilMs !== null &&
             ownerCanonicalValidUntilMs !== null
               ? Math.min(
-                  profileValidUntilMs,
-                  ownerCanonicalValidUntilMs
-                )
+                profileValidUntilMs,
+                ownerCanonicalValidUntilMs
+              )
               : null;
 
           return [
