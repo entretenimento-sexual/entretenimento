@@ -31,7 +31,8 @@ export type CommunityOwnershipTransferDenialReason =
   | 'target_membership_ineligible'
   | 'target_account_ineligible'
   | 'target_ownership_entitlement_ineligible'
-  | 'target_ownership_quota_reached';
+  | 'target_ownership_quota_reached'
+  | 'target_ownership_capacity_ineligible';
 
 export interface CommunityOwnershipTransferInput {
   sourceType: CommunityOwnershipSourceType;
@@ -45,6 +46,7 @@ export interface CommunityOwnershipTransferInput {
   targetAccountEligible: boolean;
   targetOwnershipEntitlementEligible: boolean;
   targetOwnershipQuotaAvailable: boolean;
+  targetOwnershipCapacityCompatible: boolean;
   activeOwnerCount: number;
 }
 
@@ -135,6 +137,10 @@ export function evaluateCommunityOwnershipTransfer(
 
   if (!input.targetOwnershipQuotaAvailable) {
     return deniedTransfer('target_ownership_quota_reached');
+  }
+
+  if (!input.targetOwnershipCapacityCompatible) {
+    return deniedTransfer('target_ownership_capacity_ineligible');
   }
 
   return {
