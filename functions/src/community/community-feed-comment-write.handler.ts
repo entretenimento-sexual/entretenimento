@@ -13,8 +13,7 @@ import { buildCommunityOperationalRequestRetention } from './community-operation
 import { db, Timestamp } from '../firebaseApp';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
-  buildBilateralBlockPaths,
-  isBilateralBlockActive,
+  assertNoActiveBilateralBlocksInTransaction,
 } from '../friendship/application/bilateral-block-access.policy';
 import {
   REQUIRE_COMMUNITY_APP_CHECK,
@@ -369,8 +368,14 @@ export const createCommunityFeedComment = onCall<FlatConversationCreateRequest>(
       if (!decision.allowed) throwDenied(decision.denialReason);
 
       const nowMs = Date.now();
-      const recipientUid = replyTarget?.actorUid
-        ?? String(post['actorUid'] ?? '').trim();
+      const postAuthorUid = String(post['actorUid'] ?? '').trim();
+      const recipientUid = replyTarget?.actorUid ?? postAuthorUid;
+
+      await assertNoActiveBilateralBlocksInTransaction(
+        transaction,
+        actorUid,
+        [postAuthorUid, recipientUid]
+      );
       let notificationRef: FirebaseFirestore.DocumentReference | null = null;
       let membershipCycleStartedAtMs: number | null = null;
       let shouldNotify = false;
@@ -380,22 +385,14 @@ export const createCommunityFeedComment = onCall<FlatConversationCreateRequest>(
         const recipientUserRef = db.collection('users').doc(recipientUid);
         const recipientPreferencesRef = db.collection('preferences').doc(recipientUid);
         const recipientMembershipRef = communityRef.collection('members').doc(recipientUid);
-        const [actorBlockPath, recipientBlockPath] = buildBilateralBlockPaths(
-          actorUid,
-          recipientUid
-        );
         const [
           recipientUserSnapshot,
           recipientPreferencesSnapshot,
           recipientMembershipSnapshot,
-          actorBlockSnapshot,
-          recipientBlockSnapshot,
         ] = await Promise.all([
           transaction.get(recipientUserRef),
           transaction.get(recipientPreferencesRef),
           transaction.get(recipientMembershipRef),
-          transaction.get(db.doc(actorBlockPath)),
-          transaction.get(db.doc(recipientBlockPath)),
         ]);
         const recipientUser = recipientUserSnapshot.data() as
           | CommunityNotificationUser
@@ -415,11 +412,7 @@ export const createCommunityFeedComment = onCall<FlatConversationCreateRequest>(
             recipientUid,
             actorUid
           )
-          && allowsCommunityActivityNotifications(recipientPreferences)
-          && !isBilateralBlockActive({
-            actorBlock: actorBlockSnapshot.data(),
-            targetBlock: recipientBlockSnapshot.data(),
-          });
+          && allowsCommunityActivityNotifications(recipientPreferences);
 
         if (shouldNotify && membershipCycleStartedAtMs !== null) {
           notificationRef = db.collection('notifications').doc(
