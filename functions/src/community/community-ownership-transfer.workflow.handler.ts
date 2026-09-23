@@ -37,6 +37,7 @@ import {
   assertCommunityCallableAppCheck,
 } from './community-callable-security';
 import {
+  assertCommunityMembershipActorEligibleForUid,
   assertCommunityMembershipActorEligibleInTransaction,
 } from './community-membership-eligibility.service';
 import {
@@ -472,7 +473,11 @@ async function createOwnershipOffer(input: {
         && existing.candidateUid === input.targetUid
         && existing.previousOwnerUid === input.actorUid
         && existing.mode === input.mode
-        && existing.status === 'pending'
+        && isCommunityOwnershipTransferPending(
+          existing.status,
+          existing.expiresAt,
+          now
+        )
       ) {
         return {
           requestId: existing.requestId,
@@ -673,6 +678,18 @@ async function createOwnershipOffer(input: {
       updatedAt: now,
     });
 
+    if (input.mode === 'terminal_succession') {
+      transaction.set(
+        db.collection(CASE_COLLECTION).doc(input.communityId),
+        {
+          activeRequestId: input.requestId,
+          lastCandidateUid: input.targetUid,
+          updatedAt: now,
+        },
+        { merge: true }
+      );
+    }
+
     transaction.set(requestNotificationRef, {
       userId: input.targetUid,
       type: 'community.ownership.transfer_requested',
@@ -771,13 +788,7 @@ export const getMyCommunityOwnershipTransfers = onCall(
     assertPreviewRuntime();
     assertCommunityCallableAppCheck(request.app);
     const actorUid = assertAuthenticatedUid(request.auth);
-    await assertCommunityMembershipActorEligibleInTransaction(
-      {
-        get: (ref: FirebaseFirestore.DocumentReference) => ref.get(),
-      } as unknown as FirebaseFirestore.Transaction,
-      actorUid,
-      (await db.collection('users').doc(actorUid).get()).data() ?? null
-    );
+    await assertCommunityMembershipActorEligibleForUid(actorUid);
 
     const [incomingSnapshot, outgoingSnapshot] = await Promise.all([
       db.collection(REQUEST_COLLECTION)
@@ -1718,7 +1729,7 @@ export const openCommunityOwnerTerminalSuccession =
         return { previousOwnerUid: currentOwnerUid, deadlineAt };
       });
 
-      const response = await createOwnershipOffer({
+      return createOwnershipOffer({
         actorUid: caseResult.previousOwnerUid,
         communityId,
         targetUid,
@@ -1727,13 +1738,5 @@ export const openCommunityOwnerTerminalSuccession =
         trigger,
         terminalDeadlineAt: caseResult.deadlineAt,
       });
-
-      await caseRef.set({
-        activeRequestId: requestId,
-        lastCandidateUid: targetUid,
-        updatedAt: Date.now(),
-      }, { merge: true });
-
-      return response;
     }
   );
