@@ -45,6 +45,9 @@ import {
 import {
   resolvePlatformSubscriptionPlanChangePolicy,
 } from './platform-subscription-change.policy';
+import {
+  resolvePlatformCheckoutPriceLockExpiresAt,
+} from './platform-checkout-price-lock.policy';
 
 import {
   EmulatorPaymentProvider,
@@ -100,6 +103,9 @@ export const createPlatformCheckoutSession =
 
       const now = Date.now();
       const planSnapshot = createBillingPlanSnapshot(plan, now);
+      const initialExpiresAt = resolvePlatformCheckoutPriceLockExpiresAt({
+        createdAt: now,
+      });
       const entitlementRef = db
         .collection('entitlements')
         .doc(`platform_subscription_${buyerUid}`);
@@ -159,6 +165,8 @@ export const createPlatformCheckoutSession =
         checkoutUrl: null,
 
         status: 'pending',
+        expiresAt: initialExpiresAt,
+
         statusHistory: [
           {
             status: 'pending',
@@ -220,12 +228,17 @@ export const createPlatformCheckoutSession =
         });
 
         const providerCreatedAt = Date.now();
+        const effectiveExpiresAt = resolvePlatformCheckoutPriceLockExpiresAt({
+          createdAt: now,
+          providerExpiresAt: checkout.expiresAt,
+        });
 
         await checkoutRef.set(
           {
             provider: checkout.provider,
             providerSessionId: checkout.providerSessionId,
             checkoutUrl: checkout.checkoutUrl,
+            expiresAt: effectiveExpiresAt,
             status: 'provider_created',
             statusHistory: [
               ...checkoutSession.statusHistory!,
@@ -245,7 +258,7 @@ export const createPlatformCheckoutSession =
           provider: checkout.provider,
           providerSessionId: checkout.providerSessionId,
           checkoutUrl: checkout.checkoutUrl,
-          expiresAt: checkout.expiresAt ?? null,
+          expiresAt: effectiveExpiresAt,
           checkoutSessionId: checkoutRef.id,
         };
       } catch (error: unknown) {
