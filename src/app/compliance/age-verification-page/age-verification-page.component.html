@@ -67,7 +67,7 @@
             Ir para minha conta
           </button>
         </div>
-      } @else if (vm.reviewRequired) {
+      } @else if (vm.reviewRequired && !vm.legacyInitialReview) {
         <section class="age-verification__status age-verification__status--warning" role="status">
           <span class="age-verification__status-icon" aria-hidden="true">!</span>
           <div>
@@ -107,6 +107,16 @@
           </button>
         </div>
       } @else {
+        @if (vm.legacyInitialReview) {
+          <section class="age-verification__migration-note" role="status">
+            <strong>O fluxo anterior foi substituído</strong>
+            <p>
+              Você não precisa aguardar análise manual. Confirme sua maioridade
+              abaixo para continuar pela política inicial de autodeclaração.
+            </p>
+          </section>
+        }
+
         <section class="age-verification__declaration">
           <strong>Antes de continuar</strong>
           <p>
