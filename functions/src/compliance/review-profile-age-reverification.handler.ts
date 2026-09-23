@@ -165,7 +165,7 @@ export const reviewProfileAgeReverification = onCall<
       const declaredUnderage = ageCase.result === 'UNDERAGE' ||
         ageCase.declaredAgeBand === 'UNDER_18';
 
-      if (decision === 'VERIFY' && declaredUnderage) {
+      if (decision === 'VERIFY' && declaredUnderage && !activeAppealCaseId) {
         throw new HttpsError(
           'failed-precondition',
           'Uma declaração abaixo de 18 anos não pode ser aprovada como adulta.'
@@ -173,9 +173,12 @@ export const reviewProfileAgeReverification = onCall<
       }
 
       const accountStatus = String(user.accountStatus ?? 'active').trim();
-      const canRestoreAccess = decision === 'VERIFY' &&
-        accountStatus === 'active' &&
-        user.suspended !== true;
+      const ageDecisionOwnsSuspension =
+        cleanComplianceId(user.ageReverificationSuspensionCaseId) === caseId;
+      const canRestoreAccess = decision === 'VERIFY' && (
+        (accountStatus === 'active' && user.suspended !== true) ||
+        ageDecisionOwnsSuspension
+      );
       const mediaSnapshots = canRestoreAccess
         ? await readProfileMediaVisibilitySnapshots(transaction, targetUid)
         : null;
@@ -229,6 +232,20 @@ export const reviewProfileAgeReverification = onCall<
                 publicVisibility: 'visible',
                 interactionBlocked: false,
                 ageReverificationRestrictedAt: null,
+                ...(ageDecisionOwnsSuspension
+                  ? {
+                    accountStatus: 'active',
+                    suspended: false,
+                    suspensionReason: null,
+                    suspensionSource: null,
+                    suspensionEndsAt: null,
+                    suspendedAtMs: null,
+                    suspendedBy: null,
+                    statusUpdatedAt: reviewedAt,
+                    statusUpdatedBy: adminUid,
+                    ageReverificationSuspensionCaseId: null,
+                  }
+                  : {}),
               }
               : {}),
             updatedAt: timestamp,
@@ -307,6 +324,7 @@ export const reviewProfileAgeReverification = onCall<
             suspensionSource: 'moderator',
             suspendedAtMs: reviewedAt,
             suspendedBy: adminUid,
+            ageReverificationSuspensionCaseId: caseId,
             statusUpdatedAt: reviewedAt,
             statusUpdatedBy: adminUid,
             updatedAt: timestamp,
@@ -424,6 +442,7 @@ export const reviewProfileAgeReverification = onCall<
       targetUid: reviewResult.targetUid,
       critical: true,
       confirmed: decision === 'REJECT',
+      enforcementEligible: false,
     });
     await safeRecordModerationReporterOutcome({
       reporterUid: reviewResult.reporterUid,
