@@ -12,7 +12,11 @@ import {
   hideProfileMediaVisibility,
   readProfileMediaVisibilitySnapshots,
 } from './profile-age-reverification-media';
-import { buildAgeReverificationDueAt } from './profile-age-reverification.policy';
+import {
+  PROFILE_AGE_REVERIFICATION_DUE_DAYS,
+  PROFILE_AGE_REVERIFICATION_RESPONSE_WINDOW_BASIS,
+  buildAgeReverificationDueAt,
+} from './profile-age-reverification.policy';
 import {
   type AgeReverificationUserDocument,
   type ModerationReportDocument,
@@ -157,6 +161,9 @@ export const requestProfileAgeReverification = onCall<
             source: 'MINOR_SAFETY_PROFILE_REPORT',
             requestedAt,
             dueAt,
+            responseWindowDays: PROFILE_AGE_REVERIFICATION_DUE_DAYS,
+            responseWindowBasis:
+              PROFILE_AGE_REVERIFICATION_RESPONSE_WINDOW_BASIS,
             submittedAt: null,
             reviewedAt: null,
             reviewedBy: null,
@@ -186,6 +193,9 @@ export const requestProfileAgeReverification = onCall<
         source: 'MINOR_SAFETY_PROFILE_REPORT',
         requestedAt,
         dueAt,
+        responseWindowDays: PROFILE_AGE_REVERIFICATION_DUE_DAYS,
+        responseWindowBasis:
+          PROFILE_AGE_REVERIFICATION_RESPONSE_WINDOW_BASIS,
         requestedBy: adminUid,
         hiddenMediaDocumentCount: mediaSnapshots.totalDocuments,
         publicProfileBackup: publicProfileSnapshot.data(),
@@ -230,6 +240,9 @@ export const requestProfileAgeReverification = onCall<
         actorUid: adminUid,
         source: 'moderation',
         hiddenMediaDocumentCount: mediaSnapshots.totalDocuments,
+        responseWindowDays: PROFILE_AGE_REVERIFICATION_DUE_DAYS,
+        responseWindowBasis:
+          PROFILE_AGE_REVERIFICATION_RESPONSE_WINDOW_BASIS,
         createdAt: timestamp,
         createdAtMs: requestedAt,
       });

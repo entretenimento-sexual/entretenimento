@@ -75,7 +75,9 @@ export const reportProfileMinorSafety = onCall<ReportProfileMinorSafetyRequest>(
       );
     }
 
+    const receivedAt = Date.now();
     const reportRef = db.collection('moderation_reports').doc();
+    const auditRef = db.collection('compliance_audit').doc();
     const dedupRef = db
       .collection('moderation_report_dedup')
       .doc(profileMinorReportDedupId(reporterUid, targetUid));
@@ -145,6 +147,19 @@ export const reportProfileMinorSafety = onCall<ReportProfileMinorSafetyRequest>(
         targetUid,
         reason: 'minor_safety',
         updatedAt: timestamp,
+      });
+
+      transaction.create(auditRef, {
+        uid: targetUid,
+        type: 'minor_safety.profile_report.received',
+        reportId: reportRef.id,
+        reporterUid,
+        source: 'web',
+        presumption: 'SUSPECTED_NOT_CONFIRMED',
+        legalClassification: 'NOT_DETERMINED',
+        reporterAbuseRisk,
+        createdAt: timestamp,
+        createdAtMs: receivedAt,
       });
     });
 

@@ -22,9 +22,16 @@ export interface SubmitAgeReverificationInput {
   acceptsRestrictedProcessing: boolean;
 }
 
+interface SubmitAgeReverificationRequest
+extends Partial<SubmitAgeReverificationInput> {
+  requestsAlternativeReview?: boolean;
+}
+
 interface SubmitAgeReverificationResponse {
   caseId: string;
   status: 'SUBMITTED';
+  submittedAfterOperationalTarget: boolean;
+  alternativeReviewRequested: boolean;
 }
 
 export interface AppealAgeReverificationInput {
@@ -72,6 +79,21 @@ export class AgeReverificationService {
     );
   }
 
+  requestAlternativeReview$(): Observable<SubmitAgeReverificationResponse> {
+    const callable = this.createSubmitCallable();
+
+    return from(callable({
+      requestsAlternativeReview: true,
+      acceptsRestrictedProcessing: true,
+    })).pipe(
+      map((response) => response.data),
+      catchError((error) => {
+        this.reportError(error, 'requestAlternativeReview');
+        return throwError(() => error);
+      })
+    );
+  }
+
   appealCurrent$(
     input: AppealAgeReverificationInput
   ): Observable<AppealAgeReverificationResponse> {
@@ -107,7 +129,7 @@ export class AgeReverificationService {
       case 'REJECTED':
         return 'Revalidação rejeitada';
       case 'EXPIRED':
-        return 'Prazo expirado';
+        return 'Prazo operacional ultrapassado';
       default:
         return 'Sem revalidação pendente';
     }
@@ -128,7 +150,7 @@ export class AgeReverificationService {
   private createSubmitCallable() {
     return runInInjectionContext(this.environmentInjector, () =>
       httpsCallable<
-        SubmitAgeReverificationInput,
+        SubmitAgeReverificationRequest,
         SubmitAgeReverificationResponse
       >(
         inject(Functions),

@@ -1,4 +1,12 @@
+/**
+ * Meta operacional interna para resposta do usuário.
+ *
+ * Não é prazo legal, não presume menoridade e não impede envio posterior.
+ * A conta permanece restrita até decisão confiável da moderação.
+ */
 export const PROFILE_AGE_REVERIFICATION_DUE_DAYS = 7;
+export const PROFILE_AGE_REVERIFICATION_RESPONSE_WINDOW_BASIS =
+  'PLATFORM_OPERATIONAL_POLICY' as const;
 export const PROFILE_MINIMUM_AGE = 18;
 
 export type ProfileAgeReverificationStatus =
@@ -23,6 +31,14 @@ export function isProfileMinorSafetyReport(input: {
 }): boolean {
   return String(input.targetType ?? '').trim() === 'profile' &&
     String(input.reason ?? '').trim() === 'minor_safety';
+}
+
+export function isAgeReverificationSubmissionAcceptedStatus(
+  status: unknown
+): boolean {
+  const normalized = String(status ?? '').trim().toUpperCase();
+
+  return normalized === 'REQUIRED' || normalized === 'EXPIRED';
 }
 
 export function isAgeReverificationAccessRestricted(

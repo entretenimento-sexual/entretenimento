@@ -26,7 +26,11 @@ export interface AgeReverificationRecord {
   source?: string | null;
   requestedAt?: number | null;
   dueAt?: number | null;
+  responseWindowDays?: number | null;
+  responseWindowBasis?: string | null;
   submittedAt?: number | null;
+  submittedAfterOperationalTarget?: boolean | null;
+  alternativeReviewRequested?: boolean | null;
   reviewedAt?: number | null;
   reviewedBy?: string | null;
   result?: string | null;

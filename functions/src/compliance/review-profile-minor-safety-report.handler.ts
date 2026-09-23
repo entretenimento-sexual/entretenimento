@@ -142,6 +142,19 @@ export const reviewProfileMinorSafetyReport = onCall<
         timestamp,
       });
 
+      transaction.create(db.collection('compliance_audit').doc(), {
+        uid: targetUid,
+        actorUid: adminUid,
+        type: 'minor_safety.profile_report.rejected',
+        reportId,
+        source: 'moderation',
+        presumption: 'SUSPECTED_NOT_CONFIRMED',
+        legalClassification: 'NOT_DETERMINED',
+        resolution,
+        createdAt: timestamp,
+        createdAtMs: Date.now(),
+      });
+
       return { targetUid, reporterUid };
     });
 
