@@ -51,6 +51,7 @@ export const COMMUNITY_PUBLIC_ERROR_REASONS = Object.freeze([
   'community_ownership_limit_reached',
   'community_ownership_subscription_required',
   'community_ownership_succession_closed',
+  'community_ownership_succession_owner_not_terminal',
   'community_ownership_transfer_actor_mismatch',
   'community_ownership_transfer_conflict',
   'community_ownership_transfer_expired',
