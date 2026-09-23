@@ -28,13 +28,14 @@
 // - AuthRouteContextService: contexto canônico de rota/auth-flow
 
 import { Injectable, inject } from '@angular/core';
-import { Observable, combineLatest, of } from 'rxjs';
+import { Observable, combineLatest, concat, of, timer } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
   map,
   shareReplay,
   startWith,
+  switchMap,
   tap,
 } from 'rxjs/operators';
 
@@ -92,6 +93,33 @@ export class AccessControlService {
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
 
   private _lastNotifyAt = 0;
+
+  private observeModerationInteractionWindow$(
+    user: IUserDados | null | undefined
+  ): Observable<boolean> {
+    if (!user) {
+      return of(false);
+    }
+
+    const hold = user.moderationAutomationHold;
+    const expiresAtMs = Number(hold?.expiresAtMs ?? 0);
+    const now = Date.now();
+    const active =
+      hold?.active === true &&
+      Number.isFinite(expiresAtMs) &&
+      expiresAtMs > now;
+
+    if (!active) {
+      return of(true);
+    }
+
+    const delayMs = Math.max(1, expiresAtMs - now + 1);
+
+    return concat(
+      of(false),
+      timer(delayMs).pipe(map(() => true))
+    );
+  }
 
   private canDebug(): boolean {
     return this.privacyDebug.canLog('access-control');
@@ -526,6 +554,20 @@ export class AccessControlService {
   );
 
   /**
+   * Espelha o hold temporário de moderação do backend e se autoexpira pelo
+   * relógio, evitando chamadas que seriam recusadas sem exigir reload.
+   */
+  readonly moderationInteractionAllowed$: Observable<boolean> =
+    this.appUser$.pipe(
+      switchMap((user) => this.observeModerationInteractionWindow$(user)),
+      distinctUntilChanged(),
+      shareReplay({ bufferSize: 1, refCount: true }),
+      catchError(
+        this.handleStreamError('moderationInteractionAllowed$', false)
+      )
+    );
+
+  /**
    * Gate canônico de UX/runtime para a experiência social adulta.
    *
    * Não substitui Functions nem Firestore Rules. Ele apenas evita iniciar
@@ -536,13 +578,21 @@ export class AccessControlService {
     this.isBlocked$,
     this.appUser$,
     this.ageEligibility.adultAccessAllowed$,
+    this.moderationInteractionAllowed$,
   ]).pipe(
-    map(([isAuthenticated, blocked, user, adultAgeAccessAllowed]) => {
+    map(([
+      isAuthenticated,
+      blocked,
+      user,
+      adultAgeAccessAllowed,
+      moderationAllowed,
+    ]) => {
       if (
         isAuthenticated !== true ||
         blocked === true ||
         !user ||
-        adultAgeAccessAllowed !== true
+        adultAgeAccessAllowed !== true ||
+        moderationAllowed !== true
       ) {
         return false;
       }
