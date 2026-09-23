@@ -6,17 +6,11 @@ import {
   safeRecordModerationOpenSignal,
 } from '../moderation/moderation-automation.service';
 import {
-  minorSafetyReportRateLimitConfig,
-} from '../moderation/moderation-reporter-abuse.policy';
-import {
-  safeGetModerationReporterAbuseAssessment,
-} from '../moderation/moderation-reporter-abuse.service';
+  consumeMinorSafetyReporterQuota,
+} from '../moderation/moderation-minor-safety-report-security.service';
 import {
   safeNotifyModerationReportOpened,
 } from '../moderation/moderation-safety-notification.service';
-import {
-  consumeBackendRateLimitQuota,
-} from '../shared/security/backend-rate-limit.service';
 import {
   assertCallableAppCheck,
   REQUIRE_CALLABLE_APP_CHECK,
@@ -60,19 +54,8 @@ export const reportProfileMinorSafety = onCall<ReportProfileMinorSafetyRequest>(
       );
     }
 
-    const reporterAbuse = await safeGetModerationReporterAbuseAssessment(
-      reporterUid
-    );
-
-    await consumeBackendRateLimitQuota({
-      action: 'reportProfileMinorSafety',
-      subject: reporterUid,
-      cost: 1,
-      config: minorSafetyReportRateLimitConfig(reporterAbuse.level),
-      message: [
-        'Muitas denúncias de segurança foram enviadas em pouco tempo.',
-        'Aguarde o prazo indicado e tente novamente.',
-      ].join(' '),
+    const reporterAbuse = await consumeMinorSafetyReporterQuota({
+      reporterUid,
     });
 
     const reportRef = db.collection('moderation_reports').doc();
