@@ -71,8 +71,9 @@ watchFriends(uid: string) {
    * - removido query em /users com nicknameLower
    *
    * Motivo:
-   * - fluxo social/público deve consultar /public_profiles
-   * - suas rules públicas já permitem leitura autenticada nessa coleção
+   * - fluxo social/público usa a projeção public_profiles;
+   * - enumeração client-side foi encerrada;
+   * - busca por apelido atravessa a boundary backend-time canônica.
    */
   searchUsers(term: string): Observable<IUserDados[]> {
     const q = (term ?? '').trim().toLowerCase();
