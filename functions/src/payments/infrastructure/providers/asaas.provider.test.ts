@@ -8,7 +8,7 @@ import { AsaasPaymentProvider } from './asaas.provider';
 const runtime = {
   environment: 'sandbox' as const,
   apiBaseUrl: 'https://api-sandbox.asaas.com/v3',
-  checkoutBaseUrl: 'https://asaas.com/checkoutSession/show',
+  checkoutBaseUrl: 'https://sandbox.asaas.com/checkoutSession/show',
   appBaseUrl: 'https://example.test',
 };
 
@@ -163,4 +163,108 @@ test('rejeita token de webhook com espaços', async () => {
       error instanceof HttpsError &&
       error.code === 'failed-precondition'
   );
+});
+
+
+test('checkout recorrente usa o link sandbox devolvido pelo Asaas', async () => {
+  const originalFetch = globalThis.fetch;
+  let capturedBody: Record<string, unknown> | null = null;
+
+  globalThis.fetch = (async (_input: string | URL | Request, init?: RequestInit) => {
+    capturedBody = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
+    return new Response(
+      JSON.stringify({
+        id: 'checkout_sandbox_1',
+        link: 'https://sandbox.asaas.com/checkoutSession/show/checkout_sandbox_1',
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } }
+    );
+  }) as typeof fetch;
+
+  try {
+    const provider = new AsaasPaymentProvider({
+      runtime,
+      apiKey: '$aact_hmlg_example_key',
+    });
+    const result = await provider.createCheckoutSession({
+      checkoutSessionId: 'internal_checkout_1',
+      buyerUid: 'user-1',
+      sellerUid: null,
+      scope: 'platform_subscription',
+      planSnapshot: {
+        id: 'platform_premium_monthly',
+        key: 'premium',
+        scope: 'platform_subscription',
+        title: 'Plano Premium',
+        description: 'Plano mensal',
+        amountCents: 2999,
+        currency: 'BRL',
+        interval: 'month',
+        active: true,
+        grantedRole: 'premium',
+        catalogVersion: 1,
+        snapshotAt: Date.now(),
+      },
+      amountCents: 2999,
+      currency: 'BRL',
+      expiresAt: Date.now() + 30 * 60 * 1_000,
+      successUrl: 'https://example.test/success',
+      cancelUrl: 'https://example.test/cancel',
+      expiredUrl: 'https://example.test/expired',
+    });
+
+    assert.equal(
+      result.checkoutUrl,
+      'https://sandbox.asaas.com/checkoutSession/show/checkout_sandbox_1'
+    );
+    assert.deepEqual(capturedBody?.['billingTypes'], ['CREDIT_CARD']);
+    assert.deepEqual(capturedBody?.['chargeTypes'], ['RECURRENT']);
+    assert.equal(capturedBody?.['externalReference'], 'internal_checkout_1');
+    assert.equal(
+      (capturedBody?.['subscription'] as Record<string, unknown>)['cycle'],
+      'MONTHLY'
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('checkout sandbox rejeita link retornado fora do host esperado e usa fallback', async () => {
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = (async () =>
+    new Response(
+      JSON.stringify({
+        id: 'checkout_sandbox_2',
+        link: 'https://example.com/phishing',
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } }
+    )) as typeof fetch;
+
+  try {
+    const provider = new AsaasPaymentProvider({
+      runtime,
+      apiKey: '$aact_hmlg_example_key',
+    });
+    const result = await provider.createCheckoutSession({
+      checkoutSessionId: 'internal_checkout_2',
+      buyerUid: 'user-2',
+      sellerUid: null,
+      scope: 'platform_subscription',
+      planSnapshot: null,
+      amountCents: 1999,
+      currency: 'BRL',
+      expiresAt: Date.now() + 30 * 60 * 1_000,
+      successUrl: 'https://example.test/success',
+      cancelUrl: 'https://example.test/cancel',
+      expiredUrl: 'https://example.test/expired',
+    });
+
+    assert.equal(
+      result.checkoutUrl,
+      'https://sandbox.asaas.com/checkoutSession/show?id=checkout_sandbox_2'
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
