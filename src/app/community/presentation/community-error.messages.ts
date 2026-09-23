@@ -464,6 +464,18 @@ export const COMMUNITY_OWNERSHIP_REASON_MESSAGES: CommunityErrorMessageMap =
       'O plano do participante selecionado não permite assumir nova propriedade.',
     community_ownership_limit_reached:
       'O participante selecionado atingiu a quantidade de Comunidades próprias permitida pelo plano.',
+    community_ownership_transfer_pending:
+      'Já existe uma transferência de propriedade aguardando resposta.',
+    community_ownership_transfer_not_found:
+      'Esta solicitação de propriedade não está mais disponível.',
+    community_ownership_transfer_expired:
+      'Esta solicitação de propriedade já expirou ou foi encerrada.',
+    community_ownership_transfer_actor_mismatch:
+      'Esta solicitação de propriedade pertence a outro participante.',
+    community_ownership_transfer_conflict:
+      'A propriedade ou a elegibilidade mudou. Atualize o fluxo antes de continuar.',
+    community_ownership_succession_closed:
+      'O prazo deste caso de sucessão já foi encerrado.',
   });
 
 export const COMMUNITY_OWNERSHIP_LOAD_CODE_MESSAGES: CommunityErrorMessageMap =
