@@ -2,8 +2,9 @@
 // -----------------------------------------------------------------------------
 // COMMUNITY RANKING ROLLOUT POLICY
 // -----------------------------------------------------------------------------
-// Cutover canônico de ranking. v3 só pode sair do shadow após evidência agregada
-// persistida cumprir a política mensurável. Rollback para v2/legacy é explícito.
+// Cutover canônico de ranking. Durante OBSERVE_ONLY, v3 permanece shadow mesmo
+// que a evidência técnica já esteja pronta. Rollback para v2/legacy continua
+// explícito e disponível.
 // -----------------------------------------------------------------------------
 
 import {
@@ -58,14 +59,20 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
-function v2Ready(config: Record<string, unknown>, runtime: Record<string, unknown>) {
+function v2Ready(
+  config: Record<string, unknown>,
+  runtime: Record<string, unknown>
+) {
   if (config['discoveryScoreIndexReady'] !== true) {
     return 'score_index_not_ready' as const;
   }
   if (runtime['ready'] !== true) {
     return 'score_backfill_not_ready' as const;
   }
-  if (Number(runtime['completedScoreVersion']) !== COMMUNITY_DISCOVERY_SCORE_VERSION) {
+  if (
+    Number(runtime['completedScoreVersion'])
+      !== COMMUNITY_DISCOVERY_SCORE_VERSION
+  ) {
     return 'score_version_mismatch' as const;
   }
   return null;
@@ -93,17 +100,7 @@ export function evaluateCommunityRankingRollout(input: {
   const v2Denial = v2Ready(config, runtime);
 
   if (input.action === 'enable_current' || input.action === 'rollback_v2') {
-    if (!isCommunityCalibrationChangeAllowed()) {
-    return {
-      allowed: false,
-      action: input.action,
-      targetMode: COMMUNITY_DISCOVERY_V3_RANKING_MODE,
-      scoreVersion: COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
-      denialReason: 'calibration_observation_only',
-    };
-  }
-
-  if (v2Denial) {
+    if (v2Denial) {
       return {
         allowed: false,
         action: input.action,
@@ -119,6 +116,17 @@ export function evaluateCommunityRankingRollout(input: {
       targetMode: COMMUNITY_DISCOVERY_RANKING_MODE,
       scoreVersion: COMMUNITY_DISCOVERY_SCORE_VERSION,
       denialReason: null,
+    };
+  }
+
+  // promote_v3 é deliberadamente impossível durante OBSERVE_ONLY.
+  if (!isCommunityCalibrationChangeAllowed()) {
+    return {
+      allowed: false,
+      action: input.action,
+      targetMode: COMMUNITY_DISCOVERY_V3_RANKING_MODE,
+      scoreVersion: COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
+      denialReason: 'calibration_observation_only',
     };
   }
 
