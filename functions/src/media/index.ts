@@ -156,3 +156,7 @@ export {
 export {
   recordVideoRetention,
 } from './application/record-video-retention-orchestrator.handler';
+
+export {
+  getPublicMediaDiscovery,
+} from './application/get-public-media-discovery.handler';
