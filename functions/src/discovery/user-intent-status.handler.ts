@@ -20,8 +20,9 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import {
   assertInteractionAccessData,
 } from '../account_lifecycle/interaction-access.policy';
+import { evaluateCanonicalAgeEligibility } from '../compliance/age-eligibility.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
-import { db, FieldValue } from '../firebaseApp';
+import { db, FieldValue, Timestamp } from '../firebaseApp';
 import {
   assertMessagingAccountOperational,
 } from '../chat/shared/messaging-account.policy';
@@ -29,6 +30,7 @@ import type { MessagingUserDoc } from '../chat/shared/messaging.types';
 
 const MAX_STATUS_DURATION_HOURS = 12;
 const DEFAULT_STATUS_DURATION_HOURS = 12;
+const PUBLIC_AGE_ELIGIBILITY_MAX_VALID_UNTIL_MS = 253402300799999;
 const MAX_COMPATIBLE_STATUS_NOTIFICATIONS = 10;
 
 const ALLOWED_AVAILABILITY = new Set([
@@ -464,6 +466,24 @@ export const publishUserIntentStatus = onCall<PublishUserIntentStatusRequest>(
     );
 
     const now = Date.now();
+    const ageDecision = evaluateCanonicalAgeEligibility({
+      uid,
+      rawRecord: ageEligibilitySnapshot.exists
+        ? ageEligibilitySnapshot.data()
+        : null,
+      nowMs: now,
+    });
+
+    if (!ageDecision.allowed) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Conclua a verificação de maioridade para publicar o status.'
+      );
+    }
+
+    const ageEligibilityValidUntil = Timestamp.fromMillis(
+      ageDecision.expiresAtMs ?? PUBLIC_AGE_ELIGIBILITY_MAX_VALID_UNTIL_MS
+    );
     const durationHours = normalizeDurationHours(request.data?.durationHours);
     const expiresAt = now + durationHours * 60 * 60 * 1000;
     const statusId = `current_${uid}`;
@@ -493,6 +513,7 @@ export const publishUserIntentStatus = onCall<PublishUserIntentStatusRequest>(
         uid,
         profile,
         ageEligibilityVerifiedAdult: true,
+        ageEligibilityValidUntil,
         availability,
         visibility,
         destination,
