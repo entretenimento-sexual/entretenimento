@@ -148,3 +148,72 @@ export async function cancelRecurringContractAtProvider(input: {
     alreadyGone,
   };
 }
+
+
+export async function requestRecurringContractCancellation(input: {
+  contractId: string;
+  reason: string;
+}): Promise<PlatformRecurringSubscriptionDoc | null> {
+  const contractRef = db
+    .collection(PLATFORM_SUBSCRIPTION_COLLECTION)
+    .doc(input.contractId);
+  let result: PlatformRecurringSubscriptionDoc | null = null;
+  const now = Date.now();
+
+  await db.runTransaction(async (tx) => {
+    const contractSnapshot = await tx.get(contractRef);
+    if (!contractSnapshot.exists) return;
+
+    const contract =
+      contractSnapshot.data() as PlatformRecurringSubscriptionDoc;
+    const stateRef = db
+      .collection(PLATFORM_SUBSCRIPTION_STATE_COLLECTION)
+      .doc(contract.buyerUid);
+    const stateSnapshot = await tx.get(stateRef);
+    const state = stateSnapshot.exists
+      ? stateSnapshot.data() as PlatformRecurringSubscriptionStateDoc
+      : null;
+
+    tx.set(
+      contractRef,
+      {
+        renewalEnabled: false,
+        needsProviderCancellation: true,
+        providerCancellationNextAttemptAt: now,
+        updatedAt: now,
+      },
+      { merge: true }
+    );
+
+    if (state?.currentContractId === input.contractId) {
+      tx.set(
+        stateRef,
+        {
+          renewalEnabled: false,
+          updatedAt: now,
+        },
+        { merge: true }
+      );
+    }
+
+    tx.set(db.collection('billing_audit').doc(), {
+      action: 'request_recurring_subscription_cancellation',
+      buyerUid: contract.buyerUid,
+      contractId: input.contractId,
+      providerSubscriptionId: contract.providerSubscriptionId,
+      reason: input.reason.slice(0, 120),
+      accessRevoked: false,
+      createdAt: now,
+    });
+
+    result = {
+      ...contract,
+      renewalEnabled: false,
+      needsProviderCancellation: true,
+      providerCancellationNextAttemptAt: now,
+      updatedAt: now,
+    };
+  });
+
+  return result;
+}
