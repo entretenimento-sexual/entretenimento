@@ -4,6 +4,9 @@ import test from 'node:test';
 import {
   resolveCommunityMembershipVisibility,
 } from './community-membership-visibility.policy';
+import {
+  isCurrentPublicProfileForCommunityDisclosure,
+} from './get-profile-public-communities.handler';
 
 const community = {
   visibility: 'public_preview',
@@ -93,4 +96,42 @@ test('profileId duplicado ou UID resolvido inválido falham fechado', () => {
   assert.match(source, /public_profile_identity_duplicate/);
   assert.match(source, /public_profile_identity_invalid/);
   assert.match(source, /'data-loss'/);
+});
+
+
+test('comunidades públicas do perfil exigem projeção etária vigente', () => {
+  const now = 1_800_000_000_000;
+
+  assert.equal(
+    isCurrentPublicProfileForCommunityDisclosure(
+      {
+        ageEligibilityVerifiedAdult: true,
+        ageEligibilityValidUntil: { toMillis: () => now + 60_000 },
+      },
+      now
+    ),
+    true
+  );
+
+  assert.equal(
+    isCurrentPublicProfileForCommunityDisclosure(
+      {
+        ageEligibilityVerifiedAdult: true,
+        ageEligibilityValidUntil: { toMillis: () => now },
+      },
+      now
+    ),
+    false
+  );
+
+  assert.equal(
+    isCurrentPublicProfileForCommunityDisclosure(
+      {
+        ageEligibilityVerifiedAdult: false,
+        ageEligibilityValidUntil: { toMillis: () => now + 60_000 },
+      },
+      now
+    ),
+    false
+  );
 });
