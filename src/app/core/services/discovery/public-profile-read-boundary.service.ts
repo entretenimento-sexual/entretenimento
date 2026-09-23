@@ -26,12 +26,25 @@ export interface PublicProfileReadFilters {
   readonly nicknamePrefix?: string | null;
 }
 
+export interface PublicProfileNearbyBound {
+  readonly start: string;
+  readonly end: string;
+}
+
+export interface PublicProfileNearbyRequest {
+  readonly latitude: number;
+  readonly longitude: number;
+  readonly maxDistanceKm: number;
+  readonly bounds: readonly PublicProfileNearbyBound[];
+}
+
 export interface PublicProfileReadRequest {
   readonly mode?: PublicProfileReadMode;
   readonly pageSize?: number;
   readonly cursor?: PublicProfileReadCursor | null;
   readonly uids?: readonly string[];
   readonly filters?: PublicProfileReadFilters | null;
+  readonly nearby?: PublicProfileNearbyRequest | null;
 }
 
 export interface PublicProfileReadResponse {
