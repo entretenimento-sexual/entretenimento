@@ -122,25 +122,27 @@ function userLabel(raw: unknown): string {
     || 'Usuário';
 }
 
-async function assertStaff(request: {
-  auth?: {
-    uid?: string;
+function assertAuthenticatedUid(auth: unknown): string {
+  const source = (auth ?? {}) as {
+    uid?: unknown;
     token?: Record<string, unknown>;
-  } | null;
-  app?: unknown;
-}): Promise<string> {
-  assertRuntime();
-  assertCommunityCallableAppCheck(request.app);
-  const actorUid = normalizeId(request.auth?.uid);
+  };
+  const actorUid = normalizeId(source.uid);
   if (!actorUid) {
     throw new HttpsError('unauthenticated', 'Staff não autenticado.');
   }
+  return actorUid;
+}
+
+async function assertLifecycleStaff(
+  actorUid: string,
+  authToken: Record<string, unknown> | undefined
+): Promise<void> {
   await assertStaffAuthorization({
     actorUid,
-    authToken: request.auth?.token,
+    authToken,
     requiredPermission: 'users:lifecycle',
   });
-  return actorUid;
 }
 
 export const getCommunityOwnerSuccessionCases = onCall(
@@ -149,7 +151,13 @@ export const getCommunityOwnerSuccessionCases = onCall(
     enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
   },
   async (request): Promise<SuccessionCasesResponse> => {
-    await assertStaff(request);
+    assertRuntime();
+    assertCommunityCallableAppCheck(request.app);
+    const actorUid = assertAuthenticatedUid(request.auth);
+    await assertLifecycleStaff(
+      actorUid,
+      (request.auth?.token ?? undefined) as Record<string, unknown> | undefined
+    );
 
     const casesSnapshot = await db
       .collection(CASE_COLLECTION)
@@ -234,7 +242,13 @@ export const getCommunityOwnerSuccessionCandidatesPage =
       enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
     },
     async (request): Promise<SuccessionCandidatesResponse> => {
-      await assertStaff(request);
+      assertRuntime();
+      assertCommunityCallableAppCheck(request.app);
+      const actorUid = assertAuthenticatedUid(request.auth);
+      await assertLifecycleStaff(
+        actorUid,
+        (request.auth?.token ?? undefined) as Record<string, unknown> | undefined
+      );
       const communityId = normalizeCommunityId(request.data?.communityId);
       const cursor = normalizeCursor(request.data?.cursor);
 
