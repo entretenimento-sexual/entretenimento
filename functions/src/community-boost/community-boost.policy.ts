@@ -408,12 +408,12 @@ export function normalizeCommunityBoostCampaign(
       : null;
   const stoppedAt = source['stoppedAt'] === null
     || source['stoppedAt'] === undefined
-      ? null
-      : finiteEpoch(source['stoppedAt']);
+    ? null
+    : finiteEpoch(source['stoppedAt']);
   const stoppedReason = source['stoppedReason'] === null
     || source['stoppedReason'] === undefined
-      ? null
-      : cleanId(source['stoppedReason']);
+    ? null
+    : cleanId(source['stoppedReason']);
   const targetSourceType = normalizeCommunityBoostSourceType(
     source['targetSourceType']
   );
