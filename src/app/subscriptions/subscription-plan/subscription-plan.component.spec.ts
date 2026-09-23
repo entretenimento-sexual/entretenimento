@@ -283,14 +283,15 @@ describe('SubscriptionPlanComponent', () => {
 
 
   it('renderiza preços exclusivamente do catálogo backend', () => {
-    const text = fixture.nativeElement.textContent;
+    const text = String(fixture.nativeElement.textContent ?? '')
+      .replace(/\s+/g, ' ');
 
-    expect(text).toContain('R$ 21,99/mês');
-    expect(text).toContain('R$ 32,99/mês');
-    expect(text).toContain('R$ 45,99/mês');
-    expect(text).not.toContain('R$19,99/mês');
-    expect(text).not.toContain('R$29,99/mês');
-    expect(text).not.toContain('R$39,99/mês');
+    expect(text).toContain('R$ 21,99/mês');
+    expect(text).toContain('R$ 32,99/mês');
+    expect(text).toContain('R$ 45,99/mês');
+    expect(text).not.toContain('R$ 19,99/mês');
+    expect(text).not.toContain('R$ 29,99/mês');
+    expect(text).not.toContain('R$ 39,99/mês');
   });
 
   it('deve continuar renderizando os cards dos planos sem duplicar quotas autoritativas no frontend', () => {
