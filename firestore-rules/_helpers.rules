@@ -269,21 +269,18 @@ service cloud.firestore {
     }
 
     function optString(k) {
-      return !hasReqField(k)
-        || request.resource.data[k] == null
-        || request.resource.data[k] is string;
+      let value = mapFieldOrNull(request.resource.data, k);
+      return value == null || value is string;
     }
 
     function optNumberOrNull(k) {
-      return !hasReqField(k)
-        || request.resource.data[k] == null
-        || request.resource.data[k] is number;
+      let value = mapFieldOrNull(request.resource.data, k);
+      return value == null || value is number;
     }
 
     function optTimestamp(k) {
-      return !hasReqField(k)
-        || request.resource.data[k] == null
-        || isTs(request.resource.data[k]);
+      let value = mapFieldOrNull(request.resource.data, k);
+      return value == null || isTs(value);
     }
     // (os demais matches/arquivos entram abaixo via build)
 // ===============================================================
