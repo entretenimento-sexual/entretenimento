@@ -20,6 +20,12 @@ export type AppNotificationType =
   | 'community.invite.accepted'
   | 'community.invite.declined'
   | 'community.content.moderated'
+  | 'community.ownership.transfer_requested'
+  | 'community.ownership.transfer_accepted'
+  | 'community.ownership.transfer_declined'
+  | 'community.ownership.transfer_canceled'
+  | 'community.ownership.transfer_expired'
+  | 'community.ownership.succession_archived'
   | 'system'
   | 'social'
   | 'chat'
@@ -46,6 +52,7 @@ export interface IAppNotification {
   replyId?: string | null;
   actorUid?: string | null;
   inviteId?: string | null;
+  ownershipRequestId?: string | null;
   roomId?: string | null;
   messageId?: string | null;
   activityCount?: number | null;
