@@ -9,14 +9,17 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { combineLatest } from 'rxjs';
-import { distinctUntilChanged, map, shareReplay, tap } from 'rxjs/operators';
+import { combineLatest, of } from 'rxjs';
+import { catchError, distinctUntilChanged, map, shareReplay, tap } from 'rxjs/operators';
 
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 import { PlatformSubscriptionAccessService } from '@core/services/subscriptions/platform-subscription-access.service';
 import type { PlatformSubscriptionAccessState } from '@core/services/subscriptions/platform-subscription-access.model';
 import { IncompleteProfileSubscriptionNoticeService } from '../application/incomplete-profile-subscription-notice.service';
 import { IUserDados } from '@core/interfaces/iuser-dados';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
+import { BillingRepository } from 'src/app/payments-core/infrastructure/repositories/billing.repository';
+import type { BillingPlan } from 'src/app/payments-core/domain/models/billing-plan.model';
 import {
   isCommunityCreationSubscriptionFlow,
   normalizeSubscriptionFlowContext,
@@ -93,6 +96,8 @@ export class SubscriptionPlanComponent implements OnInit {
   private readonly noticeService = inject(
     IncompleteProfileSubscriptionNoticeService
   );
+  private readonly billingRepository = inject(BillingRepository);
+  private readonly applicationError = inject(ApplicationErrorService);
 
   readonly currentUser$ = this.currentUserStore.user$.pipe(
     map((user) => user ?? null),
@@ -136,51 +141,24 @@ export class SubscriptionPlanComponent implements OnInit {
     'você pode ter limitações para ser encontrado ou iniciar algumas interações',
   ];
 
-  readonly plans: SubscriptionPlanCardVm[] = [
-    {
-      key: 'basic',
-      badge: 'Entrada',
-      title: 'Plano Básico',
-      priceLabel: 'R$19,99/mês',
-      description:
-        'Uma entrada sólida para explorar a plataforma com mais liberdade e discrição.',
-      features: [
-        ...communityPlanFeatures('basic'),
-        'Acesso ampliado à plataforma',
-        'Melhor base para descoberta e navegação',
-        'Entrada ideal para quem quer começar',
-      ],
-    },
-    {
-      key: 'premium',
-      badge: 'Mais escolhido',
-      title: 'Plano Premium',
-      priceLabel: 'R$29,99/mês',
-      description:
-        'Equilíbrio melhor entre recursos, visibilidade e experiência de uso.',
-      features: [
-        ...communityPlanFeatures('premium'),
-        'Todos os benefícios do Básico',
-        'Mais destaque de conta',
-        'Experiência mais completa na plataforma',
-      ],
-      featured: true,
-    },
-    {
-      key: 'vip',
-      badge: 'Topo',
-      title: 'Plano VIP',
-      priceLabel: 'R$39,99/mês',
-      description:
-        'Camada superior para quem quer a experiência mais completa disponível.',
-      features: [
-        ...communityPlanFeatures('vip'),
-        'Todos os benefícios anteriores',
-        'Maior prioridade de experiência',
-        'Plano mais avançado da plataforma',
-      ],
-    },
-  ];
+  readonly plans$ = this.billingRepository.getPlatformPlans$().pipe(
+    map((catalog) =>
+      catalog.plans
+        .filter((plan) => plan.active)
+        .map((plan) => this.toPlanCard(plan))
+    ),
+    catchError((error: unknown) => {
+      this.applicationError.report(error, {
+        feature: 'subscription-plan',
+        operation: 'loadCanonicalPlans',
+        fallbackMessage: 'Não foi possível carregar os planos disponíveis.',
+        presentation: { surface: 'snackbar', severity: 'error' },
+        metadata: { scope: 'SubscriptionPlanComponent' },
+      });
+      return of([] as SubscriptionPlanCardVm[]);
+    }),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
   ngOnInit(): void {
     this.currentUser$
@@ -270,7 +248,7 @@ export class SubscriptionPlanComponent implements OnInit {
     }
 
     if (this.isDowngrade(plan, vm)) {
-      return 'Redução no próximo ciclo';
+      return 'Disponível após ciclo atual';
     }
 
     if (!vm.subscriptionActive) {
@@ -282,6 +260,76 @@ export class SubscriptionPlanComponent implements OnInit {
 
     if (nextRank > currentRank) return 'Fazer upgrade';
     return 'Assinar agora';
+  }
+
+  private toPlanCard(plan: BillingPlan): SubscriptionPlanCardVm {
+    const presentation = this.planPresentation(plan.key);
+
+    return {
+      key: plan.key,
+      badge: presentation.badge,
+      title: plan.title,
+      priceLabel: this.formatPlanPrice(plan),
+      description: presentation.description,
+      features: presentation.features,
+      featured: presentation.featured,
+    };
+  }
+
+  private formatPlanPrice(plan: BillingPlan): string {
+    const value = new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: plan.currency,
+    }).format(plan.amountCents / 100);
+
+    return plan.interval === 'month' ? `${value}/mês` : value;
+  }
+
+  private planPresentation(plan: PaidPlanKey): {
+    badge: string;
+    description: string;
+    features: string[];
+    featured?: boolean;
+  } {
+    switch (plan) {
+      case 'basic':
+        return {
+          badge: 'Entrada',
+          description:
+            'Uma entrada sólida para explorar a plataforma com mais liberdade e discrição.',
+          features: [
+            ...communityPlanFeatures('basic'),
+            'Acesso ampliado à plataforma',
+            'Melhor base para descoberta e navegação',
+            'Entrada ideal para quem quer começar',
+          ],
+        };
+      case 'premium':
+        return {
+          badge: 'Mais escolhido',
+          description:
+            'Equilíbrio melhor entre recursos, visibilidade e experiência de uso.',
+          features: [
+            ...communityPlanFeatures('premium'),
+            'Todos os benefícios do Básico',
+            'Mais destaque de conta',
+            'Experiência mais completa na plataforma',
+          ],
+          featured: true,
+        };
+      case 'vip':
+        return {
+          badge: 'Topo',
+          description:
+            'Camada superior para quem quer a experiência mais completa disponível.',
+          features: [
+            ...communityPlanFeatures('vip'),
+            'Todos os benefícios anteriores',
+            'Maior prioridade de experiência',
+            'Plano mais avançado da plataforma',
+          ],
+        };
+    }
   }
 
   private buildVm(

@@ -45,6 +45,9 @@ import {
 import {
   resolvePlatformSubscriptionPlanChangePolicy,
 } from './platform-subscription-change.policy';
+import {
+  resolvePlatformCheckoutPriceLockExpiresAt,
+} from './platform-checkout-price-lock.policy';
 
 import {
   EmulatorPaymentProvider,
@@ -63,8 +66,56 @@ import {
 interface CreatePlatformCheckoutSessionRequest {
   planId?: string;
   planKey?: string;
+  expectedAmountCents?: number;
+  expectedCurrency?: string;
+  expectedInterval?: string;
+  expectedCatalogVersion?: number;
   minimumRole?: string;
   returnUrl?: string;
+}
+
+function assertDisplayedPlanStillCurrent(
+  plan: ReturnType<typeof requirePlatformPlanByKey>,
+  request: CreatePlatformCheckoutSessionRequest | undefined
+): void {
+  const quoteComplete =
+    !!request
+    && typeof request.expectedAmountCents === 'number'
+    && Number.isInteger(request.expectedAmountCents)
+    && typeof request.expectedCurrency === 'string'
+    && typeof request.expectedInterval === 'string'
+    && typeof request.expectedCatalogVersion === 'number'
+    && Number.isInteger(request.expectedCatalogVersion);
+
+  if (!quoteComplete) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Recarregue o plano antes de continuar para confirmar o valor vigente.',
+      {
+        reason: 'plan_quote_required',
+        planKey: plan.key,
+        catalogVersion: plan.catalogVersion,
+      }
+    );
+  }
+
+  const matches =
+    request.expectedAmountCents === plan.amountCents
+    && request.expectedCurrency === plan.currency
+    && request.expectedInterval === plan.interval
+    && request.expectedCatalogVersion === plan.catalogVersion;
+
+  if (matches) return;
+
+  throw new HttpsError(
+    'failed-precondition',
+    'O catálogo do plano foi atualizado. Recarregue os valores antes de continuar.',
+    {
+      reason: 'plan_quote_changed',
+      planKey: plan.key,
+      catalogVersion: plan.catalogVersion,
+    }
+  );
 }
 
 export const createPlatformCheckoutSession =
@@ -97,9 +148,13 @@ export const createPlatformCheckoutSession =
         request.data?.planKey,
         request.data?.planId
       );
+      assertDisplayedPlanStillCurrent(plan, request.data);
 
       const now = Date.now();
       const planSnapshot = createBillingPlanSnapshot(plan, now);
+      const initialExpiresAt = resolvePlatformCheckoutPriceLockExpiresAt({
+        createdAt: now,
+      });
       const entitlementRef = db
         .collection('entitlements')
         .doc(`platform_subscription_${buyerUid}`);
@@ -159,6 +214,8 @@ export const createPlatformCheckoutSession =
         checkoutUrl: null,
 
         status: 'pending',
+        expiresAt: initialExpiresAt,
+
         statusHistory: [
           {
             status: 'pending',
@@ -175,6 +232,10 @@ export const createPlatformCheckoutSession =
           runtime: 'emulator',
           catalogVersion: planSnapshot.catalogVersion,
           planChangeKind: planChangePolicy.kind,
+          priceTreatment: planChangePolicy.priceTreatment,
+          periodTreatment: planChangePolicy.periodTreatment,
+          accessTreatment: planChangePolicy.accessTreatment,
+          prorationSupported: planChangePolicy.prorationSupported,
           ...platformSubscriptionFlowMetadata(flowContext),
         },
       };
@@ -197,6 +258,7 @@ export const createPlatformCheckoutSession =
 
           amountCents: planSnapshot.amountCents,
           currency: planSnapshot.currency,
+          expiresAt: initialExpiresAt,
 
           successUrl: buildPlatformSubscriptionProviderReturnUrl({
             appBaseUrl,
@@ -216,16 +278,25 @@ export const createPlatformCheckoutSession =
             runtime: 'emulator',
             catalogVersion: planSnapshot.catalogVersion,
             planChangeKind: planChangePolicy.kind,
+            priceTreatment: planChangePolicy.priceTreatment,
+            periodTreatment: planChangePolicy.periodTreatment,
+            accessTreatment: planChangePolicy.accessTreatment,
+            prorationSupported: planChangePolicy.prorationSupported,
           },
         });
 
         const providerCreatedAt = Date.now();
+        const effectiveExpiresAt = resolvePlatformCheckoutPriceLockExpiresAt({
+          createdAt: now,
+          providerExpiresAt: checkout.expiresAt,
+        });
 
         await checkoutRef.set(
           {
             provider: checkout.provider,
             providerSessionId: checkout.providerSessionId,
             checkoutUrl: checkout.checkoutUrl,
+            expiresAt: effectiveExpiresAt,
             status: 'provider_created',
             statusHistory: [
               ...checkoutSession.statusHistory!,
@@ -245,7 +316,7 @@ export const createPlatformCheckoutSession =
           provider: checkout.provider,
           providerSessionId: checkout.providerSessionId,
           checkoutUrl: checkout.checkoutUrl,
-          expiresAt: checkout.expiresAt ?? null,
+          expiresAt: effectiveExpiresAt,
           checkoutSessionId: checkoutRef.id,
         };
       } catch (error: unknown) {

@@ -28,6 +28,7 @@ import { map } from 'rxjs/operators';
 
 import {
   BillingPlan,
+  PlatformPlanCatalog,
   type PlatformPlanKey,
 } from '../../domain/models/billing-plan.model';
 import {
@@ -67,6 +68,11 @@ export class BillingRepository {
     BillingPlan | null
   >(this.functions, 'getPlatformPlanByKey');
 
+  private readonly getPlatformPlansCallable = httpsCallable<
+    Record<string, never>,
+    PlatformPlanCatalog
+  >(this.functions, 'getPlatformPlans');
+
   /**
    * Cria intenção de assinatura.
    *
@@ -80,6 +86,10 @@ export class BillingRepository {
     {
       planId: string;
       planKey: string;
+      expectedAmountCents: number;
+      expectedCurrency: string;
+      expectedInterval: string;
+      expectedCatalogVersion?: number;
       minimumRole?: PlatformPlanKey;
       returnUrl?: string;
     },
@@ -119,6 +129,14 @@ export class BillingRepository {
     PlatformSubscriptionHistoryPage | null
   >(this.functions, 'getMyPlatformSubscriptionHistory');
 
+  getPlatformPlans$(): Observable<PlatformPlanCatalog> {
+    return from(
+      this.getPlatformPlansCallable({})
+    ).pipe(
+      map((result) => result.data ?? { catalogVersion: 0, plans: [] })
+    );
+  }
+
   getPlatformPlanByKey$(
     planKey: string
   ): Observable<BillingPlan | null> {
@@ -136,12 +154,23 @@ export class BillingRepository {
     const request: {
       planId: string;
       planKey: string;
+      expectedAmountCents: number;
+      expectedCurrency: string;
+      expectedInterval: string;
+      expectedCatalogVersion?: number;
       minimumRole?: PlatformPlanKey;
       returnUrl?: string;
     } = {
       planId: plan.id,
       planKey: String(plan.key),
+      expectedAmountCents: plan.amountCents,
+      expectedCurrency: plan.currency,
+      expectedInterval: plan.interval,
     };
+
+    if (typeof plan.catalogVersion === 'number') {
+      request.expectedCatalogVersion = plan.catalogVersion;
+    }
 
     if (flowContext.minimumRole) {
       request.minimumRole = flowContext.minimumRole;

@@ -9,7 +9,8 @@
 // - criar checkout não confirma pagamento;
 // - retorno do navegador não confirma pagamento;
 // - somente evento verificado pode alimentar settlement;
-// - cada provider real deverá implementar verificação própria de webhook.
+// - cada provider real deverá implementar verificação própria de webhook;
+// - o provider não pode aceitar pagamento depois da validade do snapshot.
 import {
   BillingPlanSnapshot,
   BillingProviderId,
@@ -29,6 +30,7 @@ export interface CreateCheckoutInput {
 
   amountCents: number;
   currency: 'BRL';
+  expiresAt: number;
 
   successUrl: string;
   cancelUrl: string;

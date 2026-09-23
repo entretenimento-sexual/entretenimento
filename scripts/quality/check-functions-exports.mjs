@@ -29,6 +29,7 @@ const requiredExports = [
   'getMyComplianceCases',
   'submitComplianceCaseResponse',
   'getMyBillingSnapshot',
+  'getPlatformPlans',
   'getPublicVideoAccessUrls',
   'getRecentPublicMediaViews',
   'createCommunity',

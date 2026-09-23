@@ -29,6 +29,9 @@ import {
   resolvePlatformSubscriptionPlanChangePolicy,
 } from './platform-subscription-change.policy';
 import {
+  isPlatformCheckoutPriceLockActive,
+} from './platform-checkout-price-lock.policy';
+import {
   PLATFORM_SUBSCRIPTION_PROJECTION_VERSION,
   buildPlatformSubscriptionUserProjection,
   resolvePublicPlatformRole,
@@ -221,6 +224,22 @@ export async function settleVerifiedPaidEvent(
       );
     }
 
+    const paymentOccurredAt =
+      typeof event.occurredAt === 'number' && Number.isFinite(event.occurredAt)
+        ? Math.trunc(event.occurredAt)
+        : event.receivedAt;
+
+    if (!isPlatformCheckoutPriceLockActive(checkout, paymentOccurredAt)) {
+      throw new HttpsError(
+        'failed-precondition',
+        'O preço deste checkout expirou. Crie uma nova sessão com o catálogo vigente.',
+        {
+          reason: 'checkout_price_lock_expired',
+          checkoutSessionId: checkout.id,
+        }
+      );
+    }
+
     /**
      * A política é reavaliada no instante do settlement. Isso fecha a janela
      * em que um checkout antigo de plano inferior é pago depois de um upgrade.
@@ -273,6 +292,7 @@ export async function settleVerifiedPaidEvent(
       sanitizedPayloadHash: event.sanitizedPayloadHash ?? null,
       processed: true,
       processedAt: now,
+      occurredAt: paymentOccurredAt,
       createdAt: event.receivedAt,
     };
 
@@ -413,6 +433,15 @@ export async function settleVerifiedPaidEvent(
       verificationMode: event.verificationMode,
       amountCents: event.amountCents,
       currency: event.currency,
+      catalogVersion: checkout.planSnapshot!.catalogVersion,
+      checkoutPriceLockedUntil: checkout.expiresAt ?? null,
+      paymentOccurredAt,
+      planChangeKind: checkout.metadata?.['planChangeKind'] ?? null,
+      priceTreatment: checkout.metadata?.['priceTreatment'] ?? null,
+      periodTreatment: checkout.metadata?.['periodTreatment'] ?? null,
+      accessTreatment: checkout.metadata?.['accessTreatment'] ?? null,
+      prorationSupported:
+        checkout.metadata?.['prorationSupported'] === false ? false : null,
       previousSubscriptionActive: existingStatus.active,
       previousSubscriptionRole: existingStatus.role,
       currentSubscriptionRole: grantedRole,

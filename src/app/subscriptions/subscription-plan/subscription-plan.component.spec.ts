@@ -18,6 +18,8 @@ import { CurrentUserStoreService } from '../../core/services/autentication/auth/
 import { PlatformSubscriptionAccessService } from '../../core/services/subscriptions/platform-subscription-access.service';
 import { IncompleteProfileSubscriptionNoticeService } from '../application/incomplete-profile-subscription-notice.service';
 import { COMMUNITY_CREATE_RETURN_URL } from '../domain/subscription-flow-context.model';
+import { BillingRepository } from 'src/app/payments-core/infrastructure/repositories/billing.repository';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 
 describe('SubscriptionPlanComponent', () => {
   let component: SubscriptionPlanComponent;
@@ -29,6 +31,8 @@ describe('SubscriptionPlanComponent', () => {
   let queryParamMapSubject: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
   let currentUserStoreMock: { user$: any };
   let noticeServiceMock: { shouldShow$: Mock; hydrate: Mock };
+  let billingRepositoryMock: { getPlatformPlans$: Mock };
+  let applicationErrorMock: { report: Mock };
 
   beforeEach(async () => {
     currentUserSubject = new BehaviorSubject<any>({
@@ -44,6 +48,50 @@ describe('SubscriptionPlanComponent', () => {
       shouldShow$: vi.fn().mockReturnValue(warningSubject.asObservable()),
       hydrate: vi.fn(),
     };
+    billingRepositoryMock = {
+      getPlatformPlans$: vi.fn().mockReturnValue(of({
+        catalogVersion: 7,
+        plans: [
+          {
+            id: 'platform_basic_monthly',
+            key: 'basic',
+            scope: 'platform_subscription',
+            title: 'Plano Básico',
+            description: 'Backend basic',
+            amountCents: 2199,
+            currency: 'BRL',
+            interval: 'month',
+            active: true,
+            catalogVersion: 7,
+          },
+          {
+            id: 'platform_premium_monthly',
+            key: 'premium',
+            scope: 'platform_subscription',
+            title: 'Plano Premium',
+            description: 'Backend premium',
+            amountCents: 3299,
+            currency: 'BRL',
+            interval: 'month',
+            active: true,
+            catalogVersion: 7,
+          },
+          {
+            id: 'platform_vip_monthly',
+            key: 'vip',
+            scope: 'platform_subscription',
+            title: 'Plano VIP',
+            description: 'Backend vip',
+            amountCents: 4599,
+            currency: 'BRL',
+            interval: 'month',
+            active: true,
+            catalogVersion: 7,
+          },
+        ],
+      })),
+    };
+    applicationErrorMock = { report: vi.fn() };
 
     await TestBed.configureTestingModule({
       imports: [SubscriptionPlanComponent],
@@ -71,6 +119,8 @@ describe('SubscriptionPlanComponent', () => {
           provide: IncompleteProfileSubscriptionNoticeService,
           useValue: noticeServiceMock,
         },
+        { provide: BillingRepository, useValue: billingRepositoryMock },
+        { provide: ApplicationErrorService, useValue: applicationErrorMock },
       ],
     }).compileComponents();
 
@@ -202,7 +252,7 @@ describe('SubscriptionPlanComponent', () => {
     expect(component.isDowngrade('basic', vm)).toBe(true);
     expect(component.canSelectPlan('basic', vm)).toBe(false);
     expect(component.getPlanActionLabel('basic', vm)).toBe(
-      'Redução no próximo ciclo'
+      'Disponível após ciclo atual'
     );
 
     component.subscribe('basic', vm);
@@ -229,6 +279,19 @@ describe('SubscriptionPlanComponent', () => {
     expect(fixture.nativeElement.textContent).not.toContain(
       'Assinatura com perfil em conclusão'
     );
+  });
+
+
+  it('renderiza preços exclusivamente do catálogo backend', () => {
+    const text = String(fixture.nativeElement.textContent ?? '')
+      .replace(/\s+/g, ' ');
+
+    expect(text).toContain('R$ 21,99/mês');
+    expect(text).toContain('R$ 32,99/mês');
+    expect(text).toContain('R$ 45,99/mês');
+    expect(text).not.toContain('R$ 19,99/mês');
+    expect(text).not.toContain('R$ 29,99/mês');
+    expect(text).not.toContain('R$ 39,99/mês');
   });
 
   it('deve continuar renderizando os cards dos planos sem duplicar quotas autoritativas no frontend', () => {

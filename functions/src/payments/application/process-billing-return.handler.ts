@@ -18,6 +18,9 @@ import {
 } from '../domain/billing.model';
 import { settleVerifiedPaidEvent } from './payment-settlement.service';
 import {
+  isPlatformCheckoutPriceLockActive,
+} from './platform-checkout-price-lock.policy';
+import {
   reconcilePlatformSubscriptionAccess,
 } from './platform-subscription-projection.service';
 import {
@@ -208,6 +211,7 @@ function buildVerifiedEmulatorPaidEvent(
     currency: checkout.currency,
     verified: true,
     verificationMode: 'emulator',
+    occurredAt: Date.now(),
     receivedAt: Date.now(),
     sanitizedPayloadHash: null,
   };
@@ -332,6 +336,20 @@ export const processBillingReturn = onCall<ProcessBillingReturnRequest>(
         providerSessionId: checkout.providerSessionId ?? null,
         message: 'Aguardando confirmação segura do provedor de pagamento.',
       });
+    }
+
+    if (!isPlatformCheckoutPriceLockActive(checkout)) {
+      return {
+        status: 'failed',
+        scope: checkout.scope,
+        role: null,
+        accessGranted: false,
+        checkoutSessionId: checkout.id,
+        providerSessionId: checkout.providerSessionId ?? null,
+        redirectTo: null,
+        message:
+          'O preço desta sessão expirou. Volte aos planos para carregar o valor vigente.',
+      };
     }
 
     const settlement = await settleVerifiedPaidEvent(

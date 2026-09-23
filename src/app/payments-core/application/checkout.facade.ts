@@ -177,7 +177,11 @@ export class CheckoutFacade {
       : '';
 
     if (reason === 'downgrade_requires_next_cycle') {
-      return 'A redução de plano ficará disponível quando puder ser programada para o próximo ciclo.';
+      return 'A redução de plano ficará disponível depois que o ciclo atual terminar.';
+    }
+
+    if (reason === 'plan_quote_required' || reason === 'plan_quote_changed') {
+      return 'O valor ou as condições deste plano foram atualizados. Volte aos planos e confira antes de continuar.';
     }
 
     return 'Não foi possível iniciar o checkout.';

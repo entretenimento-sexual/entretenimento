@@ -63,7 +63,7 @@
         <div class="checkout-price-block">
           <span class="checkout-price-label">Valor</span>
           <strong class="checkout-price">
-            {{ (plan.amountCents / 100) | currency:'BRL':'symbol':'1.2-2':'pt-BR' }}
+            {{ (plan.amountCents / 100) | currency:plan.currency:'symbol':'1.2-2':'pt-BR' }}
             <span *ngIf="plan.interval === 'month'">/mês</span>
           </strong>
         </div>

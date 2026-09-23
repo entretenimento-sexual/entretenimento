@@ -123,7 +123,7 @@
 
         <div class="subscription-plan-accordion__content">
           <p>
-            Upgrades entram em vigor após a confirmação do pagamento e preservam o período já pago. Reduções de plano não são aplicadas imediatamente: elas só serão oferecidas quando a plataforma puder programá-las com segurança para o próximo ciclo.
+            Upgrades entram em vigor após a confirmação do pagamento e preservam o período já pago. Reduções não retiram benefícios já pagos e, nesta etapa, só podem ser contratadas depois que o ciclo atual terminar.
           </p>
         </div>
       </details>
@@ -132,7 +132,7 @@
     <div class="plans-grid">
       <article
         class="plan"
-        *ngFor="let plan of plans"
+        *ngFor="let plan of (plans$ | async) ?? []"
         [class.featured-plan]="plan.featured"
         [class.plan--recommended]="isRecommendedPlan(plan.key, vm)"
         [attr.data-current]="vm.subscriptionActive && vm.currentPlanKey === plan.key ? 'true' : 'false'"
@@ -173,9 +173,9 @@
 
         @if (isDowngrade(plan.key, vm)) {
           <div class="plan-requirement-state" role="note">
-            <strong>Redução preservada para o próximo ciclo</strong>
+            <strong>Redução disponível após o ciclo atual</strong>
             <small>
-              Seu plano atual e os benefícios já pagos continuam válidos. A redução ficará disponível quando puder ser programada para a próxima renovação.
+              Seu plano atual e os benefícios já pagos continuam válidos. Não há agendamento automático de downgrade nesta etapa; escolha o plano menor depois do vencimento atual.
             </small>
           </div>
         } @else if (!planMeetsMinimum(plan.key, vm)) {

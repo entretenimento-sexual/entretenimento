@@ -112,6 +112,9 @@ export interface CheckoutSessionDoc {
   status: CheckoutSessionStatus;
   statusHistory?: CheckoutStatusHistoryItem[];
 
+  /** Limite do snapshot financeiro ainda não pago. */
+  expiresAt?: number | null;
+
   createdAt: number;
   updatedAt: number;
 
@@ -135,6 +138,9 @@ export interface VerifiedPaymentEvent {
 
   verified: true;
   verificationMode: PaymentVerificationMode;
+
+  /** Momento financeiro confiável do provider, quando disponível. */
+  occurredAt?: number | null;
 
   receivedAt: number;
 
@@ -163,6 +169,7 @@ export interface PaymentEventDoc {
 
   processed: boolean;
   processedAt: number;
+  occurredAt?: number | null;
   createdAt: number;
 }
 
