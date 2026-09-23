@@ -1,25 +1,15 @@
 import { Injectable, inject } from '@angular/core';
-import {
-  Firestore,
-  QueryConstraint,
-  collection,
-  documentId,
-  getDocs,
-  limit,
-  orderBy,
-  query,
-  startAfter,
-  where,
-} from '@angular/fire/firestore';
-import { Observable, throwError } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
 
 import {
   IPublicVideoItem,
   IPublicVideoProjection,
 } from 'src/app/core/interfaces/media/i-public-video-item';
-import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import {
+  PublicMediaReadBoundaryService,
+} from './public-media-read-boundary.service';
 import { PublicVideoAccessService } from './public-video-access.service';
 import { mapPublicVideoProjection } from './public-video-item.mapper';
 
@@ -35,24 +25,12 @@ export interface IPublicProfileVideoPage {
   readonly hasMore: boolean;
 }
 
-interface PublicProfileVideoRawDocument {
-  readonly id: string;
-  readonly data: Record<string, unknown>;
-}
-
-interface PublicProfileVideoRawPage {
-  readonly documents: readonly PublicProfileVideoRawDocument[];
-  readonly nextCursor: IPublicProfileVideoCursor | null;
-  readonly hasMore: boolean;
-}
-
 const DEFAULT_PAGE_SIZE = 12;
 const MAX_PAGE_SIZE = 24;
 
 @Injectable({ providedIn: 'root' })
 export class PublicProfileVideoPaginationService {
-  private readonly firestore = inject(Firestore);
-  private readonly firestoreCtx = inject(FirestoreContextService);
+  private readonly publicMediaRead = inject(PublicMediaReadBoundaryService);
   private readonly publicVideoAccess = inject(PublicVideoAccessService);
   private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
 
@@ -68,52 +46,49 @@ export class PublicProfileVideoPaginationService {
     const cursor = this.normalizeCursor(options.cursor);
 
     if (!safeOwnerUid) {
-      return new Observable<IPublicProfileVideoPage>((subscriber) => {
-        subscriber.next({ items: [], nextCursor: null, hasMore: false });
-        subscriber.complete();
-      });
+      return of({ items: [], nextCursor: null, hasMore: false });
     }
 
-    return this.firestoreCtx.deferPromise$(async () => {
-      const publicVideos = collection(
-        this.firestore,
-        `public_profiles/${safeOwnerUid}/public_videos`
-      );
-      const constraints = this.buildConstraints(pageSize, cursor);
-      const snapshot = await getDocs(query(publicVideos, ...constraints));
-      const hasMore = snapshot.docs.length > pageSize;
-      const pageDocuments = snapshot.docs.slice(0, pageSize).map((document) => ({
-        id: document.id,
-        data: document.data() as Record<string, unknown>,
-      }));
-      const lastDocument = pageDocuments.at(-1) ?? null;
-
-      return {
-        documents: pageDocuments,
-        nextCursor: hasMore && lastDocument
-          ? this.buildCursor(lastDocument)
-          : null,
-        hasMore,
-      } satisfies PublicProfileVideoRawPage;
+    return this.publicMediaRead.read$({
+      mediaType: 'VIDEO',
+      mode: 'PROFILE',
+      ownerUids: [safeOwnerUid],
+      limit: pageSize,
+      cursor: cursor
+        ? {
+            documentPath:
+              `public_profiles/${safeOwnerUid}/public_videos/${cursor.documentId}`,
+            orderIndex: cursor.orderIndex,
+            publishedAt: cursor.publishedAt,
+          }
+        : null,
     }).pipe(
-      map((rawPage) => ({
-        rawPage,
-        projections: rawPage.documents.flatMap((document) => {
+      map((response) => {
+        const projections = (response.items ?? []).flatMap((item) => {
+          const source = item as Record<string, unknown>;
           const projection = mapPublicVideoProjection({
-            documentId: document.id,
+            documentId: source['id'],
             expectedOwnerUid: safeOwnerUid,
-            data: document.data,
+            data: source,
           });
 
           return projection ? [projection] : [];
-        }) as IPublicVideoProjection[],
-      })),
-      switchMap(({ rawPage, projections }) =>
+        }) as IPublicVideoProjection[];
+
+        return {
+          projections,
+          nextCursor: this.fromBackendCursor(
+            response.nextCursor,
+            response.hasMore
+          ),
+        };
+      }),
+      switchMap(({ projections, nextCursor }) =>
         this.publicVideoAccess.hydratePublicVideoPreviews$(projections).pipe(
           map((items): IPublicProfileVideoPage => ({
             items,
-            nextCursor: rawPage.nextCursor,
-            hasMore: rawPage.hasMore,
+            nextCursor,
+            hasMore: nextCursor !== null,
           }))
         )
       ),
@@ -124,38 +99,32 @@ export class PublicProfileVideoPaginationService {
     );
   }
 
-  private buildConstraints(
-    pageSize: number,
-    cursor: IPublicProfileVideoCursor | null
-  ): QueryConstraint[] {
-    const constraints: QueryConstraint[] = [
-      where('ageEligibilityVerifiedAdult', '==', true),
-      where('visibility', '==', 'PUBLIC'),
-      where('moderationStatus', '==', 'APPROVED'),
-      orderBy('orderIndex', 'asc'),
-      orderBy('publishedAt', 'desc'),
-      orderBy(documentId(), 'desc'),
-    ];
-
-    if (cursor) {
-      constraints.push(startAfter(
-        cursor.orderIndex,
-        cursor.publishedAt,
-        cursor.documentId
-      ));
+  private fromBackendCursor(
+    cursor:
+      | {
+          readonly documentPath: string;
+          readonly publishedAt?: number;
+          readonly orderIndex?: number;
+        }
+      | null
+      | undefined,
+    hasMore: boolean
+  ): IPublicProfileVideoCursor | null {
+    if (!hasMore || !cursor) {
+      return null;
     }
 
-    constraints.push(limit(pageSize + 1));
-    return constraints;
-  }
+    const documentPath = String(cursor.documentPath ?? '').trim();
+    const documentId = documentPath.split('/').pop() ?? '';
 
-  private buildCursor(
-    document: PublicProfileVideoRawDocument
-  ): IPublicProfileVideoCursor {
+    if (!documentId) {
+      return null;
+    }
+
     return {
-      orderIndex: this.safeNumber(document.data['orderIndex']),
-      publishedAt: this.safeNumber(document.data['publishedAt']),
-      documentId: document.id,
+      orderIndex: this.safeNumber(cursor.orderIndex),
+      publishedAt: this.safeNumber(cursor.publishedAt),
+      documentId,
     };
   }
 
