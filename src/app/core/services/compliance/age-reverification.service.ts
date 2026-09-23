@@ -27,6 +27,13 @@ interface SubmitAgeReverificationResponse {
   status: 'SUBMITTED';
 }
 
+interface RequestAgeReverificationAppealResponse {
+  reportId: string;
+  caseId: string;
+  status: 'REQUIRED';
+  dueAt: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AgeReverificationService {
   private readonly environmentInjector = inject(EnvironmentInjector);
@@ -62,6 +69,18 @@ export class AgeReverificationService {
     );
   }
 
+  requestAppeal$(): Observable<RequestAgeReverificationAppealResponse> {
+    const callable = this.createAppealCallable();
+
+    return from(callable({})).pipe(
+      map((response) => response.data),
+      catchError((error) => {
+        this.reportError(error, 'requestAppeal');
+        return throwError(() => error);
+      })
+    );
+  }
+
   statusLabel(state: IUserAgeReverification | null | undefined): string {
     switch (normalizeAgeReverificationStatus(state?.status)) {
       case 'REQUIRED':
@@ -79,6 +98,18 @@ export class AgeReverificationService {
       default:
         return 'Sem revalidação pendente';
     }
+  }
+
+  private createAppealCallable() {
+    return runInInjectionContext(this.environmentInjector, () =>
+      httpsCallable<
+        Record<string, never>,
+        RequestAgeReverificationAppealResponse
+      >(
+        inject(Functions),
+        'requestProfileAgeReverificationAppeal'
+      )
+    );
   }
 
   private createSubmitCallable() {
