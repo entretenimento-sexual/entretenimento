@@ -418,20 +418,42 @@ match /users/{userId} {
 
   function validUserUpdate() {
     let changedKeys = affectedUserKeys();
-    return selfCompletingRegistration(changedKeys)
-      || selfUpdatingDiscoveryProjection(changedKeys)
-      || ordinarySelfUpdateAllowed(changedKeys)
-      || (isAdminActor() && adminModerationOnly(changedKeys));
+    let registrationKeys = [
+      "profileCompleted",
+      "registrationCompletedAt",
+      "publicVisibility",
+      "interactionBlocked"
+    ];
+    let adminModerationKeys = [
+      "accountLocked",
+      "suspended",
+      "suspensionReason",
+      "suspendedAt",
+      "accountStatus",
+      "moderatedBy",
+      "moderatedAt",
+      "lastStatusChangeAt"
+    ];
+
+    return changedKeys.hasAny(registrationKeys)
+      ? selfCompletingRegistration(changedKeys)
+      : changedKeys.hasAny(discoveryProjectionKeys())
+        ? selfUpdatingDiscoveryProjection(changedKeys)
+        : changedKeys.hasAny(adminModerationKeys) && isAdminActor()
+          ? adminModerationOnly(changedKeys)
+          : ordinarySelfUpdateAllowed(changedKeys);
   }
 
   allow get: if isSelf(userId) || isAdminActor();
   allow list: if false;
 
-  allow create: if isSelf(userId)
+  allow create: if resource == null
+    && isSelf(userId)
     && emailVerifiedMatchesToken()
     && createDefaultsOk();
 
-  allow update: if validUserUpdate();
+  allow update: if resource != null
+    && validUserUpdate();
 
   allow delete: if false;
 }
