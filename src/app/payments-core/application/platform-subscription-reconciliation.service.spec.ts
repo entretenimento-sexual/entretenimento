@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { BehaviorSubject, of } from 'rxjs';
+import { BehaviorSubject, of, throwError } from 'rxjs';
 import {
   afterEach,
   beforeEach,
@@ -35,17 +35,17 @@ describe('PlatformSubscriptionReconciliationService', () => {
   let ready$: BehaviorSubject<boolean>;
   let uid$: BehaviorSubject<string | null>;
   let user$: BehaviorSubject<IUserDados | null | undefined>;
-  let current: IUserDados;
   let getSnapshotMock: ReturnType<typeof vi.fn>;
   let patchMock: ReturnType<typeof vi.fn>;
+  let globalErrorMock: ReturnType<typeof vi.fn>;
   let service: PlatformSubscriptionReconciliationService;
 
   beforeEach(() => {
-    vi.spyOn(Date, 'now').mockReturnValue(NOW);
     ready$ = new BehaviorSubject<boolean>(true);
     uid$ = new BehaviorSubject<string | null>('u1');
-    current = { ...CURRENT_USER };
-    user$ = new BehaviorSubject<IUserDados | null | undefined>(current);
+    user$ = new BehaviorSubject<IUserDados | null | undefined>({
+      ...CURRENT_USER,
+    });
     getSnapshotMock = vi.fn(() =>
       of({
         role: 'premium',
@@ -57,12 +57,14 @@ describe('PlatformSubscriptionReconciliationService', () => {
         endsAt: NOW + 60_000,
         updatedAt: NOW,
         projectionVersion: 1,
+        recurringConfigured: true,
+        renewalEnabled: true,
+        renewalStatus: 'active',
+        renewalCancellationPending: false,
       })
     );
-    patchMock = vi.fn((partial: Partial<IUserDados>) => {
-      current = { ...current, ...partial };
-      user$.next(current);
-    });
+    patchMock = vi.fn();
+    globalErrorMock = vi.fn();
 
     TestBed.configureTestingModule({
       providers: [
@@ -78,7 +80,6 @@ describe('PlatformSubscriptionReconciliationService', () => {
           provide: CurrentUserStoreService,
           useValue: {
             user$: user$.asObservable(),
-            getSnapshot: () => current,
             patch: patchMock,
           },
         },
@@ -88,7 +89,7 @@ describe('PlatformSubscriptionReconciliationService', () => {
         },
         {
           provide: GlobalErrorHandlerService,
-          useValue: { handleError: vi.fn() },
+          useValue: { handleError: globalErrorMock },
         },
       ],
     });
@@ -101,38 +102,11 @@ describe('PlatformSubscriptionReconciliationService', () => {
     vi.restoreAllMocks();
   });
 
-  it('aplica snapshot canônico ativo ao runtime', () => {
+  it('aciona a reconciliação backend quando sessão e perfil apontam para o mesmo uid', () => {
     service.start();
 
     expect(getSnapshotMock).toHaveBeenCalledTimes(1);
-    expect(patchMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        role: 'premium',
-        tier: 'premium',
-        billingProjectionVersion: 1,
-        isSubscriber: true,
-        monthlyPayer: true,
-        subscriptionStatus: 'active',
-        subscriptionScope: 'platform_subscription',
-        subscriptionStartedAt: NOW - 60_000,
-        subscriptionEndsAt: NOW + 60_000,
-      })
-    );
-  });
-
-  it('preserva papel administrativo e usa tier pago separadamente', () => {
-    current = { ...CURRENT_USER, role: 'admin', tier: 'free' };
-    user$.next(current);
-
-    service.start();
-
-    expect(patchMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        role: 'admin',
-        tier: 'premium',
-        isSubscriber: true,
-      })
-    );
+    expect(patchMock).not.toHaveBeenCalled();
   });
 
   it('aguarda a hidratação do perfil atual', () => {
@@ -141,96 +115,22 @@ describe('PlatformSubscriptionReconciliationService', () => {
 
     expect(getSnapshotMock).not.toHaveBeenCalled();
 
-    user$.next(current);
+    user$.next({ ...CURRENT_USER });
 
     expect(getSnapshotMock).toHaveBeenCalledTimes(1);
+    expect(patchMock).not.toHaveBeenCalled();
   });
 
-  it('faz fail-closed quando o período retornado já expirou', () => {
-    getSnapshotMock.mockReturnValueOnce(
-      of({
-        role: 'premium',
-        tier: 'premium',
-        isSubscriber: true,
-        status: 'active',
-        entitlements: ['platform_subscription'],
-        startsAt: NOW - 60_000,
-        endsAt: NOW,
-        updatedAt: NOW,
-        projectionVersion: 1,
-      })
-    );
+  it('não reconcilia quando o perfil hidratado pertence a outro uid', () => {
+    user$.next({
+      ...CURRENT_USER,
+      uid: 'u2',
+    });
 
     service.start();
 
-    expect(patchMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        role: 'free',
-        tier: 'free',
-        isSubscriber: false,
-        monthlyPayer: false,
-        subscriptionStatus: 'inactive',
-        subscriptionScope: null,
-      })
-    );
-  });
-
-  it('faz fail-closed quando faltam versão, entitlement ou role válida', () => {
-    getSnapshotMock.mockReturnValueOnce(
-      of({
-        role: null,
-        tier: null,
-        isSubscriber: true,
-        status: 'active',
-        entitlements: [],
-        startsAt: NOW - 60_000,
-        endsAt: NOW + 60_000,
-        updatedAt: NOW,
-        projectionVersion: null,
-      })
-    );
-
-    service.start();
-
-    expect(patchMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        role: 'free',
-        tier: 'free',
-        billingProjectionVersion: 1,
-        isSubscriber: false,
-        monthlyPayer: false,
-        subscriptionStatus: 'inactive',
-        subscriptionScope: null,
-      })
-    );
-  });
-
-  it('faz fail-closed quando o snapshot não contém período finito', () => {
-    getSnapshotMock.mockReturnValueOnce(
-      of({
-        role: 'vip',
-        tier: 'vip',
-        isSubscriber: true,
-        status: 'active',
-        entitlements: ['platform_subscription'],
-        startsAt: Number.NaN,
-        endsAt: Number.POSITIVE_INFINITY,
-        updatedAt: NOW,
-        projectionVersion: 1,
-      })
-    );
-
-    service.start();
-
-    expect(patchMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        role: 'free',
-        tier: 'free',
-        isSubscriber: false,
-        monthlyPayer: false,
-        subscriptionStatus: 'inactive',
-      })
-    );
+    expect(getSnapshotMock).not.toHaveBeenCalled();
+    expect(patchMock).not.toHaveBeenCalled();
   });
 
   it('reconcilia novamente após logout e login do mesmo usuário', () => {
@@ -239,5 +139,29 @@ describe('PlatformSubscriptionReconciliationService', () => {
     uid$.next('u1');
 
     expect(getSnapshotMock).toHaveBeenCalledTimes(2);
+    expect(patchMock).not.toHaveBeenCalled();
+  });
+
+  it('reporta falha de reconciliação sem fabricar estado financeiro local', () => {
+    getSnapshotMock.mockReturnValueOnce(
+      throwError(() => new Error('billing unavailable'))
+    );
+
+    service.start();
+
+    expect(globalErrorMock).toHaveBeenCalledTimes(1);
+    expect(patchMock).not.toHaveBeenCalled();
+  });
+
+  it('não repete a callable em mudanças do mesmo perfil sem troca de sessão', () => {
+    service.start();
+
+    user$.next({
+      ...CURRENT_USER,
+      nickname: 'novo-apelido',
+    });
+
+    expect(getSnapshotMock).toHaveBeenCalledTimes(1);
+    expect(patchMock).not.toHaveBeenCalled();
   });
 });
