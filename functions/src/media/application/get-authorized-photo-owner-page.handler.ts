@@ -72,7 +72,7 @@ function hasCurrentPublicAgeEligibility(
   data: FirebaseFirestore.DocumentData | undefined,
   nowMs: number
 ): boolean {
-  if (data?.['ageEligibilityVerifiedAdult'] !== true) return false;
+  if (data?.['ageEligibilityAdultAccessAllowed'] !== true) return false;
 
   const validUntil = data?.['ageEligibilityValidUntil'] as
     | { toMillis?: unknown }
@@ -193,7 +193,7 @@ async function loadVisibilityPage(input: {
   let photoQuery = db
     .collectionGroup('public_photos')
     .where('ownerUid', 'in', [...input.ownerUids])
-    .where('ageEligibilityVerifiedAdult', '==', true)
+    .where('ageEligibilityAdultAccessAllowed', '==', true)
     .where('moderationStatus', '==', 'APPROVED')
     .where('visibility', '==', input.visibility)
     .orderBy('publishedAt', 'desc')
