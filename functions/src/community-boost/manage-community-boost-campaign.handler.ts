@@ -6,12 +6,17 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { assertRecentAuthentication } from '../account_lifecycle/_shared';
+import { assertInteractionAccessData } from '../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import {
   REQUIRE_CALLABLE_APP_CHECK,
   assertCallableAppCheck,
 } from '../shared/security/callable-app-check';
+import {
+  evaluateCommunityBoostCampaignAuthorityInTransaction,
+  stopCommunityBoostForAuthorityLossInTransaction,
+} from './community-boost-authority.service';
 import {
   buildCommunityBoostCampaign,
   normalizeCommunityBoostAdvertiserAccount,
@@ -93,6 +98,9 @@ function assertCommunityEligible(
 ): {
   sourceType: 'community' | 'venue';
   tagIds: readonly string[];
+  communityOwnerUid: string;
+  communityOwnerTransferredAt: number | null;
+  authorityRole: 'owner' | 'admin' | 'platform_admin';
 } {
   const community = (rawCommunity ?? {}) as Record<string, unknown>;
   const membership = (rawMembership ?? {}) as Record<string, unknown>;
@@ -116,9 +124,21 @@ function assertCommunityEligible(
     );
   }
 
-  if (!admin) {
-    const role = membership['role'];
-    const status = membership['status'];
+  const communityOwnerUid = cleanId(community['ownerUid']);
+  if (!communityOwnerUid) {
+    throw new HttpsError(
+      'data-loss',
+      'A propriedade da Comunidade está inconsistente.'
+    );
+  }
+
+  const role = membership['role'];
+  const status = membership['status'];
+  let authorityRole: 'owner' | 'admin' | 'platform_admin';
+
+  if (admin) {
+    authorityRole = 'platform_admin';
+  } else {
     if (
       status !== 'active'
       || (role !== 'owner' && role !== 'admin')
@@ -130,12 +150,33 @@ function assertCommunityEligible(
         { reason: 'community_boost_manager_required' }
       );
     }
+    authorityRole = role;
   }
 
   if (String(discovery['communityId'] ?? communityId).trim() !== communityId) {
     throw new HttpsError(
       'data-loss',
       'A projeção pública da Comunidade está inconsistente.'
+    );
+  }
+
+  const rawTransferredAt = community['ownerTransferredAt'];
+  const parsedTransferredAt = Math.trunc(Number(rawTransferredAt));
+  const communityOwnerTransferredAt =
+    rawTransferredAt === null || rawTransferredAt === undefined
+      ? null
+      : Number.isFinite(parsedTransferredAt) && parsedTransferredAt > 0
+        ? parsedTransferredAt
+        : null;
+
+  if (
+    rawTransferredAt !== null
+    && rawTransferredAt !== undefined
+    && communityOwnerTransferredAt === null
+  ) {
+    throw new HttpsError(
+      'data-loss',
+      'O histórico de propriedade da Comunidade está inconsistente.'
     );
   }
 
@@ -146,6 +187,9 @@ function assertCommunityEligible(
         .map((value) => String(value ?? '').trim())
         .filter(Boolean)
       : [],
+    communityOwnerUid,
+    communityOwnerTransferredAt,
+    authorityRole,
   };
 }
 
@@ -196,6 +240,10 @@ export const manageCommunityBoostCampaign =
         const advertiserAccountRef = db
           .collection('community_boost_advertiser_accounts')
           .doc(actor.uid);
+        const actorUserRef = db.collection('users').doc(actor.uid);
+        const actorAgeEligibilityRef = db
+          .collection('age_eligibility_records')
+          .doc(actor.uid);
         const activeSlotRef = db
           .collection('community_boost_active_slots')
           .doc(communityId);
@@ -208,6 +256,8 @@ export const manageCommunityBoostCampaign =
             discoverySnapshot,
             billingConfigSnapshot,
             advertiserAccountSnapshot,
+            actorUserSnapshot,
+            actorAgeEligibilitySnapshot,
             activeSlotSnapshot,
           ] = await Promise.all([
             transaction.get(requestRef),
@@ -216,6 +266,8 @@ export const manageCommunityBoostCampaign =
             transaction.get(discoveryRef),
             transaction.get(billingConfigRef),
             transaction.get(advertiserAccountRef),
+            transaction.get(actorUserRef),
+            transaction.get(actorAgeEligibilityRef),
             transaction.get(activeSlotRef),
           ]);
 
@@ -241,6 +293,14 @@ export const manageCommunityBoostCampaign =
           if (!communitySnapshot.exists || !discoverySnapshot.exists) {
             throw new HttpsError('not-found', 'Comunidade não encontrada.');
           }
+
+          assertInteractionAccessData(
+            actorUserSnapshot.exists ? actorUserSnapshot.data() : null,
+            actorAgeEligibilitySnapshot.exists
+              ? actorAgeEligibilitySnapshot.data()
+              : null,
+            actor.uid
+          );
 
           if (activeSlotSnapshot.exists) {
             const activeSlot = activeSlotSnapshot.data() ?? {};
@@ -343,7 +403,12 @@ export const manageCommunityBoostCampaign =
           const campaign = buildCommunityBoostCampaign({
             campaignId: campaignRef.id,
             communityId,
+            advertiserUid: actor.uid,
             ownerUid: actor.uid,
+            communityOwnerUidSnapshot: target.communityOwnerUid,
+            communityOwnerTransferredAtSnapshot:
+              target.communityOwnerTransferredAt,
+            authorityRoleSnapshot: target.authorityRole,
             targetSourceType: target.sourceType,
             targetTagId,
             budgetCents: requestedBudgetCents,
@@ -390,6 +455,13 @@ export const manageCommunityBoostCampaign =
               campaignId: campaignRef.id,
               communityId,
               actorUid: actor.uid,
+              advertiserUid: campaign.advertiserUid,
+              communityOwnerUidSnapshot:
+                campaign.communityOwnerUidSnapshot,
+              communityOwnerTransferredAtSnapshot:
+                campaign.communityOwnerTransferredAtSnapshot,
+              authorityRoleSnapshot: campaign.authorityRoleSnapshot,
+              ledgerOwnershipTransferred: false,
               budgetCents: campaign.budgetCents,
               dailyBudgetCents: campaign.dailyBudgetCents,
               billingConfigVersion: campaign.billingConfigVersion,
@@ -426,7 +498,7 @@ export const manageCommunityBoostCampaign =
         .collection('community_boost_campaigns')
         .doc(campaignId);
 
-      return db.runTransaction(async (transaction) => {
+      const result = await db.runTransaction(async (transaction) => {
         const [requestSnapshot, campaignSnapshot] = await Promise.all([
           transaction.get(requestRef),
           transaction.get(campaignRef),
@@ -448,6 +520,9 @@ export const manageCommunityBoostCampaign =
             campaignId,
             status: String(existing['status'] ?? ''),
             created: false,
+            authorityLost:
+              existing['resultReason'] === 'community_boost_authority_invalid',
+            authorityReason: String(existing['authorityReason'] ?? '') || null,
           };
         }
 
@@ -458,7 +533,7 @@ export const manageCommunityBoostCampaign =
           throw new HttpsError('not-found', 'Campanha não encontrada.');
         }
 
-        if (!actor.admin && campaign.ownerUid !== actor.uid) {
+        if (!actor.admin && campaign.advertiserUid !== actor.uid) {
           throw new HttpsError(
             'permission-denied',
             'Você não pode gerenciar esta campanha.',
@@ -480,14 +555,14 @@ export const manageCommunityBoostCampaign =
           const advertiserAccountSnapshot = await transaction.get(
             db
               .collection('community_boost_advertiser_accounts')
-              .doc(campaign.ownerUid)
+              .doc(campaign.advertiserUid)
           );
           const advertiserAccount =
             normalizeCommunityBoostAdvertiserAccount(
               advertiserAccountSnapshot.exists
                 ? advertiserAccountSnapshot.data()
                 : null,
-              campaign.ownerUid
+              campaign.advertiserUid
             );
 
           if (
@@ -500,6 +575,38 @@ export const manageCommunityBoostCampaign =
               'A conta anunciante não está elegível para retomar esta campanha.',
               { reason: 'community_boost_advertiser_eligibility_required' }
             );
+          }
+
+          const authorityDecision =
+            await evaluateCommunityBoostCampaignAuthorityInTransaction(
+              transaction,
+              campaign
+            );
+          if (!authorityDecision.allowed) {
+            await stopCommunityBoostForAuthorityLossInTransaction({
+              transaction,
+              campaign,
+              decision: authorityDecision,
+              now,
+            });
+            transaction.create(requestRef, {
+              requestId,
+              action,
+              actorUid: actor.uid,
+              campaignId,
+              status: 'canceled',
+              resultReason: 'community_boost_authority_invalid',
+              authorityReason: authorityDecision.denialReason,
+              expiresAt: now + 7 * 24 * 60 * 60 * 1_000,
+              createdAt: now,
+            });
+            return {
+              campaignId,
+              status: 'canceled',
+              created: false,
+              authorityLost: true,
+              authorityReason: authorityDecision.denialReason,
+            };
           }
 
           if (
@@ -598,7 +705,22 @@ export const manageCommunityBoostCampaign =
           campaignId,
           status: nextStatus,
           created: false,
+          authorityLost: false,
+          authorityReason: null,
         };
       });
+
+      if (result.authorityLost) {
+        throw new HttpsError(
+          'failed-precondition',
+          'A campanha foi cancelada porque o anunciante perdeu autoridade sobre a Comunidade.',
+          {
+            reason: 'community_boost_authority_invalid',
+            authorityReason: result.authorityReason,
+          }
+        );
+      }
+
+      return result;
     }
   );

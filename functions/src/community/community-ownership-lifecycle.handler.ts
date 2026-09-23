@@ -11,6 +11,9 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { assertRecentAuthentication } from '../account_lifecycle/_shared';
+import {
+  stopOpenCommunityBoostForCommunityInTransaction,
+} from '../community-boost/community-boost-authority.service';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { buildCommunityOperationalRequestRetention } from './community-operational-retention.policy';
 import { db, FieldValue } from '../firebaseApp';
@@ -600,6 +603,14 @@ export const transferCommunityOwnership =
         const now = Date.now();
         const communityName = normalizeText(community['name'], 80);
 
+        await stopOpenCommunityBoostForCommunityInTransaction({
+          transaction,
+          communityId,
+          reason: 'community_ownership_transferred',
+          now,
+          actorUid,
+        });
+
         transaction.update(communityRef, {
           ownerUid: targetUid,
           ownerTransferredAt: now,
@@ -830,6 +841,14 @@ export const archiveCommunity = onCall<CommunityArchivePayload>(
           'A contagem de participantes desta Comunidade está inconsistente.'
         );
       }
+
+      await stopOpenCommunityBoostForCommunityInTransaction({
+        transaction,
+        communityId,
+        reason: 'community_archived',
+        now,
+        actorUid,
+      });
 
       const communityPatch: Record<string, unknown> = {
         status: 'archived',
