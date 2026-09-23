@@ -18,37 +18,11 @@ import {
   REQUIRE_PUBLIC_MEDIA_APP_CHECK,
 } from './public-media-callable-security';
 import { assertPublicMediaConsumptionAccess } from './public-media-consumption-access.policy';
+import {
+  publicAgeProjectionValidUntilMs,
+  resolvePublicMediaSignedUrlExpiresAt,
+} from './public-media-age-expiry.policy';
 import { createTemporaryStorageReadUrl } from './temporary-storage-read-url.service';
-
-function publicAgeEligibilityValidUntilMs(
-  data: Record<string, unknown> | undefined
-): number | null {
-  if (data?.['ageEligibilityVerifiedAdult'] !== true) return null;
-
-  const validUntil = data?.['ageEligibilityValidUntil'] as
-    | { toMillis?: unknown }
-    | null
-    | undefined;
-
-  if (!validUntil || typeof validUntil.toMillis !== 'function') {
-    return null;
-  }
-
-  try {
-    const value = (validUntil as { toMillis: () => number }).toMillis();
-    return Number.isFinite(value) ? value : null;
-  } catch {
-    return null;
-  }
-}
-
-function hasCurrentPublicAgeEligibility(
-  data: Record<string, unknown> | undefined,
-  nowMs = Date.now()
-): boolean {
-  const validUntilMs = publicAgeEligibilityValidUntilMs(data);
-  return validUntilMs !== null && validUntilMs > nowMs;
-}
 
 interface PublicPhotoAccessRequestItem {
   ownerUid?: string;
@@ -128,7 +102,9 @@ async function consumePublicPhotoAccessQuota(
 async function resolveAccessItem(
   ownerUid: string,
   photoId: string,
-  maxExpiresAt: number,
+  technicalExpiresAt: number,
+  viewerExpiresAt: number,
+  ownerExpiresAt: number,
   publicProfileExists: boolean,
   viewerIsOwner: boolean,
   viewerIsFriend: boolean
@@ -159,7 +135,7 @@ async function resolveAccessItem(
     .toUpperCase();
 
   const mediaValidUntilMs =
-    publicAgeEligibilityValidUntilMs(publicPhoto);
+    publicAgeProjectionValidUntilMs(publicPhoto);
 
   if (
     mediaValidUntilMs === null ||
@@ -193,9 +169,15 @@ async function resolveAccessItem(
     throw new Error('O ativo publicado não foi encontrado no Storage.');
   }
 
-  const expiresAt = Math.min(maxExpiresAt, mediaValidUntilMs);
+  const expiresAt = resolvePublicMediaSignedUrlExpiresAt({
+    nowMs: Date.now(),
+    technicalExpiresAtMs: technicalExpiresAt,
+    viewerExpiresAtMs: viewerExpiresAt,
+    ownerExpiresAtMs: ownerExpiresAt,
+    mediaExpiresAtMs: mediaValidUntilMs,
+  });
 
-  if (expiresAt <= Date.now()) {
+  if (expiresAt === null) {
     return null;
   }
 
@@ -309,7 +291,7 @@ export const getPublicPhotoAccessUrls = onCall<PublicPhotoAccessRequest>(
             ]);
           const profileValidUntilMs =
             profileSnapshot.exists
-              ? publicAgeEligibilityValidUntilMs(profileSnapshot.data())
+              ? publicAgeProjectionValidUntilMs(profileSnapshot.data())
               : null;
           const ownerAgeDecision = evaluateCanonicalAgeEligibility({
             uid: ownerUid,
@@ -385,12 +367,10 @@ export const getPublicPhotoAccessUrls = onCall<PublicPhotoAccessRequest>(
               item: await resolveAccessItem(
                 ownerUid,
                 photoId,
-                Math.min(
-                  technicalExpiresAt,
-                  viewerExpiresAt,
-                  profileAccess?.validUntilMs ??
-                    Number.NEGATIVE_INFINITY
-                ),
+                technicalExpiresAt,
+                viewerExpiresAt,
+                profileAccess?.validUntilMs ??
+                  Number.NEGATIVE_INFINITY,
                 profileAccess?.exists === true,
                 ownerUid === viewerUid,
                 socialAccess.friendTargetUids.has(ownerUid)
