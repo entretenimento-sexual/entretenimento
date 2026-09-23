@@ -56,7 +56,6 @@ const COMMUNITY_CALLABLE_RECENT_AUTH_REQUIREMENTS =
     ['community-ownership-transfer.workflow.handler.ts:getMyCommunityOwnershipTransfers', 'none'],
     ['community-ownership-transfer.workflow.handler.ts:respondCommunityOwnershipTransfer', 'always'],
     ['community-ownership-transfer.workflow.handler.ts:cancelCommunityOwnershipTransfer', 'always'],
-    ['community-ownership-transfer.workflow.handler.ts:openCommunityOwnerTerminalSuccession', 'always'],
     ['community-ownership-transfer.workflow.handler.ts:openCommunityOwnerTerminalSuccessionCase', 'always'],
     ['community-ownership-transfer.workflow.handler.ts:nominateCommunityOwnerTerminalSuccessor', 'always'],
     ['community-ownership-transfer.workflow.handler.ts:cancelCommunityOwnerTerminalSuccession', 'always'],
