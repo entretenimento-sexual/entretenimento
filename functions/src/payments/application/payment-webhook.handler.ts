@@ -20,7 +20,6 @@ import {
 } from '../infrastructure/providers/asaas.provider';
 import {
   ASAAS_WEBHOOK_TOKEN,
-  resolveAsaasApiRuntimeConfig,
 } from '../config/asaas.config';
 import {
   persistVerifiedProviderWebhookEvent,
@@ -84,7 +83,6 @@ export const paymentWebhook = onRequest(
 
     try {
       const provider = new AsaasPaymentProvider({
-        runtime: resolveAsaasApiRuntimeConfig(),
         webhookToken: ASAAS_WEBHOOK_TOKEN.value(),
       });
 
