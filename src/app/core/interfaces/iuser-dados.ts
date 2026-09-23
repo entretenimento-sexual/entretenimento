@@ -17,18 +17,21 @@ export type LifecycleActorSource = 'self' | 'moderator' | 'system';
 
 export type AgeEligibilityStatus =
   | 'UNVERIFIED'
+  | 'DECLARED_ADULT'
   | 'REVIEW_REQUIRED'
   | 'VERIFIED_ADULT'
   | 'DENIED_UNDERAGE'
   | 'EXPIRED';
 
 export type AgeEligibilitySource =
+  | 'INITIAL_DECLARATION'
   | 'INITIAL_VERIFICATION'
   | 'AGE_REVERIFICATION'
   | 'PROFILE_KYC'
   | 'MIGRATION';
 
 export type AgeEligibilityMethod =
+  | 'SELF_DECLARATION'
   | 'EXTERNAL_PROVIDER'
   | 'MANUAL_REVIEW'
   | 'KYC'
