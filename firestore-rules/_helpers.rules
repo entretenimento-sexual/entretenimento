@@ -112,62 +112,28 @@ service cloud.firestore {
       let eligibility = signedIn()
         ? get(eligibilityPath).data
         : null;
-      let status = eligibility is map
-        ? mapFieldOrNull(eligibility, "status")
-        : null;
-      let source = eligibility is map
-        ? mapFieldOrNull(eligibility, "source")
-        : null;
-      let method = eligibility is map
-        ? mapFieldOrNull(eligibility, "method")
-        : null;
-      let assuranceLevel = eligibility is map
-        ? mapFieldOrNull(eligibility, "assuranceLevel")
-        : null;
-      let decidedAt = eligibility is map
-        ? mapFieldOrNull(eligibility, "decidedAt")
-        : null;
       let verifiedAt = eligibility is map
         ? mapFieldOrNull(eligibility, "verifiedAt")
         : null;
       let expiresAt = eligibility is map
         ? mapFieldOrNull(eligibility, "expiresAt")
         : null;
-      let selfAttestedAdult =
-        status == "DECLARED_ADULT"
-        && source == "SELF_ATTESTATION"
-        && method == "SELF_ATTESTATION"
-        && assuranceLevel == "SELF_ATTESTED"
-        && decidedAt is timestamp
-        && decidedAt <= request.time;
-      let stronglyVerifiedAdult =
-        status == "VERIFIED_ADULT"
-        && method != "SELF_ATTESTATION"
-        && (
-          assuranceLevel == null
-          || assuranceLevel == "VERIFIED"
-        )
-        && verifiedAt is timestamp
-        && verifiedAt <= request.time
-        && (
-          expiresAt == null
-          || (expiresAt is timestamp && request.time < expiresAt)
-        );
 
       return eligibility is map
         && eligibility.uid == userId
         && eligibility.policyVersion == 1
-        && (selfAttestedAdult || stronglyVerifiedAdult);
-    }
-
-    function publicAgeProjectionAllowsAdultExposure(data) {
-      let validUntil = data is map
-        ? mapFieldOrNull(data, "ageEligibilityValidUntil")
-        : null;
-      return data is map
-        && mapFieldOrNull(data, "ageEligibilityVerifiedAdult") == true
-        && validUntil is timestamp
-        && request.time < validUntil;
+        && (
+          eligibility.status == "DECLARED_ADULT"
+          || (
+            eligibility.status == "VERIFIED_ADULT"
+            && verifiedAt is timestamp
+            && verifiedAt <= request.time
+            && (
+              expiresAt == null
+              || (expiresAt is timestamp && request.time < expiresAt)
+            )
+          )
+        );
     }
 
     function currentUserHasAdultAgeAccess() {
