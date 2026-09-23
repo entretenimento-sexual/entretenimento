@@ -279,6 +279,36 @@ if (fs.existsSync(helperPath)) {
 
 
 
+const selfDeclarationHandlerPath = path.join(
+  root,
+  'functions/src/compliance/accept-adult-self-declaration.handler.ts'
+);
+if (fs.existsSync(selfDeclarationHandlerPath)) {
+  const source = codeOnly(fs.readFileSync(selfDeclarationHandlerPath, 'utf8'));
+
+  for (const required of [
+    "status: 'SELF_DECLARED_ADULT'",
+    "source: 'SELF_DECLARATION'",
+    "method: 'SELF_DECLARATION'",
+    "current.status === 'REVIEW_REQUIRED'",
+    "current.status === 'DENIED_UNDERAGE'",
+    'writeCanonicalAgeEligibilityInTransaction',
+    'compliance_audit',
+  ]) {
+    if (!source.includes(required)) {
+      violations.push(
+        `functions/src/compliance/accept-adult-self-declaration.handler.ts (autodeclaração provisória deve preservar: ${required})`
+      );
+    }
+  }
+
+  if (/status:\s*['"]VERIFIED_ADULT['"][\s\S]{0,220}confirmsAdult/.test(source)) {
+    violations.push(
+      'functions/src/compliance/accept-adult-self-declaration.handler.ts (autodeclaração não pode promover diretamente VERIFIED_ADULT)'
+    );
+  }
+}
+
 const trustedAgeDecisionFiles = Object.freeze([
   'functions/src/compliance/review-initial-age-verification.handler.ts',
   'functions/src/compliance/review-profile-age-reverification.handler.ts',
@@ -349,10 +379,32 @@ if (fs.existsSync(minorSafetyReportPath)) {
     'consumeBackendRateLimitQuota',
     'getModerationReporterAbuseRisk',
     'safeRecordModerationOpenSignal',
+    'allowReversibleEnforcement: true',
   ]) {
     if (!source.includes(required)) {
       violations.push(
         `functions/src/compliance/report-profile-minor-safety.handler.ts (denúncia de menoridade deve preservar proteção transversal: ${required})`
+      );
+    }
+  }
+}
+
+const moderationPolicyPath = path.join(
+  root,
+  'functions/src/moderation/moderation-automation.policy.ts'
+);
+if (fs.existsSync(moderationPolicyPath)) {
+  const source = codeOnly(fs.readFileSync(moderationPolicyPath, 'utf8'));
+
+  for (const required of [
+    'holdCriticalReports',
+    'holdCriticalUniqueReporters',
+    "'TEMPORARY_INTERACTION_HOLD'",
+    "'critical_report_volume'",
+  ]) {
+    if (!source.includes(required)) {
+      violations.push(
+        `functions/src/moderation/moderation-automation.policy.ts (denúncia crítica sem equipe deve preservar resposta reversível: ${required})`
       );
     }
   }
