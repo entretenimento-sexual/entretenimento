@@ -29,6 +29,13 @@ import {
   TERMS_ACCEPTANCE_VERSION,
 } from './platform-legal.constants';
 
+const AGE_ADMISSION_MODE =
+  String(process.env.AGE_ADMISSION_MODE ?? 'SELF_DECLARATION')
+    .trim()
+    .toUpperCase() === 'VERIFIED_REQUIRED'
+    ? 'VERIFIED_REQUIRED'
+    : 'SELF_DECLARATION';
+
 interface AcceptAdultSelfDeclarationRequest {
   confirmsAdult?: boolean;
 }
@@ -65,6 +72,13 @@ export const acceptAdultSelfDeclaration =
         throw new HttpsError(
           'failed-precondition',
           'Confirme seu e-mail antes de continuar.'
+        );
+      }
+
+      if (AGE_ADMISSION_MODE === 'VERIFIED_REQUIRED') {
+        throw new HttpsError(
+          'failed-precondition',
+          'A política atual exige verificação de maioridade por uma fonte confiável.'
         );
       }
 
