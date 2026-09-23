@@ -3,7 +3,8 @@
 // AGE ELIGIBILITY CLIENT PROJECTION
 // -----------------------------------------------------------------------------
 // Observa somente a projeção sanitizada de users/{uid}.ageEligibility.
-// Não escreve, não calcula idade e não transforma autodeclaração em autorização.
+// A autodeclaração nunca vira VERIFIED_ADULT; o backend pode registrar
+// DECLARED_ADULT quando a política operacional permitir acesso provisório.
 // -----------------------------------------------------------------------------
 
 import {
@@ -29,6 +30,9 @@ import {
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { toErrorInstance } from 'src/app/core/utils/firebase-error-utils';
+import {
+  AGE_ACCESS_ALLOWS_SELF_DECLARATION,
+} from './age-access-policy.generated';
 
 const UNVERIFIED: IUserAgeEligibility = Object.freeze({
   status: 'UNVERIFIED',
@@ -66,8 +70,21 @@ export class AgeEligibilityService {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
+  /**
+   * Prova forte. Não inclui autodeclaração.
+   */
   readonly verifiedAdult$: Observable<boolean> = this.current$.pipe(
     switchMap((state) => this.observeVerifiedWindow$(state)),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  /**
+   * Gate operacional atual. Em DECLARATION_FIRST aceita DECLARED_ADULT,
+   * mantendo VERIFIED_ADULT reservado à prova forte.
+   */
+  readonly adultAccessAllowed$: Observable<boolean> = this.current$.pipe(
+    switchMap((state) => this.observeAdultAccessWindow$(state)),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
   );
@@ -75,6 +92,53 @@ export class AgeEligibilityService {
   getCurrentOnce$(): Observable<IUserAgeEligibility> {
     return this.current$.pipe(take(1));
   }
+  declareAdultAccess$(): Observable<{
+    status: 'DECLARED_ADULT' | 'VERIFIED_ADULT';
+    assurance: 'SELF_DECLARATION' | 'VERIFIED';
+  }> {
+    const callable = runInInjectionContext(
+      this.environmentInjector,
+      () => httpsCallable<
+        { declaresAdult: true },
+        {
+          status: 'DECLARED_ADULT' | 'VERIFIED_ADULT';
+          assurance: 'SELF_DECLARATION' | 'VERIFIED';
+        }
+      >(
+        inject(Functions),
+        'declareAdultAgeAccess'
+      )
+    );
+
+    return from(callable({ declaresAdult: true })).pipe(
+      map((response) => response.data),
+      catchError((error) => {
+        try {
+          this.globalError.handleError(
+            Object.assign(
+              toErrorInstance(
+                error,
+                '[AgeEligibilityService.declareAdultAccess] falhou.'
+              ),
+              {
+                feature: 'age-eligibility',
+                operation: 'declareAdultAccess',
+                context: {
+                  scope: 'AgeEligibilityService',
+                },
+                original: error,
+              }
+            )
+          );
+        } catch {
+          // Diagnóstico não altera a fronteira etária.
+        }
+
+        return throwError(() => error);
+      })
+    );
+  }
+
 
   refreshTrustedSources$(): Observable<IUserAgeEligibility['status']> {
     const callable = runInInjectionContext(
@@ -168,6 +232,59 @@ export class AgeEligibilityService {
     );
   }
 
+  private observeAdultAccessWindow$(
+    state: IUserAgeEligibility
+  ): Observable<boolean> {
+    const now = Date.now();
+    const active = this.isAdultAccessAllowedAt(state, now);
+    const futureBoundaries = [
+      state.verifiedAtMs,
+      state.expiresAtMs,
+    ].filter(
+      (value): value is number =>
+        typeof value === 'number' &&
+        Number.isFinite(value) &&
+        value > now
+    );
+
+    if (futureBoundaries.length === 0) {
+      return of(active);
+    }
+
+    const nextBoundary = Math.min(...futureBoundaries);
+    const delayMs = Math.max(1, nextBoundary - now + 1);
+
+    return concat(
+      of(active),
+      timer(delayMs).pipe(
+        switchMap(() => this.observeAdultAccessWindow$(state))
+      )
+    );
+  }
+
+  private isAdultAccessAllowedAt(
+    state: IUserAgeEligibility,
+    now: number
+  ): boolean {
+    if (state.policyVersion !== 1) {
+      return false;
+    }
+
+    if (
+      AGE_ACCESS_ALLOWS_SELF_DECLARATION &&
+      state.status === 'DECLARED_ADULT' &&
+      state.source === 'INITIAL_DECLARATION' &&
+      state.method === 'SELF_DECLARATION'
+    ) {
+      return (
+        state.expiresAtMs == null ||
+        now < state.expiresAtMs
+      );
+    }
+
+    return this.isVerifiedAdultAt(state, now);
+  }
+
   private observeVerifiedWindow$(
     state: IUserAgeEligibility
   ): Observable<boolean> {
@@ -237,18 +354,21 @@ export class AgeEligibilityService {
     if (
       ![
         'UNVERIFIED',
+        'DECLARED_ADULT',
         'REVIEW_REQUIRED',
         'VERIFIED_ADULT',
         'DENIED_UNDERAGE',
         'EXPIRED',
       ].includes(status) ||
       ![
+        'INITIAL_DECLARATION',
         'INITIAL_VERIFICATION',
         'AGE_REVERIFICATION',
         'PROFILE_KYC',
         'MIGRATION',
       ].includes(source) ||
       ![
+        'SELF_DECLARATION',
         'EXTERNAL_PROVIDER',
         'MANUAL_REVIEW',
         'KYC',
