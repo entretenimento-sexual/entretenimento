@@ -344,8 +344,8 @@ async function claimDeletion(
       currentUser.purgeAttemptCount
     ) + 1;
     const leaseUntil = now + ACCOUNT_DELETION_PURGE_LEASE_MS;
-    const succession = await
-      ensureCommunityOwnerTerminalSuccessionCasesInTransaction(
+    const succession =
+      await ensureCommunityOwnerTerminalSuccessionCasesInTransaction(
         tx,
         {
           ownerUid: candidate.uid,
