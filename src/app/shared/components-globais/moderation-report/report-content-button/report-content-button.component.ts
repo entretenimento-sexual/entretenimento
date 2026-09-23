@@ -24,7 +24,14 @@ import {
 import { MatDialog } from '@angular/material/dialog';
 import { Router } from '@angular/router';
 import { EMPTY } from 'rxjs';
-import { catchError, filter, finalize, switchMap, take } from 'rxjs/operators';
+import {
+  catchError,
+  filter,
+  finalize,
+  map,
+  switchMap,
+  take,
+} from 'rxjs/operators';
 
 import { SharedMaterialModule } from 'src/app/shared/shared-material.module';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -110,6 +117,7 @@ export class ReportContentButtonComponent {
           details: result.details,
           route: this.currentRoute(),
         }).pipe(
+          map(() => result.reason),
           finalize(() => this.submitting.set(false)),
           catchError((error) => {
             this.notification.showError(
@@ -121,10 +129,28 @@ export class ReportContentButtonComponent {
         );
       })
     ).subscribe({
-      next: () => {
-        this.notification.showSuccess('Denúncia enviada para análise.');
+      next: (reason) => {
+        this.notification.showSuccess(this.successMessage(reason));
       },
     });
+  }
+
+  private successMessage(reason: string): string {
+    if (reason === 'minor_safety') {
+      return [
+        'Denúncia recebida. A possível menoridade será analisada.',
+        'A denúncia, sozinha, não confirma a idade da pessoa.',
+      ].join(' ');
+    }
+
+    if (reason === 'minor_content_safety') {
+      return [
+        'Denúncia recebida com prioridade de segurança.',
+        'Não copie nem redistribua o conteúdo denunciado.',
+      ].join(' ');
+    }
+
+    return 'Denúncia enviada para análise.';
   }
 
   get ariaLabel(): string {
