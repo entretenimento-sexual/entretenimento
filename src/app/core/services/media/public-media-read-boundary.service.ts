@@ -2,8 +2,8 @@
 // -----------------------------------------------------------------------------
 // PUBLIC MEDIA DISCOVERY READ BOUNDARY
 // -----------------------------------------------------------------------------
-// Cliente canônico das listagens globais/multi-owner de mídia pública.
-// Galerias de um proprietário conhecido continuam sob Rules owner-scoped.
+// Cliente canônico de todas as listagens de mídia pública.
+// Inclui discovery global/multi-owner e galerias de proprietário conhecido.
 // -----------------------------------------------------------------------------
 
 import { Injectable, inject } from '@angular/core';
