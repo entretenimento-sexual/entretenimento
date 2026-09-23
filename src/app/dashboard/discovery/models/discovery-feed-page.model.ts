@@ -46,7 +46,7 @@ export const DEFAULT_DISCOVERY_PAGE_SIZE = 24;
 export const MIN_DISCOVERY_PAGE_SIZE = 6;
 export const MAX_DISCOVERY_PAGE_SIZE = 48;
 
-const DISCOVERY_CACHE_PREFIX = 'discovery:public_profiles:uids:v2';
+const DISCOVERY_CACHE_PREFIX = 'discovery:public_profiles:uids:v3';
 
 export function normalizeDiscoveryViewerUid(value: unknown): string {
   const uid = String(value ?? '').trim();
