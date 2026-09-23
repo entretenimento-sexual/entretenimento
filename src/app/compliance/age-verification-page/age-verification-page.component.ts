@@ -46,6 +46,7 @@ export class AgeVerificationPageComponent {
   private readonly router = inject(Router);
 
   readonly refreshing = signal(false);
+  readonly requestingReview = signal(false);
 
   readonly vm$: Observable<AgeVerificationPageVm> =
     this.ageEligibility.current$.pipe(
@@ -58,8 +59,43 @@ export class AgeVerificationPageComponent {
       }))
     );
 
+  requestReview(): void {
+    if (this.refreshing() || this.requestingReview()) {
+      return;
+    }
+
+    this.requestingReview.set(true);
+
+    this.ageEligibility.requestInitialReview$()
+      .pipe(
+        take(1),
+        catchError(() => {
+          this.notification.showError(
+            'Não foi possível solicitar a revisão de maioridade.'
+          );
+          return EMPTY;
+        }),
+        finalize(() => this.requestingReview.set(false))
+      )
+      .subscribe((result) => {
+        if (result.status === 'VERIFIED_ADULT') {
+          this.notification.showSuccess(
+            'Sua maioridade já está confirmada.'
+          );
+          void this.router.navigateByUrl('/adulto/confirmar', {
+            replaceUrl: true,
+          });
+          return;
+        }
+
+        this.notification.showInfo(
+          'Solicitação registrada. O acesso adulto permanece bloqueado até a revisão da evidência.'
+        );
+      });
+  }
+
   refresh(): void {
-    if (this.refreshing()) {
+    if (this.refreshing() || this.requestingReview()) {
       return;
     }
 
@@ -101,7 +137,7 @@ export class AgeVerificationPageComponent {
   }
 
   logoutCurrentSession(): void {
-    if (this.refreshing()) {
+    if (this.refreshing() || this.requestingReview()) {
       return;
     }
 
