@@ -261,7 +261,7 @@ describe('Firestore Rules / public profile eligibility', () => {
       setDoc(doc(db, 'public_profiles', UID), {
         ...publicProfile(),
         age: 31,
-        ageEligibilityVerifiedAdult: true,
+        ageEligibilityAdultAccessAllowed: true,
         ageEligibilityValidUntil: new Date(Date.now() + 60_000),
         publicRelationshipIntents: ['dating'],
         publicSexualPractices: ['bdsm'],
@@ -294,7 +294,7 @@ describe('Firestore Rules / public profile eligibility', () => {
   it('permite ler perfil-alvo somente com projeção etária backend-only ativa e vigente', async () => {
     await seedUser();
     await seedPublicProfile({
-      ageEligibilityVerifiedAdult: true,
+      ageEligibilityAdultAccessAllowed: true,
       ageEligibilityValidUntil: new Date(Date.now() + 60_000),
     });
     const db = authenticatedDb();
@@ -302,14 +302,14 @@ describe('Firestore Rules / public profile eligibility', () => {
     await assertSucceeds(getDoc(doc(db, 'public_profiles', UID)));
 
     await seedPublicProfile({
-      ageEligibilityVerifiedAdult: true,
+      ageEligibilityAdultAccessAllowed: true,
       ageEligibilityValidUntil: new Date(Date.now() - 1_000),
     });
 
     await assertFails(getDoc(doc(db, 'public_profiles', UID)));
 
     await seedPublicProfile({
-      ageEligibilityVerifiedAdult: false,
+      ageEligibilityAdultAccessAllowed: false,
       ageEligibilityValidUntil: new Date(Date.now() + 60_000),
     });
 
@@ -319,14 +319,14 @@ describe('Firestore Rules / public profile eligibility', () => {
   it('nega qualquer enumeração client-side de public_profiles', async () => {
     await seedUser();
     await seedPublicProfile({
-      ageEligibilityVerifiedAdult: true,
+      ageEligibilityAdultAccessAllowed: true,
       ageEligibilityValidUntil: new Date(Date.now() + 60_000),
     });
     const db = authenticatedDb();
 
     const guardedQuery = query(
       collection(db, 'public_profiles'),
-      where('ageEligibilityVerifiedAdult', '==', true)
+      where('ageEligibilityAdultAccessAllowed', '==', true)
     );
 
     await assertFails(getDocs(guardedQuery));
