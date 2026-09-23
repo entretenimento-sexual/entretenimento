@@ -59,6 +59,8 @@ export const COMMUNITY_PUBLIC_REASON_MESSAGES = Object.freeze({
 export const COMMUNITY_ERROR_PRESENTATION_CONTEXTS = Object.freeze({
   DEFAULT: 'default',
   SILENT_NON_BLOCKING: 'silent_non_blocking',
+  INLINE_NON_BLOCKING: 'inline_non_blocking',
+  WARNING_NON_BLOCKING: 'warning_non_blocking',
 } as const);
 
 export type CommunityErrorPresentationContext =
@@ -73,6 +75,12 @@ const RATE_LIMIT_PRESENTATION: Readonly<ApplicationErrorPresentation> =
 const SILENT_NON_BLOCKING_PRESENTATION:
   Readonly<ApplicationErrorPresentation> =
     Object.freeze({ surface: 'none', severity: 'error' });
+const INLINE_NON_BLOCKING_PRESENTATION:
+  Readonly<ApplicationErrorPresentation> =
+    Object.freeze({ surface: 'inline', severity: 'error' });
+const WARNING_NON_BLOCKING_PRESENTATION:
+  Readonly<ApplicationErrorPresentation> =
+    Object.freeze({ surface: 'snackbar', severity: 'warning' });
 
 /**
  * Únicos desvios do presentation base. Entradas aqui devem representar
@@ -165,12 +173,33 @@ export function resolveCommunityPublicErrorPresentation(
   if (!isCommunityPublicErrorReason(reason)) return null;
 
   const canonical = COMMUNITY_PUBLIC_REASON_PRESENTATIONS[reason];
-  if (
-    context === COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING
-    && canonical.surface !== 'modal'
-  ) {
-    return SILENT_NON_BLOCKING_PRESENTATION;
-  }
+  if (canonical.surface === 'modal') return canonical;
 
-  return canonical;
+  switch (context) {
+    case COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING:
+      return SILENT_NON_BLOCKING_PRESENTATION;
+    case COMMUNITY_ERROR_PRESENTATION_CONTEXTS.INLINE_NON_BLOCKING:
+      return INLINE_NON_BLOCKING_PRESENTATION;
+    case COMMUNITY_ERROR_PRESENTATION_CONTEXTS.WARNING_NON_BLOCKING:
+      return WARNING_NON_BLOCKING_PRESENTATION;
+    case COMMUNITY_ERROR_PRESENTATION_CONTEXTS.DEFAULT:
+    default:
+      return canonical;
+  }
+}
+
+export function resolveCommunityErrorPresentationContextFallback(
+  context: CommunityErrorPresentationContext
+): ApplicationErrorPresentation | null {
+  switch (context) {
+    case COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING:
+      return SILENT_NON_BLOCKING_PRESENTATION;
+    case COMMUNITY_ERROR_PRESENTATION_CONTEXTS.INLINE_NON_BLOCKING:
+      return INLINE_NON_BLOCKING_PRESENTATION;
+    case COMMUNITY_ERROR_PRESENTATION_CONTEXTS.WARNING_NON_BLOCKING:
+      return WARNING_NON_BLOCKING_PRESENTATION;
+    case COMMUNITY_ERROR_PRESENTATION_CONTEXTS.DEFAULT:
+    default:
+      return null;
+  }
 }

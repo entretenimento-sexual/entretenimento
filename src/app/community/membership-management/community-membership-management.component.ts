@@ -25,6 +25,7 @@ import {
 } from 'rxjs';
 
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { COMMUNITY_ERROR_PRESENTATION_CONTEXTS } from '../presentation/community-error.catalog';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import type { CommunityCapacityPreview } from '../data-access/community-capacity.model';
 import {
@@ -43,9 +44,6 @@ import {
   COMMUNITY_MEMBERSHIP_REVIEW_CODE_MESSAGES,
   COMMUNITY_MEMBERSHIP_REVIEW_REASON_MESSAGES,
 } from '../presentation/community-error.messages';
-import {
-  COMMUNITY_MEMBERSHIP_ACTION_REASON_PRESENTATIONS,
-} from '../presentation/community-error.presentations';
 import {
   COMMUNITY_RATE_LIMIT_REASON_MESSAGES,
 } from '../presentation/community-rate-limit.messages';
@@ -299,7 +297,8 @@ export class CommunityMembershipManagementComponent {
       fallbackMessage: this.sourceType() === 'venue'
         ? 'Não foi possível carregar as solicitações de acesso.'
         : 'Não foi possível carregar as solicitações de entrada.',
-      notification: 'none',
+      communityPresentationContext:
+        COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING,
       reasonMessages: MEMBERSHIP_REVIEW_REASON_MESSAGES,
       metadata: {
         scope: 'CommunityMembershipManagementComponent',
@@ -320,7 +319,6 @@ export class CommunityMembershipManagementComponent {
         ? 'Não foi possível revisar esta solicitação de acesso.'
         : 'Não foi possível revisar esta solicitação de entrada.',
       reasonMessages: MEMBERSHIP_REVIEW_REASON_MESSAGES,
-      reasonPresentations: COMMUNITY_MEMBERSHIP_ACTION_REASON_PRESENTATIONS,
       codeMessages: COMMUNITY_MEMBERSHIP_REVIEW_CODE_MESSAGES,
       metadata: {
         scope: 'CommunityMembershipManagementComponent',

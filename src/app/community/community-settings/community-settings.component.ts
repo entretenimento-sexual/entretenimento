@@ -33,6 +33,7 @@ import {
 } from 'rxjs';
 
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { COMMUNITY_ERROR_PRESENTATION_CONTEXTS } from '../presentation/community-error.catalog';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import {
   CommunityCapacityPreview,
@@ -58,9 +59,6 @@ import {
   COMMUNITY_SETTINGS_CODE_MESSAGES,
   COMMUNITY_SETTINGS_REASON_MESSAGES,
 } from '../presentation/community-error.messages';
-import {
-  COMMUNITY_SETTINGS_REASON_PRESENTATIONS,
-} from '../presentation/community-error.presentations';
 import { CommunityOfficialClaimPanelComponent } from './community-official-claim-panel.component';
 
 type CommunitySettingsForm = FormGroup<{
@@ -396,7 +394,8 @@ export class CommunitySettingsComponent {
       feature: 'community',
       operation: 'loadTagCatalog',
       fallbackMessage: 'Não foi possível carregar os interesses da Comunidade.',
-      notification: 'none',
+      communityPresentationContext:
+        COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING,
       metadata: {
         scope: 'CommunitySettingsComponent',
         communityId: this.communityId().trim(),
@@ -411,7 +410,6 @@ export class CommunitySettingsComponent {
       operation: 'updateCommunitySettings',
       fallbackMessage: 'Não foi possível salvar as configurações da Comunidade.',
       reasonMessages: COMMUNITY_SETTINGS_REASON_MESSAGES,
-      reasonPresentations: COMMUNITY_SETTINGS_REASON_PRESENTATIONS,
       codeMessages: COMMUNITY_SETTINGS_CODE_MESSAGES,
       metadata: {
         scope: 'CommunitySettingsComponent',

@@ -21,6 +21,7 @@ import {
 
 import type { CommunityOfficialTargetType } from 'src/app/core/community/community-official-association.model';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { COMMUNITY_ERROR_PRESENTATION_CONTEXTS } from '../presentation/community-error.catalog';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import type { CommunityPreviewCard } from '../data-access/community-preview.model';
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
@@ -166,7 +167,8 @@ export class OfficialCommunitiesForTargetComponent {
               operation: 'loadOfficialCommunitiesForTarget',
               fallbackMessage:
                 'Não foi possível carregar a associação oficial desta entidade.',
-              notification: 'warning',
+              communityPresentationContext:
+        COMMUNITY_ERROR_PRESENTATION_CONTEXTS.WARNING_NON_BLOCKING,
               reasonMessages: OFFICIAL_COMMUNITIES_FOR_TARGET_REASON_MESSAGES,
               metadata: {
                 scope: 'OfficialCommunitiesForTargetComponent',

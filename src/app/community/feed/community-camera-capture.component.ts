@@ -24,6 +24,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subscription, finalize, take } from 'rxjs';
 
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { COMMUNITY_ERROR_PRESENTATION_CONTEXTS } from '../presentation/community-error.catalog';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { PhotoEditorLauncherService } from 'src/app/core/services/image-handling/photo-editor-launcher.service';
 import {
@@ -730,7 +731,8 @@ export class CommunityCameraCaptureComponent implements OnDestroy {
       feature: 'community',
       operation: 'cameraCapture',
       fallbackMessage: CAMERA_ERROR_MESSAGES.UNKNOWN,
-      notification: 'none',
+      communityPresentationContext:
+        COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING,
       codeMessages: CAMERA_ERROR_MESSAGES,
       metadata: {
         scope: 'CommunityCameraCaptureComponent',

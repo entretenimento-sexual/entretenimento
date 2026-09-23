@@ -22,6 +22,7 @@ import {
 } from 'rxjs';
 
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { COMMUNITY_ERROR_PRESENTATION_CONTEXTS } from '../presentation/community-error.catalog';
 import { CommunityNotificationPreferenceService } from 'src/app/core/services/notifications/community-notification-preference.service';
 import { CommunityNotificationUnreadSummaryService } from 'src/app/core/services/notifications/community-notification-unread-summary.service';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
@@ -232,7 +233,9 @@ export class ProfileMyCommunitiesComponent {
             operation: 'loadProfileMyCommunities',
             fallbackMessage:
               'Não foi possível carregar suas comunidades agora.',
-            notification: staleFallback ? 'none' : 'warning',
+            communityPresentationContext: staleFallback
+              ? COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING
+              : COMMUNITY_ERROR_PRESENTATION_CONTEXTS.WARNING_NON_BLOCKING,
             metadata: {
               scope: 'ProfileMyCommunitiesComponent',
               pageSize: PROFILE_MY_COMMUNITIES_PAGE_SIZE,

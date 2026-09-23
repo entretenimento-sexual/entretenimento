@@ -70,9 +70,6 @@ import {
   COMMUNITY_CREATE_CODE_MESSAGES,
   COMMUNITY_CREATE_REASON_MESSAGES,
 } from '../presentation/community-error.messages';
-import {
-  COMMUNITY_CREATE_REASON_PRESENTATIONS,
-} from '../presentation/community-error.presentations';
 import { CommunityCreationGateService } from './community-creation-gate.service';
 
 type CommunityCreateForm = FormGroup<{
@@ -559,7 +556,6 @@ export class CommunityCreatePageComponent {
       fallbackMessage: 'Não foi possível criar a Comunidade agora.',
       codeMessages: COMMUNITY_CREATE_CODE_MESSAGES,
       reasonMessages: COMMUNITY_CREATE_REASON_MESSAGES,
-      reasonPresentations: COMMUNITY_CREATE_REASON_PRESENTATIONS,
       metadata: {
         scope: 'CommunityCreatePageComponent',
       },

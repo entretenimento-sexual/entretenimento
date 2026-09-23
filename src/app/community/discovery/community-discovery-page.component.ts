@@ -38,6 +38,7 @@ import {
 import { getSocialSpaceDefinition } from 'src/app/core/domain/social-space.definition';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { COMMUNITY_ERROR_PRESENTATION_CONTEXTS } from '../presentation/community-error.catalog';
 import { CommunityNotificationPreferenceService } from 'src/app/core/services/notifications/community-notification-preference.service';
 import {
   CommunityNotificationUnreadSummary,
@@ -1006,7 +1007,8 @@ export class CommunityDiscoveryPageComponent {
     ) {
       this.applicationError.report(error, {
         ...options,
-        notification: 'none',
+        communityPresentationContext:
+        COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING,
       });
       const resetRequest: LoadRequest = {
         cursor: null,
@@ -1060,7 +1062,8 @@ export class CommunityDiscoveryPageComponent {
       operation: 'getCommunityTagCatalog',
       fallbackMessage:
         'Os filtros por interesse não puderam ser carregados agora.',
-      notification: 'warning',
+      communityPresentationContext:
+        COMMUNITY_ERROR_PRESENTATION_CONTEXTS.WARNING_NON_BLOCKING,
       metadata: this.errorMetadata(),
     });
   }
@@ -1159,7 +1162,8 @@ export class CommunityDiscoveryPageComponent {
       operation,
       fallbackMessage:
         'O conteúdo patrocinado não pôde ser atualizado agora.',
-      notification: 'none',
+      communityPresentationContext:
+        COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING,
       metadata: {
         ...this.errorMetadata(),
         sponsored: true,

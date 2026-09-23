@@ -53,6 +53,10 @@ function lineFor(source, index) {
 
 const forbidden = [
   {
+    label: 'catálogo paralelo de presentation de Comunidades',
+    pattern: /community-error\.presentations/g,
+  },
+  {
     label: 'import direto do modelo de presentation',
     pattern: /application-error-presentation\.model/g,
   },

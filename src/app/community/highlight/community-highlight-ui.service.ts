@@ -14,6 +14,7 @@ import {
 } from 'rxjs';
 
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { COMMUNITY_ERROR_PRESENTATION_CONTEXTS } from '../presentation/community-error.catalog';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { CommunityFeedItem } from '../data-access/community-feed.model';
 import { CommunityFeedRepository } from '../data-access/community-feed.repository';
@@ -166,7 +167,8 @@ export class CommunityHighlightUiService {
               operation: 'hydrateHighlight',
               fallbackMessage:
                 'A publicação fixada não pôde ser carregada neste momento.',
-              notification: 'none',
+              communityPresentationContext:
+        COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING,
               metadata: {
                 scope: 'CommunityHighlightUiService',
               },
@@ -195,7 +197,8 @@ export class CommunityHighlightUiService {
           operation: 'loadHighlight',
           fallbackMessage:
             'Não foi possível carregar a publicação fixada agora.',
-          notification: 'none',
+          communityPresentationContext:
+        COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING,
           reasonMessages: COMMUNITY_HIGHLIGHT_REASON_MESSAGES,
           codeMessages: COMMUNITY_HIGHLIGHT_LOAD_CODE_MESSAGES,
           metadata: {

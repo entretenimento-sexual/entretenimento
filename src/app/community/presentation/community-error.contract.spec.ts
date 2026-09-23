@@ -55,6 +55,29 @@ describe('community public error reason contract', () => {
     ).toBe('modal');
   });
 
+  it('expõe apenas contextos semânticos reutilizáveis', () => {
+    expect(
+      resolveCommunityPublicErrorPresentation(
+        'invalid_post_request',
+        COMMUNITY_ERROR_PRESENTATION_CONTEXTS.INLINE_NON_BLOCKING
+      )
+    ).toEqual({ surface: 'inline', severity: 'error' });
+
+    expect(
+      resolveCommunityPublicErrorPresentation(
+        'invalid_post_request',
+        COMMUNITY_ERROR_PRESENTATION_CONTEXTS.WARNING_NON_BLOCKING
+      )
+    ).toEqual({ surface: 'snackbar', severity: 'warning' });
+
+    expect(
+      resolveCommunityPublicErrorPresentation(
+        'ownership_inconsistent',
+        COMMUNITY_ERROR_PRESENTATION_CONTEXTS.INLINE_NON_BLOCKING
+      )?.surface
+    ).toBe('modal');
+  });
+
   it('mantém o catálogo default como fonte canônica', () => {
     expect(
       resolveCommunityPublicErrorPresentation('community_feed_rate_limited')

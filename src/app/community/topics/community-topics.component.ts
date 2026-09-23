@@ -31,6 +31,7 @@ import {
 } from 'rxjs';
 
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { COMMUNITY_ERROR_PRESENTATION_CONTEXTS } from '../presentation/community-error.catalog';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import type { CommunityPreviewViewerRole } from '../data-access/community-preview.model';
@@ -491,7 +492,8 @@ export class CommunityTopicsComponent {
       feature: 'community',
       operation,
       fallbackMessage,
-      notification: 'none',
+      communityPresentationContext:
+        COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING,
       reasonMessages: COMMUNITY_TOPIC_REASON_MESSAGES,
       metadata: {
         scope: 'CommunityTopicsComponent',

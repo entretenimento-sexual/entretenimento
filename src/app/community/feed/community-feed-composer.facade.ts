@@ -36,6 +36,7 @@ import {
 
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { COMMUNITY_ERROR_PRESENTATION_CONTEXTS } from '../presentation/community-error.catalog';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import {
   GeolocationError,
@@ -521,7 +522,8 @@ export class CommunityFeedComposerFacade implements OnDestroy {
       feature: 'community',
       operation: 'shareLocation',
       fallbackMessage: message,
-      notification: 'warning',
+      communityPresentationContext:
+        COMMUNITY_ERROR_PRESENTATION_CONTEXTS.WARNING_NON_BLOCKING,
       metadata: this.errorMetadata(context),
     });
   }

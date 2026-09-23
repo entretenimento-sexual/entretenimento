@@ -52,6 +52,7 @@ import {
 
 import { PublicUserIdentityComponent } from 'src/app/core/components/public-user-identity/public-user-identity.component';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { COMMUNITY_ERROR_PRESENTATION_CONTEXTS } from '../presentation/community-error.catalog';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import { ReportContentButtonComponent } from 'src/app/shared/components-globais/moderation-report/report-content-button/report-content-button.component';
@@ -1086,7 +1087,8 @@ export class CommunityFeedComponent implements OnDestroy {
       feature: 'community',
       operation: 'loadPage',
       fallbackMessage,
-      notification: 'none',
+      communityPresentationContext:
+        COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING,
       metadata: {
         scope: 'CommunityFeedComponent',
         view,
@@ -1108,7 +1110,8 @@ export class CommunityFeedComponent implements OnDestroy {
       feature: 'community',
       operation: op,
       fallbackMessage: 'Não foi possível concluir esta atualização agora.',
-      notification: 'none',
+      communityPresentationContext:
+        COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING,
       metadata: {
         scope: 'CommunityFeedComponent',
         view,

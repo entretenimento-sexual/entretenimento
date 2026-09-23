@@ -22,6 +22,7 @@ import { Injectable, inject } from '@angular/core';
 
 import {
   COMMUNITY_ERROR_PRESENTATION_CONTEXTS,
+  resolveCommunityErrorPresentationContextFallback,
   resolveCommunityPublicErrorMessage,
   resolveCommunityPublicErrorPresentation,
   type CommunityErrorPresentationContext,
@@ -219,13 +220,19 @@ export class ApplicationErrorService {
       ?? (
         communityFeature && options.notification === 'none'
           ? COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING
-          : COMMUNITY_ERROR_PRESENTATION_CONTEXTS.DEFAULT
+          : communityFeature && options.notification === 'warning'
+            ? COMMUNITY_ERROR_PRESENTATION_CONTEXTS.WARNING_NON_BLOCKING
+            : COMMUNITY_ERROR_PRESENTATION_CONTEXTS.DEFAULT
       );
     const communityPresentation =
       communityFeature && reason
         ? resolveCommunityPublicErrorPresentation(reason, communityContext)
         : null;
+    const communityContextFallback = communityFeature
+      ? resolveCommunityErrorPresentationContextFallback(communityContext)
+      : null;
     const mappedPresentation = communityPresentation
+      ?? communityContextFallback
       ?? options.presentation
       ?? (reason ? options.reasonPresentations?.[reason] : undefined)
       ?? (recommendedAction
