@@ -29,7 +29,7 @@ function status(overrides: Record<string, unknown> = {}) {
     moderation: { state: 'active' },
     startsAt: NOW - 60_000,
     expiresAt: NOW + 60_000,
-    ageEligibilityVerifiedAdult: true,
+    ageEligibilityAdultAccessAllowed: true,
     ageEligibilityValidUntil: {
       toMillis: () => NOW + 60_000,
     },
@@ -65,7 +65,7 @@ describe('get-user-intent-statuses backend-time boundary', () => {
   it('falha fechado para projeção etária ausente, inválida ou não adulta', () => {
     assert.equal(
       isCurrentUserIntentStatusExposure(
-        status({ ageEligibilityVerifiedAdult: false }),
+        status({ ageEligibilityAdultAccessAllowed: false }),
         NOW
       ),
       false
