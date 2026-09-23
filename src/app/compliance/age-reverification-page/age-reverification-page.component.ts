@@ -73,7 +73,7 @@ export class AgeReverificationPageComponent {
           state,
           status,
           label: this.ageReverification.statusLabel(state),
-          canSubmit: status === 'REQUIRED',
+          canSubmit: status === 'REQUIRED' || status === 'EXPIRED',
           isPendingReview: status === 'SUBMITTED' || status === 'UNDER_REVIEW',
           canAppeal: status === 'REJECTED',
         };
@@ -99,10 +99,40 @@ export class AgeReverificationPageComponent {
         }),
         finalize(() => this.isSaving.set(false))
       )
-      .subscribe(() => {
+      .subscribe((result) => {
         this.form.disable({ emitEvent: false });
         this.notification.showSuccess(
-          'Revalidação enviada. A conta permanecerá limitada até a análise.'
+          result.submittedAfterOperationalTarget
+            ? 'Revalidação recebida mesmo após o prazo operacional. A conta permanece limitada até a análise.'
+            : 'Revalidação enviada. A conta permanecerá limitada até a análise.'
+        );
+      });
+  }
+
+  requestAlternativeReview(): void {
+    if (this.isSaving()) {
+      return;
+    }
+
+    this.isSaving.set(true);
+
+    this.ageReverification.requestAlternativeReview$()
+      .pipe(
+        take(1),
+        catchError(() => {
+          this.notification.showError(
+            'Não foi possível solicitar a análise alternativa agora. Tente novamente.'
+          );
+          return EMPTY;
+        }),
+        finalize(() => this.isSaving.set(false))
+      )
+      .subscribe((result) => {
+        this.form.disable({ emitEvent: false });
+        this.notification.showSuccess(
+          result.submittedAfterOperationalTarget
+            ? 'Pedido de análise alternativa recebido após o prazo operacional. A moderação seguirá com outra evidência confiável.'
+            : 'Pedido de análise alternativa recebido. A moderação seguirá com outra evidência confiável.'
         );
       });
   }
