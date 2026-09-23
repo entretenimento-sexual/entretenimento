@@ -27,7 +27,9 @@ import {
 } from './community-callable-security';
 import {
   MAX_PERSONAL_COMMUNITIES_PER_OWNER,
+  isCommunityMemberLimitAllowed,
   resolveCommunityCapacitySponsorRole,
+  resolveCommunityConfiguredMemberLimit,
   resolvePersonalCommunityCreationPolicy,
 } from './community-capacity.policy';
 import { hasCommunityLifecycleHold } from './community-lifecycle.policy';
@@ -336,6 +338,17 @@ function throwTransferDecisionError(reason: string | null): never {
     );
   }
 
+  if (reason === 'target_ownership_capacity_ineligible') {
+    throw new HttpsError(
+      'failed-precondition',
+      'O plano do membro selecionado não suporta a capacidade desta Comunidade.',
+      {
+        reason: 'community_ownership_capacity_upgrade_required',
+        recommendedAction: 'select_eligible_successor_or_upgrade',
+      }
+    );
+  }
+
   throw new HttpsError(
     'failed-precondition',
     'Esta Comunidade não pode transferir a propriedade agora.'
@@ -631,6 +644,13 @@ export const transferCommunityOwnership =
           targetOwnershipPolicy.maxOwnedCommunities === null
           || targetOwnedCommunitiesSnapshot.size
             < targetOwnershipPolicy.maxOwnedCommunities;
+        const communityConfiguredLimit =
+          resolveCommunityConfiguredMemberLimit(community);
+        const targetOwnershipCapacityCompatible =
+          isCommunityMemberLimitAllowed(
+            communityConfiguredLimit,
+            targetSponsorRole
+          );
         assertCommunityOwnerPointer(community, actorUid);
         const source = (community['source'] ?? {}) as Record<string, unknown>;
         const actorMembership = actorMembershipSnapshot.exists
@@ -652,6 +672,7 @@ export const transferCommunityOwnership =
           targetOwnershipEntitlementEligible:
             targetOwnershipPolicy.canCreate,
           targetOwnershipQuotaAvailable,
+          targetOwnershipCapacityCompatible,
           activeOwnerCount: ownerSnapshot.size,
         });
 
@@ -753,6 +774,8 @@ export const transferCommunityOwnership =
             targetOwnedCommunitiesSnapshot.size,
           targetMaxOwnedCommunities:
             targetOwnershipPolicy.maxOwnedCommunities,
+          communityConfiguredLimit,
+          targetOwnershipCapacityCompatible,
           createdAt: now,
           source: 'callable',
         });
