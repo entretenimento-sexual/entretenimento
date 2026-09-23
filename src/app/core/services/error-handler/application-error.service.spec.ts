@@ -148,7 +148,7 @@ describe('ApplicationErrorService', () => {
     expect(descriptor.recommendedAction).toBe('upgrade_subscription');
   });
 
-  it('resolve apresentação por reason antes de fallback legado', () => {
+  it('mantém presentation canônica de Comunidades acima de override local', () => {
     const descriptor = service.normalize(
       {
         code: 'functions/failed-precondition',
@@ -172,7 +172,7 @@ describe('ApplicationErrorService', () => {
     expect(descriptor.presentation).toEqual({
       surface: 'modal',
       severity: 'warning',
-      title: 'Confirme sua identidade',
+      title: 'Confirme sua identidade novamente',
     });
   });
 
