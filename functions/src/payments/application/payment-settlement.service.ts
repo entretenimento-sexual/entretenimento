@@ -292,6 +292,7 @@ export async function settleVerifiedPaidEvent(
       sanitizedPayloadHash: event.sanitizedPayloadHash ?? null,
       processed: true,
       processedAt: now,
+      occurredAt: paymentOccurredAt,
       createdAt: event.receivedAt,
     };
 
@@ -432,6 +433,15 @@ export async function settleVerifiedPaidEvent(
       verificationMode: event.verificationMode,
       amountCents: event.amountCents,
       currency: event.currency,
+      catalogVersion: checkout.planSnapshot!.catalogVersion,
+      checkoutPriceLockedUntil: checkout.expiresAt ?? null,
+      paymentOccurredAt,
+      planChangeKind: checkout.metadata?.['planChangeKind'] ?? null,
+      priceTreatment: checkout.metadata?.['priceTreatment'] ?? null,
+      periodTreatment: checkout.metadata?.['periodTreatment'] ?? null,
+      accessTreatment: checkout.metadata?.['accessTreatment'] ?? null,
+      prorationSupported:
+        checkout.metadata?.['prorationSupported'] === false ? false : null,
       previousSubscriptionActive: existingStatus.active,
       previousSubscriptionRole: existingStatus.role,
       currentSubscriptionRole: grantedRole,
