@@ -139,6 +139,9 @@ export interface VerifiedPaymentEvent {
   verified: true;
   verificationMode: PaymentVerificationMode;
 
+  /** Momento financeiro confiável do provider, quando disponível. */
+  occurredAt?: number | null;
+
   receivedAt: number;
 
   /**
