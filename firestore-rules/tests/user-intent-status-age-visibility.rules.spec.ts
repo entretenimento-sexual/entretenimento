@@ -70,7 +70,7 @@ async function seedViewerAndStatuses(): Promise<void> {
       }),
       setDoc(doc(db, 'user_intent_statuses', `current_${OWNER_UID}`), {
         uid: OWNER_UID,
-        ageEligibilityVerifiedAdult: true,
+        ageEligibilityAdultAccessAllowed: true,
         ageEligibilityValidUntil: new Date(Date.now() + 60_000),
         visibility: 'public_discovery',
         moderation: { state: 'active' },
@@ -78,7 +78,7 @@ async function seedViewerAndStatuses(): Promise<void> {
       }),
       setDoc(doc(db, 'user_intent_statuses', 'current_hidden_age_owner'), {
         uid: 'hidden_age_owner',
-        ageEligibilityVerifiedAdult: false,
+        ageEligibilityAdultAccessAllowed: false,
         ageEligibilityValidUntil: new Date(Date.now() - 60_000),
         visibility: 'public_discovery',
         moderation: { state: 'active' },
@@ -156,7 +156,7 @@ describe('Firestore Rules / user intent status age visibility', () => {
 
     const guardedQuery = query(
       collection(db, 'user_intent_statuses'),
-      where('ageEligibilityVerifiedAdult', '==', true),
+      where('ageEligibilityAdultAccessAllowed', '==', true),
       where('moderation.state', '==', 'active'),
       where('visibility', '==', 'public_discovery')
     );
@@ -176,7 +176,7 @@ describe('Firestore Rules / user intent status age visibility', () => {
         doc(context.firestore(), 'user_intent_statuses', `current_${VIEWER_UID}`),
         {
           uid: VIEWER_UID,
-          ageEligibilityVerifiedAdult: false,
+          ageEligibilityAdultAccessAllowed: false,
         ageEligibilityValidUntil: new Date(Date.now() - 60_000),
           visibility: 'hidden',
           moderation: { state: 'hidden' },
