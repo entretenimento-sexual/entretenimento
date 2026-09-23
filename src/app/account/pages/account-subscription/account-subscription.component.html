@@ -47,6 +47,12 @@
                       Ativa. A próxima cobrança será processada automaticamente
                       pelo provedor no próximo ciclo.
                     </small>
+                  } @else if (renewal.renewalCancellationPending) {
+                    <small>
+                      Cancelamento solicitado. Estamos confirmando a interrupção
+                      das próximas cobranças no provedor. O período já pago
+                      continua válido até o vencimento atual.
+                    </small>
                   } @else {
                     <small>
                       Cancelada. O período já pago continua válido até o
@@ -69,6 +75,10 @@
                         : 'Cancelar renovação'
                     }}
                   </button>
+                } @else if (renewal.renewalCancellationPending) {
+                  <span class="account-plan-hero__badge">
+                    Cancelando
+                  </span>
                 } @else {
                   <span class="account-plan-hero__badge">
                     Não renova
