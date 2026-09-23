@@ -423,7 +423,9 @@ async function claimDeletion(
           emailHash: candidate.emailHash,
           deletionRequestedAt: currentUser.deletionRequestedAt ?? null,
           deletionUndoUntil: currentUser.deletionUndoUntil ?? null,
-          deletedAt: currentUser.deletedAt ?? null,
+          deletedAt:
+            currentUser.deletedAt
+            ?? (currentStatus === 'pending_deletion' ? now : null),
           purgeAfter: currentUser.purgeAfter ?? now,
           purgeAttemptCount: attemptCount,
           purgeLastAttemptAt: now,
@@ -455,7 +457,8 @@ async function claimDeletion(
         actorUid: 'system',
         action: 'block_account_purge_owned_community',
         previousAccountStatus: currentStatus,
-        accountStatus: currentStatus,
+        accountStatus:
+          currentStatus === 'pending_deletion' ? 'deleted' : currentStatus,
         source: 'system',
         moderationReason: ownershipBlocker,
         ownedCommunitySuccessionOpened:
