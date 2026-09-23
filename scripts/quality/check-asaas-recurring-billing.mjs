@@ -29,6 +29,7 @@ for (const fragment of [
   "'https://api-sandbox.asaas.com/v3'",
   "'$aact_prod_'",
   "'$aact_hmlg_'",
+  'ASAAS_RECURRING_ENABLED',
 ]) requireIncludes(config, fragment, 'Asaas config drift');
 
 const provider = read(
@@ -72,6 +73,7 @@ for (const fragment of [
   'consumeBackendRateLimitQuota',
   'acquirePlatformCheckoutLock',
   'resolveAsaasRuntimeConfig',
+  'assertAsaasRecurringCheckoutEnabled',
 ]) requireIncludes(checkout, fragment, 'production checkout drift');
 
 const webhook = read(
