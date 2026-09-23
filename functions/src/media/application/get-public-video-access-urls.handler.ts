@@ -26,14 +26,18 @@ import {
 } from './video-storage-path';
 
 function hasCurrentPublicAgeEligibility(
-  data: Record<string, any> | undefined
+  data: Record<string, unknown> | undefined
 ): boolean {
   if (data?.['ageEligibilityVerifiedAdult'] !== true) return false;
 
-  const validUntil = data?.['ageEligibilityValidUntil'];
+  const validUntil = data?.['ageEligibilityValidUntil'] as
+    | { toMillis?: unknown }
+    | null
+    | undefined;
+
   return !!validUntil &&
     typeof validUntil.toMillis === 'function' &&
-    validUntil.toMillis() > Date.now();
+    (validUntil as { toMillis: () => number }).toMillis() > Date.now();
 }
 
 interface PublicVideoAccessRequestItem {
