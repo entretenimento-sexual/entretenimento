@@ -172,6 +172,21 @@ requireIncludes(
   'subscription plan template must render canonical observable catalog'
 );
 
+
+const checkoutTemplate = read(
+  'src/app/subscriptions/checkout/checkout.component.html'
+);
+requireIncludes(
+  checkoutTemplate,
+  "currency:plan.currency",
+  'checkout currency must come from canonical plan'
+);
+if (checkoutTemplate.includes("currency:'BRL'")) {
+  throw new Error(
+    '[billing-pricing-boundary] checkout must not hardcode BRL instead of plan.currency'
+  );
+}
+
 const repository = read(
   'src/app/payments-core/infrastructure/repositories/billing.repository.ts'
 );
