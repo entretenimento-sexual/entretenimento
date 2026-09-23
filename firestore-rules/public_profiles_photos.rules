@@ -67,13 +67,13 @@ match /public_profiles/{userId}/public_photos/{photoId} {
   }
 
   function isApprovedPublicPhotoData(data) {
-    return data.ageEligibilityVerifiedAdult == true
+    return data.ageEligibilityAdultAccessAllowed == true
       && data.visibility == "PUBLIC"
       && data.moderationStatus == "APPROVED";
   }
 
   function isApprovedCommentReadablePhotoData(data) {
-    return data.ageEligibilityVerifiedAdult == true
+    return data.ageEligibilityAdultAccessAllowed == true
       && data.moderationStatus == "APPROVED"
       && !hasActiveBilateralBlock()
       && (
@@ -84,13 +84,13 @@ match /public_profiles/{userId}/public_photos/{photoId} {
 
   function isPublicReadable() {
     return publicProfileAllowsAdultExposure()
-      && resource.data.ageEligibilityVerifiedAdult == true
+      && resource.data.ageEligibilityAdultAccessAllowed == true
       && resource.data.visibility == "PUBLIC"
       && resource.data.moderationStatus == "APPROVED";
   }
 
   function isPublicListReadable() {
-    return resource.data.ageEligibilityVerifiedAdult == true
+    return resource.data.ageEligibilityAdultAccessAllowed == true
       && resource.data.visibility == "PUBLIC"
       && resource.data.moderationStatus == "APPROVED";
   }
