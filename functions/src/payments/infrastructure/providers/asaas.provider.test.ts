@@ -16,7 +16,6 @@ const webhookToken = '0123456789abcdef0123456789abcdef';
 
 test('verifica webhook Asaas com token separado da API key', async () => {
   const provider = new AsaasPaymentProvider({
-    runtime,
     webhookToken,
   });
   const rawBody = JSON.stringify({
@@ -118,5 +117,50 @@ test('rejeita payload sem recurso financeiro identificável', async () => {
     (error: unknown) =>
       error instanceof HttpsError &&
       error.code === 'invalid-argument'
+  );
+});
+
+
+test('rejeita usar API key Asaas como token de webhook', async () => {
+  const apiKeyLikeToken =
+    '$aact_hmlg_0123456789abcdef0123456789abcdef';
+  const provider = new AsaasPaymentProvider({
+    webhookToken: apiKeyLikeToken,
+  });
+
+  await assert.rejects(
+    provider.verifyWebhook({
+      headers: { 'asaas-access-token': apiKeyLikeToken },
+      rawBody: JSON.stringify({
+        id: 'evt_5',
+        event: 'PAYMENT_CONFIRMED',
+        payment: { id: 'pay_5', subscription: 'sub_5' },
+      }),
+    }),
+    (error: unknown) =>
+      error instanceof HttpsError &&
+      error.code === 'failed-precondition'
+  );
+});
+
+test('rejeita token de webhook com espaços', async () => {
+  const unsafeToken =
+    '0123456789abcdef 0123456789abcdef';
+  const provider = new AsaasPaymentProvider({
+    webhookToken: unsafeToken,
+  });
+
+  await assert.rejects(
+    provider.verifyWebhook({
+      headers: { 'asaas-access-token': unsafeToken },
+      rawBody: JSON.stringify({
+        id: 'evt_6',
+        event: 'PAYMENT_CONFIRMED',
+        payment: { id: 'pay_6', subscription: 'sub_6' },
+      }),
+    }),
+    (error: unknown) =>
+      error instanceof HttpsError &&
+      error.code === 'failed-precondition'
   );
 });
