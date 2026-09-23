@@ -20,6 +20,10 @@ import {
   type CommunityPreviewCard,
 } from '../community/community-preview.model';
 import {
+  evaluateCommunityBoostCampaignAuthorityInTransaction,
+  stopCommunityBoostForAuthorityLossInTransaction,
+} from './community-boost-authority.service';
+import {
   COMMUNITY_BOOST_CANDIDATE_SCAN_LIMIT,
   COMMUNITY_BOOST_DISCLOSURE,
   COMMUNITY_BOOST_FREQUENCY_CAP_TTL_MS,
@@ -257,7 +261,7 @@ async function claimPlacement(input: {
   const capRef = db.collection('community_boost_frequency_caps').doc(capId);
   const advertiserAccountRef = db
     .collection('community_boost_advertiser_accounts')
-    .doc(input.campaign.ownerUid);
+    .doc(input.campaign.advertiserUid);
   const metricsRef = campaignRef.collection('metrics_daily').doc(day);
   const billingLedgerRef = campaignRef.collection('billing_ledger').doc(day);
 
@@ -281,12 +285,27 @@ async function claimPlacement(input: {
       advertiserAccountSnapshot.exists
         ? advertiserAccountSnapshot.data()
         : null,
-      campaign.ownerUid
+      campaign.advertiserUid
     );
     if (
       !advertiserAccount
       || campaign.budgetCents > advertiserAccount.maxCampaignBudgetCents
     ) {
+      return null;
+    }
+
+    const authorityDecision =
+      await evaluateCommunityBoostCampaignAuthorityInTransaction(
+        transaction,
+        campaign
+      );
+    if (!authorityDecision.allowed) {
+      await stopCommunityBoostForAuthorityLossInTransaction({
+        transaction,
+        campaign,
+        decision: authorityDecision,
+        now: input.now,
+      });
       return null;
     }
 
@@ -363,6 +382,7 @@ async function claimPlacement(input: {
       placementId: placementRef.id,
       campaignId: campaign.campaignId,
       communityId: campaign.communityId,
+      advertiserUid: campaign.advertiserUid,
       viewerHash: viewerHash(input.viewerUid),
       sourceType: campaign.targetSourceType,
       disclosure: COMMUNITY_BOOST_DISCLOSURE,
@@ -395,6 +415,12 @@ async function claimPlacement(input: {
     }, { merge: true });
     transaction.set(billingLedgerRef, {
       day,
+      advertiserUid: campaign.advertiserUid,
+      communityOwnerUidSnapshot:
+        campaign.communityOwnerUidSnapshot,
+      authoritySnapshotVersion:
+        campaign.authoritySnapshotVersion,
+      ledgerOwnershipTransferred: false,
       currency: campaign.currency,
       billingBasis: campaign.billingBasis,
       billingConfigVersion: campaign.billingConfigVersion,
@@ -491,7 +517,7 @@ export async function selectCommunityBoostSponsoredPlacementWithDiagnostics(inpu
           frequencyCapReads: candidates.length,
           visibilityReads,
           claimAttempts,
-          claimTransactionReads: claimAttempts * 3,
+          claimTransactionReads: claimAttempts * 7,
           deliveryWrites: 5,
         },
       };
@@ -507,7 +533,7 @@ export async function selectCommunityBoostSponsoredPlacementWithDiagnostics(inpu
       frequencyCapReads: candidates.length,
       visibilityReads,
       claimAttempts,
-      claimTransactionReads: claimAttempts * 3,
+      claimTransactionReads: claimAttempts * 7,
       deliveryWrites: 0,
     },
   };
