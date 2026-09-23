@@ -36,9 +36,9 @@ const routes: Routes = [
     canActivate: [
       authGuard,
       accountLifecycleGuard,
+      registrationStepGuard,
       ageEligibilityGuard,
       currentTermsGuard,
-      registrationStepGuard,
     ],
     data: {
       allowUnverified: true,
