@@ -2,9 +2,9 @@
 // -----------------------------------------------------------------------------
 // PUBLIC MEDIA DISCOVERY READ BOUNDARY
 // -----------------------------------------------------------------------------
-// Collection-group discovery for public photos/videos is backend-only.
-// Profile-scoped galleries remain directly readable because their Rules can
-// bind a single owner and validate the parent's temporal/canonical age boundary.
+// Toda listagem pública de fotos/vídeos é backend-only, inclusive galerias
+// owner-scoped. Deep links documentais permanecem protegidos diretamente pelas
+// Rules; listas usam relógio do servidor e projeção etária vigente.
 // -----------------------------------------------------------------------------
 
 import { FieldPath } from 'firebase-admin/firestore';
@@ -302,10 +302,19 @@ function applyOrderingAndCursor(input: {
       .orderBy(FieldPath.documentId(), 'desc');
 
     if (input.cursor) {
+      const documentId = input.cursor.documentPath.split('/').pop() ?? '';
+
+      if (!cleanId(documentId)) {
+        throw new HttpsError(
+          'invalid-argument',
+          'Cursor de galeria pública inválido.'
+        );
+      }
+
       query = query.startAfter(
         input.cursor.orderIndex,
         input.cursor.publishedAt,
-        db.doc(input.cursor.documentPath)
+        documentId
       );
     }
 
