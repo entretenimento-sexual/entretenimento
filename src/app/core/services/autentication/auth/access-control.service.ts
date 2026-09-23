@@ -56,7 +56,7 @@ import { ApplicationErrorService } from '../../error-handler/application-error.s
 import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 import { PlatformSubscriptionAccessService } from '@core/services/subscriptions/platform-subscription-access.service';
 import { AgeEligibilityService } from '@core/services/compliance/age-eligibility.service';
-import { isCurrentLegalAcceptanceSatisfied } from '@core/services/compliance/terms-acceptance.service';
+import { isCurrentTermsRecordAccepted } from '@core/services/compliance/terms-acceptance.service';
 import { ADULT_CONSENT_VERSION } from '@core/guards/compliance/adult-content-consent.storage';
 
 export type UserRole = IUserDados['role'];
@@ -584,7 +584,7 @@ export class AccessControlService {
           user.adultConsent?.accepted === true &&
           user.adultConsent.version === ADULT_CONSENT_VERSION
         );
-      const termsOk = isCurrentLegalAcceptanceSatisfied(user.acceptedTerms);
+      const termsOk = isCurrentTermsRecordAccepted(user.acceptedTerms);
 
       return termsOk && consentOk && ageReverificationAllowsAccess;
     }),
