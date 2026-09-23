@@ -98,12 +98,28 @@ for (const fragment of [
   'settleRecurringPlatformSubscriptionPayment',
   'reverseRecurringPlatformSubscriptionPayment',
   'markRecurringSubscriptionPaymentProblem',
+  'recordRecurringChargebackProgress',
   'PAYMENT_CONFIRMED',
   'PAYMENT_RECEIVED',
   'PAYMENT_OVERDUE',
   'PAYMENT_REFUNDED',
   'PAYMENT_CHARGEBACK_REQUESTED',
+  'PAYMENT_CHARGEBACK_DISPUTE',
+  'PAYMENT_AWAITING_CHARGEBACK_REVERSAL',
 ]) requireIncludes(processor, fragment, 'async webhook processing drift');
+
+const recurringSettlement = read(
+  'functions/src/payments/application/recurring-platform-subscription-settlement.service.ts'
+);
+for (const fragment of [
+  "transaction?.status === 'chargeback'",
+  "'restore_recurring_chargeback_payment'",
+  'renewalRestored: false',
+]) requireIncludes(
+  recurringSettlement,
+  fragment,
+  'chargeback reversal recovery drift'
+);
 
 const jobs = read(
   'functions/src/payments/application/process-provider-webhook.handler.ts'
