@@ -174,6 +174,55 @@ export async function assertNoActiveBilateralBlock(
   }
 }
 
+export async function assertNoActiveBilateralBlocksInTransaction(
+  transaction: Transaction,
+  actorUid: string,
+  targetUids: readonly string[],
+  unavailableMessage = 'Conteúdo indisponível.'
+): Promise<void> {
+  const actor = normalizeUid(actorUid);
+  const targets = [
+    ...new Set(
+      targetUids
+        .map((value) => normalizeUid(value))
+        .filter((value) => value && value !== actor)
+    ),
+  ];
+
+  if (!actor || targets.length === 0) {
+    return;
+  }
+
+  const refs = targets.flatMap((targetUid) => {
+    const [actorBlockPath, targetBlockPath] = buildBilateralBlockPaths(
+      actor,
+      targetUid
+    );
+    return [db.doc(actorBlockPath), db.doc(targetBlockPath)];
+  });
+  const snapshots = await Promise.all(
+    refs.map((ref) => transaction.get(ref))
+  );
+
+  for (let index = 0; index < targets.length; index += 1) {
+    const actorBlockSnapshot = snapshots[index * 2];
+    const targetBlockSnapshot = snapshots[index * 2 + 1];
+
+    if (
+      isBilateralBlockActive({
+        actorBlock: actorBlockSnapshot?.exists
+          ? actorBlockSnapshot.data() as BlockDocumentData
+          : null,
+        targetBlock: targetBlockSnapshot?.exists
+          ? targetBlockSnapshot.data() as BlockDocumentData
+          : null,
+      })
+    ) {
+      throw new HttpsError('not-found', unavailableMessage);
+    }
+  }
+}
+
 export async function assertNoActiveBilateralBlockInTransaction(
   transaction: Transaction,
   actorUid: string,
