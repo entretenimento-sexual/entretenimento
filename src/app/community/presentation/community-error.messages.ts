@@ -458,6 +458,10 @@ export const COMMUNITY_OWNERSHIP_REASON_MESSAGES: CommunityErrorMessageMap =
       'Esta Comunidade possui retenção operacional e não pode ser arquivada.',
     community_ownership_idempotency_invalid:
       'A confirmação anterior desta operação está inconsistente. A ação foi bloqueada para revisão.',
+    community_ownership_subscription_required:
+      'O plano do participante selecionado não permite assumir nova propriedade.',
+    community_ownership_limit_reached:
+      'O participante selecionado atingiu a quantidade de Comunidades próprias permitida pelo plano.',
   });
 
 export const COMMUNITY_OWNERSHIP_LOAD_CODE_MESSAGES: CommunityErrorMessageMap =
