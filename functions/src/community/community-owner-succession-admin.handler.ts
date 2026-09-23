@@ -122,18 +122,6 @@ function userLabel(raw: unknown): string {
     || 'Usuário';
 }
 
-function assertAuthenticatedUid(auth: unknown): string {
-  const source = (auth ?? {}) as {
-    uid?: unknown;
-    token?: Record<string, unknown>;
-  };
-  const actorUid = normalizeId(source.uid);
-  if (!actorUid) {
-    throw new HttpsError('unauthenticated', 'Staff não autenticado.');
-  }
-  return actorUid;
-}
-
 async function assertLifecycleStaff(
   actorUid: string,
   authToken: Record<string, unknown> | undefined
@@ -153,7 +141,10 @@ export const getCommunityOwnerSuccessionCases = onCall(
   async (request): Promise<SuccessionCasesResponse> => {
     assertRuntime();
     assertCommunityCallableAppCheck(request.app);
-    const actorUid = assertAuthenticatedUid(request.auth);
+    const actorUid = String(request.auth?.uid ?? '').trim();
+    if (!actorUid) {
+      throw new HttpsError('unauthenticated', 'Staff não autenticado.');
+    }
     await assertLifecycleStaff(
       actorUid,
       (request.auth?.token ?? undefined) as Record<string, unknown> | undefined
