@@ -112,6 +112,9 @@ export interface CheckoutSessionDoc {
   status: CheckoutSessionStatus;
   statusHistory?: CheckoutStatusHistoryItem[];
 
+  /** Limite do snapshot financeiro ainda não pago. */
+  expiresAt?: number | null;
+
   createdAt: number;
   updatedAt: number;
 
