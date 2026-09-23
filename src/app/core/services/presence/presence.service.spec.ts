@@ -122,6 +122,26 @@ describe('PresenceService', () => {
     expect(writerMock.setAway$).toHaveBeenCalledWith('u1');
   });
 
+  it('stop local por revogação cancela streams sem tentar escrita já proibida', () => {
+    service.start('u1');
+    isLeader$.next(true);
+
+    writerMock.setOffline$.mockClear();
+    leaderMock.releaseLeadership.mockClear();
+
+    service.stop({
+      writeOffline: false,
+      reason: 'access-gate-stopped',
+    });
+
+    expect(writerMock.setOffline$).not.toHaveBeenCalled();
+    expect(leaderMock.releaseLeadership).toHaveBeenCalledWith('presence:u1');
+
+    writerMock.beatOnline$.mockClear();
+    vi.advanceTimersByTime(60_000);
+    expect(writerMock.beatOnline$).not.toHaveBeenCalled();
+  });
+
   it('stop() limpa streams, marca offline e libera liderança', () => {
     service.start('u1');
     isLeader$.next(true);
