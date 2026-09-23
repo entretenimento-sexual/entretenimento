@@ -30,6 +30,8 @@ import { CurrentUserStoreService } from 'src/app/core/services/autentication/aut
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { toErrorInstance } from 'src/app/core/utils/firebase-error-utils';
 
+const MAX_AGE_BOUNDARY_CHECK_MS = 6 * 60 * 60 * 1_000;
+
 const UNVERIFIED: IUserAgeEligibility = Object.freeze({
   status: 'UNVERIFIED',
   policyVersion: 0,
@@ -74,26 +76,7 @@ export class AgeEligibilityService {
    * backend recusaria e se auto-invalida no instante de expiresAtMs.
    */
   readonly verifiedAdult$: Observable<boolean> = this.current$.pipe(
-    switchMap((state) => {
-      if (state.status !== 'VERIFIED_ADULT') {
-        return of(false);
-      }
-
-      const expiresAtMs = this.safeTime(state.expiresAtMs);
-      if (expiresAtMs === null) {
-        return of(true);
-      }
-
-      const remainingMs = expiresAtMs - Date.now();
-      if (remainingMs <= 0) {
-        return of(false);
-      }
-
-      return concat(
-        of(true),
-        timer(remainingMs + 1).pipe(map(() => false))
-      );
-    }),
+    switchMap((state) => this.observeVerifiedAdultWindow$(state)),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
   );
@@ -191,6 +174,44 @@ export class AgeEligibilityService {
 
         return throwError(() => error);
       })
+    );
+  }
+
+  private observeVerifiedAdultWindow$(
+    state: IUserAgeEligibility
+  ): Observable<boolean> {
+    const now = Date.now();
+    const verifiedAtMs = this.safeTime(state.verifiedAtMs);
+
+    if (
+      state.status !== 'VERIFIED_ADULT' ||
+      state.policyVersion !== 1 ||
+      verifiedAtMs === null ||
+      verifiedAtMs > now
+    ) {
+      return of(false);
+    }
+
+    const expiresAtMs = this.safeTime(state.expiresAtMs);
+    if (expiresAtMs === null) {
+      return of(true);
+    }
+
+    const remainingMs = expiresAtMs - now;
+    if (remainingMs <= 0) {
+      return of(false);
+    }
+
+    const nextCheckMs = Math.min(
+      remainingMs + 1,
+      MAX_AGE_BOUNDARY_CHECK_MS
+    );
+
+    return concat(
+      of(true),
+      timer(nextCheckMs).pipe(
+        switchMap(() => this.observeVerifiedAdultWindow$(state))
+      )
     );
   }
 
