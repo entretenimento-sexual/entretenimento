@@ -235,7 +235,10 @@ export const getCommunityOwnerSuccessionCandidatesPage =
     async (request): Promise<SuccessionCandidatesResponse> => {
       assertRuntime();
       assertCommunityCallableAppCheck(request.app);
-      const actorUid = assertAuthenticatedUid(request.auth);
+      const actorUid = String(request.auth?.uid ?? '').trim();
+      if (!actorUid) {
+        throw new HttpsError('unauthenticated', 'Staff não autenticado.');
+      }
       await assertLifecycleStaff(
         actorUid,
         (request.auth?.token ?? undefined) as Record<string, unknown> | undefined
