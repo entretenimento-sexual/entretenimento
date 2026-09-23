@@ -99,6 +99,22 @@ test('profileId duplicado ou UID resolvido inválido falham fechado', () => {
 });
 
 
+test('participações públicas paginam pelo índice existente e só expõem cursor quando há continuação', () => {
+  const source = require('node:fs').readFileSync(
+    require('node:path').resolve(
+      process.cwd(),
+      'src/community/get-profile-public-communities.handler.ts'
+    ),
+    'utf8'
+  );
+
+  assert.match(source, /cursor\?: unknown/);
+  assert.match(source, /indexCollection\.doc\(cursor\)\.get\(\)/);
+  assert.match(source, /query = query\.startAfter\(pageCursor\)/);
+  assert.match(source, /nextCursor: result\.mayHaveAnotherPage/);
+  assert.match(source, /community_discovery_index/);
+});
+
 test('comunidades públicas do perfil exigem projeção etária vigente', () => {
   const now = 1_800_000_000_000;
 
