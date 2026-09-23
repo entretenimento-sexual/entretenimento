@@ -21,8 +21,10 @@
 import { Injectable, inject } from '@angular/core';
 
 import {
+  COMMUNITY_ERROR_PRESENTATION_CONTEXTS,
   resolveCommunityPublicErrorMessage,
   resolveCommunityPublicErrorPresentation,
+  type CommunityErrorPresentationContext,
 } from 'src/app/community/presentation/community-error.catalog';
 
 import {
@@ -64,8 +66,13 @@ export interface ApplicationErrorReportOptions {
   readonly feature: string;
   readonly operation: string;
   readonly fallbackMessage: string;
-  /** API legada preservada; `presentation`/catálogos têm precedência. */
+  /** API legada para domínios ainda não canonizados. */
   readonly notification?: ApplicationErrorNotification;
+  /**
+   * Comunidades só podem alterar presentation por contexto semântico canônico.
+   * Overrides livres permanecem disponíveis para outros domínios em migração.
+   */
+  readonly communityPresentationContext?: CommunityErrorPresentationContext;
   readonly presentation?: ApplicationErrorPresentation;
   readonly codeMessages?: Readonly<Record<string, string>>;
   readonly reasonMessages?: Readonly<Record<string, string>>;
@@ -207,22 +214,24 @@ export class ApplicationErrorService {
     recommendedAction: string | null,
     options: ApplicationErrorReportOptions
   ): ApplicationErrorPresentation {
+    const communityFeature = this.isCommunityFeature(options.feature);
+    const communityContext = options.communityPresentationContext
+      ?? (
+        communityFeature && options.notification === 'none'
+          ? COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING
+          : COMMUNITY_ERROR_PRESENTATION_CONTEXTS.DEFAULT
+      );
     const communityPresentation =
-      this.isCommunityFeature(options.feature) && reason
-        ? resolveCommunityPublicErrorPresentation(reason)
+      communityFeature && reason
+        ? resolveCommunityPublicErrorPresentation(reason, communityContext)
         : null;
-    const canonicalCommunityPresentation =
-      communityPresentation?.surface === 'modal'
-      || options.notification === undefined
-        ? communityPresentation ?? undefined
-        : undefined;
-    const mappedPresentation = options.presentation
+    const mappedPresentation = communityPresentation
+      ?? options.presentation
       ?? (reason ? options.reasonPresentations?.[reason] : undefined)
       ?? (recommendedAction
         ? options.recommendedActionPresentations?.[recommendedAction]
         : undefined)
       ?? (code ? options.codePresentations?.[code] : undefined)
-      ?? canonicalCommunityPresentation
       ?? (reason
         ? COMMON_APPLICATION_ERROR_REASON_PRESENTATIONS[reason]
         : undefined)
