@@ -100,6 +100,22 @@ interface TerminalSuccessionPayload {
   trigger?: unknown;
 }
 
+interface TerminalSuccessionCasePayload {
+  communityId?: unknown;
+  trigger?: unknown;
+}
+
+interface TerminalSuccessionNominationPayload {
+  communityId?: unknown;
+  targetUid?: unknown;
+  requestId?: unknown;
+}
+
+interface TerminalSuccessionCancelPayload {
+  communityId?: unknown;
+  reason?: unknown;
+}
+
 export interface CommunityOwnershipTransferRequestResponse {
   requestId: string;
   communityId: string;
@@ -1605,6 +1621,349 @@ export const cancelCommunityOwnershipTransfer =
           requestId,
           communityId,
           status: 'canceled',
+          generatedAt: now,
+        };
+      });
+    }
+  );
+
+export const openCommunityOwnerTerminalSuccessionCase =
+  onCall<TerminalSuccessionCasePayload>(
+    {
+      region: FUNCTIONS_REGION,
+      enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+    },
+    async (request): Promise<{
+      communityId: string;
+      status: 'open';
+      previousOwnerUid: string;
+      deadlineAt: number;
+      generatedAt: number;
+    }> => {
+      assertPreviewRuntime();
+      assertCommunityCallableAppCheck(request.app);
+      const actorUid = assertAuthenticatedUid(request.auth);
+      assertRecentAuthentication(
+        (request.auth?.token ?? undefined) as Record<string, unknown> | undefined
+      );
+      await assertStaffAuthorization({
+        actorUid,
+        authToken:
+          (request.auth?.token ?? undefined) as Record<string, unknown> | undefined,
+        requiredPermission: 'users:lifecycle',
+      });
+
+      const communityId = normalizeCommunityId(request.data?.communityId);
+      const trigger = normalizeTerminalTrigger(request.data?.trigger);
+      if (!communityId || !trigger) {
+        throw new HttpsError('invalid-argument', 'Caso de sucessão inválido.');
+      }
+
+      const now = Date.now();
+      const caseRef = db.collection(CASE_COLLECTION).doc(communityId);
+
+      return db.runTransaction(async (transaction) => {
+        const communityRef = db.collection('communities').doc(communityId);
+        const [caseSnapshot, communitySnapshot] = await Promise.all([
+          transaction.get(caseRef),
+          transaction.get(communityRef),
+        ]);
+
+        if (!communitySnapshot.exists) {
+          throw new HttpsError(
+            'not-found',
+            'Comunidade não encontrada.',
+            { reason: 'community_not_found' }
+          );
+        }
+
+        const community = communitySnapshot.data() ?? {};
+        const previousOwnerUid = normalizeSafeId(community['ownerUid']);
+        const source = (community['source'] ?? {}) as Record<string, unknown>;
+        const status = normalizeCommunityStatus(community['status']);
+
+        if (
+          !previousOwnerUid
+          || normalizeSourceType(source['type']) !== 'community'
+          || (status !== 'active' && status !== 'paused')
+        ) {
+          throw new HttpsError(
+            'failed-precondition',
+            'A Comunidade não pode abrir sucessão terminal neste estado.',
+            { reason: 'community_unavailable' }
+          );
+        }
+
+        if (caseSnapshot.exists) {
+          const existing = caseSnapshot.data() ?? {};
+          const existingDeadlineAt = normalizeEpoch(existing['deadlineAt']);
+          if (
+            existing['status'] === 'open'
+            && existingDeadlineAt
+            && existingDeadlineAt > now
+          ) {
+            return {
+              communityId,
+              status: 'open' as const,
+              previousOwnerUid:
+                normalizeSafeId(existing['previousOwnerUid'])
+                ?? previousOwnerUid,
+              deadlineAt: existingDeadlineAt,
+              generatedAt: now,
+            };
+          }
+
+          throw new HttpsError(
+            'failed-precondition',
+            'Este caso de sucessão já foi encerrado.',
+            { reason: 'community_ownership_succession_closed' }
+          );
+        }
+
+        const deadlineAt =
+          now + COMMUNITY_OWNER_TERMINAL_SUCCESSION_WINDOW_MS;
+
+        transaction.set(caseRef, {
+          policyVersion: COMMUNITY_OWNERSHIP_WORKFLOW_POLICY_VERSION,
+          communityId,
+          previousOwnerUid,
+          trigger,
+          status: 'open',
+          activeRequestId: null,
+          openedByUid: actorUid,
+          openedAt: now,
+          deadlineAt,
+          updatedAt: now,
+        });
+        transaction.set(communityRef, {
+          ownershipSuccession: {
+            state: 'open',
+            mode: 'terminal_succession',
+            trigger,
+            previousOwnerUid,
+            openedAt: now,
+            deadlineAt,
+            updatedAt: now,
+          },
+          updatedAt: now,
+        }, { merge: true });
+        transaction.set(
+          db.collection('community_membership_audit').doc(),
+          {
+            action: 'community_owner_terminal_succession_opened',
+            communityId,
+            actorUid,
+            previousOwnerUid,
+            trigger,
+            deadlineAt,
+            createdAt: now,
+            source: 'staff-callable',
+          }
+        );
+
+        return {
+          communityId,
+          status: 'open' as const,
+          previousOwnerUid,
+          deadlineAt,
+          generatedAt: now,
+        };
+      });
+    }
+  );
+
+export const nominateCommunityOwnerTerminalSuccessor =
+  onCall<TerminalSuccessionNominationPayload>(
+    {
+      region: FUNCTIONS_REGION,
+      enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+    },
+    async (request): Promise<CommunityOwnershipTransferRequestResponse> => {
+      assertPreviewRuntime();
+      assertCommunityCallableAppCheck(request.app);
+      const actorUid = assertAuthenticatedUid(request.auth);
+      assertRecentAuthentication(
+        (request.auth?.token ?? undefined) as Record<string, unknown> | undefined
+      );
+      await assertStaffAuthorization({
+        actorUid,
+        authToken:
+          (request.auth?.token ?? undefined) as Record<string, unknown> | undefined,
+        requiredPermission: 'users:lifecycle',
+      });
+
+      const communityId = normalizeCommunityId(request.data?.communityId);
+      const targetUid = normalizeSafeId(request.data?.targetUid);
+      const requestId = normalizeSafeId(request.data?.requestId);
+      if (!communityId || !targetUid || !requestId) {
+        throw new HttpsError('invalid-argument', 'Indicação de sucessor inválida.');
+      }
+
+      const caseSnapshot = await db.collection(CASE_COLLECTION).doc(communityId).get();
+      if (!caseSnapshot.exists) {
+        throw new HttpsError(
+          'failed-precondition',
+          'Abra o caso de sucessão antes de indicar um sucessor.',
+          { reason: 'community_ownership_succession_closed' }
+        );
+      }
+
+      const successionCase = caseSnapshot.data() ?? {};
+      const previousOwnerUid = normalizeSafeId(successionCase['previousOwnerUid']);
+      const deadlineAt = normalizeEpoch(successionCase['deadlineAt']);
+      const trigger = normalizeTerminalTrigger(successionCase['trigger']);
+
+      if (
+        successionCase['status'] !== 'open'
+        || !previousOwnerUid
+        || !deadlineAt
+        || deadlineAt <= Date.now()
+        || !trigger
+      ) {
+        throw new HttpsError(
+          'failed-precondition',
+          'O caso de sucessão não está mais aberto.',
+          { reason: 'community_ownership_succession_closed' }
+        );
+      }
+
+      return createOwnershipOffer({
+        actorUid: previousOwnerUid,
+        communityId,
+        targetUid,
+        requestId,
+        mode: 'terminal_succession',
+        trigger,
+        terminalDeadlineAt: deadlineAt,
+      });
+    }
+  );
+
+export const cancelCommunityOwnerTerminalSuccession =
+  onCall<TerminalSuccessionCancelPayload>(
+    {
+      region: FUNCTIONS_REGION,
+      enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+    },
+    async (request): Promise<{
+      communityId: string;
+      status: 'canceled';
+      generatedAt: number;
+    }> => {
+      assertPreviewRuntime();
+      assertCommunityCallableAppCheck(request.app);
+      const actorUid = assertAuthenticatedUid(request.auth);
+      assertRecentAuthentication(
+        (request.auth?.token ?? undefined) as Record<string, unknown> | undefined
+      );
+      await assertStaffAuthorization({
+        actorUid,
+        authToken:
+          (request.auth?.token ?? undefined) as Record<string, unknown> | undefined,
+        requiredPermission: 'users:lifecycle',
+      });
+
+      const communityId = normalizeCommunityId(request.data?.communityId);
+      const reason = normalizeText(request.data?.reason, 240) || null;
+      if (!communityId) {
+        throw new HttpsError('invalid-argument', 'Caso de sucessão inválido.');
+      }
+
+      const now = Date.now();
+
+      return db.runTransaction(async (transaction) => {
+        const caseRef = db.collection(CASE_COLLECTION).doc(communityId);
+        const communityRef = db.collection('communities').doc(communityId);
+        const activeSlotRef = db
+          .collection(ACTIVE_SLOT_COLLECTION)
+          .doc(communityId);
+        const [caseSnapshot, communitySnapshot, activeSlotSnapshot] =
+          await Promise.all([
+            transaction.get(caseRef),
+            transaction.get(communityRef),
+            transaction.get(activeSlotRef),
+          ]);
+
+        if (!caseSnapshot.exists || caseSnapshot.data()?.['status'] !== 'open') {
+          throw new HttpsError(
+            'failed-precondition',
+            'O caso de sucessão não está aberto.',
+            { reason: 'community_ownership_succession_closed' }
+          );
+        }
+
+        let activeRequestRef: FirebaseFirestore.DocumentReference | null = null;
+        let activeRequestSnapshot: FirebaseFirestore.DocumentSnapshot | null = null;
+        const activeRequestId = activeSlotSnapshot.exists
+          ? normalizeSafeId(activeSlotSnapshot.data()?.['requestId'])
+          : null;
+
+        if (activeRequestId) {
+          activeRequestRef = db.collection(REQUEST_COLLECTION).doc(activeRequestId);
+          activeRequestSnapshot = await transaction.get(activeRequestRef);
+        }
+
+        if (activeRequestRef && activeRequestSnapshot?.exists) {
+          transaction.set(activeRequestRef, {
+            status: 'canceled',
+            resolvedAt: now,
+            updatedAt: now,
+          }, { merge: true });
+
+          const candidateUid = normalizeSafeId(
+            activeRequestSnapshot.data()?.['candidateUid']
+          );
+          if (candidateUid) {
+            transaction.set(
+              db.collection('notifications').doc(
+                notificationId(activeRequestId ?? '', candidateUid, 'requested')
+              ),
+              {
+                actionRequired: false,
+                resolvedAt: FieldValue.serverTimestamp(),
+                resolution: 'canceled',
+                updatedAt: FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
+          }
+        }
+
+        if (activeSlotSnapshot.exists) {
+          transaction.delete(activeSlotRef);
+        }
+
+        transaction.set(caseRef, {
+          status: 'canceled',
+          activeRequestId: null,
+          canceledAt: now,
+          canceledByUid: actorUid,
+          cancelReason: reason,
+          updatedAt: now,
+        }, { merge: true });
+
+        if (communitySnapshot.exists) {
+          transaction.set(communityRef, {
+            ownershipSuccession: FieldValue.delete(),
+            updatedAt: now,
+          }, { merge: true });
+        }
+
+        transaction.set(
+          db.collection('community_membership_audit').doc(),
+          {
+            action: 'community_owner_terminal_succession_canceled',
+            communityId,
+            actorUid,
+            reason,
+            createdAt: now,
+            source: 'staff-callable',
+          }
+        );
+
+        return {
+          communityId,
+          status: 'canceled' as const,
           generatedAt: now,
         };
       });
