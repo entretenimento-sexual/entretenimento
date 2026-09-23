@@ -20,6 +20,9 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue } from '../../firebaseApp';
 import {
+  isCommunityMuralActivityNotificationType,
+} from '../../community/community-notification.policy';
+import {
   resolveUserBlockTransition,
   type UserBlockAction,
 } from './user-block-transition';
@@ -117,6 +120,42 @@ function buildBlockEventId(
   nowMs: number
 ): string {
   return `${action}_${actorUid}_${targetUid}_${nowMs}`;
+}
+
+async function removeCommunityMuralNotificationsBetweenUsers(
+  leftUid: string,
+  rightUid: string
+): Promise<number> {
+  const notifications = db.collection('notifications');
+  const [leftSnapshot, rightSnapshot] = await Promise.all([
+    notifications
+      .where('userId', '==', leftUid)
+      .where('actorUid', '==', rightUid)
+      .get(),
+    notifications
+      .where('userId', '==', rightUid)
+      .where('actorUid', '==', leftUid)
+      .get(),
+  ]);
+
+  const documents = [...leftSnapshot.docs, ...rightSnapshot.docs].filter(
+    (document) => isCommunityMuralActivityNotificationType(
+      document.data()?.['type']
+    )
+  );
+
+  let deleted = 0;
+  for (let offset = 0; offset < documents.length; offset += 400) {
+    const batch = db.batch();
+    const chunk = documents.slice(offset, offset + 400);
+    for (const document of chunk) {
+      batch.delete(document.ref);
+    }
+    await batch.commit();
+    deleted += chunk.length;
+  }
+
+  return deleted;
 }
 
 async function manageUserBlock(input: {
@@ -225,6 +264,21 @@ async function manageUserBlock(input: {
       'internal',
       'Não foi possível atualizar o bloqueio.'
     );
+  }
+
+  if (input.action === 'block' && response.changed) {
+    try {
+      await removeCommunityMuralNotificationsBetweenUsers(
+        input.actorUid,
+        input.targetUid
+      );
+    } catch (error) {
+      console.warn('[manageUserBlock] Falha ao limpar notificações do Mural após bloqueio.', {
+        actorUid: input.actorUid,
+        targetUid: input.targetUid,
+        error: error instanceof Error ? error.message.slice(0, 300) : String(error),
+      });
+    }
   }
 
   return response;
