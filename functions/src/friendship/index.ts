@@ -19,3 +19,5 @@ export {
   blockUser,
   unblockUser,
 } from './application/manage-user-block.handler';
+
+export { getPendingFriendRequests } from './application/get-pending-friend-requests.handler';
