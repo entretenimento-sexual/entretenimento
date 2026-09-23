@@ -308,9 +308,9 @@ export const getPublicPhotoAccessUrls = onCall<PublicPhotoAccessRequest>(
             profileValidUntilMs !== null &&
             ownerCanonicalValidUntilMs !== null
               ? Math.min(
-                  profileValidUntilMs,
-                  ownerCanonicalValidUntilMs
-                )
+                profileValidUntilMs,
+                ownerCanonicalValidUntilMs
+              )
               : null;
 
           return [
