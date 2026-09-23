@@ -8,3 +8,10 @@ export { getMyBillingSnapshot } from './application/get-my-billing-snapshot.hand
 export { getMyPlatformSubscriptionHistory } from './application/get-my-platform-subscription-history.handler';
 export { reconcilePlatformSubscriptions } from './application/reconcile-platform-subscriptions.handler';
 export { syncPlatformSubscriptionEntitlement } from './application/sync-platform-subscription-entitlement.handler';
+
+export { cancelPlatformSubscriptionRenewal } from './application/cancel-platform-subscription-renewal.handler';
+export {
+  processProviderWebhookEventTrigger,
+  reconcileProviderWebhookEvents,
+  reconcileRecurringProviderCancellations,
+} from './application/process-provider-webhook.handler';
