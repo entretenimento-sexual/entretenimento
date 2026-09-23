@@ -5,8 +5,8 @@
 //
 // Decisões:
 // - usuário autenticado pode criar denúncia própria apenas para alvos legados;
-// - foto, vídeo, conteúdo comunitário e suas respostas exigem Callable com
-//   validação do alvo, rate limit e política de preservação quando aplicável;
+// - foto, vídeo, conteúdo comunitário e denúncia de possível menoridade de
+//   perfil exigem Callable com App Check/rate limit e validação backend;
 // - usuário comum não lê a fila de denúncias;
 // - admin pode ler/listar e assumir uma denúncia como reviewing;
 // - decisões finais KEEP/REMOVE de mídia/conteúdo comunitário passam pelo backend;
@@ -76,6 +76,14 @@ match /moderation_reports/{reportId} {
     ];
   }
 
+  function isCallableOnlyCreate() {
+    return isCallableOnlyTarget()
+      || (
+        request.resource.data.targetType == "profile"
+        && request.resource.data.reason == "minor_safety"
+      );
+  }
+
   function isExistingCallableOnlyTarget() {
     return resource.data.targetType in [
       "photo",
@@ -125,7 +133,7 @@ match /moderation_reports/{reportId} {
   function validCreatePayload() {
     return signedIn()
       && allowedCreateKeys()
-      && !isCallableOnlyTarget()
+      && !isCallableOnlyCreate()
       && request.resource.data.reporterUid == uid()
       && request.resource.data.reporterUid is string
       && request.resource.data.targetId is string
