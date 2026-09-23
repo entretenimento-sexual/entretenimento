@@ -10,18 +10,21 @@ export const AGE_ELIGIBILITY_POLICY_VERSION = 1;
 
 export type AgeEligibilityStatus =
   | 'UNVERIFIED'
+  | 'SELF_DECLARED_ADULT'
   | 'REVIEW_REQUIRED'
   | 'VERIFIED_ADULT'
   | 'DENIED_UNDERAGE'
   | 'EXPIRED';
 
 export type AgeEligibilitySource =
+  | 'SELF_DECLARATION'
   | 'INITIAL_VERIFICATION'
   | 'AGE_REVERIFICATION'
   | 'PROFILE_KYC'
   | 'MIGRATION';
 
 export type AgeEligibilityMethod =
+  | 'SELF_DECLARATION'
   | 'EXTERNAL_PROVIDER'
   | 'MANUAL_REVIEW'
   | 'KYC'
@@ -80,6 +83,7 @@ function positiveTime(value: unknown): number | null {
 function normalizeStatus(value: unknown): AgeEligibilityStatus | null {
   const normalized = String(value ?? '').trim().toUpperCase();
   return normalized === 'UNVERIFIED' ||
+    normalized === 'SELF_DECLARED_ADULT' ||
     normalized === 'REVIEW_REQUIRED' ||
     normalized === 'VERIFIED_ADULT' ||
     normalized === 'DENIED_UNDERAGE' ||
@@ -90,7 +94,8 @@ function normalizeStatus(value: unknown): AgeEligibilityStatus | null {
 
 function normalizeSource(value: unknown): AgeEligibilitySource | null {
   const normalized = String(value ?? '').trim().toUpperCase();
-  return normalized === 'INITIAL_VERIFICATION' ||
+  return normalized === 'SELF_DECLARATION' ||
+    normalized === 'INITIAL_VERIFICATION' ||
     normalized === 'AGE_REVERIFICATION' ||
     normalized === 'PROFILE_KYC' ||
     normalized === 'MIGRATION'
@@ -100,7 +105,8 @@ function normalizeSource(value: unknown): AgeEligibilitySource | null {
 
 function normalizeMethod(value: unknown): AgeEligibilityMethod | null {
   const normalized = String(value ?? '').trim().toUpperCase();
-  return normalized === 'EXTERNAL_PROVIDER' ||
+  return normalized === 'SELF_DECLARATION' ||
+    normalized === 'EXTERNAL_PROVIDER' ||
     normalized === 'MANUAL_REVIEW' ||
     normalized === 'KYC' ||
     normalized === 'MIGRATED_REVIEW'
@@ -191,6 +197,33 @@ export function evaluateCanonicalAgeEligibility(input: {
 
   if (status === 'EXPIRED') {
     return denied(status, 'verification_expired', common);
+  }
+
+  if (status === 'SELF_DECLARED_ADULT') {
+    const decidedAtMs = positiveTime(record['decidedAtMs']);
+
+    if (
+      source !== 'SELF_DECLARATION' ||
+      method !== 'SELF_DECLARATION' ||
+      decidedAtMs === null ||
+      decidedAtMs > nowMs ||
+      (record['expiresAtMs'] !== null && expiresAtMs === null) ||
+      (expiresAtMs !== null && expiresAtMs <= nowMs)
+    ) {
+      return denied('UNVERIFIED', 'record_mismatch', common);
+    }
+
+    return Object.freeze({
+      allowed: true,
+      status: 'SELF_DECLARED_ADULT',
+      denialReason: null,
+      policyVersion,
+      source,
+      method,
+      verifiedAtMs: null,
+      expiresAtMs,
+      caseId,
+    });
   }
 
   if (status !== 'VERIFIED_ADULT') {
