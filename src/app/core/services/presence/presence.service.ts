@@ -73,6 +73,15 @@ import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-
 
 type VisibilityStateSafe = 'hidden' | 'visible';
 
+export interface PresenceStopOptions {
+  /**
+   * Só grava offline quando a boundary ainda permite a escrita.
+   * Revogação de compliance usa false e encerra apenas os recursos locais.
+   */
+  writeOffline?: boolean;
+  reason?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class PresenceService {
   private static readonly HEARTBEAT_MS = 30_000;
@@ -268,7 +277,7 @@ export class PresenceService {
    * - libera liderança ao final;
    * - erros do writer são tratados como best-effort.
    */
-  stop$(): Observable<void> {
+  stop$(options: PresenceStopOptions = {}): Observable<void> {
     if (!this.activeUid) {
       return of(void 0);
     }
@@ -276,21 +285,328 @@ export class PresenceService {
     const uid = this.activeUid;
     const key = this.leaderKey;
     const wasLeader = this.leader.isLeaderNow(uid);
+    const writeOffline = options.writeOffline !== false;
+    const reason = String(options.reason ?? 'stop$()').trim() || 'stop$()';
 
     this.disposeSubscriptions();
 
     this.activeUid = undefined;
     this.leaderKey = undefined;
 
-    this.dbg('STOP$', {
+    this.dbg('STOP
+            defaultIfEmpty(void 0),
+            catchError((err) => {
+              this.dbg('STOP$: setOffline$ erro suprimido', err);
+              return of(void 0);
+            })
+          )
+        : of(void 0);
+
+    return markOffline$.pipe(
+      finalize(() => {
+        if (key) {
+          this.dbg('STOP$: releaseLeadership()', {
+            key,
+          });
+
+          this.leader.releaseLeadership(key);
+        }
+      }),
+      map(() => void 0)
+    );
+  }
+
+  /**
+   * Versão imperativa de stop$.
+   *
+   * Mantida para compatibilidade com orquestradores que não precisam aguardar
+   * o encerramento observável.
+   */
+  stop(options: PresenceStopOptions = {}): void {
+    this.stop$(options)
+      .pipe(take(1))
+      .subscribe({
+        next: () => {},
+        error: () => {},
+      });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Streams internos
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Bootstrap inicial:
+   * - somente a aba líder escreve;
+   * - hidden inicia como away;
+   * - visible inicia como online.
+   */
+  private createBootstrap$(
+    uid: string,
+    isLeader$: Observable<boolean>,
+    visibility$: Observable<VisibilityStateSafe>
+  ): Observable<unknown> {
+    return combineLatest([
+      isLeader$.pipe(take(1)),
+      visibility$.pipe(take(1)),
+    ]).pipe(
+      filter(([isLeader]) => isLeader),
+      exhaustMap(([, visibility]) => this.writeByVisibility(uid, visibility)),
+      catchError((err) => this.suppressStreamError('bootstrap$', err))
+    );
+  }
+
+  /**
+   * Quando uma aba se torna líder:
+   * - assume a presença conforme estado atual da aba;
+   * - se o navegador estiver offline, registra offline best-effort;
+   * - cobre reassunção de liderança sem visibilitychange.
+   */
+  private createLeaderAcquired$(
+    uid: string,
+    isLeader$: Observable<boolean>,
+    visibility$: Observable<VisibilityStateSafe>
+  ): Observable<unknown> {
+    return isLeader$.pipe(
+      startWith(false),
+      pairwise(),
+      filter(([previous, current]) => !previous && current),
+      tap(() =>
+        this.dbg('leader acquired', {
+          uid,
+        })
+      ),
+      switchMap(() =>
+        visibility$.pipe(
+          take(1),
+          exhaustMap((visibility) => {
+            if (this.isNavigatorOffline()) {
+              return this.writer.setOffline$(
+                uid,
+                'leader-acquired:navigator-offline'
+              );
+            }
+
+            return this.writeByVisibility(uid, visibility);
+          })
+        )
+      ),
+      catchError((err) => this.suppressStreamError('onLeaderAcquired$', err))
+    );
+  }
+
+  /**
+   * Heartbeat:
+   * - só roda na aba líder;
+   * - visible mantém online;
+   * - hidden mantém away com lastSeen vivo;
+   * - evita que away expire em UserPresenceQueryService.
+   */
+  private createHeartbeat$(
+    uid: string,
+    isLeader$: Observable<boolean>,
+    visibility$: Observable<VisibilityStateSafe>
+  ): Observable<unknown> {
+    return combineLatest([isLeader$, visibility$]).pipe(
+      switchMap(([isLeader, visibility]) => {
+        if (!isLeader) {
+          return EMPTY;
+        }
+
+        return interval(PresenceService.HEARTBEAT_MS).pipe(
+          startWith(0),
+          filter(() => !this.isNavigatorOffline()),
+          exhaustMap(() =>
+            visibility === 'hidden'
+              ? this.writer.setAway$(uid)
+              : this.writer.beatOnline$(uid)
+          ),
+          catchError((err) => this.suppressStreamError('heartbeat$', err))
+        );
+      })
+    );
+  }
+
+  /**
+   * Rede voltou:
+   * - somente líder escreve;
+   * - respeita a visibilidade atual.
+   */
+  private createOnline$(
+    uid: string,
+    online$: Observable<unknown>,
+    isLeader$: Observable<boolean>,
+    visibility$: Observable<VisibilityStateSafe>
+  ): Observable<unknown> {
+    return online$.pipe(
+      auditTime(1000),
+      tap(() =>
+        this.dbg('DOM online$', {
+          uid,
+        })
+      ),
+      switchMap(() =>
+        combineLatest([
+          isLeader$.pipe(take(1)),
+          visibility$.pipe(take(1)),
+        ]).pipe(
+          filter(([isLeader]) => isLeader),
+          exhaustMap(([, visibility]) => this.writeByVisibility(uid, visibility))
+        )
+      ),
+      catchError((err) => this.suppressStreamError('onOnline$', err))
+    );
+  }
+
+  /**
+   * Visibilidade mudou:
+   * - somente líder escreve;
+   * - hidden => away;
+   * - visible => online.
+   */
+  private createVisibilityChange$(
+    uid: string,
+    visibility$: Observable<VisibilityStateSafe>,
+    isLeader$: Observable<boolean>
+  ): Observable<unknown> {
+    return visibility$.pipe(
+      skip(1),
+      switchMap((visibility) =>
+        isLeader$.pipe(
+          take(1),
+          filter(Boolean),
+          exhaustMap(() => this.writeByVisibility(uid, visibility))
+        )
+      ),
+      catchError((err) => this.suppressStreamError('onVisibility$', err))
+    );
+  }
+
+  /**
+   * Rede caiu:
+   * - não força offline visual definitivo;
+   * - marca away best-effort para reduzir falso online;
+   * - offline real fica para stop/logout.
+   */
+  private createOffline$(
+    uid: string,
+    offline$: Observable<unknown>,
+    isLeader$: Observable<boolean>
+  ): Observable<unknown> {
+    return offline$.pipe(
+      auditTime(1000),
+      tap((reason) =>
+        this.dbg('DOM offline$ → setAway best-effort', {
+          uid,
+          reason,
+        })
+      ),
+      switchMap(() =>
+        isLeader$.pipe(
+          take(1),
+          filter(Boolean),
+          exhaustMap(() => this.writer.setAway$(uid))
+        )
+      ),
+      catchError((err) => this.suppressStreamError('onOffline$', err))
+    );
+  }
+
+  /**
+   * Saída da página/aba:
+   * - libera liderança imediatamente;
+   * - não força offline por padrão;
+   * - permite outra aba reassumir sem esperar TTL.
+   */
+  private createExit$(
+    uid: string,
+    exit$: Observable<unknown>
+  ): Observable<unknown> {
+    return exit$.pipe(
+      auditTime(50),
+      map((reason) => ({
+        reason,
+        wasLeader: this.leader.isLeaderNow(uid),
+        key: this.leaderKey,
+      })),
+      tap(({ wasLeader, key }) => {
+        if (wasLeader && key) {
+          this.dbg('EXIT: releaseLeadership()', {
+            uid,
+            key,
+          });
+
+          this.leader.releaseLeadership(key);
+        }
+      }),
+      switchMap(({ reason, wasLeader }) => {
+        if (!PresenceService.SET_OFFLINE_ON_EXIT) {
+          return EMPTY;
+        }
+
+        if (!wasLeader) {
+          return EMPTY;
+        }
+
+        return this.writer.setOffline$(uid, String(reason ?? 'exit'));
+      }),
+      catchError((err) => this.suppressStreamError('onExit$', err))
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------------------
+
+  private writeByVisibility(
+    uid: string,
+    visibility: VisibilityStateSafe
+  ): Observable<unknown> {
+    return visibility === 'hidden'
+      ? this.writer.setAway$(uid)
+      : this.writer.setOnline$(uid);
+  }
+
+  private suppressStreamError(context: string, err: unknown): Observable<never> {
+    /**
+     * O writer já deve encaminhar erros ao GlobalErrorHandlerService.
+     * Aqui apenas impedimos que um erro de presença encerre o stream inteiro.
+     */
+    this.dbg(`${context} erro suprimido no stream`, err);
+    return EMPTY;
+  }
+
+  private getInitialVisibility(): VisibilityStateSafe {
+    if (typeof document === 'undefined') {
+      return 'visible';
+    }
+
+    return document.visibilityState === 'hidden' ? 'hidden' : 'visible';
+  }
+
+  private isNavigatorOffline(): boolean {
+    return typeof navigator !== 'undefined' && navigator.onLine === false;
+  }
+
+  private normalizeUid(uid: string | null | undefined): string {
+    return String(uid ?? '').trim();
+  }
+
+  private disposeSubscriptions(): void {
+    this.sub.unsubscribe();
+    this.sub = new Subscription();
+  }
+}, {
       uid,
       wasLeader,
+      writeOffline,
+      reason,
       leaderKey: key,
     });
 
     const markOffline$ =
-      wasLeader && uid
-        ? this.writer.setOffline$(uid, 'stop$()').pipe(
+      writeOffline && wasLeader && uid
+        ? this.writer.setOffline$(uid, reason).pipe(
             defaultIfEmpty(void 0),
             catchError((err) => {
               this.dbg('STOP$: setOffline$ erro suprimido', err);
