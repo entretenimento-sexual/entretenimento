@@ -115,7 +115,7 @@ match /public_profiles/{userId}/public_photos/{photoId} {
       && (
         isSelf(userId)
         || (
-          publicProfileProjectionAllowsAdultExposure()
+          publicProfileAllowsAdultExposure()
           && resource.data.status == "VISIBLE"
           && photoExists()
           && isApprovedCommentReadablePhotoData(photoData())
@@ -126,7 +126,7 @@ match /public_profiles/{userId}/public_photos/{photoId} {
       && (
         isSelf(userId)
         || (
-          publicProfileProjectionAllowsAdultExposure()
+          publicProfileAllowsAdultExposure()
           && resource.data.status == "VISIBLE"
           && photoExists()
           && isApprovedCommentReadablePhotoData(photoData())
