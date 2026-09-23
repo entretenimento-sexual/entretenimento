@@ -160,7 +160,6 @@ export class DiscoveryPublicProfilesRepository {
   ): QueryConstraint[] {
     const constraints: QueryConstraint[] = [
       where('ageEligibilityVerifiedAdult', '==', true),
-      where('ageEligibilityValidUntil', '>', new Date()),
     ];
 
     if (request.mode === 'compatible') {
