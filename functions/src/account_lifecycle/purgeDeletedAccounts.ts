@@ -35,6 +35,16 @@ import {
 import {
   FirestoreAccountDataDeletionFullAdapter,
 } from './account-shared-message-anonymization.firestore';
+import {
+  FirestoreAccountFinancialRetentionAdapter,
+} from './account-financial-retention.firestore';
+import {
+  ASAAS_API_KEY,
+  resolveAsaasRuntimeConfig,
+} from '../payments/config/asaas.config';
+import {
+  AsaasPaymentProvider,
+} from '../payments/infrastructure/providers/asaas.provider';
 
 const SCHEDULE = 'every 60 minutes';
 const TIME_ZONE = 'America/Sao_Paulo';
@@ -87,10 +97,18 @@ export const purgeDeletedAccounts = onSchedule(
     timeZone: TIME_ZONE,
     timeoutSeconds: 540,
     memory: '256MiB',
+    secrets: [ASAAS_API_KEY],
   },
   async () => {
     const now = Date.now();
     const executionId = randomUUID();
+    const financialRetentionAdapter =
+      new FirestoreAccountFinancialRetentionAdapter(
+        new AsaasPaymentProvider({
+          runtime: resolveAsaasRuntimeConfig(),
+          apiKey: ASAAS_API_KEY.value(),
+        })
+      );
     const candidatesSnapshot = await db
       .collection('users')
       .where('purgeAfter', '<=', now)
@@ -156,7 +174,11 @@ export const purgeDeletedAccounts = onSchedule(
           {
             uid: candidate.uid,
             generatedAt: now,
-          }
+          },
+          undefined,
+          undefined,
+          undefined,
+          financialRetentionAdapter
         );
 
         domainFailures += execution.results.filter(
