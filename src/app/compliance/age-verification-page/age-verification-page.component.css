@@ -297,3 +297,27 @@
     grid-template-columns: 1fr;
   }
 }
+
+.age-verification__declaration,
+.age-verification__safety-note {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.age-verification__declaration p,
+.age-verification__safety-note p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.age-verification__declaration {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.age-verification__safety-note {
+  font-size: 0.9rem;
+  opacity: 0.78;
+}
