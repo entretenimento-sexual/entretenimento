@@ -183,6 +183,10 @@ export const createPlatformCheckoutSession =
           runtime: 'emulator',
           catalogVersion: planSnapshot.catalogVersion,
           planChangeKind: planChangePolicy.kind,
+          priceTreatment: planChangePolicy.priceTreatment,
+          periodTreatment: planChangePolicy.periodTreatment,
+          accessTreatment: planChangePolicy.accessTreatment,
+          prorationSupported: planChangePolicy.prorationSupported,
           ...platformSubscriptionFlowMetadata(flowContext),
         },
       };
@@ -224,6 +228,10 @@ export const createPlatformCheckoutSession =
             runtime: 'emulator',
             catalogVersion: planSnapshot.catalogVersion,
             planChangeKind: planChangePolicy.kind,
+            priceTreatment: planChangePolicy.priceTreatment,
+            periodTreatment: planChangePolicy.periodTreatment,
+            accessTreatment: planChangePolicy.accessTreatment,
+            prorationSupported: planChangePolicy.prorationSupported,
           },
         });
 
