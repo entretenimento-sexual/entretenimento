@@ -33,6 +33,17 @@ function createUser(role: IUserDados['role'] = 'free'): IUserDados {
       expiresAtMs: Number.MAX_SAFE_INTEGER,
       updatedAtMs: 1,
     },
+    acceptedTerms: {
+      accepted: true,
+      date: 1,
+      version: 'v3',
+      acknowledgedPrivacyNotice: true,
+    },
+    adultConsent: {
+      accepted: true,
+      version: 'v1',
+      acceptedAt: 1,
+    },
   } as IUserDados;
 }
 
@@ -300,6 +311,21 @@ describe('AccessControlService canonical subscription roles', () => {
     expect(await firstValueFrom(service.state$)).toBe(
       'AUTHED_PROFILE_COMPLETE_VERIFIED_AGE_BLOCKED'
     );
+  });
+
+  it('não liga social adulto entre a prova etária e o aceite adulto', async () => {
+    user$.next({
+      ...createUser(),
+      adultConsent: {
+        accepted: false,
+        version: 'v1',
+      },
+    });
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.verifiedAdultAge$)).toBe(true);
+    expect(await firstValueFrom(service.canEnterCore$)).toBe(true);
+    expect(await firstValueFrom(service.canUseAdultSocial$)).toBe(false);
   });
 
   it('usa a assinatura canônica para basic/premium/vip', async () => {
