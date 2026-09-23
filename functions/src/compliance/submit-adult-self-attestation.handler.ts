@@ -14,6 +14,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
+  AGE_ACCESS_POLICY_MODE,
   evaluateCanonicalAgeEligibility,
 } from './age-eligibility.policy';
 import {
@@ -63,6 +64,17 @@ export const submitAdultSelfAttestation = onCall<
   },
   async (request): Promise<SubmitAdultSelfAttestationResponse> => {
     const uid = assertComplianceAuthenticatedUid(request.auth);
+
+    if (AGE_ACCESS_POLICY_MODE !== 'SELF_ATTESTATION_ALLOWED') {
+      throw new HttpsError(
+        'failed-precondition',
+        'Esta etapa exige uma verificação de maioridade mais forte.',
+        {
+          reason: 'verified_age_required',
+          recommendedAction: 'complete_age_verification',
+        }
+      );
+    }
 
     if (
       request.data?.declaredAdult !== true ||
@@ -133,6 +145,20 @@ export const submitAdultSelfAttestation = onCall<
           : null,
         nowMs,
       });
+
+      if (
+        current.denialReason === 'record_mismatch' ||
+        current.denialReason === 'policy_outdated'
+      ) {
+        throw new HttpsError(
+          'failed-precondition',
+          'O estado etário da conta precisa ser reconciliado antes de continuar.',
+          {
+            reason: current.denialReason,
+            recommendedAction: 'reconcile_age_eligibility',
+          }
+        );
+      }
 
       if (current.status === 'DENIED_UNDERAGE') {
         throw new HttpsError(
