@@ -436,6 +436,43 @@ export const getPublicProfilesPage = onCall<DiscoveryPageRequest>(
     );
     const batchSize = Math.min(120, Math.max(24, pageSize * 2));
 
+    if (filters.nicknamePrefix) {
+      const prefix = filters.nicknamePrefix;
+      const searchSnapshot = await db
+        .collection('public_profiles')
+        .where('nicknameNormalized', '>=', prefix)
+        .where('nicknameNormalized', '<=', prefix + '\uf8ff')
+        .orderBy('nicknameNormalized', 'asc')
+        .orderBy(FieldPath.documentId(), 'asc')
+        .limit(maxScanned)
+        .get();
+      const searchItems: Record<string, unknown>[] = [];
+
+      for (const document of searchSnapshot.docs) {
+        const card = serializePublicProfileForDiscovery(
+          document.id,
+          document.data() as Record<string, unknown>,
+          nowMs
+        );
+
+        if (card && matchesDiscoveryFilters(card, filters)) {
+          searchItems.push(card);
+        }
+
+        if (searchItems.length >= pageSize) {
+          break;
+        }
+      }
+
+      return {
+        items: searchItems,
+        nextCursor: null,
+        reachedEnd: true,
+        fetchedAt: nowMs,
+        scanned: searchSnapshot.size,
+      };
+    }
+
     let cursor = initialCursor;
     let scanned = 0;
     let reachedEnd = false;
@@ -446,35 +483,24 @@ export const getPublicProfilesPage = onCall<DiscoveryPageRequest>(
       && scanned < maxScanned
       && !reachedEnd
     ) {
-      const nicknamePrefix = filters.nicknamePrefix;
       let profilesQuery: FirebaseFirestore.Query = db
-        .collection('public_profiles');
+        .collection('public_profiles')
+        .where('ageEligibilityVerifiedAdult', '==', true);
 
-      if (nicknamePrefix) {
+      if (mode === 'compatible') {
         profilesQuery = profilesQuery
-          .where('nicknameNormalized', '>=', nicknamePrefix)
-          .where('nicknameNormalized', '<=', nicknamePrefix + '\uf8ff')
-          .orderBy('nicknameNormalized', 'asc')
-          .orderBy(FieldPath.documentId(), 'asc');
-      } else {
-        profilesQuery = profilesQuery
-          .where('ageEligibilityVerifiedAdult', '==', true);
+          .where('compatibilityReady', '==', true);
+      }
 
-        if (mode === 'compatible') {
-          profilesQuery = profilesQuery
-            .where('compatibilityReady', '==', true);
-        }
+      profilesQuery = profilesQuery
+        .orderBy('updatedAt', 'desc')
+        .orderBy(FieldPath.documentId(), 'desc');
 
-        profilesQuery = profilesQuery
-          .orderBy('updatedAt', 'desc')
-          .orderBy(FieldPath.documentId(), 'desc');
-
-        if (cursor) {
-          profilesQuery = profilesQuery.startAfter(
-            Timestamp.fromMillis(cursor.updatedAtMs),
-            cursor.uid
-          );
-        }
+      if (cursor) {
+        profilesQuery = profilesQuery.startAfter(
+          Timestamp.fromMillis(cursor.updatedAtMs),
+          cursor.uid
+        );
       }
 
       const remainingScan = maxScanned - scanned;
@@ -522,8 +548,8 @@ export const getPublicProfilesPage = onCall<DiscoveryPageRequest>(
 
     return {
       items,
-      nextCursor: filters.nicknamePrefix || reachedEnd ? null : cursor,
-      reachedEnd: filters.nicknamePrefix ? true : reachedEnd,
+      nextCursor: reachedEnd ? null : cursor,
+      reachedEnd,
       fetchedAt: nowMs,
       scanned,
     };
