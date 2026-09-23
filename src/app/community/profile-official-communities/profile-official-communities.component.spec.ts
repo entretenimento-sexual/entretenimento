@@ -134,7 +134,7 @@ describe('ProfileOfficialCommunitiesComponent', () => {
 
     expect(
       publicMembershipRepository.getProfilePublicCommunities$
-    ).toHaveBeenCalledWith(PROFILE_ID, 4);
+    ).toHaveBeenCalledWith(PROFILE_ID, 4, null);
     expect(officialRepository.getOfficialCommunitiesForTarget$)
       .toHaveBeenCalledWith({
         type: 'profile',
@@ -158,6 +158,55 @@ describe('ProfileOfficialCommunitiesComponent', () => {
     expect(
       fixture.debugElement.queryAll(By.directive(CommunityOfficialBadgeComponent))
     ).toHaveLength(1);
+  });
+
+  it('expande participações públicas somente quando o backend fornece cursor', () => {
+    publicMembershipRepository.getProfilePublicCommunities$.mockImplementation(
+      (_profileId: string, _limit: number, cursor: string | null) => {
+        if (cursor === 'membership-1') {
+          return of({
+            items: [card('membership-2')],
+            nextCursor: null,
+            generatedAt: 200,
+          });
+        }
+
+        return of({
+          items: [card('membership-1')],
+          nextCursor: 'membership-1',
+          generatedAt: 100,
+        });
+      }
+    );
+
+    const fixture = create(true);
+    const loadMore = fixture.nativeElement.querySelector(
+      'button[aria-label="Ver mais participações públicas"]'
+    ) as HTMLButtonElement | null;
+
+    expect(loadMore).not.toBeNull();
+    expect(
+      fixture.nativeElement.querySelectorAll('.profile-official-community')
+    ).toHaveLength(1);
+
+    loadMore?.click();
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    expect(
+      publicMembershipRepository.getProfilePublicCommunities$
+    ).toHaveBeenNthCalledWith(1, PROFILE_ID, 4, null);
+    expect(
+      publicMembershipRepository.getProfilePublicCommunities$
+    ).toHaveBeenNthCalledWith(2, PROFILE_ID, 4, 'membership-1');
+    expect(
+      fixture.nativeElement.querySelectorAll('.profile-official-community')
+    ).toHaveLength(2);
+    expect(
+      fixture.nativeElement.querySelector(
+        'button[aria-label="Ver mais participações públicas"]'
+      )
+    ).toBeNull();
   });
 
   it('preserva a associação oficial quando a fonte opt-in falha', () => {
