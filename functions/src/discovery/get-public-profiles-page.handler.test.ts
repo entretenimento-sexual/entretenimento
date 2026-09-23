@@ -12,7 +12,7 @@ const NOW = 1_800_000_000_000;
 function profile(overrides: Record<string, unknown> = {}) {
   return {
     nickname: 'Perfil adulto',
-    ageEligibilityVerifiedAdult: true,
+    ageEligibilityAdultAccessAllowed: true,
     ageEligibilityValidUntil: {
       toMillis: () => NOW + 60_000,
     },
@@ -52,7 +52,7 @@ describe('get-public-profiles-page temporal boundary', () => {
   it('falha fechado quando o booleano ou validUntil não estão íntegros', () => {
     assert.equal(
       isCurrentPublicProfileAgeProjection(
-        profile({ ageEligibilityVerifiedAdult: false }),
+        profile({ ageEligibilityAdultAccessAllowed: false }),
         NOW
       ),
       false
@@ -76,7 +76,7 @@ describe('get-public-profiles-page temporal boundary', () => {
     assert.ok(serialized);
     assert.equal(serialized['uid'], 'profile-1');
     assert.equal(serialized['age'], null);
-    assert.equal(serialized['ageEligibilityVerifiedAdult'], true);
+    assert.equal(serialized['ageEligibilityAdultAccessAllowed'], true);
     assert.equal(serialized['ageEligibilityValidUntil'], NOW + 60_000);
   });
 
