@@ -8,6 +8,7 @@ import {
 import { MatDialog } from '@angular/material/dialog';
 import {
   BehaviorSubject,
+  Observable,
   catchError,
   combineLatest,
   exhaustMap,
@@ -198,7 +199,8 @@ export class CommunityOwnerSuccessionsComponent {
 
   readonly action$ = this.commands$.pipe(
     exhaustMap((command) => {
-      const operation$ = command.kind === 'nominate' && command.candidate
+      const operation$: Observable<unknown> =
+        command.kind === 'nominate' && command.candidate
         ? this.repository.nominate$(
             command.succession.communityId,
             command.candidate.uid
