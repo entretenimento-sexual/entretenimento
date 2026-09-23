@@ -32,6 +32,7 @@ interface AgeVerificationPageVm {
   selfDeclared: boolean;
   deniedUnderage: boolean;
   reviewRequired: boolean;
+  legacyInitialReview: boolean;
 }
 
 interface PageFeedback {
@@ -69,6 +70,10 @@ export class AgeVerificationPageComponent implements OnInit {
         selfDeclared: state.status === 'SELF_DECLARED_ADULT',
         deniedUnderage: state.status === 'DENIED_UNDERAGE',
         reviewRequired: state.status === 'REVIEW_REQUIRED',
+        legacyInitialReview:
+          state.status === 'REVIEW_REQUIRED' &&
+          state.source === 'INITIAL_VERIFICATION' &&
+          state.method === 'MANUAL_REVIEW',
       }))
     );
 
