@@ -50,7 +50,6 @@ const COMMUNITY_CALLABLE_RECENT_AUTH_REQUIREMENTS =
     ['community-official-claim.handler.ts:submitCommunityOfficialClaim', 'always'],
     ['community-official-claim.handler.ts:reviewCommunityOfficialClaim', 'always'],
     ['community-ownership-lifecycle.handler.ts:getCommunityOwnershipCandidates', 'none'],
-    ['community-ownership-lifecycle.handler.ts:transferCommunityOwnership', 'always'],
     ['community-ownership-lifecycle.handler.ts:archiveCommunity', 'always'],
     ['community-ownership-transfer.workflow.handler.ts:requestCommunityOwnershipTransfer', 'always'],
     ['community-ownership-transfer.workflow.handler.ts:getMyCommunityOwnershipTransfers', 'none'],
