@@ -131,6 +131,16 @@ service cloud.firestore {
         );
     }
 
+    function publicAgeProjectionAllowsAdultExposure(data) {
+      let validUntil = data is map
+        ? mapFieldOrNull(data, "ageEligibilityValidUntil")
+        : null;
+      return data is map
+        && mapFieldOrNull(data, "ageEligibilityVerifiedAdult") == true
+        && validUntil is timestamp
+        && request.time < validUntil;
+    }
+
     function currentUserHasVerifiedAdultAge() {
       return signedIn()
         && canonicalAgeEligibilityAllowsAdultAccess(uid());
