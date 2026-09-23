@@ -316,7 +316,7 @@ describe('Firestore Rules / public profile eligibility', () => {
     await assertFails(getDoc(doc(db, 'public_profiles', UID)));
   });
 
-  it('exige filtro etário materializado nas consultas de public_profiles', async () => {
+  it('nega qualquer enumeração client-side de public_profiles', async () => {
     await seedUser();
     await seedPublicProfile({
       ageEligibilityVerifiedAdult: true,
@@ -329,10 +329,11 @@ describe('Firestore Rules / public profile eligibility', () => {
       where('ageEligibilityVerifiedAdult', '==', true)
     );
 
-    const guardedResult = await assertSucceeds(getDocs(guardedQuery));
-    expect(guardedResult.size).toBe(1);
-
+    await assertFails(getDocs(guardedQuery));
     await assertFails(getDocs(collection(db, 'public_profiles')));
+
+    // Deep link documental continua disponível sob a fronteira temporal forte.
+    await assertSucceeds(getDoc(doc(db, 'public_profiles', UID)));
   });
 
   it('nega atualizar perfil público depois que a conta deixa de ser elegível', async () => {
