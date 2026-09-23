@@ -203,6 +203,11 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
           ? ageEligibilitySnap.data()
           : null,
       });
+      const ageEligibilityAssurance = ageDecision.allowed
+        ? ageDecision.status === 'VERIFIED_ADULT'
+          ? 'VERIFIED'
+          : 'SELF_DECLARED'
+        : null;
       const ageEligibilityValidUntil = Timestamp.fromMillis(
         ageDecision.allowed
           ? ageDecision.expiresAtMs ?? PUBLIC_AGE_ELIGIBILITY_MAX_VALID_UNTIL_MS
@@ -234,7 +239,10 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
             interestedInOrientations: canonical.interestedInOrientations,
             compatibilityReady: canonical.compatibilityReady,
             age: null,
+            ageEligibilityAdultAccessAllowed: ageDecision.allowed,
+            // Alias indexado legado até migração completa.
             ageEligibilityVerifiedAdult: ageDecision.allowed,
+            ageEligibilityAssurance,
             ageEligibilityValidUntil,
             ...publicPreferences,
             ...publicLocation,

@@ -21,8 +21,17 @@ import {
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, Timestamp } from '../firebaseApp';
 
-export const PUBLIC_AGE_ELIGIBILITY_FIELD =
+export const PUBLIC_AGE_ACCESS_FIELD =
+  'ageEligibilityAdultAccessAllowed' as const;
+/**
+ * Compatibilidade temporária: este nome histórico é usado por queries/indexes.
+ * Enquanto a migração não for concluída, ele representa elegibilidade de acesso,
+ * não nível de garantia. Consumidores novos devem usar ACCESS + ASSURANCE.
+ */
+export const PUBLIC_AGE_LEGACY_ACCESS_FIELD =
   'ageEligibilityVerifiedAdult' as const;
+export const PUBLIC_AGE_ASSURANCE_FIELD =
+  'ageEligibilityAssurance' as const;
 export const PUBLIC_AGE_ELIGIBILITY_VALID_UNTIL_FIELD =
   'ageEligibilityValidUntil' as const;
 
@@ -66,6 +75,7 @@ function statusCanRemainPublic(
 async function setDocumentsEligibility(
   documents: readonly QueryDocumentSnapshot[],
   eligible: boolean,
+  verified: boolean,
   validUntilMs: number
 ): Promise<number> {
   let updated = 0;
@@ -76,13 +86,20 @@ async function setDocumentsEligibility(
 
     for (const document of documents.slice(index, index + WRITE_BATCH_SIZE)) {
       const data = document.data() ?? {};
-      const currentEligible = data[PUBLIC_AGE_ELIGIBILITY_FIELD] === true;
+      const currentEligible = data[PUBLIC_AGE_ACCESS_FIELD] === true;
+      const currentLegacyAccess =
+        data[PUBLIC_AGE_LEGACY_ACCESS_FIELD] === true;
+      const currentAssurance =
+        String(data[PUBLIC_AGE_ASSURANCE_FIELD] ?? '') || null;
+      const assurance = verified ? 'VERIFIED' : eligible ? 'SELF_DECLARED' : null;
       const currentValidUntilMs = timestampToMillis(
         data[PUBLIC_AGE_ELIGIBILITY_VALID_UNTIL_FIELD]
       );
 
       if (
         currentEligible === eligible &&
+        currentLegacyAccess === eligible &&
+        currentAssurance === assurance &&
         currentValidUntilMs === validUntilMs
       ) {
         continue;
@@ -91,7 +108,9 @@ async function setDocumentsEligibility(
       batch.set(
         document.ref,
         {
-          [PUBLIC_AGE_ELIGIBILITY_FIELD]: eligible,
+          [PUBLIC_AGE_ACCESS_FIELD]: eligible,
+          [PUBLIC_AGE_LEGACY_ACCESS_FIELD]: eligible,
+          [PUBLIC_AGE_ASSURANCE_FIELD]: assurance,
           [PUBLIC_AGE_ELIGIBILITY_VALID_UNTIL_FIELD]:
             Timestamp.fromMillis(validUntilMs),
         },
@@ -146,12 +165,25 @@ export async function reconcilePublicAgeEligibilityProjection(
     nowMs,
   });
   const eligible = decision.allowed && profileSnapshot.exists;
+  const verified =
+    decision.allowed &&
+    decision.status === 'VERIFIED_ADULT' &&
+    profileSnapshot.exists;
   const validUntilMs = decision.allowed
     ? decision.expiresAtMs ?? PUBLIC_AGE_ELIGIBILITY_MAX_VALID_UNTIL_MS
     : 0;
   const currentProfileEligibility = profileSnapshot.exists
-    ? profileSnapshot.data()?.[PUBLIC_AGE_ELIGIBILITY_FIELD] === true
+    ? profileSnapshot.data()?.[PUBLIC_AGE_ACCESS_FIELD] === true
     : false;
+  const currentProfileLegacyAccess = profileSnapshot.exists
+    ? profileSnapshot.data()?.[PUBLIC_AGE_LEGACY_ACCESS_FIELD] === true
+    : false;
+  const assurance = verified ? 'VERIFIED' : eligible ? 'SELF_DECLARED' : null;
+  const currentProfileAssurance = profileSnapshot.exists
+    ? String(
+      profileSnapshot.data()?.[PUBLIC_AGE_ASSURANCE_FIELD] ?? ''
+    ) || null
+    : null;
   const currentProfileValidUntilMs = profileSnapshot.exists
     ? timestampToMillis(
       profileSnapshot.data()?.[PUBLIC_AGE_ELIGIBILITY_VALID_UNTIL_FIELD]
@@ -164,11 +196,15 @@ export async function reconcilePublicAgeEligibilityProjection(
   if (
     profileSnapshot.exists &&
     (currentProfileEligibility !== eligible ||
+      currentProfileLegacyAccess !== eligible ||
+      currentProfileAssurance !== assurance ||
       currentProfileValidUntilMs !== validUntilMs)
   ) {
     await profileRef.set(
       {
-        [PUBLIC_AGE_ELIGIBILITY_FIELD]: eligible,
+        [PUBLIC_AGE_ACCESS_FIELD]: eligible,
+        [PUBLIC_AGE_LEGACY_ACCESS_FIELD]: eligible,
+        [PUBLIC_AGE_ASSURANCE_FIELD]: assurance,
         [PUBLIC_AGE_ELIGIBILITY_VALID_UNTIL_FIELD]:
           Timestamp.fromMillis(validUntilMs),
       },
@@ -180,6 +216,8 @@ export async function reconcilePublicAgeEligibilityProjection(
   const shouldSyncChildren =
     options.forceChildren === true ||
     currentProfileEligibility !== eligible ||
+    currentProfileLegacyAccess !== eligible ||
+    currentProfileAssurance !== assurance ||
     currentProfileValidUntilMs !== validUntilMs;
 
   if (shouldSyncChildren) {
@@ -193,6 +231,7 @@ export async function reconcilePublicAgeEligibilityProjection(
     mediaUpdated += await setDocumentsEligibility(
       [...photosSnapshot.docs, ...videosSnapshot.docs],
       eligible,
+      verified,
       validUntilMs
     );
 
@@ -200,6 +239,13 @@ export async function reconcilePublicAgeEligibilityProjection(
       const status = (statusSnapshot.data() ?? {}) as Record<string, unknown>;
       const statusEligibility =
         eligible && statusCanRemainPublic(status, nowMs);
+      const statusVerified =
+        verified && statusEligibility;
+      const statusAssurance = statusVerified
+        ? 'VERIFIED'
+        : statusEligibility
+          ? 'SELF_DECLARED'
+          : null;
 
       const statusValidUntilMs = statusEligibility ? validUntilMs : 0;
       const currentStatusValidUntilMs = timestampToMillis(
@@ -207,12 +253,17 @@ export async function reconcilePublicAgeEligibilityProjection(
       );
 
       if (
-        status[PUBLIC_AGE_ELIGIBILITY_FIELD] !== statusEligibility ||
+        status[PUBLIC_AGE_ACCESS_FIELD] !== statusEligibility ||
+        status[PUBLIC_AGE_LEGACY_ACCESS_FIELD] !== statusEligibility ||
+        (String(status[PUBLIC_AGE_ASSURANCE_FIELD] ?? '') || null) !==
+          statusAssurance ||
         currentStatusValidUntilMs !== statusValidUntilMs
       ) {
         await statusRef.set(
           {
-            [PUBLIC_AGE_ELIGIBILITY_FIELD]: statusEligibility,
+            [PUBLIC_AGE_ACCESS_FIELD]: statusEligibility,
+            [PUBLIC_AGE_LEGACY_ACCESS_FIELD]: statusEligibility,
+            [PUBLIC_AGE_ASSURANCE_FIELD]: statusAssurance,
             [PUBLIC_AGE_ELIGIBILITY_VALID_UNTIL_FIELD]:
               Timestamp.fromMillis(statusValidUntilMs),
           },

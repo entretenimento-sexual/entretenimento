@@ -19,6 +19,8 @@ export interface ModerationAutomationThresholds {
   readonly reviewCriticalReports: number;
   readonly holdQuarantinedTargets: number;
   readonly holdUniqueReporters: number;
+  readonly holdCriticalReports: number;
+  readonly holdCriticalUniqueReporters: number;
   readonly suspendConfirmedViolations: number;
   readonly suspendConfirmedCriticalViolations: number;
 }
@@ -39,6 +41,7 @@ export interface ModerationAutomationDecision {
     | 'none'
     | 'report_volume'
     | 'critical_report'
+    | 'critical_report_volume'
     | 'multi_target_quarantine'
     | 'confirmed_recurrence'
     | 'confirmed_critical';
@@ -52,6 +55,8 @@ Readonly<ModerationAutomationThresholds> = Object.freeze({
   reviewCriticalReports: 1,
   holdQuarantinedTargets: 3,
   holdUniqueReporters: 6,
+  holdCriticalReports: 3,
+  holdCriticalUniqueReporters: 3,
   suspendConfirmedViolations: 3,
   suspendConfirmedCriticalViolations: 1,
 });
@@ -99,6 +104,17 @@ export function evaluateModerationAutomation(input: {
       action: 'SUSPEND_CONFIRMED',
       enforce: input.mode === 'ENFORCE',
       reason: 'confirmed_recurrence',
+    });
+  }
+
+  if (
+    signals.openCriticalReports >= thresholds.holdCriticalReports &&
+    signals.uniqueReporters >= thresholds.holdCriticalUniqueReporters
+  ) {
+    return Object.freeze({
+      action: 'TEMPORARY_INTERACTION_HOLD',
+      enforce: input.mode === 'ENFORCE',
+      reason: 'critical_report_volume',
     });
   }
 

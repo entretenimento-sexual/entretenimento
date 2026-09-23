@@ -115,14 +115,18 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
         if (
           publicProfileSnapshot.exists &&
           (
+            currentPublic['ageEligibilityAdultAccessAllowed'] !== false ||
             currentPublic['ageEligibilityVerifiedAdult'] !== false ||
+            (String(currentPublic['ageEligibilityAssurance'] ?? '') || null) !== null ||
             publicAgeValidUntilMs(currentPublic) !== 0
           )
         ) {
           transaction.set(
             publicProfileRef,
             {
+              ageEligibilityAdultAccessAllowed: false,
               ageEligibilityVerifiedAdult: false,
+              ageEligibilityAssurance: null,
               ageEligibilityValidUntil: Timestamp.fromMillis(0),
             },
             { merge: true }
@@ -139,6 +143,11 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
         ageDecision.expiresAtMs ?? PUBLIC_AGE_ELIGIBILITY_MAX_VALID_UNTIL_MS;
       const ageEligibilityValidUntil =
         Timestamp.fromMillis(ageEligibilityValidUntilMs);
+
+      const ageEligibilityAssurance =
+        ageDecision.status === 'VERIFIED_ADULT'
+          ? 'VERIFIED'
+          : 'SELF_DECLARED';
 
       const publicIdentity = buildPublicIdentityProjection(user);
       const discoverySource = publicIdentity.identityDiscoveryGroup
@@ -166,7 +175,10 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
         publicProfileDiscoveryProjectionMatches(currentPublic, canonical) &&
         publicIdentityProjectionMatches(currentPublic, publicIdentity) &&
         (currentPublic['age'] ?? null) === age &&
+        currentPublic['ageEligibilityAdultAccessAllowed'] === true &&
         currentPublic['ageEligibilityVerifiedAdult'] === true &&
+        String(currentPublic['ageEligibilityAssurance'] ?? '') ===
+          ageEligibilityAssurance &&
         publicAgeValidUntilMs(currentPublic) === ageEligibilityValidUntilMs &&
         publicPreferenceProjectionMatches(currentPublic, publicPreferences) &&
         publicLocationProjectionMatches(currentPublic, publicLocation) &&
@@ -188,7 +200,10 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
           interestedInOrientations: canonical.interestedInOrientations,
           compatibilityReady: canonical.compatibilityReady,
           age,
+          ageEligibilityAdultAccessAllowed: true,
+          // Compatibilidade com queries/indexes existentes.
           ageEligibilityVerifiedAdult: true,
+          ageEligibilityAssurance,
           ageEligibilityValidUntil,
           ...publicPreferences,
           ...publicLocation,

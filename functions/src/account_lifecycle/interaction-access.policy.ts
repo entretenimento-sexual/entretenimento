@@ -107,7 +107,7 @@ export function assertInteractionAccessData(
         : 'failed-precondition',
       ageDecision.denialReason === 'underage'
         ? 'O acesso adulto não está disponível para esta conta.'
-        : 'Conclua a verificação de maioridade antes de realizar esta ação.',
+        : 'Conclua a etapa de maioridade antes de realizar esta ação.',
       {
         reason: ageDecision.denialReason,
         recommendedAction: 'complete_age_verification',

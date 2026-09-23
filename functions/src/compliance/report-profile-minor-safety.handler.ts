@@ -155,6 +155,7 @@ export const reportProfileMinorSafety = onCall<ReportProfileMinorSafetyRequest>(
       targetKey: `profile:${targetUid}`,
       critical: true,
       quarantined: false,
+      allowReversibleEnforcement: true,
     });
 
     await safeNotifyModerationReportOpened(reportRef.id);

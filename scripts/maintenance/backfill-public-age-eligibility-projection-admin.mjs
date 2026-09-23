@@ -46,6 +46,7 @@ const WRITE_BATCH_LIMIT = 400;
 const PUBLIC_AGE_ELIGIBILITY_MAX_VALID_UNTIL_MS = 253402300799999;
 
 const VALID_SOURCES = new Set([
+  'SELF_DECLARATION',
   'INITIAL_VERIFICATION',
   'AGE_REVERIFICATION',
   'PROFILE_KYC',
@@ -53,6 +54,7 @@ const VALID_SOURCES = new Set([
 ]);
 
 const VALID_METHODS = new Set([
+  'SELF_DECLARATION',
   'EXTERNAL_PROVIDER',
   'MANUAL_REVIEW',
   'KYC',
@@ -138,13 +140,24 @@ function canonicalAgeAllowsPublicExposure(uid, raw, nowMs) {
   const rawExpiresAt = raw.expiresAtMs ?? raw.expiresAt ?? null;
   const expiresAtMs = rawExpiresAt === null ? null : toMillis(rawExpiresAt);
 
-  return recordUid === uid &&
+  const decidedAtMs =
+    toMillis(raw.decidedAtMs) ?? toMillis(raw.decidedAt);
+  const verified =
     status === 'VERIFIED_ADULT' &&
+    verifiedAtMs !== null &&
+    verifiedAtMs <= nowMs;
+  const selfDeclared =
+    status === 'SELF_DECLARED_ADULT' &&
+    source === 'SELF_DECLARATION' &&
+    method === 'SELF_DECLARATION' &&
+    decidedAtMs !== null &&
+    decidedAtMs <= nowMs;
+
+  return recordUid === uid &&
     policyVersion === AGE_POLICY_VERSION &&
     VALID_SOURCES.has(source) &&
     VALID_METHODS.has(method) &&
-    verifiedAtMs !== null &&
-    verifiedAtMs <= nowMs &&
+    (verified || selfDeclared) &&
     (rawExpiresAt === null || expiresAtMs !== null) &&
     (expiresAtMs === null || expiresAtMs > nowMs);
 }
@@ -216,15 +229,20 @@ async function main() {
 
   const queueProjection = async (
     ref,
-    current,
+    currentAccess,
+    currentLegacyAccess,
     currentValidUntil,
+    currentAssurance,
     desired,
     desiredValidUntilMs,
+    assurance,
     kind
   ) => {
     if (
-      current === desired &&
-      projectionValidUntilMillis(currentValidUntil) === desiredValidUntilMs
+      currentAccess === desired &&
+      currentLegacyAccess === desired &&
+      projectionValidUntilMillis(currentValidUntil) === desiredValidUntilMs &&
+      (String(currentAssurance ?? '') || null) === assurance
     ) return;
 
     if (kind === 'profile') profileWrites += 1;
@@ -237,7 +255,9 @@ async function main() {
     batch.set(
       ref,
       {
+        ageEligibilityAdultAccessAllowed: desired,
         ageEligibilityVerifiedAdult: desired,
+        ageEligibilityAssurance: assurance,
         ageEligibilityValidUntil: Timestamp.fromMillis(desiredValidUntilMs),
       },
       { merge: true }
@@ -301,10 +321,17 @@ async function main() {
 
       await queueProjection(
         profileDoc.ref,
+        profileDoc.data()?.ageEligibilityAdultAccessAllowed,
         profileDoc.data()?.ageEligibilityVerifiedAdult,
         profileDoc.data()?.ageEligibilityValidUntil,
+        profileDoc.data()?.ageEligibilityAssurance,
         ageEligible,
         ageValidUntilMs,
+        ageEligible
+          ? String(rawAgeRecord?.status ?? '').toUpperCase() === 'VERIFIED_ADULT'
+            ? 'VERIFIED'
+            : 'SELF_DECLARED'
+          : null,
         'profile'
       );
 
@@ -313,10 +340,17 @@ async function main() {
       for (const photoDoc of photosSnapshot.docs) {
         await queueProjection(
           photoDoc.ref,
+          photoDoc.data()?.ageEligibilityAdultAccessAllowed,
           photoDoc.data()?.ageEligibilityVerifiedAdult,
           photoDoc.data()?.ageEligibilityValidUntil,
+          photoDoc.data()?.ageEligibilityAssurance,
           ageEligible,
           ageValidUntilMs,
+          ageEligible
+            ? String(rawAgeRecord?.status ?? '').toUpperCase() === 'VERIFIED_ADULT'
+              ? 'VERIFIED'
+              : 'SELF_DECLARED'
+            : null,
           'photo'
         );
       }
@@ -324,10 +358,17 @@ async function main() {
       for (const videoDoc of videosSnapshot.docs) {
         await queueProjection(
           videoDoc.ref,
+          videoDoc.data()?.ageEligibilityAdultAccessAllowed,
           videoDoc.data()?.ageEligibilityVerifiedAdult,
           videoDoc.data()?.ageEligibilityValidUntil,
+          videoDoc.data()?.ageEligibilityAssurance,
           ageEligible,
           ageValidUntilMs,
+          ageEligible
+            ? String(rawAgeRecord?.status ?? '').toUpperCase() === 'VERIFIED_ADULT'
+              ? 'VERIFIED'
+              : 'SELF_DECLARED'
+            : null,
           'video'
         );
       }
@@ -342,10 +383,17 @@ async function main() {
 
         await queueProjection(
           statusSnapshot.ref,
+          statusData.ageEligibilityAdultAccessAllowed,
           statusData.ageEligibilityVerifiedAdult,
           statusData.ageEligibilityValidUntil,
+          statusData.ageEligibilityAssurance,
           desiredStatusProjection,
           desiredStatusProjection ? ageValidUntilMs : 0,
+          desiredStatusProjection
+            ? String(rawAgeRecord?.status ?? '').toUpperCase() === 'VERIFIED_ADULT'
+              ? 'VERIFIED'
+              : 'SELF_DECLARED'
+            : null,
           'status'
         );
       }

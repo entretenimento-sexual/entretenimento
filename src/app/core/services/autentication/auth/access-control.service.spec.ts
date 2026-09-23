@@ -58,7 +58,7 @@ describe('AccessControlService canonical subscription roles', () => {
   let subscriptionState$: BehaviorSubject<PlatformSubscriptionAccessState>;
   let subscriptionIsFree$: BehaviorSubject<boolean>;
   let subscriptionIsSubscriber$: BehaviorSubject<boolean>;
-  let verifiedAdult$: BehaviorSubject<boolean>;
+  let adultAccessAllowed$: BehaviorSubject<boolean>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -74,7 +74,7 @@ describe('AccessControlService canonical subscription roles', () => {
     );
     subscriptionIsFree$ = new BehaviorSubject<boolean>(true);
     subscriptionIsSubscriber$ = new BehaviorSubject<boolean>(false);
-    verifiedAdult$ = new BehaviorSubject<boolean>(false);
+    adultAccessAllowed$ = new BehaviorSubject<boolean>(false);
 
     TestBed.configureTestingModule({
       providers: [
@@ -107,7 +107,7 @@ describe('AccessControlService canonical subscription roles', () => {
         {
           provide: AgeEligibilityService,
           useValue: {
-            verifiedAdult$: verifiedAdult$.asObservable(),
+            adultAccessAllowed$: adultAccessAllowed$.asObservable(),
           },
         },
         {
@@ -143,6 +143,7 @@ describe('AccessControlService canonical subscription roles', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
     TestBed.resetTestingModule();
   });
@@ -193,7 +194,7 @@ describe('AccessControlService canonical subscription roles', () => {
       states.push(value)
     );
 
-    verifiedAdult$.next(true);
+    adultAccessAllowed$.next(true);
 
     expect(states).toEqual([false, true]);
     expect(await firstValueFrom(service.canRunPresence$)).toBe(true);
@@ -201,8 +202,50 @@ describe('AccessControlService canonical subscription roles', () => {
     subscription.unsubscribe();
   });
 
+  it('respeita hold temporário e libera novamente sem reload quando ele expira', async () => {
+    vi.useFakeTimers();
+    const now = 1_800_000_000_000;
+    vi.setSystemTime(now);
+    adultAccessAllowed$.next(true);
+    user$.next({
+      ...createUser(),
+      acceptedTerms: {
+        accepted: true,
+        date: 1,
+        version: 'v3',
+        acknowledgedPrivacyNotice: true,
+      },
+      adultConsent: {
+        accepted: true,
+        version: 'v1',
+      },
+      ageReverification: { status: 'NONE' },
+      moderationAutomationHold: {
+        active: true,
+        source: 'automation',
+        reason: 'critical_report_volume',
+        triggerReportId: 'report-1',
+        appliedAtMs: now,
+        expiresAtMs: now + 100,
+      },
+    });
+
+    const service = TestBed.inject(AccessControlService);
+    const states: boolean[] = [];
+    const subscription = service.canUseAdultSocial$.subscribe((value) =>
+      states.push(value)
+    );
+
+    expect(states.at(-1)).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(101);
+
+    expect(states.at(-1)).toBe(true);
+    subscription.unsubscribe();
+  });
+
   it('não inicia social quando termos, consentimento ou reverificação bloqueiam', async () => {
-    verifiedAdult$.next(true);
+    adultAccessAllowed$.next(true);
     user$.next({
       ...createUser(),
       acceptedTerms: {

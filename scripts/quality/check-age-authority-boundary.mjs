@@ -26,6 +26,7 @@ const root = path.resolve(__dirname, '..', '..');
 const requiredFiles = Object.freeze([
   'functions/src/compliance/age-eligibility.policy.ts',
   'functions/src/compliance/age-eligibility.service.ts',
+  'functions/src/compliance/accept-adult-self-declaration.handler.ts',
   'functions/src/compliance/age-verification-provider-assertion.policy.ts',
   'functions/src/compliance/age-verification-provider-assertion.trigger.ts',
   'functions/src/compliance/age-review-evidence.policy.ts',
@@ -263,8 +264,9 @@ if (fs.existsSync(helperPath)) {
   const source = fs.readFileSync(helperPath, 'utf8');
   for (const required of [
     'canonicalAgeEligibilityAllowsAdultAccess',
-    'currentUserHasVerifiedAdultAge',
+    'currentUserHasAdultAgeAccess',
     'currentUserCanUseAdultSocialPlatform',
+    'SELF_DECLARED_ADULT',
   ]) {
     if (!source.includes(required)) {
       violations.push(
@@ -275,6 +277,38 @@ if (fs.existsSync(helperPath)) {
 }
 
 
+
+const selfDeclarationHandlerPath = path.join(
+  root,
+  'functions/src/compliance/accept-adult-self-declaration.handler.ts'
+);
+if (fs.existsSync(selfDeclarationHandlerPath)) {
+  const source = codeOnly(fs.readFileSync(selfDeclarationHandlerPath, 'utf8'));
+
+  for (const required of [
+    "status: 'SELF_DECLARED_ADULT'",
+    "source: 'SELF_DECLARATION'",
+    "method: 'SELF_DECLARATION'",
+    "current.status === 'REVIEW_REQUIRED'",
+    "current.status === 'DENIED_UNDERAGE'",
+    'writeCanonicalAgeEligibilityInTransaction',
+    'compliance_audit',
+    'enforceAppCheck',
+    "'VERIFIED_REQUIRED'",
+  ]) {
+    if (!source.includes(required)) {
+      violations.push(
+        `functions/src/compliance/accept-adult-self-declaration.handler.ts (autodeclaração provisória deve preservar: ${required})`
+      );
+    }
+  }
+
+  if (/status:\s*['"]VERIFIED_ADULT['"][\s\S]{0,220}confirmsAdult/.test(source)) {
+    violations.push(
+      'functions/src/compliance/accept-adult-self-declaration.handler.ts (autodeclaração não pode promover diretamente VERIFIED_ADULT)'
+    );
+  }
+}
 
 const trustedAgeDecisionFiles = Object.freeze([
   'functions/src/compliance/review-initial-age-verification.handler.ts',
@@ -346,10 +380,32 @@ if (fs.existsSync(minorSafetyReportPath)) {
     'consumeBackendRateLimitQuota',
     'getModerationReporterAbuseRisk',
     'safeRecordModerationOpenSignal',
+    'allowReversibleEnforcement: true',
   ]) {
     if (!source.includes(required)) {
       violations.push(
         `functions/src/compliance/report-profile-minor-safety.handler.ts (denúncia de menoridade deve preservar proteção transversal: ${required})`
+      );
+    }
+  }
+}
+
+const moderationPolicyPath = path.join(
+  root,
+  'functions/src/moderation/moderation-automation.policy.ts'
+);
+if (fs.existsSync(moderationPolicyPath)) {
+  const source = codeOnly(fs.readFileSync(moderationPolicyPath, 'utf8'));
+
+  for (const required of [
+    'holdCriticalReports',
+    'holdCriticalUniqueReporters',
+    "'TEMPORARY_INTERACTION_HOLD'",
+    "'critical_report_volume'",
+  ]) {
+    if (!source.includes(required)) {
+      violations.push(
+        `functions/src/moderation/moderation-automation.policy.ts (denúncia crítica sem equipe deve preservar resposta reversível: ${required})`
       );
     }
   }
@@ -424,7 +480,7 @@ const angularAdultSocialBoundaryFiles = Object.freeze([
     path: 'src/app/core/services/autentication/auth/access-control.service.ts',
     required: [
       'canUseAdultSocial$',
-      'this.ageEligibility.verifiedAdult$',
+      'this.ageEligibility.adultAccessAllowed$',
       'TERMS_ACCEPTANCE_VERSION',
       'ADULT_CONSENT_VERSION',
       'canRunPresence$',
@@ -490,29 +546,30 @@ const ageVerificationUxFiles = Object.freeze([
   {
     path: 'src/app/compliance/age-verification-page/age-verification-page.component.ts',
     required: [
-      'verifyNow(): void',
-      'refreshTrustedSources$()',
-      'requestInitialReview$()',
+      'confirmAdult(): void',
+      'acceptSelfDeclaration$()',
+      'adultAccessAllowed$',
       "?? '/dashboard/principal'",
-      "goToNotifications(): void",
-      "goToAccount(): void",
+      'goToNotifications(): void',
+      'goToAccount(): void',
     ],
     forbidden: [
+      'verifyNow(): void',
+      'requestInitialReview$()',
       'refresh(): void',
-      'showWarning(',
-      'showInfo(',
     ],
   },
   {
     path: 'src/app/compliance/age-verification-page/age-verification-page.component.html',
     required: [
-      'Verificar maioridade',
-      'Você não precisa reenviar nada nem atualizar a página.',
-      'O que você precisa fazer agora?',
+      'Confirmo que tenho 18 anos ou mais',
+      'declara que tem 18 anos ou mais',
+      'Perfis podem ser denunciados por possível menoridade',
       'Ver notificações',
       'Ir para minha conta',
     ],
     forbidden: [
+      'Verificação em análise',
       'Já concluiu? Atualizar status',
       '(click)="refresh()"',
     ],
@@ -695,5 +752,5 @@ if (unique.length > 0) {
 }
 
 console.log(
-  '[age-authority] OK: maioridade permanece backend-only, decisões humanas exigem evidência e consentimento não substitui prova etária.'
+  '[age-authority] OK: acesso adulto inicial pode usar autodeclaração registrada no backend; verificação forte continua distinta, backend-only e preparada para provider/KYC.'
 );

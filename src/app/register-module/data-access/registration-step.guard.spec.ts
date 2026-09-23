@@ -35,7 +35,7 @@ describe('registrationStepGuard', () => {
     userResolved: true,
     userExists: true,
     termsAccepted: currentStep !== 'termsAcceptance',
-    ageEligibilityVerified:
+    ageEligibilityAllowed:
       currentStep !== 'ageVerification' &&
       currentStep !== 'termsAcceptance',
     profileCompleted:

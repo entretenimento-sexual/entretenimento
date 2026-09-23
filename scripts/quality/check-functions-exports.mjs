@@ -29,6 +29,7 @@ const requiredExports = [
   'sendDirectMessage',
   'deleteDirectMessage',
   'acceptPlatformTerms',
+  'acceptAdultSelfDeclaration',
   'acceptAdultConsent',
   'refreshMyAgeEligibility',
   'requestInitialAgeVerificationReview',

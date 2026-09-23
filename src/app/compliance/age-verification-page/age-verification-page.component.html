@@ -4,10 +4,11 @@
       <span class="age-verification__mark" aria-hidden="true">18+</span>
       <div>
         <p class="age-verification__eyebrow">Acesso adulto</p>
-        <h1 id="age-verification-title">Confirme sua maioridade</h1>
+        <h1 id="age-verification-title">Confirme que você tem 18 anos ou mais</h1>
         <p class="age-verification__intro">
-          A plataforma reaproveita sua verificação automaticamente enquanto ela
-          continuar válida, sem pedir que você repita o processo a cada acesso.
+          A plataforma é exclusiva para adultos. Para continuar, confirme sua
+          maioridade. Se houver um sinal relevante de segurança, poderemos pedir
+          uma verificação adicional.
         </p>
       </div>
     </header>
@@ -26,97 +27,64 @@
     }
 
     @if (vm$ | async; as vm) {
-      @if (vm.verified) {
+      @if (vm.accessAllowed) {
         <section class="age-verification__status age-verification__status--success" role="status">
           <span class="age-verification__status-icon" aria-hidden="true">✓</span>
           <div>
-            <strong>Maioridade confirmada</strong>
-            <p>Estamos liberando seu acesso. Você seguirá automaticamente.</p>
+            <strong>
+              {{ vm.verified ? 'Maioridade verificada' : 'Maioridade declarada' }}
+            </strong>
+            <p>Estamos preparando a próxima etapa. Você seguirá automaticamente.</p>
           </div>
         </section>
       } @else if (vm.deniedUnderage) {
         <section class="age-verification__status age-verification__status--warning" role="alert">
           <span class="age-verification__status-icon" aria-hidden="true">!</span>
           <div>
-            <strong>A verificação atual não liberou o acesso adulto</strong>
+            <strong>Acesso adulto indisponível</strong>
             <p>
-              Se essa decisão estiver incorreta, você pode pedir uma nova análise.
-              Sua conta continua disponível para notificações, suporte e configurações.
+              Existe uma decisão de segurança mais forte para esta conta.
+              Uma nova autodeclaração não pode substituir essa decisão.
             </p>
           </div>
         </section>
 
-        <div class="age-verification__actions">
+        <div class="age-verification__secondary-grid">
           <button
             type="button"
-            class="age-verification__primary"
+            class="age-verification__secondary"
             [disabled]="processing()"
-            (click)="requestDecisionReview()"
+            (click)="goToNotifications()"
           >
-            {{ processing() ? 'Enviando...' : 'Solicitar nova análise' }}
+            Ver notificações
           </button>
-
-          <div class="age-verification__secondary-grid">
-            <button
-              type="button"
-              class="age-verification__secondary"
-              [disabled]="processing()"
-              (click)="goToNotifications()"
-            >
-              Ver notificações
-            </button>
-            <button
-              type="button"
-              class="age-verification__secondary"
-              [disabled]="processing()"
-              (click)="goToAccount()"
-            >
-              Ir para minha conta
-            </button>
-          </div>
+          <button
+            type="button"
+            class="age-verification__secondary"
+            [disabled]="processing()"
+            (click)="goToAccount()"
+          >
+            Ir para minha conta
+          </button>
         </div>
-      } @else if (vm.reviewRequired) {
-        <section class="age-verification__status age-verification__status--progress" role="status">
-          <span class="age-verification__status-icon" aria-hidden="true">✓</span>
+      } @else if (vm.reviewRequired && !vm.legacyInitialReview) {
+        <section class="age-verification__status age-verification__status--warning" role="status">
+          <span class="age-verification__status-icon" aria-hidden="true">!</span>
           <div>
-            <strong>Seu pedido foi recebido</strong>
+            <strong>Confirmação adicional necessária</strong>
             <p>
-              Você não precisa reenviar nada nem atualizar a página. A liberação
-              acontece automaticamente quando a análise terminar.
+              Esta conta recebeu um sinal de segurança que exige uma etapa
+              adicional. A autodeclaração inicial não pode liberar o acesso
+              enquanto essa restrição estiver ativa.
             </p>
           </div>
         </section>
 
-        <ol class="age-verification__steps" aria-label="Etapas da verificação">
-          <li class="age-verification__step age-verification__step--done">
-            <span aria-hidden="true">1</span>
-            <div>
-              <strong>Solicitação registrada</strong>
-              <p>Seu pedido já está no sistema.</p>
-            </div>
-          </li>
-          <li class="age-verification__step age-verification__step--active">
-            <span aria-hidden="true">2</span>
-            <div>
-              <strong>Análise em andamento</strong>
-              <p>Uma fonte confiável ou revisão autorizada precisa confirmar a maioridade.</p>
-            </div>
-          </li>
-          <li class="age-verification__step">
-            <span aria-hidden="true">3</span>
-            <div>
-              <strong>Liberação automática</strong>
-              <p>Se aprovada, você segue para o acesso adulto sem repetir o processo.</p>
-            </div>
-          </li>
-        </ol>
-
         <aside class="age-verification__guidance">
-          <strong>O que você precisa fazer agora?</strong>
+          <strong>Onde acompanhar?</strong>
           <p>
-            Nada nesta tela. Você pode continuar usando as áreas de conta e
-            notificações enquanto aguarda. Quando houver decisão, o status será
-            atualizado automaticamente.
+            Consulte suas notificações e o status da conta. Essas áreas continuam
+            acessíveis mesmo quando os recursos adultos estão limitados.
           </p>
         </aside>
 
@@ -139,58 +107,42 @@
           </button>
         </div>
       } @else {
-        <section class="age-verification__status" role="status">
-          <span class="age-verification__status-icon" aria-hidden="true">18+</span>
-          <div>
-            <strong>
-              {{ vm.expired
-                ? 'Sua verificação precisa ser renovada'
-                : 'Vamos verificar sua maioridade' }}
-            </strong>
+        @if (vm.legacyInitialReview) {
+          <section class="age-verification__migration-note" role="status">
+            <strong>O fluxo anterior foi substituído</strong>
             <p>
-              Primeiro procuramos uma confirmação confiável já vinculada à sua
-              conta. Se não existir, a solicitação segue para análise sem exigir
-              que você repita cadastro ou dados já validados.
+              Você não precisa aguardar análise manual. Confirme sua maioridade
+              abaixo para continuar pela política inicial de autodeclaração.
             </p>
-          </div>
+          </section>
+        }
+
+        <section class="age-verification__declaration">
+          <strong>Antes de continuar</strong>
+          <p>
+            Ao confirmar abaixo, você declara que tem 18 anos ou mais e entende
+            que a plataforma é destinada exclusivamente a adultos.
+          </p>
         </section>
 
-        <section class="age-verification__how" aria-labelledby="age-how-title">
-          <strong id="age-how-title">Como funciona</strong>
-          <div class="age-verification__how-grid">
-            <div>
-              <span aria-hidden="true">1</span>
-              <p>Procuramos uma verificação confiável já existente.</p>
-            </div>
-            <div>
-              <span aria-hidden="true">2</span>
-              <p>Se necessário, encaminhamos a conta para revisão.</p>
-            </div>
-            <div>
-              <span aria-hidden="true">3</span>
-              <p>Quando aprovada, a liberação acontece automaticamente.</p>
-            </div>
-          </div>
-        </section>
+        <button
+          type="button"
+          class="age-verification__primary"
+          [disabled]="processing()"
+          (click)="confirmAdult()"
+        >
+          {{ processing()
+            ? 'Registrando confirmação...'
+            : 'Confirmo que tenho 18 anos ou mais' }}
+        </button>
 
-        <div class="age-verification__actions">
-          <button
-            type="button"
-            class="age-verification__primary"
-            [disabled]="processing()"
-            (click)="verifyNow()"
-          >
-            {{ processing()
-              ? 'Verificando...'
-              : vm.expired
-                ? 'Renovar verificação'
-                : 'Verificar maioridade' }}
-          </button>
-
-          <p class="age-verification__privacy-note">
-            Não usamos uma simples autodeclaração como prova. Também não pedimos
-            que você repita informações que já estejam confirmadas por uma fonte
-            confiável.
+        <div class="age-verification__safety-note">
+          <strong>Como tratamos segurança de menores</strong>
+          <p>
+            Perfis podem ser denunciados por possível menoridade. Se houver
+            sinais suficientes de segurança, algumas interações podem ser
+            limitadas temporariamente e uma verificação adicional poderá ser
+            solicitada.
           </p>
         </div>
       }

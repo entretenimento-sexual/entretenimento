@@ -14,7 +14,7 @@ describe('RegisterNavigationService', () => {
     userResolved: true,
     userExists: true,
     termsAccepted: true,
-    ageEligibilityVerified: true,
+    ageEligibilityAllowed: true,
     profileCompleted: true,
     adultConsentAccepted: true,
     initialAdultConsentRequired: true,
@@ -55,7 +55,7 @@ describe('RegisterNavigationService', () => {
   it('deve exigir verificação etária backend depois dos termos', () => {
     const vm = service.resolveVm({
       ...readyState,
-      ageEligibilityVerified: false,
+      ageEligibilityAllowed: false,
       profileCompleted: false,
       adultConsentAccepted: false,
     });

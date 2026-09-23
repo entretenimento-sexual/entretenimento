@@ -21,7 +21,8 @@ describe('moderation automation enforcement invariants', () => {
     });
 
     assert.notEqual(decision.action, 'SUSPEND_CONFIRMED');
-    assert.equal(decision.enforce, false);
+    assert.equal(decision.action, 'TEMPORARY_INTERACTION_HOLD');
+    assert.equal(decision.enforce, true);
   });
 
   it('hold exige alvos distintos e denunciantes independentes', () => {
