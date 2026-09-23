@@ -441,3 +441,54 @@ export async function markRecurringSubscriptionPaymentProblem(
     createdAt: Date.now(),
   });
 }
+
+
+export async function recordRecurringPartialRefund(
+  event: VerifiedProviderWebhookEvent
+): Promise<void> {
+  if (
+    event.resourceType !== 'payment' ||
+    !event.subscriptionId ||
+    !event.paymentId
+  ) {
+    return;
+  }
+
+  const contractId = buildRecurringSubscriptionContractId(
+    event.subscriptionId
+  );
+  const contractRef = db
+    .collection(PLATFORM_SUBSCRIPTION_COLLECTION)
+    .doc(contractId);
+  const snapshot = await contractRef.get();
+
+  if (!snapshot.exists) {
+    throw new RetryableProviderWebhookError(
+      'partial-refund-contract-pending',
+      'Contrato recorrente ainda não foi conciliado.'
+    );
+  }
+
+  const contract =
+    snapshot.data() as PlatformRecurringSubscriptionDoc;
+  const now = Date.now();
+
+  await contractRef.set(
+    {
+      lastPaymentStatus: event.eventName,
+      lastPaymentOccurredAt: event.occurredAt,
+      updatedAt: now,
+    },
+    { merge: true }
+  );
+
+  await db.collection('billing_audit').add({
+    action: 'recurring_payment_partially_refunded',
+    buyerUid: contract.buyerUid,
+    contractId,
+    providerSubscriptionId: contract.providerSubscriptionId,
+    providerPaymentId: event.paymentId,
+    accessRevoked: false,
+    createdAt: now,
+  });
+}
