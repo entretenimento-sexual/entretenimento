@@ -439,7 +439,10 @@ if (fs.existsSync(ageAppealPath)) {
     }
   }
 
-  if (/evidenceReference|MANUAL_DOCUMENT_REVIEW/.test(source)) {
+  if (
+    /request\.data[\s\S]{0,160}(?:evidenceReference|evidenceMethod)/.test(source) ||
+    /interface\s+Request[^}]{0,800}(?:evidenceReference|evidenceMethod)/.test(source)
+  ) {
     violations.push(
       'functions/src/compliance/request-profile-age-reverification-appeal.handler.ts (pedido de contestação não pode exigir prova documental como pré-condição)'
     );
