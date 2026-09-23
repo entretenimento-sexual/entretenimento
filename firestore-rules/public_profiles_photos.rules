@@ -14,8 +14,9 @@ match /public_profiles/{userId}/public_photos/{photoId} {
   }
 
   function publicProfileProjectionAllowsAdultExposure() {
-    return publicProfileExists()
-      && publicAgeProjectionAllowsAdultExposure(get(publicProfilePath()).data);
+    return publicAgeProjectionAllowsAdultExposure(
+      get(publicProfilePath()).data
+    );
   }
 
   function publicProfileAllowsAdultExposure() {
@@ -117,7 +118,6 @@ match /public_profiles/{userId}/public_photos/{photoId} {
         || (
           publicProfileAllowsAdultExposure()
           && resource.data.status == "VISIBLE"
-          && photoExists()
           && isApprovedCommentReadablePhotoData(photoData())
         )
       );
