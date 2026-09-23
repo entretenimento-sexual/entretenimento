@@ -46,6 +46,11 @@ podem ser misturados.
 
 O endpoint é a Cloud Function `paymentWebhook`.
 
+A entrada do webhook depende somente de `ASAAS_WEBHOOK_TOKEN`. Ela não depende
+da API key, de `ASAAS_ENVIRONMENT` nem de `APP_BASE_URL`; portanto uma falha
+na configuração do checkout não impede a plataforma de continuar recebendo e
+persistindo eventos financeiros autenticados.
+
 No Asaas, configurar o mesmo valor de `ASAAS_WEBHOOK_TOKEN` como token de
 autenticação do webhook e usar envio sequencial quando disponível.
 
