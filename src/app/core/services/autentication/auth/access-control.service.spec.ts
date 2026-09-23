@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { IUserDados } from '../../../interfaces/iuser-dados';
 import { PlatformSubscriptionAccessService } from '../../subscriptions/platform-subscription-access.service';
+import { AgeEligibilityService } from '../../compliance/age-eligibility.service';
 import type { PlatformSubscriptionAccessState } from '../../subscriptions/platform-subscription-access.model';
 import { ApplicationErrorService } from '../../error-handler/application-error.service';
 import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
@@ -57,6 +58,7 @@ describe('AccessControlService canonical subscription roles', () => {
   let subscriptionState$: BehaviorSubject<PlatformSubscriptionAccessState>;
   let subscriptionIsFree$: BehaviorSubject<boolean>;
   let subscriptionIsSubscriber$: BehaviorSubject<boolean>;
+  let verifiedAdult$: BehaviorSubject<boolean>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -72,6 +74,7 @@ describe('AccessControlService canonical subscription roles', () => {
     );
     subscriptionIsFree$ = new BehaviorSubject<boolean>(true);
     subscriptionIsSubscriber$ = new BehaviorSubject<boolean>(false);
+    verifiedAdult$ = new BehaviorSubject<boolean>(false);
 
     TestBed.configureTestingModule({
       providers: [
@@ -99,6 +102,12 @@ describe('AccessControlService canonical subscription roles', () => {
             state$: subscriptionState$.asObservable(),
             isFree$: subscriptionIsFree$.asObservable(),
             isSubscriber$: subscriptionIsSubscriber$.asObservable(),
+          },
+        },
+        {
+          provide: AgeEligibilityService,
+          useValue: {
+            verifiedAdult$: verifiedAdult$.asObservable(),
           },
         },
         {
@@ -136,6 +145,83 @@ describe('AccessControlService canonical subscription roles', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     TestBed.resetTestingModule();
+  });
+
+  it('mantém recursos sociais desligados enquanto a maioridade não está confirmada', async () => {
+    user$.next({
+      ...createUser(),
+      acceptedTerms: {
+        accepted: true,
+        date: 1,
+        version: 'v3',
+        acknowledgedPrivacyNotice: true,
+      },
+      adultConsent: {
+        accepted: true,
+        version: 'v1',
+      },
+      ageReverification: { status: 'NONE' },
+    });
+
+    const service = TestBed.inject(AccessControlService);
+
+    await expect(firstValueFrom(service.canUseAdultSocial$))
+      .resolves.toBe(false);
+    await expect(firstValueFrom(service.canRunPresence$))
+      .resolves.toBe(false);
+  });
+
+  it('libera recursos sociais reativamente quando a projeção 18+ backend fica válida', async () => {
+    user$.next({
+      ...createUser(),
+      acceptedTerms: {
+        accepted: true,
+        date: 1,
+        version: 'v3',
+        acknowledgedPrivacyNotice: true,
+      },
+      adultConsent: {
+        accepted: true,
+        version: 'v1',
+      },
+      ageReverification: { status: 'NONE' },
+    });
+
+    const service = TestBed.inject(AccessControlService);
+    const states: boolean[] = [];
+    const subscription = service.canUseAdultSocial$.subscribe((value) =>
+      states.push(value)
+    );
+
+    verifiedAdult$.next(true);
+
+    expect(states).toEqual([false, true]);
+    expect(await firstValueFrom(service.canRunPresence$)).toBe(true);
+
+    subscription.unsubscribe();
+  });
+
+  it('não inicia social quando termos, consentimento ou reverificação bloqueiam', async () => {
+    verifiedAdult$.next(true);
+    user$.next({
+      ...createUser(),
+      acceptedTerms: {
+        accepted: true,
+        date: 1,
+        version: 'v3',
+        acknowledgedPrivacyNotice: true,
+      },
+      adultConsent: {
+        accepted: true,
+        version: 'v1',
+      },
+      ageReverification: { status: 'UNDER_REVIEW' },
+    });
+
+    const service = TestBed.inject(AccessControlService);
+
+    await expect(firstValueFrom(service.canUseAdultSocial$))
+      .resolves.toBe(false);
   });
 
   it('diagnostica toda falha e limita feedback visual a uma vez por 15 segundos', async () => {
