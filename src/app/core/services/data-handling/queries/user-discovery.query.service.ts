@@ -44,7 +44,7 @@ export class UserDiscoveryQueryService {
   private static readonly FILTERED_RESULT_LIMIT = 120;
   private static readonly DEFAULT_CACHE_TTL_MS = 30_000;
   private static readonly SENSITIVE_CACHE_PREFIX =
-    'discovery:public_profiles:uids:';
+    'discovery:public_profiles:uids:v3:';
 
   private readonly uid$ = this.authSession.uid$.pipe(
     distinctUntilChanged(),
@@ -195,6 +195,9 @@ export class UserDiscoveryQueryService {
             if (
               cachedProfiles !== null
               && cachedSelection.length === normalizedUids.length
+              && cachedSelection.every((profile) =>
+                this.hasCurrentAgeEligibilityProjection(profile)
+              )
             ) {
               return of(cachedSelection);
             }
@@ -460,11 +463,29 @@ export class UserDiscoveryQueryService {
         this.firstNumber(raw, ['profileCompletenessScore']),
       mediaMetricsUpdatedAt:
         this.firstValue(raw, ['mediaMetricsUpdatedAt']) ?? null,
+      ageEligibilityVerifiedAdult:
+        raw['ageEligibilityVerifiedAdult'] === true,
+      ageEligibilityValidUntil:
+        this.firstNumber(raw, ['ageEligibilityValidUntil']),
       isOnline: false,
       lastSeen: null,
       lastOnlineAt: null,
       lastOfflineAt: null,
     } as unknown as IUserDados;
+  }
+
+  private hasCurrentAgeEligibilityProjection(
+    profile: IUserDados
+  ): boolean {
+    const source = profile as IUserDados & Record<string, unknown>;
+    const validUntilMs = this.firstNumber(
+      source,
+      ['ageEligibilityValidUntil']
+    );
+
+    return source['ageEligibilityVerifiedAdult'] === true
+      && validUntilMs !== null
+      && validUntilMs > Date.now();
   }
 
   private pickProfilesByRequestedUids(
