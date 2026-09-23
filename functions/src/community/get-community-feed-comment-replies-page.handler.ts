@@ -10,6 +10,9 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
+import {
+  resolveBilateralBlockedUidsForActor,
+} from '../friendship/application/bilateral-block-access.policy';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   REQUIRE_COMMUNITY_APP_CHECK,
@@ -69,7 +72,10 @@ export const getCommunityFeedCommentRepliesPage = onCall<
       throw new HttpsError('invalid-argument', 'Cursor de resposta inválido.');
     }
 
-    const context = await getCommunityViewerContext(uid, page.communityId);
+    const [context, blockedUids] = await Promise.all([
+      getCommunityViewerContext(uid, page.communityId),
+      resolveBilateralBlockedUidsForActor(uid),
+    ]);
     const feedContentAccess = resolveCommunityFeedContentAccess(
       context.memberContentAccess,
       context.authenticatedPreviewAccess
@@ -93,6 +99,7 @@ export const getCommunityFeedCommentRepliesPage = onCall<
     ]);
     const post = postSnapshot.exists ? postSnapshot.data() ?? {} : {};
     const postKind = post['kind'];
+    const postAuthorUid = String(post['actorUid'] ?? '').trim();
     const projection = projectionSnapshot.exists
       ? sanitizeCommunityFeedProjection(page.postId, projectionSnapshot.data())
       : null;
@@ -108,9 +115,12 @@ export const getCommunityFeedCommentRepliesPage = onCall<
       || !isCommunityFeedInteractivePostKind(postKind)
       || post['status'] !== 'active'
       || post['moderationState'] !== 'active'
+      || !postAuthorUid
+      || blockedUids.has(postAuthorUid)
       || !projection
       || projection.item.kind !== postKind
       || !parentComment
+      || blockedUids.has(parentComment.actorUid)
       || !canViewerReadCommunityFeedAudience(projection, feedContentAccess)
     ) {
       throw new HttpsError('not-found', 'Comentário não encontrado.');
@@ -144,7 +154,7 @@ export const getCommunityFeedCommentRepliesPage = onCall<
         page.commentId,
         now
       );
-      if (!sanitized) continue;
+      if (!sanitized || blockedUids.has(sanitized.actorUid)) continue;
       sanitizedReplies.push(sanitized);
       if (sanitizedReplies.length >= page.limit) break;
     }
