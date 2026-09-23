@@ -25,6 +25,33 @@
       }
     </header>
 
+    @if (vm.attentionCommunityCount > 0) {
+      <aside
+        class="profile-my-communities__attention"
+        aria-label="Comunidades que precisam da sua atenção"
+      >
+        <span class="profile-my-communities__attention-icon" aria-hidden="true">
+          <i class="fas fa-bolt"></i>
+        </span>
+
+        <span class="profile-my-communities__attention-copy">
+          <strong>Comunidades que precisam da sua atenção</strong>
+          <span>
+            {{ vm.attentionCommunityCount }}
+            {{ vm.attentionCommunityCount === 1 ? 'comunidade tem' : 'comunidades têm' }}
+            avisos ou ações prioritárias.
+          </span>
+        </span>
+
+        <a
+          class="profile-my-communities__attention-action"
+          [routerLink]="['/notificacoes']"
+        >
+          Ver na Central
+        </a>
+      </aside>
+    }
+
     @if (vm.status === 'loading') {
       <div
         class="profile-my-communities__state"

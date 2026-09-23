@@ -277,7 +277,7 @@ describe('OtherUserProfileViewComponent', () => {
     );
     expect(
       publicMembershipRepository.getProfilePublicCommunities$
-    ).toHaveBeenCalledWith(targetProfileId, 4);
+    ).toHaveBeenCalledWith(targetProfileId, 4, null);
     expect(communitySurface.componentInstance).toBeInstanceOf(
       ProfileOfficialCommunitiesComponent
     );

@@ -19,11 +19,16 @@ import { RouterLink } from '@angular/router';
 import {
   BehaviorSubject,
   Observable,
+  Subject,
   catchError,
   combineLatest,
+  concat,
   distinctUntilChanged,
+  exhaustMap,
   map,
+  merge,
   of,
+  scan,
   shareReplay,
   startWith,
   switchMap,
@@ -32,7 +37,10 @@ import {
 import { normalizePublicProfileId } from 'src/app/core/domain/public-user-identity/public-profile-id.model';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
-import type { CommunityPreviewCard } from '../data-access/community-preview.model';
+import type {
+  CommunityDiscoveryPage,
+  CommunityPreviewCard,
+} from '../data-access/community-preview.model';
 import { CommunityProfilePublicCommunitiesRepository } from '../data-access/community-profile-public-communities.repository';
 import { OfficialCommunitiesForTargetComponent } from '../official-communities-for-target/official-communities-for-target.component';
 import {
@@ -48,13 +56,80 @@ type ProfileMembershipStatus = 'loading' | 'ready' | 'empty' | 'error';
 interface ProfileMembershipVm {
   readonly status: ProfileMembershipStatus;
   readonly items: readonly CommunityPreviewCard[];
+  readonly nextCursor: string | null;
+  readonly loadingMore: boolean;
 }
+
+type ProfileMembershipLoadEvent =
+  | Readonly<{ type: 'loading' }>
+  | Readonly<{ type: 'loading-more' }>
+  | Readonly<{
+      type: 'success';
+      page: CommunityDiscoveryPage;
+      append: boolean;
+    }>
+  | Readonly<{ type: 'error'; append: boolean }>;
 
 const PROFILE_COMMUNITY_LIMIT = 4;
 const EMPTY_MEMBERSHIP_VM: ProfileMembershipVm = Object.freeze({
   status: 'empty',
   items: [],
+  nextCursor: null,
+  loadingMore: false,
 });
+const LOADING_MEMBERSHIP_VM: ProfileMembershipVm = Object.freeze({
+  status: 'loading',
+  items: [],
+  nextCursor: null,
+  loadingMore: false,
+});
+
+function mergeMembershipCards(
+  current: readonly CommunityPreviewCard[],
+  incoming: readonly CommunityPreviewCard[]
+): readonly CommunityPreviewCard[] {
+  const byId = new Map<string, CommunityPreviewCard>();
+
+  for (const item of current) byId.set(item.communityId, item);
+  for (const item of incoming) byId.set(item.communityId, item);
+
+  return [...byId.values()];
+}
+
+function reduceMembershipVm(
+  state: ProfileMembershipVm,
+  event: ProfileMembershipLoadEvent
+): ProfileMembershipVm {
+  if (event.type === 'loading') {
+    return LOADING_MEMBERSHIP_VM;
+  }
+
+  if (event.type === 'loading-more') {
+    return { ...state, loadingMore: true };
+  }
+
+  if (event.type === 'error') {
+    return event.append
+      ? { ...state, loadingMore: false }
+      : {
+          status: 'error',
+          items: [],
+          nextCursor: null,
+          loadingMore: false,
+        };
+  }
+
+  const items = event.append
+    ? mergeMembershipCards(state.items, event.page.items)
+    : event.page.items;
+
+  return {
+    status: items.length > 0 ? 'ready' : 'empty',
+    items,
+    nextCursor: event.page.nextCursor,
+    loadingMore: false,
+  };
+}
 
 @Component({
   selector: 'app-profile-official-communities',
@@ -78,6 +153,7 @@ export class ProfileOfficialCommunitiesComponent {
   private readonly includePublicMembershipsSubject =
     new BehaviorSubject<boolean>(false);
   private readonly refreshSubject = new BehaviorSubject<number>(0);
+  private readonly loadMoreSubject = new Subject<string>();
 
   profileIdValue = '';
 
@@ -108,13 +184,20 @@ export class ProfileOfficialCommunitiesComponent {
         return of(EMPTY_MEMBERSHIP_VM);
       }
 
-      return this.loadPublicMemberships$(profileId);
+      return this.loadPublicMembershipsPages$(profileId);
     }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
   retry(): void {
     this.refreshSubject.next(this.refreshSubject.value + 1);
+  }
+
+  loadMore(cursor: string | null): void {
+    const normalizedCursor = String(cursor ?? '').trim();
+    if (!normalizedCursor) return;
+
+    this.loadMoreSubject.next(normalizedCursor);
   }
 
   detailsRoute(item: CommunityPreviewCard): readonly string[] {
@@ -131,41 +214,67 @@ export class ProfileOfficialCommunitiesComponent {
     return resolveCommunityVisualVariant(item);
   }
 
-  private loadPublicMemberships$(
+  private loadPublicMembershipsPages$(
     profileId: string
   ): Observable<ProfileMembershipVm> {
+    const initial$ = this.loadPublicMembershipPageEvent$(
+      profileId,
+      null,
+      false
+    ).pipe(
+      startWith<ProfileMembershipLoadEvent>({ type: 'loading' })
+    );
+
+    const additionalPages$ = this.loadMoreSubject.pipe(
+      exhaustMap((cursor) =>
+        concat(
+          of<ProfileMembershipLoadEvent>({ type: 'loading-more' }),
+          this.loadPublicMembershipPageEvent$(profileId, cursor, true)
+        )
+      )
+    );
+
+    return merge(initial$, additionalPages$).pipe(
+      scan(reduceMembershipVm, LOADING_MEMBERSHIP_VM)
+    );
+  }
+
+  private loadPublicMembershipPageEvent$(
+    profileId: string,
+    cursor: string | null,
+    append: boolean
+  ): Observable<ProfileMembershipLoadEvent> {
     return this.publicCommunitiesRepository.getProfilePublicCommunities$(
       profileId,
-      PROFILE_COMMUNITY_LIMIT
+      PROFILE_COMMUNITY_LIMIT,
+      cursor
     ).pipe(
-      map((page) => ({
-        status: page.items.length > 0 ? 'ready' : 'empty',
-        items: page.items,
-      } as ProfileMembershipVm)),
+      map((page): ProfileMembershipLoadEvent => ({
+        type: 'success',
+        page,
+        append,
+      })),
       catchError((error: unknown) => {
         this.applicationError.report(error, {
           feature: 'community',
-          operation: 'loadProfilePublicCommunities',
-          fallbackMessage:
-            'Não foi possível carregar as participações públicas deste perfil.',
+          operation: append
+            ? 'loadMoreProfilePublicCommunities'
+            : 'loadProfilePublicCommunities',
+          fallbackMessage: append
+            ? 'Não foi possível carregar mais participações públicas agora.'
+            : 'Não foi possível carregar as participações públicas deste perfil.',
           notification: 'warning',
           reasonMessages: PROFILE_OFFICIAL_COMMUNITIES_REASON_MESSAGES,
           metadata: {
             scope: 'ProfileOfficialCommunitiesComponent',
             hasProfileId: true,
             publicMemberships: true,
+            append,
           },
         });
 
-        return of({
-          status: 'error',
-          items: [],
-        } as ProfileMembershipVm);
-      }),
-      startWith({
-        status: 'loading',
-        items: [],
-      } as ProfileMembershipVm)
+        return of<ProfileMembershipLoadEvent>({ type: 'error', append });
+      })
     );
   }
 }

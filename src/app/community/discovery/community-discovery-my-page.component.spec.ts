@@ -496,14 +496,20 @@ describe('CommunityDiscoveryPageComponent / Minhas comunidades', () => {
     ).toHaveLength(1);
   });
 
-  it('restaura snapshot fresco sem repetir a callable privada', async () => {
+  it('restaura continuidade multipágina fresca sem repetir a callable privada', async () => {
     getMyCommunitiesPage$.mockClear();
+    const cachedItems = Array.from({ length: 13 }, (_, index) =>
+      communityCard(
+        `community-cached-${index + 1}`,
+        `Comunidade ${index + 1}`
+      )
+    );
     readSnapshot$.mockReturnValue(
       of({
         fresh: true,
         page: {
-          items: [communityCard()],
-          nextCursor: 'cursor-2',
+          items: cachedItems,
+          nextCursor: 'cursor-3',
           generatedAt: 456,
         },
       })
@@ -519,7 +525,10 @@ describe('CommunityDiscoveryPageComponent / Minhas comunidades', () => {
       )
     );
 
-    expect(state.nextCursor).toBe('cursor-2');
+    expect(state.items).toHaveLength(13);
+    expect(state.items.at(-1)?.communityId).toBe('community-cached-13');
+    expect(state.nextCursor).toBe('cursor-3');
     expect(getMyCommunitiesPage$).not.toHaveBeenCalled();
+    expect(rememberPage).not.toHaveBeenCalled();
   });
 });
