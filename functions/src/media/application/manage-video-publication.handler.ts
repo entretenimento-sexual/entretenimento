@@ -1,8 +1,9 @@
 import { logger } from 'firebase-functions';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
+import { getCanonicalAgeEligibilityForUid } from '../../compliance/age-eligibility.service';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
-import { db, FieldValue } from '../../firebaseApp';
+import { db, FieldValue, Timestamp } from '../../firebaseApp';
 import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
 import {
   copyPrivateVideoToPublishedAsset,
@@ -287,6 +288,17 @@ export const publishVideo = onCall<PublishVideoRequest>(
 
     assertOwner(requesterUid, ownerUid);
 
+    const ageDecision = await getCanonicalAgeEligibilityForUid(ownerUid);
+    if (!ageDecision.allowed) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Conclua a verificação de maioridade antes de publicar mídia.'
+      );
+    }
+    const ageEligibilityValidUntil = Timestamp.fromMillis(
+      ageDecision.expiresAtMs ?? 253402300799999
+    );
+
     const visibility = cleanVisibility(request.data?.visibility);
     const orderIndex = normalizeOrderIndex(request.data?.orderIndex);
     const ownerVideoRef = db.doc(`users/${ownerUid}/videos/${videoId}`);
@@ -404,6 +416,7 @@ export const publishVideo = onCall<PublishVideoRequest>(
         ownerUid,
         mediaType: 'VIDEO',
         ageEligibilityVerifiedAdult: true,
+        ageEligibilityValidUntil,
         assetAccess: 'SIGNED_URL',
         posterAccess: publishedAssets.posterStoragePath
           ? 'SIGNED_URL'
