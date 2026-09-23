@@ -929,7 +929,7 @@
       "queryScope": "COLLECTION_GROUP",
       "fields": [
         {
-          "fieldPath": "ageEligibilityVerifiedAdult",
+          "fieldPath": "ageEligibilityAdultAccessAllowed",
           "order": "ASCENDING"
         },
         {
@@ -956,7 +956,7 @@
       "queryScope": "COLLECTION_GROUP",
       "fields": [
         {
-          "fieldPath": "ageEligibilityVerifiedAdult",
+          "fieldPath": "ageEligibilityAdultAccessAllowed",
           "order": "ASCENDING"
         },
         {
@@ -987,7 +987,7 @@
       "queryScope": "COLLECTION_GROUP",
       "fields": [
         {
-          "fieldPath": "ageEligibilityVerifiedAdult",
+          "fieldPath": "ageEligibilityAdultAccessAllowed",
           "order": "ASCENDING"
         },
         {
@@ -1018,7 +1018,7 @@
       "queryScope": "COLLECTION_GROUP",
       "fields": [
         {
-          "fieldPath": "ageEligibilityVerifiedAdult",
+          "fieldPath": "ageEligibilityAdultAccessAllowed",
           "order": "ASCENDING"
         },
         {
@@ -1049,7 +1049,7 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "ageEligibilityVerifiedAdult",
+          "fieldPath": "ageEligibilityAdultAccessAllowed",
           "order": "ASCENDING"
         },
         {
@@ -1080,7 +1080,7 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "ageEligibilityVerifiedAdult",
+          "fieldPath": "ageEligibilityAdultAccessAllowed",
           "order": "ASCENDING"
         },
         {
@@ -1111,7 +1111,7 @@
       "queryScope": "COLLECTION_GROUP",
       "fields": [
         {
-          "fieldPath": "ageEligibilityVerifiedAdult",
+          "fieldPath": "ageEligibilityAdultAccessAllowed",
           "order": "ASCENDING"
         },
         {
@@ -1150,7 +1150,7 @@
       "queryScope": "COLLECTION_GROUP",
       "fields": [
         {
-          "fieldPath": "ageEligibilityVerifiedAdult",
+          "fieldPath": "ageEligibilityAdultAccessAllowed",
           "order": "ASCENDING"
         },
         {
@@ -1177,7 +1177,7 @@
       "queryScope": "COLLECTION_GROUP",
       "fields": [
         {
-          "fieldPath": "ageEligibilityVerifiedAdult",
+          "fieldPath": "ageEligibilityAdultAccessAllowed",
           "order": "ASCENDING"
         },
         {
@@ -1208,7 +1208,7 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "ageEligibilityVerifiedAdult",
+          "fieldPath": "ageEligibilityAdultAccessAllowed",
           "order": "ASCENDING"
         },
         {
@@ -1243,7 +1243,7 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "ageEligibilityVerifiedAdult",
+          "fieldPath": "ageEligibilityAdultAccessAllowed",
           "order": "ASCENDING"
         },
         {
@@ -1282,7 +1282,7 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "ageEligibilityVerifiedAdult",
+          "fieldPath": "ageEligibilityAdultAccessAllowed",
           "order": "ASCENDING"
         },
         {
@@ -1321,7 +1321,7 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "ageEligibilityVerifiedAdult",
+          "fieldPath": "ageEligibilityAdultAccessAllowed",
           "order": "ASCENDING"
         },
         {
@@ -1364,7 +1364,7 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "ageEligibilityVerifiedAdult",
+          "fieldPath": "ageEligibilityAdultAccessAllowed",
           "order": "ASCENDING"
         },
         {
@@ -1383,7 +1383,7 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "ageEligibilityVerifiedAdult",
+          "fieldPath": "ageEligibilityAdultAccessAllowed",
           "order": "ASCENDING"
         },
         {
@@ -1425,7 +1425,7 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "ageEligibilityVerifiedAdult",
+          "fieldPath": "ageEligibilityAdultAccessAllowed",
           "order": "ASCENDING"
         },
         {
