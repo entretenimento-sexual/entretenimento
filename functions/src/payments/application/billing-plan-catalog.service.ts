@@ -24,6 +24,8 @@ import {
   PlatformPlanKey,
 } from '../domain/billing.model';
 
+export const PLATFORM_BILLING_CATALOG_VERSION = 1;
+
 const PLATFORM_PLANS: Readonly<Record<PlatformPlanKey, BillingPlan>> = {
   basic: {
     id: 'platform_basic_monthly',
@@ -36,7 +38,7 @@ const PLATFORM_PLANS: Readonly<Record<PlatformPlanKey, BillingPlan>> = {
     interval: 'month',
     active: true,
     grantedRole: 'basic',
-    catalogVersion: 1,
+    catalogVersion: PLATFORM_BILLING_CATALOG_VERSION,
   },
 
   premium: {
@@ -50,7 +52,7 @@ const PLATFORM_PLANS: Readonly<Record<PlatformPlanKey, BillingPlan>> = {
     interval: 'month',
     active: true,
     grantedRole: 'premium',
-    catalogVersion: 1,
+    catalogVersion: PLATFORM_BILLING_CATALOG_VERSION,
   },
 
   vip: {
@@ -64,7 +66,7 @@ const PLATFORM_PLANS: Readonly<Record<PlatformPlanKey, BillingPlan>> = {
     interval: 'month',
     active: true,
     grantedRole: 'vip',
-    catalogVersion: 1,
+    catalogVersion: PLATFORM_BILLING_CATALOG_VERSION,
   },
 };
 
@@ -76,6 +78,12 @@ export function normalizePlatformPlanKey(rawValue: unknown): PlatformPlanKey | n
   }
 
   return null;
+}
+
+export function listPlatformPlans(): readonly BillingPlan[] {
+  return Object.values(PLATFORM_PLANS)
+    .filter((plan) => plan.active)
+    .map((plan) => ({ ...plan }));
 }
 
 export function getPlatformPlanByKey(
