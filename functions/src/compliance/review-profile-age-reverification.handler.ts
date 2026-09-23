@@ -58,6 +58,8 @@ interface AgeReverificationSuspensionRecord {
   active?: unknown;
   caseId?: unknown;
   reportId?: unknown;
+  appliedAtMs?: unknown;
+  appliedBy?: unknown;
 }
 
 type ReviewAgeReverificationUserDocument = AgeReverificationUserDocument & {
