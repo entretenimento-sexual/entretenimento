@@ -138,6 +138,27 @@ export const submitAdultSelfAttestation = onCall<
         );
       }
 
+      const reverificationStatus = String(
+        ageReverification?.['status'] ?? ''
+      ).trim().toUpperCase();
+      const reverificationResult = String(
+        ageReverification?.['result'] ?? ''
+      ).trim().toUpperCase();
+
+      if (
+        reverificationStatus === 'REJECTED' &&
+        reverificationResult === 'UNDERAGE'
+      ) {
+        throw new HttpsError(
+          'permission-denied',
+          'O acesso adulto não está disponível para esta conta.',
+          {
+            reason: 'underage',
+            recommendedAction: 'appeal_age_decision',
+          }
+        );
+      }
+
       const current = evaluateCanonicalAgeEligibility({
         uid,
         rawRecord: eligibilitySnapshot.exists
