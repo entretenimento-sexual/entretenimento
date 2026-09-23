@@ -41,6 +41,7 @@ import {
   CommunityOwnershipCandidatesResponse,
 } from '../data-access/community-ownership.model';
 import { CommunityOwnershipRepository } from '../data-access/community-ownership.repository';
+import { COMMUNITY_ERROR_PRESENTATION_CONTEXTS } from '../presentation/community-error.catalog';
 import {
   COMMUNITY_OWNERSHIP_ACTION_CODE_MESSAGES,
   COMMUNITY_OWNERSHIP_LOAD_CODE_MESSAGES,
@@ -348,7 +349,8 @@ export class CommunityOwnershipManagementComponent {
       operation: 'loadOwnershipCandidates',
       fallbackMessage:
         'Não foi possível carregar os membros elegíveis à transferência.',
-      notification: 'none',
+      communityPresentationContext:
+        COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING,
       reasonMessages: COMMUNITY_OWNERSHIP_REASON_MESSAGES,
       codeMessages: COMMUNITY_OWNERSHIP_LOAD_CODE_MESSAGES,
       metadata: {
