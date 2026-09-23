@@ -74,6 +74,10 @@ export class AgeVerificationPageComponent {
       .subscribe(() => this.navigateToAdultConsent());
   }
 
+  continueAfterVerification(): void {
+    this.navigateToAdultConsent();
+  }
+
   requestReview(): void {
     if (this.refreshing() || this.requestingReview()) {
       return;
