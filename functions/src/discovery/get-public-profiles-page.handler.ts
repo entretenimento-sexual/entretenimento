@@ -38,12 +38,25 @@ interface DiscoveryFiltersInput {
   nicknamePrefix?: unknown;
 }
 
+interface DiscoveryNearbyBoundInput {
+  start?: unknown;
+  end?: unknown;
+}
+
+interface DiscoveryNearbyInput {
+  latitude?: unknown;
+  longitude?: unknown;
+  maxDistanceKm?: unknown;
+  bounds?: unknown;
+}
+
 interface DiscoveryPageRequest {
   mode?: unknown;
   pageSize?: unknown;
   cursor?: DiscoveryCursor | null;
   uids?: unknown;
   filters?: DiscoveryFiltersInput | null;
+  nearby?: DiscoveryNearbyInput | null;
 }
 
 interface DiscoveryPageCursor {
@@ -59,6 +72,18 @@ interface DiscoveryFilters {
   nicknamePrefix: string | null;
 }
 
+interface DiscoveryNearbyBound {
+  start: string;
+  end: string;
+}
+
+interface DiscoveryNearby {
+  latitude: number;
+  longitude: number;
+  maxDistanceKm: number;
+  bounds: DiscoveryNearbyBound[];
+}
+
 interface DiscoveryPageResponse {
   items: Record<string, unknown>[];
   nextCursor: DiscoveryPageCursor | null;
@@ -72,6 +97,7 @@ const MAX_PAGE_SIZE = 120;
 const MAX_SCAN_MULTIPLIER = 4;
 const MAX_SCAN_ABSOLUTE = 480;
 const MAX_UIDS_PER_REQUEST = 50;
+const MAX_NEARBY_BOUNDS = 12;
 
 const DISCOVERY_READ_RATE_LIMIT = Object.freeze({
   burstWindowMs: 60_000,
@@ -151,6 +177,88 @@ function normalizeUidList(value: unknown): string[] {
         .filter(Boolean)
     )
   ).slice(0, MAX_UIDS_PER_REQUEST);
+}
+
+
+function normalizeNearby(value: unknown): DiscoveryNearby | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  const raw = value as Record<string, unknown>;
+  const latitude = Number(raw['latitude']);
+  const longitude = Number(raw['longitude']);
+  const maxDistanceKm = Number(raw['maxDistanceKm']);
+  const rawBounds = Array.isArray(raw['bounds']) ? raw['bounds'] : [];
+
+  if (
+    !Number.isFinite(latitude)
+    || latitude < -90
+    || latitude > 90
+    || !Number.isFinite(longitude)
+    || longitude < -180
+    || longitude > 180
+    || !Number.isFinite(maxDistanceKm)
+    || maxDistanceKm < 1
+    || maxDistanceKm > 500
+  ) {
+    throw new HttpsError(
+      'invalid-argument',
+      'Parâmetros de proximidade inválidos.'
+    );
+  }
+
+  const bounds = rawBounds
+    .slice(0, MAX_NEARBY_BOUNDS)
+    .map((item): DiscoveryNearbyBound | null => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        return null;
+      }
+
+      const bound = item as Record<string, unknown>;
+      const start = String(bound['start'] ?? '').trim();
+      const end = String(bound['end'] ?? '').trim();
+
+      return start && end && start <= end
+        ? { start, end }
+        : null;
+    })
+    .filter((bound): bound is DiscoveryNearbyBound => bound !== null);
+
+  if (!bounds.length) {
+    throw new HttpsError(
+      'invalid-argument',
+      'Intervalos de geohash inválidos.'
+    );
+  }
+
+  return {
+    latitude,
+    longitude,
+    maxDistanceKm,
+    bounds,
+  };
+}
+
+function distanceKmBetween(
+  latitudeA: number,
+  longitudeA: number,
+  latitudeB: number,
+  longitudeB: number
+): number {
+  const toRadians = (degrees: number) => degrees * Math.PI / 180;
+  const earthRadiusKm = 6371.0088;
+  const deltaLatitude = toRadians(latitudeB - latitudeA);
+  const deltaLongitude = toRadians(longitudeB - longitudeA);
+  const latA = toRadians(latitudeA);
+  const latB = toRadians(latitudeB);
+  const haversine =
+    Math.sin(deltaLatitude / 2) ** 2
+    + Math.cos(latA)
+      * Math.cos(latB)
+      * Math.sin(deltaLongitude / 2) ** 2;
+
+  return 2 * earthRadiusKm * Math.asin(Math.sqrt(haversine));
 }
 
 function cleanText(value: unknown): string | null {
@@ -343,6 +451,91 @@ export function serializePublicProfileForDiscovery(
   };
 }
 
+async function getNearbyProfiles(
+  nearby: DiscoveryNearby,
+  pageSize: number,
+  filters: DiscoveryFilters,
+  nowMs: number
+): Promise<DiscoveryPageResponse> {
+  const maxScanned = Math.min(
+    MAX_SCAN_ABSOLUTE,
+    Math.max(pageSize, pageSize * MAX_SCAN_MULTIPLIER)
+  );
+  const perBoundLimit = Math.max(
+    1,
+    Math.min(60, Math.ceil(maxScanned / nearby.bounds.length))
+  );
+  const snapshots = await Promise.all(
+    nearby.bounds.map((bound) =>
+      db
+        .collection('public_profiles')
+        .where('ageEligibilityVerifiedAdult', '==', true)
+        .where('geohash', '>=', bound.start)
+        .where('geohash', '<=', bound.end)
+        .orderBy('geohash', 'asc')
+        .limit(perBoundLimit)
+        .get()
+    )
+  );
+  const byUid = new Map<string, Record<string, unknown>>();
+  let scanned = 0;
+
+  for (const snapshot of snapshots) {
+    for (const document of snapshot.docs) {
+      scanned += 1;
+      if (scanned > maxScanned || byUid.has(document.id)) {
+        continue;
+      }
+
+      const card = serializePublicProfileForDiscovery(
+        document.id,
+        document.data() as Record<string, unknown>,
+        nowMs
+      );
+
+      if (!card || !matchesDiscoveryFilters(card, filters)) {
+        continue;
+      }
+
+      const latitude = finiteNumber(card['latitude']);
+      const longitude = finiteNumber(card['longitude']);
+      if (latitude === null || longitude === null) {
+        continue;
+      }
+
+      const distanceKm = distanceKmBetween(
+        nearby.latitude,
+        nearby.longitude,
+        latitude,
+        longitude
+      );
+
+      if (distanceKm <= nearby.maxDistanceKm) {
+        byUid.set(document.id, {
+          ...card,
+          distanciaKm: distanceKm,
+          distanceKm,
+        });
+      }
+    }
+  }
+
+  const items = [...byUid.values()]
+    .sort((left, right) =>
+      Number(left['distanciaKm'] ?? Number.POSITIVE_INFINITY)
+      - Number(right['distanciaKm'] ?? Number.POSITIVE_INFINITY)
+    )
+    .slice(0, pageSize);
+
+  return {
+    items,
+    nextCursor: null,
+    reachedEnd: true,
+    fetchedAt: nowMs,
+    scanned: Math.min(scanned, maxScanned),
+  };
+}
+
 async function getProfilesByUids(
   uids: readonly string[],
   nowMs: number
@@ -418,6 +611,7 @@ export const getPublicProfilesPage = onCall<DiscoveryPageRequest>(
     }
 
     const pageSize = normalizePageSize(request.data?.pageSize);
+    const nearby = normalizeNearby(request.data?.nearby);
 
     await consumeBackendRateLimitQuota({
       action: 'discovery-public-profile-read',
@@ -429,6 +623,11 @@ export const getPublicProfilesPage = onCall<DiscoveryPageRequest>(
     });
     const mode = normalizeMode(request.data?.mode);
     const filters = normalizeFilters(request.data?.filters);
+
+    if (nearby) {
+      return getNearbyProfiles(nearby, pageSize, filters, nowMs);
+    }
+
     const initialCursor = normalizeCursor(request.data?.cursor);
     const maxScanned = Math.min(
       MAX_SCAN_ABSOLUTE,
