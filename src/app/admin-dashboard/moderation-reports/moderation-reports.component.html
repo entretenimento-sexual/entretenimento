@@ -189,6 +189,8 @@
         @for (report of vm.filteredReports; track trackByReportId($index, report)) {
           @let mediaContentReport = report.targetType === 'photo' || report.targetType === 'video' || report.targetType === 'video_comment' || report.targetType === 'video_rating';
           @let minorProfileReport = report.targetType === 'profile' && report.reason === 'minor_safety';
+          @let ageVerificationReport = report.targetType === 'profile' && report.reason === 'age_verification_request';
+          @let ageReviewReport = minorProfileReport || ageVerificationReport;
           <article
             class="report-card"
             role="listitem"
@@ -415,14 +417,14 @@
                   maxlength="900"
                   [ngModel]="resolutionDraft(report)"
                   (ngModelChange)="setResolutionDraft(report, $event)"
-                  [placeholder]="mediaContentReport ? 'Justifique objetivamente por que o conteúdo será mantido ou removido.' : minorProfileReport ? 'Registre os indícios, a solicitação ou a decisão sobre a revalidação.' : 'Descreva a decisão, providência tomada ou motivo da rejeição.'"
+                  [placeholder]="mediaContentReport ? 'Justifique objetivamente por que o conteúdo será mantido ou removido.' : ageReviewReport ? 'Registre os indícios, a evidência revisada e a decisão etária.' : 'Descreva a decisão, providência tomada ou motivo da rejeição.'"
                   [attr.aria-label]="'Nota da moderação para denúncia ' + report.id"
                 ></textarea>
                 <mat-hint align="end">{{ resolutionDraftLength(report) }}/900</mat-hint>
               </mat-form-field>
             </section>
 
-            @if (minorProfileReport) {
+            @if (ageReviewReport) {
               <app-profile-age-reverification-admin-actions
                 [report]="report"
                 [resolution]="resolutionDraft(report)"
