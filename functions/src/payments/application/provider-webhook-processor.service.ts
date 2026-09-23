@@ -218,7 +218,9 @@ async function processAsaasEvent(
 
   if (
     event.eventName === 'PAYMENT_OVERDUE' ||
-    event.eventName === 'PAYMENT_CREDIT_CARD_CAPTURE_REFUSED'
+    event.eventName === 'PAYMENT_CREDIT_CARD_CAPTURE_REFUSED' ||
+    event.eventName === 'PAYMENT_REPROVED_BY_RISK_ANALYSIS' ||
+    event.eventName === 'PAYMENT_CREDIT_CARD_THREE_D_SECURE_CHALLENGE_FAILED'
   ) {
     await markRecurringSubscriptionPaymentProblem(event);
     return 'processed';
@@ -226,7 +228,9 @@ async function processAsaasEvent(
 
   if (
     event.eventName === 'PAYMENT_REFUNDED' ||
-    event.eventName === 'PAYMENT_CHARGEBACK_REQUESTED'
+    event.eventName === 'PAYMENT_RECEIVED_IN_CASH_UNDONE' ||
+    event.eventName === 'PAYMENT_CHARGEBACK_REQUESTED' ||
+    event.eventName === 'PAYMENT_CHARGEBACK_DISPUTE'
   ) {
     const reversal =
       await reverseRecurringPlatformSubscriptionPayment(event);
