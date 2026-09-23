@@ -53,14 +53,11 @@ describe('PlatformSubscriptionAccessService', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
+
     userSubject = new BehaviorSubject<IUserDados | null | undefined>(
       createUser(NOW + 100)
     );
-    patchMock = vi.fn((partial: Partial<IUserDados>) => {
-      const current = userSubject.value;
-      if (!current) return;
-      userSubject.next({ ...current, ...partial });
-    });
+    patchMock = vi.fn();
 
     TestBed.configureTestingModule({
       providers: [
@@ -69,7 +66,6 @@ describe('PlatformSubscriptionAccessService', () => {
           provide: CurrentUserStoreService,
           useValue: {
             user$: userSubject.asObservable(),
-            getSnapshot: () => userSubject.value,
             patch: patchMock,
           },
         },
@@ -84,7 +80,7 @@ describe('PlatformSubscriptionAccessService', () => {
     vi.useRealTimers();
   });
 
-  it('expira reativamente sem nova emissão do Firestore', async () => {
+  it('expira reativamente sem nova emissão do Firestore e sem fabricar role local', async () => {
     const states: boolean[] = [];
     const subscription = service.isSubscriber$.subscribe((active) => {
       states.push(active);
@@ -95,20 +91,12 @@ describe('PlatformSubscriptionAccessService', () => {
     await vi.advanceTimersByTimeAsync(151);
 
     expect(states).toEqual([true, false]);
-    expect(patchMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        role: 'free',
-        tier: 'free',
-        isSubscriber: false,
-        monthlyPayer: false,
-        subscriptionStatus: 'inactive',
-        subscriptionScope: null,
-      })
-    );
+    expect(patchMock).not.toHaveBeenCalled();
+
     subscription.unsubscribe();
   });
 
-  it('reage imediatamente quando a projeção muda', () => {
+  it('reage imediatamente quando a projeção backend emitida pelo listener muda', () => {
     const states: boolean[] = [];
     const subscription = service.isSubscriber$.subscribe((active) => {
       states.push(active);
@@ -123,6 +111,8 @@ describe('PlatformSubscriptionAccessService', () => {
     });
 
     expect(states).toEqual([true, false]);
+    expect(patchMock).not.toHaveBeenCalled();
+
     subscription.unsubscribe();
   });
 
@@ -142,6 +132,7 @@ describe('PlatformSubscriptionAccessService', () => {
 
     expect(roles).toEqual([null, 'basic', 'premium', 'vip']);
     expect(subscribers).toEqual([false, true]);
+    expect(patchMock).not.toHaveBeenCalled();
 
     roleSubscription.unsubscribe();
     subscriberSubscription.unsubscribe();
