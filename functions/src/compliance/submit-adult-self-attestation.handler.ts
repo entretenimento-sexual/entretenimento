@@ -178,6 +178,14 @@ export const submitAdultSelfAttestation = onCall<
         );
       }
 
+      const legacyInitialReportRef =
+        isLegacyInitialReview && current.caseId
+          ? db.collection('moderation_reports').doc(current.caseId)
+          : null;
+      const legacyInitialReportSnapshot = legacyInitialReportRef
+        ? await transaction.get(legacyInitialReportRef)
+        : null;
+
       const projection = writeCanonicalAgeEligibilityInTransaction(
         transaction,
         {
@@ -203,19 +211,14 @@ export const submitAdultSelfAttestation = onCall<
         { merge: true }
       );
 
-      if (isLegacyInitialReview && current.caseId) {
-        const reportRef = db
-          .collection('moderation_reports')
-          .doc(current.caseId);
-        const reportSnapshot = await transaction.get(reportRef);
-
-        if (
-          reportSnapshot.exists &&
-          String(reportSnapshot.data()?.['reason'] ?? '') ===
-            'age_verification_request'
-        ) {
+      if (
+        legacyInitialReportRef &&
+        legacyInitialReportSnapshot?.exists &&
+        String(legacyInitialReportSnapshot.data()?.['reason'] ?? '') ===
+          'age_verification_request'
+      ) {
           transaction.set(
-            reportRef,
+            legacyInitialReportRef,
             {
               status: 'resolved',
               moderationAction: 'KEEP',
@@ -227,7 +230,6 @@ export const submitAdultSelfAttestation = onCall<
             },
             { merge: true }
           );
-        }
       }
 
       transaction.create(db.collection('compliance_audit').doc(), {
