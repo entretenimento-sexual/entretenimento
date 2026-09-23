@@ -22,6 +22,17 @@ import {
 } from './public-video-playback-session';
 import { calculateRequiredVideoPlaybackMs } from './video-view-qualification';
 
+function hasCurrentPublicAgeEligibility(
+  data: Record<string, any> | undefined
+): boolean {
+  if (data?.['ageEligibilityVerifiedAdult'] !== true) return false;
+
+  const validUntil = data?.['ageEligibilityValidUntil'];
+  return !!validUntil &&
+    typeof validUntil.toMillis === 'function' &&
+    validUntil.toMillis() > Date.now();
+}
+
 interface StartPublicVideoPlaybackSessionRequest {
   ownerUid?: string;
   videoId?: string;
@@ -116,8 +127,8 @@ export const startPublicVideoPlaybackSession = onCall<
     const publicVideo = publicVideoSnapshot.data() ?? {};
 
     if (
-      publicProfile.ageEligibilityVerifiedAdult !== true ||
-      publicVideo.ageEligibilityVerifiedAdult !== true ||
+      !hasCurrentPublicAgeEligibility(publicProfile) ||
+      !hasCurrentPublicAgeEligibility(publicVideo) ||
       publicVideo.visibility !== 'PUBLIC' ||
       publicVideo.moderationStatus !== 'APPROVED'
     ) {
