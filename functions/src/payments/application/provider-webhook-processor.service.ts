@@ -22,6 +22,7 @@ import {
   applyAsaasCheckoutLifecycleEvent,
   applyAsaasSubscriptionLifecycleEvent,
   markRecurringSubscriptionPaymentProblem,
+  recordRecurringPartialRefund,
   RetryableProviderWebhookError,
   buildRecurringSubscriptionContractId,
 } from './platform-recurring-subscription.service';
@@ -224,6 +225,11 @@ async function processAsaasEvent(
     event.eventName === 'PAYMENT_CREDIT_CARD_THREE_D_SECURE_CHALLENGE_FAILED'
   ) {
     await markRecurringSubscriptionPaymentProblem(event);
+    return 'processed';
+  }
+
+  if (event.eventName === 'PAYMENT_PARTIALLY_REFUNDED') {
+    await recordRecurringPartialRefund(event);
     return 'processed';
   }
 
