@@ -337,8 +337,9 @@ export async function notifyInitialAgeEligibilityOutcome(input: {
         'não está disponível para esta conta.',
       ].join(' ')
       : [
-        'A verificação de idade apresentou informações conflitantes',
-        'e precisa de revisão antes da liberação do acesso adulto.',
+        'Sua verificação de idade está em revisão.',
+        'O acesso adulto permanece bloqueado até uma decisão baseada',
+        'em evidência confiável.',
       ].join(' ');
 
   await writeNotification({
