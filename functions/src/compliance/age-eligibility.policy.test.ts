@@ -30,6 +30,45 @@ describe('age-eligibility.policy', () => {
     assert.equal(decision.denialReason, null);
   });
 
+  it('libera autodeclaração adulta somente no contrato canônico correto', () => {
+    const allowed = evaluateCanonicalAgeEligibility({
+      uid: 'user-1',
+      nowMs: NOW,
+      rawRecord: {
+        uid: 'user-1',
+        status: 'SELF_DECLARED_ADULT',
+        policyVersion: AGE_ELIGIBILITY_POLICY_VERSION,
+        source: 'SELF_DECLARATION',
+        method: 'SELF_DECLARATION',
+        caseId: null,
+        verifiedAtMs: null,
+        decidedAtMs: NOW - 1_000,
+        expiresAtMs: null,
+      },
+    });
+    const mismatched = evaluateCanonicalAgeEligibility({
+      uid: 'user-1',
+      nowMs: NOW,
+      rawRecord: {
+        uid: 'user-1',
+        status: 'SELF_DECLARED_ADULT',
+        policyVersion: AGE_ELIGIBILITY_POLICY_VERSION,
+        source: 'INITIAL_VERIFICATION',
+        method: 'MANUAL_REVIEW',
+        caseId: null,
+        verifiedAtMs: null,
+        decidedAtMs: NOW - 1_000,
+        expiresAtMs: null,
+      },
+    });
+
+    assert.equal(allowed.allowed, true);
+    assert.equal(allowed.status, 'SELF_DECLARED_ADULT');
+    assert.equal(allowed.verifiedAtMs, null);
+    assert.equal(mismatched.allowed, false);
+    assert.equal(mismatched.denialReason, 'record_mismatch');
+  });
+
   it('falha fechado quando o registro não existe', () => {
     const decision = evaluateCanonicalAgeEligibility({
       uid: 'user-1',
