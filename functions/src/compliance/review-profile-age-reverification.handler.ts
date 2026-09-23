@@ -63,6 +63,8 @@ interface AgeReverificationSuspensionRecord {
 type ReviewAgeReverificationUserDocument = AgeReverificationUserDocument & {
   ageReverificationSuspension?: AgeReverificationSuspensionRecord | null;
   suspensionReasonCode?: unknown;
+  statusUpdatedAt?: unknown;
+  statusUpdatedBy?: unknown;
 };
 
 function cleanIndexDocumentId(value: unknown): string {
@@ -188,7 +190,11 @@ export const reviewProfileAgeReverification = onCall<
           'AGE_REVERIFICATION_REJECTED' &&
         suspensionMarker?.active === true &&
         cleanComplianceId(suspensionMarker.caseId) === caseId &&
-        cleanComplianceId(suspensionMarker.reportId) === reportId;
+        cleanComplianceId(suspensionMarker.reportId) === reportId &&
+        Number(user.statusUpdatedAt ?? 0) ===
+          Number(suspensionMarker.appliedAtMs ?? -1) &&
+        cleanComplianceId(user.statusUpdatedBy) ===
+          cleanComplianceId(suspensionMarker.appliedBy);
       const canRestoreAccess = decision === 'VERIFY' &&
         (
           (accountStatus === 'active' && user.suspended !== true) ||
