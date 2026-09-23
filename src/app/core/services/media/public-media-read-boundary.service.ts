@@ -18,15 +18,27 @@ export type PublicMediaReadMode =
   | 'TOP'
   | 'BOOSTED';
 
+export interface PublicMediaReadCursor {
+  readonly documentPath: string;
+  readonly publishedAt?: number;
+  readonly score?: number;
+  readonly uniqueViewersCount?: number;
+  readonly viewsCount?: number;
+  readonly boostedUntil?: number;
+}
+
 export interface PublicMediaReadRequest {
   readonly mediaType: PublicMediaReadType;
   readonly mode: PublicMediaReadMode;
   readonly ownerUids?: readonly string[] | null;
   readonly limit?: number;
+  readonly cursor?: PublicMediaReadCursor | null;
 }
 
 export interface PublicMediaReadResponse {
   readonly items: readonly Record<string, unknown>[];
+  readonly nextCursor: PublicMediaReadCursor | null;
+  readonly hasMore: boolean;
   readonly fetchedAt: number;
   readonly scanned: number;
 }
