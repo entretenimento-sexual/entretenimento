@@ -15,6 +15,10 @@ import {
 } from '../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
+import {
+  REQUIRE_CALLABLE_APP_CHECK,
+  assertCallableAppCheck,
+} from '../shared/security/callable-app-check';
 
 type DiscoveryMode = 'all' | 'compatible';
 
@@ -351,8 +355,11 @@ export const getPublicProfilesPage = onCall<DiscoveryPageRequest>(
   {
     region: FUNCTIONS_REGION,
     invoker: 'public',
+    enforceAppCheck: REQUIRE_CALLABLE_APP_CHECK,
   },
   async (request): Promise<DiscoveryPageResponse> => {
+    assertCallableAppCheck(request.app);
+
     const viewerUid = cleanUid(request.auth?.uid);
 
     if (!viewerUid) {
