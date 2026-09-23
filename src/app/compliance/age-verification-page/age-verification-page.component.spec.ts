@@ -16,6 +16,7 @@ const UNVERIFIED: IUserAgeEligibility = {
   policyVersion: 1,
   source: 'INITIAL_VERIFICATION',
   method: 'MANUAL_REVIEW',
+  assuranceLevel: 'NONE',
   caseId: null,
   verifiedAtMs: null,
   expiresAtMs: null,
@@ -27,27 +28,25 @@ describe('AgeVerificationPageComponent', () => {
   let component: AgeVerificationPageComponent;
   let router: Router;
   let current$: BehaviorSubject<IUserAgeEligibility>;
-  let verifiedAdult$: BehaviorSubject<boolean>;
+  let adultAccessAllowed$: BehaviorSubject<boolean>;
 
   let ageEligibilityMock: {
     current$: unknown;
-    verifiedAdult$: unknown;
-    refreshTrustedSources$: MockFn;
-    requestInitialReview$: MockFn;
+    adultAccessAllowed$: unknown;
+    submitSelfAttestation$: MockFn;
   };
 
   beforeEach(async () => {
     current$ = new BehaviorSubject<IUserAgeEligibility>(UNVERIFIED);
-    verifiedAdult$ = new BehaviorSubject<boolean>(false);
+    adultAccessAllowed$ = new BehaviorSubject<boolean>(false);
 
     ageEligibilityMock = {
       current$: current$.asObservable(),
-      verifiedAdult$: verifiedAdult$.asObservable(),
-      refreshTrustedSources$: vi.fn(() => of('UNVERIFIED')),
-      requestInitialReview$: vi.fn(() =>
+      adultAccessAllowed$: adultAccessAllowed$.asObservable(),
+      submitSelfAttestation$: vi.fn(() =>
         of({
-          reportId: 'age-review-1',
-          status: 'REVIEW_REQUIRED',
+          status: 'DECLARED_ADULT',
+          assuranceLevel: 'SELF_ATTESTED',
         })
       ),
     };
@@ -91,41 +90,10 @@ describe('AgeVerificationPageComponent', () => {
     vi.restoreAllMocks();
   });
 
-  it('faz uma tentativa silenciosa em fontes confiáveis antes de abrir revisão', () => {
-    component.verifyNow();
+  it('registra a autodeclaração em uma única ação e avança', async () => {
+    component.confirmAdult();
 
-    expect(ageEligibilityMock.refreshTrustedSources$).toHaveBeenCalledTimes(1);
-    expect(ageEligibilityMock.requestInitialReview$).toHaveBeenCalledTimes(1);
-    expect(component.feedback()).toEqual(
-      expect.objectContaining({
-        tone: 'success',
-        title: 'Solicitação recebida',
-      })
-    );
-    expect(component.processing()).toBe(false);
-  });
-
-  it('não cria solicitação duplicada quando a conta já está em revisão', () => {
-    ageEligibilityMock.refreshTrustedSources$.mockReturnValueOnce(
-      of('REVIEW_REQUIRED')
-    );
-
-    component.verifyNow();
-
-    expect(ageEligibilityMock.requestInitialReview$).not.toHaveBeenCalled();
-    expect(component.feedback()).toEqual(
-      expect.objectContaining({
-        title: 'Solicitação recebida',
-      })
-    );
-  });
-
-  it('avança automaticamente quando uma fonte confiável já confirma a maioridade', async () => {
-    ageEligibilityMock.refreshTrustedSources$.mockReturnValueOnce(
-      of('VERIFIED_ADULT')
-    );
-
-    component.verifyNow();
+    expect(ageEligibilityMock.submitSelfAttestation$).toHaveBeenCalledTimes(1);
 
     await vi.waitFor(() => {
       expect(router.navigate).toHaveBeenCalledWith(
@@ -140,34 +108,44 @@ describe('AgeVerificationPageComponent', () => {
     });
   });
 
-  it('mantém erro importante como feedback persistente da própria tela', () => {
-    ageEligibilityMock.refreshTrustedSources$.mockReturnValueOnce(
+  it('preserva prova forte já existente sem rebaixá-la', async () => {
+    ageEligibilityMock.submitSelfAttestation$.mockReturnValueOnce(
+      of({
+        status: 'VERIFIED_ADULT',
+        assuranceLevel: 'VERIFIED',
+      })
+    );
+
+    component.confirmAdult();
+
+    await vi.waitFor(() => {
+      expect(component.feedback()).toEqual(
+        expect.objectContaining({
+          tone: 'success',
+          title: 'Maioridade já verificada',
+        })
+      );
+    });
+  });
+
+  it('mantém erro importante como feedback persistente na própria tela', () => {
+    ageEligibilityMock.submitSelfAttestation$.mockReturnValueOnce(
       throwError(() => new Error('network unavailable'))
     );
 
-    component.verifyNow();
+    component.confirmAdult();
 
     expect(component.feedback()).toEqual(
       expect.objectContaining({
         tone: 'error',
-        title: 'Não foi possível continuar',
+        title: 'Não foi possível confirmar agora',
       })
     );
-    expect(ageEligibilityMock.requestInitialReview$).not.toHaveBeenCalled();
+    expect(component.processing()).toBe(false);
   });
 
-  it('libera conta e notificações durante a espera sem abrir recurso social adulto', async () => {
-    component.goToNotifications();
-    component.goToAccount();
-
-    await vi.waitFor(() => {
-      expect(router.navigate).toHaveBeenCalledWith(['/notificacoes']);
-      expect(router.navigate).toHaveBeenCalledWith(['/conta']);
-    });
-  });
-
-  it('segue automaticamente quando a projeção realtime muda para adulta', async () => {
-    verifiedAdult$.next(true);
+  it('segue automaticamente quando o backend passa a permitir acesso adulto', async () => {
+    adultAccessAllowed$.next(true);
 
     await vi.waitFor(() => {
       expect(router.navigate).toHaveBeenCalledWith(
@@ -176,6 +154,16 @@ describe('AgeVerificationPageComponent', () => {
           replaceUrl: true,
         })
       );
+    });
+  });
+
+  it('mantém conta e notificações acessíveis em estados restritos', async () => {
+    component.goToNotifications();
+    component.goToAccount();
+
+    await vi.waitFor(() => {
+      expect(router.navigate).toHaveBeenCalledWith(['/notificacoes']);
+      expect(router.navigate).toHaveBeenCalledWith(['/conta']);
     });
   });
 });
