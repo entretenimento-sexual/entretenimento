@@ -259,14 +259,16 @@ async function manageUserBlock(input: {
     };
   });
 
-  if (!response) {
+  const finalResponse = response as UserBlockResponse | null;
+
+  if (!finalResponse) {
     throw new HttpsError(
       'internal',
       'Não foi possível atualizar o bloqueio.'
     );
   }
 
-  if (input.action === 'block' && response.changed) {
+  if (input.action === 'block' && finalResponse.changed) {
     try {
       await removeCommunityMuralNotificationsBetweenUsers(
         input.actorUid,
@@ -281,7 +283,7 @@ async function manageUserBlock(input: {
     }
   }
 
-  return response;
+  return finalResponse;
 }
 
 export const blockUser = onCall<BlockUserPayload>(
