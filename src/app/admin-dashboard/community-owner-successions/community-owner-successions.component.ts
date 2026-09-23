@@ -7,6 +7,11 @@ import {
 } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import {
+  FormControl,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
+import {
   BehaviorSubject,
   Observable,
   catchError,
@@ -75,7 +80,7 @@ interface SuccessionActionState {
 @Component({
   selector: 'app-community-owner-successions',
   standalone: true,
-  imports: [CommonModule, ActionStateDirective],
+  imports: [CommonModule, ReactiveFormsModule, ActionStateDirective],
   templateUrl: './community-owner-successions.component.html',
   styleUrl: './community-owner-successions.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -90,6 +95,26 @@ export class CommunityOwnerSuccessionsComponent {
     new BehaviorSubject<CommunityOwnerSuccessionAdminItem | null>(null);
   private readonly loadMoreCandidates$ = new Subject<string>();
   private readonly commands$ = new Subject<SuccessionCommand>();
+  private readonly openAbandonment$ = new Subject<{
+    communityId: string;
+    reason: string;
+  }>();
+
+  readonly abandonmentCommunityId = new FormControl('', {
+    nonNullable: true,
+    validators: [
+      Validators.required,
+      Validators.pattern(/^[A-Za-z0-9:_-]{1,128}$/),
+    ],
+  });
+  readonly abandonmentReason = new FormControl('', {
+    nonNullable: true,
+    validators: [
+      Validators.required,
+      Validators.minLength(10),
+      Validators.maxLength(240),
+    ],
+  });
 
   readonly queue$ = this.refresh$.pipe(
     switchMap(() =>
@@ -197,7 +222,36 @@ export class CommunityOwnerSuccessionsComponent {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly action$ = this.commands$.pipe(
+  readonly abandonmentAction$ = this.openAbandonment$.pipe(
+    exhaustMap(({ communityId, reason }) =>
+      this.repository
+        .openConfirmedAbandonmentCase$(communityId, reason)
+        .pipe(
+          tap(() => {
+            this.notifier.showSuccess(
+              'Caso de sucessão por abandono confirmado aberto.'
+            );
+            this.abandonmentCommunityId.reset('');
+            this.abandonmentReason.reset('');
+            this.refresh$.next();
+          }),
+          map(() => ({ status: 'idle' as const })),
+          startWith({ status: 'loading' as const }),
+          catchError((error: unknown) => {
+            this.reportError(
+              error,
+              'openCommunityOwnerConfirmedAbandonmentSuccession',
+              'Não foi possível abrir a sucessão por abandono confirmado.'
+            );
+            return of({ status: 'error' as const });
+          })
+        )
+    ),
+    startWith({ status: 'idle' as const }),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+    readonly action$ = this.commands$.pipe(
     exhaustMap((command) => {
       const operation$: Observable<unknown> =
         command.kind === 'nominate' && command.candidate
@@ -261,7 +315,26 @@ export class CommunityOwnerSuccessionsComponent {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  selectCase(item: CommunityOwnerSuccessionAdminItem): void {
+  requestConfirmedAbandonmentCase(): void {
+    if (
+      this.abandonmentCommunityId.invalid
+      || this.abandonmentReason.invalid
+    ) {
+      this.abandonmentCommunityId.markAsTouched();
+      this.abandonmentReason.markAsTouched();
+      this.notifier.showWarning(
+        'Informe a Comunidade e uma justificativa entre 10 e 240 caracteres.'
+      );
+      return;
+    }
+
+    this.openAbandonment$.next({
+      communityId: this.abandonmentCommunityId.value.trim(),
+      reason: this.abandonmentReason.value.replace(/\s+/g, ' ').trim(),
+    });
+  }
+
+    selectCase(item: CommunityOwnerSuccessionAdminItem): void {
     this.selectedCase$.next(item);
   }
 
