@@ -106,6 +106,37 @@ for (const fragment of [
   );
 }
 
+function walkFiles(relativeDir) {
+  const absoluteDir = path.join(root, relativeDir);
+  if (!fs.existsSync(absoluteDir)) return [];
+
+  return fs.readdirSync(absoluteDir, { withFileTypes: true }).flatMap((entry) => {
+    const relativePath = path.join(relativeDir, entry.name);
+    if (entry.isDirectory()) return walkFiles(relativePath);
+    return [relativePath];
+  });
+}
+
+const subscriptionPricingSurfaceFiles = [
+  ...walkFiles('src/app/subscriptions'),
+  ...walkFiles('src/app/payments-core'),
+  ...walkFiles('src/app/account/pages/account-subscription'),
+].filter(
+  (file) =>
+    (file.endsWith('.ts') || file.endsWith('.html'))
+    && !file.endsWith('.spec.ts')
+);
+
+for (const file of subscriptionPricingSurfaceFiles) {
+  const source = read(file);
+  if (/R\$\s*\d/.test(source)) {
+    throw new Error(
+      '[billing-pricing-boundary] hardcoded BRL amount outside canonical catalog: '
+      + file
+    );
+  }
+}
+
 const planUi = read(
   'src/app/subscriptions/subscription-plan/subscription-plan.component.ts'
 );
