@@ -115,13 +115,14 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
         if (
           publicProfileSnapshot.exists &&
           (
-            currentPublic['ageEligibilityVerifiedAdult'] !== false ||
+            currentPublic['ageEligibilityAdultAccessAllowed'] !== false ||
             publicAgeValidUntilMs(currentPublic) !== 0
           )
         ) {
           transaction.set(
             publicProfileRef,
             {
+              ageEligibilityAdultAccessAllowed: false,
               ageEligibilityVerifiedAdult: false,
               ageEligibilityValidUntil: Timestamp.fromMillis(0),
             },
@@ -139,6 +140,8 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
         ageDecision.expiresAtMs ?? PUBLIC_AGE_ELIGIBILITY_MAX_VALID_UNTIL_MS;
       const ageEligibilityValidUntil =
         Timestamp.fromMillis(ageEligibilityValidUntilMs);
+      const ageEligibilityVerifiedAdult =
+        ageDecision.status === 'VERIFIED_ADULT';
 
       const publicIdentity = buildPublicIdentityProjection(user);
       const discoverySource = publicIdentity.identityDiscoveryGroup
@@ -166,7 +169,9 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
         publicProfileDiscoveryProjectionMatches(currentPublic, canonical) &&
         publicIdentityProjectionMatches(currentPublic, publicIdentity) &&
         (currentPublic['age'] ?? null) === age &&
-        currentPublic['ageEligibilityVerifiedAdult'] === true &&
+        currentPublic['ageEligibilityAdultAccessAllowed'] === true &&
+        currentPublic['ageEligibilityVerifiedAdult'] ===
+          ageEligibilityVerifiedAdult &&
         publicAgeValidUntilMs(currentPublic) === ageEligibilityValidUntilMs &&
         publicPreferenceProjectionMatches(currentPublic, publicPreferences) &&
         publicLocationProjectionMatches(currentPublic, publicLocation) &&
@@ -188,7 +193,8 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
           interestedInOrientations: canonical.interestedInOrientations,
           compatibilityReady: canonical.compatibilityReady,
           age,
-          ageEligibilityVerifiedAdult: true,
+          ageEligibilityAdultAccessAllowed: true,
+          ageEligibilityVerifiedAdult,
           ageEligibilityValidUntil,
           ...publicPreferences,
           ...publicLocation,
