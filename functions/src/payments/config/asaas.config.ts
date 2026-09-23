@@ -9,7 +9,7 @@
 import { defineSecret } from 'firebase-functions/params';
 import { HttpsError } from 'firebase-functions/v2/https';
 
-import { isFunctionsEmulatorRuntime } from '../../shared/runtime/functions-runtime.guard';
+import { isFunctionsEmulatorRuntime } from '../security/payment-runtime.guard';
 
 export const ASAAS_API_KEY = defineSecret('ASAAS_API_KEY');
 export const ASAAS_WEBHOOK_TOKEN = defineSecret('ASAAS_WEBHOOK_TOKEN');
