@@ -43,6 +43,65 @@ export function isBilateralBlockActive(input: {
     isActiveBlockData(input.targetBlock);
 }
 
+/**
+ * Resolve toda a fronteira bilateral do ator com duas consultas fixas:
+ * - bloqueios criados pelo próprio ator;
+ * - bloqueios criados por terceiros contra o ator.
+ *
+ * O custo depende do número de relações de bloqueio do usuário, nunca do número
+ * de itens/autores do feed. Use esta função em superfícies paginadas; não use
+ * resolveBlockedTargetUids() por item do Mural.
+ */
+export async function resolveBilateralBlockedUidsForActor(
+  actorUid: string
+): Promise<Set<string>> {
+  const actor = normalizeUid(actorUid);
+
+  if (!actor) {
+    throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
+  }
+
+  const outgoingQuery = db
+    .collection('users')
+    .doc(actor)
+    .collection('blocks')
+    .select('uid', 'actorUid', 'isBlocked');
+  const incomingQuery = db
+    .collectionGroup('blocks')
+    .where('uid', '==', actor)
+    .select('uid', 'actorUid', 'isBlocked');
+
+  const [outgoingSnapshot, incomingSnapshot] = await Promise.all([
+    outgoingQuery.get(),
+    incomingQuery.get(),
+  ]);
+  const blocked = new Set<string>();
+
+  for (const snapshot of outgoingSnapshot.docs) {
+    const data = snapshot.data() as BlockDocumentData & {
+      uid?: unknown;
+      actorUid?: unknown;
+    };
+    if (!isActiveBlockData(data)) continue;
+
+    const targetUid = normalizeUid(data.uid) || normalizeUid(snapshot.id);
+    if (targetUid && targetUid !== actor) blocked.add(targetUid);
+  }
+
+  for (const snapshot of incomingSnapshot.docs) {
+    const data = snapshot.data() as BlockDocumentData & {
+      actorUid?: unknown;
+    };
+    if (!isActiveBlockData(data)) continue;
+
+    const ownerUid = normalizeUid(data.actorUid)
+      || normalizeUid(snapshot.ref.parent.parent?.id);
+    if (ownerUid && ownerUid !== actor) blocked.add(ownerUid);
+  }
+
+  return blocked;
+}
+
 export async function resolveBlockedTargetUids(
   actorUid: string,
   targetUids: readonly string[]
