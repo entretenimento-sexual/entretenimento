@@ -257,6 +257,8 @@ export class ModerationReportsComponent {
         return 'Possível perfil menor';
       case 'minor_content_safety':
         return 'Possível menor em conteúdo';
+      case 'age_verification_request':
+        return 'Verificação de maioridade';
       case 'other':
         return 'Outro motivo';
       default:
