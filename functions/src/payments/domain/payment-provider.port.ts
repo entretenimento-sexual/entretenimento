@@ -34,6 +34,7 @@ export interface CreateCheckoutInput {
 
   successUrl: string;
   cancelUrl: string;
+  expiredUrl: string;
 
   metadata?: Record<string, unknown>;
 }
