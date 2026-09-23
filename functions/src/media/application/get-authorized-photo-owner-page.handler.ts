@@ -300,6 +300,7 @@ export const getAuthorizedPhotoOwnerPage = onCall<AuthorizedPhotoOwnerPageReques
           visibility: 'FRIENDS',
           pageSize,
           cursor,
+          nowMs,
         }),
       ]);
       const merged = [
