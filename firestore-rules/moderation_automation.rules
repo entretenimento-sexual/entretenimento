@@ -21,3 +21,12 @@ match /moderation_automation_reporters/{dedupId} {
 match /moderation_automation_targets/{dedupId} {
   allow read, write: if false;
 }
+
+
+match /moderation_reporter_abuse_state/{reporterId} {
+  allow read, write: if false;
+}
+
+match /moderation_reporter_abuse_outcomes/{outcomeId} {
+  allow read, write: if false;
+}
