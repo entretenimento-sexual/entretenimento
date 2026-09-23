@@ -3,6 +3,13 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
+  consumeBackendRateLimitQuota,
+} from '../shared/security/backend-rate-limit.service';
+import {
+  assertCallableAppCheck,
+  REQUIRE_CALLABLE_APP_CHECK,
+} from '../shared/security/callable-app-check';
+import {
   calculateAgeBand,
   type ProfileAgeBand,
 } from './profile-age-reverification.policy';
@@ -29,8 +36,13 @@ interface SubmissionTransactionResult {
 export const submitProfileAgeReverification = onCall<
   SubmitProfileAgeReverificationRequest
 >(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_CALLABLE_APP_CHECK,
+  },
   async (request): Promise<{ caseId: string; status: 'SUBMITTED' }> => {
+    assertCallableAppCheck(request.app);
+
     const uid = assertComplianceAuthenticatedUid(request.auth);
 
     if (request.auth?.token?.email_verified !== true) {
@@ -39,6 +51,19 @@ export const submitProfileAgeReverification = onCall<
         'Confirme seu e-mail antes de enviar a revalidação.'
       );
     }
+
+    await consumeBackendRateLimitQuota({
+      action: 'submitProfileAgeReverification',
+      subject: uid,
+      cost: 1,
+      config: {
+        burstWindowMs: 60 * 60 * 1_000,
+        burstMax: 4,
+        sustainedWindowMs: 24 * 60 * 60 * 1_000,
+        sustainedMax: 12,
+      },
+      message: 'Muitas tentativas de revalidação foram enviadas em pouco tempo.',
+    });
 
     if (
       request.data?.confirmsTruthfulness !== true ||
@@ -221,7 +246,7 @@ export const submitProfileAgeReverification = onCall<
     if (result.expired) {
       throw new HttpsError(
         'deadline-exceeded',
-        'O prazo desta revalidação expirou. Entre em contato com o suporte.'
+        'O prazo desta revalidação expirou. Solicite nova análise para continuar.'
       );
     }
 
