@@ -30,19 +30,19 @@ private dbg(msg: string, extra?: unknown): void {
    * Gate único da feature Friends.
    *
    * Regras:
-   * - só inicia em core
+   * - só inicia quando a capability social adulta canônica está ativa
    * - exige uid válido
-   * - quando sai do core, para listeners e limpa estado derivado
+   * - durante verificação/revisão 18+, para listeners e limpa estado derivado
    */
   private readonly gate$ = combineLatest([
-    this.access.canEnterCore$,
+    this.access.canUseAdultSocial$,
     this.access.authUid$,
   ]).pipe(
-    map(([canEnterCore, uid]) => {
+    map(([canUseAdultSocial, uid]) => {
       const cleanUid = (uid ?? '').trim() || null;
 
       return {
-        canRun: canEnterCore === true && !!cleanUid,
+        canRun: canUseAdultSocial === true && !!cleanUid,
         uid: cleanUid,
       };
     }),
