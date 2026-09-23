@@ -62,7 +62,7 @@ export interface BillingPlan {
   interval: 'month';
 
   active: boolean;
-  catalogVersion: number;
+  catalogVersion?: number;
 
   /**
    * Metadados opcionais de leitura. A UI não os utiliza como autorização.
