@@ -10,13 +10,8 @@
 import { Injectable, inject } from '@angular/core';
 import {
   Firestore,
-  collection,
-  collectionData,
   doc,
   docData,
-  orderBy,
-  query,
-  where,
 } from '@angular/fire/firestore';
 import { Observable, combineLatest, of, throwError, timer } from 'rxjs';
 import {
@@ -95,24 +90,15 @@ export class MediaPublicQueryService {
       return of([]);
     }
 
-    return this.firestoreCtx.deferObservable$(() => {
-      const publicPhotosCollection = collection(
-        this.firestore,
-        `public_profiles/${safeOwnerUid}/public_photos`
-      );
-
-      const publicPhotosQuery = query(
-        publicPhotosCollection,
-        where('ageEligibilityVerifiedAdult', '==', true),
-        where('visibility', '==', 'PUBLIC'),
-        where('moderationStatus', '==', 'APPROVED'),
-        orderBy('orderIndex', 'asc'),
-        orderBy('publishedAt', 'desc')
-      );
-
-      return collectionData(publicPhotosQuery, { idField: 'id' });
+    return this.publicMediaRead.read$({
+      mediaType: 'PHOTO',
+      mode: 'PROFILE',
+      ownerUids: [safeOwnerUid],
+      limit: PUBLIC_MEDIA_BATCH_LIMIT,
     }).pipe(
-      map((items) => items as unknown as readonly IPublicPhotoProjection[]),
+      map((response) =>
+        (response.items ?? []) as unknown as readonly IPublicPhotoProjection[]
+      ),
       switchMap((items) =>
         this.publicPhotoAccess.hydratePublicPhotoUrls$(items)
       ),
@@ -142,24 +128,15 @@ export class MediaPublicQueryService {
       return of([]);
     }
 
-    return this.firestoreCtx.deferObservable$(() => {
-      const publicVideosCollection = collection(
-        this.firestore,
-        `public_profiles/${safeOwnerUid}/public_videos`
-      );
-
-      const publicVideosQuery = query(
-        publicVideosCollection,
-        where('ageEligibilityVerifiedAdult', '==', true),
-        where('visibility', '==', 'PUBLIC'),
-        where('moderationStatus', '==', 'APPROVED'),
-        orderBy('orderIndex', 'asc'),
-        orderBy('publishedAt', 'desc')
-      );
-
-      return collectionData(publicVideosQuery, { idField: 'id' });
+    return this.publicMediaRead.read$({
+      mediaType: 'VIDEO',
+      mode: 'PROFILE',
+      ownerUids: [safeOwnerUid],
+      limit: PUBLIC_MEDIA_BATCH_LIMIT,
     }).pipe(
-      map((items) => items as IPublicVideoProjection[]),
+      map((response) =>
+        (response.items ?? []) as unknown as IPublicVideoProjection[]
+      ),
       switchMap((items) =>
         this.publicVideoAccess.hydratePublicVideoUrls$(items)
       ),
