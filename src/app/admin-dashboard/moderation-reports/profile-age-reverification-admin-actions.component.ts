@@ -153,8 +153,10 @@ type AgeEvidenceMethod =
           </label>
 
           <small>
-            Não informe CPF, nome civil, data de nascimento ou número de
-            documento. O backend persiste apenas o hash desta referência.
+            Escolha o método confiável adequado ao caso; não existe uma única
+            prova obrigatória de maioridade. Não informe CPF, nome civil, data de
+            nascimento ou número de documento. O backend persiste apenas o hash
+            desta referência.
           </small>
         </div>
       </ng-template>
@@ -223,7 +225,7 @@ export class ProfileAgeReverificationAdminActionsComponent {
       case 'REJECTED':
         return 'menoridade confirmada';
       case 'EXPIRED':
-        return 'prazo expirado';
+        return 'meta operacional ultrapassada';
       default:
         return 'encerrada';
     }
