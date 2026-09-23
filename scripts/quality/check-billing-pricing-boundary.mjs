@@ -62,6 +62,8 @@ for (const fragment of [
   'amountCents: planSnapshot.amountCents',
   'currency: planSnapshot.currency',
   'catalogVersion: planSnapshot.catalogVersion',
+  'assertDisplayedPlanStillCurrent',
+  "reason: 'plan_quote_changed'",
   'priceTreatment: planChangePolicy.priceTreatment',
   'periodTreatment: planChangePolicy.periodTreatment',
   'prorationSupported: planChangePolicy.prorationSupported',
@@ -194,6 +196,9 @@ for (const fragment of [
   "'getPlatformPlans'",
   'getPlatformPlans$()',
   "'getPlatformPlanByKey'",
+  'expectedAmountCents: plan.amountCents',
+  'expectedCurrency: plan.currency',
+  'expectedInterval: plan.interval',
 ]) {
   requireIncludes(
     repository,
