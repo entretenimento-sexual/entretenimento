@@ -70,7 +70,7 @@ export class DiscoveryPublicProfilesRepository {
         this.cache.set(
           cacheKey,
           cachedPage,
-          DISCOVERY_PAGE_CACHE_TTL_MS,
+          this.resolveCacheTtl(page.items),
           { persist: true }
         );
       })
@@ -83,11 +83,58 @@ export class DiscoveryPublicProfilesRepository {
           cached
             ? of<DiscoveryFeedPage>({
                 ...cached,
+                items: this.filterCurrentAdultCards(cached.items),
                 source: 'cache',
               })
             : EMPTY,
           server$
         )
+      )
+    );
+  }
+
+  private filterCurrentAdultCards(
+    items: readonly PublicProfileCard[]
+  ): readonly PublicProfileCard[] {
+    const now = Date.now();
+
+    return (items ?? []).filter((item) =>
+      typeof item.ageEligibilityValidUntil === 'number' &&
+      Number.isFinite(item.ageEligibilityValidUntil) &&
+      item.ageEligibilityValidUntil > now
+    );
+  }
+
+  private resolveCacheTtl(
+    items: readonly PublicProfileCard[]
+  ): number {
+    const now = Date.now();
+    const earliestAgeExpiry = (items ?? []).reduce<number | null>(
+      (earliest, item) => {
+        const expiresAt = item.ageEligibilityValidUntil;
+
+        if (
+          typeof expiresAt !== 'number' ||
+          !Number.isFinite(expiresAt) ||
+          expiresAt <= now
+        ) {
+          return earliest;
+        }
+
+        return earliest === null || expiresAt < earliest
+          ? expiresAt
+          : earliest;
+      },
+      null
+    );
+
+    return Math.max(
+      1,
+      Math.min(
+        DISCOVERY_PAGE_CACHE_TTL_MS,
+        earliestAgeExpiry === null
+          ? DISCOVERY_PAGE_CACHE_TTL_MS
+          : earliestAgeExpiry - now
       )
     );
   }
