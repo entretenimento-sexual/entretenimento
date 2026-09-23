@@ -587,7 +587,53 @@ export class AccessControlService {
     }),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true }),
-    catchError(this.handleStreamError('canRunAdultSessionRealtime
+    catchError(this.handleStreamError('canRunAdultSessionRealtime$', false))
+  );
+
+  /**
+   * Presença representa participação ativa na experiência social adulta.
+   * Não exige e-mail verificado, mas só inicia após a sequência de compliance
+   * estar válida. Rotas essenciais de conta/compliance seguem disponíveis.
+   */
+  readonly canRunPresence$: Observable<boolean> =
+    this.canRunAdultSessionRealtime$;
+
+  /**
+   * Chat é recurso sensível:
+   * exige camada adulta válida + perfil completo + e-mail verificado.
+   */
+  readonly canRunChatRealtime$: Observable<boolean> = combineLatest([
+    this.canRunAdultSessionRealtime$,
+    this.profileEligible$,
+    this.emailVerified$,
+  ]).pipe(
+    map(([adultSessionOk, profileOk, emailOk]) =>
+      adultSessionOk === true &&
+      profileOk === true &&
+      emailOk === true
+    ),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('canRunChatRealtime$', false))
+  );
+
+  /**
+   * Discovery:
+   * exige camada adulta válida + perfil completo.
+   * E-mail verificado continua restrito às boundaries que realmente precisam.
+   */
+  readonly canRunDiscoveryRealtime$: Observable<boolean> = combineLatest([
+    this.canRunAdultSessionRealtime$,
+    this.profileEligible$,
+  ]).pipe(
+    map(([adultSessionOk, profileOk]) =>
+      adultSessionOk === true &&
+      profileOk === true
+    ),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('canRunDiscoveryRealtime$', false))
+  );
 
   /**
    * Recursos sensíveis genéricos.
