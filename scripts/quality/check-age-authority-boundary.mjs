@@ -32,6 +32,10 @@ const requiredFiles = Object.freeze([
   'functions/src/compliance/request-initial-age-verification-review.handler.ts',
   'functions/src/compliance/review-initial-age-verification.handler.ts',
   'functions/src/compliance/review-profile-age-reverification.handler.ts',
+  'functions/src/compliance/appeal-profile-age-reverification.handler.ts',
+  'functions/src/compliance/report-profile-minor-safety.handler.ts',
+  'functions/src/moderation/moderation-reporter-abuse.policy.ts',
+  'functions/src/moderation/moderation-reporter-abuse.service.ts',
   'functions/src/compliance/adult-consent.handler.ts',
   'src/app/core/services/compliance/age-eligibility.service.ts',
   'src/app/core/guards/compliance/age-eligibility.guard.ts',
@@ -326,6 +330,72 @@ if (fs.existsSync(initialAgeRequestPath)) {
     violations.push(
       'functions/src/compliance/request-initial-age-verification-review.handler.ts (input do cliente não pode promover diretamente VERIFIED_ADULT)'
     );
+  }
+}
+
+
+const minorSafetyReportPath = path.join(
+  root,
+  'functions/src/compliance/report-profile-minor-safety.handler.ts'
+);
+if (fs.existsSync(minorSafetyReportPath)) {
+  const source = codeOnly(fs.readFileSync(minorSafetyReportPath, 'utf8'));
+
+  for (const required of [
+    'enforceAppCheck',
+    'consumeBackendRateLimitQuota',
+    'getModerationReporterAbuseRisk',
+    'safeRecordModerationOpenSignal',
+  ]) {
+    if (!source.includes(required)) {
+      violations.push(
+        `functions/src/compliance/report-profile-minor-safety.handler.ts (denúncia de menoridade deve preservar proteção transversal: ${required})`
+      );
+    }
+  }
+}
+
+const ageAppealPath = path.join(
+  root,
+  'functions/src/compliance/appeal-profile-age-reverification.handler.ts'
+);
+if (fs.existsSync(ageAppealPath)) {
+  const source = codeOnly(fs.readFileSync(ageAppealPath, 'utf8'));
+
+  for (const required of [
+    'enforceAppCheck',
+    'consumeBackendRateLimitQuota',
+    "status: 'UNDER_REVIEW'",
+    'interactionBlocked: true',
+    'compliance_cases',
+    'compliance_audit',
+  ]) {
+    if (!source.includes(required)) {
+      violations.push(
+        `functions/src/compliance/appeal-profile-age-reverification.handler.ts (contestação deve ser auditável, rate-limited e fail-closed: ${required})`
+      );
+    }
+  }
+}
+
+const ageReverificationReviewPath = path.join(
+  root,
+  'functions/src/compliance/review-profile-age-reverification.handler.ts'
+);
+if (fs.existsSync(ageReverificationReviewPath)) {
+  const source = codeOnly(fs.readFileSync(ageReverificationReviewPath, 'utf8'));
+
+  for (const required of [
+    'activeAppealCaseId',
+    'ageReverificationSuspensionCaseId',
+    'enforcementEligible: false',
+    'declaredUnderage && !activeAppealCaseId',
+  ]) {
+    if (!source.includes(required)) {
+      violations.push(
+        `functions/src/compliance/review-profile-age-reverification.handler.ts (recurso etário deve permanecer reversível sem enforcement duplicado: ${required})`
+      );
+    }
   }
 }
 
