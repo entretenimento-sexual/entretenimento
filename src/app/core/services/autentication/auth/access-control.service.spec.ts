@@ -23,6 +23,27 @@ function createUser(role: IUserDados['role'] = 'free'): IUserDados {
     lastLogin: 1,
     profileCompleted: true,
     isSubscriber: role !== 'free' && role !== 'admin',
+    ageEligibility: {
+      status: 'VERIFIED_ADULT',
+      policyVersion: 1,
+      source: 'INITIAL_VERIFICATION',
+      method: 'MANUAL_REVIEW',
+      caseId: 'case-1',
+      verifiedAtMs: 1,
+      expiresAtMs: Number.MAX_SAFE_INTEGER,
+      updatedAtMs: 1,
+    },
+    acceptedTerms: {
+      accepted: true,
+      date: 1,
+      version: 'v3',
+      acknowledgedPrivacyNotice: true,
+    },
+    adultConsent: {
+      accepted: true,
+      version: 'v1',
+      acceptedAt: 1,
+    },
   } as IUserDados;
 }
 
@@ -230,6 +251,81 @@ describe('AccessControlService canonical subscription roles', () => {
     ).resolves.toBe(false);
 
     expect(applicationErrorReport).toHaveBeenCalledTimes(1);
+  });
+
+  it('mantém a capability social adulta desligada enquanto a maioridade está pendente', async () => {
+    user$.next({
+      ...createUser(),
+      ageEligibility: {
+        ...createUser().ageEligibility!,
+        status: 'REVIEW_REQUIRED',
+      },
+    });
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.canEnterCore$)).toBe(true);
+    expect(await firstValueFrom(service.canUseAdultSocial$)).toBe(false);
+    expect(await firstValueFrom(service.canRunPresence$)).toBe(false);
+    expect(await firstValueFrom(service.canRunChatRealtime$)).toBe(false);
+    expect(await firstValueFrom(service.state$)).toBe(
+      'AUTHED_PROFILE_COMPLETE_VERIFIED_AGE_PENDING'
+    );
+  });
+
+  it('liga capacidades sociais reativamente após a projeção backend confirmar maioridade', async () => {
+    user$.next({
+      ...createUser(),
+      ageEligibility: {
+        ...createUser().ageEligibility!,
+        status: 'UNVERIFIED',
+      },
+    });
+    const service = TestBed.inject(AccessControlService);
+    const states: boolean[] = [];
+    const subscription = service.canUseAdultSocial$.subscribe((value) =>
+      states.push(value)
+    );
+
+    user$.next(createUser());
+
+    expect(states).toEqual([false, true]);
+    expect(await firstValueFrom(service.state$)).toBe(
+      'AUTHED_PROFILE_COMPLETE_VERIFIED_AGE_OK'
+    );
+
+    subscription.unsubscribe();
+  });
+
+  it('mantém acesso ao shell, mas bloqueia social adulto quando a decisão é underage', async () => {
+    user$.next({
+      ...createUser(),
+      ageEligibility: {
+        ...createUser().ageEligibility!,
+        status: 'DENIED_UNDERAGE',
+      },
+    });
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.canEnterCore$)).toBe(true);
+    expect(await firstValueFrom(service.canUseAdultSocial$)).toBe(false);
+    expect(await firstValueFrom(service.state$)).toBe(
+      'AUTHED_PROFILE_COMPLETE_VERIFIED_AGE_BLOCKED'
+    );
+  });
+
+  it('não liga social adulto entre a prova etária e o aceite adulto', async () => {
+    user$.next({
+      ...createUser(),
+      adultConsent: {
+        accepted: false,
+        version: 'v1',
+      },
+    });
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.verifiedAdultAge$)).toBe(true);
+    expect(await firstValueFrom(service.canEnterCore$)).toBe(true);
+    expect(await firstValueFrom(service.canUseAdultSocial$)).toBe(false);
   });
 
   it('usa a assinatura canônica para basic/premium/vip', async () => {

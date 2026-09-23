@@ -1,101 +1,124 @@
 <main class="age-verification" aria-labelledby="age-verification-title">
-  <section class="age-verification__card">
-    <header>
-      <span class="age-verification__mark" aria-hidden="true">18+</span>
-      <p>Verificação de maioridade</p>
-      <h1 id="age-verification-title">Confirme sua elegibilidade para a plataforma</h1>
-    </header>
+  <section class="age-verification__shell">
+    <div class="age-verification__brand" aria-hidden="true">
+      <span class="age-verification__brand-mark">18+</span>
+      <span>Verificação de maioridade</span>
+    </div>
 
-    @if (vm$ | async; as vm) {
-      @if (vm.verified) {
-        <section class="age-verification__status" role="status">
-          <strong>Maioridade confirmada</strong>
-          <p>A conta possui uma verificação backend válida.</p>
-          <a routerLink="/adulto/confirmar">Continuar para o acesso adulto</a>
-        </section>
-      } @else if (vm.deniedUnderage) {
-        <section class="age-verification__status" role="alert">
-          <strong>Acesso adulto indisponível</strong>
-          <p>
-            A decisão atual não autoriza o acesso adulto. Se houver erro ou
-            evidência nova, você pode solicitar revisão.
-          </p>
-        </section>
+    <article class="age-verification__card">
+      <p class="age-verification__kicker">Etapa de segurança</p>
 
-        <div class="age-verification__actions">
-          <button
-            type="button"
-            [disabled]="refreshing() || requestingReview()"
-            (click)="requestReview()"
+      <h1 id="age-verification-title">Confirme que você pode usar a experiência adulta</h1>
+
+      <p class="age-verification__lead">
+        A plataforma precisa confirmar sua maioridade antes de liberar perfis,
+        mensagens e outras interações adultas. Você continua com acesso à conta
+        e às etapas necessárias para concluir a verificação.
+      </p>
+
+      @if (vm$ | async; as vm) {
+        @if (vm.verified) {
+          <section class="age-verification__status age-verification__status--success" role="status">
+            <strong>Maioridade confirmada</strong>
+            <p>Está tudo certo para seguir para a confirmação de acesso adulto.</p>
+          </section>
+
+          <a
+            class="age-verification__button age-verification__button--primary"
+            routerLink="/adulto/confirmar"
+            [queryParams]="{ redirectTo: redirectTo }"
+            replaceUrl
           >
-            {{ requestingReview() ? 'Enviando...' : 'Solicitar revisão da decisão' }}
-          </button>
+            Continuar
+          </a>
+        } @else if (vm.deniedUnderage) {
+          <section class="age-verification__status age-verification__status--warning" role="alert">
+            <strong>O acesso adulto não está disponível no momento</strong>
+            <p>
+              Se a decisão estiver incorreta ou houver nova evidência, você pode
+              solicitar uma revisão.
+            </p>
+          </section>
 
-          <button
-            type="button"
-            class="age-verification__secondary"
-            [disabled]="refreshing() || requestingReview()"
-            (click)="logoutCurrentSession()"
-          >
-            Sair da conta
-          </button>
-        </div>
-      } @else {
-        <section class="age-verification__status" role="status">
-          <strong>
-            {{ vm.reviewRequired
-              ? 'Verificação em revisão'
-              : vm.expired
-                ? 'Verificação expirada'
-                : 'Verificação necessária' }}
-          </strong>
-          <p>
-            A maioridade precisa ser confirmada por uma fonte backend confiável.
-            Declarações feitas apenas neste navegador não liberam o acesso.
-          </p>
-        </section>
-
-        <div class="age-verification__actions">
-          @if (!vm.reviewRequired) {
+          <div class="age-verification__actions">
             <button
               type="button"
+              class="age-verification__button age-verification__button--primary"
               [disabled]="refreshing() || requestingReview()"
               (click)="requestReview()"
             >
-              {{ requestingReview()
-                ? 'Enviando...'
-                : vm.expired
-                  ? 'Solicitar nova revisão'
-                  : 'Solicitar verificação' }}
+              {{ requestingReview() ? 'Enviando...' : 'Solicitar revisão' }}
             </button>
-          }
 
-          <button
-            type="button"
-            class="age-verification__secondary"
-            [disabled]="refreshing() || requestingReview()"
-            (click)="refresh()"
-          >
-            {{ refreshing() ? 'Atualizando...' : 'Atualizar status' }}
-          </button>
+            <button
+              type="button"
+              class="age-verification__button age-verification__button--ghost"
+              [disabled]="refreshing() || requestingReview()"
+              (click)="logoutCurrentSession()"
+            >
+              Sair da conta
+            </button>
+          </div>
+        } @else {
+          <section class="age-verification__status" role="status">
+            <strong>
+              {{ vm.reviewRequired
+                ? 'Verificação em análise'
+                : vm.expired
+                  ? 'Precisamos confirmar novamente'
+                  : 'Verificação necessária' }}
+            </strong>
 
-          <button
-            type="button"
-            class="age-verification__secondary"
-            [disabled]="refreshing() || requestingReview()"
-            (click)="logoutCurrentSession()"
-          >
-            Sair da conta
-          </button>
-        </div>
+            <p>
+              {{ vm.reviewRequired
+                ? 'Sua solicitação já foi registrada. Você não precisa enviar novamente.'
+                : 'Solicite a verificação para que a plataforma valide sua elegibilidade de forma segura.' }}
+            </p>
+          </section>
 
-        <p class="age-verification__note">
-          A liberação pode vir de uma assertion de provedor confiável ou de
-          revisão administrativa baseada em evidência verificável. A referência
-          usada na revisão é reduzida a um hash no backend; autodeclaração não
-          concede acesso.
-        </p>
+          <div class="age-verification__actions">
+            @if (!vm.reviewRequired) {
+              <button
+                type="button"
+                class="age-verification__button age-verification__button--primary"
+                [disabled]="refreshing() || requestingReview()"
+                (click)="requestReview()"
+              >
+                {{ requestingReview()
+                  ? 'Enviando...'
+                  : vm.expired
+                    ? 'Verificar novamente'
+                    : 'Começar verificação' }}
+              </button>
+            }
+
+            <button
+              type="button"
+              class="age-verification__button age-verification__button--secondary"
+              [disabled]="refreshing() || requestingReview()"
+              (click)="refresh()"
+            >
+              {{ refreshing() ? 'Atualizando...' : 'Atualizar status' }}
+            </button>
+
+            <button
+              type="button"
+              class="age-verification__button age-verification__button--ghost"
+              [disabled]="refreshing() || requestingReview()"
+              (click)="logoutCurrentSession()"
+            >
+              Sair da conta
+            </button>
+          </div>
+
+          <p class="age-verification__note">
+            A confirmação pode ser automática quando houver uma fonte confiável
+            disponível. Se isso não for possível, a solicitação segue para revisão.
+            A plataforma não libera acesso adulto apenas com uma declaração feita
+            no navegador.
+          </p>
+        }
       }
-    }
+    </article>
   </section>
 </main>

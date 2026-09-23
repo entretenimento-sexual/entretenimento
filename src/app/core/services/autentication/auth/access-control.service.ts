@@ -55,6 +55,8 @@ import {
 import { ApplicationErrorService } from '../../error-handler/application-error.service';
 import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 import { PlatformSubscriptionAccessService } from '@core/services/subscriptions/platform-subscription-access.service';
+import { ADULT_CONSENT_VERSION } from '@core/guards/compliance/adult-content-consent.storage';
+import { TERMS_ACCEPTANCE_VERSION } from '@core/services/compliance/platform-legal.constants';
 
 export type UserRole = IUserDados['role'];
 
@@ -447,6 +449,87 @@ export class AccessControlService {
    */
   readonly profileEligible$: Observable<boolean> = this.profileCompleted$;
 
+  /**
+   * Projeção UX da decisão etária backend-only. O cliente não calcula idade.
+   */
+  readonly adultAgeEligibilityStatus$: Observable<
+    'UNVERIFIED' | 'REVIEW_REQUIRED' | 'VERIFIED_ADULT' | 'DENIED_UNDERAGE' | 'EXPIRED'
+  > = this.appUser$.pipe(
+    map((user) => {
+      const status = user && typeof user === 'object'
+        ? (user as IUserDados).ageEligibility?.status
+        : null;
+
+      return [
+        'UNVERIFIED',
+        'REVIEW_REQUIRED',
+        'VERIFIED_ADULT',
+        'DENIED_UNDERAGE',
+        'EXPIRED',
+      ].includes(String(status))
+        ? status as 'UNVERIFIED' | 'REVIEW_REQUIRED' | 'VERIFIED_ADULT' | 'DENIED_UNDERAGE' | 'EXPIRED'
+        : 'UNVERIFIED';
+    }),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(
+      this.handleStreamError(
+        'adultAgeEligibilityStatus$',
+        'UNVERIFIED' as const
+      )
+    )
+  );
+
+  readonly verifiedAdultAge$: Observable<boolean> =
+    this.adultAgeEligibilityStatus$.pipe(
+      map((status) => status === 'VERIFIED_ADULT'),
+      distinctUntilChanged(),
+      shareReplay({ bufferSize: 1, refCount: true }),
+      catchError(this.handleStreamError('verifiedAdultAge$', false))
+    );
+
+  readonly currentTermsAccepted$: Observable<boolean> = this.appUser$.pipe(
+    map((user) =>
+      user?.acceptedTerms?.accepted === true &&
+      user.acceptedTerms.version === TERMS_ACCEPTANCE_VERSION &&
+      user.acceptedTerms.acknowledgedPrivacyNotice === true
+    ),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('currentTermsAccepted$', false))
+  );
+
+  readonly adultConsentAccepted$: Observable<boolean> = this.appUser$.pipe(
+    map((user) =>
+      user?.adultConsent?.accepted === true &&
+      user.adultConsent.version === ADULT_CONSENT_VERSION
+    ),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('adultConsentAccepted$', false))
+  );
+
+  readonly ageReverificationAllowsAdultSocial$: Observable<boolean> =
+    this.appUser$.pipe(
+      map((user) => {
+        const status = user?.ageReverification?.status ?? null;
+        return ![
+          'REQUIRED',
+          'SUBMITTED',
+          'UNDER_REVIEW',
+          'EXPIRED',
+        ].includes(String(status));
+      }),
+      distinctUntilChanged(),
+      shareReplay({ bufferSize: 1, refCount: true }),
+      catchError(
+        this.handleStreamError(
+          'ageReverificationAllowsAdultSocial$',
+          false
+        )
+      )
+    );
+
   // ---------------------------------------------------------------------------
   // Estado consolidado
   // ---------------------------------------------------------------------------
@@ -455,13 +538,22 @@ export class AccessControlService {
     this.isAuthenticated$,
     this.profileCompleted$,
     this.emailVerified$,
+    this.adultAgeEligibilityStatus$,
   ]).pipe(
-    map(([isAuth, profileOk, emailOk]) => {
+    map(([isAuth, profileOk, emailOk, ageStatus]) => {
       if (!isAuth) return 'GUEST';
       if (!profileOk) return 'AUTHED_PROFILE_INCOMPLETE';
       if (!emailOk) return 'AUTHED_PROFILE_COMPLETE_UNVERIFIED';
 
-      return 'AUTHED_PROFILE_COMPLETE_VERIFIED';
+      if (ageStatus === 'VERIFIED_ADULT') {
+        return 'AUTHED_PROFILE_COMPLETE_VERIFIED_AGE_OK';
+      }
+
+      if (ageStatus === 'DENIED_UNDERAGE') {
+        return 'AUTHED_PROFILE_COMPLETE_VERIFIED_AGE_BLOCKED';
+      }
+
+      return 'AUTHED_PROFILE_COMPLETE_VERIFIED_AGE_PENDING';
     }),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true }),
@@ -546,29 +638,54 @@ export class AccessControlService {
   );
 
   /**
-   * Presença é infraestrutura de sessão.
-   * Não deve depender de e-mail verificado.
+   * Capability social adulta única para UI/realtime.
+   *
+   * Shell, conta, suporte, onboarding e verificação continuam disponíveis.
+   * Só perfis/interações sociais adultas dependem deste gate.
    */
-  readonly canRunPresence$: Observable<boolean> = this.canRunInfraRealtime$;
+  readonly canUseAdultSocial$: Observable<boolean> = combineLatest([
+    this.canRunInfraRealtime$,
+    this.profileEligible$,
+    this.emailVerified$,
+    this.verifiedAdultAge$,
+    this.currentTermsAccepted$,
+    this.adultConsentAccepted$,
+    this.ageReverificationAllowsAdultSocial$,
+  ]).pipe(
+    map(([
+      infraOk,
+      profileOk,
+      emailOk,
+      adultOk,
+      termsOk,
+      consentOk,
+      reverificationOk,
+    ]) =>
+      infraOk === true &&
+      profileOk === true &&
+      emailOk === true &&
+      adultOk === true &&
+      termsOk === true &&
+      consentOk === true &&
+      reverificationOk === true
+    ),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('canUseAdultSocial$', false))
+  );
+
+  readonly canRunPresence$: Observable<boolean> = this.canUseAdultSocial$;
 
   /**
    * Chat é recurso sensível:
    * exige perfil completo + e-mail verificado.
    */
-  readonly canRunChatRealtime$: Observable<boolean> = combineLatest([
-    this.canRunInfraRealtime$,
-    this.profileEligible$,
-    this.emailVerified$,
-  ]).pipe(
-    map(([infraOk, profileOk, emailOk]) =>
-      infraOk === true &&
-      profileOk === true &&
-      emailOk === true
-    ),
-    distinctUntilChanged(),
-    shareReplay({ bufferSize: 1, refCount: true }),
-    catchError(this.handleStreamError('canRunChatRealtime$', false))
-  );
+  readonly canRunChatRealtime$: Observable<boolean> =
+    this.canUseAdultSocial$.pipe(
+      distinctUntilChanged(),
+      shareReplay({ bufferSize: 1, refCount: true }),
+      catchError(this.handleStreamError('canRunChatRealtime$', false))
+    );
 
   /**
    * Discovery/Online Users:
@@ -598,10 +715,25 @@ export class AccessControlService {
   readonly canRunSensitiveRealtime$: Observable<boolean> = combineLatest([
     this.canRunDiscoveryRealtime$,
     this.emailVerified$,
+    this.verifiedAdultAge$,
+    this.currentTermsAccepted$,
+    this.adultConsentAccepted$,
+    this.ageReverificationAllowsAdultSocial$,
   ]).pipe(
-    map(([discoveryOk, emailOk]) =>
+    map(([
+      discoveryOk,
+      emailOk,
+      adultOk,
+      termsOk,
+      consentOk,
+      reverificationOk,
+    ]) =>
       discoveryOk === true &&
-      emailOk === true
+      emailOk === true &&
+      adultOk === true &&
+      termsOk === true &&
+      consentOk === true &&
+      reverificationOk === true
     ),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true }),
@@ -644,20 +776,18 @@ export class AccessControlService {
    * rotas que realmente exibem cards ou modos de descoberta.
    */
   readonly canRunOnlineUsers$: Observable<boolean> = combineLatest([
-    this.canRunInfraRealtime$,
-    this.profileEligible$,
+    this.canUseAdultSocial$,
     this.authUid$,
     this.routeCtx$,
   ]).pipe(
-    map(([infraOk, profileEligible, uid, routeCtx]) => {
+    map(([adultSocialOk, uid, routeCtx]) => {
       const routeConsumesOnlineUsers =
         routeCtx.routerReady === true &&
         this.isOnlineUsersConsumptionRoute(routeCtx.currentUrl);
 
       return {
         can:
-          infraOk === true &&
-          profileEligible === true &&
+          adultSocialOk === true &&
           !!uid &&
           routeConsumesOnlineUsers,
         url: routeCtx.currentUrl,

@@ -52,6 +52,10 @@ const requiredFiles = Object.freeze([
   'src/app/core/services/batepapo/invite-service/invite-search.service.ts',
   'src/app/core/services/interactions/friendship/repo/friends.repo.ts',
   'src/app/core/services/media/media-public-preview-query.service.ts',
+  'src/app/core/services/autentication/auth/access-control.service.ts',
+  'src/app/store/effects/effects.interactions/friends/network.effects.ts',
+  'src/app/core/services/interactions/friendship/repo/requests.repo.ts',
+  'firestore-rules/presence.rules',
 ]);
 
 const legacyClientCompatibility = path.normalize(
@@ -258,6 +262,73 @@ if (fs.existsSync(ageRecordRulesPath)) {
   }
 }
 
+
+const accessControlPath = path.join(
+  root,
+  'src/app/core/services/autentication/auth/access-control.service.ts'
+);
+if (fs.existsSync(accessControlPath)) {
+  const source = codeOnly(fs.readFileSync(accessControlPath, 'utf8'));
+
+  for (const required of [
+    'adultAgeEligibilityStatus$',
+    'verifiedAdultAge$',
+    'currentTermsAccepted$',
+    'adultConsentAccepted$',
+    'ageReverificationAllowsAdultSocial$',
+    'canUseAdultSocial$',
+    "status === 'VERIFIED_ADULT'",
+    'TERMS_ACCEPTANCE_VERSION',
+    'ADULT_CONSENT_VERSION',
+    'readonly canRunPresence$: Observable<boolean> = this.canUseAdultSocial$',
+    'readonly canRunChatRealtime$',
+  ]) {
+    if (!source.includes(required)) {
+      violations.push(
+        `src/app/core/services/autentication/auth/access-control.service.ts (capability social adulta canônica ausente: ${required})`
+      );
+    }
+  }
+}
+
+const friendsNetworkPath = path.join(
+  root,
+  'src/app/store/effects/effects.interactions/friends/network.effects.ts'
+);
+if (fs.existsSync(friendsNetworkPath)) {
+  const source = codeOnly(fs.readFileSync(friendsNetworkPath, 'utf8'));
+
+  if (!source.includes('this.access.canUseAdultSocial$')) {
+    violations.push(
+      'src/app/store/effects/effects.interactions/friends/network.effects.ts (Friends deve suspender listeners pela capability social adulta canônica)'
+    );
+  }
+
+  if (source.includes('this.access.canEnterCore$')) {
+    violations.push(
+      'src/app/store/effects/effects.interactions/friends/network.effects.ts (canEnterCore$ não pode autorizar sozinho listeners sociais adultos)'
+    );
+  }
+}
+
+const requestsRepoPath = path.join(
+  root,
+  'src/app/core/services/interactions/friendship/repo/requests.repo.ts'
+);
+if (fs.existsSync(requestsRepoPath)) {
+  const source = codeOnly(fs.readFileSync(requestsRepoPath, 'utf8'));
+
+  if (
+    !source.includes('private getPendingRequestsCallable()') ||
+    !source.includes('return this.inCtxSync(() =>') ||
+    !source.includes(">(this.functions, 'getPendingFriendRequests')")
+  ) {
+    violations.push(
+      'src/app/core/services/interactions/friendship/repo/requests.repo.ts (pending requests callable deve nascer dentro do Angular injection context)'
+    );
+  }
+}
+
 const helperPath = path.join(root, 'firestore-rules', '_helpers.rules');
 if (fs.existsSync(helperPath)) {
   const source = fs.readFileSync(helperPath, 'utf8');
@@ -273,6 +344,29 @@ if (fs.existsSync(helperPath)) {
     }
   }
 }
+
+  for (const optionalHelper of [
+    'function optString(k)',
+    'function optNumberOrNull(k)',
+    'function optTimestamp(k)',
+  ]) {
+    const helperStart = source.indexOf(optionalHelper);
+    const helperEnd =
+      helperStart >= 0 ? source.indexOf('\n    }', helperStart) : -1;
+    const helperSource =
+      helperStart >= 0 && helperEnd >= 0
+        ? source.slice(helperStart, helperEnd)
+        : '';
+
+    if (
+      !helperSource.includes('mapFieldOrNull(request.resource.data, k)') ||
+      helperSource.includes('request.resource.data[k]')
+    ) {
+      violations.push(
+        `firestore-rules/_helpers.rules (${optionalHelper} deve ser null-safe para campo opcional ausente)`
+      );
+    }
+  }
 
 
 
