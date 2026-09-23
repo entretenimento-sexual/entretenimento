@@ -46,6 +46,7 @@ export const COMMUNITY_PUBLIC_ERROR_REASONS = Object.freeze([
   'community_not_manageable',
   'community_notification_preference_rate_limited',
   'community_operations_rate_limited',
+  'community_ownership_capacity_upgrade_required',
   'community_ownership_idempotency_invalid',
   'community_ownership_limit_reached',
   'community_ownership_subscription_required',
