@@ -24,6 +24,9 @@ export interface PublicProfileCard {
   orientation?: string | null;
   age?: number | null;
 
+  /** Relógio backend-only projetado para expiração reativa do card. */
+  ageEligibilityValidUntil?: number | null;
+
   /**
    * Campos canônicos calculados no backend por syncPublicProfileDiscovery.
    * Quando presentes, devem ter prioridade sobre os campos brutos acima.
