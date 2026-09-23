@@ -29,6 +29,7 @@ import {
   settleRecurringPlatformSubscriptionPayment,
 } from './recurring-platform-subscription-settlement.service';
 import {
+  recordRecurringChargebackProgress,
   reverseRecurringPlatformSubscriptionPayment,
 } from './recurring-platform-subscription-reversal.service';
 import {
@@ -229,8 +230,7 @@ async function processAsaasEvent(
   if (
     event.eventName === 'PAYMENT_REFUNDED' ||
     event.eventName === 'PAYMENT_RECEIVED_IN_CASH_UNDONE' ||
-    event.eventName === 'PAYMENT_CHARGEBACK_REQUESTED' ||
-    event.eventName === 'PAYMENT_CHARGEBACK_DISPUTE'
+    event.eventName === 'PAYMENT_CHARGEBACK_REQUESTED'
   ) {
     const reversal =
       await reverseRecurringPlatformSubscriptionPayment(event);
@@ -248,6 +248,14 @@ async function processAsaasEvent(
       }).catch(() => undefined);
     }
 
+    return 'processed';
+  }
+
+  if (
+    event.eventName === 'PAYMENT_CHARGEBACK_DISPUTE' ||
+    event.eventName === 'PAYMENT_AWAITING_CHARGEBACK_REVERSAL'
+  ) {
+    await recordRecurringChargebackProgress(event);
     return 'processed';
   }
 
