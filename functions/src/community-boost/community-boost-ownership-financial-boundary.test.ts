@@ -102,3 +102,59 @@ test('resume de campanha pausada perdida cancela antes de devolver erro', () => 
     true
   );
 });
+
+
+test('perda direta de role administrativa cancela somente a campanha do anunciante afetado', () => {
+  const authority = source(
+    'community-boost/community-boost-authority.service.ts'
+  );
+  const memberManagement = source(
+    'community/community-member-management.handler.ts'
+  );
+
+  assert.equal(
+    authority.includes('expectedAdvertiserUid?: string'),
+    true
+  );
+  assert.equal(
+    authority.includes(
+      'campaign.advertiserUid !== input.expectedAdvertiserUid'
+    ),
+    true
+  );
+  assert.equal(
+    memberManagement.includes(
+      "reason: 'advertiser_authority_lost'"
+    ),
+    true
+  );
+  assert.equal(
+    memberManagement.includes(
+      'expectedAdvertiserUid: memberId'
+    ),
+    true
+  );
+});
+
+test('saída voluntária de admin encerra seu Boost na mesma transação', () => {
+  const membership = source(
+    'community/community-membership-management.handler.ts'
+  );
+
+  assert.equal(
+    membership.includes(
+      "existingRole === 'admin' || existingRole === 'owner'"
+    ),
+    true
+  );
+  assert.equal(
+    membership.includes(
+      "reason: 'advertiser_authority_lost'"
+    ),
+    true
+  );
+  assert.equal(
+    membership.includes('expectedAdvertiserUid: uid'),
+    true
+  );
+});
