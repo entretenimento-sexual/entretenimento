@@ -97,11 +97,9 @@ match /public_profiles/{userId}/public_photos/{photoId} {
   allow get: if currentUserCanUseAdultSocialPlatform()
     && (isSelf(userId) || isPublicReadable());
 
-  // A expiração das listas é materializada pela Cloud Task canônica.
-  // O get direto permanece protegido também por request.time no perfil pai.
-  allow list: if currentUserCanUseAdultSocialPlatform()
-    && publicProfileAllowsAdultExposure()
-    && isPublicListReadable();
+  // Galerias owner-scoped também atravessam a Callable backend-time.
+  // O get direto permanece disponível para deep links sob fronteira forte.
+  allow list: if false;
 
   allow create, update, delete: if false;
 
