@@ -5,7 +5,7 @@ Este documento descreve a arquitetura operacional da plataforma para denúncias 
 ## Princípios
 
 1. **Denúncia de usuário não é conclusão de crime.** O envio de uma denúncia cria um caso de moderação e pode acionar contenção técnica, mas não autoriza comunicação automática a autoridades.
-2. **Conteúdo grave sai da distribuição rapidamente.** `minor_safety`, `illegal_content` e `sexual_boundary` colocam foto/vídeo em quarentena na primeira denúncia válida. Denúncias gerais exigem limiar antifraude antes da quarentena automática.
+2. **Conteúdo grave sai da distribuição rapidamente.** `minor_content_safety`, `illegal_content` e `sexual_boundary` colocam foto/vídeo em quarentena na primeira denúncia válida. Denúncias gerais exigem limiar antifraude antes da quarentena automática. `minor_safety` é reservado à suspeita de menoridade do responsável por um perfil e não equivale a conteúdo sexual envolvendo criança ou adolescente.
 3. **Preservar é diferente de manter publicado.** A mídia pode ser removida da experiência pública e, ao mesmo tempo, ter uma cópia isolada para auditoria, revisão jurídica ou atendimento posterior a uma solicitação legal válida.
 4. **Preservação não amplia acesso interno.** Evidência e jobs são backend-only. A sessão administrativa comum não recebe path de Storage, URL ou conteúdo preservado.
 5. **Exclusão do produto não destrói evidência em retenção.** A exclusão canônica de foto/vídeo não alcança `system/moderation-evidence/...`.
@@ -23,7 +23,7 @@ moderation_reports/{reportId}
       ↓
 ┌───────────────────────────────────────────────┐
 │ risco grave?                                  │
-│ minor_safety / illegal_content /              │
+│ minor_content_safety / illegal_content /      │
 │ sexual_boundary                               │
 └───────────────────────────────────────────────┘
       ↓ sim
@@ -47,6 +47,27 @@ revisão humana de moderação
                     ↓
               eventual atendimento legal auditado
 ```
+
+## Menoridade de perfil x conteúdo envolvendo menor
+
+Os dois fluxos são deliberadamente distintos:
+
+- `minor_safety` em `profile` significa **possível pessoa menor de 18 anos operando o perfil**. A denúncia é um sinal de segurança, não prova de idade, não conclui infração penal e não gera comunicação automática a autoridades. Ela entra na fila crítica; uma pessoa moderadora decide se há indícios suficientes para iniciar revalidação.
+- `minor_content_safety` significa **possível criança ou adolescente em conteúdo sexual, íntimo ou exploratório**. Nas superfícies com backend especializado, a primeira denúncia válida provoca quarentena reversível e preservação técnica, sem aguardar volume de denúncias.
+- A revalidação etária aceita mais de um caminho confiável de evidência. Data de nascimento informada pelo usuário serve apenas para triagem e não libera acesso adulto. Revisão documental, escalonamento de provedor e KYC de perfil podem ser usados conforme o caso, sem armazenar no caso a referência bruta do documento/provedor.
+- O prazo de sete dias usado na revalidação de perfil é **meta operacional da plataforma**, não prazo legal de comprovação e não presunção de menoridade. Envio posterior continua aceito e fica auditado como fora da meta operacional.
+
+## Prazos legais e operacionais
+
+Revisão normativa conferida em 23/09/2026:
+
+- **Aferição de idade:** o Decreto nº 12.880/2026 exige proporcionalidade, confiabilidade, minimização, privacidade, inclusão, transparência e auditabilidade. Também exige meio adequado para contestação da idade ou faixa etária. Para sinais fornecidos por lojas de aplicações e sistemas operacionais, a contestação/retificação com evidência adicional deve receber decisão fundamentada em **prazo razoável**. Não foi identificado prazo legal fixo de sete dias para o usuário desta plataforma responder a uma revalidação.
+- **Conteúdo de aparente exploração/abuso sexual, sequestro ou aliciamento:** a Lei nº 15.211/2025 e o Decreto nº 12.880/2026 estabelecem dever de remoção/comunicação; quando o fornecedor identifica material criminoso nas hipóteses regulamentadas, a remoção é imediata e o material/dados associados devem ser preservados para o encaminhamento cabível.
+- **Prazo do reporte ao Centro Nacional/PF:** a Lei nº 15.211/2025 determina que requisitos e prazos sejam definidos em regulamento. O Decreto nº 12.880/2026 delega a ato do Ministério da Justiça e Segurança Pública os protocolos, requisitos e prazos. Na verificação de fontes oficiais realizada em 23/09/2026, não foi localizado prazo numérico geral que autorize hardcode de horas/dias no produto. Antes de automatizar reporte externo, deve-se confirmar o ato operacional vigente e o canal efetivamente disponibilizado.
+- **Retenção:** o art. 27, § 2º, da Lei nº 15.211/2025 remete ao prazo do art. 15 do Marco Civil da Internet para dados associados ao relatório, com possibilidade de extensão por requerimento legal. O Decreto nº 12.880/2026 também disciplina a destinação do material após confirmação de recebimento; qualquer rotina de exclusão/preservação deve seguir o procedimento jurídico vigente, não uma regra interna isolada.
+- **Recursos de retirada de conteúdo:** o art. 30 da Lei nº 15.211/2025 exige que o fornecedor defina prazos procedimentais para recurso e resposta. Esses prazos devem ser política publicada e auditável; não devem ser confundidos com o prazo operacional de revalidação etária.
+
+Nenhum SLA jurídico deve ser inventado no código. Prazos legais/regulatórios devem ser configurados somente quando houver fonte normativa identificada e revisão de compliance.
 
 ## Evidência binária de foto/vídeo
 
