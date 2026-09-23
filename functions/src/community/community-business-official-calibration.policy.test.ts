@@ -39,7 +39,7 @@ function operationalBaseline() {
   };
 }
 
-test('libera calibração somente com oferta, conversão, criação e custo reais', () => {
+test('mede observação completa sem liberar calibração durante OBSERVE_ONLY', () => {
   assert.deepEqual(
     evaluateCommunityBusinessOfficialCalibration({
       offersPresented: 200,
@@ -58,7 +58,7 @@ test('libera calibração somente com oferta, conversão, criação e custo reai
       communitiesPerConversion: 1.3,
       actualCostPerCreatedCommunityCents: 500,
       status: 'observed',
-      canCalibrateCommercialOffer: true,
+      canCalibrateCommercialOffer: false,
     }
   );
 });
