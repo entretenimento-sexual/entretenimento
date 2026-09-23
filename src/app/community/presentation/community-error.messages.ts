@@ -476,6 +476,8 @@ export const COMMUNITY_OWNERSHIP_REASON_MESSAGES: CommunityErrorMessageMap =
       'A propriedade ou a elegibilidade mudou. Atualize o fluxo antes de continuar.',
     community_ownership_succession_closed:
       'O prazo deste caso de sucessão já foi encerrado.',
+    community_ownership_succession_owner_not_terminal:
+      'A conta do proprietário ainda não está em estado terminal para este fluxo.',
   });
 
 export const COMMUNITY_OWNERSHIP_LOAD_CODE_MESSAGES: CommunityErrorMessageMap =
