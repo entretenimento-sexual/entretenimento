@@ -21,7 +21,10 @@ match /user_intent_statuses/{statusId} {
   }
 
   function isDiscoverableStatus() {
+    let validUntil = resource.data.ageEligibilityValidUntil;
     return resource.data.ageEligibilityVerifiedAdult == true
+      && validUntil is timestamp
+      && request.time < validUntil
       && resource.data.moderation.state == "active"
       && resource.data.visibility == "public_discovery";
   }
