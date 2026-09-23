@@ -239,6 +239,8 @@ export function serializeUserIntentStatusForDiscovery(
     },
     startsAt: positiveEpoch(data['startsAt']) ?? 0,
     expiresAt: positiveEpoch(data['expiresAt']),
+    ageEligibilityValidUntil:
+      timestampToMillis(data['ageEligibilityValidUntil']),
     createdAt: timestampToMillis(data['createdAt']),
     updatedAt: timestampToMillis(data['updatedAt']),
   };
