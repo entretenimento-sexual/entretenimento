@@ -344,7 +344,7 @@ function throwTransferDecisionError(reason: string | null): never {
       'O plano do membro selecionado não suporta a capacidade desta Comunidade.',
       {
         reason: 'community_ownership_capacity_upgrade_required',
-        recommendedAction: 'select_eligible_successor_or_upgrade',
+        recommendedAction: 'upgrade_subscription',
       }
     );
   }
