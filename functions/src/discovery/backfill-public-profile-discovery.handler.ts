@@ -16,7 +16,7 @@
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FieldPath } from 'firebase-admin/firestore';
-import { FieldValue, db } from '../firebaseApp';
+import { FieldValue, Timestamp, db } from '../firebaseApp';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import {
   evaluateCanonicalAgeEligibility,
@@ -54,6 +54,7 @@ interface BackfillPublicProfileDiscoveryResult {
 }
 
 const MAX_PENDING_BATCH_WRITES = 400;
+const PUBLIC_AGE_ELIGIBILITY_MAX_VALID_UNTIL_MS = 253402300799999;
 
 function normalizeLimit(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value)
@@ -202,6 +203,11 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
           ? ageEligibilitySnap.data()
           : null,
       });
+      const ageEligibilityValidUntil = Timestamp.fromMillis(
+        ageDecision.allowed
+          ? ageDecision.expiresAtMs ?? PUBLIC_AGE_ELIGIBILITY_MAX_VALID_UNTIL_MS
+          : 0
+      );
       const canonical = normalizeProfileDiscoveryFields(user);
       const publicPreferences = buildPublicPreferenceProjection(
         preferenceSnap.exists
@@ -229,6 +235,7 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
             compatibilityReady: canonical.compatibilityReady,
             age: null,
             ageEligibilityVerifiedAdult: ageDecision.allowed,
+            ageEligibilityValidUntil,
             ...publicPreferences,
             ...publicLocation,
             discoveryNormalizedAt: FieldValue.serverTimestamp(),
