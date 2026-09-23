@@ -19,12 +19,27 @@ import {
   evaluateCanonicalAgeEligibility,
 } from '../compliance/age-eligibility.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
-import { db } from '../firebaseApp';
+import { db, Timestamp } from '../firebaseApp';
 
 export const PUBLIC_AGE_ELIGIBILITY_FIELD =
   'ageEligibilityVerifiedAdult' as const;
+export const PUBLIC_AGE_ELIGIBILITY_VALID_UNTIL_FIELD =
+  'ageEligibilityValidUntil' as const;
 
+const PUBLIC_AGE_ELIGIBILITY_MAX_VALID_UNTIL_MS = 253402300799999;
 const WRITE_BATCH_SIZE = 400;
+
+function timestampToMillis(value: unknown): number | null {
+  if (
+    value &&
+    typeof value === 'object' &&
+    typeof (value as { toMillis?: unknown }).toMillis === 'function'
+  ) {
+    return (value as { toMillis: () => number }).toMillis();
+  }
+
+  return null;
+}
 
 function cleanUid(value: unknown): string {
   const uid = String(value ?? '').trim();
@@ -50,7 +65,8 @@ function statusCanRemainPublic(
 
 async function setDocumentsEligibility(
   documents: readonly QueryDocumentSnapshot[],
-  eligible: boolean
+  eligible: boolean,
+  validUntilMs: number
 ): Promise<number> {
   let updated = 0;
 
@@ -59,13 +75,26 @@ async function setDocumentsEligibility(
     let batchWrites = 0;
 
     for (const document of documents.slice(index, index + WRITE_BATCH_SIZE)) {
-      if (document.data()?.[PUBLIC_AGE_ELIGIBILITY_FIELD] === eligible) {
+      const data = document.data() ?? {};
+      const currentEligible = data[PUBLIC_AGE_ELIGIBILITY_FIELD] === true;
+      const currentValidUntilMs = timestampToMillis(
+        data[PUBLIC_AGE_ELIGIBILITY_VALID_UNTIL_FIELD]
+      );
+
+      if (
+        currentEligible === eligible &&
+        currentValidUntilMs === validUntilMs
+      ) {
         continue;
       }
 
       batch.set(
         document.ref,
-        { [PUBLIC_AGE_ELIGIBILITY_FIELD]: eligible },
+        {
+          [PUBLIC_AGE_ELIGIBILITY_FIELD]: eligible,
+          [PUBLIC_AGE_ELIGIBILITY_VALID_UNTIL_FIELD]:
+            Timestamp.fromMillis(validUntilMs),
+        },
         { merge: true }
       );
       batchWrites += 1;
@@ -117,19 +146,32 @@ export async function reconcilePublicAgeEligibilityProjection(
     nowMs,
   });
   const eligible = decision.allowed && profileSnapshot.exists;
+  const validUntilMs = decision.allowed
+    ? decision.expiresAtMs ?? PUBLIC_AGE_ELIGIBILITY_MAX_VALID_UNTIL_MS
+    : 0;
   const currentProfileEligibility = profileSnapshot.exists
     ? profileSnapshot.data()?.[PUBLIC_AGE_ELIGIBILITY_FIELD] === true
     : false;
+  const currentProfileValidUntilMs = profileSnapshot.exists
+    ? timestampToMillis(
+      profileSnapshot.data()?.[PUBLIC_AGE_ELIGIBILITY_VALID_UNTIL_FIELD]
+    )
+    : null;
   let profileUpdated = false;
   let mediaUpdated = 0;
   let statusUpdated = false;
 
   if (
     profileSnapshot.exists &&
-    currentProfileEligibility !== eligible
+    (currentProfileEligibility !== eligible ||
+      currentProfileValidUntilMs !== validUntilMs)
   ) {
     await profileRef.set(
-      { [PUBLIC_AGE_ELIGIBILITY_FIELD]: eligible },
+      {
+        [PUBLIC_AGE_ELIGIBILITY_FIELD]: eligible,
+        [PUBLIC_AGE_ELIGIBILITY_VALID_UNTIL_FIELD]:
+          Timestamp.fromMillis(validUntilMs),
+      },
       { merge: true }
     );
     profileUpdated = true;
@@ -137,7 +179,8 @@ export async function reconcilePublicAgeEligibilityProjection(
 
   const shouldSyncChildren =
     options.forceChildren === true ||
-    currentProfileEligibility !== eligible;
+    currentProfileEligibility !== eligible ||
+    currentProfileValidUntilMs !== validUntilMs;
 
   if (shouldSyncChildren) {
     const [photosSnapshot, videosSnapshot, statusSnapshot] =
@@ -149,7 +192,8 @@ export async function reconcilePublicAgeEligibilityProjection(
 
     mediaUpdated += await setDocumentsEligibility(
       [...photosSnapshot.docs, ...videosSnapshot.docs],
-      eligible
+      eligible,
+      validUntilMs
     );
 
     if (statusSnapshot.exists) {
@@ -157,9 +201,21 @@ export async function reconcilePublicAgeEligibilityProjection(
       const statusEligibility =
         eligible && statusCanRemainPublic(status, nowMs);
 
-      if (status[PUBLIC_AGE_ELIGIBILITY_FIELD] !== statusEligibility) {
+      const statusValidUntilMs = statusEligibility ? validUntilMs : 0;
+      const currentStatusValidUntilMs = timestampToMillis(
+        status[PUBLIC_AGE_ELIGIBILITY_VALID_UNTIL_FIELD]
+      );
+
+      if (
+        status[PUBLIC_AGE_ELIGIBILITY_FIELD] !== statusEligibility ||
+        currentStatusValidUntilMs !== statusValidUntilMs
+      ) {
         await statusRef.set(
-          { [PUBLIC_AGE_ELIGIBILITY_FIELD]: statusEligibility },
+          {
+            [PUBLIC_AGE_ELIGIBILITY_FIELD]: statusEligibility,
+            [PUBLIC_AGE_ELIGIBILITY_VALID_UNTIL_FIELD]:
+              Timestamp.fromMillis(statusValidUntilMs),
+          },
           { merge: true }
         );
         statusUpdated = true;
