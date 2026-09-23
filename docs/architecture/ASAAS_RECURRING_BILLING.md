@@ -37,6 +37,7 @@ Configuração não secreta exigida no runtime:
 
 - `ASAAS_ENVIRONMENT=production`
 - `APP_BASE_URL=https://<host-publico-da-plataforma>`
+- `ASAAS_RECURRING_ENABLED=true` somente depois da homologação final
 
 A chave de produção precisa ter prefixo de produção. Sandbox e produção não
 podem ser misturados.
@@ -153,7 +154,7 @@ o pedido fica persistido e o reconciliador tenta novamente.
 
 ## Homologação antes de produção
 
-Antes de ativar `ASAAS_ENVIRONMENT=production`:
+Antes de ativar `ASAAS_RECURRING_ENABLED=true` em produção:
 
 1. validar Checkout recorrente no Sandbox;
 2. validar primeiro pagamento e renovação simulada;
