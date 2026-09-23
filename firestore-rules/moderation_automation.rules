@@ -21,3 +21,9 @@ match /moderation_automation_reporters/{dedupId} {
 match /moderation_automation_targets/{dedupId} {
   allow read, write: if false;
 }
+
+
+// Estado transversal de abuso do canal de denúncia. Backend-only.
+match /moderation_reporter_abuse_state/{reporterId} {
+  allow read, write: if false;
+}
