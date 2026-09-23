@@ -21,6 +21,7 @@ interface AgeReverificationPageVm {
   label: string;
   canSubmit: boolean;
   isPendingReview: boolean;
+  canAppeal: boolean;
 }
 
 @Component({
@@ -38,6 +39,16 @@ export class AgeReverificationPageComponent {
   private readonly router = inject(Router);
 
   readonly isSaving = signal(false);
+  readonly appealForm = new FormGroup({
+    statement: new FormControl('', {
+      nonNullable: true,
+      validators: [
+        Validators.required,
+        Validators.minLength(20),
+        Validators.maxLength(4000),
+      ],
+    }),
+  });
   readonly form = new FormGroup({
     birthDate: new FormControl('', {
       nonNullable: true,
@@ -64,6 +75,7 @@ export class AgeReverificationPageComponent {
           label: this.ageReverification.statusLabel(state),
           canSubmit: status === 'REQUIRED',
           isPendingReview: status === 'SUBMITTED' || status === 'UNDER_REVIEW',
+          canAppeal: status === 'REJECTED',
         };
       })
     );
@@ -91,6 +103,33 @@ export class AgeReverificationPageComponent {
         this.form.disable({ emitEvent: false });
         this.notification.showSuccess(
           'Revalidação enviada. A conta permanecerá limitada até a análise.'
+        );
+      });
+  }
+
+  appeal(): void {
+    if (this.appealForm.invalid || this.isSaving()) {
+      this.appealForm.markAllAsTouched();
+      return;
+    }
+
+    this.isSaving.set(true);
+
+    this.ageReverification.appealCurrent$(this.appealForm.getRawValue())
+      .pipe(
+        take(1),
+        catchError(() => {
+          this.notification.showError(
+            'Não foi possível registrar a contestação agora.'
+          );
+          return EMPTY;
+        }),
+        finalize(() => this.isSaving.set(false))
+      )
+      .subscribe(() => {
+        this.appealForm.disable({ emitEvent: false });
+        this.notification.showSuccess(
+          'Contestação registrada. A restrição permanece durante a nova análise.'
         );
       });
   }
