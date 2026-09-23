@@ -22,10 +22,9 @@ match /public_profiles/{userId} {
     && targetAgeProjectionAllowsAdultExposure()
     && targetCanonicalAgeEligibilityAllowsAdultExposure();
 
-  // Listas usam a projeção materializada pelo boundary task. O get direto
-  // mantém a defesa temporal request.time + autoridade canônica.
-  allow list: if currentUserCanUseAdultSocialPlatform()
-    && resource.data.ageEligibilityVerifiedAdult == true;
+  // Enumeração client-side foi encerrada. Discovery/listagens públicas
+  // atravessam a Callable backend-time; get documental mantém deep links.
+  allow list: if false;
 
   function hasPublicField(field) {
     return request.resource.data.keys().hasAny([field]);
