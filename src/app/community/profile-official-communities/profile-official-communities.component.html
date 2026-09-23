@@ -105,6 +105,26 @@
               </li>
             }
           </ul>
+
+          @if (section.nextCursor) {
+            <div class="profile-official-communities__more">
+              <button
+                type="button"
+                aria-label="Ver mais participações públicas"
+                [disabled]="section.loadingMore"
+                [attr.aria-busy]="section.loadingMore"
+                (click)="loadMore(section.nextCursor)"
+              >
+                @if (section.loadingMore) {
+                  <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                  <span>Carregando</span>
+                } @else {
+                  <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                  <span>Ver mais</span>
+                }
+              </button>
+            </div>
+          }
         </section>
       }
     }
