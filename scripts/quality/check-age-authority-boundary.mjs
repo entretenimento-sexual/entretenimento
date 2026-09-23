@@ -263,7 +263,8 @@ if (fs.existsSync(helperPath)) {
   const source = fs.readFileSync(helperPath, 'utf8');
   for (const required of [
     'canonicalAgeEligibilityAllowsAdultAccess',
-    'currentUserHasVerifiedAdultAge',
+    'currentUserHasAdultAgeAccess',
+    'ageAccessPolicyAllowsSelfDeclaration',
     'currentUserCanUseAdultSocialPlatform',
   ]) {
     if (!source.includes(required)) {
@@ -304,6 +305,41 @@ for (const relativePath of trustedAgeDecisionFiles) {
       `${relativePath} (autodeclaração não pode ser método de evidência para decisão etária)`
     );
   }
+}
+
+const adultDeclarationPath = path.join(
+  root,
+  'functions/src/compliance/declare-adult-age-access.handler.ts'
+);
+if (fs.existsSync(adultDeclarationPath)) {
+  const source = codeOnly(fs.readFileSync(adultDeclarationPath, 'utf8'));
+
+  for (const required of [
+    'AGE_ACCESS_ALLOWS_SELF_DECLARATION',
+    'enforceAppCheck',
+    "declaresAdult !== true",
+    "status: 'DECLARED_ADULT'",
+    "source: 'INITIAL_DECLARATION'",
+    "method: 'SELF_DECLARATION'",
+    'hasActiveAgeReverification',
+    'writeCanonicalAgeEligibilityInTransaction',
+  ]) {
+    if (!source.includes(required)) {
+      violations.push(
+        `functions/src/compliance/declare-adult-age-access.handler.ts (autodeclaração deve permanecer backend-authoritative e separada de prova forte: ${required})`
+      );
+    }
+  }
+
+  if (/status:\s*['"]VERIFIED_ADULT['"][\s\S]{0,240}declaresAdult/.test(source)) {
+    violations.push(
+      'functions/src/compliance/declare-adult-age-access.handler.ts (autodeclaração nunca pode produzir VERIFIED_ADULT)'
+    );
+  }
+} else {
+  violations.push(
+    'functions/src/compliance/declare-adult-age-access.handler.ts (callable canônica de autodeclaração ausente)'
+  );
 }
 
 const initialAgeRequestPath = path.join(
@@ -413,7 +449,7 @@ if (fs.existsSync(adultConsentPath)) {
   ]) {
     if (!source.includes(required)) {
       violations.push(
-        `functions/src/compliance/adult-consent.handler.ts (consentimento adulto deve permanecer posterior à prova etária: ${required})`
+        `functions/src/compliance/adult-consent.handler.ts (consentimento adulto deve permanecer posterior à elegibilidade etária canônica: ${required})`
       );
     }
   }
@@ -424,7 +460,279 @@ const angularAdultSocialBoundaryFiles = Object.freeze([
     path: 'src/app/core/services/autentication/auth/access-control.service.ts',
     required: [
       'canUseAdultSocial$',
-      'this.ageEligibility.verifiedAdult$',
+      'this.ageEligibility.adultAccessAllowed
+      'TERMS_ACCEPTANCE_VERSION',
+      'ADULT_CONSENT_VERSION',
+      'canRunPresence$',
+    ],
+  },
+  {
+    path: 'src/app/store/effects/effects.interactions/friends/network.effects.ts',
+    required: [
+      'this.access.canUseAdultSocial$',
+      'canUseAdultSocial === true',
+    ],
+  },
+  {
+    path: 'src/app/core/services/interactions/friendship/repo/requests.repo.ts',
+    required: [
+      'this.inCtxSync(() =>',
+      "'getPendingFriendRequests'",
+    ],
+  },
+]);
+
+for (const boundary of angularAdultSocialBoundaryFiles) {
+  const absolutePath = path.join(root, boundary.path);
+  if (!fs.existsSync(absolutePath)) {
+    violations.push(
+      `${boundary.path} (fronteira social adulta Angular ausente)`
+    );
+    continue;
+  }
+
+  const source = fs.readFileSync(absolutePath, 'utf8');
+  for (const required of boundary.required) {
+    if (!source.includes(required)) {
+      violations.push(
+        `${boundary.path} (fronteira social adulta deve preservar: ${required})`
+      );
+    }
+  }
+}
+
+const rulesOptionalFieldHelperPath = path.join(
+  root,
+  'firestore-rules',
+  '_helpers.rules'
+);
+if (fs.existsSync(rulesOptionalFieldHelperPath)) {
+  const source = fs.readFileSync(rulesOptionalFieldHelperPath, 'utf8');
+  for (const required of [
+    'let value = mapFieldOrNull(request.resource.data, k);',
+    'return value == null || value is string;',
+    'return value == null || value is number;',
+    'return value == null || isTs(value);',
+  ]) {
+    if (!source.includes(required)) {
+      violations.push(
+        `firestore-rules/_helpers.rules (helper opcional deve ser null-safe: ${required})`
+      );
+    }
+  }
+}
+
+const ageVerificationUxFiles = Object.freeze([
+  {
+    path: 'src/app/compliance/age-verification-page/age-verification-page.component.ts',
+    required: [
+      'declareAdult(): void',
+      'declareAdultAccess$()',
+      'adultAccessAllowed$',
+      "?? '/dashboard/principal'",
+      'legacyInitialReview',
+      'strongReviewRequired',
+    ],
+    forbidden: [
+      'verifyNow(): void',
+      'requestDecisionReview(): void',
+      'requestInitialReview$()',
+    ],
+  },
+  {
+    path: 'src/app/compliance/age-verification-page/age-verification-page.component.html',
+    required: [
+      'Declaro que tenho 18 anos ou mais',
+      'não é tratada como verificação documental ou KYC',
+      'Perfis suspeitos podem ser denunciados.',
+    ],
+    forbidden: [
+      'Já concluiu? Atualizar status',
+      'Seu pedido foi recebido',
+      'Análise em andamento',
+    ],
+  },
+]);
+
+for (const boundary of ageVerificationUxFiles) {
+  const absolutePath = path.join(root, boundary.path);
+  if (!fs.existsSync(absolutePath)) {
+    violations.push(
+      `${boundary.path} (jornada inicial de autodeclaração adulta ausente)`
+    );
+    continue;
+  }
+
+  const source = fs.readFileSync(absolutePath, 'utf8');
+
+  for (const required of boundary.required) {
+    if (!source.includes(required)) {
+      violations.push(
+        `${boundary.path} (UX etária deve preservar: ${required})`
+      );
+    }
+  }
+
+  for (const forbidden of boundary.forbidden) {
+    if (source.includes(forbidden)) {
+      violations.push(
+        `${boundary.path} (UX etária não pode reintroduzir: ${forbidden})`
+      );
+    }
+  }
+}
+
+const communityAgeBoundaryFiles = Object.freeze([
+  'functions/src/community/community-social-access.service.ts',
+  'functions/src/account_lifecycle/interaction-access.policy.ts',
+]);
+
+for (const relativePath of communityAgeBoundaryFiles) {
+  const absolutePath = path.join(root, relativePath);
+  if (!fs.existsSync(absolutePath)) continue;
+
+  const source = codeOnly(fs.readFileSync(absolutePath, 'utf8'));
+  if (
+    !source.includes('age_eligibility_records') &&
+    !source.includes('evaluateCanonicalAgeEligibility') &&
+    !source.includes('assertInteractionAccessData')
+  ) {
+    violations.push(
+      `${relativePath} (acesso social/Comunidades deve depender da autoridade etária canônica)`
+    );
+  }
+}
+
+const backendOnlyListRules = Object.freeze([
+  {
+    path: 'firestore-rules/public_profiles_next.rules',
+    pattern: /allow\s+list\s*:\s*if\s+false\s*;/,
+    reason: 'public_profiles deve permanecer sem enumeração client-side',
+  },
+  {
+    path: 'firestore-rules/user_intent_statuses.rules',
+    pattern: /allow\s+list\s*:\s*if\s+false\s*;/,
+    reason: 'Status de Hoje deve permanecer sem enumeração client-side',
+  },
+  {
+    path: 'firestore-rules/public_profiles_photos.rules',
+    pattern: /match\s+\/public_profiles\/\{userId\}\/public_photos\/\{photoId\}\s*\{[\s\S]*?allow\s+list\s*:\s*if\s+false\s*;/,
+    reason: 'galeria owner-scoped public_photos deve permanecer backend-only',
+  },
+  {
+    path: 'firestore-rules/public_profiles_photos.rules',
+    pattern: /match\s+\/\{path=\*\*\}\/public_photos\/\{[^}]+\}\s*\{[\s\S]*?allow\s+list\s*:\s*if\s+false\s*;/,
+    reason: 'collection-group public_photos deve permanecer backend-only',
+  },
+  {
+    path: 'firestore-rules/public_profiles_videos.rules',
+    pattern: /match\s+\/public_profiles\/\{userId\}\/public_videos\/\{videoId\}\s*\{[\s\S]*?allow\s+list\s*:\s*if\s+false\s*;/,
+    reason: 'galeria owner-scoped public_videos deve permanecer backend-only',
+  },
+  {
+    path: 'firestore-rules/public_profiles_videos.rules',
+    pattern: /match\s+\/\{path=\*\*\}\/public_videos\/\{[^}]+\}\s*\{[\s\S]*?allow\s+list\s*:\s*if\s+false\s*;/,
+    reason: 'collection-group public_videos deve permanecer backend-only',
+  },
+  {
+    path: 'firestore-rules/friendRequests.rules',
+    pattern: /allow\s+list\s*:\s*if\s+false\s*;/,
+    reason: 'friendRequests deve permanecer sem enumeração client-side',
+  },
+]);
+
+for (const rule of backendOnlyListRules) {
+  const absolutePath = path.join(root, rule.path);
+  if (!fs.existsSync(absolutePath)) continue;
+
+  const source = fs.readFileSync(absolutePath, 'utf8');
+  if (!rule.pattern.test(source)) {
+    violations.push(`${rule.path} (${rule.reason})`);
+  }
+}
+
+const temporalReadBoundaries = Object.freeze([
+  'functions/src/discovery/get-public-profiles-page.handler.ts',
+  'functions/src/discovery/get-user-intent-statuses.handler.ts',
+  'functions/src/media/application/get-public-media-discovery.handler.ts',
+]);
+
+for (const relativePath of temporalReadBoundaries) {
+  const absolutePath = path.join(root, relativePath);
+  if (!fs.existsSync(absolutePath)) continue;
+
+  const source = fs.readFileSync(absolutePath, 'utf8');
+  if (
+    !source.includes('ageEligibilityVerifiedAdult') ||
+    !source.includes('ageEligibilityValidUntil') ||
+    !source.includes('Date.now()')
+  ) {
+    violations.push(
+      `${relativePath} (boundary público deve validar projeção adulta e relógio do backend)`
+    );
+  }
+}
+
+const signedMediaAgeBoundaryFiles = Object.freeze([
+  'functions/src/media/application/get-public-photo-access-urls.handler.ts',
+  'functions/src/media/application/get-public-video-access-urls.handler.ts',
+]);
+
+for (const relativePath of signedMediaAgeBoundaryFiles) {
+  const absolutePath = path.join(root, relativePath);
+  if (!fs.existsSync(absolutePath)) continue;
+
+  const source = fs.readFileSync(absolutePath, 'utf8');
+  for (const required of [
+    'resolvePublicMediaSignedUrlExpiresAt',
+    'evaluateCanonicalAgeEligibility',
+    'age_eligibility_records',
+    'ageEligibilityExpiresAtMs',
+  ]) {
+    if (!source.includes(required)) {
+      violations.push(
+        `${relativePath} (URL assinada deve respeitar ${required})`
+      );
+    }
+  }
+}
+
+const mediaAgeExpiryPolicyPath = path.join(
+  root,
+  'functions/src/media/application/public-media-age-expiry.policy.ts'
+);
+
+if (fs.existsSync(mediaAgeExpiryPolicyPath)) {
+  const source = fs.readFileSync(mediaAgeExpiryPolicyPath, 'utf8');
+  if (
+    !source.includes('technicalExpiresAtMs') ||
+    !source.includes('viewerExpiresAtMs') ||
+    !source.includes('ownerExpiresAtMs') ||
+    !source.includes('mediaExpiresAtMs')
+  ) {
+    violations.push(
+      'functions/src/media/application/public-media-age-expiry.policy.ts (TTL deve ser limitado por técnica + viewer + owner + mídia)'
+    );
+  }
+}
+
+const unique = [...new Set(violations)].sort();
+if (unique.length > 0) {
+  console.error('[age-authority] Fronteira etária canônica violada:');
+  for (const violation of unique) {
+    console.error(`  - ${violation}`);
+  }
+  console.error(
+    '[age-authority] Não derive maioridade de ageVerification, idade ou adultConsent. ' +
+      'Use age_eligibility_records backend-only e a projeção sanitizada somente para UX.'
+  );
+  process.exit(1);
+}
+
+console.log(
+  '[age-authority] OK: acesso etário permanece backend-authoritative; DECLARED_ADULT não é VERIFIED_ADULT, e restrições fortes continuam exigindo evidência confiável.'
+);
+,
       'TERMS_ACCEPTANCE_VERSION',
       'ADULT_CONSENT_VERSION',
       'canRunPresence$',
