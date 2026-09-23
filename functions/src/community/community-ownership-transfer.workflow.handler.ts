@@ -93,13 +93,6 @@ interface OwnershipTransferCancelPayload {
   requestId?: unknown;
 }
 
-interface TerminalSuccessionPayload {
-  communityId?: unknown;
-  targetUid?: unknown;
-  requestId?: unknown;
-  trigger?: unknown;
-}
-
 interface TerminalSuccessionCasePayload {
   communityId?: unknown;
   trigger?: unknown;
@@ -766,15 +759,10 @@ async function createOwnershipOffer(input: {
   });
 }
 
-export async function requestCommunityOwnershipTransferCore(
-  request: CallableRequest<OwnershipTransferRequestPayload>
+async function requestCommunityOwnershipTransferCore(
+  request: CallableRequest<OwnershipTransferRequestPayload>,
+  actorUid: string
 ): Promise<CommunityOwnershipTransferRequestResponse> {
-  assertPreviewRuntime();
-  assertCommunityCallableAppCheck(request.app);
-  const actorUid = assertAuthenticatedUid(request.auth);
-  assertRecentAuthentication(
-    (request.auth?.token ?? undefined) as Record<string, unknown> | undefined
-  );
   const communityId = normalizeCommunityId(request.data?.communityId);
   const targetUid = normalizeSafeId(request.data?.targetUid);
   const requestId = normalizeSafeId(request.data?.requestId);
@@ -782,11 +770,6 @@ export async function requestCommunityOwnershipTransferCore(
   if (!communityId || !targetUid || !requestId) {
     throw new HttpsError('invalid-argument', 'Transferência inválida.');
   }
-
-  await consumeCommunityRateLimit({
-    action: 'ownership_mutation',
-    actorUid,
-  });
 
   return createOwnershipOffer({
     actorUid,
@@ -804,7 +787,21 @@ export const requestCommunityOwnershipTransfer =
       region: FUNCTIONS_REGION,
       enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
     },
-    requestCommunityOwnershipTransferCore
+    async (request): Promise<CommunityOwnershipTransferRequestResponse> => {
+      assertPreviewRuntime();
+      assertCommunityCallableAppCheck(request.app);
+      const actorUid = assertAuthenticatedUid(request.auth);
+      assertRecentAuthentication(
+        (request.auth?.token ?? undefined) as Record<string, unknown> | undefined
+      );
+
+      await consumeCommunityRateLimit({
+        action: 'ownership_mutation',
+        actorUid,
+      });
+
+      return requestCommunityOwnershipTransferCore(request, actorUid);
+    }
   );
 
 export const getMyCommunityOwnershipTransfers = onCall(
@@ -1701,6 +1698,10 @@ export const openCommunityOwnerTerminalSuccessionCase =
           (request.auth?.token ?? undefined) as Record<string, unknown> | undefined,
         requiredPermission: 'users:delete',
       });
+      await consumeCommunityRateLimit({
+        action: 'ownership_mutation',
+        actorUid,
+      });
 
       const communityId = normalizeCommunityId(request.data?.communityId);
       const trigger = normalizeTerminalTrigger(request.data?.trigger);
@@ -1840,6 +1841,10 @@ export const nominateCommunityOwnerTerminalSuccessor =
           (request.auth?.token ?? undefined) as Record<string, unknown> | undefined,
         requiredPermission: 'users:delete',
       });
+      await consumeCommunityRateLimit({
+        action: 'ownership_mutation',
+        actorUid,
+      });
 
       const communityId = normalizeCommunityId(request.data?.communityId);
       const targetUid = normalizeSafeId(request.data?.targetUid);
@@ -1910,6 +1915,10 @@ export const cancelCommunityOwnerTerminalSuccession =
         authToken:
           (request.auth?.token ?? undefined) as Record<string, unknown> | undefined,
         requiredPermission: 'users:delete',
+      });
+      await consumeCommunityRateLimit({
+        action: 'ownership_mutation',
+        actorUid,
       });
 
       const communityId = normalizeCommunityId(request.data?.communityId);
@@ -2015,134 +2024,6 @@ export const cancelCommunityOwnerTerminalSuccession =
           status: 'canceled' as const,
           generatedAt: now,
         };
-      });
-    }
-  );
-
-export const openCommunityOwnerTerminalSuccession =
-  onCall<TerminalSuccessionPayload>(
-    {
-      region: FUNCTIONS_REGION,
-      enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
-    },
-    async (request): Promise<CommunityOwnershipTransferRequestResponse> => {
-      assertPreviewRuntime();
-      assertCommunityCallableAppCheck(request.app);
-      const actorUid = assertAuthenticatedUid(request.auth);
-      assertRecentAuthentication(
-        (request.auth?.token ?? undefined) as Record<string, unknown> | undefined
-      );
-      await assertStaffAuthorization({
-        actorUid,
-        authToken:
-          (request.auth?.token ?? undefined) as Record<string, unknown> | undefined,
-        requiredPermission: 'users:delete',
-      });
-
-      const communityId = normalizeCommunityId(request.data?.communityId);
-      const targetUid = normalizeSafeId(request.data?.targetUid);
-      const requestId = normalizeSafeId(request.data?.requestId);
-      const trigger = normalizeTerminalTrigger(request.data?.trigger);
-
-      if (!communityId || !targetUid || !requestId || !trigger) {
-        throw new HttpsError('invalid-argument', 'Sucessão terminal inválida.');
-      }
-
-      const now = Date.now();
-      const caseRef = db.collection(CASE_COLLECTION).doc(communityId);
-      const caseResult = await db.runTransaction(async (transaction) => {
-        const communityRef = db.collection('communities').doc(communityId);
-        const [caseSnapshot, communitySnapshot] = await Promise.all([
-          transaction.get(caseRef),
-          transaction.get(communityRef),
-        ]);
-        if (!communitySnapshot.exists) {
-          throw new HttpsError(
-            'not-found',
-            'Comunidade não encontrada.',
-            { reason: 'community_not_found' }
-          );
-        }
-
-        const community = communitySnapshot.data() ?? {};
-        const currentOwnerUid = normalizeSafeId(community['ownerUid']);
-        if (!currentOwnerUid) {
-          throw new HttpsError(
-            'data-loss',
-            'A Comunidade não possui proprietário canônico para sucessão.',
-            { reason: 'ownership_inconsistent' }
-          );
-        }
-
-        if (caseSnapshot.exists) {
-          const existing = caseSnapshot.data() ?? {};
-          const status = normalizeText(existing['status'], 24);
-          const deadlineAt = normalizeEpoch(existing['deadlineAt']);
-          if (status !== 'open' || !deadlineAt || deadlineAt <= now) {
-            throw new HttpsError(
-              'failed-precondition',
-              'O caso de sucessão não está mais aberto.',
-              { reason: 'community_ownership_succession_closed' }
-            );
-          }
-          return {
-            previousOwnerUid:
-              normalizeSafeId(existing['previousOwnerUid']) ?? currentOwnerUid,
-            deadlineAt,
-          };
-        }
-
-        const deadlineAt =
-          now + COMMUNITY_OWNER_TERMINAL_SUCCESSION_WINDOW_MS;
-        transaction.set(caseRef, {
-          policyVersion: COMMUNITY_OWNERSHIP_WORKFLOW_POLICY_VERSION,
-          communityId,
-          previousOwnerUid: currentOwnerUid,
-          trigger,
-          status: 'open',
-          activeRequestId: null,
-          openedByUid: actorUid,
-          openedAt: now,
-          deadlineAt,
-          updatedAt: now,
-        });
-        transaction.set(communityRef, {
-          ownershipSuccession: {
-            state: 'open',
-            mode: 'terminal_succession',
-            trigger,
-            previousOwnerUid: currentOwnerUid,
-            openedAt: now,
-            deadlineAt,
-            updatedAt: now,
-          },
-          updatedAt: now,
-        }, { merge: true });
-        transaction.set(
-          db.collection('community_membership_audit').doc(),
-          {
-            action: 'community_owner_terminal_succession_opened',
-            communityId,
-            actorUid,
-            previousOwnerUid: currentOwnerUid,
-            trigger,
-            deadlineAt,
-            createdAt: now,
-            source: 'staff-callable',
-          }
-        );
-
-        return { previousOwnerUid: currentOwnerUid, deadlineAt };
-      });
-
-      return createOwnershipOffer({
-        actorUid: caseResult.previousOwnerUid,
-        communityId,
-        targetUid,
-        requestId,
-        mode: 'terminal_succession',
-        trigger,
-        terminalDeadlineAt: caseResult.deadlineAt,
       });
     }
   );
