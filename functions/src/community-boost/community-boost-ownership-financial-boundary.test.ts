@@ -37,14 +37,14 @@ test('ledger e placement permanecem atribuídos ao anunciante original', () => {
 
 test('transferência interrompe campanha aberta antes de trocar ownerUid', () => {
   const ownership = source(
-    'community/community-ownership-lifecycle.handler.ts'
+    'community/community-ownership-transfer.workflow.handler.ts'
   );
 
   const stopIndex = ownership.indexOf(
     "reason: 'community_ownership_transferred'"
   );
   const ownerMutationIndex = ownership.indexOf(
-    'ownerUid: targetUid'
+    'ownerUid: actorUid'
   );
 
   assert.ok(stopIndex >= 0);
