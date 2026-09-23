@@ -22,12 +22,7 @@ const routes: Routes = [
     loadComponent: () =>
       import('./compliance/age-verification-page/age-verification-page.component')
         .then(m => m.AgeVerificationPageComponent),
-    canActivate: [
-      authGuard,
-      accountLifecycleGuard,
-      registrationStepGuard,
-      currentTermsGuard,
-    ],
+    canActivate: [authGuard, accountLifecycleGuard, registrationStepGuard],
     data: {
       allowUnverified: true,
       allowedRegisterSteps: ['ageVerification'],
@@ -41,9 +36,9 @@ const routes: Routes = [
     canActivate: [
       authGuard,
       accountLifecycleGuard,
-      registrationStepGuard,
-      currentTermsGuard,
       ageEligibilityGuard,
+      currentTermsGuard,
+      registrationStepGuard,
     ],
     data: {
       allowUnverified: true,
