@@ -34,7 +34,7 @@ type AgeEvidenceMethod =
             Solicitação inicial ou contestação de maioridade. A decisão final
             exige evidência confiável revisada fora da autodeclaração.
           </p>
-          <ng-container *ngTemplateOutlet="evidenceForm" />
+          <ng-container *ngTemplateOutlet="evidenceForm"></ng-container>
           <div class="age-review-actions__buttons">
             <button
               mat-flat-button
