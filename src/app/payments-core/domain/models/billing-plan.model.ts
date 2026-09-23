@@ -62,10 +62,16 @@ export interface BillingPlan {
   interval: 'month';
 
   active: boolean;
+  catalogVersion: number;
 
   /**
    * Metadados opcionais de leitura. A UI não os utiliza como autorização.
    */
   createdAt?: number;
   updatedAt?: number;
+}
+
+export interface PlatformPlanCatalog {
+  catalogVersion: number;
+  plans: BillingPlan[];
 }
