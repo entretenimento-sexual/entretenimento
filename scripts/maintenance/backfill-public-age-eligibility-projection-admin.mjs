@@ -2,8 +2,9 @@
 // -----------------------------------------------------------------------------
 // BACKFILL DA PROJEÇÃO PÚBLICA DE ELEGIBILIDADE ETÁRIA
 // -----------------------------------------------------------------------------
-// Semeia ageEligibilityVerifiedAdult em superfícies públicas existentes a
-// partir EXCLUSIVAMENTE de age_eligibility_records/{uid}.
+// Semeia ageEligibilityAdultAccessAllowed e ageEligibilityVerifiedAdult em
+// superfícies públicas existentes a partir EXCLUSIVAMENTE da autoridade
+// backend age_eligibility_records/{uid}.
 //
 // Segurança:
 // - dry-run por padrão;
@@ -27,6 +28,7 @@
 // -----------------------------------------------------------------------------
 
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 
 import {
   applicationDefault,
@@ -42,10 +44,20 @@ import {
 } from 'firebase-admin/firestore';
 
 const AGE_POLICY_VERSION = 1;
+const AGE_ACCESS_POLICY = JSON.parse(
+  readFileSync(
+    new URL('../../config/age-access-policy.json', import.meta.url),
+    'utf8'
+  )
+);
+const ALLOW_SELF_DECLARATION =
+  AGE_ACCESS_POLICY?.mode === 'DECLARATION_FIRST' &&
+  AGE_ACCESS_POLICY?.allowSelfDeclaration === true;
 const WRITE_BATCH_LIMIT = 400;
 const PUBLIC_AGE_ELIGIBILITY_MAX_VALID_UNTIL_MS = 253402300799999;
 
 const VALID_SOURCES = new Set([
+  'INITIAL_DECLARATION',
   'INITIAL_VERIFICATION',
   'AGE_REVERIFICATION',
   'PROFILE_KYC',
@@ -53,6 +65,7 @@ const VALID_SOURCES = new Set([
 ]);
 
 const VALID_METHODS = new Set([
+  'SELF_DECLARATION',
   'EXTERNAL_PROVIDER',
   'MANUAL_REVIEW',
   'KYC',
@@ -123,9 +136,9 @@ function toMillis(value) {
   return null;
 }
 
-function canonicalAgeAllowsPublicExposure(uid, raw, nowMs) {
+function canonicalAgeProjection(uid, raw, nowMs) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    return false;
+    return { accessAllowed: false, verifiedAdult: false };
   }
 
   const recordUid = String(raw.uid ?? '').trim();
@@ -135,18 +148,38 @@ function canonicalAgeAllowsPublicExposure(uid, raw, nowMs) {
   const policyVersion = Number(raw.policyVersion);
   const verifiedAtMs =
     toMillis(raw.verifiedAtMs) ?? toMillis(raw.verifiedAt);
+  const decidedAtMs =
+    toMillis(raw.decidedAtMs) ?? toMillis(raw.decidedAt);
   const rawExpiresAt = raw.expiresAtMs ?? raw.expiresAt ?? null;
   const expiresAtMs = rawExpiresAt === null ? null : toMillis(rawExpiresAt);
-
-  return recordUid === uid &&
-    status === 'VERIFIED_ADULT' &&
+  const commonValid =
+    recordUid === uid &&
     policyVersion === AGE_POLICY_VERSION &&
     VALID_SOURCES.has(source) &&
     VALID_METHODS.has(method) &&
-    verifiedAtMs !== null &&
-    verifiedAtMs <= nowMs &&
     (rawExpiresAt === null || expiresAtMs !== null) &&
     (expiresAtMs === null || expiresAtMs > nowMs);
+
+  const verifiedAdult =
+    commonValid &&
+    status === 'VERIFIED_ADULT' &&
+    verifiedAtMs !== null &&
+    verifiedAtMs <= nowMs;
+
+  const declaredAdult =
+    commonValid &&
+    ALLOW_SELF_DECLARATION &&
+    status === 'DECLARED_ADULT' &&
+    source === 'INITIAL_DECLARATION' &&
+    method === 'SELF_DECLARATION' &&
+    verifiedAtMs === null &&
+    decidedAtMs !== null &&
+    decidedAtMs <= nowMs;
+
+  return {
+    accessAllowed: verifiedAdult || declaredAdult,
+    verifiedAdult,
+  };
 }
 
 function projectedAgeValidUntilMs(raw, ageEligible) {
@@ -216,14 +249,17 @@ async function main() {
 
   const queueProjection = async (
     ref,
-    current,
+    currentAccessAllowed,
+    currentVerifiedAdult,
     currentValidUntil,
-    desired,
+    desiredAccessAllowed,
+    desiredVerifiedAdult,
     desiredValidUntilMs,
     kind
   ) => {
     if (
-      current === desired &&
+      currentAccessAllowed === desiredAccessAllowed &&
+      currentVerifiedAdult === desiredVerifiedAdult &&
       projectionValidUntilMillis(currentValidUntil) === desiredValidUntilMs
     ) return;
 
@@ -237,7 +273,8 @@ async function main() {
     batch.set(
       ref,
       {
-        ageEligibilityVerifiedAdult: desired,
+        ageEligibilityAdultAccessAllowed: desiredAccessAllowed,
+        ageEligibilityVerifiedAdult: desiredVerifiedAdult,
         ageEligibilityValidUntil: Timestamp.fromMillis(desiredValidUntilMs),
       },
       { merge: true }
@@ -286,11 +323,12 @@ async function main() {
         ]);
 
       const rawAgeRecord = ageSnapshot.exists ? ageSnapshot.data() : null;
-      const ageEligible = canonicalAgeAllowsPublicExposure(
+      const ageProjection = canonicalAgeProjection(
         uid,
         rawAgeRecord,
         nowMs
       );
+      const ageEligible = ageProjection.accessAllowed;
       const ageValidUntilMs = projectedAgeValidUntilMs(
         rawAgeRecord,
         ageEligible
@@ -301,9 +339,11 @@ async function main() {
 
       await queueProjection(
         profileDoc.ref,
+        profileDoc.data()?.ageEligibilityAdultAccessAllowed,
         profileDoc.data()?.ageEligibilityVerifiedAdult,
         profileDoc.data()?.ageEligibilityValidUntil,
         ageEligible,
+        ageProjection.verifiedAdult,
         ageValidUntilMs,
         'profile'
       );
@@ -313,9 +353,11 @@ async function main() {
       for (const photoDoc of photosSnapshot.docs) {
         await queueProjection(
           photoDoc.ref,
+          photoDoc.data()?.ageEligibilityAdultAccessAllowed,
           photoDoc.data()?.ageEligibilityVerifiedAdult,
           photoDoc.data()?.ageEligibilityValidUntil,
           ageEligible,
+          ageProjection.verifiedAdult,
           ageValidUntilMs,
           'photo'
         );
@@ -324,9 +366,11 @@ async function main() {
       for (const videoDoc of videosSnapshot.docs) {
         await queueProjection(
           videoDoc.ref,
+          videoDoc.data()?.ageEligibilityAdultAccessAllowed,
           videoDoc.data()?.ageEligibilityVerifiedAdult,
           videoDoc.data()?.ageEligibilityValidUntil,
           ageEligible,
+          ageProjection.verifiedAdult,
           ageValidUntilMs,
           'video'
         );
@@ -334,18 +378,22 @@ async function main() {
 
       if (statusSnapshot.exists) {
         const statusData = statusSnapshot.data() ?? {};
-        const desiredStatusProjection = statusAllowsPublicProjection(
+        const desiredStatusAccess = statusAllowsPublicProjection(
           statusData,
           ageEligible,
           nowMs
         );
+        const desiredStatusVerified =
+          desiredStatusAccess && ageProjection.verifiedAdult;
 
         await queueProjection(
           statusSnapshot.ref,
+          statusData.ageEligibilityAdultAccessAllowed,
           statusData.ageEligibilityVerifiedAdult,
           statusData.ageEligibilityValidUntil,
-          desiredStatusProjection,
-          desiredStatusProjection ? ageValidUntilMs : 0,
+          desiredStatusAccess,
+          desiredStatusVerified,
+          desiredStatusAccess ? ageValidUntilMs : 0,
           'status'
         );
       }
@@ -353,6 +401,7 @@ async function main() {
       console.log('[age-projection-backfill] perfil', {
         uid,
         ageEligible,
+        stronglyVerified: ageProjection.verifiedAdult,
         photos: photosSnapshot.size,
         videos: videosSnapshot.size,
         dryRun,
