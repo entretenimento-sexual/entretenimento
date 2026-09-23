@@ -31,8 +31,7 @@ silenciosamente.
 
 ### Janela de preço do checkout
 
-O preço fica congelado por até **30 minutos**. Se o provider informar expiração
-anterior, prevalece a menor janela.
+O preço fica congelado por até **30 minutos**. O provider recebe essa mesma expiração e não deve aceitar a intenção depois dela. Se o provider informar expiração anterior, prevalece a menor janela.
 
 Depois da expiração, um checkout ainda não pago não pode ser liquidado com aquele
 preço. O usuário deve criar uma nova sessão, que consultará o catálogo vigente.
