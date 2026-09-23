@@ -59,3 +59,7 @@ export {
 export {
   reviewInitialAgeVerification,
 } from './review-initial-age-verification.handler';
+
+export {
+  submitAdultSelfAttestation,
+} from './submit-adult-self-attestation.handler';
