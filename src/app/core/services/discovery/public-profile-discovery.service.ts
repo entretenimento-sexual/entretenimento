@@ -30,7 +30,6 @@ export class PublicProfileDiscoveryService {
     const q = query(
       collection(this.firestore, 'public_profiles'),
       where('ageEligibilityVerifiedAdult', '==', true),
-      where('ageEligibilityValidUntil', '>', new Date()),
       orderBy('updatedAt', 'desc'),
       limit(safeLimit)
     );
