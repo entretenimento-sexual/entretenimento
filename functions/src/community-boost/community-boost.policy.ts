@@ -12,6 +12,11 @@
 // - métricas comportamentais persistidas são somente agregadas.
 // -----------------------------------------------------------------------------
 
+import {
+  COMMUNITY_BOOST_AUTHORITY_SNAPSHOT_VERSION,
+  type CommunityBoostAuthorityRole,
+} from './community-boost-authority.policy';
+
 export const COMMUNITY_BOOST_POLICY_VERSION = 1;
 export const COMMUNITY_BOOST_DISCLOSURE = 'Patrocinado' as const;
 export const COMMUNITY_BOOST_CURRENCY = 'BRL' as const;
@@ -59,7 +64,14 @@ export interface CommunityBoostCampaign {
   readonly policyVersion: typeof COMMUNITY_BOOST_POLICY_VERSION;
   readonly campaignId: string;
   readonly communityId: string;
+  /** Identidade econômica imutável responsável pelo ledger da campanha. */
+  readonly advertiserUid: string;
+  /** Alias legado; não representa o owner atual da Comunidade. */
   readonly ownerUid: string;
+  readonly authoritySnapshotVersion: 0 | 1;
+  readonly communityOwnerUidSnapshot: string | null;
+  readonly communityOwnerTransferredAtSnapshot: number | null;
+  readonly authorityRoleSnapshot: CommunityBoostAuthorityRole | null;
   readonly targetSourceType: CommunityBoostSourceType;
   readonly targetTagId: string | null;
   readonly status: CommunityBoostCampaignStatus;
@@ -80,6 +92,8 @@ export interface CommunityBoostCampaign {
   readonly clickCount: number;
   readonly createdAt: number;
   readonly updatedAt: number;
+  readonly stoppedAt: number | null;
+  readonly stoppedReason: string | null;
 }
 
 export interface CommunityBoostRotationCandidate {
@@ -224,7 +238,11 @@ export function normalizeCommunityBoostSourceType(
 export function buildCommunityBoostCampaign(input: {
   readonly campaignId: unknown;
   readonly communityId: unknown;
-  readonly ownerUid: unknown;
+  readonly ownerUid?: unknown;
+  readonly advertiserUid: unknown;
+  readonly communityOwnerUidSnapshot: unknown;
+  readonly communityOwnerTransferredAtSnapshot?: unknown;
+  readonly authorityRoleSnapshot: unknown;
   readonly targetSourceType: unknown;
   readonly targetTagId?: unknown;
   readonly budgetCents: unknown;
@@ -237,7 +255,24 @@ export function buildCommunityBoostCampaign(input: {
 }): Readonly<CommunityBoostCampaign> | null {
   const campaignId = cleanId(input.campaignId);
   const communityId = cleanId(input.communityId);
-  const ownerUid = cleanId(input.ownerUid);
+  const advertiserUid = cleanId(input.advertiserUid);
+  const legacyOwnerUid = input.ownerUid === undefined
+    ? advertiserUid
+    : cleanId(input.ownerUid);
+  const communityOwnerUidSnapshot = cleanId(
+    input.communityOwnerUidSnapshot
+  );
+  const communityOwnerTransferredAtSnapshot =
+    input.communityOwnerTransferredAtSnapshot === null
+    || input.communityOwnerTransferredAtSnapshot === undefined
+      ? null
+      : finiteEpoch(input.communityOwnerTransferredAtSnapshot);
+  const authorityRoleSnapshot =
+    input.authorityRoleSnapshot === 'owner'
+    || input.authorityRoleSnapshot === 'admin'
+    || input.authorityRoleSnapshot === 'platform_admin'
+      ? input.authorityRoleSnapshot
+      : null;
   const targetSourceType = normalizeCommunityBoostSourceType(
     input.targetSourceType
   );
@@ -261,7 +296,16 @@ export function buildCommunityBoostCampaign(input: {
   if (
     !campaignId
     || !communityId
-    || !ownerUid
+    || !advertiserUid
+    || !legacyOwnerUid
+    || legacyOwnerUid !== advertiserUid
+    || !communityOwnerUidSnapshot
+    || !authorityRoleSnapshot
+    || (
+      input.communityOwnerTransferredAtSnapshot !== null
+      && input.communityOwnerTransferredAtSnapshot !== undefined
+      && !communityOwnerTransferredAtSnapshot
+    )
     || !targetSourceType
     || (
       input.targetTagId !== null
@@ -293,7 +337,12 @@ export function buildCommunityBoostCampaign(input: {
     policyVersion: COMMUNITY_BOOST_POLICY_VERSION,
     campaignId,
     communityId,
-    ownerUid,
+    advertiserUid,
+    ownerUid: advertiserUid,
+    authoritySnapshotVersion: COMMUNITY_BOOST_AUTHORITY_SNAPSHOT_VERSION,
+    communityOwnerUidSnapshot,
+    communityOwnerTransferredAtSnapshot,
+    authorityRoleSnapshot,
     targetSourceType,
     targetTagId,
     status: 'active',
@@ -314,6 +363,8 @@ export function buildCommunityBoostCampaign(input: {
     clickCount: 0,
     createdAt: now,
     updatedAt: now,
+    stoppedAt: null,
+    stoppedReason: null,
   });
 }
 
@@ -326,7 +377,43 @@ export function normalizeCommunityBoostCampaign(
   const status = source['status'];
   const campaignId = cleanId(source['campaignId']);
   const communityId = cleanId(source['communityId']);
-  const ownerUid = cleanId(source['ownerUid']);
+  const rawOwnerUid = source['ownerUid'];
+  const rawAdvertiserUid = source['advertiserUid'];
+  const ownerUid = cleanId(rawOwnerUid);
+  const advertiserUid = rawAdvertiserUid === undefined
+    ? ownerUid
+    : cleanId(rawAdvertiserUid);
+  const authoritySnapshotVersion =
+    source['authoritySnapshotVersion']
+      === COMMUNITY_BOOST_AUTHORITY_SNAPSHOT_VERSION
+      ? COMMUNITY_BOOST_AUTHORITY_SNAPSHOT_VERSION
+      : 0;
+  const communityOwnerUidSnapshot =
+    source['communityOwnerUidSnapshot'] === null
+    || source['communityOwnerUidSnapshot'] === undefined
+      ? null
+      : cleanId(source['communityOwnerUidSnapshot']);
+  const rawCommunityOwnerTransferredAtSnapshot =
+    source['communityOwnerTransferredAtSnapshot'];
+  const communityOwnerTransferredAtSnapshot =
+    rawCommunityOwnerTransferredAtSnapshot === null
+    || rawCommunityOwnerTransferredAtSnapshot === undefined
+      ? null
+      : finiteEpoch(rawCommunityOwnerTransferredAtSnapshot);
+  const authorityRoleSnapshot =
+    source['authorityRoleSnapshot'] === 'owner'
+    || source['authorityRoleSnapshot'] === 'admin'
+    || source['authorityRoleSnapshot'] === 'platform_admin'
+      ? source['authorityRoleSnapshot']
+      : null;
+  const stoppedAt = source['stoppedAt'] === null
+    || source['stoppedAt'] === undefined
+      ? null
+      : finiteEpoch(source['stoppedAt']);
+  const stoppedReason = source['stoppedReason'] === null
+    || source['stoppedReason'] === undefined
+      ? null
+      : cleanId(source['stoppedReason']);
   const targetSourceType = normalizeCommunityBoostSourceType(
     source['targetSourceType']
   );
@@ -350,7 +437,32 @@ export function normalizeCommunityBoostCampaign(
     source['policyVersion'] !== COMMUNITY_BOOST_POLICY_VERSION
     || !campaignId
     || !communityId
+    || !advertiserUid
     || !ownerUid
+    || ownerUid !== advertiserUid
+    || (
+      authoritySnapshotVersion
+        === COMMUNITY_BOOST_AUTHORITY_SNAPSHOT_VERSION
+      && (
+        !communityOwnerUidSnapshot
+        || !authorityRoleSnapshot
+        || (
+          rawCommunityOwnerTransferredAtSnapshot !== null
+          && rawCommunityOwnerTransferredAtSnapshot !== undefined
+          && !communityOwnerTransferredAtSnapshot
+        )
+      )
+    )
+    || (
+      source['stoppedAt'] !== null
+      && source['stoppedAt'] !== undefined
+      && !stoppedAt
+    )
+    || (
+      source['stoppedReason'] !== null
+      && source['stoppedReason'] !== undefined
+      && !stoppedReason
+    )
     || !targetSourceType
     || (rawTargetTagId !== null && !targetTagId)
     || (
@@ -381,7 +493,12 @@ export function normalizeCommunityBoostCampaign(
     policyVersion: COMMUNITY_BOOST_POLICY_VERSION,
     campaignId,
     communityId,
+    advertiserUid,
     ownerUid,
+    authoritySnapshotVersion,
+    communityOwnerUidSnapshot,
+    communityOwnerTransferredAtSnapshot,
+    authorityRoleSnapshot,
     targetSourceType,
     targetTagId,
     status,
@@ -406,6 +523,8 @@ export function normalizeCommunityBoostCampaign(
     clickCount: nonNegativeInteger(source['clickCount']),
     createdAt,
     updatedAt,
+    stoppedAt,
+    stoppedReason,
   });
 }
 
