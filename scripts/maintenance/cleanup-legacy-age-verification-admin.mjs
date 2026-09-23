@@ -101,6 +101,7 @@ async function main() {
   let matched = 0;
   let removed = 0;
   let pages = 0;
+  let scanComplete = false;
 
   while (scanned < safeMaxDocuments) {
     const remaining = safeMaxDocuments - scanned;
@@ -116,7 +117,10 @@ async function main() {
     }
 
     const snapshot = await query.get();
-    if (snapshot.empty) break;
+    if (snapshot.empty) {
+      scanComplete = true;
+      break;
+    }
 
     pages += 1;
     scanned += snapshot.size;
@@ -141,7 +145,6 @@ async function main() {
       for (const doc of matches) {
         batch.update(doc.ref, {
           ageVerification: FieldValue.delete(),
-          updatedAt: FieldValue.serverTimestamp(),
         });
       }
 
@@ -149,7 +152,10 @@ async function main() {
       removed += matches.length;
     }
 
-    if (snapshot.size < currentLimit) break;
+    if (snapshot.size < currentLimit) {
+      scanComplete = true;
+      break;
+    }
   }
 
   const summary = {
@@ -163,6 +169,8 @@ async function main() {
     scanned,
     matched,
     removed,
+    scanComplete,
+    truncatedByMaxDocuments: !scanComplete && scanned >= safeMaxDocuments,
   };
 
   console.log('[legacy-age-cleanup] resumo', summary);
@@ -178,6 +186,9 @@ async function main() {
       removed,
       pageSize,
       maxDocuments: safeMaxDocuments,
+      scanComplete,
+      truncatedByMaxDocuments:
+        !scanComplete && scanned >= safeMaxDocuments,
       createdAt: FieldValue.serverTimestamp(),
       createdAtMs: Date.now(),
     });
