@@ -2,8 +2,9 @@
 // -----------------------------------------------------------------------------
 // ASAAS CONFIG
 // -----------------------------------------------------------------------------
-// Segredos ficam no Firebase Secret Manager. Ambiente e URL pública são
-// configuração operacional não secreta e falham fechados quando inválidos.
+// Segredos ficam no Firebase Secret Manager. Ambiente/API e URL pública do
+// checkout são fronteiras separadas: webhook e reconciliação não dependem da
+// disponibilidade/configuração da superfície web.
 // -----------------------------------------------------------------------------
 
 import { defineSecret } from 'firebase-functions/params';
@@ -16,10 +17,13 @@ export const ASAAS_WEBHOOK_TOKEN = defineSecret('ASAAS_WEBHOOK_TOKEN');
 
 export type AsaasEnvironment = 'sandbox' | 'production';
 
-export interface AsaasRuntimeConfig {
+export interface AsaasApiRuntimeConfig {
   environment: AsaasEnvironment;
   apiBaseUrl: string;
   checkoutBaseUrl: string;
+}
+
+export interface AsaasRuntimeConfig extends AsaasApiRuntimeConfig {
   appBaseUrl: string;
 }
 
@@ -72,7 +76,6 @@ export function requireCloudAppBaseUrl(rawValue: unknown): string {
   return url.origin;
 }
 
-
 export function assertAsaasRecurringCheckoutEnabled(): void {
   if (isFunctionsEmulatorRuntime()) return;
 
@@ -89,13 +92,12 @@ export function assertAsaasRecurringCheckoutEnabled(): void {
   );
 }
 
-export function resolveAsaasRuntimeConfig(): AsaasRuntimeConfig {
+export function resolveAsaasApiRuntimeConfig(): AsaasApiRuntimeConfig {
   if (isFunctionsEmulatorRuntime()) {
     return {
       environment: 'sandbox',
       apiBaseUrl: 'https://api-sandbox.asaas.com/v3',
       checkoutBaseUrl: 'https://asaas.com/checkoutSession/show',
-      appBaseUrl: 'http://localhost:4200',
     };
   }
 
@@ -108,6 +110,16 @@ export function resolveAsaasRuntimeConfig(): AsaasRuntimeConfig {
         ? 'https://api.asaas.com/v3'
         : 'https://api-sandbox.asaas.com/v3',
     checkoutBaseUrl: 'https://asaas.com/checkoutSession/show',
-    appBaseUrl: requireCloudAppBaseUrl(process.env.APP_BASE_URL),
+  };
+}
+
+export function resolveAsaasRuntimeConfig(): AsaasRuntimeConfig {
+  const api = resolveAsaasApiRuntimeConfig();
+
+  return {
+    ...api,
+    appBaseUrl: isFunctionsEmulatorRuntime()
+      ? 'http://localhost:4200'
+      : requireCloudAppBaseUrl(process.env.APP_BASE_URL),
   };
 }
