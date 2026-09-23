@@ -155,7 +155,7 @@ export async function getCanonicalAgeEligibilityForUid(uid: string) {
   });
 }
 
-export async function assertVerifiedAdultAgeEligibility(
+export async function assertAdultAgeAccessEligibility(
   uid: string
 ): Promise<void> {
   const decision = await getCanonicalAgeEligibilityForUid(uid);
@@ -180,3 +180,12 @@ export async function assertVerifiedAdultAgeEligibility(
     }
   );
 }
+
+
+/**
+ * @deprecated Nome legado preservado temporariamente para compatibilidade.
+ * A função valida elegibilidade de acesso adulto, que pode ser provisória por
+ * autodeclaração ou forte por verificação confiável.
+ */
+export const assertVerifiedAdultAgeEligibility =
+  assertAdultAgeAccessEligibility;
