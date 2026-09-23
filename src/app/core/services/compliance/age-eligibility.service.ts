@@ -2,8 +2,10 @@
 // -----------------------------------------------------------------------------
 // AGE ELIGIBILITY CLIENT PROJECTION
 // -----------------------------------------------------------------------------
-// Observa somente a projeção sanitizada de users/{uid}.ageEligibility.
-// Não escreve, não calcula idade e não transforma autodeclaração em autorização.
+// Observa a projeção sanitizada de users/{uid}.ageEligibility.
+// A autorização nunca nasce de um campo client-authoritative: a autodeclaração
+// 18+ só passa a valer depois que a callable backend registra
+// SELF_DECLARED_ADULT no domínio canônico. Verificação forte continua distinta.
 // -----------------------------------------------------------------------------
 
 import {
