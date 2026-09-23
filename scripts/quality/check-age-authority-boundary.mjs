@@ -294,6 +294,7 @@ if (fs.existsSync(selfDeclarationHandlerPath)) {
     "current.status === 'DENIED_UNDERAGE'",
     'writeCanonicalAgeEligibilityInTransaction',
     'compliance_audit',
+    'enforceAppCheck',
     "'VERIFIED_REQUIRED'",
   ]) {
     if (!source.includes(required)) {
