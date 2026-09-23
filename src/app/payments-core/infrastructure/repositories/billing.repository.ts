@@ -28,6 +28,7 @@ import { map } from 'rxjs/operators';
 
 import {
   BillingPlan,
+  PlatformPlanCatalog,
   type PlatformPlanKey,
 } from '../../domain/models/billing-plan.model';
 import {
@@ -66,6 +67,11 @@ export class BillingRepository {
     { key: string },
     BillingPlan | null
   >(this.functions, 'getPlatformPlanByKey');
+
+  private readonly getPlatformPlansCallable = httpsCallable<
+    Record<string, never>,
+    PlatformPlanCatalog
+  >(this.functions, 'getPlatformPlans');
 
   /**
    * Cria intenção de assinatura.
@@ -118,6 +124,14 @@ export class BillingRepository {
     PlatformSubscriptionHistoryRequest,
     PlatformSubscriptionHistoryPage | null
   >(this.functions, 'getMyPlatformSubscriptionHistory');
+
+  getPlatformPlans$(): Observable<PlatformPlanCatalog> {
+    return from(
+      this.getPlatformPlansCallable({})
+    ).pipe(
+      map((result) => result.data ?? { catalogVersion: 0, plans: [] })
+    );
+  }
 
   getPlatformPlanByKey$(
     planKey: string
