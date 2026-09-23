@@ -11,7 +11,7 @@ import {
   normalizeOptionalReason,
 } from './_shared';
 import { evaluateAccountDeletionOwnedResources } from './account-deletion-owned-resources.policy';
-import { ASAAS_API_KEY, resolveAsaasRuntimeConfig } from '../payments/config/asaas.config';
+import { ASAAS_API_KEY, resolveAsaasApiRuntimeConfig } from '../payments/config/asaas.config';
 import { AsaasPaymentProvider } from '../payments/infrastructure/providers/asaas.provider';
 import {
   PLATFORM_SUBSCRIPTION_STATE_COLLECTION,
@@ -283,7 +283,7 @@ export const requestAccountDeletion = onCall<RequestAccountDeletionRequest>(
 
         if (requestedCancellation) {
           const provider = new AsaasPaymentProvider({
-            runtime: resolveAsaasRuntimeConfig(),
+            runtime: resolveAsaasApiRuntimeConfig(),
             apiKey: ASAAS_API_KEY.value(),
           });
 
