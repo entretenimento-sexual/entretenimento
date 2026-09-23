@@ -56,8 +56,8 @@ import { ApplicationErrorService } from '../../error-handler/application-error.s
 import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 import { PlatformSubscriptionAccessService } from '@core/services/subscriptions/platform-subscription-access.service';
 import { AgeEligibilityService } from '@core/services/compliance/age-eligibility.service';
-import { AdultConsentService } from '@core/services/compliance/adult-consent.service';
 import { isCurrentLegalAcceptanceSatisfied } from '@core/services/compliance/terms-acceptance.service';
+import { ADULT_CONSENT_VERSION } from '@core/guards/compliance/adult-content-consent.storage';
 
 export type UserRole = IUserDados['role'];
 
@@ -85,7 +85,6 @@ export class AccessControlService {
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly subscriptionAccess = inject(PlatformSubscriptionAccessService);
   private readonly ageEligibility = inject(AgeEligibilityService);
-  private readonly adultConsent = inject(AdultConsentService);
   private readonly appBlock = inject(AuthAppBlockService);
   private readonly routeContext = inject(AuthRouteContextService);
 
@@ -563,9 +562,8 @@ export class AccessControlService {
     this.canRunInfraRealtime$,
     this.ageEligibility.verifiedAdult$,
     this.appUser$,
-    this.adultConsent.currentConsentAccepted$,
   ]).pipe(
-    map(([infraOk, ageOk, user, adultConsentAccepted]) => {
+    map(([infraOk, ageOk, user]) => {
       if (!infraOk || !ageOk || !user) return false;
 
       const ageReverificationStatus = String(
@@ -580,7 +578,12 @@ export class AccessControlService {
       ].includes(ageReverificationStatus);
 
       const consentRequired = user.initialAdultConsentRequired !== false;
-      const consentOk = !consentRequired || adultConsentAccepted === true;
+      const consentOk =
+        !consentRequired ||
+        (
+          user.adultConsent?.accepted === true &&
+          user.adultConsent.version === ADULT_CONSENT_VERSION
+        );
       const termsOk = isCurrentLegalAcceptanceSatisfied(user.acceptedTerms);
 
       return termsOk && consentOk && ageReverificationAllowsAccess;
