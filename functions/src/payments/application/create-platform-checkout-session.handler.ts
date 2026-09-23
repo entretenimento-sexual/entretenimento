@@ -78,25 +78,32 @@ function assertDisplayedPlanStillCurrent(
   plan: ReturnType<typeof requirePlatformPlanByKey>,
   request: CreatePlatformCheckoutSessionRequest | undefined
 ): void {
-  if (!request) return;
+  const quoteComplete =
+    !!request
+    && typeof request.expectedAmountCents === 'number'
+    && Number.isInteger(request.expectedAmountCents)
+    && typeof request.expectedCurrency === 'string'
+    && typeof request.expectedInterval === 'string'
+    && typeof request.expectedCatalogVersion === 'number'
+    && Number.isInteger(request.expectedCatalogVersion);
 
-  const quoteWasProvided =
-    request.expectedAmountCents !== undefined
-    || request.expectedCurrency !== undefined
-    || request.expectedInterval !== undefined
-    || request.expectedCatalogVersion !== undefined;
-
-  if (!quoteWasProvided) return;
+  if (!quoteComplete) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Recarregue o plano antes de continuar para confirmar o valor vigente.',
+      {
+        reason: 'plan_quote_required',
+        planKey: plan.key,
+        catalogVersion: plan.catalogVersion,
+      }
+    );
+  }
 
   const matches =
-    (request.expectedAmountCents === undefined
-      || request.expectedAmountCents === plan.amountCents)
-    && (request.expectedCurrency === undefined
-      || request.expectedCurrency === plan.currency)
-    && (request.expectedInterval === undefined
-      || request.expectedInterval === plan.interval)
-    && (request.expectedCatalogVersion === undefined
-      || request.expectedCatalogVersion === plan.catalogVersion);
+    request.expectedAmountCents === plan.amountCents
+    && request.expectedCurrency === plan.currency
+    && request.expectedInterval === plan.interval
+    && request.expectedCatalogVersion === plan.catalogVersion;
 
   if (matches) return;
 
