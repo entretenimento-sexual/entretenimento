@@ -146,6 +146,10 @@ export {
   runCommunityOwnershipSuccessionLifecycle,
 } from './run-community-ownership-succession.schedule';
 export {
+  getCommunityOwnerSuccessionCases,
+  getCommunityOwnerSuccessionCandidatesPage,
+} from './community-owner-succession-admin.handler';
+export {
   runCommunityOfficialAssociationLifecycle,
 } from './run-community-official-association-lifecycle.schedule';
 export { runCommunityPurge } from './run-community-purge.schedule';
