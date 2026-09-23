@@ -9,7 +9,11 @@
 // - essa tela pode somente consultar registros históricos e encerrá-los;
 // - não existe RoomsModule carregado, rotas create/:id, componentes de conversa,
 //   modais de criação, inbox de convites ou caminho de envio `room` no ChatModule;
-// - Comunidades permanecem independentes do domínio legado.
+// - Comunidades permanecem independentes do domínio legado;
+// - os diretórios produtivos de Room existentes ficam congelados: correções e
+//   limpeza alteram arquivos existentes, mas não abrem nova superfície;
+// - não pode surgir domínio/helper compartilhado que acople Community e Room;
+// - a remoção final não tem prazo fixo e exige evidência de uso residual.
 //
 // Contrato de dados:
 // - leitura histórica, recusa/encerramento server-side e retenção continuam
@@ -81,6 +85,10 @@ const files = {
     'src/app/layout/layout-shell/layout-shell.component.ts'
   ),
   storeModule: path.join(root, 'src/app/store/store.module.ts'),
+  compatibilityPolicy: path.join(
+    root,
+    'src/app/core/domain/room-compatibility.policy.ts'
+  ),
 };
 
 const retiredPaths = [
@@ -89,6 +97,34 @@ const retiredPaths = [
   'src/app/chat-module/modals/room-create-confirm-modal',
   'src/app/chat-module/invite-list',
 ];
+
+const frozenRoomProductionRoots = [
+  'functions/src/chat/rooms',
+  'src/app/chat-module/chat-rooms',
+  'src/app/core/services/batepapo/room-services',
+];
+
+const frozenRoomProductionFiles = new Set([
+  'functions/src/chat/rooms/application/close-private-room.handler.ts',
+  'functions/src/chat/rooms/application/create-private-room.handler.ts',
+  'functions/src/chat/rooms/application/respond-room-invite.handler.ts',
+  'functions/src/chat/rooms/application/send-room-invite.handler.ts',
+  'functions/src/chat/rooms/domain/room-capability-policy.ts',
+  'functions/src/chat/rooms/domain/room-deprecation.policy.ts',
+  'functions/src/chat/rooms/index.ts',
+  'src/app/chat-module/chat-rooms/chat-rooms.clean.css',
+  'src/app/chat-module/chat-rooms/chat-rooms.component.css',
+  'src/app/chat-module/chat-rooms/chat-rooms.component.html',
+  'src/app/chat-module/chat-rooms/chat-rooms.component.ts',
+  'src/app/core/services/batepapo/room-services/room-firestore.gateway.ts',
+  'src/app/core/services/batepapo/room-services/room-invite-flow.service.ts',
+  'src/app/core/services/batepapo/room-services/room-management.service.ts',
+  'src/app/core/services/batepapo/room-services/room-messages.service.ts',
+  'src/app/core/services/batepapo/room-services/room-participants.service.ts',
+  'src/app/core/services/batepapo/room-services/room-reports.service.ts',
+  'src/app/core/services/batepapo/room-services/room.service.ts',
+  'src/app/core/services/batepapo/room-services/user-room-ids.service.ts',
+]);
 
 const violations = [];
 
@@ -125,7 +161,7 @@ function forbidPath(relativePath, message) {
   }
 }
 
-function walkTypeScriptFiles(directory) {
+function walkFiles(directory) {
   if (!fs.existsSync(directory)) return [];
 
   const filesFound = [];
@@ -134,22 +170,80 @@ function walkTypeScriptFiles(directory) {
     const absolutePath = path.join(directory, entry.name);
 
     if (entry.isDirectory()) {
-      filesFound.push(...walkTypeScriptFiles(absolutePath));
+      filesFound.push(...walkFiles(absolutePath));
       continue;
     }
 
-    if (
-      entry.isFile()
-      && entry.name.endsWith('.ts')
-      && !entry.name.endsWith('.spec.ts')
-      && !entry.name.endsWith('.test.ts')
-    ) {
-      filesFound.push(absolutePath);
-    }
+    if (entry.isFile()) filesFound.push(absolutePath);
   }
 
   return filesFound;
 }
+
+function isTestTypeScript(filePath) {
+  return filePath.endsWith('.spec.ts') || filePath.endsWith('.test.ts');
+}
+
+function walkTypeScriptFiles(directory) {
+  return walkFiles(directory).filter(
+    (filePath) =>
+      filePath.endsWith('.ts')
+      && !isTestTypeScript(filePath)
+  );
+}
+
+function importedSpecifiers(source) {
+  const specifiers = [];
+  const pattern = /(?:from\s*|import\s*\()\s*['"]([^'"]+)['"]/g;
+
+  for (const match of source.matchAll(pattern)) {
+    specifiers.push(match[1] ?? '');
+  }
+
+  return specifiers;
+}
+
+function hasImportMatching(source, pattern) {
+  return importedSpecifiers(source).some((specifier) => pattern.test(specifier));
+}
+
+// -----------------------------------------------------------------------------
+// Freeze estrutural: Room não ganha novos arquivos produtivos
+// -----------------------------------------------------------------------------
+
+for (const frozenRoot of frozenRoomProductionRoots) {
+  const absoluteRoot = path.join(root, frozenRoot);
+
+  for (const filePath of walkFiles(absoluteRoot)) {
+    if (isTestTypeScript(filePath)) continue;
+
+    const relativePath = relative(filePath);
+
+    if (!frozenRoomProductionFiles.has(relativePath)) {
+      violations.push(
+        `${relativePath}: novo arquivo produtivo de Room não é permitido durante o congelamento.`
+      );
+    }
+  }
+}
+
+requireMatch(
+  files.compatibilityPolicy,
+  /newFeaturesAllowed\s*:\s*false/,
+  'o contrato canônico deve manter novas features de Room bloqueadas.'
+);
+
+requireMatch(
+  files.compatibilityPolicy,
+  /sharedDomainWithCommunityAllowed\s*:\s*false/,
+  'Room não pode ganhar domínio compartilhado com Community.'
+);
+
+requireMatch(
+  files.compatibilityPolicy,
+  /strategy\s*:\s*['"]residual_usage_evidence['"][\s\S]{0,240}?scheduledRemovalAt\s*:\s*null/m,
+  'a remoção de Room deve permanecer sem data fixa e guiada por evidência residual.'
+);
 
 // -----------------------------------------------------------------------------
 // Backend/client deprecation boundary
@@ -325,17 +419,25 @@ for (const appFile of walkTypeScriptFiles(appRoot)) {
 }
 
 // -----------------------------------------------------------------------------
-// Comunidades nunca dependem do legado de Salas
+// Community e Room nunca compartilham autoridade/domínio
 // -----------------------------------------------------------------------------
 
-const communityRoot = path.join(root, 'src/app/community');
+const appCommunityRoot = path.join(root, 'src/app/community');
+const appRoomRoots = [
+  path.join(root, 'src/app/chat-module/chat-rooms'),
+  path.join(root, 'src/app/core/services/batepapo/room-services'),
+];
+const functionsCommunityRoot = path.join(root, 'functions/src/community');
+const functionsRoomRoot = path.join(root, 'functions/src/chat/rooms');
 
-for (const communityFile of walkTypeScriptFiles(communityRoot)) {
+for (const communityFile of walkTypeScriptFiles(appCommunityRoot)) {
   const source = fs.readFileSync(communityFile, 'utf8');
 
-  if (/room-services/.test(source)) {
+  if (
+    /room-services|chat-module\/chat-rooms|room-compatibility\.policy/.test(source)
+  ) {
     violations.push(
-      `${relative(communityFile)}: Comunidades não podem depender de room-services.`
+      `${relative(communityFile)}: Comunidades não podem depender do domínio legado de Room.`
     );
   }
 
@@ -345,6 +447,81 @@ for (const communityFile of walkTypeScriptFiles(communityRoot)) {
     violations.push(
       `${relative(communityFile)}: Comunidades não podem usar rooms como autoridade Firestore.`
     );
+  }
+}
+
+for (const roomRoot of appRoomRoots) {
+  for (const roomFile of walkTypeScriptFiles(roomRoot)) {
+    const source = fs.readFileSync(roomFile, 'utf8');
+
+    if (
+      hasImportMatching(
+        source,
+        /(?:^|\/)community(?:\/|$)|(?:^|\/)community[-.]/
+      )
+    ) {
+      violations.push(
+        `${relative(roomFile)}: Room legado não pode depender do domínio Community.`
+      );
+    }
+  }
+}
+
+for (const communityFile of walkTypeScriptFiles(functionsCommunityRoot)) {
+  const source = fs.readFileSync(communityFile, 'utf8');
+
+  if (
+    hasImportMatching(
+      source,
+      /(?:^|\/)chat\/rooms(?:\/|$)|(?:^|\/)rooms(?:\/|$)/
+    )
+  ) {
+    violations.push(
+      `${relative(communityFile)}: Functions de Community não podem depender de Room legado.`
+    );
+  }
+}
+
+for (const roomFile of walkTypeScriptFiles(functionsRoomRoot)) {
+  const source = fs.readFileSync(roomFile, 'utf8');
+
+  if (
+    hasImportMatching(
+      source,
+      /(?:^|\/)community(?:\/|$)|(?:^|\/)community[-.]/
+    )
+  ) {
+    violations.push(
+      `${relative(roomFile)}: Functions de Room não podem depender de Community.`
+    );
+  }
+}
+
+const sharedBridgeRoots = [
+  path.join(root, 'src/app/core'),
+  path.join(root, 'src/app/shared'),
+  path.join(root, 'src/app/store'),
+  path.join(root, 'functions/src/shared'),
+  path.join(root, 'functions/src/chat/shared'),
+];
+
+for (const sharedRoot of sharedBridgeRoots) {
+  for (const sharedFile of walkTypeScriptFiles(sharedRoot)) {
+    const source = fs.readFileSync(sharedFile, 'utf8');
+    const importsCommunity = hasImportMatching(
+      source,
+      /(?:^|\/)community(?:\/|$)|(?:^|\/)community[-.]/
+    );
+    const importsRoom = hasImportMatching(
+      source,
+      /room-services|chat-module\/chat-rooms|room-compatibility\.policy|(?:^|\/)chat\/rooms(?:\/|$)/
+    );
+
+    if (importsCommunity && importsRoom) {
+      violations.push(
+        `${relative(sharedFile)}: não criar helper/domínio compartilhado que acople Community e Room.`
+      );
+    }
   }
 }
 
@@ -364,5 +541,5 @@ if (uniqueViolations.length > 0) {
 }
 
 console.log(
-  '[room-deprecation] OK: /chat/rooms é a única superfície legada; criação, conversa, convites e imports estruturais permanecem bloqueados.'
+  '[room-deprecation] OK: Rooms seguem congeladas; /chat/rooms é a única superfície legada, não há crescimento produtivo nem ponte Community/Room, e a remoção permanece guiada por evidência residual.'
 );
