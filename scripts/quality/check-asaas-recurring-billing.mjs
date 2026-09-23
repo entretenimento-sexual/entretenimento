@@ -27,6 +27,7 @@ for (const fragment of [
   "defineSecret('ASAAS_WEBHOOK_TOKEN')",
   "'https://api.asaas.com/v3'",
   "'https://api-sandbox.asaas.com/v3'",
+  "'https://sandbox.asaas.com/checkoutSession/show'",
   "'$aact_prod_'",
   "'$aact_hmlg_'",
   'ASAAS_RECURRING_ENABLED',
@@ -46,6 +47,9 @@ for (const fragment of [
   '/subscriptions/',
   'input.expiredUrl',
   'input.expiresAt',
+  'response.link',
+  "candidate.hostname === 'sandbox.asaas.com'",
+  "candidate.hostname === 'asaas.com'",
 ]) requireIncludes(provider, fragment, 'Asaas provider drift');
 
 for (const forbidden of [
