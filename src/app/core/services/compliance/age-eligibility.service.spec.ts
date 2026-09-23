@@ -20,6 +20,33 @@ describe('AgeEligibilityService', () => {
       .resolves.toBe(false);
   });
 
+  it('permite acesso provisório para DECLARED_ADULT sem marcar como verificado', async () => {
+    const now = Date.now();
+    const user$ = new BehaviorSubject<IUserDados | null | undefined>({
+      uid: 'user-1',
+      ageEligibility: {
+        status: 'DECLARED_ADULT',
+        policyVersion: 1,
+        source: 'INITIAL_DECLARATION',
+        method: 'SELF_DECLARATION',
+        caseId: null,
+        verifiedAtMs: null,
+        expiresAtMs: null,
+        updatedAtMs: now,
+      },
+    } as unknown as IUserDados);
+    const service = new AgeEligibilityService(
+      {} as any,
+      { user$: user$.asObservable() } as any,
+      { handleError: () => undefined } as any
+    );
+
+    await expect(firstValueFrom(service.adultAccessAllowed$))
+      .resolves.toBe(true);
+    await expect(firstValueFrom(service.verifiedAdult$))
+      .resolves.toBe(false);
+  });
+
   it('expõe adulto verificado somente a partir da projeção backend', async () => {
     const user$ = new BehaviorSubject<IUserDados | null | undefined>({
       uid: 'user-1',
