@@ -29,3 +29,5 @@ export {
 } from './public-age-eligibility-projection.handler';
 
 export { getPublicProfilesPage } from './get-public-profiles-page.handler';
+
+export { getUserIntentStatuses } from './get-user-intent-statuses.handler';
