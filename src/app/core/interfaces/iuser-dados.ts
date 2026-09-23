@@ -81,6 +81,12 @@ export interface IUserAgeReverification {
   method?: 'SELF_DECLARATION_REVIEW' | 'EXTERNAL_PROVIDER' | 'MANUAL_REVIEW' | null;
   declaredAgeBand?: '18_PLUS' | 'UNDER_18' | null;
   resolution?: string | null;
+  evidenceMethod?:
+    | 'MANUAL_DOCUMENT_REVIEW'
+    | 'PROVIDER_ESCALATION'
+    | 'PROFILE_KYC'
+    | null;
+  evidenceReferenceHash?: string | null;
 }
 
 export type TermsAcceptanceContext = 'initial' | 'material_update';
