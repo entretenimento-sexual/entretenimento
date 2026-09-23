@@ -180,7 +180,7 @@ export class CheckoutFacade {
       return 'A redução de plano ficará disponível depois que o ciclo atual terminar.';
     }
 
-    if (reason === 'plan_quote_changed') {
+    if (reason === 'plan_quote_required' || reason === 'plan_quote_changed') {
       return 'O valor ou as condições deste plano foram atualizados. Volte aos planos e confira antes de continuar.';
     }
 
