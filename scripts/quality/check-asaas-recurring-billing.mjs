@@ -30,6 +30,7 @@ for (const fragment of [
   "'$aact_prod_'",
   "'$aact_hmlg_'",
   'ASAAS_RECURRING_ENABLED',
+  'resolveAsaasApiRuntimeConfig',
 ]) requireIncludes(config, fragment, 'Asaas config drift');
 
 const provider = read(
@@ -99,10 +100,12 @@ for (const fragment of [
   'reverseRecurringPlatformSubscriptionPayment',
   'markRecurringSubscriptionPaymentProblem',
   'recordRecurringChargebackProgress',
+  'recordRecurringPartialRefund',
   'PAYMENT_CONFIRMED',
   'PAYMENT_RECEIVED',
   'PAYMENT_OVERDUE',
   'PAYMENT_REFUNDED',
+  'PAYMENT_PARTIALLY_REFUNDED',
   'PAYMENT_CHARGEBACK_REQUESTED',
   'PAYMENT_CHARGEBACK_DISPUTE',
   'PAYMENT_AWAITING_CHARGEBACK_REVERSAL',
