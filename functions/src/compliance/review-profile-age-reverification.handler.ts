@@ -14,6 +14,10 @@ import {
   safeNotifyAgeReverificationOutcome,
 } from '../moderation/moderation-safety-notification.service';
 import {
+  normalizeAgeReviewEvidence,
+  type AgeReviewEvidenceMethod,
+} from './age-review-evidence.policy';
+import {
   writeCanonicalAgeEligibilityInTransaction,
 } from './age-eligibility.service';
 import {
@@ -35,6 +39,8 @@ interface ReviewProfileAgeReverificationRequest {
   reportId?: string;
   decision?: 'VERIFY' | 'REJECT';
   resolution?: string | null;
+  evidenceMethod?: AgeReviewEvidenceMethod;
+  evidenceReference?: string | null;
 }
 
 interface AgeReverificationCaseDocument {
@@ -78,15 +84,20 @@ export const reviewProfileAgeReverification = onCall<
       .trim()
       .toUpperCase();
     const resolution = cleanComplianceText(request.data?.resolution, 900);
+    const evidence = normalizeAgeReviewEvidence({
+      method: request.data?.evidenceMethod,
+      reference: request.data?.evidenceReference,
+    });
 
     if (
       !reportId ||
       (decision !== 'VERIFY' && decision !== 'REJECT') ||
-      resolution.length < 8
+      resolution.length < 8 ||
+      !evidence
     ) {
       throw new HttpsError(
         'invalid-argument',
-        'Decisão de revalidação inválida.'
+        'Decisão de revalidação exige justificativa e evidência confiável.'
       );
     }
 
@@ -200,6 +211,8 @@ export const reviewProfileAgeReverification = onCall<
               reviewedBy: adminUid,
               result: 'ADULT',
               resolution,
+              evidenceMethod: evidence.method,
+              evidenceReferenceHash: evidence.referenceHash,
             },
             ageEligibility,
             ...(canRestoreAccess
@@ -277,6 +290,8 @@ export const reviewProfileAgeReverification = onCall<
             interactionBlocked: true,
             loginAllowed: true,
             suspended: true,
+            evidenceMethod: evidence.method,
+            evidenceReferenceHash: evidence.referenceHash,
             suspensionReason: resolution,
             suspensionSource: 'moderator',
             suspendedAtMs: reviewedAt,
@@ -305,6 +320,8 @@ export const reviewProfileAgeReverification = onCall<
           reviewedAt,
           reviewedBy: adminUid,
           resolution,
+          evidenceMethod: evidence.method,
+          evidenceReferenceHash: evidence.referenceHash,
           restoredMediaDocumentCount: mediaSnapshots?.totalDocuments ?? 0,
           publicProfileBackup: FieldValue.delete(),
           nicknameIndexBackup: FieldValue.delete(),
@@ -348,6 +365,8 @@ export const reviewProfileAgeReverification = onCall<
           nextStatus: finalStatus,
           restoredMediaDocumentCount: mediaSnapshots?.totalDocuments ?? 0,
           resolution,
+          evidenceMethod: evidence.method,
+          evidenceReferenceHash: evidence.referenceHash,
         },
         timestamp,
       });
@@ -362,6 +381,8 @@ export const reviewProfileAgeReverification = onCall<
         actorUid: adminUid,
         result: decision === 'VERIFY' ? 'ADULT' : 'UNDERAGE',
         source: 'moderation',
+        evidenceMethod: evidence.method,
+        evidenceReferenceHash: evidence.referenceHash,
         restoredMediaDocumentCount: mediaSnapshots?.totalDocuments ?? 0,
         createdAt: timestamp,
         createdAtMs: reviewedAt,
