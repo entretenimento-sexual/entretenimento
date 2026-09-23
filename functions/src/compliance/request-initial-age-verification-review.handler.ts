@@ -68,17 +68,6 @@ export const requestInitialAgeVerificationReview = onCall(
 
     const uid = assertComplianceAuthenticatedUid(request.auth);
 
-    if (request.auth?.token?.email_verified !== true) {
-      throw new HttpsError(
-        'failed-precondition',
-        'Confirme seu e-mail antes de solicitar a verificação de maioridade.',
-        {
-          reason: 'email_verification_required',
-          recommendedAction: 'verify_email',
-        }
-      );
-    }
-
     const nowMs = Date.now();
 
     await consumeBackendRateLimitQuota({
