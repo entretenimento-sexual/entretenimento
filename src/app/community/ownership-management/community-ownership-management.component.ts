@@ -172,9 +172,10 @@ export class CommunityOwnershipManagementComponent {
         tap(() => {
           if (command.kind === 'transfer' && command.candidate) {
             this.errorNotifier.showSuccess(
-              `A propriedade foi transferida para ${command.candidate.label}.`
+              'Convite de propriedade enviado para '
+              + command.candidate.label
+              + '. A propriedade só muda se houver aceite.'
             );
-            this.ownershipChanged.emit();
             return;
           }
 
@@ -228,14 +229,14 @@ export class CommunityOwnershipManagementComponent {
   requestTransfer(candidate: CommunityOwnershipCandidate): void {
     const data: ConfirmationDialogData = {
       eyebrow: 'Ação de proprietário',
-      title: `Transferir propriedade para ${candidate.label}?`,
-      message: 'Você deixará de ser o proprietário desta Comunidade.',
+      title: `Convidar ${candidate.label} para assumir a propriedade?`,
+      message:
+        'A propriedade não muda agora. O participante precisará aceitar explicitamente.',
       detail:
-        `${candidate.label} passará a controlar a Comunidade e você continuará `
-        + 'como Membro. A capacidade passará a seguir o plano do novo '
-        + 'proprietário; se o teto diminuir, ninguém será removido, mas novas '
-        + 'entradas poderão ser pausadas. Esta ação exige autenticação recente.',
-      confirmLabel: 'Transferir propriedade',
+        'No aceite, o backend revalidará conta, plano, quota e capacidade. '
+        + 'Se algo tiver mudado, a transferência será bloqueada. '
+        + 'Campanhas e débitos do proprietário atual não serão transferidos.',
+      confirmLabel: 'Enviar convite',
       cancelLabel: 'Cancelar',
       icon: 'swap_horiz',
       tone: 'warning',
@@ -379,7 +380,7 @@ export class CommunityOwnershipManagementComponent {
         ? 'transferCommunityOwnership'
         : 'archiveCommunity',
       fallbackMessage: command.kind === 'transfer'
-        ? 'Não foi possível transferir a propriedade agora.'
+        ? 'Não foi possível enviar o convite de propriedade agora.'
         : 'Não foi possível arquivar a Comunidade agora.',
       reasonMessages: COMMUNITY_OWNERSHIP_REASON_MESSAGES,
       codeMessages: COMMUNITY_OWNERSHIP_ACTION_CODE_MESSAGES,
