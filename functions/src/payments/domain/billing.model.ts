@@ -169,6 +169,7 @@ export interface PaymentEventDoc {
 
   processed: boolean;
   processedAt: number;
+  occurredAt?: number | null;
   createdAt: number;
 }
 
