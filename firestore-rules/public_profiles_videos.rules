@@ -56,9 +56,9 @@ match /public_profiles/{userId}/public_videos/{videoId} {
   allow get: if canConsumeAdultPublicMedia()
     && (isSelf(userId) || isPublicReadableVideo());
 
-  allow list: if canConsumeAdultPublicMedia()
-    && publicProfileAllowsAdultExposure()
-    && isPublicListReadableVideo();
+  // Galerias owner-scoped também atravessam a Callable backend-time.
+  // O get direto permanece disponível para deep links sob fronteira forte.
+  allow list: if false;
 
   allow create, update, delete: if false;
 
