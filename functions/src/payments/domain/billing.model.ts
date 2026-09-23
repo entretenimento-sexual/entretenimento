@@ -162,6 +162,8 @@ export interface PaymentEventDoc {
   provider: BillingProviderId;
   providerEventId: string;
   providerSessionId?: string | null;
+  providerPaymentId?: string | null;
+  providerSubscriptionId?: string | null;
   checkoutSessionId: string;
 
   status: PaymentTransactionStatus;
