@@ -35,8 +35,12 @@ function normalizeMethod(value: unknown): AgeReviewEvidenceMethod | null {
 }
 
 function normalizeReference(value: unknown): string {
-  return String(value ?? '')
-    .replace(/[\u0000-\u001f\u007f]/g, '')
+  return Array.from(String(value ?? ''))
+    .filter((character) => {
+      const code = character.charCodeAt(0);
+      return code >= 32 && code !== 127;
+    })
+    .join('')
     .trim()
     .slice(0, 300);
 }
