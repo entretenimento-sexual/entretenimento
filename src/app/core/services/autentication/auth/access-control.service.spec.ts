@@ -58,7 +58,7 @@ describe('AccessControlService canonical subscription roles', () => {
   let subscriptionState$: BehaviorSubject<PlatformSubscriptionAccessState>;
   let subscriptionIsFree$: BehaviorSubject<boolean>;
   let subscriptionIsSubscriber$: BehaviorSubject<boolean>;
-  let verifiedAdult$: BehaviorSubject<boolean>;
+  let adultAccessAllowed$: BehaviorSubject<boolean>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -74,7 +74,7 @@ describe('AccessControlService canonical subscription roles', () => {
     );
     subscriptionIsFree$ = new BehaviorSubject<boolean>(true);
     subscriptionIsSubscriber$ = new BehaviorSubject<boolean>(false);
-    verifiedAdult$ = new BehaviorSubject<boolean>(false);
+    adultAccessAllowed$ = new BehaviorSubject<boolean>(false);
 
     TestBed.configureTestingModule({
       providers: [
@@ -107,7 +107,7 @@ describe('AccessControlService canonical subscription roles', () => {
         {
           provide: AgeEligibilityService,
           useValue: {
-            verifiedAdult$: verifiedAdult$.asObservable(),
+            adultAccessAllowed$: adultAccessAllowed$.asObservable(),
           },
         },
         {
@@ -171,7 +171,7 @@ describe('AccessControlService canonical subscription roles', () => {
       .resolves.toBe(false);
   });
 
-  it('libera recursos sociais reativamente quando a projeção 18+ backend fica válida', async () => {
+  it('libera recursos sociais reativamente quando a política etária backend permite acesso', async () => {
     user$.next({
       ...createUser(),
       acceptedTerms: {
@@ -193,7 +193,7 @@ describe('AccessControlService canonical subscription roles', () => {
       states.push(value)
     );
 
-    verifiedAdult$.next(true);
+    adultAccessAllowed$.next(true);
 
     expect(states).toEqual([false, true]);
     expect(await firstValueFrom(service.canRunPresence$)).toBe(true);
@@ -202,7 +202,7 @@ describe('AccessControlService canonical subscription roles', () => {
   });
 
   it('não inicia social quando termos, consentimento ou reverificação bloqueiam', async () => {
-    verifiedAdult$.next(true);
+    adultAccessAllowed$.next(true);
     user$.next({
       ...createUser(),
       acceptedTerms: {
