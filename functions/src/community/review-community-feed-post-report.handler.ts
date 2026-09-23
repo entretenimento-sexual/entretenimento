@@ -15,6 +15,9 @@ import {
   safeRecordModerationReviewSignal,
 } from '../moderation/moderation-automation.service';
 import {
+  safeRecordModerationReporterOutcome,
+} from '../moderation/moderation-reporter-abuse.service';
+import {
   safeNotifyModerationReportReviewed,
 } from '../moderation/moderation-safety-notification.service';
 import {
@@ -140,6 +143,7 @@ export const reviewCommunityFeedPostReport = onCall<
       }
 
       const report = reportSnapshot.data() ?? {};
+      const reporterUid = cleanId(report['reporterUid']);
       const status = String(report['status'] ?? '').trim().toLowerCase();
       const communityId = cleanId(report['parentTargetId']);
       const postId = cleanId(report['targetId']);
@@ -377,6 +381,14 @@ export const reviewCommunityFeedPostReport = onCall<
       critical: transactionResult.critical,
       confirmed: decision === 'REMOVE',
     });
+
+    if (automationTarget.critical && automationTarget.reporterUid) {
+      await safeRecordModerationReporterOutcome({
+        reportId,
+        reporterUid: automationTarget.reporterUid,
+        outcome: decision === 'REMOVE' ? 'CONFIRMED' : 'REJECTED',
+      });
+    }
 
     await safeNotifyModerationReportReviewed(reportId);
 
