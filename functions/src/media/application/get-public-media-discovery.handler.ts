@@ -7,6 +7,7 @@
 // bind a single owner and validate the parent's temporal/canonical age boundary.
 // -----------------------------------------------------------------------------
 
+import { FieldPath } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
@@ -29,15 +30,36 @@ type PublicMediaDiscoveryMode =
   | 'TOP'
   | 'BOOSTED';
 
+interface PublicMediaDiscoveryCursorInput {
+  documentPath?: unknown;
+  publishedAt?: unknown;
+  score?: unknown;
+  uniqueViewersCount?: unknown;
+  viewsCount?: unknown;
+  boostedUntil?: unknown;
+}
+
 interface PublicMediaDiscoveryRequest {
   mediaType?: unknown;
   mode?: unknown;
   ownerUids?: unknown;
   limit?: unknown;
+  cursor?: PublicMediaDiscoveryCursorInput | null;
+}
+
+interface PublicMediaDiscoveryCursor {
+  documentPath: string;
+  publishedAt: number;
+  score: number;
+  uniqueViewersCount: number;
+  viewsCount: number;
+  boostedUntil: number;
 }
 
 interface PublicMediaDiscoveryResponse {
   items: Record<string, unknown>[];
+  nextCursor: PublicMediaDiscoveryCursor | null;
+  hasMore: boolean;
   fetchedAt: number;
   scanned: number;
 }
@@ -108,6 +130,11 @@ function normalizeMode(value: unknown): PublicMediaDiscoveryMode {
   );
 }
 
+function nonNegativeNumber(value: unknown): number {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
 function positiveEpoch(value: unknown): number | null {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0
@@ -160,6 +187,32 @@ function toCallableValue(value: unknown): unknown {
   return output;
 }
 
+function expectedPathSegment(mediaType: PublicMediaDiscoveryType): string {
+  return mediaType === 'PHOTO' ? '/public_photos/' : '/public_videos/';
+}
+
+function normalizeCursor(
+  value: PublicMediaDiscoveryCursorInput | null | undefined,
+  mediaType: PublicMediaDiscoveryType
+): PublicMediaDiscoveryCursor | null {
+  if (!value) return null;
+
+  const documentPath = String(value.documentPath ?? '').trim();
+
+  if (!documentPath.includes(expectedPathSegment(mediaType))) {
+    return null;
+  }
+
+  return {
+    documentPath,
+    publishedAt: nonNegativeNumber(value.publishedAt),
+    score: nonNegativeNumber(value.score),
+    uniqueViewersCount: nonNegativeNumber(value.uniqueViewersCount),
+    viewsCount: nonNegativeNumber(value.viewsCount),
+    boostedUntil: nonNegativeNumber(value.boostedUntil),
+  };
+}
+
 export function publicMediaDiscoveryReadRateLimitCost(limit: number): number {
   const safeLimit = normalizeLimit(limit);
   return Math.max(1, Math.ceil(safeLimit / 24));
@@ -182,6 +235,7 @@ export function isCurrentPublicMediaExposure(
 
 export function serializePublicMediaForDiscovery(
   documentId: string,
+  documentPath: string,
   data: Record<string, unknown>,
   nowMs: number
 ): Record<string, unknown> | null {
@@ -196,6 +250,7 @@ export function serializePublicMediaForDiscovery(
   return {
     ...(toCallableValue(data) as Record<string, unknown>),
     id: documentId,
+    documentPath,
   };
 }
 
@@ -211,15 +266,105 @@ function assertSupportedMode(
     );
   }
 
-  if (
-    mediaType === 'VIDEO' &&
-    mode !== 'RECENT_BY_OWNERS'
-  ) {
+  if (mediaType === 'VIDEO' && mode === 'BOOSTED') {
     throw new HttpsError(
       'invalid-argument',
-      'Modo não disponível para vídeos nesta superfície.'
+      'Boost global não está disponível para vídeos nesta superfície.'
     );
   }
+}
+
+function applyOrderingAndCursor(input: {
+  query: FirebaseFirestore.Query;
+  mediaType: PublicMediaDiscoveryType;
+  mode: PublicMediaDiscoveryMode;
+  cursor: PublicMediaDiscoveryCursor | null;
+  nowMs: number;
+}): FirebaseFirestore.Query {
+  let query = input.query;
+
+  if (input.mode === 'RECENT_BY_OWNERS' || input.mode === 'LATEST') {
+    query = query
+      .orderBy('publishedAt', 'desc')
+      .orderBy(FieldPath.documentId(), 'desc');
+
+    if (input.cursor) {
+      query = query.startAfter(
+        input.cursor.publishedAt,
+        db.doc(input.cursor.documentPath)
+      );
+    }
+
+    return query;
+  }
+
+  if (input.mode === 'TOP' && input.mediaType === 'PHOTO') {
+    query = query
+      .orderBy('score', 'desc')
+      .orderBy('publishedAt', 'desc')
+      .orderBy(FieldPath.documentId(), 'desc');
+
+    if (input.cursor) {
+      query = query.startAfter(
+        input.cursor.score,
+        input.cursor.publishedAt,
+        db.doc(input.cursor.documentPath)
+      );
+    }
+
+    return query;
+  }
+
+  if (input.mode === 'TOP') {
+    query = query
+      .orderBy('score', 'desc')
+      .orderBy('uniqueViewersCount', 'desc')
+      .orderBy('viewsCount', 'desc')
+      .orderBy('publishedAt', 'desc')
+      .orderBy(FieldPath.documentId(), 'desc');
+
+    if (input.cursor) {
+      query = query.startAfter(
+        input.cursor.score,
+        input.cursor.uniqueViewersCount,
+        input.cursor.viewsCount,
+        input.cursor.publishedAt,
+        db.doc(input.cursor.documentPath)
+      );
+    }
+
+    return query;
+  }
+
+  query = query
+    .where('boostActive', '==', true)
+    .where('boostedUntil', '>', input.nowMs)
+    .orderBy('boostedUntil', 'desc')
+    .orderBy(FieldPath.documentId(), 'desc');
+
+  if (input.cursor) {
+    query = query.startAfter(
+      input.cursor.boostedUntil,
+      db.doc(input.cursor.documentPath)
+    );
+  }
+
+  return query;
+}
+
+function buildCursor(
+  document: FirebaseFirestore.QueryDocumentSnapshot
+): PublicMediaDiscoveryCursor {
+  const data = document.data();
+
+  return {
+    documentPath: document.ref.path,
+    publishedAt: nonNegativeNumber(data['publishedAt']),
+    score: nonNegativeNumber(data['score']),
+    uniqueViewersCount: nonNegativeNumber(data['uniqueViewersCount']),
+    viewsCount: nonNegativeNumber(data['viewsCount']),
+    boostedUntil: nonNegativeNumber(data['boostedUntil']),
+  };
 }
 
 export const getPublicMediaDiscovery = onCall<PublicMediaDiscoveryRequest>(
@@ -239,6 +384,7 @@ export const getPublicMediaDiscovery = onCall<PublicMediaDiscoveryRequest>(
     const mode = normalizeMode(request.data?.mode);
     const ownerUids = normalizeOwnerUids(request.data?.ownerUids);
     const resultLimit = normalizeLimit(request.data?.limit);
+    const cursor = normalizeCursor(request.data?.cursor, mediaType);
     const nowMs = Date.now();
 
     assertSupportedMode(mediaType, mode, ownerUids);
@@ -263,32 +409,32 @@ export const getPublicMediaDiscovery = onCall<PublicMediaDiscoveryRequest>(
       .where('moderationStatus', '==', 'APPROVED');
 
     if (mode === 'RECENT_BY_OWNERS') {
-      mediaQuery = mediaQuery
-        .where('ownerUid', 'in', ownerUids)
-        .orderBy('publishedAt', 'desc');
-    } else if (mode === 'LATEST') {
-      mediaQuery = mediaQuery.orderBy('publishedAt', 'desc');
-    } else if (mode === 'TOP') {
-      mediaQuery = mediaQuery
-        .orderBy('score', 'desc')
-        .orderBy('publishedAt', 'desc');
-    } else {
-      mediaQuery = mediaQuery
-        .where('boostActive', '==', true)
-        .where('boostedUntil', '>', nowMs)
-        .orderBy('boostedUntil', 'desc');
+      mediaQuery = mediaQuery.where('ownerUid', 'in', ownerUids);
     }
+
+    mediaQuery = applyOrderingAndCursor({
+      query: mediaQuery,
+      mediaType,
+      mode,
+      cursor,
+      nowMs,
+    });
 
     const maxScanned = Math.min(
       MAX_SCAN_ABSOLUTE,
-      Math.max(resultLimit, resultLimit * MAX_SCAN_MULTIPLIER)
+      Math.max(resultLimit + 1, resultLimit * MAX_SCAN_MULTIPLIER)
     );
     const snapshot = await mediaQuery.limit(maxScanned).get();
     const items: Record<string, unknown>[] = [];
 
+    let stoppedEarly = false;
+    let cursorDocument: FirebaseFirestore.QueryDocumentSnapshot | null = null;
+
     for (const document of snapshot.docs) {
+      cursorDocument = document;
       const serialized = serializePublicMediaForDiscovery(
         document.id,
+        document.ref.path,
         document.data() as Record<string, unknown>,
         nowMs
       );
@@ -298,12 +444,24 @@ export const getPublicMediaDiscovery = onCall<PublicMediaDiscoveryRequest>(
       }
 
       if (items.length >= resultLimit) {
+        stoppedEarly = true;
         break;
       }
     }
 
+    const exhaustedSnapshot = !stoppedEarly;
+    const mayHaveMore =
+      stoppedEarly ||
+      (exhaustedSnapshot && snapshot.size === maxScanned);
+    const nextCursor =
+      mayHaveMore && cursorDocument
+        ? buildCursor(cursorDocument)
+        : null;
+
     return {
       items,
+      nextCursor,
+      hasMore: nextCursor !== null,
       fetchedAt: nowMs,
       scanned: snapshot.size,
     };
