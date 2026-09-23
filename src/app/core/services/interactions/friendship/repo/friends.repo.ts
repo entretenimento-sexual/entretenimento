@@ -8,7 +8,7 @@
 // - a relação em si vem de /users/{uid}/friends/{friendUid};
 // - os dados públicos do card vêm de /public_profiles/{friendUid};
 // - nunca usamos /users/{friendUid} para renderização social pública;
-// - se o public_profile estiver ausente, o card ainda funciona com fallback;
+// - se o public_profile não estiver adulto/vigente, o card falha fechado;
 // - a lista continua paginada e ordenada por lastInteractionAt.
 //
 // Segurança digital:
@@ -330,9 +330,9 @@ watchFriends(uid: string, pageSize = 24): Observable<FriendForCard[]> {
    * Hidrata a relação de amizade com o perfil público.
    *
    * Importante:
-   * - falha individual não quebra a lista;
    * - dados privados não são lidos;
-   * - o fallback mantém a UI navegável.
+   * - ausência/expiração do perfil remove o card da lista;
+   * - falha da boundary retorna vazio para não reexpor snapshot legado.
    */
   private async hydrateFriendsWithPublicProfiles(
     friends: Friend[]
