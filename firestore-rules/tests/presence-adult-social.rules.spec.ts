@@ -75,11 +75,12 @@ describe('Firestore Rules / presence adult social boundary', () => {
 
       await setDoc(doc(db, 'age_eligibility_records', UID), {
         uid: UID,
-        status: 'VERIFIED_ADULT',
+        status: 'DECLARED_ADULT',
         policyVersion: 1,
-        source: 'INITIAL_VERIFICATION',
-        method: 'MANUAL_REVIEW',
-        verifiedAt: now,
+        source: 'INITIAL_DECLARATION',
+        method: 'SELF_DECLARATION',
+        verifiedAt: null,
+        decidedAt: now,
         expiresAt: null,
       });
 
@@ -100,7 +101,7 @@ describe('Firestore Rules / presence adult social boundary', () => {
     await testEnv.cleanup();
   });
 
-  it('aceita heartbeat com timestamps opcionais ausentes', async () => {
+  it('aceita heartbeat para autodeclaração adulta backend no modo inicial', async () => {
     const db = testEnv.authenticatedContext(UID).firestore();
 
     await assertSucceeds(
