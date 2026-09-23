@@ -118,8 +118,14 @@ export { sendCommunityInvite } from './send-community-invite.handler';
 export {
   archiveCommunity,
   getCommunityOwnershipCandidates,
-  transferCommunityOwnership,
 } from './community-ownership-lifecycle.handler';
+export {
+  requestCommunityOwnershipTransfer as transferCommunityOwnership,
+  respondCommunityOwnershipTransfer,
+  cancelCommunityOwnershipTransfer,
+  getMyCommunityOwnershipTransfers,
+  openCommunityOwnerTerminalSuccession,
+} from './community-ownership-transfer.workflow.handler';
 export { getCommunityPreview } from './get-community-preview.handler';
 export { inspectCommunityPurgeReadiness } from './inspect-community-purge-readiness.handler';
 export {
@@ -134,6 +140,9 @@ export {
 } from './update-community-notification-preference.handler';
 export { updateCommunitySettings } from './update-community-settings.handler';
 export { runCommunityLifecycle } from './run-community-lifecycle.schedule';
+export {
+  runCommunityOwnershipSuccessionLifecycle,
+} from './run-community-ownership-succession.schedule';
 export {
   runCommunityOfficialAssociationLifecycle,
 } from './run-community-official-association-lifecycle.schedule';
