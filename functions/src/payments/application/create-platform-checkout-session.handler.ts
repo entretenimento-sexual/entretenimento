@@ -62,6 +62,7 @@ import {
 } from '../security/payment-runtime.guard';
 import {
   ASAAS_API_KEY,
+  assertAsaasRecurringCheckoutEnabled,
   resolveAsaasRuntimeConfig,
 } from '../config/asaas.config';
 import {
@@ -152,6 +153,7 @@ export const createPlatformCheckoutSession =
       }
 
       assertCallableAppCheck(request.app);
+      assertAsaasRecurringCheckoutEnabled();
 
       await consumeBackendRateLimitQuota({
         action: 'billing:create-platform-checkout',
