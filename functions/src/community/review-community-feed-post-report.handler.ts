@@ -53,6 +53,7 @@ type ReviewDecision = 'KEEP' | 'REMOVE';
 interface ReviewTransactionResult {
   cleanup: StagedPublishedPhotoAssetCleanup | null;
   authorUid: string;
+  reporterUid: string;
   critical: boolean;
 }
 
@@ -372,7 +373,7 @@ export const reviewCommunityFeedPostReport = onCall<
         timestamp,
       });
 
-      return { cleanup, authorUid, critical };
+      return { cleanup, authorUid, reporterUid, critical };
     });
 
     await safeRecordModerationReviewSignal({
@@ -382,10 +383,10 @@ export const reviewCommunityFeedPostReport = onCall<
       confirmed: decision === 'REMOVE',
     });
 
-    if (automationTarget.critical && automationTarget.reporterUid) {
+    if (transactionResult.critical && transactionResult.reporterUid) {
       await safeRecordModerationReporterOutcome({
         reportId,
-        reporterUid: automationTarget.reporterUid,
+        reporterUid: transactionResult.reporterUid,
         outcome: decision === 'REMOVE' ? 'CONFIRMED' : 'REJECTED',
       });
     }
