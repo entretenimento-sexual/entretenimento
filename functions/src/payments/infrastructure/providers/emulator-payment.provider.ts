@@ -53,7 +53,7 @@ export class EmulatorPaymentProvider extends PaymentProviderPort {
       provider: this.providerId,
       providerSessionId: `emulator_${randomUUID()}`,
       checkoutUrl,
-      expiresAt: null,
+      expiresAt: input.expiresAt,
     };
   }
 
