@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  COMMUNITY_ERROR_PRESENTATION_CONTEXTS,
   COMMUNITY_PUBLIC_REASON_MESSAGES,
   COMMUNITY_PUBLIC_REASON_PRESENTATIONS,
+  resolveCommunityPublicErrorPresentation,
 } from './community-error.catalog';
 import { COMMUNITY_PUBLIC_ERROR_REASONS } from './community-error-reason.contract';
 
@@ -36,4 +38,32 @@ describe('community public error reason contract', () => {
     expect(COMMUNITY_PUBLIC_REASON_PRESENTATIONS.community_feed_post_not_found.surface).toBe('snackbar');
     expect(COMMUNITY_PUBLIC_REASON_PRESENTATIONS.invite_expired.surface).toBe('snackbar');
   });
+
+  it('silencia apenas erros não bloqueantes no contexto inline', () => {
+    expect(
+      resolveCommunityPublicErrorPresentation(
+        'invalid_post_request',
+        COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING
+      )
+    ).toEqual({ surface: 'none', severity: 'error' });
+
+    expect(
+      resolveCommunityPublicErrorPresentation(
+        'ownership_inconsistent',
+        COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING
+      )?.surface
+    ).toBe('modal');
+  });
+
+  it('mantém o catálogo default como fonte canônica', () => {
+    expect(
+      resolveCommunityPublicErrorPresentation('community_feed_rate_limited')
+    ).toBe(
+      COMMUNITY_PUBLIC_REASON_PRESENTATIONS.community_feed_rate_limited
+    );
+    expect(
+      resolveCommunityPublicErrorPresentation('invalid_post_request')
+    ).toBe(COMMUNITY_PUBLIC_REASON_PRESENTATIONS.invalid_post_request);
+  });
+
 });
