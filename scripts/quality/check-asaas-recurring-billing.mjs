@@ -91,6 +91,14 @@ if (webhook.includes('settleVerifiedPaidEvent(')) {
     '[asaas-recurring-billing] public webhook must not settle inline'
   );
 }
+if (
+  webhook.includes('resolveAsaasRuntimeConfig') ||
+  webhook.includes('resolveAsaasApiRuntimeConfig')
+) {
+  throw new Error(
+    '[asaas-recurring-billing] webhook ingress must depend only on webhook auth, not API/checkout runtime'
+  );
+}
 
 const processor = read(
   'functions/src/payments/application/provider-webhook-processor.service.ts'
