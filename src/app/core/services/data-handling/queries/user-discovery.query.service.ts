@@ -30,7 +30,7 @@ import {
   PublicProfileReadBoundaryService,
   type PublicProfileReadFilters,
 } from '@core/services/discovery/public-profile-read-boundary.service';
-import { FirestoreErrorHandlerService } from '@core/services/error-handler/firestore-error-handler.service';
+import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { CacheService } from '@core/services/general/cache/cache.service';
 
 interface DiscoveryQueryOptions {
@@ -53,9 +53,9 @@ export class UserDiscoveryQueryService {
 
   constructor(
     private readonly cache: CacheService,
-    private readonly firestoreError: FirestoreErrorHandlerService,
     private readonly authSession: AuthSessionService,
-    private readonly publicProfileRead: PublicProfileReadBoundaryService
+    private readonly publicProfileRead: PublicProfileReadBoundaryService,
+    private readonly globalErrorHandler: GlobalErrorHandlerService
   ) {}
 
   /**
@@ -320,14 +320,18 @@ export class UserDiscoveryQueryService {
     error: unknown,
     context: string
   ): Observable<IUserDados[]> {
-    return this.firestoreError.handleFirestoreErrorAndReturn<IUserDados[]>(
-      error,
-      [],
-      {
-        silent: true,
-        context,
-      }
-    );
+    const normalized = error instanceof Error
+      ? error
+      : new Error('Falha ao consultar perfis públicos.');
+
+    (normalized as Error & { original?: unknown }).original = error;
+    (normalized as Error & { context?: string }).context = context;
+    (normalized as Error & { skipUserNotification?: boolean })
+      .skipUserNotification = true;
+    (normalized as Error & { silent?: boolean }).silent = true;
+
+    this.globalErrorHandler.handleError(normalized);
+    return of([] as IUserDados[]);
   }
 
   private toUserDadosFromPublicProfile(
