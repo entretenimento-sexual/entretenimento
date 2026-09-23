@@ -125,6 +125,9 @@ export {
   cancelCommunityOwnershipTransfer,
   getMyCommunityOwnershipTransfers,
   openCommunityOwnerTerminalSuccession,
+  openCommunityOwnerTerminalSuccessionCase,
+  nominateCommunityOwnerTerminalSuccessor,
+  cancelCommunityOwnerTerminalSuccession,
 } from './community-ownership-transfer.workflow.handler';
 export { getCommunityPreview } from './get-community-preview.handler';
 export { inspectCommunityPurgeReadiness } from './inspect-community-purge-readiness.handler';
