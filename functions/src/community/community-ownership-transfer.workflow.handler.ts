@@ -441,6 +441,7 @@ function assertCandidateEligibility(
 
 async function createOwnershipOffer(input: {
   actorUid: string;
+  requestedByUid?: string;
   communityId: string;
   targetUid: string;
   requestId: string;
@@ -643,6 +644,7 @@ async function createOwnershipOffer(input: {
       now,
       terminalDeadlineAt: input.terminalDeadlineAt ?? null,
     });
+    const requestedByUid = input.requestedByUid ?? input.actorUid;
     const communityName = normalizeText(community['name'], 80) || 'Comunidade';
     const previousOwnerLabel = labelForUser(actorUser);
     const candidateLabel = labelForUser(candidateUser);
@@ -683,7 +685,7 @@ async function createOwnershipOffer(input: {
       explicitlyDesignated: true,
       explicitlyAccepted: false,
       expiresAt,
-      createdByUid: input.actorUid,
+      createdByUid: requestedByUid,
       createdAt: now,
       updatedAt: now,
       respondedAt: null,
@@ -715,9 +717,11 @@ async function createOwnershipOffer(input: {
       userId: input.targetUid,
       type: 'community.ownership.transfer_requested',
       title: 'Convite para assumir uma Comunidade',
-      body:
-        `${previousOwnerLabel} indicou você para assumir ${communityName}. `
-        + 'A propriedade só muda se você aceitar.',
+      body: input.mode === 'terminal_succession'
+        ? `Você foi indicado para assumir ${communityName} em um processo de sucessão protegido. `
+          + 'A propriedade só muda se você aceitar.'
+        : `${previousOwnerLabel} indicou você para assumir ${communityName}. `
+          + 'A propriedade só muda se você aceitar.',
       route: ownershipWorkflowRoute(input.requestId),
       communityId: input.communityId,
       ownershipRequestId: input.requestId,
@@ -735,7 +739,7 @@ async function createOwnershipOffer(input: {
       {
         action: 'community_ownership_transfer_requested',
         communityId: input.communityId,
-        actorUid: input.actorUid,
+        actorUid: requestedByUid,
         previousOwnerUid: currentOwnerUid,
         candidateUid: input.targetUid,
         requestId: input.requestId,
@@ -1888,6 +1892,7 @@ export const nominateCommunityOwnerTerminalSuccessor =
 
       return createOwnershipOffer({
         actorUid: previousOwnerUid,
+        requestedByUid: actorUid,
         communityId,
         targetUid,
         requestId,
