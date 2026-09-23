@@ -13,6 +13,7 @@ import { map } from 'rxjs/operators';
 
 export type PublicMediaReadType = 'PHOTO' | 'VIDEO';
 export type PublicMediaReadMode =
+  | 'PROFILE'
   | 'RECENT_BY_OWNERS'
   | 'LATEST'
   | 'TOP'
@@ -25,6 +26,7 @@ export interface PublicMediaReadCursor {
   readonly uniqueViewersCount?: number;
   readonly viewsCount?: number;
   readonly boostedUntil?: number;
+  readonly orderIndex?: number;
 }
 
 export interface PublicMediaReadRequest {
