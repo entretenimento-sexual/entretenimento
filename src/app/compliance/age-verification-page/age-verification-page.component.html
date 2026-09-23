@@ -17,10 +17,29 @@
         <section class="age-verification__status" role="alert">
           <strong>Acesso adulto indisponível</strong>
           <p>
-            Esta conta não atende à exigência etária da plataforma. O acesso
-            social e ao conteúdo adulto permanece bloqueado.
+            A decisão atual não autoriza o acesso adulto. Se houver erro ou
+            evidência nova, você pode solicitar revisão.
           </p>
         </section>
+
+        <div class="age-verification__actions">
+          <button
+            type="button"
+            [disabled]="refreshing() || requestingReview()"
+            (click)="requestReview()"
+          >
+            {{ requestingReview() ? 'Enviando...' : 'Solicitar revisão da decisão' }}
+          </button>
+
+          <button
+            type="button"
+            class="age-verification__secondary"
+            [disabled]="refreshing() || requestingReview()"
+            (click)="logoutCurrentSession()"
+          >
+            Sair da conta
+          </button>
+        </div>
       } @else {
         <section class="age-verification__status" role="status">
           <strong>
@@ -37,9 +56,24 @@
         </section>
 
         <div class="age-verification__actions">
+          @if (!vm.reviewRequired) {
+            <button
+              type="button"
+              [disabled]="refreshing() || requestingReview()"
+              (click)="requestReview()"
+            >
+              {{ requestingReview()
+                ? 'Enviando...'
+                : vm.expired
+                  ? 'Solicitar nova revisão'
+                  : 'Solicitar verificação' }}
+            </button>
+          }
+
           <button
             type="button"
-            [disabled]="refreshing()"
+            class="age-verification__secondary"
+            [disabled]="refreshing() || requestingReview()"
             (click)="refresh()"
           >
             {{ refreshing() ? 'Atualizando...' : 'Atualizar status' }}
@@ -48,7 +82,7 @@
           <button
             type="button"
             class="age-verification__secondary"
-            [disabled]="refreshing()"
+            [disabled]="refreshing() || requestingReview()"
             (click)="logoutCurrentSession()"
           >
             Sair da conta
@@ -56,10 +90,10 @@
         </div>
 
         <p class="age-verification__note">
-          O fluxo inicial de verificação deverá usar um mecanismo externo ou
-          equivalente que produza uma decisão backend auditável. Enquanto não
-          houver essa evidência, a plataforma permanece fechada para recursos
-          adultos.
+          A liberação pode vir de uma assertion de provedor confiável ou de
+          revisão administrativa baseada em evidência verificável. A referência
+          usada na revisão é reduzida a um hash no backend; autodeclaração não
+          concede acesso.
         </p>
       }
     }
