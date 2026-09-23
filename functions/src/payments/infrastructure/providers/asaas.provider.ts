@@ -48,6 +48,7 @@ interface AsaasApiErrorPayload {
 
 interface AsaasCheckoutResponse {
   id?: unknown;
+  link?: unknown;
 }
 
 const ASAAS_REQUEST_TIMEOUT_MS = 60_000;
@@ -359,8 +360,29 @@ export class AsaasPaymentProvider extends PaymentProviderPort {
       );
     }
 
-    const checkoutUrl = new URL(runtime.checkoutBaseUrl);
-    checkoutUrl.searchParams.set('id', providerSessionId);
+    const returnedLink = safeString(response.link, 600);
+    let checkoutUrl: URL | null = null;
+
+    if (returnedLink) {
+      try {
+        const candidate = new URL(returnedLink);
+        const allowedHost =
+          runtime.environment === 'production'
+            ? candidate.hostname === 'asaas.com'
+            : candidate.hostname === 'sandbox.asaas.com';
+
+        if (candidate.protocol === 'https:' && allowedHost) {
+          checkoutUrl = candidate;
+        }
+      } catch {
+        checkoutUrl = null;
+      }
+    }
+
+    if (!checkoutUrl) {
+      checkoutUrl = new URL(runtime.checkoutBaseUrl);
+      checkoutUrl.searchParams.set('id', providerSessionId);
+    }
 
     return {
       provider: this.providerId,
