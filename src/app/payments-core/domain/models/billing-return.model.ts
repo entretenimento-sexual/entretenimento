@@ -50,6 +50,18 @@ export interface BillingSnapshotResult {
   endsAt?: number | null;
   updatedAt?: number | null;
   projectionVersion?: number | null;
+  recurringConfigured?: boolean;
+  renewalEnabled?: boolean;
+  renewalStatus?: 'active' | 'cancel_pending' | 'canceled' | 'none';
+  renewalCancellationPending?: boolean;
+}
+
+export interface CancelPlatformSubscriptionRenewalResult {
+  changed: boolean;
+  renewalEnabled: false;
+  providerCancellationStatus: 'completed' | 'pending' | 'not_configured';
+  accessActive: boolean;
+  accessEndsAt: number | null;
 }
 
 export interface BillingReturnVm {

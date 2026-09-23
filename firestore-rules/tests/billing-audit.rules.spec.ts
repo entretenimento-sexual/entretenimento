@@ -117,6 +117,24 @@ describe('Firestore Rules / financial retention audits', () => {
     }
   });
 
+  it('mantém recorrência, webhook inbox e locks estritamente backend-only', async () => {
+    for (const collectionName of [
+      'provider_webhook_events',
+      'platform_subscription_state',
+      'platform_subscription_checkout_locks',
+      'subscriptions',
+    ]) {
+      const reference = doc(
+        authenticatedDb(),
+        collectionName,
+        'record-001'
+      );
+
+      await assertFails(getDoc(reference));
+      await assertFails(setDoc(reference, { active: true }));
+    }
+  });
+
   it('nega leitura sem autenticação nos dois arquivos financeiros', async () => {
     const db = unauthenticatedDb();
     const checkoutReference = doc(

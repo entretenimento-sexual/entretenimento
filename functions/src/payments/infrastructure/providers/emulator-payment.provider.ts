@@ -25,7 +25,7 @@ import {
   ProviderWebhookInput,
 } from '../../domain/payment-provider.port';
 
-import { VerifiedPaymentEvent } from '../../domain/billing.model';
+import type { VerifiedProviderWebhookEvent } from '../../domain/provider-webhook.model';
 
 import {
   assertEmulatorPaymentRuntime,
@@ -65,7 +65,7 @@ export class EmulatorPaymentProvider extends PaymentProviderPort {
 
   async verifyWebhook(
     _input: ProviderWebhookInput
-  ): Promise<VerifiedPaymentEvent> {
+  ): Promise<VerifiedProviderWebhookEvent> {
     assertEmulatorPaymentRuntime('verify-emulator-webhook');
 
     throw new Error(

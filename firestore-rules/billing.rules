@@ -46,6 +46,28 @@ match /financial_checkout_audit/{auditId} {
   allow read, write: if false;
 }
 
+match /provider_webhook_events/{eventId} {
+  /**
+   * Inbox sanitizado de Webhooks já autenticados. Ainda assim permanece
+   * exclusivamente backend porque participa da autoridade financeira.
+   */
+  allow read, write: if false;
+}
+
+match /platform_subscription_state/{uid} {
+  /**
+   * Ponteiro interno do contrato recorrente atual e estado da renovação.
+   */
+  allow read, write: if false;
+}
+
+match /platform_subscription_checkout_locks/{uid} {
+  /**
+   * Lock interno que evita múltiplos checkouts recorrentes simultâneos.
+   */
+  allow read, write: if false;
+}
+
 match /payment_events/{paymentEventId} {
   /**
    * Eventos recebidos e validados de provedores.
@@ -112,6 +134,30 @@ match /billing_plans/{planId} {
   /**
    * Futuro catálogo persistido e versionado.
    * Enquanto o catálogo é retornado por callable, permanece interno.
+   */
+  allow read, write: if false;
+}
+
+
+match /provider_webhook_events/{eventId} {
+  /**
+   * Inbox autenticado de eventos financeiros. Contém somente envelope
+   * sanitizado, mas permanece integralmente backend-only.
+   */
+  allow read, write: if false;
+}
+
+match /platform_subscription_state/{uid} {
+  /**
+   * Ponteiro interno da recorrência atual do usuário. A UI recebe apenas uma
+   * projeção sanitizada via getMyBillingSnapshot.
+   */
+  allow read, write: if false;
+}
+
+match /platform_subscription_checkout_locks/{uid} {
+  /**
+   * Lock efêmero que impede múltiplas recorrências simultâneas.
    */
   allow read, write: if false;
 }

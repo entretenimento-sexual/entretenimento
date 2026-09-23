@@ -15,6 +15,11 @@ import { pathToFileURL } from 'node:url';
 
 const entryPath = resolve(process.cwd(), 'functions', 'lib', 'index.js');
 const requiredExports = [
+  'reconcileRecurringProviderCancellations',
+  'reconcileProviderWebhookEvents',
+  'processProviderWebhookEventTrigger',
+  'cancelPlatformSubscriptionRenewal',
+  'paymentWebhook',
   'createPrivateRoom',
   'closePrivateRoom',
   'sendRoomInvite',

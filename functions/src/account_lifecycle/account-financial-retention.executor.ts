@@ -3,7 +3,8 @@
 // FINANCIAL RECORDS AND ENTITLEMENTS RETENTION EXECUTOR
 // -----------------------------------------------------------------------------
 // Cancela intenções pendentes, revoga benefícios e preserva registros financeiros
-// liquidados com pseudonimização. Não inventa saldo, saque ou assinatura recorrente.
+// liquidados com pseudonimização. Recorrências externas precisam ser encerradas
+// antes do expurgo para impedir cobranças após a exclusão.
 // -----------------------------------------------------------------------------
 import type {
   AccountDataDeletionDomainExecution,
@@ -16,6 +17,7 @@ export interface FinancialRetentionPageSummary {
   pendingCheckoutsCanceled?: number;
   entitlementsArchived?: number;
   entitlementsRevoked?: number;
+  externalRecurringSubscriptionsCanceled?: number;
 }
 
 export interface AccountFinancialRetentionAdapter {
@@ -25,6 +27,11 @@ export interface AccountFinancialRetentionAdapter {
     limit: number
   ): Promise<FinancialRetentionPageSummary>;
   retainPaymentTransactionsPage(
+    uid: string,
+    field: FinancialPartyField,
+    limit: number
+  ): Promise<FinancialRetentionPageSummary>;
+  retainRecurringSubscriptionsPage(
     uid: string,
     field: FinancialPartyField,
     limit: number
@@ -54,6 +61,7 @@ interface PagedFinancialResult {
   pendingCheckoutsCanceled: number;
   entitlementsArchived: number;
   entitlementsRevoked: number;
+  externalRecurringSubscriptionsCanceled: number;
 }
 
 const PARTY_FIELDS: readonly FinancialPartyField[] = [
@@ -100,6 +108,12 @@ export async function executeFinancialRetentionDomain(
       pageSize,
       maxPages
     );
+    const recurringSubscriptionResults = await executePartySteps(
+      PARTY_FIELDS,
+      (field) => adapter.retainRecurringSubscriptionsPage(uid, field, pageSize),
+      pageSize,
+      maxPages
+    );
     const entitlementResults = await executePartySteps(
       PARTY_FIELDS,
       (field) => adapter.archiveEntitlementsPage(uid, field, pageSize),
@@ -115,6 +129,7 @@ export async function executeFinancialRetentionDomain(
     const allResults = [
       ...checkoutResults.values(),
       ...transactionResults.values(),
+      ...recurringSubscriptionResults.values(),
       ...entitlementResults.values(),
       ...auditResults.values(),
     ];
@@ -148,7 +163,10 @@ export async function executeFinancialRetentionDomain(
         ),
         billingAuditReferencesRetained: sumMap(auditResults, 'processed'),
         paymentEventsRetainedWithoutDirectUid: true,
-        externalRecurringSubscriptionsCanceled: 0,
+        externalRecurringSubscriptionsCanceled: sumMap(
+          recurringSubscriptionResults,
+          'externalRecurringSubscriptionsCanceled'
+        ),
         walletLedgerRecordsProcessed: 0,
         payoutAccountsProcessed: 0,
       },
@@ -190,6 +208,7 @@ async function executePagedStep(
     pendingCheckoutsCanceled: 0,
     entitlementsArchived: 0,
     entitlementsRevoked: 0,
+    externalRecurringSubscriptionsCanceled: 0,
   };
 
   for (let page = 1; page <= maxPages; page += 1) {
@@ -198,6 +217,8 @@ async function executePagedStep(
     result.pendingCheckoutsCanceled += summary.pendingCheckoutsCanceled ?? 0;
     result.entitlementsArchived += summary.entitlementsArchived ?? 0;
     result.entitlementsRevoked += summary.entitlementsRevoked ?? 0;
+    result.externalRecurringSubscriptionsCanceled +=
+      summary.externalRecurringSubscriptionsCanceled ?? 0;
     result.pages = page;
 
     if (summary.processed < pageSize) {
@@ -225,6 +246,10 @@ function normalizePageSummary(
     ),
     entitlementsRevoked: normalizeCount(
       value?.entitlementsRevoked,
+      maximum
+    ),
+    externalRecurringSubscriptionsCanceled: normalizeCount(
+      value?.externalRecurringSubscriptionsCanceled,
       maximum
     ),
   };

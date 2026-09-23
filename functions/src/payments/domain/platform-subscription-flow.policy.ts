@@ -73,7 +73,7 @@ export function readPlatformSubscriptionFlowContext(
 
 export function buildPlatformSubscriptionProviderReturnUrl(params: {
   appBaseUrl: string;
-  billing: 'success' | 'cancel';
+  billing: 'success' | 'cancel' | 'failed';
   checkoutSessionId: string;
   flowContext: PlatformSubscriptionFlowContext;
 }): string {

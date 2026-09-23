@@ -47,7 +47,8 @@ export type CheckoutSessionStatus =
   | 'failed'
   | 'canceled'
   | 'refunded'
-  | 'chargeback';
+  | 'chargeback'
+  | 'expired';
 
 export type PaymentTransactionStatus =
   | 'paid'
@@ -56,7 +57,8 @@ export type PaymentTransactionStatus =
 
 export type PaymentVerificationMode =
   | 'emulator'
-  | 'verified_webhook_signature';
+  | 'verified_webhook_signature'
+  | 'verified_webhook_token';
 
 export interface BillingPlan {
   id: string;
@@ -107,6 +109,8 @@ export interface CheckoutSessionDoc {
 
   provider: BillingProviderId;
   providerSessionId?: string | null;
+  providerCustomerId?: string | null;
+  providerSubscriptionId?: string | null;
   checkoutUrl?: string | null;
 
   status: CheckoutSessionStatus;
@@ -129,6 +133,8 @@ export interface VerifiedPaymentEvent {
   provider: BillingProviderId;
   providerEventId: string;
   providerSessionId?: string | null;
+  providerPaymentId?: string | null;
+  providerSubscriptionId?: string | null;
   checkoutSessionId: string;
 
   financialStatus: 'paid' | 'refunded' | 'chargeback';
@@ -156,6 +162,8 @@ export interface PaymentEventDoc {
   provider: BillingProviderId;
   providerEventId: string;
   providerSessionId?: string | null;
+  providerPaymentId?: string | null;
+  providerSubscriptionId?: string | null;
   checkoutSessionId: string;
 
   status: PaymentTransactionStatus;
@@ -184,6 +192,8 @@ export interface PaymentTransactionDoc {
   scope: BillingScope;
   provider: BillingProviderId;
   providerSessionId?: string | null;
+  providerPaymentId?: string | null;
+  providerSubscriptionId?: string | null;
 
   status: PaymentTransactionStatus;
 

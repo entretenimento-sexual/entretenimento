@@ -10,6 +10,17 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
+import { db } from '../../firebaseApp';
+import {
+  assertCallableAppCheck,
+} from '../../shared/security/callable-app-check';
+import type {
+  PlatformRecurringSubscriptionDoc,
+  PlatformRecurringSubscriptionStateDoc,
+} from '../domain/platform-recurring-subscription.model';
+import {
+  PLATFORM_SUBSCRIPTION_STATE_COLLECTION,
+} from './platform-recurring-subscription.service';
 import { PlatformRole } from '../domain/billing.model';
 import {
   PLATFORM_SUBSCRIPTION_PROJECTION_VERSION,
@@ -26,6 +37,10 @@ interface BillingSnapshotResponse {
   endsAt?: number | null;
   updatedAt?: number | null;
   projectionVersion: number;
+  recurringConfigured: boolean;
+  renewalEnabled: boolean;
+  renewalStatus: 'active' | 'cancel_pending' | 'canceled' | 'none';
+  renewalCancellationPending: boolean;
 }
 
 export const getMyBillingSnapshot = onCall<Record<string, never>>(
@@ -40,8 +55,41 @@ export const getMyBillingSnapshot = onCall<Record<string, never>>(
       );
     }
 
-    const platformEntitlement =
-      await reconcilePlatformSubscriptionAccess(uid);
+    assertCallableAppCheck(request.app);
+
+    const [platformEntitlement, recurringStateSnapshot] = await Promise.all([
+      reconcilePlatformSubscriptionAccess(uid),
+      db
+        .collection(PLATFORM_SUBSCRIPTION_STATE_COLLECTION)
+        .doc(uid)
+        .get(),
+    ]);
+    const recurringState = recurringStateSnapshot.exists
+      ? recurringStateSnapshot.data() as PlatformRecurringSubscriptionStateDoc
+      : null;
+    const recurringConfigured = !!recurringState?.currentContractId;
+    const renewalEnabled = recurringState?.renewalEnabled === true;
+    const recurringContractSnapshot = recurringState?.currentContractId
+      ? await db
+        .collection('subscriptions')
+        .doc(recurringState.currentContractId)
+        .get()
+      : null;
+    const recurringContract =
+      recurringContractSnapshot?.exists
+        ? recurringContractSnapshot.data() as PlatformRecurringSubscriptionDoc
+        : null;
+    const renewalCancellationPending =
+      recurringContract?.needsProviderCancellation === true;
+    const renewalStatus:
+      'active' | 'cancel_pending' | 'canceled' | 'none' =
+      renewalEnabled
+        ? 'active'
+        : renewalCancellationPending
+          ? 'cancel_pending'
+          : recurringConfigured
+            ? 'canceled'
+            : 'none';
 
     if (!platformEntitlement.active || !platformEntitlement.role) {
       return {
@@ -54,6 +102,10 @@ export const getMyBillingSnapshot = onCall<Record<string, never>>(
         endsAt: platformEntitlement.endsAt,
         updatedAt: platformEntitlement.updatedAt,
         projectionVersion: PLATFORM_SUBSCRIPTION_PROJECTION_VERSION,
+        recurringConfigured,
+        renewalEnabled,
+        renewalStatus,
+        renewalCancellationPending,
       };
     }
 
@@ -67,6 +119,10 @@ export const getMyBillingSnapshot = onCall<Record<string, never>>(
       endsAt: platformEntitlement.endsAt,
       updatedAt: platformEntitlement.updatedAt,
       projectionVersion: PLATFORM_SUBSCRIPTION_PROJECTION_VERSION,
+      recurringConfigured,
+      renewalEnabled,
+      renewalStatus,
+      renewalCancellationPending,
     };
   }
 );

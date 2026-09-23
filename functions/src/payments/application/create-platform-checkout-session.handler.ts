@@ -52,11 +52,29 @@ import {
 import {
   EmulatorPaymentProvider,
 } from '../infrastructure/providers/emulator-payment.provider';
+import {
+  AsaasPaymentProvider,
+} from '../infrastructure/providers/asaas.provider';
 
 import {
-  assertEmulatorPaymentRuntime,
+  isFunctionsEmulatorRuntime,
   requireSafeEmulatorAppBaseUrl,
 } from '../security/payment-runtime.guard';
+import {
+  ASAAS_API_KEY,
+  assertAsaasRecurringCheckoutEnabled,
+  resolveAsaasRuntimeConfig,
+} from '../config/asaas.config';
+import {
+  assertCallableAppCheck,
+} from '../../shared/security/callable-app-check';
+import {
+  consumeBackendRateLimitQuota,
+} from '../../shared/security/backend-rate-limit.service';
+import {
+  acquirePlatformCheckoutLock,
+  releasePlatformCheckoutLock,
+} from './platform-checkout-lock.service';
 import {
   buildPlatformSubscriptionProviderReturnUrl,
   normalizePlatformSubscriptionFlowContext,
@@ -120,7 +138,10 @@ function assertDisplayedPlanStillCurrent(
 
 export const createPlatformCheckoutSession =
   onCall<CreatePlatformCheckoutSessionRequest>(
-    { region: FUNCTIONS_REGION },
+    {
+      region: FUNCTIONS_REGION,
+      secrets: [ASAAS_API_KEY],
+    },
     async (request) => {
       const buyerUid = request.auth?.uid ?? null;
 
@@ -131,13 +152,21 @@ export const createPlatformCheckoutSession =
         );
       }
 
-      /**
-       * Enquanto não houver gateway real implementado e validado, criação de
-       * checkout só pode ocorrer no Functions Emulator.
-       *
-       * Esta linha deve executar ANTES de qualquer gravação financeira.
-       */
-      assertEmulatorPaymentRuntime('create-platform-checkout-session');
+      assertCallableAppCheck(request.app);
+      assertAsaasRecurringCheckoutEnabled();
+
+      await consumeBackendRateLimitQuota({
+        action: 'billing:create-platform-checkout',
+        subject: buyerUid,
+        config: {
+          burstWindowMs: 10 * 60 * 1_000,
+          burstMax: 5,
+          sustainedWindowMs: 24 * 60 * 60 * 1_000,
+          sustainedMax: 20,
+        },
+        message:
+          'Muitas tentativas de checkout foram iniciadas. Tente novamente mais tarde.',
+      });
 
       /**
        * Plano e valor são resolvidos exclusivamente pelo backend.
@@ -188,11 +217,20 @@ export const createPlatformCheckoutSession =
         returnUrl: request.data?.returnUrl,
       });
 
-      const appBaseUrl = requireSafeEmulatorAppBaseUrl(
-        process.env.APP_BASE_URL
-      );
+      const emulatorRuntime = isFunctionsEmulatorRuntime();
+      const asaasRuntime = resolveAsaasRuntimeConfig();
+      const appBaseUrl = emulatorRuntime
+        ? requireSafeEmulatorAppBaseUrl(process.env.APP_BASE_URL)
+        : asaasRuntime.appBaseUrl;
 
-      const provider = new EmulatorPaymentProvider();
+      const provider = emulatorRuntime
+        ? new EmulatorPaymentProvider()
+        : new AsaasPaymentProvider({
+          runtime: asaasRuntime,
+          apiKey: ASAAS_API_KEY.value(),
+        });
+      const eventSource = emulatorRuntime ? 'emulator' : 'provider';
+      const runtimeLabel = emulatorRuntime ? 'emulator' : asaasRuntime.environment;
       const checkoutRef = db.collection('checkout_sessions').doc();
 
       const checkoutSession: CheckoutSessionDoc = {
@@ -220,7 +258,7 @@ export const createPlatformCheckoutSession =
           {
             status: 'pending',
             at: now,
-            source: 'emulator',
+            source: eventSource,
             eventId: null,
           },
         ],
@@ -229,7 +267,7 @@ export const createPlatformCheckoutSession =
         updatedAt: now,
 
         metadata: {
-          runtime: 'emulator',
+          runtime: runtimeLabel,
           catalogVersion: planSnapshot.catalogVersion,
           planChangeKind: planChangePolicy.kind,
           priceTreatment: planChangePolicy.priceTreatment,
@@ -241,10 +279,23 @@ export const createPlatformCheckoutSession =
       };
 
       /**
+       * O lock impede múltiplas recorrências em criação simultânea para o
+       * mesmo usuário e torna a conciliação por customer determinística.
+       */
+      await acquirePlatformCheckoutLock({
+        buyerUid,
+        checkoutSessionId: checkoutRef.id,
+        expiresAt: initialExpiresAt,
+        now,
+      });
+
+      /**
        * A sessão interna nasce antes da integração com provider para termos
        * checkoutSessionId canônico e auditável desde o primeiro momento.
        */
       await checkoutRef.set(checkoutSession);
+
+      let createdProviderSessionId: string | null = null;
 
       try {
         const checkout = await provider.createCheckoutSession({
@@ -274,8 +325,15 @@ export const createPlatformCheckoutSession =
             flowContext,
           }),
 
+          expiredUrl: buildPlatformSubscriptionProviderReturnUrl({
+            appBaseUrl,
+            billing: 'failed',
+            checkoutSessionId: checkoutRef.id,
+            flowContext,
+          }),
+
           metadata: {
-            runtime: 'emulator',
+            runtime: runtimeLabel,
             catalogVersion: planSnapshot.catalogVersion,
             planChangeKind: planChangePolicy.kind,
             priceTreatment: planChangePolicy.priceTreatment,
@@ -285,6 +343,7 @@ export const createPlatformCheckoutSession =
           },
         });
 
+        createdProviderSessionId = checkout.providerSessionId;
         const providerCreatedAt = Date.now();
         const effectiveExpiresAt = resolvePlatformCheckoutPriceLockExpiresAt({
           createdAt: now,
@@ -303,7 +362,7 @@ export const createPlatformCheckoutSession =
               {
                 status: 'provider_created',
                 at: providerCreatedAt,
-                source: 'emulator',
+                source: eventSource,
                 eventId: null,
               },
             ],
@@ -322,6 +381,17 @@ export const createPlatformCheckoutSession =
       } catch (error: unknown) {
         const failedAt = Date.now();
 
+        await releasePlatformCheckoutLock({
+          buyerUid,
+          checkoutSessionId: checkoutRef.id,
+        }).catch(() => false);
+
+        if (createdProviderSessionId) {
+          await provider
+            .cancelCheckoutSession(createdProviderSessionId)
+            .catch(() => undefined);
+        }
+
         await checkoutRef.set(
           {
             status: 'failed',
@@ -330,7 +400,7 @@ export const createPlatformCheckoutSession =
               {
                 status: 'failed',
                 at: failedAt,
-                source: 'emulator',
+                source: eventSource,
                 eventId: null,
               },
             ],

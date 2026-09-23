@@ -33,6 +33,7 @@ import {
 } from '../../domain/models/billing-plan.model';
 import {
   BillingSnapshotResult,
+  CancelPlatformSubscriptionRenewalResult,
   ProcessBillingReturnInput,
   ProcessBillingReturnResult,
 } from '../../domain/models/billing-return.model';
@@ -118,6 +119,11 @@ export class BillingRepository {
     BillingSnapshotResult | null
   >(this.functions, 'getMyBillingSnapshot');
 
+  private readonly cancelPlatformSubscriptionRenewalCallable = httpsCallable<
+    Record<string, never>,
+    CancelPlatformSubscriptionRenewalResult
+  >(this.functions, 'cancelPlatformSubscriptionRenewal');
+
   /**
    * Consulta a trilha sanitizada da própria assinatura.
    *
@@ -202,6 +208,16 @@ export class BillingRepository {
       this.getMyBillingSnapshotCallable({})
     ).pipe(
       map((result) => result.data ?? null)
+    );
+  }
+
+
+  cancelPlatformSubscriptionRenewal$():
+    Observable<CancelPlatformSubscriptionRenewalResult> {
+    return from(
+      this.cancelPlatformSubscriptionRenewalCallable({})
+    ).pipe(
+      map((result) => result.data)
     );
   }
 

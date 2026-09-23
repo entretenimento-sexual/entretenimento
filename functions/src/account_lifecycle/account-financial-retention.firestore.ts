@@ -9,6 +9,19 @@ import { createHash } from 'node:crypto';
 
 import { db, FieldValue } from '../firebaseApp';
 import type {
+  PlatformRecurringSubscriptionDoc,
+} from '../payments/domain/platform-recurring-subscription.model';
+import type {
+  AsaasPaymentProvider,
+} from '../payments/infrastructure/providers/asaas.provider';
+import {
+  PLATFORM_SUBSCRIPTION_STATE_COLLECTION,
+} from '../payments/application/platform-recurring-subscription.service';
+import {
+  cancelRecurringContractAtProvider,
+  requestRecurringContractCancellation,
+} from '../payments/application/recurring-provider-cancellation.service';
+import type {
   AccountFinancialRetentionAdapter,
   FinancialPartyField,
   FinancialRetentionPageSummary,
@@ -68,6 +81,10 @@ const CANCELLABLE_CHECKOUT_STATUSES = new Set([
 export class FirestoreAccountFinancialRetentionAdapter
 implements AccountFinancialRetentionAdapter
 {
+  constructor(
+    private readonly recurringProvider?: AsaasPaymentProvider
+  ) {}
+
   async retainCheckoutSessionsPage(
     uid: string,
     field: FinancialPartyField,
@@ -142,6 +159,98 @@ implements AccountFinancialRetentionAdapter
     );
 
     return { processed: snapshot.size };
+  }
+
+  async retainRecurringSubscriptionsPage(
+    uid: string,
+    field: FinancialPartyField,
+    limit: number
+  ): Promise<FinancialRetentionPageSummary> {
+    if (field === 'sellerUid') {
+      return {
+        processed: 0,
+        externalRecurringSubscriptionsCanceled: 0,
+      };
+    }
+
+    const safeUid = requireUid(uid);
+    const snapshot = await db
+      .collection('subscriptions')
+      .where('buyerUid', '==', safeUid)
+      .limit(normalizeLimit(limit))
+      .get();
+    let externalRecurringSubscriptionsCanceled = 0;
+
+    for (const document of snapshot.docs) {
+      assertTopLevelDocumentPath(document.ref.path, 'subscriptions');
+      const contract =
+        document.data() as PlatformRecurringSubscriptionDoc;
+
+      if (normalizeId(contract.buyerUid) !== safeUid) {
+        throw new Error('inconsistent-recurring-subscription-owner');
+      }
+
+      const needsExternalStop =
+        contract.renewalEnabled === true ||
+        contract.needsProviderCancellation === true;
+
+      if (needsExternalStop) {
+        if (contract.provider !== 'asaas' || !this.recurringProvider) {
+          throw Object.assign(
+            new Error(
+              'Recorrência externa precisa ser cancelada antes da exclusão.'
+            ),
+            {
+              code:
+                'billing/recurring-provider-cancellation-required',
+            }
+          );
+        }
+
+        await requestRecurringContractCancellation({
+          contractId: document.id,
+          reason: 'account-deletion',
+        });
+        await cancelRecurringContractAtProvider({
+          contractId: document.id,
+          provider: this.recurringProvider,
+          reason: 'account-deletion',
+        });
+        externalRecurringSubscriptionsCanceled += 1;
+      }
+
+      await document.ref.set(
+        {
+          buyerUid: deletedUserReference(safeUid),
+          buyerIdentityState:
+            'pseudonymized_after_account_deletion',
+          renewalEnabled: false,
+          isCurrent: false,
+          needsProviderCancellation: false,
+          providerCancellationNextAttemptAt: null,
+          financialRetentionCategory:
+            'recurring-subscription-audit',
+          financialRetentionPolicyVersion:
+            FINANCIAL_RETENTION_POLICY_VERSION,
+          identityUpdatedAt: FieldValue.serverTimestamp(),
+          updatedAt: Date.now(),
+        },
+        { merge: true }
+      );
+    }
+
+    if (snapshot.size < normalizeLimit(limit)) {
+      await db
+        .collection(PLATFORM_SUBSCRIPTION_STATE_COLLECTION)
+        .doc(safeUid)
+        .delete()
+        .catch(() => undefined);
+    }
+
+    return {
+      processed: snapshot.size,
+      externalRecurringSubscriptionsCanceled,
+    };
   }
 
   async archiveEntitlementsPage(
