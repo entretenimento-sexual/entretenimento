@@ -86,6 +86,10 @@ export class BillingRepository {
     {
       planId: string;
       planKey: string;
+      expectedAmountCents: number;
+      expectedCurrency: string;
+      expectedInterval: string;
+      expectedCatalogVersion?: number;
       minimumRole?: PlatformPlanKey;
       returnUrl?: string;
     },
@@ -150,12 +154,23 @@ export class BillingRepository {
     const request: {
       planId: string;
       planKey: string;
+      expectedAmountCents: number;
+      expectedCurrency: string;
+      expectedInterval: string;
+      expectedCatalogVersion?: number;
       minimumRole?: PlatformPlanKey;
       returnUrl?: string;
     } = {
       planId: plan.id,
       planKey: String(plan.key),
+      expectedAmountCents: plan.amountCents,
+      expectedCurrency: plan.currency,
+      expectedInterval: plan.interval,
     };
+
+    if (typeof plan.catalogVersion === 'number') {
+      request.expectedCatalogVersion = plan.catalogVersion;
+    }
 
     if (flowContext.minimumRole) {
       request.minimumRole = flowContext.minimumRole;
