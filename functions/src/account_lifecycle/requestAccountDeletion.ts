@@ -11,6 +11,15 @@ import {
   normalizeOptionalReason,
 } from './_shared';
 import { evaluateAccountDeletionOwnedResources } from './account-deletion-owned-resources.policy';
+import { ASAAS_API_KEY, resolveAsaasRuntimeConfig } from '../payments/config/asaas.config';
+import { AsaasPaymentProvider } from '../payments/infrastructure/providers/asaas.provider';
+import {
+  PLATFORM_SUBSCRIPTION_STATE_COLLECTION,
+} from '../payments/application/platform-recurring-subscription.service';
+import {
+  cancelRecurringContractAtProvider,
+  requestRecurringContractCancellation,
+} from '../payments/application/recurring-provider-cancellation.service';
 
 interface RequestAccountDeletionRequest {
   reason?: string | null;
@@ -64,7 +73,7 @@ function countOwnedCommunityMemberships(
 }
 
 export const requestAccountDeletion = onCall<RequestAccountDeletionRequest>(
-  { region: ACCOUNT_LIFECYCLE_REGION },
+  { region: ACCOUNT_LIFECYCLE_REGION, secrets: [ASAAS_API_KEY] },
   async (request): Promise<AccountLifecycleCommandResult> => {
     const uid = request.auth?.uid ?? null;
 
@@ -255,6 +264,41 @@ export const requestAccountDeletion = onCall<RequestAccountDeletionRequest>(
         };
       }
     );
+
+    try {
+      const recurringStateSnapshot = await db
+        .collection(PLATFORM_SUBSCRIPTION_STATE_COLLECTION)
+        .doc(uid)
+        .get();
+      const currentContractId = String(
+        recurringStateSnapshot.data()?.['currentContractId'] ?? ''
+      ).trim();
+
+      if (currentContractId) {
+        const requestedCancellation =
+          await requestRecurringContractCancellation({
+            contractId: currentContractId,
+            reason: 'account-deletion-request',
+          });
+
+        if (requestedCancellation) {
+          const provider = new AsaasPaymentProvider({
+            runtime: resolveAsaasRuntimeConfig(),
+            apiKey: ASAAS_API_KEY.value(),
+          });
+
+          await cancelRecurringContractAtProvider({
+            contractId: currentContractId,
+            provider,
+            reason: 'account-deletion-request',
+          }).catch(() => undefined);
+        }
+      }
+    } catch {
+      // Exclusão da conta não depende da disponibilidade do provider.
+      // A solicitação de cancelamento, quando persistida, será retomada pelo
+      // reconciliador recorrente.
+    }
 
     return {
       ok: true,
