@@ -337,6 +337,12 @@ if (fs.existsSync(initialAgeRequestPath)) {
       'functions/src/compliance/request-initial-age-verification-review.handler.ts (input do cliente não pode promover diretamente VERIFIED_ADULT)'
     );
   }
+
+  if (source.includes('email_verified')) {
+    violations.push(
+      'functions/src/compliance/request-initial-age-verification-review.handler.ts (verificação etária não deve exigir e-mail verificado)'
+    );
+  }
 }
 
 
@@ -416,12 +422,20 @@ if (fs.existsSync(adultConsentPath)) {
     'age_eligibility_records',
     'evaluateCanonicalAgeEligibility',
     'ageDecision.allowed',
+    'enforceAppCheck',
+    'consumeBackendRateLimitQuota',
   ]) {
     if (!source.includes(required)) {
       violations.push(
         `functions/src/compliance/adult-consent.handler.ts (consentimento adulto deve permanecer posterior à prova etária: ${required})`
       );
     }
+  }
+
+  if (source.includes('email_verified')) {
+    violations.push(
+      'functions/src/compliance/adult-consent.handler.ts (consentimento adulto não deve exigir e-mail verificado)'
+    );
   }
 }
 
