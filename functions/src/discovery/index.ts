@@ -27,3 +27,5 @@ export {
   initializePublicAgeEligibilityProjection,
   syncPublicAgeEligibilityProjection,
 } from './public-age-eligibility-projection.handler';
+
+export { getPublicProfilesPage } from './get-public-profiles-page.handler';
