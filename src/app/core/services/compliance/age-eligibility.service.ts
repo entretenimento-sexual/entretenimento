@@ -175,7 +175,10 @@ export class AgeEligibilityService {
 
   requestInitialReview$(): Observable<{
     reportId: string | null;
-    status: 'VERIFIED_ADULT' | 'REVIEW_REQUIRED';
+    status:
+      | 'SELF_DECLARED_ADULT'
+      | 'VERIFIED_ADULT'
+      | 'REVIEW_REQUIRED';
   }> {
     const callable = runInInjectionContext(
       this.environmentInjector,
@@ -183,7 +186,10 @@ export class AgeEligibilityService {
         Record<string, never>,
         {
           reportId: string | null;
-          status: 'VERIFIED_ADULT' | 'REVIEW_REQUIRED';
+          status:
+            | 'SELF_DECLARED_ADULT'
+            | 'VERIFIED_ADULT'
+            | 'REVIEW_REQUIRED';
         }
       >(
         inject(Functions),
