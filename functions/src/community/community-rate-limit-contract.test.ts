@@ -50,6 +50,9 @@ const READ_ONLY_CALLABLES = new Set([
   'getCommunityPreview',
   'inspectCommunityPurgeReadiness',
   'inspectCommunityRankingReadiness',
+  'getMyCommunityOwnershipTransfers',
+  'getCommunityOwnerSuccessionCases',
+  'getCommunityOwnerSuccessionCandidatesPage',
 ]);
 
 const EXPECTED_CANONICAL_ACTION_BY_CALLABLE: Readonly<Record<
@@ -83,6 +86,12 @@ const EXPECTED_CANONICAL_ACTION_BY_CALLABLE: Readonly<Record<
   updateCommunityMembershipProfileVisibility: 'settings_update',
   updateCommunityNotificationPreference: 'notification_preference_update',
   transferCommunityOwnership: 'ownership_mutation',
+  requestCommunityOwnershipTransfer: 'ownership_mutation',
+  respondCommunityOwnershipTransfer: 'ownership_mutation',
+  cancelCommunityOwnershipTransfer: 'ownership_mutation',
+  openCommunityOwnerTerminalSuccessionCase: 'ownership_mutation',
+  nominateCommunityOwnerTerminalSuccessor: 'ownership_mutation',
+  cancelCommunityOwnerTerminalSuccession: 'ownership_mutation',
   archiveCommunity: 'ownership_mutation',
   moderateCommunityFeedPost: 'content_moderation',
   moderateCommunityFeedComment: 'content_moderation',
