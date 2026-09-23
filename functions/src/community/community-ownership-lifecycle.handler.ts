@@ -15,9 +15,6 @@ import {
   stopOpenCommunityBoostForCommunityInTransaction,
 } from '../community-boost/community-boost-authority.service';
 import { FUNCTIONS_REGION } from '../config/functions-region';
-import {
-  evaluatePlatformSubscriptionEntitlement,
-} from '../payments/application/platform-subscription-entitlement.service';
 import { buildCommunityOperationalRequestRetention } from './community-operational-retention.policy';
 import { db, FieldValue } from '../firebaseApp';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
@@ -25,13 +22,6 @@ import {
   REQUIRE_COMMUNITY_APP_CHECK,
   assertCommunityCallableAppCheck,
 } from './community-callable-security';
-import {
-  MAX_PERSONAL_COMMUNITIES_PER_OWNER,
-  isCommunityMemberLimitAllowed,
-  resolveCommunityCapacitySponsorRole,
-  resolveCommunityConfiguredMemberLimit,
-  resolvePersonalCommunityCreationPolicy,
-} from './community-capacity.policy';
 import { hasCommunityLifecycleHold } from './community-lifecycle.policy';
 import { resolveCommunityMemberCountDelta } from './community-member-count.policy';
 import {
@@ -46,18 +36,12 @@ import {
   CommunityOwnershipStatus,
   evaluateCommunityArchive,
   evaluateCommunityOwnershipIdempotencyReplay,
-  evaluateCommunityOwnershipTransfer,
 } from './community-ownership-lifecycle.policy';
 import { normalizeCommunityId } from './community-preview.model';
 import { consumeCommunityRateLimit } from './community-rate-limit.service';
 
 interface CommunityIdPayload {
   communityId?: unknown;
-}
-
-interface CommunityOwnershipTransferPayload extends CommunityIdPayload {
-  targetUid?: unknown;
-  requestId?: unknown;
 }
 
 interface CommunityArchivePayload extends CommunityIdPayload {
@@ -74,14 +58,6 @@ interface CommunityOwnershipCandidate {
 
 interface CommunityOwnershipCandidatesResponse {
   items: CommunityOwnershipCandidate[];
-  generatedAt: number;
-}
-
-interface CommunityOwnershipTransferResponse {
-  communityId: string;
-  status: 'transferred';
-  previousOwnerUid: string;
-  newOwnerUid: string;
   generatedAt: number;
 }
 
@@ -274,85 +250,6 @@ function isTargetAccountEligible(
   } catch {
     return false;
   }
-}
-
-function throwTransferDecisionError(reason: string | null): never {
-  if (reason === 'community_source_not_supported') {
-    throw new HttpsError(
-      'failed-precondition',
-      'A propriedade de um Local segue um fluxo operacional próprio.'
-    );
-  }
-
-  if (reason === 'owner_required') {
-    throw new HttpsError(
-      'permission-denied',
-      'Apenas o proprietário pode transferir esta Comunidade.'
-    );
-  }
-
-  if (reason === 'ownership_inconsistent') {
-    throw new HttpsError(
-      'data-loss',
-      'A propriedade da Comunidade está inconsistente e exige revisão.'
-    );
-  }
-
-  if (reason === 'self_transfer_forbidden') {
-    throw new HttpsError(
-      'invalid-argument',
-      'Selecione outro membro para receber a propriedade.'
-    );
-  }
-
-  if (reason === 'target_membership_ineligible') {
-    throw new HttpsError(
-      'failed-precondition',
-      'O membro selecionado não possui vínculo ativo elegível.'
-    );
-  }
-
-  if (reason === 'target_account_ineligible') {
-    throw new HttpsError(
-      'failed-precondition',
-      'A conta selecionada não pode assumir a propriedade agora.'
-    );
-  }
-
-  if (reason === 'target_ownership_entitlement_ineligible') {
-    throw new HttpsError(
-      'failed-precondition',
-      'O plano do membro selecionado não permite assumir nova propriedade.',
-      {
-        reason: 'community_ownership_subscription_required',
-        recommendedAction: 'upgrade_subscription',
-      }
-    );
-  }
-
-  if (reason === 'target_ownership_quota_reached') {
-    throw new HttpsError(
-      'resource-exhausted',
-      'O membro selecionado já atingiu a quantidade de Comunidades próprias.',
-      { reason: 'community_ownership_limit_reached' }
-    );
-  }
-
-  if (reason === 'target_ownership_capacity_ineligible') {
-    throw new HttpsError(
-      'failed-precondition',
-      'O plano do membro selecionado não suporta a capacidade desta Comunidade.',
-      {
-        reason: 'community_ownership_capacity_upgrade_required',
-        recommendedAction: 'upgrade_subscription',
-      }
-    );
-  }
-
-  throw new HttpsError(
-    'failed-precondition',
-    'Esta Comunidade não pode transferir a propriedade agora.'
-  );
 }
 
 function throwArchiveDecisionError(reason: string | null): never {
