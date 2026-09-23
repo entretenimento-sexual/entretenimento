@@ -72,6 +72,23 @@ export function requireCloudAppBaseUrl(rawValue: unknown): string {
   return url.origin;
 }
 
+
+export function assertAsaasRecurringCheckoutEnabled(): void {
+  if (isFunctionsEmulatorRuntime()) return;
+
+  if (String(process.env.ASAAS_RECURRING_ENABLED ?? '').trim() === 'true') {
+    return;
+  }
+
+  throw new HttpsError(
+    'failed-precondition',
+    'A contratação recorrente real ainda não foi habilitada operacionalmente.',
+    {
+      reason: 'recurring_billing_not_enabled',
+    }
+  );
+}
+
 export function resolveAsaasRuntimeConfig(): AsaasRuntimeConfig {
   if (isFunctionsEmulatorRuntime()) {
     return {
