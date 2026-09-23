@@ -1753,6 +1753,29 @@ export const openCommunityOwnerTerminalSuccessionCase =
           );
         }
 
+        if (trigger === 'owner_terminally_unavailable') {
+          const previousOwnerUserSnapshot = await transaction.get(
+            db.collection('users').doc(previousOwnerUid)
+          );
+          const previousOwnerAccountStatus = String(
+            previousOwnerUserSnapshot.data()?.['accountStatus'] ?? ''
+          ).trim();
+
+          if (
+            !previousOwnerUserSnapshot.exists
+            || previousOwnerAccountStatus !== 'deleted'
+          ) {
+            throw new HttpsError(
+              'failed-precondition',
+              'A conta do proprietário ainda não está em estado terminal.',
+              {
+                reason:
+                  'community_ownership_succession_owner_not_terminal',
+              }
+            );
+          }
+        }
+
         if (caseSnapshot.exists) {
           const existing = caseSnapshot.data() ?? {};
           const existingDeadlineAt = normalizeEpoch(existing['deadlineAt']);
