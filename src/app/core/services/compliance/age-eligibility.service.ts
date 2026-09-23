@@ -66,6 +66,21 @@ export class AgeEligibilityService {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
+  /**
+   * Gate operacional atual da experiência adulta.
+   *
+   * DECLARED_ADULT é suficiente enquanto a política transitória aceita
+   * autodeclaração. VERIFIED_ADULT continua reservado para prova forte.
+   */
+  readonly adultAccessAllowed$: Observable<boolean> = this.current$.pipe(
+    switchMap((state) => this.observeAdultAccessWindow$(state)),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  /**
+   * Sinal estrito de prova forte. Não usar como sinônimo de acesso social.
+   */
   readonly verifiedAdult$: Observable<boolean> = this.current$.pipe(
     switchMap((state) => this.observeVerifiedWindow$(state)),
     distinctUntilChanged(),
@@ -121,6 +136,61 @@ export class AgeEligibilityService {
   }
 
 
+  submitSelfAttestation$(): Observable<{
+    status: 'DECLARED_ADULT' | 'VERIFIED_ADULT';
+    assuranceLevel: 'SELF_ATTESTED' | 'VERIFIED';
+  }> {
+    const callable = runInInjectionContext(
+      this.environmentInjector,
+      () => httpsCallable<
+        {
+          declaredAdult: true;
+          attestationVersion: 1;
+        },
+        {
+          status: 'DECLARED_ADULT' | 'VERIFIED_ADULT';
+          assuranceLevel: 'SELF_ATTESTED' | 'VERIFIED';
+        }
+      >(
+        inject(Functions),
+        'submitAdultSelfAttestation'
+      )
+    );
+
+    return from(
+      callable({
+        declaredAdult: true,
+        attestationVersion: 1,
+      })
+    ).pipe(
+      map((response) => response.data),
+      catchError((error) => {
+        try {
+          this.globalError.handleError(
+            Object.assign(
+              toErrorInstance(
+                error,
+                '[AgeEligibilityService.submitSelfAttestation] falhou.'
+              ),
+              {
+                feature: 'age-eligibility',
+                operation: 'submitSelfAttestation',
+                context: {
+                  scope: 'AgeEligibilityService',
+                },
+                original: error,
+              }
+            )
+          );
+        } catch {
+          // Diagnóstico não altera a fronteira etária.
+        }
+
+        return throwError(() => error);
+      })
+    );
+  }
+
   requestInitialReview$(): Observable<{
     reportId: string | null;
     status: 'VERIFIED_ADULT' | 'REVIEW_REQUIRED';
@@ -166,6 +236,22 @@ export class AgeEligibilityService {
         return throwError(() => error);
       })
     );
+  }
+
+  private observeAdultAccessWindow$(
+    state: IUserAgeEligibility
+  ): Observable<boolean> {
+    if (
+      state.status === 'DECLARED_ADULT' &&
+      state.policyVersion === 1 &&
+      state.source === 'SELF_ATTESTATION' &&
+      state.method === 'SELF_ATTESTATION' &&
+      state.assuranceLevel === 'SELF_ATTESTED'
+    ) {
+      return of(true);
+    }
+
+    return this.observeVerifiedWindow$(state);
   }
 
   private observeVerifiedWindow$(
@@ -237,18 +323,21 @@ export class AgeEligibilityService {
     if (
       ![
         'UNVERIFIED',
+        'DECLARED_ADULT',
         'REVIEW_REQUIRED',
         'VERIFIED_ADULT',
         'DENIED_UNDERAGE',
         'EXPIRED',
       ].includes(status) ||
       ![
+        'SELF_ATTESTATION',
         'INITIAL_VERIFICATION',
         'AGE_REVERIFICATION',
         'PROFILE_KYC',
         'MIGRATION',
       ].includes(source) ||
       ![
+        'SELF_ATTESTATION',
         'EXTERNAL_PROVIDER',
         'MANUAL_REVIEW',
         'KYC',
@@ -265,6 +354,16 @@ export class AgeEligibilityService {
       policyVersion,
       source,
       method,
+      assuranceLevel:
+        raw.assuranceLevel === 'SELF_ATTESTED' ||
+        raw.assuranceLevel === 'VERIFIED' ||
+        raw.assuranceLevel === 'NONE'
+          ? raw.assuranceLevel
+          : status === 'DECLARED_ADULT' && method === 'SELF_ATTESTATION'
+            ? 'SELF_ATTESTED'
+            : status === 'VERIFIED_ADULT'
+              ? 'VERIFIED'
+              : 'NONE',
       caseId: String(raw.caseId ?? '').trim() || null,
       verifiedAtMs: this.safeTime(raw.verifiedAtMs),
       expiresAtMs: this.safeTime(raw.expiresAtMs),
