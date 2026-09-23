@@ -266,6 +266,7 @@ export class UserIntentStatusService {
           where('moderation.state', '==', 'active'),
           where('visibility', '==', 'public_discovery'),
           where('ageEligibilityVerifiedAdult', '==', true),
+      where('ageEligibilityValidUntil', '>', new Date()),
         ];
 
         if (venueId) {
