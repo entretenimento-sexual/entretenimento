@@ -144,8 +144,8 @@ export const getProfilePublicCommunities = onCall<ProfilePublicCommunitiesReques
       return { items: [], nextCursor: null, generatedAt: nowMs };
     }
 
-    const publicProfile = publicProfileSnapshot.data()
-      as Record<string, unknown>;
+    const publicProfile =
+      publicProfileSnapshot.data() as Record<string, unknown>;
     if (
       !isCurrentPublicProfileForCommunityDisclosure(
         publicProfile,
