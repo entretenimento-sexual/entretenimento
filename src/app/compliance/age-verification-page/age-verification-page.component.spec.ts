@@ -123,6 +123,22 @@ describe('AgeVerificationPageComponent', () => {
     expect(component.processing()).toBe(false);
   });
 
+  it('permite migrar review criado apenas pelo onboarding antigo', () => {
+    current$.next({
+      ...UNVERIFIED,
+      status: 'REVIEW_REQUIRED',
+      source: 'INITIAL_VERIFICATION',
+      method: 'MANUAL_REVIEW',
+      caseId: 'age_initial_old',
+    });
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent as string;
+
+    expect(text).toContain('O fluxo anterior foi substituído');
+    expect(text).toContain('Confirmo que tenho 18 anos ou mais');
+  });
+
   it('não tenta sobrescrever estados fortes na interface', async () => {
     current$.next({
       ...UNVERIFIED,
