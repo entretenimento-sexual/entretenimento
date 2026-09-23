@@ -29,6 +29,9 @@ import {
   resolvePlatformSubscriptionPlanChangePolicy,
 } from './platform-subscription-change.policy';
 import {
+  isPlatformCheckoutPriceLockActive,
+} from './platform-checkout-price-lock.policy';
+import {
   PLATFORM_SUBSCRIPTION_PROJECTION_VERSION,
   buildPlatformSubscriptionUserProjection,
   resolvePublicPlatformRole,
@@ -218,6 +221,22 @@ export async function settleVerifiedPaidEvent(
       throw new HttpsError(
         'already-exists',
         'Este checkout já foi liquidado por outro evento financeiro.'
+      );
+    }
+
+    const paymentOccurredAt =
+      typeof event.occurredAt === 'number' && Number.isFinite(event.occurredAt)
+        ? Math.trunc(event.occurredAt)
+        : event.receivedAt;
+
+    if (!isPlatformCheckoutPriceLockActive(checkout, paymentOccurredAt)) {
+      throw new HttpsError(
+        'failed-precondition',
+        'O preço deste checkout expirou. Crie uma nova sessão com o catálogo vigente.',
+        {
+          reason: 'checkout_price_lock_expired',
+          checkoutSessionId: checkout.id,
+        }
       );
     }
 
