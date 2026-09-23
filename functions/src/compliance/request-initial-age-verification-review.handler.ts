@@ -32,7 +32,7 @@ import {
 
 interface RequestInitialAgeVerificationReviewResponse {
   reportId: string | null;
-  status: 'VERIFIED_ADULT' | 'REVIEW_REQUIRED';
+  status: 'DECLARED_ADULT' | 'VERIFIED_ADULT' | 'REVIEW_REQUIRED';
 }
 
 function initialAgeReportId(uid: string): string {
@@ -118,7 +118,7 @@ export const requestInitialAgeVerificationReview = onCall(
       if (current.allowed) {
         return {
           reportId: null,
-          status: 'VERIFIED_ADULT' as const,
+          status: current.status as 'DECLARED_ADULT' | 'VERIFIED_ADULT',
           notify: false,
         };
       }
