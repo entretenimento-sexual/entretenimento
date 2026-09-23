@@ -62,9 +62,9 @@ export async function ensureCommunityOwnerTerminalSuccessionCasesInTransaction(
     ownedCommunitiesSnapshot.size > MAX_AUTO_TERMINAL_SUCCESSION_COMMUNITIES;
   const communityDocuments = exceedsAutomaticLimit
     ? ownedCommunitiesSnapshot.docs.slice(
-        0,
-        MAX_AUTO_TERMINAL_SUCCESSION_COMMUNITIES
-      )
+      0,
+      MAX_AUTO_TERMINAL_SUCCESSION_COMMUNITIES
+    )
     : ownedCommunitiesSnapshot.docs;
 
   if (exceedsAutomaticLimit) {
