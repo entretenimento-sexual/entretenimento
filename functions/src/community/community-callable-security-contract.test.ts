@@ -60,6 +60,8 @@ const COMMUNITY_CALLABLE_RECENT_AUTH_REQUIREMENTS =
     ['community-ownership-transfer.workflow.handler.ts:openCommunityOwnerTerminalSuccessionCase', 'always'],
     ['community-ownership-transfer.workflow.handler.ts:nominateCommunityOwnerTerminalSuccessor', 'always'],
     ['community-ownership-transfer.workflow.handler.ts:cancelCommunityOwnerTerminalSuccession', 'always'],
+    ['community-owner-succession-admin.handler.ts:getCommunityOwnerSuccessionCases', 'none'],
+    ['community-owner-succession-admin.handler.ts:getCommunityOwnerSuccessionCandidatesPage', 'none'],
     ['community-topic-moderation.handler.ts:moderateCommunityTopic', 'none'],
     ['community-topic-write.handler.ts:createCommunityTopic', 'none'],
     ['community-topic-write.handler.ts:createCommunityTopicReply', 'none'],
