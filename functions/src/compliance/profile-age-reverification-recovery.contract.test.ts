@@ -17,7 +17,7 @@ describe('minor-safety age reverification recovery contract', () => {
     assert.match(source, /requestsAlternativeReview/);
     assert.match(source, /ALTERNATIVE_TRUSTED_REVIEW_REQUEST/);
     assert.match(source, /submittedAfterOperationalTarget/);
-    assert.match(source, /PLATFORM_OPERATIONAL_POLICY/);
+    assert.match(source, /PROFILE_AGE_REVERIFICATION_RESPONSE_WINDOW_BASIS/);
     assert.doesNotMatch(source, /deadline-exceeded/);
   });
 
