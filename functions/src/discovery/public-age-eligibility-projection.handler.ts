@@ -21,7 +21,9 @@ import {
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, Timestamp } from '../firebaseApp';
 
-export const PUBLIC_AGE_ELIGIBILITY_FIELD =
+export const PUBLIC_AGE_ACCESS_FIELD =
+  'ageEligibilityAdultAccessAllowed' as const;
+export const PUBLIC_AGE_VERIFIED_FIELD =
   'ageEligibilityVerifiedAdult' as const;
 export const PUBLIC_AGE_ELIGIBILITY_VALID_UNTIL_FIELD =
   'ageEligibilityValidUntil' as const;
@@ -66,6 +68,7 @@ function statusCanRemainPublic(
 async function setDocumentsEligibility(
   documents: readonly QueryDocumentSnapshot[],
   eligible: boolean,
+  verified: boolean,
   validUntilMs: number
 ): Promise<number> {
   let updated = 0;
@@ -76,13 +79,15 @@ async function setDocumentsEligibility(
 
     for (const document of documents.slice(index, index + WRITE_BATCH_SIZE)) {
       const data = document.data() ?? {};
-      const currentEligible = data[PUBLIC_AGE_ELIGIBILITY_FIELD] === true;
+      const currentEligible = data[PUBLIC_AGE_ACCESS_FIELD] === true;
+      const currentVerified = data[PUBLIC_AGE_VERIFIED_FIELD] === true;
       const currentValidUntilMs = timestampToMillis(
         data[PUBLIC_AGE_ELIGIBILITY_VALID_UNTIL_FIELD]
       );
 
       if (
         currentEligible === eligible &&
+        currentVerified === verified &&
         currentValidUntilMs === validUntilMs
       ) {
         continue;
@@ -91,7 +96,8 @@ async function setDocumentsEligibility(
       batch.set(
         document.ref,
         {
-          [PUBLIC_AGE_ELIGIBILITY_FIELD]: eligible,
+          [PUBLIC_AGE_ACCESS_FIELD]: eligible,
+          [PUBLIC_AGE_VERIFIED_FIELD]: verified,
           [PUBLIC_AGE_ELIGIBILITY_VALID_UNTIL_FIELD]:
             Timestamp.fromMillis(validUntilMs),
         },
@@ -146,11 +152,18 @@ export async function reconcilePublicAgeEligibilityProjection(
     nowMs,
   });
   const eligible = decision.allowed && profileSnapshot.exists;
+  const verified =
+    decision.allowed &&
+    decision.status === 'VERIFIED_ADULT' &&
+    profileSnapshot.exists;
   const validUntilMs = decision.allowed
     ? decision.expiresAtMs ?? PUBLIC_AGE_ELIGIBILITY_MAX_VALID_UNTIL_MS
     : 0;
   const currentProfileEligibility = profileSnapshot.exists
-    ? profileSnapshot.data()?.[PUBLIC_AGE_ELIGIBILITY_FIELD] === true
+    ? profileSnapshot.data()?.[PUBLIC_AGE_ACCESS_FIELD] === true
+    : false;
+  const currentProfileVerified = profileSnapshot.exists
+    ? profileSnapshot.data()?.[PUBLIC_AGE_VERIFIED_FIELD] === true
     : false;
   const currentProfileValidUntilMs = profileSnapshot.exists
     ? timestampToMillis(
@@ -164,11 +177,13 @@ export async function reconcilePublicAgeEligibilityProjection(
   if (
     profileSnapshot.exists &&
     (currentProfileEligibility !== eligible ||
+      currentProfileVerified !== verified ||
       currentProfileValidUntilMs !== validUntilMs)
   ) {
     await profileRef.set(
       {
-        [PUBLIC_AGE_ELIGIBILITY_FIELD]: eligible,
+        [PUBLIC_AGE_ACCESS_FIELD]: eligible,
+        [PUBLIC_AGE_VERIFIED_FIELD]: verified,
         [PUBLIC_AGE_ELIGIBILITY_VALID_UNTIL_FIELD]:
           Timestamp.fromMillis(validUntilMs),
       },
@@ -180,6 +195,7 @@ export async function reconcilePublicAgeEligibilityProjection(
   const shouldSyncChildren =
     options.forceChildren === true ||
     currentProfileEligibility !== eligible ||
+    currentProfileVerified !== verified ||
     currentProfileValidUntilMs !== validUntilMs;
 
   if (shouldSyncChildren) {
@@ -193,6 +209,7 @@ export async function reconcilePublicAgeEligibilityProjection(
     mediaUpdated += await setDocumentsEligibility(
       [...photosSnapshot.docs, ...videosSnapshot.docs],
       eligible,
+      verified,
       validUntilMs
     );
 
@@ -200,6 +217,8 @@ export async function reconcilePublicAgeEligibilityProjection(
       const status = (statusSnapshot.data() ?? {}) as Record<string, unknown>;
       const statusEligibility =
         eligible && statusCanRemainPublic(status, nowMs);
+      const statusVerified =
+        verified && statusEligibility;
 
       const statusValidUntilMs = statusEligibility ? validUntilMs : 0;
       const currentStatusValidUntilMs = timestampToMillis(
@@ -207,12 +226,14 @@ export async function reconcilePublicAgeEligibilityProjection(
       );
 
       if (
-        status[PUBLIC_AGE_ELIGIBILITY_FIELD] !== statusEligibility ||
+        status[PUBLIC_AGE_ACCESS_FIELD] !== statusEligibility ||
+        status[PUBLIC_AGE_VERIFIED_FIELD] !== statusVerified ||
         currentStatusValidUntilMs !== statusValidUntilMs
       ) {
         await statusRef.set(
           {
-            [PUBLIC_AGE_ELIGIBILITY_FIELD]: statusEligibility,
+            [PUBLIC_AGE_ACCESS_FIELD]: statusEligibility,
+            [PUBLIC_AGE_VERIFIED_FIELD]: statusVerified,
             [PUBLIC_AGE_ELIGIBILITY_VALID_UNTIL_FIELD]:
               Timestamp.fromMillis(statusValidUntilMs),
           },
