@@ -20,7 +20,33 @@ describe('community ownership model', () => {
       ],
       nextCursor: 'member-050',
       generatedAt: 1,
-      it('normaliza oferta pendente sem tratá-la como transferência concluída', () => {
+    });
+
+    expect(result?.nextCursor).toBe('member-050');
+    expect(result?.items).toHaveLength(1);
+  });
+
+  it('aceita fim de paginação explícito', () => {
+    const result = normalizeCommunityOwnershipCandidatesResponse({
+      items: [],
+      nextCursor: null,
+      generatedAt: 1,
+    });
+
+    expect(result?.nextCursor).toBeNull();
+  });
+
+  it('falha fechado quando o backend devolve cursor inválido', () => {
+    expect(
+      normalizeCommunityOwnershipCandidatesResponse({
+        items: [],
+        nextCursor: 'cursor inválido',
+        generatedAt: 1,
+      })
+    ).toBeNull();
+  });
+
+  it('normaliza oferta pendente sem tratá-la como transferência concluída', () => {
     const result = normalizeCommunityOwnershipTransferResponse({
       requestId: 'transfer:1',
       communityId: 'community-1',
@@ -64,30 +90,5 @@ describe('community ownership model', () => {
     expect(inbox?.incoming).toHaveLength(1);
     expect(action?.status).toBe('completed');
     expect(action?.newOwnerUid).toBe('member-1');
-  });
-});
-
-    expect(result?.nextCursor).toBe('member-050');
-    expect(result?.items).toHaveLength(1);
-  });
-
-  it('aceita fim de paginação explícito', () => {
-    const result = normalizeCommunityOwnershipCandidatesResponse({
-      items: [],
-      nextCursor: null,
-      generatedAt: 1,
-    });
-
-    expect(result?.nextCursor).toBeNull();
-  });
-
-  it('falha fechado quando o backend devolve cursor inválido', () => {
-    expect(
-      normalizeCommunityOwnershipCandidatesResponse({
-        items: [],
-        nextCursor: 'cursor inválido',
-        generatedAt: 1,
-      })
-    ).toBeNull();
   });
 });
