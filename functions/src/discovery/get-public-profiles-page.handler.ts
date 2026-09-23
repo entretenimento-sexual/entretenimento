@@ -308,7 +308,7 @@ export function isCurrentPublicProfileAgeProjection(
 ): boolean {
   const validUntilMs = timestampToMillis(data['ageEligibilityValidUntil']);
 
-  return data['ageEligibilityVerifiedAdult'] === true
+  return data['ageEligibilityAdultAccessAllowed'] === true
     && validUntilMs !== null
     && validUntilMs > nowMs;
 }
@@ -441,7 +441,7 @@ export function serializePublicProfileForDiscovery(
       finiteNumber(data['profileCompletenessScore']),
     mediaMetricsUpdatedAt:
       timestampToMillis(data['mediaMetricsUpdatedAt']),
-    ageEligibilityVerifiedAdult: true,
+    ageEligibilityAdultAccessAllowed: true,
     ageEligibilityValidUntil: validUntilMs,
   };
 }
@@ -464,7 +464,7 @@ async function getNearbyProfiles(
     nearby.bounds.map((bound) =>
       db
         .collection('public_profiles')
-        .where('ageEligibilityVerifiedAdult', '==', true)
+        .where('ageEligibilityAdultAccessAllowed', '==', true)
         .where('geohash', '>=', bound.start)
         .where('geohash', '<=', bound.end)
         .orderBy('geohash', 'asc')
@@ -679,7 +679,7 @@ export const getPublicProfilesPage = onCall<DiscoveryPageRequest>(
     ) {
       let profilesQuery: FirebaseFirestore.Query = db
         .collection('public_profiles')
-        .where('ageEligibilityVerifiedAdult', '==', true);
+        .where('ageEligibilityAdultAccessAllowed', '==', true);
 
       if (mode === 'compatible') {
         profilesQuery = profilesQuery
