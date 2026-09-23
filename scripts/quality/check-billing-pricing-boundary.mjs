@@ -60,6 +60,7 @@ for (const fragment of [
   'createBillingPlanSnapshot',
   'resolvePlatformCheckoutPriceLockExpiresAt',
   'amountCents: planSnapshot.amountCents',
+  'expiresAt: initialExpiresAt',
   'currency: planSnapshot.currency',
   'catalogVersion: planSnapshot.catalogVersion',
   'assertDisplayedPlanStillCurrent',
@@ -75,6 +76,24 @@ for (const fragment of [
     'checkout must remain bound to canonical snapshot: ' + fragment
   );
 }
+
+const providerPort = read(
+  'functions/src/payments/domain/payment-provider.port.ts'
+);
+requireIncludes(
+  providerPort,
+  'expiresAt: number;',
+  'payment provider must receive checkout expiry'
+);
+
+const emulatorProvider = read(
+  'functions/src/payments/infrastructure/providers/emulator-payment.provider.ts'
+);
+requireIncludes(
+  emulatorProvider,
+  'expiresAt: input.expiresAt',
+  'emulator provider must honor checkout expiry'
+);
 
 const settlement = read(
   'functions/src/payments/application/payment-settlement.service.ts'
