@@ -23,6 +23,7 @@ export interface PublicProfileReadFilters {
   readonly orientation?: string | null;
   readonly municipio?: string | null;
   readonly estado?: string | null;
+  readonly nicknamePrefix?: string | null;
 }
 
 export interface PublicProfileReadRequest {
