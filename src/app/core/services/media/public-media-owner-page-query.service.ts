@@ -1,16 +1,4 @@
 import { Injectable, inject } from '@angular/core';
-import {
-  Firestore,
-  QueryConstraint,
-  collectionGroup,
-  documentId,
-  getDocs,
-  limit,
-  orderBy,
-  query,
-  startAfter,
-  where,
-} from '@angular/fire/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable, of } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
@@ -35,6 +23,7 @@ import { FirestoreContextService } from 'src/app/core/services/data-handling/fir
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PublicPhotoAccessService } from './public-photo-access.service';
+import { PublicMediaReadBoundaryService } from './public-media-read-boundary.service';
 import { PublicVideoAccessService } from './public-video-access.service';
 import { mapPublicVideoProjection } from './public-video-item.mapper';
 
@@ -84,9 +73,9 @@ const SAFE_PUBLIC_MEDIA_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
  */
 @Injectable({ providedIn: 'root' })
 export class PublicMediaOwnerPageQueryService {
-  private readonly firestore = inject(Firestore);
   private readonly functions = inject(Functions);
   private readonly firestoreCtx = inject(FirestoreContextService);
+  private readonly publicMediaRead = inject(PublicMediaReadBoundaryService);
   private readonly photoAccess = inject(PublicPhotoAccessService);
   private readonly videoAccess = inject(PublicVideoAccessService);
   private readonly errorNotification = inject(ErrorNotificationService);
@@ -207,41 +196,52 @@ export class PublicMediaOwnerPageQueryService {
       return of({ documents: [], nextCursor: null, hasMore: false });
     }
 
-    return this.firestoreCtx.deferPromise$(async () => {
-      const collectionName = kind === 'PHOTO' ? 'public_photos' : 'public_videos';
-      const mediaGroup = collectionGroup(this.firestore, collectionName);
-      const constraints: QueryConstraint[] = [
-        where('ownerUid', 'in', ownerUids),
-        where('visibility', '==', 'PUBLIC'),
-        where('moderationStatus', '==', 'APPROVED'),
-        orderBy('publishedAt', 'desc'),
-        orderBy(documentId(), 'desc'),
-      ];
+    if (kind !== 'VIDEO') {
+      return of({ documents: [], nextCursor: null, hasMore: false });
+    }
 
-      if (cursor) {
-        constraints.push(startAfter(cursor.publishedAt, cursor.documentPath));
-      }
+    return this.publicMediaRead.read$({
+      mediaType: 'VIDEO',
+      mode: 'RECENT_BY_OWNERS',
+      ownerUids,
+      limit: pageSize,
+      cursor: cursor
+        ? {
+            documentPath: cursor.documentPath,
+            publishedAt: cursor.publishedAt,
+          }
+        : null,
+    }).pipe(
+      map((response) => {
+        const documents = (response.items ?? []).flatMap((item) => {
+          const source = item as Record<string, unknown>;
+          const id = String(source['id'] ?? '').trim();
+          const path = String(source['documentPath'] ?? '').trim();
 
-      constraints.push(limit(pageSize + 1));
+          return id && path
+            ? [{ id, path, data: source }]
+            : [];
+        });
+        const nextCursor = response.nextCursor
+          ? {
+              kind: 'VIDEO' as const,
+              publishedAt: this.safeNumber(
+                response.nextCursor.publishedAt
+              ),
+              documentPath: String(
+                response.nextCursor.documentPath ?? ''
+              ).trim(),
+            }
+          : null;
 
-      const snapshot = await getDocs(query(mediaGroup, ...constraints));
-      const hasMore = snapshot.docs.length > pageSize;
-      const pageDocuments = snapshot.docs.slice(0, pageSize);
-      const documents = pageDocuments.map((document) => ({
-        id: document.id,
-        path: document.ref.path,
-        data: document.data() as Record<string, unknown>,
-      }));
-      const lastDocument = documents.at(-1) ?? null;
-
-      return {
-        documents,
-        nextCursor: hasMore && lastDocument
-          ? this.buildCursor(kind, lastDocument)
-          : null,
-        hasMore,
-      };
-    });
+        return {
+          documents,
+          nextCursor:
+            nextCursor?.documentPath ? nextCursor : null,
+          hasMore: response.hasMore === true,
+        };
+      })
+    );
   }
 
   private handlePageError$<TItem>(
@@ -285,17 +285,6 @@ export class PublicMediaOwnerPageQueryService {
       failed: true,
       loadedAt: Date.now(),
     });
-  }
-
-  private buildCursor(
-    kind: TPublicMediaOwnerPageKind,
-    document: PublicMediaOwnerRawDocument
-  ): IPublicMediaOwnerCursor {
-    return {
-      kind,
-      publishedAt: this.safeNumber(document.data['publishedAt']),
-      documentPath: document.path,
-    };
   }
 
   private normalizeCursor(
