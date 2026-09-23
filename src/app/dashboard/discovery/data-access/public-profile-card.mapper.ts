@@ -259,7 +259,7 @@ export function mapPublicProfileCard(
       'orientacao',
       'orientacaoSexual',
     ]),
-    age: firstNumber(source, ['age']),
+    // Idade exata não pertence à projeção pública. Mesmo documentos legados\n    // ainda contendo `age`/`idade` não podem reintroduzi-la no card.\n    age: null,
 
     normalizedGender: firstText(source, ['normalizedGender']),
     normalizedOrientation: firstText(source, ['normalizedOrientation']),
