@@ -231,7 +231,7 @@ export function isCurrentPublicMediaExposure(
     data['ageEligibilityValidUntil']
   );
 
-  return data['ageEligibilityVerifiedAdult'] === true
+  return data['ageEligibilityAdultAccessAllowed'] === true
     && validUntilMs !== null
     && validUntilMs > nowMs
     && data['visibility'] === 'PUBLIC'
@@ -450,7 +450,7 @@ export const getPublicMediaDiscovery = onCall<PublicMediaDiscoveryRequest>(
         : db.collectionGroup(collectionId);
 
     mediaQuery = mediaQuery
-      .where('ageEligibilityVerifiedAdult', '==', true)
+      .where('ageEligibilityAdultAccessAllowed', '==', true)
       .where('visibility', '==', 'PUBLIC')
       .where('moderationStatus', '==', 'APPROVED');
 
