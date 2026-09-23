@@ -307,6 +307,25 @@ for (const relativePath of trustedAgeDecisionFiles) {
   }
 }
 
+const publicAgeProjectionPath = path.join(
+  root,
+  'functions/src/discovery/public-age-eligibility-projection.handler.ts'
+);
+if (fs.existsSync(publicAgeProjectionPath)) {
+  const source = fs.readFileSync(publicAgeProjectionPath, 'utf8');
+  for (const required of [
+    "'ageEligibilityAdultAccessAllowed'",
+    "'ageEligibilityVerifiedAdult'",
+    "decision.status === 'VERIFIED_ADULT'",
+  ]) {
+    if (!source.includes(required)) {
+      violations.push(
+        `functions/src/discovery/public-age-eligibility-projection.handler.ts (acesso público e prova forte devem permanecer separados: ${required})`
+      );
+    }
+  }
+}
+
 const adultDeclarationPath = path.join(
   root,
   'functions/src/compliance/declare-adult-age-access.handler.ts'
@@ -663,7 +682,7 @@ for (const relativePath of temporalReadBoundaries) {
 
   const source = fs.readFileSync(absolutePath, 'utf8');
   if (
-    !source.includes('ageEligibilityVerifiedAdult') ||
+    !source.includes('ageEligibilityAdultAccessAllowed') ||
     !source.includes('ageEligibilityValidUntil') ||
     !source.includes('Date.now()')
   ) {
@@ -936,7 +955,7 @@ for (const relativePath of temporalReadBoundaries) {
 
   const source = fs.readFileSync(absolutePath, 'utf8');
   if (
-    !source.includes('ageEligibilityVerifiedAdult') ||
+    !source.includes('ageEligibilityAdultAccessAllowed') ||
     !source.includes('ageEligibilityValidUntil') ||
     !source.includes('Date.now()')
   ) {
