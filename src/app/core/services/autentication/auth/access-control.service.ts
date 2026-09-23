@@ -526,11 +526,10 @@ export class AccessControlService {
   );
 
   /**
-   * Elegibilidade social adulta no cliente.
+   * Gate canônico de UX/runtime para a experiência social adulta.
    *
-   * Esta é uma fronteira de UX/runtime, não uma nova autoridade:
-   * Functions e Firestore Rules continuam validando as fontes backend-only.
-   * O objetivo aqui é não iniciar listeners/writes que o backend já recusaria.
+   * Não substitui Functions nem Firestore Rules. Ele apenas evita iniciar
+   * listeners e writes que a autoridade backend já recusaria.
    */
   readonly canUseAdultSocial$: Observable<boolean> = combineLatest([
     this.isAuthenticated$,
@@ -575,10 +574,6 @@ export class AccessControlService {
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true }),
     catchError(this.handleStreamError('canUseAdultSocial
-   *
-   * Não exige profileCompleted nem emailVerified.
-   * Serve para infraestrutura neutra.
-   */
   readonly canRunInfraRealtime$: Observable<boolean> = combineLatest([
     this.canRunApp$,
     this.ready$,
@@ -598,8 +593,8 @@ export class AccessControlService {
 
   /**
    * Presença é social, embora tecnicamente seja infraestrutura de sessão.
-   * Ela não deve gerar writes enquanto a conta ainda não pode usar a
-   * experiência adulta. A liberação ocorre reativamente, sem reload.
+   * Não gera writes enquanto a conta ainda não pode usar a experiência adulta.
+   * A liberação ocorre reativamente, sem login ou reload adicionais.
    */
   readonly canRunPresence$: Observable<boolean> = combineLatest([
     this.canRunInfraRealtime$,
