@@ -129,6 +129,45 @@ function normalizePageLimit(value: unknown): number {
     : DEFAULT_PAGE_LIMIT;
 }
 
+
+function timestampToMillis(value: unknown): number | null {
+  if (
+    value &&
+    typeof value === 'object' &&
+    typeof (value as { toMillis?: unknown }).toMillis === 'function'
+  ) {
+    try {
+      const millis = (value as { toMillis: () => number }).toMillis();
+      return Number.isFinite(millis) ? millis : null;
+    } catch {
+      return null;
+    }
+  }
+
+  if (value instanceof Date) {
+    const millis = value.getTime();
+    return Number.isFinite(millis) ? millis : null;
+  }
+
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+}
+
+export function isCurrentCommunityMemberPublicProfile(
+  profile: Record<string, unknown> | null | undefined,
+  nowMs: number
+): boolean {
+  if (!profile || profile['ageEligibilityVerifiedAdult'] !== true) {
+    return false;
+  }
+
+  const validUntilMs = timestampToMillis(
+    profile['ageEligibilityValidUntil']
+  );
+
+  return validUntilMs !== null && validUntilMs > nowMs;
+}
+
 async function resolveCursorMemberId(
   communityId: string,
   cursorProfileId: string | null
@@ -217,6 +256,7 @@ export const getCommunityMemberRosterPage =
         );
       }
 
+      const nowMs = Date.now();
       const cursorMemberId = await resolveCursorMemberId(
         communityId,
         cursorProfileId
@@ -245,10 +285,18 @@ export const getCommunityMemberRosterPage =
         )
         : [];
       const profilesByUid = new Map(
-        profileSnapshots.map((snapshot) => [
-          snapshot.id,
-          snapshot.exists ? snapshot.data() ?? {} : null,
-        ])
+        profileSnapshots.map((snapshot) => {
+          const profile = snapshot.exists
+            ? snapshot.data() ?? {}
+            : null;
+
+          return [
+            snapshot.id,
+            isCurrentCommunityMemberPublicProfile(profile, nowMs)
+              ? profile
+              : null,
+          ] as const;
+        })
       );
 
       const items: CommunityMemberRosterItem[] = [];
@@ -301,7 +349,7 @@ export const getCommunityMemberRosterPage =
         memberCount:
           context.capacity?.memberCount
           ?? context.community.metrics.memberCount,
-        generatedAt: Date.now(),
+        generatedAt: nowMs,
       };
     }
   );
