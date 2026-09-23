@@ -11,6 +11,9 @@ import {
   safeRecordModerationReviewSignal,
 } from '../moderation/moderation-automation.service';
 import {
+  safeRecordModerationReporterOutcome,
+} from '../moderation/moderation-reporter-abuse.service';
+import {
   safeNotifyAgeReverificationOutcome,
 } from '../moderation/moderation-safety-notification.service';
 import {
@@ -50,6 +53,17 @@ interface AgeReverificationCaseDocument {
   nicknameIndexBackup?: Record<string, unknown> | null;
   nicknameIndexDocId?: string | null;
 }
+
+interface AgeReverificationSuspensionRecord {
+  active?: unknown;
+  caseId?: unknown;
+  reportId?: unknown;
+}
+
+type ReviewAgeReverificationUserDocument = AgeReverificationUserDocument & {
+  ageReverificationSuspension?: AgeReverificationSuspensionRecord | null;
+  suspensionReasonCode?: unknown;
+};
 
 function cleanIndexDocumentId(value: unknown): string {
   const normalized = String(value ?? '').trim();
@@ -107,7 +121,7 @@ export const reviewProfileAgeReverification = onCall<
       ? 'VERIFIED'
       : 'REJECTED';
 
-    const targetUid = await db.runTransaction(async (transaction) => {
+    const result = await db.runTransaction(async (transaction) => {
       const reportSnapshot = await transaction.get(reportRef);
 
       if (!reportSnapshot.exists) {
@@ -142,7 +156,7 @@ export const reviewProfileAgeReverification = onCall<
         );
       }
 
-      const user = userSnapshot.data() as AgeReverificationUserDocument;
+      const user = userSnapshot.data() as ReviewAgeReverificationUserDocument;
       const ageCase = caseSnapshot.data() as AgeReverificationCaseDocument;
       const currentStatus = normalizeAgeReverificationStatus(
         user.ageReverification?.status
@@ -166,9 +180,20 @@ export const reviewProfileAgeReverification = onCall<
       }
 
       const accountStatus = String(user.accountStatus ?? 'active').trim();
+      const suspensionMarker = user.ageReverificationSuspension;
+      const canLiftAgeSuspension = decision === 'VERIFY' &&
+        accountStatus === 'moderation_suspended' &&
+        user.suspended === true &&
+        String(user.suspensionReasonCode ?? '') ===
+          'AGE_REVERIFICATION_REJECTED' &&
+        suspensionMarker?.active === true &&
+        cleanComplianceId(suspensionMarker.caseId) === caseId &&
+        cleanComplianceId(suspensionMarker.reportId) === reportId;
       const canRestoreAccess = decision === 'VERIFY' &&
-        accountStatus === 'active' &&
-        user.suspended !== true;
+        (
+          (accountStatus === 'active' && user.suspended !== true) ||
+          canLiftAgeSuspension
+        );
       const mediaSnapshots = canRestoreAccess
         ? await readProfileMediaVisibilitySnapshots(transaction, targetUid)
         : null;
@@ -220,6 +245,22 @@ export const reviewProfileAgeReverification = onCall<
                 publicVisibility: 'visible',
                 interactionBlocked: false,
                 ageReverificationRestrictedAt: null,
+              }
+              : {}),
+            ...(canLiftAgeSuspension
+              ? {
+                accountStatus: 'active',
+                suspended: false,
+                suspensionReason: null,
+                suspensionReasonCode: FieldValue.delete(),
+                suspensionSource: null,
+                suspensionEndsAt: null,
+                suspendedBy: null,
+                unsuspendedAtMs: reviewedAt,
+                unsuspendedBy: adminUid,
+                statusUpdatedAt: reviewedAt,
+                statusUpdatedBy: adminUid,
+                ageReverificationSuspension: FieldValue.delete(),
               }
               : {}),
             updatedAt: timestamp,
@@ -293,7 +334,15 @@ export const reviewProfileAgeReverification = onCall<
             loginAllowed: true,
             suspended: true,
             suspensionReason: resolution,
+            suspensionReasonCode: 'AGE_REVERIFICATION_REJECTED',
             suspensionSource: 'moderator',
+            ageReverificationSuspension: {
+              active: true,
+              caseId,
+              reportId,
+              appliedAtMs: reviewedAt,
+              appliedBy: adminUid,
+            },
             suspendedAtMs: reviewedAt,
             suspendedBy: adminUid,
             statusUpdatedAt: reviewedAt,
@@ -323,9 +372,13 @@ export const reviewProfileAgeReverification = onCall<
           evidenceMethod: evidence.method,
           evidenceReferenceHash: evidence.referenceHash,
           restoredMediaDocumentCount: mediaSnapshots?.totalDocuments ?? 0,
-          publicProfileBackup: FieldValue.delete(),
-          nicknameIndexBackup: FieldValue.delete(),
-          nicknameIndexDocId: FieldValue.delete(),
+          ...(decision === 'VERIFY'
+            ? {
+              publicProfileBackup: FieldValue.delete(),
+              nicknameIndexBackup: FieldValue.delete(),
+              nicknameIndexDocId: FieldValue.delete(),
+            }
+            : {}),
           updatedAt: timestamp,
         },
         { merge: true }
@@ -388,14 +441,20 @@ export const reviewProfileAgeReverification = onCall<
         createdAtMs: reviewedAt,
       });
 
-      return targetUid;
+      return { targetUid, reporterUid };
     });
 
     await safeRecordModerationReviewSignal({
       reportId,
-      targetUid,
+      targetUid: result.targetUid,
       critical: true,
       confirmed: decision === 'REJECT',
+    });
+
+    await safeRecordModerationReporterOutcome({
+      reportId,
+      reporterUid: result.reporterUid,
+      outcome: decision === 'REJECT' ? 'CONFIRMED' : 'REJECTED',
     });
 
     await safeNotifyAgeReverificationOutcome(reportId);
