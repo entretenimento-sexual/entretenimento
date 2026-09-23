@@ -212,8 +212,14 @@ export function mapPublicProfileCard(
     firstText(source, ['uid', 'id']) ?? String(fallbackUid ?? '').trim();
   const nickname = firstText(source, ['nickname']);
 
+  const ageEligibilityValidUntil = toSerializableEpoch(
+    source['ageEligibilityValidUntil']
+  );
+
   if (
     source['ageEligibilityVerifiedAdult'] !== true ||
+    ageEligibilityValidUntil === null ||
+    ageEligibilityValidUntil <= Date.now() ||
     !uid ||
     !nickname
   ) {
