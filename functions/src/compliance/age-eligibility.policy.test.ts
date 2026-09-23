@@ -9,6 +9,29 @@ import {
 const NOW = 1_800_000_000_000;
 
 describe('age-eligibility.policy', () => {
+  it('libera autodeclaração backend no modo inicial sem tratá-la como verificação forte', () => {
+    const decision = evaluateCanonicalAgeEligibility({
+      uid: 'user-1',
+      nowMs: NOW,
+      rawRecord: {
+        uid: 'user-1',
+        status: 'DECLARED_ADULT',
+        policyVersion: AGE_ELIGIBILITY_POLICY_VERSION,
+        source: 'INITIAL_DECLARATION',
+        method: 'SELF_DECLARATION',
+        caseId: null,
+        verifiedAtMs: null,
+        decidedAtMs: NOW - 1_000,
+        expiresAtMs: null,
+      },
+    });
+
+    assert.equal(decision.allowed, true);
+    assert.equal(decision.status, 'DECLARED_ADULT');
+    assert.equal(decision.method, 'SELF_DECLARATION');
+    assert.equal(decision.verifiedAtMs, null);
+  });
+
   it('libera somente registro adulto válido e vigente', () => {
     const decision = evaluateCanonicalAgeEligibility({
       uid: 'user-1',
