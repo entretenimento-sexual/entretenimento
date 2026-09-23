@@ -36,6 +36,7 @@ const requiredFiles = Object.freeze([
   'functions/src/compliance/request-profile-age-reverification-appeal.handler.ts',
   'functions/src/moderation/moderation-reporter-abuse.policy.ts',
   'functions/src/moderation/moderation-reporter-abuse.service.ts',
+  'functions/src/moderation/moderation-minor-safety-report-security.service.ts',
   'functions/src/compliance/adult-consent.handler.ts',
   'src/app/core/services/compliance/age-eligibility.service.ts',
   'src/app/core/guards/compliance/age-eligibility.guard.ts',
@@ -384,13 +385,34 @@ if (fs.existsSync(minorSafetyReportPath)) {
   for (const required of [
     'REQUIRE_CALLABLE_APP_CHECK',
     'assertCallableAppCheck',
-    'consumeBackendRateLimitQuota',
-    'safeGetModerationReporterAbuseAssessment',
+    'consumeMinorSafetyReporterQuota',
     'safeRecordModerationOpenSignal',
   ]) {
     if (!source.includes(required)) {
       violations.push(
         `functions/src/compliance/report-profile-minor-safety.handler.ts (denúncia de menoridade precisa manter proteção transversal: ${required})`
+      );
+    }
+  }
+}
+
+
+const minorSafetySecurityPath = path.join(
+  root,
+  'functions/src/moderation/moderation-minor-safety-report-security.service.ts'
+);
+if (fs.existsSync(minorSafetySecurityPath)) {
+  const source = codeOnly(fs.readFileSync(minorSafetySecurityPath, 'utf8'));
+
+  for (const required of [
+    'safeGetModerationReporterAbuseAssessment',
+    'consumeBackendRateLimitQuota',
+    "action: 'minorSafetyReport'",
+    'minorSafetyReportRateLimitConfig',
+  ]) {
+    if (!source.includes(required)) {
+      violations.push(
+        `functions/src/moderation/moderation-minor-safety-report-security.service.ts (quota transversal de menoridade incompleta: ${required})`
       );
     }
   }
