@@ -95,9 +95,18 @@
         <section class="age-reverification__pending age-reverification__pending--warning" role="alert">
           <h2>Prazo expirado</h2>
           <p>
-            A revalidação não foi enviada dentro do prazo. Use a área da conta para
-            consultar as opções de suporte.
+            O prazo anterior terminou, mas isso não encerra definitivamente o
+            caminho de verificação. Você pode solicitar uma nova análise.
           </p>
+          <button
+            type="button"
+            class="age-reverification__primary"
+            [disabled]="isRequestingAppeal()"
+            [attr.aria-busy]="isRequestingAppeal()"
+            (click)="requestAppeal()"
+          >
+            {{ isRequestingAppeal() ? 'Solicitando...' : 'Solicitar nova análise' }}
+          </button>
         </section>
       } @else if (vm.status === 'VERIFIED') {
         <section class="age-reverification__pending" role="status">
@@ -107,7 +116,20 @@
       } @else if (vm.status === 'REJECTED') {
         <section class="age-reverification__pending age-reverification__pending--warning" role="alert">
           <h2>Revalidação rejeitada</h2>
-          <p>Consulte o status da conta para verificar a decisão registrada.</p>
+          <p>
+            Se você discorda da decisão, pode solicitar nova análise do mesmo
+            caso. A contestação não exige o envio de documento nesta tela e não
+            libera a conta automaticamente.
+          </p>
+          <button
+            type="button"
+            class="age-reverification__primary"
+            [disabled]="isRequestingAppeal()"
+            [attr.aria-busy]="isRequestingAppeal()"
+            (click)="requestAppeal()"
+          >
+            {{ isRequestingAppeal() ? 'Solicitando...' : 'Solicitar nova análise' }}
+          </button>
         </section>
       } @else {
         <section class="age-reverification__pending" role="status">
