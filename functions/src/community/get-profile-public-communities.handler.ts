@@ -39,6 +39,7 @@ import {
 interface ProfilePublicCommunitiesRequest {
   profileId?: unknown;
   limit?: unknown;
+  cursor?: unknown;
 }
 
 function assertRuntime(): void {
@@ -65,6 +66,14 @@ function normalizeLimit(value: unknown): number {
   return Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 12) : 4;
 }
 
+const SAFE_PROFILE_COMMUNITY_CURSOR_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
+
+function normalizeCursor(value: unknown): string | null {
+  const normalized = String(value ?? '').trim();
+  return SAFE_PROFILE_COMMUNITY_CURSOR_PATTERN.test(normalized)
+    ? normalized
+    : null;
+}
 
 function timestampToMillis(value: unknown): number | null {
   if (
@@ -118,6 +127,13 @@ export const getProfilePublicCommunities = onCall<ProfilePublicCommunitiesReques
 
     const profileId = normalizePublicProfileId(request.data?.profileId);
     const limit = normalizeLimit(request.data?.limit);
+    const providedCursor = String(request.data?.cursor ?? '').trim();
+    const cursor = normalizeCursor(request.data?.cursor);
+
+    if (providedCursor && !cursor) {
+      throw new HttpsError('invalid-argument', 'Cursor de paginação inválido.');
+    }
+
     if (!profileId) {
       throw new HttpsError('invalid-argument', 'Perfil inválido.');
     }
@@ -174,6 +190,16 @@ export const getProfilePublicCommunities = onCall<ProfilePublicCommunitiesReques
       .collection('community_profile_membership_index')
       .doc(profileUid)
       .collection('items');
+    const initialCursorSnapshot = cursor
+      ? await indexCollection.doc(cursor).get()
+      : null;
+
+    if (cursor && !initialCursorSnapshot?.exists) {
+      throw new HttpsError(
+        'invalid-argument',
+        'Cursor de paginação não encontrado.'
+      );
+    }
 
     const result = await collectCommunityMyPageIncrementally<
       QueryDocumentSnapshot,
@@ -182,7 +208,8 @@ export const getProfilePublicCommunities = onCall<ProfilePublicCommunitiesReques
       limit,
       loadBatch: async (afterDocument, batchLimit) => {
         let query = indexCollection.orderBy('updatedAt', 'desc').limit(batchLimit);
-        if (afterDocument) query = query.startAfter(afterDocument);
+        const pageCursor = afterDocument ?? initialCursorSnapshot;
+        if (pageCursor) query = query.startAfter(pageCursor);
         return (await query.get()).docs;
       },
       validateDocuments: async (documents) => {
@@ -275,7 +302,9 @@ export const getProfilePublicCommunities = onCall<ProfilePublicCommunitiesReques
 
     return {
       items: [...result.items],
-      nextCursor: null,
+      nextCursor: result.mayHaveAnotherPage
+        ? (result.lastConsumedDocument?.id ?? null)
+        : null,
       generatedAt: nowMs,
     };
   }
