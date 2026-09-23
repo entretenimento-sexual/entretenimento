@@ -291,21 +291,37 @@ describe('Firestore Rules / public profile eligibility', () => {
     );
   });
 
-  it('permite ler perfil-alvo somente com projeção etária backend-only ativa', async () => {
+  it('permite ler perfil-alvo somente com projeção etária backend-only ativa e vigente', async () => {
     await seedUser();
-    await seedPublicProfile({ ageEligibilityVerifiedAdult: true });
+    await seedPublicProfile({
+      ageEligibilityVerifiedAdult: true,
+      ageEligibilityValidUntil: new Date(Date.now() + 60_000),
+    });
     const db = authenticatedDb();
 
     await assertSucceeds(getDoc(doc(db, 'public_profiles', UID)));
 
-    await seedPublicProfile({ ageEligibilityVerifiedAdult: false });
+    await seedPublicProfile({
+      ageEligibilityVerifiedAdult: true,
+      ageEligibilityValidUntil: new Date(Date.now() - 1_000),
+    });
+
+    await assertFails(getDoc(doc(db, 'public_profiles', UID)));
+
+    await seedPublicProfile({
+      ageEligibilityVerifiedAdult: false,
+      ageEligibilityValidUntil: new Date(Date.now() + 60_000),
+    });
 
     await assertFails(getDoc(doc(db, 'public_profiles', UID)));
   });
 
-  it('exige filtro etário nas consultas de public_profiles', async () => {
+  it('exige filtro etário materializado nas consultas de public_profiles', async () => {
     await seedUser();
-    await seedPublicProfile({ ageEligibilityVerifiedAdult: true });
+    await seedPublicProfile({
+      ageEligibilityVerifiedAdult: true,
+      ageEligibilityValidUntil: new Date(Date.now() + 60_000),
+    });
     const db = authenticatedDb();
 
     const guardedQuery = query(
