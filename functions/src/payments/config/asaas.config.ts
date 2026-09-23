@@ -97,7 +97,7 @@ export function resolveAsaasApiRuntimeConfig(): AsaasApiRuntimeConfig {
     return {
       environment: 'sandbox',
       apiBaseUrl: 'https://api-sandbox.asaas.com/v3',
-      checkoutBaseUrl: 'https://asaas.com/checkoutSession/show',
+      checkoutBaseUrl: 'https://sandbox.asaas.com/checkoutSession/show',
     };
   }
 
@@ -109,7 +109,10 @@ export function resolveAsaasApiRuntimeConfig(): AsaasApiRuntimeConfig {
       environment === 'production'
         ? 'https://api.asaas.com/v3'
         : 'https://api-sandbox.asaas.com/v3',
-    checkoutBaseUrl: 'https://asaas.com/checkoutSession/show',
+    checkoutBaseUrl:
+      environment === 'production'
+        ? 'https://asaas.com/checkoutSession/show'
+        : 'https://sandbox.asaas.com/checkoutSession/show',
   };
 }
 
