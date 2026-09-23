@@ -584,7 +584,7 @@ if (fs.existsSync(runtimeAdultAccessPath)) {
   for (const required of [
     'canRunAdultSessionRealtime$',
     'this.ageEligibility.verifiedAdult$',
-    'isCurrentLegalAcceptanceSatisfied',
+    'isCurrentTermsRecordAccepted',
     'ADULT_CONSENT_VERSION',
     'readonly canRunPresence$',
   ]) {
