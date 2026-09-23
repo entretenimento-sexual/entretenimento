@@ -23,6 +23,8 @@ import {
 } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
+import { seedPublicMediaCompliance } from './media-e2e-compliance-fixture.mjs';
+
 const PROJECT_ID = 'demo-entretenimento-media-e2e';
 const STORAGE_BUCKET = `${PROJECT_ID}.appspot.com`;
 const HOST = '127.0.0.1';
@@ -214,10 +216,7 @@ async function run() {
 
     await expectCallableFailure(togglePhotoReaction, { ownerUid, photoId });
 
-    await Promise.all([
-      ownerUserRef.set(eligibleAdultAccessData(), { merge: true }),
-      visitorUserRef.set(eligibleAdultAccessData(), { merge: true }),
-    ]);
+    await seedPublicMediaCompliance(db, [ownerUid, visitorUid]);
 
     const firstLike = await togglePhotoReaction({ ownerUid, photoId });
     assert.equal(firstLike.data.liked, true);

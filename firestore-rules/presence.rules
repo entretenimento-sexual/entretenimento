@@ -28,13 +28,13 @@ match /presence/{presenceUid} {
   // GET:
   // - dono pode ler o próprio doc (mesmo não verificado) para debug/telemetria
   // - terceiros: apenas se requester verificado
-  allow get: if signedIn() && (
-    isSelf(presenceUid) || requesterEmailVerified()
-  );
+  allow get: if isSelf(presenceUid)
+    || (currentUserCanUseAdultSocialPlatform() && requesterEmailVerified());
 
   // LIST/QUERY:
   // - apenas requesters verificados podem consultar presença
-  allow list: if requesterEmailVerified();
+  allow list: if currentUserCanUseAdultSocialPlatform()
+    && requesterEmailVerified();
 
   // -------------------------------------------------------------------------
   // Helpers SAFE (writes)
@@ -124,6 +124,7 @@ match /presence/{presenceUid} {
   // -------------------------------------------------------------------------
   allow create, update: if (
     isSelf(presenceUid)
+    && currentUserCanUseAdultSocialPlatform()
     && validPresencePayload()
   );
 

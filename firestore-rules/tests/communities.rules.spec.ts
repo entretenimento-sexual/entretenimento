@@ -58,6 +58,34 @@ function communityDocument(
   };
 }
 
+function adultUser(uid: string) {
+  return {
+    uid,
+    accountStatus: 'active',
+    suspended: false,
+    interactionBlocked: false,
+    acceptedTerms: {
+      accepted: true,
+      version: 'v3',
+      acknowledgedPrivacyNotice: true,
+    },
+    adultConsent: { accepted: true, version: 'v1' },
+    ageReverification: { status: 'NONE' },
+  };
+}
+
+function ageEligibility(uid: string) {
+  return {
+    uid,
+    status: 'VERIFIED_ADULT',
+    policyVersion: 1,
+    source: 'AGE_REVERIFICATION',
+    method: 'MANUAL_REVIEW',
+    verifiedAt: new Date(Date.now() - 1_000),
+    expiresAt: null,
+  };
+}
+
 function membershipDocument(
   communityId: string,
   uid: string,
@@ -78,6 +106,10 @@ async function seedCommunities(): Promise<void> {
     const db = context.firestore();
 
     await Promise.all([
+      ...[VISITOR_UID, MEMBER_UID, PENDING_UID, BLOCKED_UID].flatMap((uid) => [
+        setDoc(doc(db, 'users', uid), adultUser(uid)),
+        setDoc(doc(db, 'age_eligibility_records', uid), ageEligibility(uid)),
+      ]),
       setDoc(
         doc(db, 'communities', PUBLIC_COMMUNITY_ID),
         communityDocument('public_preview')

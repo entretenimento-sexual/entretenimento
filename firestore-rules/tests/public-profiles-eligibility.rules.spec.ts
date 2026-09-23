@@ -9,16 +9,22 @@ import {
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
 import {
+  collection,
   doc,
+  getDoc,
+  getDocs,
+  query,
   serverTimestamp,
   setDoc,
   updateDoc,
+  where,
 } from 'firebase/firestore';
 import {
   afterAll,
   beforeAll,
   beforeEach,
   describe,
+  expect,
   it,
 } from 'vitest';
 
@@ -79,13 +85,24 @@ function authenticatedDb() {
 }
 
 async function seedUser(
-  overrides: Record<string, unknown> = {}
+  overrides: Record<string, unknown> = {},
+  includeAgeEligibility = true
 ): Promise<void> {
   await testEnv.withSecurityRulesDisabled(async (context) => {
-    await setDoc(
-      doc(context.firestore(), 'users', UID),
-      privateUser(overrides)
-    );
+    const db = context.firestore();
+    await setDoc(doc(db, 'users', UID), privateUser(overrides));
+
+    if (includeAgeEligibility) {
+      await setDoc(doc(db, 'age_eligibility_records', UID), {
+        uid: UID,
+        status: 'VERIFIED_ADULT',
+        policyVersion: 1,
+        source: 'AGE_REVERIFICATION',
+        method: 'MANUAL_REVIEW',
+        verifiedAt: new Date(Date.now() - 1_000),
+        expiresAt: null,
+      });
+    }
   });
 }
 
@@ -149,6 +166,15 @@ describe('Firestore Rules / public profile eligibility', () => {
         gender: 'homem',
         identityCode: 'homem',
       })
+    );
+  });
+
+  it('nega projeção sem verificação etária canônica', async () => {
+    await seedUser({}, false);
+    const db = authenticatedDb();
+
+    await assertFails(
+      setDoc(doc(db, 'public_profiles', UID), publicProfile())
     );
   });
 
@@ -235,6 +261,8 @@ describe('Firestore Rules / public profile eligibility', () => {
       setDoc(doc(db, 'public_profiles', UID), {
         ...publicProfile(),
         age: 31,
+        ageEligibilityVerifiedAdult: true,
+        ageEligibilityValidUntil: new Date(Date.now() + 60_000),
         publicRelationshipIntents: ['dating'],
         publicSexualPractices: ['bdsm'],
         publicBodyTraits: ['tattoos'],
@@ -261,6 +289,51 @@ describe('Firestore Rules / public profile eligibility', () => {
         updatedAt: serverTimestamp(),
       })
     );
+  });
+
+  it('permite ler perfil-alvo somente com projeção etária backend-only ativa e vigente', async () => {
+    await seedUser();
+    await seedPublicProfile({
+      ageEligibilityVerifiedAdult: true,
+      ageEligibilityValidUntil: new Date(Date.now() + 60_000),
+    });
+    const db = authenticatedDb();
+
+    await assertSucceeds(getDoc(doc(db, 'public_profiles', UID)));
+
+    await seedPublicProfile({
+      ageEligibilityVerifiedAdult: true,
+      ageEligibilityValidUntil: new Date(Date.now() - 1_000),
+    });
+
+    await assertFails(getDoc(doc(db, 'public_profiles', UID)));
+
+    await seedPublicProfile({
+      ageEligibilityVerifiedAdult: false,
+      ageEligibilityValidUntil: new Date(Date.now() + 60_000),
+    });
+
+    await assertFails(getDoc(doc(db, 'public_profiles', UID)));
+  });
+
+  it('nega qualquer enumeração client-side de public_profiles', async () => {
+    await seedUser();
+    await seedPublicProfile({
+      ageEligibilityVerifiedAdult: true,
+      ageEligibilityValidUntil: new Date(Date.now() + 60_000),
+    });
+    const db = authenticatedDb();
+
+    const guardedQuery = query(
+      collection(db, 'public_profiles'),
+      where('ageEligibilityVerifiedAdult', '==', true)
+    );
+
+    await assertFails(getDocs(guardedQuery));
+    await assertFails(getDocs(collection(db, 'public_profiles')));
+
+    // Deep link documental continua disponível sob a fronteira temporal forte.
+    await assertSucceeds(getDoc(doc(db, 'public_profiles', UID)));
   });
 
   it('nega atualizar perfil público depois que a conta deixa de ser elegível', async () => {

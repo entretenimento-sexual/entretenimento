@@ -119,12 +119,23 @@ function installBoundaryProbe(
         uid: actorUid,
         role: mode === 'admin' ? 'admin' : 'vip',
         profileCompleted: true,
+        interactionBlocked: false,
         acceptedTerms: {
           accepted: true,
           version: TERMS_ACCEPTANCE_VERSION,
           acknowledgedPrivacyNotice: true,
         },
         adultConsent: { accepted: true, version: ADULT_CONSENT_VERSION },
+      },
+      [`age_eligibility_records/${actorUid}`]: {
+        uid: actorUid,
+        status: 'VERIFIED_ADULT',
+        policyVersion: 1,
+        source: 'INITIAL_VERIFICATION',
+        method: 'EXTERNAL_PROVIDER',
+        caseId: 'venue-age-1',
+        verifiedAtMs: now - 1_000,
+        expiresAtMs: null,
       },
       ...(mode === 'grant'
         ? {

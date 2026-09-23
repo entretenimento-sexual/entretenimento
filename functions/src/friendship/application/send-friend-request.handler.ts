@@ -17,6 +17,9 @@
 // -----------------------------------------------------------------------------
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
+import {
+  assertInteractionAccessData,
+} from '../../account_lifecycle/interaction-access.policy';
 import { db, FieldValue } from '../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { isBilateralBlockActive } from './bilateral-block-access.policy';
@@ -173,6 +176,12 @@ export const sendFriendRequest = onCall<SendFriendRequestPayload>(
     await db.runTransaction(async (transaction) => {
       const requesterRef = db.collection('users').doc(requesterUid);
       const targetRef = db.collection('users').doc(targetUid);
+      const requesterAgeRef = db
+        .collection('age_eligibility_records')
+        .doc(requesterUid);
+      const targetAgeRef = db
+        .collection('age_eligibility_records')
+        .doc(targetUid);
 
       const requesterFriendRef = requesterRef.collection('friends').doc(targetUid);
       const targetFriendRef = targetRef.collection('friends').doc(requesterUid);
@@ -199,6 +208,8 @@ export const sendFriendRequest = onCall<SendFriendRequestPayload>(
         requestSnapshot,
         reverseRequestSnapshot,
         targetPreferencesSnapshot,
+        requesterAgeSnapshot,
+        targetAgeSnapshot,
       ] = await Promise.all([
         transaction.get(requesterRef),
         transaction.get(targetRef),
@@ -209,6 +220,8 @@ export const sendFriendRequest = onCall<SendFriendRequestPayload>(
         transaction.get(requestRef),
         transaction.get(reverseRequestRef),
         transaction.get(targetPreferencesRef),
+        transaction.get(requesterAgeRef),
+        transaction.get(targetAgeRef),
       ]);
 
       const requester = requesterSnapshot.data() as FriendshipUserDoc | undefined;
@@ -217,6 +230,16 @@ export const sendFriendRequest = onCall<SendFriendRequestPayload>(
 
       assertUserCanUseFriendship(requester, 'actor');
       assertUserCanUseFriendship(target, 'target');
+      assertInteractionAccessData(
+        requester,
+        requesterAgeSnapshot.exists ? requesterAgeSnapshot.data() : null,
+        requesterUid
+      );
+      assertInteractionAccessData(
+        target,
+        targetAgeSnapshot.exists ? targetAgeSnapshot.data() : null,
+        targetUid
+      );
 
       if (requesterFriendSnapshot.exists || targetFriendSnapshot.exists) {
         throw new HttpsError('already-exists', 'Vocês já estão conectados.');

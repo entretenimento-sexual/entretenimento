@@ -20,7 +20,7 @@ match /venues/{venueId} {
       && resource.data.visibility in ["public", "members_only"];
   }
 
-  allow get, list: if signedIn() && isVisibleVenue();
+  allow get, list: if currentUserCanUseAdultSocialPlatform() && isVisibleVenue();
 
   allow create, update: if isAdmin() && validVenuePayload();
   allow delete: if isAdmin();

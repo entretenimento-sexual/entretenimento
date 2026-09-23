@@ -135,6 +135,30 @@ describe('DiscoveryPublicProfilesFacade', () => {
     expect('persistPublicLocation$' in geolocationTrackingMock).toBe(false);
   });
 
+  it('remove do estado um card cujo validUntil já venceu', async () => {
+    storeMock.select.mockReturnValue(
+      of({
+        ...emptyDiscoveryFeedSlice,
+        items: [
+          {
+            uid: 'profile-expired',
+            nickname: 'Expired',
+            ageEligibilityValidUntil: Date.now() - 1,
+          },
+        ],
+        reachedEnd: true,
+      } as any)
+    );
+
+    const facade = TestBed.inject(DiscoveryPublicProfilesFacade);
+    const state = await firstValueFrom(facade.state$);
+
+    expect(state.profiles).toEqual([]);
+    expect(
+      visibleLocationRepositoryMock.watchByUids$
+    ).not.toHaveBeenCalledWith(['profile-expired']);
+  });
+
   it('sobrepõe somente a localização pública dos perfis visíveis em tempo real', async () => {
     storeMock.select.mockReturnValue(
       of({
@@ -143,6 +167,7 @@ describe('DiscoveryPublicProfilesFacade', () => {
           {
             uid: 'profile-1',
             nickname: 'Profile 1',
+            ageEligibilityValidUntil: Date.now() + 60_000,
             latitude: null,
             longitude: null,
             geohash: null,

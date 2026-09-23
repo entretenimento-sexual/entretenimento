@@ -32,7 +32,7 @@ import {
   type CommunityInviteResult,
 } from './community-invite.shared';
 import {
-  assertCommunityMembershipActorEligible,
+  assertCommunityMembershipActorEligibleInTransaction,
 } from './community-membership-eligibility.service';
 import {
   classifyExistingCommunityMembershipState,
@@ -164,13 +164,15 @@ export const sendCommunityInvite = onCall<SendCommunityInviteRequest>(
         );
       }
 
-      assertCommunityMembershipActorEligible(
-        actorUserSnapshot.exists ? actorUserSnapshot.data() : null,
-        actorUid
+      await assertCommunityMembershipActorEligibleInTransaction(
+        transaction,
+        actorUid,
+        actorUserSnapshot.exists ? actorUserSnapshot.data() : null
       );
-      assertCommunityMembershipActorEligible(
-        receiverUserSnapshot.exists ? receiverUserSnapshot.data() : null,
-        receiverId
+      await assertCommunityMembershipActorEligibleInTransaction(
+        transaction,
+        receiverId,
+        receiverUserSnapshot.exists ? receiverUserSnapshot.data() : null
       );
       await assertNoActiveBilateralBlockInTransaction(
         transaction,

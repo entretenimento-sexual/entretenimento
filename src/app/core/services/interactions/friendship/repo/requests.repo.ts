@@ -16,12 +16,19 @@ import {
   updateDoc
 } from '@angular/fire/firestore';
 import {
-  onSnapshot,
-  Query as FsQuery,
   Timestamp,
   DocumentData
 } from 'firebase/firestore';
-import { Observable, map, switchMap, throwError } from 'rxjs';
+import { Functions, httpsCallable } from '@angular/fire/functions';
+import {
+  Observable,
+  defer,
+  from,
+  map,
+  switchMap,
+  throwError,
+  timer,
+} from 'rxjs';
 
 import { FirestoreRepoBase } from './base.repo';
 import { Friend, FriendDocWrite } from '../../../../interfaces/friendship/friend.interface';
@@ -30,8 +37,24 @@ import { CooldownRepo } from './cooldown.repo';
 
 @Injectable({ providedIn: 'root' })
 export class RequestsRepo extends FirestoreRepoBase {
-  constructor(db: Firestore, env: EnvironmentInjector, private cooldown: CooldownRepo) {
+  constructor(
+    db: Firestore,
+    env: EnvironmentInjector,
+    private cooldown: CooldownRepo,
+    private readonly functions: Functions
+  ) {
     super(db, env);
+  }
+
+  private getPendingRequestsCallable() {
+    return httpsCallable<
+      { direction: 'inbound' | 'outbound'; limit: number },
+      {
+        items: (FriendRequest & { id: string })[];
+        fetchedAt: number;
+        scanned: number;
+      }
+    >(this.functions, 'getPendingFriendRequests');
   }
 
   getDocExists(path: string) {
@@ -41,34 +64,26 @@ export class RequestsRepo extends FirestoreRepoBase {
   /* =========================
    * LISTAGENS (pendentes)
    * ========================= */
-  listInboundRequests(uid: string) {
-    return this.inCtx$(() => {
-      const colRef = collection(this.db, 'friendRequests');
-      const qRef = query(colRef, where('targetUid', '==', uid), where('status', '==', 'pending'));
-      return getDocs(qRef);
-    }).pipe(
-      map(snap =>
-        snap.docs.map(d => {
-          const data = d.data() as Omit<FriendRequest, 'id'>;
-          return { id: d.id, ...data };
+  listInboundRequests(_uid: string) {
+    return defer(() =>
+      from(
+        this.getPendingRequestsCallable()({
+          direction: 'inbound',
+          limit: 60,
         })
       )
-    );
+    ).pipe(map((response) => response.data.items ?? []));
   }
 
-  listOutboundRequests(uid: string) {
-    return this.inCtx$(() => {
-      const colRef = collection(this.db, 'friendRequests');
-      const qRef = query(colRef, where('requesterUid', '==', uid), where('status', '==', 'pending'));
-      return getDocs(qRef);
-    }).pipe(
-      map(snap =>
-        snap.docs.map(d => {
-          const data = d.data() as Omit<FriendRequest, 'id'>;
-          return { id: d.id, ...data };
+  listOutboundRequests(_uid: string) {
+    return defer(() =>
+      from(
+        this.getPendingRequestsCallable()({
+          direction: 'outbound',
+          limit: 60,
         })
       )
-    );
+    ).pipe(map((response) => response.data.items ?? []));
   }
 
   findDuplicatePending(requesterUid: string, targetUid: string) {
@@ -226,43 +241,16 @@ cancelOutboundRequest(requestId: string) {
   /* =========================
    * REALTIME WATCHERS
    * ========================= */
-  watchInboundRequests(uid: string): Observable<(FriendRequest & { id: string })[]> {
-    return new Observable(sub => {
-      const unsubscribe = this.inCtxSync(() => {
-        const colRef = collection(this.db, 'friendRequests');
-        const qRef = query(colRef, where('targetUid', '==', uid), where('status', '==', 'pending')) as unknown as FsQuery;
-        return onSnapshot(
-          qRef,
-          snap => sub.next(
-            snap.docs.map(d => {
-              const data = d.data() as Omit<FriendRequest, 'id'>;
-              return { id: d.id, ...data };
-            })
-          ),
-          err => sub.error(err)
-        );
-      });
-      return () => unsubscribe?.();
-    });
+  watchInboundRequests(_uid: string): Observable<(FriendRequest & { id: string })[]> {
+    return timer(0, 60_000).pipe(
+      switchMap(() => this.listInboundRequests(''))
+    );
   }
 
-  watchOutboundRequests(uid: string): Observable<(FriendRequest & { id: string })[]> {
-    return new Observable(sub => {
-      const unsubscribe = this.inCtxSync(() => {
-        const colRef = collection(this.db, 'friendRequests');
-        const qRef = query(colRef, where('requesterUid', '==', uid), where('status', '==', 'pending')) as unknown as FsQuery;
-        return onSnapshot(
-          qRef,
-          snap => sub.next(
-            snap.docs.map(d => {
-              const data = d.data() as Omit<FriendRequest, 'id'>;
-              return { id: d.id, ...data };
-            })
-          ),
-          err => sub.error(err)
-        );
-      });
-      return () => unsubscribe?.();
-    });
+  watchOutboundRequests(_uid: string): Observable<(FriendRequest & { id: string })[]> {
+    return timer(0, 60_000).pipe(
+      switchMap(() => this.listOutboundRequests(''))
+    );
   }
+
 }

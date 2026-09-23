@@ -12,6 +12,12 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
+  safeRecordModerationReviewSignal,
+} from '../moderation/moderation-automation.service';
+import {
+  safeNotifyModerationReportReviewed,
+} from '../moderation/moderation-safety-notification.service';
+import {
   deletePublishedPhotoAssetOrQueue,
   stagePublishedPhotoAssetCleanup,
   type StagedPublishedPhotoAssetCleanup,
@@ -43,6 +49,8 @@ type ReviewDecision = 'KEEP' | 'REMOVE';
 
 interface ReviewTransactionResult {
   cleanup: StagedPublishedPhotoAssetCleanup | null;
+  authorUid: string;
+  critical: boolean;
 }
 
 function assertRuntime(): void {
@@ -136,6 +144,7 @@ export const reviewCommunityFeedPostReport = onCall<
       const communityId = cleanId(report['parentTargetId']);
       const postId = cleanId(report['targetId']);
       const authorUid = cleanId(report['targetAuthorUid']);
+      const critical = report['reason'] === 'minor_content_safety';
 
       if (
         report['targetType'] !== 'community_feed_post'
@@ -204,6 +213,9 @@ export const reviewCommunityFeedPostReport = onCall<
       }
       const contentActive = post['status'] === 'active'
         && post['moderationState'] === 'active';
+      const contentQuarantined = post['status'] === 'active'
+        && post['moderationState'] === 'quarantined';
+      const contentReviewable = contentActive || contentQuarantined;
       const photoPost = post['kind'] === 'photo';
       const timestamp = FieldValue.serverTimestamp();
       const nowMs = Date.now();
@@ -211,7 +223,7 @@ export const reviewCommunityFeedPostReport = onCall<
         | CommunityNotificationUser
         | undefined;
       const shouldNotifyRemoval = decision === 'REMOVE'
-        && contentActive
+        && contentReviewable
         && canReceiveCommunityEssentialNotification(
           authorUser,
           authorUid,
@@ -222,7 +234,11 @@ export const reviewCommunityFeedPostReport = onCall<
       if (
         photoPost
         && !hasOtherBlockingReports
-        && (decision === 'REMOVE' || !contentActive)
+        && (
+          decision === 'REMOVE'
+          || post['status'] !== 'active'
+          || post['moderationState'] === 'removed'
+        )
       ) {
         const image = (post['image'] ?? {}) as Record<string, unknown>;
         const storagePath = String(image['storagePath'] ?? '').trim();
@@ -241,7 +257,16 @@ export const reviewCommunityFeedPostReport = onCall<
         }
       }
 
-      if (decision === 'REMOVE' && contentActive) {
+      if (decision === 'KEEP' && contentQuarantined) {
+        transaction.update(postRef, {
+          moderationState: 'active',
+          moderationQuarantineReason: FieldValue.delete(),
+          moderationQuarantinedAt: FieldValue.delete(),
+          updatedAt: timestamp,
+        });
+      }
+
+      if (decision === 'REMOVE' && contentReviewable) {
         transaction.update(postRef, {
           status: 'removed',
           moderationState: 'removed',
@@ -343,8 +368,17 @@ export const reviewCommunityFeedPostReport = onCall<
         timestamp,
       });
 
-      return { cleanup };
+      return { cleanup, authorUid, critical };
     });
+
+    await safeRecordModerationReviewSignal({
+      reportId,
+      targetUid: transactionResult.authorUid,
+      critical: transactionResult.critical,
+      confirmed: decision === 'REMOVE',
+    });
+
+    await safeNotifyModerationReportReviewed(reportId);
 
     if (transactionResult.cleanup) {
       try {

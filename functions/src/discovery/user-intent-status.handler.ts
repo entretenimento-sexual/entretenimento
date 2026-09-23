@@ -17,8 +17,12 @@
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
+import {
+  assertInteractionAccessData,
+} from '../account_lifecycle/interaction-access.policy';
+import { evaluateCanonicalAgeEligibility } from '../compliance/age-eligibility.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
-import { db, FieldValue } from '../firebaseApp';
+import { db, FieldValue, Timestamp } from '../firebaseApp';
 import {
   assertMessagingAccountOperational,
 } from '../chat/shared/messaging-account.policy';
@@ -26,6 +30,7 @@ import type { MessagingUserDoc } from '../chat/shared/messaging.types';
 
 const MAX_STATUS_DURATION_HOURS = 12;
 const DEFAULT_STATUS_DURATION_HOURS = 12;
+const PUBLIC_AGE_ELIGIBILITY_MAX_VALID_UNTIL_MS = 253402300799999;
 const MAX_COMPATIBLE_STATUS_NOTIFICATIONS = 10;
 
 const ALLOWED_AVAILABILITY = new Set([
@@ -223,19 +228,13 @@ function publicProfileFromUser(uid: string, user: MessagingUserDoc): {
   uid: string;
   nickname: string;
   photoURL: string | null;
-  age: number | null;
 } {
   const nickname = normalizeText(user.nickname, { min: 2, max: 40 });
   const photoURL = String(user.photoURL ?? '').trim();
-  const age = Number((user as any).idade);
-
   return {
     uid,
     nickname,
     photoURL: photoURL ? photoURL.slice(0, 600) : null,
-    age: Number.isFinite(age) && age >= 18 && age <= 120
-      ? Math.trunc(age)
-      : null,
   };
 }
 
@@ -340,10 +339,23 @@ async function findCompatibleNotificationCandidates(
       continue;
     }
 
-    const targetSnapshot = await db.collection('users').doc(targetUid).get();
+    const [targetSnapshot, targetAgeSnapshot] = await Promise.all([
+      db.collection('users').doc(targetUid).get(),
+      db.collection('age_eligibility_records').doc(targetUid).get(),
+    ]);
     const targetUser = targetSnapshot.data() as MessagingUserDoc | undefined;
 
     if (!isOperationalCandidate(targetUser) || !isSameRegion(targetUser, destination)) {
+      continue;
+    }
+
+    try {
+      assertInteractionAccessData(
+        targetUser,
+        targetAgeSnapshot.exists ? targetAgeSnapshot.data() : null,
+        targetUid
+      );
+    } catch {
       continue;
     }
 
@@ -433,15 +445,41 @@ export const publishUserIntentStatus = onCall<PublishUserIntentStatusRequest>(
       throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
     }
 
-    const userSnapshot = await db.collection('users').doc(uid).get();
+    const [userSnapshot, ageEligibilitySnapshot] = await Promise.all([
+      db.collection('users').doc(uid).get(),
+      db.collection('age_eligibility_records').doc(uid).get(),
+    ]);
     const user = userSnapshot.data() as MessagingUserDoc | undefined;
 
     assertMessagingAccountOperational(user, {
       operation: 'publish-user-intent-status',
       perspective: 'actor',
     });
+    assertInteractionAccessData(
+      user,
+      ageEligibilitySnapshot.exists ? ageEligibilitySnapshot.data() : null,
+      uid
+    );
 
     const now = Date.now();
+    const ageDecision = evaluateCanonicalAgeEligibility({
+      uid,
+      rawRecord: ageEligibilitySnapshot.exists
+        ? ageEligibilitySnapshot.data()
+        : null,
+      nowMs: now,
+    });
+
+    if (!ageDecision.allowed) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Conclua a verificação de maioridade para publicar o status.'
+      );
+    }
+
+    const ageEligibilityValidUntil = Timestamp.fromMillis(
+      ageDecision.expiresAtMs ?? PUBLIC_AGE_ELIGIBILITY_MAX_VALID_UNTIL_MS
+    );
     const durationHours = normalizeDurationHours(request.data?.durationHours);
     const expiresAt = now + durationHours * 60 * 60 * 1000;
     const statusId = `current_${uid}`;
@@ -470,6 +508,8 @@ export const publishUserIntentStatus = onCall<PublishUserIntentStatusRequest>(
       tx.set(statusRef, {
         uid,
         profile,
+        ageEligibilityVerifiedAdult: true,
+        ageEligibilityValidUntil,
         availability,
         visibility,
         destination,
@@ -539,14 +579,9 @@ export const hideUserIntentStatus = onCall(
       throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
     }
 
-    const userSnapshot = await db.collection('users').doc(uid).get();
-    const user = userSnapshot.data() as MessagingUserDoc | undefined;
-
-    assertMessagingAccountOperational(user, {
-      operation: 'hide-user-intent-status',
-      perspective: 'actor',
-    });
-
+    // Ocultar o próprio status é uma operação de redução de exposição.
+    // Mantemos acessível a qualquer sessão autenticada, mesmo que a conta
+    // tenha se tornado restrita após a publicação.
     const statusId = `current_${uid}`;
     const statusRef = db.collection('user_intent_statuses').doc(statusId);
     const auditRef = db.collection('user_intent_status_audit').doc();

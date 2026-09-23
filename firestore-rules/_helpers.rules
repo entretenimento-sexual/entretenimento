@@ -45,11 +45,24 @@ service cloud.firestore {
     function adultMediaLifecycleAllowsAccess(user) {
       let accountStatus = mapFieldOrNull(user, "accountStatus");
       let suspended = mapFieldOrNull(user, "suspended");
+      let interactionBlocked = mapFieldOrNull(user, "interactionBlocked");
+      let accountLocked = mapFieldOrNull(user, "accountLocked");
+      let loginAllowed = mapFieldOrNull(user, "loginAllowed");
+      let automationHold = mapFieldOrNull(user, "moderationAutomationHold");
+      let automationHoldExpiresAt = automationHold is map
+        ? mapFieldOrNull(automationHold, "expiresAt")
+        : null;
+      let automationHoldActive = automationHold is map
+        && mapFieldOrNull(automationHold, "active") == true
+        && automationHoldExpiresAt is timestamp
+        && request.time < automationHoldExpiresAt;
+
       return suspended != true
-        && accountStatus != "self_suspended"
-        && accountStatus != "moderation_suspended"
-        && accountStatus != "pending_deletion"
-        && accountStatus != "deleted";
+        && interactionBlocked != true
+        && accountLocked != true
+        && loginAllowed != false
+        && !automationHoldActive
+        && (accountStatus == null || accountStatus == "active");
     }
 
     function adultMediaHasCurrentTerms(user) {
@@ -66,16 +79,11 @@ service cloud.firestore {
     }
 
     function adultMediaHasRequiredConsent(user) {
-      let consentRequired =
-        mapFieldOrNull(user, "initialAdultConsentRequired") != false;
       let adultConsent = mapFieldOrNull(user, "adultConsent");
-      return !consentRequired
-        || (
-          adultConsent is map
-          && adultConsent.keys().hasAll(["accepted", "version"])
-          && adultConsent.accepted == true
-          && adultConsent.version == "v1"
-        );
+      return adultConsent is map
+        && adultConsent.keys().hasAll(["accepted", "version"])
+        && adultConsent.accepted == true
+        && adultConsent.version == "v1";
     }
 
     function adultMediaAgeReverificationAllowsAccess(user) {
@@ -90,16 +98,70 @@ service cloud.firestore {
         && status != "EXPIRED";
     }
 
-    function canConsumeAdultPublicMedia() {
+    // ===============================================================
+    // Elegibilidade etária canônica
+    // ===============================================================
+    // A projeção users/{uid}.ageEligibility existe apenas para UX.
+    // Autorização consulta exclusivamente o registro backend-only.
+    function canonicalAgeEligibilityPath(userId) {
+      return /databases/$(database)/documents/age_eligibility_records/$(userId);
+    }
+
+    function canonicalAgeEligibilityAllowsAdultAccess(userId) {
+      let eligibilityPath = canonicalAgeEligibilityPath(userId);
+      let eligibility = signedIn()
+        ? get(eligibilityPath).data
+        : null;
+      let verifiedAt = eligibility is map
+        ? mapFieldOrNull(eligibility, "verifiedAt")
+        : null;
+      let expiresAt = eligibility is map
+        ? mapFieldOrNull(eligibility, "expiresAt")
+        : null;
+
+      return eligibility is map
+        && eligibility.uid == userId
+        && eligibility.status == "VERIFIED_ADULT"
+        && eligibility.policyVersion == 1
+        && verifiedAt is timestamp
+        && verifiedAt <= request.time
+        && (
+          expiresAt == null
+          || (expiresAt is timestamp && request.time < expiresAt)
+        );
+    }
+
+    function publicAgeProjectionAllowsAdultExposure(data) {
+      let validUntil = data is map
+        ? mapFieldOrNull(data, "ageEligibilityValidUntil")
+        : null;
+      return data is map
+        && mapFieldOrNull(data, "ageEligibilityVerifiedAdult") == true
+        && validUntil is timestamp
+        && request.time < validUntil;
+    }
+
+    function currentUserHasVerifiedAdultAge() {
+      return signedIn()
+        && canonicalAgeEligibilityAllowsAdultAccess(uid());
+    }
+
+    function currentUserCanUseAdultSocialPlatform() {
       let userPath = currentPrivateUserPath();
-      let user = signedIn() && exists(userPath)
+      let user = signedIn()
         ? get(userPath).data
         : null;
+
       return user is map
         && adultMediaLifecycleAllowsAccess(user)
         && adultMediaHasCurrentTerms(user)
         && adultMediaHasRequiredConsent(user)
-        && adultMediaAgeReverificationAllowsAccess(user);
+        && adultMediaAgeReverificationAllowsAccess(user)
+        && currentUserHasVerifiedAdultAge();
+    }
+
+    function canConsumeAdultPublicMedia() {
+      return currentUserCanUseAdultSocialPlatform();
     }
 
     // ===============================================================

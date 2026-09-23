@@ -51,6 +51,10 @@ A experiência recomendada é:
 
 Enquanto não existir integração de produção com mecanismo confiável, autodeclaração deve permanecer identificada tecnicamente como `SELF_DECLARATION_REVIEW` e resultado adulto como `INCONCLUSIVE`, sem alegação de KYC concluído.
 
+O fallback operacional de revisão humana também não pode promover a autodeclaração. Uma decisão `VERIFIED_ADULT` exige evidência confiável revisada por staff autorizado. A aplicação recebe somente uma referência operacional da evidência e persiste apenas seu hash e o método da revisão; a referência bruta, documento, CPF, nome civil e data de nascimento não pertencem ao registro etário canônico.
+
+No onboarding atual, uma conta sem assertion confiável pode abrir uma solicitação de revisão. Enquanto o caso estiver aberto, `age_eligibility_records/{uid}` permanece em `REVIEW_REQUIRED` e todas as superfícies adultas continuam bloqueadas. O consentimento adulto ocorre somente depois de `VERIFIED_ADULT`.
+
 ## KYC financeiro proporcional
 
 KYC financeiro não é exigido por padrão de quem apenas:

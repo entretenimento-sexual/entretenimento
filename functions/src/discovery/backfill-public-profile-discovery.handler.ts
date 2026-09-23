@@ -6,7 +6,7 @@
 // - profileId público canônico, opaco e separado do Firebase Auth UID;
 // - identidade normalizada e reciprocidade;
 // - avatar público canônico;
-// - idade pública adulta;
+// - elegibilidade adulta pública sanitizada (sem idade exata);
 // - intenções, práticas e características autorizadas pelo proprietário;
 // - localização pública derivada da posição privada com redução de precisão.
 //
@@ -16,8 +16,11 @@
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FieldPath } from 'firebase-admin/firestore';
-import { FieldValue, db } from '../firebaseApp';
+import { FieldValue, Timestamp, db } from '../firebaseApp';
 import { FUNCTIONS_REGION } from '../config/functions-region';
+import {
+  evaluateCanonicalAgeEligibility,
+} from '../compliance/age-eligibility.policy';
 import {
   normalizePublicProfileId,
   resolveOrGeneratePublicProfileId,
@@ -51,6 +54,7 @@ interface BackfillPublicProfileDiscoveryResult {
 }
 
 const MAX_PENDING_BATCH_WRITES = 400;
+const PUBLIC_AGE_ELIGIBILITY_MAX_VALID_UNTIL_MS = 253402300799999;
 
 function normalizeLimit(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value)
@@ -174,10 +178,15 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
         .doc(uid)
         .collection('preferences')
         .doc('profile');
-      const [publicProfileSnap, preferenceSnap] = await Promise.all([
-        publicProfileRef.get(),
-        preferenceRef.get(),
-      ]);
+      const ageEligibilityRef = db
+        .collection('age_eligibility_records')
+        .doc(uid);
+      const [publicProfileSnap, preferenceSnap, ageEligibilitySnap] =
+        await Promise.all([
+          publicProfileRef.get(),
+          preferenceRef.get(),
+          ageEligibilityRef.get(),
+        ]);
 
       if (!publicProfileSnap.exists) {
         skippedWithoutPublicProfile += 1;
@@ -188,6 +197,17 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
         continue;
       }
 
+      const ageDecision = evaluateCanonicalAgeEligibility({
+        uid,
+        rawRecord: ageEligibilitySnap.exists
+          ? ageEligibilitySnap.data()
+          : null,
+      });
+      const ageEligibilityValidUntil = Timestamp.fromMillis(
+        ageDecision.allowed
+          ? ageDecision.expiresAtMs ?? PUBLIC_AGE_ELIGIBILITY_MAX_VALID_UNTIL_MS
+          : 0
+      );
       const canonical = normalizeProfileDiscoveryFields(user);
       const publicPreferences = buildPublicPreferenceProjection(
         preferenceSnap.exists
@@ -213,7 +233,9 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
             interestedInGenders: canonical.interestedInGenders,
             interestedInOrientations: canonical.interestedInOrientations,
             compatibilityReady: canonical.compatibilityReady,
-            age: normalizePublicAge(user['idade'] ?? user['age']),
+            age: null,
+            ageEligibilityVerifiedAdult: ageDecision.allowed,
+            ageEligibilityValidUntil,
             ...publicPreferences,
             ...publicLocation,
             discoveryNormalizedAt: FieldValue.serverTimestamp(),
@@ -266,8 +288,3 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
   }
 );
 
-function normalizePublicAge(value: unknown): number | null {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
-  const age = Math.round(value);
-  return age >= 18 && age <= 100 ? age : null;
-}

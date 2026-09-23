@@ -1,20 +1,21 @@
 // ===============================================================
-// PUBLIC SOCIAL LINKS (espelho público)
-// - Somente subset publicado
-// - Publicação: somente dono com assinatura ativa
-// - Leitura por visitantes: exige login e assinatura ativa do dono
-// - Leitura pelo dono: permitida para gerenciamento e limpeza
-// - Remoção: o dono mantém controle mesmo após o término da assinatura
-// - Evita LIST (padrão anti-scraping)
-// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`.
-// uso de helpers globais
-// C:\entretenimento\firestore-rules\public_social_links.rules
+// PUBLIC SOCIAL LINKS
+// - Espelho público da fonte privada users/{uid}/profileData/socialLinks.
+// - O cliente nunca pode publicar valores diferentes da fonte privada.
+// - Criação/alteração material exige assinatura + fronteira adulta canônica.
+// - Remoção continua disponível ao dono após expiração.
 // ===============================================================
 match /public_social_links/{userId} {
 
-  allow get: if isSelf(userId)
-    || (signedIn() && isActiveSubscriber(userId));
-  allow list: if false;
+  function privateSocialLinksPath() {
+    return /databases/$(database)/documents/users/$(userId)/profileData/socialLinks;
+  }
+
+  function currentActorHasActiveSubscription() {
+    let user = get(currentPrivateUserPath()).data;
+    return user is map
+      && activeSubscriptionRankFromProjection(user) > 0;
+  }
 
   function allowedKeys() {
     return request.resource.data.keys().hasOnly([
@@ -26,33 +27,15 @@ match /public_social_links/{userId} {
     ]);
   }
 
-  function validPayload() {
-    return request.resource.data.uid == uid()
-      && allowedKeys()
-      && optString("facebook")
-      && optString("instagram")
-      && optString("twitter")
-      && optString("linkedin")
-      && optString("youtube")
-      && optString("tiktok")
-      && optString("snapchat")
-      && optString("sexlog")
-      && optString("d4swing")
-      && optString("hotvips")
-      && optString("privacy")
-      && optString("onlyfans")
-      && optString("fansly")
-      && optString("linktree")
-      && optTimestamp("updatedAt");
-  }
+  function mirrorsPrivateSourceAfterWrite() {
+    let source = getAfter(privateSocialLinksPath()).data;
+    let diff = request.resource.data.diff(source);
 
-  function changedKeysAllowed() {
-    return request.resource.data.diff(resource.data).changedKeys().hasOnly([
-      "facebook","instagram","twitter","linkedin","youtube","tiktok","snapchat",
-      "sexlog","d4swing",
-      "hotvips","privacy","onlyfans","fansly","linktree",
-      "updatedAt"
-    ]);
+    return source is map
+      && diff.addedKeys().hasOnly(["uid", "updatedAt"])
+      && diff.addedKeys().hasAll(["uid", "updatedAt"])
+      && diff.changedKeys().size() == 0
+      && diff.removedKeys().size() == 0;
   }
 
   function removesOnly() {
@@ -62,19 +45,37 @@ match /public_social_links/{userId} {
       && diff.removedKeys().size() > 0;
   }
 
+  function writeEnvelopeValid() {
+    return request.resource.data.uid == uid()
+      && allowedKeys()
+      && request.resource.data.updatedAt == request.time
+      && mirrorsPrivateSourceAfterWrite();
+  }
+
+  allow get: if signedIn()
+    && (
+      isSelf(userId)
+      || (
+        currentUserCanUseAdultSocialPlatform()
+        && isActiveSubscriber(userId)
+      )
+    );
+  allow list: if false;
+
   allow create: if isSelf(userId)
-    && isActiveSubscriber(userId)
-    && validPayload()
-    && request.resource.data.updatedAt == request.time;
+    && currentActorHasActiveSubscription()
+    && currentUserCanUseAdultSocialPlatform()
+    && writeEnvelopeValid();
 
   allow update: if isSelf(userId)
-    && validPayload()
     && request.resource.data.uid == resource.data.uid
-    && request.resource.data.updatedAt == request.time
-    && changedKeysAllowed()
+    && writeEnvelopeValid()
     && (
-      isActiveSubscriber(userId)
-      || removesOnly()
+      removesOnly()
+      || (
+        currentActorHasActiveSubscription()
+        && currentUserCanUseAdultSocialPlatform()
+      )
     );
 
   allow delete: if isSelf(userId);

@@ -34,7 +34,7 @@ import {
   resolveCommunityOwnerPlanLimit,
   resolvePersonalCommunityCreationPolicy,
 } from './community-capacity.policy';
-import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
+import { assertCommunityMembershipActorEligibleInTransaction } from './community-membership-eligibility.service';
 import { consumeCommunityRateLimit } from './community-rate-limit.service';
 import { buildCommunityRankingProjectionPatch } from './community-ranking-sync.policy';
 import {
@@ -166,9 +166,10 @@ export const createCommunity = onCall<CreateCommunityRequest>(
         };
       }
 
-      assertCommunityMembershipActorEligible(
-        userSnapshot.exists ? userSnapshot.data() : null,
-        actorUid
+      await assertCommunityMembershipActorEligibleInTransaction(
+        transaction,
+        actorUid,
+        userSnapshot.exists ? userSnapshot.data() : null
       );
 
       const actorUser = userSnapshot.data() ?? {};

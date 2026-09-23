@@ -238,12 +238,34 @@ async function run() {
           version: 'v3',
           acknowledgedPrivacyNotice: true,
         },
+        adultConsent: {
+          accepted: true,
+          version: 'v1',
+        },
         initialAdultConsentRequired: false,
         ageReverification: null,
         updatedAt: Date.now(),
       },
       { merge: true }
     );
+
+    const verifiedAtMs = Date.now() - 1_000;
+    await adminDb.doc(`age_eligibility_records/${ownerUid}`).set({
+      uid: ownerUid,
+      status: 'VERIFIED_ADULT',
+      policyVersion: 1,
+      source: 'INITIAL_VERIFICATION',
+      method: 'EXTERNAL_PROVIDER',
+      caseId: `video-e2e-${runId}`,
+      verifiedAtMs,
+      verifiedAt: new Date(verifiedAtMs),
+      decidedAtMs: verifiedAtMs,
+      decidedAt: new Date(verifiedAtMs),
+      expiresAtMs: null,
+      expiresAt: null,
+      updatedAtMs: verifiedAtMs,
+      updatedAt: new Date(verifiedAtMs),
+    });
 
     await authenticatedUser.reload();
     await authenticatedUser.getIdToken(true);

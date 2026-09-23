@@ -30,6 +30,22 @@ match /public_index/{docId} {
 
   function validDocId() { return isNicknameDoc() || isEmailDoc(); }
 
+  function currentNicknameOwnerEligibleAfter() {
+    let userPath = /databases/$(database)/documents/users/$(uid());
+    let user = signedIn() && existsAfter(userPath)
+      ? getAfter(userPath).data
+      : null;
+
+    return user is map
+      && user.accountStatus == "active"
+      && user.profileCompleted == true
+      && user.publicVisibility == "visible"
+      && user.interactionBlocked == false
+      && canonicalAgeEligibilityAllowsAdultAccess(uid())
+      && adultMediaHasCurrentTerms(user)
+      && adultMediaHasRequiredConsent(user);
+  }
+
   function common() {
     return signedIn()
       && validDocId()
@@ -43,6 +59,7 @@ match /public_index/{docId} {
   }
 
   allow create: if common()
+    && (!isNicknameDoc() || currentNicknameOwnerEligibleAfter())
     && !exists(/databases/$(database)/documents/public_index/$(docId));
 
   allow update: if signedIn()

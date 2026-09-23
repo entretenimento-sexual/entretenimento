@@ -33,6 +33,9 @@
 import { createHash } from 'node:crypto';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
+import {
+  assertInteractionAccessData,
+} from '../../../account_lifecycle/interaction-access.policy';
 import { db, FieldValue } from '../../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../../config/functions-region';
 
@@ -193,6 +196,8 @@ export const sendDirectMessage = onCall<SendDirectMessageRequest>(
 
       const actorRef = db.collection('users').doc(actorUid);
       const targetRef = db.collection('users').doc(targetUid);
+      const actorAgeRef = db.collection('age_eligibility_records').doc(actorUid);
+      const targetAgeRef = db.collection('age_eligibility_records').doc(targetUid);
 
       const actorBlockRef = actorRef.collection('blocks').doc(targetUid);
       const targetBlockRef = targetRef.collection('blocks').doc(actorUid);
@@ -208,6 +213,8 @@ export const sendDirectMessage = onCall<SendDirectMessageRequest>(
         actorFriendSnapshot,
         targetFriendSnapshot,
         existingMessageSnapshot,
+        actorAgeSnapshot,
+        targetAgeSnapshot,
       ] = await Promise.all([
         transaction.get(actorRef),
         transaction.get(targetRef),
@@ -216,6 +223,8 @@ export const sendDirectMessage = onCall<SendDirectMessageRequest>(
         transaction.get(actorFriendRef),
         transaction.get(targetFriendRef),
         transaction.get(messageRef),
+        transaction.get(actorAgeRef),
+        transaction.get(targetAgeRef),
       ]);
 
       const actor = actorSnapshot.data() as MessagingUserDoc | undefined;
@@ -230,6 +239,16 @@ export const sendDirectMessage = onCall<SendDirectMessageRequest>(
         operation: 'send-direct-message',
         perspective: 'target',
       });
+      assertInteractionAccessData(
+        actor,
+        actorAgeSnapshot.exists ? actorAgeSnapshot.data() : null,
+        actorUid
+      );
+      assertInteractionAccessData(
+        target,
+        targetAgeSnapshot.exists ? targetAgeSnapshot.data() : null,
+        targetUid
+      );
 
       assertNoDirectMessagingBlock({
         actorBlockedTarget: isBlocked(

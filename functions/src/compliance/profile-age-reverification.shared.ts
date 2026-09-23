@@ -33,6 +33,8 @@ export interface AgeReverificationRecord {
   method?: string | null;
   declaredAgeBand?: string | null;
   resolution?: string | null;
+  evidenceMethod?: string | null;
+  evidenceReferenceHash?: string | null;
 }
 
 export interface AgeReverificationUserDocument extends UserDoc {

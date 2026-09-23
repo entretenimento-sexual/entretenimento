@@ -20,14 +20,17 @@ export async function seedPublicMediaCompliance(adminDb, uids) {
       .filter(Boolean)
   )];
 
+  const nowMs = Date.now();
+
   await Promise.all(
-    uniqueUids.map((uid) =>
+    uniqueUids.flatMap((uid) => [
       adminDb.doc(`users/${uid}`).set(
         {
           uid,
           accountStatus: 'active',
           suspended: false,
           interactionBlocked: false,
+          publicVisibility: 'visible',
           profileCompleted: true,
           initialAdultConsentRequired: false,
           acceptedTerms: {
@@ -41,9 +44,28 @@ export async function seedPublicMediaCompliance(adminDb, uids) {
             version: ADULT_CONSENT_VERSION,
             source: 'e2e-fixture',
           },
+          ageReverification: {
+            status: 'NONE',
+          },
         },
         { merge: true }
-      )
-    )
+      ),
+      adminDb.doc(`age_eligibility_records/${uid}`).set({
+        uid,
+        status: 'VERIFIED_ADULT',
+        policyVersion: 1,
+        source: 'INITIAL_VERIFICATION',
+        method: 'EXTERNAL_PROVIDER',
+        caseId: `media-e2e-${uid}`,
+        verifiedAtMs: nowMs - 1_000,
+        verifiedAt: new Date(nowMs - 1_000),
+        decidedAtMs: nowMs - 1_000,
+        decidedAt: new Date(nowMs - 1_000),
+        expiresAtMs: null,
+        expiresAt: null,
+        updatedAtMs: nowMs,
+        updatedAt: new Date(nowMs),
+      }),
+    ])
   );
 }

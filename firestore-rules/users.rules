@@ -176,6 +176,8 @@ match /users/{userId} {
       "initialAdultConsentRequired",
       "registrationCompletedAt",
       "profileCompleted",
+      "ageEligibility",
+      "ageVerification",
       "ageReverification",
       "ageReverificationRestrictedAt",
 
@@ -205,6 +207,7 @@ match /users/{userId} {
       "accountStatus",
       "publicVisibility",
       "interactionBlocked",
+      "moderationAutomationHold",
       "loginAllowed",
 
       "suspended",
@@ -271,6 +274,8 @@ match /users/{userId} {
       && !data.keys().hasAny([
         "profileId",
         "adultConsent",
+        "ageEligibility",
+        "ageVerification",
         "ageReverification",
         "ageReverificationRestrictedAt"
       ])
@@ -348,12 +353,10 @@ match /users/{userId} {
   }
 
   function adultConsentReady(data) {
-    return (data.keys().hasAny(["initialAdultConsentRequired"])
-        && data.initialAdultConsentRequired == false)
-      || (data.keys().hasAny(["adultConsent"])
-        && data.adultConsent is map
-        && data.adultConsent.keys().hasAny(["accepted"])
-        && data.adultConsent.accepted == true);
+    return data.keys().hasAny(["adultConsent"])
+      && data.adultConsent is map
+      && data.adultConsent.keys().hasAny(["accepted"])
+      && data.adultConsent.accepted == true;
   }
 
   function selfCompletingRegistration(changedKeys) {
@@ -392,6 +395,7 @@ match /users/{userId} {
       && authEmailVerified()
       && data.emailVerified == true
       && acceptedTermsReady(data)
+      && currentUserHasVerifiedAdultAge()
       && adultConsentReady(data)
       && data.publicVisibility == "visible"
       && data.interactionBlocked == false
@@ -414,20 +418,42 @@ match /users/{userId} {
 
   function validUserUpdate() {
     let changedKeys = affectedUserKeys();
-    return selfCompletingRegistration(changedKeys)
-      || selfUpdatingDiscoveryProjection(changedKeys)
-      || ordinarySelfUpdateAllowed(changedKeys)
-      || (isAdminActor() && adminModerationOnly(changedKeys));
+    let registrationKeys = [
+      "profileCompleted",
+      "registrationCompletedAt",
+      "publicVisibility",
+      "interactionBlocked"
+    ];
+    let adminModerationKeys = [
+      "accountLocked",
+      "suspended",
+      "suspensionReason",
+      "suspendedAt",
+      "accountStatus",
+      "moderatedBy",
+      "moderatedAt",
+      "lastStatusChangeAt"
+    ];
+
+    return changedKeys.hasAny(registrationKeys)
+      ? selfCompletingRegistration(changedKeys)
+      : changedKeys.hasAny(discoveryProjectionKeys())
+        ? selfUpdatingDiscoveryProjection(changedKeys)
+        : changedKeys.hasAny(adminModerationKeys) && isAdminActor()
+          ? adminModerationOnly(changedKeys)
+          : ordinarySelfUpdateAllowed(changedKeys);
   }
 
   allow get: if isSelf(userId) || isAdminActor();
   allow list: if false;
 
-  allow create: if isSelf(userId)
+  allow create: if resource == null
+    && isSelf(userId)
     && emailVerifiedMatchesToken()
     && createDefaultsOk();
 
-  allow update: if validUserUpdate();
+  allow update: if resource != null
+    && validUserUpdate();
 
   allow delete: if false;
 }

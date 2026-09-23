@@ -42,6 +42,7 @@ import {
 } from './community-invite-management.model';
 import {
   assertCommunityMembershipActorEligible,
+  assertCommunityMembershipActorEligibleForUid,
 } from './community-membership-eligibility.service';
 import type {
   CommunityMembershipRole,
@@ -81,9 +82,13 @@ function isManagementRole(role: CommunityMembershipRole): boolean {
   return role === 'owner' || role === 'admin' || role === 'moderator';
 }
 
-function isEligibleUser(raw: unknown, uid: string): boolean {
+function isEligibleUser(
+  raw: unknown,
+  uid: string,
+  rawAgeEligibility: unknown
+): boolean {
   try {
-    assertCommunityMembershipActorEligible(raw, uid);
+    assertCommunityMembershipActorEligible(raw, uid, rawAgeEligibility);
     return true;
   } catch {
     return false;
@@ -95,12 +100,12 @@ async function requireInviteActor(
   communityId: string
 ): Promise<InviteActorContext> {
   const communityRef = db.collection('communities').doc(communityId);
-  const [communitySnapshot, membershipSnapshot, userSnapshot] =
+  const [communitySnapshot, membershipSnapshot] =
     await Promise.all([
       communityRef.get(),
       communityRef.collection('members').doc(actorUid).get(),
-      db.collection('users').doc(actorUid).get(),
     ]);
+  await assertCommunityMembershipActorEligibleForUid(actorUid);
 
   if (!communitySnapshot.exists) {
     throw new HttpsError(
@@ -109,11 +114,6 @@ async function requireInviteActor(
       { reason: 'community_not_found' }
     );
   }
-
-  assertCommunityMembershipActorEligible(
-    userSnapshot.exists ? userSnapshot.data() : null,
-    actorUid
-  );
 
   const community = communitySnapshot.data() ?? {};
   const source = (community['source'] ?? {}) as Record<string, unknown>;
@@ -200,12 +200,14 @@ export const findCommunityInviteCandidate =
       const [
         profileSnapshot,
         userSnapshot,
+        ageEligibilitySnapshot,
         membershipSnapshot,
         inviteSnapshot,
         blockedUids,
       ] = await Promise.all([
         db.collection('public_profiles').doc(candidateUid).get(),
         db.collection('users').doc(candidateUid).get(),
+        db.collection('age_eligibility_records').doc(candidateUid).get(),
         candidateMembershipRef.get(),
         db.collection('invites')
           .doc(buildCommunityInviteId(command.communityId, candidateUid))
@@ -218,7 +220,10 @@ export const findCommunityInviteCandidate =
         || blockedUids.has(candidateUid)
         || !isEligibleUser(
           userSnapshot.exists ? userSnapshot.data() : null,
-          candidateUid
+          candidateUid,
+          ageEligibilitySnapshot.exists
+            ? ageEligibilitySnapshot.data()
+            : null
         )
       ) {
         return { candidate: null, generatedAt };

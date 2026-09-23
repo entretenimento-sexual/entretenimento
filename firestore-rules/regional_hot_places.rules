@@ -23,7 +23,8 @@ match /regional_hot_places/{placeId} {
       && resource.data.moderation.visibility == "visible";
   }
 
-  allow get, list: if signedIn() && isVisibleHotPlace();
+  allow get, list: if currentUserCanUseAdultSocialPlatform()
+    && isVisibleHotPlace();
 
   allow create, update: if isAdmin() && validHotPlacePayload();
   allow delete: if isAdmin();

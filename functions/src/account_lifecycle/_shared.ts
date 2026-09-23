@@ -57,7 +57,7 @@ export type UserDoc = {
   suspended?: boolean | null;
 
   suspensionReason?: string | null;
-  suspensionSource?: 'self' | 'moderator' | null;
+  suspensionSource?: 'self' | 'moderator' | 'automation' | null;
   suspensionEndsAt?: number | null;
 
   deletionRequestedAt?: number | null;
@@ -75,7 +75,7 @@ export type UserDoc = {
   deletionRestoreStatus?: RestorableAccountStatus | null;
   deletionRestoreSuspended?: boolean | null;
   deletionRestoreSuspensionReason?: string | null;
-  deletionRestoreSuspensionSource?: 'self' | 'moderator' | null;
+  deletionRestoreSuspensionSource?: 'self' | 'moderator' | 'automation' | null;
   deletionRestoreSuspensionEndsAt?: number | null;
 
   legalHold?: boolean;

@@ -21,14 +21,34 @@ match /user_intent_statuses/{statusId} {
   }
 
   function isDiscoverableStatus() {
-    return resource.data.moderation.state == "active"
+    let validUntil = resource.data.ageEligibilityValidUntil;
+    return resource.data.ageEligibilityVerifiedAdult == true
+      && validUntil is timestamp
+      && request.time < validUntil
+      && resource.data.moderation.state == "active"
       && resource.data.visibility == "public_discovery";
   }
 
-  allow get: if isCurrentStatusPath()
-    || (signedIn() && (isDiscoverableStatus() || isOwnerStatus()));
+  function targetCanonicalAgeEligibilityAllowsAdultExposure() {
+    return resource.data.uid is string
+      && canonicalAgeEligibilityAllowsAdultAccess(resource.data.uid);
+  }
 
-  allow list: if signedIn() && isDiscoverableStatus();
+  allow get: if isCurrentStatusPath()
+    || (
+      currentUserCanUseAdultSocialPlatform()
+      && (
+        isOwnerStatus()
+        || (
+          isDiscoverableStatus()
+          && targetCanonicalAgeEligibilityAllowsAdultExposure()
+        )
+      )
+    );
+
+  // Enumeração client-side encerrada. As listagens públicas atravessam
+  // getUserIntentStatuses, que aplica relógio e elegibilidade no backend.
+  allow list: if false;
 
   allow create, update, delete: if false;
 }

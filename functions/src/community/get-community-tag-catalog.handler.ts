@@ -14,13 +14,12 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
-import { db } from '../firebaseApp';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   assertCommunityCallableAppCheck,
   REQUIRE_COMMUNITY_APP_CHECK,
 } from './community-callable-security';
-import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
+import { assertCommunityMembershipActorEligibleForUid } from './community-membership-eligibility.service';
 import {
   CommunityPreferenceSignal,
   CommunityTagCategory,
@@ -69,11 +68,7 @@ export const getCommunityTagCatalog = onCall(
       );
     }
 
-    const userSnapshot = await db.collection('users').doc(uid).get();
-    assertCommunityMembershipActorEligible(
-      userSnapshot.exists ? userSnapshot.data() : null,
-      uid
-    );
+    await assertCommunityMembershipActorEligibleForUid(uid);
 
     return {
       items: getCanonicalCommunityTagCatalog().map((tag) => ({

@@ -11,6 +11,8 @@ export const FIRESTORE_RULE_PARTS = Object.freeze([
 
   // Documentos privados e domínios internos sensíveis.
   'users.rules',
+  'age_eligibility_records.rules',
+  'age_verification_provider_assertions.rules',
   'push_devices.rules',
   'billing.rules',
   'community_boost.rules',
@@ -52,6 +54,7 @@ export const FIRESTORE_RULE_PARTS = Object.freeze([
   // Moderação, preservação e auditoria operacional.
   'moderation_reports.rules',
   'moderation_evidence.rules',
+  'moderation_automation.rules',
 
   // Demais módulos.
   'communities.rules',

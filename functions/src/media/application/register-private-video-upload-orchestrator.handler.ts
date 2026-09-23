@@ -118,7 +118,8 @@ function cleanupJobId(storagePath: string): string {
 function assertPrivateVideoUploadEligibilityData(
   authUser: PrivateMediaUploadAuthSnapshot | null | undefined,
   user: PrivateMediaUploadAccountSnapshot | null | undefined,
-  expectedUid: string
+  expectedUid: string,
+  ageEligibilityRecord: unknown
 ): void {
   if (!authUser || !user) {
     throw new HttpsError(
@@ -147,7 +148,11 @@ function assertPrivateVideoUploadEligibilityData(
     );
   }
 
-  assertInteractionAccessData(user);
+  assertInteractionAccessData(
+    user,
+    ageEligibilityRecord,
+    expectedUid
+  );
 
   if (authUser.emailVerified !== true) {
     throw new HttpsError(
@@ -168,10 +173,12 @@ async function assertPrivateVideoUploadEligibility(
   ownerUid: string
 ): Promise<void> {
   try {
-    const [authUser, userSnapshot] = await Promise.all([
-      auth.getUser(ownerUid),
-      db.doc(`users/${ownerUid}`).get(),
-    ]);
+    const [authUser, userSnapshot, ageEligibilitySnapshot] =
+      await Promise.all([
+        auth.getUser(ownerUid),
+        db.doc(`users/${ownerUid}`).get(),
+        db.doc(`age_eligibility_records/${ownerUid}`).get(),
+      ]);
 
     assertPrivateVideoUploadEligibilityData(
       {
@@ -181,7 +188,10 @@ async function assertPrivateVideoUploadEligibility(
       userSnapshot.exists
         ? userSnapshot.data() as PrivateMediaUploadAccountSnapshot
         : null,
-      ownerUid
+      ownerUid,
+      ageEligibilitySnapshot.exists
+        ? ageEligibilitySnapshot.data()
+        : null
     );
   } catch (error) {
     if (error instanceof HttpsError) {

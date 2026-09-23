@@ -19,7 +19,7 @@ import {
 } from './community-callable-security';
 import { isCommunityMemberActivityEnabledStatus } from './community-lifecycle.policy';
 import {
-  assertCommunityMembershipActorEligible,
+  assertCommunityMembershipActorEligibleInTransaction,
 } from './community-membership-eligibility.service';
 import { consumeCommunityRateLimit } from './community-rate-limit.service';
 import {
@@ -110,12 +110,8 @@ function buildAuthor(rawUser: unknown): {
 
 function assertTransactionalInteractionAllowed(
   rawCommunity: unknown,
-  rawMembership: unknown,
-  rawUser: unknown,
-  uid: string
+  rawMembership: unknown
 ): void {
-  assertCommunityMembershipActorEligible(rawUser, uid);
-
   const community = (rawCommunity ?? {}) as Record<string, unknown>;
   const moderation = (community['moderation'] ?? {}) as Record<string, unknown>;
   const membership = (rawMembership ?? {}) as Record<string, unknown>;
@@ -253,11 +249,21 @@ export const createCommunityTopic = onCall<CommunityTopicCreateRequest>(
         };
       }
 
+      await assertCommunityMembershipActorEligibleInTransaction(
+        transaction,
+        actorUid,
+        userSnapshot.exists ? userSnapshot.data() : null
+      );
+
+      await assertCommunityMembershipActorEligibleInTransaction(
+        transaction,
+        actorUid,
+        userSnapshot.exists ? userSnapshot.data() : null
+      );
+
       assertTransactionalInteractionAllowed(
         communitySnapshot.data(),
-        membershipSnapshot.exists ? membershipSnapshot.data() : null,
-        userSnapshot.exists ? userSnapshot.data() : null,
-        actorUid
+        membershipSnapshot.exists ? membershipSnapshot.data() : null
       );
 
       if (topicSnapshot.exists || projectionSnapshot.exists) {
@@ -481,9 +487,7 @@ export const createCommunityTopicReply = onCall<CommunityTopicReplyCreateRequest
 
       assertTransactionalInteractionAllowed(
         communitySnapshot.data(),
-        membershipSnapshot.exists ? membershipSnapshot.data() : null,
-        userSnapshot.exists ? userSnapshot.data() : null,
-        actorUid
+        membershipSnapshot.exists ? membershipSnapshot.data() : null
       );
 
       if (!topicSnapshot.exists || !projectionSnapshot.exists) {

@@ -12,6 +12,16 @@ match /public_profiles/{userId}/public_videos/{videoId} {
     return exists(publicProfilePath());
   }
 
+  function publicProfileProjectionAllowsAdultExposure() {
+    return publicProfileExists()
+      && publicAgeProjectionAllowsAdultExposure(get(publicProfilePath()).data);
+  }
+
+  function publicProfileAllowsAdultExposure() {
+    return publicProfileProjectionAllowsAdultExposure()
+      && canonicalAgeEligibilityAllowsAdultAccess(userId);
+  }
+
   function videoPath() {
     return /databases/$(database)/documents/public_profiles/$(userId)/public_videos/$(videoId);
   }
@@ -25,12 +35,20 @@ match /public_profiles/{userId}/public_videos/{videoId} {
   }
 
   function isApprovedPublicVideoData(data) {
-    return data.visibility == "PUBLIC"
+    return data.ageEligibilityVerifiedAdult == true
+      && data.visibility == "PUBLIC"
       && data.moderationStatus == "APPROVED";
   }
 
   function isPublicReadableVideo() {
-    return publicProfileExists()
+    return publicProfileAllowsAdultExposure()
+      && resource.data.ageEligibilityVerifiedAdult == true
+      && resource.data.visibility == "PUBLIC"
+      && resource.data.moderationStatus == "APPROVED";
+  }
+
+  function isPublicListReadableVideo() {
+    return resource.data.ageEligibilityVerifiedAdult == true
       && resource.data.visibility == "PUBLIC"
       && resource.data.moderationStatus == "APPROVED";
   }
@@ -38,8 +56,9 @@ match /public_profiles/{userId}/public_videos/{videoId} {
   allow get: if canConsumeAdultPublicMedia()
     && (isSelf(userId) || isPublicReadableVideo());
 
-  allow list: if canConsumeAdultPublicMedia()
-    && isPublicReadableVideo();
+  // Galerias owner-scoped também atravessam a Callable backend-time.
+  // O get direto permanece disponível para deep links sob fronteira forte.
+  allow list: if false;
 
   allow create, update, delete: if false;
 
@@ -69,7 +88,7 @@ match /public_profiles/{userId}/public_videos/{videoId} {
       && (
         isSelf(userId)
         || (
-          publicProfileExists()
+          publicProfileAllowsAdultExposure()
           && resource.data.status == "VISIBLE"
           && videoExists()
           && isApprovedPublicVideoData(videoData())
@@ -80,7 +99,7 @@ match /public_profiles/{userId}/public_videos/{videoId} {
       && (
         isSelf(userId)
         || (
-          publicProfileExists()
+          publicProfileAllowsAdultExposure()
           && resource.data.status == "VISIBLE"
           && videoExists()
           && isApprovedPublicVideoData(videoData())
@@ -98,10 +117,10 @@ match /public_profiles/{userId}/public_videos/{videoId} {
 // A elegibilidade do viewer é verificada independentemente do documento,
 // evitando que um cliente modificado contorne os guards de rota.
 // ------------------------------------------------------------
-match /{path=**}/public_videos/{videoId} {
-  allow list: if canConsumeAdultPublicMedia()
-    && resource.data.visibility == "PUBLIC"
-    && resource.data.moderationStatus == "APPROVED";
+match /{path=**}/public_videos/{mediaId} {
+  // Collection-group discovery é backend-only. Galerias de proprietário
+  // conhecido continuam autorizadas pelo match específico acima.
+  allow list: if false;
 
   allow create, update, delete: if false;
 }

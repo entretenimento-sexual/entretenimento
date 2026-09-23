@@ -68,6 +68,7 @@ describe('FinalizarCadastroComponent', () => {
     userResolved: true,
     userExists: true,
     termsAccepted: true,
+    ageEligibilityVerified: true,
     profileCompleted: false,
     adultConsentAccepted: false,
     currentStep: 'profileCompletion',

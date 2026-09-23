@@ -5,14 +5,14 @@ import { DiscoveryVisibleProfileLocationRepository } from './discovery-visible-p
 
 describe('DiscoveryVisibleProfileLocationRepository', () => {
   const readMock = {
-    getDocumentsLiveSafe: vi.fn(),
+    getDocumentLiveSafe: vi.fn(),
   };
 
   let repository: DiscoveryVisibleProfileLocationRepository;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    readMock.getDocumentsLiveSafe.mockReturnValue(of([]));
+    readMock.getDocumentLiveSafe.mockReturnValue(of(null));
     repository = new DiscoveryVisibleProfileLocationRepository(readMock as any);
   });
 
@@ -20,59 +20,63 @@ describe('DiscoveryVisibleProfileLocationRepository', () => {
     const result = await firstValueFrom(repository.watchByUids$([]));
 
     expect(result).toEqual([]);
-    expect(readMock.getDocumentsLiveSafe).not.toHaveBeenCalled();
+    expect(readMock.getDocumentLiveSafe).not.toHaveBeenCalled();
   });
 
-  it('observa perfis visíveis em lotes e preserva ausência de localização', async () => {
-    const uids = Array.from({ length: 11 }, (_, index) => `u${index + 1}`);
+  it('observa somente UIDs visíveis por get temporal e preserva ausência de localização', async () => {
+    const validUntil = Date.now() + 60_000;
 
-    readMock.getDocumentsLiveSafe
+    readMock.getDocumentLiveSafe
       .mockReturnValueOnce(
-        of([
-          {
-            uid: 'u1',
-            latitude: -22.93,
-            longitude: -43.35,
-            geohash: '75cm',
-          },
-          {
-            uid: 'u2',
-          },
-        ])
-      )
-      .mockReturnValueOnce(
-        of([
-          {
-            uid: 'u11',
-            latitude: -22.91,
-            longitude: -43.31,
-            geohash: '75cq',
-          },
-        ])
-      );
-
-    const result = await firstValueFrom(repository.watchByUids$(uids));
-
-    expect(readMock.getDocumentsLiveSafe).toHaveBeenCalledTimes(2);
-    expect(result).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
+        of({
           uid: 'u1',
+          ageEligibilityVerifiedAdult: true,
+          ageEligibilityValidUntil: validUntil,
           latitude: -22.93,
           longitude: -43.35,
-        }),
-        expect.objectContaining({
+          geohash: '75cm',
+        })
+      )
+      .mockReturnValueOnce(
+        of({
           uid: 'u2',
-          latitude: null,
-          longitude: null,
-          geohash: null,
-        }),
-        expect.objectContaining({
-          uid: 'u11',
+          ageEligibilityVerifiedAdult: true,
+          ageEligibilityValidUntil: validUntil,
+        })
+      )
+      .mockReturnValueOnce(
+        of({
+          uid: 'u3',
+          ageEligibilityVerifiedAdult: true,
+          ageEligibilityValidUntil: Date.now() - 1,
           latitude: -22.91,
           longitude: -43.31,
-        }),
-      ])
+          geohash: '75cq',
+        })
+      );
+
+    const result = await firstValueFrom(
+      repository.watchByUids$(['u3', 'u1', 'u2'])
     );
+
+    expect(readMock.getDocumentLiveSafe).toHaveBeenCalledTimes(3);
+    expect(readMock.getDocumentLiveSafe).toHaveBeenCalledWith(
+      'public_profiles',
+      'u1',
+      { idField: 'uid', requireAuth: true }
+    );
+    expect(result).toEqual([
+      expect.objectContaining({
+        uid: 'u1',
+        latitude: -22.93,
+        longitude: -43.35,
+      }),
+      expect.objectContaining({
+        uid: 'u2',
+        latitude: null,
+        longitude: null,
+        geohash: null,
+      }),
+    ]);
   });
 });

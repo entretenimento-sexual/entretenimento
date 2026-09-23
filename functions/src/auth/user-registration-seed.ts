@@ -4,7 +4,7 @@ import { FieldValue } from '../firebaseApp';
 import { generatePublicProfileId } from '../identity/public-profile-id';
 
 export const INITIAL_TERMS_VERSION = 'v1';
-export const REGISTRATION_FLOW_VERSION = 'v2';
+export const REGISTRATION_FLOW_VERSION = 'v3-private-by-default';
 
 export interface InitialUserSeedOptions {
   nowMs?: number;
@@ -65,8 +65,8 @@ export function buildInitialUserSeed(
 
     suspended: false,
     accountLocked: false,
-    publicVisibility: 'visible',
-    interactionBlocked: false,
+    publicVisibility: 'hidden',
+    interactionBlocked: true,
     loginAllowed: true,
 
     authProviders,

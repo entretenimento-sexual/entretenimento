@@ -45,6 +45,7 @@ import {
   deleteApp as deleteAdminApp,
   initializeApp as initializeAdminApp,
 } from 'firebase-admin/app';
+import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
 import { getStorage as getAdminStorage } from 'firebase-admin/storage';
 
@@ -153,6 +154,7 @@ async function run() {
     },
     `media-e2e-admin-${runId}`
   );
+  const adminAuth = getAdminAuth(adminApp);
   const adminDb = getAdminFirestore(adminApp);
   const bucket = getAdminStorage(adminApp).bucket(STORAGE_BUCKET);
 
@@ -169,6 +171,60 @@ async function run() {
     );
     authenticatedUser = credential.user;
     ownerUid = credential.user.uid;
+
+    await adminAuth.updateUser(ownerUid, {
+      emailVerified: true,
+      disabled: false,
+    });
+
+    const verifiedAtMs = Date.now() - 1_000;
+    await Promise.all([
+      adminDb.doc(`users/${ownerUid}`).set(
+        {
+          uid: ownerUid,
+          emailVerified: true,
+          profileCompleted: true,
+          accountStatus: 'active',
+          suspended: false,
+          interactionBlocked: false,
+          accountLocked: false,
+          loginAllowed: true,
+          acceptedTerms: {
+            accepted: true,
+            version: 'v3',
+            acknowledgedPrivacyNotice: true,
+          },
+          adultConsent: {
+            accepted: true,
+            version: 'v1',
+          },
+          initialAdultConsentRequired: false,
+          ageReverification: null,
+          updatedAt: Date.now(),
+        },
+        { merge: true }
+      ),
+      adminDb.doc(`age_eligibility_records/${ownerUid}`).set({
+        uid: ownerUid,
+        status: 'VERIFIED_ADULT',
+        policyVersion: 1,
+        source: 'INITIAL_VERIFICATION',
+        method: 'EXTERNAL_PROVIDER',
+        caseId: `photo-e2e-${runId}`,
+        verifiedAtMs,
+        verifiedAt: new Date(verifiedAtMs),
+        decidedAtMs: verifiedAtMs,
+        decidedAt: new Date(verifiedAtMs),
+        expiresAtMs: null,
+        expiresAt: null,
+        updatedAtMs: verifiedAtMs,
+        updatedAt: new Date(verifiedAtMs),
+      }),
+    ]);
+
+    await authenticatedUser.reload();
+    await authenticatedUser.getIdToken(true);
+
     resolvedOriginalPath = originalPath.replace('/pending/', `/${ownerUid}/`);
     resolvedEditedPath = editedPath.replace('/pending/', `/${ownerUid}/`);
 

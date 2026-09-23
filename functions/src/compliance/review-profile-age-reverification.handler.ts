@@ -8,6 +8,19 @@ import {
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
+  safeRecordModerationReviewSignal,
+} from '../moderation/moderation-automation.service';
+import {
+  safeNotifyAgeReverificationOutcome,
+} from '../moderation/moderation-safety-notification.service';
+import {
+  normalizeAgeReviewEvidence,
+  type AgeReviewEvidenceMethod,
+} from './age-review-evidence.policy';
+import {
+  writeCanonicalAgeEligibilityInTransaction,
+} from './age-eligibility.service';
+import {
   readProfileMediaVisibilitySnapshots,
   restoreProfileMediaVisibility,
 } from './profile-age-reverification-media';
@@ -26,6 +39,8 @@ interface ReviewProfileAgeReverificationRequest {
   reportId?: string;
   decision?: 'VERIFY' | 'REJECT';
   resolution?: string | null;
+  evidenceMethod?: AgeReviewEvidenceMethod;
+  evidenceReference?: string | null;
 }
 
 interface AgeReverificationCaseDocument {
@@ -69,15 +84,20 @@ export const reviewProfileAgeReverification = onCall<
       .trim()
       .toUpperCase();
     const resolution = cleanComplianceText(request.data?.resolution, 900);
+    const evidence = normalizeAgeReviewEvidence({
+      method: request.data?.evidenceMethod,
+      reference: request.data?.evidenceReference,
+    });
 
     if (
       !reportId ||
       (decision !== 'VERIFY' && decision !== 'REJECT') ||
-      resolution.length < 8
+      resolution.length < 8 ||
+      !evidence
     ) {
       throw new HttpsError(
         'invalid-argument',
-        'Decisão de revalidação inválida.'
+        'Decisão de revalidação exige justificativa e evidência confiável.'
       );
     }
 
@@ -87,7 +107,7 @@ export const reviewProfileAgeReverification = onCall<
       ? 'VERIFIED'
       : 'REJECTED';
 
-    await db.runTransaction(async (transaction) => {
+    const targetUid = await db.runTransaction(async (transaction) => {
       const reportSnapshot = await transaction.get(reportRef);
 
       if (!reportSnapshot.exists) {
@@ -164,6 +184,21 @@ export const reviewProfileAgeReverification = onCall<
       const dedupRef = db
         .collection('moderation_report_dedup')
         .doc(profileMinorReportDedupId(reporterUid, targetUid));
+      const ageEligibility = writeCanonicalAgeEligibilityInTransaction(
+        transaction,
+        {
+          uid: targetUid,
+          status: decision === 'VERIFY'
+            ? 'VERIFIED_ADULT'
+            : 'DENIED_UNDERAGE',
+          source: 'AGE_REVERIFICATION',
+          method: 'MANUAL_REVIEW',
+          caseId,
+          verifiedAtMs: decision === 'VERIFY' ? reviewedAt : null,
+          decidedAtMs: reviewedAt,
+          expiresAtMs: null,
+        }
+      );
 
       if (decision === 'VERIFY') {
         transaction.set(
@@ -176,7 +211,10 @@ export const reviewProfileAgeReverification = onCall<
               reviewedBy: adminUid,
               result: 'ADULT',
               resolution,
+              evidenceMethod: evidence.method,
+              evidenceReferenceHash: evidence.referenceHash,
             },
+            ageEligibility,
             ...(canRestoreAccess
               ? {
                 publicVisibility: 'visible',
@@ -245,7 +283,10 @@ export const reviewProfileAgeReverification = onCall<
               reviewedBy: adminUid,
               result: 'UNDERAGE',
               resolution,
+              evidenceMethod: evidence.method,
+              evidenceReferenceHash: evidence.referenceHash,
             },
+            ageEligibility,
             accountStatus: 'moderation_suspended',
             publicVisibility: 'hidden',
             interactionBlocked: true,
@@ -279,6 +320,8 @@ export const reviewProfileAgeReverification = onCall<
           reviewedAt,
           reviewedBy: adminUid,
           resolution,
+          evidenceMethod: evidence.method,
+          evidenceReferenceHash: evidence.referenceHash,
           restoredMediaDocumentCount: mediaSnapshots?.totalDocuments ?? 0,
           publicProfileBackup: FieldValue.delete(),
           nicknameIndexBackup: FieldValue.delete(),
@@ -322,6 +365,8 @@ export const reviewProfileAgeReverification = onCall<
           nextStatus: finalStatus,
           restoredMediaDocumentCount: mediaSnapshots?.totalDocuments ?? 0,
           resolution,
+          evidenceMethod: evidence.method,
+          evidenceReferenceHash: evidence.referenceHash,
         },
         timestamp,
       });
@@ -336,11 +381,24 @@ export const reviewProfileAgeReverification = onCall<
         actorUid: adminUid,
         result: decision === 'VERIFY' ? 'ADULT' : 'UNDERAGE',
         source: 'moderation',
+        evidenceMethod: evidence.method,
+        evidenceReferenceHash: evidence.referenceHash,
         restoredMediaDocumentCount: mediaSnapshots?.totalDocuments ?? 0,
         createdAt: timestamp,
         createdAtMs: reviewedAt,
       });
+
+      return targetUid;
     });
+
+    await safeRecordModerationReviewSignal({
+      reportId,
+      targetUid,
+      critical: true,
+      confirmed: decision === 'REJECT',
+    });
+
+    await safeNotifyAgeReverificationOutcome(reportId);
 
     return { reportId, status: finalStatus };
   }

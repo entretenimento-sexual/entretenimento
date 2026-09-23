@@ -12,6 +12,12 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { assertInteractionAccess } from '../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
+import {
+  safeRecordModerationOpenSignal,
+} from '../moderation/moderation-automation.service';
+import {
+  safeNotifyModerationReportOpened,
+} from '../moderation/moderation-safety-notification.service';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   REQUIRE_COMMUNITY_APP_CHECK,
@@ -98,7 +104,7 @@ export const reportCommunityFeedPost = onCall<CommunityFeedReportRequest>(
     );
     const reportRef = db.collection('moderation_reports').doc(reportId);
 
-    await db.runTransaction(async (transaction) => {
+    const automationTarget = await db.runTransaction(async (transaction) => {
       const [
         reportAccess,
         postSnapshot,
@@ -152,6 +158,8 @@ export const reportCommunityFeedPost = onCall<CommunityFeedReportRequest>(
       }
 
       const timestamp = FieldValue.serverTimestamp();
+      const criticalQuarantine = command.reason === 'minor_content_safety';
+
       transaction.create(reportRef, {
         reporterUid,
         targetType: 'community_feed_post',
@@ -164,10 +172,23 @@ export const reportCommunityFeedPost = onCall<CommunityFeedReportRequest>(
         route: command.route,
         status: 'open',
         moderationAction: null,
+        contentQuarantined: criticalQuarantine,
+        legalReviewStatus: command.reason === 'minor_content_safety'
+          ? 'PENDING_LEGAL_REVIEW'
+          : null,
         source: 'web',
         createdAt: timestamp,
         updatedAt: timestamp,
       });
+
+      if (criticalQuarantine) {
+        transaction.update(postRef, {
+          moderationState: 'quarantined',
+          moderationQuarantineReason: 'minor_content_safety',
+          moderationQuarantinedAt: timestamp,
+          updatedAt: timestamp,
+        });
+      }
 
       // Serializa denúncia x exclusão no próprio post. Se uma exclusão concorrente
       // ganhar a corrida, esta transação é refeita e o post já não estará ativo;
@@ -177,7 +198,23 @@ export const reportCommunityFeedPost = onCall<CommunityFeedReportRequest>(
           moderationEvidenceMediaHold: true,
         });
       }
+
+      return {
+        authorUid,
+        quarantined: criticalQuarantine,
+      };
     });
+
+    await safeRecordModerationOpenSignal({
+      reportId,
+      targetUid: automationTarget.authorUid,
+      reporterUid,
+      targetKey: `community-post:${command.communityId}:${command.postId}`,
+      critical: command.reason === 'minor_content_safety',
+      quarantined: automationTarget.quarantined,
+    });
+
+    await safeNotifyModerationReportOpened(reportId);
 
     return { reportId };
   }

@@ -77,7 +77,10 @@ export class VideoReportPageComponent {
     { value: 'sexual_boundary', label: 'Limite sexual violado' },
     { value: 'illegal_content', label: 'Conteúdo ilegal' },
     { value: 'privacy', label: 'Violação de privacidade' },
-    { value: 'minor_safety', label: 'Segurança de menores' },
+    {
+      value: 'minor_content_safety',
+      label: 'Possível menor em conteúdo sexual ou íntimo',
+    },
     { value: 'other', label: 'Outro motivo' },
   ];
 

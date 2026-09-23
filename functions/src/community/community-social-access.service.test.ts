@@ -9,18 +9,30 @@ function eligibleUser(overrides: Record<string, unknown> = {}) {
   return {
     uid: 'user-1',
     accountStatus: 'active',
-    idade: 30,
     acceptedTerms: {
       accepted: true,
       version: 'v3',
       acknowledgedPrivacyNotice: true,
     },
-    initialAdultConsentRequired: true,
     adultConsent: {
       accepted: true,
       version: 'v1',
     },
     ageReverification: { status: 'NONE' },
+    ...overrides,
+  };
+}
+
+function eligibleAge(overrides: Record<string, unknown> = {}) {
+  return {
+    uid: 'user-1',
+    status: 'VERIFIED_ADULT',
+    policyVersion: 1,
+    source: 'AGE_REVERIFICATION',
+    method: 'MANUAL_REVIEW',
+    caseId: 'case-1',
+    verifiedAtMs: Date.now() - 1_000,
+    expiresAtMs: null,
     ...overrides,
   };
 }
@@ -37,14 +49,19 @@ test('aceita conta social elegível sem exigir perfil completo', () => {
   assert.doesNotThrow(() =>
     assertCommunitySocialAccessEligible(
       eligibleUser({ profileCompleted: false }),
-      'user-1'
+      'user-1',
+      eligibleAge()
     )
   );
 });
 
 test('nega perfil divergente ou conta restrita', () => {
   assert.throws(
-    () => assertCommunitySocialAccessEligible(eligibleUser(), 'user-2'),
+    () => assertCommunitySocialAccessEligible(
+      eligibleUser(),
+      'user-2',
+      eligibleAge()
+    ),
     (error: unknown) => errorCode(error) === 'not-found'
   );
 
@@ -52,11 +69,12 @@ test('nega perfil divergente ou conta restrita', () => {
     () =>
       assertCommunitySocialAccessEligible(
         eligibleUser({ interactionBlocked: true }),
-        'user-1'
+        'user-1',
+        eligibleAge()
       ),
     (error: unknown) =>
-      errorCode(error) === 'permission-denied'
-      && errorReason(error) === 'account_restricted'
+      errorCode(error) === 'failed-precondition'
+      && errorReason(error) === 'account_interaction_blocked'
   );
 });
 
@@ -65,35 +83,37 @@ test('nega termos ausentes ou desatualizados', () => {
     () =>
       assertCommunitySocialAccessEligible(
         eligibleUser({ acceptedTerms: { accepted: true, version: 'v2' } }),
-        'user-1'
+        'user-1',
+        eligibleAge()
       ),
     (error: unknown) =>
       errorCode(error) === 'failed-precondition'
-      && errorReason(error) === 'current_terms_required'
+      && errorReason(error) === 'terms_required'
   );
 });
 
-test('nega menor de idade e resultado UNDERAGE', () => {
-  assert.throws(
-    () =>
-      assertCommunitySocialAccessEligible(
-        eligibleUser({ idade: 17 }),
-        'user-1'
-      ),
-    (error: unknown) =>
-      errorCode(error) === 'permission-denied'
-      && errorReason(error) === 'adult_access_denied'
+test('ignora idade client-side e usa somente decisão etária canônica', () => {
+  assert.doesNotThrow(() =>
+    assertCommunitySocialAccessEligible(
+      eligibleUser({ idade: 17 }),
+      'user-1',
+      eligibleAge()
+    )
   );
 
   assert.throws(
     () =>
       assertCommunitySocialAccessEligible(
-        eligibleUser({
-          ageReverification: { status: 'VERIFIED', result: 'UNDERAGE' },
-        }),
-        'user-1'
+        eligibleUser({ idade: 30 }),
+        'user-1',
+        eligibleAge({
+          status: 'DENIED_UNDERAGE',
+          verifiedAtMs: null,
+        })
       ),
-    (error: unknown) => errorReason(error) === 'adult_access_denied'
+    (error: unknown) =>
+      errorCode(error) === 'permission-denied'
+      && errorReason(error) === 'underage'
   );
 });
 
@@ -102,7 +122,8 @@ test('nega reverificação pendente e consentimento adulto inválido', () => {
     () =>
       assertCommunitySocialAccessEligible(
         eligibleUser({ ageReverification: { status: 'UNDER_REVIEW' } }),
-        'user-1'
+        'user-1',
+        eligibleAge()
       ),
     (error: unknown) => errorReason(error) === 'age_reverification_required'
   );
@@ -111,20 +132,24 @@ test('nega reverificação pendente e consentimento adulto inválido', () => {
     () =>
       assertCommunitySocialAccessEligible(
         eligibleUser({ adultConsent: { accepted: true, version: 'legacy' } }),
-        'user-1'
+        'user-1',
+        eligibleAge()
       ),
-    (error: unknown) => errorReason(error) === 'adult_access_required'
+    (error: unknown) => errorReason(error) === 'adult_consent_required'
   );
 });
 
-test('preserva compatibilidade quando consentimento inicial é explicitamente dispensado', () => {
-  assert.doesNotThrow(() =>
-    assertCommunitySocialAccessEligible(
-      eligibleUser({
-        initialAdultConsentRequired: false,
-        adultConsent: null,
-      }),
-      'user-1'
-    )
+test('não aceita bypass legado de consentimento inicial', () => {
+  assert.throws(
+    () =>
+      assertCommunitySocialAccessEligible(
+        eligibleUser({
+          initialAdultConsentRequired: false,
+          adultConsent: null,
+        }),
+        'user-1',
+        eligibleAge()
+      ),
+    (error: unknown) => errorReason(error) === 'adult_consent_required'
   );
 });

@@ -37,7 +37,7 @@ import {
   normalizeCommunityFeedPostActionRequest,
 } from './community-feed-moderation.model';
 import { evaluateCommunityFeedPostAction } from './community-feed-moderation.policy';
-import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
+import { assertCommunityMembershipActorEligibleInTransaction } from './community-membership-eligibility.service';
 import {
   buildCommunityModerationNotificationCopy,
   buildCommunityModerationNotificationId,
@@ -345,9 +345,10 @@ export const moderateCommunityFeedPost = onCall<CommunityFeedPostActionRequest>(
         );
       }
 
-      assertCommunityMembershipActorEligible(
-        userSnapshot.exists ? userSnapshot.data() : null,
-        actorUid
+      await assertCommunityMembershipActorEligibleInTransaction(
+        transaction,
+        actorUid,
+        userSnapshot.exists ? userSnapshot.data() : null
       );
 
       const community = communitySnapshot.data() ?? {};

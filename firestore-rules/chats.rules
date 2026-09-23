@@ -20,7 +20,7 @@
     // =======================================================================
 match /chats/{chatId} {
   function isChatParticipant() {
-    return signedIn()
+    return currentUserCanUseAdultSocialPlatform()
       && (uid() in resource.data.participants);
   }
 
@@ -45,7 +45,7 @@ match /chats/{chatId} {
       }
 
       function isChatParticipantByChat() {
-        return signedIn()
+        return currentUserCanUseAdultSocialPlatform()
           && chatExists()
           && get(/databases/$(database)/documents/chats/$(chatId)).data.participants is list
           && (

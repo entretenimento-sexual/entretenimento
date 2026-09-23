@@ -9,7 +9,6 @@
 import type { Transaction } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 
-import { assertInteractionAccessData } from '../account_lifecycle/interaction-access.policy';
 import { db } from '../firebaseApp';
 import {
   assertCommunitySocialAccessEligible,
@@ -32,10 +31,19 @@ export async function assertCommunityFeedReportAccessInTransaction(
   const communityRef = db.collection('communities').doc(communityId);
   const membershipRef = communityRef.collection('members').doc(reporterUid);
   const userRef = db.collection('users').doc(reporterUid);
-  const [communitySnapshot, membershipSnapshot, userSnapshot] = await Promise.all([
+  const ageEligibilityRef = db
+    .collection('age_eligibility_records')
+    .doc(reporterUid);
+  const [
+    communitySnapshot,
+    membershipSnapshot,
+    userSnapshot,
+    ageEligibilitySnapshot,
+  ] = await Promise.all([
     transaction.get(communityRef),
     transaction.get(membershipRef),
     transaction.get(userRef),
+    transaction.get(ageEligibilityRef),
   ]);
 
   if (!communitySnapshot.exists) {
@@ -43,8 +51,11 @@ export async function assertCommunityFeedReportAccessInTransaction(
   }
 
   const user = userSnapshot.exists ? userSnapshot.data() ?? {} : null;
-  assertInteractionAccessData(user);
-  assertCommunitySocialAccessEligible(user, reporterUid);
+  assertCommunitySocialAccessEligible(
+    user,
+    reporterUid,
+    ageEligibilitySnapshot.exists ? ageEligibilitySnapshot.data() : null
+  );
 
   const decision = evaluateCommunityFeedReportAccess(
     communityId,

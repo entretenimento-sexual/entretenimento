@@ -22,6 +22,21 @@ import {
 } from './public-video-playback-session';
 import { calculateRequiredVideoPlaybackMs } from './video-view-qualification';
 
+function hasCurrentPublicAgeEligibility(
+  data: Record<string, unknown> | undefined
+): boolean {
+  if (data?.['ageEligibilityVerifiedAdult'] !== true) return false;
+
+  const validUntil = data?.['ageEligibilityValidUntil'] as
+    | { toMillis?: unknown }
+    | null
+    | undefined;
+
+  return !!validUntil &&
+    typeof validUntil.toMillis === 'function' &&
+    (validUntil as { toMillis: () => number }).toMillis() > Date.now();
+}
+
 interface StartPublicVideoPlaybackSessionRequest {
   ownerUid?: string;
   videoId?: string;
@@ -112,9 +127,12 @@ export const startPublicVideoPlaybackSession = onCall<
       throw new HttpsError('not-found', 'Vídeo público não encontrado.');
     }
 
+    const publicProfile = publicProfileSnapshot.data() ?? {};
     const publicVideo = publicVideoSnapshot.data() ?? {};
 
     if (
+      !hasCurrentPublicAgeEligibility(publicProfile) ||
+      !hasCurrentPublicAgeEligibility(publicVideo) ||
       publicVideo.visibility !== 'PUBLIC' ||
       publicVideo.moderationStatus !== 'APPROVED'
     ) {

@@ -80,6 +80,7 @@ export class RegisterFlowFacade {
       userResolved: true,
       userExists: true,
       termsAccepted: true,
+      ageEligibilityVerified: true,
       profileCompleted: true,
       adultConsentAccepted: true,
       initialAdultConsentRequired: true,
@@ -93,6 +94,7 @@ export class RegisterFlowFacade {
         ...base,
         emailVerified: false,
         termsAccepted: false,
+        ageEligibilityVerified: false,
         profileCompleted: false,
         adultConsentAccepted: false,
         currentStep: 'emailVerification',
@@ -122,8 +124,9 @@ export class RegisterFlowFacade {
     if (path === '/register/finalizar-cadastro') {
       return {
         ...base,
+        ageEligibilityVerified: true,
         profileCompleted: false,
-        adultConsentAccepted: false,
+        adultConsentAccepted: true,
         currentStep: 'profileCompletion',
         nextRoute: '/register/finalizar-cadastro',
         progress: 55,
@@ -134,6 +137,7 @@ export class RegisterFlowFacade {
     if (path === '/adulto/confirmar') {
       return {
         ...base,
+        ageEligibilityVerified: true,
         adultConsentAccepted: false,
         currentStep: 'adultConsent',
         nextRoute: '/adulto/confirmar',

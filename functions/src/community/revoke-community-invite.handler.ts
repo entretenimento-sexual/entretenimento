@@ -23,7 +23,7 @@ import {
   type CommunityInviteDocument,
   type CommunityInviteResult,
 } from './community-invite.shared';
-import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
+import { assertCommunityMembershipActorEligibleInTransaction } from './community-membership-eligibility.service';
 import { consumeCommunityRateLimit } from './community-rate-limit.service';
 
 interface RevokeCommunityInviteRequest {
@@ -128,9 +128,10 @@ export const revokeCommunityInvite = onCall<RevokeCommunityInviteRequest>(
       const actorMembership = actorMembershipSnapshot.data() ?? {};
 
       if (!actorIsOriginalSender) {
-        assertCommunityMembershipActorEligible(
-          actorUserSnapshot.exists ? actorUserSnapshot.data() : null,
-          actorUid
+        await assertCommunityMembershipActorEligibleInTransaction(
+          transaction,
+          actorUid,
+          actorUserSnapshot.exists ? actorUserSnapshot.data() : null
         );
       }
 

@@ -9,6 +9,7 @@ import { CacheService } from '../general/cache/cache.service';
 import { FirestoreReadService } from './firestore/core/firestore-read.service';
 import { FirestoreContextService } from './firestore/core/firestore-context.service';
 import { UserPresenceQueryService } from './queries/user-presence.query.service';
+import { PublicProfileDiscoveryService } from '../discovery/public-profile-discovery.service';
 
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -35,6 +36,10 @@ class MockUserPresenceQueryService {
   getRecentlyOnline$ = vi.fn().mockReturnValue(of([]));
 }
 
+class MockPublicProfileDiscoveryService {
+  listDiscoverableProfiles$ = vi.fn().mockReturnValue(of([]));
+}
+
 class MockFirestoreContextService {
   deferObservable$ = vi.fn((task: () => unknown) =>
     TestBed.runInInjectionContext(task as () => any)
@@ -47,6 +52,7 @@ describe('FirestoreQueryService', () => {
   let mockRead: MockFirestoreReadService;
   let mockCache: MockCacheService;
   let mockPresence: MockUserPresenceQueryService;
+  let mockPublicProfiles: MockPublicProfileDiscoveryService;
 
   const firestoreMock = {} as unknown as Firestore;
 
@@ -64,6 +70,7 @@ describe('FirestoreQueryService', () => {
         { provide: FirestoreReadService, useClass: MockFirestoreReadService },
         { provide: FirestoreContextService, useClass: MockFirestoreContextService },
         { provide: UserPresenceQueryService, useClass: MockUserPresenceQueryService },
+        { provide: PublicProfileDiscoveryService, useClass: MockPublicProfileDiscoveryService },
       ],
     });
 
@@ -72,6 +79,9 @@ describe('FirestoreQueryService', () => {
     mockRead = TestBed.inject(FirestoreReadService) as unknown as MockFirestoreReadService;
     mockCache = TestBed.inject(CacheService) as unknown as MockCacheService;
     mockPresence = TestBed.inject(UserPresenceQueryService) as unknown as MockUserPresenceQueryService;
+    mockPublicProfiles = TestBed.inject(
+      PublicProfileDiscoveryService
+    ) as unknown as MockPublicProfileDiscoveryService;
 
     vi.clearAllMocks();
   });
@@ -204,18 +214,19 @@ describe('FirestoreQueryService', () => {
       expect(res).toEqual(users);
     });
 
-    it('getSuggestedProfiles delega para getDocumentsLiveSafe com limit', async () => {
+    it('getSuggestedProfiles delega para a boundary pública backend-time', async () => {
       const users = [{ uid: 's1' }] as unknown as IUserDados[];
-      mockRead.getDocumentsLiveSafe.mockReturnValueOnce(of(users));
+      mockPublicProfiles.listDiscoverableProfiles$.mockReturnValueOnce(
+        of(users)
+      );
 
       const res = await firstValueFrom(service.getSuggestedProfiles());
 
       expect(res).toEqual(users);
-      const last = mockRead.getDocumentsLiveSafe.mock.calls.at(-1)!;
-      expect(last[0]).toBe('public_profiles');
-      expect(Array.isArray(last[1])).toBe(true);
-      expect((last[1] as any[]).length).toBe(1);
-      expect(last[2]).toEqual({ idField: 'uid', requireAuth: true });
+      expect(
+        mockPublicProfiles.listDiscoverableProfiles$
+      ).toHaveBeenCalledWith({ limit: 24 });
+      expect(mockRead.getDocumentsLiveSafe).not.toHaveBeenCalled();
     });
   });
 

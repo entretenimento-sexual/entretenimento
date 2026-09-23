@@ -14,14 +14,8 @@
 import { Injectable, inject } from '@angular/core';
 import {
   Firestore,
-  collection,
-  collectionData,
   doc,
   docData,
-  limit,
-  orderBy,
-  query,
-  where,
 } from '@angular/fire/firestore';
 import { Observable, combineLatest, of, throwError } from 'rxjs';
 import {
@@ -43,6 +37,9 @@ import {
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PublicPhotoAccessService } from './public-photo-access.service';
+import {
+  PublicMediaReadBoundaryService,
+} from './public-media-read-boundary.service';
 import { PublicVideoAccessService } from './public-video-access.service';
 
 export interface MediaPublicPreviewQueryOptions {
@@ -116,6 +113,7 @@ export class MediaPublicPreviewQueryService {
 
   constructor(
     private readonly firestoreCtx: FirestoreContextService,
+    private readonly publicMediaRead: PublicMediaReadBoundaryService,
     private readonly publicPhotoAccess: PublicPhotoAccessService,
     private readonly publicVideoAccess: PublicVideoAccessService,
     private readonly errorHandler: GlobalErrorHandlerService
@@ -208,23 +206,15 @@ export class MediaPublicPreviewQueryService {
     ownerUid: string,
     takeCount: number
   ): Observable<IPublicPhotoProjection[]> {
-    return this.firestoreCtx.deferObservable$(() => {
-      const source = collection(
-        this.firestore,
-        `public_profiles/${ownerUid}/public_photos`
-      );
-      const sourceQuery = query(
-        source,
-        where('visibility', '==', 'PUBLIC'),
-        where('moderationStatus', '==', 'APPROVED'),
-        orderBy('orderIndex', 'asc'),
-        orderBy('publishedAt', 'desc'),
-        limit(takeCount)
-      );
-
-      return collectionData(sourceQuery, { idField: 'id' });
+    return this.publicMediaRead.read$({
+      mediaType: 'PHOTO',
+      mode: 'PROFILE',
+      ownerUids: [ownerUid],
+      limit: takeCount,
     }).pipe(
-      map((items) => items as IPublicPhotoProjection[])
+      map((response) =>
+        (response.items ?? []) as unknown as IPublicPhotoProjection[]
+      )
     );
   }
 
@@ -232,23 +222,15 @@ export class MediaPublicPreviewQueryService {
     ownerUid: string,
     takeCount: number
   ): Observable<IPublicVideoProjection[]> {
-    return this.firestoreCtx.deferObservable$(() => {
-      const source = collection(
-        this.firestore,
-        `public_profiles/${ownerUid}/public_videos`
-      );
-      const sourceQuery = query(
-        source,
-        where('visibility', '==', 'PUBLIC'),
-        where('moderationStatus', '==', 'APPROVED'),
-        orderBy('orderIndex', 'asc'),
-        orderBy('publishedAt', 'desc'),
-        limit(takeCount)
-      );
-
-      return collectionData(sourceQuery, { idField: 'id' });
+    return this.publicMediaRead.read$({
+      mediaType: 'VIDEO',
+      mode: 'PROFILE',
+      ownerUids: [ownerUid],
+      limit: takeCount,
     }).pipe(
-      map((items) => items as IPublicVideoProjection[])
+      map((response) =>
+        (response.items ?? []) as unknown as IPublicVideoProjection[]
+      )
     );
   }
 

@@ -1,7 +1,7 @@
 import { DestroyRef, Injectable, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
-import { Observable, combineLatest, of } from 'rxjs';
+import { Observable, combineLatest, concat, defer, of, timer } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -131,6 +131,19 @@ export class DiscoveryPublicProfilesFacade {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
+  /**
+   * Recorte temporal reativo do cache NgRx.
+   *
+   * O backend decide a elegibilidade no momento da leitura. Depois de carregado,
+   * o card é retirado exatamente no próximo validUntil sem nova leitura e sem
+   * polling. Documentos legados sem validUntil falham fechado.
+   */
+  private readonly currentFeedSlice$: Observable<DiscoveryFeedSlice> =
+    this.feedSlice$.pipe(
+      switchMap((slice) => this.watchCurrentAdultSlice$(slice)),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
   private readonly onlinePresenceByUid$ = this.getOnlinePresenceByUid$().pipe(
     shareReplay({ bufferSize: 1, refCount: true })
   );
@@ -153,7 +166,7 @@ export class DiscoveryPublicProfilesFacade {
    * Mantemos ranking/paginação one-shot, mas localização pública dos cards
    * visíveis acompanha alterações de public_profiles sem reordenar o feed.
    */
-  private readonly liveLocationsByUid$ = this.feedSlice$.pipe(
+  private readonly liveLocationsByUid$ = this.currentFeedSlice$.pipe(
     map((slice) =>
       Array.from(
         new Set(
@@ -180,7 +193,7 @@ export class DiscoveryPublicProfilesFacade {
 
   readonly state$: Observable<DiscoveryPublicProfilesState> = combineLatest([
     this.request$,
-    this.feedSlice$,
+    this.currentFeedSlice$,
     this.currentUserStore.user$,
     this.onlinePresenceByUid$,
     this.viewerLocation$,
@@ -271,6 +284,73 @@ export class DiscoveryPublicProfilesFacade {
 
   retry(): void {
     this.refresh();
+  }
+
+  private watchCurrentAdultSlice$(
+    slice: DiscoveryFeedSlice
+  ): Observable<DiscoveryFeedSlice> {
+    return defer(() => {
+      const nowMs = Date.now();
+      const items = (slice.items ?? []).filter((item) => {
+        const validUntilMs = this.positiveEpoch(
+          item?.ageEligibilityValidUntil
+        );
+
+        return validUntilMs !== null && validUntilMs > nowMs;
+      });
+
+      const nextExpiryMs = items.reduce<number | null>(
+        (current, item) => {
+          const validUntilMs = this.positiveEpoch(
+            item?.ageEligibilityValidUntil
+          );
+
+          if (validUntilMs === null || validUntilMs <= nowMs) {
+            return current;
+          }
+
+          return current === null
+            ? validUntilMs
+            : Math.min(current, validUntilMs);
+        },
+        null
+      );
+
+      const currentSlice =
+        items.length === (slice.items ?? []).length
+          ? slice
+          : { ...slice, items };
+
+      if (nextExpiryMs === null) {
+        return of(currentSlice);
+      }
+
+      // setTimeout possui limite prático ~2^31-1 ms. O cap só agenda uma
+      // reavaliação futura; não gera rede nem altera a autoridade backend.
+      const MAX_TIMER_DELAY_MS = 2_147_000_000;
+      const delayMs = Math.max(
+        1,
+        Math.min(
+          MAX_TIMER_DELAY_MS,
+          nextExpiryMs - nowMs + 1
+        )
+      );
+
+      return concat(
+        of(currentSlice),
+        timer(delayMs).pipe(
+          switchMap(() => this.watchCurrentAdultSlice$(slice))
+        )
+      );
+    });
+  }
+
+  private positiveEpoch(value: unknown): number | null {
+    const parsed = Number(value);
+
+    return Number.isFinite(parsed) && parsed > 0
+      ? Math.trunc(parsed)
+      : null;
   }
 
   private overlayLivePublicLocation(

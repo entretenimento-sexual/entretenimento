@@ -57,6 +57,14 @@ test('normaliza denúncia de resposta preservando toda a ancestralidade', () => 
   });
 });
 
+test('aceita motivo crítico de possível menor em conteúdo', () => {
+  assert.equal(normalizeCommunityFeedReportRequest({
+    communityId: 'community-1',
+    postId: 'post-1',
+    reason: 'minor_content_safety',
+  }).reason, 'minor_content_safety');
+});
+
 test('rejeita alvo e motivo fora do contrato', () => {
   const normalized = normalizeCommunityFeedReportRequest({
     communityId: '../unsafe',

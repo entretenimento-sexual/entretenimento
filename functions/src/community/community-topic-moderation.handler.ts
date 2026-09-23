@@ -18,7 +18,7 @@ import {
   assertCommunityCallableAppCheck,
 } from './community-callable-security';
 import { isCommunityMemberActivityEnabledStatus } from './community-lifecycle.policy';
-import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
+import { assertCommunityMembershipActorEligibleInTransaction } from './community-membership-eligibility.service';
 import { consumeCommunityRateLimit } from './community-rate-limit.service';
 import { canViewerModerateCommunityTopic } from './community-topic-access.policy';
 import {
@@ -90,12 +90,8 @@ function normalizeModerationState(
 
 function assertTransactionalModerator(
   rawCommunity: unknown,
-  rawMembership: unknown,
-  rawUser: unknown,
-  actorUid: string
+  rawMembership: unknown
 ): CommunityViewerRole {
-  assertCommunityMembershipActorEligible(rawUser, actorUid);
-
   const community = (rawCommunity ?? {}) as Record<string, unknown>;
   const moderation = (community['moderation'] ?? {}) as Record<string, unknown>;
   const membership = (rawMembership ?? {}) as Record<string, unknown>;
@@ -297,11 +293,15 @@ export const moderateCommunityTopic = onCall<CommunityTopicModerationRequest>(
         );
       }
 
+      await assertCommunityMembershipActorEligibleInTransaction(
+        transaction,
+        actorUid,
+        userSnapshot.exists ? userSnapshot.data() : null
+      );
+
       const actorRole = assertTransactionalModerator(
         communitySnapshot.data(),
-        membershipSnapshot.exists ? membershipSnapshot.data() : null,
-        userSnapshot.exists ? userSnapshot.data() : null,
-        actorUid
+        membershipSnapshot.exists ? membershipSnapshot.data() : null
       );
       const topic = topicSnapshot.data() ?? {};
       const currentStatus = normalizeTopicStatus(topic['status']);

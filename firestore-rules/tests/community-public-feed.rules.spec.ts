@@ -60,6 +60,41 @@ function authenticatedDb(uid = 'viewer') {
   return testEnv.authenticatedContext(uid).firestore();
 }
 
+async function seedAdultSocialUser(
+  db: ReturnType<typeof authenticatedDb>,
+  uid: string
+) {
+  await setDoc(doc(db, 'users', uid), {
+    uid,
+    accountStatus: 'active',
+    suspended: false,
+    interactionBlocked: false,
+    accountLocked: false,
+    loginAllowed: true,
+    acceptedTerms: {
+      accepted: true,
+      version: 'v3',
+      acknowledgedPrivacyNotice: true,
+    },
+    adultConsent: {
+      accepted: true,
+      version: 'v1',
+    },
+    ageReverification: {
+      status: 'NONE',
+    },
+  });
+  await setDoc(doc(db, 'age_eligibility_records', uid), {
+    uid,
+    status: 'VERIFIED_ADULT',
+    policyVersion: 1,
+    source: 'AGE_REVERIFICATION',
+    method: 'MANUAL_REVIEW',
+    verifiedAt: new Date(Date.now() - 1_000),
+    expiresAt: null,
+  });
+}
+
 describe('Firestore Rules / community_public_feed + realtime', () => {
   beforeAll(async () => {
     testEnv = await initializeTestEnvironment({
@@ -76,6 +111,12 @@ describe('Firestore Rules / community_public_feed + realtime', () => {
     await testEnv.clearFirestore();
     await testEnv.withSecurityRulesDisabled(async (context) => {
       const db = context.firestore();
+      await Promise.all([
+        seedAdultSocialUser(db, 'viewer'),
+        seedAdultSocialUser(db, 'member'),
+        seedAdultSocialUser(db, 'outsider'),
+        seedAdultSocialUser(db, 'blocked'),
+      ]);
       await setDoc(doc(db, 'communities', COMMUNITY_ID), communityData());
       await setDoc(
         doc(db, 'community_public_feed', COMMUNITY_ID, 'items', POST_ID),

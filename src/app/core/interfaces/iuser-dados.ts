@@ -15,6 +15,36 @@ export type PublicVisibility = 'visible' | 'hidden';
 
 export type LifecycleActorSource = 'self' | 'moderator' | 'system';
 
+export type AgeEligibilityStatus =
+  | 'UNVERIFIED'
+  | 'REVIEW_REQUIRED'
+  | 'VERIFIED_ADULT'
+  | 'DENIED_UNDERAGE'
+  | 'EXPIRED';
+
+export type AgeEligibilitySource =
+  | 'INITIAL_VERIFICATION'
+  | 'AGE_REVERIFICATION'
+  | 'PROFILE_KYC'
+  | 'MIGRATION';
+
+export type AgeEligibilityMethod =
+  | 'EXTERNAL_PROVIDER'
+  | 'MANUAL_REVIEW'
+  | 'KYC'
+  | 'MIGRATED_REVIEW';
+
+export interface IUserAgeEligibility {
+  status: AgeEligibilityStatus;
+  policyVersion: number;
+  source: AgeEligibilitySource;
+  method: AgeEligibilityMethod;
+  caseId?: string | null;
+  verifiedAtMs?: number | null;
+  expiresAtMs?: number | null;
+  updatedAtMs?: number | null;
+}
+
 export type AgeReverificationStatus =
   | 'NONE'
   | 'REQUIRED'
@@ -51,6 +81,12 @@ export interface IUserAgeReverification {
   method?: 'SELF_DECLARATION_REVIEW' | 'EXTERNAL_PROVIDER' | 'MANUAL_REVIEW' | null;
   declaredAgeBand?: '18_PLUS' | 'UNDER_18' | null;
   resolution?: string | null;
+  evidenceMethod?:
+    | 'MANUAL_DOCUMENT_REVIEW'
+    | 'PROVIDER_ESCALATION'
+    | 'PROFILE_KYC'
+    | null;
+  evidenceReferenceHash?: string | null;
 }
 
 export type TermsAcceptanceContext = 'initial' | 'material_update';
@@ -118,6 +154,12 @@ export interface IUserDados {
   // ---------------------------------------------------------------------------
   adultConsent?: IUserAdultConsent | null;
   acceptedTerms?: IUserTermsAcceptance | null;
+
+  /**
+   * Projeção sanitizada da autoridade etária backend-only.
+   * Nunca é fonte de autorização para Rules/Functions.
+   */
+  ageEligibility?: IUserAgeEligibility | null;
 
   /**
    * Apenas contas criadas no fluxo versionado recebem `true`.
@@ -258,8 +300,18 @@ export interface IUserDados {
 
   /** Suspensão. */
   suspensionReason?: string | null;
-  suspensionSource?: 'self' | 'moderator' | null;
+  suspensionSource?: 'self' | 'moderator' | 'automation' | null;
   suspensionEndsAt?: number | null;
+
+  moderationAutomationHold?: {
+    active: boolean;
+    source: 'automation';
+    reason: string;
+    triggerReportId: string;
+    appliedAtMs: number;
+    expiresAt?: unknown;
+    expiresAtMs: number | null;
+  } | null;
 
   /** Campos legados/compatíveis com serviços de moderação atuais. */
   suspendedAtMs?: number | null;

@@ -6,6 +6,9 @@ import {
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
+  safeNotifyAgeReverificationRequired,
+} from '../moderation/moderation-safety-notification.service';
+import {
   hideProfileMediaVisibility,
   readProfileMediaVisibilitySnapshots,
 } from './profile-age-reverification-media';
@@ -49,7 +52,7 @@ export const requestProfileAgeReverification = onCall<
     const requestedAt = Date.now();
     const dueAt = buildAgeReverificationDueAt(requestedAt);
 
-    await db.runTransaction(async (transaction) => {
+    const targetUid = await db.runTransaction(async (transaction) => {
       const reportSnapshot = await transaction.get(reportRef);
 
       if (!reportSnapshot.exists) {
@@ -230,6 +233,15 @@ export const requestProfileAgeReverification = onCall<
         createdAt: timestamp,
         createdAtMs: requestedAt,
       });
+
+      return targetUid;
+    });
+
+    await safeNotifyAgeReverificationRequired({
+      reportId,
+      caseId: caseRef.id,
+      targetUid,
+      dueAt,
     });
 
     return { caseId: caseRef.id, status: 'REQUIRED' };

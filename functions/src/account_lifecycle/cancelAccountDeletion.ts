@@ -20,7 +20,7 @@ interface AccountLifecycleCommandResult {
   interactionBlocked: boolean;
   suspended: boolean;
   suspensionReason: string | null;
-  suspensionSource: 'self' | 'moderator' | null;
+  suspensionSource: 'self' | 'moderator' | 'automation' | null;
   suspensionEndsAt: number | null;
   statusUpdatedAt: number;
   message: string;

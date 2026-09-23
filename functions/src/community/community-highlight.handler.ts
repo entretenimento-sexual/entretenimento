@@ -28,7 +28,7 @@ import {
   evaluateCommunityHighlightAction,
   type CommunityHighlightDenialReason,
 } from './community-highlight.policy';
-import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
+import { assertCommunityMembershipActorEligibleInTransaction } from './community-membership-eligibility.service';
 import { consumeCommunityRateLimit } from './community-rate-limit.service';
 import type { CommunityFeedWriterRole } from './community-feed-write.policy';
 
@@ -204,9 +204,10 @@ export const manageCommunityHighlight = onCall<CommunityHighlightRequest>(
         );
       }
 
-      assertCommunityMembershipActorEligible(
-        userSnapshot.exists ? userSnapshot.data() : null,
-        actorUid
+      await assertCommunityMembershipActorEligibleInTransaction(
+        transaction,
+        actorUid,
+        userSnapshot.exists ? userSnapshot.data() : null
       );
 
       const community = communitySnapshot.data() ?? {};

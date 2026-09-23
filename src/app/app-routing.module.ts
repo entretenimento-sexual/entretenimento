@@ -8,6 +8,7 @@ import { adminCanMatch } from './core/guards/access-guard/admin.guard';
 import { emailVerifiedGuard } from './core/guards/profile-guard/email-verified.guard';
 import { profileCompletedGuard } from './core/guards/profile-guard/profile-completed.guard';
 import { adultContentConsentGuard } from './core/guards/compliance/adult-content-consent.guard';
+import { ageEligibilityGuard } from './core/guards/compliance/age-eligibility.guard';
 import { ageReverificationGuard } from './core/guards/compliance/age-reverification.guard';
 
 import { LayoutShellComponent } from './layout/layout-shell/layout-shell.component';
@@ -15,6 +16,17 @@ import { accountLifecycleGuard } from './account/guards/account-lifecycle.guard'
 import { registrationStepGuard } from './register-module/data-access/registration-step.guard';
 
 const routes: Routes = [
+  {
+    path: 'adulto/verificar-idade',
+    loadComponent: () =>
+      import('./compliance/age-verification-page/age-verification-page.component')
+        .then(m => m.AgeVerificationPageComponent),
+    canActivate: [authGuard, accountLifecycleGuard, registrationStepGuard],
+    data: {
+      allowUnverified: true,
+      allowedRegisterSteps: ['ageVerification'],
+    },
+  },
   {
     path: 'adulto/confirmar',
     loadComponent: () =>
@@ -158,7 +170,7 @@ const routes: Routes = [
         path: 'descobrir',
         loadChildren: () =>
           import('./explore/explore.routes').then((m) => m.EXPLORE_ROUTES),
-        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, ageReverificationGuard, emailVerifiedGuard],
+        canActivate: [authGuard, accountLifecycleGuard, ageEligibilityGuard, adultContentConsentGuard, ageReverificationGuard, emailVerifiedGuard],
         data: {
           requireVerified: true,
         },
@@ -183,7 +195,7 @@ const routes: Routes = [
       {
         path: 'dashboard',
         loadChildren: () => import('./dashboard/dashboard.module').then(m => m.DashboardModule),
-        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, ageReverificationGuard],
+        canActivate: [authGuard, accountLifecycleGuard, ageEligibilityGuard, adultContentConsentGuard, ageReverificationGuard],
       },
 
       {
@@ -191,7 +203,7 @@ const routes: Routes = [
         loadComponent: () =>
           import('./layout/other-user-profile-view/other-user-profile-view.component')
             .then(c => c.OtherUserProfileViewComponent),
-        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, ageReverificationGuard, emailVerifiedGuard, profileCompletedGuard],
+        canActivate: [authGuard, accountLifecycleGuard, ageEligibilityGuard, adultContentConsentGuard, ageReverificationGuard, emailVerifiedGuard, profileCompletedGuard],
         data: {
           requireVerified: true,
           requireProfileCompleted: true,
@@ -201,13 +213,13 @@ const routes: Routes = [
       {
         path: 'perfil',
         loadChildren: () => import('./user-profile/user-profile.module').then(m => m.UserProfileModule),
-        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, ageReverificationGuard],
+        canActivate: [authGuard, accountLifecycleGuard, ageEligibilityGuard, adultContentConsentGuard, ageReverificationGuard],
       },
 
       {
         path: 'chat',
         loadChildren: () => import('./chat-module/chat-module').then(m => m.ChatModule),
-        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, ageReverificationGuard, emailVerifiedGuard, profileCompletedGuard],
+        canActivate: [authGuard, accountLifecycleGuard, ageEligibilityGuard, adultContentConsentGuard, ageReverificationGuard, emailVerifiedGuard, profileCompletedGuard],
         data: {
           requireVerified: true,
           requireProfileCompleted: true,
@@ -218,7 +230,7 @@ const routes: Routes = [
         path: 'preferencias',
         loadChildren: () =>
           import('./preferences/preferences.routes').then(m => m.PREFERENCES_ROUTES),
-        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, ageReverificationGuard, emailVerifiedGuard],
+        canActivate: [authGuard, accountLifecycleGuard, ageEligibilityGuard, adultContentConsentGuard, ageReverificationGuard, emailVerifiedGuard],
         data: {
           requireVerified: true,
         },
@@ -229,7 +241,7 @@ const routes: Routes = [
         loadChildren: () =>
           import('./layout/friend-management/friend-management.module')
             .then(m => m.FriendManagementModule),
-        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, ageReverificationGuard, emailVerifiedGuard, profileCompletedGuard],
+        canActivate: [authGuard, accountLifecycleGuard, ageEligibilityGuard, adultContentConsentGuard, ageReverificationGuard, emailVerifiedGuard, profileCompletedGuard],
         data: {
           requireVerified: true,
           requireProfileCompleted: true,
@@ -240,7 +252,7 @@ const routes: Routes = [
         path: 'admin-dashboard',
         loadChildren: () => import('./admin-dashboard/admin-dashboard.module').then(m => m.AdminDashboardModule),
         canMatch: [adminCanMatch],
-        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, ageReverificationGuard, emailVerifiedGuard, profileCompletedGuard],
+        canActivate: [authGuard, accountLifecycleGuard, ageEligibilityGuard, adultContentConsentGuard, ageReverificationGuard, emailVerifiedGuard, profileCompletedGuard],
         data: {
           requireVerified: true,
           requireProfileCompleted: true,
@@ -257,7 +269,7 @@ const routes: Routes = [
         loadComponent: () =>
           import('./subscriptions/subscription-plan/subscription-plan.component')
             .then((m) => m.SubscriptionPlanComponent),
-        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, ageReverificationGuard],
+        canActivate: [authGuard, accountLifecycleGuard, ageEligibilityGuard, adultContentConsentGuard, ageReverificationGuard],
         data: {
           requireVerified: false,
         },
@@ -268,7 +280,7 @@ const routes: Routes = [
           import('./subscriptions/checkout/checkout.component').then(
             (m) => m.CheckoutComponent
           ),
-        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, ageReverificationGuard],
+        canActivate: [authGuard, accountLifecycleGuard, ageEligibilityGuard, adultContentConsentGuard, ageReverificationGuard],
         data: {
           requireVerified: false,
         },
@@ -280,7 +292,7 @@ const routes: Routes = [
           import('./payments-core/payments-core.routes').then(
             (m) => m.PAYMENTS_CORE_ROUTES
           ),
-        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, ageReverificationGuard],
+        canActivate: [authGuard],
         data: {
           requireVerified: false,
         },
@@ -290,14 +302,14 @@ const routes: Routes = [
         path: 'conta',
         loadChildren: () =>
           import('./account/account.routes').then((m) => m.ACCOUNT_ROUTES),
-        canActivate: [authGuard, adultContentConsentGuard],
+        canActivate: [authGuard],
       },
 
       {
         path: 'media',
         loadChildren: () =>
           import('./media/media.routes').then(m => m.MEDIA_ROUTES),
-        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, ageReverificationGuard],
+        canActivate: [authGuard, accountLifecycleGuard, ageEligibilityGuard, adultContentConsentGuard, ageReverificationGuard],
       },
     ],
   },

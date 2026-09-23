@@ -13,6 +13,17 @@ match /public_profiles/{userId}/public_photos/{photoId} {
     return exists(publicProfilePath());
   }
 
+  function publicProfileProjectionAllowsAdultExposure() {
+    return publicAgeProjectionAllowsAdultExposure(
+      get(publicProfilePath()).data
+    );
+  }
+
+  function publicProfileAllowsAdultExposure() {
+    return publicProfileProjectionAllowsAdultExposure()
+      && canonicalAgeEligibilityAllowsAdultAccess(userId);
+  }
+
   function photoPath() {
     return /databases/$(database)/documents/public_profiles/$(userId)/public_photos/$(photoId);
   }
@@ -56,12 +67,14 @@ match /public_profiles/{userId}/public_photos/{photoId} {
   }
 
   function isApprovedPublicPhotoData(data) {
-    return data.visibility == "PUBLIC"
+    return data.ageEligibilityVerifiedAdult == true
+      && data.visibility == "PUBLIC"
       && data.moderationStatus == "APPROVED";
   }
 
   function isApprovedCommentReadablePhotoData(data) {
-    return data.moderationStatus == "APPROVED"
+    return data.ageEligibilityVerifiedAdult == true
+      && data.moderationStatus == "APPROVED"
       && !hasActiveBilateralBlock()
       && (
         data.visibility == "PUBLIC"
@@ -70,40 +83,50 @@ match /public_profiles/{userId}/public_photos/{photoId} {
   }
 
   function isPublicReadable() {
-    return publicProfileExists()
+    return publicProfileAllowsAdultExposure()
+      && resource.data.ageEligibilityVerifiedAdult == true
       && resource.data.visibility == "PUBLIC"
       && resource.data.moderationStatus == "APPROVED";
   }
 
-  allow get: if signedIn() && (isSelf(userId) || isPublicReadable());
+  function isPublicListReadable() {
+    return resource.data.ageEligibilityVerifiedAdult == true
+      && resource.data.visibility == "PUBLIC"
+      && resource.data.moderationStatus == "APPROVED";
+  }
 
-  allow list: if signedIn() && isPublicReadable();
+  allow get: if currentUserCanUseAdultSocialPlatform()
+    && (isSelf(userId) || isPublicReadable());
+
+  // Galerias owner-scoped também atravessam a Callable backend-time.
+  // O get direto permanece disponível para deep links sob fronteira forte.
+  allow list: if false;
 
   allow create, update, delete: if false;
 
   match /likes/{viewerUid} {
-    allow get: if signedIn() && request.auth.uid == viewerUid;
+    allow get: if currentUserCanUseAdultSocialPlatform()
+      && request.auth.uid == viewerUid;
     allow list: if false;
     allow create, update, delete: if false;
   }
 
   match /comments/{commentId} {
-    allow get: if signedIn()
+    allow get: if currentUserCanUseAdultSocialPlatform()
       && (
         isSelf(userId)
         || (
-          publicProfileExists()
+          publicProfileAllowsAdultExposure()
           && resource.data.status == "VISIBLE"
-          && photoExists()
           && isApprovedCommentReadablePhotoData(photoData())
         )
       );
 
-    allow list: if signedIn()
+    allow list: if currentUserCanUseAdultSocialPlatform()
       && (
         isSelf(userId)
         || (
-          publicProfileExists()
+          publicProfileAllowsAdultExposure()
           && resource.data.status == "VISIBLE"
           && photoExists()
           && isApprovedCommentReadablePhotoData(photoData())
@@ -123,10 +146,10 @@ match /public_profiles/{userId}/public_photos/{photoId} {
 // Leituras diretas permanecem no match específico acima, que também
 // confirma a existência do perfil público pai.
 // ------------------------------------------------------------
-match /{path=**}/public_photos/{photoId} {
-  allow list: if signedIn()
-    && resource.data.visibility == "PUBLIC"
-    && resource.data.moderationStatus == "APPROVED";
+match /{path=**}/public_photos/{mediaId} {
+  // Collection-group discovery é backend-only. Galerias de proprietário
+  // conhecido continuam autorizadas pelo match específico acima.
+  allow list: if false;
 
   allow create, update, delete: if false;
 }

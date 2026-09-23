@@ -10,17 +10,10 @@
 import { Injectable, inject } from '@angular/core';
 import {
   Firestore,
-  collection,
-  collectionData,
-  collectionGroup,
   doc,
   docData,
-  limit,
-  orderBy,
-  query,
-  where,
 } from '@angular/fire/firestore';
-import { Observable, combineLatest, of, throwError } from 'rxjs';
+import { Observable, combineLatest, of, throwError, timer } from 'rxjs';
 import {
   catchError,
   map,
@@ -41,6 +34,10 @@ import { FirestoreContextService } from 'src/app/core/services/data-handling/fir
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PublicPhotoAccessService } from './public-photo-access.service';
+import {
+  PublicMediaReadBoundaryService,
+  type PublicMediaReadRequest,
+} from './public-media-read-boundary.service';
 import { PublicVideoAccessService } from './public-video-access.service';
 import { mapPublicVideoProjection } from './public-video-item.mapper';
 
@@ -50,6 +47,7 @@ export interface MediaPublicProfileQueryOptions {
 
 const PUBLIC_MEDIA_OWNER_FILTER_LIMIT = 30;
 const PUBLIC_MEDIA_BATCH_LIMIT = 60;
+const PUBLIC_MEDIA_SERVER_REFRESH_MS = 60_000;
 const SAFE_PUBLIC_MEDIA_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 
 @Injectable({ providedIn: 'root' })
@@ -58,6 +56,7 @@ export class MediaPublicQueryService {
 
   constructor(
     private readonly firestoreCtx: FirestoreContextService,
+    private readonly publicMediaRead: PublicMediaReadBoundaryService,
     private readonly publicPhotoAccess: PublicPhotoAccessService,
     private readonly publicVideoAccess: PublicVideoAccessService,
     private readonly errorNotifier: ErrorNotificationService,
@@ -91,23 +90,15 @@ export class MediaPublicQueryService {
       return of([]);
     }
 
-    return this.firestoreCtx.deferObservable$(() => {
-      const publicPhotosCollection = collection(
-        this.firestore,
-        `public_profiles/${safeOwnerUid}/public_photos`
-      );
-
-      const publicPhotosQuery = query(
-        publicPhotosCollection,
-        where('visibility', '==', 'PUBLIC'),
-        where('moderationStatus', '==', 'APPROVED'),
-        orderBy('orderIndex', 'asc'),
-        orderBy('publishedAt', 'desc')
-      );
-
-      return collectionData(publicPhotosQuery, { idField: 'id' });
+    return this.publicMediaRead.read$({
+      mediaType: 'PHOTO',
+      mode: 'PROFILE',
+      ownerUids: [safeOwnerUid],
+      limit: PUBLIC_MEDIA_BATCH_LIMIT,
     }).pipe(
-      map((items) => items as IPublicPhotoProjection[]),
+      map((response) =>
+        (response.items ?? []) as unknown as readonly IPublicPhotoProjection[]
+      ),
       switchMap((items) =>
         this.publicPhotoAccess.hydratePublicPhotoUrls$(items)
       ),
@@ -137,23 +128,15 @@ export class MediaPublicQueryService {
       return of([]);
     }
 
-    return this.firestoreCtx.deferObservable$(() => {
-      const publicVideosCollection = collection(
-        this.firestore,
-        `public_profiles/${safeOwnerUid}/public_videos`
-      );
-
-      const publicVideosQuery = query(
-        publicVideosCollection,
-        where('visibility', '==', 'PUBLIC'),
-        where('moderationStatus', '==', 'APPROVED'),
-        orderBy('orderIndex', 'asc'),
-        orderBy('publishedAt', 'desc')
-      );
-
-      return collectionData(publicVideosQuery, { idField: 'id' });
+    return this.publicMediaRead.read$({
+      mediaType: 'VIDEO',
+      mode: 'PROFILE',
+      ownerUids: [safeOwnerUid],
+      limit: PUBLIC_MEDIA_BATCH_LIMIT,
     }).pipe(
-      map((items) => items as IPublicVideoProjection[]),
+      map((response) =>
+        (response.items ?? []) as unknown as IPublicVideoProjection[]
+      ),
       switchMap((items) =>
         this.publicVideoAccess.hydratePublicVideoUrls$(items)
       ),
@@ -190,23 +173,13 @@ export class MediaPublicQueryService {
       return of([]);
     }
 
-    return this.firestoreCtx.deferObservable$(() => {
-      const publicPhotosGroup = collectionGroup(
-        this.firestore,
-        'public_photos'
-      );
-      const publicPhotosQuery = query(
-        publicPhotosGroup,
-        where('ownerUid', 'in', safeOwnerUids),
-        where('visibility', '==', 'PUBLIC'),
-        where('moderationStatus', '==', 'APPROVED'),
-        orderBy('publishedAt', 'desc'),
-        limit(safeTakeCount)
-      );
-
-      return collectionData(publicPhotosQuery, { idField: 'id' });
+    return this.readGlobalMedia$({
+      mediaType: 'PHOTO',
+      mode: 'RECENT_BY_OWNERS',
+      ownerUids: safeOwnerUids,
+      limit: safeTakeCount,
     }).pipe(
-      map((items) => items as IPublicPhotoProjection[]),
+      map((items) => items as unknown as readonly IPublicPhotoProjection[]),
       switchMap((items) =>
         this.publicPhotoAccess.hydratePublicPhotoUrls$(items)
       ),
@@ -247,21 +220,11 @@ export class MediaPublicQueryService {
       return of([]);
     }
 
-    return this.firestoreCtx.deferObservable$(() => {
-      const publicVideosGroup = collectionGroup(
-        this.firestore,
-        'public_videos'
-      );
-      const publicVideosQuery = query(
-        publicVideosGroup,
-        where('ownerUid', 'in', safeOwnerUids),
-        where('visibility', '==', 'PUBLIC'),
-        where('moderationStatus', '==', 'APPROVED'),
-        orderBy('publishedAt', 'desc'),
-        limit(safeTakeCount)
-      );
-
-      return collectionData(publicVideosQuery, { idField: 'id' });
+    return this.readGlobalMedia$({
+      mediaType: 'VIDEO',
+      mode: 'RECENT_BY_OWNERS',
+      ownerUids: safeOwnerUids,
+      limit: safeTakeCount,
     }).pipe(
       map((items) =>
         items.flatMap((item) => {
@@ -364,23 +327,14 @@ export class MediaPublicQueryService {
   }
 
   getLatestPublicPhotos$(takeCount = 24): Observable<IPublicPhotoItem[]> {
-    return this.firestoreCtx.deferObservable$(() => {
-      const publicPhotosGroup = collectionGroup(
-        this.firestore,
-        'public_photos'
-      );
+    const safeTakeCount = this.normalizeBatchLimit(takeCount, 24);
 
-      const latestPhotosQuery = query(
-        publicPhotosGroup,
-        where('visibility', '==', 'PUBLIC'),
-        where('moderationStatus', '==', 'APPROVED'),
-        orderBy('publishedAt', 'desc'),
-        limit(takeCount)
-      );
-
-      return collectionData(latestPhotosQuery, { idField: 'id' });
+    return this.readGlobalMedia$({
+      mediaType: 'PHOTO',
+      mode: 'LATEST',
+      limit: safeTakeCount,
     }).pipe(
-      map((items) => items as IPublicPhotoProjection[]),
+      map((items) => items as unknown as readonly IPublicPhotoProjection[]),
       switchMap((items) =>
         this.publicPhotoAccess.hydratePublicPhotoUrls$(items)
       ),
@@ -388,7 +342,7 @@ export class MediaPublicQueryService {
         this.reportError(
           'Erro ao carregar últimas fotos públicas.',
           error,
-          { op: 'getLatestPublicPhotos$', takeCount },
+          { op: 'getLatestPublicPhotos$', takeCount: safeTakeCount },
           true
         );
         return of([]);
@@ -398,24 +352,14 @@ export class MediaPublicQueryService {
   }
 
   getTopPublicPhotos$(takeCount = 24): Observable<IPublicPhotoItem[]> {
-    return this.firestoreCtx.deferObservable$(() => {
-      const publicPhotosGroup = collectionGroup(
-        this.firestore,
-        'public_photos'
-      );
+    const safeTakeCount = this.normalizeBatchLimit(takeCount, 24);
 
-      const topPhotosQuery = query(
-        publicPhotosGroup,
-        where('visibility', '==', 'PUBLIC'),
-        where('moderationStatus', '==', 'APPROVED'),
-        orderBy('score', 'desc'),
-        orderBy('publishedAt', 'desc'),
-        limit(takeCount)
-      );
-
-      return collectionData(topPhotosQuery, { idField: 'id' });
+    return this.readGlobalMedia$({
+      mediaType: 'PHOTO',
+      mode: 'TOP',
+      limit: safeTakeCount,
     }).pipe(
-      map((items) => items as IPublicPhotoProjection[]),
+      map((items) => items as unknown as readonly IPublicPhotoProjection[]),
       switchMap((items) =>
         this.publicPhotoAccess.hydratePublicPhotoUrls$(items)
       ),
@@ -423,7 +367,7 @@ export class MediaPublicQueryService {
         this.reportError(
           'Erro ao carregar fotos em destaque.',
           error,
-          { op: 'getTopPublicPhotos$', takeCount },
+          { op: 'getTopPublicPhotos$', takeCount: safeTakeCount },
           true
         );
         return of([]);
@@ -436,25 +380,14 @@ export class MediaPublicQueryService {
     takeCount = 24,
     nowMs = Date.now()
   ): Observable<IPublicPhotoItem[]> {
-    return this.firestoreCtx.deferObservable$(() => {
-      const publicPhotosGroup = collectionGroup(
-        this.firestore,
-        'public_photos'
-      );
+    const safeTakeCount = this.normalizeBatchLimit(takeCount, 24);
 
-      const boostedPhotosQuery = query(
-        publicPhotosGroup,
-        where('visibility', '==', 'PUBLIC'),
-        where('moderationStatus', '==', 'APPROVED'),
-        where('boostActive', '==', true),
-        where('boostedUntil', '>', nowMs),
-        orderBy('boostedUntil', 'desc'),
-        limit(takeCount)
-      );
-
-      return collectionData(boostedPhotosQuery, { idField: 'id' });
+    return this.readGlobalMedia$({
+      mediaType: 'PHOTO',
+      mode: 'BOOSTED',
+      limit: safeTakeCount,
     }).pipe(
-      map((items) => items as IPublicPhotoProjection[]),
+      map((items) => items as unknown as readonly IPublicPhotoProjection[]),
       switchMap((items) =>
         this.publicPhotoAccess.hydratePublicPhotoUrls$(items)
       ),
@@ -462,12 +395,21 @@ export class MediaPublicQueryService {
         this.reportError(
           'Erro ao carregar fotos turbinadas.',
           error,
-          { op: 'getBoostedPublicPhotos$', takeCount, nowMs },
+          { op: 'getBoostedPublicPhotos$', takeCount: safeTakeCount, nowMs },
           true
         );
         return of([]);
       }),
       shareReplay({ bufferSize: 1, refCount: true })
+    );
+  }
+
+  private readGlobalMedia$(
+    request: PublicMediaReadRequest
+  ): Observable<readonly Record<string, unknown>[]> {
+    return timer(0, PUBLIC_MEDIA_SERVER_REFRESH_MS).pipe(
+      switchMap(() => this.publicMediaRead.read$(request)),
+      map((response) => [...(response.items ?? [])])
     );
   }
 

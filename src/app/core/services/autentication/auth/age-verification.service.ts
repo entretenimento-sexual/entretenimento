@@ -1,13 +1,20 @@
-//src\app\core\services\autentication\auth\age-verification.service.ts
+// src/app/core/services/autentication/auth/age-verification.service.ts
+// -----------------------------------------------------------------------------
+// LEGACY AGE VERIFICATION COMPATIBILITY
+// -----------------------------------------------------------------------------
+// ageVerification foi client-authoritative e não pode mais produzir autorização.
+// A leitura permanece temporariamente para compatibilidade/migração, sempre
+// fail-closed. A autoridade etária canônica será backend-only.
+// -----------------------------------------------------------------------------
+
 import { Injectable } from '@angular/core';
-import { Observable, of, throwError } from 'rxjs';
-import { catchError, map, take } from 'rxjs/operators';
+import { Observable, throwError } from 'rxjs';
+import { map, take } from 'rxjs/operators';
 
 import { IUserDados } from '@core/interfaces/iuser-dados';
-import { FirestoreWriteService } from '@core/services/data-handling/firestore/core/firestore-write.service';
-import { CurrentUserStoreService } from './current-user-store.service';
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { environment } from 'src/environments/environment';
+import { CurrentUserStoreService } from './current-user-store.service';
 
 type AgeVerificationStatus =
   | 'unknown'
@@ -24,9 +31,13 @@ interface IUserAgeVerification {
   reason?: string;
 }
 
+type LegacyAgeVerificationCarrier = IUserDados & {
+  ageVerification?: IUserAgeVerification | null;
+};
+
 export interface SubmitAgeDeclarationPayload {
   uid: string;
-  declaredBirthDate: string; // YYYY-MM-DD
+  declaredBirthDate: string;
   declaredAdult: boolean;
 }
 
@@ -42,119 +53,73 @@ export class AgeVerificationService {
   private readonly debug = !environment.production;
 
   constructor(
-    private readonly write: FirestoreWriteService,
     private readonly currentUserStore: CurrentUserStoreService,
     private readonly applicationError: ApplicationErrorService,
   ) {}
 
   /**
-   * Fonte reativa do bloco ageVerification no runtime atual.
+   * Compatibilidade somente-leitura do campo legado.
    *
-   * Regras:
-   * - undefined/null/user sem bloco => unknown
-   * - nunca lança erro para a UI
+   * Importante: nenhum valor lido daqui constitui prova de maioridade.
    */
-  readonly ageVerification$: Observable<IUserAgeVerification> = this.currentUserStore.user$.pipe(
-    map((user) => this.extractAgeVerification(user))
-  );
+  readonly ageVerification$: Observable<IUserAgeVerification> =
+    this.currentUserStore.user$.pipe(
+      map((user) => this.extractAgeVerification(user))
+    );
 
   /**
-   * Fonte reativa da elegibilidade etária para gates.
+   * Compatibilidade reativa fail-closed.
+   *
+   * Mesmo um antigo "verified-adult" nunca libera acesso. Consumidores ainda
+   * ligados a este serviço permanecerão bloqueados até migrarem para a futura
+   * autoridade backend-only.
    */
-  readonly eligibility$: Observable<AgeEligibilityResult> = this.ageVerification$.pipe(
-    map((age) => this.toEligibility(age))
-  );
+  readonly eligibility$: Observable<AgeEligibilityResult> =
+    this.ageVerification$.pipe(
+      map((age) => this.toEligibility(age))
+    );
 
   /**
-   * API de submissão da declaração etária.
+   * A escrita client-authoritative foi desativada por segurança.
    *
-   * Fluxo:
-   * - valida formato da data
-   * - calcula idade localmente
-   * - persiste status materializado em users/{uid}
-   * - atualiza runtime com patch leve
-   *
-   * Observação:
-   * - para a fase atual do projeto, isso já funciona bem
-   * - no futuro, a decisão pode migrar para Cloud Function / revisão
+   * Mantemos a assinatura temporariamente para evitar quebra estrutural durante
+   * a migração. Nenhum dado é persistido e nenhum runtime é materializado.
    */
   submitAgeDeclaration$(
     payload: SubmitAgeDeclarationPayload
   ): Observable<AgeEligibilityResult> {
-    const uid = (payload?.uid ?? '').trim();
-    const declaredBirthDate = (payload?.declaredBirthDate ?? '').trim();
-    const declaredAdult = payload?.declaredAdult === true;
+    const uid = String(payload?.uid ?? '').trim();
+    const declaredBirthDate = String(payload?.declaredBirthDate ?? '').trim();
 
     if (!uid) {
-      return this.fail$('submitAgeDeclaration$', 'Sessão inválida para validar idade.');
+      return this.fail$(
+        'submitAgeDeclaration$',
+        'Sessão inválida para validar idade.'
+      );
     }
 
     if (!this.isValidIsoDate(declaredBirthDate)) {
-      return this.fail$('submitAgeDeclaration$', 'Data de nascimento inválida.');
+      return this.fail$(
+        'submitAgeDeclaration$',
+        'Data de nascimento inválida.'
+      );
     }
 
-    const evaluated = this.evaluateBirthDate(declaredBirthDate, declaredAdult);
-    const patch = {
-      ageVerification: {
-        declaredBirthDate,
-        declaredAdult,
-        status: evaluated.status,
-        checkedAt: Date.now(),
-        reason: evaluated.reason ?? '',
-      },
-      updatedAtMs: Date.now(),
-    };
-
-    return this.write.updateDocument('users', uid, patch, {
-      context: 'AgeVerificationService.submitAgeDeclaration',
-    }).pipe(
-      map(() => {
-        this.currentUserStore.patch({
-          ageVerification: {
-            declaredBirthDate,
-            declaredAdult,
-            status: evaluated.status,
-            checkedAt: patch.ageVerification.checkedAt,
-            reason: evaluated.reason,
-          },
-        } as Partial<IUserDados>);
-
-        return evaluated;
-      }),
-      catchError((err) => {
-        this.reportError(
-          err,
-          {
-            phase: 'submitAgeDeclaration',
-            uid,
-            declaredBirthDate,
-          },
-          {
-            fallbackMessage:
-              'Não foi possível validar a idade agora. Tente novamente.',
-            presentation: { surface: 'snackbar', severity: 'error' },
-          }
-        );
-
-        return throwError(() => err);
-      })
+    return this.fail$(
+      'submitAgeDeclaration$',
+      'A verificação etária legada foi desativada. Use o fluxo de verificação de maioridade da plataforma.'
     );
   }
 
-  /**
-   * Snapshot único da elegibilidade atual.
-   * Útil para submit handlers e guards específicos.
-   */
   getEligibilityOnce$(): Observable<AgeEligibilityResult> {
     return this.eligibility$.pipe(take(1));
   }
 
-  // ---------------------------------------------------------------------------
-  // Internals
-  // ---------------------------------------------------------------------------
-
-  private extractAgeVerification(user: IUserDados | null | undefined): IUserAgeVerification {
-    const raw = (user as any)?.ageVerification as IUserAgeVerification | undefined;
+  private extractAgeVerification(
+    user: IUserDados | null | undefined
+  ): IUserAgeVerification {
+    const raw = (user as LegacyAgeVerificationCarrier | null | undefined)
+      ?.ageVerification;
 
     return {
       declaredBirthDate: raw?.declaredBirthDate,
@@ -170,9 +135,10 @@ export class AgeVerificationService {
       case 'verified-adult':
         return {
           status: 'verified-adult',
-          isEligible: true,
-          isResolved: true,
-          reason: age?.reason,
+          isEligible: false,
+          isResolved: false,
+          reason:
+            'A verificação etária legada não é fonte válida de autorização.',
         };
 
       case 'rejected-minor':
@@ -180,7 +146,8 @@ export class AgeVerificationService {
           status: 'rejected-minor',
           isEligible: false,
           isResolved: true,
-          reason: age?.reason ?? 'Perfil incompatível com a política etária.',
+          reason:
+            age?.reason ?? 'Perfil incompatível com a política etária.',
         };
 
       case 'needs-review':
@@ -210,79 +177,8 @@ export class AgeVerificationService {
     }
   }
 
-  /**
-   * Regra inicial de maioridade:
-   * - calcula idade localmente
-   * - < 18 => rejected-minor
-   * - >= 18 e declarou adulto => verified-adult
-   * - >= 18 mas não declarou adulto => needs-review
-   *
-   * Observação:
-   * - isso é regra de projeto
-   * - não substitui revisão documental futura
-   */
-  private evaluateBirthDate(
-    declaredBirthDate: string,
-    declaredAdult: boolean
-  ): AgeEligibilityResult {
-    const ageInYears = this.calculateAgeInYears(declaredBirthDate);
-
-    if (ageInYears === null) {
-      return {
-        status: 'needs-review',
-        isEligible: false,
-        isResolved: true,
-        reason: 'Não foi possível calcular a idade declarada.',
-      };
-    }
-
-    if (ageInYears < 18) {
-      return {
-        status: 'rejected-minor',
-        isEligible: false,
-        isResolved: true,
-        reason: 'Cadastro incompatível com a idade mínima da plataforma.',
-      };
-    }
-
-    if (!declaredAdult) {
-      return {
-        status: 'needs-review',
-        isEligible: false,
-        isResolved: true,
-        reason: 'Confirmação de maioridade não concluída.',
-      };
-    }
-
-    return {
-      status: 'verified-adult',
-      isEligible: true,
-      isResolved: true,
-      reason: 'Maioridade declarada e validada no fluxo atual.',
-    };
-  }
-
-  private calculateAgeInYears(isoDate: string): number | null {
-    if (!this.isValidIsoDate(isoDate)) return null;
-
-    const today = new Date();
-    const birth = new Date(`${isoDate}T00:00:00`);
-
-    if (Number.isNaN(birth.getTime())) return null;
-
-    let age = today.getFullYear() - birth.getFullYear();
-    const monthDiff = today.getMonth() - birth.getMonth();
-    const dayDiff = today.getDate() - birth.getDate();
-
-    if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
-      age--;
-    }
-
-    return age >= 0 ? age : null;
-  }
-
   private isValidIsoDate(value: string): boolean {
-    return /^\d{4}-\d{2}-\d{2}$/.test((value ?? '').trim());
+    return /^\d{4}-\d{2}-\d{2}$/.test(String(value ?? '').trim());
   }
 
   private normalizeStatus(value: unknown): AgeVerificationStatus {
@@ -294,38 +190,38 @@ export class AgeVerificationService {
       : 'unknown';
   }
 
-  private fail$<T = never>(context: string, message: string): Observable<T> {
-    const err = new Error(message);
-    this.reportSilent(err, { phase: context });
-    return throwError(() => err);
+  private fail$<T = never>(
+    context: string,
+    message: string
+  ): Observable<T> {
+    const error = new Error(message);
+    this.reportSilent(error, { phase: context });
+    return throwError(() => error);
   }
 
-  private reportSilent(err: unknown, context: Record<string, unknown>): void {
-    this.reportError(
-      err,
-      context,
-      {
-        fallbackMessage:
-          'Não foi possível concluir uma etapa interna da validação de idade.',
-        presentation: { surface: 'none', severity: 'error' },
-      }
-    );
+  private reportSilent(
+    error: unknown,
+    context: Record<string, unknown>
+  ): void {
+    this.reportError(error, context, {
+      fallbackMessage:
+        'Não foi possível concluir uma etapa interna da validação de idade.',
+      presentation: { surface: 'none', severity: 'error' },
+    });
   }
 
   private reportError(
-    err: unknown,
+    error: unknown,
     context: Record<string, unknown>,
     options: {
       fallbackMessage: string;
-      presentation:
-        | { surface: 'none'; severity: 'error' }
-        | { surface: 'snackbar'; severity: 'error' };
+      presentation: { surface: 'none'; severity: 'error' };
     }
   ): void {
     try {
       if (this.debug) {
         // eslint-disable-next-line no-console
-        console.log('[AgeVerificationService]', context, err);
+        console.log('[AgeVerificationService]', context, error);
       }
 
       const operation =
@@ -333,7 +229,7 @@ export class AgeVerificationService {
           ? context['phase'].trim()
           : 'internal';
 
-      this.applicationError.report(err, {
+      this.applicationError.report(error, {
         feature: 'age-verification',
         operation,
         fallbackMessage: options.fallbackMessage,
@@ -344,7 +240,7 @@ export class AgeVerificationService {
         },
       });
     } catch {
-      // Diagnóstico secundário não altera o fluxo de validação etária.
+      // Diagnóstico secundário nunca altera a fronteira etária.
     }
   }
 }

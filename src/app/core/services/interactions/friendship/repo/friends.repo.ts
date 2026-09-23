@@ -8,7 +8,7 @@
 // - a relação em si vem de /users/{uid}/friends/{friendUid};
 // - os dados públicos do card vêm de /public_profiles/{friendUid};
 // - nunca usamos /users/{friendUid} para renderização social pública;
-// - se o public_profile estiver ausente, o card ainda funciona com fallback;
+// - se o public_profile não estiver adulto/vigente, o card falha fechado;
 // - a lista continua paginada e ordenada por lastInteractionAt.
 //
 // Segurança digital:
@@ -45,7 +45,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 
-import { defer, Observable, of, switchMap } from 'rxjs';
+import { defer, firstValueFrom, Observable, of, switchMap } from 'rxjs';
 
 import { FirestoreRepoBase } from './base.repo';
 import type {
@@ -55,6 +55,9 @@ import type {
 import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 import { sanitizeFriendForStore } from 'src/app/store/utils/friend-store.serializer';
 import { toEpoch } from '../../../../utils/epoch-utils';
+import {
+  PublicProfileReadBoundaryService,
+} from '../../../discovery/public-profile-read-boundary.service';
 
 type FriendForCard = Friend & {
   uid: string;
@@ -79,7 +82,8 @@ export class FriendsRepo extends FirestoreRepoBase {
   constructor(
   db: Firestore,
   env: EnvironmentInjector,
-  private readonly privacyDebug: PrivacyDebugLoggerService
+  private readonly privacyDebug: PrivacyDebugLoggerService,
+  private readonly publicProfileRead: PublicProfileReadBoundaryService
 ) {
   super(db, env);
 }
@@ -326,47 +330,57 @@ watchFriends(uid: string, pageSize = 24): Observable<FriendForCard[]> {
    * Hidrata a relação de amizade com o perfil público.
    *
    * Importante:
-   * - falha individual não quebra a lista;
    * - dados privados não são lidos;
-   * - o fallback mantém a UI navegável.
+   * - ausência/expiração do perfil remove o card da lista;
+   * - falha da boundary retorna vazio para não reexpor snapshot legado.
    */
   private async hydrateFriendsWithPublicProfiles(
     friends: Friend[]
   ): Promise<FriendForCard[]> {
-    const profiles = await Promise.all(
-      friends.map((friend) => this.safeReadPublicProfile(friend.friendUid))
+    const uids = Array.from(
+      new Set(
+        friends
+          .map((friend) => this.normalizeText(friend.friendUid))
+          .filter(Boolean)
+      )
     );
 
-    return friends.map((friend, index) =>
-      this.mergeFriendWithPublicProfile(friend, profiles[index])
-    );
+    if (!uids.length) {
+      return [];
+    }
+
+    try {
+      const response = await firstValueFrom(
+        this.publicProfileRead.readByUids$(uids)
+      );
+      const profilesByUid = new Map<string, Record<string, unknown>>();
+
+      for (const raw of response.items ?? []) {
+        const uid = this.normalizeText(raw['uid']);
+        if (uid) {
+          profilesByUid.set(uid, raw);
+        }
+      }
+
+      return friends.flatMap((friend) => {
+        const uid = this.normalizeText(friend.friendUid);
+        const profile = profilesByUid.get(uid);
+
+        // A relação pode existir, mas sem perfil público adulto vigente
+        // nenhum snapshot antigo da aresta pode continuar visível.
+        return profile
+          ? [this.mergeFriendWithPublicProfile(friend, profile)]
+          : [];
+      });
+    } catch (error) {
+      this.dbg('public profile batch hydration failed', {
+        friendCount: friends.length,
+        error: String((error as Error)?.message ?? error),
+      });
+
+      return [];
+    }
   }
-
-private async safeReadPublicProfile(
-  friendUid: string
-): Promise<DocumentData | null> {
-  const safeUid = this.normalizeText(friendUid);
-
-  if (!safeUid) {
-    return null;
-  }
-
-  try {
-    const snapshot = await this.inCtxSync(() => {
-      const profileRef = doc(this.db, `public_profiles/${safeUid}`);
-      return getDoc(profileRef);
-    });
-
-    return snapshot.exists() ? snapshot.data() : null;
-  } catch (error) {
-    this.dbg('public profile hydration failed', {
-      friendUid: safeUid,
-      error: String((error as Error)?.message ?? error),
-    });
-
-    return null;
-  }
-}
 
   /**
    * Junta:
@@ -375,25 +389,22 @@ private async safeReadPublicProfile(
    */
   private mergeFriendWithPublicProfile(
     friend: Friend,
-    profile: DocumentData | null
+    profile: Record<string, unknown>
   ): FriendForCard {
-    const uid = this.normalizeText(profile?.['uid']) ||
+    const uid = this.normalizeText(profile['uid']) ||
       this.normalizeText(friend.friendUid);
 
-    const nickname = this.normalizeText(profile?.['nickname']) ||
-      this.normalizeText(friend.nickname) ||
-      uid ||
-      'Perfil';
+    const nickname = this.normalizeText(profile['nickname']) || uid;
 
     const photoURL =
-      this.normalizeText(profile?.['photoURL']) ||
-      this.normalizeText(profile?.['avatarUrl']) ||
-      this.normalizeText(profile?.['photoUrl']);
+      this.normalizeText(profile['photoURL']) ||
+      this.normalizeText(profile['avatarUrl']) ||
+      this.normalizeText(profile['photoUrl']);
 
     const distanciaKm =
       this.normalizeNumber(friend.distanceKm) ??
-      this.normalizeNumber(profile?.['distanciaKm']) ??
-      this.normalizeNumber(profile?.['distanceKm']) ??
+      this.normalizeNumber(profile['distanciaKm']) ??
+      this.normalizeNumber(profile['distanceKm']) ??
       null;
 
     return {
@@ -409,22 +420,22 @@ private async safeReadPublicProfile(
       photoURL,
       avatarUrl: photoURL,
 
-      isOnline: Boolean(profile?.['isOnline'] ?? profile?.['online'] ?? false),
+      isOnline: Boolean(profile['isOnline'] ?? profile['online'] ?? false),
 
       municipio:
-        this.normalizeText(profile?.['municipio']) ||
-        this.normalizeText(profile?.['city']),
+        this.normalizeText(profile['municipio']) ||
+        this.normalizeText(profile['city']),
 
       estado:
-        this.normalizeText(profile?.['estado']) ||
-        this.normalizeText(profile?.['state']),
+        this.normalizeText(profile['estado']) ||
+        this.normalizeText(profile['state']),
 
-      gender: this.normalizeText(profile?.['gender']) || null,
-      orientation: this.normalizeText(profile?.['orientation']) || null,
+      gender: this.normalizeText(profile['gender']) || null,
+      orientation: this.normalizeText(profile['orientation']) || null,
 
-      role: this.normalizeText(profile?.['role']) || 'free',
-      isSubscriber: Boolean(profile?.['isSubscriber'] ?? false),
-      emailVerified: Boolean(profile?.['emailVerified'] ?? false),
+      role: this.normalizeText(profile['role']) || 'free',
+      isSubscriber: Boolean(profile['isSubscriber'] ?? false),
+      emailVerified: Boolean(profile['emailVerified'] ?? false),
 
       distanciaKm,
       distanceKm: distanciaKm ?? undefined,

@@ -5,6 +5,22 @@ import type { IUserIntentStatusCardVm } from 'src/app/core/interfaces/discovery/
 
 const HOUR_MS = 60 * 60 * 1000;
 
+export function getUserIntentStatusExposureExpiresAt(
+  item: IUserIntentStatusCardVm
+): number {
+  const statusExpiresAt =
+    typeof item.expiresAt === 'number' && Number.isFinite(item.expiresAt)
+      ? item.expiresAt
+      : 0;
+  const ageExpiresAt =
+    typeof item.ageEligibilityValidUntil === 'number' &&
+    Number.isFinite(item.ageEligibilityValidUntil)
+      ? item.ageEligibilityValidUntil
+      : 0;
+
+  return Math.min(statusExpiresAt, ageExpiresAt);
+}
+
 export function formatUserIntentStatusExpiresIn(
   expiresAt: number,
   now: number = Date.now()
@@ -25,7 +41,8 @@ export function projectActiveUserIntentStatusCards(
 ): IUserIntentStatusCardVm[] {
   return (items ?? [])
     .filter((item) =>
-      item.moderation.state === 'active' && item.expiresAt > now
+      item.moderation.state === 'active' &&
+      getUserIntentStatusExposureExpiresAt(item) > now
     )
     .map((item) => ({
       ...item,
@@ -41,12 +58,21 @@ export function getEarliestUserIntentStatusExpiryAt(
   let earliestExpiryAt: number | null = null;
 
   for (const item of items ?? []) {
-    if (item.moderation.state !== 'active' || item.expiresAt <= now) {
+    const exposureExpiresAt =
+      getUserIntentStatusExposureExpiresAt(item);
+
+    if (
+      item.moderation.state !== 'active' ||
+      exposureExpiresAt <= now
+    ) {
       continue;
     }
 
-    if (earliestExpiryAt === null || item.expiresAt < earliestExpiryAt) {
-      earliestExpiryAt = item.expiresAt;
+    if (
+      earliestExpiryAt === null ||
+      exposureExpiresAt < earliestExpiryAt
+    ) {
+      earliestExpiryAt = exposureExpiresAt;
     }
   }
 
@@ -60,7 +86,13 @@ export function getNextUserIntentStatusTransitionAt(
   let nextTransitionAt: number | null = null;
 
   for (const item of items ?? []) {
-    if (item.moderation.state !== 'active' || item.expiresAt <= now) {
+    const exposureExpiresAt =
+      getUserIntentStatusExposureExpiresAt(item);
+
+    if (
+      item.moderation.state !== 'active' ||
+      exposureExpiresAt <= now
+    ) {
       continue;
     }
 
@@ -69,7 +101,10 @@ export function getNextUserIntentStatusTransitionAt(
     const labelTransitionAt = remainingHours > 1
       ? item.expiresAt - (remainingHours - 1) * HOUR_MS
       : item.expiresAt;
-    const candidate = Math.max(labelTransitionAt, now + 1);
+    const candidate = Math.max(
+      Math.min(labelTransitionAt, exposureExpiresAt),
+      now + 1
+    );
 
     if (nextTransitionAt === null || candidate < nextTransitionAt) {
       nextTransitionAt = candidate;

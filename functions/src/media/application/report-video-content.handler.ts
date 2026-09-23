@@ -7,6 +7,12 @@ import {
 } from '../../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue } from '../../firebaseApp';
+import {
+  safeRecordModerationOpenSignal,
+} from '../../moderation/moderation-automation.service';
+import {
+  safeNotifyModerationReportOpened,
+} from '../../moderation/moderation-safety-notification.service';
 import { consumeBackendRateLimitQuota } from './backend-rate-limit.service';
 import {
   buildMediaReportSafetyState,
@@ -86,6 +92,7 @@ interface VideoRatingDocument {
 
 interface ReportVideoTransactionResult {
   publishedStoragePath: string | null;
+  targetAuthorUid: string;
   quarantine: boolean;
   evidenceRequired: boolean;
   binaryEvidenceRequired: boolean;
@@ -100,6 +107,7 @@ const ALLOWED_REASONS = new Set<VideoReportReason>([
   'illegal_content',
   'privacy',
   'minor_safety',
+  'minor_content_safety',
   'other',
 ]);
 const REPORT_BURST_WINDOW_MS = 60 * 1000;
@@ -321,17 +329,32 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
         }
 
         const safetyState = buildMediaReportSafetyState(video, 'OPEN');
-        const quarantine = targetType === 'video' &&
+        const videoQuarantine = targetType === 'video' &&
           shouldQuarantineMediaAfterReport(reason, safetyState.openReportsCount);
+        const commentQuarantine =
+          targetType === 'video_comment' &&
+          reason === 'minor_content_safety';
+        const quarantine = videoQuarantine || commentQuarantine;
         const binaryEvidenceRequired = targetType === 'video' &&
           shouldPreserveMediaEvidence(reason);
         const textEvidenceRequired = targetType === 'video_comment';
         const evidenceRequired = binaryEvidenceRequired || textEvidenceRequired;
+        const commentsCount = Math.max(
+          0,
+          normalizeMediaCount(video.commentsCount) -
+            (
+              commentQuarantine &&
+              reportedComment &&
+              !reportedComment.parentCommentId
+                ? 1
+                : 0
+            )
+        );
         const nextScore = buildMediaEngagementScore({
           reactionsCount: normalizeMediaCount(
             video.reactionsCount ?? video.likesCount
           ),
-          commentsCount: normalizeMediaCount(video.commentsCount),
+          commentsCount,
           ratingsCount: normalizeMediaCount(video.ratingsCount),
           ratingAverage: Number(video.ratingAverage ?? 0),
           currentBreakdown: {
@@ -359,6 +382,9 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
             : textEvidenceRequired
               ? 'PRESERVED'
               : 'NOT_REQUIRED',
+          legalReviewStatus: reason === 'minor_content_safety'
+            ? 'PENDING_LEGAL_REVIEW'
+            : null,
           source: 'web',
           createdAt: timestamp,
           updatedAt: timestamp,
@@ -385,16 +411,19 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
           safetyScore: safetyState.safetyScore,
           score: nextScore.score,
           scoreBreakdown: nextScore.scoreBreakdown,
-          ...(quarantine
+          ...(videoQuarantine
             ? {
               moderationStatus: 'HIDDEN',
               moderationReason: QUARANTINE_REASON,
             }
             : {}),
+          ...(commentQuarantine
+            ? { commentsCount }
+            : {}),
           updatedAt: Date.now(),
         });
 
-        if (quarantine && publicationSnap?.exists) {
+        if (videoQuarantine && publicationSnap?.exists) {
           transaction.set(
             publicationRef,
             {
@@ -413,6 +442,9 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
           transaction.update(targetRef, {
             reportsCount: targetReportsCount + 1,
             openReportsCount: targetOpenReportsCount + 1,
+            ...(commentQuarantine
+              ? { status: 'HIDDEN' }
+              : {}),
             updatedAt: Date.now(),
           });
         }
@@ -424,6 +456,7 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
         return {
           publishedStoragePath:
             String(publication?.publishedStoragePath ?? '').trim() || null,
+          targetAuthorUid: targetAuthorUid || ownerUid,
           quarantine,
           evidenceRequired,
           binaryEvidenceRequired,
@@ -441,6 +474,17 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
         sourceStoragePath: result.publishedStoragePath,
       });
     }
+
+    await safeRecordModerationOpenSignal({
+      reportId,
+      targetUid: result.targetAuthorUid,
+      reporterUid,
+      targetKey: `${targetType}:${ownerUid}:${videoId}:${targetId}`,
+      critical: reason === 'minor_content_safety',
+      quarantined: result.quarantine,
+    });
+
+    await safeNotifyModerationReportOpened(reportId);
 
     return {
       reportId,

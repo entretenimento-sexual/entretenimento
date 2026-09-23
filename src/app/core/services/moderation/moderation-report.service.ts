@@ -577,6 +577,7 @@ export class ModerationReportService {
       'illegal_content',
       'privacy',
       'minor_safety',
+      'minor_content_safety',
       'other',
     ].includes(value);
   }

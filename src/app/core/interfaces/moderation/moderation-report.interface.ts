@@ -40,6 +40,8 @@ export type ModerationReportReason =
   | 'illegal_content'
   | 'privacy'
   | 'minor_safety'
+  | 'minor_content_safety'
+  | 'age_verification_request'
   | 'other';
 
 export type ModerationReportStatus =
@@ -104,7 +106,13 @@ export interface IModerationReportDocument {
   ageReverificationCaseId?: string | null;
   ageReverificationStatus?: ModerationAgeReverificationStatus | null;
   ageReverificationSubmittedAt?: Timestamp | FieldValue | null;
-  source: 'web';
+  automationPriority?: 'NORMAL' | 'HIGH' | 'CRITICAL' | null;
+  automationDecision?: string | null;
+  automationReason?: string | null;
+  automationMode?: 'SHADOW' | 'ENFORCE' | null;
+  automationWindowId?: string | null;
+  automationEvaluatedAtMs?: number | null;
+  source: 'web' | 'system';
   createdAt: Timestamp | FieldValue;
   updatedAt: Timestamp | FieldValue;
 }

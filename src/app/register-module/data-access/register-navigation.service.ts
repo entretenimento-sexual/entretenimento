@@ -97,6 +97,34 @@ export class RegisterNavigationService {
       };
     }
 
+    if (!state.ageEligibilityVerified) {
+      return {
+        ...state,
+        uid,
+        email,
+        currentStep: 'ageVerification',
+        nextRoute: '/adulto/verificar-idade',
+        progress: 50,
+        canContinue: true,
+        primaryActionLabel: 'Verificar maioridade',
+        blockingMessage:
+          'A plataforma exige confirmação backend de maioridade antes do acesso adulto.',
+      };
+    }
+
+    if (!state.adultConsentAccepted) {
+      return {
+        ...state,
+        uid,
+        email,
+        currentStep: 'adultConsent',
+        nextRoute: '/adulto/confirmar',
+        progress: 65,
+        canContinue: true,
+        primaryActionLabel: 'Aceitar acesso adulto',
+      };
+    }
+
     if (!state.profileCompleted) {
       return {
         ...state,
@@ -104,25 +132,9 @@ export class RegisterNavigationService {
         email,
         currentStep: 'profileCompletion',
         nextRoute: '/register/finalizar-cadastro',
-        progress: 55,
+        progress: 80,
         canContinue: true,
         primaryActionLabel: 'Completar perfil',
-      };
-    }
-
-    if (
-      state.initialAdultConsentRequired === true &&
-      !state.adultConsentAccepted
-    ) {
-      return {
-        ...state,
-        uid,
-        email,
-        currentStep: 'adultConsent',
-        nextRoute: '/adulto/confirmar',
-        progress: 75,
-        canContinue: true,
-        primaryActionLabel: 'Confirmar maioridade',
       };
     }
 

@@ -385,12 +385,20 @@ export const getCommunityMembershipRequests = onCall<CommunityIdPayload>(
         .collection('members')
         .doc(actorUid);
       const actorUserRef = db.collection('users').doc(actorUid);
-      const [communitySnapshot, actorMembershipSnapshot, actorUserSnapshot] =
-        await Promise.all([
-          transaction.get(communityRef),
-          transaction.get(actorMembershipRef),
-          transaction.get(actorUserRef),
-        ]);
+      const actorAgeEligibilityRef = db
+        .collection('age_eligibility_records')
+        .doc(actorUid);
+      const [
+        communitySnapshot,
+        actorMembershipSnapshot,
+        actorUserSnapshot,
+        actorAgeEligibilitySnapshot,
+      ] = await Promise.all([
+        transaction.get(communityRef),
+        transaction.get(actorMembershipRef),
+        transaction.get(actorUserRef),
+        transaction.get(actorAgeEligibilityRef),
+      ]);
 
       if (!communitySnapshot.exists) {
         throw new HttpsError(
@@ -402,7 +410,10 @@ export const getCommunityMembershipRequests = onCall<CommunityIdPayload>(
 
       assertCommunityMembershipActorEligible(
         actorUserSnapshot.exists ? actorUserSnapshot.data() : null,
-        actorUid
+        actorUid,
+        actorAgeEligibilitySnapshot.exists
+          ? actorAgeEligibilitySnapshot.data()
+          : null
       );
       const community = communitySnapshot.data() ?? {};
       assertCommunityManageable(community);
@@ -636,6 +647,12 @@ export const reviewCommunityMembership =
           .doc(memberId);
         const actorUserRef = db.collection('users').doc(actorUid);
         const targetUserRef = db.collection('users').doc(memberId);
+        const actorAgeEligibilityRef = db
+          .collection('age_eligibility_records')
+          .doc(actorUid);
+        const targetAgeEligibilityRef = db
+          .collection('age_eligibility_records')
+          .doc(memberId);
         const auditRef = db.collection('community_membership_audit').doc();
         const [
           communitySnapshot,
@@ -644,6 +661,8 @@ export const reviewCommunityMembership =
           targetMembershipSnapshot,
           actorUserSnapshot,
           targetUserSnapshot,
+          actorAgeEligibilitySnapshot,
+          targetAgeEligibilitySnapshot,
         ] = await Promise.all([
           transaction.get(communityRef),
           transaction.get(discoveryRef),
@@ -651,6 +670,8 @@ export const reviewCommunityMembership =
           transaction.get(targetMembershipRef),
           transaction.get(actorUserRef),
           transaction.get(targetUserRef),
+          transaction.get(actorAgeEligibilityRef),
+          transaction.get(targetAgeEligibilityRef),
         ]);
 
         if (!communitySnapshot.exists) {
@@ -663,7 +684,10 @@ export const reviewCommunityMembership =
 
         assertCommunityMembershipActorEligible(
           actorUserSnapshot.exists ? actorUserSnapshot.data() : null,
-          actorUid
+          actorUid,
+          actorAgeEligibilitySnapshot.exists
+            ? actorAgeEligibilitySnapshot.data()
+            : null
         );
         const community = communitySnapshot.data() ?? null;
         assertCommunityManageable(community);
@@ -691,7 +715,10 @@ export const reviewCommunityMembership =
         if (!decision.idempotent && decision.targetStatus === 'active') {
           assertCommunityMembershipActorEligible(
             targetUserSnapshot.exists ? targetUserSnapshot.data() : null,
-            memberId
+            memberId,
+            targetAgeEligibilitySnapshot.exists
+              ? targetAgeEligibilitySnapshot.data()
+              : null
           );
         }
 

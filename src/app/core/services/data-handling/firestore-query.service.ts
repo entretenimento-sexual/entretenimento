@@ -21,13 +21,14 @@
 import { inject, Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { catchError, map, switchMap, take } from 'rxjs/operators';
-import { Firestore, limit, QueryConstraint, where } from '@angular/fire/firestore';
+import { Firestore, QueryConstraint, where } from '@angular/fire/firestore';
 
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { CacheService } from '../general/cache/cache.service';
 import { FirestoreReadService } from './firestore/core/firestore-read.service';
 import { FirestoreContextService } from './firestore/core/firestore-context.service';
 import { UserPresenceQueryService } from './queries/user-presence.query.service';
+import { PublicProfileDiscoveryService } from '../discovery/public-profile-discovery.service';
 import { AppState } from 'src/app/store/states/app.state';
 import { Store } from '@ngrx/store';
 import { selectUserProfileDataByUid } from 'src/app/store/selectors/selectors.user/user-profile.selectors';
@@ -42,6 +43,7 @@ export class FirestoreQueryService {
   private readonly cacheService = inject(CacheService);
   private readonly read = inject(FirestoreReadService);
   private readonly presenceQuery = inject(UserPresenceQueryService);
+  private readonly publicProfileDiscovery = inject(PublicProfileDiscoveryService);
 
   // STATE compat (NgRx) — manter por enquanto, migrar depois
   private readonly store = inject(Store<AppState>);
@@ -88,21 +90,6 @@ export class FirestoreQueryService {
     );
   }
 
-  /**
-   * Realtime query com constraints criadas dentro do FirestoreContextService.
-   */
-  private getDocumentsLiveByQuerySafe<T>(
-    collectionName: string,
-    buildConstraints: () => QueryConstraint[],
-    options?: {
-      idField?: string;
-      requireAuth?: boolean;
-    }
-  ): Observable<T[]> {
-    return this.ctx.deferObservable$(() =>
-      this.read.getDocumentsLiveSafe<T>(collectionName, buildConstraints(), options)
-    );
-  }
 
   /**
    * Query genérica com cache.
@@ -207,24 +194,17 @@ export class FirestoreQueryService {
   }
 
   /**
-   * Compat: sugestões (pode evoluir para ranking no futuro).
-   * Por ora: delega para listagem simples em public_profiles.
+   * Compat: sugestões.
    *
-   * Ajuste principal:
-   * - limit(...) agora nasce dentro do FirestoreContextService
+   * Mantém a nomenclatura histórica, mas a enumeração de public_profiles
+   * acontece exclusivamente pela fronteira backend-time canônica.
    */
   getSuggestedProfiles(limitCount = 24): Observable<IUserDados[]> {
-    return this.getDocumentsLiveByQuerySafe<IUserDados>(
-      'public_profiles',
-      () => [limit(limitCount)],
-      {
-        idField: 'uid',
-        requireAuth: true,
-      }
-    ).pipe(
-      map((profiles) => (profiles ?? []) as IUserDados[]),
-      catchError(() => of([] as IUserDados[]))
-    );
+    return this.publicProfileDiscovery
+      .listDiscoverableProfiles$({ limit: limitCount })
+      .pipe(
+        catchError(() => of([] as IUserDados[]))
+      );
   }
 
   // =========================================================

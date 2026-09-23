@@ -11,24 +11,43 @@ describe('public media consumption access policy', () => {
   const eligibleUser = {
     accountStatus: 'active',
     suspended: false,
+    interactionBlocked: false,
     acceptedTerms: {
       accepted: true,
       version: 'v3',
       acknowledgedPrivacyNotice: true,
     },
-    initialAdultConsentRequired: false,
+    adultConsent: {
+      accepted: true,
+      version: 'v1',
+    },
     ageReverification: { status: 'NONE' },
+  };
+
+  const eligibleAge = {
+    uid: 'user-1',
+    status: 'VERIFIED_ADULT',
+    policyVersion: 1,
+    source: 'AGE_REVERIFICATION',
+    method: 'MANUAL_REVIEW',
+    caseId: 'case-1',
+    verifiedAtMs: Date.now() - 1_000,
+    expiresAtMs: null,
   };
 
   function assertBlockedWithReason(
     user: Parameters<typeof assertPublicMediaConsumptionAccessData>[0],
+    age: unknown,
     expectedReason: PublicMediaConsumptionAccessReason
   ): void {
     assert.throws(
-      () => assertPublicMediaConsumptionAccessData(user),
+      () => assertPublicMediaConsumptionAccessData(
+        user,
+        age,
+        'user-1'
+      ),
       (error: unknown) => {
         assert.ok(error instanceof HttpsError);
-        assert.equal(error.code, 'failed-precondition');
         assert.equal(
           (error.details as { reason?: unknown } | undefined)?.reason,
           expectedReason
@@ -38,28 +57,23 @@ describe('public media consumption access policy', () => {
     );
   }
 
-  it('permite conta ativa com termos vigentes e sem reverificação pendente', () => {
+  it('permite conta adulta com termos e consentimento vigentes', () => {
     assert.doesNotThrow(() =>
-      assertPublicMediaConsumptionAccessData(eligibleUser)
+      assertPublicMediaConsumptionAccessData(
+        eligibleUser,
+        eligibleAge,
+        'user-1'
+      )
     );
   });
 
-  it('permite consentimento adulto vigente quando ele é obrigatório', () => {
-    assert.doesNotThrow(() =>
-      assertPublicMediaConsumptionAccessData({
-        ...eligibleUser,
-        initialAdultConsentRequired: true,
-        adultConsent: { accepted: true, version: 'v1' },
-      })
-    );
-  });
-
-  it('bloqueia lifecycle restrito ou suspensão legada com motivo estruturado', () => {
+  it('bloqueia lifecycle restrito ou suspensão', () => {
     assertBlockedWithReason(
       {
         ...eligibleUser,
         accountStatus: 'pending_deletion',
       },
+      eligibleAge,
       'ACCOUNT_UNAVAILABLE'
     );
     assertBlockedWithReason(
@@ -67,11 +81,12 @@ describe('public media consumption access policy', () => {
         ...eligibleUser,
         suspended: true,
       },
+      eligibleAge,
       'ACCOUNT_UNAVAILABLE'
     );
   });
 
-  it('bloqueia termos desatualizados com motivo estruturado', () => {
+  it('bloqueia termos desatualizados', () => {
     assertBlockedWithReason(
       {
         ...eligibleUser,
@@ -81,30 +96,51 @@ describe('public media consumption access policy', () => {
           acknowledgedPrivacyNotice: true,
         },
       },
+      eligibleAge,
       'TERMS_REQUIRED'
     );
   });
 
-  it('bloqueia consentimento adulto ausente ou desatualizado quando obrigatório', () => {
+  it('bloqueia consentimento adulto ausente ou desatualizado', () => {
     assertBlockedWithReason(
       {
         ...eligibleUser,
-        initialAdultConsentRequired: true,
         adultConsent: null,
       },
+      eligibleAge,
       'ADULT_CONSENT_REQUIRED'
     );
     assertBlockedWithReason(
       {
         ...eligibleUser,
-        initialAdultConsentRequired: true,
         adultConsent: { accepted: true, version: 'legacy' },
       },
+      eligibleAge,
       'ADULT_CONSENT_REQUIRED'
     );
   });
 
-  it('bloqueia estados pendentes de revalidação etária com motivo estruturado', () => {
+  it('bloqueia ausência de verificação etária canônica', () => {
+    assertBlockedWithReason(
+      eligibleUser,
+      null,
+      'AGE_VERIFICATION_REQUIRED'
+    );
+  });
+
+  it('bloqueia decisão canônica de menoridade', () => {
+    assertBlockedWithReason(
+      eligibleUser,
+      {
+        ...eligibleAge,
+        status: 'DENIED_UNDERAGE',
+        verifiedAtMs: null,
+      },
+      'AGE_ACCESS_DENIED'
+    );
+  });
+
+  it('bloqueia estados pendentes de revalidação etária', () => {
     for (const status of [
       'REQUIRED',
       'SUBMITTED',
@@ -116,6 +152,7 @@ describe('public media consumption access policy', () => {
           ...eligibleUser,
           ageReverification: { status },
         },
+        eligibleAge,
         'AGE_REVERIFICATION_REQUIRED'
       );
     }

@@ -7,6 +7,12 @@ import {
 } from '../../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue } from '../../firebaseApp';
+import {
+  safeRecordModerationOpenSignal,
+} from '../../moderation/moderation-automation.service';
+import {
+  safeNotifyModerationReportOpened,
+} from '../../moderation/moderation-safety-notification.service';
 import { consumeBackendRateLimitQuota } from './backend-rate-limit.service';
 import {
   buildMediaReportSafetyState,
@@ -67,6 +73,7 @@ const ALLOWED_REASONS = new Set<PhotoReportReason>([
   'illegal_content',
   'privacy',
   'minor_safety',
+  'minor_content_safety',
   'other',
 ]);
 const REPORT_BURST_WINDOW_MS = 60 * 1000;
@@ -234,6 +241,9 @@ export const reportPhotoContent = onCall<ReportPhotoContentRequest>(
           evidencePreservationStatus: evidenceRequired
             ? 'PENDING'
             : 'NOT_REQUIRED',
+          legalReviewStatus: reason === 'minor_content_safety'
+            ? 'PENDING_LEGAL_REVIEW'
+            : null,
           source: 'web',
           createdAt: timestamp,
           updatedAt: timestamp,
@@ -286,6 +296,17 @@ export const reportPhotoContent = onCall<ReportPhotoContentRequest>(
         sourceStoragePath: result.publishedStoragePath,
       });
     }
+
+    await safeRecordModerationOpenSignal({
+      reportId,
+      targetUid: ownerUid,
+      reporterUid,
+      targetKey: `photo:${ownerUid}:${photoId}`,
+      critical: reason === 'minor_content_safety',
+      quarantined: result.quarantine,
+    });
+
+    await safeNotifyModerationReportOpened(reportId);
 
     return {
       reportId,

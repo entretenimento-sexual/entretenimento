@@ -1,6 +1,9 @@
 // functions/src/discovery/sync-public-profile-discovery.handler.ts
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
-import { db, FieldValue } from '../firebaseApp';
+import {
+  evaluateCanonicalAgeEligibility,
+} from '../compliance/age-eligibility.policy';
+import { db, FieldValue, Timestamp } from '../firebaseApp';
 import {
   PROFILE_IDENTITY_CATALOG_VERSION,
   resolveProfileIdentityOption,
@@ -10,6 +13,18 @@ import {
   resolveOrGeneratePublicProfileId,
 } from '../identity/public-profile-id';
 import { hasMinimumActiveDiscoveryPlan } from './discovery-subscription-access';
+
+const PUBLIC_AGE_ELIGIBILITY_MAX_VALID_UNTIL_MS = 253402300799999;
+
+function publicAgeValidUntilMs(data: Record<string, unknown>): number | null {
+  const value = data['ageEligibilityValidUntil'] as
+    | { toMillis?: unknown }
+    | null
+    | undefined;
+  return value && typeof value.toMillis === 'function'
+    ? (value as { toMillis: () => number }).toMillis()
+    : null;
+}
 import { normalizeProfileDiscoveryFields } from './profile-discovery-normalization';
 import {
   buildPublicPreferenceProjection,
@@ -44,14 +59,22 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
     const userRef = db.collection('users').doc(uid);
     const publicProfileRef = db.collection('public_profiles').doc(uid);
     const preferenceRef = userRef.collection('preferences').doc('profile');
+    const ageEligibilityRef = db
+      .collection('age_eligibility_records')
+      .doc(uid);
 
     await db.runTransaction(async (transaction) => {
-      const [userSnapshot, publicProfileSnapshot, preferenceSnapshot] =
-        await Promise.all([
-          transaction.get(userRef),
-          transaction.get(publicProfileRef),
-          transaction.get(preferenceRef),
-        ]);
+      const [
+        userSnapshot,
+        publicProfileSnapshot,
+        preferenceSnapshot,
+        ageEligibilitySnapshot,
+      ] = await Promise.all([
+        transaction.get(userRef),
+        transaction.get(publicProfileRef),
+        transaction.get(preferenceRef),
+        transaction.get(ageEligibilityRef),
+      ]);
 
       if (!userSnapshot.exists) {
         if (publicProfileSnapshot.exists) {
@@ -73,6 +96,13 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
         );
       }
 
+      const ageDecision = evaluateCanonicalAgeEligibility({
+        uid,
+        rawRecord: ageEligibilitySnapshot.exists
+          ? ageEligibilitySnapshot.data()
+          : null,
+      });
+
       if (isPublicProfileProjectionBlocked(user)) {
         if (publicProfileSnapshot.exists) {
           transaction.delete(publicProfileRef);
@@ -80,9 +110,35 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
         return;
       }
 
+      if (!ageDecision.allowed) {
+        const currentPublic = publicProfileSnapshot.data() ?? {};
+        if (
+          publicProfileSnapshot.exists &&
+          (
+            currentPublic['ageEligibilityVerifiedAdult'] !== false ||
+            publicAgeValidUntilMs(currentPublic) !== 0
+          )
+        ) {
+          transaction.set(
+            publicProfileRef,
+            {
+              ageEligibilityVerifiedAdult: false,
+              ageEligibilityValidUntil: Timestamp.fromMillis(0),
+            },
+            { merge: true }
+          );
+        }
+        return;
+      }
+
       if (!publicProfileSnapshot.exists) {
         return;
       }
+
+      const ageEligibilityValidUntilMs =
+        ageDecision.expiresAtMs ?? PUBLIC_AGE_ELIGIBILITY_MAX_VALID_UNTIL_MS;
+      const ageEligibilityValidUntil =
+        Timestamp.fromMillis(ageEligibilityValidUntilMs);
 
       const publicIdentity = buildPublicIdentityProjection(user);
       const discoverySource = publicIdentity.identityDiscoveryGroup
@@ -96,7 +152,7 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
         }
         : user;
       const canonical = normalizeProfileDiscoveryFields(discoverySource);
-      const age = normalizePublicAge(user['idade'] ?? user['age']);
+      const age = null;
       const publicPreferences = buildPublicPreferenceProjection(
         preferenceSnapshot.exists ? (preferenceSnapshot.data() ?? {}) : null,
         { canPublishAdvanced: hasMinimumActiveDiscoveryPlan(user, 'basic') }
@@ -110,6 +166,8 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
         publicProfileDiscoveryProjectionMatches(currentPublic, canonical) &&
         publicIdentityProjectionMatches(currentPublic, publicIdentity) &&
         (currentPublic['age'] ?? null) === age &&
+        currentPublic['ageEligibilityVerifiedAdult'] === true &&
+        publicAgeValidUntilMs(currentPublic) === ageEligibilityValidUntilMs &&
         publicPreferenceProjectionMatches(currentPublic, publicPreferences) &&
         publicLocationProjectionMatches(currentPublic, publicLocation) &&
         publicAvatarProjectionMatches(currentPublic, publicAvatar)
@@ -130,6 +188,8 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
           interestedInOrientations: canonical.interestedInOrientations,
           compatibilityReady: canonical.compatibilityReady,
           age,
+          ageEligibilityVerifiedAdult: true,
+          ageEligibilityValidUntil,
           ...publicPreferences,
           ...publicLocation,
           discoveryNormalizedAt: FieldValue.serverTimestamp(),
@@ -177,10 +237,4 @@ function publicIdentityProjectionMatches(
     && (current['identityDiscoveryGroup'] ?? null) === expected.identityDiscoveryGroup
     && (current['gender'] ?? null) === expected.identityCode
   );
-}
-
-function normalizePublicAge(value: unknown): number | null {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
-  const age = Math.round(value);
-  return age >= 18 && age <= 100 ? age : null;
 }

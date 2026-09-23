@@ -10,7 +10,6 @@ import {
 } from '@firebase/rules-unit-testing';
 import {
   doc,
-  runTransaction,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -101,6 +100,15 @@ async function seedReadyPrivateUser(): Promise<void> {
       updatedAt: new Date(),
       nicknameHistory: [],
     });
+    await setDoc(doc(context.firestore(), 'age_eligibility_records', UID), {
+      uid: UID,
+      status: 'VERIFIED_ADULT',
+      policyVersion: 1,
+      source: 'AGE_REVERIFICATION',
+      method: 'MANUAL_REVIEW',
+      verifiedAt: new Date(Date.now() - 1_000),
+      expiresAt: null,
+    });
   });
 }
 
@@ -154,27 +162,36 @@ describe('Firestore Rules / registration and profile completion', () => {
     );
   });
 
-  it('permite o bootstrap transacional sem a claim email_verified inicial', async () => {
+  it('permite o bootstrap privado sem a claim email_verified inicial', async () => {
     const db = authenticatedDbWithoutEmailClaim();
 
     await assertSucceeds(
-      runTransaction(db, async (transaction) => {
-        const userRef = doc(db, 'users', UID);
-        const indexRef = doc(db, 'public_index', 'nickname:pessoa_segura');
-        const indexSnapshot = await transaction.get(indexRef);
+      setDoc(
+        doc(db, 'users', UID),
+        privateRegistrationSeed(),
+        { merge: true }
+      )
+    );
+  });
 
-        if (indexSnapshot.exists()) {
-          throw new Error('Reserva de nickname inesperadamente existente.');
-        }
+  it('nega reservar nickname público antes do onboarding adulto completo', async () => {
+    const db = authenticatedDbWithoutEmailClaim();
 
-        transaction.set(userRef, privateRegistrationSeed(), { merge: true });
-        transaction.set(indexRef, {
-          uid: UID,
-          type: 'nickname',
-          value: 'pessoa_segura',
-          createdAt: serverTimestamp(),
-          lastChangedAt: serverTimestamp(),
-        });
+    await assertSucceeds(
+      setDoc(
+        doc(db, 'users', UID),
+        privateRegistrationSeed(),
+        { merge: true }
+      )
+    );
+
+    await assertFails(
+      setDoc(doc(db, 'public_index', 'nickname:pessoa_segura'), {
+        uid: UID,
+        type: 'nickname',
+        value: 'pessoa_segura',
+        createdAt: serverTimestamp(),
+        lastChangedAt: serverTimestamp(),
       })
     );
   });
@@ -255,6 +272,52 @@ describe('Firestore Rules / registration and profile completion', () => {
       ...publicProfilePayload(),
       identityCode: 'homem',
     });
+
+    await assertFails(batch.commit());
+  });
+
+  it('nega conclusão atômica sem elegibilidade etária canônica', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, 'users', UID), {
+        uid: UID,
+        nickname: 'Pessoa Segura',
+        accountStatus: 'active',
+        emailVerified: true,
+        profileCompleted: false,
+        publicVisibility: 'hidden',
+        interactionBlocked: true,
+        loginAllowed: true,
+        registrationFlowVersion: 'v3-private-by-default',
+        initialAdultConsentRequired: false,
+        registrationCompletedAt: null,
+        acceptedTerms: {
+          accepted: true,
+          version: 'v3',
+          acknowledgedPrivacyNotice: true,
+        },
+        adultConsent: { accepted: true, version: 'v1' },
+      });
+    });
+
+    const db = authenticatedDb(true);
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'users', UID), {
+      nickname: 'Pessoa Segura',
+      gender: 'mulher',
+      declaredIdentityCode: 'mulher',
+      identityCatalogVersion: IDENTITY_CATALOG_VERSION,
+      orientation: 'bissexual',
+      estado: 'RJ',
+      municipio: 'Rio de Janeiro',
+      profileCompleted: true,
+      publicVisibility: 'visible',
+      interactionBlocked: false,
+      registrationCompletedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      updatedAtMs: Date.now(),
+    });
+    batch.set(doc(db, 'public_profiles', UID), publicProfilePayload());
 
     await assertFails(batch.commit());
   });

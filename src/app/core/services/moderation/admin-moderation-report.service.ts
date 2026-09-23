@@ -48,6 +48,11 @@ import {
 } from 'src/app/core/interfaces/moderation/moderation-report.interface';
 import { toErrorInstance } from 'src/app/core/utils/firebase-error-utils';
 
+type AgeReviewEvidenceMethod =
+  | 'MANUAL_DOCUMENT_REVIEW'
+  | 'PROVIDER_ESCALATION'
+  | 'PROFILE_KYC';
+
 export interface ModerationReportReviewPatch {
   status: Exclude<ModerationReportStatus, 'open'>;
   resolution?: string | null;
@@ -146,11 +151,26 @@ interface ReviewProfileAgeReverificationRequest {
   reportId: string;
   decision: 'VERIFY' | 'REJECT';
   resolution: string;
+  evidenceMethod: AgeReviewEvidenceMethod;
+  evidenceReference: string;
 }
 
 interface ReviewProfileAgeReverificationResponse {
   reportId: string;
   status: 'VERIFIED' | 'REJECTED';
+}
+
+interface ReviewInitialAgeVerificationRequest {
+  reportId: string;
+  decision: 'VERIFY' | 'REJECT';
+  resolution: string;
+  evidenceMethod: AgeReviewEvidenceMethod;
+  evidenceReference: string;
+}
+
+interface ReviewInitialAgeVerificationResponse {
+  reportId: string;
+  status: 'VERIFIED_ADULT' | 'DENIED_UNDERAGE';
 }
 
 interface ReviewProfileMinorSafetyReportRequest {
@@ -207,6 +227,18 @@ export class AdminModerationReportService {
 
     if (!safeReportId || !normalized) {
       return throwError(() => new Error('Revisão de denúncia inválida.'));
+    }
+
+    if (
+      normalized.reportTargetType === 'profile' &&
+      normalized.reportReason === 'age_verification_request' &&
+      (normalized.status === 'resolved' || normalized.status === 'rejected')
+    ) {
+      return throwError(
+        () => new Error(
+          'Use a decisão etária específica para encerrar esta solicitação.'
+        )
+      );
     }
 
     if (
@@ -589,18 +621,25 @@ export class AdminModerationReportService {
   reviewProfileAgeReverification$(
     reportId: string,
     decision: 'VERIFY' | 'REJECT',
-    resolution: string
+    resolution: string,
+    evidenceMethod: AgeReviewEvidenceMethod,
+    evidenceReference: string
   ): Observable<void> {
     const safeReportId = String(reportId ?? '').trim();
     const safeResolution = this.normalizeResolution(resolution);
+    const safeEvidenceReference = String(evidenceReference ?? '')
+      .trim()
+      .slice(0, 300);
 
     if (
       !safeReportId ||
       !['VERIFY', 'REJECT'].includes(decision) ||
-      safeResolution.length < 8
+      safeResolution.length < 8 ||
+      !this.isAgeEvidenceMethod(evidenceMethod) ||
+      safeEvidenceReference.length < 8
     ) {
       return throwError(
-        () => new Error('Decisão de revalidação inválida.')
+        () => new Error('Decisão de revalidação exige evidência confiável.')
       );
     }
 
@@ -609,6 +648,8 @@ export class AdminModerationReportService {
         reportId: safeReportId,
         decision,
         resolution: safeResolution,
+        evidenceMethod,
+        evidenceReference: safeEvidenceReference,
       })
     ).pipe(
       map(() => void 0),
@@ -616,6 +657,53 @@ export class AdminModerationReportService {
         this.reportError(error, 'reviewProfileAgeReverification', {
           hasReportId: !!safeReportId,
           decision,
+          evidenceMethod,
+        });
+        return throwError(() => error);
+      })
+    );
+  }
+
+  reviewInitialAgeVerification$(
+    reportId: string,
+    decision: 'VERIFY' | 'REJECT',
+    resolution: string,
+    evidenceMethod: AgeReviewEvidenceMethod,
+    evidenceReference: string
+  ): Observable<void> {
+    const safeReportId = String(reportId ?? '').trim();
+    const safeResolution = this.normalizeResolution(resolution);
+    const safeEvidenceReference = String(evidenceReference ?? '')
+      .trim()
+      .slice(0, 300);
+
+    if (
+      !safeReportId ||
+      !['VERIFY', 'REJECT'].includes(decision) ||
+      safeResolution.length < 8 ||
+      !this.isAgeEvidenceMethod(evidenceMethod) ||
+      safeEvidenceReference.length < 8
+    ) {
+      return throwError(
+        () => new Error('Decisão etária exige evidência confiável.')
+      );
+    }
+
+    return from(
+      this.createReviewInitialAgeVerificationCallable()({
+        reportId: safeReportId,
+        decision,
+        resolution: safeResolution,
+        evidenceMethod,
+        evidenceReference: safeEvidenceReference,
+      })
+    ).pipe(
+      map(() => void 0),
+      catchError((error) => {
+        this.reportError(error, 'reviewInitialAgeVerification', {
+          hasReportId: !!safeReportId,
+          decision,
+          evidenceMethod,
         });
         return throwError(() => error);
       })
@@ -735,6 +823,18 @@ export class AdminModerationReportService {
     );
   }
 
+  private createReviewInitialAgeVerificationCallable() {
+    return runInInjectionContext(this.environmentInjector, () =>
+      httpsCallable<
+        ReviewInitialAgeVerificationRequest,
+        ReviewInitialAgeVerificationResponse
+      >(
+        inject(Functions),
+        'reviewInitialAgeVerification'
+      )
+    );
+  }
+
   private createReviewProfileMinorSafetyReportCallable() {
     return runInInjectionContext(this.environmentInjector, () =>
       httpsCallable<
@@ -832,6 +932,16 @@ export class AdminModerationReportService {
 
   private normalizeResolution(value: unknown): string {
     return String(value ?? '').trim().slice(0, 900);
+  }
+
+  private isAgeEvidenceMethod(
+    value: unknown
+  ): value is AgeReviewEvidenceMethod {
+    return [
+      'MANUAL_DOCUMENT_REVIEW',
+      'PROVIDER_ESCALATION',
+      'PROFILE_KYC',
+    ].includes(String(value ?? '').trim());
   }
 
   private isVideoContentTarget(

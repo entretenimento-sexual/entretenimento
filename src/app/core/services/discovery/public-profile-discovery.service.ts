@@ -2,74 +2,96 @@
 import { Injectable, inject } from '@angular/core';
 import {
   Firestore,
-  collection,
-  collectionData,
   doc,
   docData,
-  limit,
-  orderBy,
-  query,
 } from '@angular/fire/firestore';
 import { Observable, of } from 'rxjs';
 import { catchError, map, shareReplay } from 'rxjs/operators';
 
-import { resolveProfileIdentityDiscoveryGroup } from '../../domain/profile-identity/profile-identity.catalog';
+import {
+  resolveProfileIdentityDiscoveryGroup,
+} from '../../domain/profile-identity/profile-identity.catalog';
 import type { IUserDados } from '../../interfaces/iuser-dados';
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
+import {
+  PublicProfileReadBoundaryService,
+} from './public-profile-read-boundary.service';
 
-export interface PublicProfileDiscoveryOptions { limit?: number; }
+export interface PublicProfileDiscoveryOptions {
+  limit?: number;
+}
 
 @Injectable({ providedIn: 'root' })
 export class PublicProfileDiscoveryService {
   private readonly firestore = inject(Firestore);
+  private readonly publicProfileRead = inject(
+    PublicProfileReadBoundaryService
+  );
   private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
 
-  listDiscoverableProfiles$(options: PublicProfileDiscoveryOptions = {}): Observable<IUserDados[]> {
+  listDiscoverableProfiles$(
+    options: PublicProfileDiscoveryOptions = {}
+  ): Observable<IUserDados[]> {
     const safeLimit = Math.min(Math.max(options.limit ?? 80, 1), 120);
-    const q = query(
-      collection(this.firestore, 'public_profiles'),
-      orderBy('updatedAt', 'desc'),
-      limit(safeLimit)
-    );
 
-    return collectionData(q, { idField: 'uid' }).pipe(
-      map((docs) => docs
-        .map((raw) => this.toUserDadosFromPublicProfile(
-          raw as unknown as Record<string, unknown>
-        ))
-        .filter((profile) => this.isDiscoverablePublicProfile(profile))),
+    return this.publicProfileRead.read$({
+      mode: 'all',
+      pageSize: safeLimit,
+    }).pipe(
+      map((response) =>
+        (response.items ?? [])
+          .map((raw) => this.toUserDadosFromPublicProfile(raw))
+          .filter((profile) => this.isDiscoverablePublicProfile(profile))
+      ),
       catchError((err) => {
-        this.reportSilentError('PublicProfileDiscoveryService.listDiscoverableProfiles$', err);
+        this.reportSilentError(
+          'PublicProfileDiscoveryService.listDiscoverableProfiles$',
+          err
+        );
         return of([] as IUserDados[]);
       }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
   }
 
-  getPublicProfileByUid$(uid: string | null | undefined): Observable<IUserDados | null> {
+  getPublicProfileByUid$(
+    uid: string | null | undefined
+  ): Observable<IUserDados | null> {
     const safeUid = String(uid ?? '').trim();
     if (!safeUid) return of(null);
 
-    return docData(doc(this.firestore, `public_profiles/${safeUid}`), { idField: 'uid' }).pipe(
-      map((raw) => raw
-        ? this.toUserDadosFromPublicProfile(
-            raw as unknown as Record<string, unknown>
-          )
-        : null),
+    return docData(
+      doc(this.firestore, `public_profiles/${safeUid}`),
+      { idField: 'uid' }
+    ).pipe(
+      map((raw) => {
+        const source =
+          raw as unknown as Record<string, unknown> | undefined;
+
+        return source && this.hasCurrentAgeEligibility(source)
+          ? this.toUserDadosFromPublicProfile(source)
+          : null;
+      }),
       catchError((err) => {
-        this.reportSilentError('PublicProfileDiscoveryService.getPublicProfileByUid$', err);
+        this.reportSilentError(
+          'PublicProfileDiscoveryService.getPublicProfileByUid$',
+          err
+        );
         return of(null);
       }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
   }
 
-  private toUserDadosFromPublicProfile(raw: Record<string, unknown>): IUserDados {
+  private toUserDadosFromPublicProfile(
+    raw: Record<string, unknown>
+  ): IUserDados {
     const identityCode = this.text(raw['identityCode'] ?? raw['gender']);
-    const identityDiscoveryGroup = this.text(raw['identityDiscoveryGroup'])
+    const identityDiscoveryGroup =
+      this.text(raw['identityDiscoveryGroup'])
       ?? resolveProfileIdentityDiscoveryGroup(identityCode);
-    const normalizedGender = this.text(raw['normalizedGender'])
-      ?? identityDiscoveryGroup;
+    const normalizedGender =
+      this.text(raw['normalizedGender']) ?? identityDiscoveryGroup;
 
     return {
       ...(raw as unknown as IUserDados),
@@ -85,17 +107,22 @@ export class PublicProfileDiscoveryService {
       identityShortLabel: this.text(raw['identityShortLabel']),
       identityDiscoveryGroup,
       orientation: this.text(raw['orientation']) ?? undefined,
-      age: this.number(raw['age']),
+      // Idade exata deixou de integrar a projeção pública.
+      age: null,
       normalizedGender,
       normalizedOrientation: this.text(raw['normalizedOrientation']),
       compatibilityReady: this.boolean(raw['compatibilityReady']),
       interestedInGenders: this.stringArray(raw['interestedInGenders']),
-      interestedInOrientations: this.stringArray(raw['interestedInOrientations']),
-      publicRelationshipIntents: this.stringArray(raw['publicRelationshipIntents']),
-      publicSexualPractices: this.stringArray(raw['publicSexualPractices']),
+      interestedInOrientations:
+        this.stringArray(raw['interestedInOrientations']),
+      publicRelationshipIntents:
+        this.stringArray(raw['publicRelationshipIntents']),
+      publicSexualPractices:
+        this.stringArray(raw['publicSexualPractices']),
       publicBodyTraits: this.stringArray(raw['publicBodyTraits']),
       preferenceBadgesVisible: this.boolean(raw['preferenceBadgesVisible']),
-      publicPreferencesUpdatedAt: this.number(raw['publicPreferencesUpdatedAt']),
+      publicPreferencesUpdatedAt:
+        this.number(raw['publicPreferencesUpdatedAt']),
       municipio: this.text(raw['municipio']) ?? undefined,
       estado: this.text(raw['estado']) ?? undefined,
       latitude: this.number(raw['latitude']) ?? undefined,
@@ -110,19 +137,56 @@ export class PublicProfileDiscoveryService {
 
   private isDiscoverablePublicProfile(profile: IUserDados): boolean {
     const source = profile as IUserDados & Record<string, unknown>;
-    if (!profile?.uid || source['hideFromDiscovery'] === true || source['hideFromOnline'] === true) return false;
+
+    if (
+      !profile?.uid
+      || source['hideFromDiscovery'] === true
+      || source['hideFromOnline'] === true
+    ) {
+      return false;
+    }
+
     return !!this.text(profile.nickname)
       && !!this.text(profile.gender)
       && !!this.text(profile.estado)
       && !!this.text(profile.municipio);
   }
 
+  private hasCurrentAgeEligibility(
+    source: Record<string, unknown>
+  ): boolean {
+    if (source['ageEligibilityVerifiedAdult'] !== true) return false;
+
+    const validUntil = source['ageEligibilityValidUntil'] as
+      | { toMillis?: unknown }
+      | Date
+      | number
+      | null
+      | undefined;
+
+    if (typeof validUntil === 'number' && Number.isFinite(validUntil)) {
+      return validUntil > Date.now();
+    }
+
+    if (validUntil instanceof Date) {
+      return validUntil.getTime() > Date.now();
+    }
+
+    return !!validUntil
+      && typeof (validUntil as { toMillis?: unknown }).toMillis === 'function'
+      && (validUntil as { toMillis: () => number }).toMillis() > Date.now();
+  }
+
   private text(value: unknown): string | null {
-    return typeof value === 'string' && value.trim() ? value.trim() : null;
+    return typeof value === 'string' && value.trim()
+      ? value.trim()
+      : null;
   }
 
   private number(value: unknown): number | null {
-    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+    return typeof value === 'number' && Number.isFinite(value)
+      ? value
+      : null;
   }
 
   private boolean(value: unknown): boolean | null {
@@ -131,8 +195,12 @@ export class PublicProfileDiscoveryService {
 
   private stringArray(value: unknown): readonly string[] | null {
     if (!Array.isArray(value)) return null;
-    const values = value.filter((item): item is string => typeof item === 'string')
-      .map((item) => item.trim()).filter(Boolean);
+
+    const values = value
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.trim())
+      .filter(Boolean);
+
     return values.length ? Array.from(new Set(values)) : null;
   }
 
@@ -141,7 +209,8 @@ export class PublicProfileDiscoveryService {
       const error = err instanceof Error ? err : new Error(context);
       (error as Error & { context?: string }).context = context;
       (error as Error & { original?: unknown }).original = err;
-      (error as Error & { skipUserNotification?: boolean }).skipUserNotification = true;
+      (error as Error & { skipUserNotification?: boolean })
+        .skipUserNotification = true;
       (error as Error & { silent?: boolean }).silent = true;
       this.globalErrorHandler.handleError(error);
     } catch {

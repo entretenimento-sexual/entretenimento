@@ -29,7 +29,7 @@ import { evaluateCommunityFeedCommentWrite } from './community-feed-comment.poli
 import { sanitizeCommunityFeedProjection } from './community-feed.model';
 import { buildCommunityPublicAuthor } from './community-public-author.model';
 import { isCommunityMemberActivityEnabledStatus } from './community-lifecycle.policy';
-import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
+import { assertCommunityMembershipActorEligibleInTransaction } from './community-membership-eligibility.service';
 import {
   resolveCommunityNotificationMembershipCycleStartedAtMs,
 } from './community-notification-membership.policy';
@@ -299,9 +299,10 @@ export const createCommunityFeedCommentReply = onCall<
         );
       }
 
-      assertCommunityMembershipActorEligible(
-        userSnapshot.exists ? userSnapshot.data() : null,
-        actorUid
+      await assertCommunityMembershipActorEligibleInTransaction(
+        transaction,
+        actorUid,
+        userSnapshot.exists ? userSnapshot.data() : null
       );
 
       const community = communitySnapshot.data() ?? {};

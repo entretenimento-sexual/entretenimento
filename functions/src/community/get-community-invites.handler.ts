@@ -14,7 +14,7 @@ import {
   communityInviteToEpochMs,
   normalizeCommunityInviteText,
 } from './community-invite.shared';
-import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
+import { assertCommunityMembershipActorEligibleForUid } from './community-membership-eligibility.service';
 import { normalizeCommunityId } from './community-preview.model';
 
 interface CommunityInviteInboxItem {
@@ -65,12 +65,7 @@ export const getCommunityInvites = onCall(
     assertCommunityCallableAppCheck(request.app);
     assertPreviewRuntime();
     const uid = assertCommunityInviteAuthenticatedUid(request.auth);
-    const userSnapshot = await db.collection('users').doc(uid).get();
-
-    assertCommunityMembershipActorEligible(
-      userSnapshot.exists ? userSnapshot.data() : null,
-      uid
-    );
+    await assertCommunityMembershipActorEligibleForUid(uid);
 
     const invitesSnapshot = await db
       .collection('invites')

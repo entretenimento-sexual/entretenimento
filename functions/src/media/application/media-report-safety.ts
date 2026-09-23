@@ -14,6 +14,7 @@ export type MediaReportSafetyReason =
   | 'illegal_content'
   | 'privacy'
   | 'minor_safety'
+  | 'minor_content_safety'
   | 'other';
 
 export interface MediaReportSafetyState {
@@ -25,11 +26,13 @@ export interface MediaReportSafetyState {
 
 const IMMEDIATE_QUARANTINE_REASONS = new Set<MediaReportSafetyReason>([
   'minor_safety',
+  'minor_content_safety',
   'illegal_content',
   'sexual_boundary',
 ]);
 const EVIDENCE_PRESERVATION_REASONS = new Set<MediaReportSafetyReason>([
   'minor_safety',
+  'minor_content_safety',
   'illegal_content',
   'sexual_boundary',
 ]);

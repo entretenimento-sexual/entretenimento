@@ -1,0 +1,14 @@
+// =============================================================================
+// AGE ELIGIBILITY RECORDS
+// =============================================================================
+// Fonte canônica privada de elegibilidade etária da plataforma.
+//
+// - somente backend privilegiado cria/atualiza;
+// - o navegador não lê nem escreve o registro;
+// - Rules podem consultá-lo como dependência de autorização;
+// - dados brutos de documento/data de nascimento não pertencem aqui.
+// =============================================================================
+
+match /age_eligibility_records/{userId} {
+  allow read, write: if false;
+}

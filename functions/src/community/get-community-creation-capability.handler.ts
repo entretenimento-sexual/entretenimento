@@ -23,7 +23,7 @@ import {
   assertCommunityCallableAppCheck,
   REQUIRE_COMMUNITY_APP_CHECK,
 } from './community-callable-security';
-import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
+import { assertCommunityMembershipActorEligibleForUid } from './community-membership-eligibility.service';
 
 export interface CommunityCreationCapabilityResponse
   extends CommunityCreationCapability {
@@ -67,7 +67,6 @@ export const getCommunityCreationCapability = onCall(
     assertCommunityCallableAppCheck(request.app);
     assertPreviewRuntime();
     const actorUid = assertAuthenticatedUid(request.auth);
-    const userRef = db.collection('users').doc(actorUid);
     const entitlementRef = db
       .collection('entitlements')
       .doc(`platform_subscription_${actorUid}`);
@@ -77,19 +76,12 @@ export const getCommunityCreationCapability = onCall(
       .where('source.type', '==', 'community')
       .where('status', 'in', ['active', 'paused', 'dormant'])
       .limit(MAX_PERSONAL_COMMUNITIES_PER_OWNER + 1);
-    const [userSnapshot, entitlementSnapshot, ownedCommunitiesSnapshot] =
+    const [actorUser, entitlementSnapshot, ownedCommunitiesSnapshot] =
       await Promise.all([
-        userRef.get(),
+        assertCommunityMembershipActorEligibleForUid(actorUid),
         entitlementRef.get(),
         ownedCommunitiesQuery.get(),
       ]);
-
-    assertCommunityMembershipActorEligible(
-      userSnapshot.exists ? userSnapshot.data() : null,
-      actorUid
-    );
-
-    const actorUser = userSnapshot.data() ?? {};
     const entitlement = evaluatePlatformSubscriptionEntitlement(
       entitlementSnapshot.exists ? entitlementSnapshot.data() : null,
       actorUid

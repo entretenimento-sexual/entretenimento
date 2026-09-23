@@ -73,6 +73,13 @@ function activeUser(uid: string): Record<string, unknown> {
     interactionBlocked: false,
     accountLocked: false,
     loginAllowed: true,
+    acceptedTerms: {
+      accepted: true,
+      version: 'v3',
+      acknowledgedPrivacyNotice: true,
+    },
+    adultConsent: { accepted: true, version: 'v1' },
+    ageReverification: { status: 'NONE' },
   };
 }
 
@@ -122,6 +129,23 @@ async function seedDatabase(): Promise<void> {
         accountStatus: 'suspended',
         interactionBlocked: true,
       }),
+      ...[
+        OWNER_UID,
+        OUTSIDER_UID,
+        UNVERIFIED_UID,
+        INCOMPLETE_UID,
+        SUSPENDED_UID,
+      ].map((uid) =>
+        setDoc(doc(db, 'age_eligibility_records', uid), {
+          uid,
+          status: 'VERIFIED_ADULT',
+          policyVersion: 1,
+          source: 'AGE_REVERIFICATION',
+          method: 'MANUAL_REVIEW',
+          verifiedAt: new Date(Date.now() - 1_000),
+          expiresAt: null,
+        })
+      ),
 
       setDoc(doc(db, 'rooms', ROOM_ID), roomDocument()),
 

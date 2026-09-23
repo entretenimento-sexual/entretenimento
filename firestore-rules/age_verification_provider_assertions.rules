@@ -1,0 +1,11 @@
+// =============================================================================
+// AGE VERIFICATION PROVIDER ASSERTIONS
+// =============================================================================
+// Assertions produzidas por integração backend confiável.
+// O navegador não lê nem escreve resultados do provider, referências ou status
+// de processamento.
+// =============================================================================
+
+match /age_verification_provider_assertions/{assertionId} {
+  allow read, write: if false;
+}

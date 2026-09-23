@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   buildPushNotificationDeliveryOptions,
   PUSH_NOTIFICATION_TTL_SECONDS,
+  shouldAttemptExternalPush,
 } from './push-notification-delivery.policy';
 
 test('limita retenção externa do push a sete dias em todas as plataformas', () => {
@@ -29,4 +30,11 @@ test('limita retenção externa do push a sete dias em todas as plataformas', ()
       },
     },
   });
+});
+
+test('não tenta push para notificações explicitamente in-app only', () => {
+  assert.equal(shouldAttemptExternalPush('IN_APP_ONLY'), false);
+  assert.equal(shouldAttemptExternalPush('in_app_only'), false);
+  assert.equal(shouldAttemptExternalPush('ESSENTIAL'), true);
+  assert.equal(shouldAttemptExternalPush(undefined), true);
 });

@@ -1,65 +1,46 @@
-import {
-  EnvironmentInjector,
-  Injectable,
-  runInInjectionContext,
-} from '@angular/core';
-import {
-  Firestore,
-  collection,
-  getDocs,
-  limit,
-  query,
-  startAt,
-  where,
-} from '@angular/fire/firestore';
+import { Injectable, inject } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 import { geohashQueryBounds } from 'geofire-common';
 
 import { IUserDados } from '../../interfaces/iuser-dados';
+import {
+  PublicProfileReadBoundaryService,
+} from '../discovery/public-profile-read-boundary.service';
 
 @Injectable({ providedIn: 'root' })
 export class NearbyProfilesQueryGateway {
-  constructor(
-    private readonly db: Firestore,
-    private readonly environmentInjector: EnvironmentInjector
-  ) {}
+  private readonly publicProfileRead = inject(
+    PublicProfileReadBoundaryService
+  );
 
   async fetchCandidates(
     latitude: number,
     longitude: number,
     maxDistanceKm: number,
-    startAfterDoc?: any
+    _startAfterDoc?: unknown
   ): Promise<IUserDados[]> {
     const bounds = geohashQueryBounds(
       [latitude, longitude],
       maxDistanceKm * 1000
+    ).map(([start, end]) => ({ start, end }));
+
+    const response = await firstValueFrom(
+      this.publicProfileRead.read$({
+        mode: 'all',
+        pageSize: 120,
+        nearby: {
+          latitude,
+          longitude,
+          maxDistanceKm,
+          bounds,
+        },
+      })
     );
 
-    const snapshots = await Promise.all(
-      bounds.map((bound) =>
-        runInInjectionContext(this.environmentInjector, () => {
-          let nearbyProfilesQuery = query(
-            collection(this.db, 'users'),
-            where('geohash', '>=', bound[0]),
-            where('geohash', '<=', bound[1]),
-            limit(50)
-          );
-
-          if (startAfterDoc) {
-            nearbyProfilesQuery = query(
-              nearbyProfilesQuery,
-              startAt(startAfterDoc)
-            );
-          }
-
-          return getDocs(nearbyProfilesQuery);
-        })
-      )
-    );
-
-    return snapshots.flatMap((snapshot) =>
-      snapshot.docs.map(
-        (documentSnapshot) => documentSnapshot.data() as IUserDados
-      )
-    );
+    return (response.items ?? []).map((raw) => ({
+      ...(raw as unknown as IUserDados),
+      uid: String(raw['uid'] ?? '').trim(),
+      age: null,
+    }));
   }
 }

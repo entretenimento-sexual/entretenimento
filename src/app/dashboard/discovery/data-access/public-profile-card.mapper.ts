@@ -212,7 +212,17 @@ export function mapPublicProfileCard(
     firstText(source, ['uid', 'id']) ?? String(fallbackUid ?? '').trim();
   const nickname = firstText(source, ['nickname']);
 
-  if (!uid || !nickname) {
+  const ageEligibilityValidUntil = toSerializableEpoch(
+    source['ageEligibilityValidUntil']
+  );
+
+  if (
+    source['ageEligibilityVerifiedAdult'] !== true ||
+    ageEligibilityValidUntil === null ||
+    ageEligibilityValidUntil <= Date.now() ||
+    !uid ||
+    !nickname
+  ) {
     return null;
   }
 
@@ -249,7 +259,10 @@ export function mapPublicProfileCard(
       'orientacao',
       'orientacaoSexual',
     ]),
-    age: firstNumber(source, ['age', 'idade']),
+    // Idade exata não pertence à projeção pública. Mesmo documentos legados
+    // ainda contendo `age`/`idade` não podem reintroduzi-la no card.
+    age: null,
+    ageEligibilityValidUntil,
 
     normalizedGender: firstText(source, ['normalizedGender']),
     normalizedOrientation: firstText(source, ['normalizedOrientation']),

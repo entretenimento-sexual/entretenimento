@@ -232,6 +232,11 @@ export class ModerationReportsComponent {
     }
   }
 
+  isCriticalSafetyReport(report: AdminModerationReportVm): boolean {
+    return report.reason === 'minor_safety' ||
+      report.reason === 'minor_content_safety';
+  }
+
   reasonLabel(reason: ModerationReportReason | null): string {
     switch (reason) {
       case 'spam':
@@ -249,7 +254,11 @@ export class ModerationReportsComponent {
       case 'privacy':
         return 'Privacidade';
       case 'minor_safety':
-        return 'Segurança de menores';
+        return 'Possível perfil menor';
+      case 'minor_content_safety':
+        return 'Possível menor em conteúdo';
+      case 'age_verification_request':
+        return 'Verificação de maioridade';
       case 'other':
         return 'Outro motivo';
       default:
@@ -318,7 +327,10 @@ export class ModerationReportsComponent {
     searchTerm: string,
     historyItems: ModerationReviewHistoryItem[]
   ): AdminModerationReportsVm {
-    const safeReports = [...reports];
+    const safeReports = [...reports].sort(
+      (left, right) =>
+        this.reportPriority(right) - this.reportPriority(left)
+    );
     const normalizedSearch = this.normalizeSearchTerm(searchTerm);
 
     const statusFilteredReports = selected === 'all'
@@ -472,6 +484,21 @@ export class ModerationReportsComponent {
       : {};
   }
 
+  private reportPriority(report: AdminModerationReportVm): number {
+    if (
+      report.reason === 'minor_content_safety' ||
+      report.automationPriority === 'CRITICAL'
+    ) {
+      return 3;
+    }
+    if (
+      report.reason === 'minor_safety' ||
+      report.reason === 'age_verification_request'
+    ) return 2;
+    if (report.automationPriority === 'HIGH') return 1;
+    return 0;
+  }
+
   private safeStatus(value: unknown): ModerationReportStatus | null {
     const status = String(value ?? '').trim() as ModerationReportStatus;
     return ['open', 'reviewing', 'resolved', 'rejected'].includes(status) ? status : null;
@@ -488,6 +515,8 @@ export class ModerationReportsComponent {
       'illegal_content',
       'privacy',
       'minor_safety',
+      'minor_content_safety',
+      'age_verification_request',
       'other',
     ].includes(reason) ? reason : null;
   }

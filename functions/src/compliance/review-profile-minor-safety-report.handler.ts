@@ -5,6 +5,12 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { assertStaffAuthorization } from '../account_lifecycle/_shared';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
+import {
+  safeRecordModerationReviewSignal,
+} from '../moderation/moderation-automation.service';
+import {
+  safeNotifyModerationReportReviewed,
+} from '../moderation/moderation-safety-notification.service';
 import { isProfileMinorSafetyReport } from './profile-age-reverification.policy';
 
 interface ReviewProfileMinorSafetyReportRequest {
@@ -62,7 +68,7 @@ export const reviewProfileMinorSafetyReport = onCall<
 
     const reportRef = db.collection('moderation_reports').doc(reportId);
 
-    await db.runTransaction(async (transaction) => {
+    const targetUid = await db.runTransaction(async (transaction) => {
       const reportSnapshot = await transaction.get(reportRef);
 
       if (!reportSnapshot.exists) {
@@ -132,7 +138,18 @@ export const reviewProfileMinorSafetyReport = onCall<
         },
         timestamp,
       });
+
+      return targetUid;
     });
+
+    await safeRecordModerationReviewSignal({
+      reportId,
+      targetUid,
+      critical: true,
+      confirmed: false,
+    });
+
+    await safeNotifyModerationReportReviewed(reportId);
 
     return { reportId, status: 'rejected' };
   }

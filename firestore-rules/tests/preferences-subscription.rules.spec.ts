@@ -23,7 +23,8 @@ async function seedUser(uid: string, role: 'free' | 'basic' | 'premium' | 'vip')
   const now = Date.now();
   const active = role !== 'free';
   await testEnv.withSecurityRulesDisabled(async (context) => {
-    await setDoc(doc(context.firestore(), 'users', uid), {
+    const db = context.firestore();
+    await setDoc(doc(db, 'users', uid), {
       uid,
       role,
       tier: role,
@@ -33,6 +34,27 @@ async function seedUser(uid: string, role: 'free' | 'basic' | 'premium' | 'vip')
       subscriptionScope: active ? 'platform_subscription' : null,
       subscriptionStartedAt: active ? Timestamp.fromMillis(now - 60_000) : null,
       subscriptionEndsAt: active ? Timestamp.fromMillis(now + 3_600_000) : null,
+      accountStatus: 'active',
+      suspended: false,
+      interactionBlocked: false,
+      accountLocked: false,
+      loginAllowed: true,
+      acceptedTerms: {
+        accepted: true,
+        version: 'v3',
+        acknowledgedPrivacyNotice: true,
+      },
+      adultConsent: { accepted: true, version: 'v1' },
+      ageReverification: { status: 'NONE' },
+    });
+    await setDoc(doc(db, 'age_eligibility_records', uid), {
+      uid,
+      status: 'VERIFIED_ADULT',
+      policyVersion: 1,
+      source: 'AGE_REVERIFICATION',
+      method: 'MANUAL_REVIEW',
+      verifiedAt: Timestamp.fromMillis(now - 1_000),
+      expiresAt: null,
     });
   });
 }

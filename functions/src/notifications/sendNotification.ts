@@ -24,7 +24,10 @@ import {
   shouldPruneCurrentPushToken,
 } from './push-device.policy';
 import {buildPrivatePushContent} from './push-notification-content.policy';
-import {buildPushNotificationDeliveryOptions} from './push-notification-delivery.policy';
+import {
+  buildPushNotificationDeliveryOptions,
+  shouldAttemptExternalPush,
+} from './push-notification-delivery.policy';
 import {buildPushNotificationNavigationData} from './push-notification-navigation.policy';
 
 export const sendNotification = onDocumentCreated(
@@ -39,6 +42,15 @@ export const sendNotification = onDocumentCreated(
 
     const notificationId = String(event.params.notificationId ?? '').trim();
     const notificationType = String(notification?.type ?? '').trim();
+
+    if (!shouldAttemptExternalPush(notification?.pushMode)) {
+      console.info('[sendNotification] push suprimido por política in-app only', {
+        notificationId,
+        notificationType,
+      });
+      return;
+    }
+
     const preferenceKey = resolvePushNotificationPreferenceKey(notificationType);
     const navigationData = buildPushNotificationNavigationData(
       notification?.route,
