@@ -24,6 +24,17 @@ describe('Room compatibility surface boundary', () => {
       canonicalRoute: '/chat/rooms',
       canonicalCollectiveDomain: 'community',
       newFeaturesAllowed: false,
+      sharedDomainWithCommunityAllowed: false,
+      removalPolicy: {
+        strategy: 'residual_usage_evidence',
+        scheduledRemovalAt: null,
+        requireNoRelevantResidualUsage: true,
+        existingEvidenceSources: [
+          'rooms',
+          'invites',
+          'room_audit',
+        ],
+      },
     });
     expect(ROOM_COMPATIBILITY_SURFACE.temporaryAliases).toEqual([
       '/dashboard/chat-rooms',
