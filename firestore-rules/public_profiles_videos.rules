@@ -117,11 +117,10 @@ match /public_profiles/{userId}/public_videos/{videoId} {
 // A elegibilidade do viewer é verificada independentemente do documento,
 // evitando que um cliente modificado contorne os guards de rota.
 // ------------------------------------------------------------
-match /{path=**}/public_videos/{videoId} {
-  allow list: if canConsumeAdultPublicMedia()
-    && resource.data.ageEligibilityVerifiedAdult == true
-    && resource.data.visibility == "PUBLIC"
-    && resource.data.moderationStatus == "APPROVED";
+match /{path=**}/public_videos/{mediaId} {
+  // Collection-group discovery é backend-only. Galerias de proprietário
+  // conhecido continuam autorizadas pelo match específico acima.
+  allow list: if false;
 
   allow create, update, delete: if false;
 }
