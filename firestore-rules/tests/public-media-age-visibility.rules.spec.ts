@@ -107,7 +107,7 @@ async function seedPublicMedia(): Promise<void> {
         nickname: 'Perfil adulto',
         nicknameNormalized: 'perfil-adulto',
         role: 'free',
-        ageEligibilityVerifiedAdult: true,
+        ageEligibilityAdultAccessAllowed: true,
         ageEligibilityValidUntil: new Date(Date.now() + 60_000),
       }),
       setDoc(
@@ -121,7 +121,7 @@ async function seedPublicMedia(): Promise<void> {
         {
           id: VIDEO_ID,
           ownerUid: OWNER_UID,
-          ageEligibilityVerifiedAdult: true,
+          ageEligibilityAdultAccessAllowed: true,
         ageEligibilityValidUntil: new Date(Date.now() + 60_000),
           visibility: 'PUBLIC',
           moderationStatus: 'APPROVED',
@@ -140,7 +140,7 @@ async function seedPublicMedia(): Promise<void> {
         {
           id: PHOTO_ID,
           ownerUid: OWNER_UID,
-          ageEligibilityVerifiedAdult: true,
+          ageEligibilityAdultAccessAllowed: true,
         ageEligibilityValidUntil: new Date(Date.now() + 60_000),
           visibility: 'PUBLIC',
           moderationStatus: 'APPROVED',
@@ -167,7 +167,7 @@ async function setOwnerAgeProjection(eligible: boolean) {
     await Promise.all([
       updateDoc(
         doc(db, 'public_profiles', OWNER_UID),
-        { ageEligibilityVerifiedAdult: eligible }
+        { ageEligibilityAdultAccessAllowed: eligible }
       ),
       updateDoc(
         doc(
@@ -177,7 +177,7 @@ async function setOwnerAgeProjection(eligible: boolean) {
           'public_videos',
           VIDEO_ID
         ),
-        { ageEligibilityVerifiedAdult: eligible }
+        { ageEligibilityAdultAccessAllowed: eligible }
       ),
       updateDoc(
         doc(
@@ -187,7 +187,7 @@ async function setOwnerAgeProjection(eligible: boolean) {
           'public_photos',
           PHOTO_ID
         ),
-        { ageEligibilityVerifiedAdult: eligible }
+        { ageEligibilityAdultAccessAllowed: eligible }
       ),
     ]);
   });
@@ -354,13 +354,13 @@ describe('Firestore Rules / public media age visibility', () => {
     const db = viewerDb();
     const globalVideoQuery = query(
       collectionGroup(db, 'public_videos'),
-      where('ageEligibilityVerifiedAdult', '==', true),
+      where('ageEligibilityAdultAccessAllowed', '==', true),
       where('visibility', '==', 'PUBLIC'),
       where('moderationStatus', '==', 'APPROVED')
     );
     const globalPhotoQuery = query(
       collectionGroup(db, 'public_photos'),
-      where('ageEligibilityVerifiedAdult', '==', true),
+      where('ageEligibilityAdultAccessAllowed', '==', true),
       where('visibility', '==', 'PUBLIC'),
       where('moderationStatus', '==', 'APPROVED')
     );
@@ -375,7 +375,7 @@ describe('Firestore Rules / public media age visibility', () => {
         OWNER_UID,
         'public_videos'
       ),
-      where('ageEligibilityVerifiedAdult', '==', true),
+      where('ageEligibilityAdultAccessAllowed', '==', true),
       where('visibility', '==', 'PUBLIC'),
       where('moderationStatus', '==', 'APPROVED')
     );
@@ -386,7 +386,7 @@ describe('Firestore Rules / public media age visibility', () => {
         OWNER_UID,
         'public_photos'
       ),
-      where('ageEligibilityVerifiedAdult', '==', true),
+      where('ageEligibilityAdultAccessAllowed', '==', true),
       where('visibility', '==', 'PUBLIC'),
       where('moderationStatus', '==', 'APPROVED')
     );
@@ -425,13 +425,13 @@ describe('Firestore Rules / public media age visibility', () => {
 
     const videoQuery = query(
       collection(db, 'public_profiles', OWNER_UID, 'public_videos'),
-      where('ageEligibilityVerifiedAdult', '==', true),
+      where('ageEligibilityAdultAccessAllowed', '==', true),
       where('visibility', '==', 'PUBLIC'),
       where('moderationStatus', '==', 'APPROVED')
     );
     const photoQuery = query(
       collection(db, 'public_profiles', OWNER_UID, 'public_photos'),
-      where('ageEligibilityVerifiedAdult', '==', true),
+      where('ageEligibilityAdultAccessAllowed', '==', true),
       where('visibility', '==', 'PUBLIC'),
       where('moderationStatus', '==', 'APPROVED')
     );
@@ -481,13 +481,13 @@ describe('Firestore Rules / public media age visibility', () => {
 
     const videoQuery = query(
       collectionGroup(db, 'public_videos'),
-      where('ageEligibilityVerifiedAdult', '==', true),
+      where('ageEligibilityAdultAccessAllowed', '==', true),
       where('visibility', '==', 'PUBLIC'),
       where('moderationStatus', '==', 'APPROVED')
     );
     const photoQuery = query(
       collectionGroup(db, 'public_photos'),
-      where('ageEligibilityVerifiedAdult', '==', true),
+      where('ageEligibilityAdultAccessAllowed', '==', true),
       where('visibility', '==', 'PUBLIC'),
       where('moderationStatus', '==', 'APPROVED')
     );
@@ -497,13 +497,13 @@ describe('Firestore Rules / public media age visibility', () => {
 
     const ownerVideoQuery = query(
       collection(db, 'public_profiles', OWNER_UID, 'public_videos'),
-      where('ageEligibilityVerifiedAdult', '==', true),
+      where('ageEligibilityAdultAccessAllowed', '==', true),
       where('visibility', '==', 'PUBLIC'),
       where('moderationStatus', '==', 'APPROVED')
     );
     const ownerPhotoQuery = query(
       collection(db, 'public_profiles', OWNER_UID, 'public_photos'),
-      where('ageEligibilityVerifiedAdult', '==', true),
+      where('ageEligibilityAdultAccessAllowed', '==', true),
       where('visibility', '==', 'PUBLIC'),
       where('moderationStatus', '==', 'APPROVED')
     );
@@ -519,7 +519,7 @@ describe('Firestore Rules / public media age visibility', () => {
     const db = viewerDb();
     const videoQuery = query(
       collectionGroup(db, 'public_videos'),
-      where('ageEligibilityVerifiedAdult', '==', true),
+      where('ageEligibilityAdultAccessAllowed', '==', true),
       where('visibility', '==', 'PUBLIC'),
       where('moderationStatus', '==', 'APPROVED')
     );
