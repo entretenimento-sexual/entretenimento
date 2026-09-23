@@ -25,6 +25,7 @@ describe('community public error reason contract', () => {
     expect(COMMUNITY_PUBLIC_REASON_PRESENTATIONS.membership_status_invalid.surface).toBe('modal');
     expect(COMMUNITY_PUBLIC_REASON_PRESENTATIONS.ownership_inconsistent.surface).toBe('modal');
     expect(COMMUNITY_PUBLIC_REASON_PRESENTATIONS.community_capacity_upgrade_required.surface).toBe('modal');
+    expect(COMMUNITY_PUBLIC_REASON_PRESENTATIONS.community_ownership_capacity_upgrade_required.surface).toBe('modal');
     expect(COMMUNITY_PUBLIC_REASON_PRESENTATIONS.community_ownership_subscription_required.surface).toBe('modal');
     expect(COMMUNITY_PUBLIC_REASON_PRESENTATIONS.community_ownership_limit_reached.surface).toBe('modal');
     expect(COMMUNITY_PUBLIC_REASON_PRESENTATIONS.official_target_already_associated.surface).toBe('modal');
