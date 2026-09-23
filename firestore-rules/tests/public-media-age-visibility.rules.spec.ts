@@ -107,6 +107,7 @@ async function seedPublicMedia(): Promise<void> {
         nicknameNormalized: 'perfil-adulto',
         role: 'free',
         ageEligibilityVerifiedAdult: true,
+        ageEligibilityValidUntil: new Date(Date.now() + 60_000),
       }),
       setDoc(
         doc(
@@ -120,6 +121,7 @@ async function seedPublicMedia(): Promise<void> {
           id: VIDEO_ID,
           ownerUid: OWNER_UID,
           ageEligibilityVerifiedAdult: true,
+        ageEligibilityValidUntil: new Date(Date.now() + 60_000),
           visibility: 'PUBLIC',
           moderationStatus: 'APPROVED',
           score: 10,
@@ -138,6 +140,7 @@ async function seedPublicMedia(): Promise<void> {
           id: PHOTO_ID,
           ownerUid: OWNER_UID,
           ageEligibilityVerifiedAdult: true,
+        ageEligibilityValidUntil: new Date(Date.now() + 60_000),
           visibility: 'PUBLIC',
           moderationStatus: 'APPROVED',
           publishedAt: 1,
