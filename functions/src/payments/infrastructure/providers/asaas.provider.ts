@@ -78,9 +78,10 @@ function normalizeAsaasTimestamp(value: unknown): number | null {
   const text = safeString(value, 80);
   if (!text) return null;
 
-  const normalized = text.includes('T')
-    ? text
-    : text.replace(' ', 'T');
+  const normalized =
+    /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(text)
+      ? `${text.replace(' ', 'T')}-03:00`
+      : text;
 
   const parsed = Date.parse(normalized);
   return Number.isFinite(parsed) ? parsed : null;
@@ -203,17 +204,32 @@ function normalizeWebhookResource(
     };
   }
 
+  if (eventName.startsWith('PAYMENT_')) {
+    return {
+      resourceType: 'payment',
+      resourceId: safeString(payment['id']) ?? '',
+      checkoutId: null,
+      subscriptionId: safeString(payment['subscription']),
+      paymentId: safeString(payment['id']),
+      customerId: safeString(payment['customer']),
+      externalReference: safeString(payment['externalReference'], 200),
+      amountCents: toCents(payment['value']),
+      currency: 'BRL',
+      providerStatus: safeString(payment['status'], 80),
+    };
+  }
+
   return {
-    resourceType: 'payment',
-    resourceId: safeString(payment['id']) ?? '',
+    resourceType: 'other',
+    resourceId: safeString(body['id']) ?? eventName,
     checkoutId: null,
-    subscriptionId: safeString(payment['subscription']),
-    paymentId: safeString(payment['id']),
-    customerId: safeString(payment['customer']),
-    externalReference: safeString(payment['externalReference'], 200),
-    amountCents: toCents(payment['value']),
+    subscriptionId: null,
+    paymentId: null,
+    customerId: null,
+    externalReference: null,
+    amountCents: null,
     currency: 'BRL',
-    providerStatus: safeString(payment['status'], 80),
+    providerStatus: null,
   };
 }
 
@@ -228,11 +244,11 @@ function resolveWebhookOccurredAt(
 
   const candidates = eventName.startsWith('PAYMENT_')
     ? [
+      body['dateCreated'],
       payment['confirmedDate'],
       payment['paymentDate'],
       payment['clientPaymentDate'],
       payment['dateCreated'],
-      body['dateCreated'],
     ]
     : eventName.startsWith('SUBSCRIPTION_')
       ? [subscription['dateCreated'], body['dateCreated']]
