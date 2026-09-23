@@ -25,6 +25,7 @@ import {
 } from 'rxjs';
 
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { COMMUNITY_ERROR_PRESENTATION_CONTEXTS } from '../presentation/community-error.catalog';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import {
@@ -240,7 +241,8 @@ export class CommunityInviteManagementComponent {
       feature: 'community',
       operation: 'loadSentInvites',
       fallbackMessage: 'Não foi possível carregar os convites pendentes.',
-      notification: 'none',
+      communityPresentationContext:
+        COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING,
       reasonMessages: COMMUNITY_INVITE_MANAGEMENT_REASON_MESSAGES,
       metadata: {
         scope: 'CommunityInviteManagementComponent',
@@ -254,7 +256,8 @@ export class CommunityInviteManagementComponent {
       feature: 'community',
       operation: 'findInviteCandidate',
       fallbackMessage: 'Não foi possível localizar este perfil.',
-      notification: 'none',
+      communityPresentationContext:
+        COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING,
       reasonMessages: COMMUNITY_INVITE_MANAGEMENT_REASON_MESSAGES,
       metadata: {
         scope: 'CommunityInviteManagementComponent',

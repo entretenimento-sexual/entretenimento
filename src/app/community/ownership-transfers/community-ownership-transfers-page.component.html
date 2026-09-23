@@ -1,0 +1,138 @@
+<!-- src/app/community/ownership-transfers/community-ownership-transfers-page.component.html -->
+@if (state$ | async; as state) {
+  @if (action$ | async; as action) {
+    <main class="ownership-transfers" aria-labelledby="ownership-transfers-title">
+      <header class="ownership-transfers__header">
+        <div>
+          <span class="ownership-transfers__eyebrow">Propriedade</span>
+          <h1 id="ownership-transfers-title">Transferências de Comunidades</h1>
+          <p>
+            A propriedade só muda depois do aceite explícito e da revalidação
+            do backend.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          class="ownership-transfers__refresh"
+          [appActionState]="state.status === 'loading'"
+          [actionDisabled]="action.status === 'loading'"
+          (click)="refresh()"
+        >
+          Atualizar
+        </button>
+      </header>
+
+      @if (state.status === 'loading') {
+        <section class="ownership-transfers__state" role="status">
+          Carregando transferências...
+        </section>
+      } @else if (state.status === 'error') {
+        <section class="ownership-transfers__state" role="alert">
+          Não foi possível carregar as transferências agora.
+        </section>
+      } @else {
+        <section class="ownership-transfers__section" aria-labelledby="incoming-title">
+          <div class="ownership-transfers__section-heading">
+            <div>
+              <h2 id="incoming-title">Para você responder</h2>
+              <p>Você nunca assume uma Comunidade sem aceitar.</p>
+            </div>
+          </div>
+
+          @if (state.incoming.length === 0) {
+            <p class="ownership-transfers__empty">Nenhuma solicitação recebida.</p>
+          } @else {
+            <ul class="ownership-transfers__list">
+              @for (item of state.incoming; track item.requestId) {
+                <li class="ownership-transfers__card">
+                  <div class="ownership-transfers__copy">
+                    <strong>{{ item.communityName }}</strong>
+                    <span>{{ modeLabel(item) }} · {{ statusLabel(item) }}</span>
+                    <span>
+                      Indicado por {{ item.previousOwnerLabel }} · prazo
+                      {{ item.expiresAt | date:'dd/MM/yyyy HH:mm' }}
+                    </span>
+                  </div>
+
+                  @if (isPending(item)) {
+                    <div class="ownership-transfers__actions">
+                      <button
+                        type="button"
+                        [appActionState]="
+                          action.status === 'loading'
+                          && action.kind === 'accept'
+                          && action.requestId === item.requestId
+                        "
+                        [actionDisabled]="action.status === 'loading'"
+                        (click)="requestAccept(item)"
+                      >
+                        Aceitar
+                      </button>
+                      <button
+                        type="button"
+                        class="ownership-transfers__secondary"
+                        [appActionState]="
+                          action.status === 'loading'
+                          && action.kind === 'decline'
+                          && action.requestId === item.requestId
+                        "
+                        [actionDisabled]="action.status === 'loading'"
+                        (click)="requestDecline(item)"
+                      >
+                        Recusar
+                      </button>
+                    </div>
+                  }
+                </li>
+              }
+            </ul>
+          }
+        </section>
+
+        <section class="ownership-transfers__section" aria-labelledby="outgoing-title">
+          <div class="ownership-transfers__section-heading">
+            <div>
+              <h2 id="outgoing-title">Solicitações enviadas</h2>
+              <p>Convites pendentes podem ser cancelados enquanto não houver aceite.</p>
+            </div>
+          </div>
+
+          @if (state.outgoing.length === 0) {
+            <p class="ownership-transfers__empty">Nenhuma solicitação enviada.</p>
+          } @else {
+            <ul class="ownership-transfers__list">
+              @for (item of state.outgoing; track item.requestId) {
+                <li class="ownership-transfers__card">
+                  <div class="ownership-transfers__copy">
+                    <strong>{{ item.communityName }}</strong>
+                    <span>{{ item.candidateLabel }} · {{ statusLabel(item) }}</span>
+                    <span>
+                      Prazo {{ item.expiresAt | date:'dd/MM/yyyy HH:mm' }}
+                    </span>
+                  </div>
+
+                  @if (isPending(item) && item.mode === 'voluntary') {
+                    <button
+                      type="button"
+                      class="ownership-transfers__secondary"
+                      [appActionState]="
+                        action.status === 'loading'
+                        && action.kind === 'cancel'
+                        && action.requestId === item.requestId
+                      "
+                      [actionDisabled]="action.status === 'loading'"
+                      (click)="requestCancel(item)"
+                    >
+                      Cancelar
+                    </button>
+                  }
+                </li>
+              }
+            </ul>
+          }
+        </section>
+      }
+    </main>
+  }
+}

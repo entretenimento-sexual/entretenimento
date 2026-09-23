@@ -50,6 +50,7 @@ import {
 
 import { PublicUserIdentityComponent } from 'src/app/core/components/public-user-identity/public-user-identity.component';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { COMMUNITY_ERROR_PRESENTATION_CONTEXTS } from '../presentation/community-error.catalog';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { ReportContentButtonComponent } from 'src/app/shared/components-globais/moderation-report/report-content-button/report-content-button.component';
 import {
@@ -693,7 +694,8 @@ export class CommunityFeedCommentsComponent implements OnDestroy {
       feature: 'community',
       operation: 'watchCommentCount',
       fallbackMessage: 'Atualizações da conversa em tempo real estão indisponíveis.',
-      notification: 'none',
+      communityPresentationContext:
+        COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING,
       metadata: {
         scope: 'CommunityFeedCommentsComponent',
         communityId: this.communityId(),
@@ -720,7 +722,9 @@ export class CommunityFeedCommentsComponent implements OnDestroy {
           ? 'createConversationMessage'
           : 'moderateConversationMessage',
       fallbackMessage,
-      notification: operation === 'load' ? 'none' : 'error',
+      communityPresentationContext: operation === 'load'
+        ? COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING
+        : COMMUNITY_ERROR_PRESENTATION_CONTEXTS.DEFAULT,
       codeMessages: operation === 'create'
         ? COMMUNITY_FEED_CONVERSATION_CREATE_CODE_MESSAGES
         : operation === 'moderate'

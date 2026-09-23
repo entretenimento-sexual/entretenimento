@@ -15,6 +15,7 @@ import {
 
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { COMMUNITY_ERROR_PRESENTATION_CONTEXTS } from '../presentation/community-error.catalog';
 import { CommunityDiscoveryExposureRepository } from '../data-access/community-discovery-exposure.repository';
 import { CommunityPreviewSourceType } from '../data-access/community-preview.model';
 
@@ -158,7 +159,8 @@ export class CommunityDiscoveryExposureService {
             feature: 'community',
             operation: 'recordDiscoveryExposure',
             fallbackMessage: 'Não foi possível registrar a telemetria de descoberta.',
-            notification: 'none',
+            communityPresentationContext:
+        COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING,
             metadata: {
               sourceType,
               batchSize: communityIds.length,

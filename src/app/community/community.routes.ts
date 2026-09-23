@@ -48,6 +48,13 @@ export const COMMUNITY_ROUTES: Routes = [
       ),
   },
   {
+    path: 'propriedade',
+    loadComponent: () =>
+      import('./ownership-transfers/community-ownership-transfers-page.component').then(
+        (module) => module.CommunityOwnershipTransfersPageComponent
+      ),
+  },
+  {
     path: 'minhas/:communityId',
     data: { backRoute: '/dashboard/comunidades/minhas' },
     loadComponent: () =>

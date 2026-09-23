@@ -28,6 +28,12 @@ const routes: Routes = [
       { path: 'denuncias', component: ModerationReportsComponent },
       { path: 'videos', component: VideoModerationComponent },
       {
+        path: 'sucessoes-comunidades',
+        loadComponent: () =>
+          import('./community-owner-successions/community-owner-successions.component')
+            .then((module) => module.CommunityOwnerSuccessionsComponent),
+      },
+      {
         path: 'comunidades-oficiais',
         loadComponent: () =>
           import('./community-official-claims/community-official-claims.component')

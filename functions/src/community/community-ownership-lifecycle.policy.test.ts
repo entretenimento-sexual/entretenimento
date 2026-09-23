@@ -18,6 +18,9 @@ const TRANSFER_BASE = Object.freeze({
   targetStatus: 'active' as const,
   targetRole: 'member' as const,
   targetAccountEligible: true,
+  targetOwnershipEntitlementEligible: true,
+  targetOwnershipQuotaAvailable: true,
+  targetOwnershipCapacityCompatible: true,
   activeOwnerCount: 1,
 });
 
@@ -101,6 +104,30 @@ test('nega alvo pendente, bloqueado, inativo ou inelegível', () => {
       targetAccountEligible: false,
     }).denialReason,
     'target_account_ineligible'
+  );
+});
+
+test('nega alvo sem entitlement ou quota para nova propriedade', () => {
+  assert.equal(
+    evaluateCommunityOwnershipTransfer({
+      ...TRANSFER_BASE,
+      targetOwnershipEntitlementEligible: false,
+    }).denialReason,
+    'target_ownership_entitlement_ineligible'
+  );
+  assert.equal(
+    evaluateCommunityOwnershipTransfer({
+      ...TRANSFER_BASE,
+      targetOwnershipQuotaAvailable: false,
+    }).denialReason,
+    'target_ownership_quota_reached'
+  );
+  assert.equal(
+    evaluateCommunityOwnershipTransfer({
+      ...TRANSFER_BASE,
+      targetOwnershipCapacityCompatible: false,
+    }).denialReason,
+    'target_ownership_capacity_ineligible'
   );
 });
 

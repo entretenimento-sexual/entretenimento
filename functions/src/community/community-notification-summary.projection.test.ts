@@ -23,6 +23,12 @@ const ALL_COMMUNITY_NOTIFICATION_TYPES = [
   'community.invite.accepted',
   'community.invite.declined',
   'community.content.moderated',
+  'community.ownership.transfer_requested',
+  'community.ownership.transfer_accepted',
+  'community.ownership.transfer_declined',
+  'community.ownership.transfer_canceled',
+  'community.ownership.transfer_expired',
+  'community.ownership.succession_archived',
 ] as const;
 
 test('matriz agregada cobre todos os tipos canônicos atuais de Comunidades', () => {
@@ -61,6 +67,9 @@ test('matriz prioriza gestão, perda de acesso e moderação', () => {
     'community.membership.removed',
     'community.membership.blocked',
     'community.content.moderated',
+    'community.ownership.transfer_requested',
+    'community.ownership.transfer_expired',
+    'community.ownership.succession_archived',
   ]);
 
   for (const type of ALL_COMMUNITY_NOTIFICATION_TYPES) {

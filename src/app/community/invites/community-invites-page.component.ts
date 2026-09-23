@@ -22,6 +22,7 @@ import {
 } from 'rxjs';
 
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { COMMUNITY_ERROR_PRESENTATION_CONTEXTS } from '../presentation/community-error.catalog';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import {
@@ -165,7 +166,8 @@ export class CommunityInvitesPageComponent {
       operation: 'loadInvites',
       fallbackMessage:
         'Não foi possível carregar seus convites de Comunidades.',
-      notification: 'none',
+      communityPresentationContext:
+        COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING,
       metadata: {
         scope: 'CommunityInvitesPageComponent',
       },

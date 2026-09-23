@@ -65,7 +65,7 @@ export const getCommunityBoostCampaignDashboard =
       if (!campaign) {
         throw new HttpsError('not-found', 'Campanha não encontrada.');
       }
-      if (campaign.ownerUid !== uid && !isAdmin(request.auth?.token)) {
+      if (campaign.advertiserUid !== uid && !isAdmin(request.auth?.token)) {
         throw new HttpsError(
           'permission-denied',
           'Você não pode consultar esta campanha.'
@@ -81,9 +81,12 @@ export const getCommunityBoostCampaignDashboard =
       return {
         campaignId: campaign.campaignId,
         communityId: campaign.communityId,
+        advertiserUid: campaign.advertiserUid,
         targetSourceType: campaign.targetSourceType,
         targetTagId: campaign.targetTagId,
         status: campaign.status,
+        stoppedAt: campaign.stoppedAt,
+        stoppedReason: campaign.stoppedReason,
         budgetCents: campaign.budgetCents,
         dailyBudgetCents: campaign.dailyBudgetCents,
         spentMilliCents: campaign.spentMilliCents,

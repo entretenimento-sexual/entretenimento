@@ -1,0 +1,115 @@
+/* src/app/admin-dashboard/community-owner-successions/community-owner-successions.component.css */
+:host {
+  display: block;
+}
+
+.succession-admin {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.succession-admin__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.succession-admin__header h2,
+.succession-admin__detail h3,
+.succession-admin__detail h4 {
+  margin: 0;
+}
+
+.succession-admin__header p,
+.succession-admin__detail p,
+.succession-admin__case span,
+.succession-admin__notice span,
+.succession-admin__candidates span {
+  opacity: 0.72;
+}
+
+.succession-admin__eyebrow {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.succession-admin__layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.85fr) minmax(0, 1.4fr);
+  gap: 1rem;
+}
+
+.succession-admin__cases,
+.succession-admin__candidates {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.succession-admin__case {
+  width: 100%;
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.85rem;
+  text-align: left;
+}
+
+.succession-admin__detail,
+.succession-admin__empty,
+.succession-admin__notice {
+  border: 1px solid var(--surface-border, rgba(0, 0, 0, 0.12));
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+.succession-admin__detail {
+  display: grid;
+  gap: 1rem;
+}
+
+.succession-admin__notice {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.succession-admin__candidates li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--surface-border, rgba(0, 0, 0, 0.1));
+}
+
+.succession-admin__candidates li > div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.succession-admin__secondary {
+  margin-top: 0.75rem;
+}
+
+.succession-admin__danger {
+  border-color: var(--error-color, #b42318);
+}
+
+@media (max-width: 780px) {
+  .succession-admin__header,
+  .succession-admin__candidates li {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .succession-admin__layout {
+    grid-template-columns: 1fr;
+  }
+}

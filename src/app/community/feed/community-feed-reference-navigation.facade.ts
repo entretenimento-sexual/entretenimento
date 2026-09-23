@@ -18,6 +18,7 @@ import {
 } from 'rxjs';
 
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { COMMUNITY_ERROR_PRESENTATION_CONTEXTS } from '../presentation/community-error.catalog';
 import { CommunityFeedItem, CommunityFeedView } from '../data-access/community-feed.model';
 import { CommunityFeedRepository } from '../data-access/community-feed.repository';
 import { CommunityPreviewSourceType } from '../data-access/community-preview.model';
@@ -184,7 +185,8 @@ export class CommunityFeedReferenceNavigationFacade {
       operation: 'navigateReference',
       fallbackMessage:
         'A publicação original não está disponível neste momento.',
-      notification: 'none',
+      communityPresentationContext:
+        COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING,
       codeMessages: COMMUNITY_FEED_REFERENCE_CODE_MESSAGES,
       metadata: {
         scope: 'CommunityFeedReferenceNavigationFacade',

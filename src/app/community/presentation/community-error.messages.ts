@@ -458,6 +458,28 @@ export const COMMUNITY_OWNERSHIP_REASON_MESSAGES: CommunityErrorMessageMap =
       'Esta Comunidade possui retenção operacional e não pode ser arquivada.',
     community_ownership_idempotency_invalid:
       'A confirmação anterior desta operação está inconsistente. A ação foi bloqueada para revisão.',
+    community_ownership_capacity_upgrade_required:
+      'O plano do participante selecionado não suporta a capacidade atual desta Comunidade.',
+    community_ownership_subscription_required:
+      'O plano do participante selecionado não permite assumir nova propriedade.',
+    community_ownership_limit_reached:
+      'O participante selecionado atingiu a quantidade de Comunidades próprias permitida pelo plano.',
+    community_ownership_transfer_pending:
+      'Já existe uma transferência de propriedade aguardando resposta.',
+    community_ownership_transfer_not_found:
+      'Esta solicitação de propriedade não está mais disponível.',
+    community_ownership_transfer_expired:
+      'Esta solicitação de propriedade já expirou ou foi encerrada.',
+    community_ownership_transfer_actor_mismatch:
+      'Esta solicitação de propriedade pertence a outro participante.',
+    community_ownership_transfer_conflict:
+      'A propriedade ou a elegibilidade mudou. Atualize o fluxo antes de continuar.',
+    community_ownership_succession_closed:
+      'O prazo deste caso de sucessão já foi encerrado.',
+    community_ownership_succession_owner_not_terminal:
+      'A conta do proprietário ainda não está em estado terminal para este fluxo.',
+    community_ownership_succession_reason_required:
+      'Informe uma justificativa para confirmar o abandono antes de abrir a sucessão.',
   });
 
 export const COMMUNITY_OWNERSHIP_LOAD_CODE_MESSAGES: CommunityErrorMessageMap =

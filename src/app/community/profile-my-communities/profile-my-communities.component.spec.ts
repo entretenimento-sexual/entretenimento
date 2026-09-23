@@ -9,6 +9,7 @@ import { CommunityNotificationPreferenceService } from 'src/app/core/services/no
 import { CommunityNotificationUnreadSummaryService } from 'src/app/core/services/notifications/community-notification-unread-summary.service';
 import { CommunityPreviewCard } from '../data-access/community-preview.model';
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
+import { COMMUNITY_ERROR_PRESENTATION_CONTEXTS } from '../presentation/community-error.catalog';
 import { CommunityDiscoveryCacheService } from '../discovery/community-discovery-cache.service';
 import { ProfileMyCommunitiesComponent } from './profile-my-communities.component';
 
@@ -208,7 +209,8 @@ describe('ProfileMyCommunitiesComponent', () => {
       expect.any(Error),
       expect.objectContaining({
         operation: 'loadProfileMyCommunities',
-        notification: 'none',
+        communityPresentationContext:
+          COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING,
       })
     );
   });

@@ -4,13 +4,18 @@
 // -----------------------------------------------------------------------------
 // Callables backend-only para:
 // - listar membros elegíveis à transferência;
-// - transferir a propriedade com idempotência e auditoria;
 // - arquivar uma Comunidade sem exclusão física.
+//
+// A troca de owner é exclusiva do workflow acceptance-based em
+// community-ownership-transfer.workflow.handler.ts.
 // -----------------------------------------------------------------------------
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { assertRecentAuthentication } from '../account_lifecycle/_shared';
+import {
+  stopOpenCommunityBoostForCommunityInTransaction,
+} from '../community-boost/community-boost-authority.service';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { buildCommunityOperationalRequestRetention } from './community-operational-retention.policy';
 import { db, FieldValue } from '../firebaseApp';
@@ -33,18 +38,12 @@ import {
   CommunityOwnershipStatus,
   evaluateCommunityArchive,
   evaluateCommunityOwnershipIdempotencyReplay,
-  evaluateCommunityOwnershipTransfer,
 } from './community-ownership-lifecycle.policy';
 import { normalizeCommunityId } from './community-preview.model';
 import { consumeCommunityRateLimit } from './community-rate-limit.service';
 
 interface CommunityIdPayload {
   communityId?: unknown;
-}
-
-interface CommunityOwnershipTransferPayload extends CommunityIdPayload {
-  targetUid?: unknown;
-  requestId?: unknown;
 }
 
 interface CommunityArchivePayload extends CommunityIdPayload {
@@ -61,14 +60,6 @@ interface CommunityOwnershipCandidate {
 
 interface CommunityOwnershipCandidatesResponse {
   items: CommunityOwnershipCandidate[];
-  generatedAt: number;
-}
-
-interface CommunityOwnershipTransferResponse {
-  communityId: string;
-  status: 'transferred';
-  previousOwnerUid: string;
-  newOwnerUid: string;
   generatedAt: number;
 }
 
@@ -263,55 +254,6 @@ function isTargetAccountEligible(
   }
 }
 
-function throwTransferDecisionError(reason: string | null): never {
-  if (reason === 'community_source_not_supported') {
-    throw new HttpsError(
-      'failed-precondition',
-      'A propriedade de um Local segue um fluxo operacional próprio.'
-    );
-  }
-
-  if (reason === 'owner_required') {
-    throw new HttpsError(
-      'permission-denied',
-      'Apenas o proprietário pode transferir esta Comunidade.'
-    );
-  }
-
-  if (reason === 'ownership_inconsistent') {
-    throw new HttpsError(
-      'data-loss',
-      'A propriedade da Comunidade está inconsistente e exige revisão.'
-    );
-  }
-
-  if (reason === 'self_transfer_forbidden') {
-    throw new HttpsError(
-      'invalid-argument',
-      'Selecione outro membro para receber a propriedade.'
-    );
-  }
-
-  if (reason === 'target_membership_ineligible') {
-    throw new HttpsError(
-      'failed-precondition',
-      'O membro selecionado não possui vínculo ativo elegível.'
-    );
-  }
-
-  if (reason === 'target_account_ineligible') {
-    throw new HttpsError(
-      'failed-precondition',
-      'A conta selecionada não pode assumir a propriedade agora.'
-    );
-  }
-
-  throw new HttpsError(
-    'failed-precondition',
-    'Esta Comunidade não pode transferir a propriedade agora.'
-  );
-}
-
 function throwArchiveDecisionError(reason: string | null): never {
   if (reason === 'community_source_not_supported') {
     throw new HttpsError(
@@ -455,240 +397,9 @@ export const getCommunityOwnershipCandidates = onCall<CommunityIdPayload>(
   }
 );
 
-export const transferCommunityOwnership =
-  onCall<CommunityOwnershipTransferPayload>(
-    {
-      region: FUNCTIONS_REGION,
-      enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
-    },
-    async (request): Promise<CommunityOwnershipTransferResponse> => {
-      assertPreviewRuntime();
-      assertCommunityCallableAppCheck(request.app);
-      const actorUid = assertAuthenticatedUid(request.auth);
-      assertRecentAuthentication(
-        (request.auth?.token ?? undefined) as Record<string, unknown> | undefined
-      );
-      const communityId = normalizeCommunityId(request.data?.communityId);
-      const targetUid = normalizeSafeId(request.data?.targetUid);
-      const requestId = normalizeSafeId(request.data?.requestId);
-
-      if (!communityId || !targetUid || !requestId) {
-        throw new HttpsError('invalid-argument', 'Transferência inválida.');
-      }
-
-      await consumeCommunityRateLimit({
-        action: 'ownership_mutation',
-        actorUid,
-      });
-
-      return db.runTransaction(async (transaction) => {
-        const communityRef = db.collection('communities').doc(communityId);
-        const actorMembershipRef = communityRef.collection('members').doc(actorUid);
-        const targetMembershipRef = communityRef.collection('members').doc(targetUid);
-        const actorUserRef = db.collection('users').doc(actorUid);
-        const targetUserRef = db.collection('users').doc(targetUid);
-        const actorIndexRef = db
-          .collection('community_user_index')
-          .doc(actorUid)
-          .collection('items')
-          .doc(communityId);
-        const targetIndexRef = db
-          .collection('community_user_index')
-          .doc(targetUid)
-          .collection('items')
-          .doc(communityId);
-        const requestRef = db
-          .collection('community_lifecycle_requests')
-          .doc(requestId);
-        const auditRef = db
-          .collection('community_membership_audit')
-          .doc(`ownership-transfer-${requestId}`);
-        const ownerQuery = communityRef
-          .collection('members')
-          .where('role', '==', 'owner')
-          .where('status', '==', 'active')
-          .limit(2);
-        const [
-          requestSnapshot,
-          communitySnapshot,
-          actorMembershipSnapshot,
-          targetMembershipSnapshot,
-          actorUserSnapshot,
-          targetUserSnapshot,
-          ownerSnapshot,
-        ] = await Promise.all([
-          transaction.get(requestRef),
-          transaction.get(communityRef),
-          transaction.get(actorMembershipRef),
-          transaction.get(targetMembershipRef),
-          transaction.get(actorUserRef),
-          transaction.get(targetUserRef),
-          transaction.get(ownerQuery),
-        ]);
-
-        if (requestSnapshot.exists) {
-          const completedAt = resolveOwnershipReplayCompletedAt(
-            evaluateCommunityOwnershipIdempotencyReplay({
-              rawRequest: requestSnapshot.data(),
-              expectedOperation: 'transfer',
-              expectedRequestId: requestId,
-              expectedActorUid: actorUid,
-              expectedCommunityId: communityId,
-              expectedTargetUid: targetUid,
-            })
-          );
-
-          return {
-            communityId,
-            status: 'transferred',
-            previousOwnerUid: actorUid,
-            newOwnerUid: targetUid,
-            generatedAt: completedAt,
-          };
-        }
-
-        if (!communitySnapshot.exists) {
-          throw new HttpsError('not-found', 'Comunidade não encontrada.');
-        }
-
-        await assertCommunityMembershipActorEligibleInTransaction(
-          transaction,
-          actorUid,
-          actorUserSnapshot.exists ? actorUserSnapshot.data() : null
-        );
-
-        let targetEligible = true;
-        try {
-          await assertCommunityMembershipActorEligibleInTransaction(
-            transaction,
-            targetUid,
-            targetUserSnapshot.exists ? targetUserSnapshot.data() : null
-          );
-        } catch {
-          targetEligible = false;
-        }
-        const community = communitySnapshot.data() ?? {};
-        assertCommunityOwnerPointer(community, actorUid);
-        const source = (community['source'] ?? {}) as Record<string, unknown>;
-        const actorMembership = actorMembershipSnapshot.exists
-          ? actorMembershipSnapshot.data() ?? {}
-          : {};
-        const targetMembership = targetMembershipSnapshot.exists
-          ? targetMembershipSnapshot.data() ?? {}
-          : {};
-        const decision = evaluateCommunityOwnershipTransfer({
-          sourceType: normalizeSourceType(source['type']),
-          communityStatus: normalizeCommunityStatus(community['status']),
-          actorUid,
-          targetUid,
-          actorStatus: normalizeMembershipStatus(actorMembership['status']),
-          actorRole: normalizeMembershipRole(actorMembership['role']),
-          targetStatus: normalizeMembershipStatus(targetMembership['status']),
-          targetRole: normalizeMembershipRole(targetMembership['role']),
-          targetAccountEligible: targetEligible,
-          activeOwnerCount: ownerSnapshot.size,
-        });
-
-        if (
-          !decision.allowed
-          || !decision.actorNextRole
-          || !decision.targetNextRole
-        ) {
-          throwTransferDecisionError(decision.denialReason);
-        }
-
-        const now = Date.now();
-        const communityName = normalizeText(community['name'], 80);
-
-        transaction.update(communityRef, {
-          ownerUid: targetUid,
-          ownerTransferredAt: now,
-          ownerTransferredBy: actorUid,
-          updatedAt: now,
-        });
-        transaction.set(
-          actorMembershipRef,
-          {
-            role: decision.actorNextRole,
-            ownershipTransferredAt: now,
-            ownershipTransferredTo: targetUid,
-            updatedAt: now,
-            source: 'ownership-transfer',
-          },
-          { merge: true }
-        );
-        transaction.set(
-          targetMembershipRef,
-          {
-            role: decision.targetNextRole,
-            ownershipReceivedAt: now,
-            ownershipReceivedFrom: actorUid,
-            reviewedAt: now,
-            reviewedBy: actorUid,
-            updatedAt: now,
-            source: 'ownership-transfer',
-          },
-          { merge: true }
-        );
-        transaction.set(
-          actorIndexRef,
-          {
-            communityId,
-            name: communityName,
-            source,
-            role: decision.actorNextRole,
-            status: 'active',
-            updatedAt: now,
-          },
-          { merge: true }
-        );
-        transaction.set(
-          targetIndexRef,
-          {
-            communityId,
-            name: communityName,
-            source,
-            role: decision.targetNextRole,
-            status: 'active',
-            updatedAt: now,
-          },
-          { merge: true }
-        );
-        transaction.create(auditRef, {
-          action: 'community_ownership_transferred',
-          communityId,
-          actorUid,
-          actorRole: 'owner',
-          subjectUid: targetUid,
-          previousRole: normalizeMembershipRole(targetMembership['role']),
-          nextRole: 'owner',
-          previousOwnerUid: actorUid,
-          nextOwnerUid: targetUid,
-          createdAt: now,
-          source: 'callable',
-        });
-        transaction.create(requestRef, {
-          ...buildCommunityOperationalRequestRetention('lifecycle', now),
-          operation: 'transfer',
-          requestId,
-          actorUid,
-          targetUid,
-          communityId,
-          status: 'completed',
-          completedAt: now,
-          createdAt: now,
-        });
-
-        return {
-          communityId,
-          status: 'transferred',
-          previousOwnerUid: actorUid,
-          newOwnerUid: targetUid,
-          generatedAt: now,
-        };
-      });
-    }
-  );
+// Transferência voluntária é exclusivamente acceptance-based e vive em
+// community-ownership-transfer.workflow.handler.ts. Não manter callable
+// alternativa aqui: ela permitiria bypassar o aceite explícito.
 
 export const archiveCommunity = onCall<CommunityArchivePayload>(
   {
@@ -830,6 +541,14 @@ export const archiveCommunity = onCall<CommunityArchivePayload>(
           'A contagem de participantes desta Comunidade está inconsistente.'
         );
       }
+
+      await stopOpenCommunityBoostForCommunityInTransaction({
+        transaction,
+        communityId,
+        reason: 'community_archived',
+        now,
+        actorUid,
+      });
 
       const communityPatch: Record<string, unknown> = {
         status: 'archived',

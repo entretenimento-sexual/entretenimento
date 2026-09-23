@@ -85,6 +85,7 @@ interface AppNotificationFirestoreDocument {
   replyId?: unknown;
   actorUid?: unknown;
   inviteId?: unknown;
+  ownershipRequestId?: unknown;
   roomId?: unknown;
   messageId?: unknown;
   activityCount?: unknown;
@@ -418,6 +419,7 @@ export class AppNotificationService {
       replyId: this.toText(raw.replyId) || null,
       actorUid: this.toText(raw.actorUid) || null,
       inviteId: this.toText(raw.inviteId) || null,
+      ownershipRequestId: this.toText(raw.ownershipRequestId) || null,
       roomId: this.toText(raw.roomId) || null,
       messageId: this.toText(raw.messageId) || null,
       activityCount: this.toPositiveInteger(raw.activityCount),
@@ -458,6 +460,12 @@ export class AppNotificationService {
       case 'community.invite.accepted':
       case 'community.invite.declined':
       case 'community.content.moderated':
+      case 'community.ownership.transfer_requested':
+      case 'community.ownership.transfer_accepted':
+      case 'community.ownership.transfer_declined':
+      case 'community.ownership.transfer_canceled':
+      case 'community.ownership.transfer_expired':
+      case 'community.ownership.succession_archived':
       case 'system':
       case 'social':
       case 'chat':

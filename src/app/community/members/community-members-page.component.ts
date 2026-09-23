@@ -17,6 +17,7 @@ import {
 
 import { PublicUserIdentityComponent } from 'src/app/core/components/public-user-identity/public-user-identity.component';
 import { ApplicationErrorDescriptor, ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { COMMUNITY_ERROR_PRESENTATION_CONTEXTS } from '../presentation/community-error.catalog';
 import {
   CommunityMemberRosterItem,
   CommunityMemberRosterPage,
@@ -211,8 +212,8 @@ export class CommunityMembersPageComponent {
       fallbackMessage: append
         ? 'Não foi possível carregar mais integrantes agora.'
         : 'Não foi possível carregar os integrantes desta Comunidade agora.',
-      notification: 'none',
-      presentation: { surface: 'inline', severity: 'error' },
+      communityPresentationContext:
+        COMMUNITY_ERROR_PRESENTATION_CONTEXTS.INLINE_NON_BLOCKING,
       reasonMessages: COMMUNITY_MEMBER_ROSTER_REASON_MESSAGES,
       codeMessages: COMMUNITY_MEMBER_ROSTER_CODE_MESSAGES,
       metadata: {

@@ -56,12 +56,38 @@ export const COMMUNITY_PUBLIC_REASON_MESSAGES = Object.freeze({
   ...COMMUNITY_SOCIAL_ACCESS_REASON_MESSAGES,
 }) as Readonly<Record<CommunityPublicErrorReason, string>>;
 
-const SNACKBAR_ERROR: Readonly<ApplicationErrorPresentation> =
-  Object.freeze({ surface: 'snackbar', severity: 'error' });
-const SNACKBAR_INFO: Readonly<ApplicationErrorPresentation> =
-  Object.freeze({ surface: 'snackbar', severity: 'info' });
+export const COMMUNITY_ERROR_PRESENTATION_CONTEXTS = Object.freeze({
+  DEFAULT: 'default',
+  SILENT_NON_BLOCKING: 'silent_non_blocking',
+  INLINE_NON_BLOCKING: 'inline_non_blocking',
+  WARNING_NON_BLOCKING: 'warning_non_blocking',
+} as const);
 
-const BLOCKING_PRESENTATIONS: Readonly<
+export type CommunityErrorPresentationContext =
+  (typeof COMMUNITY_ERROR_PRESENTATION_CONTEXTS)[
+    keyof typeof COMMUNITY_ERROR_PRESENTATION_CONTEXTS
+  ];
+
+const BASE_ERROR_PRESENTATION: Readonly<ApplicationErrorPresentation> =
+  Object.freeze({ surface: 'snackbar', severity: 'error' });
+const RATE_LIMIT_PRESENTATION: Readonly<ApplicationErrorPresentation> =
+  Object.freeze({ surface: 'snackbar', severity: 'info' });
+const SILENT_NON_BLOCKING_PRESENTATION:
+  Readonly<ApplicationErrorPresentation> =
+    Object.freeze({ surface: 'none', severity: 'error' });
+const INLINE_NON_BLOCKING_PRESENTATION:
+  Readonly<ApplicationErrorPresentation> =
+    Object.freeze({ surface: 'inline', severity: 'error' });
+const WARNING_NON_BLOCKING_PRESENTATION:
+  Readonly<ApplicationErrorPresentation> =
+    Object.freeze({ surface: 'snackbar', severity: 'warning' });
+
+/**
+ * Únicos desvios do presentation base. Entradas aqui devem representar
+ * bloqueios estruturais que exigem ação/decisão do usuário, não preferência
+ * visual de uma tela específica.
+ */
+const COMMUNITY_REASON_PRESENTATION_OVERRIDES: Readonly<
   Partial<Record<CommunityPublicErrorReason, ApplicationErrorPresentation>>
 > = Object.freeze({
   'recent-authentication-required': { surface: 'modal', severity: 'warning', title: 'Confirme sua identidade novamente' },
@@ -100,6 +126,17 @@ const BLOCKING_PRESENTATIONS: Readonly<
   membership_status_invalid: { surface: 'modal', severity: 'warning', title: 'Participação inconsistente' },
   ownership_inconsistent: { surface: 'modal', severity: 'warning', title: 'Propriedade inconsistente' },
   community_ownership_idempotency_invalid: { surface: 'modal', severity: 'warning', title: 'Confirmação de propriedade inconsistente' },
+  community_ownership_capacity_upgrade_required: { surface: 'modal', severity: 'info', title: 'Capacidade incompatível com o plano', primaryAction: { label: 'Ver planos', route: '/subscription-plan' }, dismissLabel: 'Escolher outro membro' },
+  community_ownership_subscription_required: { surface: 'modal', severity: 'info', title: 'Plano incompatível com nova propriedade', primaryAction: { label: 'Ver planos', route: '/subscription-plan' }, dismissLabel: 'Escolher outro membro' },
+  community_ownership_limit_reached: { surface: 'modal', severity: 'info', title: 'Limite de propriedades atingido', primaryAction: { label: 'Gerenciar Comunidades', route: '/dashboard/comunidades/minhas' }, dismissLabel: 'Escolher outro membro' },
+  community_ownership_transfer_pending: { surface: 'modal', severity: 'info', title: 'Transferência aguardando resposta', primaryAction: { label: 'Ver transferências', route: '/dashboard/comunidades/propriedade' }, dismissLabel: 'Continuar aqui' },
+  community_ownership_transfer_not_found: { surface: 'modal', severity: 'warning', title: 'Solicitação indisponível', primaryAction: { label: 'Ver transferências', route: '/dashboard/comunidades/propriedade' }, dismissLabel: 'Fechar' },
+  community_ownership_transfer_expired: { surface: 'modal', severity: 'info', title: 'Solicitação encerrada', primaryAction: { label: 'Ver transferências', route: '/dashboard/comunidades/propriedade' }, dismissLabel: 'Fechar' },
+  community_ownership_transfer_actor_mismatch: { surface: 'modal', severity: 'warning', title: 'Solicitação de outro participante' },
+  community_ownership_transfer_conflict: { surface: 'modal', severity: 'warning', title: 'Propriedade alterada durante o fluxo', primaryAction: { label: 'Atualizar transferências', route: '/dashboard/comunidades/propriedade' }, dismissLabel: 'Fechar' },
+  community_ownership_succession_closed: { surface: 'modal', severity: 'warning', title: 'Sucessão encerrada' },
+  community_ownership_succession_owner_not_terminal: { surface: 'modal', severity: 'warning', title: 'Proprietário ainda disponível' },
+  community_ownership_succession_reason_required: { surface: 'modal', severity: 'info', title: 'Justificativa necessária' },
   community_settings_idempotency_invalid: { surface: 'modal', severity: 'warning', title: 'Confirmação de configuração inconsistente' },
   community_lifecycle_hold: { surface: 'modal', severity: 'warning', title: 'Operação retida' },
   membership_disclosure_invalid: { surface: 'modal', severity: 'warning', title: 'Política de privacidade inconsistente' },
@@ -114,8 +151,10 @@ export const COMMUNITY_PUBLIC_REASON_PRESENTATIONS = Object.freeze(
   Object.fromEntries(
     COMMUNITY_PUBLIC_ERROR_REASONS.map((reason) => [
       reason,
-      BLOCKING_PRESENTATIONS[reason]
-        ?? (reason.endsWith('_rate_limited') ? SNACKBAR_INFO : SNACKBAR_ERROR),
+      COMMUNITY_REASON_PRESENTATION_OVERRIDES[reason]
+        ?? (reason.endsWith('_rate_limited')
+          ? RATE_LIMIT_PRESENTATION
+          : BASE_ERROR_PRESENTATION),
     ])
   )
 ) as Readonly<Record<CommunityPublicErrorReason, ApplicationErrorPresentation>>;
@@ -127,9 +166,40 @@ export function resolveCommunityPublicErrorMessage(reason: unknown): string | nu
 }
 
 export function resolveCommunityPublicErrorPresentation(
-  reason: unknown
+  reason: unknown,
+  context: CommunityErrorPresentationContext =
+    COMMUNITY_ERROR_PRESENTATION_CONTEXTS.DEFAULT
 ): ApplicationErrorPresentation | null {
-  return isCommunityPublicErrorReason(reason)
-    ? COMMUNITY_PUBLIC_REASON_PRESENTATIONS[reason]
-    : null;
+  if (!isCommunityPublicErrorReason(reason)) return null;
+
+  const canonical = COMMUNITY_PUBLIC_REASON_PRESENTATIONS[reason];
+  if (canonical.surface === 'modal') return canonical;
+
+  switch (context) {
+    case COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING:
+      return SILENT_NON_BLOCKING_PRESENTATION;
+    case COMMUNITY_ERROR_PRESENTATION_CONTEXTS.INLINE_NON_BLOCKING:
+      return INLINE_NON_BLOCKING_PRESENTATION;
+    case COMMUNITY_ERROR_PRESENTATION_CONTEXTS.WARNING_NON_BLOCKING:
+      return WARNING_NON_BLOCKING_PRESENTATION;
+    case COMMUNITY_ERROR_PRESENTATION_CONTEXTS.DEFAULT:
+    default:
+      return canonical;
+  }
+}
+
+export function resolveCommunityErrorPresentationContextFallback(
+  context: CommunityErrorPresentationContext
+): ApplicationErrorPresentation | null {
+  switch (context) {
+    case COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING:
+      return SILENT_NON_BLOCKING_PRESENTATION;
+    case COMMUNITY_ERROR_PRESENTATION_CONTEXTS.INLINE_NON_BLOCKING:
+      return INLINE_NON_BLOCKING_PRESENTATION;
+    case COMMUNITY_ERROR_PRESENTATION_CONTEXTS.WARNING_NON_BLOCKING:
+      return WARNING_NON_BLOCKING_PRESENTATION;
+    case COMMUNITY_ERROR_PRESENTATION_CONTEXTS.DEFAULT:
+    default:
+      return null;
+  }
 }

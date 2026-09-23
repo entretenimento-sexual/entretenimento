@@ -39,10 +39,12 @@ describe('CommunityOwnershipManagementComponent', () => {
     );
     repositoryMock.transferOwnership$.mockReturnValue(
       of({
+        requestId: 'transfer:req-1',
         communityId: 'community-1',
-        status: 'transferred',
-        previousOwnerUid: 'owner-1',
-        newOwnerUid: candidate.uid,
+        candidateUid: candidate.uid,
+        status: 'pending',
+        mode: 'voluntary',
+        expiresAt: Date.now() + 60_000,
         generatedAt: 2,
       })
     );
@@ -134,8 +136,8 @@ describe('CommunityOwnershipManagementComponent', () => {
       expect.objectContaining({
         restoreFocus: true,
         data: expect.objectContaining({
-          title: 'Transferir propriedade para Pessoa Um?',
-          confirmLabel: 'Transferir propriedade',
+          title: 'Convidar Pessoa Um para assumir a propriedade?',
+          confirmLabel: 'Enviar convite',
           tone: 'warning',
         }),
       })
@@ -145,7 +147,7 @@ describe('CommunityOwnershipManagementComponent', () => {
     subscription.unsubscribe();
   });
 
-  it('explica a perda de propriedade e transfere somente após confirmação', () => {
+  it('explica o aceite explícito e apenas envia convite após confirmação', () => {
     dialogMock.open.mockReturnValue({ afterClosed: () => of(true) });
     const component = createComponent();
     const ownershipChanged = vi.fn();
@@ -157,16 +159,23 @@ describe('CommunityOwnershipManagementComponent', () => {
     const options = dialogMock.open.mock.calls[0]?.[1] as {
       data?: { message?: string; detail?: string };
     };
-    expect(options.data?.message).toContain('deixará de ser o proprietário');
-    expect(options.data?.detail).toContain('continuará como Membro');
+    expect(options.data?.message).toContain('A propriedade não muda agora');
+    expect(options.data?.message).toContain('aceitar explicitamente');
+    expect(options.data?.detail).toContain(
+      'revalidará conta, plano, quota e capacidade'
+    );
+    expect(options.data?.detail).toContain(
+      'Campanhas e débitos do proprietário atual não serão transferidos'
+    );
     expect(repositoryMock.transferOwnership$).toHaveBeenCalledWith(
       'community-1',
       candidate.uid
     );
     expect(notifierMock.showSuccess).toHaveBeenCalledWith(
-      'A propriedade foi transferida para Pessoa Um.'
+      'Convite de propriedade enviado para Pessoa Um. '
+      + 'A propriedade só muda se houver aceite.'
     );
-    expect(ownershipChanged).toHaveBeenCalledTimes(1);
+    expect(ownershipChanged).not.toHaveBeenCalled();
 
     outputSubscription.unsubscribe();
     actionSubscription.unsubscribe();

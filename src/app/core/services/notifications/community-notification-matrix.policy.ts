@@ -53,6 +53,12 @@ export const COMMUNITY_NOTIFICATION_MATRIX = Object.freeze({
   'community.invite.accepted': entry('membership', false),
   'community.invite.declined': entry('membership', false),
   'community.content.moderated': entry('moderation', true),
+  'community.ownership.transfer_requested': entry('management', true),
+  'community.ownership.transfer_accepted': entry('management', false),
+  'community.ownership.transfer_declined': entry('management', false),
+  'community.ownership.transfer_canceled': entry('management', false),
+  'community.ownership.transfer_expired': entry('management', true),
+  'community.ownership.succession_archived': entry('access', true),
 } satisfies Record<CommunityAppNotificationType, CommunityNotificationMatrixEntry>);
 
 export function isCommunityNotificationType(

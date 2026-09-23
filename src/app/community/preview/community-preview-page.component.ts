@@ -36,6 +36,7 @@ import {
 import { ContentAccessNavigationService } from 'src/app/core/access/content-access-navigation.service';
 import { getSocialSpaceDefinition } from 'src/app/core/domain/social-space.definition';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { COMMUNITY_ERROR_PRESENTATION_CONTEXTS } from '../presentation/community-error.catalog';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import {
   ConfirmationDialogComponent,
@@ -62,9 +63,6 @@ import {
   COMMUNITY_MEMBERSHIP_ACTION_REASON_MESSAGES,
   COMMUNITY_PREVIEW_LOAD_CODE_MESSAGES,
 } from '../presentation/community-error.messages';
-import {
-  COMMUNITY_MEMBERSHIP_ACTION_REASON_PRESENTATIONS,
-} from '../presentation/community-error.presentations';
 import { CommunityOfficialBadgeComponent } from '../presentation/community-official-badge.component';
 import {
   COMMUNITY_SECTION_ICONS,
@@ -760,7 +758,8 @@ export class CommunityPreviewPageComponent {
       feature: 'community',
       operation: 'loadPreview',
       fallbackMessage: 'Não foi possível carregar esta Comunidade agora.',
-      notification: 'none',
+      communityPresentationContext:
+        COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING,
       codeMessages: COMMUNITY_PREVIEW_LOAD_CODE_MESSAGES,
       metadata: {
         scope: 'CommunityPreviewPageComponent',
@@ -808,7 +807,6 @@ export class CommunityPreviewPageComponent {
       fallbackMessage,
       codeMessages: COMMUNITY_MEMBERSHIP_ACTION_CODE_MESSAGES,
       reasonMessages: COMMUNITY_MEMBERSHIP_ACTION_REASON_MESSAGES,
-      reasonPresentations: COMMUNITY_MEMBERSHIP_ACTION_REASON_PRESENTATIONS,
       metadata: {
         scope: 'CommunityPreviewPageComponent',
         communityId: community.communityId,
@@ -823,7 +821,8 @@ export class CommunityPreviewPageComponent {
       feature: 'community',
       operation,
       fallbackMessage: 'Não foi possível concluir esta ação agora.',
-      notification: 'none',
+      communityPresentationContext:
+        COMMUNITY_ERROR_PRESENTATION_CONTEXTS.SILENT_NON_BLOCKING,
       metadata: {
         scope: 'CommunityPreviewPageComponent',
         section: this.activeSection(),

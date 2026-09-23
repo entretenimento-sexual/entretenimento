@@ -27,8 +27,8 @@
       </header>
 
       <p class="community-ownership-management__intro">
-        Transfira a propriedade antes de sair ou arquive a Comunidade para encerrar
-        as interações sem apagar o histórico.
+        Indique quem poderá assumir a propriedade. A troca só acontece após
+        aceite explícito do participante e revalidação do backend.
       </p>
 
       <section
@@ -37,8 +37,11 @@
       >
         <div class="community-ownership-management__section-heading">
           <div>
-            <h3 id="community-ownership-transfer-title">Transferir propriedade</h3>
-            <p>Somente membros ativos e com conta elegível aparecem nesta lista.</p>
+            <h3 id="community-ownership-transfer-title">Convidar novo proprietário</h3>
+            <p>
+              Somente membros ativos aparecem aqui; plano, quota e capacidade
+              são revalidados antes do envio e novamente no aceite.
+            </p>
           </div>
         </div>
 
@@ -85,7 +88,7 @@
                         && action.targetUid === candidate.uid
                       "
                       [actionDisabled]="action.status === 'loading' || state.loadingMore"
-                      [attr.aria-label]="'Transferir propriedade para ' + candidate.label"
+                      [attr.aria-label]="'Convidar ' + candidate.label + ' para assumir a propriedade'"
                       (click)="requestTransfer(candidate)"
                     >
                       <i
@@ -103,8 +106,8 @@
                           action.status === 'loading'
                           && action.kind === 'transfer'
                           && action.targetUid === candidate.uid
-                            ? 'Transferindo...'
-                            : 'Transferir'
+                            ? 'Enviando...'
+                            : 'Convidar'
                         }}
                       </span>
                     </button>

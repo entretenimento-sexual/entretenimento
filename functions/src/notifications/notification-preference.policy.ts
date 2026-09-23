@@ -14,6 +14,12 @@ const OPTIONAL_PUSH_PREFERENCE_BY_TYPE = new Map<
   ['social', 'connections'],
   ['community.comment.received', 'communities'],
   ['community.comment.reply.received', 'communities'],
+  ['community.ownership.transfer_requested', 'communities'],
+  ['community.ownership.transfer_accepted', 'communities'],
+  ['community.ownership.transfer_declined', 'communities'],
+  ['community.ownership.transfer_canceled', 'communities'],
+  ['community.ownership.transfer_expired', 'communities'],
+  ['community.ownership.succession_archived', 'communities'],
   ['user_intent_status.compatible', 'compatibleStatus'],
 ]);
 

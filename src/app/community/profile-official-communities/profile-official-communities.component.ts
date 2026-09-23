@@ -31,6 +31,7 @@ import {
 
 import { normalizePublicProfileId } from 'src/app/core/domain/public-user-identity/public-profile-id.model';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { COMMUNITY_ERROR_PRESENTATION_CONTEXTS } from '../presentation/community-error.catalog';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import type { CommunityPreviewCard } from '../data-access/community-preview.model';
 import { CommunityProfilePublicCommunitiesRepository } from '../data-access/community-profile-public-communities.repository';
@@ -148,7 +149,8 @@ export class ProfileOfficialCommunitiesComponent {
           operation: 'loadProfilePublicCommunities',
           fallbackMessage:
             'Não foi possível carregar as participações públicas deste perfil.',
-          notification: 'warning',
+          communityPresentationContext:
+        COMMUNITY_ERROR_PRESENTATION_CONTEXTS.WARNING_NON_BLOCKING,
           reasonMessages: PROFILE_OFFICIAL_COMMUNITIES_REASON_MESSAGES,
           metadata: {
             scope: 'ProfileOfficialCommunitiesComponent',

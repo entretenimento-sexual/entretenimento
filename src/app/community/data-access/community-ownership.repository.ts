@@ -14,9 +14,13 @@ import { CommunityDiscoveryCacheService } from '../discovery/community-discovery
 import {
   CommunityArchiveResponse,
   CommunityOwnershipCandidatesResponse,
+  CommunityOwnershipInboxResponse,
+  CommunityOwnershipTransferActionResponse,
   CommunityOwnershipTransferResponse,
   normalizeCommunityArchiveResponse,
   normalizeCommunityOwnershipCandidatesResponse,
+  normalizeCommunityOwnershipInboxResponse,
+  normalizeCommunityOwnershipTransferActionResponse,
   normalizeCommunityOwnershipTransferResponse,
 } from './community-ownership.model';
 
@@ -39,6 +43,21 @@ export class CommunityOwnershipRepository {
     { communityId: string; requestId: string; reason: string | null },
     unknown
   >(this.functions, 'archiveCommunity');
+
+  private readonly getOwnershipTransfersCallable = httpsCallable<
+    Record<string, never>,
+    unknown
+  >(this.functions, 'getMyCommunityOwnershipTransfers');
+
+  private readonly respondOwnershipTransferCallable = httpsCallable<
+    { requestId: string; action: 'accept' | 'decline' },
+    unknown
+  >(this.functions, 'respondCommunityOwnershipTransfer');
+
+  private readonly cancelOwnershipTransferCallable = httpsCallable<
+    { requestId: string },
+    unknown
+  >(this.functions, 'cancelCommunityOwnershipTransfer');
 
   getCandidates$(
     communityId: string,
@@ -92,11 +111,74 @@ export class CommunityOwnershipRepository {
         }
 
         return normalized;
-      }),
-      tap(() => this.discoveryCache.invalidateCurrentViewer({
-        sourceType: 'community',
-        communityId: normalizedCommunityId,
+      })
+    );
+  }
+
+  getOwnershipTransfers$(): Observable<CommunityOwnershipInboxResponse> {
+    return defer(() => from(this.getOwnershipTransfersCallable({}))).pipe(
+      map((result) => {
+        const normalized = normalizeCommunityOwnershipInboxResponse(result.data);
+
+        if (!normalized) {
+          throw new Error('Caixa de transferências de propriedade inválida.');
+        }
+
+        return normalized;
+      })
+    );
+  }
+
+  respondOwnershipTransfer$(
+    requestId: string,
+    action: 'accept' | 'decline'
+  ): Observable<CommunityOwnershipTransferActionResponse> {
+    return defer(() =>
+      from(this.respondOwnershipTransferCallable({
+        requestId: requestId.trim(),
+        action,
       }))
+    ).pipe(
+      map((result) => {
+        const normalized = normalizeCommunityOwnershipTransferActionResponse(
+          result.data
+        );
+
+        if (!normalized) {
+          throw new Error('Resposta da transferência de propriedade inválida.');
+        }
+
+        return normalized;
+      }),
+      tap((result) => {
+        if (result.status !== 'completed') return;
+        this.discoveryCache.invalidateCurrentViewer({
+          sourceType: 'community',
+          communityId: result.communityId,
+        });
+      })
+    );
+  }
+
+  cancelOwnershipTransfer$(
+    requestId: string
+  ): Observable<CommunityOwnershipTransferActionResponse> {
+    return defer(() =>
+      from(this.cancelOwnershipTransferCallable({
+        requestId: requestId.trim(),
+      }))
+    ).pipe(
+      map((result) => {
+        const normalized = normalizeCommunityOwnershipTransferActionResponse(
+          result.data
+        );
+
+        if (!normalized) {
+          throw new Error('Resposta de cancelamento da transferência inválida.');
+        }
+
+        return normalized;
+      })
     );
   }
 

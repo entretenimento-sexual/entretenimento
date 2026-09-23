@@ -1,0 +1,90 @@
+/* src/app/community/ownership-transfers/community-ownership-transfers-page.component.css */
+:host {
+  display: block;
+}
+
+.ownership-transfers {
+  width: min(100%, 920px);
+  margin: 0 auto;
+  padding: 24px 16px 40px;
+}
+
+.ownership-transfers__header,
+.ownership-transfers__section-heading,
+.ownership-transfers__card,
+.ownership-transfers__actions {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.ownership-transfers__header,
+.ownership-transfers__section-heading,
+.ownership-transfers__card {
+  justify-content: space-between;
+}
+
+.ownership-transfers__eyebrow {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.ownership-transfers__section {
+  margin-top: 28px;
+}
+
+.ownership-transfers__list {
+  display: grid;
+  gap: 12px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ownership-transfers__card,
+.ownership-transfers__state,
+.ownership-transfers__empty {
+  border: 1px solid currentColor;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.ownership-transfers__copy {
+  display: grid;
+  gap: 4px;
+}
+
+.ownership-transfers__copy span,
+.ownership-transfers__section p,
+.ownership-transfers__header p {
+  opacity: 0.76;
+}
+
+.ownership-transfers button {
+  min-height: 40px;
+}
+
+.ownership-transfers__secondary {
+  background: transparent;
+}
+
+@media (max-width: 640px) {
+  .ownership-transfers__header,
+  .ownership-transfers__card,
+  .ownership-transfers__section-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ownership-transfers__actions {
+    width: 100%;
+  }
+
+  .ownership-transfers__actions button {
+    flex: 1;
+  }
+}

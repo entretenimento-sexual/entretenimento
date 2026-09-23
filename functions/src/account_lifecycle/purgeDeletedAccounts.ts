@@ -5,6 +5,9 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { auth, db, FieldValue } from '../firebaseApp';
 import {
+  ensureCommunityOwnerTerminalSuccessionCasesInTransaction,
+} from '../community/community-owner-terminal-succession.service';
+import {
   ACCOUNT_LIFECYCLE_REGION,
   UserDoc,
   createLifecycleAudit,
@@ -39,6 +42,7 @@ import {
 const SCHEDULE = 'every 60 minutes';
 const TIME_ZONE = 'America/Sao_Paulo';
 const BATCH_LIMIT = 200;
+const OWNED_COMMUNITY_PURGE_RETRY_MS = 24 * 60 * 60 * 1_000;
 
 const CLAIM_COMPLETED_DOMAINS: readonly AccountDataDomain[] = [
   'public_profile',
@@ -72,6 +76,7 @@ type PurgeCandidate = {
 
 type PurgeClaim = {
   attemptCount: number;
+  blockedByOwnedCommunities: boolean;
 };
 
 type AuthDeletionResult =
@@ -120,6 +125,11 @@ export const purgeDeletedAccounts = onSchedule(
         claim = await claimDeletion(candidate, now, executionId);
         if (!claim) {
           skipped += 1;
+          continue;
+        }
+
+        if (claim.blockedByOwnedCommunities) {
+          blockedByPolicy += 1;
           continue;
         }
 
@@ -334,6 +344,139 @@ async function claimDeletion(
       currentUser.purgeAttemptCount
     ) + 1;
     const leaseUntil = now + ACCOUNT_DELETION_PURGE_LEASE_MS;
+    const succession =
+      await ensureCommunityOwnerTerminalSuccessionCasesInTransaction(
+        tx,
+        {
+          ownerUid: candidate.uid,
+          trigger: 'owner_terminally_unavailable',
+          actorUid: 'system',
+          now,
+        }
+      );
+    const ownsCommunity = succession.ownedCommunityCount > 0;
+
+    if (ownsCommunity || succession.exceedsAutomaticLimit) {
+      const retryAt = now + OWNED_COMMUNITY_PURGE_RETRY_MS;
+      const ownershipBlocker = succession.exceedsAutomaticLimit
+        ? 'owned-community-succession-auto-limit-exceeded'
+        : succession.inconsistentCaseCount > 0
+          ? 'owned-community-succession-inconsistent'
+          : 'owner-terminal-succession-in-progress';
+
+      tx.set(
+        userRef,
+        {
+          ...(currentStatus === 'pending_deletion'
+            ? {
+              accountStatus: 'deleted',
+              publicVisibility: 'hidden',
+              interactionBlocked: true,
+              loginAllowed: false,
+              deletedAt: now,
+              statusUpdatedAt: now,
+              statusUpdatedBy: 'system',
+            }
+            : {}),
+          purgeAttemptCount: attemptCount,
+          purgeLastAttemptAt: now,
+          purgeNextAttemptAt: retryAt,
+          purgeLeaseOwner: FieldValue.delete(),
+          purgeLeaseUntil: FieldValue.delete(),
+          purgePhase: 'blocked',
+          purgeBlockedReason: ownershipBlocker,
+          purgeBlockedDomains: ['community_memberships'],
+          purgeLastErrorCode: FieldValue.delete(),
+          purgeLastErrorCategory: FieldValue.delete(),
+          purgeLastErrorPhase: FieldValue.delete(),
+        },
+        { merge: true }
+      );
+
+      if (currentStatus === 'pending_deletion') {
+        tx.delete(publicProfileRef);
+        if (candidate.nicknameIndexDocId) {
+          tx.delete(
+            db.collection('public_index').doc(candidate.nicknameIndexDocId)
+          );
+        }
+
+        createLifecycleAudit(tx, {
+          uid: candidate.uid,
+          actorUid: 'system',
+          action: 'mark_account_deleted_pending_community_succession',
+          previousAccountStatus: 'pending_deletion',
+          accountStatus: 'deleted',
+          source: 'system',
+          moderationReason: ownershipBlocker,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+
+      tx.set(
+        tombstoneRef,
+        {
+          uid: candidate.uid,
+          status: 'deleted',
+          source: currentUser.deletionRequestedBy ?? 'system',
+          emailHash: candidate.emailHash,
+          deletionRequestedAt: currentUser.deletionRequestedAt ?? null,
+          deletionUndoUntil: currentUser.deletionUndoUntil ?? null,
+          deletedAt:
+            currentUser.deletedAt
+            ?? (currentStatus === 'pending_deletion' ? now : null),
+          purgeAfter: currentUser.purgeAfter ?? now,
+          purgeAttemptCount: attemptCount,
+          purgeLastAttemptAt: now,
+          purgeNextAttemptAt: retryAt,
+          purgeLeaseOwner: FieldValue.delete(),
+          purgeLeaseUntil: FieldValue.delete(),
+          purgePhase: 'blocked',
+          dataRetentionPolicyVersion: claimPlan.policyVersion,
+          dataDeletionStatus: 'blocked',
+          dataDeletionCompletedDomains: claimPlan.completedDomains,
+          dataDeletionBlockers: ['community_memberships'],
+          ownedCommunitySuccession: {
+            openedCaseCount: succession.openedCaseCount,
+            existingOpenCaseCount: succession.existingOpenCaseCount,
+            inconsistentCaseCount: succession.inconsistentCaseCount,
+            exceedsAutomaticLimit: succession.exceedsAutomaticLimit,
+            communityIds: succession.communityIds,
+          },
+          dataDeletionPlan: claimPlan.steps,
+          dataDeletionLastPlannedAt: now,
+          updatedAt: now,
+          createdAt: currentUser.purgeStartedAt ?? now,
+        },
+        { merge: true }
+      );
+
+      createLifecycleAudit(tx, {
+        uid: candidate.uid,
+        actorUid: 'system',
+        action: 'block_account_purge_owned_community',
+        previousAccountStatus: currentStatus,
+        accountStatus:
+          currentStatus === 'pending_deletion' ? 'deleted' : currentStatus,
+        source: 'system',
+        moderationReason: ownershipBlocker,
+        ownedCommunitySuccessionOpened:
+          succession.openedCaseCount,
+        ownedCommunitySuccessionExisting:
+          succession.existingOpenCaseCount,
+        ownedCommunitySuccessionInconsistent:
+          succession.inconsistentCaseCount,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      return {
+        attemptCount,
+        blockedByOwnedCommunities: true,
+      };
+    }
+
     const operationalPatch = {
       purgeAttemptCount: attemptCount,
       purgeLastAttemptAt: now,
@@ -427,7 +570,10 @@ async function claimDeletion(
       { merge: true }
     );
 
-    return { attemptCount };
+    return {
+      attemptCount,
+      blockedByOwnedCommunities: false,
+    };
   });
 }
 
