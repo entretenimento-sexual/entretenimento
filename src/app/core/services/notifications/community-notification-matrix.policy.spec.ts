@@ -21,6 +21,12 @@ const EXPECTED_TYPES = [
   'community.invite.accepted',
   'community.invite.declined',
   'community.content.moderated',
+  'community.ownership.transfer_requested',
+  'community.ownership.transfer_accepted',
+  'community.ownership.transfer_declined',
+  'community.ownership.transfer_canceled',
+  'community.ownership.transfer_expired',
+  'community.ownership.succession_archived',
 ] as const;
 
 function notification(
@@ -49,6 +55,9 @@ describe('community notification matrix', () => {
     'community.membership.removed',
     'community.membership.blocked',
     'community.content.moderated',
+    'community.ownership.transfer_requested',
+    'community.ownership.transfer_expired',
+    'community.ownership.succession_archived',
   ] as const)('marca %s como prioridade', (type) => {
     expect(isCommunityNotificationPriority(notification(type))).toBe(true);
   });
