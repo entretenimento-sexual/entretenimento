@@ -61,10 +61,78 @@
 
 .profile-my-communities__all:focus-visible,
 .profile-my-communities__explore:focus-visible,
+.profile-my-communities__attention-action:focus-visible,
 .profile-my-communities__state button:focus-visible,
 .profile-my-community:focus-visible {
   outline: 2px solid currentColor;
   outline-offset: 2px;
+}
+
+.profile-my-communities__attention {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--primary-color, currentColor) 24%,
+    var(--border-color, rgba(127, 127, 127, 0.22))
+  );
+  border-radius: 0.85rem;
+  background: color-mix(
+    in oklab,
+    var(--primary-color, currentColor) 7%,
+    var(--surface-color, transparent)
+  );
+}
+
+.profile-my-communities__attention-icon {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  background: color-mix(
+    in oklab,
+    var(--primary-color, currentColor) 14%,
+    transparent
+  );
+  color: var(--primary-color, currentColor);
+}
+
+.profile-my-communities__attention-copy {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.profile-my-communities__attention-copy strong {
+  font-size: 0.86rem;
+}
+
+.profile-my-communities__attention-copy > span {
+  opacity: 0.74;
+}
+
+.profile-my-communities__attention-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 0.7rem;
+  color: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.profile-my-communities__attention-action:hover,
+.profile-my-communities__attention-action:focus-visible {
+  background: rgba(127, 127, 127, 0.11);
 }
 
 .profile-my-communities__state,
@@ -247,6 +315,15 @@
 
   .profile-my-communities__header {
     align-items: center;
+  }
+
+  .profile-my-communities__attention {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .profile-my-communities__attention-action {
+    grid-column: 1 / -1;
+    width: 100%;
   }
 
   .profile-my-communities__state {
