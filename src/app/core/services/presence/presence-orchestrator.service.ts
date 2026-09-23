@@ -126,7 +126,10 @@ export class PresenceOrchestratorService {
   private safeStop$() {
     return defer(() => {
       try {
-        return this.presence.stop$().pipe(
+        return this.presence.stop$({
+          writeOffline: false,
+          reason: 'access-gate-stopped',
+        }).pipe(
           catchError((err) => {
             this.handleStreamError(err, 'PresenceOrchestrator stop error');
             return of(void 0);
