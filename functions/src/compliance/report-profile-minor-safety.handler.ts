@@ -6,6 +6,15 @@ import {
   safeRecordModerationOpenSignal,
 } from '../moderation/moderation-automation.service';
 import {
+  getModerationReporterAbuseRisk,
+} from '../moderation/moderation-reporter-abuse.service';
+import {
+  moderationReportRateLimitCost,
+} from '../moderation/moderation-reporter-abuse.policy';
+import {
+  consumeBackendRateLimitQuota,
+} from '../shared/security/backend-rate-limit.service';
+import {
   safeNotifyModerationReportOpened,
 } from '../moderation/moderation-safety-notification.service';
 import {
@@ -17,6 +26,15 @@ import {
   profileMinorReportDedupId,
 } from './profile-age-reverification.shared';
 
+const PROFILE_MINOR_REPORT_RATE_LIMIT = Object.freeze({
+  burstWindowMs: 10 * 60 * 1_000,
+  burstMax: 3,
+  sustainedWindowMs: 24 * 60 * 60 * 1_000,
+  sustainedMax: 12,
+});
+
+const ENFORCE_APP_CHECK = process.env.FUNCTIONS_EMULATOR !== 'true';
+
 interface ReportProfileMinorSafetyRequest {
   targetUid?: string;
   details?: string | null;
@@ -24,9 +42,24 @@ interface ReportProfileMinorSafetyRequest {
 }
 
 export const reportProfileMinorSafety = onCall<ReportProfileMinorSafetyRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: ENFORCE_APP_CHECK,
+  },
   async (request): Promise<{ reportId: string }> => {
     const reporterUid = assertComplianceAuthenticatedUid(request.auth);
+    const reporterAbuseRisk = await getModerationReporterAbuseRisk(
+      reporterUid
+    );
+
+    await consumeBackendRateLimitQuota({
+      action: 'moderation:report-profile-minor-safety',
+      subject: reporterUid,
+      cost: moderationReportRateLimitCost(reporterAbuseRisk),
+      config: PROFILE_MINOR_REPORT_RATE_LIMIT,
+      message:
+        'Muitas denúncias foram enviadas em pouco tempo. Tente novamente mais tarde.',
+    });
     const targetUid = cleanComplianceId(request.data?.targetUid);
     const details = cleanComplianceText(request.data?.details, 1200);
     const route = cleanComplianceRoute(request.data?.route);
@@ -100,6 +133,7 @@ export const reportProfileMinorSafety = onCall<ReportProfileMinorSafetyRequest>(
         ageReverificationCaseId: null,
         ageReverificationStatus: null,
         source: 'web',
+        reporterAbuseRisk,
         createdAt: timestamp,
         updatedAt: timestamp,
       });
