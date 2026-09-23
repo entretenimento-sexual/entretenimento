@@ -161,7 +161,7 @@ export function isCurrentUserIntentStatusExposure(
       ? data['moderation'] as Record<string, unknown>
       : {};
 
-  return data['ageEligibilityVerifiedAdult'] === true
+  return data['ageEligibilityAdultAccessAllowed'] === true
     && validUntilMs !== null
     && validUntilMs > nowMs
     && expiresAtMs !== null
@@ -283,7 +283,7 @@ export const getUserIntentStatuses = onCall<UserIntentStatusesReadRequest>(
       .where('destination.region.city', '==', region.city)
       .where('moderation.state', '==', 'active')
       .where('visibility', '==', 'public_discovery')
-      .where('ageEligibilityVerifiedAdult', '==', true);
+      .where('ageEligibilityAdultAccessAllowed', '==', true);
 
     if (venueId) {
       statusesQuery = statusesQuery.where(
