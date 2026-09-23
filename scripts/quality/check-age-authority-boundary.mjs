@@ -36,6 +36,13 @@ const requiredFiles = Object.freeze([
   'functions/src/media/application/get-public-media-discovery.handler.ts',
   'src/app/core/services/discovery/public-profile-read-boundary.service.ts',
   'src/app/core/services/media/public-media-read-boundary.service.ts',
+  'functions/src/friendship/application/get-pending-friend-requests.handler.ts',
+  'functions/src/community/get-community-member-roster-page.handler.ts',
+  'functions/src/community/get-profile-public-communities.handler.ts',
+  'src/app/core/services/geolocation/nearby-profiles-query.gateway.ts',
+  'src/app/core/services/batepapo/invite-service/invite-search.service.ts',
+  'src/app/core/services/interactions/friendship/repo/friends.repo.ts',
+  'src/app/core/services/media/media-public-preview-query.service.ts',
 ]);
 
 const legacyClientCompatibility = path.normalize(
@@ -279,6 +286,11 @@ const backendOnlyListRules = Object.freeze([
     path: 'firestore-rules/public_profiles_videos.rules',
     pattern: /match\s+\/\{path=\*\*\}\/public_videos\/\{[^}]+\}\s*\{[\s\S]*?allow\s+list\s*:\s*if\s+false\s*;/,
     reason: 'collection-group public_videos deve permanecer backend-only',
+  },
+  {
+    path: 'firestore-rules/friendRequests.rules',
+    pattern: /allow\s+list\s*:\s*if\s+false\s*;/,
+    reason: 'friendRequests deve permanecer sem enumeração client-side',
   },
 ]);
 
