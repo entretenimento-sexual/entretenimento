@@ -213,7 +213,7 @@ export const getPendingFriendRequests =
       for (const candidate of candidates) {
         try {
           assertInteractionAccessData(
-            userByUid.get(candidate.counterpartUid) as any,
+            userByUid.get(candidate.counterpartUid),
             ageByUid.get(candidate.counterpartUid),
             candidate.counterpartUid
           );
