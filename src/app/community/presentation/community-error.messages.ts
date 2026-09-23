@@ -478,6 +478,8 @@ export const COMMUNITY_OWNERSHIP_REASON_MESSAGES: CommunityErrorMessageMap =
       'O prazo deste caso de sucessão já foi encerrado.',
     community_ownership_succession_owner_not_terminal:
       'A conta do proprietário ainda não está em estado terminal para este fluxo.',
+    community_ownership_succession_reason_required:
+      'Informe uma justificativa para confirmar o abandono antes de abrir a sucessão.',
   });
 
 export const COMMUNITY_OWNERSHIP_LOAD_CODE_MESSAGES: CommunityErrorMessageMap =
