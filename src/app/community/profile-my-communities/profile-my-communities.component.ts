@@ -66,6 +66,7 @@ interface ProfileMyCommunitiesVm {
   readonly status: ProfileMyCommunitiesStatus;
   readonly items: readonly ProfileMyCommunityItemVm[];
   readonly stale: boolean;
+  readonly attentionCommunityCount: number;
 }
 
 const PROFILE_MY_COMMUNITIES_PAGE_SIZE = 4;
@@ -133,6 +134,9 @@ export class ProfileMyCommunitiesComponent {
   ]).pipe(
     map(([baseVm, unreadMap, mutedIds]) => ({
       ...baseVm,
+      attentionCommunityCount: Array.from(unreadMap.values()).filter(
+        (summary) => summary.hasPriorityUnread
+      ).length,
       items: baseVm.items.map((item): ProfileMyCommunityItemVm => {
         const summary = unreadMap.get(item.communityId);
 
