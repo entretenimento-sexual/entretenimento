@@ -586,6 +586,9 @@ async function createOwnershipOffer(input: {
       );
     }
 
+    let staleRequestRef: FirebaseFirestore.DocumentReference | null = null;
+    let staleRequestShouldExpire = false;
+
     if (activeSlotSnapshot.exists) {
       const slot = activeSlotSnapshot.data() ?? {};
       const slotRequestId = normalizeSafeId(slot['requestId']);
@@ -599,18 +602,11 @@ async function createOwnershipOffer(input: {
       }
 
       if (slotRequestId) {
-        const staleRequestRef = db.collection(REQUEST_COLLECTION).doc(slotRequestId);
+        staleRequestRef = db.collection(REQUEST_COLLECTION).doc(slotRequestId);
         const staleRequestSnapshot = await transaction.get(staleRequestRef);
-        if (
+        staleRequestShouldExpire =
           staleRequestSnapshot.exists
-          && staleRequestSnapshot.data()?.['status'] === 'pending'
-        ) {
-          transaction.set(staleRequestRef, {
-            status: 'expired',
-            resolvedAt: now,
-            updatedAt: now,
-          }, { merge: true });
-        }
+          && staleRequestSnapshot.data()?.['status'] === 'pending';
       }
     }
 
@@ -655,6 +651,14 @@ async function createOwnershipOffer(input: {
     const requestNotificationRef = db.collection('notifications').doc(
       notificationId(input.requestId, input.targetUid, 'requested')
     );
+
+    if (staleRequestRef && staleRequestShouldExpire) {
+      transaction.set(staleRequestRef, {
+        status: 'expired',
+        resolvedAt: now,
+        updatedAt: now,
+      }, { merge: true });
+    }
 
     transaction.set(requestRef, {
       policyVersion: COMMUNITY_OWNERSHIP_WORKFLOW_POLICY_VERSION,
@@ -938,6 +942,11 @@ export const respondCommunityOwnershipTransfer =
         const previousOwnerUserRef = db.collection('users').doc(previousOwnerUid);
         const activeSlotRef = db.collection(ACTIVE_SLOT_COLLECTION).doc(communityId);
         const caseRef = db.collection(CASE_COLLECTION).doc(communityId);
+        const ownerQuery = communityRef
+          .collection('members')
+          .where('role', '==', 'owner')
+          .where('status', '==', 'active')
+          .limit(2);
         const candidateIndexRef = db
           .collection('community_user_index')
           .doc(actorUid)
@@ -957,6 +966,7 @@ export const respondCommunityOwnershipTransfer =
           previousOwnerUserSnapshot,
           activeSlotSnapshot,
           caseSnapshot,
+          ownerSnapshot,
         ] = await Promise.all([
           transaction.get(communityRef),
           transaction.get(candidateMembershipRef),
@@ -965,6 +975,7 @@ export const respondCommunityOwnershipTransfer =
           transaction.get(previousOwnerUserRef),
           transaction.get(activeSlotRef),
           transaction.get(caseRef),
+          transaction.get(ownerQuery),
         ]);
 
         if (!communitySnapshot.exists) {
@@ -1173,7 +1184,7 @@ export const respondCommunityOwnershipTransfer =
               eligibility.ownershipQuotaAvailable,
             targetOwnershipCapacityCompatible:
               eligibility.ownershipCapacityCompatible,
-            activeOwnerCount: currentOwnerUid === previousOwnerUid ? 1 : 0,
+            activeOwnerCount: ownerSnapshot.size,
           });
 
           if (!transferDecision.allowed) {
@@ -1267,17 +1278,19 @@ export const respondCommunityOwnershipTransfer =
           ownershipSuccession: FieldValue.delete(),
           updatedAt: now,
         });
-        transaction.set(previousOwnerMembershipRef, {
-          role: 'member',
-          status: previousOwnerNextStatus,
-          ownershipTransferredAt: now,
-          ownershipTransferredTo: actorUid,
-          ...(mode === 'terminal_succession' ? { leftAt: now } : {}),
-          updatedAt: now,
-          source: mode === 'terminal_succession'
-            ? 'terminal-ownership-succession'
-            : 'ownership-transfer-accepted',
-        }, { merge: true });
+        if (previousOwnerMembershipSnapshot.exists) {
+          transaction.set(previousOwnerMembershipRef, {
+            role: 'member',
+            status: previousOwnerNextStatus,
+            ownershipTransferredAt: now,
+            ownershipTransferredTo: actorUid,
+            ...(mode === 'terminal_succession' ? { leftAt: now } : {}),
+            updatedAt: now,
+            source: mode === 'terminal_succession'
+              ? 'terminal-ownership-succession'
+              : 'ownership-transfer-accepted',
+          }, { merge: true });
+        }
         transaction.set(candidateMembershipRef, {
           role: 'owner',
           status: 'active',
