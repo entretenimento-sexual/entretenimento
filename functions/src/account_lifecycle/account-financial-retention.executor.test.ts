@@ -21,6 +21,10 @@ implements AccountFinancialRetentionAdapter
     buyerUid: [{ ...EMPTY_PAGE }],
     sellerUid: [{ ...EMPTY_PAGE }],
   };
+  recurring: Record<FinancialPartyField, FinancialRetentionPageSummary[]> = {
+    buyerUid: [{ ...EMPTY_PAGE }],
+    sellerUid: [{ ...EMPTY_PAGE }],
+  };
   entitlements: Record<FinancialPartyField, FinancialRetentionPageSummary[]> = {
     buyerUid: [{ ...EMPTY_PAGE }],
     sellerUid: [{ ...EMPTY_PAGE }],
@@ -46,6 +50,13 @@ implements AccountFinancialRetentionAdapter
     return this.transactions[field].shift() ?? { ...EMPTY_PAGE };
   }
 
+  async retainRecurringSubscriptionsPage(
+    _uid: string,
+    field: FinancialPartyField
+  ): Promise<FinancialRetentionPageSummary> {
+    return this.recurring[field].shift() ?? { ...EMPTY_PAGE };
+  }
+
   async archiveEntitlementsPage(
     _uid: string,
     field: FinancialPartyField
@@ -68,6 +79,12 @@ test('financial retention cancels pending access and preserves audit records', a
   ];
   adapter.transactions.buyerUid = [{ processed: 3 }];
   adapter.transactions.sellerUid = [{ processed: 1 }];
+  adapter.recurring.buyerUid = [
+    {
+      processed: 1,
+      externalRecurringSubscriptionsCanceled: 1,
+    },
+  ];
   adapter.entitlements.buyerUid = [
     {
       processed: 1,
@@ -84,7 +101,7 @@ test('financial retention cancels pending access and preserves audit records', a
   });
 
   assert.equal(result.status, 'completed');
-  assert.equal(result.processed, 9);
+  assert.equal(result.processed, 10);
   assert.deepEqual(result.details, {
     checkoutReferencesRetained: 2,
     pendingCheckoutsCanceled: 1,
@@ -93,7 +110,7 @@ test('financial retention cancels pending access and preserves audit records', a
     entitlementsRevoked: 1,
     billingAuditReferencesRetained: 2,
     paymentEventsRetainedWithoutDirectUid: true,
-    externalRecurringSubscriptionsCanceled: 0,
+    externalRecurringSubscriptionsCanceled: 1,
     walletLedgerRecordsProcessed: 0,
     payoutAccountsProcessed: 0,
   });
@@ -143,5 +160,6 @@ test('invalid uid fails before financial queries', async () => {
   assert.equal(result.status, 'failed');
   assert.deepEqual(adapter.checkouts.buyerUid, [{ ...EMPTY_PAGE }]);
   assert.deepEqual(adapter.transactions.buyerUid, [{ ...EMPTY_PAGE }]);
+  assert.deepEqual(adapter.recurring.buyerUid, [{ ...EMPTY_PAGE }]);
   assert.deepEqual(adapter.entitlements.buyerUid, [{ ...EMPTY_PAGE }]);
 });
