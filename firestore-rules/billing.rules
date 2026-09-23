@@ -46,6 +46,28 @@ match /financial_checkout_audit/{auditId} {
   allow read, write: if false;
 }
 
+match /provider_webhook_events/{eventId} {
+  /**
+   * Inbox sanitizado de Webhooks já autenticados. Ainda assim permanece
+   * exclusivamente backend porque participa da autoridade financeira.
+   */
+  allow read, write: if false;
+}
+
+match /platform_subscription_state/{uid} {
+  /**
+   * Ponteiro interno do contrato recorrente atual e estado da renovação.
+   */
+  allow read, write: if false;
+}
+
+match /platform_subscription_checkout_locks/{uid} {
+  /**
+   * Lock interno que evita múltiplos checkouts recorrentes simultâneos.
+   */
+  allow read, write: if false;
+}
+
 match /payment_events/{paymentEventId} {
   /**
    * Eventos recebidos e validados de provedores.
