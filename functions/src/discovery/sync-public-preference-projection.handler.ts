@@ -3,8 +3,20 @@ import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import {
   evaluateCanonicalAgeEligibility,
 } from '../compliance/age-eligibility.policy';
-import { db, FieldValue } from '../firebaseApp';
+import { db, FieldValue, Timestamp } from '../firebaseApp';
 import { hasMinimumActiveDiscoveryPlan } from './discovery-subscription-access';
+
+const PUBLIC_AGE_ELIGIBILITY_MAX_VALID_UNTIL_MS = 253402300799999;
+
+function publicAgeValidUntilMs(data: Record<string, unknown>): number | null {
+  const value = data['ageEligibilityValidUntil'] as
+    | { toMillis?: unknown }
+    | null
+    | undefined;
+  return value && typeof value.toMillis === 'function'
+    ? (value as { toMillis: () => number }).toMillis()
+    : null;
+}
 import {
   buildPublicPreferenceProjection,
   publicPreferenceProjectionMatches,
@@ -64,13 +76,20 @@ export const syncPublicPreferenceProjection = onDocumentWritten(
       }
 
       if (!ageDecision.allowed) {
+        const current = publicSnapshot.data() ?? {};
         if (
           publicSnapshot.exists &&
-          publicSnapshot.data()?.['ageEligibilityVerifiedAdult'] !== false
+          (
+            current['ageEligibilityVerifiedAdult'] !== false ||
+            publicAgeValidUntilMs(current) !== 0
+          )
         ) {
           transaction.set(
             publicRef,
-            { ageEligibilityVerifiedAdult: false },
+            {
+              ageEligibilityVerifiedAdult: false,
+              ageEligibilityValidUntil: Timestamp.fromMillis(0),
+            },
             { merge: true }
           );
         }
@@ -88,9 +107,14 @@ export const syncPublicPreferenceProjection = onDocumentWritten(
         canPublishAdvanced: hasMinimumActiveDiscoveryPlan(user, 'basic'),
       });
       const current = publicSnapshot.data() ?? {};
+      const ageEligibilityValidUntilMs =
+        ageDecision.expiresAtMs ?? PUBLIC_AGE_ELIGIBILITY_MAX_VALID_UNTIL_MS;
+      const ageEligibilityValidUntil =
+        Timestamp.fromMillis(ageEligibilityValidUntilMs);
 
       if (
         current['ageEligibilityVerifiedAdult'] === true &&
+        publicAgeValidUntilMs(current) === ageEligibilityValidUntilMs &&
         publicPreferenceProjectionMatches(current, expected)
       ) {
         return;
@@ -100,6 +124,7 @@ export const syncPublicPreferenceProjection = onDocumentWritten(
         publicRef,
         {
           ageEligibilityVerifiedAdult: true,
+          ageEligibilityValidUntil,
           ...expected,
           publicPreferencesUpdatedAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
