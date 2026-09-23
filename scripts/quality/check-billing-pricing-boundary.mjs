@@ -63,6 +63,7 @@ for (const fragment of [
   'currency: planSnapshot.currency',
   'catalogVersion: planSnapshot.catalogVersion',
   'assertDisplayedPlanStillCurrent',
+  "reason: 'plan_quote_required'",
   "reason: 'plan_quote_changed'",
   'priceTreatment: planChangePolicy.priceTreatment',
   'periodTreatment: planChangePolicy.periodTreatment',
@@ -199,6 +200,7 @@ for (const fragment of [
   'expectedAmountCents: plan.amountCents',
   'expectedCurrency: plan.currency',
   'expectedInterval: plan.interval',
+  'request.expectedCatalogVersion = plan.catalogVersion',
 ]) {
   requireIncludes(
     repository,
