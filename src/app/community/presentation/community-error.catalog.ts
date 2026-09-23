@@ -100,6 +100,7 @@ const BLOCKING_PRESENTATIONS: Readonly<
   membership_status_invalid: { surface: 'modal', severity: 'warning', title: 'Participação inconsistente' },
   ownership_inconsistent: { surface: 'modal', severity: 'warning', title: 'Propriedade inconsistente' },
   community_ownership_idempotency_invalid: { surface: 'modal', severity: 'warning', title: 'Confirmação de propriedade inconsistente' },
+  community_ownership_capacity_upgrade_required: { surface: 'modal', severity: 'info', title: 'Capacidade incompatível com o plano', primaryAction: { label: 'Ver planos', route: '/subscription-plan' }, dismissLabel: 'Escolher outro membro' },
   community_ownership_subscription_required: { surface: 'modal', severity: 'info', title: 'Plano incompatível com nova propriedade', primaryAction: { label: 'Ver planos', route: '/subscription-plan' }, dismissLabel: 'Escolher outro membro' },
   community_ownership_limit_reached: { surface: 'modal', severity: 'info', title: 'Limite de propriedades atingido', primaryAction: { label: 'Gerenciar Comunidades', route: '/dashboard/comunidades/minhas' }, dismissLabel: 'Escolher outro membro' },
   community_settings_idempotency_invalid: { surface: 'modal', severity: 'warning', title: 'Confirmação de configuração inconsistente' },
