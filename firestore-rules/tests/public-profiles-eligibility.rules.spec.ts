@@ -262,6 +262,7 @@ describe('Firestore Rules / public profile eligibility', () => {
         ...publicProfile(),
         age: 31,
         ageEligibilityVerifiedAdult: true,
+        ageEligibilityValidUntil: new Date(Date.now() + 60_000),
         publicRelationshipIntents: ['dating'],
         publicSexualPractices: ['bdsm'],
         publicBodyTraits: ['tattoos'],
