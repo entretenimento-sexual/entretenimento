@@ -107,7 +107,7 @@ function cleanStringArray(value: unknown): string[] | null {
   return result.length ? result : null;
 }
 
-function currentAdultProjection(
+export function isCurrentPublicProfileAgeProjection(
   data: Record<string, unknown>,
   nowMs: number
 ): boolean {
@@ -117,13 +117,13 @@ function currentAdultProjection(
     && validUntilMs > nowMs;
 }
 
-function serializePublicProfile(
+export function serializePublicProfileForDiscovery(
   uid: string,
   data: Record<string, unknown>,
   nowMs: number
 ): Record<string, unknown> | null {
   const nickname = cleanText(data['nickname']);
-  if (!uid || !nickname || !currentAdultProjection(data, nowMs)) return null;
+  if (!uid || !nickname || !isCurrentPublicProfileAgeProjection(data, nowMs)) return null;
 
   const validUntilMs = timestampToMillis(data['ageEligibilityValidUntil']);
   const latitude = finiteNumber(data['latitude']);
@@ -261,7 +261,7 @@ export const getPublicProfilesPage = onCall<DiscoveryPageRequest>(
         cursor = { uid: document.id, updatedAtMs };
         scanned += 1;
 
-        const card = serializePublicProfile(
+        const card = serializePublicProfileForDiscovery(
           document.id,
           document.data() as Record<string, unknown>,
           nowMs
