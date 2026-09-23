@@ -1491,6 +1491,11 @@ export const cancelCommunityOwnershipTransfer =
         throw new HttpsError('invalid-argument', 'Solicitação inválida.');
       }
 
+      await consumeCommunityRateLimit({
+        action: 'ownership_mutation',
+        actorUid,
+      });
+
       const now = Date.now();
 
       return db.runTransaction(async (transaction) => {
