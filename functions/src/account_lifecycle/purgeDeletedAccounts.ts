@@ -5,6 +5,9 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { auth, db, FieldValue } from '../firebaseApp';
 import {
+  ensureCommunityOwnerTerminalSuccessionCasesInTransaction,
+} from '../community/community-owner-terminal-succession.service';
+import {
   ACCOUNT_LIFECYCLE_REGION,
   UserDoc,
   createLifecycleAudit,
@@ -324,16 +327,7 @@ async function claimDeletion(
     const tombstoneRef = db
       .collection('deleted_accounts_audit')
       .doc(candidate.uid);
-    const ownedCommunityMembershipsQuery = db
-      .collectionGroup('members')
-      .where('uid', '==', candidate.uid)
-      .where('role', '==', 'owner')
-      .limit(1);
-    const [currentSnapshot, ownedCommunityMembershipsSnapshot] =
-      await Promise.all([
-        tx.get(userRef),
-        tx.get(ownedCommunityMembershipsQuery),
-      ]);
+    const currentSnapshot = await tx.get(userRef);
 
     if (!currentSnapshot.exists) return null;
 
@@ -350,26 +344,40 @@ async function claimDeletion(
       currentUser.purgeAttemptCount
     ) + 1;
     const leaseUntil = now + ACCOUNT_DELETION_PURGE_LEASE_MS;
-    const ownsCommunity = ownedCommunityMembershipsSnapshot.docs.some(
-      (documentSnapshot) => {
-        const segments = documentSnapshot.ref.path.split('/');
-        return (
-          segments.length === 4
-          && segments[0] === 'communities'
-          && segments[2] === 'members'
-          && segments[3] === candidate.uid
-        );
-      }
-    );
+    const succession = await
+      ensureCommunityOwnerTerminalSuccessionCasesInTransaction(
+        tx,
+        {
+          ownerUid: candidate.uid,
+          trigger: 'owner_terminally_unavailable',
+          actorUid: 'system',
+          now,
+        }
+      );
+    const ownsCommunity = succession.ownedCommunityCount > 0;
 
-    if (ownsCommunity) {
+    if (ownsCommunity || succession.exceedsAutomaticLimit) {
       const retryAt = now + OWNED_COMMUNITY_PURGE_RETRY_MS;
-      const ownershipBlocker =
-        'owner-transfer-or-community-archive-required';
+      const ownershipBlocker = succession.exceedsAutomaticLimit
+        ? 'owned-community-succession-auto-limit-exceeded'
+        : succession.inconsistentCaseCount > 0
+          ? 'owned-community-succession-inconsistent'
+          : 'owner-terminal-succession-in-progress';
 
       tx.set(
         userRef,
         {
+          ...(currentStatus === 'pending_deletion'
+            ? {
+              accountStatus: 'deleted',
+              publicVisibility: 'hidden',
+              interactionBlocked: true,
+              loginAllowed: false,
+              deletedAt: now,
+              statusUpdatedAt: now,
+              statusUpdatedBy: 'system',
+            }
+            : {}),
           purgeAttemptCount: attemptCount,
           purgeLastAttemptAt: now,
           purgeNextAttemptAt: retryAt,
@@ -385,11 +393,32 @@ async function claimDeletion(
         { merge: true }
       );
 
+      if (currentStatus === 'pending_deletion') {
+        tx.delete(publicProfileRef);
+        if (candidate.nicknameIndexDocId) {
+          tx.delete(
+            db.collection('public_index').doc(candidate.nicknameIndexDocId)
+          );
+        }
+
+        createLifecycleAudit(tx, {
+          uid: candidate.uid,
+          actorUid: 'system',
+          action: 'mark_account_deleted_pending_community_succession',
+          previousAccountStatus: 'pending_deletion',
+          accountStatus: 'deleted',
+          source: 'system',
+          moderationReason: ownershipBlocker,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+
       tx.set(
         tombstoneRef,
         {
           uid: candidate.uid,
-          status: currentStatus,
+          status: 'deleted',
           source: currentUser.deletionRequestedBy ?? 'system',
           emailHash: candidate.emailHash,
           deletionRequestedAt: currentUser.deletionRequestedAt ?? null,
@@ -406,6 +435,13 @@ async function claimDeletion(
           dataDeletionStatus: 'blocked',
           dataDeletionCompletedDomains: claimPlan.completedDomains,
           dataDeletionBlockers: ['community_memberships'],
+          ownedCommunitySuccession: {
+            openedCaseCount: succession.openedCaseCount,
+            existingOpenCaseCount: succession.existingOpenCaseCount,
+            inconsistentCaseCount: succession.inconsistentCaseCount,
+            exceedsAutomaticLimit: succession.exceedsAutomaticLimit,
+            communityIds: succession.communityIds,
+          },
           dataDeletionPlan: claimPlan.steps,
           dataDeletionLastPlannedAt: now,
           updatedAt: now,
@@ -422,6 +458,12 @@ async function claimDeletion(
         accountStatus: currentStatus,
         source: 'system',
         moderationReason: ownershipBlocker,
+        ownedCommunitySuccessionOpened:
+          succession.openedCaseCount,
+        ownedCommunitySuccessionExisting:
+          succession.existingOpenCaseCount,
+        ownedCommunitySuccessionInconsistent:
+          succession.inconsistentCaseCount,
         createdAt: now,
         updatedAt: now,
       });
