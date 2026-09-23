@@ -13,6 +13,9 @@ import { logger } from 'firebase-functions';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
+import {
+  stopOpenCommunityBoostForCommunityInTransaction,
+} from '../community-boost/community-boost-authority.service';
 import { db, FieldValue } from '../firebaseApp';
 import {
   buildCommunityArchiveRetentionAnchorPlan,
@@ -216,6 +219,16 @@ async function applyCommunityLifecycle(
         ownerUid: FieldValue.delete(),
       }
       : mutationPlan.communityPatch;
+
+    if (decision.nextStatus === 'archived') {
+      await stopOpenCommunityBoostForCommunityInTransaction({
+        transaction,
+        communityId,
+        reason: 'community_lifecycle_archived',
+        now,
+        actorUid: 'system',
+      });
+    }
 
     transaction.update(communityRef, communityPatch);
 
