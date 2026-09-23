@@ -94,7 +94,7 @@ async function seedBase(visibility: 'PUBLIC' | 'FRIENDS' = 'FRIENDS') {
       setDoc(doc(db, 'public_profiles', OWNER_UID), {
         uid: OWNER_UID,
         nickname: 'Owner',
-        ageEligibilityVerifiedAdult: true,
+        ageEligibilityAdultAccessAllowed: true,
         ageEligibilityValidUntil: new Date(Date.now() + 60_000),
       }),
       setDoc(
@@ -102,7 +102,7 @@ async function seedBase(visibility: 'PUBLIC' | 'FRIENDS' = 'FRIENDS') {
         {
           id: PHOTO_ID,
           ownerUid: OWNER_UID,
-          ageEligibilityVerifiedAdult: true,
+          ageEligibilityAdultAccessAllowed: true,
         ageEligibilityValidUntil: new Date(Date.now() + 60_000),
           visibility,
           moderationStatus: 'APPROVED',
