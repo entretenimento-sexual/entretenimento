@@ -89,10 +89,14 @@ function assertDisplayedPlanStillCurrent(
   if (!quoteWasProvided) return;
 
   const matches =
-    request.expectedAmountCents === plan.amountCents
-    && request.expectedCurrency === plan.currency
-    && request.expectedInterval === plan.interval
-    && request.expectedCatalogVersion === plan.catalogVersion;
+    (request.expectedAmountCents === undefined
+      || request.expectedAmountCents === plan.amountCents)
+    && (request.expectedCurrency === undefined
+      || request.expectedCurrency === plan.currency)
+    && (request.expectedInterval === undefined
+      || request.expectedInterval === plan.interval)
+    && (request.expectedCatalogVersion === undefined
+      || request.expectedCatalogVersion === plan.catalogVersion);
 
   if (matches) return;
 
