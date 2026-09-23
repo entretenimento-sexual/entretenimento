@@ -34,7 +34,7 @@ import {
 } from '../../config/asaas.config';
 
 interface AsaasProviderOptions {
-  runtime: AsaasApiRuntimeConfig;
+  runtime?: AsaasApiRuntimeConfig | null;
   apiKey?: string | null;
   webhookToken?: string | null;
 }
@@ -299,13 +299,13 @@ function parseAsaasApiError(
 export class AsaasPaymentProvider extends PaymentProviderPort {
   readonly providerId = 'asaas' as const;
 
-  private readonly runtime: AsaasApiRuntimeConfig;
+  private readonly runtime: AsaasApiRuntimeConfig | null;
   private readonly apiKey: string;
   private readonly webhookToken: string;
 
   constructor(options: AsaasProviderOptions) {
     super();
-    this.runtime = options.runtime;
+    this.runtime = options.runtime ?? null;
     this.apiKey = normalizedSecret(options.apiKey);
     this.webhookToken = normalizedSecret(options.webhookToken);
   }
@@ -313,6 +313,7 @@ export class AsaasPaymentProvider extends PaymentProviderPort {
   async createCheckoutSession(
     input: CreateCheckoutInput
   ): Promise<CreateCheckoutResult> {
+    const runtime = this.requireRuntime();
     const apiKey = this.requireApiKey();
     const minutesToExpire = resolveMinutesToExpire(input.expiresAt);
 
@@ -358,7 +359,7 @@ export class AsaasPaymentProvider extends PaymentProviderPort {
       );
     }
 
-    const checkoutUrl = new URL(this.runtime.checkoutBaseUrl);
+    const checkoutUrl = new URL(runtime.checkoutBaseUrl);
     checkoutUrl.searchParams.set('id', providerSessionId);
 
     return {
@@ -472,6 +473,17 @@ export class AsaasPaymentProvider extends PaymentProviderPort {
     };
   }
 
+  private requireRuntime(): AsaasApiRuntimeConfig {
+    if (!this.runtime) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Runtime da API Asaas não está configurado.'
+      );
+    }
+
+    return this.runtime;
+  }
+
   private requireApiKey(): string {
     if (!this.apiKey) {
       throw new HttpsError(
@@ -480,9 +492,10 @@ export class AsaasPaymentProvider extends PaymentProviderPort {
       );
     }
 
+    const runtime = this.requireRuntime();
     assertAsaasApiKeyMatchesEnvironment(
       this.apiKey,
-      this.runtime.environment
+      runtime.environment
     );
     return this.apiKey;
   }
@@ -506,8 +519,9 @@ export class AsaasPaymentProvider extends PaymentProviderPort {
     init: RequestInit,
     apiKey: string
   ): Promise<T> {
+    const runtime = this.requireRuntime();
     const response = await fetch(
-      `${this.runtime.apiBaseUrl}${path}`,
+      `${runtime.apiBaseUrl}${path}`,
       {
         ...init,
         signal: AbortSignal.timeout(ASAAS_REQUEST_TIMEOUT_MS),
@@ -515,7 +529,7 @@ export class AsaasPaymentProvider extends PaymentProviderPort {
           accept: 'application/json',
           'content-type': 'application/json',
           'user-agent':
-            `Entretenimento/1.0 (Firebase Functions; ${this.runtime.environment})`,
+            `Entretenimento/1.0 (Firebase Functions; ${runtime.environment})`,
           access_token: apiKey,
           ...(init.headers ?? {}),
         },
