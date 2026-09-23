@@ -23,9 +23,13 @@
     // uso de helpers globais
     // =========================================================================
     match /friendRequests/{reqId} {
-      allow read: if currentUserCanUseAdultSocialPlatform() &&
+      allow get: if currentUserCanUseAdultSocialPlatform() &&
         (resource.data.requesterUid == uid() ||
          resource.data.targetUid == uid());
+
+      // Listagens pendentes atravessam getPendingFriendRequests para
+      // revalidar a contraparte com relógio/autoridade no backend.
+      allow list: if false;
 
       allow create, update, delete: if false;
     }
