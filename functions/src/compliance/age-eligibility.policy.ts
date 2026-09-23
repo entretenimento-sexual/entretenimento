@@ -13,7 +13,13 @@
 // -----------------------------------------------------------------------------
 
 export const AGE_ELIGIBILITY_POLICY_VERSION = 1;
-export const AGE_ACCESS_POLICY_MODE = 'SELF_ATTESTATION_ALLOWED' as const;
+
+export type AgeAccessPolicyMode =
+  | 'SELF_ATTESTATION_ALLOWED'
+  | 'VERIFIED_ONLY';
+
+export const AGE_ACCESS_POLICY_MODE: AgeAccessPolicyMode =
+  'SELF_ATTESTATION_ALLOWED';
 
 export type AgeEligibilityStatus =
   | 'UNVERIFIED'
