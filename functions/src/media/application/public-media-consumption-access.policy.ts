@@ -3,6 +3,9 @@ import { HttpsError } from 'firebase-functions/v2/https';
 import {
   assertInteractionAccessData,
 } from '../../account_lifecycle/interaction-access.policy';
+import {
+  evaluateCanonicalAgeEligibility,
+} from '../../compliance/age-eligibility.policy';
 import { db } from '../../firebaseApp';
 
 export type PublicMediaConsumptionAccessReason =
@@ -109,21 +112,38 @@ export function assertPublicMediaConsumptionAccessData(
   }
 }
 
+export interface PublicMediaConsumptionAccessDecision {
+  readonly ageEligibilityExpiresAtMs: number | null;
+}
+
 export async function assertPublicMediaConsumptionAccess(
   uid: string
-): Promise<void> {
+): Promise<PublicMediaConsumptionAccessDecision> {
   const [userSnapshot, ageEligibilitySnapshot] = await Promise.all([
     db.collection('users').doc(uid).get(),
     db.collection('age_eligibility_records').doc(uid).get(),
   ]);
 
+  const rawAgeEligibility = ageEligibilitySnapshot.exists
+    ? ageEligibilitySnapshot.data()
+    : null;
+
   assertPublicMediaConsumptionAccessData(
     userSnapshot.exists
       ? userSnapshot.data() as PublicMediaConsumptionAccessUserDocument
       : null,
-    ageEligibilitySnapshot.exists
-      ? ageEligibilitySnapshot.data()
-      : null,
+    rawAgeEligibility,
     uid
   );
+
+  const ageDecision = evaluateCanonicalAgeEligibility({
+    uid,
+    rawRecord: rawAgeEligibility,
+  });
+
+  return {
+    ageEligibilityExpiresAtMs: ageDecision.allowed
+      ? ageDecision.expiresAtMs ?? null
+      : null,
+  };
 }
