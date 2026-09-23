@@ -213,6 +213,120 @@ export async function settleRecurringPlatformSubscriptionPayment(
       );
 
     if (existingTransaction.exists || existingPaymentEvent.exists) {
+      const transaction = existingTransaction.exists
+        ? existingTransaction.data() as PaymentTransactionDoc
+        : null;
+      const currentPayment =
+        existingEntitlement?.sourcePaymentTransactionId === transactionId;
+      const restoringChargeback =
+        transaction?.status === 'chargeback' &&
+        currentPayment &&
+        existingEntitlement !== null;
+
+      if (restoringChargeback) {
+        const restoredEntitlement: EntitlementDoc = {
+          ...existingEntitlement!,
+          active: true,
+          updatedAt: now,
+        };
+        const restoredStatus = evaluatePlatformSubscriptionEntitlement(
+          restoredEntitlement,
+          contract.buyerUid,
+          now
+        );
+        const publicData = publicProfileSnapshot.exists
+          ? publicProfileSnapshot.data() ?? {}
+          : {};
+
+        tx.set(
+          transactionRef,
+          {
+            status: 'paid',
+            updatedAt: now,
+          },
+          { merge: true }
+        );
+        tx.set(
+          paymentEventRef,
+          {
+            status: 'paid',
+            processed: true,
+            processedAt: now,
+            occurredAt,
+          },
+          { merge: true }
+        );
+        tx.set(entitlementRef, restoredEntitlement, { merge: true });
+        tx.set(
+          contractRef,
+          {
+            lastPaymentStatus: event.eventName,
+            lastPaymentOccurredAt: occurredAt,
+            updatedAt: now,
+          },
+          { merge: true }
+        );
+
+        if (userSnapshot.exists) {
+          tx.set(
+            userRef,
+            buildPlatformSubscriptionUserProjection(
+              restoredStatus,
+              userSnapshot.data()?.['role'],
+              now
+            ),
+            { merge: true }
+          );
+        }
+
+        if (publicProfileSnapshot.exists) {
+          tx.set(
+            publicProfileRef,
+            {
+              role: resolvePublicPlatformRole(
+                restoredStatus,
+                publicData['role']
+              ),
+              billingProjectionVersion:
+                PLATFORM_SUBSCRIPTION_PROJECTION_VERSION,
+              billingProjectionUpdatedAt: now,
+            },
+            { merge: true }
+          );
+        }
+
+        tx.set(db.collection('billing_audit').doc(), {
+          action: 'restore_recurring_chargeback_payment',
+          buyerUid: contract.buyerUid,
+          contractId,
+          providerSubscriptionId: contract.providerSubscriptionId,
+          providerPaymentId: payment.paymentId,
+          transactionId,
+          entitlementId,
+          restoredOriginalPeriod: true,
+          renewalRestored: false,
+          accessRestored: restoredStatus.active,
+          createdAt: now,
+        });
+
+        result = {
+          processed: true,
+          idempotent: false,
+          checkoutSessionId: contract.sourceCheckoutSessionId,
+          paymentEventId,
+          transactionId,
+          entitlementId,
+          scope: 'platform_subscription',
+          status: 'paid',
+          role: restoredStatus.role ?? contract.grantedRole,
+          accessGranted: restoredStatus.active,
+          contractId,
+          supersededContractId: null,
+          supersededProviderSubscriptionId: null,
+        };
+        return;
+      }
+
       const status = evaluatePlatformSubscriptionEntitlement(
         existingEntitlement,
         contract.buyerUid,
@@ -417,6 +531,8 @@ export async function settleRecurringPlatformSubscriptionPayment(
       provider: 'asaas',
       providerEventId: event.providerEventId,
       providerSessionId: payment.subscriptionId,
+      providerPaymentId: payment.paymentId,
+      providerSubscriptionId: payment.subscriptionId,
       checkoutSessionId: contract.sourceCheckoutSessionId,
       status: 'paid',
       amountCents: payment.amountCents,
@@ -438,6 +554,8 @@ export async function settleRecurringPlatformSubscriptionPayment(
       scope: 'platform_subscription',
       provider: 'asaas',
       providerSessionId: payment.subscriptionId,
+      providerPaymentId: payment.paymentId,
+      providerSubscriptionId: payment.subscriptionId,
       status: 'paid',
       amountCents: payment.amountCents,
       currency: 'BRL',
