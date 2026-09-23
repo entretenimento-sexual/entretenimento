@@ -2,13 +2,16 @@ import { CommonModule } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   inject,
   signal,
 } from '@angular/core';
-import { Router, RouterModule } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { EMPTY, Observable } from 'rxjs';
 import {
   catchError,
+  filter,
   finalize,
   map,
   take,
@@ -40,9 +43,11 @@ interface AgeVerificationPageVm {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AgeVerificationPageComponent {
+  private readonly destroyRef = inject(DestroyRef);
   private readonly ageEligibility = inject(AgeEligibilityService);
   private readonly notification = inject(ErrorNotificationService);
   private readonly logout = inject(LogoutService);
+  private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
   readonly refreshing = signal(false);
@@ -59,6 +64,16 @@ export class AgeVerificationPageComponent {
       }))
     );
 
+  constructor() {
+    // Quando a projeção backend se torna válida, o usuário avança sem reload.
+    this.ageEligibility.verifiedAdult$
+      .pipe(
+        filter((verified) => verified),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe(() => this.navigateToAdultConsent());
+  }
+
   requestReview(): void {
     if (this.refreshing() || this.requestingReview()) {
       return;
@@ -71,7 +86,7 @@ export class AgeVerificationPageComponent {
         take(1),
         catchError(() => {
           this.notification.showError(
-            'Não foi possível solicitar a revisão de maioridade.'
+            'Não foi possível solicitar a verificação agora. Tente novamente em instantes.'
           );
           return EMPTY;
         }),
@@ -79,17 +94,13 @@ export class AgeVerificationPageComponent {
       )
       .subscribe((result) => {
         if (result.status === 'VERIFIED_ADULT') {
-          this.notification.showSuccess(
-            'Sua maioridade já está confirmada.'
-          );
-          void this.router.navigateByUrl('/adulto/confirmar', {
-            replaceUrl: true,
-          });
+          this.notification.showSuccess('Sua maioridade já está confirmada.');
+          this.navigateToAdultConsent();
           return;
         }
 
         this.notification.showInfo(
-          'Solicitação registrada. O acesso adulto permanece bloqueado até a revisão da evidência.'
+          'Solicitação recebida. Esta tela será atualizada quando houver uma decisão.'
         );
       });
   }
@@ -106,7 +117,7 @@ export class AgeVerificationPageComponent {
         take(1),
         catchError(() => {
           this.notification.showError(
-            'Não foi possível atualizar o status da verificação de maioridade.'
+            'Não foi possível verificar uma atualização agora. Tente novamente em instantes.'
           );
           return EMPTY;
         }),
@@ -114,23 +125,26 @@ export class AgeVerificationPageComponent {
       )
       .subscribe((status) => {
         if (status === 'VERIFIED_ADULT') {
-          this.notification.showSuccess(
-            'Maioridade confirmada por uma fonte confiável.'
-          );
-          void this.router.navigateByUrl('/adulto/confirmar', {
-            replaceUrl: true,
-          });
+          this.notification.showSuccess('Maioridade confirmada.');
+          this.navigateToAdultConsent();
           return;
         }
 
         if (status === 'DENIED_UNDERAGE') {
           this.notification.showWarning(
-            'O acesso adulto não está disponível para esta conta.'
+            'O acesso adulto não está disponível com a decisão atual.'
           );
           return;
         }
 
-        this.notification.showWarning(
+        if (status === 'REVIEW_REQUIRED') {
+          this.notification.showInfo(
+            'Sua verificação continua em análise.'
+          );
+          return;
+        }
+
+        this.notification.showInfo(
           'Ainda não há uma verificação de maioridade válida para esta conta.'
         );
       });
@@ -152,5 +166,36 @@ export class AgeVerificationPageComponent {
         })
       )
       .subscribe();
+  }
+
+  private navigateToAdultConsent(): void {
+    const redirectTo = this.resolveSafeRedirectTo();
+    const target = redirectTo
+      ? `/adulto/confirmar?redirectTo=${encodeURIComponent(redirectTo)}`
+      : '/adulto/confirmar';
+
+    void this.router.navigateByUrl(target, {
+      replaceUrl: true,
+    });
+  }
+
+  private resolveSafeRedirectTo(): string | null {
+    const value = String(
+      this.route.snapshot.queryParamMap.get('redirectTo') ?? ''
+    ).trim();
+
+    if (
+      !value ||
+      !value.startsWith('/') ||
+      value.startsWith('//') ||
+      value.startsWith('/login') ||
+      value.startsWith('/register') ||
+      value.startsWith('/adulto/verificar-idade') ||
+      value.startsWith('/adulto/confirmar')
+    ) {
+      return null;
+    }
+
+    return value;
   }
 }
