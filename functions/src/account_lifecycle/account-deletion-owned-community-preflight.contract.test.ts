@@ -10,13 +10,14 @@ const purgeSource = readFileSync(
 
 test('purge bloqueia owner de Comunidade antes de remover identidade Auth', () => {
   for (const required of [
-    "collectionGroup('members')",
-    ".where('uid', '==', candidate.uid)",
-    ".where('role', '==', 'owner')",
+    'ensureCommunityOwnerTerminalSuccessionCasesInTransaction',
+    "trigger: 'owner_terminally_unavailable'",
     'blockedByOwnedCommunities',
-    'owner-transfer-or-community-archive-required',
+    'owner-terminal-succession-in-progress',
     "purgePhase: 'blocked'",
     "dataDeletionBlockers: ['community_memberships']",
+    "accountStatus: 'deleted'",
+    'loginAllowed: false',
   ]) {
     assert.equal(
       purgeSource.includes(required),
@@ -38,6 +39,19 @@ test('purge bloqueia owner de Comunidade antes de remover identidade Auth', () =
     ownershipGate < authDeletion,
     'ownership precisa bloquear purge antes de deleteAuthUser'
   );
+});
+
+test('preflight abre sucessão terminal mas não remove Auth', () => {
+  const successionOpen = purgeSource.indexOf(
+    'ensureCommunityOwnerTerminalSuccessionCasesInTransaction'
+  );
+  const authDeletion = purgeSource.indexOf(
+    'const authResult = await deleteAuthUser(candidate, now)'
+  );
+
+  assert.ok(successionOpen >= 0);
+  assert.ok(authDeletion >= 0);
+  assert.ok(successionOpen < authDeletion);
 });
 
 test('preflight não promove sucessor automaticamente', () => {
