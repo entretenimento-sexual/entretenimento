@@ -20,7 +20,53 @@
       </button>
     </header>
 
-    @if (queue$ | async; as queue) {
+    @if (abandonmentAction$ | async; as abandonmentAction) {
+      <section
+        class="succession-admin__manual-open"
+        aria-labelledby="succession-abandonment-title"
+      >
+        <div>
+          <h3 id="succession-abandonment-title">
+            Abrir caso por abandono confirmado
+          </h3>
+          <p>
+            Use somente após confirmação humana. Tempo sem acesso, downgrade ou
+            suspensão não caracterizam abandono.
+          </p>
+        </div>
+
+        <label>
+          <span>Community ID</span>
+          <input
+            type="text"
+            autocomplete="off"
+            [formControl]="abandonmentCommunityId"
+            placeholder="community-id"
+          />
+        </label>
+
+        <label>
+          <span>Justificativa da confirmação</span>
+          <textarea
+            rows="3"
+            maxlength="240"
+            [formControl]="abandonmentReason"
+            placeholder="Registre o fundamento usado para confirmar o abandono."
+          ></textarea>
+        </label>
+
+        <button
+          type="button"
+          [appActionState]="abandonmentAction.status === 'loading'"
+          [actionDisabled]="abandonmentAction.status === 'loading'"
+          (click)="requestConfirmedAbandonmentCase()"
+        >
+          Abrir sucessão
+        </button>
+      </section>
+    }
+
+        @if (queue$ | async; as queue) {
       @if (queue.items.length === 0) {
         <p class="succession-admin__empty">Nenhuma sucessão terminal aberta.</p>
       } @else {
