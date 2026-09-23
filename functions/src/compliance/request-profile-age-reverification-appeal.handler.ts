@@ -12,6 +12,9 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
+  safeRecordModerationReviewSignal,
+} from '../moderation/moderation-automation.service';
+import {
   safeNotifyAgeReverificationRequired,
 } from '../moderation/moderation-safety-notification.service';
 import {
@@ -34,6 +37,7 @@ import {
   assertMinorProfileReport,
   cleanComplianceId,
   normalizeAgeReverificationStatus,
+  profileMinorReportDedupId,
 } from './profile-age-reverification.shared';
 
 interface AgeReverificationCaseDocument {
@@ -137,8 +141,9 @@ export const requestProfileAgeReverificationAppeal = onCall(
       }
 
       const report = reportSnapshot.data() as ModerationReportDocument;
+      const reporterUid = cleanComplianceId(report.reporterUid);
 
-      if (assertMinorProfileReport(report) !== uid) {
+      if (assertMinorProfileReport(report) !== uid || !reporterUid) {
         throw new HttpsError(
           'permission-denied',
           'Caso de revalidação inválido.'
@@ -147,6 +152,7 @@ export const requestProfileAgeReverificationAppeal = onCall(
 
       const ageCase = caseSnapshot.data() as AgeReverificationCaseDocument;
       const appealCount = safeCount(ageCase.appealCount) + 1;
+      const previousStatus = currentStatus;
       const timestamp = FieldValue.serverTimestamp();
       const eligibility = writeCanonicalAgeEligibilityInTransaction(
         transaction,
@@ -219,6 +225,21 @@ export const requestProfileAgeReverificationAppeal = onCall(
         { merge: true }
       );
 
+      transaction.set(
+        db.collection('moderation_report_dedup').doc(
+          profileMinorReportDedupId(reporterUid, uid)
+        ),
+        {
+          active: true,
+          reportId,
+          reporterUid,
+          targetUid: uid,
+          reason: 'minor_safety',
+          updatedAt: timestamp,
+        },
+        { merge: true }
+      );
+
       transaction.create(db.collection('compliance_audit').doc(), {
         uid,
         actorUid: uid,
@@ -239,8 +260,17 @@ export const requestProfileAgeReverificationAppeal = onCall(
         createdAtMs: requestedAt,
       });
 
-      return { reportId, caseId };
+      return { reportId, caseId, previousStatus };
     });
+
+    if (result.previousStatus === 'REJECTED') {
+      await safeRecordModerationReviewSignal({
+        reportId: result.reportId,
+        targetUid: uid,
+        critical: true,
+        confirmed: false,
+      });
+    }
 
     await safeNotifyAgeReverificationRequired({
       reportId: result.reportId,
@@ -250,7 +280,8 @@ export const requestProfileAgeReverificationAppeal = onCall(
     });
 
     return {
-      ...result,
+      reportId: result.reportId,
+      caseId: result.caseId,
       status: 'REQUIRED',
       dueAt,
     };
