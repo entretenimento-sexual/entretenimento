@@ -78,7 +78,6 @@ export async function reverseRecurringPlatformSubscriptionPayment(
     .doc(contractId);
   const reversalStatus =
     event.eventName === 'PAYMENT_CHARGEBACK_REQUESTED'
-    || event.eventName === 'PAYMENT_CHARGEBACK_DISPUTE'
       ? 'chargeback'
       : 'refunded';
   const now = Date.now();
@@ -165,12 +164,9 @@ export async function reverseRecurringPlatformSubscriptionPayment(
         entitlementRef,
         {
           active: false,
-          endsAt: Math.min(
-            typeof entitlement?.endsAt === 'number'
-              ? entitlement.endsAt
-              : now,
-            now
-          ),
+          // Mantém o período original para permitir restauração exata caso um
+          // chargeback seja posteriormente revertido pelo provider.
+          endsAt: entitlement?.endsAt ?? now,
           updatedAt: now,
         },
         { merge: true }
@@ -241,4 +237,57 @@ export async function reverseRecurringPlatformSubscriptionPayment(
     accessRevoked,
     providerCancellationRequired,
   };
+}
+
+
+export async function recordRecurringChargebackProgress(
+  event: VerifiedProviderWebhookEvent
+): Promise<void> {
+  if (
+    event.resourceType !== 'payment' ||
+    !event.subscriptionId ||
+    !event.paymentId
+  ) {
+    return;
+  }
+
+  const contractId = buildRecurringSubscriptionContractId(
+    event.subscriptionId
+  );
+  const contractRef = db
+    .collection(PLATFORM_SUBSCRIPTION_COLLECTION)
+    .doc(contractId);
+  const snapshot = await contractRef.get();
+
+  if (!snapshot.exists) {
+    throw new RetryableProviderWebhookError(
+      'chargeback-progress-contract-pending',
+      'Contrato recorrente ainda não foi conciliado.'
+    );
+  }
+
+  const contract = snapshot.data() as PlatformRecurringSubscriptionDoc;
+  const now = Date.now();
+
+  await Promise.all([
+    contractRef.set(
+      {
+        lastPaymentStatus: event.eventName,
+        lastPaymentOccurredAt: event.occurredAt,
+        updatedAt: now,
+      },
+      { merge: true }
+    ),
+    db.collection('billing_audit').add({
+      action: 'recurring_chargeback_progress',
+      buyerUid: contract.buyerUid,
+      contractId,
+      providerSubscriptionId: contract.providerSubscriptionId,
+      providerPaymentId: event.paymentId,
+      providerEventName: event.eventName,
+      accessRestored: false,
+      renewalChanged: false,
+      createdAt: now,
+    }),
+  ]);
 }
