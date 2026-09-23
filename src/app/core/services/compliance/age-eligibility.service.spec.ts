@@ -29,9 +29,9 @@ describe('AgeEligibilityService', () => {
         source: 'AGE_REVERIFICATION',
         method: 'MANUAL_REVIEW',
         caseId: 'case-1',
-        verifiedAtMs: 1_800_000_000_000,
+        verifiedAtMs: Date.now() - 60_000,
         expiresAtMs: null,
-        updatedAtMs: 1_800_000_000_000,
+        updatedAtMs: Date.now() - 60_000,
       },
     } as unknown as IUserDados);
     const service = new AgeEligibilityService(
@@ -77,6 +77,31 @@ describe('AgeEligibilityService', () => {
 
     expect(states).toEqual([true, false]);
     subscription.unsubscribe();
+  });
+
+  it('falha fechado quando VERIFIED_ADULT ainda não começou no relógio local', async () => {
+    const now = Date.now();
+    const user$ = new BehaviorSubject<IUserDados | null | undefined>({
+      uid: 'user-1',
+      ageEligibility: {
+        status: 'VERIFIED_ADULT',
+        policyVersion: 1,
+        source: 'AGE_REVERIFICATION',
+        method: 'MANUAL_REVIEW',
+        caseId: 'case-future',
+        verifiedAtMs: now + 60_000,
+        expiresAtMs: now + 120_000,
+        updatedAtMs: now,
+      },
+    } as unknown as IUserDados);
+    const service = new AgeEligibilityService(
+      {} as any,
+      { user$: user$.asObservable() } as any,
+      { handleError: () => undefined } as any
+    );
+
+    await expect(firstValueFrom(service.verifiedAdult$))
+      .resolves.toBe(false);
   });
 
   it('não aceita projeção estruturalmente inválida', async () => {
