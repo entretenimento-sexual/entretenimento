@@ -99,7 +99,7 @@ function advertiserInteractionEligible(input: {
 }): boolean {
   try {
     assertInteractionAccessData(
-      input.rawUser as Record<string, unknown>,
+      input.rawUser as Parameters<typeof assertInteractionAccessData>[0],
       input.rawAgeEligibility,
       input.advertiserUid
     );
