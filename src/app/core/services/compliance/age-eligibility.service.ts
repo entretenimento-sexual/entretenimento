@@ -13,12 +13,13 @@ import {
   runInInjectionContext,
 } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable, from, throwError } from 'rxjs';
+import { Observable, concat, from, of, throwError, timer } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
   map,
   shareReplay,
+  switchMap,
   take,
 } from 'rxjs/operators';
 
@@ -65,8 +66,34 @@ export class AgeEligibilityService {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
+  /**
+   * Gate UX reativo da projeção etária.
+   *
+   * Não concede autoridade: Rules/Functions continuam consultando
+   * age_eligibility_records. Este stream só evita iniciar features que o
+   * backend recusaria e se auto-invalida no instante de expiresAtMs.
+   */
   readonly verifiedAdult$: Observable<boolean> = this.current$.pipe(
-    map((state) => state.status === 'VERIFIED_ADULT'),
+    switchMap((state) => {
+      if (state.status !== 'VERIFIED_ADULT') {
+        return of(false);
+      }
+
+      const expiresAtMs = this.safeTime(state.expiresAtMs);
+      if (expiresAtMs === null) {
+        return of(true);
+      }
+
+      const remainingMs = expiresAtMs - Date.now();
+      if (remainingMs <= 0) {
+        return of(false);
+      }
+
+      return concat(
+        of(true),
+        timer(remainingMs + 1).pipe(map(() => false))
+      );
+    }),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
   );
