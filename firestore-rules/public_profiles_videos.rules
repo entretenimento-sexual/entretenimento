@@ -88,7 +88,7 @@ match /public_profiles/{userId}/public_videos/{videoId} {
       && (
         isSelf(userId)
         || (
-          publicProfileProjectionAllowsAdultExposure()
+          publicProfileAllowsAdultExposure()
           && resource.data.status == "VISIBLE"
           && videoExists()
           && isApprovedPublicVideoData(videoData())
@@ -99,7 +99,7 @@ match /public_profiles/{userId}/public_videos/{videoId} {
       && (
         isSelf(userId)
         || (
-          publicProfileProjectionAllowsAdultExposure()
+          publicProfileAllowsAdultExposure()
           && resource.data.status == "VISIBLE"
           && videoExists()
           && isApprovedPublicVideoData(videoData())
