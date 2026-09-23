@@ -7,6 +7,9 @@
 // -----------------------------------------------------------------------------
 
 import {
+  isCommunityCalibrationChangeAllowed,
+} from './community-calibration-stage.policy';
+import {
   COMMUNITY_ACTIVITY_MOMENTUM_MODEL_VERSION,
   COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
 } from './community-ranking-candidate-v3.policy';
@@ -35,6 +38,7 @@ export type CommunityRankingRolloutDenialReason =
   | 'candidate_runtime_not_ready'
   | 'candidate_shadow_acceptance_not_ready'
   | 'candidate_real_data_not_ready'
+  | 'calibration_observation_only'
   | null;
 
 export interface CommunityRankingRolloutDecision {
@@ -89,7 +93,17 @@ export function evaluateCommunityRankingRollout(input: {
   const v2Denial = v2Ready(config, runtime);
 
   if (input.action === 'enable_current' || input.action === 'rollback_v2') {
-    if (v2Denial) {
+    if (!isCommunityCalibrationChangeAllowed()) {
+    return {
+      allowed: false,
+      action: input.action,
+      targetMode: COMMUNITY_DISCOVERY_V3_RANKING_MODE,
+      scoreVersion: COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
+      denialReason: 'calibration_observation_only',
+    };
+  }
+
+  if (v2Denial) {
       return {
         allowed: false,
         action: input.action,
