@@ -24,8 +24,7 @@ import {
 import { IMAGE_MAX_BYTES } from '../media/media-format.generated';
 import { extractOwnedPrivatePhotoPath } from '../media/application/photo-storage-path';
 import {
-  buildBilateralBlockPaths,
-  isBilateralBlockActive,
+  assertNoActiveBilateralBlocksInTransaction,
 } from '../friendship/application/bilateral-block-access.policy';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
@@ -499,22 +498,19 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
               const recipientMembershipRef = communityRef
                 .collection('members')
                 .doc(replyRecipientUid);
-              const [actorBlockPath, recipientBlockPath] = buildBilateralBlockPaths(
+              await assertNoActiveBilateralBlocksInTransaction(
+                transaction,
                 actorUid,
-                replyRecipientUid
+                [replyRecipientUid]
               );
               const [
                 recipientUserSnapshot,
                 recipientPreferencesSnapshot,
                 recipientMembershipSnapshot,
-                actorBlockSnapshot,
-                recipientBlockSnapshot,
               ] = await Promise.all([
                 transaction.get(recipientUserRef),
                 transaction.get(recipientPreferencesRef),
                 transaction.get(recipientMembershipRef),
-                transaction.get(db.doc(actorBlockPath)),
-                transaction.get(db.doc(recipientBlockPath)),
               ]);
               const recipientUser = recipientUserSnapshot.data() as
                 | CommunityNotificationUser
@@ -534,11 +530,7 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
                   replyRecipientUid,
                   actorUid
                 )
-                && allowsCommunityActivityNotifications(recipientPreferences)
-                && !isBilateralBlockActive({
-                  actorBlock: actorBlockSnapshot.data(),
-                  targetBlock: recipientBlockSnapshot.data(),
-                });
+                && allowsCommunityActivityNotifications(recipientPreferences);
 
               if (
                 replyShouldNotify

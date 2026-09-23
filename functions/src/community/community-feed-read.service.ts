@@ -10,6 +10,9 @@
 import * as logger from 'firebase-functions/logger';
 
 import { db } from '../firebaseApp';
+import {
+  resolveBilateralBlockedUidsForActor,
+} from '../friendship/application/bilateral-block-access.policy';
 import { createTemporaryStorageReadUrl } from '../media/application/temporary-storage-read-url.service';
 import {
   buildCommunityPublicAuthor,
@@ -91,6 +94,7 @@ export async function hydrateCommunityFeedItemsForViewer(params: {
     .doc(communityId)
     .collection('items');
 
+  const blockedUidsPromise = resolveBilateralBlockedUidsForActor(uid);
   const operationalSnapshots = await db.getAll(...projections.map((projection) =>
     postsCollection.doc(projection.item.postId)
   ));
@@ -122,8 +126,10 @@ export async function hydrateCommunityFeedItemsForViewer(params: {
   const replyAuthorUids = replyOperationalSnapshots.map((snapshot) =>
     snapshot?.exists ? String(snapshot.data()?.['actorUid'] ?? '').trim() : ''
   );
+  const blockedUids = await blockedUidsPromise;
   const uniqueAuthorUids = Array.from(new Set(
-    [...authorUids, ...replyAuthorUids].filter(Boolean)
+    [...authorUids, ...replyAuthorUids]
+      .filter((authorUid) => authorUid && !blockedUids.has(authorUid))
   ));
   const publicProfileSnapshots = uniqueAuthorUids.length > 0
     ? await db.getAll(...uniqueAuthorUids.map((authorUid) =>
@@ -155,7 +161,8 @@ export async function hydrateCommunityFeedItemsForViewer(params: {
     const activeTarget = targetProjection
       && targetOperational['status'] === 'active'
       && targetOperational['moderationState'] === 'active'
-      && targetActorUid.length > 0;
+      && targetActorUid.length > 0
+      && !blockedUids.has(targetActorUid);
 
     if (!activeTarget || !targetProjection) {
       replyReferencesById.set(replyTargetId, unavailableReply(replyTargetId));
@@ -192,7 +199,8 @@ export async function hydrateCommunityFeedItemsForViewer(params: {
         (item.kind === 'text' || item.kind === 'photo' || item.kind === 'location')
         && raw['status'] === 'active'
         && raw['moderationState'] === 'active'
-        && authorUid.length > 0;
+        && authorUid.length > 0
+        && !blockedUids.has(authorUid);
       if (!activePost) {
         return null;
       }

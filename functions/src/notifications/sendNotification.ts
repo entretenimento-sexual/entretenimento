@@ -5,6 +5,11 @@ import {getMessaging} from 'firebase-admin/messaging';
 import {getFirestore, Timestamp} from 'firebase-admin/firestore';
 
 import {isCommunityNotificationMembershipCycleCurrent} from '../community/community-notification-membership.policy';
+import {isCommunityMuralActivityNotificationType} from '../community/community-notification.policy';
+import {
+  buildBilateralBlockPaths,
+  isBilateralBlockActive,
+} from '../friendship/application/bilateral-block-access.policy';
 import {evaluateOperationalCostBudget} from '../shared/observability/operational-cost-budget.policy';
 import {
   isCommunityPushMuted,
@@ -60,6 +65,54 @@ export const sendNotification = onDocumentCreated(
       }
     );
     const db = getFirestore();
+
+    if (isCommunityMuralActivityNotificationType(notificationType)) {
+      const actorUid = String(notification?.actorUid ?? '').trim();
+
+      if (!actorUid || actorUid === recipientId) {
+        console.warn('[sendNotification] push social do Mural sem ator válido', {
+          notificationId,
+          notificationType,
+        });
+        return;
+      }
+
+      try {
+        const [actorBlockPath, recipientBlockPath] = buildBilateralBlockPaths(
+          actorUid,
+          recipientId
+        );
+        const [actorBlockSnapshot, recipientBlockSnapshot] = await db.getAll(
+          db.doc(actorBlockPath),
+          db.doc(recipientBlockPath)
+        );
+
+        if (
+          isBilateralBlockActive({
+            actorBlock: actorBlockSnapshot.exists
+              ? actorBlockSnapshot.data()
+              : null,
+            targetBlock: recipientBlockSnapshot.exists
+              ? recipientBlockSnapshot.data()
+              : null,
+          })
+        ) {
+          console.info('[sendNotification] push do Mural suprimido por bloqueio bilateral', {
+            notificationId,
+            notificationType,
+          });
+          return;
+        }
+      } catch (error) {
+        console.error('[sendNotification] falha ao revalidar bloqueio do Mural', {
+          notificationId,
+          notificationType,
+          errorCode: toSafeErrorCode(error),
+        });
+        return;
+      }
+    }
+
     let communityIdForPush: string | null = null;
 
     if (preferenceKey) {

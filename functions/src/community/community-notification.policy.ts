@@ -18,6 +18,30 @@ export type CommunityMemberLifecycleNotificationAction =
   | 'block'
   | 'unblock';
 export type CommunityInviteNotificationOutcome = 'accepted' | 'declined';
+export type CommunityMuralActivityNotificationType =
+  | 'community.comment.received'
+  | 'community.comment.reply.received'
+  | 'community.post.reply.received'
+  | 'community.post.reaction.received'
+  | 'community.mention.received';
+
+const COMMUNITY_MURAL_ACTIVITY_NOTIFICATION_TYPES =
+  new Set<CommunityMuralActivityNotificationType>([
+    'community.comment.received',
+    'community.comment.reply.received',
+    'community.post.reply.received',
+    'community.post.reaction.received',
+    'community.mention.received',
+  ]);
+
+export function isCommunityMuralActivityNotificationType(
+  value: unknown
+): value is CommunityMuralActivityNotificationType {
+  return COMMUNITY_MURAL_ACTIVITY_NOTIFICATION_TYPES.has(
+    String(value ?? '').trim() as CommunityMuralActivityNotificationType
+  );
+}
+
 
 export interface CommunityNotificationUser {
   uid?: unknown;

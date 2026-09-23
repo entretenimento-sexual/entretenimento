@@ -11,8 +11,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, Timestamp } from '../firebaseApp';
 import {
-  buildBilateralBlockPaths,
-  isBilateralBlockActive,
+  assertNoActiveBilateralBlocksInTransaction,
 } from '../friendship/application/bilateral-block-access.policy';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
@@ -234,8 +233,18 @@ export const toggleCommunityFeedReaction = onCall<
       const stateChanged = currentlyReacted !== desiredReacted;
       const shouldCreateReactionNotification =
         stateChanged && desiredReacted;
+      const postAuthorUid = cleanId(post['actorUid']);
+
+      if (desiredReacted && postAuthorUid && postAuthorUid !== actorUid) {
+        await assertNoActiveBilateralBlocksInTransaction(
+          transaction,
+          actorUid,
+          [postAuthorUid]
+        );
+      }
+
       const recipientUid = shouldCreateReactionNotification
-        ? cleanId(post['actorUid'])
+        ? postAuthorUid
         : '';
       let notificationRef: FirebaseFirestore.DocumentReference | null = null;
       let membershipCycleStartedAtMs: number | null = null;
@@ -246,20 +255,12 @@ export const toggleCommunityFeedReaction = onCall<
         const recipientMembershipRef = communityRef
           .collection('members')
           .doc(recipientUid);
-        const [actorBlockPath, recipientBlockPath] = buildBilateralBlockPaths(
-          actorUid,
-          recipientUid
-        );
         const [
           recipientUserSnapshot,
           recipientMembershipSnapshot,
-          actorBlockSnapshot,
-          recipientBlockSnapshot,
         ] = await Promise.all([
           transaction.get(recipientUserRef),
           transaction.get(recipientMembershipRef),
-          transaction.get(db.doc(actorBlockPath)),
-          transaction.get(db.doc(recipientBlockPath)),
         ]);
         const recipientUser = recipientUserSnapshot.data() as
           | CommunityNotificationUser
@@ -277,11 +278,7 @@ export const toggleCommunityFeedReaction = onCall<
             recipientUser,
             recipientUid,
             actorUid
-          )
-          && !isBilateralBlockActive({
-            actorBlock: actorBlockSnapshot.data(),
-            targetBlock: recipientBlockSnapshot.data(),
-          });
+          );
 
         if (shouldNotify && membershipCycleStartedAtMs !== null) {
           notificationRef = db.collection('notifications').doc(
