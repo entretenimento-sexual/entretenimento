@@ -8,7 +8,10 @@
 // =========================================================================
 match /public_profiles/{userId} {
   function targetAgeProjectionAllowsAdultExposure() {
-    return resource.data.ageEligibilityVerifiedAdult == true;
+    let validUntil = resource.data.ageEligibilityValidUntil;
+    return resource.data.ageEligibilityVerifiedAdult == true
+      && validUntil is timestamp
+      && request.time < validUntil;
   }
 
   function targetCanonicalAgeEligibilityAllowsAdultExposure() {
