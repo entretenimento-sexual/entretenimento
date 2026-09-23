@@ -2,9 +2,9 @@
 // =========================================================================
 // PUBLIC PROFILES (consultable / discovery)
 // =========================================================================
-// Fragmento canônico otimizado para permanecer abaixo do limite de 1.000
-// expressões. O cliente cria somente a projeção inicial e altera campos
-// editoriais; métricas, compatibilidade, moderação e capas são backend-only.
+// Fronteira de autorização concentrada em ownership, estado privado pós-write,
+// maioridade canônica e conjunto de chaves permitido. Validações editoriais de
+// formato ficam no formulário/backend para preservar o orçamento de expressões.
 // =========================================================================
 match /public_profiles/{userId} {
   function targetAgeProjectionAllowsAdultExposure() {
@@ -22,13 +22,7 @@ match /public_profiles/{userId} {
     && targetAgeProjectionAllowsAdultExposure()
     && targetCanonicalAgeEligibilityAllowsAdultExposure();
 
-  // Enumeração client-side foi encerrada. Discovery/listagens públicas
-  // atravessam a Callable backend-time; get documental mantém deep links.
   allow list: if false;
-
-  function hasPublicField(field) {
-    return request.resource.data.keys().hasAny([field]);
-  }
 
   function privateUserPath() {
     return /databases/$(database)/documents/users/$(userId);
@@ -113,46 +107,24 @@ match /public_profiles/{userId} {
     ]);
   }
 
-  function requiredTextValid(field, min, max) {
-    return request.resource.data[field] is string
-      && request.resource.data[field].size() >= min
-      && request.resource.data[field].size() <= max;
-  }
-
-  function optionalHttpsUrlValid(field) {
-    return !hasPublicField(field)
-      || request.resource.data[field] == null
-      || (
-        request.resource.data[field] is string
-        && request.resource.data[field].size() <= 2048
-        && request.resource.data[field].matches('^https://.*')
-      );
-  }
-
-  function identityProjectionPresent() {
-    return request.resource.data.keys().hasAny([
-      "identityCode",
-      "identityCatalogVersion"
-    ]);
-  }
-
-  function identityProjectionValid() {
-    return !identityProjectionPresent()
-      || (
-        request.resource.data.keys().hasAll([
-          "identityCode",
-          "identityCatalogVersion"
-        ])
-        && requiredTextValid("identityCode", 1, 80)
-        && request.resource.data.identityCode == request.resource.data.gender
-        && request.resource.data.identityCatalogVersion is int
-        && request.resource.data.identityCatalogVersion >= 1
-      );
-  }
-
-  function identityMatchesPrivateDeclaration() {
+  function identityMatchesPrivateDeclarationAfter() {
     let user = getAfter(privateUserPath()).data;
-    let declaredCode = user.get("declaredIdentityCode", user.get("gender", ""));
+    let declaredCode = user.get(
+      "declaredIdentityCode",
+      user.get("gender", "")
+    );
+    let catalogVersion = user.get("identityCatalogVersion", 1);
+    return request.resource.data.identityCode == declaredCode
+      && request.resource.data.gender == user.get("gender", declaredCode)
+      && request.resource.data.identityCatalogVersion == catalogVersion;
+  }
+
+  function identityMatchesPrivateDeclarationCurrent() {
+    let user = get(privateUserPath()).data;
+    let declaredCode = user.get(
+      "declaredIdentityCode",
+      user.get("gender", "")
+    );
     let catalogVersion = user.get("identityCatalogVersion", 1);
     return request.resource.data.identityCode == declaredCode
       && request.resource.data.gender == user.get("gender", declaredCode)
@@ -165,68 +137,25 @@ match /public_profiles/{userId} {
     return !changed.hasAny(identityKeys)
       || (
         changed.hasAll(identityKeys)
-        && identityProjectionValid()
-        && identityMatchesPrivateDeclaration()
+        && identityMatchesPrivateDeclarationCurrent()
       );
-  }
-
-  function locationValid() {
-    let hasLat = hasPublicField("latitude");
-    let hasLng = hasPublicField("longitude");
-    let hasHash = hasPublicField("geohash");
-    return (!hasLat && !hasLng && !hasHash)
-      || (
-        hasLat
-        && hasLng
-        && hasHash
-        && request.resource.data.latitude is number
-        && request.resource.data.latitude >= -90
-        && request.resource.data.latitude <= 90
-        && request.resource.data.longitude is number
-        && request.resource.data.longitude >= -180
-        && request.resource.data.longitude <= 180
-        && request.resource.data.geohash is string
-        && request.resource.data.geohash
-          .matches('^[0123456789bcdefghjkmnpqrstuvwxyz]{5,12}$')
-      );
-  }
-
-  function editablePayloadValid() {
-    return request.resource.data.uid == uid()
-      && requiredTextValid("nickname", 3, 40)
-      && requiredTextValid("nicknameNormalized", 3, 40)
-      && request.resource.data.nicknameNormalized.matches('^[a-z0-9._-]{3,40}$')
-      && requiredTextValid("municipio", 1, 80)
-      && requiredTextValid("estado", 1, 40)
-      && requiredTextValid("gender", 1, 80)
-      && identityProjectionValid()
-      && requiredTextValid("orientation", 1, 40)
-      && optionalHttpsUrlValid("avatarUrl")
-      && optionalHttpsUrlValid("photoURL")
-      && locationValid();
   }
 
   function avatarOnlyUpdate() {
     let changed = request.resource.data.diff(resource.data).changedKeys();
     return changed.hasOnly(["photoURL", "avatarUrl", "updatedAt"])
       && changed.hasAny(["photoURL", "avatarUrl"])
-      && request.resource.data.updatedAt == request.time
-      && optionalHttpsUrlValid("photoURL")
-      && optionalHttpsUrlValid("avatarUrl");
+      && request.resource.data.updatedAt == request.time;
   }
 
-  // Validações baratas vêm antes das leituras canônicas. Isso preserva a
-  // política, mas impede que payloads já inválidos consumam o orçamento de
-  // expressões das Rules antes de serem negados.
   allow create: if resource == null
     && isSelf(userId)
     && createKeysValid()
-    && editablePayloadValid()
-    && identityProjectionPresent()
+    && request.resource.data.uid == uid()
     && request.resource.data.role == "free"
     && request.resource.data.createdAt == request.time
     && request.resource.data.updatedAt == request.time
-    && identityMatchesPrivateDeclaration()
+    && identityMatchesPrivateDeclarationAfter()
     && privateUserEligibleAfter();
 
   allow update: if resource != null
@@ -235,7 +164,7 @@ match /public_profiles/{userId} {
       avatarOnlyUpdate()
       || (
         updateKeysValid()
-        && editablePayloadValid()
+        && request.resource.data.uid == resource.data.uid
         && identityChangeSafe()
         && request.resource.data.updatedAt == request.time
       )
