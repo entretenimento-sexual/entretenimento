@@ -107,8 +107,53 @@
       } @else if (vm.status === 'REJECTED') {
         <section class="age-reverification__pending age-reverification__pending--warning" role="alert">
           <h2>Revalidação rejeitada</h2>
-          <p>Consulte o status da conta para verificar a decisão registrada.</p>
+          <p>
+            A decisão pode ser contestada. A contestação não restaura o acesso
+            automaticamente e será submetida a nova análise.
+          </p>
         </section>
+
+        @if (vm.canAppeal) {
+          <form
+            class="age-reverification__form"
+            [formGroup]="appealForm"
+            (ngSubmit)="appeal()"
+          >
+            <div class="age-reverification__field">
+              <label for="age-reverification-appeal">
+                Explique por que a decisão deve ser revista
+              </label>
+              <textarea
+                id="age-reverification-appeal"
+                formControlName="statement"
+                rows="6"
+                maxlength="4000"
+                aria-describedby="age-reverification-appeal-hint"
+              ></textarea>
+              <small id="age-reverification-appeal-hint">
+                Você não precisa informar documento neste campo. A moderação
+                poderá considerar revisão documental, provedor confiável ou KYC
+                quando aplicável.
+              </small>
+              @if (
+                appealForm.controls.statement.touched &&
+                appealForm.controls.statement.invalid
+              ) {
+                <span class="age-reverification__error" role="alert">
+                  Escreva entre 20 e 4000 caracteres.
+                </span>
+              }
+            </div>
+
+            <button
+              class="age-reverification__primary"
+              type="submit"
+              [disabled]="appealForm.invalid || isSaving()"
+            >
+              {{ isSaving() ? 'Enviando...' : 'Contestar decisão' }}
+            </button>
+          </form>
+        }
       } @else {
         <section class="age-reverification__pending" role="status">
           <h2>Nenhuma revalidação pendente</h2>
