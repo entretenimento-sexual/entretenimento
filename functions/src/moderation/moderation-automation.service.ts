@@ -27,6 +27,7 @@ export interface ModerationOpenSignalInput {
   targetKey: string;
   critical: boolean;
   quarantined: boolean;
+  allowReversibleEnforcement?: boolean;
 }
 
 export interface ModerationReviewSignalInput {
@@ -424,10 +425,14 @@ export async function recordModerationOpenSignal(
     return { created: true, decision };
   });
 
+  const enforceReversibleHold =
+    result.decision.enforce ||
+    input.allowReversibleEnforcement === true;
+
   if (
     result.created &&
     result.decision.action === 'TEMPORARY_INTERACTION_HOLD' &&
-    result.decision.enforce
+    enforceReversibleHold
   ) {
     await applyTemporaryInteractionHold({
       targetUid,
@@ -435,6 +440,11 @@ export async function recordModerationOpenSignal(
       decision: result.decision,
       nowMs,
     });
+
+    await db.collection('moderation_reports').doc(reportId).set({
+      automationReversibleEnforcementApplied: true,
+      automationReversibleEnforcementAppliedAtMs: nowMs,
+    }, { merge: true });
   }
 
   return result.decision;
