@@ -132,7 +132,7 @@ describe('UserDiscoveryQueryService', () => {
     await firstValueFrom(service.getUsersByGender$('Man'));
 
     expect(cacheMock.get).toHaveBeenCalledWith(
-      'discovery:public_profiles:uids:query:gender:man:viewer=viewer-1'
+      'discovery:public_profiles:uids:v3:query:gender:man:viewer=viewer-1'
     );
   });
 
@@ -165,7 +165,7 @@ describe('UserDiscoveryQueryService', () => {
     );
 
     const expectedCacheKey =
-      'discovery:public_profiles:uids:profile-a,profile-b:viewer=viewer-1';
+      'discovery:public_profiles:uids:v3:profile-a,profile-b:viewer=viewer-1';
 
     expect(profiles.map((profile) => profile.uid)).toEqual([
       'profile-a',
