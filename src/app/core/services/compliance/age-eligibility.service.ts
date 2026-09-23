@@ -59,6 +59,7 @@ export class AgeEligibilityService {
           left.policyVersion === right.policyVersion &&
           left.source === right.source &&
           left.method === right.method &&
+          left.assuranceLevel === right.assuranceLevel &&
           left.caseId === right.caseId &&
           left.verifiedAtMs === right.verifiedAtMs &&
           left.expiresAtMs === right.expiresAtMs &&
@@ -194,7 +195,7 @@ export class AgeEligibilityService {
 
   requestInitialReview$(): Observable<{
     reportId: string | null;
-    status: 'VERIFIED_ADULT' | 'REVIEW_REQUIRED';
+    status: 'DECLARED_ADULT' | 'VERIFIED_ADULT' | 'REVIEW_REQUIRED';
   }> {
     const callable = runInInjectionContext(
       this.environmentInjector,
@@ -202,7 +203,7 @@ export class AgeEligibilityService {
         Record<string, never>,
         {
           reportId: string | null;
-          status: 'VERIFIED_ADULT' | 'REVIEW_REQUIRED';
+          status: 'DECLARED_ADULT' | 'VERIFIED_ADULT' | 'REVIEW_REQUIRED';
         }
       >(
         inject(Functions),
@@ -291,7 +292,9 @@ export class AgeEligibilityService {
   ): boolean {
     if (
       state.status !== 'VERIFIED_ADULT' ||
-      state.policyVersion !== 1
+      state.policyVersion !== 1 ||
+      state.assuranceLevel !== 'VERIFIED' ||
+      state.method === 'SELF_ATTESTATION'
     ) {
       return false;
     }
