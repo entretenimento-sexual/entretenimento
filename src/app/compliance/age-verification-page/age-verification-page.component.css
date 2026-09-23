@@ -321,3 +321,17 @@
   font-size: 0.9rem;
   opacity: 0.78;
 }
+
+.age-verification__migration-note {
+  display: grid;
+  gap: 8px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.075);
+}
+
+.age-verification__migration-note p {
+  margin: 0;
+  line-height: 1.55;
+}
