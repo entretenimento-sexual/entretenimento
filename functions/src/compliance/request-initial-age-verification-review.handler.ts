@@ -31,9 +31,6 @@ import {
   writeCanonicalAgeEligibilityInTransaction,
 } from './age-eligibility.service';
 import {
-  TERMS_ACCEPTANCE_VERSION,
-} from './platform-legal.constants';
-import {
   assertComplianceAuthenticatedUid,
 } from './profile-age-reverification.shared';
 
@@ -58,17 +55,6 @@ function initialAgeReportId(uid: string): string {
   return `age_initial_${digest}`;
 }
 
-function hasCurrentTerms(raw: unknown): boolean {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    return false;
-  }
-
-  const terms = raw as Record<string, unknown>;
-
-  return terms['accepted'] === true &&
-    String(terms['version'] ?? '').trim() === TERMS_ACCEPTANCE_VERSION &&
-    terms['acknowledgedPrivacyNotice'] === true;
-}
 
 export const requestInitialAgeVerificationReview = onCall(
   {
@@ -120,19 +106,6 @@ export const requestInitialAgeVerificationReview = onCall(
         throw new HttpsError(
           'failed-precondition',
           'Recupere os dados da sua conta antes de verificar a maioridade.'
-        );
-      }
-
-      const user = userSnapshot.data() ?? {};
-
-      if (!hasCurrentTerms(user['acceptedTerms'])) {
-        throw new HttpsError(
-          'failed-precondition',
-          'Aceite os termos vigentes antes de solicitar a verificação de maioridade.',
-          {
-            reason: 'terms_required',
-            recommendedAction: 'accept_terms',
-          }
         );
       }
 
