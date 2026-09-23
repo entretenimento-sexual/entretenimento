@@ -28,6 +28,11 @@ const requiredFiles = Object.freeze([
   'functions/src/compliance/age-eligibility.service.ts',
   'functions/src/compliance/age-verification-provider-assertion.policy.ts',
   'functions/src/compliance/age-verification-provider-assertion.trigger.ts',
+  'functions/src/compliance/age-review-evidence.policy.ts',
+  'functions/src/compliance/request-initial-age-verification-review.handler.ts',
+  'functions/src/compliance/review-initial-age-verification.handler.ts',
+  'functions/src/compliance/review-profile-age-reverification.handler.ts',
+  'functions/src/compliance/adult-consent.handler.ts',
   'src/app/core/services/compliance/age-eligibility.service.ts',
   'src/app/core/guards/compliance/age-eligibility.guard.ts',
   'firestore-rules/age_eligibility_records.rules',
@@ -266,6 +271,105 @@ if (fs.existsSync(helperPath)) {
 }
 
 
+
+const trustedAgeDecisionFiles = Object.freeze([
+  'functions/src/compliance/review-initial-age-verification.handler.ts',
+  'functions/src/compliance/review-profile-age-reverification.handler.ts',
+]);
+
+for (const relativePath of trustedAgeDecisionFiles) {
+  const absolutePath = path.join(root, relativePath);
+  if (!fs.existsSync(absolutePath)) continue;
+
+  const source = codeOnly(fs.readFileSync(absolutePath, 'utf8'));
+
+  for (const required of [
+    'normalizeAgeReviewEvidence',
+    'evidenceReferenceHash',
+    'writeCanonicalAgeEligibilityInTransaction',
+  ]) {
+    if (!source.includes(required)) {
+      violations.push(
+        `${relativePath} (decisão humana de maioridade deve exigir evidência confiável: ${required})`
+      );
+    }
+  }
+
+  if (/SELF_DECLARATION_REVIEW/.test(source)) {
+    violations.push(
+      `${relativePath} (autodeclaração não pode ser método de evidência para decisão etária)`
+    );
+  }
+}
+
+const initialAgeRequestPath = path.join(
+  root,
+  'functions/src/compliance/request-initial-age-verification-review.handler.ts'
+);
+if (fs.existsSync(initialAgeRequestPath)) {
+  const source = codeOnly(fs.readFileSync(initialAgeRequestPath, 'utf8'));
+
+  for (const required of [
+    "status: 'REVIEW_REQUIRED'",
+    "source: 'INITIAL_VERIFICATION'",
+    "reason: 'age_verification_request'",
+    'writeCanonicalAgeEligibilityInTransaction',
+  ]) {
+    if (!source.includes(required)) {
+      violations.push(
+        `functions/src/compliance/request-initial-age-verification-review.handler.ts (solicitação inicial deve permanecer fail-closed em revisão: ${required})`
+      );
+    }
+  }
+
+  if (/VERIFIED_ADULT[\s\S]{0,240}request\.data/.test(source)) {
+    violations.push(
+      'functions/src/compliance/request-initial-age-verification-review.handler.ts (input do cliente não pode promover diretamente VERIFIED_ADULT)'
+    );
+  }
+}
+
+const adultConsentPath = path.join(
+  root,
+  'functions/src/compliance/adult-consent.handler.ts'
+);
+if (fs.existsSync(adultConsentPath)) {
+  const source = codeOnly(fs.readFileSync(adultConsentPath, 'utf8'));
+
+  for (const required of [
+    'age_eligibility_records',
+    'evaluateCanonicalAgeEligibility',
+    'ageDecision.allowed',
+  ]) {
+    if (!source.includes(required)) {
+      violations.push(
+        `functions/src/compliance/adult-consent.handler.ts (consentimento adulto deve permanecer posterior à prova etária: ${required})`
+      );
+    }
+  }
+}
+
+const communityAgeBoundaryFiles = Object.freeze([
+  'functions/src/community/community-social-access.service.ts',
+  'functions/src/account_lifecycle/interaction-access.policy.ts',
+]);
+
+for (const relativePath of communityAgeBoundaryFiles) {
+  const absolutePath = path.join(root, relativePath);
+  if (!fs.existsSync(absolutePath)) continue;
+
+  const source = codeOnly(fs.readFileSync(absolutePath, 'utf8'));
+  if (
+    !source.includes('age_eligibility_records') &&
+    !source.includes('evaluateCanonicalAgeEligibility') &&
+    !source.includes('assertInteractionAccessData')
+  ) {
+    violations.push(
+      `${relativePath} (acesso social/Comunidades deve depender da autoridade etária canônica)`
+    );
+  }
+}
+
 const backendOnlyListRules = Object.freeze([
   {
     path: 'firestore-rules/public_profiles_next.rules',
@@ -393,5 +497,5 @@ if (unique.length > 0) {
 }
 
 console.log(
-  '[age-authority] OK: ageEligibility permanece backend-only e ageVerification legado permanece fail-closed.'
+  '[age-authority] OK: maioridade permanece backend-only, decisões humanas exigem evidência e consentimento não substitui prova etária.'
 );
