@@ -1,21 +1,19 @@
 // src/app/dashboard/discovery/data-access/discovery-visible-profile-location.repository.ts
 // -----------------------------------------------------------------------------
-// Listener leve para a projeção pública de localização dos cards visíveis.
+// Overlay reativo de localização para cards já carregados.
 //
-// Regras:
-// - não substitui a paginação one-shot do discovery;
-// - observa somente UIDs já carregados/visíveis;
-// - agrupa UIDs em lotes pequenos para evitar um listener por card;
-// - expõe somente latitude/longitude/geohash públicos;
-// - não altera ordem, ranking ou cursor do feed.
+// Não enumera public_profiles. Cada UID visível usa leitura documental, que cai
+// na Rule de get temporal. A própria projeção é revalidada localmente a cada
+// emissão para não manter localização visível após validUntil.
 // -----------------------------------------------------------------------------
 
 import { Injectable } from '@angular/core';
 import { combineLatest, Observable, of } from 'rxjs';
 import { map, shareReplay } from 'rxjs/operators';
-import { documentId, where } from 'firebase/firestore';
 
-import { FirestoreReadService } from 'src/app/core/services/data-handling/firestore/core/firestore-read.service';
+import {
+  FirestoreReadService,
+} from 'src/app/core/services/data-handling/firestore/core/firestore-read.service';
 
 export interface DiscoveryVisibleProfileLocation {
   readonly uid: string;
@@ -27,7 +25,6 @@ export interface DiscoveryVisibleProfileLocation {
 @Injectable({ providedIn: 'root' })
 export class DiscoveryVisibleProfileLocationRepository {
   private static readonly COLLECTION = 'public_profiles';
-  private static readonly UID_BATCH_SIZE = 10;
 
   constructor(private readonly read: FirestoreReadService) {}
 
@@ -40,45 +37,43 @@ export class DiscoveryVisibleProfileLocationRepository {
       return of([]);
     }
 
-    const batches = this.chunk(
-      normalizedUids,
-      DiscoveryVisibleProfileLocationRepository.UID_BATCH_SIZE
-    );
-
-    const batchStreams = batches.map((batch) =>
+    const documentStreams = normalizedUids.map((uid) =>
       this.read
-        .getDocumentsLiveSafe<Record<string, unknown>>(
+        .getDocumentLiveSafe<Record<string, unknown>>(
           DiscoveryVisibleProfileLocationRepository.COLLECTION,
-          [where(documentId(), 'in', batch)],
+          uid,
           {
-            mapIdField: 'uid',
+            idField: 'uid',
             requireAuth: true,
           }
         )
-        .pipe(
-          map((documents) =>
-            (documents ?? [])
-              .map((document) => this.toLocation(document))
-              .filter(
-                (
-                  location
-                ): location is DiscoveryVisibleProfileLocation =>
-                  location !== null
-              )
-          )
-        )
     );
 
-    return combineLatest(batchStreams).pipe(
-      map((parts) => parts.flat()),
-      map((locations) => this.orderByRequestedUids(locations, normalizedUids)),
+    return combineLatest(documentStreams).pipe(
+      map((documents) =>
+        documents
+          .map((document) => this.toLocation(document))
+          .filter(
+            (
+              location
+            ): location is DiscoveryVisibleProfileLocation =>
+              location !== null
+          )
+      ),
+      map((locations) =>
+        this.orderByRequestedUids(locations, normalizedUids)
+      ),
       shareReplay({ bufferSize: 1, refCount: true })
     );
   }
 
   private toLocation(
-    raw: Record<string, unknown>
+    raw: Record<string, unknown> | null
   ): DiscoveryVisibleProfileLocation | null {
+    if (!raw || !this.hasCurrentAgeEligibility(raw)) {
+      return null;
+    }
+
     const uid = this.cleanText(raw['uid']);
     if (!uid) return null;
 
@@ -90,18 +85,48 @@ export class DiscoveryVisibleProfileLocationRepository {
     };
   }
 
+  private hasCurrentAgeEligibility(
+    source: Record<string, unknown>
+  ): boolean {
+    if (source['ageEligibilityVerifiedAdult'] !== true) {
+      return false;
+    }
+
+    const value = source['ageEligibilityValidUntil'] as
+      | number
+      | Date
+      | { toMillis?: unknown }
+      | null
+      | undefined;
+
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value > Date.now();
+    }
+
+    if (value instanceof Date) {
+      return value.getTime() > Date.now();
+    }
+
+    return !!value
+      && typeof (value as { toMillis?: unknown }).toMillis === 'function'
+      && (value as { toMillis: () => number }).toMillis() > Date.now();
+  }
+
   private orderByRequestedUids(
     locations: readonly DiscoveryVisibleProfileLocation[],
     requestedUids: readonly string[]
   ): readonly DiscoveryVisibleProfileLocation[] {
-    const byUid = new Map(locations.map((location) => [location.uid, location]));
+    const byUid = new Map(
+      locations.map((location) => [location.uid, location])
+    );
 
     return requestedUids
       .map((uid) => byUid.get(uid) ?? null)
       .filter(
         (
           location
-        ): location is DiscoveryVisibleProfileLocation => location !== null
+        ): location is DiscoveryVisibleProfileLocation =>
+          location !== null
       );
   }
 
@@ -115,16 +140,6 @@ export class DiscoveryVisibleProfileLocationRepository {
           .filter((uid): uid is string => uid !== null)
       )
     ).sort();
-  }
-
-  private chunk<T>(items: readonly T[], size: number): T[][] {
-    const chunks: T[][] = [];
-
-    for (let index = 0; index < items.length; index += size) {
-      chunks.push(items.slice(index, index + size));
-    }
-
-    return chunks;
   }
 
   private firstText(
