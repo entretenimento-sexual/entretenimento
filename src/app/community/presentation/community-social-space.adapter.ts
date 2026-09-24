@@ -373,7 +373,11 @@ function createAdapter(
         kind === 'leave'
           ? copy.membership.leaveError
           : copy.membership.requestError,
-      leaveConfirmation: (input) => buildLeaveConfirmation(sourceType, input),
+      leaveConfirmation: (input: {
+        readonly viewerMode: CommunityPreviewViewerMode;
+        readonly viewerRole: CommunityPreviewViewerRole | null;
+        readonly join: CommunityPreviewJoinPolicy;
+      }) => buildLeaveConfirmation(sourceType, input),
     }),
     feed: (view: CommunityFeedView): CommunitySocialSpaceFeedPresentation =>
       view === 'photos'
