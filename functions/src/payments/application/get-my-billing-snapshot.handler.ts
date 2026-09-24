@@ -49,6 +49,7 @@ interface BillingSnapshotResponse {
     planKey: PlatformRole;
     effectiveAt: number;
     providerUpdateStatus: 'applied' | 'pending';
+    cancellationPending: boolean;
   } | null;
 }
 
@@ -100,6 +101,8 @@ export const getMyBillingSnapshot = onCall<Record<string, never>>(
           pendingPlanChange.providerUpdateStatus === 'applied'
             ? 'applied' as const
             : 'pending' as const,
+        cancellationPending:
+          typeof pendingPlanChange.cancellationRequestedAt === 'number',
       }
       : null;
     const downgradeSchedulingAvailable =
