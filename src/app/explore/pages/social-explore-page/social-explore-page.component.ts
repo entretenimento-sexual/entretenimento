@@ -32,7 +32,12 @@ import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-i
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { UserIntentStatusService } from 'src/app/core/services/discovery/user-intent-status.service';
-import { CommunityDiscoveryExposureService } from 'src/app/community/discovery/community-discovery-exposure.service';
+import {
+  CommunityDistributionTelemetryService,
+} from 'src/app/community/discovery/community-distribution-telemetry.service';
+import type {
+  CommunityDistributionTelemetrySurface,
+} from 'src/app/community/data-access/community-distribution-telemetry.repository';
 import { CommunityDiscoveryVisibilityDirective } from 'src/app/community/discovery/community-discovery-visibility.directive';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
@@ -113,7 +118,9 @@ export class SocialExplorePageComponent {
   private readonly errorNotification = inject(ErrorNotificationService);
   private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
   private readonly communityDistribution = inject(ExploreCommunityDistributionService);
-  private readonly communityExposure = inject(CommunityDiscoveryExposureService);
+  private readonly communityDistributionTelemetry = inject(
+    CommunityDistributionTelemetryService
+  );
 
   private readonly visibleFeedCountSubject =
     new BehaviorSubject<number>(FEED_INITIAL_VISIBLE_COUNT);
@@ -333,8 +340,21 @@ export class SocialExplorePageComponent {
     this.openFeedMedia(item);
   }
 
-  recordCommunityExposure(communityId: string): void {
-    this.communityExposure.recordQualifiedExposure(communityId, 'community');
+  recordCommunityDistributionExposure(
+    communityId: string,
+    surface: CommunityDistributionTelemetrySurface
+  ): void {
+    this.communityDistributionTelemetry.recordQualifiedExposure(
+      communityId,
+      surface
+    );
+  }
+
+  recordCommunityDistributionOpen(
+    communityId: string,
+    surface: CommunityDistributionTelemetrySurface
+  ): void {
+    this.communityDistributionTelemetry.recordOpen(communityId, surface);
   }
 
   communityInitials(name: string): string {
