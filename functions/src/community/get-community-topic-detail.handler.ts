@@ -10,6 +10,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
+import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   assertCommunityCallableAppCheck,
   REQUIRE_COMMUNITY_APP_CHECK,
@@ -34,6 +35,15 @@ import { getCommunityViewerContext } from './community-viewer-access.service';
 import {
   assertCommunityTopicsProductAvailable,
 } from './community-topics-product-state';
+
+function assertTopicsRuntime(): void {
+  if (isCommunityPreviewRuntimeAvailable()) return;
+
+  throw new HttpsError(
+    'failed-precondition',
+    'As Comunidades ainda não estão disponíveis neste ambiente.'
+  );
+}
 
 function assertAuthenticatedViewer(
   auth: { uid?: string; token?: Record<string, unknown> } | undefined
@@ -84,6 +94,7 @@ export const getCommunityTopicDetail = onCall<CommunityTopicDetailRequest>(
   },
   async (request): Promise<CommunityTopicDetailResponse> => {
     assertCommunityCallableAppCheck(request.app);
+    assertTopicsRuntime();
     assertCommunityTopicsProductAvailable();
     const uid = assertAuthenticatedViewer(request.auth);
     const command = normalizeCommunityTopicDetailRequest(request.data);
@@ -136,6 +147,7 @@ export const getCommunityTopicRepliesPage = onCall<CommunityTopicRepliesPageRequ
   },
   async (request): Promise<CommunityTopicRepliesPageResponse> => {
     assertCommunityCallableAppCheck(request.app);
+    assertTopicsRuntime();
     assertCommunityTopicsProductAvailable();
     const uid = assertAuthenticatedViewer(request.auth);
     const command = normalizeCommunityTopicRepliesPageRequest(request.data);
