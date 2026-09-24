@@ -14,7 +14,7 @@ import {
 
 const COMMUNITY_ROOT = resolve(process.cwd(), 'src/app/community');
 
-function productionComponentFiles(root: string): readonly string[] {
+function productionFiles(root: string): readonly string[] {
   const files: string[] = [];
 
   const visit = (directory: string): void => {
@@ -28,8 +28,9 @@ function productionComponentFiles(root: string): readonly string[] {
 
       if (
         entry.isFile()
-        && (entry.name.endsWith('.component.ts')
-          || entry.name.endsWith('.component.html'))
+        && (entry.name.endsWith('.ts') || entry.name.endsWith('.html'))
+        && !entry.name.endsWith('.spec.ts')
+        && !entry.name.endsWith('.test.ts')
       ) {
         files.push(absolute);
       }
@@ -94,7 +95,7 @@ describe('Community × Local social-space boundary', () => {
     expect(venue.membership.actionLabel('open')).toBe('Seguir');
   });
 
-  it('impede branching literal Community/Venue de voltar aos components', () => {
+  it('limita branching Community/Venue às fronteiras canônicas', () => {
     const forbidden = [
       /source\.type\s*===\s*['"](?:community|venue)['"]/u,
       /source\.type\s*!==\s*['"](?:community|venue)['"]/u,
@@ -104,28 +105,35 @@ describe('Community × Local social-space boundary', () => {
       /sourceType\s*!==\s*['"](?:community|venue)['"]/u,
     ] as const;
 
+    const allowedBranching = new Set([
+      'src/app/community/data-access/community-preview.model.ts',
+      'src/app/community/presentation/community-social-space.adapter.ts',
+    ]);
     const violations: string[] = [];
 
-    for (const file of productionComponentFiles(COMMUNITY_ROOT)) {
+    for (const file of productionFiles(COMMUNITY_ROOT)) {
       const source = readFileSync(file, 'utf8');
-      const displayPath = relative(process.cwd(), file);
+      const displayPath = relative(process.cwd(), file).replaceAll('\\', '/');
 
-      if (forbidden.some((pattern) => pattern.test(source))) {
+      if (
+        !allowedBranching.has(displayPath)
+        && forbidden.some((pattern) => pattern.test(source))
+      ) {
         violations.push(
-          `${displayPath} decide produto por discriminante literal`
+          `${displayPath} decide produto fora de adapter/normalização canônicos`
         );
       }
 
       if (source.includes('official_space')) {
         violations.push(
-          `${displayPath} vazou alias legado official_space para UI`
+          `${displayPath} vazou alias legado official_space para frontend`
         );
       }
     }
 
     expect(
       violations,
-      'Components devem consumir social-space adapter/capabilities'
+      'Código de produção deve consumir social-space adapter/capabilities'
     ).toEqual([]);
   });
 });
