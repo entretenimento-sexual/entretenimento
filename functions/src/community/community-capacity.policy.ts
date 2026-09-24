@@ -43,6 +43,7 @@ export type CommunityCapacityRegularizationReason =
   | 'capacity_over_plan'
   | 'official_entitlement_required'
   | 'capacity_over_entitlement'
+  | 'owned_community_quota_exceeded'
   | null;
 
 export interface PersonalCommunityCreationPolicy {
