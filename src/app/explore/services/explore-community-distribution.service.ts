@@ -99,10 +99,10 @@ export class ExploreCommunityDistributionService {
   );
 
   /**
-   * O listener agregado de unread já conhece todas as Comunidades com atividade.
-   * Só os seis IDs mais relevantes atravessam a callable; o backend revalida
+   * O único listener global entrega somente uma janela pequena de atenção.
+   * Dela, no máximo seis IDs atravessam a callable; o backend revalida
    * membership + Comunidade em lote e o bloco final continua limitado a três.
-   * Assim o Explore não precisa carregar a primeira página de "Minhas".
+   * O custo do Explore não cresce com o total de memberships do usuário.
    */
   private readonly activityCards$ = this.unreadSummary.currentUserSummaries$.pipe(
     map((summaries) =>
