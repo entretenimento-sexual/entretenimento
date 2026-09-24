@@ -535,7 +535,7 @@ export async function settleRecurringPlatformSubscriptionPayment(
       : {
         planId: contract.planId,
         planKey: contract.planKey,
-        grantedRole: settlementPlan.grantedRole,
+        grantedRole: contract.grantedRole,
         planSnapshot: contract.planSnapshot,
         amountCents: contract.amountCents,
       };
