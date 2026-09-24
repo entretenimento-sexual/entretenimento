@@ -16,6 +16,9 @@
 // npm run maintenance:community-member-management-index
 // -----------------------------------------------------------------------------
 
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import {
   applicationDefault,
   cert,
@@ -58,6 +61,25 @@ const maxCommunities = Math.max(
     ) || 10_000
   )
 );
+function countSearchPrefixCompositeIndexes() {
+  const indexPath = resolve(process.cwd(), 'firestore.indexes.json');
+  const config = JSON.parse(readFileSync(indexPath, 'utf8'));
+  const indexes = Array.isArray(config?.indexes) ? config.indexes : [];
+
+  return indexes.filter((index) =>
+    index?.collectionGroup === 'community_member_management_index'
+    && Array.isArray(index?.fields)
+    && index.fields.some(
+      (field) =>
+        field?.fieldPath === 'searchPrefixes'
+        && field?.arrayConfig === 'CONTAINS'
+    )
+  ).length;
+}
+
+const searchPrefixCompositeIndexCount =
+  countSearchPrefixCompositeIndexes();
+
 const maxMemberships = Math.max(
   1,
   Math.min(
@@ -189,6 +211,17 @@ async function processCommunity(db, policy, communityDocument, counters) {
       }
 
       counters.projected += 1;
+      const searchPrefixCount = Array.isArray(projection.searchPrefixes)
+        ? projection.searchPrefixes.length
+        : 0;
+      counters.searchPrefixValues += searchPrefixCount;
+      counters.maxSearchPrefixesPerProjection = Math.max(
+        counters.maxSearchPrefixesPerProjection,
+        searchPrefixCount
+      );
+      counters.estimatedSearchPrefixCompositeEntries +=
+        searchPrefixCount * searchPrefixCompositeIndexCount;
+
       writes.push({
         ref: db
           .collection('community_member_management_index')
@@ -238,6 +271,9 @@ async function main() {
     manageableCommunities: 0,
     scannedMemberships: 0,
     projected: 0,
+    searchPrefixValues: 0,
+    maxSearchPrefixesPerProjection: 0,
+    estimatedSearchPrefixCompositeEntries: 0,
     written: 0,
     skipped: 0,
     failures: 0,
@@ -305,6 +341,13 @@ async function main() {
     pageSize,
     maxCommunities,
     maxMemberships,
+    searchPrefixCompositeIndexCount,
+    averageSearchPrefixesPerProjection:
+      counters.projected > 0
+        ? Number(
+            (counters.searchPrefixValues / counters.projected).toFixed(2)
+          )
+        : 0,
     ...counters,
     complete,
     truncated:

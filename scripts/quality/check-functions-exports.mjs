@@ -14,6 +14,12 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const entryPath = resolve(process.cwd(), 'functions', 'lib', 'index.js');
+const temporaryCompatibilityExports = [
+  // Cliente publicado antes da paginação administrativa. Remover somente em
+  // release pós-estabilização, após telemetria confirmar ausência de chamadas.
+  'getCommunityOwnershipCandidates',
+];
+
 const requiredExports = [
   'reconcileRecurringProviderCancellations',
   'reconcileProviderWebhookEvents',
@@ -69,6 +75,7 @@ const requiredExports = [
   'moderateCommunityTopic',
   'getCommunityMembersForManagement',
   'getCommunityOwnershipCandidatesPage',
+  ...temporaryCompatibilityExports,
   'manageCommunityMember',
   'syncCommunityMemberManagementIndex',
   'syncCommunityMemberManagementIndexFromUser',
@@ -141,4 +148,7 @@ if (missingExports.length > 0) {
 
 console.log(
   `[functions:exports] OK: ${requiredExports.join(', ')}`
+);
+console.log(
+  `[functions:exports] Compatibilidade temporária preservada: ${temporaryCompatibilityExports.join(', ')}`
 );

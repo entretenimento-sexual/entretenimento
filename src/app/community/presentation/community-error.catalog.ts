@@ -64,6 +64,7 @@ const SNACKBAR_INFO: Readonly<ApplicationErrorPresentation> =
 const BLOCKING_PRESENTATIONS: Readonly<
   Partial<Record<CommunityPublicErrorReason, ApplicationErrorPresentation>>
 > = Object.freeze({
+  verification_required: { surface: 'modal', severity: 'info', title: 'Verificação de maioridade necessária', primaryAction: { label: 'Verificar agora', route: '/adulto/verificar-idade' }, dismissLabel: 'Agora não' },
   'recent-authentication-required': { surface: 'modal', severity: 'warning', title: 'Confirme sua identidade novamente' },
   current_terms_required: { surface: 'modal', severity: 'info', title: 'Termos atualizados', primaryAction: { label: 'Revisar termos', route: '/register/aceitar-termos' }, dismissLabel: 'Agora não' },
   age_reverification_required: { surface: 'modal', severity: 'warning', title: 'Confirmação de maioridade necessária', primaryAction: { label: 'Revalidar agora', route: '/adulto/revalidar' }, dismissLabel: 'Agora não' },

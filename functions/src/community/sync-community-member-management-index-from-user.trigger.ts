@@ -12,6 +12,7 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
   buildCommunityMemberManagementSearchIdentity,
+  communityMemberManagementSearchIdentityEquals,
 } from './community-member-management-index.policy';
 
 export const syncCommunityMemberManagementIndexFromUser = onDocumentWritten(
@@ -23,6 +24,24 @@ export const syncCommunityMemberManagementIndexFromUser = onDocumentWritten(
     const memberId = String(event.params['memberId'] ?? '').trim();
     if (!memberId) return;
 
+    const previousIdentity = buildCommunityMemberManagementSearchIdentity(
+      event.data?.before?.exists ? event.data.before.data() : null
+    );
+    const identity = buildCommunityMemberManagementSearchIdentity(
+      event.data?.after?.exists ? event.data.after.data() : null
+    );
+
+    // users/{uid} recebe writes de vários domínios. Se nickname/avatar não
+    // alteraram, não há motivo para consultar todas as projeções do usuário.
+    if (
+      communityMemberManagementSearchIdentityEquals(
+        previousIdentity,
+        identity
+      )
+    ) {
+      return;
+    }
+
     const indexSnapshot = await db
       .collection('community_member_management_index')
       .where('memberId', '==', memberId)
@@ -30,9 +49,6 @@ export const syncCommunityMemberManagementIndexFromUser = onDocumentWritten(
 
     if (indexSnapshot.empty) return;
 
-    const identity = buildCommunityMemberManagementSearchIdentity(
-      event.data?.after?.exists ? event.data.after.data() : null
-    );
     const writer = db.bulkWriter();
 
     for (const document of indexSnapshot.docs) {

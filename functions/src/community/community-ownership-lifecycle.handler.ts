@@ -373,6 +373,11 @@ function throwArchiveDecisionError(reason: string | null): never {
   );
 }
 
+/**
+ * @deprecated Compatibilidade temporária com clientes anteriores à paginação.
+ * Novos consumidores devem usar getCommunityOwnershipCandidatesPage.
+ * Remover somente em release pós-estabilização guiada por telemetria.
+ */
 export const getCommunityOwnershipCandidates = onCall<CommunityIdPayload>(
   {
     region: FUNCTIONS_REGION,

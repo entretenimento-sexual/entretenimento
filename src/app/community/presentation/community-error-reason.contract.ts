@@ -159,6 +159,7 @@ export const COMMUNITY_PUBLIC_ERROR_REASONS = Object.freeze([
   'target_blocked',
   'target_membership_ineligible',
   'target_unavailable',
+  'verification_required',
   'topic_creation_forbidden',
   'topic_moderation_forbidden',
   'topic_not_found',

@@ -373,7 +373,13 @@ Somente quando a release contiver busca server-side de membros e sucessores:
 3. rodar `npm run maintenance:community-member-management-index` com
    `COMMUNITY_MEMBER_MANAGEMENT_INDEX_DRY_RUN=true`;
 4. revisar `scannedCommunities`, `scannedMemberships`, `projected`,
-   `skipped`, `failures` e qualquer truncamento;
+   `skipped`, `failures`, qualquer truncamento e também:
+   - `searchPrefixCompositeIndexCount`;
+   - `averageSearchPrefixesPerProjection`;
+   - `maxSearchPrefixesPerProjection`;
+   - `estimatedSearchPrefixCompositeEntries`;
+   a escrita real deve ser abortada se a amplificação projetada ficar fora do
+   baseline/orçamento aprovado para a release;
 5. escrita real exige simultaneamente:
    - `COMMUNITY_MEMBER_MANAGEMENT_INDEX_DRY_RUN=false`;
    - `COMMUNITY_MEMBER_MANAGEMENT_INDEX_CONFIRM=true`;
@@ -631,6 +637,26 @@ Não iniciar uma nova onda enquanto a anterior não estiver explicitamente verde
 - [ ] critérios de abortar e responsáveis conhecidos;
 - [ ] rollback SHA buildável e procedimentos revisados;
 - [ ] nenhuma mudança de ranking/preço/custo não relacionada misturada na release.
+
+## 14.1. Compatibilidade temporária a retirar em release posterior
+
+Além dos aliases de trigger já documentados, o callable
+`getCommunityOwnershipCandidates` permanece temporariamente publicado para
+clientes anteriores à paginação administrativa. Nenhum frontend novo pode
+consumi-lo; o caminho canônico é `getCommunityOwnershipCandidatesPage`.
+
+A remoção deve ocorrer em release separada e somente quando:
+
+- Hosting novo estiver estável e sem rollback pendente;
+- métricas de invocação confirmarem ausência de uso do callable legado durante
+  a janela de observação definida para a release;
+- `getCommunityOwnershipCandidatesPage` estiver com erro, latência e custo
+  dentro do baseline;
+- não houver sessão/cache de cliente anterior considerada suportada pela janela;
+- rollback da remoção estiver documentado.
+
+A retirada não deve ser misturada com mudanças de Rules, ranking, pricing,
+billing ou capacidade.
 
 ## 15. Encerramento da janela
 

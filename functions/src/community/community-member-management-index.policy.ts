@@ -183,6 +183,19 @@ export function buildCommunityMemberManagementSearchPrefixes(
     .slice(0, COMMUNITY_MEMBER_MANAGEMENT_MAX_SEARCH_PREFIXES);
 }
 
+export function communityMemberManagementSearchIdentityEquals(
+  left: CommunityMemberManagementSearchIdentity,
+  right: CommunityMemberManagementSearchIdentity
+): boolean {
+  return left.label === right.label
+    && left.avatarUrl === right.avatarUrl
+    && left.sortLabel === right.sortLabel
+    && left.searchPrefixes.length === right.searchPrefixes.length
+    && left.searchPrefixes.every(
+      (value, index) => value === right.searchPrefixes[index]
+    );
+}
+
 export function buildCommunityMemberManagementSearchIdentity(
   rawUser: unknown
 ): CommunityMemberManagementSearchIdentity {
