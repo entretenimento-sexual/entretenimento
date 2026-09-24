@@ -34,7 +34,6 @@ const EMPTY_VM = {
   latestPhotos: [],
   videoHighlights: [],
   videoHighlightsStatus: 'empty' as const,
-  sections: [],
   compatibleProfiles: [
     {
       uid: 'compatible-1',
