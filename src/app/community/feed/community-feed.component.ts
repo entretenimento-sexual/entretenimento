@@ -14,7 +14,6 @@ import {
   DestroyRef,
   ElementRef,
   HostListener,
-  OnDestroy,
   effect,
   inject,
   input,
@@ -23,46 +22,27 @@ import {
   viewChildren,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { ReactiveFormsModule } from '@angular/forms';
+import { SafeResourceUrl } from '@angular/platform-browser';
 import {
-  FormControl,
-  ReactiveFormsModule,
-  Validators,
-} from '@angular/forms';
-import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
-import {
-  EMPTY,
-  Observable,
-  catchError,
   combineLatest,
-  concatMap,
   distinctUntilChanged,
-  exhaustMap,
   filter,
   map,
-  merge,
-  of,
-  scan,
   shareReplay,
-  startWith,
   Subject,
   switchMap,
-  tap,
   timer,
 } from 'rxjs';
 
 import { PublicUserIdentityComponent } from 'src/app/core/components/public-user-identity/public-user-identity.component';
-import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import { ReportContentButtonComponent } from 'src/app/shared/components-globais/moderation-report/report-content-button/report-content-button.component';
 import {
   CommunityFeedItem,
   CommunityFeedPostAction,
-  CommunityFeedPostActionRequest,
   CommunityFeedView,
 } from '../data-access/community-feed.model';
-import { CommunityFeedRepository } from '../data-access/community-feed.repository';
-import { CommunityRealtimeAttentionCoordinatorService } from '../data-access/community-realtime-attention-coordinator.service';
 import type { CommunityFeedRealtimeChange } from '../data-access/community-feed-realtime.model';
 import { CommunityFeedCommentsComponent } from '../feed-comments/community-feed-comments.component';
 import { CommunityHighlightCardComponent } from '../highlight/community-highlight-card.component';
@@ -71,10 +51,6 @@ import {
   CommunityPreviewSourceType,
   CommunityPreviewViewerRole,
 } from '../data-access/community-preview.model';
-import {
-  COMMUNITY_FEED_POST_ACTION_CODE_MESSAGES,
-  COMMUNITY_FEED_POST_REASON_MESSAGES,
-} from '../presentation/community-error.messages';
 import { CommunityCameraCaptureComponent } from './community-camera-capture.component';
 import {
   CommunityFeedComposerContext,
@@ -86,13 +62,13 @@ import {
 } from './community-feed-disclosure-menu.util';
 import { CommunityFeedReactionFacade } from './community-feed-reaction.facade';
 import { CommunityFeedReferenceNavigationFacade } from './community-feed-reference-navigation.facade';
-import { createCommunityFeedRequestId } from './community-feed-request-id';
+import { CommunityFeedLocationFacade } from './community-feed-location.facade';
+import { CommunityFeedModerationFacade } from './community-feed-moderation.facade';
 import {
-  CommunityFeedLoadEvent,
-  CommunityFeedLoadRequest,
   INITIAL_COMMUNITY_FEED_STATE,
   reduceCommunityFeedState,
 } from './community-feed-state.model';
+import { CommunityFeedTimelineFacade } from './community-feed-timeline.facade';
 import { CommunityFeedTimeTickerService } from './community-feed-time-ticker.service';
 import {
   formatCommunityFeedIso,
@@ -104,22 +80,7 @@ export {
   reduceCommunityFeedState,
 } from './community-feed-state.model';
 
-type CommunityFeedPostActionState =
-  | { status: 'idle'; postId: null; action: null }
-  | {
-      status: 'loading' | 'error';
-      postId: string;
-      action: CommunityFeedPostAction;
-    };
-
-interface CommunityFeedMapCoordinates {
-  latitude: number;
-  longitude: number;
-  cacheKey: string;
-}
-
 const MAX_UNSEEN_NEW_POSTS = 99;
-const MAX_LOCATION_EMBED_URL_CACHE_ENTRIES = 64;
 
 @Component({
   selector: 'app-community-feed',
@@ -139,6 +100,9 @@ const MAX_LOCATION_EMBED_URL_CACHE_ENTRIES = 64;
     CommunityFeedComposerFacade,
     CommunityFeedReactionFacade,
     CommunityFeedReferenceNavigationFacade,
+    CommunityFeedTimelineFacade,
+    CommunityFeedModerationFacade,
+    CommunityFeedLocationFacade,
   ],
   templateUrl: './community-feed.component.html',
   styleUrls: [
@@ -147,24 +111,16 @@ const MAX_LOCATION_EMBED_URL_CACHE_ENTRIES = 64;
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class CommunityFeedComponent implements OnDestroy {
-  private readonly repository = inject(CommunityFeedRepository);
-  private readonly realtimeAttention = inject(CommunityRealtimeAttentionCoordinatorService);
-  private readonly errorNotifier = inject(ErrorNotificationService);
-  private readonly applicationError = inject(ApplicationErrorService);
+export class CommunityFeedComponent {
   private readonly timeTicker = inject(CommunityFeedTimeTickerService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly composer = inject(CommunityFeedComposerFacade);
   private readonly reactions = inject(CommunityFeedReactionFacade);
   private readonly references = inject(CommunityFeedReferenceNavigationFacade);
-  private readonly sanitizer = inject(DomSanitizer);
-  private readonly loadRequests$ = new Subject<CommunityFeedLoadRequest>();
-  private readonly realtimeHydrationRequests$ = new Subject<string>();
-  private readonly localFeedEvents$ = new Subject<CommunityFeedLoadEvent>();
-  private readonly postActionRequests$ =
-    new Subject<CommunityFeedPostActionRequest>();
+  private readonly timeline = inject(CommunityFeedTimelineFacade);
+  private readonly moderation = inject(CommunityFeedModerationFacade);
+  private readonly location = inject(CommunityFeedLocationFacade);
   private readonly postHighlightRequests$ = new Subject<string>();
-  private readonly locationEmbedUrlCache = new Map<string, SafeResourceUrl>();
   private readonly postElements = viewChildren<ElementRef<HTMLElement>>('postElement');
   private readonly postMenus = viewChildren<ElementRef<HTMLDetailsElement>>('postMenu');
   private readonly attachmentMenu = viewChild<ElementRef<HTMLDetailsElement>>('attachmentMenu');
@@ -173,8 +129,6 @@ export class CommunityFeedComponent implements OnDestroy {
   private pendingRealtimeFollowIntent: boolean | null = null;
   private lastExternalFocusKey: string | null = null;
   private lastObservedLatestPostId: string | null = null;
-  private readonly pendingActionRequestIds = new Map<string, string>();
-
   readonly communityId = input<string>('');
   readonly view = input<CommunityFeedView>('feed');
   readonly sourceType = input<CommunityPreviewSourceType>('community');
@@ -186,8 +140,8 @@ export class CommunityFeedComponent implements OnDestroy {
   readonly selectedAttachment = this.composer.selectedAttachment;
   readonly uploadProgress = this.composer.uploadProgress;
   readonly locationCaptureState = this.composer.locationCaptureState;
-  readonly actionPostId = signal<string | null>(null);
-  readonly actionMode = signal<CommunityFeedPostAction | null>(null);
+  readonly actionPostId = this.moderation.actionPostId;
+  readonly actionMode = this.moderation.actionMode;
   readonly commentsPostId = signal<string | null>(null);
   readonly replyPostId = signal<string | null>(null);
   readonly postReplyRequestVersion = signal(0);
@@ -210,11 +164,7 @@ export class CommunityFeedComponent implements OnDestroy {
   );
 
   readonly postForm = this.composer.postForm;
-
-  readonly removalReason = new FormControl('', {
-    nonNullable: true,
-    validators: [Validators.required, Validators.minLength(3), Validators.maxLength(240)],
-  });
+  readonly removalReason = this.moderation.removalReason;
 
   private readonly feedScope$ = combineLatest([
     toObservable(this.communityId),
@@ -229,103 +179,30 @@ export class CommunityFeedComponent implements OnDestroy {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly state$ = this.feedScope$.pipe(
-    switchMap(([communityId, view]) => {
-      const pageEvents$ = this.loadRequests$.pipe(
-        startWith<CommunityFeedLoadRequest>({
-          cursor: null,
-          append: false,
-          preserve: true,
-        }),
-        exhaustMap((request) =>
-          this.repository
-            .getPage$({
-              communityId,
-              view,
-              limit: 10,
-              cursor: request.cursor,
-            })
-            .pipe(
-              map(
-                (page): CommunityFeedLoadEvent => ({
-                  type: 'success',
-                  request,
-                  page,
-                })
-              ),
-              startWith<CommunityFeedLoadEvent>({
-                type: 'loading',
-                request,
-              }),
-              catchError((error: unknown) => {
-                this.reportLoadError(error, view);
-                return of<CommunityFeedLoadEvent>({ type: 'error', request });
-              })
-            )
-        )
-      );
-
-      const realtimeEvents$ = this.realtimeAttention
-        .claimMode$(communityId)
-        .pipe(
-          switchMap((attentionMode) => {
-            if (attentionMode !== 'detailed') {
-              // Comunidades fora do primeiro plano usam exclusivamente a projeção
-              // agregada de notificações. Nenhum listener de feed permanece ativo.
-              return EMPTY;
-            }
-
-            return this.repository
-              .watchLatestChanges$(communityId, 20)
-              .pipe(
-                tap((changes) =>
-                  this.reconcileRealtimeOverrides(changes, communityId)
-                ),
-                // Cada diff precisa concluir sua hidratação. Cancelar a chamada anterior
-                // em uma rajada pode fazer um post já sinalizado nunca entrar no estado.
-                concatMap((changes) =>
-                  this.buildRealtimeEvent$(communityId, view, changes)
-                ),
-                catchError((error: unknown) => {
-                  this.reportTechnicalError(error, 'watchRealtime', view);
-                  return EMPTY;
-                })
-              );
-          })
-        );
-
-      const directedHydrationEvents$ = this.realtimeHydrationRequests$.pipe(
-        concatMap((postId) =>
-          this.repository.getItems$({
-            communityId,
-            view,
-            postIds: [postId],
-          }).pipe(
-            map((page): CommunityFeedLoadEvent => ({
-              type: 'realtime',
-              upserts: page.items,
-              metricPatches: [],
-              removedIds: [],
-            })),
-            catchError((error: unknown) => {
-              this.reportTechnicalError(error, 'hydrateRealtimeItem', view);
-              return EMPTY;
-            })
-          )
-        )
-      );
-
-      return merge(
-        pageEvents$,
-        realtimeEvents$,
-        directedHydrationEvents$,
-        this.localFeedEvents$
-      ).pipe(
-        scan(reduceCommunityFeedState, INITIAL_COMMUNITY_FEED_STATE)
-      );
-    }),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
+  readonly state$ = this.timeline.connect({
+    scope$: this.feedScope$,
+    sourceType: () => this.sourceType(),
+    hooks: {
+      onRealtimeChanges: (changes, communityId) =>
+        this.reconcileRealtimeOverrides(changes, communityId),
+      captureRealtimeFollowIntent: () => {
+        const currentLatestPostId = this.orderedPostIds()[0] ?? null;
+        return this.unseenNewPostCount() === 0
+          && (currentLatestPostId
+            ? this.isPostInsideFollowZone(currentLatestPostId)
+            : true);
+      },
+      commitRealtimeFollowIntent: (shouldFollowLatest) => {
+        this.pendingRealtimeFollowIntent =
+          this.pendingRealtimeFollowIntent === null
+            ? shouldFollowLatest
+            : this.pendingRealtimeFollowIntent && shouldFollowLatest;
+      },
+      clearRealtimeFollowIntent: () => {
+        this.pendingRealtimeFollowIntent = null;
+      },
+    },
+  });
 
   private readonly orderedPostIds = toSignal(
     this.state$.pipe(
@@ -442,52 +319,7 @@ export class CommunityFeedComponent implements OnDestroy {
 
   readonly postCreateState$ = this.composer.postCreateState$;
 
-  readonly postActionState$ = this.postActionRequests$.pipe(
-    exhaustMap((request) =>
-      this.repository.moderatePost$(request).pipe(
-        tap((result) => {
-          this.pendingActionRequestIds.delete(
-            this.actionRequestKey(result.postId, result.action)
-          );
-          this.actionPostId.set(null);
-          this.actionMode.set(null);
-          this.removalReason.reset('');
-          this.clearItemOverrides(result.postId);
-          this.localFeedEvents$.next({
-            type: 'realtime',
-            upserts: [],
-            metricPatches: [],
-            removedIds: [result.postId],
-          });
-          this.showPostActionSuccess(result.action, result.deduplicated);
-        }),
-        map((): CommunityFeedPostActionState => ({
-          status: 'idle',
-          postId: null,
-          action: null,
-        })),
-        startWith<CommunityFeedPostActionState>({
-          status: 'loading',
-          postId: request.postId,
-          action: request.action,
-        }),
-        catchError((error: unknown) => {
-          this.reportPostActionError(error, request.action);
-          return of<CommunityFeedPostActionState>({
-            status: 'error',
-            postId: request.postId,
-            action: request.action,
-          });
-        })
-      )
-    ),
-    startWith<CommunityFeedPostActionState>({
-      status: 'idle',
-      postId: null,
-      action: null,
-    }),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
+  readonly postActionState$ = this.moderation.state$;
 
   readonly reactionState$ = this.reactions.reactionState$;
 
@@ -499,9 +331,21 @@ export class CommunityFeedComponent implements OnDestroy {
     this.references.referencedItem$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((item) => {
-        this.localFeedEvents$.next({
+        this.timeline.applyLocalEvent({
           type: 'reference',
           item,
+        });
+      });
+
+    this.moderation.removedPost$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((postId) => {
+        this.clearItemOverrides(postId);
+        this.timeline.applyLocalEvent({
+          type: 'realtime',
+          upserts: [],
+          metricPatches: [],
+          removedIds: [postId],
         });
       });
 
@@ -518,10 +362,6 @@ export class CommunityFeedComponent implements OnDestroy {
         element.focus({ preventScroll: true });
         this.postHighlightRequests$.next(navigation.postId);
       });
-  }
-
-  ngOnDestroy(): void {
-    this.locationEmbedUrlCache.clear();
   }
 
   canCreatePost(): boolean {
@@ -563,31 +403,11 @@ export class CommunityFeedComponent implements OnDestroy {
   }
 
   locationMapEmbedUrl(item: CommunityFeedItem): SafeResourceUrl | null {
-    const coordinates = this.normalizedMapCoordinates(item);
-    if (!coordinates) return null;
-
-    const cached = this.locationEmbedUrlCache.get(coordinates.cacheKey);
-    if (cached) return cached;
-
-    const trusted = this.sanitizer.bypassSecurityTrustResourceUrl(
-      `https://www.google.com/maps?q=${coordinates.latitude},${coordinates.longitude}&z=14&output=embed`
-    );
-
-    if (this.locationEmbedUrlCache.size >= MAX_LOCATION_EMBED_URL_CACHE_ENTRIES) {
-      const oldestKey = this.locationEmbedUrlCache.keys().next().value as string | undefined;
-      if (oldestKey) this.locationEmbedUrlCache.delete(oldestKey);
-    }
-    this.locationEmbedUrlCache.set(coordinates.cacheKey, trusted);
-    return trusted;
+    return this.location.mapEmbedUrl(item);
   }
 
   locationMapUrl(item: CommunityFeedItem): string {
-    const coordinates = this.normalizedMapCoordinates(item);
-    if (!coordinates) return '#';
-    const query = encodeURIComponent(
-      `${coordinates.latitude},${coordinates.longitude}`
-    );
-    return `https://www.google.com/maps/search/?api=1&query=${query}`;
+    return this.location.mapUrl(item);
   }
 
   submitPostOnEnter(event: Event): void {
@@ -598,53 +418,22 @@ export class CommunityFeedComponent implements OnDestroy {
     this.composer.submitPost(this.composerContext());
   }
 
-  requestPostAction(item: CommunityFeedItem, action: CommunityFeedPostAction): void {
-    const allowed = action === 'delete_own'
-      ? item.capabilities.canDeleteOwn
-      : item.capabilities.canModerate;
-    if (!allowed) return;
-
-    this.actionPostId.set(item.postId);
-    this.actionMode.set(action);
-    this.removalReason.reset('');
+  requestPostAction(
+    item: CommunityFeedItem,
+    action: CommunityFeedPostAction
+  ): void {
+    this.moderation.request(item, action);
   }
 
   cancelPostAction(): void {
-    const postId = this.actionPostId();
-    const action = this.actionMode();
-    if (postId && action) {
-      this.pendingActionRequestIds.delete(this.actionRequestKey(postId, action));
-    }
-    this.actionPostId.set(null);
-    this.actionMode.set(null);
-    this.removalReason.reset('');
+    this.moderation.cancel();
   }
 
   confirmPostAction(item: CommunityFeedItem): void {
-    const action = this.actionMode();
-    if (!action || this.actionPostId() !== item.postId) return;
-
-    const allowed = action === 'delete_own'
-      ? item.capabilities.canDeleteOwn
-      : item.capabilities.canModerate;
-    if (!allowed) return;
-
-    const reason = action === 'remove' ? this.removalReason.value.trim() : null;
-    if (action === 'remove' && this.removalReason.invalid) {
-      this.removalReason.markAsTouched();
-      this.errorNotifier.showWarning('Informe o motivo da remoção.');
-      return;
-    }
-
-    const key = this.actionRequestKey(item.postId, action);
-    const requestId = this.pendingActionRequestIds.get(key) ?? this.createRequestId();
-    this.pendingActionRequestIds.set(key, requestId);
-    this.postActionRequests$.next({
-      requestId,
+    this.moderation.confirm(item, {
       communityId: this.communityId().trim(),
-      postId: item.postId,
-      action,
-      reason,
+      view: this.view(),
+      sourceType: this.sourceType(),
     });
   }
 
@@ -691,7 +480,7 @@ export class CommunityFeedComponent implements OnDestroy {
     if (!normalizedPostId) return;
 
     this.pendingOwnPostFollowId.set(normalizedPostId);
-    this.realtimeHydrationRequests$.next(normalizedPostId);
+    this.timeline.hydratePost(normalizedPostId);
   }
 
   @HostListener('document:pointerdown', ['$event'])
@@ -773,11 +562,11 @@ export class CommunityFeedComponent implements OnDestroy {
   }
 
   loadMore(cursor: string | null): void {
-    if (cursor) this.loadRequests$.next({ cursor, append: true });
+    this.timeline.loadMore(cursor);
   }
 
   retry(): void {
-    this.loadRequests$.next({ cursor: null, append: false, preserve: true });
+    this.timeline.retry();
   }
 
   sectionAriaLabel(): string {
@@ -837,41 +626,7 @@ export class CommunityFeedComponent implements OnDestroy {
     return menus;
   }
 
-  private normalizedMapCoordinates(
-    item: CommunityFeedItem
-  ): CommunityFeedMapCoordinates | null {
-    const location = item.location;
-    if (!location) return null;
 
-    const latitude = Number(location.latitude);
-    const longitude = Number(location.longitude);
-    if (
-      !Number.isFinite(latitude)
-      || !Number.isFinite(longitude)
-      || latitude < -90
-      || latitude > 90
-      || longitude < -180
-      || longitude > 180
-    ) {
-      return null;
-    }
-
-    const decimals = location.precision === 'precise' ? 6 : 2;
-    const normalizedLatitudeValue = Number(latitude.toFixed(decimals));
-    const normalizedLongitudeValue = Number(longitude.toFixed(decimals));
-    const normalizedLatitude = Object.is(normalizedLatitudeValue, -0)
-      ? 0
-      : normalizedLatitudeValue;
-    const normalizedLongitude = Object.is(normalizedLongitudeValue, -0)
-      ? 0
-      : normalizedLongitudeValue;
-
-    return {
-      latitude: normalizedLatitude,
-      longitude: normalizedLongitude,
-      cacheKey: `${location.precision}:${normalizedLatitude.toFixed(decimals)},${normalizedLongitude.toFixed(decimals)}`,
-    };
-  }
 
   private findRenderedPostElement(postId: string): ElementRef<HTMLElement> | null {
     return this.postElements().find(
@@ -924,70 +679,7 @@ export class CommunityFeedComponent implements OnDestroy {
       && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   }
 
-  private buildRealtimeEvent$(
-    communityId: string,
-    view: CommunityFeedView,
-    changes: readonly CommunityFeedRealtimeChange[]
-  ): Observable<CommunityFeedLoadEvent> {
-    const relevant = changes.filter((change) =>
-      view === 'feed' || change.projection.kind === 'photo'
-    );
-    if (relevant.length === 0) return EMPTY;
 
-    const removedIds = relevant
-      .filter((change) =>
-        change.type === 'removed' || change.projection.state === 'removed'
-      )
-      .map((change) => change.projection.postId);
-    const active = relevant.filter((change) =>
-      change.type !== 'removed' && change.projection.state === 'active'
-    );
-    const metricPatches = active.map((change) => ({
-      postId: change.projection.postId,
-      metrics: { ...change.projection.metrics },
-    }));
-    const addedIds = active
-      .filter((change) => change.type === 'added')
-      .map((change) => change.projection.postId);
-    const baseEvent: CommunityFeedLoadEvent = {
-      type: 'realtime',
-      upserts: [],
-      metricPatches,
-      removedIds,
-    };
-
-    if (addedIds.length === 0) return of(baseEvent);
-
-    const currentLatestPostId = this.orderedPostIds()[0] ?? null;
-    const shouldFollowLatest = this.unseenNewPostCount() === 0
-      && (currentLatestPostId
-        ? this.isPostInsideFollowZone(currentLatestPostId)
-        : true);
-
-    return this.repository.getItems$({
-      communityId,
-      view,
-      postIds: addedIds,
-    }).pipe(
-      map((page): CommunityFeedLoadEvent => {
-        // Rajadas podem hidratar mais de um diff antes do próximo ciclo visual.
-        // Uma decisão de preservar a leitura nunca deve ser sobrescrita por uma
-        // chegada posterior cuja referência ainda nem foi renderizada no DOM.
-        this.pendingRealtimeFollowIntent = this.pendingRealtimeFollowIntent === null
-          ? shouldFollowLatest
-          : this.pendingRealtimeFollowIntent && shouldFollowLatest;
-        return {
-          ...baseEvent,
-          upserts: page.items,
-        };
-      }),
-      catchError((error: unknown) => {
-        this.pendingRealtimeFollowIntent = null;
-        this.reportTechnicalError(error, 'hydrateRealtimeItem', view);
-        return of(baseEvent);
-      })
-    );
-  }
 
   private reconcileRealtimeOverrides(
     changes: readonly CommunityFeedRealtimeChange[],
@@ -1030,90 +722,5 @@ export class CommunityFeedComponent implements OnDestroy {
     }
   }
 
-  private createRequestId(): string {
-    return createCommunityFeedRequestId();
-  }
 
-  private actionRequestKey(postId: string, action: CommunityFeedPostAction): string {
-    return `${action}:${postId}`;
-  }
-
-  private showPostActionSuccess(
-    action: CommunityFeedPostAction,
-    deduplicated: boolean
-  ): void {
-    try {
-      const message = deduplicated
-        ? 'A ação já estava confirmada.'
-        : action === 'delete_own'
-          ? 'Mensagem excluída.'
-          : 'Mensagem removida do Mural.';
-      this.errorNotifier.showSuccess(message);
-    } catch {
-      // O stream realtime confirma a remoção visualmente.
-    }
-  }
-
-  private reportPostActionError(
-    error: unknown,
-    action: CommunityFeedPostAction
-  ): void {
-    this.applicationError.report(error, {
-      feature: 'community',
-      operation: 'moderatePost',
-      fallbackMessage: action === 'delete_own'
-        ? 'Não foi possível excluir a mensagem agora.'
-        : 'Não foi possível remover a mensagem agora.',
-      reasonMessages: COMMUNITY_FEED_POST_REASON_MESSAGES,
-      codeMessages: COMMUNITY_FEED_POST_ACTION_CODE_MESSAGES,
-      metadata: {
-        scope: 'CommunityFeedComponent',
-        action,
-        view: this.view(),
-        sourceType: this.sourceType(),
-      },
-    });
-  }
-
-  private reportLoadError(error: unknown, view: CommunityFeedView): void {
-    const fallbackMessage = view === 'photos'
-      ? 'Não foi possível carregar as fotos agora.'
-      : this.sourceType() === 'venue'
-        ? 'Não foi possível carregar as novidades do Local agora.'
-        : 'Não foi possível carregar o mural da Comunidade agora.';
-
-    this.applicationError.report(error, {
-      feature: 'community',
-      operation: 'loadPage',
-      fallbackMessage,
-      notification: 'none',
-      metadata: {
-        scope: 'CommunityFeedComponent',
-        view,
-        sourceType: this.sourceType(),
-      },
-    });
-  }
-
-  private reportTechnicalError(
-    error: unknown,
-    op:
-      | 'loadPage'
-      | 'moderatePost'
-      | 'watchRealtime'
-      | 'hydrateRealtimeItem',
-    view: CommunityFeedView = this.view()
-  ): void {
-    this.applicationError.report(error, {
-      feature: 'community',
-      operation: op,
-      fallbackMessage: 'Não foi possível concluir esta atualização agora.',
-      notification: 'none',
-      metadata: {
-        scope: 'CommunityFeedComponent',
-        view,
-        sourceType: this.sourceType(),
-      },
-    });
-  }
 }
