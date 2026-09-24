@@ -259,6 +259,25 @@ experiences são implantados seletivamente depois das dependências transversais
 que consumirem. Não redeployar domínio sem diff somente para “uniformizar” a
 release.
 
+### Regra específica — kernel `Community × Local`
+
+A refatoração do kernel `social-space`, quando o diff estiver limitado a
+`src/app/core/domain/social-space.definition.ts`,
+`src/app/community/**` e testes/documentação de frontend, é **client-only**:
+
+- a lista de Functions desta mudança deve ser vazia;
+- não há backfill;
+- não há alteração de Firestore Rules, Storage Rules ou índices;
+- não há migração de dados;
+- não há mudança de entitlement, pricing, ownership ou capacidade;
+- `official_space` permanece somente como alias de compatibilidade no backend
+  e não deve ser transportado para a UI.
+
+Nesse caso, não redeployar Functions por conveniência. O kernel entra somente na
+onda de Hosting, que continua sendo a última onda do rollout geral. Se o
+`RELEASE_SHA` futuro também contiver mudanças reais de Functions, aplicar F1–F5
+normalmente para **essas** mudanças antes de publicar o Hosting.
+
 ## 7. Migrações/backfills — ordem e gates
 
 Todos os backfills são executados **depois do runtime que manterá o estado novo**
@@ -429,6 +448,28 @@ real nem operações destrutivas apenas para smoke test.
 - notificações/unread global e detalhe paginado;
 - bloqueio bilateral em leitura/interação;
 - sponsored/Boost sem herdar dívida entre proprietários.
+
+### S4.1 — kernel Community × Local
+
+Além do smoke geral de Comunidades:
+
+- abrir `/dashboard/comunidades` e `/dashboard/locais` por navegação e deep link;
+- confirmar que cards de Local continuam retornando para `/dashboard/locais`;
+- confirmar que “Minhas comunidades”, filtros por interesse, Discussões,
+  Membros, regras, lifecycle, capacidade, ownership e moderação aparecem apenas
+  quando a capability correspondente estiver habilitada;
+- confirmar que Local mantém “Seguir”, “Solicitar acesso”, “Novidades”,
+  localização pública e vínculo com Comunidade oficial;
+- confirmar que owner de Local aparece como “Responsável” e owner de Comunidade
+  como “Proprietário”;
+- confirmar que feed/fotos, solicitações e saída preservam comportamento e
+  mensagens sem branches literais na view;
+- confirmar que nenhuma superfície de Room foi reativada;
+- confirmar que nenhum texto/estado `official_space` aparece no frontend.
+
+Para uma release que contenha somente esta refatoração, rollback operacional é
+rebuild/redeploy do Hosting a partir do `ROLLBACK_SHA`; não há rollback de
+Functions, Rules, índices ou dados associado a este delta.
 
 ### S5 — integração transversal
 
