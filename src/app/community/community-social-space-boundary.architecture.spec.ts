@@ -11,7 +11,8 @@ import {
   getCommunitySocialSpaceAdapter,
 } from './presentation/community-social-space.adapter';
 
-const COMMUNITY_ROOT = resolve(process.cwd(), 'src/app/community');
+const APP_ROOT = resolve(process.cwd(), 'src/app');
+const COMMUNITY_ROOT = resolve(APP_ROOT, 'community');
 
 function productionFiles(root: string): readonly string[] {
   const files: string[] = [];
@@ -38,6 +39,63 @@ function productionFiles(root: string): readonly string[] {
 
   visit(root);
   return files;
+}
+
+function resolveTsImport(
+  importer: string,
+  specifier: string,
+  productionTsFiles: ReadonlySet<string>
+): string | null {
+  let candidate: string | null = null;
+
+  if (specifier.startsWith('.')) {
+    candidate = resolve(importer, '..', specifier);
+  } else if (specifier.startsWith('src/app/')) {
+    candidate = resolve(process.cwd(), specifier);
+  } else if (specifier.startsWith('@app/')) {
+    candidate = resolve(APP_ROOT, specifier.slice('@app/'.length));
+  } else if (specifier.startsWith('@core/')) {
+    candidate = resolve(APP_ROOT, 'core', specifier.slice('@core/'.length));
+  } else if (specifier.startsWith('@shared/')) {
+    candidate = resolve(APP_ROOT, 'shared', specifier.slice('@shared/'.length));
+  } else {
+    return null;
+  }
+
+  for (const resolvedCandidate of [
+    candidate,
+    `${candidate}.ts`,
+    resolve(candidate, 'index.ts'),
+  ]) {
+    if (productionTsFiles.has(resolvedCandidate)) {
+      return resolvedCandidate;
+    }
+  }
+
+  return null;
+}
+
+function productionTsInboundCounts(): ReadonlyMap<string, number> {
+  const files = productionFiles(APP_ROOT).filter((file) => file.endsWith('.ts'));
+  const fileSet = new Set(files);
+  const inbound = new Map(files.map((file) => [file, 0] as const));
+  const importPattern =
+    /\b(?:import|export)\s+(?:[^'"]*?\s+from\s+)?['"]([^'"]+)['"]|\bimport\(\s*['"]([^'"]+)['"]\s*\)/gu;
+
+  for (const importer of files) {
+    const source = readFileSync(importer, 'utf8');
+
+    for (const match of source.matchAll(importPattern)) {
+      const specifier = match[1] ?? match[2];
+      if (!specifier) continue;
+
+      const target = resolveTsImport(importer, specifier, fileSet);
+      if (!target || target === importer) continue;
+      inbound.set(target, (inbound.get(target) ?? 0) + 1);
+    }
+  }
+
+  return inbound;
 }
 
 describe('Community × Local social-space boundary', () => {
@@ -94,6 +152,22 @@ describe('Community × Local social-space boundary', () => {
     expect(venue.discovery.canCreateCommunity).toBe(false);
     expect(venue.discovery.canCreateVenue).toBe(true);
     expect(venue.membership.actionLabel('open')).toBe('Seguir');
+  });
+
+  it('não introduz arquivos TS órfãos no módulo Community', () => {
+    const inbound = productionTsInboundCounts();
+    const orphans = [...inbound.entries()]
+      .filter(([file, count]) =>
+        file.startsWith(COMMUNITY_ROOT)
+        && count === 0
+      )
+      .map(([file]) => relative(process.cwd(), file).replaceAll('\\', '/'))
+      .sort();
+
+    expect(
+      orphans,
+      'Arquivos sem consumidor de produção devem ser removidos ou explicitamente justificados'
+    ).toEqual([]);
   });
 
   it('limita branching Community/Venue às fronteiras canônicas', () => {
