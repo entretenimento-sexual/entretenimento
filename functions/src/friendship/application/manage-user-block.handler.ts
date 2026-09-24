@@ -268,7 +268,7 @@ async function manageUserBlock(input: {
     );
   }
 
-  if (input.action === 'block' && finalResponse.changed) {
+  if (input.action === 'block') {
     try {
       await removeCommunityMuralNotificationsBetweenUsers(
         input.actorUid,

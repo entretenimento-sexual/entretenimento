@@ -541,6 +541,7 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
                     communityId,
                     command.replyToPostId,
                     replyRecipientUid,
+                    actorUid,
                     replyMembershipCycleStartedAtMs,
                     nowMs
                   )

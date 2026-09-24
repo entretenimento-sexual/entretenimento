@@ -89,6 +89,7 @@ test('comunidade quente agrupa 1.000 reações no mesmo envelope diário', () =>
       'community-hot',
       'post-hot',
       'recipient-1',
+      'actor-hot',
       NOW - 60_000,
       NOW + index * 1_000
     ));

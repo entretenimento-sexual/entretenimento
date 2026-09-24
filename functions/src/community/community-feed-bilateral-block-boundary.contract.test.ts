@@ -119,3 +119,47 @@ test('mention semântica não possui canal paralelo capaz de contornar bloqueio'
     true
   );
 });
+
+
+test('paginação principal aplica limite depois do filtro bilateral hidratado', () => {
+  const feedPage = source('community/get-community-feed-page.handler.ts');
+
+  assert.equal(
+    feedPage.includes('if (projections.length >= pageRequest.limit) break'),
+    false
+  );
+  assert.equal(
+    feedPage.includes('const items = hydratedItems.slice(0, pageRequest.limit)'),
+    true
+  );
+  assert.equal(
+    feedPage.includes('lastVisiblePostId'),
+    true
+  );
+});
+
+test('agrupamento social do Mural preserva ator para limpeza bilateral precisa', () => {
+  const notificationPolicy = source(
+    'community/community-notification.policy.ts'
+  );
+  const blockHandler = source(
+    'friendship/application/manage-user-block.handler.ts'
+  );
+
+  assert.equal(
+    notificationPolicy.includes('actorUid: string'),
+    true
+  );
+  assert.equal(
+    blockHandler.includes(".where('actorUid', '==', rightUid)"),
+    true
+  );
+  assert.equal(
+    blockHandler.includes(".where('actorUid', '==', leftUid)"),
+    true
+  );
+  assert.equal(
+    blockHandler.includes("if (input.action === 'block')"),
+    true
+  );
+});

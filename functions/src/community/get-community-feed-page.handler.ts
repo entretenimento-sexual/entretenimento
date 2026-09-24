@@ -121,11 +121,8 @@ export const getCommunityFeedPage = onCall<CommunityFeedPageRequest>(
 
     const querySnapshot = await pageQuery.get();
     const projections: SanitizedCommunityFeedProjection[] = [];
-    let lastConsumedIndex = -1;
 
-    for (let index = 0; index < querySnapshot.docs.length; index += 1) {
-      const document = querySnapshot.docs[index];
-      lastConsumedIndex = index;
+    for (const document of querySnapshot.docs) {
       const projection = sanitizeCommunityFeedProjection(
         document.id,
         document.data(),
@@ -144,24 +141,39 @@ export const getCommunityFeedPage = onCall<CommunityFeedPageRequest>(
       }
 
       projections.push(projection);
-      if (projections.length >= pageRequest.limit) break;
     }
 
-    const lastConsumedDocument = lastConsumedIndex >= 0
-      ? querySnapshot.docs[lastConsumedIndex]
-      : null;
-    const hasBufferedDocuments =
-      lastConsumedIndex >= 0
-      && lastConsumedIndex < querySnapshot.docs.length - 1;
-    const mayHaveAnotherPage =
-      querySnapshot.docs.length === scanLimit || hasBufferedDocuments;
-    const items = await hydrateCommunityFeedItemsForViewer({
+    const hydratedItems = await hydrateCommunityFeedItemsForViewer({
       communityId: pageRequest.communityId,
       uid,
       projections,
       context,
       now,
     });
+    const items = hydratedItems.slice(0, pageRequest.limit);
+    let lastConsumedDocument:
+      FirebaseFirestore.QueryDocumentSnapshot | null = null;
+    let mayHaveAnotherPage = false;
+
+    if (items.length >= pageRequest.limit) {
+      const lastVisiblePostId = items.at(-1)?.postId ?? '';
+      const lastVisibleIndex = querySnapshot.docs.findIndex(
+        (document) => document.id === lastVisiblePostId
+      );
+
+      lastConsumedDocument = lastVisibleIndex >= 0
+        ? querySnapshot.docs[lastVisibleIndex] ?? null
+        : querySnapshot.docs.at(-1) ?? null;
+      mayHaveAnotherPage =
+        querySnapshot.docs.length === scanLimit
+        || (
+          lastVisibleIndex >= 0
+          && lastVisibleIndex < querySnapshot.docs.length - 1
+        );
+    } else {
+      lastConsumedDocument = querySnapshot.docs.at(-1) ?? null;
+      mayHaveAnotherPage = querySnapshot.docs.length === scanLimit;
+    }
 
     return {
       items,

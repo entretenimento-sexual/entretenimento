@@ -78,6 +78,7 @@ test('agrupa reações por publicação, ciclo e janela diária', () => {
     'community-1',
     'post-1',
     'author-1',
+    'actor-1',
     MEMBERSHIP_CYCLE,
     1_800_000_000_000
   );
@@ -85,6 +86,7 @@ test('agrupa reações por publicação, ciclo e janela diária', () => {
     'community-1',
     'post-1',
     'author-1',
+    'actor-1',
     MEMBERSHIP_CYCLE,
     1_800_000_000_000 + 60_000
   );
@@ -92,12 +94,23 @@ test('agrupa reações por publicação, ciclo e janela diária', () => {
     'community-1',
     'post-2',
     'author-1',
+    'actor-1',
+    MEMBERSHIP_CYCLE,
+    1_800_000_000_000 + 60_000
+  );
+
+  const otherActor = buildCommunityReactionNotificationId(
+    'community-1',
+    'post-1',
+    'author-1',
+    'actor-2',
     MEMBERSHIP_CYCLE,
     1_800_000_000_000 + 60_000
   );
 
   assert.equal(first, sameWindow);
   assert.notEqual(first, otherPost);
+  assert.notEqual(first, otherActor);
   assert.match(first, /^community_reactions_[a-f0-9]{40}$/);
   assert.deepEqual(buildCommunityReactionNotificationCopy({
     existingActivityCount: 0,
@@ -122,6 +135,7 @@ test('agrupa mensagens somente dentro do mesmo ciclo e janela diária', () => {
     'community-1',
     'post-1',
     'author-1',
+    'actor-1',
     MEMBERSHIP_CYCLE,
     1_800_000_000_000
   );
@@ -129,6 +143,7 @@ test('agrupa mensagens somente dentro do mesmo ciclo e janela diária', () => {
     'community-1',
     'post-1',
     'author-1',
+    'actor-1',
     MEMBERSHIP_CYCLE,
     1_800_000_000_000 + 60_000
   );
@@ -136,6 +151,7 @@ test('agrupa mensagens somente dentro do mesmo ciclo e janela diária', () => {
     'community-1',
     'post-1',
     'author-1',
+    'actor-1',
     MEMBERSHIP_CYCLE + 1,
     1_800_000_000_000 + 60_000
   );
@@ -143,13 +159,24 @@ test('agrupa mensagens somente dentro do mesmo ciclo e janela diária', () => {
     'community-1',
     'post-1',
     'author-1',
+    'actor-1',
     MEMBERSHIP_CYCLE,
     1_800_000_000_000 + 24 * 60 * 60 * 1_000
+  );
+
+  const otherActor = buildCommunityCommentNotificationId(
+    'community-1',
+    'post-1',
+    'author-1',
+    'actor-2',
+    MEMBERSHIP_CYCLE,
+    1_800_000_000_000 + 60_000
   );
 
   assert.equal(first, sameWindow);
   assert.notEqual(first, nextCycle);
   assert.notEqual(first, nextWindow);
+  assert.notEqual(first, otherActor);
   assert.match(first, /^community_comments_[a-f0-9]{40}$/);
 });
 
@@ -159,6 +186,7 @@ test('agrupa respostas somente pela mesma mensagem, ciclo e janela diária', () 
     'post-1',
     'comment-1',
     'author-1',
+    'actor-1',
     MEMBERSHIP_CYCLE,
     1_800_000_000_000
   );
@@ -167,6 +195,7 @@ test('agrupa respostas somente pela mesma mensagem, ciclo e janela diária', () 
     'post-1',
     'comment-1',
     'author-1',
+    'actor-1',
     MEMBERSHIP_CYCLE,
     1_800_000_000_000 + 60_000
   );
@@ -175,6 +204,7 @@ test('agrupa respostas somente pela mesma mensagem, ciclo e janela diária', () 
     'post-1',
     'comment-2',
     'author-1',
+    'actor-1',
     MEMBERSHIP_CYCLE,
     1_800_000_000_000 + 60_000
   );
@@ -183,6 +213,7 @@ test('agrupa respostas somente pela mesma mensagem, ciclo e janela diária', () 
     'post-1',
     'comment-1',
     'author-1',
+    'actor-1',
     MEMBERSHIP_CYCLE + 1,
     1_800_000_000_000 + 60_000
   );
@@ -240,6 +271,7 @@ test('agrupa respostas diretas à publicação por alvo, ciclo e janela', () => 
     'community-1',
     'post-1',
     'author-1',
+    'actor-1',
     MEMBERSHIP_CYCLE,
     1_800_000_000_000
   );
@@ -247,6 +279,7 @@ test('agrupa respostas diretas à publicação por alvo, ciclo e janela', () => 
     'community-1',
     'post-1',
     'author-1',
+    'actor-1',
     MEMBERSHIP_CYCLE,
     1_800_000_000_000 + 60_000
   );
@@ -254,6 +287,7 @@ test('agrupa respostas diretas à publicação por alvo, ciclo e janela', () => 
     'community-1',
     'post-2',
     'author-1',
+    'actor-1',
     MEMBERSHIP_CYCLE,
     1_800_000_000_000 + 60_000
   );
@@ -261,6 +295,7 @@ test('agrupa respostas diretas à publicação por alvo, ciclo e janela', () => 
     'community-1',
     'post-1',
     'author-1',
+    'actor-1',
     MEMBERSHIP_CYCLE + 1,
     1_800_000_000_000 + 60_000
   );
