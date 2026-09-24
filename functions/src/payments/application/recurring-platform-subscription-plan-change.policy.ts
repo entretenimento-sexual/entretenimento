@@ -48,6 +48,29 @@ export function resolveRecurringPlanSettlementDecision(input: {
     input.pendingPlanChange?.providerUpdateStatus === 'applied'
       ? input.pendingPlanChange
       : null;
+  if (pending?.cancellationRequestedAt) {
+    if (input.paymentAmountCents === input.currentAmountCents) {
+      return {
+        kind: 'current_plan',
+        allowed: true,
+        retryAt: null,
+        reason: null,
+      };
+    }
+
+    if (input.paymentAmountCents === pending.amountCents) {
+      return {
+        kind: 'retry',
+        allowed: false,
+        retryAt: Math.max(
+          input.processingNow + 30_000,
+          pending.providerRevertNextAttemptAt ?? input.processingNow + 30_000
+        ),
+        reason: 'scheduled_downgrade_effective_period_pending',
+      };
+    }
+  }
+
   const matchesPending =
     pending !== null
     && input.paymentAmountCents === pending.amountCents;
