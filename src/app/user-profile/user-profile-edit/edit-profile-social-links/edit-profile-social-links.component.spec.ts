@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EditProfileSocialLinksComponent } from './edit-profile-social-links.component';
 import { AccessControlService } from '../../../core/services/autentication/auth/access-control.service';
 import { ErrorNotificationService } from '../../../core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '../../../core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '../../../core/services/error-handler/application-error.service';
 import { PlatformSubscriptionAccessService } from '../../../core/services/subscriptions/platform-subscription-access.service';
 import { UserSocialLinksService } from '../../../core/services/user-profile/user-social-links.service';
 
@@ -76,9 +76,9 @@ describe('EditProfileSocialLinksComponent', () => {
           useValue: serviceMock,
         },
         {
-          provide: GlobalErrorHandlerService,
+          provide: ApplicationErrorService,
           useValue: {
-            handleError: vi.fn(),
+            report: vi.fn(),
           },
         },
         {
