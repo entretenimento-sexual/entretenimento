@@ -36,6 +36,9 @@ import {
   resolvePlatformSubscriptionPlanChangePolicy,
 } from './platform-subscription-change.policy';
 import {
+  resolveRecurringRenewalAfterPayment,
+} from './recurring-renewal-settlement.policy';
+import {
   PLATFORM_SUBSCRIPTION_PROJECTION_VERSION,
   buildPlatformSubscriptionUserProjection,
   resolvePublicPlatformRole,
