@@ -4,6 +4,7 @@ import {
   catchError,
   combineLatest,
   concat,
+  distinctUntilChanged,
   map,
   of,
   shareReplay,
@@ -12,7 +13,10 @@ import {
   tap,
 } from 'rxjs';
 
-import { CommunityNotificationUnreadSummaryService } from 'src/app/core/services/notifications/community-notification-unread-summary.service';
+import {
+  CommunityNotificationUnreadSummary,
+  CommunityNotificationUnreadSummaryService,
+} from 'src/app/core/services/notifications/community-notification-unread-summary.service';
 import { CommunityExploreContentRepository } from 'src/app/community/data-access/community-explore-content.repository';
 import type { CommunityExploreContentItem } from 'src/app/community/data-access/community-explore-content.model';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
@@ -27,7 +31,6 @@ import {
 } from 'src/app/community/discovery/community-discovery-cache.model';
 import {
   CommunityDiscoveryCacheService,
-  CommunityDiscoveryCacheSnapshot,
 } from 'src/app/community/discovery/community-discovery-cache.service';
 import { CommunityDiscoverySessionBehaviorService } from 'src/app/community/discovery/community-discovery-session-behavior.service';
 
@@ -45,6 +48,7 @@ export interface ExploreCommunityDistributionVm {
 }
 
 const EXPLORE_COMMUNITY_DISTRIBUTION_LIMIT = 3;
+const EXPLORE_COMMUNITY_ACTIVITY_CANDIDATE_LIMIT = 6;
 
 const EXPLORE_CACHE_CONTEXT: CommunityDiscoveryCacheContext = Object.freeze({
   sourceType: 'community',
@@ -53,12 +57,27 @@ const EXPLORE_CACHE_CONTEXT: CommunityDiscoveryCacheContext = Object.freeze({
   pageSize: DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE,
 });
 
-const MINE_CACHE_CONTEXT: CommunityDiscoveryCacheContext = Object.freeze({
-  sourceType: 'community',
-  discoveryMode: 'mine',
-  tagId: null,
-  pageSize: DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE,
-});
+function compareActivitySummary(
+  left: CommunityNotificationUnreadSummary,
+  right: CommunityNotificationUnreadSummary
+): number {
+  if (left.hasPriorityUnread !== right.hasPriorityUnread) {
+    return left.hasPriorityUnread ? -1 : 1;
+  }
+
+  const updatedDelta = (right.updatedAt ?? 0) - (left.updatedAt ?? 0);
+  if (updatedDelta !== 0) return updatedDelta;
+
+  return right.unreadCount - left.unreadCount;
+}
+
+function sameStringArray(
+  left: readonly string[],
+  right: readonly string[]
+): boolean {
+  return left.length === right.length
+    && left.every((value, index) => value === right[index]);
+}
 
 @Injectable({ providedIn: 'root' })
 export class ExploreCommunityDistributionService {
@@ -79,14 +98,46 @@ export class ExploreCommunityDistributionService {
     'loadExploreCommunityRecommendations'
   );
 
-  private readonly minePage$ = this.resolvePage$(
-    MINE_CACHE_CONTEXT,
-    () => this.repository.getMyCommunitiesPage$({
-      sourceType: 'community',
-      limit: DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE,
-      cursor: null,
+  /**
+   * O listener agregado de unread já conhece todas as Comunidades com atividade.
+   * Só os seis IDs mais relevantes atravessam a callable; o backend revalida
+   * membership + Comunidade em lote e o bloco final continua limitado a três.
+   * Assim o Explore não precisa carregar a primeira página de "Minhas".
+   */
+  private readonly activityCards$ = this.unreadSummary.currentUserSummaries$.pipe(
+    map((summaries) =>
+      [...summaries]
+        .filter((summary) => summary.unreadCount > 0)
+        .sort(compareActivitySummary)
+        .slice(0, EXPLORE_COMMUNITY_ACTIVITY_CANDIDATE_LIMIT)
+        .map((summary) => summary.communityId)
+        .sort()
+    ),
+    distinctUntilChanged(sameStringArray),
+    switchMap((communityIds) => {
+      if (communityIds.length === 0) {
+        return of(this.emptyPage());
+      }
+
+      return this.repository.getMyCommunityActivityCards$(communityIds).pipe(
+        catchError((error: unknown) => {
+          this.applicationError.report(error, {
+            feature: 'explore.community-distribution',
+            operation: 'loadExploreCommunityActivity',
+            fallbackMessage:
+              'A atividade das suas Comunidades não pôde ser carregada agora.',
+            notification: 'none',
+            metadata: {
+              scope: 'ExploreCommunityDistributionService',
+              candidateCount: communityIds.length,
+            },
+          });
+
+          return of(this.emptyPage());
+        })
+      );
     }),
-    'loadExploreCommunityMemberships'
+    shareReplay({ bufferSize: 1, refCount: true })
   );
 
   private readonly content$ = this.exploreContentRepository.getContent$(2).pipe(
@@ -110,13 +161,18 @@ export class ExploreCommunityDistributionService {
 
   readonly vm$: Observable<ExploreCommunityDistributionVm> = combineLatest([
     this.discoveryPage$,
-    this.minePage$,
+    this.activityCards$,
     this.unreadSummary.currentUserSummaryMap$,
     this.sessionBehavior.state$,
     this.content$,
   ]).pipe(
-    map(([discoveryPage, minePage, unreadMap, sessionState, contentPage]) => {
-      const mineIds = new Set(minePage.items.map((item) => item.communityId));
+    map(([
+      discoveryPage,
+      activityCards,
+      unreadMap,
+      sessionState,
+      contentPage,
+    ]) => {
       const hiddenIds = new Set(sessionState.hiddenCommunityIds);
 
       const content = contentPage.items
@@ -126,17 +182,18 @@ export class ExploreCommunityDistributionService {
         content.map((item) => item.communityId)
       );
 
+      // O backend da descoberta já exclui memberships ativos/pendentes em lote.
+      // Aqui restam apenas preferências da sessão e deduplicação com conteúdo.
       const recommendations = discoveryPage.items
         .filter(
           (item) =>
             item.source.type === 'community'
-            && !mineIds.has(item.communityId)
             && !hiddenIds.has(item.communityId)
             && !contentCommunityIds.has(item.communityId)
         )
         .slice(0, EXPLORE_COMMUNITY_DISTRIBUTION_LIMIT);
 
-      const activity = minePage.items
+      const activity = activityCards.items
         .flatMap((item): ExploreCommunityActivityItem[] => {
           const summary = unreadMap.get(item.communityId);
           if (!summary || summary.unreadCount <= 0) return [];
