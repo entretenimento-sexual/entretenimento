@@ -96,6 +96,16 @@ export interface CommunityPreviewCard {
   officialAssociation?: CommunityOfficialAssociationPublicProjection | null;
   /** Presente apenas em projeções privadas ligadas ao membership do viewer. */
   viewerRole?: CommunityViewerRole | null;
+  /**
+   * Detalhe bounded da página "Minhas". Nunca faz parte da descoberta pública;
+   * acompanha somente cards que o backend já paginou para o próprio viewer.
+   */
+  viewerNotificationSummary?: {
+    unreadCount: number;
+    priorityUnreadCount: number;
+    hasPriorityUnread: boolean;
+    updatedAt: number | null;
+  } | null;
 }
 
 export interface CommunityDiscoveryPageResponse {
