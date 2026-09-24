@@ -149,7 +149,7 @@ export class CommunityDiscoveryPageComponent {
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly dataFacade = inject(CommunityDiscoveryDataFacade);
-  readonly mine = inject(CommunityDiscoveryMineFacade);
+  readonly mineFacade = inject(CommunityDiscoveryMineFacade);
   private readonly sponsoredFacade = inject(CommunityDiscoverySponsoredFacade);
   private readonly tagCatalogReload$ = new Subject<void>();
 
@@ -190,10 +190,10 @@ export class CommunityDiscoveryPageComponent {
     : null;
 
   private readonly mineUnreadSummaryMap$ =
-    this.mine.unreadSummaryMap$(this.discoveryMode === 'mine');
+    this.mineFacade.unreadSummaryMap$(this.discoveryMode === 'mine');
 
   private readonly mineMutedCommunityIds$ =
-    this.mine.mutedCommunityIds$(this.discoveryMode === 'mine');
+    this.mineFacade.mutedCommunityIds$(this.discoveryMode === 'mine');
 
   readonly selectedTagId = signal<string | null>(this.initialTagId);
   readonly sponsoredPlacement = this.sponsoredFacade.sponsoredPlacement;
@@ -254,8 +254,8 @@ export class CommunityDiscoveryPageComponent {
     this.sessionBehavior.state$,
     this.mineUnreadSummaryMap$,
     this.mineMutedCommunityIds$,
-    this.mine.searchTerm$,
-    this.mine.participationFilter$,
+    this.mineFacade.searchTerm$,
+    this.mineFacade.participationFilter$,
   ]).pipe(
     map(([
       state,
@@ -284,7 +284,7 @@ export class CommunityDiscoveryPageComponent {
         status = items.length > 0 ? 'ready' : 'empty';
       }
 
-      const cardViews = this.mine.decorateCards(
+      const cardViews = this.mineFacade.decorateCards(
         items,
         unreadSummaryMap,
         mutedCommunityIds
@@ -304,7 +304,7 @@ export class CommunityDiscoveryPageComponent {
       return {
         ...state,
         status,
-        items: this.mine.filterAndOrder(
+        items: this.mineFacade.filterAndOrder(
           cardViews,
           mineParticipationFilter,
           mineSearchTerm
@@ -514,7 +514,7 @@ export class CommunityDiscoveryPageComponent {
 
   toggleCommunityNotifications(item: CommunityDiscoveryCardView): void {
     if (this.discoveryMode !== 'mine') return;
-    this.mine.toggleNotifications(
+    this.mineFacade.toggleNotifications(
       item,
       this.errorMetadata(),
       this.discoveryMode === 'mine'
