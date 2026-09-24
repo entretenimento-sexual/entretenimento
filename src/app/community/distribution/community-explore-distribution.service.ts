@@ -74,6 +74,7 @@ export class CommunityExploreDistributionService {
     discoveryMode: 'explore',
     tagId: null,
     pageSize: DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE,
+    excludeActiveMemberships: true,
   });
 
   readonly activity$: Observable<CommunityExploreActivitySummary> =
@@ -181,6 +182,7 @@ export class CommunityExploreDistributionService {
           sourceType: 'community',
           tagId: null,
           cursor: null,
+          excludeActiveMemberships: true,
         }).pipe(
           tap((page) =>
             this.discoveryCache.rememberPage(

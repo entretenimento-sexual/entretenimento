@@ -104,6 +104,11 @@ export interface CommunityDiscoveryPageRequest {
   cursor?: string | null;
   sourceType?: CommunityPreviewSourceType | null;
   tagId?: string | null;
+  /**
+   * Superfícies de recomendação podem excluir vínculos ativos sem uma segunda
+   * consulta: a callable já lê o membership para aplicar bloqueios.
+   */
+  excludeActiveMemberships?: boolean;
 }
 
 export interface CommunityPreviewResponse {

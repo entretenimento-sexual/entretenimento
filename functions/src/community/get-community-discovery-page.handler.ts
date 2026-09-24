@@ -58,6 +58,7 @@ interface VisibleDiscoveryCandidatesResult {
   readonly visibleCandidates: ReadonlyMap<number, CommunityPreviewCard>;
   readonly membershipReads: number;
   readonly blockedExcluded: number;
+  readonly activeMembershipExcluded: number;
 }
 
 function assertPreviewRuntime(): void {
@@ -123,13 +124,15 @@ function collectDiscoveryCandidates(
 
 async function resolveVisibleDiscoveryCandidates(
   uid: string,
-  candidates: readonly CommunityDiscoveryCandidate[]
+  candidates: readonly CommunityDiscoveryCandidate[],
+  excludeActiveMemberships: boolean
 ): Promise<VisibleDiscoveryCandidatesResult> {
   if (candidates.length === 0) {
     return {
       visibleCandidates: new Map<number, CommunityPreviewCard>(),
       membershipReads: 0,
       blockedExcluded: 0,
+      activeMembershipExcluded: 0,
     };
   }
 
@@ -143,18 +146,23 @@ async function resolveVisibleDiscoveryCandidates(
   const membershipSnapshots = await db.getAll(...membershipRefs);
   const visibleCandidates = new Map<number, CommunityPreviewCard>();
   let blockedExcluded = 0;
+  let activeMembershipExcluded = 0;
 
   for (let index = 0; index < candidates.length; index += 1) {
     const candidate = candidates[index];
+    const membership = membershipSnapshots[index].data();
     const visibleItem = filterCommunityDiscoveryCardForViewer(
       candidate.item,
-      membershipSnapshots[index].data()
+      membership,
+      excludeActiveMemberships
     );
 
     if (visibleItem) {
       visibleCandidates.set(candidate.index, visibleItem);
-    } else {
+    } else if (membership?.['status'] === 'blocked') {
       blockedExcluded += 1;
+    } else {
+      activeMembershipExcluded += 1;
     }
   }
 
@@ -162,6 +170,7 @@ async function resolveVisibleDiscoveryCandidates(
     visibleCandidates,
     membershipReads: membershipSnapshots.length,
     blockedExcluded,
+    activeMembershipExcluded,
   };
 }
 
@@ -291,6 +300,7 @@ export const getCommunityDiscoveryPage =
       let membershipReads = 0;
       let membershipBatches = 0;
       let blockedExcluded = 0;
+      let activeMembershipExcluded = 0;
       let lastConsumedDocument: FirebaseFirestore.QueryDocumentSnapshot | null = null;
       let hasBufferedDocuments = false;
       let sourceExhausted = false;
@@ -335,7 +345,10 @@ export const getCommunityDiscoveryPage =
             resolveCommunityDiscoveryMembershipBatchSize({
               remainingCards: pageRequest.limit - items.length,
               candidatesEvaluated,
-              blockedExcluded,
+              // A política dimensiona invisibilidade total; o nome legado do
+              // campo permanece por compatibilidade da policy.
+              blockedExcluded:
+                blockedExcluded + activeMembershipExcluded,
             });
 
           if (membershipBatchSize === 0) {
@@ -357,10 +370,13 @@ export const getCommunityDiscoveryPage =
 
           const visibilityResult = await resolveVisibleDiscoveryCandidates(
             uid,
-            candidates
+            candidates,
+            pageRequest.excludeActiveMemberships
           );
           membershipReads += visibilityResult.membershipReads;
           blockedExcluded += visibilityResult.blockedExcluded;
+          activeMembershipExcluded +=
+            visibilityResult.activeMembershipExcluded;
           if (visibilityResult.membershipReads > 0) {
             membershipBatches += 1;
           }
@@ -453,6 +469,8 @@ export const getCommunityDiscoveryPage =
 
       logger.info('community_discovery_page_served', {
         ...telemetry,
+        activeMembershipExcluded,
+        excludeActiveMemberships: pageRequest.excludeActiveMemberships,
         operationalCostBudget,
       });
 

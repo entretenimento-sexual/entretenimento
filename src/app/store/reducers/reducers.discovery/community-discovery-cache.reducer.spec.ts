@@ -62,6 +62,46 @@ describe('communityDiscoveryCacheReducer', () => {
     expect(slice.query).toEqual(query);
   });
 
+  it('isola o cache de recomendação que exclui memberships ativas', () => {
+    const recommendationQuery = buildCommunityDiscoveryCacheQuery('viewer-1', {
+      sourceType: 'community',
+      discoveryMode: 'explore',
+      tagId: null,
+      pageSize: 12,
+      excludeActiveMemberships: true,
+    })!;
+
+    const general = communityDiscoveryCacheReducer(
+      viewerOneState,
+      Actions.storeCommunityDiscoveryPage({
+        query,
+        page: { items: [card('joined')], nextCursor: null, generatedAt: 10 },
+        append: false,
+        storedAt: 100,
+      })
+    );
+    const populated = communityDiscoveryCacheReducer(
+      general,
+      Actions.storeCommunityDiscoveryPage({
+        query: recommendationQuery,
+        page: { items: [card('new')], nextCursor: null, generatedAt: 20 },
+        append: false,
+        storedAt: 200,
+      })
+    );
+
+    const slices = Object.values(populated.byQuery);
+    expect(slices).toHaveLength(2);
+    expect(
+      slices.find((slice) => slice.query.excludeActiveMemberships)?.items
+        .map((item) => item.communityId)
+    ).toEqual(['new']);
+    expect(
+      slices.find((slice) => !slice.query.excludeActiveMemberships)?.items
+        .map((item) => item.communityId)
+    ).toEqual(['joined']);
+  });
+
   it('rejeita página atrasada da conta A depois que B assumiu a sessão', () => {
     const viewerTwoState = {
       ...initialCommunityDiscoveryCacheState,

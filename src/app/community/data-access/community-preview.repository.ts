@@ -52,6 +52,8 @@ export class CommunityPreviewRepository {
           cursor: request.cursor ?? null,
           sourceType: request.sourceType ?? null,
           tagId: request.tagId ?? null,
+          excludeActiveMemberships:
+            request.excludeActiveMemberships === true,
         })
       )
     ).pipe(

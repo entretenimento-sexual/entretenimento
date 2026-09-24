@@ -52,6 +52,7 @@ export interface CommunityDiscoveryPageRequest {
   cursor?: unknown;
   sourceType?: unknown;
   tagId?: unknown;
+  excludeActiveMemberships?: unknown;
 }
 
 export interface CommunityPreviewRequest {
@@ -145,6 +146,7 @@ export interface NormalizedCommunityDiscoveryPageRequest {
   cursor: string | null;
   sourceType: CommunitySourceType | null;
   tagId: string | null;
+  excludeActiveMemberships: boolean;
 }
 
 const DEFAULT_PAGE_LIMIT = 12;
@@ -350,6 +352,7 @@ export function normalizeCommunityDiscoveryPageRequest(
     cursor: normalizeDiscoveryCursor(raw?.cursor),
     sourceType: normalizeSourceType(raw?.sourceType),
     tagId: normalizeTagId(raw?.tagId),
+    excludeActiveMemberships: raw?.excludeActiveMemberships === true,
   };
 }
 
@@ -471,7 +474,12 @@ export function resolveCommunityViewerMode(rawMembership: unknown): {
  */
 export function filterCommunityDiscoveryCardForViewer(
   card: CommunityPreviewCard,
-  rawMembership: unknown
+  rawMembership: unknown,
+  excludeActiveMemberships = false
 ): CommunityPreviewCard | null {
-  return resolveCommunityViewerMode(rawMembership).blocked ? null : card;
+  const viewer = resolveCommunityViewerMode(rawMembership);
+
+  if (viewer.blocked) return null;
+  if (excludeActiveMemberships && viewer.active) return null;
+  return card;
 }
