@@ -9,6 +9,7 @@ import {
   IAppNotification,
   ICommunityNotificationSummary,
 } from 'src/app/core/interfaces/app-notification.interface';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { CommunityNotificationUnreadSummaryService } from 'src/app/core/services/notifications/community-notification-unread-summary.service';
 import { resolveNotificationRoute } from 'src/app/core/services/notifications/notification-navigation.policy';
@@ -35,6 +36,7 @@ export class NotificationsPageComponent {
   private readonly communityUnreadSummary = inject(
     CommunityNotificationUnreadSummaryService
   );
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly notifier = inject(ErrorNotificationService);
   private readonly router = inject(Router);
 
@@ -194,8 +196,12 @@ export class NotificationsPageComponent {
       finalize(() => this.setBusy(item.id, false))
     ).subscribe({
       next: navigate,
-      error: () => {
-        this.notifier.showError('Não foi possível marcar a notificação como lida.');
+      error: (error) => {
+        this.reportActionError(
+          error,
+          'markAsReadBeforeNavigate',
+          'Não foi possível marcar a notificação como lida.'
+        );
         navigate();
       },
     });
@@ -213,7 +219,11 @@ export class NotificationsPageComponent {
       finalize(() => this.setBusy(item.id, false))
     ).subscribe({
       next: () => undefined,
-      error: () => this.notifier.showError('Não foi possível marcar a notificação como lida.'),
+      error: (error) => this.reportActionError(
+        error,
+        'markAsRead',
+        'Não foi possível marcar a notificação como lida.'
+      ),
     });
   }
 
@@ -244,12 +254,28 @@ export class NotificationsPageComponent {
           this.notifier.showSuccess('Notificações marcadas como lidas.');
         }
       },
-      error: () => this.notifier.showError('Não foi possível marcar as notificações como lidas.'),
+      error: (error) => this.reportActionError(
+        error,
+        'markAllAsRead',
+        'Não foi possível marcar as notificações como lidas.'
+      ),
     });
   }
 
   isBusy(id: string): boolean {
     return this.busyIdsSubject.value.has(id);
+  }
+
+  private reportActionError(
+    error: unknown,
+    operation: string,
+    fallbackMessage: string
+  ): void {
+    this.applicationError.report(error, {
+      feature: 'notifications.center',
+      operation,
+      fallbackMessage,
+    });
   }
 
   private setBusy(id: string, busy: boolean): void {

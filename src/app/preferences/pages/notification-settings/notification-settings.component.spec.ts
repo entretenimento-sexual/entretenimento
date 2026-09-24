@@ -4,6 +4,7 @@ import { of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_NOTIFICATION_PREFERENCES } from 'src/app/core/interfaces/notification-preferences.interface';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { NotificationPreferencesService } from 'src/app/core/services/notifications/notification-preferences.service';
 import { PushNotificationDeviceService } from 'src/app/core/services/notifications/push-notification-device.service';
@@ -50,10 +51,15 @@ describe('NotificationSettingsComponent', () => {
           },
         },
         {
+          provide: ApplicationErrorService,
+          useValue: {
+            report: vi.fn(),
+          },
+        },
+        {
           provide: ErrorNotificationService,
           useValue: {
             showSuccess: vi.fn(),
-            showError: vi.fn(),
             showInfo: vi.fn(),
             showWarning: vi.fn(),
           },

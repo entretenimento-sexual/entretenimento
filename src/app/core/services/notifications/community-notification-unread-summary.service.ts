@@ -31,10 +31,9 @@ import {
 
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import {
   isFirebasePermissionDeniedError,
-  toErrorInstance,
 } from 'src/app/core/utils/firebase-error-utils';
 import {
   applyCommunitySocialUnreadSuppressions,
@@ -59,14 +58,6 @@ interface CommunityNotificationUnreadSummaryDocument {
   updatedAt?: unknown;
 }
 
-interface CommunityNotificationSummaryReportableError extends Error {
-  context?: string;
-  operation?: string;
-  extra?: Record<string, unknown>;
-  original?: unknown;
-  skipUserNotification?: boolean;
-}
-
 export type CommunityNotificationSummaryReadState = 'loading' | 'ready' | 'error';
 
 const MAX_ACTIVITY_COUNT = 1_000_000_000;
@@ -76,7 +67,7 @@ export class CommunityNotificationUnreadSummaryService {
   private readonly firestore = inject(Firestore);
   private readonly session = inject(AuthSessionService);
   private readonly firestoreContext = inject(FirestoreContextService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly readStateSubject =
     new BehaviorSubject<CommunityNotificationSummaryReadState>('loading');
@@ -308,19 +299,15 @@ export class CommunityNotificationUnreadSummaryService {
   }
 
   private reportReadError(error: unknown, uid: string): void {
-    try {
-      const reportable = toErrorInstance(
-        error,
-        '[CommunityNotificationUnreadSummaryService] read failed'
-      ) as CommunityNotificationSummaryReportableError;
-      reportable.context = 'CommunityNotificationUnreadSummaryService';
-      reportable.operation = 'watchUserSummaries';
-      reportable.extra = { uid };
-      reportable.original = error;
-      reportable.skipUserNotification = true;
-      this.globalError.handleError(reportable);
-    } catch {
-      // noop
-    }
+    this.applicationError.report(error, {
+      feature: 'notifications.community-summary',
+      operation: 'watchUserSummaries',
+      fallbackMessage: 'Não foi possível carregar o resumo de notificações das Comunidades.',
+      notification: 'none',
+      metadata: {
+        scope: 'CommunityNotificationUnreadSummaryService',
+        uid,
+      },
+    });
   }
 }

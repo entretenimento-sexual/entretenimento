@@ -4,7 +4,7 @@ import { firstValueFrom, of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { PushNotificationDeviceService } from 'src/app/core/services/notifications/push-notification-device.service';
 import { environment } from 'src/environments/environment';
 
@@ -48,9 +48,9 @@ describe('PushNotificationDeviceService', () => {
           },
         },
         {
-          provide: GlobalErrorHandlerService,
+          provide: ApplicationErrorService,
           useValue: {
-            handleError: vi.fn(),
+            report: vi.fn(),
           },
         },
       ],

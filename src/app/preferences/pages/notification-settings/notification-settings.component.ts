@@ -15,6 +15,7 @@ import {
   INotificationPreferences,
   NotificationPreferenceEditableKey,
 } from 'src/app/core/interfaces/notification-preferences.interface';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { NotificationPreferencesService } from 'src/app/core/services/notifications/notification-preferences.service';
 import {
@@ -47,6 +48,7 @@ interface NotificationSettingOption {
 export class NotificationSettingsComponent {
   private readonly preferences = inject(NotificationPreferencesService);
   private readonly pushDevice = inject(PushNotificationDeviceService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly notifier = inject(ErrorNotificationService);
   private readonly busySubject = new BehaviorSubject<ReadonlySet<string>>(new Set());
 
@@ -184,10 +186,11 @@ export class NotificationSettingsComponent {
             return;
         }
       },
-      error: () =>
-        this.notifier.showError(
-          'Não foi possível ativar as notificações deste dispositivo.'
-        ),
+      error: (error) => this.reportActionError(
+        error,
+        'activatePush',
+        'Não foi possível ativar as notificações deste dispositivo.'
+      ),
     });
   }
 
@@ -198,19 +201,21 @@ export class NotificationSettingsComponent {
           this.notifier.showSuccess('Notificações deste dispositivo desativadas.');
         }
       },
-      error: () =>
-        this.notifier.showError(
-          'Não foi possível concluir a desativação das notificações.'
-        ),
+      error: (error) => this.reportActionError(
+        error,
+        'deactivatePush',
+        'Não foi possível concluir a desativação das notificações.'
+      ),
     });
   }
 
   onPushRefresh(): void {
     this.pushDevice.refresh$().pipe(take(1)).subscribe({
-      error: () =>
-        this.notifier.showError(
-          'Não foi possível verificar as notificações deste dispositivo.'
-        ),
+      error: (error) => this.reportActionError(
+        error,
+        'refreshPush',
+        'Não foi possível verificar as notificações deste dispositivo.'
+      ),
     });
   }
 
@@ -228,7 +233,23 @@ export class NotificationSettingsComponent {
       finalize(() => this.setBusy(key, false))
     ).subscribe({
       next: () => this.notifier.showSuccess('Preferência atualizada.'),
-      error: () => this.notifier.showError('Não foi possível atualizar a preferência.'),
+      error: (error) => this.reportActionError(
+        error,
+        'updatePreference',
+        'Não foi possível atualizar a preferência.'
+      ),
+    });
+  }
+
+  private reportActionError(
+    error: unknown,
+    operation: string,
+    fallbackMessage: string
+  ): void {
+    this.applicationError.report(error, {
+      feature: 'notifications.settings',
+      operation,
+      fallbackMessage,
     });
   }
 

@@ -59,11 +59,10 @@ import {
 } from 'src/app/core/interfaces/app-notification.interface';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { buildCommunityNotificationSummaries } from 'src/app/core/services/notifications/community-notification-summary.policy';
 import {
   isFirebasePermissionDeniedError,
-  toErrorInstance,
 } from 'src/app/core/utils/firebase-error-utils';
 
 interface AppNotificationFirestoreDocument {
@@ -115,14 +114,6 @@ interface NotificationReadWindowState {
   signature: string;
 }
 
-interface NotificationReportableError extends Error {
-  context?: string;
-  operation?: string;
-  extra?: Record<string, unknown>;
-  original?: unknown;
-  skipUserNotification?: boolean;
-}
-
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
 const LEGACY_MARK_ALL_BATCH_SIZE = 50;
@@ -134,7 +125,7 @@ export class AppNotificationService {
   private readonly functions = inject(Functions);
   private readonly session = inject(AuthSessionService);
   private readonly firestoreContext = inject(FirestoreContextService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly unreadCountRefreshSubject = new BehaviorSubject(0);
   private readonly currentUserRefreshSubject = new BehaviorSubject(0);
   private readonly currentUserReadStateSubject =
@@ -286,12 +277,7 @@ export class AppNotificationService {
     }))).pipe(
       tap(() => this.refreshUnreadCount()),
       map(() => undefined),
-      catchError((error) => {
-        this.reportWriteError(error, 'markAsRead', {
-          notificationId: safeNotificationId,
-        });
-        return throwError(() => error);
-      })
+      catchError((error) => throwError(() => error))
     );
   }
 
@@ -310,10 +296,7 @@ export class AppNotificationService {
         return { updated, complete };
       }),
       tap(() => this.refreshUnreadCount()),
-      catchError((error) => {
-        this.reportWriteError(error, 'markAllAsRead', {});
-        return throwError(() => error);
-      })
+      catchError((error) => throwError(() => error))
     );
   }
 
@@ -509,40 +492,15 @@ export class AppNotificationService {
       return;
     }
 
-    try {
-      const reportable = toErrorInstance(
-        error,
-        '[AppNotificationService] read failed'
-      ) as NotificationReportableError;
-      reportable.context = 'AppNotificationService';
-      reportable.operation = operation;
-      reportable.extra = extra;
-      reportable.original = error;
-      reportable.skipUserNotification = true;
-      this.globalError.handleError(reportable);
-    } catch {
-      // noop
-    }
-  }
-
-  private reportWriteError(
-    error: unknown,
-    operation: string,
-    extra: Record<string, unknown>
-  ): void {
-    try {
-      const reportable = toErrorInstance(
-        error,
-        '[AppNotificationService] write failed'
-      ) as NotificationReportableError;
-      reportable.context = 'AppNotificationService';
-      reportable.operation = operation;
-      reportable.extra = extra;
-      reportable.original = error;
-      reportable.skipUserNotification = true;
-      this.globalError.handleError(reportable);
-    } catch {
-      // noop
-    }
+    this.applicationError.report(error, {
+      feature: 'notifications',
+      operation,
+      fallbackMessage: 'Não foi possível carregar as notificações.',
+      notification: 'none',
+      metadata: {
+        scope: 'AppNotificationService',
+        ...extra,
+      },
+    });
   }
 }

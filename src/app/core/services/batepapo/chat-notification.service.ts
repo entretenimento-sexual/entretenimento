@@ -34,8 +34,7 @@ import {
   type DocumentData,
 } from 'firebase/firestore';
 
-import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
-import { ErrorNotificationService } from '../error-handler/error-notification.service';
+import { ApplicationErrorService } from '../error-handler/application-error.service';
 
 @Injectable({ providedIn: 'root' })
 export class ChatNotificationService {
@@ -55,8 +54,7 @@ export class ChatNotificationService {
 
   constructor(
     private readonly db: Firestore,
-    private readonly globalErrorHandler: GlobalErrorHandlerService,
-    private readonly errorNotifier: ErrorNotificationService
+    private readonly applicationError: ApplicationErrorService
   ) { }
 
   private dbg(tag: string, data?: any): void {
@@ -327,25 +325,20 @@ export class ChatNotificationService {
   resetPendingInvites(): void { this.pendingInvitesCount.next(0); }
 
   // -----------------------------------------------------------------------------
-  // Erros (centralizados)
+  // Erros (entrada canônica)
   // -----------------------------------------------------------------------------
-  private handleRealtimeError(userMessage: string, err: any, context?: string): void {
-    const wrapped = this.wrapError(err, context ?? 'ChatNotificationService');
-
-    // evita duplicidade se o GlobalErrorHandler também notifica
-    try { this.globalErrorHandler.handleError(wrapped); } catch { }
-
-    // notificação explícita (sua escolha aqui)
-    this.errorNotifier.showError(userMessage);
-  }
-
-  private wrapError(err: unknown, context: string): Error {
-    const e = err instanceof Error ? err : new Error(String(err ?? 'unknown error'));
-    (e as any).silent = true;
-    (e as any).skipUserNotification = true;
-    (e as any).feature = 'chat-notification';
-    (e as any).context = context;
-    (e as any).original = err;
-    return e;
+  private handleRealtimeError(
+    userMessage: string,
+    error: unknown,
+    operation = 'ChatNotificationService'
+  ): void {
+    this.applicationError.report(error, {
+      feature: 'notifications.chat',
+      operation,
+      fallbackMessage: userMessage,
+      metadata: {
+        scope: 'ChatNotificationService',
+      },
+    });
   }
 }

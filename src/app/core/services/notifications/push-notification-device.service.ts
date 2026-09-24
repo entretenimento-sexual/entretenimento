@@ -10,8 +10,8 @@
 // - sincroniza no bootstrap apenas instalações que já possuem opt-in local;
 // - installation id aleatória e persistente, sem fingerprint de hardware;
 // - VAPID ausente falha fechado antes de qualquer prompt;
-// - erros técnicos seguem para GlobalErrorHandlerService;
-// - mensagens amigáveis ficam a cargo da camada de UI/ErrorNotificationService.
+// - erros técnicos engolidos/fallbackados passam por ApplicationErrorService;
+// - falhas públicas sobem para a UI, que usa a mesma entrada canônica.
 // -----------------------------------------------------------------------------
 
 import { Injectable, OnDestroy, inject } from '@angular/core';
@@ -48,7 +48,7 @@ import {
 
 import { environment } from 'src/environments/environment';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import {
   createPushInstallationId,
   DEFAULT_PUSH_SERVICE_WORKER_PATH,
@@ -84,14 +84,6 @@ interface PushDeviceCallableResponse {
   ok?: unknown;
 }
 
-interface PushNotificationReportableError extends Error {
-  context?: string;
-  operation?: string;
-  extra?: Record<string, unknown>;
-  original?: unknown;
-  skipUserNotification?: boolean;
-}
-
 const PUSH_OPT_IN_UID_STORAGE_KEY = 'entretenimento.push.opt-in-uid.v1';
 const PUSH_INSTALLATION_STORAGE_KEY =
   'entretenimento.push.installation-id.v2';
@@ -100,7 +92,7 @@ const PUSH_INSTALLATION_STORAGE_KEY =
 export class PushNotificationDeviceService implements OnDestroy {
   private readonly functions = inject(Functions);
   private readonly session = inject(AuthSessionService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
 
   private readonly stateSubject =
     new BehaviorSubject<PushNotificationDeviceState>('inactive');
@@ -349,7 +341,7 @@ export class PushNotificationDeviceService implements OnDestroy {
   }
 
   private registerForUid$(
-    uid: string,
+    _uid: string,
     vapidKey: string
   ): Observable<PushNotificationDeviceState> {
     return defer(() => {
@@ -402,12 +394,7 @@ export class PushNotificationDeviceService implements OnDestroy {
         })
       );
     }).pipe(
-      catchError((error) => {
-        this.reportError(error, 'registerForUid', {
-          authenticated: Boolean(uid),
-        });
-        return throwError(() => error);
-      })
+      catchError((error) => throwError(() => error))
     );
   }
 
@@ -618,10 +605,9 @@ export class PushNotificationDeviceService implements OnDestroy {
 
   private failOperation(
     error: unknown,
-    operation: string
+    _operation: string
   ): Observable<never> {
     this.setState('error');
-    this.reportError(error, operation);
     return throwError(() => error);
   }
 
@@ -630,26 +616,17 @@ export class PushNotificationDeviceService implements OnDestroy {
     operation: string,
     extra: Record<string, unknown> = {}
   ): void {
-    try {
-      const reportable = (error instanceof Error
-        ? error
-        : new Error(
-            '[PushNotificationDeviceService] operação Web Push falhou.'
-          )) as PushNotificationReportableError;
-
-      reportable.context = 'PushNotificationDeviceService';
-      reportable.operation = operation;
-      reportable.extra = {
+    this.applicationError.report(error, {
+      feature: 'notifications.push-device',
+      operation,
+      fallbackMessage: 'Não foi possível sincronizar as notificações deste dispositivo.',
+      notification: 'none',
+      metadata: {
+        scope: 'PushNotificationDeviceService',
         environment: environment.env,
         state: this.stateSubject.value,
         ...extra,
-      };
-      reportable.original = error;
-      reportable.skipUserNotification = true;
-
-      this.globalError.handleError(reportable);
-    } catch {
-      // noop
-    }
+      },
+    });
   }
 }
