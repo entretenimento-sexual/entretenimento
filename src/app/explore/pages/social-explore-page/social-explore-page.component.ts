@@ -40,7 +40,7 @@ import type {
 } from 'src/app/community/data-access/community-distribution-telemetry.repository';
 import { CommunityDiscoveryVisibilityDirective } from 'src/app/community/discovery/community-discovery-visibility.directive';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { buildPublicMediaIdentity } from 'src/app/core/utils/media/public-media-identity';
 import { CompatibleProfileCandidatesService } from 'src/app/dashboard/discovery/application/compatible-profile-candidates.service';
 import { UserIntentStatusComposerComponent } from 'src/app/dashboard/user-intent-status/user-intent-status-composer/user-intent-status-composer.component';
@@ -116,7 +116,7 @@ export class SocialExplorePageComponent {
   private readonly statusService = inject(UserIntentStatusService);
   private readonly mixedMediaViewer = inject(PublicMixedMediaViewerLauncherService);
   private readonly errorNotification = inject(ErrorNotificationService);
-  private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly communityDistribution = inject(ExploreCommunityDistributionService);
   private readonly communityDistributionTelemetry = inject(
     CommunityDistributionTelemetryService
@@ -522,25 +522,18 @@ export class SocialExplorePageComponent {
   private reportVideoViewerError(
     error: unknown,
     item: IPublicVideoItem,
-    op = 'openExploreVideoViewer'
+    operation = 'openExploreVideoViewer'
   ): void {
-    try {
-      const normalized = error instanceof Error
-        ? new Error(error.message)
-        : new Error('Falha no vídeo público do Explore.');
-
-      (normalized as any).original = error;
-      (normalized as any).context = {
+    this.applicationError.report(error, {
+      feature: 'explore-media',
+      operation,
+      fallbackMessage: 'Não foi possível abrir este vídeo agora.',
+      notification: 'none',
+      metadata: {
         scope: 'SocialExplorePageComponent',
-        op,
         hasOwnerUid: !!item.ownerUid,
         hasVideoId: !!item.id,
-      };
-      (normalized as any).skipUserNotification = true;
-
-      this.globalErrorHandler.handleError(normalized);
-    } catch {
-      // O diagnóstico não pode interromper a navegação do Explore.
-    }
+      },
+    });
   }
 }
