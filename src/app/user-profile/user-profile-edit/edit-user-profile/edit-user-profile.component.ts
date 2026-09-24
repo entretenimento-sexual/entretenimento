@@ -141,8 +141,17 @@ export class EditUserProfileComponent
     ).trim();
 
     if (!this.uid) {
-      this.notify.showError(
-        'Não foi possível identificar o usuário para edição.'
+      this.applicationError.report(
+        new Error('UID ausente na rota de edição de perfil.'),
+        {
+          feature: 'profile-edit',
+          operation: 'resolveUid',
+          fallbackMessage:
+            'Não foi possível identificar o usuário para edição.',
+          metadata: {
+            scope: 'EditUserProfileComponent',
+          },
+        }
       );
       this.router.navigate(['/perfil']).catch(() => undefined);
       return;
@@ -268,7 +277,7 @@ export class EditUserProfileComponent
 
     const validation = validateImageMediaFile(file, 'avatar');
     if (!validation.valid) {
-      this.notify.showError(
+      this.notify.showWarning(
         validation.userMessage ?? 'A foto de perfil selecionada não é válida.'
       );
       return;
@@ -295,7 +304,7 @@ export class EditUserProfileComponent
             'avatar'
           );
           if (!processedValidation.valid) {
-            this.notify.showError(
+            this.notify.showWarning(
               processedValidation.userMessage ?? 'A foto de perfil editada não é válida.'
             );
             return EMPTY;
@@ -316,15 +325,11 @@ export class EditUserProfileComponent
       .subscribe();
   }
 
-  onEstadoChange(_estadoSigla: string): void {
-    // Mantido por compatibilidade com templates antigos.
-  }
-
   onSubmit(): void {
     if (this.isSaving) return;
 
     if (this.isEditingPhoto || this.isUploading) {
-      this.notify.showError(
+      this.notify.showWarning(
         this.isEditingPhoto
           ? 'Conclua ou cancele a edição da foto antes de salvar.'
           : 'Aguarde o upload da foto terminar antes de salvar.'
@@ -334,7 +339,7 @@ export class EditUserProfileComponent
 
     if (this.editForm.invalid) {
       this.editForm.markAllAsTouched();
-      this.notify.showError(
+      this.notify.showWarning(
         'Revise os campos do formulário antes de salvar.'
       );
       return;

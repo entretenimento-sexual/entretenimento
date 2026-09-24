@@ -27,12 +27,6 @@ const CANONICAL_REPORTERS = [
   'user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component.ts',
 ] as const;
 
-const HOST_ERROR_PRESENTATION_FILES = [
-  'explore/pages/social-explore-page/social-explore-page.component.ts',
-  'layout/other-user-profile-view/other-user-profile-view.component.ts',
-  'user-profile/user-profile-view/user-profile-view.component.ts',
-] as const;
-
 function productionTypeScriptFiles(relativeDirectory: string): string[] {
   const directory = resolve(APP_ROOT, relativeDirectory);
   const files: string[] = [];
@@ -94,15 +88,23 @@ describe('Profile/Explore application error boundary', () => {
     ).toEqual([]);
   });
 
-  it('proíbe apresentação manual de erro nas superfícies hospedeiras', () => {
-    for (const relativePath of HOST_ERROR_PRESENTATION_FILES) {
-      const source = readFileSync(resolve(APP_ROOT, relativePath), 'utf8');
+  it('proíbe apresentação manual de erro nas superfícies auditadas', () => {
+    const violations: string[] = [];
 
-      expect(
-        source,
-        `${relativePath} deve delegar apresentação de erro ao ApplicationErrorService`
-      ).not.toMatch(/\.showError\s*\(/);
+    for (const scope of SCOPES) {
+      for (const absolutePath of productionTypeScriptFiles(scope)) {
+        const source = readFileSync(absolutePath, 'utf8');
+
+        if (/\.showError\s*\(/.test(source)) {
+          violations.push(absolutePath.replace(APP_ROOT, 'src/app'));
+        }
+      }
     }
+
+    expect(
+      violations,
+      'Perfil/Explore/Discovery devem apresentar erros via ApplicationErrorService; validações locais usam warning.'
+    ).toEqual([]);
   });
 
   it('mantém ApplicationErrorService nos consumidores migrados', () => {
