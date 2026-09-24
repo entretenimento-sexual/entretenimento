@@ -163,35 +163,35 @@ export const getMyCommunitiesPage = onCall<CommunityDiscoveryPageRequest>(
 
     const summarySnapshots = result.items.length > 0
       ? await db.getAll(
-          ...result.items.map((item) =>
-            db
-              .collection('community_notification_summaries')
-              .doc(uid)
-              .collection('items')
-              .doc(item.communityId)
-          )
+        ...result.items.map((item) =>
+          db
+            .collection('community_notification_summaries')
+            .doc(uid)
+            .collection('items')
+            .doc(item.communityId)
         )
+      )
       : [];
 
     const items = result.items.map((item, index) => {
       const summarySnapshot = summarySnapshots[index];
       const summary = summarySnapshot?.exists
         ? normalizeCommunityNotificationSummaryItem(
-            item.communityId,
-            summarySnapshot.data()
-          )
+          item.communityId,
+          summarySnapshot.data()
+        )
         : null;
 
       return summary
         ? {
-            ...item,
-            viewerNotificationSummary: {
-              unreadCount: summary.unreadCount,
-              priorityUnreadCount: summary.priorityUnreadCount,
-              hasPriorityUnread: summary.hasPriorityUnread,
-              updatedAt: summary.updatedAtMs || null,
-            },
-          }
+          ...item,
+          viewerNotificationSummary: {
+            unreadCount: summary.unreadCount,
+            priorityUnreadCount: summary.priorityUnreadCount,
+            hasPriorityUnread: summary.hasPriorityUnread,
+            updatedAt: summary.updatedAtMs || null,
+          },
+        }
         : item;
     });
 
