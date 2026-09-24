@@ -16,6 +16,9 @@ import {
   isCommunityTagId,
   resolveCommunityTagDefinitions,
 } from './community-tag.catalog';
+import type {
+  CommunityCapacityRegularizationManagementProjection,
+} from './community-capacity-regularization.policy';
 import type { CommunityLifecycleStatus } from './community-lifecycle.policy';
 import type { CommunityEditableSettings } from './community-settings.model';
 import type {
@@ -123,6 +126,9 @@ export interface CommunityPreviewResponse {
     /** Compatibilidade temporária com consumidores anteriores. */
     allowedMemberLimits: readonly CommunityMemberLimit[];
   } | null;
+  /** Estado operacional sanitizado, visível somente para owner/admin. */
+  capacityRegularization:
+    Readonly<CommunityCapacityRegularizationManagementProjection> | null;
   /** Configurações privadas, somente quando a capability acima for verdadeira. */
   settings: CommunityEditableSettings | null;
   canLeaveMembership: boolean;
