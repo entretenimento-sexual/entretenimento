@@ -54,6 +54,7 @@ import {
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
 import { CommunityMembersPageComponent } from '../members/community-members-page.component';
 import { CommunityFeedComponent } from '../feed/community-feed.component';
+import { CommunityTopicsComponent } from '../topics/community-topics.component';
 import { CommunityInviteManagementComponent } from '../invite-management/community-invite-management.component';
 import { CommunityMembershipManagementComponent } from '../membership-management/community-membership-management.component';
 import { OfficialEntityCommunitySectionComponent } from '../official-entity-community-section/official-entity-community-section.component';
@@ -78,6 +79,7 @@ import { CommunityMembershipProfileVisibilityComponent } from './community-membe
 
 export type CommunityPreviewSection =
   | 'feed'
+  | 'topics'
   | 'photos'
   | 'members'
   | 'about'
@@ -164,6 +166,7 @@ function normalizeCommunityFeedTargetId(value: unknown): string | null {
 const SECTION_QUERY_VALUES: Readonly<Record<CommunityPreviewSection, string | null>> =
   Object.freeze({
     feed: null,
+    topics: 'topicos',
     photos: 'fotos',
     members: 'membros',
     about: 'sobre',
@@ -179,6 +182,7 @@ const SECTION_QUERY_VALUES: Readonly<Record<CommunityPreviewSection, string | nu
     RouterLink,
     ImageFallbackDirective,
     CommunityFeedComponent,
+    CommunityTopicsComponent,
     CommunityMembersPageComponent,
     CommunityInviteManagementComponent,
     CommunityMembershipManagementComponent,
@@ -315,7 +319,6 @@ export class CommunityPreviewPageComponent {
           return {
             section: postId ? 'feed' as const : this.sectionFromQuery(rawSection),
             returnTarget: this.resolveReturnTarget(params.get('retorno')),
-            legacyTopics: rawSection === 'topicos',
             postId,
             commentId,
           };
@@ -324,7 +327,6 @@ export class CommunityPreviewPageComponent {
           (previous, current) =>
             previous.section === current.section
             && previous.returnTarget === current.returnTarget
-            && previous.legacyTopics === current.legacyTopics
             && previous.postId === current.postId
             && previous.commentId === current.commentId
         ),
@@ -333,7 +335,6 @@ export class CommunityPreviewPageComponent {
       .subscribe(({
         section,
         returnTarget,
-        legacyTopics,
         postId,
         commentId,
       }) => {
@@ -341,9 +342,6 @@ export class CommunityPreviewPageComponent {
         this.returnTarget.set(returnTarget);
         this.focusedPostId.set(postId);
         this.focusedCommentId.set(commentId);
-        if (legacyTopics) {
-          this.selectSection('feed', true);
-        }
       });
   }
 
@@ -552,7 +550,7 @@ export class CommunityPreviewPageComponent {
       ? preview.canManageMemberships
       : section === 'invites'
         ? preview.canInviteCommunityMembers
-        : section === 'members'
+        : section === 'members' || section === 'topics'
           ? preview.community.source.type === 'community'
           : true;
 
@@ -564,7 +562,7 @@ export class CommunityPreviewPageComponent {
   private sectionFromQuery(value: unknown): CommunityPreviewSection {
     switch (String(value ?? '').trim().toLowerCase()) {
       case 'topicos':
-        return 'feed';
+        return 'topics';
       case 'fotos':
         return 'photos';
       case 'membros':

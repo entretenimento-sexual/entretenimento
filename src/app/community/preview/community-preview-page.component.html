@@ -304,6 +304,20 @@
               <span>{{ preview.community.source.type === 'venue' ? 'Novidades' : 'Mural' }}</span>
             </button>
 
+            @if (preview.community.source.type === 'community') {
+              <button
+                id="community-tab-topics"
+                type="button"
+                aria-controls="community-panel-topics"
+                [attr.aria-pressed]="activeSection() === 'topics'"
+                [class.is-active]="activeSection() === 'topics'"
+                (click)="selectSection('topics')"
+              >
+                <i class="fas {{ sectionIcons.topics }}" aria-hidden="true"></i>
+                <span>Discussões</span>
+              </button>
+            }
+
             <button
               id="community-tab-photos"
               type="button"
@@ -408,6 +422,17 @@
                     [focusPostId]="focusedPostId()"
                     [focusCommentId]="focusedCommentId()"
                     view="feed"
+                  />
+                </section>
+              } @else if (
+                activeSection() === 'topics'
+                && preview.community.source.type === 'community'
+              ) {
+                <section id="community-panel-topics" aria-labelledby="community-tab-topics">
+                  <app-community-topics
+                    [communityId]="preview.community.communityId"
+                    [canInteract]="preview.canInteract"
+                    [viewerRole]="preview.viewerRole"
                   />
                 </section>
               } @else if (activeSection() === 'photos') {

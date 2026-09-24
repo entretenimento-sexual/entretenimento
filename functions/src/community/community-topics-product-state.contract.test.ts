@@ -10,7 +10,7 @@ import {
 
 const COMMUNITY_SOURCE = path.resolve(__dirname, '../../src/community');
 
-const FROZEN_HANDLERS = Object.freeze([
+const TOPIC_HANDLERS = Object.freeze([
   {
     file: 'get-community-topics-page.handler.ts',
     callables: ['getCommunityTopicsPage'],
@@ -35,30 +35,15 @@ const FROZEN_HANDLERS = Object.freeze([
   },
 ]);
 
-test('Tópicos permanecem em estado de produto frozen', () => {
-  assert.equal(COMMUNITY_TOPICS_PRODUCT_STATE, 'frozen');
-
-  assert.throws(
-    () => assertCommunityTopicsProductAvailable(),
-    (error: unknown) => {
-      const source = error as {
-        code?: unknown;
-        details?: Record<string, unknown>;
-      };
-      assert.equal(source.code, 'failed-precondition');
-      assert.equal(
-        source.details?.['reason'],
-        'community_topics_product_frozen'
-      );
-      return true;
-    }
-  );
+test('Discussões permanecem em estado de produto active', () => {
+  assert.equal(COMMUNITY_TOPICS_PRODUCT_STATE, 'active');
+  assert.doesNotThrow(() => assertCommunityTopicsProductAvailable());
 });
 
-test('todas as seis callables são bloqueadas antes de qualquer acesso Firestore', () => {
+test('todas as seis callables aplicam o estado de produto antes de qualquer acesso Firestore', () => {
   let guardedCallableCount = 0;
 
-  for (const contract of FROZEN_HANDLERS) {
+  for (const contract of TOPIC_HANDLERS) {
     const source = readFileSync(
       path.join(COMMUNITY_SOURCE, contract.file),
       'utf8'
@@ -87,11 +72,11 @@ test('todas as seis callables são bloqueadas antes de qualquer acesso Firestore
       );
       assert.ok(
         productGuardIndex > runtimeGuardIndex,
-        `${callable} deve aplicar o freeze depois do runtime guard`
+        `${callable} deve aplicar o estado de produto depois do runtime guard`
       );
       assert.ok(
         firestoreIndex < 0 || productGuardIndex < firestoreIndex,
-        `${callable} acessa Firestore antes do gate frozen`
+        `${callable} acessa Firestore antes do gate de produto`
       );
 
       guardedCallableCount += 1;
