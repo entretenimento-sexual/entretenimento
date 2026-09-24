@@ -598,7 +598,11 @@ export class CommunityDiscoveryPageComponent {
 
   toggleCommunityNotifications(item: CommunityDiscoveryCardView): void {
     if (this.discoveryMode !== 'mine') return;
-    this.mineFacade.toggleNotifications(item, this.errorMetadata());
+    this.mineFacade.toggleNotifications(
+      item,
+      this.errorMetadata(),
+      this.discoveryMode === 'mine'
+    );
   }
 
   detailsRoute(item: CommunityPreviewCard): readonly string[] {
