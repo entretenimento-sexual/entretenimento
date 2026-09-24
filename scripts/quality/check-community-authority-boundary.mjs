@@ -13,7 +13,8 @@
 //
 // O checker também protege a fronteira de custo das notificações de Comunidades:
 // - community_notification_summaries possui um único owner de leitura no cliente;
-// - o owner mantém um único listener agregado por usuário;
+// - o owner mantém um único listener O(1) no documento global por usuário;
+// - detalhe por Comunidade é bounded/paginado e nunca usa collectionData global;
 // - Explore/Locais não resolvem os serviços privados usados por Minhas comunidades;
 // - community_feed_realtime possui owner único de leitura;
 // - CommunityFeed só abre esse listener através do coordenador de primeiro plano;
@@ -382,40 +383,57 @@ function validateCommunityNotificationClientBoundary(architectureViolations) {
   );
 
   if (ownerSource) {
-    const collectionOwnerPattern = /collection\(\s*this\.firestore\s*,\s*['"]community_notification_summaries['"]\s*,\s*uid\s*,\s*['"]items['"]\s*\)/m;
+    const globalDocumentPattern = /doc\(\s*this\.firestore\s*,\s*['"]community_notification_summaries['"]\s*,\s*uid\s*\)/m;
     const collectionDataCount = countMatches(ownerSource, /\bcollectionData\s*\(/gm);
-    const summaryMapDerivesFromAggregate = /currentUserSummaryMap\$[\s\S]{0,220}=\s*this\.currentUserSummaries\$\.pipe\s*\(/m.test(
-      ownerSource
-    );
-    const unreadCountDerivesFromAggregate = /currentUserUnreadCount\$[\s\S]{0,220}=\s*this\.currentUserSummaries\$\.pipe\s*\(/m.test(
-      ownerSource
-    );
+    const docDataCount = countMatches(ownerSource, /\bdocData\s*\(/gm);
+    const summaryMapDerivesFromAttentionWindow =
+      /currentUserSummaryMap\$[\s\S]{0,220}=\s*this\.currentUserSummaries\$\.pipe\s*\(/m.test(
+        ownerSource
+      );
+    const unreadCountDerivesFromGlobal =
+      /currentUserUnreadCount\$[\s\S]{0,320}this\.currentUserGlobalSummary\$/m.test(
+        ownerSource
+      );
 
-    if (!collectionOwnerPattern.test(ownerSource)) {
+    if (!globalDocumentPattern.test(ownerSource)) {
       architectureViolations.push(
         `${COMMUNITY_NOTIFICATION_SUMMARY_OWNER} `
-          + '(listener agregado não aponta para community_notification_summaries/{uid}/items)'
+          + '(listener O(1) não aponta para community_notification_summaries/{uid})'
       );
     }
 
-    if (collectionDataCount !== 1) {
+    if (collectionDataCount !== 0) {
       architectureViolations.push(
         `${COMMUNITY_NOTIFICATION_SUMMARY_OWNER} `
-          + `(esperado 1 collectionData agregado; encontrado ${collectionDataCount})`
+          + `(collectionData da coleção inteira é proibido; encontrado ${collectionDataCount})`
       );
     }
 
-    if (!summaryMapDerivesFromAggregate) {
+    if (docDataCount < 1) {
       architectureViolations.push(
         `${COMMUNITY_NOTIFICATION_SUMMARY_OWNER} `
-          + '(currentUserSummaryMap$ deve derivar de currentUserSummaries$)'
+          + '(resumo global deve usar docData no documento único do usuário)'
       );
     }
 
-    if (!unreadCountDerivesFromAggregate) {
+    if (!ownerSource.includes('attentionWindow')) {
       architectureViolations.push(
         `${COMMUNITY_NOTIFICATION_SUMMARY_OWNER} `
-          + '(currentUserUnreadCount$ deve derivar de currentUserSummaries$)'
+          + '(listener global deve consumir a janela bounded de atenção)'
+      );
+    }
+
+    if (!summaryMapDerivesFromAttentionWindow) {
+      architectureViolations.push(
+        `${COMMUNITY_NOTIFICATION_SUMMARY_OWNER} `
+          + '(currentUserSummaryMap$ deve derivar da janela bounded currentUserSummaries$)'
+      );
+    }
+
+    if (!unreadCountDerivesFromGlobal) {
+      architectureViolations.push(
+        `${COMMUNITY_NOTIFICATION_SUMMARY_OWNER} `
+          + '(currentUserUnreadCount$ deve derivar do documento global O(1))'
       );
     }
   }
@@ -1456,8 +1474,9 @@ if (uniqueArchitectureViolations.length > 0) {
   }
   console.error(
     '[community-authority] Mantenha community_notification_summaries com owner único no '
-      + 'CommunityNotificationUnreadSummaryService, um listener agregado por usuário e '
-      + 'resolução lazy dos serviços privados somente em Minhas comunidades.'
+      + 'CommunityNotificationUnreadSummaryService, um listener O(1) no documento global '
+      + 'por usuário, detalhe bounded/paginado e resolução lazy dos serviços privados '
+      + 'somente em Minhas comunidades.'
   );
   process.exit(1);
 }
@@ -1466,5 +1485,5 @@ console.log(
   '[community-authority] OK: payloads de Comunidades não são usados como autoridade derivada.'
 );
 console.log(
-  '[community-authority] OK: notificações preservam owner único; v3 permanece backend-only com promoção mensurável/rollback canônico; Community Boost é patrocinado e separado do score orgânico; criação oficial separa autoridade/assinatura/role; Evento possui lifecycle writer único auditável.'
+  '[community-authority] OK: notificações preservam owner único e listener O(1); v3 permanece backend-only com promoção mensurável/rollback canônico; Community Boost é patrocinado e separado do score orgânico; criação oficial separa autoridade/assinatura/role; Evento possui lifecycle writer único auditável.'
 );
