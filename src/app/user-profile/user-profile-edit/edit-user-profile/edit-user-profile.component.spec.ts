@@ -16,7 +16,7 @@ import {
 import { EditUserProfileComponent } from './edit-user-profile.component';
 import { FirestoreUserQueryService } from '../../../core/services/data-handling/firestore-user-query.service';
 import { ErrorNotificationService } from '../../../core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '../../../core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '../../../core/services/error-handler/application-error.service';
 import { PhotoEditorLauncherService } from '../../../core/services/image-handling/photo-editor-launcher.service';
 import { StorageService } from '../../../core/services/image-handling/storage.service';
 import { UsuarioService } from '../../../core/services/user-profile/usuario.service';
@@ -102,9 +102,9 @@ describe('EditUserProfileComponent', () => {
           },
         },
         {
-          provide: GlobalErrorHandlerService,
+          provide: ApplicationErrorService,
           useValue: {
-            handleError: vi.fn(),
+            report: vi.fn(),
           },
         },
       ],
