@@ -6,7 +6,7 @@
 // - evita subscribe solto no ngOnInit
 // - carrega fotos de forma reativa
 // - mantém nomenclaturas públicas (loadUserPhotos / deleteFile)
-// - centraliza tratamento de erro com GlobalErrorHandlerService + ErrorNotificationService
+// - centraliza falhas técnicas no ApplicationErrorService e mantém avisos de validação no notifier
 // - preserva compatibilidade com o template atual
 import { CommonModule } from '@angular/common';
 import { Component, input, OnInit, signal } from '@angular/core';
@@ -25,7 +25,7 @@ import {
   PhotoFirestoreService,
 } from 'src/app/core/services/image-handling/photo-firestore.service';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { RouterModule } from '@angular/router';
 
@@ -60,7 +60,7 @@ export class UserPhotoManagerComponent implements OnInit {
   constructor(
     private readonly photoService: PhotoFirestoreService,
     private readonly authSession: AuthSessionService,
-    private readonly errorHandler: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly errorNotifier: ErrorNotificationService,
   ) {}
 
@@ -244,25 +244,16 @@ getCollapseLabel(): string {
   private reportError(
     userMessage: string,
     error: unknown,
-    context?: Record<string, unknown>
+    context?: Readonly<Record<string, unknown>>
   ): void {
-    try {
-      this.errorNotifier.showError(userMessage);
-    } catch {
-      // noop
-    }
-
-    try {
-      const err = error instanceof Error ? error : new Error(userMessage);
-      (err as any).original = error;
-      (err as any).context = {
+    this.applicationError.report(error, {
+      feature: 'profile-photos',
+      operation: String(context?.['op'] ?? 'unknown'),
+      fallbackMessage: userMessage,
+      metadata: {
         scope: 'UserPhotoManagerComponent',
-        ...(context ?? {})
-      };
-      (err as any).skipUserNotification = true;
-      this.errorHandler.handleError(err);
-    } catch {
-      // noop
-    }
+        ...(context ?? {}),
+      },
+    });
   }
 } // Linha 268
