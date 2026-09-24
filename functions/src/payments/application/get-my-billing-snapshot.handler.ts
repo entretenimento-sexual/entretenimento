@@ -23,6 +23,9 @@ import {
 } from './platform-recurring-subscription.service';
 import { PlatformRole } from '../domain/billing.model';
 import {
+  isAsaasSubscriptionUpdateEnabled,
+} from '../config/asaas.config';
+import {
   PLATFORM_SUBSCRIPTION_PROJECTION_VERSION,
   reconcilePlatformSubscriptionAccess,
 } from './platform-subscription-projection.service';
@@ -41,6 +44,12 @@ interface BillingSnapshotResponse {
   renewalEnabled: boolean;
   renewalStatus: 'active' | 'cancel_pending' | 'canceled' | 'none';
   renewalCancellationPending: boolean;
+  downgradeSchedulingAvailable: boolean;
+  scheduledPlanChange: {
+    planKey: PlatformRole;
+    effectiveAt: number;
+    providerUpdateStatus: 'applied' | 'pending';
+  } | null;
 }
 
 export const getMyBillingSnapshot = onCall<Record<string, never>>(
@@ -81,6 +90,24 @@ export const getMyBillingSnapshot = onCall<Record<string, never>>(
         : null;
     const renewalCancellationPending =
       recurringContract?.needsProviderCancellation === true;
+    const pendingPlanChange =
+      recurringContract?.pendingPlanChange ?? null;
+    const scheduledPlanChange = pendingPlanChange
+      ? {
+        planKey: pendingPlanChange.planKey,
+        effectiveAt: pendingPlanChange.effectiveAt,
+        providerUpdateStatus:
+          pendingPlanChange.providerUpdateStatus === 'applied'
+            ? 'applied' as const
+            : 'pending' as const,
+      }
+      : null;
+    const downgradeSchedulingAvailable =
+      isAsaasSubscriptionUpdateEnabled()
+      && recurringContract?.status === 'active'
+      && recurringContract?.renewalEnabled === true
+      && recurringContract?.isCurrent === true
+      && recurringContract?.needsProviderCancellation !== true;
     const renewalStatus:
       'active' | 'cancel_pending' | 'canceled' | 'none' =
       renewalEnabled
@@ -106,6 +133,10 @@ export const getMyBillingSnapshot = onCall<Record<string, never>>(
         renewalEnabled,
         renewalStatus,
         renewalCancellationPending,
+      downgradeSchedulingAvailable,
+      scheduledPlanChange,
+        downgradeSchedulingAvailable,
+        scheduledPlanChange,
       };
     }
 
@@ -123,6 +154,8 @@ export const getMyBillingSnapshot = onCall<Record<string, never>>(
       renewalEnabled,
       renewalStatus,
       renewalCancellationPending,
+      downgradeSchedulingAvailable,
+      scheduledPlanChange,
     };
   }
 );
