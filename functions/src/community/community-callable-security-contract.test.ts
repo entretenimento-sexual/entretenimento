@@ -88,6 +88,7 @@ const COMMUNITY_CALLABLE_RECENT_AUTH_REQUIREMENTS =
     ['inspect-community-ranking-readiness.handler.ts:inspectCommunityRankingReadiness', 'none'],
     ['reconcile-community-member-counts.handler.ts:reconcileCommunityMemberCounts', 'always'],
     ['record-community-discovery-exposure.handler.ts:recordCommunityDiscoveryExposure', 'none'],
+    ['record-community-discovery-exposure.handler.ts:recordCommunityDistributionEvents', 'none'],
     ['report-community-feed-comment-reply.handler.ts:reportCommunityFeedCommentReply', 'none'],
     ['report-community-feed-comment.handler.ts:reportCommunityFeedComment', 'none'],
     ['report-community-feed-post.handler.ts:reportCommunityFeedPost', 'none'],
