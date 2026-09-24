@@ -36,7 +36,7 @@ import { AccessControlService } from 'src/app/core/services/autentication/auth/a
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { UserSocialLinksService } from 'src/app/core/services/user-profile/user-social-links.service';
 
 type PlatformKey = keyof IUserSocialLinks;
@@ -86,7 +86,7 @@ export class SocialLinksAccordionComponent implements OnInit, OnDestroy {
   private readonly session = inject(AuthSessionService);
   private readonly accessControl = inject(AccessControlService);
   private readonly notify = inject(ErrorNotificationService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly router = inject(Router);
 
   private readonly profileUid$ = toObservable(this.uid, {
@@ -383,21 +383,16 @@ export class SocialLinksAccordionComponent implements OnInit, OnDestroy {
     context: string,
     userMessage?: string
   ): void {
-    const normalized =
-      error instanceof Error
-        ? error
-        : new Error(`[SocialLinksAccordion] ${context}`);
-
-    (normalized as any).silent = true;
-    (normalized as any).original = error;
-    (normalized as any).context = context;
-    (normalized as any).skipUserNotification = true;
-
-    this.globalError.handleError(normalized);
-
-    if (userMessage) {
-      this.notify.showError(userMessage);
-    }
+    this.applicationError.report(error, {
+      feature: 'profile-social-links',
+      operation: context,
+      fallbackMessage:
+        userMessage ?? 'Não foi possível atualizar as redes sociais agora.',
+      notification: userMessage ? 'error' : 'none',
+      metadata: {
+        scope: 'UserSocialLinksAccordionComponent',
+      },
+    });
   }
 
   private isDangerousUrl(value: string): boolean {
