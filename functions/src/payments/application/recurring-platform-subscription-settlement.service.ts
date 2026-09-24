@@ -656,6 +656,7 @@ export async function settleRecurringPlatformSubscriptionPayment(
             status: 'superseded',
             renewalEnabled: false,
             isCurrent: false,
+            pendingPlanChange: null,
             needsProviderCancellation: true,
             providerCancellationNextAttemptAt: now,
             supersededAt: now,
