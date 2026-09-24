@@ -8,6 +8,7 @@ import {
 
 import type { CommunityPreviewCard } from '../data-access/community-preview.model';
 import { resolveCommunityOfficialPresentation } from './community-official.presentation';
+import { getCommunitySocialSpaceAdapter } from './community-social-space.adapter';
 
 const LOCATION_CONNECTORS = new Set(['da', 'das', 'de', 'do', 'dos', 'e']);
 
@@ -70,7 +71,11 @@ export class CommunityOfficialBadgeComponent {
     if (!this.presentation()) return null;
 
     const community = this.community();
-    const location = community?.source.type === 'venue'
+    if (!community) return null;
+
+    const location = getCommunitySocialSpaceAdapter(
+      community.source.type
+    ).capabilities.publicLocation
       ? community.publicLocation
       : null;
     if (!location) return null;
