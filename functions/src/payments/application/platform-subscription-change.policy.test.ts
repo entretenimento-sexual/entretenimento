@@ -2,14 +2,15 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  resolvePlatformSubscriptionFinancialCurrentRole,
   resolvePlatformSubscriptionPlanChangePolicy,
+  shouldBlockCheckoutForPendingRecurringCancellation,
   shouldBlockDuplicateRecurringCheckout,
 } from './platform-subscription-change.policy';
 
 test('bloqueia checkout duplicado do mesmo plano com renovação ativa', () => {
   assert.equal(
     shouldBlockDuplicateRecurringCheckout({
-      currentRole: 'premium',
       requestedRole: 'premium',
       recurringPlanKey: 'premium',
       renewalEnabled: true,
@@ -21,11 +22,43 @@ test('bloqueia checkout duplicado do mesmo plano com renovação ativa', () => {
 test('não bloqueia nova contratação do mesmo plano após desligar renovação', () => {
   assert.equal(
     shouldBlockDuplicateRecurringCheckout({
-      currentRole: 'premium',
       requestedRole: 'premium',
       recurringPlanKey: 'premium',
       renewalEnabled: false,
     }),
+    false
+  );
+});
+
+test('mantém plano recorrente como referência financeira após entitlement vencer', () => {
+  assert.equal(
+    resolvePlatformSubscriptionFinancialCurrentRole({
+      activeEntitlementRole: null,
+      recurringPlanKey: 'premium',
+      renewalEnabled: true,
+    }),
+    'premium'
+  );
+});
+
+test('libera nova base financeira depois que renovação realmente foi desligada', () => {
+  assert.equal(
+    resolvePlatformSubscriptionFinancialCurrentRole({
+      activeEntitlementRole: null,
+      recurringPlanKey: 'premium',
+      renewalEnabled: false,
+    }),
+    null
+  );
+});
+
+test('bloqueia checkout enquanto cancelamento externo ainda está pendente', () => {
+  assert.equal(
+    shouldBlockCheckoutForPendingRecurringCancellation(true),
+    true
+  );
+  assert.equal(
+    shouldBlockCheckoutForPendingRecurringCancellation(false),
     false
   );
 });
