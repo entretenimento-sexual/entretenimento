@@ -32,7 +32,7 @@ import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { LocalDraftService } from 'src/app/core/services/drafts/local-draft.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ValidatorService } from 'src/app/core/services/general/validator.service';
 import { PhotoEditorLauncherService } from 'src/app/core/services/image-handling/photo-editor-launcher.service';
 import { StorageService } from 'src/app/core/services/image-handling/storage.service';
@@ -112,7 +112,7 @@ export class EditUserProfileComponent
     private readonly storageService: StorageService,
     private readonly localDraft: LocalDraftService,
     private readonly notify: ErrorNotificationService,
-    private readonly globalError: GlobalErrorHandlerService
+    private readonly applicationError: ApplicationErrorService
   ) {
     this.editForm = this.formBuilder.group({
       nickname: ['', [Validators.minLength(3)]],
@@ -547,25 +547,14 @@ export class EditUserProfileComponent
     context: string,
     userMessage: string
   ): Observable<never> {
-    const normalized =
-      error instanceof Error
-        ? error
-        : new Error(String(error ?? 'unknown'));
-    const contextual = normalized as Error & {
-      context?: unknown;
-      silent?: boolean;
-    };
-
-    contextual.context = `EditUserProfileComponent.${context}`;
-    contextual.silent = true;
-
-    try {
-      this.globalError.handleError(contextual);
-    } catch {
-      // Falha secundária de telemetria não bloqueia a interface.
-    }
-
-    this.notify.showError(userMessage);
+    this.applicationError.report(error, {
+      feature: 'profile-edit',
+      operation: context,
+      fallbackMessage: userMessage,
+      metadata: {
+        scope: 'EditUserProfileComponent',
+      },
+    });
     return EMPTY;
   }
 
