@@ -241,6 +241,13 @@ export function evaluateCommunityCapacityRegularization(input: {
   };
 }
 
+export function isCommunityCapacityRegularizationActionRequired(
+  rawCommunity: unknown
+): boolean {
+  return normalizeCommunityCapacityRegularizationState(rawCommunity)?.status
+    === 'action_required';
+}
+
 export function applyCommunityCapacityRegularizationGate(
   state: Readonly<CommunityCapacityState>,
   rawCommunity: unknown
