@@ -19,7 +19,6 @@ import { CurrentUserStoreService } from '../../core/services/autentication/auth/
 import { FirestoreUserQueryService } from '../../core/services/data-handling/firestore-user-query.service';
 import { ApplicationErrorService } from '../../core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';
 import { FriendshipService } from '../../core/services/interactions/friendship/friendship.service';
 import { MediaPublicPreviewQueryService } from '../../core/services/media/media-public-preview-query.service';
 import { PrivacyDebugLoggerService } from '../../core/services/privacy/privacy-debug-logger.service';
@@ -152,12 +151,6 @@ describe('OtherUserProfileViewComponent', () => {
           provide: DirectChatService,
           useValue: {
             ensureDirectChatIdWithUser$: vi.fn(() => of('chat-id')),
-          },
-        },
-        {
-          provide: GlobalErrorHandlerService,
-          useValue: {
-            handleError: vi.fn(),
           },
         },
         {
