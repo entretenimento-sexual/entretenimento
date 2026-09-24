@@ -56,6 +56,7 @@ test('normaliza paginação, fonte, tag e limita o tamanho máximo', () => {
       cursor: null,
       sourceType: 'community',
       tagId: 'practice:bdsm',
+      excludeActiveMemberships: false,
     }
   );
 
