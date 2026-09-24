@@ -5,6 +5,7 @@ import {
   buildCommunityCapacityRegularization,
   isCommunityCapacityRegularizationOverdue,
   resolveCapacityRegularizationGracePeriodMs,
+  resolveCommunityCapacityRegularizationClockOwnerUid,
 } from './community-capacity-regularization.policy';
 
 const NOW = 1_800_000_000_000;
@@ -118,4 +119,49 @@ test('abre regularização por excesso de ownership mesmo com capacidade compat�
   assert.equal(result.reason, 'ownership_over_plan');
   assert.equal(result.phase, 'grace_period');
   assert.equal(result.effectiveLimit, 100);
+});
+
+
+test('seleciona owner para reconciliação de relógio somente ao vencer grace period', () => {
+  const dueAt = NOW;
+
+  assert.equal(
+    resolveCommunityCapacityRegularizationClockOwnerUid({
+      state: 'capacity_regularization',
+      phase: 'grace_period',
+      ownerUid: 'owner-1',
+      dueAt,
+    }, NOW - 1),
+    null
+  );
+
+  assert.equal(
+    resolveCommunityCapacityRegularizationClockOwnerUid({
+      state: 'capacity_regularization',
+      phase: 'grace_period',
+      ownerUid: 'owner-1',
+      dueAt,
+    }, NOW),
+    'owner-1'
+  );
+
+  assert.equal(
+    resolveCommunityCapacityRegularizationClockOwnerUid({
+      state: 'capacity_regularization',
+      phase: 'overdue',
+      ownerUid: 'owner-1',
+      dueAt,
+    }, NOW + 1),
+    null
+  );
+
+  assert.equal(
+    resolveCommunityCapacityRegularizationClockOwnerUid({
+      state: 'capacity_regularization',
+      phase: 'grace_period',
+      ownerUid: '../invalid',
+      dueAt,
+    }, NOW + 1),
+    null
+  );
 });
