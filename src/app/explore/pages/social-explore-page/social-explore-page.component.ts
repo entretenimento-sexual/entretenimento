@@ -32,6 +32,8 @@ import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-i
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { UserIntentStatusService } from 'src/app/core/services/discovery/user-intent-status.service';
+import { CommunityDiscoveryExposureService } from 'src/app/community/discovery/community-discovery-exposure.service';
+import { CommunityDiscoveryVisibilityDirective } from 'src/app/community/discovery/community-discovery-visibility.directive';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { buildPublicMediaIdentity } from 'src/app/core/utils/media/public-media-identity';
@@ -54,6 +56,7 @@ import {
   ExplorePersonalMediaService,
 } from '../../services/explore-personal-media.service';
 import { IExploreFeedVm } from '../../services/explore-feed.service';
+import { ExploreCommunityDistributionService } from '../../services/explore-community-distribution.service';
 
 const FEED_INITIAL_VISIBLE_COUNT = 6;
 const FEED_PAGE_SIZE = 6;
@@ -84,6 +87,7 @@ interface SocialExploreFeedWindow extends ExploreSocialFeedWindow {
     PublicVideoCardComponent,
     FeedPublicationComposerComponent,
     UserIntentStatusComposerComponent,
+    CommunityDiscoveryVisibilityDirective,
   ],
   templateUrl: './social-explore-page.component.html',
   styleUrls: ['./social-explore-page.component.css'],
@@ -106,9 +110,13 @@ export class SocialExplorePageComponent {
   private readonly mixedMediaViewer = inject(PublicMixedMediaViewerLauncherService);
   private readonly errorNotification = inject(ErrorNotificationService);
   private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
+  private readonly communityDistribution = inject(ExploreCommunityDistributionService);
+  private readonly communityExposure = inject(CommunityDiscoveryExposureService);
 
   private readonly visibleFeedCountSubject =
     new BehaviorSubject<number>(FEED_INITIAL_VISIBLE_COUNT);
+
+  readonly communityDistribution$ = this.communityDistribution.vm$;
 
   readonly publicationComposerVisible = signal(false);
   readonly openingMediaKey = signal<string | null>(null);
@@ -321,6 +329,20 @@ export class SocialExplorePageComponent {
 
   openFeedVideo(item: IPublicVideoItem): void {
     this.openFeedMedia(item);
+  }
+
+  recordCommunityExposure(communityId: string): void {
+    this.communityExposure.recordQualifiedExposure(communityId, 'community');
+  }
+
+  communityInitials(name: string): string {
+    return String(name ?? '')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part.slice(0, 1).toUpperCase())
+      .join('') || '?';
   }
 
   retryVideoHighlights(): void {
