@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import assert from 'node:assert/strict';
+import test from 'node:test';
 
 import {
   buildCommunityExploreContentProjection,
@@ -32,8 +33,7 @@ const feed = {
   updatedAt: 1_800_000_000_000,
 };
 
-describe('community explore content projection', () => {
-  it('aceita somente publicação pública de Comunidade pública', () => {
+test('aceita somente publicação pública de Comunidade pública', () => {
     const projection = buildCommunityExploreContentProjection({
       communityId: 'community-1',
       postId: 'post-1',
@@ -47,25 +47,26 @@ describe('community explore content projection', () => {
       now: 1_800_000_000_100,
     });
 
-    expect(projection?.communityId).toBe('community-1');
-    expect(projection?.post.kind).toBe('text');
+  assert.equal(projection?.communityId, 'community-1');
+  assert.equal(projection?.post.kind, 'text');
   });
 
-  it.each([
-    ['members_only', { ...feed, audience: 'members_only' }],
-    ['reply', { ...feed, replyToPostId: 'parent-1' }],
-    ['location', {
-      ...feed,
-      kind: 'location',
-      location: {
-        latitude: -22.9,
-        longitude: -43.2,
-        precision: 'approximate',
-        accuracyMeters: null,
-      },
-    }],
-  ])('rejeita %s fora da distribuição global', (_name, rawFeed) => {
-    expect(buildCommunityExploreContentProjection({
+for (const [name, rawFeed] of [
+  ['members_only', { ...feed, audience: 'members_only' }],
+  ['reply', { ...feed, replyToPostId: 'parent-1' }],
+  ['location', {
+    ...feed,
+    kind: 'location',
+    location: {
+      latitude: -22.9,
+      longitude: -43.2,
+      precision: 'approximate',
+      accuracyMeters: null,
+    },
+  }],
+] as const) {
+test(`rejeita ${name} fora da distribuição global`, () => {
+    assert.equal(buildCommunityExploreContentProjection({
       communityId: 'community-1',
       postId: 'post-1',
       discovery,
@@ -76,30 +77,31 @@ describe('community explore content projection', () => {
         moderationState: 'active',
       },
       now: 1_800_000_000_100,
-    })).toBeNull();
+    }), null);
+  });
+}
+
+test('rejeita Comunidade que saiu da descoberta pública', () => {
+  assert.equal(buildCommunityExploreContentProjection({
+    communityId: 'community-1',
+    postId: 'post-1',
+    discovery: { ...discovery, visibility: 'members_only' },
+    feed,
+    operationalPost: {
+      actorUid: 'author-1',
+      status: 'active',
+      moderationState: 'active',
+    },
+    now: 1_800_000_000_100,
+  }), null);
   });
 
-  it('rejeita Comunidade que saiu da descoberta pública', () => {
-    expect(buildCommunityExploreContentProjection({
-      communityId: 'community-1',
-      postId: 'post-1',
-      discovery: { ...discovery, visibility: 'members_only' },
-      feed,
-      operationalPost: {
-        actorUid: 'author-1',
-        status: 'active',
-        moderationState: 'active',
-      },
-      now: 1_800_000_000_100,
-    })).toBeNull();
+test('não ressincroniza por alteração isolada de métricas', () => {
+  assert.equal(
+    communityExploreContentSourceFingerprint(feed),
+    communityExploreContentSourceFingerprint({
+      ...feed,
+      metrics: { commentCount: 99, reactionCount: 120 },
+    })
+  );
   });
-
-  it('não ressincroniza por alteração isolada de métricas', () => {
-    expect(communityExploreContentSourceFingerprint(feed)).toBe(
-      communityExploreContentSourceFingerprint({
-        ...feed,
-        metrics: { commentCount: 99, reactionCount: 120 },
-      })
-    );
-  });
-});
