@@ -42,7 +42,7 @@ import {
 import { ProfileMyCommunitiesComponent } from 'src/app/community/profile-my-communities/profile-my-communities.component';
 import { ProfileOfficialCommunitiesComponent } from 'src/app/community/profile-official-communities/profile-official-communities.component';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { NetworkStatusService } from '@core/services/network/network-status.service';
 import type { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
@@ -94,7 +94,7 @@ export class UserProfileViewComponent implements OnInit {
   private readonly store = inject<Store<AppState>>(Store as any);
   private readonly destroyRef = inject(DestroyRef);
 
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly errorNotification = inject(ErrorNotificationService);
   private readonly network = inject(NetworkStatusService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
@@ -379,27 +379,16 @@ export class UserProfileViewComponent implements OnInit {
   private reportError(
     userMessage: string,
     error: unknown,
-    context?: Record<string, unknown>
+    context?: Readonly<Record<string, unknown>>
   ): void {
-    try {
-      this.errorNotification.showError(userMessage);
-    } catch {
-      // noop
-    }
-
-    try {
-      const err = error instanceof Error ? error : new Error(userMessage);
-
-      (err as any).original = error;
-      (err as any).context = {
+    this.applicationError.report(error, {
+      feature: 'profile-view',
+      operation: String(context?.['op'] ?? 'unknown'),
+      fallbackMessage: userMessage,
+      metadata: {
         scope: 'UserProfileViewComponent',
         ...(context ?? {}),
-      };
-      (err as any).skipUserNotification = true;
-
-      this.globalError.handleError(err);
-    } catch {
-      // noop
-    }
+      },
+    });
   }
 }
