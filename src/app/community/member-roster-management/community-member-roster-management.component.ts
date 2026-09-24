@@ -12,7 +12,6 @@ import { toObservable } from '@angular/core/rxjs-interop';
 import {
   catchError,
   combineLatest,
-  debounceTime,
   distinctUntilChanged,
   exhaustMap,
   filter,
@@ -24,6 +23,7 @@ import {
   Subject,
   switchMap,
   tap,
+  timer,
 } from 'rxjs';
 
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
@@ -174,9 +174,13 @@ export class CommunityMemberRosterManagementComponent {
     toObservable(this.selectedStatus),
     toObservable(this.selectedRoleFilter),
     toObservable(this.searchTerm).pipe(
-      debounceTime(250),
       map(normalizeSearchTerm),
-      distinctUntilChanged()
+      distinctUntilChanged(),
+      switchMap((query) =>
+        query
+          ? timer(250).pipe(map(() => query))
+          : of(query)
+      )
     ),
   ]).pipe(
     map(
