@@ -397,6 +397,7 @@ export const createCommunityFeedCommentReply = onCall<
               postId,
               commentId,
               parentAuthorUid,
+              actorUid,
               membershipCycleStartedAtMs,
               nowMs
             )
