@@ -510,7 +510,7 @@ export function buildCommunityCapacityRegularizationNotificationCopy(input: {
     ? {
       title: 'Regularização da Comunidade necessária',
       body:
-        `${communityName} está com novas entradas pausadas. `
+        `${communityName} está em modo somente leitura, com novas entradas pausadas. `
         + 'Regularize o plano, transfira a propriedade ou arquive a Comunidade.',
     }
     : {
