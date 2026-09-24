@@ -18,7 +18,7 @@ import { catchError, filter, finalize, switchMap, take, tap } from 'rxjs/operato
 import { IPhotoItem } from 'src/app/core/interfaces/media/i-photo-item';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { PhotoEditorLauncherService } from 'src/app/core/services/image-handling/photo-editor-launcher.service';
 import type {
   PhotoEditorContext,
@@ -59,7 +59,7 @@ export class FeedPublicationComposerComponent {
   private readonly uploadFlow = inject(PhotoUploadFlowService);
   private readonly publication = inject(MediaPublicationService);
   private readonly notifications = inject(ErrorNotificationService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
 
   readonly user = input<IUserDados | null>(null);
   readonly closed = output<void>();
@@ -121,13 +121,15 @@ export class FeedPublicationComposerComponent {
       .pipe(
         take(1),
         catchError((error: unknown) => {
-          this.notifications.showError(
-            'Não foi possível abrir o editor para esta foto.'
+          this.reportApplicationError(
+            error,
+            'editImage',
+            'Não foi possível abrir o editor para esta foto.',
+            {
+              mimeType: file.type,
+              size: file.size,
+            }
           );
-          this.reportTechnicalError(error, 'editImage', {
-            mimeType: file.type,
-            size: file.size,
-          });
           return EMPTY;
         }),
         finalize(() => {
@@ -146,14 +148,12 @@ export class FeedPublicationComposerComponent {
           EXPLORE_IMAGE_MEDIA_CONTEXT
         );
         if (!processedValidation.valid) {
-          this.notifications.showError(
-            processedValidation.userMessage ?? 'A imagem editada não é válida.'
-          );
-          this.reportTechnicalError(
+          this.reportApplicationError(
             new Error(
               'O editor canônico devolveu uma imagem fora da política social-feed.'
             ),
             'validateEditedImage',
+            processedValidation.userMessage ?? 'A imagem editada não é válida.',
             {
               mimeType: result.file.type,
               size: result.file.size,
@@ -252,10 +252,11 @@ export class FeedPublicationComposerComponent {
           });
         }),
         catchError((error: unknown) => {
-          this.notifications.showError(
+          this.reportApplicationError(
+            error,
+            'publish',
             'A foto foi preservada na sua biblioteca, mas não pôde ser publicada agora.'
           );
-          this.reportTechnicalError(error, 'publish');
           return EMPTY;
         }),
         finalize(() => this.publishing.set(false)),
@@ -314,32 +315,20 @@ export class FeedPublicationComposerComponent {
     this.previewUrl.set(null);
   }
 
-  private reportTechnicalError(
+  private reportApplicationError(
     error: unknown,
-    op: 'editImage' | 'validateEditedImage' | 'publish',
-    context?: Record<string, unknown>
+    operation: 'editImage' | 'validateEditedImage' | 'publish',
+    fallbackMessage: string,
+    metadata?: Readonly<Record<string, unknown>>
   ): void {
-    try {
-      const normalized =
-        error instanceof Error
-          ? error
-          : new Error('Falha no fluxo de publicação de foto do Explorar.');
-      const contextual = normalized as Error & {
-        context?: Record<string, unknown>;
-        original?: unknown;
-        skipUserNotification?: boolean;
-      };
-
-      contextual.original = error;
-      contextual.context = {
+    this.applicationError.report(error, {
+      feature: 'explore-publication',
+      operation,
+      fallbackMessage,
+      metadata: {
         scope: 'FeedPublicationComposerComponent',
-        op,
-        ...(context ?? {}),
-      };
-      contextual.skipUserNotification = true;
-      this.globalError.handleError(contextual);
-    } catch {
-      // O feedback visual já foi emitido pelo ErrorNotificationService.
-    }
+        ...(metadata ?? {}),
+      },
+    });
   }
 }
