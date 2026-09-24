@@ -341,7 +341,7 @@ export class PushNotificationDeviceService implements OnDestroy {
   }
 
   private registerForUid$(
-    uid: string,
+    _uid: string,
     vapidKey: string
   ): Observable<PushNotificationDeviceState> {
     return defer(() => {
