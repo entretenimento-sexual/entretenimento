@@ -525,7 +525,7 @@ export class SubscriptionPlanComponent implements OnInit {
     }
   }
 
-  private getPlanDisplayName(plan: PaidPlanKey): string {
+  getPlanDisplayName(plan: PaidPlanKey): string {
     switch (plan) {
       case 'basic':
         return 'Plano Básico';
