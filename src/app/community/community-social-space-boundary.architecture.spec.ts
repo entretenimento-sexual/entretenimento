@@ -171,6 +171,23 @@ describe('Community × Local social-space boundary', () => {
     ).toEqual([]);
   });
 
+  it('não permite novo consumidor frontend do callable legado de ownership', () => {
+    const violations = productionFiles(COMMUNITY_ROOT)
+      .filter((file) => file.endsWith('.ts'))
+      .filter((file) =>
+        /['"]getCommunityOwnershipCandidates['"]/u.test(
+          readFileSync(file, 'utf8')
+        )
+      )
+      .map((file) => relative(process.cwd(), file).replaceAll('\\', '/'))
+      .sort();
+
+    expect(
+      violations,
+      'Frontend novo deve consumir somente getCommunityOwnershipCandidatesPage'
+    ).toEqual([]);
+  });
+
   it('não permite reintroduzir FirestoreService legado sem consumidores', () => {
     const legacyFirestore = resolve(
       APP_ROOT,
