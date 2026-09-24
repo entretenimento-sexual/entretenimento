@@ -22,9 +22,11 @@ const temporaryCompatibilityExports = [
 
 const requiredExports = [
   'reconcileRecurringProviderCancellations',
+  'reconcileRecurringProviderPlanChanges',
   'reconcileProviderWebhookEvents',
   'processProviderWebhookEventTrigger',
   'cancelPlatformSubscriptionRenewal',
+  'schedulePlatformSubscriptionDowngrade',
   'paymentWebhook',
   'createPrivateRoom',
   'closePrivateRoom',
