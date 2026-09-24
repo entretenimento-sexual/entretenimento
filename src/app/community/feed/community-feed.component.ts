@@ -53,6 +53,7 @@ import {
   CommunityPreviewViewerRole,
 } from '../data-access/community-preview.model';
 import { CommunityCameraCaptureComponent } from './community-camera-capture.component';
+import { getCommunitySocialSpaceAdapter } from '../presentation/community-social-space.adapter';
 import {
   CommunityFeedComposerContext,
   CommunityFeedComposerFacade,
@@ -571,36 +572,19 @@ export class CommunityFeedComponent {
   }
 
   sectionAriaLabel(): string {
-    if (this.view() === 'photos') {
-      return this.sourceType() === 'venue'
-        ? 'Fotos do Local'
-        : 'Fotos da Comunidade';
-    }
-
-    return this.sourceType() === 'venue'
-      ? 'Novidades do Local'
-      : 'Mural da Comunidade';
+    return this.socialSpace().feed(this.view()).ariaLabel;
   }
 
   loadingLabel(): string {
-    if (this.view() === 'photos') return 'Carregando fotos...';
-    return this.sourceType() === 'venue'
-      ? 'Carregando novidades...'
-      : 'Carregando mural...';
+    return this.socialSpace().feed(this.view()).loadingLabel;
   }
 
   errorStateLabel(): string {
-    if (this.view() === 'photos') return 'Não foi possível carregar as fotos.';
-    return this.sourceType() === 'venue'
-      ? 'Não foi possível carregar as novidades.'
-      : 'Não foi possível carregar o mural da Comunidade.';
+    return this.socialSpace().feed(this.view()).errorLabel;
   }
 
   emptyLabel(): string {
-    if (this.view() === 'photos') return 'Nenhuma foto compartilhada ainda.';
-    return this.sourceType() === 'venue'
-      ? 'Nenhuma novidade publicada.'
-      : 'Nenhuma mensagem no Mural ainda.';
+    return this.socialSpace().feed(this.view()).emptyLabel;
   }
 
   publishedIso(publishedAt: number): string {
@@ -609,6 +593,10 @@ export class CommunityFeedComponent {
 
   publishedLabel(publishedAt: number): string {
     return formatCommunityFeedTime(publishedAt, this.now());
+  }
+
+  private socialSpace() {
+    return getCommunitySocialSpaceAdapter(this.sourceType());
   }
 
   private composerContext(): CommunityFeedComposerContext {
