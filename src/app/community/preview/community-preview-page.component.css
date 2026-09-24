@@ -463,7 +463,7 @@
 }
 
 .community-preview__tabs.has-members {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .community-preview__tabs button {
@@ -877,12 +877,15 @@
   }
 
   .community-preview__tabs button,
+  .community-preview__tabs.has-members button,
+  .community-preview__tabs.has-members button,
   .community-preview__tabs.has-management button,
   .community-preview__tabs.has-invites button {
     gap: 0.28rem;
     font-size: 0.7rem;
   }
 
+  .community-preview__tabs.has-members,
   .community-preview__tabs.has-management,
   .community-preview__tabs.has-invites {
     display: flex;
@@ -904,6 +907,7 @@
     scroll-snap-align: start;
   }
 
+  .community-preview__tabs.has-members button span,
   .community-preview__tabs.has-management button span,
   .community-preview__tabs.has-invites button span {
     position: static;
