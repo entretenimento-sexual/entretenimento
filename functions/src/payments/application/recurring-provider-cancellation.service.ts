@@ -20,6 +20,9 @@ import {
   PLATFORM_SUBSCRIPTION_COLLECTION,
   PLATFORM_SUBSCRIPTION_STATE_COLLECTION,
 } from './platform-recurring-subscription.service';
+import {
+  assertRecurringContractBuyer,
+} from './recurring-contract-authority.policy';
 
 const MAX_RETRY_DELAY_MS = 24 * 60 * 60 * 1_000;
 
@@ -153,6 +156,7 @@ export async function cancelRecurringContractAtProvider(input: {
 export async function requestRecurringContractCancellation(input: {
   contractId: string;
   reason: string;
+  expectedBuyerUid?: string;
 }): Promise<PlatformRecurringSubscriptionDoc | null> {
   const contractRef = db
     .collection(PLATFORM_SUBSCRIPTION_COLLECTION)
@@ -166,6 +170,14 @@ export async function requestRecurringContractCancellation(input: {
 
     const contract =
       contractSnapshot.data() as PlatformRecurringSubscriptionDoc;
+
+    if (input.expectedBuyerUid) {
+      assertRecurringContractBuyer(
+        contract.buyerUid,
+        input.expectedBuyerUid
+      );
+    }
+
     const stateRef = db
       .collection(PLATFORM_SUBSCRIPTION_STATE_COLLECTION)
       .doc(contract.buyerUid);
