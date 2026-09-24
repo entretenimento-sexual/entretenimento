@@ -41,8 +41,6 @@ const EMPTY_VM = {
       photoURL: null,
     },
   ],
-  totalItems: 0,
-  hasAnyContent: false,
 };
 
 const VIDEO_HIGHLIGHT: IPublicVideoItem = {
@@ -700,8 +698,6 @@ describe('SocialExplorePageComponent', () => {
       ...EMPTY_VM,
       videoHighlights: [VIDEO_HIGHLIGHT],
       videoHighlightsStatus: 'ready',
-      totalItems: 1,
-      hasAnyContent: true,
     });
     fixture.detectChanges();
 
