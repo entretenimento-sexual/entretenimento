@@ -128,6 +128,9 @@ const recurringSettlement = read(
 );
 for (const fragment of [
   "transaction?.status === 'chargeback'",
+  'resolveRecurringRenewalAfterPayment',
+  'cancellationIntentPreserved',
+  'renewalEnabledAfterPayment',
   "'restore_recurring_chargeback_payment'",
   'renewalRestored: false',
 ]) requireIncludes(
@@ -140,11 +143,37 @@ const jobs = read(
   'functions/src/payments/application/process-provider-webhook.handler.ts'
 );
 for (const fragment of [
+  'loadDueProviderWebhookEvents',
+  'loadDueRecurringCancellations',
+  "'nextAttemptAt', '<=', now",
+  "'lastAttemptAt', '<=', staleBefore",
+  "'providerCancellationNextAttemptAt', '<=', now",
+]) requireIncludes(
+  jobs,
+  fragment,
+  'reconciliation workers must select due work server-side'
+);
+
+for (const fragment of [
   'processProviderWebhookEventTrigger',
   'reconcileProviderWebhookEvents',
   'reconcileRecurringProviderCancellations',
   'secrets: [ASAAS_API_KEY]',
 ]) requireIncludes(jobs, fragment, 'recurring worker drift');
+
+const recurringLifecycle = read(
+  'functions/src/payments/application/platform-recurring-subscription.service.ts'
+);
+for (const fragment of [
+  'evaluateRecurringSubscriptionAmountIntegrity',
+  'quarantineRecurringSubscriptionAmountMismatch',
+  "'recurring_subscription_amount_mismatch'",
+  'providerCancellationScheduled: true',
+]) requireIncludes(
+  recurringLifecycle,
+  fragment,
+  'recurring contract integrity drift'
+);
 
 const cancel = read(
   'functions/src/payments/application/cancel-platform-subscription-renewal.handler.ts'
@@ -164,6 +193,34 @@ requireIncludes(
   'requestRecurringContractCancellation',
   'account deletion must stop future recurring charges'
 );
+
+const indexConfig = JSON.parse(read('firestore.indexes.json'));
+const recurringIndexFields = new Set(
+  (indexConfig.indexes ?? [])
+    .filter((index) =>
+      index.collectionGroup === 'provider_webhook_events'
+      || index.collectionGroup === 'subscriptions'
+    )
+    .map((index) =>
+      [
+        index.collectionGroup,
+        ...(index.fields ?? []).map((field) => field.fieldPath),
+      ].join(':')
+    )
+);
+for (const expected of [
+  'provider_webhook_events:processingStatus:createdAt:__name__',
+  'provider_webhook_events:processingStatus:nextAttemptAt:__name__',
+  'provider_webhook_events:processingStatus:lastAttemptAt:__name__',
+  'subscriptions:needsProviderCancellation:providerCancellationNextAttemptAt:__name__',
+]) {
+  if (!recurringIndexFields.has(expected)) {
+    throw new Error(
+      '[asaas-recurring-billing] missing due-time reconciliation index: '
+      + expected
+    );
+  }
+}
 
 const rules = read('firestore-rules/billing.rules');
 for (const collection of [
