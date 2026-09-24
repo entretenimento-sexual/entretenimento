@@ -191,9 +191,9 @@ export const syncCommunityCapacityRegularization = onDocumentWritten(
         rawExisting: community['capacityRegularization'],
         capacity,
         ownerUid,
-        reasonOverride: ownershipOverPlan && !capacity.regularizationRequired
-          ? 'ownership_over_plan'
-          : undefined,
+        ...(ownershipOverPlan && !capacity.regularizationRequired
+          ? { reasonOverride: 'ownership_over_plan' as const }
+          : {}),
         now,
       });
 
