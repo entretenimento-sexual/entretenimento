@@ -23,6 +23,7 @@ import {
 } from '../data-access/community-feed.model';
 import { CommunityFeedRepository } from '../data-access/community-feed.repository';
 import { CommunityRealtimeAttentionCoordinatorService } from '../data-access/community-realtime-attention-coordinator.service';
+import { getCommunitySocialSpaceAdapter } from '../presentation/community-social-space.adapter';
 import type { CommunityFeedRealtimeChange } from '../data-access/community-feed-realtime.model';
 import type { CommunityPreviewSourceType } from '../data-access/community-preview.model';
 import {
@@ -276,9 +277,7 @@ export class CommunityFeedTimelineFacade {
   ): void {
     const fallbackMessage = view === 'photos'
       ? 'Não foi possível carregar as fotos agora.'
-      : sourceType === 'venue'
-        ? 'Não foi possível carregar as novidades do Local agora.'
-        : 'Não foi possível carregar o mural da Comunidade agora.';
+      : getCommunitySocialSpaceAdapter(sourceType).feed(view).errorLabel;
 
     this.applicationError.report(error, {
       feature: 'community',
