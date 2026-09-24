@@ -12,6 +12,7 @@ import { toObservable } from '@angular/core/rxjs-interop';
 import {
   catchError,
   combineLatest,
+  debounceTime,
   distinctUntilChanged,
   exhaustMap,
   filter,
@@ -32,6 +33,7 @@ import {
   CommunityAssignableMemberRole,
   CommunityManagedMemberItem,
   CommunityManagedMemberListStatus,
+  CommunityManagedMemberRoleFilter,
   CommunityManagedMembersPage,
   CommunityMemberManagementAction,
 } from '../data-access/community-member-management.model';
@@ -43,24 +45,23 @@ import {
 
 type ManagedMembersStatus = 'loading' | 'ready' | 'empty' | 'error';
 
+interface ManagedMemberFilters {
+  readonly listStatus: CommunityManagedMemberListStatus;
+  readonly roleFilter: CommunityManagedMemberRoleFilter;
+  readonly query: string;
+}
+
 interface ManagedMembersState {
   status: ManagedMembersStatus;
   items: readonly CommunityManagedMemberItem[];
   nextCursor: string | null;
   loadingMore: boolean;
-  listStatus: CommunityManagedMemberListStatus;
 }
 
-interface LoadRequest {
-  listStatus: CommunityManagedMemberListStatus;
-  cursor: string | null;
-  append: boolean;
-}
-
-type LoadEvent =
-  | { type: 'loading'; request: LoadRequest }
-  | { type: 'success'; request: LoadRequest; page: CommunityManagedMembersPage }
-  | { type: 'error'; request: LoadRequest };
+type ManagedMembersPageEvent =
+  | { type: 'loading-more' }
+  | { type: 'page'; page: CommunityManagedMembersPage }
+  | { type: 'load-more-error' };
 
 type MemberActionState =
   | { status: 'idle'; memberId: null; action: null }
@@ -90,15 +91,21 @@ type RoleChangeConfirmation = {
 
 type ManagementConfirmation = DestructiveConfirmation | RoleChangeConfirmation;
 
-function initialState(
-  listStatus: CommunityManagedMemberListStatus
-): ManagedMembersState {
+function normalizeSearchTerm(value: unknown): string {
+  const normalized = String(value ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 40);
+
+  return normalized.length >= 2 ? normalized : '';
+}
+
+function readyState(page: CommunityManagedMembersPage): ManagedMembersState {
   return {
-    status: 'loading',
-    items: [],
-    nextCursor: null,
+    status: page.items.length > 0 ? 'ready' : 'empty',
+    items: page.items,
+    nextCursor: page.nextCursor,
     loadingMore: false,
-    listStatus,
   };
 }
 
@@ -112,39 +119,24 @@ function mergeMembers(
   return [...merged.values()];
 }
 
-function reduceState(
+function reducePageEvent(
   state: ManagedMembersState,
-  event: LoadEvent
+  event: ManagedMembersPageEvent
 ): ManagedMembersState {
-  if (event.type === 'loading') {
-    return event.request.append && state.listStatus === event.request.listStatus
-      ? { ...state, loadingMore: true }
-      : initialState(event.request.listStatus);
+  if (event.type === 'loading-more') {
+    return { ...state, loadingMore: true };
   }
 
-  if (event.type === 'error') {
-    return event.request.append && state.items.length > 0
-      ? { ...state, loadingMore: false }
-      : {
-          status: 'error',
-          items: [],
-          nextCursor: null,
-          loadingMore: false,
-          listStatus: event.request.listStatus,
-        };
+  if (event.type === 'load-more-error') {
+    return { ...state, loadingMore: false };
   }
 
-  const items =
-    event.request.append && state.listStatus === event.request.listStatus
-      ? mergeMembers(state.items, event.page.items)
-      : event.page.items;
-
+  const items = mergeMembers(state.items, event.page.items);
   return {
     status: items.length > 0 ? 'ready' : 'empty',
     items,
     nextCursor: event.page.nextCursor,
     loadingMore: false,
-    listStatus: event.request.listStatus,
   };
 }
 
@@ -160,12 +152,15 @@ export class CommunityMemberRosterManagementComponent {
   private readonly repository = inject(CommunityMemberManagementRepository);
   private readonly notifications = inject(ErrorNotificationService);
   private readonly applicationError = inject(ApplicationErrorService);
-  private readonly loadRequests$ = new Subject<LoadRequest>();
+  private readonly refresh$ = new Subject<void>();
+  private readonly loadMore$ = new Subject<string>();
   private readonly commands$ = new Subject<MemberCommand>();
 
   readonly communityId = input.required<string>();
   readonly membershipChanged = output<void>();
   readonly selectedStatus = signal<CommunityManagedMemberListStatus>('active');
+  readonly selectedRoleFilter = signal<CommunityManagedMemberRoleFilter>('all');
+  readonly searchTerm = signal('');
   readonly confirmation = signal<ManagementConfirmation | null>(null);
 
   private readonly communityId$ = toObservable(this.communityId).pipe(
@@ -175,30 +170,103 @@ export class CommunityMemberRosterManagementComponent {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly state$ = combineLatest([
-    this.communityId$,
-    this.loadRequests$.pipe(
-      startWith<LoadRequest>({ listStatus: 'active', cursor: null, append: false })
+  private readonly filters$ = combineLatest([
+    toObservable(this.selectedStatus),
+    toObservable(this.selectedRoleFilter),
+    toObservable(this.searchTerm).pipe(
+      debounceTime(250),
+      map(normalizeSearchTerm),
+      distinctUntilChanged()
     ),
   ]).pipe(
-    switchMap(([communityId, request]) =>
+    map(
+      ([listStatus, roleFilter, query]): ManagedMemberFilters => ({
+        listStatus,
+        roleFilter,
+        query,
+      })
+    ),
+    distinctUntilChanged(
+      (left, right) =>
+        left.listStatus === right.listStatus
+        && left.roleFilter === right.roleFilter
+        && left.query === right.query
+    ),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  readonly state$ = combineLatest([
+    this.communityId$,
+    this.filters$,
+    this.refresh$.pipe(startWith(undefined)),
+  ]).pipe(
+    switchMap(([communityId, filters]) =>
       this.repository
         .getManagedMembersPage$({
           communityId,
-          status: request.listStatus,
-          cursor: request.cursor,
+          status: filters.listStatus,
+          roleFilter: filters.roleFilter,
+          query: filters.query || null,
+          cursor: null,
           limit: 20,
         })
         .pipe(
-          map((page): LoadEvent => ({ type: 'success', request, page })),
-          startWith<LoadEvent>({ type: 'loading', request }),
+          switchMap((initialPage) => {
+            const initialState = readyState(initialPage);
+
+            return this.loadMore$.pipe(
+              exhaustMap((cursor) =>
+                this.repository
+                  .getManagedMembersPage$({
+                    communityId,
+                    status: filters.listStatus,
+                    roleFilter: filters.roleFilter,
+                    query: filters.query || null,
+                    cursor,
+                    limit: 20,
+                  })
+                  .pipe(
+                    map(
+                      (page): ManagedMembersPageEvent => ({
+                        type: 'page',
+                        page,
+                      })
+                    ),
+                    startWith<ManagedMembersPageEvent>({
+                      type: 'loading-more',
+                    }),
+                    catchError((error: unknown) => {
+                      this.reportLoadError(error, filters, true);
+                      return of<ManagedMembersPageEvent>({
+                        type: 'load-more-error',
+                      });
+                    })
+                  )
+              ),
+              scan<ManagedMembersPageEvent, ManagedMembersState>(
+                reducePageEvent,
+                initialState
+              ),
+              startWith<ManagedMembersState>(initialState)
+            );
+          }),
+          startWith<ManagedMembersState>({
+            status: 'loading',
+            items: [],
+            nextCursor: null,
+            loadingMore: false,
+          }),
           catchError((error: unknown) => {
-            this.reportLoadError(error, request);
-            return of<LoadEvent>({ type: 'error', request });
+            this.reportLoadError(error, filters, false);
+            return of<ManagedMembersState>({
+              status: 'error',
+              items: [],
+              nextCursor: null,
+              loadingMore: false,
+            });
           })
         )
     ),
-    scan(reduceState, initialState('active')),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -216,7 +284,7 @@ export class CommunityMemberRosterManagementComponent {
             this.confirmation.set(null);
             this.notifications.showSuccess(this.successMessage(command));
             this.membershipChanged.emit();
-            this.reloadCurrentStatus();
+            this.refresh();
           }),
           map(
             (): MemberActionState => ({
@@ -248,21 +316,47 @@ export class CommunityMemberRosterManagementComponent {
     if (status === this.selectedStatus()) return;
     this.selectedStatus.set(status);
     this.confirmation.set(null);
-    this.loadRequests$.next({ listStatus: status, cursor: null, append: false });
+  }
+
+  changeRoleFilter(event: Event): void {
+    const target = event.target;
+    const value = target instanceof HTMLSelectElement ? target.value : '';
+    const roleFilter: CommunityManagedMemberRoleFilter | null =
+      value === 'all'
+      || value === 'leadership'
+      || value === 'owner'
+      || value === 'admin'
+      || value === 'moderator'
+      || value === 'member'
+        ? value
+        : null;
+
+    if (!roleFilter || roleFilter === this.selectedRoleFilter()) return;
+    this.selectedRoleFilter.set(roleFilter);
+    this.confirmation.set(null);
+  }
+
+  updateSearch(event: Event): void {
+    const target = event.target;
+    const value = target instanceof HTMLInputElement ? target.value : '';
+    this.searchTerm.set(value.slice(0, 40));
+    this.confirmation.set(null);
+  }
+
+  clearSearch(): void {
+    if (!this.searchTerm()) return;
+    this.searchTerm.set('');
   }
 
   refresh(): void {
     this.confirmation.set(null);
-    this.reloadCurrentStatus();
+    this.refresh$.next();
   }
 
   loadMore(cursor: string | null): void {
-    if (!cursor) return;
-    this.loadRequests$.next({
-      listStatus: this.selectedStatus(),
-      cursor,
-      append: true,
-    });
+    const normalized = String(cursor ?? '').trim();
+    if (!normalized) return;
+    this.loadMore$.next(normalized);
   }
 
   roleLabel(role: CommunityManagedMemberItem['role']): string {
@@ -317,8 +411,6 @@ export class CommunityMemberRosterManagementComponent {
       return;
     }
 
-    // O select representa o estado persistido. A opção escolhida só se torna
-    // efetiva depois da confirmação e da resposta da callable.
     if (select) select.value = item.role;
     this.confirmation.set({ item, action: 'set_role', nextRole });
   }
@@ -407,14 +499,6 @@ export class CommunityMemberRosterManagementComponent {
       : 'A pessoa sairá da Comunidade, mas poderá solicitar entrada novamente depois.';
   }
 
-  private reloadCurrentStatus(): void {
-    this.loadRequests$.next({
-      listStatus: this.selectedStatus(),
-      cursor: null,
-      append: false,
-    });
-  }
-
   private successMessage(command: MemberCommand): string {
     if (command.action === 'set_role' && command.nextRole) {
       return `Papel de ${command.item.label} atualizado para ${this.roleLabel(command.nextRole)}.`;
@@ -435,18 +519,26 @@ export class CommunityMemberRosterManagementComponent {
     return 'Não foi possível desbloquear este participante agora.';
   }
 
-  private reportLoadError(error: unknown, request: LoadRequest): void {
+  private reportLoadError(
+    error: unknown,
+    filters: ManagedMemberFilters,
+    append: boolean
+  ): void {
     this.applicationError.report(error, {
       feature: 'community',
-      operation: 'loadManagedMembers',
-      fallbackMessage: 'Não foi possível carregar os participantes da Comunidade.',
+      operation: append ? 'loadMoreManagedMembers' : 'loadManagedMembers',
+      fallbackMessage: append
+        ? 'Não foi possível carregar mais participantes agora.'
+        : 'Não foi possível carregar os participantes da Comunidade.',
       notification: 'none',
       reasonMessages: COMMUNITY_MEMBER_MANAGEMENT_REASON_MESSAGES,
       metadata: {
         scope: 'CommunityMemberRosterManagementComponent',
         communityId: this.communityId().trim(),
-        listStatus: request.listStatus,
-        append: request.append,
+        listStatus: filters.listStatus,
+        roleFilter: filters.roleFilter,
+        query: filters.query || null,
+        append,
       },
     });
   }
@@ -462,6 +554,7 @@ export class CommunityMemberRosterManagementComponent {
         scope: 'CommunityMemberRosterManagementComponent',
         communityId: this.communityId().trim(),
         listStatus: this.selectedStatus(),
+        roleFilter: this.selectedRoleFilter(),
         memberId: command.item.memberId,
         action: command.action,
         nextRole: command.nextRole,
