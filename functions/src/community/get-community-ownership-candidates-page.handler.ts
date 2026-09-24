@@ -448,9 +448,9 @@ export const getCommunityOwnershipCandidatesPage =
         nextCursor:
           hasMore && lastDocument && lastSortLabel
             ? encodeCommunityMemberManagementCursor({
-                sortLabel: lastSortLabel,
-                documentId: lastDocument.id,
-              })
+              sortLabel: lastSortLabel,
+              documentId: lastDocument.id,
+            })
             : null,
         generatedAt: Date.now(),
       };
