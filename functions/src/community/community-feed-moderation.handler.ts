@@ -252,6 +252,9 @@ export const moderateCommunityFeedPost = onCall<CommunityFeedPostActionRequest>(
         .doc(communityId)
         .collection('items')
         .doc(postId);
+      const exploreIndexRef = db
+        .collection('community_explore_content_index')
+        .doc(`${communityId}:${postId}`);
       const discoveryRef = db.collection('community_discovery_index').doc(communityId);
       const requestRef = db.collection('community_feed_requests').doc(requestId);
       const auditRef = db.collection('community_feed_audit').doc(`action-${requestId}`);
@@ -439,6 +442,7 @@ export const moderateCommunityFeedPost = onCall<CommunityFeedPostActionRequest>(
           updatedAt: now,
         });
         transaction.delete(projectionRef);
+        transaction.delete(exploreIndexRef);
 
         const communityMetrics = (community['metrics'] ?? {}) as Record<string, unknown>;
         const currentPostCount = normalizeCount(communityMetrics['postCount']);
