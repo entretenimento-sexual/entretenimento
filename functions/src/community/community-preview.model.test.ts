@@ -4,6 +4,7 @@ import test from 'node:test';
 
 import {
   filterCommunityDiscoveryCardForViewer,
+  filterCommunityRecommendationCardForViewer,
   normalizeCommunityDiscoveryPageRequest,
   normalizeCommunityId,
   resolveCommunityViewerMode,
@@ -115,7 +116,7 @@ test('sanitiza uma projeção comunitária pública válida com tags canônicas'
   ]);
 });
 
-test('separa descoberta de Comunidades dos vínculos existentes do viewer', () => {
+test('mantém segurança pública separada da regra de recomendação', () => {
   const card = sanitizeCommunityDiscoveryProjection(
     'community-1',
     projection()
@@ -135,14 +136,26 @@ test('separa descoberta de Comunidades dos vínculos existentes do viewer', () =
       card,
       { status: 'active', role: 'member' }
     ),
+    card
+  );
+
+  assert.equal(
+    filterCommunityRecommendationCardForViewer(
+      card,
+      { status: 'active', role: 'member' }
+    ),
     null
   );
   assert.equal(
-    filterCommunityDiscoveryCardForViewer(
+    filterCommunityRecommendationCardForViewer(
       card,
       { status: 'pending', role: 'member' }
     ),
     null
+  );
+  assert.equal(
+    filterCommunityRecommendationCardForViewer(card, null),
+    card
   );
 
   const venue = sanitizeCommunityDiscoveryProjection(
@@ -151,7 +164,7 @@ test('separa descoberta de Comunidades dos vínculos existentes do viewer', () =
   );
   assert.ok(venue);
   assert.equal(
-    filterCommunityDiscoveryCardForViewer(
+    filterCommunityRecommendationCardForViewer(
       venue,
       { status: 'active', role: 'owner' }
     ),
