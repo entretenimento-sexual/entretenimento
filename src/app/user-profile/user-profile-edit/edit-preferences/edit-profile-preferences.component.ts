@@ -37,7 +37,7 @@ import {
   mapProfileToLegacyEditorState,
 } from '@core/utils/preferences/preference-mappers';
 
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -67,7 +67,7 @@ export class EditProfilePreferencesComponent implements OnInit {
     private readonly router: Router,
     private readonly userPreferencesService: UserPreferencesService,
     private readonly preferenceProfileService: UserPreferenceProfileService,
-    private readonly errorHandler: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly notifier: ErrorNotificationService
   ) {}
 
@@ -120,9 +120,16 @@ export class EditProfilePreferencesComponent implements OnInit {
               ? mapProfileToLegacyEditorState(profile)
               : legacy
           ),
-          catchError(error => {
-            this.errorHandler.handleError(error);
-            this.notifier.showError('Erro ao buscar preferências. Tente novamente mais tarde.');
+          catchError((error: unknown) => {
+            this.applicationError.report(error, {
+              feature: 'profile-preferences',
+              operation: 'loadPreferences',
+              fallbackMessage:
+                'Não foi possível carregar suas preferências agora.',
+              metadata: {
+                scope: 'EditProfilePreferencesComponent',
+              },
+            });
             return of(null);
           }),
           finalize(() => {
@@ -157,10 +164,16 @@ export class EditProfilePreferencesComponent implements OnInit {
           this.notifier.showSuccess('Preferências salvas com sucesso!');
           this.router.navigate(['/perfil', this.uid]);
         }),
-        catchError(err => {
-          this.errorHandler.handleError(err);
-          this.notifier.showError('Erro ao salvar preferências. Tente novamente.');
-          console.log('[EditProfilePreferencesComponent] Erro ao salvar preferências:', err);
+        catchError((error: unknown) => {
+          this.applicationError.report(error, {
+            feature: 'profile-preferences',
+            operation: 'savePreferences',
+            fallbackMessage:
+              'Não foi possível salvar suas preferências agora.',
+            metadata: {
+              scope: 'EditProfilePreferencesComponent',
+            },
+          });
           return of(null);
         })
       )
