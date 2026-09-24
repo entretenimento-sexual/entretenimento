@@ -29,7 +29,9 @@
 
 import { ROOM_COMPATIBILITY_SURFACE } from './room-compatibility.policy';
 
-export type SocialSpaceKind = 'venue' | 'community' | 'room';
+export const ACTIVE_SOCIAL_SPACE_KINDS = ['community', 'venue'] as const;
+export type ActiveSocialSpaceKind = typeof ACTIVE_SOCIAL_SPACE_KINDS[number];
+export type SocialSpaceKind = ActiveSocialSpaceKind | 'room';
 
 export interface SocialSpaceCapabilities {
   readonly publicLocation: boolean;
@@ -42,6 +44,7 @@ export interface SocialSpaceCapabilities {
   readonly ownershipManagement: boolean;
   readonly contentModeration: boolean;
   readonly highlights: boolean;
+  readonly feedComposer: boolean;
   readonly membershipProfileVisibility: boolean;
   readonly interestDiscovery: boolean;
   readonly personalMembershipHub: boolean;
@@ -70,6 +73,7 @@ const COMMUNITY_CAPABILITIES: Readonly<SocialSpaceCapabilities> = Object.freeze(
   ownershipManagement: true,
   contentModeration: true,
   highlights: true,
+  feedComposer: true,
   membershipProfileVisibility: true,
   interestDiscovery: true,
   personalMembershipHub: true,
@@ -87,6 +91,7 @@ const VENUE_CAPABILITIES: Readonly<SocialSpaceCapabilities> = Object.freeze({
   ownershipManagement: false,
   contentModeration: false,
   highlights: false,
+  feedComposer: false,
   membershipProfileVisibility: false,
   interestDiscovery: false,
   personalMembershipHub: false,
@@ -149,5 +154,11 @@ export function getSocialSpaceDefinition(
   kind: SocialSpaceKind
 ): SocialSpaceDefinition {
   return SOCIAL_SPACE_DEFINITIONS[kind];
+}
+
+export function normalizeActiveSocialSpaceKind(
+  value: unknown
+): ActiveSocialSpaceKind {
+  return value === 'venue' ? 'venue' : 'community';
 }
 
