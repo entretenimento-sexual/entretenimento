@@ -1,9 +1,9 @@
 // -----------------------------------------------------------------------------
 // COMMUNITY FEED COMMENT REPOSITORY
 // -----------------------------------------------------------------------------
-// A conversa principal é plana e autorizada por callables. Callables legadas
-// de replies permanecem disponíveis apenas para compatibilidade/moderação de
-// documentos antigos enquanto a migração é concluída.
+// A conversa principal é plana e autorizada por callables. Compatibilidade com
+// clientes antigos permanece nas Functions; o Angular atual usa apenas a
+// timeline plana com replyToCommentId.
 // -----------------------------------------------------------------------------
 
 import {
@@ -25,18 +25,9 @@ import {
   CommunityFeedCommentCreateResponse,
   CommunityFeedCommentPage,
   CommunityFeedCommentPageRequest,
-  CommunityFeedCommentReplyActionRequest,
-  CommunityFeedCommentReplyActionResponse,
-  CommunityFeedCommentReplyCreateRequest,
-  CommunityFeedCommentReplyCreateResponse,
-  CommunityFeedCommentReplyPage,
-  CommunityFeedCommentReplyPageRequest,
   normalizeCommunityFeedCommentActionResponse,
   normalizeCommunityFeedCommentCreateResponse,
   normalizeCommunityFeedCommentPageResponse,
-  normalizeCommunityFeedCommentReplyActionResponse,
-  normalizeCommunityFeedCommentReplyCreateResponse,
-  normalizeCommunityFeedCommentReplyPageResponse,
 } from './community-feed-comment.model';
 import { CommunityFeedRepository } from './community-feed.repository';
 
@@ -55,20 +46,17 @@ export class CommunityFeedCommentRepository {
 
   // Compatibilidade legada: novas respostas não usam mais estas callables.
   private readonly getRepliesPageCallable = httpsCallable<
-    CommunityFeedCommentReplyPageRequest,
-    unknown
+      unknown
   >(this.functions, 'getCommunityFeedCommentRepliesPage');
   private readonly createReplyCallable = httpsCallable<
-    CommunityFeedCommentReplyCreateRequest,
-    unknown
+      unknown
   >(this.functions, 'createCommunityFeedCommentReply');
   private readonly moderateCallable = httpsCallable<
     CommunityFeedCommentActionRequest,
     unknown
   >(this.functions, 'moderateCommunityFeedComment');
   private readonly moderateReplyCallable = httpsCallable<
-    CommunityFeedCommentReplyActionRequest,
-    unknown
+      unknown
   >(this.functions, 'moderateCommunityFeedCommentReply');
 
   getPage$(
@@ -82,22 +70,6 @@ export class CommunityFeedCommentRepository {
     };
     return defer(() => from(this.getPageCallable(payload))).pipe(
       map((response) => normalizeCommunityFeedCommentPageResponse(response.data))
-    );
-  }
-
-  /** @deprecated Novas respostas pertencem à timeline plana de comentários. */
-  getRepliesPage$(
-    request: CommunityFeedCommentReplyPageRequest
-  ): Observable<CommunityFeedCommentReplyPage> {
-    const payload: CommunityFeedCommentReplyPageRequest = {
-      communityId: request.communityId.trim(),
-      postId: request.postId.trim(),
-      commentId: request.commentId.trim(),
-      limit: request.limit ?? 8,
-      cursor: request.cursor?.trim() || null,
-    };
-    return defer(() => from(this.getRepliesPageCallable(payload))).pipe(
-      map((response) => normalizeCommunityFeedCommentReplyPageResponse(response.data))
     );
   }
 
@@ -126,22 +98,6 @@ export class CommunityFeedCommentRepository {
     );
   }
 
-  /** @deprecated Novas respostas usam createComment$ com replyToCommentId. */
-  createReply$(
-    request: CommunityFeedCommentReplyCreateRequest
-  ): Observable<CommunityFeedCommentReplyCreateResponse> {
-    const payload: CommunityFeedCommentReplyCreateRequest = {
-      requestId: request.requestId.trim(),
-      communityId: request.communityId.trim(),
-      postId: request.postId.trim(),
-      commentId: request.commentId.trim(),
-      text: request.text.trim(),
-    };
-    return defer(() => from(this.createReplyCallable(payload))).pipe(
-      map((response) => normalizeCommunityFeedCommentReplyCreateResponse(response.data))
-    );
-  }
-
   moderateComment$(
     request: CommunityFeedCommentActionRequest
   ): Observable<CommunityFeedCommentActionResponse> {
@@ -158,21 +114,4 @@ export class CommunityFeedCommentRepository {
     );
   }
 
-  /** @deprecated Mantido somente para moderação de respostas legadas. */
-  moderateReply$(
-    request: CommunityFeedCommentReplyActionRequest
-  ): Observable<CommunityFeedCommentReplyActionResponse> {
-    const payload: CommunityFeedCommentReplyActionRequest = {
-      requestId: request.requestId.trim(),
-      communityId: request.communityId.trim(),
-      postId: request.postId.trim(),
-      commentId: request.commentId.trim(),
-      replyId: request.replyId.trim(),
-      action: request.action,
-      reason: request.reason?.trim() || null,
-    };
-    return defer(() => from(this.moderateReplyCallable(payload))).pipe(
-      map((response) => normalizeCommunityFeedCommentReplyActionResponse(response.data))
-    );
-  }
 }
