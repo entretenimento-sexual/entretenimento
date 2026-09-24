@@ -379,6 +379,8 @@ export async function applyAsaasSubscriptionLifecycleEvent(
         renewalEnabled: isTerminal ? false : current.renewalEnabled,
         pendingPlanChange:
           isTerminal ? null : current.pendingPlanChange ?? null,
+        needsProviderPlanChangeSync:
+          isTerminal ? false : current.needsProviderPlanChangeSync ?? false,
         canceledAt: isTerminal ? now : current.canceledAt,
         lastPaymentStatus: event.providerStatus ?? current.lastPaymentStatus,
         updatedAt: now,
