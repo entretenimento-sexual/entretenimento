@@ -663,6 +663,18 @@ export const transferCommunityOwnership =
 
         const now = Date.now();
         const communityName = normalizeText(community['name'], 80);
+        const actorUser = actorUserSnapshot.data() ?? {};
+        const targetUserForRevision = targetUserSnapshot.data() ?? {};
+        const actorQuotaRevision = Number.isSafeInteger(
+          actorUser['communityCreationRevision']
+        ) && Number(actorUser['communityCreationRevision']) >= 0
+          ? Number(actorUser['communityCreationRevision'])
+          : 0;
+        const targetQuotaRevision = Number.isSafeInteger(
+          targetUserForRevision['communityCreationRevision']
+        ) && Number(targetUserForRevision['communityCreationRevision']) >= 0
+          ? Number(targetUserForRevision['communityCreationRevision'])
+          : 0;
 
         await stopOpenCommunityBoostForCommunityInTransaction({
           transaction,
@@ -676,6 +688,17 @@ export const transferCommunityOwnership =
           ownerUid: targetUid,
           ownerTransferredAt: now,
           ownerTransferredBy: actorUid,
+          capacityRegularization: null,
+          updatedAt: now,
+        });
+        // O mesmo revision lock usado pela criação serializa aquisição/liberação
+        // de ownership contra create/transfer concorrentes sem nova coleção.
+        transaction.update(actorUserRef, {
+          communityCreationRevision: actorQuotaRevision + 1,
+          updatedAt: now,
+        });
+        transaction.update(targetUserRef, {
+          communityCreationRevision: targetQuotaRevision + 1,
           updatedAt: now,
         });
         transaction.set(
