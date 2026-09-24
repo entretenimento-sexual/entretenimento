@@ -7,6 +7,8 @@
 // comunicação, enforcement de admissão e auditoria. Nunca transfere ownership.
 // -----------------------------------------------------------------------------
 
+import { Timestamp } from 'firebase-admin/firestore';
+
 import { db } from '../firebaseApp';
 import {
   evaluatePlatformSubscriptionEntitlement,
@@ -132,9 +134,10 @@ async function reconcileCommunityRegularizationDocument(input: {
             communityId: input.communityId,
             actorUid: input.ownerUid,
             actionRequired: false,
-            readAt: input.now,
-            resolvedAt: input.now,
-            updatedAt: input.now,
+            readAt: Timestamp.fromMillis(input.now),
+            resolvedAt: Timestamp.fromMillis(input.now),
+            updatedAt: Timestamp.fromMillis(input.now),
+            createdAt: Timestamp.fromMillis(input.now),
           },
           { merge: true }
         );
@@ -195,8 +198,8 @@ async function reconcileCommunityRegularizationDocument(input: {
           regularizationDeadlineAt: after.deadlineAt,
           readAt: null,
           resolvedAt: null,
-          createdAt: input.now,
-          updatedAt: input.now,
+          createdAt: Timestamp.fromMillis(input.now),
+          updatedAt: Timestamp.fromMillis(input.now),
         },
         { merge: true }
       );
