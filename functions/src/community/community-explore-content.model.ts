@@ -112,7 +112,13 @@ function normalizeHttpsUrl(value: unknown): string | null {
 
 function normalizeText(value: unknown, maxLength: number): string {
   return String(value ?? '')
-    .replace(/[\u0000-\u001F\u007F]/g, '')
+    .split('')
+    .map((character) => {
+      const codePoint = character.codePointAt(0) ?? 0;
+      if (codePoint === 9 || codePoint === 10 || codePoint === 13) return ' ';
+      return codePoint >= 32 && codePoint !== 127 ? character : '';
+    })
+    .join('')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, maxLength);
