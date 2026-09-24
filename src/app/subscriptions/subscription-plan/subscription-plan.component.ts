@@ -74,6 +74,7 @@ interface SubscriptionPlanPageVm {
     planKey: PaidPlanKey;
     effectiveAt: number;
     providerUpdateStatus: 'applied' | 'pending';
+    cancellationPending: boolean;
   } | null;
 }
 
@@ -507,6 +508,8 @@ export class SubscriptionPlanComponent implements OnInit {
             effectiveAt: billing.scheduledPlanChange.effectiveAt,
             providerUpdateStatus:
               billing.scheduledPlanChange.providerUpdateStatus,
+            cancellationPending:
+              billing.scheduledPlanChange.cancellationPending,
           }
           : null,
     };
