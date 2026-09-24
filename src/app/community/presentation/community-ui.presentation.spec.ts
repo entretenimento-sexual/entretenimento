@@ -11,6 +11,7 @@ describe('community UI presentation contract', () => {
   it('mantém iconografia única para navegação de conteúdo e administração', () => {
     expect(COMMUNITY_SECTION_ICONS).toEqual({
       feed: 'fa-message',
+      topics: 'fa-comments',
       photos: 'fa-images',
       members: 'fa-users',
       about: 'fa-circle-info',
