@@ -180,6 +180,14 @@ export class CheckoutFacade {
       return 'A redução de plano ficará disponível depois que o ciclo atual terminar.';
     }
 
+    if (reason === 'recurring_renewal_already_enabled') {
+      return 'A renovação automática deste plano já está ativa. Você pode gerenciá-la na sua conta.';
+    }
+
+    if (reason === 'recurring_cancellation_pending') {
+      return 'O cancelamento da renovação anterior ainda está sendo confirmado. Aguarde essa conclusão antes de contratar outro plano.';
+    }
+
     if (reason === 'plan_quote_required' || reason === 'plan_quote_changed') {
       return 'O valor ou as condições deste plano foram atualizados. Volte aos planos e confira antes de continuar.';
     }
