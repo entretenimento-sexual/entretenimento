@@ -133,8 +133,6 @@ export const getMyBillingSnapshot = onCall<Record<string, never>>(
         renewalEnabled,
         renewalStatus,
         renewalCancellationPending,
-      downgradeSchedulingAvailable,
-      scheduledPlanChange,
         downgradeSchedulingAvailable,
         scheduledPlanChange,
       };
