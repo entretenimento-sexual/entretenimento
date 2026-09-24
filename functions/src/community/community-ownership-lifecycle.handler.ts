@@ -509,257 +509,257 @@ export const transferCommunityOwnership =
 
       const result: CommunityOwnershipTransferResponse =
         await db.runTransaction(async (transaction) => {
-        const communityRef = db.collection('communities').doc(communityId);
-        const actorMembershipRef = communityRef.collection('members').doc(actorUid);
-        const targetMembershipRef = communityRef.collection('members').doc(targetUid);
-        const actorUserRef = db.collection('users').doc(actorUid);
-        const targetUserRef = db.collection('users').doc(targetUid);
-        const targetEntitlementRef = db
-          .collection('entitlements')
-          .doc(`platform_subscription_${targetUid}`);
-        const targetOwnedCommunitiesQuery = db
-          .collection('communities')
-          .where('ownerUid', '==', targetUid)
-          .where('source.type', '==', 'community')
-          .where('status', 'in', ['active', 'paused', 'dormant'])
-          .limit(MAX_PERSONAL_COMMUNITIES_PER_OWNER + 1);
-        const actorIndexRef = db
-          .collection('community_user_index')
-          .doc(actorUid)
-          .collection('items')
-          .doc(communityId);
-        const targetIndexRef = db
-          .collection('community_user_index')
-          .doc(targetUid)
-          .collection('items')
-          .doc(communityId);
-        const requestRef = db
-          .collection('community_lifecycle_requests')
-          .doc(requestId);
-        const auditRef = db
-          .collection('community_membership_audit')
-          .doc(`ownership-transfer-${requestId}`);
-        const ownerQuery = communityRef
-          .collection('members')
-          .where('role', '==', 'owner')
-          .where('status', '==', 'active')
-          .limit(2);
-        const [
-          requestSnapshot,
-          communitySnapshot,
-          actorMembershipSnapshot,
-          targetMembershipSnapshot,
-          actorUserSnapshot,
-          targetUserSnapshot,
-          targetEntitlementSnapshot,
-          targetOwnedCommunitiesSnapshot,
-          ownerSnapshot,
-        ] = await Promise.all([
-          transaction.get(requestRef),
-          transaction.get(communityRef),
-          transaction.get(actorMembershipRef),
-          transaction.get(targetMembershipRef),
-          transaction.get(actorUserRef),
-          transaction.get(targetUserRef),
-          transaction.get(targetEntitlementRef),
-          transaction.get(targetOwnedCommunitiesQuery),
-          transaction.get(ownerQuery),
-        ]);
+          const communityRef = db.collection('communities').doc(communityId);
+          const actorMembershipRef = communityRef.collection('members').doc(actorUid);
+          const targetMembershipRef = communityRef.collection('members').doc(targetUid);
+          const actorUserRef = db.collection('users').doc(actorUid);
+          const targetUserRef = db.collection('users').doc(targetUid);
+          const targetEntitlementRef = db
+            .collection('entitlements')
+            .doc(`platform_subscription_${targetUid}`);
+          const targetOwnedCommunitiesQuery = db
+            .collection('communities')
+            .where('ownerUid', '==', targetUid)
+            .where('source.type', '==', 'community')
+            .where('status', 'in', ['active', 'paused', 'dormant'])
+            .limit(MAX_PERSONAL_COMMUNITIES_PER_OWNER + 1);
+          const actorIndexRef = db
+            .collection('community_user_index')
+            .doc(actorUid)
+            .collection('items')
+            .doc(communityId);
+          const targetIndexRef = db
+            .collection('community_user_index')
+            .doc(targetUid)
+            .collection('items')
+            .doc(communityId);
+          const requestRef = db
+            .collection('community_lifecycle_requests')
+            .doc(requestId);
+          const auditRef = db
+            .collection('community_membership_audit')
+            .doc(`ownership-transfer-${requestId}`);
+          const ownerQuery = communityRef
+            .collection('members')
+            .where('role', '==', 'owner')
+            .where('status', '==', 'active')
+            .limit(2);
+          const [
+            requestSnapshot,
+            communitySnapshot,
+            actorMembershipSnapshot,
+            targetMembershipSnapshot,
+            actorUserSnapshot,
+            targetUserSnapshot,
+            targetEntitlementSnapshot,
+            targetOwnedCommunitiesSnapshot,
+            ownerSnapshot,
+          ] = await Promise.all([
+            transaction.get(requestRef),
+            transaction.get(communityRef),
+            transaction.get(actorMembershipRef),
+            transaction.get(targetMembershipRef),
+            transaction.get(actorUserRef),
+            transaction.get(targetUserRef),
+            transaction.get(targetEntitlementRef),
+            transaction.get(targetOwnedCommunitiesQuery),
+            transaction.get(ownerQuery),
+          ]);
 
-        if (requestSnapshot.exists) {
-          const completedAt = resolveOwnershipReplayCompletedAt(
-            evaluateCommunityOwnershipIdempotencyReplay({
-              rawRequest: requestSnapshot.data(),
-              expectedOperation: 'transfer',
-              expectedRequestId: requestId,
-              expectedActorUid: actorUid,
-              expectedCommunityId: communityId,
-              expectedTargetUid: targetUid,
-            })
+          if (requestSnapshot.exists) {
+            const completedAt = resolveOwnershipReplayCompletedAt(
+              evaluateCommunityOwnershipIdempotencyReplay({
+                rawRequest: requestSnapshot.data(),
+                expectedOperation: 'transfer',
+                expectedRequestId: requestId,
+                expectedActorUid: actorUid,
+                expectedCommunityId: communityId,
+                expectedTargetUid: targetUid,
+              })
+            );
+
+            return {
+              communityId,
+              status: 'transferred',
+              previousOwnerUid: actorUid,
+              newOwnerUid: targetUid,
+              generatedAt: completedAt,
+            };
+          }
+
+          if (!communitySnapshot.exists) {
+            throw new HttpsError('not-found', 'Comunidade não encontrada.');
+          }
+
+          await assertCommunityMembershipActorEligibleInTransaction(
+            transaction,
+            actorUid,
+            actorUserSnapshot.exists ? actorUserSnapshot.data() : null
           );
+
+          let targetEligible = true;
+          try {
+            await assertCommunityMembershipActorEligibleInTransaction(
+              transaction,
+              targetUid,
+              targetUserSnapshot.exists ? targetUserSnapshot.data() : null
+            );
+          } catch {
+            targetEligible = false;
+          }
+          const targetUser = targetUserSnapshot.exists
+            ? targetUserSnapshot.data() ?? {}
+            : {};
+          const targetEntitlement = evaluatePlatformSubscriptionEntitlement(
+            targetEntitlementSnapshot.exists ? targetEntitlementSnapshot.data() : null,
+            targetUid
+          );
+          const targetSponsorRole = resolveCommunityCapacitySponsorRole(
+            targetEntitlement.active ? targetEntitlement.role : null,
+            targetUser['role']
+          );
+          const targetOwnershipPolicy = resolvePersonalCommunityCreationPolicy(
+            targetSponsorRole
+          );
+          const community = communitySnapshot.data() ?? {};
+          const targetOwnershipCapacityEligible =
+            targetOwnershipPolicy.canCreate
+            && (
+              targetOwnershipPolicy.maxOwnedCommunities === null
+              || targetOwnedCommunitiesSnapshot.size
+                < targetOwnershipPolicy.maxOwnedCommunities
+            )
+            && isCommunityMemberLimitAllowed(
+              resolveCommunityConfiguredMemberLimit(community),
+              targetSponsorRole
+            );
+          assertCommunityOwnerPointer(community, actorUid);
+          const source = (community['source'] ?? {}) as Record<string, unknown>;
+          const actorMembership = actorMembershipSnapshot.exists
+            ? actorMembershipSnapshot.data() ?? {}
+            : {};
+          const targetMembership = targetMembershipSnapshot.exists
+            ? targetMembershipSnapshot.data() ?? {}
+            : {};
+          const decision = evaluateCommunityOwnershipTransfer({
+            sourceType: normalizeSourceType(source['type']),
+            communityStatus: normalizeCommunityStatus(community['status']),
+            actorUid,
+            targetUid,
+            actorStatus: normalizeMembershipStatus(actorMembership['status']),
+            actorRole: normalizeMembershipRole(actorMembership['role']),
+            targetStatus: normalizeMembershipStatus(targetMembership['status']),
+            targetRole: normalizeMembershipRole(targetMembership['role']),
+            targetAccountEligible: targetEligible,
+            targetOwnershipCapacityEligible,
+            activeOwnerCount: ownerSnapshot.size,
+          });
+
+          if (
+            !decision.allowed
+            || !decision.actorNextRole
+            || !decision.targetNextRole
+          ) {
+            throwTransferDecisionError(decision.denialReason);
+          }
+
+          const now = Date.now();
+          const communityName = normalizeText(community['name'], 80);
+
+          await stopOpenCommunityBoostForCommunityInTransaction({
+            transaction,
+            communityId,
+            reason: 'community_ownership_transferred',
+            now,
+            actorUid,
+          });
+
+          transaction.update(communityRef, {
+            ownerUid: targetUid,
+            ownerTransferredAt: now,
+            ownerTransferredBy: actorUid,
+            updatedAt: now,
+          });
+          transaction.set(
+            actorMembershipRef,
+            {
+              role: decision.actorNextRole,
+              ownershipTransferredAt: now,
+              ownershipTransferredTo: targetUid,
+              updatedAt: now,
+              source: 'ownership-transfer',
+            },
+            { merge: true }
+          );
+          transaction.set(
+            targetMembershipRef,
+            {
+              role: decision.targetNextRole,
+              ownershipReceivedAt: now,
+              ownershipReceivedFrom: actorUid,
+              reviewedAt: now,
+              reviewedBy: actorUid,
+              updatedAt: now,
+              source: 'ownership-transfer',
+            },
+            { merge: true }
+          );
+          transaction.set(
+            actorIndexRef,
+            {
+              communityId,
+              name: communityName,
+              source,
+              role: decision.actorNextRole,
+              status: 'active',
+              updatedAt: now,
+            },
+            { merge: true }
+          );
+          transaction.set(
+            targetIndexRef,
+            {
+              communityId,
+              name: communityName,
+              source,
+              role: decision.targetNextRole,
+              status: 'active',
+              updatedAt: now,
+            },
+            { merge: true }
+          );
+          transaction.create(auditRef, {
+            action: 'community_ownership_transferred',
+            communityId,
+            actorUid,
+            actorRole: 'owner',
+            subjectUid: targetUid,
+            previousRole: normalizeMembershipRole(targetMembership['role']),
+            nextRole: 'owner',
+            previousOwnerUid: actorUid,
+            nextOwnerUid: targetUid,
+            createdAt: now,
+            source: 'callable',
+          });
+          transaction.create(requestRef, {
+            ...buildCommunityOperationalRequestRetention('lifecycle', now),
+            operation: 'transfer',
+            requestId,
+            actorUid,
+            targetUid,
+            communityId,
+            status: 'completed',
+            completedAt: now,
+            createdAt: now,
+          });
 
           return {
             communityId,
             status: 'transferred',
             previousOwnerUid: actorUid,
             newOwnerUid: targetUid,
-            generatedAt: completedAt,
+            generatedAt: now,
           };
-        }
-
-        if (!communitySnapshot.exists) {
-          throw new HttpsError('not-found', 'Comunidade não encontrada.');
-        }
-
-        await assertCommunityMembershipActorEligibleInTransaction(
-          transaction,
-          actorUid,
-          actorUserSnapshot.exists ? actorUserSnapshot.data() : null
-        );
-
-        let targetEligible = true;
-        try {
-          await assertCommunityMembershipActorEligibleInTransaction(
-            transaction,
-            targetUid,
-            targetUserSnapshot.exists ? targetUserSnapshot.data() : null
-          );
-        } catch {
-          targetEligible = false;
-        }
-        const targetUser = targetUserSnapshot.exists
-          ? targetUserSnapshot.data() ?? {}
-          : {};
-        const targetEntitlement = evaluatePlatformSubscriptionEntitlement(
-          targetEntitlementSnapshot.exists ? targetEntitlementSnapshot.data() : null,
-          targetUid
-        );
-        const targetSponsorRole = resolveCommunityCapacitySponsorRole(
-          targetEntitlement.active ? targetEntitlement.role : null,
-          targetUser['role']
-        );
-        const targetOwnershipPolicy = resolvePersonalCommunityCreationPolicy(
-          targetSponsorRole
-        );
-        const community = communitySnapshot.data() ?? {};
-        const targetOwnershipCapacityEligible =
-          targetOwnershipPolicy.canCreate
-          && (
-            targetOwnershipPolicy.maxOwnedCommunities === null
-            || targetOwnedCommunitiesSnapshot.size
-              < targetOwnershipPolicy.maxOwnedCommunities
-          )
-          && isCommunityMemberLimitAllowed(
-            resolveCommunityConfiguredMemberLimit(community),
-            targetSponsorRole
-          );
-        assertCommunityOwnerPointer(community, actorUid);
-        const source = (community['source'] ?? {}) as Record<string, unknown>;
-        const actorMembership = actorMembershipSnapshot.exists
-          ? actorMembershipSnapshot.data() ?? {}
-          : {};
-        const targetMembership = targetMembershipSnapshot.exists
-          ? targetMembershipSnapshot.data() ?? {}
-          : {};
-        const decision = evaluateCommunityOwnershipTransfer({
-          sourceType: normalizeSourceType(source['type']),
-          communityStatus: normalizeCommunityStatus(community['status']),
-          actorUid,
-          targetUid,
-          actorStatus: normalizeMembershipStatus(actorMembership['status']),
-          actorRole: normalizeMembershipRole(actorMembership['role']),
-          targetStatus: normalizeMembershipStatus(targetMembership['status']),
-          targetRole: normalizeMembershipRole(targetMembership['role']),
-          targetAccountEligible: targetEligible,
-          targetOwnershipCapacityEligible,
-          activeOwnerCount: ownerSnapshot.size,
-        });
-
-        if (
-          !decision.allowed
-          || !decision.actorNextRole
-          || !decision.targetNextRole
-        ) {
-          throwTransferDecisionError(decision.denialReason);
-        }
-
-        const now = Date.now();
-        const communityName = normalizeText(community['name'], 80);
-
-        await stopOpenCommunityBoostForCommunityInTransaction({
-          transaction,
-          communityId,
-          reason: 'community_ownership_transferred',
-          now,
-          actorUid,
-        });
-
-        transaction.update(communityRef, {
-          ownerUid: targetUid,
-          ownerTransferredAt: now,
-          ownerTransferredBy: actorUid,
-          updatedAt: now,
-        });
-        transaction.set(
-          actorMembershipRef,
-          {
-            role: decision.actorNextRole,
-            ownershipTransferredAt: now,
-            ownershipTransferredTo: targetUid,
-            updatedAt: now,
-            source: 'ownership-transfer',
-          },
-          { merge: true }
-        );
-        transaction.set(
-          targetMembershipRef,
-          {
-            role: decision.targetNextRole,
-            ownershipReceivedAt: now,
-            ownershipReceivedFrom: actorUid,
-            reviewedAt: now,
-            reviewedBy: actorUid,
-            updatedAt: now,
-            source: 'ownership-transfer',
-          },
-          { merge: true }
-        );
-        transaction.set(
-          actorIndexRef,
-          {
-            communityId,
-            name: communityName,
-            source,
-            role: decision.actorNextRole,
-            status: 'active',
-            updatedAt: now,
-          },
-          { merge: true }
-        );
-        transaction.set(
-          targetIndexRef,
-          {
-            communityId,
-            name: communityName,
-            source,
-            role: decision.targetNextRole,
-            status: 'active',
-            updatedAt: now,
-          },
-          { merge: true }
-        );
-        transaction.create(auditRef, {
-          action: 'community_ownership_transferred',
-          communityId,
-          actorUid,
-          actorRole: 'owner',
-          subjectUid: targetUid,
-          previousRole: normalizeMembershipRole(targetMembership['role']),
-          nextRole: 'owner',
-          previousOwnerUid: actorUid,
-          nextOwnerUid: targetUid,
-          createdAt: now,
-          source: 'callable',
-        });
-        transaction.create(requestRef, {
-          ...buildCommunityOperationalRequestRetention('lifecycle', now),
-          operation: 'transfer',
-          requestId,
-          actorUid,
-          targetUid,
-          communityId,
-          status: 'completed',
-          completedAt: now,
-          createdAt: now,
-        });
-
-        return {
-          communityId,
-          status: 'transferred',
-          previousOwnerUid: actorUid,
-          newOwnerUid: targetUid,
-          generatedAt: now,
-        };
       });
 
       await Promise.all([
@@ -802,78 +802,179 @@ export const archiveCommunity = onCall<CommunityArchivePayload>(
 
     const result: CommunityArchiveResponse =
       await db.runTransaction(async (transaction) => {
-      const communityRef = db.collection('communities').doc(communityId);
-      const actorMembershipRef = communityRef.collection('members').doc(actorUid);
-      const actorUserRef = db.collection('users').doc(actorUid);
-      const discoveryRef = db
-        .collection('community_discovery_index')
-        .doc(communityId);
-      const actorIndexRef = db
-        .collection('community_user_index')
-        .doc(actorUid)
-        .collection('items')
-        .doc(communityId);
-      const requestRef = db
-        .collection('community_lifecycle_requests')
-        .doc(requestId);
-      const auditRef = db
-        .collection('community_membership_audit')
-        .doc(`community-archive-${requestId}`);
-      const ownerQuery = communityRef
-        .collection('members')
-        .where('role', '==', 'owner')
-        .where('status', '==', 'active')
-        .limit(2);
-      const [
-        requestSnapshot,
-        communitySnapshot,
-        actorMembershipSnapshot,
-        actorUserSnapshot,
-        ownerSnapshot,
-      ] = await Promise.all([
-        transaction.get(requestRef),
-        transaction.get(communityRef),
-        transaction.get(actorMembershipRef),
-        transaction.get(actorUserRef),
-        transaction.get(ownerQuery),
-      ]);
+        const communityRef = db.collection('communities').doc(communityId);
+        const actorMembershipRef = communityRef.collection('members').doc(actorUid);
+        const actorUserRef = db.collection('users').doc(actorUid);
+        const discoveryRef = db
+          .collection('community_discovery_index')
+          .doc(communityId);
+        const actorIndexRef = db
+          .collection('community_user_index')
+          .doc(actorUid)
+          .collection('items')
+          .doc(communityId);
+        const requestRef = db
+          .collection('community_lifecycle_requests')
+          .doc(requestId);
+        const auditRef = db
+          .collection('community_membership_audit')
+          .doc(`community-archive-${requestId}`);
+        const ownerQuery = communityRef
+          .collection('members')
+          .where('role', '==', 'owner')
+          .where('status', '==', 'active')
+          .limit(2);
+        const [
+          requestSnapshot,
+          communitySnapshot,
+          actorMembershipSnapshot,
+          actorUserSnapshot,
+          ownerSnapshot,
+        ] = await Promise.all([
+          transaction.get(requestRef),
+          transaction.get(communityRef),
+          transaction.get(actorMembershipRef),
+          transaction.get(actorUserRef),
+          transaction.get(ownerQuery),
+        ]);
 
-      if (requestSnapshot.exists) {
-        const completedAt = resolveOwnershipReplayCompletedAt(
-          evaluateCommunityOwnershipIdempotencyReplay({
-            rawRequest: requestSnapshot.data(),
-            expectedOperation: 'archive',
-            expectedRequestId: requestId,
-            expectedActorUid: actorUid,
-            expectedCommunityId: communityId,
-          })
+        if (requestSnapshot.exists) {
+          const completedAt = resolveOwnershipReplayCompletedAt(
+            evaluateCommunityOwnershipIdempotencyReplay({
+              rawRequest: requestSnapshot.data(),
+              expectedOperation: 'archive',
+              expectedRequestId: requestId,
+              expectedActorUid: actorUid,
+              expectedCommunityId: communityId,
+            })
+          );
+
+          return {
+            communityId,
+            status: 'archived',
+            generatedAt: completedAt,
+          };
+        }
+
+        if (!communitySnapshot.exists) {
+          throw new HttpsError('not-found', 'Comunidade não encontrada.');
+        }
+
+        await assertCommunityMembershipActorEligibleInTransaction(
+          transaction,
+          actorUid,
+          actorUserSnapshot.exists ? actorUserSnapshot.data() : null
         );
+        const community = communitySnapshot.data() ?? {};
+        const source = (community['source'] ?? {}) as Record<string, unknown>;
+        const actorMembership = actorMembershipSnapshot.exists
+          ? actorMembershipSnapshot.data() ?? {}
+          : {};
+        const status = normalizeCommunityStatus(community['status']);
 
-        return {
-          communityId,
-          status: 'archived',
-          generatedAt: completedAt,
-        };
-      }
+        if (status === 'archived' && community['archivedBy'] === actorUid) {
+          const now = Date.now();
+          transaction.create(requestRef, {
+            ...buildCommunityOperationalRequestRetention('lifecycle', now),
+            operation: 'archive',
+            requestId,
+            actorUid,
+            communityId,
+            status: 'completed',
+            completedAt: now,
+            createdAt: now,
+          });
+          return { communityId, status: 'archived', generatedAt: now };
+        }
 
-      if (!communitySnapshot.exists) {
-        throw new HttpsError('not-found', 'Comunidade não encontrada.');
-      }
+        assertCommunityOwnerPointer(community, actorUid);
 
-      await assertCommunityMembershipActorEligibleInTransaction(
-        transaction,
-        actorUid,
-        actorUserSnapshot.exists ? actorUserSnapshot.data() : null
-      );
-      const community = communitySnapshot.data() ?? {};
-      const source = (community['source'] ?? {}) as Record<string, unknown>;
-      const actorMembership = actorMembershipSnapshot.exists
-        ? actorMembershipSnapshot.data() ?? {}
-        : {};
-      const status = normalizeCommunityStatus(community['status']);
+        const decision = evaluateCommunityArchive({
+          sourceType: normalizeSourceType(source['type']),
+          communityStatus: status,
+          actorStatus: normalizeMembershipStatus(actorMembership['status']),
+          actorRole: normalizeMembershipRole(actorMembership['role']),
+          activeOwnerCount: ownerSnapshot.size,
+          lifecycleHold: hasCommunityLifecycleHold(community),
+        });
 
-      if (status === 'archived' && community['archivedBy'] === actorUid) {
+        if (
+          !decision.allowed
+          || decision.idempotent
+          || !decision.actorNextRole
+          || !decision.actorNextStatus
+        ) {
+          throwArchiveDecisionError(decision.denialReason);
+        }
+
         const now = Date.now();
+        const nextMemberCount = resolveMemberCountDelta(community, -1);
+
+        if (nextMemberCount === null) {
+          throw new HttpsError(
+            'data-loss',
+            'A contagem de participantes desta Comunidade está inconsistente.'
+          );
+        }
+
+        await stopOpenCommunityBoostForCommunityInTransaction({
+          transaction,
+          communityId,
+          reason: 'community_archived',
+          now,
+          actorUid,
+        });
+
+        const communityPatch: Record<string, unknown> = {
+          status: 'archived',
+          visibility: 'hidden',
+          ownerUid: FieldValue.delete(),
+          archivedAt: now,
+          archivedBy: actorUid,
+          archiveReason: reason,
+          capacityRegularization: FieldValue.delete(),
+          'lifecycle.state': 'archived',
+          'lifecycle.dormantAt': null,
+          'lifecycle.archivedAt': now,
+          'lifecycle.scheduledForDeletionAt': null,
+          'lifecycle.interactionBlocked': true,
+          'lifecycle.policyVersion': 1,
+          'lifecycle.updatedAt': now,
+          'metrics.memberCount': nextMemberCount,
+          updatedAt: now,
+        };
+
+        transaction.update(communityRef, communityPatch);
+        transaction.set(
+          actorMembershipRef,
+          {
+            role: decision.actorNextRole,
+            status: decision.actorNextStatus,
+            leftAt: now,
+            ownershipReleasedAt: now,
+            archivedWithCommunity: true,
+            updatedAt: now,
+            source: 'community-archive',
+          },
+          { merge: true }
+        );
+        transaction.delete(discoveryRef);
+        transaction.delete(actorIndexRef);
+        transaction.create(auditRef, {
+          action: 'community_archived',
+          communityId,
+          actorUid,
+          actorRole: 'owner',
+          subjectUid: actorUid,
+          previousStatus: status,
+          nextStatus: 'archived',
+          previousRole: 'owner',
+          nextRole: decision.actorNextRole,
+          reason,
+          memberCount: nextMemberCount,
+          createdAt: now,
+          source: 'callable',
+        });
         transaction.create(requestRef, {
           ...buildCommunityOperationalRequestRetention('lifecycle', now),
           operation: 'archive',
@@ -884,109 +985,8 @@ export const archiveCommunity = onCall<CommunityArchivePayload>(
           completedAt: now,
           createdAt: now,
         });
+
         return { communityId, status: 'archived', generatedAt: now };
-      }
-
-      assertCommunityOwnerPointer(community, actorUid);
-
-      const decision = evaluateCommunityArchive({
-        sourceType: normalizeSourceType(source['type']),
-        communityStatus: status,
-        actorStatus: normalizeMembershipStatus(actorMembership['status']),
-        actorRole: normalizeMembershipRole(actorMembership['role']),
-        activeOwnerCount: ownerSnapshot.size,
-        lifecycleHold: hasCommunityLifecycleHold(community),
-      });
-
-      if (
-        !decision.allowed
-        || decision.idempotent
-        || !decision.actorNextRole
-        || !decision.actorNextStatus
-      ) {
-        throwArchiveDecisionError(decision.denialReason);
-      }
-
-      const now = Date.now();
-      const nextMemberCount = resolveMemberCountDelta(community, -1);
-
-      if (nextMemberCount === null) {
-        throw new HttpsError(
-          'data-loss',
-          'A contagem de participantes desta Comunidade está inconsistente.'
-        );
-      }
-
-      await stopOpenCommunityBoostForCommunityInTransaction({
-        transaction,
-        communityId,
-        reason: 'community_archived',
-        now,
-        actorUid,
-      });
-
-      const communityPatch: Record<string, unknown> = {
-        status: 'archived',
-        visibility: 'hidden',
-        ownerUid: FieldValue.delete(),
-        archivedAt: now,
-        archivedBy: actorUid,
-        archiveReason: reason,
-        capacityRegularization: FieldValue.delete(),
-        'lifecycle.state': 'archived',
-        'lifecycle.dormantAt': null,
-        'lifecycle.archivedAt': now,
-        'lifecycle.scheduledForDeletionAt': null,
-        'lifecycle.interactionBlocked': true,
-        'lifecycle.policyVersion': 1,
-        'lifecycle.updatedAt': now,
-        'metrics.memberCount': nextMemberCount,
-        updatedAt: now,
-      };
-
-      transaction.update(communityRef, communityPatch);
-      transaction.set(
-        actorMembershipRef,
-        {
-          role: decision.actorNextRole,
-          status: decision.actorNextStatus,
-          leftAt: now,
-          ownershipReleasedAt: now,
-          archivedWithCommunity: true,
-          updatedAt: now,
-          source: 'community-archive',
-        },
-        { merge: true }
-      );
-      transaction.delete(discoveryRef);
-      transaction.delete(actorIndexRef);
-      transaction.create(auditRef, {
-        action: 'community_archived',
-        communityId,
-        actorUid,
-        actorRole: 'owner',
-        subjectUid: actorUid,
-        previousStatus: status,
-        nextStatus: 'archived',
-        previousRole: 'owner',
-        nextRole: decision.actorNextRole,
-        reason,
-        memberCount: nextMemberCount,
-        createdAt: now,
-        source: 'callable',
-      });
-      transaction.create(requestRef, {
-        ...buildCommunityOperationalRequestRetention('lifecycle', now),
-        operation: 'archive',
-        requestId,
-        actorUid,
-        communityId,
-        status: 'completed',
-        completedAt: now,
-        createdAt: now,
-      });
-
-      return { communityId, status: 'archived', generatedAt: now };
     });
 
     await reconcilePersonalCommunityCapacityRegularization({
