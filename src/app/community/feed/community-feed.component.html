@@ -68,7 +68,7 @@
               maxlength="1000"
               enterkeyhint="send"
               formControlName="text"
-              [placeholder]="sourceType() === 'venue' ? 'Compartilhe uma novidade...' : 'Compartilhe algo com a Comunidade...'"
+              [placeholder]="composerPlaceholder()"
               [attr.aria-invalid]="postForm.controls.text.invalid && postForm.controls.text.touched ? 'true' : null"
               [attr.aria-describedby]="composerExpanded() || selectedAttachment() ? 'community-feed-post-help' : null"
               (focus)="expandComposer()"
@@ -195,7 +195,7 @@
       }
     }
 
-    @if (view() === 'feed' && sourceType() === 'community') {
+    @if (view() === 'feed' && supportsHighlights()) {
       <app-community-highlight-card
         [communityId]="communityId()"
         (navigateRequested)="navigateToReferencedPost($event.event, $event.postId)"
@@ -297,7 +297,7 @@
                         </button>
                       }
 
-                      @if (sourceType() === 'community' && view() === 'feed') {
+                      @if (supportsHighlights() && view() === 'feed') {
                         <app-community-highlight-menu-action
                           [communityId]="communityId()"
                           [postId]="item.postId"
