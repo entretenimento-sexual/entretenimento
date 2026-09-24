@@ -34,11 +34,20 @@ const MATCH_WINDOW_MS = 24 * 60 * 60 * 1_000;
 
 export class RetryableProviderWebhookError extends Error {
   readonly code: string;
+  readonly retryAt: number | null;
 
-  constructor(code: string, message: string) {
+  constructor(
+    code: string,
+    message: string,
+    retryAt: number | null = null
+  ) {
     super(message);
     this.name = 'RetryableProviderWebhookError';
     this.code = code;
+    this.retryAt =
+      typeof retryAt === 'number' && Number.isFinite(retryAt)
+        ? retryAt
+        : null;
   }
 }
 
