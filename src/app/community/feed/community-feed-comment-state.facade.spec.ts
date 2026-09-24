@@ -1,5 +1,4 @@
-import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { describe, expect, it } from 'vitest';
 
 import { CommunityFeedCommentStateFacade } from './community-feed-comment-state.facade';
 
@@ -45,16 +44,16 @@ describe('CommunityFeedCommentStateFacade', () => {
     const target = item();
 
     facade.toggle(target);
-    assert.equal(facade.commentsPostId(), 'post-1');
-    assert.equal(facade.replyPostId(), null);
+    expect(facade.commentsPostId()).toBe('post-1');
+    expect(facade.replyPostId()).toBe(null);
 
     facade.openForReply(target);
-    assert.equal(facade.commentsPostId(), 'post-1');
-    assert.equal(facade.replyPostId(), 'post-1');
-    assert.equal(facade.postReplyRequestVersion(), 1);
+    expect(facade.commentsPostId()).toBe('post-1');
+    expect(facade.replyPostId()).toBe('post-1');
+    expect(facade.postReplyRequestVersion()).toBe(1);
 
     facade.clearReplyContext(target);
-    assert.equal(facade.replyPostId(), null);
+    expect(facade.replyPostId()).toBe(null);
   });
 
   it('respeita capabilities antes de abrir comentários ou resposta', () => {
@@ -63,29 +62,29 @@ describe('CommunityFeedCommentStateFacade', () => {
     facade.toggle(item({ canViewComments: false }));
     facade.openForReply(item({ canComment: false }));
 
-    assert.equal(facade.commentsPostId(), null);
-    assert.equal(facade.replyPostId(), null);
-    assert.equal(facade.postReplyRequestVersion(), 0);
+    expect(facade.commentsPostId()).toBe(null);
+    expect(facade.replyPostId()).toBe(null);
+    expect(facade.postReplyRequestVersion()).toBe(0);
   });
 
   it('mantém override local e o reconcilia com realtime canônico', () => {
     const facade = new CommunityFeedCommentStateFacade();
     const target = item({ commentCount: 3 });
 
-    assert.equal(facade.commentCount(target), 3);
+    expect(facade.commentCount(target)).toBe(3);
 
     facade.updateCommentCount(target, 7.9);
-    assert.equal(facade.commentCount(target), 7);
+    expect(facade.commentCount(target)).toBe(7);
 
     facade.reconcileRealtime([
       realtime({ commentCount: 9 }),
     ]);
-    assert.equal(facade.commentCount(target), 9);
+    expect(facade.commentCount(target)).toBe(9);
 
     facade.reconcileRealtime([
       realtime({ type: 'removed', state: 'removed' }),
     ]);
-    assert.equal(facade.commentCount(target), 3);
+    expect(facade.commentCount(target)).toBe(3);
   });
 
   it('limpa estado associado ao post removido', () => {
@@ -96,8 +95,8 @@ describe('CommunityFeedCommentStateFacade', () => {
     facade.updateCommentCount(target, 8);
     facade.clearItem('post-1');
 
-    assert.equal(facade.commentsPostId(), null);
-    assert.equal(facade.replyPostId(), null);
-    assert.equal(facade.commentCount(target), 3);
+    expect(facade.commentsPostId()).toBe(null);
+    expect(facade.replyPostId()).toBe(null);
+    expect(facade.commentCount(target)).toBe(3);
   });
 });
