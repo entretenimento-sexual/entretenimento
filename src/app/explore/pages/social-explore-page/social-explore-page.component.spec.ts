@@ -4,6 +4,8 @@ import { RouterTestingModule } from '@angular/router/testing';
 import { BehaviorSubject, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { CommunityExploreDistributionService } from 'src/app/community/distribution/community-explore-distribution.service';
+import type { CommunityPreviewCard } from 'src/app/community/data-access/community-preview.model';
 import { IUserIntentStatusCardVm } from 'src/app/core/interfaces/discovery/user-intent-status.interface';
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
@@ -96,6 +98,30 @@ const VIDEO_HIGHLIGHT: IPublicVideoItem = {
   accessExpiresAt: Date.now() + 300_000,
 };
 
+const COMMUNITY_RECOMMENDATION: CommunityPreviewCard = {
+  communityId: 'community-recommended-1',
+  name: 'Comunidade recomendada',
+  slug: 'comunidade-recomendada',
+  description: 'Um espaço recomendado pelo discovery canônico.',
+  source: {
+    type: 'community',
+    id: 'community-recommended-1',
+  },
+  avatarUrl: null,
+  coverUrl: null,
+  metrics: {
+    memberCount: 42,
+    postCount: 12,
+    mediaCount: 3,
+  },
+  access: {
+    join: 'open',
+    minimumRole: null,
+    requiresActiveSubscription: false,
+  },
+  tags: [],
+};
+
 const PERSONAL_VIDEO: IPublicVideoItem = {
   ...VIDEO_HIGHLIGHT,
   id: 'friend-video-1',
@@ -162,6 +188,18 @@ describe('SocialExplorePageComponent', () => {
     open$: ReturnType<typeof vi.fn>;
   };
   let loadMorePersonalMedia: ReturnType<typeof vi.fn>;
+  let communityActivitySubject: BehaviorSubject<any>;
+  let communityRecommendationsSubject: BehaviorSubject<
+    readonly CommunityPreviewCard[]
+  >;
+  let communityDistribution: {
+    activity$: ReturnType<BehaviorSubject<any>['asObservable']>;
+    recommendations$: ReturnType<
+      BehaviorSubject<readonly CommunityPreviewCard[]>['asObservable']
+    >;
+    hideRecommendation: ReturnType<typeof vi.fn>;
+    recordQualifiedExposure: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(async () => {
     exploreVmSubject = new BehaviorSubject<any>(EMPTY_VM);
@@ -189,6 +227,22 @@ describe('SocialExplorePageComponent', () => {
       open$: vi.fn(() => of(void 0)),
     };
     loadMorePersonalMedia = vi.fn(() => of(false));
+    communityActivitySubject = new BehaviorSubject({
+      unreadCount: 0,
+      communityCount: 0,
+      priorityCommunityCount: 0,
+      hasPriorityUnread: false,
+      latestUpdatedAt: null,
+    });
+    communityRecommendationsSubject = new BehaviorSubject<
+      readonly CommunityPreviewCard[]
+    >([]);
+    communityDistribution = {
+      activity$: communityActivitySubject.asObservable(),
+      recommendations$: communityRecommendationsSubject.asObservable(),
+      hideRecommendation: vi.fn(),
+      recordQualifiedExposure: vi.fn(),
+    };
 
     await TestBed.configureTestingModule({
       imports: [RouterTestingModule, SocialExplorePageComponent],
@@ -203,6 +257,10 @@ describe('SocialExplorePageComponent', () => {
             context$: personalMediaSubject.asObservable(),
             loadMore$: loadMorePersonalMedia,
           },
+        },
+        {
+          provide: CommunityExploreDistributionService,
+          useValue: communityDistribution,
         },
         {
           provide: CompatibleProfileCandidatesService,
@@ -406,6 +464,97 @@ describe('SocialExplorePageComponent', () => {
     expect(
       discoveryActions.map((action) => action.nativeElement.textContent.trim())
     ).toEqual(['Pessoas', 'Locais', 'Comunidades']);
+  });
+
+  it('insere Comunidades para você dentro do fluxo quando não há atividade comunitária', () => {
+    communityRecommendationsSubject.next([COMMUNITY_RECOMMENDATION]);
+    fixture.detectChanges();
+
+    const block = fixture.debugElement.query(
+      By.css('.community-explore-distribution--recommendations')
+    );
+
+    expect(block).toBeTruthy();
+    expect(block.nativeElement.textContent).toContain('Comunidades para você');
+    expect(block.nativeElement.textContent).toContain('Comunidade recomendada');
+  });
+
+  it('prioriza atividade comunitária no primeiro slot e posterga recomendações', () => {
+    communityActivitySubject.next({
+      unreadCount: 4,
+      communityCount: 2,
+      priorityCommunityCount: 1,
+      hasPriorityUnread: true,
+      latestUpdatedAt: Date.now(),
+    });
+    communityRecommendationsSubject.next([COMMUNITY_RECOMMENDATION]);
+    fixture.detectChanges();
+
+    expect(
+      fixture.debugElement.query(
+        By.css('.community-explore-distribution--activity')
+      )
+    ).toBeTruthy();
+    expect(
+      fixture.debugElement.query(
+        By.css('.community-explore-distribution--recommendations')
+      )
+    ).toBeNull();
+  });
+
+  it('libera recomendações no segundo lote sem repetir o slot de atividade', () => {
+    const videos = Array.from({ length: 10 }, (_, index) => ({
+      ...PERSONAL_VIDEO,
+      id: `friend-video-${index + 1}`,
+      ownerUid: `friend-${index + 1}`,
+      publishedAt: PERSONAL_VIDEO.publishedAt - index,
+      createdAt: PERSONAL_VIDEO.createdAt - index,
+      updatedAt: PERSONAL_VIDEO.updatedAt - index,
+    }));
+
+    personalMediaSubject.next({
+      friendUids: videos.map((video) => video.ownerUid),
+      personalPhotos: [],
+      personalVideos: videos,
+      hasMorePersonalMedia: false,
+      loadingInitialPersonalMedia: false,
+      loadingMorePersonalMedia: false,
+      personalMediaLoadFailed: false,
+    });
+    communityActivitySubject.next({
+      unreadCount: 2,
+      communityCount: 1,
+      priorityCommunityCount: 0,
+      hasPriorityUnread: false,
+      latestUpdatedAt: Date.now(),
+    });
+    communityRecommendationsSubject.next([COMMUNITY_RECOMMENDATION]);
+    fixture.detectChanges();
+
+    expect(
+      fixture.debugElement.queryAll(
+        By.css('.community-explore-distribution--activity')
+      )
+    ).toHaveLength(1);
+    expect(
+      fixture.debugElement.queryAll(
+        By.css('.community-explore-distribution--recommendations')
+      )
+    ).toHaveLength(0);
+
+    fixture.componentInstance.loadMoreFeed();
+    fixture.detectChanges();
+
+    expect(
+      fixture.debugElement.queryAll(
+        By.css('.community-explore-distribution--activity')
+      )
+    ).toHaveLength(1);
+    expect(
+      fixture.debugElement.queryAll(
+        By.css('.community-explore-distribution--recommendations')
+      )
+    ).toHaveLength(1);
   });
 
   it('não mostra vazio falso durante a primeira página pessoal', () => {

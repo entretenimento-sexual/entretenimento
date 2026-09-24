@@ -1,0 +1,124 @@
+@if (slot === 'activity' && activity && activity.unreadCount > 0) {
+  <section
+    class="community-explore-distribution community-explore-distribution--activity"
+    aria-label="Atividade nas suas Comunidades"
+  >
+    <header class="community-explore-distribution__header">
+      <div>
+        <span>Comunidades</span>
+        <h3>Atividade nas suas Comunidades</h3>
+      </div>
+
+      <a routerLink="/notificacoes">
+        Ver atividade
+      </a>
+    </header>
+
+    <p class="community-explore-distribution__activity-summary">
+      <strong>{{ activity.unreadCount }}</strong>
+      {{ activity.unreadCount === 1 ? 'nova atividade' : 'novas atividades' }}
+      {{ activity.unreadCount === 1 ? 'relacionada' : 'relacionadas' }} a
+      <strong>{{ activity.communityCount }}</strong>
+      {{ activity.communityCount === 1 ? 'Comunidade' : 'Comunidades' }}.
+    </p>
+
+    @if (activity.hasPriorityUnread) {
+      <p class="community-explore-distribution__priority">
+        <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+        {{ activity.priorityCommunityCount === 1
+          ? 'Uma Comunidade precisa de atenção.'
+          : activity.priorityCommunityCount + ' Comunidades precisam de atenção.' }}
+      </p>
+    }
+  </section>
+} @else if (slot === 'recommendations' && recommendations.length > 0) {
+  <section
+    class="community-explore-distribution community-explore-distribution--recommendations"
+    aria-label="Comunidades para você"
+  >
+    <header class="community-explore-distribution__header">
+      <div>
+        <span>Descobrir</span>
+        <h3>Comunidades para você</h3>
+      </div>
+
+      <a routerLink="/dashboard/comunidades">
+        Ver todas
+      </a>
+    </header>
+
+    <div
+      class="community-explore-distribution__rail"
+      role="list"
+      aria-label="Comunidades recomendadas"
+    >
+      @for (item of recommendations; track item.communityId) {
+        <article
+          class="community-explore-card"
+          role="listitem"
+          [appCommunityDiscoveryVisibility]="item.communityId"
+          (qualifiedExposure)="recordExposure($event)"
+        >
+          <a
+            class="community-explore-card__link"
+            [routerLink]="['/dashboard/comunidades', item.communityId]"
+            [attr.aria-label]="'Abrir Comunidade ' + item.name"
+          >
+            <span
+              class="community-explore-card__identity"
+              [class.community-explore-card__identity--image]="!!item.avatarUrl"
+              aria-hidden="true"
+            >
+              <span>{{ communityInitials(item) }}</span>
+              @if (item.avatarUrl) {
+                <img
+                  [src]="item.avatarUrl"
+                  alt=""
+                  width="48"
+                  height="48"
+                  loading="lazy"
+                  decoding="async"
+                  appImageFallback
+                />
+              }
+            </span>
+
+            <span class="community-explore-card__body">
+              <span class="community-explore-card__title-row">
+                <strong>{{ item.name }}</strong>
+                <app-community-official-badge [community]="item" />
+              </span>
+
+              @if (item.description) {
+                <span class="community-explore-card__description">
+                  {{ item.description }}
+                </span>
+              }
+
+              <span class="community-explore-card__metrics">
+                <span>
+                  <i class="fas fa-users" aria-hidden="true"></i>
+                  {{ item.metrics.memberCount }}
+                </span>
+                <span>
+                  <i class="fas fa-message" aria-hidden="true"></i>
+                  {{ item.metrics.postCount }}
+                </span>
+              </span>
+            </span>
+          </a>
+
+          <button
+            type="button"
+            class="community-explore-card__dismiss"
+            [attr.aria-label]="'Não tenho interesse em ' + item.name"
+            (click)="dismissRecommendation(item, $event)"
+          >
+            <i class="fas fa-xmark" aria-hidden="true"></i>
+            <span>Não tenho interesse</span>
+          </button>
+        </article>
+      }
+    </div>
+  </section>
+}

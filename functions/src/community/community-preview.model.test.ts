@@ -42,19 +42,21 @@ test('normaliza paginação, fonte, tag e limita o tamanho máximo', () => {
       cursor: 'community-1',
       sourceType: 'venue',
     }),
-    { limit: 24, cursor: 'community-1', sourceType: 'venue', tagId: null }
+    { limit: 24, cursor: 'community-1', sourceType: 'venue', tagId: null, excludeActiveMemberships: false }
   );
 
   assert.deepEqual(
     normalizeCommunityDiscoveryPageRequest({
       sourceType: 'community',
       tagId: 'practice:bdsm',
+      excludeActiveMemberships: false,
     }),
     {
       limit: 12,
       cursor: null,
       sourceType: 'community',
       tagId: 'practice:bdsm',
+      excludeActiveMemberships: false,
     }
   );
 
@@ -65,7 +67,25 @@ test('normaliza paginação, fonte, tag e limita o tamanho máximo', () => {
       cursor: null,
       sourceType: null,
       tagId: null,
+      excludeActiveMemberships: false,
     }
+  );
+});
+
+test('normaliza exclusão de memberships ativas somente quando explicitamente pedida', () => {
+  assert.equal(
+    normalizeCommunityDiscoveryPageRequest({
+      sourceType: 'community',
+      excludeActiveMemberships: true,
+    }).excludeActiveMemberships,
+    true
+  );
+  assert.equal(
+    normalizeCommunityDiscoveryPageRequest({
+      sourceType: 'community',
+      excludeActiveMemberships: 'true',
+    }).excludeActiveMemberships,
+    false
   );
 });
 
@@ -134,6 +154,22 @@ test('não devolve nenhum metadado do card para viewer bloqueado', () => {
     filterCommunityDiscoveryCardForViewer(
       card,
       { status: 'active', role: 'member' }
+    ),
+    card
+  );
+  assert.equal(
+    filterCommunityDiscoveryCardForViewer(
+      card,
+      { status: 'active', role: 'member' },
+      true
+    ),
+    null
+  );
+  assert.equal(
+    filterCommunityDiscoveryCardForViewer(
+      card,
+      { status: 'pending', role: 'member' },
+      true
     ),
     card
   );

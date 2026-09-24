@@ -27,6 +27,12 @@ export interface CommunityDiscoveryCacheContext {
   readonly discoveryMode: CommunityDiscoveryMode;
   readonly tagId: string | null;
   readonly pageSize: number;
+  /**
+   * Mantém separadas páginas gerais e páginas próprias para recomendação.
+   * Sem isso, uma resposta que exclui memberships poderia contaminar o cache
+   * usado pela descoberta completa.
+   */
+  readonly excludeActiveMemberships?: boolean;
 }
 
 export interface CommunityDiscoveryCacheQuery
@@ -67,6 +73,10 @@ export function normalizeCommunityDiscoveryCacheContext(
     discoveryMode,
     tagId,
     pageSize: normalizeCommunityDiscoveryPageSize(context?.pageSize),
+    excludeActiveMemberships:
+      sourceType === 'community'
+      && discoveryMode === 'explore'
+      && context?.excludeActiveMemberships === true,
   };
 }
 
@@ -98,6 +108,7 @@ export function buildCommunityDiscoveryCacheKey(
     `source=${normalized.sourceType}`,
     `mode=${normalized.discoveryMode}`,
     `tag=${normalized.tagId ?? 'all'}`,
+    `members=${normalized.excludeActiveMemberships ? 'non_member' : 'all'}`,
     `size=${normalized.pageSize}`,
   ].join('|');
 }

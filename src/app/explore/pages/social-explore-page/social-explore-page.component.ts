@@ -25,6 +25,19 @@ import {
   switchMap,
   take,
 } from 'rxjs/operators';
+import {
+  CommunityExploreDistributionBlockComponent,
+} from 'src/app/community/distribution/community-explore-distribution-block.component';
+import {
+  EXPLORE_COMMUNITY_SECOND_SLOT_MIN_VISIBLE_COUNT,
+  ExploreCommunityDistributionSlot,
+  resolveExploreCommunityDistributionSlot,
+  resolveExploreCommunityEmptySlot,
+} from 'src/app/community/distribution/community-explore-distribution.policy';
+import {
+  CommunityExploreDistributionService,
+  CommunityExploreDistributionVm,
+} from 'src/app/community/distribution/community-explore-distribution.service';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
 import { IPublicProfileMediaItem } from 'src/app/core/interfaces/media/i-public-profile-media-item';
@@ -84,6 +97,7 @@ interface SocialExploreFeedWindow extends ExploreSocialFeedWindow {
     PublicVideoCardComponent,
     FeedPublicationComposerComponent,
     UserIntentStatusComposerComponent,
+    CommunityExploreDistributionBlockComponent,
   ],
   templateUrl: './social-explore-page.component.html',
   styleUrls: ['./social-explore-page.component.css'],
@@ -106,6 +120,9 @@ export class SocialExplorePageComponent {
   private readonly mixedMediaViewer = inject(PublicMixedMediaViewerLauncherService);
   private readonly errorNotification = inject(ErrorNotificationService);
   private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
+  private readonly communityDistribution = inject(
+    CommunityExploreDistributionService
+  );
 
   private readonly visibleFeedCountSubject =
     new BehaviorSubject<number>(FEED_INITIAL_VISIBLE_COUNT);
@@ -113,6 +130,31 @@ export class SocialExplorePageComponent {
   readonly publicationComposerVisible = signal(false);
   readonly openingMediaKey = signal<string | null>(null);
   readonly failedVideoPosterKeys = signal<ReadonlySet<string>>(new Set<string>());
+
+  readonly communityDistributionVm$: Observable<CommunityExploreDistributionVm> =
+    combineLatest([
+      this.communityDistribution.activity$,
+      this.visibleFeedCountSubject.pipe(distinctUntilChanged()),
+    ]).pipe(
+      switchMap(([activity, visibleFeedCount]) => {
+        const shouldLoadRecommendations =
+          activity.unreadCount <= 0
+          || visibleFeedCount
+            >= EXPLORE_COMMUNITY_SECOND_SLOT_MIN_VISIBLE_COUNT;
+
+        const recommendations$ = shouldLoadRecommendations
+          ? this.communityDistribution.recommendations$
+          : of([]);
+
+        return recommendations$.pipe(
+          map((recommendations) => ({
+            activity,
+            recommendations,
+          }))
+        );
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
 
   readonly vm$: Observable<SocialExploreVm> = combineLatest([
     this.exploreFeedFacade.vm$,
@@ -371,6 +413,36 @@ export class SocialExplorePageComponent {
 
   trackByVideoId(_index: number, item: IPublicVideoItem): string {
     return this.mediaKey(item);
+  }
+
+  communityDistributionSlot(
+    itemIndex: number,
+    itemCount: number,
+    vm: CommunityExploreDistributionVm | null | undefined
+  ): ExploreCommunityDistributionSlot {
+    return resolveExploreCommunityDistributionSlot({
+      itemIndex,
+      itemCount,
+      hasActivity: (vm?.activity.unreadCount ?? 0) > 0,
+      hasRecommendations: (vm?.recommendations.length ?? 0) > 0,
+    });
+  }
+
+  emptyCommunityDistributionSlot(
+    vm: CommunityExploreDistributionVm | null | undefined
+  ): ExploreCommunityDistributionSlot {
+    return resolveExploreCommunityEmptySlot({
+      hasActivity: (vm?.activity.unreadCount ?? 0) > 0,
+      hasRecommendations: (vm?.recommendations.length ?? 0) > 0,
+    });
+  }
+
+  hideCommunityRecommendation(communityId: string): void {
+    this.communityDistribution.hideRecommendation(communityId);
+  }
+
+  recordCommunityRecommendationExposure(communityId: string): void {
+    this.communityDistribution.recordQualifiedExposure(communityId);
   }
 
   isVideoOpening(item: IPublicVideoItem): boolean {
