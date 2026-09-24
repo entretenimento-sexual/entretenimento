@@ -12,6 +12,9 @@ import { CommunityMembershipRepository } from '../data-access/community-membersh
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
 import { CommunityTagRepository } from '../data-access/community-tag.repository';
 import { CommunityDiscoveryCacheService } from './community-discovery-cache.service';
+import { CommunityDiscoveryDataFacade } from './community-discovery-data.facade';
+import { CommunityDiscoveryMineFacade } from './community-discovery-mine.facade';
+import { CommunityDiscoverySponsoredFacade } from './community-discovery-sponsored.facade';
 import { CommunityDiscoveryPageComponent } from './community-discovery-page.component';
 
 function communityCard(name: string) {
@@ -51,6 +54,9 @@ describe('CommunityDiscoveryPageComponent / ranking cutover', () => {
     TestBed.configureTestingModule({
       imports: [CommunityDiscoveryPageComponent],
       providers: [
+        CommunityDiscoveryDataFacade,
+        CommunityDiscoveryMineFacade,
+        CommunityDiscoverySponsoredFacade,
         provideRouter([]),
         {
           provide: ActivatedRoute,
