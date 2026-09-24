@@ -11,6 +11,7 @@ export { syncPlatformSubscriptionEntitlement } from './application/sync-platform
 
 export { cancelPlatformSubscriptionRenewal } from './application/cancel-platform-subscription-renewal.handler';
 export { schedulePlatformSubscriptionDowngrade } from './application/schedule-platform-subscription-downgrade.handler';
+export { cancelPlatformSubscriptionDowngrade } from './application/cancel-platform-subscription-downgrade.handler';
 export {
   processProviderWebhookEventTrigger,
   reconcileProviderWebhookEvents,
