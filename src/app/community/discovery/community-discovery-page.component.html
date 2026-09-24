@@ -364,16 +364,7 @@
               class="community-card"
               [class.community-card--mine]="discoveryMode === 'mine'"
               [routerLink]="detailsRoute(item)"
-              [queryParams]="{
-                retorno:
-                  item.source.type === 'venue'
-                    ? '/dashboard/locais'
-                    : discoveryMode === 'mine'
-                      ? '/dashboard/comunidades/minhas'
-                      : selectedTagId()
-                        ? '/dashboard/comunidades?interesse=' + selectedTagId()
-                        : '/dashboard/comunidades'
-              }"
+              [queryParams]="{ retorno: returnTarget(item) }"
               [attr.aria-label]="'Abrir ' + sourceLabel(item) + ' ' + item.name"
             >
               <div
@@ -398,7 +389,7 @@
               <div class="community-card__body">
                 <div class="community-card__heading">
                   <div>
-                    @if (item.source.type === 'venue') {
+                    @if (showKindBadge(item)) {
                       <span class="community-card__kind">{{ sourceLabel(item) }}</span>
                     }
                     <div class="community-card__status-row">
@@ -541,13 +532,7 @@
                   class="community-card community-card--sponsored"
                   [routerLink]="detailsRoute(placement.community)"
                   [queryParams]="{
-                    retorno:
-                      placement.community.source.type === 'venue'
-                        ? '/dashboard/locais'
-                        : selectedTagId()
-                          ? '/dashboard/comunidades?interesse='
-                            + selectedTagId()
-                          : '/dashboard/comunidades'
+                    retorno: returnTarget(placement.community)
                   }"
                   [attr.aria-label]="
                     'Patrocinado: abrir '
