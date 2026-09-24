@@ -93,7 +93,8 @@
     "community:cost-baseline:capture": "node scripts/admin/capture-community-cost-baseline.mjs",
     "community:cost-gcp:bootstrap": "node scripts/admin/bootstrap-community-cost-gcp.mjs",
     "community:cost-notification-channel:create": "node scripts/admin/create-community-cost-notification-channel.mjs",
-    "age:authority-boundary:check": "node scripts/quality/check-age-authority-boundary.mjs"
+    "age:authority-boundary:check": "node scripts/quality/check-age-authority-boundary.mjs",
+    "maintenance:community-capacity-regularization": "npm run functions:build && node scripts/maintenance/reconcile-community-capacity-regularization-admin.mjs"
   },
   "private": true,
   "dependencies": {
