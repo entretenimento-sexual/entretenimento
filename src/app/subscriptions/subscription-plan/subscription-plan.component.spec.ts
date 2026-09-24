@@ -13,6 +13,7 @@ import {
 
 import { SubscriptionPlanComponent } from './subscription-plan.component';
 import { ActivatedRoute, convertToParamMap, Router } from '@angular/router';
+import { MatDialog } from '@angular/material/dialog';
 
 import { CurrentUserStoreService } from '../../core/services/autentication/auth/current-user-store.service';
 import { PlatformSubscriptionAccessService } from '../../core/services/subscriptions/platform-subscription-access.service';
@@ -31,7 +32,13 @@ describe('SubscriptionPlanComponent', () => {
   let queryParamMapSubject: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
   let currentUserStoreMock: { user$: any };
   let noticeServiceMock: { shouldShow$: Mock; hydrate: Mock };
-  let billingRepositoryMock: { getPlatformPlans$: Mock };
+  let billingRepositoryMock: {
+    getPlatformPlans$: Mock;
+    getMyBillingSnapshot$: Mock;
+    getPlatformPlanByKey$: Mock;
+    schedulePlatformSubscriptionDowngrade$: Mock;
+  };
+  let dialogMock: { open: Mock };
   let applicationErrorMock: { report: Mock };
 
   beforeEach(async () => {
@@ -48,48 +55,76 @@ describe('SubscriptionPlanComponent', () => {
       shouldShow$: vi.fn().mockReturnValue(warningSubject.asObservable()),
       hydrate: vi.fn(),
     };
+    const basicPlan = {
+      id: 'platform_basic_monthly',
+      key: 'basic' as const,
+      scope: 'platform_subscription' as const,
+      title: 'Plano Básico',
+      description: 'Backend basic',
+      amountCents: 2199,
+      currency: 'BRL' as const,
+      interval: 'month' as const,
+      active: true,
+      catalogVersion: 7,
+    };
+    const premiumPlan = {
+      id: 'platform_premium_monthly',
+      key: 'premium' as const,
+      scope: 'platform_subscription' as const,
+      title: 'Plano Premium',
+      description: 'Backend premium',
+      amountCents: 3299,
+      currency: 'BRL' as const,
+      interval: 'month' as const,
+      active: true,
+      catalogVersion: 7,
+    };
+    const vipPlan = {
+      id: 'platform_vip_monthly',
+      key: 'vip' as const,
+      scope: 'platform_subscription' as const,
+      title: 'Plano VIP',
+      description: 'Backend vip',
+      amountCents: 4599,
+      currency: 'BRL' as const,
+      interval: 'month' as const,
+      active: true,
+      catalogVersion: 7,
+    };
+
     billingRepositoryMock = {
       getPlatformPlans$: vi.fn().mockReturnValue(of({
         catalogVersion: 7,
-        plans: [
-          {
-            id: 'platform_basic_monthly',
-            key: 'basic',
-            scope: 'platform_subscription',
-            title: 'Plano Básico',
-            description: 'Backend basic',
-            amountCents: 2199,
-            currency: 'BRL',
-            interval: 'month',
-            active: true,
-            catalogVersion: 7,
-          },
-          {
-            id: 'platform_premium_monthly',
-            key: 'premium',
-            scope: 'platform_subscription',
-            title: 'Plano Premium',
-            description: 'Backend premium',
-            amountCents: 3299,
-            currency: 'BRL',
-            interval: 'month',
-            active: true,
-            catalogVersion: 7,
-          },
-          {
-            id: 'platform_vip_monthly',
-            key: 'vip',
-            scope: 'platform_subscription',
-            title: 'Plano VIP',
-            description: 'Backend vip',
-            amountCents: 4599,
-            currency: 'BRL',
-            interval: 'month',
-            active: true,
-            catalogVersion: 7,
-          },
-        ],
+        plans: [basicPlan, premiumPlan, vipPlan],
       })),
+      getMyBillingSnapshot$: vi.fn().mockReturnValue(of({
+        recurringConfigured: false,
+        renewalEnabled: false,
+        renewalStatus: 'none',
+        renewalCancellationPending: false,
+        downgradeSchedulingAvailable: false,
+        scheduledPlanChange: null,
+      })),
+      getPlatformPlanByKey$: vi.fn().mockImplementation((planKey: string) =>
+        of(
+          planKey === 'basic'
+            ? basicPlan
+            : planKey === 'premium'
+              ? premiumPlan
+              : vipPlan
+        )
+      ),
+      schedulePlatformSubscriptionDowngrade$: vi.fn().mockReturnValue(of({
+        scheduled: true,
+        planKey: 'basic',
+        effectiveAt: Date.now() + 86_400_000,
+        providerUpdateStatus: 'applied',
+      })),
+    };
+    dialogMock = {
+      open: vi.fn().mockReturnValue({
+        afterClosed: () => of(true),
+      }),
     };
     applicationErrorMock = { report: vi.fn() };
 
@@ -120,6 +155,7 @@ describe('SubscriptionPlanComponent', () => {
           useValue: noticeServiceMock,
         },
         { provide: BillingRepository, useValue: billingRepositoryMock },
+        { provide: MatDialog, useValue: dialogMock },
         { provide: ApplicationErrorService, useValue: applicationErrorMock },
       ],
     }).compileComponents();
@@ -154,6 +190,9 @@ describe('SubscriptionPlanComponent', () => {
       canGoToProfile: true,
       flowContext: { minimumRole: null, returnUrl: null },
       communityCreationFlow: false,
+      subscriptionEndsAt: null,
+      downgradeSchedulingAvailable: false,
+      scheduledPlanChange: null,
     });
 
     expect(routerMock.navigate).toHaveBeenCalledWith(['/checkout'], {
@@ -247,6 +286,9 @@ describe('SubscriptionPlanComponent', () => {
       canGoToProfile: true,
       flowContext: { minimumRole: null, returnUrl: null },
       communityCreationFlow: false,
+      subscriptionEndsAt: Date.now() + 7 * 86_400_000,
+      downgradeSchedulingAvailable: false,
+      scheduledPlanChange: null,
     };
 
     expect(component.isDowngrade('basic', vm)).toBe(true);
@@ -257,6 +299,43 @@ describe('SubscriptionPlanComponent', () => {
 
     component.subscribe('basic', vm);
 
+    expect(routerMock.navigate).not.toHaveBeenCalledWith(
+      ['/checkout'],
+      expect.anything()
+    );
+  });
+
+  it('agenda downgrade recorrente sem abrir checkout quando capability está ativa', () => {
+    const vm = {
+      uid: 'user-1',
+      subscriptionActive: true,
+      currentPlanKey: 'vip' as const,
+      currentPlanLabel: 'Plano VIP',
+      statusTitle: 'Plano VIP ativo',
+      statusDescription: 'Seu plano atual reconhecido na plataforma é Plano VIP.',
+      canGoToAccount: true,
+      canGoToProfile: true,
+      flowContext: { minimumRole: null, returnUrl: null },
+      communityCreationFlow: false,
+      subscriptionEndsAt: Date.now() + 7 * 86_400_000,
+      downgradeSchedulingAvailable: true,
+      scheduledPlanChange: null,
+    };
+
+    expect(component.canSelectPlan('basic', vm)).toBe(true);
+    expect(component.getPlanActionLabel('basic', vm)).toBe(
+      'Agendar para próximo ciclo'
+    );
+
+    component.subscribe('basic', vm);
+
+    expect(dialogMock.open).toHaveBeenCalled();
+    expect(
+      billingRepositoryMock.getPlatformPlanByKey$
+    ).toHaveBeenCalledWith('basic');
+    expect(
+      billingRepositoryMock.schedulePlatformSubscriptionDowngrade$
+    ).toHaveBeenCalled();
     expect(routerMock.navigate).not.toHaveBeenCalledWith(
       ['/checkout'],
       expect.anything()
