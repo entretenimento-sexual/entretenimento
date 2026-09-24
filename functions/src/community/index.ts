@@ -135,6 +135,9 @@ export {
 export { updateCommunitySettings } from './update-community-settings.handler';
 export { runCommunityLifecycle } from './run-community-lifecycle.schedule';
 export {
+  runCommunityCapacityRegularization,
+} from './run-community-capacity-regularization.schedule';
+export {
   runCommunityOfficialAssociationLifecycle,
 } from './run-community-official-association-lifecycle.schedule';
 export { runCommunityPurge } from './run-community-purge.schedule';
@@ -179,6 +182,10 @@ export {
   syncCommunityRankingFromDiscovery,
 } from './sync-community-ranking.trigger';
 export { syncCommunityUserIndex } from './sync-community-user-index.trigger';
+export {
+  syncCommunityCapacityRegularizationFromCommunity,
+  syncCommunityCapacityRegularizationFromEntitlement,
+} from './sync-community-capacity-regularization.trigger';
 // Production still has a legacy HTTPS function under the old export name.
 export {
   syncCommunityProfileMembershipIndex as syncCommunityProfileMembershipIndexTrigger,
