@@ -26,7 +26,10 @@ import {
   assertCommunityCallableAppCheck,
 } from './community-callable-security';
 import { resolveCommunityMemberCountDelta } from './community-member-count.policy';
-import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
+import {
+  assertCommunityMembershipActorEligible,
+  assertCommunityMembershipActorEligibleInTransaction,
+} from './community-membership-eligibility.service';
 import {
   CommunityAssignableMemberRole,
   CommunityManagedMemberRole,
@@ -844,9 +847,24 @@ export const manageCommunityMember = onCall<ManageCommunityMemberPayload>(
           action === 'remove' || action === 'block' || action === 'unblock'
             ? action
             : null;
-      const targetUserSnapshot = lifecycleNotificationAction
-        ? await transaction.get(targetUserRef)
-        : null;
+      const requiresTargetEligibility =
+        action === 'set_role'
+        && (nextRole === 'admin' || nextRole === 'moderator');
+      const targetUserSnapshot =
+        lifecycleNotificationAction !== null || requiresTargetEligibility
+          ? await transaction.get(targetUserRef)
+          : null;
+
+      if (requiresTargetEligibility) {
+        await assertCommunityMembershipActorEligibleInTransaction(
+          transaction,
+          memberId,
+          targetUserSnapshot?.exists
+            ? targetUserSnapshot.data()
+            : null
+        );
+      }
+
       const targetUser = targetUserSnapshot?.data() as
         | CommunityNotificationUser
         | undefined;
