@@ -159,9 +159,11 @@ export async function settleRecurringPlatformSubscriptionPayment(
       );
     }
 
+    const rawPendingPlanChange = contract.pendingPlanChange ?? null;
     const pendingPlanChange =
-      contract.pendingPlanChange?.providerUpdateStatus === 'applied'
-        ? contract.pendingPlanChange
+      rawPendingPlanChange?.providerUpdateStatus === 'applied'
+      || rawPendingPlanChange?.cancellationRequestedAt
+        ? rawPendingPlanChange
         : null;
     const settlementDecision =
       resolveRecurringPlanSettlementDecision({
@@ -195,6 +197,10 @@ export async function settleRecurringPlatformSubscriptionPayment(
 
     const settlesPendingPlan =
       settlementDecision.kind === 'scheduled_downgrade';
+    const resolvesCanceledDowngradeWithCurrentPlan =
+      settlementDecision.kind === 'current_plan'
+      && !!pendingPlanChange?.cancellationRequestedAt
+      && occurredAt >= pendingPlanChange.effectiveAt;
 
     const entitlementId = `platform_subscription_${contract.buyerUid}`;
     const entitlementRef = db.collection('entitlements').doc(entitlementId);
@@ -708,8 +714,14 @@ export async function settleRecurringPlatformSubscriptionPayment(
             planSnapshot: settlementPlan.planSnapshot,
             amountCents: settlementPlan.amountCents,
             pendingPlanChange: null,
+            needsProviderPlanChangeSync: false,
           }
-          : {}),
+          : resolvesCanceledDowngradeWithCurrentPlan
+            ? {
+              pendingPlanChange: null,
+              needsProviderPlanChangeSync: false,
+            }
+            : {}),
         lastSettledProviderPaymentId: payment.paymentId,
         lastPaymentStatus: event.eventName,
         lastPaymentOccurredAt: occurredAt,
