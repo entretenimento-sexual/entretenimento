@@ -35,7 +35,6 @@ const LEGACY_MANUAL_COMPOSITION_BASELINE = new Set<string>([
   'chat-module/chat-message/chat-message.component.ts',
   'chat-module/chat-messages-list/chat-messages-list.component.ts',
   'chat-module/chat-module-layout/chat-module-layout.component.ts',
-  'chat-module/chat-rooms/chat-rooms.component.ts',
   'chat-module/directives/delete-direct-message.directive.ts',
   'chat-module/modals/invite-user-modal/invite-user-modal.component.ts',
   'core/services/batepapo/invite-service/invite-search.service.ts',
@@ -181,6 +180,6 @@ describe('Application error ownership boundary', () => {
   });
 
   it('mantém explícito o tamanho atual da dívida fora de Comunidades', () => {
-    expect(LEGACY_MANUAL_COMPOSITION_BASELINE.size).toBe(56);
+    expect(LEGACY_MANUAL_COMPOSITION_BASELINE.size).toBe(55);
   });
 });
