@@ -18,6 +18,12 @@ import {
 } from '../community-boost/community-boost-authority.service';
 import { db, FieldValue } from '../firebaseApp';
 import {
+  resolveCommunityCapacityRegularizationClockOwnerUid,
+} from './community-capacity-regularization.policy';
+import {
+  reconcilePersonalCommunityCapacityRegularization,
+} from './community-capacity-regularization.service';
+import {
   buildCommunityArchiveRetentionAnchorPlan,
   buildCommunityLifecycleMutationPlan,
   resolveCommunityLifecycleMaxPerRun,
@@ -36,6 +42,7 @@ import { buildCommunityRankingProjectionPatch } from './community-ranking-sync.p
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 
 const PAGE_SIZE = 50;
+const CAPACITY_REGULARIZATION_CONCURRENCY = 5;
 const SYSTEM_SOURCE = 'scheduled-community-lifecycle';
 
 type LifecycleApplyResult =
@@ -48,6 +55,39 @@ type LifecycleApplyResult =
 function normalizeCursor(value: unknown): string | null {
   const normalized = String(value ?? '').trim();
   return normalized ? normalized.slice(0, 1_500) : null;
+}
+
+async function reconcileDueCapacityRegularizationOwners(
+  ownerUids: readonly string[]
+): Promise<Readonly<{ reconciled: number; failed: number }>> {
+  let reconciled = 0;
+  let failed = 0;
+
+  for (
+    let index = 0;
+    index < ownerUids.length;
+    index += CAPACITY_REGULARIZATION_CONCURRENCY
+  ) {
+    const chunk = ownerUids.slice(
+      index,
+      index + CAPACITY_REGULARIZATION_CONCURRENCY
+    );
+
+    await Promise.all(chunk.map(async (ownerUid) => {
+      try {
+        await reconcilePersonalCommunityCapacityRegularization({ ownerUid });
+        reconciled += 1;
+      } catch (error) {
+        failed += 1;
+        logger.error('community_capacity_regularization_clock_failed', {
+          ownerUid,
+          error,
+        });
+      }
+    }));
+  }
+
+  return Object.freeze({ reconciled, failed });
 }
 
 function buildActiveDiscoveryProjection(
@@ -311,6 +351,7 @@ export const runCommunityLifecycle = onSchedule(
     let ownershipInconsistent = 0;
     let missing = 0;
     let reachedEnd = false;
+    const capacityRegularizationOwnerUids = new Set<string>();
 
     while (processed < maxPerRun && !reachedEnd) {
       const remaining = maxPerRun - processed;
@@ -332,19 +373,30 @@ export const runCommunityLifecycle = onSchedule(
       }
 
       for (const document of pageSnapshot.docs) {
+        const community = document.data();
+        const capacityRegularizationOwnerUid =
+          resolveCommunityCapacityRegularizationClockOwnerUid(
+            community['capacityRegularization'],
+            now
+          );
+
+        if (capacityRegularizationOwnerUid) {
+          capacityRegularizationOwnerUids.add(capacityRegularizationOwnerUid);
+        }
+
         const previewDecision = evaluateCommunityLifecycle(
-          document.data(),
+          community,
           now,
           thresholds
         );
         const needsMembershipVerification =
           requiresCommunityLifecycleMembershipVerification(
-            document.data(),
+            community,
             now,
             thresholds
           );
         const needsRetentionAnchor =
-          buildCommunityArchiveRetentionAnchorPlan(document.data(), now) !== null;
+          buildCommunityArchiveRetentionAnchorPlan(community, now) !== null;
 
         if (
           previewDecision.changed
@@ -380,6 +432,11 @@ export const runCommunityLifecycle = onSchedule(
       }
     }
 
+    const capacityRegularizationClock =
+      await reconcileDueCapacityRegularizationOwners(
+        [...capacityRegularizationOwnerUids]
+      );
+
     await runtimeRef.set(
       {
         cursor,
@@ -388,6 +445,10 @@ export const runCommunityLifecycle = onSchedule(
         retentionAnchorsBackfilled,
         ownershipInconsistent,
         missing,
+        capacityRegularizationClockReconciled:
+          capacityRegularizationClock.reconciled,
+        capacityRegularizationClockFailed:
+          capacityRegularizationClock.failed,
         reachedEnd,
         thresholds,
         lastRunAt: now,
@@ -402,6 +463,10 @@ export const runCommunityLifecycle = onSchedule(
       retentionAnchorsBackfilled,
       ownershipInconsistent,
       missing,
+      capacityRegularizationClockReconciled:
+        capacityRegularizationClock.reconciled,
+      capacityRegularizationClockFailed:
+        capacityRegularizationClock.failed,
       reachedEnd,
       nextCursor: cursor,
     });
