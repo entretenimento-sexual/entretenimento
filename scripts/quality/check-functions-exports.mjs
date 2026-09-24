@@ -77,6 +77,7 @@ const requiredExports = [
   'syncPublicPreferenceProjectionTrigger',
   'syncCommunityNotificationSummaryTrigger',
   'runCommunityCapacityRegularization',
+  'syncCommunityCapacityRegularizationAdminNotification',
   'syncCommunityCapacityRegularizationFromCommunity',
   'syncCommunityCapacityRegularizationFromEntitlement',
 ];
