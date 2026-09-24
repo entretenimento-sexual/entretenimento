@@ -124,6 +124,125 @@
       </section>
     }
 
+
+    @if (communityDistribution$ | async; as communities) {
+      @if (communities.activity.length > 0) {
+        <section
+          class="community-distribution community-distribution--activity"
+          aria-labelledby="community-activity-title"
+        >
+          <header class="community-distribution__header">
+            <div>
+              <span>Suas Comunidades</span>
+              <h2 id="community-activity-title">Atividade nas suas Comunidades</h2>
+            </div>
+            <a routerLink="/dashboard/comunidades/minhas">Ver todas</a>
+          </header>
+
+          <div
+            class="community-distribution__rail"
+            role="list"
+            aria-label="Comunidades com novas atividades"
+          >
+            @for (item of communities.activity; track item.communityId) {
+              <a
+                class="community-distribution__card"
+                role="listitem"
+                [routerLink]="['/dashboard/comunidades/minhas', item.communityId]"
+                [attr.aria-label]="'Abrir ' + item.name + ', ' + item.unreadCount + ' novas atividades'"
+              >
+                <span class="community-distribution__avatar" aria-hidden="true">
+                  @if (item.avatarUrl) {
+                    <img
+                      [src]="item.avatarUrl"
+                      alt=""
+                      width="48"
+                      height="48"
+                      loading="lazy"
+                      decoding="async"
+                      referrerpolicy="no-referrer"
+                    />
+                  } @else {
+                    {{ communityInitials(item.name) }}
+                  }
+                </span>
+
+                <span class="community-distribution__content">
+                  <strong>{{ item.name }}</strong>
+                  <span>
+                    {{ item.unreadCount }}
+                    {{ item.unreadCount === 1 ? 'nova atividade' : 'novas atividades' }}
+                  </span>
+                </span>
+
+                @if (item.hasPriorityUnread) {
+                  <span class="community-distribution__priority">
+                    Requer atenção
+                  </span>
+                }
+              </a>
+            }
+          </div>
+        </section>
+      }
+
+      @if (communities.recommendations.length > 0) {
+        <section
+          class="community-distribution"
+          aria-labelledby="community-recommendations-title"
+        >
+          <header class="community-distribution__header">
+            <div>
+              <span>Descobrir</span>
+              <h2 id="community-recommendations-title">Comunidades para você</h2>
+            </div>
+            <a routerLink="/dashboard/comunidades">Explorar</a>
+          </header>
+
+          <div
+            class="community-distribution__rail"
+            role="list"
+            aria-label="Comunidades recomendadas"
+          >
+            @for (item of communities.recommendations; track item.communityId) {
+              <a
+                class="community-distribution__card"
+                role="listitem"
+                [routerLink]="['/dashboard/comunidades', item.communityId]"
+                [appCommunityDiscoveryVisibility]="item.communityId"
+                (qualifiedExposure)="recordCommunityExposure($event)"
+                [attr.aria-label]="'Abrir Comunidade ' + item.name"
+              >
+                <span class="community-distribution__avatar" aria-hidden="true">
+                  @if (item.avatarUrl) {
+                    <img
+                      [src]="item.avatarUrl"
+                      alt=""
+                      width="48"
+                      height="48"
+                      loading="lazy"
+                      decoding="async"
+                      referrerpolicy="no-referrer"
+                    />
+                  } @else {
+                    {{ communityInitials(item.name) }}
+                  }
+                </span>
+
+                <span class="community-distribution__content">
+                  <strong>{{ item.name }}</strong>
+                  <span>
+                    {{ item.metrics.memberCount }}
+                    {{ item.metrics.memberCount === 1 ? 'participante' : 'participantes' }}
+                  </span>
+                </span>
+              </a>
+            }
+          </div>
+        </section>
+      }
+    }
+
     <section class="feed-timeline" aria-labelledby="timeline-title">
       <h2 id="timeline-title" class="visually-hidden">
         Publicações e momentos recentes de amigos e perfis compatíveis

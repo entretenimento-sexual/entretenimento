@@ -211,6 +211,167 @@
   cursor: pointer;
 }
 
+
+.community-distribution {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 0.85rem;
+  min-width: 0;
+}
+
+.community-distribution__header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.community-distribution__header > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.08rem;
+}
+
+.community-distribution__header span {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 56%, transparent);
+  font-size: 0.68rem;
+  font-weight: 740;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.community-distribution__header h2 {
+  margin: 0;
+  color: var(--text-color, #f5f7fb);
+  font-size: clamp(0.96rem, 2.5vw, 1.08rem);
+  line-height: 1.2;
+}
+
+.community-distribution__header > a {
+  flex: 0 0 auto;
+  min-height: var(--tap-target, 2.75rem);
+  display: inline-flex;
+  align-items: center;
+  color: var(--primary-color, #ff7070);
+  font-size: 0.72rem;
+  font-weight: 780;
+  text-decoration: none;
+}
+
+.community-distribution__rail {
+  display: flex;
+  gap: 0.65rem;
+  min-width: 0;
+  padding: 0.05rem 0 0.35rem;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: inline proximity;
+  scrollbar-width: thin;
+}
+
+.community-distribution__card {
+  flex: 0 0 clamp(12.5rem, 43vw, 15rem);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 4.5rem;
+  padding: 0.65rem;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 10%));
+  border-radius: 0.9rem;
+  background: var(--surface-color, #101925);
+  color: var(--text-color, #f5f7fb);
+  text-decoration: none;
+  scroll-snap-align: start;
+  content-visibility: auto;
+  contain-intrinsic-size: 5rem;
+}
+
+.community-distribution--activity .community-distribution__card {
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color, #ff7070) 22%,
+    var(--surface-border, rgb(255 255 255 / 10%))
+  );
+}
+
+.community-distribution__avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  overflow: hidden;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--primary-color, #ff7070) 25%,
+    var(--surface-border, rgb(255 255 255 / 12%))
+  );
+  border-radius: 0.85rem;
+  background: color-mix(
+    in oklab,
+    var(--primary-color, #ff7070) 9%,
+    var(--surface-color, #101925)
+  );
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.community-distribution__avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.community-distribution__content {
+  min-width: 0;
+  display: grid;
+  gap: 0.12rem;
+}
+
+.community-distribution__content strong,
+.community-distribution__content span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.community-distribution__content strong {
+  font-size: 0.8rem;
+}
+
+.community-distribution__content span {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 60%, transparent);
+  font-size: 0.7rem;
+  font-weight: 650;
+}
+
+.community-distribution__priority {
+  grid-column: 2;
+  justify-self: start;
+  padding: 0.12rem 0.38rem;
+  border-radius: 999px;
+  background: color-mix(
+    in oklab,
+    var(--primary-color, #ff7070) 12%,
+    transparent
+  );
+  color: var(--primary-color, #ff7070) !important;
+  font-size: 0.62rem !important;
+  font-weight: 780 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+.community-distribution__card:hover,
+.community-distribution__card:focus-visible {
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color, #ff7070) 42%,
+    var(--surface-border, rgb(255 255 255 / 10%))
+  );
+}
+
 .feed-timeline {
   margin-top: 0.75rem;
 }
@@ -508,12 +669,14 @@
   .feed-status-composer,
   .feed-intent,
   .feed-empty,
+  .community-distribution__header,
   .video-highlights__header,
   .video-highlights__error {
     margin-inline: 0.55rem;
   }
 
-  .video-highlights__rail {
+  .video-highlights__rail,
+  .community-distribution__rail {
     padding-inline: 0.55rem;
     scroll-padding-inline: 0.55rem;
   }
@@ -575,6 +738,7 @@
 :host-context(html.high-contrast) .feed-composer,
 :host-context(html.high-contrast) .feed-intent,
 :host-context(html.high-contrast) .feed-empty,
+:host-context(html.high-contrast) .community-distribution__card,
 :host-context(html.high-contrast) .video-highlights__error {
   border-color: currentColor !important;
   background: var(--background-color) !important;
@@ -586,6 +750,7 @@
 :host-context(html.high-contrast) .feed-intent__relationship,
 :host-context(html.high-contrast) .feed-pagination button,
 :host-context(html.high-contrast) .feed-empty a,
+:host-context(html.high-contrast) .community-distribution a,
 :host-context(html.high-contrast) .video-highlights__error button,
 :host-context(html.high-contrast) .video-highlights__header span {
   color: var(--text-color) !important;
