@@ -156,9 +156,6 @@ export {
   syncCommunityOfficialAssociationLifecycle,
 } from './sync-community-official-association-lifecycle.trigger';
 export { syncCommunityFeedActivity } from './sync-community-feed-activity.trigger';
-export {
-  syncCommunityExploreContent,
-} from './sync-community-explore-content.trigger';
 // Production still has a legacy HTTPS function under the old export name.
 export {
   syncCommunityFeedRealtime as syncCommunityFeedRealtimeTrigger,
