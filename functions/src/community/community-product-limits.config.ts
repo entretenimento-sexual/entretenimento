@@ -57,6 +57,11 @@ export const COMMUNITY_PRODUCT_LIMITS = Object.freeze({
   // Compatibilidade: estes aliases são hard ceilings técnicos, não catálogo.
   maxOfficialSpacesPerGrant: OFFICIAL_TECHNICAL_SAFETY.maxCommunitiesPerGrant,
   officialTechnicalSafety: OFFICIAL_TECHNICAL_SAFETY,
+  capacityRegularization: Object.freeze({
+    // Janela de governança, não calibração de capacidade: membros existentes
+    // permanecem preservados e não há transferência automática.
+    gracePeriodDays: 30,
+  }),
   businessOfficialCalibration: Object.freeze({
     mode: 'observed_data_only',
     requiredSignals: Object.freeze([
