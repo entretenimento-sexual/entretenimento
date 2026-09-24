@@ -13,6 +13,8 @@ import {
 } from 'rxjs';
 
 import { CommunityNotificationUnreadSummaryService } from 'src/app/core/services/notifications/community-notification-unread-summary.service';
+import { CommunityExploreContentRepository } from 'src/app/community/data-access/community-explore-content.repository';
+import type { CommunityExploreContentItem } from 'src/app/community/data-access/community-explore-content.model';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import {
   CommunityDiscoveryPage,
@@ -39,6 +41,7 @@ export interface ExploreCommunityActivityItem extends CommunityPreviewCard {
 export interface ExploreCommunityDistributionVm {
   readonly recommendations: readonly CommunityPreviewCard[];
   readonly activity: readonly ExploreCommunityActivityItem[];
+  readonly content: readonly CommunityExploreContentItem[];
 }
 
 const EXPLORE_COMMUNITY_DISTRIBUTION_LIMIT = 3;
@@ -60,6 +63,7 @@ const MINE_CACHE_CONTEXT: CommunityDiscoveryCacheContext = Object.freeze({
 @Injectable({ providedIn: 'root' })
 export class ExploreCommunityDistributionService {
   private readonly repository = inject(CommunityPreviewRepository);
+  private readonly exploreContentRepository = inject(CommunityExploreContentRepository);
   private readonly cache = inject(CommunityDiscoveryCacheService);
   private readonly unreadSummary = inject(CommunityNotificationUnreadSummaryService);
   private readonly sessionBehavior = inject(CommunityDiscoverySessionBehaviorService);
@@ -85,15 +89,42 @@ export class ExploreCommunityDistributionService {
     'loadExploreCommunityMemberships'
   );
 
+  private readonly content$ = this.exploreContentRepository.getContent$(2).pipe(
+    catchError((error: unknown) => {
+      this.applicationError.report(error, {
+        feature: 'explore.community-distribution',
+        operation: 'loadExploreCommunityContent',
+        fallbackMessage:
+          'O conteúdo das Comunidades não pôde ser distribuído no Explorar agora.',
+        notification: 'none',
+        metadata: {
+          scope: 'ExploreCommunityDistributionService',
+          contentLimit: 2,
+        },
+      });
+
+      return of({ items: [], generatedAt: Date.now() });
+    }),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
   readonly vm$: Observable<ExploreCommunityDistributionVm> = combineLatest([
     this.discoveryPage$,
     this.minePage$,
     this.unreadSummary.currentUserSummaryMap$,
     this.sessionBehavior.state$,
+    this.content$,
   ]).pipe(
-    map(([discoveryPage, minePage, unreadMap, sessionState]) => {
+    map(([discoveryPage, minePage, unreadMap, sessionState, contentPage]) => {
       const mineIds = new Set(minePage.items.map((item) => item.communityId));
       const hiddenIds = new Set(sessionState.hiddenCommunityIds);
+
+      const content = contentPage.items
+        .filter((item) => !hiddenIds.has(item.communityId))
+        .slice(0, 2);
+      const contentCommunityIds = new Set(
+        content.map((item) => item.communityId)
+      );
 
       const recommendations = discoveryPage.items
         .filter(
@@ -101,6 +132,7 @@ export class ExploreCommunityDistributionService {
             item.source.type === 'community'
             && !mineIds.has(item.communityId)
             && !hiddenIds.has(item.communityId)
+            && !contentCommunityIds.has(item.communityId)
         )
         .slice(0, EXPLORE_COMMUNITY_DISTRIBUTION_LIMIT);
 
@@ -130,7 +162,7 @@ export class ExploreCommunityDistributionService {
         })
         .slice(0, EXPLORE_COMMUNITY_DISTRIBUTION_LIMIT);
 
-      return { recommendations, activity };
+      return { recommendations, activity, content };
     }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
