@@ -16,6 +16,9 @@ import { db } from '../firebaseApp';
 import {
   collectCommunityMyPageIncrementally,
 } from './community-my-page-scan.policy';
+import {
+  normalizeCommunityNotificationSummaryItem,
+} from './community-notification-global-summary.policy';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   assertCommunityCallableAppCheck,
@@ -158,8 +161,42 @@ export const getMyCommunitiesPage = onCall<CommunityDiscoveryPageRequest>(
         ),
     });
 
+    const summarySnapshots = result.items.length > 0
+      ? await db.getAll(
+          ...result.items.map((item) =>
+            db
+              .collection('community_notification_summaries')
+              .doc(uid)
+              .collection('items')
+              .doc(item.communityId)
+          )
+        )
+      : [];
+
+    const items = result.items.map((item, index) => {
+      const summarySnapshot = summarySnapshots[index];
+      const summary = summarySnapshot?.exists
+        ? normalizeCommunityNotificationSummaryItem(
+            item.communityId,
+            summarySnapshot.data()
+          )
+        : null;
+
+      return summary
+        ? {
+            ...item,
+            viewerNotificationSummary: {
+              unreadCount: summary.unreadCount,
+              priorityUnreadCount: summary.priorityUnreadCount,
+              hasPriorityUnread: summary.hasPriorityUnread,
+              updatedAt: summary.updatedAtMs || null,
+            },
+          }
+        : item;
+    });
+
     return {
-      items: [...result.items],
+      items,
       nextCursor: result.mayHaveAnotherPage
         ? (result.lastConsumedDocument?.id ?? null)
         : null,
