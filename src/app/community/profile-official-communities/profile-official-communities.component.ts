@@ -48,8 +48,8 @@ import {
   communityVisualVariant as resolveCommunityVisualVariant,
 } from '../presentation/community-visual-identity';
 import {
-  PROFILE_OFFICIAL_COMMUNITIES_REASON_MESSAGES,
-} from './profile-official-communities-error.messages';
+  OFFICIAL_COMMUNITIES_FOR_TARGET_REASON_MESSAGES,
+} from '../official-communities-for-target/official-communities-for-target-error.messages';
 
 type ProfileMembershipStatus = 'loading' | 'ready' | 'empty' | 'error';
 
@@ -264,7 +264,7 @@ export class ProfileOfficialCommunitiesComponent {
             ? 'Não foi possível carregar mais participações públicas agora.'
             : 'Não foi possível carregar as participações públicas deste perfil.',
           notification: 'warning',
-          reasonMessages: PROFILE_OFFICIAL_COMMUNITIES_REASON_MESSAGES,
+          reasonMessages: OFFICIAL_COMMUNITIES_FOR_TARGET_REASON_MESSAGES,
           metadata: {
             scope: 'ProfileOfficialCommunitiesComponent',
             hasProfileId: true,
