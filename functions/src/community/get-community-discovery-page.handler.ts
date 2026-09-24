@@ -41,7 +41,7 @@ import {
   CommunityDiscoveryPageRequest,
   CommunityDiscoveryPageResponse,
   CommunityPreviewCard,
-  filterCommunityDiscoveryCardForViewer,
+  filterCommunityRecommendationCardForViewer,
   normalizeCommunityDiscoveryPageRequest,
   sanitizeCommunityDiscoveryProjection,
 } from './community-preview.model';
@@ -146,7 +146,7 @@ async function resolveVisibleDiscoveryCandidates(
 
   for (let index = 0; index < candidates.length; index += 1) {
     const candidate = candidates[index];
-    const visibleItem = filterCommunityDiscoveryCardForViewer(
+    const visibleItem = filterCommunityRecommendationCardForViewer(
       candidate.item,
       membershipSnapshots[index].data()
     );
