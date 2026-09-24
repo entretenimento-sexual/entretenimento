@@ -142,6 +142,7 @@ export function buildCommunityReactionNotificationId(
   communityId: string,
   postId: string,
   recipientUid: string,
+  actorUid: string,
   membershipCycleStartedAtMs: number,
   nowMs: number
 ): string {
@@ -150,6 +151,7 @@ export function buildCommunityReactionNotificationId(
     communityId,
     postId,
     recipientUid,
+    actorUid,
     String(membershipCycleStartedAtMs),
     String(window),
   ]);
@@ -184,6 +186,7 @@ export function buildCommunityCommentNotificationId(
   communityId: string,
   postId: string,
   recipientUid: string,
+  actorUid: string,
   membershipCycleStartedAtMs: number,
   nowMs: number
 ): string {
@@ -192,6 +195,7 @@ export function buildCommunityCommentNotificationId(
     communityId,
     postId,
     recipientUid,
+    actorUid,
     String(membershipCycleStartedAtMs),
     String(window),
   ]);
@@ -202,6 +206,7 @@ export function buildCommunityReplyNotificationId(
   postId: string,
   commentId: string,
   recipientUid: string,
+  actorUid: string,
   membershipCycleStartedAtMs: number,
   nowMs: number
 ): string {
@@ -211,6 +216,7 @@ export function buildCommunityReplyNotificationId(
     postId,
     commentId,
     recipientUid,
+    actorUid,
     String(membershipCycleStartedAtMs),
     String(window),
   ]);
@@ -220,6 +226,7 @@ export function buildCommunityPostReplyNotificationId(
   communityId: string,
   originalPostId: string,
   recipientUid: string,
+  actorUid: string,
   membershipCycleStartedAtMs: number,
   nowMs: number
 ): string {
@@ -228,6 +235,7 @@ export function buildCommunityPostReplyNotificationId(
     communityId,
     originalPostId,
     recipientUid,
+    actorUid,
     String(membershipCycleStartedAtMs),
     String(window),
   ]);
