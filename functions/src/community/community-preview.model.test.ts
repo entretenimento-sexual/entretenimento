@@ -115,7 +115,7 @@ test('sanitiza uma projeção comunitária pública válida com tags canônicas'
   ]);
 });
 
-test('não devolve nenhum metadado do card para viewer bloqueado', () => {
+test('separa descoberta de Comunidades dos vínculos existentes do viewer', () => {
   const card = sanitizeCommunityDiscoveryProjection(
     'community-1',
     projection()
@@ -135,7 +135,27 @@ test('não devolve nenhum metadado do card para viewer bloqueado', () => {
       card,
       { status: 'active', role: 'member' }
     ),
-    card
+    null
+  );
+  assert.equal(
+    filterCommunityDiscoveryCardForViewer(
+      card,
+      { status: 'pending', role: 'member' }
+    ),
+    null
+  );
+
+  const venue = sanitizeCommunityDiscoveryProjection(
+    'community-local',
+    projection({ source: { type: 'venue', id: 'venue-1' } })
+  );
+  assert.ok(venue);
+  assert.equal(
+    filterCommunityDiscoveryCardForViewer(
+      venue,
+      { status: 'active', role: 'owner' }
+    ),
+    venue
   );
 });
 

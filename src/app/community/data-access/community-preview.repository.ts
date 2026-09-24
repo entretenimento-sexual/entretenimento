@@ -32,6 +32,11 @@ export class CommunityPreviewRepository {
     unknown
   >(this.functions, 'getMyCommunitiesPage');
 
+  private readonly getMyCommunityActivityCardsCallable = httpsCallable<
+    { communityIds: string[] },
+    unknown
+  >(this.functions, 'getMyCommunityActivityCards');
+
   private readonly getOfficialCommunitiesForTargetCallable = httpsCallable<
     { target: CommunityOfficialTarget; limit?: number },
     unknown
@@ -68,6 +73,30 @@ export class CommunityPreviewRepository {
         this.getMyCommunitiesPageCallable({
           limit: normalizeCommunityDiscoveryPageSize(request.limit),
           cursor: request.cursor ?? null,
+        })
+      )
+    ).pipe(
+      map((result) => normalizeCommunityDiscoveryPageResponse(result.data))
+    );
+  }
+
+  getMyCommunityActivityCards$(
+    communityIds: readonly string[]
+  ): Observable<CommunityDiscoveryPage> {
+    const normalizedIds = [...new Set(
+      communityIds
+        .map((communityId) => communityId.trim())
+        .filter(Boolean)
+    )].slice(0, 6);
+
+    if (normalizedIds.length === 0) {
+      return of(this.emptyDiscoveryPage());
+    }
+
+    return defer(() =>
+      from(
+        this.getMyCommunityActivityCardsCallable({
+          communityIds: normalizedIds,
         })
       )
     ).pipe(

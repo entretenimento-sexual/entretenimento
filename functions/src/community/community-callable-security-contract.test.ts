@@ -79,6 +79,7 @@ const COMMUNITY_CALLABLE_RECENT_AUTH_REQUIREMENTS =
     ['get-community-topic-detail.handler.ts:getCommunityTopicRepliesPage', 'none'],
     ['get-community-topics-page.handler.ts:getCommunityTopicsPage', 'none'],
     ['get-my-communities-page.handler.ts:getMyCommunitiesPage', 'none'],
+    ['get-my-community-activity-cards.handler.ts:getMyCommunityActivityCards', 'none'],
     ['get-my-community-official-claim.handler.ts:getMyCommunityOfficialClaim', 'none'],
     ['get-official-communities-for-target.handler.ts:getOfficialCommunitiesForTarget', 'none'],
     ['get-profile-official-communities.handler.ts:getProfileOfficialCommunities', 'none'],

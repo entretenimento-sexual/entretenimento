@@ -42,7 +42,7 @@ export const COMMUNITY_DISCOVERY_CACHE_TTL_MS = 30_000;
 export const COMMUNITY_DISCOVERY_CACHE_MAX_QUERIES = 24;
 
 const SAFE_UID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
-const COMMUNITY_DISCOVERY_CACHE_PREFIX = 'community:discovery:v1';
+const COMMUNITY_DISCOVERY_CACHE_PREFIX = 'community:discovery:v2';
 
 export function normalizeCommunityDiscoveryViewerUid(value: unknown): string {
   const uid = String(value ?? '').trim();
