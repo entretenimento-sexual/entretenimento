@@ -464,21 +464,33 @@ export function resolveCommunityViewerMode(rawMembership: unknown): {
 }
 
 /**
- * Último gate do card público antes de ele sair pela descoberta autenticada.
- * Membership bloqueada sempre prevalece sobre `public_preview`. Para
- * Comunidades, a superfície "Explorar" também exclui vínculos já existentes
- * (ativo ou pendente): quem já participa pertence a "Minhas comunidades" e aos
- * blocos de atividade, não a recomendações de descoberta. Locais preservam a
- * semântica atual porque vínculo comunitário não é critério de descoberta deles.
+ * Último gate de segurança do card público para um viewer autenticado.
+ * Uma membership bloqueada prevalece sobre `public_preview`; demais estados
+ * não escondem um card que já passou pela sanitização pública. Esse helper é
+ * compartilhado por superfícies como perfis públicos e não deve embutir regras
+ * específicas de recomendação.
  */
 export function filterCommunityDiscoveryCardForViewer(
   card: CommunityPreviewCard,
   rawMembership: unknown
 ): CommunityPreviewCard | null {
+  return resolveCommunityViewerMode(rawMembership).blocked ? null : card;
+}
+
+/**
+ * Regra adicional exclusiva de descoberta/recomendação. Comunidades em que o
+ * viewer já participa ou tem solicitação pendente pertencem a "Minhas" e aos
+ * blocos de atividade, não à lista de recomendações. Locais mantêm a semântica
+ * pública existente.
+ */
+export function filterCommunityRecommendationCardForViewer(
+  card: CommunityPreviewCard,
+  rawMembership: unknown
+): CommunityPreviewCard | null {
+  const safeCard = filterCommunityDiscoveryCardForViewer(card, rawMembership);
+  if (!safeCard) return null;
+
   const viewer = resolveCommunityViewerMode(rawMembership);
-
-  if (viewer.blocked) return null;
-
   if (
     card.source.type === 'community'
     && (viewer.active || viewer.mode === 'pending')
@@ -486,5 +498,5 @@ export function filterCommunityDiscoveryCardForViewer(
     return null;
   }
 
-  return card;
+  return safeCard;
 }
