@@ -113,12 +113,12 @@ describe('CommunityDistributionTelemetryService', () => {
 
     service.recordQualifiedExposure(
       'community-old',
-      'social_explore_activity'
+      'social_explore_content'
     );
     viewerUid$.next('viewer-2');
     service.recordQualifiedExposure(
       'community-new',
-      'social_explore_activity'
+      'social_explore_content'
     );
 
     await vi.advanceTimersByTimeAsync(BATCH_INTERVAL_MS);
@@ -127,7 +127,7 @@ describe('CommunityDistributionTelemetryService', () => {
     expect(recordEvents$).toHaveBeenCalledWith([
       {
         communityId: 'community-new',
-        surface: 'social_explore_activity',
+        surface: 'social_explore_content',
         eventType: 'qualified_exposure',
       },
     ]);
