@@ -79,6 +79,9 @@ for (const fragment of [
   'acquirePlatformCheckoutLock',
   'resolveAsaasRuntimeConfig',
   'assertAsaasRecurringCheckoutEnabled',
+  'shouldBlockDuplicateRecurringCheckout',
+  "'recurring_renewal_already_enabled'",
+  'PLATFORM_SUBSCRIPTION_STATE_COLLECTION',
 ]) requireIncludes(checkout, fragment, 'production checkout drift');
 
 const webhook = read(
@@ -187,6 +190,20 @@ for (const fragment of [
   'accessEndsAt',
   'assertCallableAppCheck',
 ]) requireIncludes(cancel, fragment, 'cancel-renewal drift');
+
+const billingSnapshot = read(
+  'functions/src/payments/application/get-my-billing-snapshot.handler.ts'
+);
+for (const fragment of [
+  'assertRecurringContractBuyer',
+  "'recurring_state_buyer_mismatch'",
+  "'recurring_contract_missing'",
+  'const recurringConfigured = recurringContract !== null',
+]) requireIncludes(
+  billingSnapshot,
+  fragment,
+  'billing snapshot recurring pointer integrity drift'
+);
 
 const cancellationService = read(
   'functions/src/payments/application/recurring-provider-cancellation.service.ts'
