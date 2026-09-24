@@ -37,7 +37,10 @@ Configuração não secreta exigida no runtime:
 
 - `ASAAS_ENVIRONMENT=production`
 - `APP_BASE_URL=https://<host-publico-da-plataforma>`
-- `ASAAS_RECURRING_ENABLED=true` somente depois da homologação final
+- `ASAAS_RECURRING_ENABLED=true` somente depois da homologação final;
+- `ASAAS_SUBSCRIPTION_UPDATE_ENABLED=true` somente depois de validar em
+  Sandbox e confirmar que a conta Asaas de produção está habilitada para
+  alterar o valor de recorrências com cartão.
 
 A chave de produção precisa ter prefixo de produção. Sandbox e produção não
 podem ser misturados.
@@ -168,6 +171,31 @@ nunca reativa automaticamente a renovação cancelada.
 
 Estorno parcial não revoga automaticamente todo o período.
 
+## Redução de plano no próximo ciclo
+
+Downgrade não cria um segundo checkout nem reduz benefício já pago.
+
+O backend:
+
+1. valida novamente o plano e o preço no catálogo canônico;
+2. exige autenticação recente e App Check;
+3. persiste a intenção em `pendingPlanChange`;
+4. mantém o entitlement atual intacto até `endsAt`;
+5. atualiza no Asaas somente o valor recorrente futuro;
+6. se a cobrança do plano menor for confirmada antes da virada do ciclo,
+   mantém o evento em retry até `effectiveAt`;
+7. somente depois da virada liquida o novo período com o papel menor.
+
+A alteração usa `updatePendingPayments: true` para convergir também uma
+cobrança do próximo ciclo que já tenha sido criada pelo provedor. Essa
+capacidade permanece **fail-closed** fora do Emulator enquanto
+`ASAAS_SUBSCRIPTION_UPDATE_ENABLED` não estiver explicitamente habilitada.
+
+O usuário pode cancelar a redução agendada. Nesse caso o backend persiste
+primeiro a intenção de reversão, restaura o valor recorrente atual no provedor
+e mantém retry operacional até convergir. Isso não cancela a renovação nem
+altera o entitlement vigente.
+
 ## Cancelamento pelo usuário
 
 `cancelPlatformSubscriptionRenewal`:
@@ -204,7 +232,10 @@ Antes de ativar `ASAAS_RECURRING_ENABLED=true` em produção:
 8. testar refund e chargeback;
 9. confirmar que nenhuma coleção financeira é acessível pelo cliente;
 10. confirmar que o webhook de produção usa o token correto;
-11. só então habilitar credenciais e endpoint de produção.
+11. validar atualização e reversão de valor da recorrência com cartão;
+12. confirmar a capacidade operacional/tokenização exigida pelo Asaas para a
+    conta de produção;
+13. só então habilitar credenciais, endpoints e flags operacionais de produção.
 
 Merge de código não prova deploy nem configuração do Asaas. A ativação só deve
 ser considerada concluída após secrets, runtime, webhook, deploy e uma
