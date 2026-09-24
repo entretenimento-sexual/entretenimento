@@ -13,6 +13,8 @@ export type CommunitySocialAccessErrorMessageMap = Readonly<
 
 export const COMMUNITY_SOCIAL_ACCESS_REASON_MESSAGES:
   CommunitySocialAccessErrorMessageMap = Object.freeze({
+    verification_required:
+      'Conclua a verificação de maioridade para continuar em Comunidades.',
     current_terms_required:
       'Revise e aceite os Termos atuais para continuar em Comunidades.',
     age_reverification_required:
