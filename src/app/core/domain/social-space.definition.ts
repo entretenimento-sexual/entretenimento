@@ -41,6 +41,7 @@ export interface SocialSpaceCapabilities {
   readonly settingsManagement: boolean;
   readonly ownershipManagement: boolean;
   readonly contentModeration: boolean;
+  readonly highlights: boolean;
   readonly membershipProfileVisibility: boolean;
   readonly interestDiscovery: boolean;
   readonly personalMembershipHub: boolean;
@@ -70,6 +71,7 @@ const COMMUNITY_CAPABILITIES: Readonly<SocialSpaceCapabilities> = Object.freeze(
   settingsManagement: true,
   ownershipManagement: true,
   contentModeration: true,
+  highlights: true,
   membershipProfileVisibility: true,
   interestDiscovery: true,
   personalMembershipHub: true,
@@ -87,6 +89,7 @@ const VENUE_CAPABILITIES: Readonly<SocialSpaceCapabilities> = Object.freeze({
   settingsManagement: false,
   ownershipManagement: false,
   contentModeration: false,
+  highlights: false,
   membershipProfileVisibility: false,
   interestDiscovery: false,
   personalMembershipHub: false,
