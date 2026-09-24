@@ -310,7 +310,7 @@ describe('SocialExplorePageComponent', () => {
     expect(fixture.nativeElement.textContent).not.toContain('Feed');
   });
 
-  it('distribui Comunidades no Explore sem misturar conteúdo do Mural', () => {
+  it('distribui Comunidades e conteúdo elegível sem transformar o Explore em Mural', () => {
     communityDistributionSubject.next({
       recommendations: [
         {
@@ -352,6 +352,24 @@ describe('SocialExplorePageComponent', () => {
           activityUpdatedAt: 1_800_000_000_000,
         },
       ],
+      content: [
+        {
+          communityId: 'content-1',
+          postId: 'post-1',
+          community: {
+            name: 'Cinema clássico',
+            slug: 'cinema-classico',
+            avatarUrl: null,
+          },
+          post: {
+            kind: 'text',
+            author: { label: 'Pessoa autora', avatarUrl: null },
+            text: 'Uma publicação pública distribuída com limite.',
+            image: null,
+          },
+          publishedAt: 1_800_000_000_000,
+        },
+      ],
     });
     fixture.detectChanges();
 
@@ -360,7 +378,14 @@ describe('SocialExplorePageComponent', () => {
     expect(
       fixture.debugElement.queryAll(By.css('.community-distribution__card'))
     ).toHaveLength(2);
-    expect(fixture.nativeElement.textContent).not.toContain('Mural');
+    expect(
+      fixture.debugElement.queryAll(
+        By.css('app-explore-community-content-card')
+      )
+    ).toHaveLength(1);
+    expect(fixture.nativeElement.textContent).toContain('Da Comunidade');
+    expect(fixture.nativeElement.textContent).toContain('Ver na Comunidade');
+    expect(fixture.nativeElement.textContent).not.toContain('Curtir');
   });
 
   it('mantém somente a publicação persistente na barra superior', () => {
