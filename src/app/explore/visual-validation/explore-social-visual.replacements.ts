@@ -127,7 +127,6 @@ export class ExploreFeedFacade {
       latestPhotos: empty ? [] : [...VISUAL_PHOTOS],
       videoHighlights: videoError || empty ? [] : [...VISUAL_HIGHLIGHTS],
       videoHighlightsStatus: videoError ? 'error' : empty ? 'empty' : 'ready',
-      sections: [],
       compatibleProfiles: [...VISUAL_COMPATIBLES],
       totalItems: empty ? 0 : VISUAL_PHOTOS.length + VISUAL_HIGHLIGHTS.length,
       hasAnyContent: !empty,
