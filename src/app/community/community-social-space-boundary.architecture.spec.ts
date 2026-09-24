@@ -6,7 +6,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
   getSocialSpaceDefinition,
-  hasSocialSpaceCapability,
 } from '../core/domain/social-space.definition';
 import {
   getCommunitySocialSpaceAdapter,
@@ -79,7 +78,9 @@ describe('Community × Local social-space boundary', () => {
       capacityManagement: false,
       contentModeration: false,
     });
-    expect(hasSocialSpaceCapability('room', 'personalMembershipHub')).toBe(false);
+    expect(
+      getSocialSpaceDefinition('room').capabilities.personalMembershipHub
+    ).toBe(false);
   });
 
   it('mantém copy e navegação Community/Venue nos adapters de produto', () => {
