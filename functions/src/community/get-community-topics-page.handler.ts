@@ -10,7 +10,6 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
-import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   assertCommunityCallableAppCheck,
   REQUIRE_COMMUNITY_APP_CHECK,
@@ -27,15 +26,9 @@ import {
   sanitizeCommunityTopicProjection,
 } from './community-topic.model';
 import { getCommunityViewerContext } from './community-viewer-access.service';
-
-function assertTopicsRuntime(): void {
-  if (isCommunityPreviewRuntimeAvailable()) return;
-
-  throw new HttpsError(
-    'failed-precondition',
-    'Os Tópicos de Comunidade ainda não estão disponíveis neste ambiente.'
-  );
-}
+import {
+  assertCommunityTopicsProductAvailable,
+} from './community-topics-product-state';
 
 function assertValidCursor(
   raw: CommunityTopicPageRequest | null | undefined,
@@ -55,7 +48,7 @@ export const getCommunityTopicsPage = onCall<CommunityTopicPageRequest>(
   },
   async (request): Promise<CommunityTopicPageResponse> => {
     assertCommunityCallableAppCheck(request.app);
-    assertTopicsRuntime();
+    assertCommunityTopicsProductAvailable();
 
     const uid = request.auth?.uid ?? null;
     if (!uid) {
