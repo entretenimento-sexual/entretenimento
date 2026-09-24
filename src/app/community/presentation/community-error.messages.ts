@@ -454,6 +454,8 @@ export const COMMUNITY_OWNERSHIP_REASON_MESSAGES: CommunityErrorMessageMap =
       'O participante selecionado não possui vínculo ativo elegível.',
     target_account_ineligible:
       'A conta selecionada não pode assumir a propriedade agora.',
+    community_ownership_target_capacity_reached:
+      'O plano atual do participante selecionado não permite assumir esta Comunidade. Escolha outro proprietário elegível ou tente novamente após a regularização do plano.',
     community_lifecycle_hold:
       'Esta Comunidade possui retenção operacional e não pode ser arquivada.',
     community_ownership_idempotency_invalid:
