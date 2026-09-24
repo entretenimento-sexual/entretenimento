@@ -49,7 +49,6 @@ export interface SocialSpaceCapabilities {
   readonly officialEntityCommunityLink: boolean;
 }
 
-export type SocialSpaceCapability = keyof SocialSpaceCapabilities;
 
 export interface SocialSpaceDefinition {
   readonly kind: SocialSpaceKind;
@@ -156,9 +155,3 @@ export function getSocialSpaceDefinition(
   return SOCIAL_SPACE_DEFINITIONS[kind];
 }
 
-export function hasSocialSpaceCapability(
-  kind: SocialSpaceKind,
-  capability: SocialSpaceCapability
-): boolean {
-  return getSocialSpaceDefinition(kind).capabilities[capability];
-}
