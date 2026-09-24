@@ -56,6 +56,7 @@ export const COMMUNITY_PUBLIC_ERROR_REASONS = Object.freeze([
   'community_source_not_supported',
   'community_topic_moderation_unavailable',
   'community_topic_rate_limited',
+  'community_topics_product_frozen',
   'community_topics_unavailable',
   'community_unavailable',
   'conversation_message_already_exists',

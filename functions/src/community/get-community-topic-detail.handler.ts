@@ -32,13 +32,16 @@ import {
   sanitizeCommunityTopicReplyProjection,
 } from './community-topic-detail.model';
 import { getCommunityViewerContext } from './community-viewer-access.service';
+import {
+  assertCommunityTopicsProductAvailable,
+} from './community-topics-product-state';
 
 function assertTopicsRuntime(): void {
   if (isCommunityPreviewRuntimeAvailable()) return;
 
   throw new HttpsError(
     'failed-precondition',
-    'Os Tópicos de Comunidades ainda não estão disponíveis neste ambiente.'
+    'As Comunidades ainda não estão disponíveis neste ambiente.'
   );
 }
 
@@ -92,6 +95,7 @@ export const getCommunityTopicDetail = onCall<CommunityTopicDetailRequest>(
   async (request): Promise<CommunityTopicDetailResponse> => {
     assertCommunityCallableAppCheck(request.app);
     assertTopicsRuntime();
+    assertCommunityTopicsProductAvailable();
     const uid = assertAuthenticatedViewer(request.auth);
     const command = normalizeCommunityTopicDetailRequest(request.data);
 
@@ -144,6 +148,7 @@ export const getCommunityTopicRepliesPage = onCall<CommunityTopicRepliesPageRequ
   async (request): Promise<CommunityTopicRepliesPageResponse> => {
     assertCommunityCallableAppCheck(request.app);
     assertTopicsRuntime();
+    assertCommunityTopicsProductAvailable();
     const uid = assertAuthenticatedViewer(request.auth);
     const command = normalizeCommunityTopicRepliesPageRequest(request.data);
     assertValidReplyCursor(request.data, command.cursor);

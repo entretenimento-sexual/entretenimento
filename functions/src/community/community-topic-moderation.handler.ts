@@ -32,14 +32,16 @@ import {
 import type { CommunityTopicStatus } from './community-topic.model';
 import type { CommunityViewerRole } from './community-preview.model';
 import { getCommunityViewerContext } from './community-viewer-access.service';
+import {
+  assertCommunityTopicsProductAvailable,
+} from './community-topics-product-state';
 
 function assertTopicsRuntime(): void {
   if (isCommunityPreviewRuntimeAvailable()) return;
 
   throw new HttpsError(
     'failed-precondition',
-    'A moderação de Tópicos ainda não está disponível neste ambiente.',
-    { reason: 'community_topic_moderation_unavailable' }
+    'As Comunidades ainda não estão disponíveis neste ambiente.'
   );
 }
 
@@ -149,8 +151,9 @@ export const moderateCommunityTopic = onCall<CommunityTopicModerationRequest>(
     enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
   },
   async (request): Promise<CommunityTopicModerationResponse> => {
-    assertTopicsRuntime();
     assertCommunityCallableAppCheck(request.app);
+    assertTopicsRuntime();
+    assertCommunityTopicsProductAvailable();
     const actorUid = assertAuthenticatedUid(request.auth);
     const command = normalizeCommunityTopicModerationRequest(request.data);
 

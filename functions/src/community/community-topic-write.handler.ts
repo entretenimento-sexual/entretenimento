@@ -36,13 +36,16 @@ import {
   resolveCommunityTopicWriteLimit,
 } from './community-topic-write.policy';
 import { getCommunityViewerContext } from './community-viewer-access.service';
+import {
+  assertCommunityTopicsProductAvailable,
+} from './community-topics-product-state';
 
-function assertPreviewRuntime(): void {
+function assertTopicsRuntime(): void {
   if (isCommunityPreviewRuntimeAvailable()) return;
 
   throw new HttpsError(
     'failed-precondition',
-    'Os Tópicos de Comunidades ainda não estão disponíveis neste ambiente.'
+    'As Comunidades ainda não estão disponíveis neste ambiente.'
   );
 }
 
@@ -145,8 +148,9 @@ export const createCommunityTopic = onCall<CommunityTopicCreateRequest>(
     enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
   },
   async (request): Promise<CommunityTopicWriteResponse> => {
-    assertPreviewRuntime();
     assertCommunityCallableAppCheck(request.app);
+    assertTopicsRuntime();
+    assertCommunityTopicsProductAvailable();
     const actorUid = assertAuthenticatedUid(request.auth);
     const command = normalizeCommunityTopicCreateRequest(request.data);
 
@@ -375,8 +379,9 @@ export const createCommunityTopicReply = onCall<CommunityTopicReplyCreateRequest
     enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
   },
   async (request): Promise<CommunityTopicReplyWriteResponse> => {
-    assertPreviewRuntime();
     assertCommunityCallableAppCheck(request.app);
+    assertTopicsRuntime();
+    assertCommunityTopicsProductAvailable();
     const actorUid = assertAuthenticatedUid(request.auth);
     const command = normalizeCommunityTopicReplyCreateRequest(request.data);
 

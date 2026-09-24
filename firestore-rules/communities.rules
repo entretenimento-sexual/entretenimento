@@ -126,8 +126,9 @@ match /community_feed_realtime/{communityId}/items/{postId} {
   allow create, update, delete: if false;
 }
 
-// Tópicos persistentes usam a mesma fronteira do Mural: a projeção nunca é
-// consultada diretamente pelo navegador. A callable revalida a audiência.
+// Tópicos/Discussões estão congelados como domínio de produto. Dados legados
+// permanecem preservados, mas nenhuma projeção é acessível diretamente pelo
+// navegador; as callables também são bloqueadas pelo gate backend canônico.
 match /community_public_topics/{communityId} {
   allow read, write: if false;
 }
