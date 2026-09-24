@@ -56,8 +56,6 @@ export interface IExploreFeedVm {
   readonly videoHighlights: readonly IPublicVideoItem[];
   readonly videoHighlightsStatus: TExploreVideoHighlightsStatus;
   readonly compatibleProfiles: readonly PublicProfileCard[];
-  readonly totalItems: number;
-  readonly hasAnyContent: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -151,14 +149,6 @@ export class ExploreFeedService {
 
       const mostViewedPhotos = this.rankByViews(publicPool).slice(0, 12);
 
-      const totalItems =
-        compatibleProfiles.length +
-        videoHighlightsState.items.length +
-        boostedPhotos.length +
-        mostViewedPhotos.length +
-        safeTopPhotos.length +
-        latestPhotos.length;
-
       return {
         boostedPhotos,
         mostViewedPhotos,
@@ -167,8 +157,6 @@ export class ExploreFeedService {
         videoHighlights: videoHighlightsState.items,
         videoHighlightsStatus: videoHighlightsState.status,
         compatibleProfiles,
-        totalItems,
-        hasAnyContent: totalItems > 0,
       };
     }),
     shareReplay({ bufferSize: 1, refCount: true })
