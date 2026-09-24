@@ -29,6 +29,7 @@ import type {
   PlatformRecurringSubscriptionStateDoc,
 } from '../domain/platform-recurring-subscription.model';
 import {
+  calculatePlatformSubscriptionPeriodEnd,
   evaluatePlatformSubscriptionEntitlement,
   resolvePlatformSubscriptionSettlementPeriod,
 } from './platform-subscription-entitlement.service';
@@ -155,7 +156,17 @@ export async function settleRecurringPlatformSubscriptionPayment(
       );
     }
 
-    if (contract.amountCents !== payment.amountCents) {
+    const pendingPlanChange =
+      contract.pendingPlanChange?.providerUpdateStatus === 'applied'
+        ? contract.pendingPlanChange
+        : null;
+    const settlesPendingPlan =
+      pendingPlanChange !== null
+      && payment.amountCents === pendingPlanChange.amountCents;
+    const settlesCurrentPlan =
+      payment.amountCents === contract.amountCents;
+
+    if (!settlesPendingPlan && !settlesCurrentPlan) {
       throw new HttpsError(
         'failed-precondition',
         'Valor da cobrança recorrente diverge do contrato vigente.',
@@ -163,6 +174,33 @@ export async function settleRecurringPlatformSubscriptionPayment(
           reason: 'recurring_amount_mismatch',
           contractId,
         }
+      );
+    }
+
+    if (
+      pendingPlanChange
+      && settlesCurrentPlan
+      && occurredAt >= pendingPlanChange.effectiveAt
+    ) {
+      throw new HttpsError(
+        'failed-precondition',
+        'A cobrança do novo ciclo não refletiu a redução de plano agendada.',
+        {
+          reason: 'recurring_scheduled_amount_mismatch',
+          contractId,
+        }
+      );
+    }
+
+    if (
+      pendingPlanChange
+      && settlesPendingPlan
+      && now < pendingPlanChange.effectiveAt
+    ) {
+      throw new RetryableProviderWebhookError(
+        'scheduled-downgrade-effective-period-pending',
+        'A cobrança do próximo plano foi confirmada antes da virada do ciclo.',
+        pendingPlanChange.effectiveAt
       );
     }
 
@@ -397,8 +435,8 @@ export async function settleRecurringPlatformSubscriptionPayment(
         status: 'paid',
         amountCents: payment.amountCents,
         currency: 'BRL',
-        planId: contract.planId,
-        planKey: contract.planKey,
+        planId: settlementPlan.planId,
+        planKey: settlementPlan.planKey,
         createdAt: now,
         updatedAt: now,
       };
@@ -486,37 +524,64 @@ export async function settleRecurringPlatformSubscriptionPayment(
       }
     }
 
-    const planChange = resolvePlatformSubscriptionPlanChangePolicy({
-      currentRole: entitlementAtPayment.active
-        ? entitlementAtPayment.role
-        : null,
-      requestedRole: contract.grantedRole,
-    });
+    const settlementPlan = settlesPendingPlan && pendingPlanChange
+      ? {
+        planId: pendingPlanChange.planId,
+        planKey: pendingPlanChange.planKey,
+        grantedRole: pendingPlanChange.grantedRole,
+        planSnapshot: pendingPlanChange.planSnapshot,
+        amountCents: pendingPlanChange.amountCents,
+      }
+      : {
+        planId: contract.planId,
+        planKey: contract.planKey,
+        grantedRole: contract.grantedRole,
+        planSnapshot: contract.planSnapshot,
+        amountCents: contract.amountCents,
+      };
 
-    if (!planChange.allowed) {
-      throw new HttpsError(
-        'failed-precondition',
-        'Cobrança recorrente tentaria reduzir um benefício ainda vigente.',
-        {
-          reason: 'recurring_downgrade_blocked',
-          contractId,
-        }
-      );
+    if (!settlesPendingPlan) {
+      const planChange = resolvePlatformSubscriptionPlanChangePolicy({
+        currentRole: entitlementAtPayment.active
+          ? entitlementAtPayment.role
+          : null,
+        requestedRole: settlementPlan.grantedRole,
+      });
+
+      if (!planChange.allowed) {
+        throw new HttpsError(
+          'failed-precondition',
+          'Cobrança recorrente tentaria reduzir um benefício ainda vigente.',
+          {
+            reason: 'recurring_downgrade_blocked',
+            contractId,
+          }
+        );
+      }
     }
 
-    const period = resolvePlatformSubscriptionSettlementPeriod(
-      existingEntitlement,
-      contract.buyerUid,
-      occurredAt
-    );
+    const period = settlesPendingPlan && pendingPlanChange
+      ? {
+        startsAt: pendingPlanChange.effectiveAt,
+        extensionBase: pendingPlanChange.effectiveAt,
+        endsAt: calculatePlatformSubscriptionPeriodEnd(
+          pendingPlanChange.effectiveAt
+        ),
+        extendedExistingAccess: false,
+      }
+      : resolvePlatformSubscriptionSettlementPeriod(
+        existingEntitlement,
+        contract.buyerUid,
+        occurredAt
+      );
     const entitlementDoc: EntitlementDoc = {
       id: entitlementId,
       buyerUid: contract.buyerUid,
       sellerUid: null,
       scope: 'platform_subscription',
-      planId: contract.planId,
-      planKey: contract.planKey,
-      grantedRole: contract.grantedRole,
+      planId: settlementPlan.planId,
+      planKey: settlementPlan.planKey,
+      grantedRole: settlementPlan.grantedRole,
       active: true,
       startsAt: period.startsAt,
       endsAt: period.endsAt,
@@ -641,6 +706,16 @@ export async function settleRecurringPlatformSubscriptionPayment(
         status: 'active',
         renewalEnabled: true,
         isCurrent: true,
+        ...(settlesPendingPlan && pendingPlanChange
+          ? {
+            planId: settlementPlan.planId,
+            planKey: settlementPlan.planKey,
+            grantedRole: settlementPlan.grantedRole,
+            planSnapshot: settlementPlan.planSnapshot,
+            amountCents: settlementPlan.amountCents,
+            pendingPlanChange: null,
+          }
+          : {}),
         lastSettledProviderPaymentId: payment.paymentId,
         lastPaymentStatus: event.eventName,
         lastPaymentOccurredAt: occurredAt,
@@ -657,7 +732,7 @@ export async function settleRecurringPlatformSubscriptionPayment(
       buyerUid: contract.buyerUid,
       currentContractId: contractId,
       currentProviderSubscriptionId: contract.providerSubscriptionId,
-      currentPlanKey: contract.planKey,
+      currentPlanKey: settlementPlan.planKey,
       renewalEnabled: true,
       updatedAt: now,
     };
