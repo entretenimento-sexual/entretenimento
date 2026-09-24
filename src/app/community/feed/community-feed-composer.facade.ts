@@ -7,6 +7,7 @@
 // componente para que cada instância mantenha estado próprio e descartável.
 // -----------------------------------------------------------------------------
 
+import { getSocialSpaceDefinition } from 'src/app/core/domain/social-space.definition';
 import { DestroyRef, Injectable, Injector, OnDestroy, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
@@ -142,7 +143,7 @@ export class CommunityFeedComposerFacade implements OnDestroy {
 
   canCreatePost(context: CommunityFeedComposerContext): boolean {
     return context.view === 'feed'
-      && context.sourceType === 'community'
+      && getSocialSpaceDefinition(context.sourceType).capabilities.feedComposer
       && context.canInteract;
   }
 
