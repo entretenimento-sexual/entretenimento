@@ -41,6 +41,7 @@ export type CommunityRecommendedUpgradeRole =
 export type CommunityCapacityRegularizationReason =
   | 'owner_subscription_required'
   | 'capacity_over_plan'
+  | 'ownership_over_plan'
   | 'official_entitlement_required'
   | 'capacity_over_entitlement'
   | null;
