@@ -32,6 +32,9 @@ import { FUNCTIONS_REGION } from '../../config/functions-region';
 import {
   CheckoutSessionDoc,
 } from '../domain/billing.model';
+import type {
+  PlatformRecurringSubscriptionStateDoc,
+} from '../domain/platform-recurring-subscription.model';
 
 import {
   createBillingPlanSnapshot,
@@ -42,6 +45,7 @@ import {
 } from './platform-subscription-entitlement.service';
 import {
   resolvePlatformSubscriptionPlanChangePolicy,
+  shouldBlockDuplicateRecurringCheckout,
 } from './platform-subscription-change.policy';
 import {
   resolvePlatformCheckoutPriceLockExpiresAt,
@@ -73,6 +77,9 @@ import {
   acquirePlatformCheckoutLock,
   releasePlatformCheckoutLock,
 } from './platform-checkout-lock.service';
+import {
+  PLATFORM_SUBSCRIPTION_STATE_COLLECTION,
+} from './platform-recurring-subscription.service';
 import {
   buildPlatformSubscriptionProviderReturnUrl,
   normalizePlatformSubscriptionFlowContext,
@@ -185,12 +192,51 @@ export const createPlatformCheckoutSession =
       const entitlementRef = db
         .collection('entitlements')
         .doc(`platform_subscription_${buyerUid}`);
-      const entitlementSnapshot = await entitlementRef.get();
+      const recurringStateRef = db
+        .collection(PLATFORM_SUBSCRIPTION_STATE_COLLECTION)
+        .doc(buyerUid);
+      const [entitlementSnapshot, recurringStateSnapshot] =
+        await Promise.all([
+          entitlementRef.get(),
+          recurringStateRef.get(),
+        ]);
       const currentSubscription = evaluatePlatformSubscriptionEntitlement(
         entitlementSnapshot.exists ? entitlementSnapshot.data() : null,
         buyerUid,
         now
       );
+      const recurringState = recurringStateSnapshot.exists
+        ? recurringStateSnapshot.data() as PlatformRecurringSubscriptionStateDoc
+        : null;
+
+      if (recurringState && recurringState.buyerUid !== buyerUid) {
+        throw new HttpsError(
+          'data-loss',
+          'O estado da assinatura recorrente está inconsistente.',
+          { reason: 'recurring_state_buyer_mismatch' }
+        );
+      }
+
+      if (
+        shouldBlockDuplicateRecurringCheckout({
+          currentRole: currentSubscription.active
+            ? currentSubscription.role
+            : null,
+          requestedRole: planSnapshot.grantedRole,
+          recurringPlanKey: recurringState?.currentPlanKey ?? null,
+          renewalEnabled: recurringState?.renewalEnabled === true,
+        })
+      ) {
+        throw new HttpsError(
+          'failed-precondition',
+          'A renovação automática deste plano já está ativa.',
+          {
+            reason: 'recurring_renewal_already_enabled',
+            planKey: planSnapshot.key,
+          }
+        );
+      }
+
       const planChangePolicy = resolvePlatformSubscriptionPlanChangePolicy({
         currentRole: currentSubscription.active
           ? currentSubscription.role
