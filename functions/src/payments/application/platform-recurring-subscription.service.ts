@@ -25,6 +25,9 @@ import type {
 import {
   releasePlatformCheckoutLock,
 } from './platform-checkout-lock.service';
+import {
+  evaluateRecurringSubscriptionAmountIntegrity,
+} from './recurring-subscription-integrity.policy';
 
 export const PLATFORM_SUBSCRIPTION_COLLECTION = 'subscriptions';
 export const PLATFORM_SUBSCRIPTION_STATE_COLLECTION =
@@ -146,6 +149,69 @@ async function findCheckoutForSubscriptionEvent(
   return matching[0]!;
 }
 
+async function quarantineRecurringSubscriptionAmountMismatch(input: {
+  readonly contractId: string;
+  readonly contractRef: FirebaseFirestore.DocumentReference;
+  readonly contract: PlatformRecurringSubscriptionDoc;
+  readonly event: VerifiedProviderWebhookEvent;
+  readonly now: number;
+}): Promise<void> {
+  const stateRef = db
+    .collection(PLATFORM_SUBSCRIPTION_STATE_COLLECTION)
+    .doc(input.contract.buyerUid);
+
+  await db.runTransaction(async (tx) => {
+    const stateSnapshot = await tx.get(stateRef);
+    const state = stateSnapshot.exists
+      ? stateSnapshot.data() as PlatformRecurringSubscriptionStateDoc
+      : null;
+
+    tx.set(
+      input.contractRef,
+      {
+        status:
+          input.contract.status === 'pending_payment'
+            ? 'canceled'
+            : input.contract.status,
+        renewalEnabled: false,
+        needsProviderCancellation: true,
+        providerCancellationNextAttemptAt: input.now,
+        canceledAt:
+          input.contract.canceledAt
+          ?? (input.contract.status === 'pending_payment' ? input.now : null),
+        lastPaymentStatus:
+          input.event.providerStatus ?? input.contract.lastPaymentStatus,
+        updatedAt: input.now,
+      },
+      { merge: true }
+    );
+
+    if (state?.currentContractId === input.contractId) {
+      tx.set(
+        stateRef,
+        {
+          renewalEnabled: false,
+          updatedAt: input.now,
+        },
+        { merge: true }
+      );
+    }
+
+    tx.set(db.collection('billing_audit').doc(), {
+      action: 'recurring_subscription_amount_mismatch',
+      buyerUid: input.contract.buyerUid,
+      contractId: input.contractId,
+      providerSubscriptionId: input.contract.providerSubscriptionId,
+      providerEventId: input.event.providerEventId,
+      expectedAmountCents: input.contract.amountCents,
+      providerAmountCents: input.event.amountCents,
+      accessRevoked: false,
+      providerCancellationScheduled: true,
+      createdAt: input.now,
+    });
+  });
+}
+
 export async function applyAsaasCheckoutLifecycleEvent(
   event: VerifiedProviderWebhookEvent
 ): Promise<'processed' | 'ignored'> {
@@ -252,13 +318,32 @@ export async function applyAsaasSubscriptionLifecycleEvent(
 
   if (event.eventName === 'SUBSCRIPTION_CREATED') {
     if (existing.exists) {
+      const current =
+        existing.data() as PlatformRecurringSubscriptionDoc;
+      const integrity = evaluateRecurringSubscriptionAmountIntegrity({
+        contractAmountCents: current.amountCents,
+        providerAmountCents: event.amountCents,
+      });
+
+      if (integrity === 'mismatch') {
+        await quarantineRecurringSubscriptionAmountMismatch({
+          contractId,
+          contractRef,
+          contract: current,
+          event,
+          now: Date.now(),
+        });
+        return 'processed';
+      }
+
       await contractRef.set(
         {
           providerCustomerId:
             event.customerId ??
-            existing.data()?.['providerCustomerId'] ??
+            current.providerCustomerId ??
             null,
-          providerStatus: event.providerStatus,
+          lastPaymentStatus:
+            event.providerStatus ?? current.lastPaymentStatus,
           updatedAt: Date.now(),
         },
         { merge: true }
@@ -277,6 +362,11 @@ export async function applyAsaasSubscriptionLifecycleEvent(
     }
 
     const now = Date.now();
+    const amountIntegrity = evaluateRecurringSubscriptionAmountIntegrity({
+      contractAmountCents: checkout.amountCents,
+      providerAmountCents: event.amountCents,
+    });
+    const amountMismatch = amountIntegrity === 'mismatch';
     const contract: PlatformRecurringSubscriptionDoc = {
       id: contractId,
       buyerUid: checkout.buyerUid,
@@ -293,19 +383,19 @@ export async function applyAsaasSubscriptionLifecycleEvent(
       amountCents: checkout.amountCents,
       currency: checkout.currency,
       cycle: 'MONTHLY',
-      status: 'pending_payment',
-      renewalEnabled: true,
+      status: amountMismatch ? 'canceled' : 'pending_payment',
+      renewalEnabled: !amountMismatch,
       isCurrent: false,
       lastSettledProviderPaymentId: null,
       lastPaymentStatus: null,
       lastPaymentOccurredAt: null,
-      needsProviderCancellation: false,
+      needsProviderCancellation: amountMismatch,
       providerCancellationAttemptCount: 0,
-      providerCancellationNextAttemptAt: null,
+      providerCancellationNextAttemptAt: amountMismatch ? now : null,
       providerCancellationLastErrorCode: null,
       createdAt: now,
       activatedAt: null,
-      canceledAt: null,
+      canceledAt: amountMismatch ? now : null,
       supersededAt: null,
       updatedAt: now,
     };
@@ -324,6 +414,21 @@ export async function applyAsaasSubscriptionLifecycleEvent(
         },
         { merge: true }
       );
+
+      if (amountMismatch) {
+        tx.set(db.collection('billing_audit').doc(), {
+          action: 'recurring_subscription_amount_mismatch',
+          buyerUid: contract.buyerUid,
+          contractId,
+          providerSubscriptionId: event.subscriptionId,
+          providerEventId: event.providerEventId,
+          expectedAmountCents: checkout.amountCents,
+          providerAmountCents: event.amountCents,
+          accessRevoked: false,
+          providerCancellationScheduled: true,
+          createdAt: now,
+        });
+      }
     });
 
     return 'processed';
@@ -337,6 +442,22 @@ export async function applyAsaasSubscriptionLifecycleEvent(
   }
 
   const current = existing.data() as PlatformRecurringSubscriptionDoc;
+  const amountIntegrity = evaluateRecurringSubscriptionAmountIntegrity({
+    contractAmountCents: current.amountCents,
+    providerAmountCents: event.amountCents,
+  });
+
+  if (amountIntegrity === 'mismatch') {
+    await quarantineRecurringSubscriptionAmountMismatch({
+      contractId,
+      contractRef,
+      contract: current,
+      event,
+      now: Date.now(),
+    });
+    return 'processed';
+  }
+
   const stateRef = db
     .collection(PLATFORM_SUBSCRIPTION_STATE_COLLECTION)
     .doc(current.buyerUid);
