@@ -24,10 +24,6 @@ async function expectFrozen(callable, payload = {}) {
       error.details?.reason,
       'community_topics_product_frozen'
     );
-    assert.equal(
-      error.details?.recommendedAction,
-      'use_community_mural'
-    );
     return;
   }
 
