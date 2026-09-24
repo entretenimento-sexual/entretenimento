@@ -151,15 +151,6 @@
                 class="community-distribution__card"
                 role="listitem"
                 [routerLink]="['/dashboard/comunidades/minhas', item.communityId]"
-                [appCommunityDiscoveryVisibility]="item.communityId"
-                (qualifiedExposure)="recordCommunityDistributionExposure(
-                  $event,
-                  'social_explore_activity'
-                )"
-                (click)="recordCommunityDistributionOpen(
-                  item.communityId,
-                  'social_explore_activity'
-                )"
                 [attr.aria-label]="'Abrir ' + item.name + ', ' + item.unreadCount + ' novas atividades'"
               >
                 <span class="community-distribution__avatar" aria-hidden="true">
