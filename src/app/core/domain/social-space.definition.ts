@@ -109,6 +109,7 @@ const LEGACY_ROOM_CAPABILITIES: Readonly<SocialSpaceCapabilities> = Object.freez
   ownershipManagement: false,
   contentModeration: false,
   highlights: false,
+  feedComposer: false,
   membershipProfileVisibility: false,
   interestDiscovery: false,
   personalMembershipHub: false,
