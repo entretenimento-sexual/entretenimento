@@ -95,6 +95,79 @@
   );
 }
 
+.community-ownership-management__filters {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.community-ownership-management__search {
+  min-width: 0;
+  min-height: var(--tap-target, 2.75rem);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid var(--surface-border, #d5d5d5);
+  border-radius: 999px;
+  background: var(--surface-color, #fff);
+}
+
+.community-ownership-management__search > i {
+  opacity: 0.55;
+}
+
+.community-ownership-management__search input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-color, #222);
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.community-ownership-management__search button {
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-color, #222);
+  cursor: pointer;
+}
+
+.community-ownership-management__role-filter {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.community-ownership-management__role-filter select {
+  min-width: 0;
+  min-height: var(--tap-target, 2.75rem);
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--surface-border, #d5d5d5);
+  border-radius: var(--radius-md, 0.7rem);
+  background: var(--surface-color, #fff);
+  color: var(--text-color, #222);
+  font: inherit;
+  font-size: 0.78rem;
+}
+
+.community-ownership-management__search-hint {
+  margin: -0.25rem 0 0;
+  color: var(--text-color, #222);
+  font-size: 0.7rem;
+  opacity: 0.62;
+}
+
 .community-ownership-management__state {
   min-height: 6.5rem;
   display: grid;
@@ -230,6 +303,13 @@
   outline-offset: 2px;
 }
 
+@media (min-width: 40rem) {
+  .community-ownership-management__filters {
+    grid-template-columns: minmax(0, 1fr) minmax(13rem, 17rem);
+    align-items: center;
+  }
+}
+
 @media (max-width: 38rem) {
   .community-ownership-management__danger-zone {
     align-items: stretch;
@@ -258,6 +338,8 @@
 
 :host-context(.high-contrast) .community-ownership-management__refresh,
 :host-context(.high-contrast) .community-ownership-management__transfer,
+:host-context(.high-contrast) .community-ownership-management__search,
+:host-context(.high-contrast) .community-ownership-management__role-filter select,
 :host-context(.high-contrast) .community-ownership-management__list li,
 :host-context(.high-contrast) .community-ownership-management__danger-zone,
 :host-context(.high-contrast) .community-ownership-management button {
