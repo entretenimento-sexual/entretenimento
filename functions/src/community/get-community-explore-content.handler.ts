@@ -146,9 +146,9 @@ export const getCommunityExploreContent =
         );
         const currentCommunity = discoverySnapshot?.exists
           ? sanitizeCommunityDiscoveryProjection(
-              candidate.communityId,
-              discoverySnapshot.data()
-            )
+            candidate.communityId,
+            discoverySnapshot.data()
+          )
           : null;
         if (!currentCommunity || currentCommunity.source.type !== 'community') {
           continue;
