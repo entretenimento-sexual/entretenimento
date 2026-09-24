@@ -19,7 +19,6 @@ import { Storage } from '@angular/fire/storage';
 import { Functions } from '@angular/fire/functions';
 
 // Tokens/serviços do app
-import { FirestoreService } from '../../app/core/services/data-handling/legacy/firestore.service';
 import { FirestoreUserQueryService } from '../../app/core/services/data-handling/firestore-user-query.service';
 import { AuthSessionService } from '../../app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from '../../app/core/services/autentication/auth/current-user-store.service';
@@ -182,8 +181,6 @@ export const authTestingProviders: Provider[] = [
 // ============================================================================
 
 export const appServiceStubs: Provider[] = [
-  { provide: FirestoreService, useValue: {} },
-
   {
     provide: FirestoreUserQueryService,
     useValue: {
