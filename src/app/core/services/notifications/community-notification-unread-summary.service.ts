@@ -32,6 +32,7 @@ import {
   shareReplay,
   switchMap,
   take,
+  takeUntil,
   tap,
 } from 'rxjs/operators';
 
@@ -290,6 +291,11 @@ export class CommunityNotificationUnreadSummaryService {
         !summary || summary.unreadCount <= summary.priorityUnreadCount
       ),
       take(1),
+      takeUntil(
+        this.session.readyUid$.pipe(
+          filter((activeUid) => String(activeUid ?? '').trim() !== uid)
+        )
+      ),
       catchError((error: unknown) => {
         this.reportReadError(
           error,
