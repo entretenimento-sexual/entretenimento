@@ -33,6 +33,7 @@ import {
   CheckoutSessionDoc,
 } from '../domain/billing.model';
 import type {
+  PlatformRecurringSubscriptionDoc,
   PlatformRecurringSubscriptionStateDoc,
 } from '../domain/platform-recurring-subscription.model';
 
@@ -44,7 +45,9 @@ import {
   evaluatePlatformSubscriptionEntitlement,
 } from './platform-subscription-entitlement.service';
 import {
+  resolvePlatformSubscriptionFinancialCurrentRole,
   resolvePlatformSubscriptionPlanChangePolicy,
+  shouldBlockCheckoutForPendingRecurringCancellation,
   shouldBlockDuplicateRecurringCheckout,
 } from './platform-subscription-change.policy';
 import {
@@ -78,8 +81,12 @@ import {
   releasePlatformCheckoutLock,
 } from './platform-checkout-lock.service';
 import {
+  PLATFORM_SUBSCRIPTION_COLLECTION,
   PLATFORM_SUBSCRIPTION_STATE_COLLECTION,
 } from './platform-recurring-subscription.service';
+import {
+  assertRecurringContractBuyer,
+} from './recurring-contract-authority.policy';
 import {
   buildPlatformSubscriptionProviderReturnUrl,
   normalizePlatformSubscriptionFlowContext,
@@ -217,11 +224,61 @@ export const createPlatformCheckoutSession =
         );
       }
 
+      const recurringContractSnapshot = recurringState?.currentContractId
+        ? await db
+          .collection(PLATFORM_SUBSCRIPTION_COLLECTION)
+          .doc(recurringState.currentContractId)
+          .get()
+        : null;
+
+      if (
+        recurringState?.currentContractId
+        && !recurringContractSnapshot?.exists
+      ) {
+        throw new HttpsError(
+          'data-loss',
+          'O contrato recorrente atual não foi localizado.',
+          { reason: 'recurring_contract_missing' }
+        );
+      }
+
+      const recurringContract = recurringContractSnapshot?.exists
+        ? recurringContractSnapshot.data() as PlatformRecurringSubscriptionDoc
+        : null;
+
+      if (recurringContract) {
+        assertRecurringContractBuyer(recurringContract.buyerUid, buyerUid);
+      }
+
+      if (
+        recurringState?.currentContractId
+        && recurringContract
+        && (
+          recurringState.currentPlanKey !== recurringContract.planKey
+          || recurringState.renewalEnabled !== recurringContract.renewalEnabled
+        )
+      ) {
+        throw new HttpsError(
+          'data-loss',
+          'O estado da assinatura recorrente diverge do contrato atual.',
+          { reason: 'recurring_state_contract_mismatch' }
+        );
+      }
+
+      if (
+        shouldBlockCheckoutForPendingRecurringCancellation(
+          recurringContract?.needsProviderCancellation === true
+        )
+      ) {
+        throw new HttpsError(
+          'failed-precondition',
+          'Aguarde a confirmação do cancelamento anterior antes de contratar outro plano.',
+          { reason: 'recurring_cancellation_pending' }
+        );
+      }
+
       if (
         shouldBlockDuplicateRecurringCheckout({
-          currentRole: currentSubscription.active
-            ? currentSubscription.role
-            : null,
           requestedRole: planSnapshot.grantedRole,
           recurringPlanKey: recurringState?.currentPlanKey ?? null,
           renewalEnabled: recurringState?.renewalEnabled === true,
@@ -237,10 +294,16 @@ export const createPlatformCheckoutSession =
         );
       }
 
+      const financialCurrentRole =
+        resolvePlatformSubscriptionFinancialCurrentRole({
+          activeEntitlementRole: currentSubscription.active
+            ? currentSubscription.role
+            : null,
+          recurringPlanKey: recurringState?.currentPlanKey ?? null,
+          renewalEnabled: recurringState?.renewalEnabled === true,
+        });
       const planChangePolicy = resolvePlatformSubscriptionPlanChangePolicy({
-        currentRole: currentSubscription.active
-          ? currentSubscription.role
-          : null,
+        currentRole: financialCurrentRole,
         requestedRole: planSnapshot.grantedRole,
       });
 
