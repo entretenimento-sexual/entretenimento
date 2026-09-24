@@ -85,7 +85,7 @@ async function notifyRegularizationAudience(input: {
         'O proprietário pode regularizar o plano, transferir a propriedade',
         'ou arquivar a Comunidade. Os membros atuais são preservados.',
       ].join(' '),
-      route: `/dashboard/comunidades/minhas/${input.communityId}`,
+      route: `/dashboard/comunidades/minhas/${input.communityId}?secao=gestao`,
       actionRequired: true,
       pushMode: 'IN_APP_ONLY',
       communityId: input.communityId,
