@@ -510,12 +510,15 @@ export function buildCommunityCapacityRegularizationNotificationCopy(input: {
     ? {
       title: 'Regularização da Comunidade necessária',
       body:
-        `${communityName} está com novas entradas pausadas. Regularize o plano, transfira a propriedade ou arquive a Comunidade.`,
+        `${communityName} está com novas entradas pausadas. `
+        + 'Regularize o plano, transfira a propriedade ou arquive a Comunidade.',
     }
     : {
       title: 'Regularize a capacidade da Comunidade',
       body:
-        `${communityName} precisa ser regularizada até ${deadline}. Você pode regularizar o plano, transferir a propriedade ou arquivar a Comunidade.`,
+        `${communityName} precisa ser regularizada até ${deadline}. `
+        + 'Você pode regularizar o plano, transferir a propriedade ou arquivar '
+        + 'a Comunidade.',
     };
 }
 
