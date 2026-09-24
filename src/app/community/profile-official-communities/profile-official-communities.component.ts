@@ -43,6 +43,7 @@ import type {
 } from '../data-access/community-preview.model';
 import { CommunityProfilePublicCommunitiesRepository } from '../data-access/community-profile-public-communities.repository';
 import { OfficialCommunitiesForTargetComponent } from '../official-communities-for-target/official-communities-for-target.component';
+import { getCommunitySocialSpaceAdapter } from '../presentation/community-social-space.adapter';
 import {
   communityInitials as buildCommunityInitials,
   communityVisualVariant as resolveCommunityVisualVariant,
@@ -201,9 +202,9 @@ export class ProfileOfficialCommunitiesComponent {
   }
 
   detailsRoute(item: CommunityPreviewCard): readonly string[] {
-    return item.source.type === 'venue'
-      ? ['/dashboard/locais', item.communityId]
-      : ['/dashboard/comunidades', item.communityId];
+    return getCommunitySocialSpaceAdapter(
+      item.source.type
+    ).discovery.detailsRoute(item.communityId, 'explore');
   }
 
   communityInitials(item: CommunityPreviewCard): string {
