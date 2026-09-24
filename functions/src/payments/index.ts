@@ -10,8 +10,10 @@ export { reconcilePlatformSubscriptions } from './application/reconcile-platform
 export { syncPlatformSubscriptionEntitlement } from './application/sync-platform-subscription-entitlement.handler';
 
 export { cancelPlatformSubscriptionRenewal } from './application/cancel-platform-subscription-renewal.handler';
+export { schedulePlatformSubscriptionDowngrade } from './application/schedule-platform-subscription-downgrade.handler';
 export {
   processProviderWebhookEventTrigger,
   reconcileProviderWebhookEvents,
   reconcileRecurringProviderCancellations,
+  reconcileRecurringProviderPlanChanges,
 } from './application/process-provider-webhook.handler';
