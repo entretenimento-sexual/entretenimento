@@ -47,7 +47,6 @@ class MockAccessControlService {
 
 class MockErrorNotificationService {
   showSuccess = vi.fn();
-  showError = vi.fn();
   showWarning = vi.fn();
 }
 
