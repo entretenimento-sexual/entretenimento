@@ -144,8 +144,18 @@ export class EditProfilePreferencesComponent implements OnInit {
 
   salvarPreferencias(): void {
     if (!this.uid) {
-      this.notifier.showError('Erro: Nenhum UID encontrado.');
-      console.log('[EditProfilePreferencesComponent] Tentativa de salvar sem UID.');
+      this.applicationError.report(
+        new Error('UID ausente ao salvar preferências do perfil.'),
+        {
+          feature: 'profile-preferences',
+          operation: 'savePreferences.resolveUid',
+          fallbackMessage:
+            'Não foi possível identificar seu perfil para salvar as preferências.',
+          metadata: {
+            scope: 'EditProfilePreferencesComponent',
+          },
+        }
+      );
       return;
     }
 
