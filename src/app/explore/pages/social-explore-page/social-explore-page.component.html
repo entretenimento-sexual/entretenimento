@@ -4,6 +4,7 @@
   @let feedItems = (feedWindow?.items || []);
   @let currentUser = (currentUser$ | async);
   @let viewerUid = ((authUid$ | async) || '');
+  @let communityDistribution = (communityDistributionVm$ | async);
   @let emptySuggestions = vm.compatibleProfiles.slice(0, 4);
 
   <section class="social-feed-page" aria-label="Atualizações">
@@ -126,13 +127,13 @@
 
     <section class="feed-timeline" aria-labelledby="timeline-title">
       <h2 id="timeline-title" class="visually-hidden">
-        Publicações e momentos recentes de amigos e perfis compatíveis
+        Publicações, momentos e descobertas recentes
       </h2>
 
       <div
         class="feed-list"
         role="list"
-        aria-label="Publicações, vídeos e momentos recentes"
+        aria-label="Publicações, vídeos, momentos e descobertas recentes"
       >
         @if (currentUser?.uid) {
           <app-user-intent-status-composer
@@ -213,6 +214,25 @@
                 <p>{{ item.status.destinationLabel }}</p>
               </div>
             </article>
+          }
+
+          @if (
+            communityDistributionSlot(
+              $index,
+              feedItems.length,
+              communityDistribution
+            );
+            as communitySlot
+          ) {
+            <app-community-explore-distribution-block
+              class="feed-community-distribution"
+              role="listitem"
+              [slot]="communitySlot"
+              [activity]="communityDistribution?.activity || null"
+              [recommendations]="communityDistribution?.recommendations || []"
+              (recommendationDismissed)="hideCommunityRecommendation($event)"
+              (recommendationExposed)="recordCommunityRecommendationExposure($event)"
+            />
           }
         }
       </div>
@@ -300,6 +320,20 @@
           </div>
         </section>
       } @else {
+        @if (
+          emptyCommunityDistributionSlot(communityDistribution);
+          as emptyCommunitySlot
+        ) {
+          <app-community-explore-distribution-block
+            class="feed-community-distribution feed-community-distribution--empty"
+            [slot]="emptyCommunitySlot"
+            [activity]="communityDistribution?.activity || null"
+            [recommendations]="communityDistribution?.recommendations || []"
+            (recommendationDismissed)="hideCommunityRecommendation($event)"
+            (recommendationExposed)="recordCommunityRecommendationExposure($event)"
+          />
+        }
+
         <section class="feed-empty" aria-labelledby="feed-empty-title">
           <div class="feed-empty__copy">
             <strong id="feed-empty-title">Seu feed começa com conexões</strong>

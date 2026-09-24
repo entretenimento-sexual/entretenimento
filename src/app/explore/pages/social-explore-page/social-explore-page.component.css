@@ -222,9 +222,14 @@
 
 .feed-status-composer,
 .feed-list app-public-photo-card,
-.feed-list app-public-video-card {
+.feed-list app-public-video-card,
+.feed-community-distribution {
   display: block;
   width: 100%;
+}
+
+.feed-community-distribution--empty {
+  margin-bottom: 0.85rem;
 }
 
 .feed-intent {
