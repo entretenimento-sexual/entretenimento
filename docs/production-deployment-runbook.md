@@ -181,8 +181,11 @@ Primeiro os writers/autoridades que tornam os dados novos canônicos.
 - `syncPublicPreferenceProjectionTrigger`.
 
 **Billing/entitlement:** só se a readiness de billing estiver aprovada. Implantar
-writers/entitlements antes dos consumidores. A configuração/ativação do webhook
-recorrente Asaas é uma ação separada e permanece bloqueada sem GO específico.
+writers/entitlements antes dos consumidores. Para a recorrência, os índices de
+`provider_webhook_events` e `subscriptions` usados pelos workers de due-time
+devem estar `READY` antes das Functions correspondentes. A
+configuração/ativação do webhook recorrente Asaas é uma ação separada e
+permanece bloqueada sem GO específico.
 
 Gate F1: logs sem erro anômalo, projeções de teste convergindo e nenhum aumento de
 permission-denied/unauthenticated para fluxos válidos.
@@ -249,7 +252,8 @@ Schedules entram depois dos writers/triggers que recebem seus efeitos:
 - `runCommunityDiscoveryExposureRetention`;
 - `runCommunityExploreContentRetention`;
 - `runCommunityBoostLifecycle`;
-- reconciliadores periódicos de billing, se billing estiver aprovado.
+- reconciliadores periódicos de billing, se billing estiver aprovado e os
+  índices de due-time já estiverem `READY`.
 
 Jobs destrutivos/retention/purge não devem ser o primeiro evento executado por
 uma nova versão. Confirmar configuração, elegibilidade e dry-run/inspection
@@ -589,6 +593,18 @@ Operações destrutivas, como cleanup de campo legado, ficam fora da janela
 principal justamente para manter essa propriedade.
 
 ### Billing
+
+Cobrança recorrente deve ser tratada como uma ativação operacional separada do
+merge/deploy do código. A ordem futura é:
+
+1. publicar índices financeiros necessários e aguardar `READY`;
+2. implantar backend com `ASAAS_RECURRING_ENABLED` ainda desabilitado;
+3. validar secrets/runtime e smoke de endpoints não financeiros;
+4. configurar/validar webhook autenticado e envio sequencial;
+5. homologar primeiro pagamento, renovação, cancelamento, retry, refund,
+   chargeback, divergência de valor e backlog por due-time;
+6. somente com GO específico habilitar `ASAAS_RECURRING_ENABLED=true`;
+7. manter Hosting como última onda do rollout geral.
 
 Se houver ativação de webhook na mesma release (somente com GO específico),
 registrar a configuração anterior antes do apply e reverter o endpoint/eventos
