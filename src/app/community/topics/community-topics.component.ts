@@ -89,10 +89,6 @@ const DATE_TIME_FORMATTER = new Intl.DateTimeFormat('pt-BR', {
   styleUrl: './community-topics.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-/**
- * @deprecated Domínio congelado. Não conectar a superfícies de produção sem
- * decisão explícita de produto e remoção do gate backend de Tópicos.
- */
 export class CommunityTopicsComponent {
   private readonly repository = inject(CommunityTopicRepository);
   private readonly errorNotifier = inject(ErrorNotificationService);
