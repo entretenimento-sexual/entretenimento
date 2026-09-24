@@ -21,6 +21,7 @@ import {
   evaluateCommunityCapacity,
   MAX_PERSONAL_COMMUNITIES_PER_OWNER,
   resolveCommunityCapacitySponsorRole,
+  resolvePersonalCommunityCreationPolicy,
 } from './community-capacity.policy';
 import {
   buildCommunityCapacityRegularization,
@@ -169,6 +170,9 @@ export const syncCommunityCapacityRegularization = onDocumentWritten(
       entitlement.active ? entitlement.role : null,
       user['role']
     );
+    const ownershipPolicy = resolvePersonalCommunityCreationPolicy(sponsorRole);
+    const ownershipOverPlan = ownershipPolicy.maxOwnedCommunities !== null
+      && communitiesSnapshot.size > ownershipPolicy.maxOwnedCommunities;
     const started: Array<{
       communityId: string;
       communityName: string;
@@ -187,6 +191,9 @@ export const syncCommunityCapacityRegularization = onDocumentWritten(
         rawExisting: community['capacityRegularization'],
         capacity,
         ownerUid,
+        reasonOverride: ownershipOverPlan && !capacity.regularizationRequired
+          ? 'ownership_over_plan'
+          : undefined,
         now,
       });
 
