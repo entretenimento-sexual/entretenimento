@@ -183,6 +183,7 @@ export {
 } from './sync-community-ranking.trigger';
 export { syncCommunityUserIndex } from './sync-community-user-index.trigger';
 export {
+  syncCommunityCapacityRegularizationAdminNotification,
   syncCommunityCapacityRegularizationFromCommunity,
   syncCommunityCapacityRegularizationFromEntitlement,
 } from './sync-community-capacity-regularization.trigger';
