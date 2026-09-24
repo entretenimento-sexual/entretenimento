@@ -13,6 +13,7 @@ export {
 } from './get-my-community-activity-cards.handler';
 export {
   recordCommunityDiscoveryExposure,
+  recordCommunityDistributionEvents,
 } from './record-community-discovery-exposure.handler';
 export {
   getProfileOfficialCommunities,
