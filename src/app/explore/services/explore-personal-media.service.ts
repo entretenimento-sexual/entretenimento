@@ -40,7 +40,7 @@ import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
 import { UserDiscoveryQueryService } from 'src/app/core/services/data-handling/queries/user-discovery.query.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { PublicMediaOwnerPageQueryService } from 'src/app/core/services/media/public-media-owner-page-query.service';
 import {
   CompatibleProfileCandidatePool,
@@ -121,7 +121,7 @@ export class ExplorePersonalMediaService {
   private readonly ownerPageQuery = inject(PublicMediaOwnerPageQueryService);
   private readonly discoveryQuery = inject(UserDiscoveryQueryService);
   private readonly errorNotification = inject(ErrorNotificationService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
 
   private readonly mediaStateSubject =
     new BehaviorSubject<ExplorePersonalMediaState>(this.emptyState());
@@ -1075,26 +1075,15 @@ export class ExplorePersonalMediaService {
   }
 
   private reportOwnerError(stage: string, error: unknown): void {
-    try {
-      const normalized = error instanceof Error
-        ? error
-        : new Error('Falha ao carregar mídia pessoal do feed.');
-      const contextual = normalized as Error & {
-        context?: Record<string, unknown>;
-        original?: unknown;
-        skipUserNotification?: boolean;
-      };
-
-      contextual.original = error;
-      contextual.context = {
+    this.applicationError.report(error, {
+      feature: 'explore-personal-media',
+      operation: 'loadOwnerMedia',
+      fallbackMessage: 'Não foi possível atualizar parte do feed agora.',
+      notification: 'none',
+      metadata: {
         scope: 'ExplorePersonalMediaService',
-        op: 'loadOwnerMedia',
         stage,
-      };
-      contextual.skipUserNotification = true;
-      this.globalError.handleError(contextual);
-    } catch {
-      // O diagnóstico nunca deve interromper a paginação do feed.
-    }
+      },
+    });
   }
 }
