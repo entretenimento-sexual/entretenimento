@@ -32,10 +32,9 @@ import {
 
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import {
   isFirebasePermissionDeniedError,
-  toErrorInstance,
 } from 'src/app/core/utils/firebase-error-utils';
 
 interface CommunityNotificationPreferenceDocument {
@@ -54,14 +53,6 @@ export interface CommunityNotificationPreferenceUpdateResult {
   readonly muted: boolean;
 }
 
-interface CommunityNotificationPreferenceReportableError extends Error {
-  context?: string;
-  operation?: string;
-  extra?: Record<string, unknown>;
-  original?: unknown;
-  skipUserNotification?: boolean;
-}
-
 export type CommunityNotificationPreferenceReadState =
   | 'loading'
   | 'ready'
@@ -75,7 +66,7 @@ export class CommunityNotificationPreferenceService {
   private readonly functions = inject(Functions);
   private readonly session = inject(AuthSessionService);
   private readonly firestoreContext = inject(FirestoreContextService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly readStateSubject =
     new BehaviorSubject<CommunityNotificationPreferenceReadState>('loading');
 
@@ -153,13 +144,7 @@ export class CommunityNotificationPreferenceService {
           muted: raw.muted,
         };
       }),
-      catchError((error: unknown) => {
-        this.reportError(error, 'updateMuted', {
-          communityId: safeCommunityId,
-          muted,
-        });
-        return throwError(() => error);
-      })
+      catchError((error: unknown) => throwError(() => error))
     );
   }
 
@@ -201,19 +186,15 @@ export class CommunityNotificationPreferenceService {
     operation: string,
     extra: Record<string, unknown>
   ): void {
-    try {
-      const reportable = toErrorInstance(
-        error,
-        '[CommunityNotificationPreferenceService] operation failed'
-      ) as CommunityNotificationPreferenceReportableError;
-      reportable.context = 'CommunityNotificationPreferenceService';
-      reportable.operation = operation;
-      reportable.extra = extra;
-      reportable.original = error;
-      reportable.skipUserNotification = true;
-      this.globalError.handleError(reportable);
-    } catch {
-      // noop
-    }
+    this.applicationError.report(error, {
+      feature: 'notifications.community-preference',
+      operation,
+      fallbackMessage: 'Não foi possível carregar as preferências de notificações da Comunidade.',
+      notification: 'none',
+      metadata: {
+        scope: 'CommunityNotificationPreferenceService',
+        ...extra,
+      },
+    });
   }
 }
