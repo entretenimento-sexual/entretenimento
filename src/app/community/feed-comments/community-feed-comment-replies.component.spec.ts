@@ -4,8 +4,8 @@ import { Router } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { CommunityFeedCommentRepository } from '../data-access/community-feed-comment.repository';
 import { CommunityFeedTimeTickerService } from '../feed/community-feed-time-ticker.service';
 import { CommunityFeedCommentRepliesComponent } from './community-feed-comment-replies.component';
@@ -23,7 +23,7 @@ describe('CommunityFeedCommentRepliesComponent', () => {
     showSuccess: vi.fn(),
     showWarning: vi.fn(),
   };
-  const globalErrorMock = { handleError: vi.fn() };
+  const applicationErrorMock = { report: vi.fn() };
   const tickerMock = { now$: of(Date.now()) };
   const dialogMock = { open: vi.fn() };
   const routerMock = { url: '/dashboard/comunidades/community-1' };
@@ -41,7 +41,7 @@ describe('CommunityFeedCommentRepliesComponent', () => {
       providers: [
         { provide: CommunityFeedCommentRepository, useValue: repositoryMock },
         { provide: ErrorNotificationService, useValue: notificationMock },
-        { provide: GlobalErrorHandlerService, useValue: globalErrorMock },
+        { provide: ApplicationErrorService, useValue: applicationErrorMock },
         { provide: CommunityFeedTimeTickerService, useValue: tickerMock },
         { provide: MatDialog, useValue: dialogMock },
         { provide: Router, useValue: routerMock },
@@ -197,10 +197,19 @@ describe('CommunityFeedCommentRepliesComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.componentInstance.replyControl.value).toBe('Texto preservado');
-    expect(notificationMock.showError).toHaveBeenCalledWith(
-      'Você respondeu muitas vezes em pouco tempo. Aguarde um instante.'
+    expect(notificationMock.showError).not.toHaveBeenCalled();
+    expect(applicationErrorMock.report).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        feature: 'community-feed-comment-replies',
+        operation: 'create',
+        fallbackMessage: 'Não foi possível publicar a resposta agora.',
+        codeMessages: {
+          'resource-exhausted':
+            'Você respondeu muitas vezes em pouco tempo. Aguarde um instante.',
+        },
+      })
     );
-    expect(globalErrorMock.handleError).toHaveBeenCalledOnce();
     expect(fixture.nativeElement.textContent).toContain(
       'Seu texto foi preservado. Tente novamente.'
     );
