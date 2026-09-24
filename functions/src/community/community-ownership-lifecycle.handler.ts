@@ -507,7 +507,8 @@ export const transferCommunityOwnership =
         actorUid,
       });
 
-      const result = await db.runTransaction(async (transaction) => {
+      const result: CommunityOwnershipTransferResponse =
+        await db.runTransaction(async (transaction) => {
         const communityRef = db.collection('communities').doc(communityId);
         const actorMembershipRef = communityRef.collection('members').doc(actorUid);
         const targetMembershipRef = communityRef.collection('members').doc(targetUid);
@@ -799,7 +800,8 @@ export const archiveCommunity = onCall<CommunityArchivePayload>(
       actorUid,
     });
 
-    const result = await db.runTransaction(async (transaction) => {
+    const result: CommunityArchiveResponse =
+      await db.runTransaction(async (transaction) => {
       const communityRef = db.collection('communities').doc(communityId);
       const actorMembershipRef = communityRef.collection('members').doc(actorUid);
       const actorUserRef = db.collection('users').doc(actorUid);
