@@ -29,7 +29,6 @@ const INFRASTRUCTURE_EXCEPTIONS = new Set<string>([
  * - quando um arquivo for migrado, ele deve ser removido desta lista;
  * - o teste também falha se uma entrada ficar obsoleta, forçando o baseline a
  *   diminuir de forma explícita até chegar a zero;
- * - Comunidades ficam fora deste boundary por decisão arquitetural do projeto.
  */
 const LEGACY_MANUAL_COMPOSITION_BASELINE = new Set<string>([
   'chat-module/chat-message/chat-message.component.ts',
@@ -122,10 +121,6 @@ function normalizedRelativePath(absolutePath: string): string {
   return relative(APP_ROOT, absolutePath).replaceAll('\\', '/');
 }
 
-function isCommunityOwned(relativePath: string): boolean {
-  return relativePath.toLowerCase().includes('community');
-}
-
 function findManualCompositions(): string[] {
   return collectRuntimeTypeScriptFiles(APP_ROOT)
     .map((absolutePath) => ({
@@ -135,7 +130,6 @@ function findManualCompositions(): string[] {
     .filter(({ relativePath }) => (
       relativePath !== CANONICAL_COMPOSITION_OWNER
       && !INFRASTRUCTURE_EXCEPTIONS.has(relativePath)
-      && !isCommunityOwned(relativePath)
     ))
     .filter(({ absolutePath }) => {
       const source = readFileSync(absolutePath, 'utf8');
@@ -148,7 +142,7 @@ function findManualCompositions(): string[] {
 }
 
 describe('Application error ownership boundary', () => {
-  it('não permite crescimento da composição manual fora de Comunidades', () => {
+  it('não permite crescimento da composição manual de erros', () => {
     const actual = new Set(findManualCompositions());
 
     const unexpected = [...actual]
@@ -158,7 +152,7 @@ describe('Application error ownership boundary', () => {
     expect(
       unexpected,
       [
-        'Nova composição manual detectada fora de Comunidades.',
+        'Nova composição manual de erro detectada.',
         'Use ApplicationErrorService ou uma camada canônica já proprietária do erro.',
       ].join(' ')
     ).toEqual([]);
@@ -180,7 +174,7 @@ describe('Application error ownership boundary', () => {
     ).toEqual([]);
   });
 
-  it('mantém explícito o tamanho atual da dívida fora de Comunidades', () => {
+  it('mantém explícito o tamanho atual da dívida legada', () => {
     expect(LEGACY_MANUAL_COMPOSITION_BASELINE.size).toBe(56);
   });
 });
