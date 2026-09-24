@@ -292,6 +292,8 @@ export const COMMUNITY_SETTINGS_CODE_MESSAGES: CommunityErrorMessageMap =
 
 export const COMMUNITY_TOPIC_REASON_MESSAGES: CommunityErrorMessageMap =
   Object.freeze({
+    community_topics_product_frozen:
+      'As Discussões estão desativadas. Use o Mural da Comunidade.',
     community_topics_unavailable:
       'As Discussões desta Comunidade não estão disponíveis neste momento.',
     community_topic_rate_limited:
