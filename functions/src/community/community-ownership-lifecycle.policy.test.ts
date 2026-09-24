@@ -53,6 +53,19 @@ test('permite transferir para administração ou moderação ativa', () => {
   assert.equal(moderator.allowed, true);
 });
 
+test('nega transferência quando o plano do destinatário não sustenta ownership/capacidade', () => {
+  const decision = evaluateCommunityOwnershipTransfer({
+    ...TRANSFER_BASE,
+    targetOwnershipCapacityEligible: false,
+  });
+
+  assert.equal(decision.allowed, false);
+  assert.equal(
+    decision.denialReason,
+    'target_ownership_capacity_ineligible'
+  );
+});
+
 test('nega transferência para o próprio owner', () => {
   const decision = evaluateCommunityOwnershipTransfer({
     ...TRANSFER_BASE,
