@@ -31,6 +31,9 @@ import {
 } from './community-topic.model';
 
 @Injectable({ providedIn: 'root' })
+/**
+ * @deprecated Domínio congelado. O backend rejeita todas as callables de Tópicos.
+ */
 export class CommunityTopicRepository {
   private readonly functions = inject(Functions);
 
