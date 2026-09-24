@@ -167,6 +167,14 @@ export async function applyPendingRecurringPlanChangeAtProvider(input: {
     return { applied: false, alreadyApplied: false };
   }
 
+  if (pending.cancellationRequestedAt) {
+    throw new HttpsError(
+      'failed-precondition',
+      'O cancelamento da redução já foi solicitado.',
+      { reason: 'recurring_plan_change_cancel_pending' }
+    );
+  }
+
   if (pending.providerUpdateStatus === 'applied') {
     return { applied: false, alreadyApplied: true };
   }
@@ -237,7 +245,8 @@ export async function applyPendingRecurringPlanChangeAtProvider(input: {
           providerUpdateLastErrorCode: null,
           providerUpdatedAt: now,
         },
-        needsProviderPlanChangeSync: false,
+        needsProviderPlanChangeSync:
+          !!freshPending.cancellationRequestedAt,
         updatedAt: now,
       },
       { merge: true }
