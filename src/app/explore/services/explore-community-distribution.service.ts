@@ -1,0 +1,186 @@
+import { Injectable, inject } from '@angular/core';
+import {
+  Observable,
+  catchError,
+  combineLatest,
+  concat,
+  map,
+  of,
+  shareReplay,
+  switchMap,
+  take,
+  tap,
+} from 'rxjs';
+
+import { CommunityNotificationUnreadSummaryService } from 'src/app/core/services/notifications/community-notification-unread-summary.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import {
+  CommunityDiscoveryPage,
+  CommunityPreviewCard,
+} from 'src/app/community/data-access/community-preview.model';
+import { CommunityPreviewRepository } from 'src/app/community/data-access/community-preview.repository';
+import {
+  CommunityDiscoveryCacheContext,
+  DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE,
+} from 'src/app/community/discovery/community-discovery-cache.model';
+import {
+  CommunityDiscoveryCacheService,
+  CommunityDiscoveryCacheSnapshot,
+} from 'src/app/community/discovery/community-discovery-cache.service';
+import { CommunityDiscoverySessionBehaviorService } from 'src/app/community/discovery/community-discovery-session-behavior.service';
+
+export interface ExploreCommunityActivityItem extends CommunityPreviewCard {
+  readonly unreadCount: number;
+  readonly priorityUnreadCount: number;
+  readonly hasPriorityUnread: boolean;
+  readonly activityUpdatedAt: number | null;
+}
+
+export interface ExploreCommunityDistributionVm {
+  readonly recommendations: readonly CommunityPreviewCard[];
+  readonly activity: readonly ExploreCommunityActivityItem[];
+}
+
+const EXPLORE_COMMUNITY_DISTRIBUTION_LIMIT = 3;
+
+const EXPLORE_CACHE_CONTEXT: CommunityDiscoveryCacheContext = Object.freeze({
+  sourceType: 'community',
+  discoveryMode: 'explore',
+  tagId: null,
+  pageSize: DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE,
+});
+
+const MINE_CACHE_CONTEXT: CommunityDiscoveryCacheContext = Object.freeze({
+  sourceType: 'community',
+  discoveryMode: 'mine',
+  tagId: null,
+  pageSize: DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE,
+});
+
+@Injectable({ providedIn: 'root' })
+export class ExploreCommunityDistributionService {
+  private readonly repository = inject(CommunityPreviewRepository);
+  private readonly cache = inject(CommunityDiscoveryCacheService);
+  private readonly unreadSummary = inject(CommunityNotificationUnreadSummaryService);
+  private readonly sessionBehavior = inject(CommunityDiscoverySessionBehaviorService);
+  private readonly applicationError = inject(ApplicationErrorService);
+
+  private readonly discoveryPage$ = this.resolvePage$(
+    EXPLORE_CACHE_CONTEXT,
+    () => this.repository.getDiscoveryPage$({
+      sourceType: 'community',
+      limit: DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE,
+      cursor: null,
+    }),
+    'loadExploreCommunityRecommendations'
+  );
+
+  private readonly minePage$ = this.resolvePage$(
+    MINE_CACHE_CONTEXT,
+    () => this.repository.getMyCommunitiesPage$({
+      sourceType: 'community',
+      limit: DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE,
+      cursor: null,
+    }),
+    'loadExploreCommunityMemberships'
+  );
+
+  readonly vm$: Observable<ExploreCommunityDistributionVm> = combineLatest([
+    this.discoveryPage$,
+    this.minePage$,
+    this.unreadSummary.currentUserSummaryMap$,
+    this.sessionBehavior.state$,
+  ]).pipe(
+    map(([discoveryPage, minePage, unreadMap, sessionState]) => {
+      const mineIds = new Set(minePage.items.map((item) => item.communityId));
+      const hiddenIds = new Set(sessionState.hiddenCommunityIds);
+
+      const recommendations = discoveryPage.items
+        .filter(
+          (item) =>
+            item.source.type === 'community'
+            && !mineIds.has(item.communityId)
+            && !hiddenIds.has(item.communityId)
+        )
+        .slice(0, EXPLORE_COMMUNITY_DISTRIBUTION_LIMIT);
+
+      const activity = minePage.items
+        .flatMap((item): ExploreCommunityActivityItem[] => {
+          const summary = unreadMap.get(item.communityId);
+          if (!summary || summary.unreadCount <= 0) return [];
+
+          return [{
+            ...item,
+            unreadCount: summary.unreadCount,
+            priorityUnreadCount: summary.priorityUnreadCount,
+            hasPriorityUnread: summary.hasPriorityUnread,
+            activityUpdatedAt: summary.updatedAt,
+          }];
+        })
+        .sort((left, right) => {
+          if (left.hasPriorityUnread !== right.hasPriorityUnread) {
+            return left.hasPriorityUnread ? -1 : 1;
+          }
+
+          const updatedDelta =
+            (right.activityUpdatedAt ?? 0) - (left.activityUpdatedAt ?? 0);
+          if (updatedDelta !== 0) return updatedDelta;
+
+          return right.unreadCount - left.unreadCount;
+        })
+        .slice(0, EXPLORE_COMMUNITY_DISTRIBUTION_LIMIT);
+
+      return { recommendations, activity };
+    }),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  private resolvePage$(
+    context: CommunityDiscoveryCacheContext,
+    fetchRemote: () => Observable<CommunityDiscoveryPage>,
+    operation: string
+  ): Observable<CommunityDiscoveryPage> {
+    return this.cache.readSnapshot$(context).pipe(
+      take(1),
+      switchMap((snapshot) => {
+        if (snapshot?.fresh) {
+          return of(snapshot.page);
+        }
+
+        const remote$ = fetchRemote().pipe(
+          tap((page) => this.cache.rememberPage(context, page, false)),
+          catchError((error: unknown) => {
+            this.applicationError.report(error, {
+              feature: 'explore.community-distribution',
+              operation,
+              fallbackMessage:
+                'As Comunidades não puderam ser distribuídas no Explorar agora.',
+              notification: 'none',
+              metadata: {
+                scope: 'ExploreCommunityDistributionService',
+                discoveryMode: context.discoveryMode,
+                pageSize: context.pageSize,
+                hasStaleFallback: Boolean(snapshot),
+              },
+            });
+
+            return snapshot ? of(snapshot.page) : of(this.emptyPage());
+          })
+        );
+
+        return snapshot
+          ? concat(of(snapshot.page), remote$)
+          : remote$;
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+  }
+
+  private emptyPage(): CommunityDiscoveryPage {
+    return {
+      items: [],
+      nextCursor: null,
+      generatedAt: Date.now(),
+    };
+  }
+}
