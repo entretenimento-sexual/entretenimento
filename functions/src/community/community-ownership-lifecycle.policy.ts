@@ -8,7 +8,12 @@
 // -----------------------------------------------------------------------------
 
 export type CommunityOwnershipSourceType = 'community' | 'venue' | null;
-export type CommunityOwnershipStatus = 'active' | 'paused' | 'archived' | null;
+export type CommunityOwnershipStatus =
+  | 'active'
+  | 'paused'
+  | 'dormant'
+  | 'archived'
+  | null;
 export type CommunityOwnershipMembershipStatus =
   | 'active'
   | 'pending'
@@ -98,7 +103,9 @@ export function evaluateCommunityOwnershipTransfer(
     return deniedTransfer('community_source_not_supported');
   }
 
-  if (input.communityStatus !== 'active' && input.communityStatus !== 'paused') {
+  if (input.communityStatus !== 'active'
+    && input.communityStatus !== 'paused'
+    && input.communityStatus !== 'dormant') {
     return deniedTransfer('community_unavailable');
   }
 
@@ -156,7 +163,9 @@ export function evaluateCommunityArchive(
     };
   }
 
-  if (input.communityStatus !== 'active' && input.communityStatus !== 'paused') {
+  if (input.communityStatus !== 'active'
+    && input.communityStatus !== 'paused'
+    && input.communityStatus !== 'dormant') {
     return deniedArchive('community_unavailable');
   }
 
