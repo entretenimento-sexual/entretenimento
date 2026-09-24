@@ -10,8 +10,9 @@
 //
 // Observações:
 // - esta facade NÃO substitui confirmação de backend/webhook
-// - nesta etapa ela organiza o retorno do front com previsibilidade
-// - a sincronização fina de assinatura/entitlement pode ser plugada aqui depois
+// - ela organiza apenas o retorno de navegação do frontend;
+// - assinatura/entitlement são confirmados exclusivamente por webhook/backend;
+// - sucesso no callback nunca concede acesso por conta própria.
 // ============================================================================
 
 import { Injectable, inject, isDevMode } from '@angular/core';
