@@ -86,6 +86,27 @@ export function buildCommunityCapacityRegularization(input: {
   });
 }
 
+export function resolveCommunityCapacityRegularizationClockOwnerUid(
+  rawRegularization: unknown,
+  now = Date.now()
+): string | null {
+  const value = record(rawRegularization);
+  const dueAt = finitePositiveTimestamp(value['dueAt']);
+  const ownerUid = String(value['ownerUid'] ?? '').trim();
+
+  if (
+    value['state'] !== 'capacity_regularization'
+    || value['phase'] !== 'grace_period'
+    || dueAt === null
+    || now < dueAt
+    || !/^[A-Za-z0-9:_-]{1,160}$/.test(ownerUid)
+  ) {
+    return null;
+  }
+
+  return ownerUid;
+}
+
 export function isCommunityCapacityRegularizationOverdue(
   rawRegularization: unknown,
   now = Date.now()
