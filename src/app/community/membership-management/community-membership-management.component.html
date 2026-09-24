@@ -89,6 +89,62 @@
         >
           @if (
             sourceType() === 'community'
+            && capacityRegularization();
+            as regularization
+          ) {
+            <section
+              class="community-management-hub__regularization"
+              [attr.data-phase]="regularization.phase"
+              role="status"
+              aria-labelledby="community-capacity-regularization-title"
+            >
+              <i
+                class="fas {{
+                  regularization.phase === 'overdue'
+                    ? 'fa-triangle-exclamation'
+                    : 'fa-clock'
+                }}"
+                aria-hidden="true"
+              ></i>
+
+              <div class="community-management-hub__regularization-copy">
+                <strong id="community-capacity-regularization-title">
+                  {{ regularizationTitle() }}
+                </strong>
+                <span>{{ regularizationReasonLabel() }}</span>
+                <span>
+                  Prazo: {{ regularization.dueAt | date:'dd/MM/yyyy' }}
+                  · {{ regularizationTimingLabel() }}
+                </span>
+                <span>
+                  Os integrantes atuais são preservados. Não há transferência
+                  automática de propriedade.
+                </span>
+
+                @if (canResolveCapacityRegularization()) {
+                  <div class="community-management-hub__regularization-actions">
+                    <a routerLink="/subscription-plan">
+                      <i class="fas fa-arrow-up-right-dots" aria-hidden="true"></i>
+                      Regularizar plano
+                    </a>
+                    <button type="button" (click)="selectPanel('ownership')">
+                      <i class="fas fa-right-left" aria-hidden="true"></i>
+                      Transferir ou arquivar
+                    </button>
+                  </div>
+                } @else {
+                  <small>
+                    O proprietário precisa regularizar o plano, transferir a
+                    propriedade ou arquivar a Comunidade.
+                  </small>
+                }
+              </div>
+            </section>
+          }
+
+          @if (
+            sourceType() === 'community'
+            && !capacityRegularization()
             && capacity()
             && (
               capacity()?.restrictedByOwnerPlan
