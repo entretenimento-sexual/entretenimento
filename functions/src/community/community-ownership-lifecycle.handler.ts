@@ -32,6 +32,9 @@ import {
   resolveCommunityConfiguredMemberLimit,
   resolvePersonalCommunityCreationPolicy,
 } from './community-capacity.policy';
+import {
+  reconcilePersonalCommunityCapacityRegularization,
+} from './community-capacity-regularization.service';
 import { hasCommunityLifecycleHold } from './community-lifecycle.policy';
 import { resolveCommunityMemberCountDelta } from './community-member-count.policy';
 import {
@@ -504,7 +507,7 @@ export const transferCommunityOwnership =
         actorUid,
       });
 
-      return db.runTransaction(async (transaction) => {
+      const result = await db.runTransaction(async (transaction) => {
         const communityRef = db.collection('communities').doc(communityId);
         const actorMembershipRef = communityRef.collection('members').doc(actorUid);
         const targetMembershipRef = communityRef.collection('members').doc(targetUid);
@@ -757,6 +760,17 @@ export const transferCommunityOwnership =
           generatedAt: now,
         };
       });
+
+      await Promise.all([
+        reconcilePersonalCommunityCapacityRegularization({
+          ownerUid: actorUid,
+        }),
+        reconcilePersonalCommunityCapacityRegularization({
+          ownerUid: targetUid,
+        }),
+      ]);
+
+      return result;
     }
   );
 
@@ -785,7 +799,7 @@ export const archiveCommunity = onCall<CommunityArchivePayload>(
       actorUid,
     });
 
-    return db.runTransaction(async (transaction) => {
+    const result = await db.runTransaction(async (transaction) => {
       const communityRef = db.collection('communities').doc(communityId);
       const actorMembershipRef = communityRef.collection('members').doc(actorUid);
       const actorUserRef = db.collection('users').doc(actorUid);
@@ -916,6 +930,7 @@ export const archiveCommunity = onCall<CommunityArchivePayload>(
         archivedAt: now,
         archivedBy: actorUid,
         archiveReason: reason,
+        capacityRegularization: FieldValue.delete(),
         'lifecycle.state': 'archived',
         'lifecycle.dormantAt': null,
         'lifecycle.archivedAt': now,
@@ -971,5 +986,11 @@ export const archiveCommunity = onCall<CommunityArchivePayload>(
 
       return { communityId, status: 'archived', generatedAt: now };
     });
+
+    await reconcilePersonalCommunityCapacityRegularization({
+      ownerUid: actorUid,
+    });
+
+    return result;
   }
 );
