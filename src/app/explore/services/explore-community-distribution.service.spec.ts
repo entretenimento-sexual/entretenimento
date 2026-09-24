@@ -1,9 +1,12 @@
 import { TestBed } from '@angular/core/testing';
-import { BehaviorSubject, of } from 'rxjs';
+import { BehaviorSubject, map, of } from 'rxjs';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
-import { CommunityNotificationUnreadSummaryService } from 'src/app/core/services/notifications/community-notification-unread-summary.service';
+import {
+  CommunityNotificationUnreadSummary,
+  CommunityNotificationUnreadSummaryService,
+} from 'src/app/core/services/notifications/community-notification-unread-summary.service';
 import { CommunityPreviewRepository } from 'src/app/community/data-access/community-preview.repository';
 import { CommunityExploreContentRepository } from 'src/app/community/data-access/community-explore-content.repository';
 import { CommunityDiscoveryCacheService } from 'src/app/community/discovery/community-discovery-cache.service';
@@ -29,21 +32,39 @@ function card(id: string) {
   };
 }
 
+function summary(
+  communityId: string,
+  unreadCount: number,
+  priorityUnreadCount: number,
+  updatedAt: number
+): CommunityNotificationUnreadSummary {
+  return {
+    communityId,
+    unreadCount,
+    priorityUnreadCount,
+    hasPriorityUnread: priorityUnreadCount > 0,
+    updatedAt,
+  };
+}
+
 describe('ExploreCommunityDistributionService', () => {
   let discoveryCalls: ReturnType<typeof vi.fn>;
-  let mineCalls: ReturnType<typeof vi.fn>;
+  let activityCalls: ReturnType<typeof vi.fn>;
   let contentCalls: ReturnType<typeof vi.fn>;
-  let unreadMap$: BehaviorSubject<ReadonlyMap<string, any>>;
+  let unreadSummaries$: BehaviorSubject<
+    readonly CommunityNotificationUnreadSummary[]
+  >;
   let sessionState$: BehaviorSubject<any>;
 
   beforeEach(() => {
     discoveryCalls = vi.fn(() => of({
-      items: [card('a'), card('b'), card('c'), card('d')],
+      // O backend de descoberta já remove memberships ativos/pendentes.
+      items: [card('a'), card('c'), card('d'), card('e')],
       nextCursor: null,
       generatedAt: 1,
     }));
-    mineCalls = vi.fn(() => of({
-      items: [card('b'), card('mine-1'), card('mine-2')],
+    activityCalls = vi.fn((communityIds: readonly string[]) => of({
+      items: communityIds.map(card),
       nextCursor: null,
       generatedAt: 1,
     }));
@@ -66,22 +87,12 @@ describe('ExploreCommunityDistributionService', () => {
       }],
       generatedAt: 1_800_000_000_100,
     }));
-    unreadMap$ = new BehaviorSubject<ReadonlyMap<string, any>>(new Map([
-      ['mine-1', {
-        communityId: 'mine-1',
-        unreadCount: 4,
-        priorityUnreadCount: 0,
-        hasPriorityUnread: false,
-        updatedAt: 100,
-      }],
-      ['mine-2', {
-        communityId: 'mine-2',
-        unreadCount: 1,
-        priorityUnreadCount: 1,
-        hasPriorityUnread: true,
-        updatedAt: 50,
-      }],
-    ]));
+    unreadSummaries$ = new BehaviorSubject<
+      readonly CommunityNotificationUnreadSummary[]
+    >([
+      summary('mine-1', 4, 0, 100),
+      summary('mine-2', 1, 1, 50),
+    ]);
     sessionState$ = new BehaviorSubject({
       hiddenCommunityIds: ['c'],
       signals: {},
@@ -94,7 +105,7 @@ describe('ExploreCommunityDistributionService', () => {
           provide: CommunityPreviewRepository,
           useValue: {
             getDiscoveryPage$: discoveryCalls,
-            getMyCommunitiesPage$: mineCalls,
+            getMyCommunityActivityCards$: activityCalls,
           },
         },
         {
@@ -112,7 +123,14 @@ describe('ExploreCommunityDistributionService', () => {
         },
         {
           provide: CommunityNotificationUnreadSummaryService,
-          useValue: { currentUserSummaryMap$: unreadMap$.asObservable() },
+          useValue: {
+            currentUserSummaries$: unreadSummaries$.asObservable(),
+            currentUserSummaryMap$: unreadSummaries$.pipe(
+              map((summaries) => new Map(
+                summaries.map((item) => [item.communityId, item] as const)
+              ))
+            ),
+          },
         },
         {
           provide: CommunityDiscoverySessionBehaviorService,
@@ -126,7 +144,7 @@ describe('ExploreCommunityDistributionService', () => {
     });
   });
 
-  it('usa apenas páginas agregadas e limita os dois blocos', () => {
+  it('distribui recomendações e atividade sem carregar a página de Minhas', () => {
     const service = TestBed.inject(ExploreCommunityDistributionService);
     let latest: any;
 
@@ -135,9 +153,10 @@ describe('ExploreCommunityDistributionService', () => {
     });
 
     expect(discoveryCalls).toHaveBeenCalledTimes(1);
-    expect(mineCalls).toHaveBeenCalledTimes(1);
+    expect(activityCalls).toHaveBeenCalledTimes(1);
+    expect(activityCalls).toHaveBeenCalledWith(['mine-1', 'mine-2']);
     expect(latest.recommendations.map((item: any) => item.communityId))
-      .toEqual(['d']);
+      .toEqual(['d', 'e']);
     expect(latest.content.map((item: any) => item.communityId))
       .toEqual(['a']);
     expect(contentCalls).toHaveBeenCalledTimes(1);
@@ -147,7 +166,7 @@ describe('ExploreCommunityDistributionService', () => {
     subscription.unsubscribe();
   });
 
-  it('reage ao resumo agregado sem refazer consultas de Comunidades', () => {
+  it('reage a contagens agregadas sem reler cards quando os candidatos não mudam', () => {
     const service = TestBed.inject(ExploreCommunityDistributionService);
     let latest: any;
 
@@ -155,11 +174,22 @@ describe('ExploreCommunityDistributionService', () => {
       latest = vm;
     });
 
-    unreadMap$.next(new Map());
+    unreadSummaries$.next([
+      summary('mine-1', 9, 0, 200),
+      summary('mine-2', 2, 1, 50),
+    ]);
+
+    expect(activityCalls).toHaveBeenCalledTimes(1);
+    expect(latest.activity.map((item: any) => item.communityId))
+      .toEqual(['mine-2', 'mine-1']);
+    expect(latest.activity.find((item: any) => item.communityId === 'mine-1')
+      ?.unreadCount).toBe(9);
+
+    unreadSummaries$.next([]);
 
     expect(latest.activity).toEqual([]);
     expect(discoveryCalls).toHaveBeenCalledTimes(1);
-    expect(mineCalls).toHaveBeenCalledTimes(1);
+    expect(activityCalls).toHaveBeenCalledTimes(1);
     expect(contentCalls).toHaveBeenCalledTimes(1);
 
     subscription.unsubscribe();
