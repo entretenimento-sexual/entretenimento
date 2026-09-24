@@ -59,6 +59,7 @@ export interface BillingSnapshotResult {
     planKey: BillingGrantedRole;
     effectiveAt: number;
     providerUpdateStatus: 'applied' | 'pending';
+    cancellationPending: boolean;
   } | null;
 }
 
@@ -66,6 +67,11 @@ export interface SchedulePlatformSubscriptionDowngradeResult {
   scheduled: true;
   planKey: BillingGrantedRole;
   effectiveAt: number;
+  providerUpdateStatus: 'applied' | 'pending';
+}
+
+export interface CancelPlatformSubscriptionDowngradeResult {
+  canceled: true;
   providerUpdateStatus: 'applied' | 'pending';
 }
 
