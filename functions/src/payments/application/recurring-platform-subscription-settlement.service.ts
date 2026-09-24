@@ -535,7 +535,7 @@ export async function settleRecurringPlatformSubscriptionPayment(
       : {
         planId: contract.planId,
         planKey: contract.planKey,
-        grantedRole: contract.grantedRole,
+        grantedRole: settlementPlan.grantedRole,
         planSnapshot: contract.planSnapshot,
         amountCents: contract.amountCents,
       };
@@ -627,8 +627,8 @@ export async function settleRecurringPlatformSubscriptionPayment(
       status: 'paid',
       amountCents: payment.amountCents,
       currency: 'BRL',
-      planId: contract.planId,
-      planKey: contract.planKey,
+      planId: settlementPlan.planId,
+      planKey: settlementPlan.planKey,
       createdAt: now,
       updatedAt: now,
     };
@@ -812,14 +812,17 @@ export async function settleRecurringPlatformSubscriptionPayment(
       transactionId,
       entitlementId,
       sourceCheckoutSessionId: contract.sourceCheckoutSessionId,
-      planId: contract.planId,
-      planKey: contract.planKey,
+      planId: settlementPlan.planId,
+      planKey: settlementPlan.planKey,
       amountCents: payment.amountCents,
       currency: 'BRL',
-      catalogVersion: contract.planSnapshot.catalogVersion,
+      catalogVersion: settlementPlan.planSnapshot.catalogVersion,
       recurringContractPriceLocked: true,
       priceTreatment: 'contract_snapshot_until_explicit_change',
-      periodTreatment: 'extend_from_current_end',
+      periodTreatment:
+        settlesPendingPlan
+          ? 'scheduled_downgrade_next_cycle'
+          : 'extend_from_current_end',
       prorationSupported: false,
       paymentOccurredAt: occurredAt,
       subscriptionStartsAt: period.startsAt,
@@ -843,7 +846,7 @@ export async function settleRecurringPlatformSubscriptionPayment(
       entitlementId,
       scope: 'platform_subscription',
       status: 'paid',
-      role: contract.grantedRole,
+      role: settlementPlan.grantedRole,
       accessGranted: entitlementNow.active,
       contractId,
       supersededContractId,
