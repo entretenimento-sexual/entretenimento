@@ -15,7 +15,7 @@ import { HttpsError } from 'firebase-functions/v2/https';
 
 export const COMMUNITY_TOPICS_PRODUCT_STATE = 'frozen' as const;
 
-export function assertCommunityTopicsProductAvailable(): never {
+export function assertCommunityTopicsProductAvailable(): void {
   throw new HttpsError(
     'failed-precondition',
     'Discussões estão desativadas. Use o Mural da Comunidade.',
