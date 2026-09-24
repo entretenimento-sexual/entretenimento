@@ -208,9 +208,10 @@ export class CommunityDiscoveryMineFacade {
 
   toggleNotifications(
     item: CommunityDiscoveryMineCardView,
-    metadata: Readonly<Record<string, unknown>>
+    metadata: Readonly<Record<string, unknown>>,
+    enabled: boolean
   ): void {
-    if (this.isNotificationPreferenceBusy(item.communityId)) return;
+    if (!enabled || this.isNotificationPreferenceBusy(item.communityId)) return;
 
     const nextMuted = !item.notificationsMuted;
     this.notificationPreferenceFeedback.set(null);
