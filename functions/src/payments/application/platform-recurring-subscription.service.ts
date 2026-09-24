@@ -299,6 +299,7 @@ export async function applyAsaasSubscriptionLifecycleEvent(
       lastSettledProviderPaymentId: null,
       lastPaymentStatus: null,
       lastPaymentOccurredAt: null,
+      pendingPlanChange: null,
       needsProviderCancellation: false,
       providerCancellationAttemptCount: 0,
       providerCancellationNextAttemptAt: null,
