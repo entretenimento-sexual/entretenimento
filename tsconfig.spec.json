@@ -30,8 +30,6 @@
   ],
   "exclude": [
     "src/main.ts",
-    "src/test/setup-jest.ts",
-    "src/test/_setup-jest.legacy.ts",
     "src/test/**/*.legacy.ts"
   ]
 }

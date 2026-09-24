@@ -1,6 +1,6 @@
 // src/app/core/services/data-handling/firestore.service.ts
 // Sendo descontiunado em favor de FirestoreRead/WriteService + Repositories
-import { inject, Injectable, Injector, runInInjectionContext } from '@angular/core';
+import { Injectable, Injector, runInInjectionContext } from '@angular/core';
 import { Observable, from, of, throwError } from 'rxjs';
 import { catchError, map, switchMap, tap } from 'rxjs/operators';
 import { CacheService } from '../../general/cache/cache.service';
@@ -19,7 +19,6 @@ import type { WithFieldValue } from 'firebase/firestore';
 import { environment } from 'src/environments/environment';
 
 type GetDocSource = 'default' | 'server' | 'cache';
-type DocSource = 'server' | 'cache'; //DocSource está esmaecido
 type GetDocumentsMode = 'realtime' | 'once';
 type GetDocumentsOpts = {
   mode?: GetDocumentsMode;
@@ -28,7 +27,6 @@ type GetDocumentsOpts = {
 
 @Injectable({ providedIn: 'root' })
 export class FirestoreService {
-  private readonly firestore = inject(Firestore);
   constructor(
     private firestoreErrorHandler: FirestoreErrorHandlerService,
     private cacheService: CacheService,
