@@ -54,10 +54,7 @@ import {
   normalizeCommunitySocialSpaceSourceType,
 } from '../presentation/community-social-space.adapter';
 import {
-  CommunityAttentionGroupKey,
-  resolveCommunityAttentionPresentation,
   resolveCommunityMembershipRolePresentation,
-  resolveCommunityNotificationStatusPresentation,
 } from '../presentation/community-ui.presentation';
 import {
   communityInitials as buildCommunityInitials,
@@ -81,7 +78,6 @@ import {
 } from './community-discovery-mine.facade';
 import { CommunityDiscoverySponsoredFacade } from './community-discovery-sponsored.facade';
 import {
-  CommunityMineParticipationFilter,
   shouldShowMineCommunitySearch,
 } from './community-mine-participation.policy';
 
@@ -153,7 +149,7 @@ export class CommunityDiscoveryPageComponent {
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly dataFacade = inject(CommunityDiscoveryDataFacade);
-  private readonly mineFacade = inject(CommunityDiscoveryMineFacade);
+  readonly mine = inject(CommunityDiscoveryMineFacade);
   private readonly sponsoredFacade = inject(CommunityDiscoverySponsoredFacade);
   private readonly tagCatalogReload$ = new Subject<void>();
 
@@ -194,19 +190,15 @@ export class CommunityDiscoveryPageComponent {
     : null;
 
   private readonly mineUnreadSummaryMap$ =
-    this.mineFacade.unreadSummaryMap$(this.discoveryMode === 'mine');
+    this.mine.unreadSummaryMap$(this.discoveryMode === 'mine');
 
   private readonly mineMutedCommunityIds$ =
-    this.mineFacade.mutedCommunityIds$(this.discoveryMode === 'mine');
+    this.mine.mutedCommunityIds$(this.discoveryMode === 'mine');
 
   readonly selectedTagId = signal<string | null>(this.initialTagId);
   readonly sponsoredPlacement = this.sponsoredFacade.sponsoredPlacement;
   readonly creationGateBusy = signal(false);
   readonly hiddenCommunityFeedback = signal<HiddenCommunityFeedback | null>(null);
-  readonly notificationPreferenceBusyCommunityIds =
-    this.mineFacade.notificationPreferenceBusyCommunityIds;
-  readonly notificationPreferenceFeedback =
-    this.mineFacade.notificationPreferenceFeedback;
 
   readonly tagFilterState$: Observable<CommunityTagFilterState> =
     this.tagCatalogReload$.pipe(
@@ -262,8 +254,8 @@ export class CommunityDiscoveryPageComponent {
     this.sessionBehavior.state$,
     this.mineUnreadSummaryMap$,
     this.mineMutedCommunityIds$,
-    this.mineFacade.searchTerm$,
-    this.mineFacade.participationFilter$,
+    this.mine.searchTerm$,
+    this.mine.participationFilter$,
   ]).pipe(
     map(([
       state,
@@ -292,7 +284,7 @@ export class CommunityDiscoveryPageComponent {
         status = items.length > 0 ? 'ready' : 'empty';
       }
 
-      const cardViews = this.mineFacade.decorateCards(
+      const cardViews = this.mine.decorateCards(
         items,
         unreadSummaryMap,
         mutedCommunityIds
@@ -312,7 +304,7 @@ export class CommunityDiscoveryPageComponent {
       return {
         ...state,
         status,
-        items: this.mineFacade.filterAndOrder(
+        items: this.mine.filterAndOrder(
           cardViews,
           mineParticipationFilter,
           mineSearchTerm
@@ -520,90 +512,9 @@ export class CommunityDiscoveryPageComponent {
       : null;
   }
 
-  notificationStatusPresentation(item: CommunityDiscoveryCardView) {
-    return this.discoveryMode === 'mine'
-      ? resolveCommunityNotificationStatusPresentation(
-          item.notificationUnreadCount,
-          item.notificationHasPriorityUnread,
-          item.notificationsMuted
-        )
-      : null;
-  }
-
-  notificationUnreadAriaLabel(item: CommunityDiscoveryCardView): string {
-    const priority = item.notificationHasPriorityUnread
-      ? ', incluindo atividade prioritária'
-      : '';
-
-    return `${item.notificationUnreadCount} atividades não lidas${priority}`;
-  }
-
-  mineAttentionGroupKey(
-    item: CommunityDiscoveryCardView
-  ): CommunityAttentionGroupKey {
-    return this.mineFacade.attentionGroupKey(item);
-  }
-
-  mineAttentionGroupPresentation(item: CommunityDiscoveryCardView) {
-    return resolveCommunityAttentionPresentation(
-      item.notificationUnreadCount,
-      item.notificationHasPriorityUnread
-    );
-  }
-
-  startsMineAttentionGroup(
-    items: readonly CommunityDiscoveryCardView[],
-    index: number
-  ): boolean {
-    if (this.discoveryMode !== 'mine') return false;
-
-    const item = items[index];
-    if (!item) return false;
-
-    const previous = index > 0 ? items[index - 1] : null;
-    return !previous
-      || this.mineFacade.attentionGroupKey(previous)
-        !== this.mineFacade.attentionGroupKey(item);
-  }
-
-  selectMineParticipationFilter(
-    filterValue: CommunityMineParticipationFilter
-  ): void {
-    if (this.discoveryMode !== 'mine') return;
-    this.mineFacade.selectParticipationFilter(filterValue);
-  }
-
-  isMineParticipationFilterSelected(
-    filterValue: CommunityMineParticipationFilter
-  ): boolean {
-    return this.mineFacade.isParticipationFilterSelected(filterValue);
-  }
-
-  changeMineSearch(event: Event): void {
-    if (this.discoveryMode !== 'mine') return;
-
-    const value = event.target instanceof HTMLInputElement
-      ? event.target.value.slice(0, 80)
-      : '';
-    this.mineFacade.setSearchTerm(value);
-  }
-
-  mineSearchValue(): string {
-    return this.mineFacade.searchValue();
-  }
-
-  clearMineParticipationControls(): void {
-    if (this.discoveryMode !== 'mine') return;
-    this.mineFacade.clearControls();
-  }
-
-  isNotificationPreferenceBusy(communityId: string): boolean {
-    return this.mineFacade.isNotificationPreferenceBusy(communityId);
-  }
-
   toggleCommunityNotifications(item: CommunityDiscoveryCardView): void {
     if (this.discoveryMode !== 'mine') return;
-    this.mineFacade.toggleNotifications(
+    this.mine.toggleNotifications(
       item,
       this.errorMetadata(),
       this.discoveryMode === 'mine'
