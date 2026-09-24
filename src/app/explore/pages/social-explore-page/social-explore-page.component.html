@@ -212,7 +212,14 @@
                 role="listitem"
                 [routerLink]="['/dashboard/comunidades', item.communityId]"
                 [appCommunityDiscoveryVisibility]="item.communityId"
-                (qualifiedExposure)="recordCommunityExposure($event)"
+                (qualifiedExposure)="recordCommunityDistributionExposure(
+                  $event,
+                  'social_explore_recommendation'
+                )"
+                (click)="recordCommunityDistributionOpen(
+                  item.communityId,
+                  'social_explore_recommendation'
+                )"
                 [attr.aria-label]="'Abrir Comunidade ' + item.name"
               >
                 <span class="community-distribution__avatar" aria-hidden="true">
@@ -268,7 +275,14 @@
             role="listitem"
             [item]="communityContent[0]"
             [appCommunityDiscoveryVisibility]="communityContent[0].communityId"
-            (qualifiedExposure)="recordCommunityExposure($event)"
+            (qualifiedExposure)="recordCommunityDistributionExposure(
+                $event,
+                'social_explore_content'
+              )"
+              (opened)="recordCommunityDistributionOpen(
+                $event,
+                'social_explore_content'
+              )"
           />
         }
 
@@ -356,7 +370,14 @@
               role="listitem"
               [item]="communityContent[0]"
               [appCommunityDiscoveryVisibility]="communityContent[0].communityId"
-              (qualifiedExposure)="recordCommunityExposure($event)"
+              (qualifiedExposure)="recordCommunityDistributionExposure(
+                $event,
+                'social_explore_content'
+              )"
+              (opened)="recordCommunityDistributionOpen(
+                $event,
+                'social_explore_content'
+              )"
             />
           }
 
@@ -365,7 +386,14 @@
               role="listitem"
               [item]="communityContent[1]"
               [appCommunityDiscoveryVisibility]="communityContent[1].communityId"
-              (qualifiedExposure)="recordCommunityExposure($event)"
+              (qualifiedExposure)="recordCommunityDistributionExposure(
+                $event,
+                'social_explore_content'
+              )"
+              (opened)="recordCommunityDistributionOpen(
+                $event,
+                'social_explore_content'
+              )"
             />
           }
         }

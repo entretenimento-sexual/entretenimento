@@ -104,6 +104,10 @@ const NON_CENTRAL_RATE_LIMIT_CALLABLES = new Map<string, string>([
     'recordCommunityDiscoveryExposure',
     'consumeExposureQuota',
   ],
+  [
+    'recordCommunityDistributionEvents',
+    'consumeExposureQuota',
+  ],
 ]);
 
 const DIRECT_BACKEND_RATE_LIMIT_ALLOWED_FILES = new Set([

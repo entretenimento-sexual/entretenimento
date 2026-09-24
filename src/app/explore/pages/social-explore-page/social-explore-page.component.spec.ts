@@ -9,7 +9,9 @@ import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-i
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { UserIntentStatusService } from 'src/app/core/services/discovery/user-intent-status.service';
-import { CommunityDiscoveryExposureService } from 'src/app/community/discovery/community-discovery-exposure.service';
+import {
+  CommunityDistributionTelemetryService,
+} from 'src/app/community/discovery/community-distribution-telemetry.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PhotoUploadFlowService } from 'src/app/core/services/image-handling/photo-upload-flow.service';
@@ -165,7 +167,8 @@ describe('SocialExplorePageComponent', () => {
   };
   let loadMorePersonalMedia: ReturnType<typeof vi.fn>;
   let communityDistributionSubject: BehaviorSubject<any>;
-  let recordCommunityExposure: ReturnType<typeof vi.fn>;
+  let recordCommunityDistributionExposure: ReturnType<typeof vi.fn>;
+  let recordCommunityDistributionOpen: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     exploreVmSubject = new BehaviorSubject<any>(EMPTY_VM);
@@ -197,7 +200,8 @@ describe('SocialExplorePageComponent', () => {
       recommendations: [],
       activity: [],
     });
-    recordCommunityExposure = vi.fn();
+    recordCommunityDistributionExposure = vi.fn();
+    recordCommunityDistributionOpen = vi.fn();
 
     await TestBed.configureTestingModule({
       imports: [RouterTestingModule, SocialExplorePageComponent],
@@ -295,8 +299,11 @@ describe('SocialExplorePageComponent', () => {
           useValue: { vm$: communityDistributionSubject.asObservable() },
         },
         {
-          provide: CommunityDiscoveryExposureService,
-          useValue: { recordQualifiedExposure: recordCommunityExposure },
+          provide: CommunityDistributionTelemetryService,
+          useValue: {
+            recordQualifiedExposure: recordCommunityDistributionExposure,
+            recordOpen: recordCommunityDistributionOpen,
+          },
         },
       ],
     }).compileComponents();
@@ -386,6 +393,94 @@ describe('SocialExplorePageComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Da Comunidade');
     expect(fixture.nativeElement.textContent).toContain('Ver na Comunidade');
     expect(fixture.nativeElement.textContent).not.toContain('Curtir');
+  });
+
+  it('atribui aberturas somente às superfícies de descoberta do Explore', () => {
+    communityDistributionSubject.next({
+      recommendations: [
+        {
+          communityId: 'recommended-1',
+          name: 'Cinema independente',
+          slug: 'cinema-independente',
+          description: null,
+          source: { type: 'community', id: 'recommended-1' },
+          avatarUrl: null,
+          coverUrl: null,
+          metrics: { memberCount: 25, postCount: 5, mediaCount: 2 },
+          access: {
+            join: 'open',
+            minimumRole: null,
+            requiresActiveSubscription: false,
+          },
+          tags: [],
+        },
+      ],
+      activity: [
+        {
+          communityId: 'mine-1',
+          name: 'Fotografia urbana',
+          slug: 'fotografia-urbana',
+          description: null,
+          source: { type: 'community', id: 'mine-1' },
+          avatarUrl: null,
+          coverUrl: null,
+          metrics: { memberCount: 18, postCount: 8, mediaCount: 3 },
+          access: {
+            join: 'open',
+            minimumRole: null,
+            requiresActiveSubscription: false,
+          },
+          tags: [],
+          unreadCount: 3,
+          priorityUnreadCount: 1,
+          hasPriorityUnread: true,
+          activityUpdatedAt: 1_800_000_000_000,
+        },
+      ],
+      content: [
+        {
+          communityId: 'content-1',
+          postId: 'post-1',
+          community: {
+            name: 'Cinema clássico',
+            slug: 'cinema-classico',
+            avatarUrl: null,
+          },
+          post: {
+            kind: 'text',
+            author: { label: 'Pessoa autora', avatarUrl: null },
+            text: 'Conteúdo distribuído.',
+            image: null,
+          },
+          publishedAt: 1_800_000_000_000,
+        },
+      ],
+    });
+    fixture.detectChanges();
+
+    const cards = fixture.debugElement.queryAll(
+      By.css('.community-distribution__card')
+    );
+    cards[0].triggerEventHandler('click', new MouseEvent('click'));
+    cards[1].triggerEventHandler('click', new MouseEvent('click'));
+
+    const contentAction = fixture.debugElement.query(
+      By.css('app-explore-community-content-card .community-content-card__action')
+    );
+    contentAction.triggerEventHandler('click', new MouseEvent('click'));
+
+    expect(recordCommunityDistributionOpen).not.toHaveBeenCalledWith(
+      'mine-1',
+      expect.anything()
+    );
+    expect(recordCommunityDistributionOpen).toHaveBeenCalledWith(
+      'recommended-1',
+      'social_explore_recommendation'
+    );
+    expect(recordCommunityDistributionOpen).toHaveBeenCalledWith(
+      'content-1',
+      'social_explore_content'
+    );
   });
 
   it('mantém somente a publicação persistente na barra superior', () => {

@@ -6,6 +6,7 @@
     [routerLink]="['/dashboard/comunidades', content.communityId]"
     [queryParams]="{ post: content.postId }"
     [attr.aria-label]="'Abrir publicação na Comunidade ' + content.community.name"
+    (click)="recordOpen()"
   >
     <span class="community-content-card__community-avatar" aria-hidden="true">
       @if (content.community.avatarUrl) {
@@ -58,6 +59,7 @@
       [routerLink]="['/dashboard/comunidades', content.communityId]"
       [queryParams]="{ post: content.postId }"
       [attr.aria-label]="'Ver foto publicada em ' + content.community.name"
+      (click)="recordOpen()"
     >
       <img
         [src]="content.post.image.url"
@@ -73,6 +75,7 @@
     class="community-content-card__action"
     [routerLink]="['/dashboard/comunidades', content.communityId]"
     [queryParams]="{ post: content.postId }"
+    (click)="recordOpen()"
   >
     Ver na Comunidade
   </a>

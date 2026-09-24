@@ -17,6 +17,11 @@ import {
   REQUIRE_COMMUNITY_APP_CHECK,
 } from './community-callable-security';
 import {
+  normalizeCommunityDistributionTelemetryRequest,
+  type CommunityDistributionTelemetryEvent,
+  type CommunityDistributionTelemetryRequest,
+} from './community-distribution-telemetry.policy';
+import {
   COMMUNITY_DISCOVERY_EXPOSURE_BURST_MAX_BATCHES,
   COMMUNITY_DISCOVERY_EXPOSURE_BURST_WINDOW_MS,
   COMMUNITY_DISCOVERY_EXPOSURE_COUNTER_SHARDS,
@@ -165,6 +170,139 @@ export const recordCommunityDiscoveryExposure =
 
       return {
         accepted: eligibleCommunityIds.length,
+        generatedAt: now,
+      };
+    }
+  );
+
+export const recordCommunityDistributionEvents =
+  onCall<CommunityDistributionTelemetryRequest>(
+    {
+      region: FUNCTIONS_REGION,
+      enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+    },
+    async (request): Promise<CommunityDiscoveryExposureResponse> => {
+      const startedAt = Date.now();
+      assertRuntime();
+      assertCommunityCallableAppCheck(request.app);
+      const uid = assertActor(request.auth);
+      const command = normalizeCommunityDistributionTelemetryRequest(
+        request.data
+      );
+
+      if (!command) {
+        throw new HttpsError(
+          'invalid-argument',
+          'Lote de telemetria de distribuição de Comunidades inválido.'
+        );
+      }
+
+      await assertCommunitySocialAccessForUid(uid);
+      await consumeExposureQuota(uid);
+
+      const communityIds = [...new Set(
+        command.events.map((event) => event.communityId)
+      )];
+      const projectionSnapshots = await db.getAll(
+        ...communityIds.map((communityId) =>
+          db.collection('community_discovery_index').doc(communityId)
+        )
+      );
+      const eligibleCommunityIds = new Set(
+        projectionSnapshots
+          .filter((snapshot) =>
+            snapshot.exists
+            && isCommunityDiscoveryExposureEligibleProjection(
+              snapshot.data(),
+              'community'
+            )
+          )
+          .map((snapshot) => snapshot.id)
+      );
+      const eligibleEvents = command.events.filter((event) =>
+        eligibleCommunityIds.has(event.communityId)
+      );
+      const now = Date.now();
+      let counterWrites = 0;
+
+      if (eligibleEvents.length > 0) {
+        const day = resolveCommunityDiscoveryExposureDay(now);
+        const dayRef = db
+          .collection('community_discovery_exposure_daily')
+          .doc(day);
+        const eventsByCommunity = new Map<
+          string,
+          CommunityDistributionTelemetryEvent[]
+        >();
+
+        for (const event of eligibleEvents) {
+          const current = eventsByCommunity.get(event.communityId) ?? [];
+          current.push(event);
+          eventsByCommunity.set(event.communityId, current);
+        }
+
+        const batch = db.batch();
+
+        for (const [communityId, events] of eventsByCommunity) {
+          const shard = randomInt(COMMUNITY_DISCOVERY_EXPOSURE_COUNTER_SHARDS);
+          const shardRef = dayRef
+            .collection('communities')
+            .doc(communityId)
+            .collection('shards')
+            .doc(String(shard));
+          const distribution: Record<string, Record<string, unknown>> = {};
+          let qualifiedExposureCount = 0;
+
+          for (const event of events) {
+            const eventMetrics = distribution[event.eventType] ?? {};
+            eventMetrics[event.surface] = FieldValue.increment(1);
+            distribution[event.eventType] = eventMetrics;
+
+            if (event.eventType === 'qualified_exposure') {
+              qualifiedExposureCount += 1;
+            }
+          }
+
+          const payload: Record<string, unknown> = {
+            sourceType: 'community',
+            distribution,
+            updatedAt: now,
+          };
+
+          // Preserva o contador legado de exposições totais. Aberturas não
+          // alteram esse total e vivem somente na dimensão distribution.open.
+          if (qualifiedExposureCount > 0) {
+            payload['count'] = FieldValue.increment(qualifiedExposureCount);
+          }
+
+          batch.set(shardRef, payload, { merge: true });
+          counterWrites += 1;
+        }
+
+        await batch.commit();
+      }
+
+      const accepted = eligibleEvents.length;
+      const rateLimitWrites = 1;
+      const operationalWritesProxy = counterWrites + rateLimitWrites;
+      const writesPerAcceptedEvent = accepted > 0
+        ? Math.round((operationalWritesProxy / accepted) * 100) / 100
+        : null;
+
+      logger.info('community_distribution_events_recorded', {
+        submitted: command.events.length,
+        accepted,
+        uniqueCommunities: communityIds.length,
+        projectionReads: projectionSnapshots.length,
+        counterWrites,
+        rateLimitWrites,
+        operationalWritesProxy,
+        writesPerAcceptedEvent,
+        durationMs: Date.now() - startedAt,
+      });
+
+      return {
+        accepted,
         generatedAt: now,
       };
     }
