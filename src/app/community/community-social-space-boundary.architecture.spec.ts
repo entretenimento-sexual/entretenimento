@@ -176,6 +176,19 @@ describe('Community × Local social-space boundary', () => {
     ).not.toEqual([]);
   });
 
+  it('mantém FirestoreService legado somente enquanto houver consumidor de produção', () => {
+    const legacyFirestore = resolve(
+      APP_ROOT,
+      'core/services/data-handling/legacy/firestore.service.ts'
+    );
+    const inbound = productionTsInboundCounts();
+
+    expect(
+      inbound.get(legacyFirestore) ?? 0,
+      'FirestoreService legado sem consumidor deve ser removido'
+    ).toBeGreaterThan(0);
+  });
+
   it('não introduz arquivos TS órfãos no módulo Community', () => {
     const inbound = productionTsInboundCounts();
     const orphans = [...inbound.entries()]
