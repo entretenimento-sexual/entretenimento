@@ -47,7 +47,8 @@ function preview(): CommunityPreviewResponse {
       memberLimitOptions: [],
       allowedMemberLimits: [],
     },
-    settings: null,
+    capacityRegularization: null,
+  settings: null,
     canLeaveMembership: false,
     generatedAt: 123,
   };
