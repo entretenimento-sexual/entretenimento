@@ -472,7 +472,10 @@ export class CommunityDiscoveryPageComponent {
       }
 
       const cardViews = items.map((item): CommunityDiscoveryCardView => {
-        const summary = unreadSummaryMap.get(item.communityId);
+        const summary =
+          unreadSummaryMap.get(item.communityId)
+          ?? item.viewerNotificationSummary
+          ?? null;
 
         return {
           ...item,
