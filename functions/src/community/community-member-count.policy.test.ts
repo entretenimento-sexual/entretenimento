@@ -101,12 +101,12 @@ test('centraliza criação e quantidade de Comunidades pessoais por plano', () =
   });
   assert.deepEqual(resolvePersonalCommunityCreationPolicy('premium'), {
     canCreate: true,
-    maxOwnedCommunities: 3,
+    maxOwnedCommunities: 2,
     memberLimit: 250,
   });
   assert.deepEqual(resolvePersonalCommunityCreationPolicy('vip'), {
     canCreate: true,
-    maxOwnedCommunities: 5,
+    maxOwnedCommunities: 3,
     memberLimit: 500,
   });
 });
@@ -157,7 +157,7 @@ test('expõe capability autoritativa antes de montar o compositor', () => {
 
   const premiumAtLimit = resolveCommunityCreationCapability({
     sponsorRole: 'premium',
-    currentOwnedCommunities: 3,
+    currentOwnedCommunities: 2,
   });
   assert.equal(premiumAtLimit.reason, 'limit_reached');
   assert.equal(premiumAtLimit.recommendedUpgradeRole, 'vip');

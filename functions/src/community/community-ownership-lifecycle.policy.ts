@@ -29,7 +29,8 @@ export type CommunityOwnershipTransferDenialReason =
   | 'ownership_inconsistent'
   | 'self_transfer_forbidden'
   | 'target_membership_ineligible'
-  | 'target_account_ineligible';
+  | 'target_account_ineligible'
+  | 'target_ownership_capacity_ineligible';
 
 export interface CommunityOwnershipTransferInput {
   sourceType: CommunityOwnershipSourceType;
@@ -41,6 +42,7 @@ export interface CommunityOwnershipTransferInput {
   targetStatus: CommunityOwnershipMembershipStatus;
   targetRole: CommunityOwnershipMembershipRole;
   targetAccountEligible: boolean;
+  targetOwnershipCapacityEligible?: boolean;
   activeOwnerCount: number;
 }
 
@@ -123,6 +125,10 @@ export function evaluateCommunityOwnershipTransfer(
 
   if (!input.targetAccountEligible) {
     return deniedTransfer('target_account_ineligible');
+  }
+
+  if (input.targetOwnershipCapacityEligible === false) {
+    return deniedTransfer('target_ownership_capacity_ineligible');
   }
 
   return {

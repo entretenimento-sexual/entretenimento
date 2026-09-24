@@ -184,3 +184,6 @@ export {
   syncCommunityProfileMembershipIndex as syncCommunityProfileMembershipIndexTrigger,
 } from './sync-community-profile-membership-index.trigger';
 export { syncVenuePublicLocation } from './sync-venue-public-location.trigger';
+export {
+  syncCommunityCapacityRegularization,
+} from './sync-community-capacity-regularization.trigger';
