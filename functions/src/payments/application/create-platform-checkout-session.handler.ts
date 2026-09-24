@@ -14,17 +14,15 @@
 // Segurança:
 // - o frontend nunca informa valor financeiro confiável;
 // - o frontend nunca define role concedida;
-// - downgrade é bloqueado no backend até existir agendamento de próximo ciclo;
+// - downgrade automático permanece bloqueado enquanto não existir uma operação
+//   financeira segura para trocar a recorrência apenas no próximo ciclo;
 // - o checkout não confirma pagamento;
-// - em cloud, esta function falha até existir provider real validado;
-// - o provider local não se apresenta como Asaas real.
+// - em cloud, o Asaas real só é liberado quando ASAAS_RECURRING_ENABLED=true;
+// - App Check, rate limit e lock por comprador protegem a criação.
 //
 // Evolução futura:
-// - selecionar provider real por configuração segura;
-// - exigir App Check;
-// - aplicar idempotency key por tentativa de criação;
-// - implementar downgrade agendado no ciclo seguinte;
-// - permitir ciclos anuais, promoções e novos escopos financeiros.
+// - fluxo explícito de mudança futura/repricing com consentimento;
+// - ciclos anuais, promoções e novos escopos financeiros.
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
