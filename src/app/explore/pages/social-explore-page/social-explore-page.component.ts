@@ -496,11 +496,7 @@ export class SocialExplorePageComponent {
       source: 'discover',
     }).pipe(
       catchError(() => {
-        // O launcher canônico já envia o erro ao GlobalErrorHandlerService.
-        // Aqui mantemos somente o feedback contextual para o usuário.
-        this.errorNotification.showError(
-          'Não foi possível abrir esta publicação neste momento.'
-        );
+        // O launcher canônico é dono do diagnóstico e da apresentação do erro.
         return EMPTY;
       }),
       finalize(() => {

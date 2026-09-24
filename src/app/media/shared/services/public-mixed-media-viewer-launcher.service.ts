@@ -11,8 +11,8 @@ import {
   isPublicPhotoItem,
   isPublicVideoItem,
 } from 'src/app/core/interfaces/media/i-public-profile-media-item';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PublicMixedMediaContinuationService } from 'src/app/core/services/media/public-mixed-media-continuation.service';
 import { buildPublicMediaIdentity } from 'src/app/core/utils/media/public-media-identity';
 import { PublicPhotoViewerLauncherService } from 'src/app/media/photos/photo-viewer/public-photo-viewer-launcher.service';
@@ -46,7 +46,7 @@ export class PublicMixedMediaViewerLauncherService {
   private readonly videoViewer = inject(PublicVideoViewerLauncherService);
   private readonly mixedContinuation = inject(PublicMixedMediaContinuationService);
   private readonly errorNotification = inject(ErrorNotificationService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
 
   open$(request: OpenPublicMixedMediaViewerRequest): Observable<void> {
     return defer(() => {
@@ -68,7 +68,14 @@ export class PublicMixedMediaViewerLauncherService {
       return this.openFromIndex$(session, selectedIndex, request);
     }).pipe(
       catchError((error: unknown) => {
-        this.reportError(error, request, 'open$');
+        this.reportError(
+          error,
+          request,
+          'open$',
+          request.items?.length ?? 0,
+          'error',
+          'Não foi possível abrir esta publicação neste momento.'
+        );
         return throwError(() => error);
       })
     );
@@ -310,30 +317,22 @@ export class PublicMixedMediaViewerLauncherService {
     error: unknown,
     request: OpenPublicMixedMediaViewerRequest,
     operation: string,
-    itemCount = request.items?.length ?? 0
+    itemCount = request.items?.length ?? 0,
+    notification: 'error' | 'none' = 'none',
+    fallbackMessage =
+      'Não foi possível atualizar a sequência pública de mídias agora.'
   ): void {
-    try {
-      const normalized = error instanceof Error
-        ? error
-        : new Error('Falha ao abrir sequência pública de mídias.');
-      const contextual = normalized as Error & {
-        original?: unknown;
-        context?: Record<string, unknown>;
-        skipUserNotification?: boolean;
-      };
-
-      contextual.original = error;
-      contextual.context = {
+    this.applicationError.report(error, {
+      feature: 'public-mixed-media-viewer',
+      operation,
+      fallbackMessage,
+      notification,
+      metadata: {
         scope: 'PublicMixedMediaViewerLauncherService',
-        op: operation,
         source: request.source,
         requestedItems: itemCount,
         selectedType: isPublicVideoItem(request.selected) ? 'VIDEO' : 'PHOTO',
-      };
-      contextual.skipUserNotification = true;
-      this.globalError.handleError(contextual);
-    } catch {
-      // Falha de diagnóstico não substitui o erro original.
-    }
+      },
+    });
   }
 }

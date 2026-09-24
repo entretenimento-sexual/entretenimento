@@ -1,12 +1,12 @@
 import { TestBed } from '@angular/core/testing';
-import { firstValueFrom, of } from 'rxjs';
+import { firstValueFrom, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
 import type { IPublicProfileMediaItem } from 'src/app/core/interfaces/media/i-public-profile-media-item';
 import type { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PublicMixedMediaContinuationService } from 'src/app/core/services/media/public-mixed-media-continuation.service';
 import { PublicPhotoViewerLauncherService } from 'src/app/media/photos/photo-viewer/public-photo-viewer-launcher.service';
 import { PublicVideoViewerLauncherService } from 'src/app/media/videos/public-video-viewer/public-video-viewer-launcher.service';
@@ -53,8 +53,8 @@ describe('PublicMixedMediaViewerLauncherService', () => {
     showInfo: vi.fn(),
     showWarning: vi.fn(),
   };
-  const globalError = {
-    handleError: vi.fn(),
+  const applicationError = {
+    report: vi.fn(),
   };
 
   beforeEach(() => {
@@ -73,7 +73,7 @@ describe('PublicMixedMediaViewerLauncherService', () => {
         { provide: PublicVideoViewerLauncherService, useValue: videoViewer },
         { provide: PublicMixedMediaContinuationService, useValue: mixedContinuation },
         { provide: ErrorNotificationService, useValue: errorNotification },
-        { provide: GlobalErrorHandlerService, useValue: globalError },
+        { provide: ApplicationErrorService, useValue: applicationError },
       ],
     });
   });
@@ -273,6 +273,32 @@ describe('PublicMixedMediaViewerLauncherService', () => {
     expect(errorNotification.showWarning).not.toHaveBeenCalled();
   });
 
+  it('apresenta falha fatal de abertura pela fronteira canônica', async () => {
+    const service = TestBed.inject(PublicMixedMediaViewerLauncherService);
+    const selected = photo('owner-a', 'photo-a');
+    const failure = new Error('viewer indisponível');
+
+    photoViewer.openWithResult$.mockReturnValueOnce(
+      throwError(() => failure)
+    );
+
+    await expect(firstValueFrom(service.open$({
+      items: [selected],
+      selected,
+      source: 'discover',
+    }))).rejects.toThrow('viewer indisponível');
+
+    expect(applicationError.report).toHaveBeenCalledWith(
+      failure,
+      expect.objectContaining({
+        feature: 'public-mixed-media-viewer',
+        operation: 'open$',
+        fallbackMessage: 'Não foi possível abrir esta publicação neste momento.',
+        notification: 'error',
+      })
+    );
+  });
+
   it('avisa o usuário e registra diagnóstico quando a continuação falha', async () => {
     const service = TestBed.inject(PublicMixedMediaViewerLauncherService);
     const selected = photo('owner-a', 'photo-a');
@@ -297,7 +323,14 @@ describe('PublicMixedMediaViewerLauncherService', () => {
     expect(errorNotification.showWarning).toHaveBeenCalledWith(
       'Não foi possível carregar mais mídias agora. Tente novamente mais tarde.'
     );
-    expect(globalError.handleError).toHaveBeenCalledTimes(1);
+    expect(applicationError.report).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        feature: 'public-mixed-media-viewer',
+        operation: 'loadContinuation$.degraded',
+        notification: 'none',
+      })
+    );
     expect(errorNotification.showInfo).not.toHaveBeenCalled();
   });
 });

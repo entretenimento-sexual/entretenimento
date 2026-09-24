@@ -17,6 +17,7 @@ const CANONICAL_REPORTERS = [
   'explore/pages/social-explore-page/social-explore-page.component.ts',
   'explore/services/explore-personal-media.service.ts',
   'layout/other-user-profile-view/other-user-profile-view.component.ts',
+  'media/shared/services/public-mixed-media-viewer-launcher.service.ts',
   'user-profile/user-photo-manager/user-photo-manager.component.ts',
   'user-profile/user-profile-edit/edit-preferences/edit-profile-preferences.component.ts',
   'user-profile/user-profile-edit/edit-profile-social-links/edit-profile-social-links.component.ts',
@@ -24,6 +25,12 @@ const CANONICAL_REPORTERS = [
   'user-profile/user-profile-view/user-profile-preferences/user-profile-preferences.component.ts',
   'user-profile/user-profile-view/user-profile-view.component.ts',
   'user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component.ts',
+] as const;
+
+const HOST_ERROR_PRESENTATION_FILES = [
+  'explore/pages/social-explore-page/social-explore-page.component.ts',
+  'layout/other-user-profile-view/other-user-profile-view.component.ts',
+  'user-profile/user-profile-view/user-profile-view.component.ts',
 ] as const;
 
 function productionTypeScriptFiles(relativeDirectory: string): string[] {
@@ -85,6 +92,17 @@ describe('Profile/Explore application error boundary', () => {
       violations,
       'Perfil/Explore devem reportar falhas técnicas via ApplicationErrorService'
     ).toEqual([]);
+  });
+
+  it('proíbe apresentação manual de erro nas superfícies hospedeiras', () => {
+    for (const relativePath of HOST_ERROR_PRESENTATION_FILES) {
+      const source = readFileSync(resolve(APP_ROOT, relativePath), 'utf8');
+
+      expect(
+        source,
+        `${relativePath} deve delegar apresentação de erro ao ApplicationErrorService`
+      ).not.toMatch(/\.showError\s*\(/);
+    }
   });
 
   it('mantém ApplicationErrorService nos consumidores migrados', () => {
