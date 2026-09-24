@@ -5,6 +5,7 @@ import test from 'node:test';
 import {
   applyCommunityCapacityRegularizationGate,
   evaluateCommunityCapacityRegularization,
+  isCommunityCapacityRegularizationActionRequired,
 } from './community-capacity-regularization.policy';
 import { evaluateCommunityCapacity } from './community-capacity.policy';
 import { COMMUNITY_PRODUCT_LIMITS } from './community-product-limits.config';
@@ -124,5 +125,35 @@ test('deadline vencido pausa novas entradas sem remover memberships', () => {
   assert.equal(
     gated.regularizationReason,
     'owned_community_quota_exceeded'
+  );
+});
+
+test('action_required transforma a Comunidade em leitura/gestão até regularizar', () => {
+  const rawCommunity = {
+    capacityRegularization: {
+      policyVersion: 1,
+      status: 'action_required',
+      ownerUid: 'owner-1',
+      reasons: ['owned_community_quota_exceeded'],
+      sponsorRole: 'basic',
+      currentOwnedCommunities: 2,
+      maxOwnedCommunities: 1,
+      configuredMemberLimit: 25,
+      planMemberLimit: 100,
+      startedAt: NOW,
+      deadlineAt: NOW + GRACE_MS,
+      nextEvaluationAt: null,
+      availableActions: [
+        'regularize_plan',
+        'transfer_ownership',
+        'archive',
+      ],
+      updatedAt: NOW + GRACE_MS,
+    },
+  };
+
+  assert.equal(
+    isCommunityCapacityRegularizationActionRequired(rawCommunity),
+    true
   );
 });
