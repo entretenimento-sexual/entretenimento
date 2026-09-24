@@ -12,7 +12,6 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { buildCommunityOperationalRequestRetention } from './community-operational-retention.policy';
 import { db, Timestamp } from '../firebaseApp';
-import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   REQUIRE_COMMUNITY_APP_CHECK,
   assertCommunityCallableAppCheck,
@@ -32,16 +31,9 @@ import {
 import type { CommunityTopicStatus } from './community-topic.model';
 import type { CommunityViewerRole } from './community-preview.model';
 import { getCommunityViewerContext } from './community-viewer-access.service';
-
-function assertTopicsRuntime(): void {
-  if (isCommunityPreviewRuntimeAvailable()) return;
-
-  throw new HttpsError(
-    'failed-precondition',
-    'A moderação de Tópicos ainda não está disponível neste ambiente.',
-    { reason: 'community_topic_moderation_unavailable' }
-  );
-}
+import {
+  assertCommunityTopicsProductAvailable,
+} from './community-topics-product-state';
 
 function assertAuthenticatedUid(
   auth: { uid?: string; token?: Record<string, unknown> } | undefined
@@ -149,8 +141,8 @@ export const moderateCommunityTopic = onCall<CommunityTopicModerationRequest>(
     enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
   },
   async (request): Promise<CommunityTopicModerationResponse> => {
-    assertTopicsRuntime();
     assertCommunityCallableAppCheck(request.app);
+    assertCommunityTopicsProductAvailable();
     const actorUid = assertAuthenticatedUid(request.auth);
     const command = normalizeCommunityTopicModerationRequest(request.data);
 
