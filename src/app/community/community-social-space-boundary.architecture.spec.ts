@@ -1,6 +1,6 @@
 // src/app/community/community-social-space-boundary.architecture.spec.ts
 import { readdirSync, readFileSync } from 'node:fs';
-import { extname, join, relative, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
@@ -41,6 +41,18 @@ function productionComponentFiles(root: string): readonly string[] {
 }
 
 describe('Community × Local social-space boundary', () => {
+  it('mantém o adapter de produto bounded', () => {
+    const adapterSource = readFileSync(
+      resolve(
+        COMMUNITY_ROOT,
+        'presentation/community-social-space.adapter.ts'
+      ),
+      'utf8'
+    );
+
+    expect(adapterSource.split(/\r?\n/u).length).toBeLessThanOrEqual(450);
+  });
+
   it('mantém capacidades no kernel comum sem reativar Room', () => {
     expect(getSocialSpaceDefinition('community').capabilities).toMatchObject({
       topics: true,
