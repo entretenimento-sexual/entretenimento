@@ -15,6 +15,9 @@ import {
   stopOpenCommunityBoostForCommunityInTransaction,
 } from '../community-boost/community-boost-authority.service';
 import { FUNCTIONS_REGION } from '../config/functions-region';
+import {
+  evaluatePlatformSubscriptionEntitlement,
+} from '../payments/application/platform-subscription-entitlement.service';
 import { buildCommunityOperationalRequestRetention } from './community-operational-retention.policy';
 import { db, FieldValue } from '../firebaseApp';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
@@ -22,6 +25,11 @@ import {
   REQUIRE_COMMUNITY_APP_CHECK,
   assertCommunityCallableAppCheck,
 } from './community-callable-security';
+import {
+  MAX_PERSONAL_COMMUNITIES_PER_OWNER,
+  resolveCommunityCapacitySponsorRole,
+  resolvePersonalCommunityCreationPolicy,
+} from './community-capacity.policy';
 import { hasCommunityLifecycleHold } from './community-lifecycle.policy';
 import { resolveCommunityMemberCountDelta } from './community-member-count.policy';
 import {
@@ -309,6 +317,17 @@ function throwTransferDecisionError(reason: string | null): never {
     );
   }
 
+  if (reason === 'target_ownership_capacity_ineligible') {
+    throw new HttpsError(
+      'resource-exhausted',
+      'O plano atual do destinatário não permite assumir outra Comunidade.',
+      {
+        reason: 'community_ownership_target_capacity_reached',
+        recommendedAction: 'target_upgrade_or_choose_another_owner',
+      }
+    );
+  }
+
   throw new HttpsError(
     'failed-precondition',
     'Esta Comunidade não pode transferir a propriedade agora.'
@@ -490,6 +509,15 @@ export const transferCommunityOwnership =
         const targetMembershipRef = communityRef.collection('members').doc(targetUid);
         const actorUserRef = db.collection('users').doc(actorUid);
         const targetUserRef = db.collection('users').doc(targetUid);
+        const targetEntitlementRef = db
+          .collection('entitlements')
+          .doc(`platform_subscription_${targetUid}`);
+        const targetOwnedCommunitiesQuery = db
+          .collection('communities')
+          .where('ownerUid', '==', targetUid)
+          .where('source.type', '==', 'community')
+          .where('status', 'in', ['active', 'paused', 'dormant'])
+          .limit(MAX_PERSONAL_COMMUNITIES_PER_OWNER + 1);
         const actorIndexRef = db
           .collection('community_user_index')
           .doc(actorUid)
@@ -518,6 +546,8 @@ export const transferCommunityOwnership =
           targetMembershipSnapshot,
           actorUserSnapshot,
           targetUserSnapshot,
+          targetEntitlementSnapshot,
+          targetOwnedCommunitiesSnapshot,
           ownerSnapshot,
         ] = await Promise.all([
           transaction.get(requestRef),
@@ -526,6 +556,8 @@ export const transferCommunityOwnership =
           transaction.get(targetMembershipRef),
           transaction.get(actorUserRef),
           transaction.get(targetUserRef),
+          transaction.get(targetEntitlementRef),
+          transaction.get(targetOwnedCommunitiesQuery),
           transaction.get(ownerQuery),
         ]);
 
@@ -570,6 +602,27 @@ export const transferCommunityOwnership =
         } catch {
           targetEligible = false;
         }
+        const targetUser = targetUserSnapshot.exists
+          ? targetUserSnapshot.data() ?? {}
+          : {};
+        const targetEntitlement = evaluatePlatformSubscriptionEntitlement(
+          targetEntitlementSnapshot.exists ? targetEntitlementSnapshot.data() : null,
+          targetUid
+        );
+        const targetSponsorRole = resolveCommunityCapacitySponsorRole(
+          targetEntitlement.active ? targetEntitlement.role : null,
+          targetUser['role']
+        );
+        const targetOwnershipPolicy = resolvePersonalCommunityCreationPolicy(
+          targetSponsorRole
+        );
+        const targetOwnershipCapacityEligible =
+          targetOwnershipPolicy.canCreate
+          && (
+            targetOwnershipPolicy.maxOwnedCommunities === null
+            || targetOwnedCommunitiesSnapshot.size
+              < targetOwnershipPolicy.maxOwnedCommunities
+          );
         const community = communitySnapshot.data() ?? {};
         assertCommunityOwnerPointer(community, actorUid);
         const source = (community['source'] ?? {}) as Record<string, unknown>;
@@ -589,6 +642,7 @@ export const transferCommunityOwnership =
           targetStatus: normalizeMembershipStatus(targetMembership['status']),
           targetRole: normalizeMembershipRole(targetMembership['role']),
           targetAccountEligible: targetEligible,
+          targetOwnershipCapacityEligible,
           activeOwnerCount: ownerSnapshot.size,
         });
 
