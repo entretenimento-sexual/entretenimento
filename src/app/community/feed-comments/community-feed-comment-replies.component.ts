@@ -41,8 +41,8 @@ import {
   tap,
 } from 'rxjs';
 
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ReportContentButtonComponent } from 'src/app/shared/components-globais/moderation-report/report-content-button/report-content-button.component';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import {
@@ -160,7 +160,7 @@ function reduceReplyState(
 export class CommunityFeedCommentRepliesComponent {
   private readonly repository = inject(CommunityFeedCommentRepository);
   private readonly notification = inject(ErrorNotificationService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly timeTicker = inject(CommunityFeedTimeTickerService);
   private readonly loadRequests$ = new Subject<ReplyLoadRequest>();
   private readonly createRequests$ = new Subject<CommunityFeedCommentReplyCreateRequest>();
@@ -474,39 +474,28 @@ export class CommunityFeedCommentRepliesComponent {
     error: unknown,
     operation: 'load' | 'create' | 'moderate'
   ): void {
-    const code = String((error as { code?: unknown })?.code ?? '')
-      .replace(/^functions\//, '');
-    const message = operation === 'load'
+    const fallbackMessage = operation === 'load'
       ? 'Não foi possível carregar as respostas.'
       : operation === 'create'
-        ? code === 'resource-exhausted'
-          ? 'Você respondeu muitas vezes em pouco tempo. Aguarde um instante.'
-          : 'Não foi possível publicar a resposta agora.'
+        ? 'Não foi possível publicar a resposta agora.'
         : 'Não foi possível atualizar a resposta agora.';
 
-    try {
-      this.notification.showError(message);
-    } catch {
-      // O diagnóstico técnico abaixo permanece ativo.
-    }
-
-    try {
-      const normalized = error instanceof Error ? error : new Error(String(error));
-      const contextual = normalized as Error & {
-        context?: unknown;
-        skipUserNotification?: boolean;
-      };
-      contextual.context = {
+    this.applicationError.report(error, {
+      feature: 'community-feed-comment-replies',
+      operation,
+      fallbackMessage,
+      codeMessages: operation === 'create'
+        ? {
+            'resource-exhausted':
+              'Você respondeu muitas vezes em pouco tempo. Aguarde um instante.',
+          }
+        : undefined,
+      metadata: {
         scope: 'CommunityFeedCommentRepliesComponent',
-        operation,
         communityId: this.communityId(),
         postId: this.postId(),
         commentId: this.commentId(),
-      };
-      contextual.skipUserNotification = true;
-      this.globalError.handleError(contextual);
-    } catch {
-      // Falha de telemetria não bloqueia a thread.
-    }
+      },
+    });
   }
 }
