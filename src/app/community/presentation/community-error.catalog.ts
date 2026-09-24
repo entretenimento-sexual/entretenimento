@@ -100,6 +100,7 @@ const BLOCKING_PRESENTATIONS: Readonly<
   membership_status_invalid: { surface: 'modal', severity: 'warning', title: 'Participação inconsistente' },
   ownership_inconsistent: { surface: 'modal', severity: 'warning', title: 'Propriedade inconsistente' },
   community_ownership_idempotency_invalid: { surface: 'modal', severity: 'warning', title: 'Confirmação de propriedade inconsistente' },
+  community_ownership_target_capacity_reached: { surface: 'modal', severity: 'info', title: 'Destinatário sem capacidade para assumir' },
   community_settings_idempotency_invalid: { surface: 'modal', severity: 'warning', title: 'Confirmação de configuração inconsistente' },
   community_lifecycle_hold: { surface: 'modal', severity: 'warning', title: 'Operação retida' },
   membership_disclosure_invalid: { surface: 'modal', severity: 'warning', title: 'Política de privacidade inconsistente' },
