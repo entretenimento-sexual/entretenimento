@@ -605,15 +605,15 @@ function validateCommunityNotificationClientBoundary(architectureViolations) {
     guardedCommandPattern,
   } of privateServices) {
     const eagerInjectPattern = new RegExp(
-      String.raw`\\binject\\s*\\(\\s*${serviceName}\\s*\\)`,
+      String.raw`\binject\s*\(\s*${serviceName}\s*\)`,
       'm'
     );
     const constructorInjectionPattern = new RegExp(
-      String.raw`\\bconstructor\\s*\\([^)]*\\b(?:private|protected|public)?\\s*(?:readonly\\s+)?[A-Za-z_$][\\w$]*\\s*:\\s*${serviceName}\\b`,
+      String.raw`\bconstructor\s*\([^)]*\b(?:private|protected|public)?\s*(?:readonly\s+)?[A-Za-z_$][\w$]*\s*:\s*${serviceName}\b`,
       'ms'
     );
     const lazyGetPattern = new RegExp(
-      String.raw`\\bthis\\.injector\\.get\\s*\\(\\s*${serviceName}\\s*\\)`,
+      String.raw`\bthis\.injector\.get\s*\(\s*${serviceName}\s*\)`,
       'gm'
     );
 
