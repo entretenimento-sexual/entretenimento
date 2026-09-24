@@ -80,9 +80,26 @@ for (const fragment of [
   'resolveAsaasRuntimeConfig',
   'assertAsaasRecurringCheckoutEnabled',
   'shouldBlockDuplicateRecurringCheckout',
+  'shouldBlockCheckoutForPendingRecurringCancellation',
+  'resolvePlatformSubscriptionFinancialCurrentRole',
+  'assertRecurringContractBuyer',
   "'recurring_renewal_already_enabled'",
+  "'recurring_cancellation_pending'",
+  "'recurring_state_contract_mismatch'",
   'PLATFORM_SUBSCRIPTION_STATE_COLLECTION',
 ]) requireIncludes(checkout, fragment, 'production checkout drift');
+
+const checkoutFacade = read(
+  'src/app/payments-core/application/checkout.facade.ts'
+);
+for (const fragment of [
+  "'recurring_renewal_already_enabled'",
+  "'recurring_cancellation_pending'",
+]) requireIncludes(
+  checkoutFacade,
+  fragment,
+  'recurring checkout lifecycle error UX drift'
+);
 
 const webhook = read(
   'functions/src/payments/application/payment-webhook.handler.ts'
