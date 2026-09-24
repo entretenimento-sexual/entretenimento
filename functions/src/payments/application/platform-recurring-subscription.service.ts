@@ -410,6 +410,25 @@ export async function applyAsaasSubscriptionLifecycleEvent(
         {
           providerSubscriptionId: event.subscriptionId,
           providerCustomerId: contract.providerCustomerId,
+          ...(amountMismatch
+            ? {
+              status: 'failed',
+              statusHistory: [
+                ...(checkout.statusHistory ?? []),
+                {
+                  status: 'failed',
+                  at: now,
+                  source: 'provider',
+                  eventId: event.providerEventId,
+                },
+              ],
+              metadata: {
+                ...(checkout.metadata ?? {}),
+                failureReason:
+                  'recurring_subscription_amount_mismatch',
+              },
+            }
+            : {}),
           updatedAt: now,
         },
         { merge: true }
@@ -430,6 +449,13 @@ export async function applyAsaasSubscriptionLifecycleEvent(
         });
       }
     });
+
+    if (amountMismatch) {
+      await releasePlatformCheckoutLock({
+        buyerUid: checkout.buyerUid,
+        checkoutSessionId: checkout.id,
+      }).catch(() => false);
+    }
 
     return 'processed';
   }
