@@ -97,7 +97,7 @@ describe('EditUserProfileComponent', () => {
         {
           provide: ErrorNotificationService,
           useValue: {
-            showError: vi.fn(),
+            showWarning: vi.fn(),
             showSuccess: vi.fn(),
           },
         },
