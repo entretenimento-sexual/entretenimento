@@ -58,6 +58,7 @@
       [routerLink]="['/dashboard/comunidades', content.communityId]"
       [queryParams]="{ post: content.postId }"
       [attr.aria-label]="'Ver foto publicada em ' + content.community.name"
+      (click)="recordOpen()"
     >
       <img
         [src]="content.post.image.url"
@@ -73,6 +74,7 @@
     class="community-content-card__action"
     [routerLink]="['/dashboard/comunidades', content.communityId]"
     [queryParams]="{ post: content.postId }"
+    (click)="recordOpen()"
   >
     Ver na Comunidade
   </a>
