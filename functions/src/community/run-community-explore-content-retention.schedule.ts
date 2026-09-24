@@ -11,6 +11,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
+import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 
 const SCHEDULE = '35 5 * * *';
 const TIME_ZONE = 'America/Sao_Paulo';
@@ -26,6 +27,11 @@ export const runCommunityExploreContentRetention = onSchedule(
     concurrency: 1,
   },
   async () => {
+    if (!isCommunityPreviewRuntimeAvailable()) {
+      logger.info('community_explore_content_retention_skipped_runtime');
+      return;
+    }
+
     const startedAt = Date.now();
     let deleted = 0;
     let batches = 0;
