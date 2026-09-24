@@ -27,6 +27,7 @@ const requiredExports = [
   'processProviderWebhookEventTrigger',
   'cancelPlatformSubscriptionRenewal',
   'schedulePlatformSubscriptionDowngrade',
+  'cancelPlatformSubscriptionDowngrade',
   'paymentWebhook',
   'createPrivateRoom',
   'closePrivateRoom',
