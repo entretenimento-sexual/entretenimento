@@ -33,8 +33,6 @@ import { PublicVideoRankingQueryService } from 'src/app/core/services/media/publ
 import { CompatibleProfileCandidatesService } from 'src/app/dashboard/discovery/application/compatible-profile-candidates.service';
 import { PublicProfileCard } from 'src/app/dashboard/discovery/models/public-profile-card.model';
 
-import { IExploreSection } from '../models/i-explore-section';
-
 const EXPLORE_COMPATIBLE_VISIBLE_LIMIT = 6;
 const EXPLORE_VIDEO_RANKING_PAGE_SIZE = 4;
 const EXPLORE_VIDEO_VISIBLE_LIMIT = 6;
@@ -57,7 +55,6 @@ export interface IExploreFeedVm {
   readonly latestPhotos: readonly IPublicPhotoItem[];
   readonly videoHighlights: readonly IPublicVideoItem[];
   readonly videoHighlightsStatus: TExploreVideoHighlightsStatus;
-  readonly sections: readonly IExploreSection<IPublicPhotoItem>[];
   readonly compatibleProfiles: readonly PublicProfileCard[];
   readonly totalItems: number;
   readonly hasAnyContent: boolean;
@@ -154,62 +151,13 @@ export class ExploreFeedService {
 
       const mostViewedPhotos = this.rankByViews(publicPool).slice(0, 12);
 
-      const sections: IExploreSection<IPublicPhotoItem>[] = [
-        {
-          id: 'boosted',
-          kind: 'photos',
-          eyebrow: 'Turbo',
-          title: 'Fotos turbinadas',
-          description: 'Publicações impulsionadas por destaque pago.',
-          note: 'Impulsionadas',
-          items: boostedPhotos,
-          routeCommands: ['/media', 'fotos-turbinadas'],
-        },
-        {
-          id: 'mostViewed',
-          kind: 'photos',
-          eyebrow: 'Visualizações',
-          title: 'Mídias mais vistas',
-          description: 'Fotos com maior sinal público de visualização.',
-          note: 'Mais vistas',
-          items: mostViewedPhotos,
-        },
-        {
-          id: 'top',
-          kind: 'photos',
-          eyebrow: topPhotos.length > 0 ? 'Destaques' : 'Sugestões',
-          title: topPhotos.length > 0 ? 'Top fotos' : 'Fotos para descobrir',
-          description:
-            topPhotos.length > 0
-              ? 'Fotos públicas ordenadas por engajamento.'
-              : 'Fotos públicas disponíveis para começar a explorar.',
-          note: topPhotos.length > 0 ? 'Maior engajamento' : 'Disponíveis agora',
-          items: safeTopPhotos,
-          routeCommands: ['/media', 'fotos-top'],
-        },
-        {
-          id: 'latest',
-          kind: 'photos',
-          eyebrow: 'Atualizações',
-          title: 'Últimas fotos',
-          description: 'Publicações públicas ordenadas por data de publicação.',
-          note: 'Mais recentes',
-          items: latestPhotos,
-          routeCommands: ['/media', 'ultimas-fotos'],
-        },
-      ];
-
-      const visibleSections = sections.filter(
-        (section) => section.items.length > 0
-      );
-
       const totalItems =
         compatibleProfiles.length +
         videoHighlightsState.items.length +
-        visibleSections.reduce(
-          (total, section) => total + section.items.length,
-          0
-        );
+        boostedPhotos.length +
+        mostViewedPhotos.length +
+        safeTopPhotos.length +
+        latestPhotos.length;
 
       return {
         boostedPhotos,
@@ -219,7 +167,6 @@ export class ExploreFeedService {
         videoHighlights: videoHighlightsState.items,
         videoHighlightsStatus: videoHighlightsState.status,
         compatibleProfiles,
-        sections: visibleSections,
         totalItems,
         hasAnyContent: totalItems > 0,
       };
