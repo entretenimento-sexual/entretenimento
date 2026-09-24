@@ -93,3 +93,29 @@ test('encerra regularização quando entitlement volta a suportar a capacidade',
 
   assert.equal(result, null);
 });
+
+
+test('abre regularização por excesso de ownership mesmo com capacidade compatível', () => {
+  const result = buildCommunityCapacityRegularization({
+    rawExisting: null,
+    ownerUid: 'owner-1',
+    reasonOverride: 'ownership_over_plan',
+    now: NOW,
+    capacity: {
+      configuredLimit: 100,
+      ownerPlanLimit: 100,
+      effectiveLimit: 100,
+      memberCount: 40,
+      acceptingNewMembers: true,
+      restrictedByOwnerPlan: false,
+      regularizationRequired: false,
+      regularizationReason: null,
+      atCapacity: false,
+    },
+  });
+
+  assert.ok(result);
+  assert.equal(result.reason, 'ownership_over_plan');
+  assert.equal(result.phase, 'grace_period');
+  assert.equal(result.effectiveLimit, 100);
+});
