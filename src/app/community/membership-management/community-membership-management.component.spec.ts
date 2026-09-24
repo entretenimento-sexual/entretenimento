@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -62,6 +63,7 @@ describe('CommunityMembershipManagementComponent', () => {
     TestBed.configureTestingModule({
       imports: [CommunityMembershipManagementComponent],
       providers: [
+        provideRouter([]),
         { provide: CommunityMembershipRepository, useValue: repositoryMock },
         {
           provide: CommunityMemberManagementRepository,
@@ -114,6 +116,78 @@ describe('CommunityMembershipManagementComponent', () => {
       })
     );
   }
+
+  it('mostra regularização com prazo e opções explícitas somente ao proprietário', () => {
+    const fixture = createFixture('community', 'owner');
+    fixture.componentRef.setInput('capacity', {
+      configuredLimit: 250,
+      effectiveLimit: 100,
+      memberCount: 80,
+      acceptingNewMembers: true,
+      restrictedByOwnerPlan: true,
+      memberLimitOptions: [],
+      allowedMemberLimits: [],
+    });
+    fixture.componentRef.setInput('capacityRegularization', {
+      phase: 'grace_period',
+      reason: 'capacity_over_plan',
+      startedAt: Date.now() - 86_400_000,
+      dueAt: Date.now() + 5 * 86_400_000,
+    });
+    fixture.detectChanges();
+
+    const regularization = fixture.nativeElement.querySelector(
+      '.community-management-hub__regularization'
+    ) as HTMLElement;
+    const planLink = regularization.querySelector(
+      'a[href="/subscription-plan"]'
+    ) as HTMLAnchorElement | null;
+
+    expect(regularization.textContent).toContain(
+      'Regularização de capacidade necessária'
+    );
+    expect(regularization.textContent).toContain(
+      'capacidade configurada está acima do limite'
+    );
+    expect(regularization.textContent).toContain('dias restantes');
+    expect(regularization.textContent).toContain(
+      'Não há transferência automática de propriedade'
+    );
+    expect(regularization.textContent).toContain('Regularizar plano');
+    expect(regularization.textContent).toContain('Transferir ou arquivar');
+    expect(planLink).not.toBeNull();
+    expect(
+      fixture.nativeElement.querySelector(
+        '.community-management-hub__capacity-alert'
+      )
+    ).toBeNull();
+  });
+
+  it('informa regularização ao admin sem conceder ações de proprietário', () => {
+    const fixture = createFixture('community', 'admin');
+    fixture.componentRef.setInput('capacityRegularization', {
+      phase: 'overdue',
+      reason: 'ownership_over_plan',
+      startedAt: Date.now() - 40 * 86_400_000,
+      dueAt: Date.now() - 10 * 86_400_000,
+    });
+    fixture.detectChanges();
+
+    const regularization = fixture.nativeElement.querySelector(
+      '.community-management-hub__regularization'
+    ) as HTMLElement;
+
+    expect(regularization.getAttribute('data-phase')).toBe('overdue');
+    expect(regularization.textContent).toContain(
+      'Regularização de capacidade vencida'
+    );
+    expect(regularization.textContent).toContain('Prazo encerrado');
+    expect(regularization.textContent).toContain(
+      'O proprietário precisa regularizar o plano'
+    );
+    expect(regularization.querySelector('a[href="/subscription-plan"]')).toBeNull();
+    expect(regularization.querySelector('button')).toBeNull();
+  });
 
   it('abre em visão geral sem empilhar as ferramentas pesadas de gestão', () => {
     const fixture = createFixture('community', 'moderator');
