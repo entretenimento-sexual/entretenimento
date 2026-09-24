@@ -27,6 +27,7 @@ import type { CommunityPreviewCard } from '../data-access/community-preview.mode
 import {
   CommunityAttentionGroupKey,
   resolveCommunityAttentionPresentation,
+  resolveCommunityNotificationStatusPresentation,
 } from '../presentation/community-ui.presentation';
 import {
   CommunityMineParticipationFilter,
@@ -171,6 +172,41 @@ export class CommunityDiscoveryMineFacade {
     return attentionGroupKey(item);
   }
 
+  attentionGroupPresentation(item: CommunityDiscoveryMineCardView) {
+    return resolveCommunityAttentionPresentation(
+      item.notificationUnreadCount,
+      item.notificationHasPriorityUnread
+    );
+  }
+
+  notificationStatusPresentation(item: CommunityDiscoveryMineCardView) {
+    return resolveCommunityNotificationStatusPresentation(
+      item.notificationUnreadCount,
+      item.notificationHasPriorityUnread,
+      item.notificationsMuted
+    );
+  }
+
+  notificationUnreadAriaLabel(item: CommunityDiscoveryMineCardView): string {
+    const priority = item.notificationHasPriorityUnread
+      ? ', incluindo atividade prioritária'
+      : '';
+
+    return `${item.notificationUnreadCount} atividades não lidas${priority}`;
+  }
+
+  startsAttentionGroup(
+    items: readonly CommunityDiscoveryMineCardView[],
+    index: number
+  ): boolean {
+    const item = items[index];
+    if (!item) return false;
+
+    const previous = index > 0 ? items[index - 1] : null;
+    return !previous
+      || attentionGroupKey(previous) !== attentionGroupKey(item);
+  }
+
   selectParticipationFilter(
     filter: CommunityMineParticipationFilter
   ): void {
@@ -187,6 +223,13 @@ export class CommunityDiscoveryMineFacade {
   setSearchTerm(value: string): void {
     if (this.searchTermSubject.value === value) return;
     this.searchTermSubject.next(value);
+  }
+
+  changeSearch(event: Event): void {
+    const value = event.target instanceof HTMLInputElement
+      ? event.target.value.slice(0, 80)
+      : '';
+    this.setSearchTerm(value);
   }
 
   searchValue(): string {
