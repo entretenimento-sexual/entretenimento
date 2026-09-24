@@ -295,7 +295,7 @@ test('manageCommunityMember nega promoção quando destinatário não está eleg
   await runRejectedScenario(
     { authTime: -30, targetEligible: false },
     'failed-precondition',
-    'age_verification_required'
+    'verification_required'
   );
 });
 
