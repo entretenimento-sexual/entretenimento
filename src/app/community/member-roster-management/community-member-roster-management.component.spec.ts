@@ -78,10 +78,41 @@ describe('CommunityMemberRosterManagementComponent', () => {
     expect(getManagedMembersPage$).toHaveBeenCalledWith({
       communityId: 'community-1',
       status: 'active',
+      roleFilter: 'all',
+      query: null,
       cursor: null,
       limit: 20,
     });
     expect(fixture.nativeElement.textContent).toContain('Pessoa Um');
+  });
+
+
+  it('aplica busca server-side e filtro de papel sem filtrar a lista localmente', async () => {
+    const fixture = createFixture();
+    const search = fixture.nativeElement.querySelector(
+      '.community-member-roster__search input'
+    ) as HTMLInputElement;
+    const role = fixture.nativeElement.querySelector(
+      '.community-member-roster__role-filter select'
+    ) as HTMLSelectElement;
+
+    search.value = 'Pessoa';
+    search.dispatchEvent(new Event('input'));
+    role.value = 'moderator';
+    role.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    await new Promise((resolve) => setTimeout(resolve, 280));
+    fixture.detectChanges();
+
+    expect(getManagedMembersPage$).toHaveBeenLastCalledWith({
+      communityId: 'community-1',
+      status: 'active',
+      roleFilter: 'moderator',
+      query: 'Pessoa',
+      cursor: null,
+      limit: 20,
+    });
   });
 
   it('renderiza somente os papéis atribuíveis devolvidos pelo backend', () => {
@@ -255,6 +286,8 @@ describe('CommunityMemberRosterManagementComponent', () => {
     expect(getManagedMembersPage$).toHaveBeenLastCalledWith({
       communityId: 'community-1',
       status: 'blocked',
+      roleFilter: 'all',
+      query: null,
       cursor: null,
       limit: 20,
     });
