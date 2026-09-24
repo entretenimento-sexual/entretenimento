@@ -64,7 +64,7 @@ test('todas as seis callables são bloqueadas antes de qualquer acesso Firestore
       'utf8'
     );
 
-    assert.doesNotMatch(source, /isCommunityPreviewRuntimeAvailable/);
+    assert.match(source, /isCommunityPreviewRuntimeAvailable\(\)/);
 
     for (const callable of contract.callables) {
       const exportIndex = source.indexOf(`export const ${callable}`);
@@ -75,17 +75,22 @@ test('todas as seis callables são bloqueadas antes de qualquer acesso Firestore
         exportIndex,
         nextExportIndex >= 0 ? nextExportIndex : source.length
       );
-      const guardIndex = body.indexOf(
+      const runtimeGuardIndex = body.indexOf('assertTopicsRuntime();');
+      const productGuardIndex = body.indexOf(
         'assertCommunityTopicsProductAvailable();'
       );
       const firestoreIndex = body.indexOf('db.');
 
       assert.ok(
-        guardIndex >= 0,
-        `${callable} não chama o gate de produto frozen`
+        runtimeGuardIndex >= 0,
+        `${callable} não chama o runtime guard de Comunidades`
       );
       assert.ok(
-        firestoreIndex < 0 || guardIndex < firestoreIndex,
+        productGuardIndex > runtimeGuardIndex,
+        `${callable} deve aplicar o freeze depois do runtime guard`
+      );
+      assert.ok(
+        firestoreIndex < 0 || productGuardIndex < firestoreIndex,
         `${callable} acessa Firestore antes do gate frozen`
       );
 
