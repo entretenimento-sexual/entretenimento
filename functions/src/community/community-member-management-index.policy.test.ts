@@ -3,7 +3,9 @@ import { describe, it } from 'node:test';
 
 import {
   buildCommunityMemberManagementIndexProjection,
+  buildCommunityMemberManagementSearchIdentity,
   buildCommunityMemberManagementSearchPrefixes,
+  communityMemberManagementSearchIdentityEquals,
   decodeCommunityMemberManagementCursor,
   encodeCommunityMemberManagementCursor,
   matchesCommunityMemberManagementRoleFilter,
@@ -11,6 +13,32 @@ import {
 } from './community-member-management-index.policy';
 
 describe('community member management index policy', () => {
+  it('detecta quando write de usuário não altera identidade pesquisável', () => {
+    const before = buildCommunityMemberManagementSearchIdentity({
+      nickname: 'João Silva',
+      avatarUrl: 'https://example.test/avatar.webp',
+      bio: 'antes',
+    });
+    const unrelatedWrite = buildCommunityMemberManagementSearchIdentity({
+      nickname: 'João Silva',
+      avatarUrl: 'https://example.test/avatar.webp',
+      bio: 'depois',
+    });
+    const renamed = buildCommunityMemberManagementSearchIdentity({
+      nickname: 'João Souza',
+      avatarUrl: 'https://example.test/avatar.webp',
+    });
+
+    assert.equal(
+      communityMemberManagementSearchIdentityEquals(before, unrelatedWrite),
+      true
+    );
+    assert.equal(
+      communityMemberManagementSearchIdentityEquals(before, renamed),
+      false
+    );
+  });
+
   it('normaliza busca com acento, caixa e prefixos por palavra', () => {
     assert.equal(
       normalizeCommunityMemberManagementSearchQuery('  João   SILVA '),
