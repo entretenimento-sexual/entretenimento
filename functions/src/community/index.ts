@@ -9,6 +9,9 @@ export { getCommunityTagCatalog } from './get-community-tag-catalog.handler';
 export { getCommunityDiscoveryPage } from './get-community-discovery-page.handler';
 export { getCommunityExploreContent } from './get-community-explore-content.handler';
 export {
+  getMyCommunityActivityCards,
+} from './get-my-community-activity-cards.handler';
+export {
   recordCommunityDiscoveryExposure,
 } from './record-community-discovery-exposure.handler';
 export {
