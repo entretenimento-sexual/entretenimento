@@ -112,7 +112,6 @@ const frozenRoomProductionFiles = new Set([
   'functions/src/chat/rooms/domain/room-capability-policy.ts',
   'functions/src/chat/rooms/domain/room-deprecation.policy.ts',
   'functions/src/chat/rooms/index.ts',
-  'src/app/chat-module/chat-rooms/chat-rooms.clean.css',
   'src/app/chat-module/chat-rooms/chat-rooms.component.css',
   'src/app/chat-module/chat-rooms/chat-rooms.component.html',
   'src/app/chat-module/chat-rooms/chat-rooms.component.ts',

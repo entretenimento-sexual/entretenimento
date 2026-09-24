@@ -41,8 +41,8 @@ import {
 } from 'src/app/core/services/batepapo/room-services/room.service';
 import { RoomManagementService } from 'src/app/core/services/batepapo/room-services/room-management.service';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ConfirmacaoDialogComponent } from 'src/app/shared/components-globais/confirmacao-dialog/confirmacao-dialog.component';
 
 type RoomCardViewModel = RoomListItem & {
@@ -76,7 +76,7 @@ export class ChatRoomsComponent implements OnInit {
     private readonly roomService: RoomService,
     private readonly roomManagement: RoomManagementService,
     private readonly errorNotifier: ErrorNotificationService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
     public readonly dialog: MatDialog
   ) {}
 
@@ -181,26 +181,13 @@ export class ChatRoomsComponent implements OnInit {
   }
 
   private handleError(error: unknown, userMessage: string): void {
-    try {
-      this.errorNotifier.showError(userMessage);
-    } catch {
-      // noop
-    }
-
-    try {
-      const normalizedError =
-        error instanceof Error ? error : new Error(userMessage);
-
-      (normalizedError as any).context = {
-        feature: 'chat-rooms-legacy',
-        operation: 'load-rooms',
-      };
-      (normalizedError as any).skipUserNotification = true;
-      (normalizedError as any).original = error;
-
-      this.globalErrorHandler.handleError(normalizedError);
-    } catch {
-      // noop
-    }
+    this.applicationError.report(error, {
+      feature: 'chat-rooms-legacy',
+      operation: 'load-rooms',
+      fallbackMessage: userMessage,
+      metadata: {
+        scope: 'ChatRoomsComponent',
+      },
+    });
   }
 }
