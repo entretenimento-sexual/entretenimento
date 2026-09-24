@@ -11,7 +11,7 @@ A janela inicial é de 30 dias e vive em `COMMUNITY_PRODUCT_LIMITS.capacityRegul
 ## Estados
 
 - `grace_period`: o owner e admins são avisados. A capacidade continua respeitando imediatamente o teto do entitlement atual; membros existentes permanecem.
-- `action_required`: ao vencer o prazo sem regularização, novas entradas ficam pausadas. Membros e conteúdo existentes são preservados.
+- `action_required`: ao vencer o prazo sem regularização, novas entradas e novas interações ficam pausadas. A Comunidade permanece legível e os fluxos de gestão necessários à regularização continuam disponíveis. Membros e conteúdo existentes são preservados.
 - resolvido: o campo canônico é limpo e a notificação deixa de exigir ação.
 
 Ações admitidas: regularizar o plano, transferir ownership ou arquivar. Não existe sucessão automática por downgrade.
