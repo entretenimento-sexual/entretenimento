@@ -34,6 +34,9 @@ import {
   resolveCommunityCapacitySponsorRole,
 } from './community-capacity.policy';
 import {
+  applyCommunityCapacityRegularizationGate,
+} from './community-capacity-regularization.policy';
+import {
   normalizeCommunityOfficialAssociationKey,
 } from './community-official-association.model';
 
@@ -233,10 +236,13 @@ export function evaluateCommunityCapacityForOwner(input: {
     ownerUser['role']
   );
 
-  return evaluateCommunityCapacity({
-    rawCommunity: input.rawCommunity,
-    sponsorRole,
-  });
+  return applyCommunityCapacityRegularizationGate(
+    evaluateCommunityCapacity({
+      rawCommunity: input.rawCommunity,
+      sponsorRole,
+    }),
+    input.rawCommunity
+  );
 }
 
 async function getOfficialCapacityInTransaction(

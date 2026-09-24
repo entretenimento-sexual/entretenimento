@@ -8,7 +8,12 @@
 // -----------------------------------------------------------------------------
 
 export type CommunityOwnershipSourceType = 'community' | 'venue' | null;
-export type CommunityOwnershipStatus = 'active' | 'paused' | 'archived' | null;
+export type CommunityOwnershipStatus =
+  | 'active'
+  | 'paused'
+  | 'dormant'
+  | 'archived'
+  | null;
 export type CommunityOwnershipMembershipStatus =
   | 'active'
   | 'pending'
@@ -29,7 +34,8 @@ export type CommunityOwnershipTransferDenialReason =
   | 'ownership_inconsistent'
   | 'self_transfer_forbidden'
   | 'target_membership_ineligible'
-  | 'target_account_ineligible';
+  | 'target_account_ineligible'
+  | 'target_ownership_entitlement_ineligible';
 
 export interface CommunityOwnershipTransferInput {
   sourceType: CommunityOwnershipSourceType;
@@ -41,6 +47,7 @@ export interface CommunityOwnershipTransferInput {
   targetStatus: CommunityOwnershipMembershipStatus;
   targetRole: CommunityOwnershipMembershipRole;
   targetAccountEligible: boolean;
+  targetOwnershipEntitlementEligible: boolean;
   activeOwnerCount: number;
 }
 
@@ -96,7 +103,9 @@ export function evaluateCommunityOwnershipTransfer(
     return deniedTransfer('community_source_not_supported');
   }
 
-  if (input.communityStatus !== 'active' && input.communityStatus !== 'paused') {
+  if (input.communityStatus !== 'active'
+    && input.communityStatus !== 'paused'
+    && input.communityStatus !== 'dormant') {
     return deniedTransfer('community_unavailable');
   }
 
@@ -125,6 +134,10 @@ export function evaluateCommunityOwnershipTransfer(
     return deniedTransfer('target_account_ineligible');
   }
 
+  if (!input.targetOwnershipEntitlementEligible) {
+    return deniedTransfer('target_ownership_entitlement_ineligible');
+  }
+
   return {
     allowed: true,
     denialReason: null,
@@ -150,7 +163,9 @@ export function evaluateCommunityArchive(
     };
   }
 
-  if (input.communityStatus !== 'active' && input.communityStatus !== 'paused') {
+  if (input.communityStatus !== 'active'
+    && input.communityStatus !== 'paused'
+    && input.communityStatus !== 'dormant') {
     return deniedArchive('community_unavailable');
   }
 

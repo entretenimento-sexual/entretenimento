@@ -79,6 +79,11 @@ export const COMMUNITY_NOTIFICATION_SUMMARY_MATRIX = Object.freeze({
     priority: true,
     requiresActiveMembershipCycle: false,
   },
+  'community.capacity.regularization': {
+    category: 'management',
+    priority: true,
+    requiresActiveMembershipCycle: false,
+  },
 } as const);
 
 type CommunityNotificationSummaryType =

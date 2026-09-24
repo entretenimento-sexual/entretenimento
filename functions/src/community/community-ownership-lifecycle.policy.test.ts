@@ -18,6 +18,7 @@ const TRANSFER_BASE = Object.freeze({
   targetStatus: 'active' as const,
   targetRole: 'member' as const,
   targetAccountEligible: true,
+  targetOwnershipEntitlementEligible: true,
   activeOwnerCount: 1,
 });
 
@@ -37,6 +38,15 @@ test('permite transferir para membro ativo e elegível', () => {
   assert.equal(decision.actorNextRole, 'member');
   assert.equal(decision.targetNextRole, 'owner');
   assert.equal(decision.denialReason, null);
+});
+
+test('permite transferir propriedade de comunidade dormente', () => {
+  const decision = evaluateCommunityOwnershipTransfer({
+    ...TRANSFER_BASE,
+    communityStatus: 'dormant',
+  });
+
+  assert.equal(decision.allowed, true);
 });
 
 test('permite transferir para administração ou moderação ativa', () => {
@@ -102,6 +112,13 @@ test('nega alvo pendente, bloqueado, inativo ou inelegível', () => {
     }).denialReason,
     'target_account_ineligible'
   );
+  assert.equal(
+    evaluateCommunityOwnershipTransfer({
+      ...TRANSFER_BASE,
+      targetOwnershipEntitlementEligible: false,
+    }).denialReason,
+    'target_ownership_entitlement_ineligible'
+  );
 });
 
 test('nega transferência de Local e de comunidade encerrada', () => {
@@ -121,11 +138,15 @@ test('nega transferência de Local e de comunidade encerrada', () => {
   );
 });
 
-test('permite arquivar comunidade ativa ou pausada', () => {
+test('permite arquivar comunidade ativa, pausada ou dormente', () => {
   const active = evaluateCommunityArchive(ARCHIVE_BASE);
   const paused = evaluateCommunityArchive({
     ...ARCHIVE_BASE,
     communityStatus: 'paused',
+  });
+  const dormant = evaluateCommunityArchive({
+    ...ARCHIVE_BASE,
+    communityStatus: 'dormant',
   });
 
   assert.equal(active.allowed, true);
@@ -133,6 +154,7 @@ test('permite arquivar comunidade ativa ou pausada', () => {
   assert.equal(active.actorNextRole, 'member');
   assert.equal(active.actorNextStatus, 'left');
   assert.equal(paused.allowed, true);
+  assert.equal(dormant.allowed, true);
 });
 
 test('arquivamento já concluído é idempotente', () => {

@@ -76,6 +76,10 @@ const requiredExports = [
   'syncCommunityHighlightCommunityTrigger',
   'syncPublicPreferenceProjectionTrigger',
   'syncCommunityNotificationSummaryTrigger',
+  'runCommunityCapacityRegularization',
+  'syncCommunityCapacityRegularizationAdminNotification',
+  'syncCommunityCapacityRegularizationFromCommunity',
+  'syncCommunityCapacityRegularizationFromEntitlement',
 ];
 
 if (!existsSync(entryPath)) {

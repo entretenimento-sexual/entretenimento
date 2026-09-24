@@ -483,6 +483,45 @@ export function buildCommunityModerationNotificationCopy(input: {
   };
 }
 
+export function buildCommunityCapacityRegularizationNotificationId(
+  communityId: string,
+  recipientUid: string
+): string {
+  return stableId('community_capacity_regularization', [
+    communityId,
+    recipientUid,
+  ]);
+}
+
+export function buildCommunityCapacityRegularizationNotificationCopy(input: {
+  status: 'grace_period' | 'action_required';
+  communityName: unknown;
+  deadlineAt: number;
+}): { title: string; body: string } {
+  const communityName = normalizeText(input.communityName, 60) || 'sua Comunidade';
+  const deadline = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(new Date(input.deadlineAt));
+
+  return input.status === 'action_required'
+    ? {
+      title: 'Regularização da Comunidade necessária',
+      body:
+        `${communityName} está em modo somente leitura, com novas entradas pausadas. `
+        + 'Regularize o plano, transfira a propriedade ou arquive a Comunidade.',
+    }
+    : {
+      title: 'Regularize a capacidade da Comunidade',
+      body:
+        `${communityName} precisa ser regularizada até ${deadline}. `
+        + 'Você pode regularizar o plano, transferir a propriedade ou arquivar '
+        + 'a Comunidade.',
+    };
+}
+
 export function buildCommunityNotificationRoute(
   communityId: string,
   postId?: string | null,

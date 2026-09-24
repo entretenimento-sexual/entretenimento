@@ -14,6 +14,9 @@ import {
 } from './community-capacity.policy';
 import { getCommunityCapacityForOwner } from './community-capacity.service';
 import {
+  isCommunityCapacityRegularizationActionRequired,
+} from './community-capacity-regularization.policy';
+import {
   isCommunityMemberActivityEnabledStatus,
   isCommunityMembershipManagementEnabledStatus,
 } from './community-lifecycle.policy';
@@ -121,8 +124,13 @@ export async function getCommunityViewerContext(
   const access = (raw['access'] ?? {}) as Record<string, unknown>;
   const moderationActive = moderation['state'] === 'active';
   const operational = raw['status'] === 'active' && moderationActive;
+  const regularizationActionRequired =
+    community.source.type === 'community'
+    && isCommunityCapacityRegularizationActionRequired(communityRaw);
   const memberActivityAllowed =
-    moderationActive && isCommunityMemberActivityEnabledStatus(raw['status']);
+    moderationActive
+    && isCommunityMemberActivityEnabledStatus(raw['status'])
+    && !regularizationActionRequired;
   const publicPreview =
     operational
     && raw['visibility'] === 'public_preview'
@@ -185,6 +193,7 @@ export async function getCommunityViewerContext(
     && isCommunityMembershipManagementEnabledStatus(raw['status']);
   const canInviteCommunityMembers =
     operational
+    && !regularizationActionRequired
     && canSendCommunityInvite(
       normalizeMembershipStatus(membershipRaw['status']),
       viewer.role,
