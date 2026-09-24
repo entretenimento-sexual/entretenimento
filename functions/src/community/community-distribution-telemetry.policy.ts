@@ -11,7 +11,6 @@ export const COMMUNITY_DISTRIBUTION_TELEMETRY_BATCH_SIZE = 12;
 
 export type CommunityDistributionTelemetrySurface =
   | 'social_explore_recommendation'
-  | 'social_explore_activity'
   | 'social_explore_content';
 
 export type CommunityDistributionTelemetryEventType =
@@ -35,7 +34,6 @@ export interface NormalizedCommunityDistributionTelemetryRequest {
 const SAFE_COMMUNITY_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
 const SURFACES = new Set<CommunityDistributionTelemetrySurface>([
   'social_explore_recommendation',
-  'social_explore_activity',
   'social_explore_content',
 ]);
 const EVENT_TYPES = new Set<CommunityDistributionTelemetryEventType>([
