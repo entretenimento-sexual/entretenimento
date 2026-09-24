@@ -333,6 +333,12 @@ export async function applyAsaasSubscriptionLifecycleEvent(
           event,
           now: Date.now(),
         });
+        if (current.status === 'pending_payment') {
+          await releasePlatformCheckoutLock({
+            buyerUid: current.buyerUid,
+            checkoutSessionId: current.sourceCheckoutSessionId,
+          }).catch(() => false);
+        }
         return 'processed';
       }
 
@@ -481,6 +487,12 @@ export async function applyAsaasSubscriptionLifecycleEvent(
       event,
       now: Date.now(),
     });
+    if (current.status === 'pending_payment') {
+      await releasePlatformCheckoutLock({
+        buyerUid: current.buyerUid,
+        checkoutSessionId: current.sourceCheckoutSessionId,
+      }).catch(() => false);
+    }
     return 'processed';
   }
 
