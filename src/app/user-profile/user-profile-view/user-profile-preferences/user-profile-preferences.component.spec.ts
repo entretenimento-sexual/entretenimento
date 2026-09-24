@@ -6,7 +6,7 @@ import { vi } from 'vitest';
 import { UserProfilePreferencesComponent } from './user-profile-preferences.component';
 import { UserPreferencesService } from '../../../core/services/preferences/user-preferences.service';
 import { UserPreferenceProfileService } from '../../../core/services/preferences/user-preference-profile.service';
-import { ErrorNotificationService } from '../../../core/services/error-handler/error-notification.service';
+import { ApplicationErrorService } from '../../../core/services/error-handler/application-error.service';
 
 describe('UserProfilePreferencesComponent', () => {
   let component: UserProfilePreferencesComponent;
@@ -29,9 +29,9 @@ describe('UserProfilePreferencesComponent', () => {
           },
         },
         {
-          provide: ErrorNotificationService,
+          provide: ApplicationErrorService,
           useValue: {
-            showError: vi.fn(),
+            report: vi.fn(),
           },
         },
         {
