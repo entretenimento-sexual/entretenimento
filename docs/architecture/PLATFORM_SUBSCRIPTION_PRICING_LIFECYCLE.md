@@ -49,9 +49,16 @@ checkout.
 
 ### Renovação do mesmo plano
 
-- cobra o preço vigente do catálogo no novo checkout;
+Na recorrência automática, a renovação **não** consulta o preço atual do catálogo.
+Ela usa o `planSnapshot` contratual da assinatura recorrente:
+
+- cobra o valor contratado daquela recorrência;
 - não perde dias já pagos;
-- estende um mês civil a partir do `endsAt` atual.
+- estende um mês civil a partir do `endsAt` atual;
+- alteração posterior no catálogo não reprifica silenciosamente o contrato.
+
+Um novo checkout do mesmo plano, quando permitido por um fluxo explícito,
+cria novo snapshot e não é equivalente à renovação automática do contrato atual.
 
 ### Upgrade
 
@@ -68,10 +75,15 @@ com suporte seguro a proration.
 
 Downgrade não é aplicado durante um período já pago.
 
-Nesta etapa também não existe agendamento automático, porque ainda não há
-cobrança recorrente real capaz de garantir a próxima renovação no plano menor.
-A UI deve informar que a redução poderá ser contratada após o término do ciclo
-atual; não deve sugerir que ela já foi programada.
+A recorrência real já existe, porém o adapter financeiro atual não possui uma
+operação contratual segura para trocar automaticamente o valor/plano apenas na
+próxima competência sem novo consentimento. Por isso:
+
+- o backend bloqueia downgrade imediato;
+- o período e benefícios já pagos permanecem intactos;
+- a UI não afirma que existe downgrade programado;
+- uma futura implementação deverá representar explicitamente a mudança pendente
+  e sua autorização financeira, sem editar silenciosamente a recorrência atual.
 
 ## Invariantes
 
@@ -82,8 +94,10 @@ atual; não deve sugerir que ela já foi programada.
 - renovação e upgrade preservam `endsAt` como base de extensão;
 - downgrade não reduz benefício vigente;
 - proration permanece desabilitado até existir implementação financeira real;
-- provider em cloud continua fail-closed enquanto webhook seguro não estiver
-  implementado.
+- provider em cloud continua fail-closed enquanto
+  `ASAAS_RECURRING_ENABLED` não estiver habilitado operacionalmente;
+- webhook autenticado, inbox idempotente e settlement assíncrono são requisitos
+  permanentes da recorrência.
 
 ## Proteção de CI
 
