@@ -760,7 +760,7 @@ export const transferCommunityOwnership =
             newOwnerUid: targetUid,
             generatedAt: now,
           };
-      });
+        });
 
       await Promise.all([
         reconcilePersonalCommunityCapacityRegularization({
@@ -987,7 +987,7 @@ export const archiveCommunity = onCall<CommunityArchivePayload>(
         });
 
         return { communityId, status: 'archived', generatedAt: now };
-    });
+      });
 
     await reconcilePersonalCommunityCapacityRegularization({
       ownerUid: actorUid,
