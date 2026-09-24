@@ -58,15 +58,34 @@ export function resolveRecurringPlanSettlementDecision(input: {
       };
     }
 
-    if (input.paymentAmountCents === pending.amountCents) {
+    if (
+      input.paymentAmountCents === pending.amountCents
+      && input.processingNow < pending.effectiveAt
+    ) {
       return {
         kind: 'retry',
         allowed: false,
-        retryAt: Math.max(
-          input.processingNow + 30_000,
-          pending.providerRevertNextAttemptAt ?? input.processingNow + 30_000
+        retryAt: Math.min(
+          pending.effectiveAt,
+          Math.max(
+            input.processingNow + 30_000,
+            pending.providerRevertNextAttemptAt
+              ?? input.processingNow + 30_000
+          )
         ),
         reason: 'scheduled_downgrade_effective_period_pending',
+      };
+    }
+
+    if (
+      input.paymentAmountCents === pending.amountCents
+      && input.processingNow >= pending.effectiveAt
+    ) {
+      return {
+        kind: 'scheduled_downgrade',
+        allowed: true,
+        retryAt: null,
+        reason: null,
       };
     }
   }
