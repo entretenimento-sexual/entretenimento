@@ -33,6 +33,7 @@ import {
 } from './recurring-provider-cancellation.service';
 import {
   applyPendingRecurringPlanChangeAtProvider,
+  revertPendingRecurringPlanChangeAtProvider,
 } from './recurring-platform-subscription-plan-change.service';
 import type {
   PlatformRecurringSubscriptionDoc,
@@ -181,11 +182,7 @@ export const reconcileRecurringProviderPlanChanges = onSchedule(
     const now = Date.now();
     const snapshot = await db
       .collection(PLATFORM_SUBSCRIPTION_COLLECTION)
-      .where(
-        'pendingPlanChange.providerUpdateStatus',
-        'in',
-        ['pending', 'retry']
-      )
+      .where('needsProviderPlanChangeSync', '==', true)
       .limit(100)
       .get();
 
@@ -199,19 +196,31 @@ export const reconcileRecurringProviderPlanChanges = onSchedule(
       const pending = contract.pendingPlanChange ?? null;
 
       if (!pending) continue;
+      const canceling = !!pending.cancellationRequestedAt;
+      const nextAttemptAt = canceling
+        ? pending.providerRevertNextAttemptAt
+        : pending.providerUpdateNextAttemptAt;
+
       if (
-        typeof pending.providerUpdateNextAttemptAt === 'number'
-        && pending.providerUpdateNextAttemptAt > now
+        typeof nextAttemptAt === 'number'
+        && nextAttemptAt > now
       ) {
         deferred += 1;
         continue;
       }
 
       try {
-        await applyPendingRecurringPlanChangeAtProvider({
-          contractId: document.id,
-          provider,
-        });
+        if (canceling) {
+          await revertPendingRecurringPlanChangeAtProvider({
+            contractId: document.id,
+            provider,
+          });
+        } else {
+          await applyPendingRecurringPlanChangeAtProvider({
+            contractId: document.id,
+            provider,
+          });
+        }
         completed += 1;
       } catch {
         failed += 1;
