@@ -11,8 +11,8 @@ import {
   isPublicPhotoItem,
   isPublicVideoItem,
 } from 'src/app/core/interfaces/media/i-public-profile-media-item';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PublicMixedMediaContinuationService } from 'src/app/core/services/media/public-mixed-media-continuation.service';
 import { buildPublicMediaIdentity } from 'src/app/core/utils/media/public-media-identity';
 import { PublicPhotoViewerLauncherService } from 'src/app/media/photos/photo-viewer/public-photo-viewer-launcher.service';
@@ -46,7 +46,7 @@ export class PublicMixedMediaViewerLauncherService {
   private readonly videoViewer = inject(PublicVideoViewerLauncherService);
   private readonly mixedContinuation = inject(PublicMixedMediaContinuationService);
   private readonly errorNotification = inject(ErrorNotificationService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
 
   open$(request: OpenPublicMixedMediaViewerRequest): Observable<void> {
     return defer(() => {
@@ -68,7 +68,273 @@ export class PublicMixedMediaViewerLauncherService {
       return this.openFromIndex$(session, selectedIndex, request);
     }).pipe(
       catchError((error: unknown) => {
-        this.reportError(error, request, 'open$');
+        this.reportError(
+          error,
+          request,
+          'open
+    );
+  }
+
+  private openFromIndex$(
+    session: MixedMediaSession,
+    selectedIndex: number,
+    request: OpenPublicMixedMediaViewerRequest
+  ): Observable<void> {
+    const selected = session.items[selectedIndex] ?? null;
+
+    if (!selected) {
+      return of(void 0);
+    }
+
+    const run = this.resolveRun(session, selectedIndex);
+    const result$ = isPublicVideoItem(selected)
+      ? this.videoViewer.openWithResult$({
+          items: run.items.filter(isPublicVideoItem),
+          startIndex: selectedIndex - run.startIndex,
+          source: request.source,
+          continuationContext: request.continuationContext,
+          mixedNavigation: run.navigation,
+        })
+      : this.photoViewer.openWithResult$({
+          items: run.items.filter(isPublicPhotoItem),
+          selected,
+          source: request.source,
+          continuationContext: request.continuationContext,
+          mixedNavigation: run.navigation,
+        });
+
+    return result$.pipe(
+      switchMap((result) => {
+        if (!result || result.kind !== 'mixed-handoff') {
+          return of(void 0);
+        }
+
+        if (result.direction === 'previous') {
+          const previousIndex = run.startIndex - 1;
+          return previousIndex >= 0
+            ? this.openFromIndex$(session, previousIndex, request)
+            : of(void 0);
+        }
+
+        const nextIndex = run.endIndex + 1;
+        if (nextIndex < session.items.length) {
+          return this.openFromIndex$(session, nextIndex, request);
+        }
+
+        if (session.continuationExhausted) {
+          return of(void 0);
+        }
+
+        return this.continueAfterEnd$(session, request);
+      })
+    );
+  }
+
+  private continueAfterEnd$(
+    session: MixedMediaSession,
+    request: OpenPublicMixedMediaViewerRequest
+  ): Observable<void> {
+    const previousLength = session.items.length;
+
+    return this.mixedContinuation.loadContinuation$({
+      existingItems: [...session.items],
+      source: request.source,
+      limit: MIXED_CONTINUATION_LIMIT,
+      continuationContext: request.continuationContext,
+    }).pipe(
+      switchMap((result) => {
+        if (result.exhausted) {
+          session.continuationExhausted = true;
+        }
+
+        const appendedCount = this.appendContinuationItems(
+          session,
+          result.items
+        );
+
+        if (appendedCount > 0) {
+          return this.openFromIndex$(session, previousLength, request);
+        }
+
+        if (result.failed) {
+          this.reportHandledContinuationFailure(request, session.items.length);
+          this.errorNotification.showWarning(
+            'Não foi possível carregar mais mídias agora. Tente novamente mais tarde.'
+          );
+          return of(void 0);
+        }
+
+        session.continuationExhausted = true;
+        this.errorNotification.showInfo(
+          'Você chegou ao fim das mídias públicas disponíveis agora.'
+        );
+        return of(void 0);
+      }),
+      catchError((error: unknown) => {
+        this.reportError(error, request, 'loadContinuation$');
+        this.errorNotification.showWarning(
+          'Não foi possível carregar mais mídias agora. Tente novamente mais tarde.'
+        );
+        return of(void 0);
+      })
+    );
+  }
+
+  private resolveRun(
+    session: MixedMediaSession,
+    selectedIndex: number
+  ): MixedMediaRun {
+    const items = session.items;
+    const selected = items[selectedIndex];
+    const selectedIsVideo = isPublicVideoItem(selected);
+    let startIndex = selectedIndex;
+    let endIndex = selectedIndex;
+
+    while (
+      startIndex > 0 &&
+      isPublicVideoItem(items[startIndex - 1]) === selectedIsVideo
+    ) {
+      startIndex -= 1;
+    }
+
+    while (
+      endIndex < items.length - 1 &&
+      isPublicVideoItem(items[endIndex + 1]) === selectedIsVideo
+    ) {
+      endIndex += 1;
+    }
+
+    return {
+      startIndex,
+      endIndex,
+      items: items.slice(startIndex, endIndex + 1),
+      navigation: {
+        hasPrevious: startIndex > 0,
+        hasNext:
+          endIndex < items.length - 1 || !session.continuationExhausted,
+      },
+    };
+  }
+
+  private appendContinuationItems(
+    session: MixedMediaSession,
+    candidates: readonly IPublicProfileMediaItem[]
+  ): number {
+    const seen = new Set(
+      session.items.map((item) => this.mediaKey(item)).filter(Boolean)
+    );
+    let appendedCount = 0;
+
+    for (const item of candidates ?? []) {
+      if (!this.isOpenable(item)) {
+        continue;
+      }
+
+      const key = this.mediaKey(item);
+      if (!key || seen.has(key)) {
+        continue;
+      }
+
+      seen.add(key);
+      session.items.push(item);
+      appendedCount += 1;
+    }
+
+    return appendedCount;
+  }
+
+  private normalizeItems(
+    input: readonly IPublicProfileMediaItem[]
+  ): IPublicProfileMediaItem[] {
+    const unique = new Map<string, IPublicProfileMediaItem>();
+
+    for (const item of input ?? []) {
+      if (!this.isOpenable(item)) {
+        continue;
+      }
+
+      const key = this.mediaKey(item);
+      if (!key || unique.has(key)) {
+        continue;
+      }
+
+      unique.set(key, item);
+    }
+
+    return [...unique.values()];
+  }
+
+  private isOpenable(item: IPublicProfileMediaItem | null | undefined): boolean {
+    if (!item?.id?.trim() || !item.ownerUid?.trim()) {
+      return false;
+    }
+
+    if (
+      item.visibility !== 'PUBLIC' ||
+      item.moderationStatus !== 'APPROVED'
+    ) {
+      return false;
+    }
+
+    if (isPublicVideoItem(item)) {
+      return true;
+    }
+
+    return !!String(item.url ?? '').trim();
+  }
+
+  private mediaKey(item: IPublicProfileMediaItem | null | undefined): string {
+    if (!item) {
+      return '';
+    }
+
+    return buildPublicMediaIdentity(
+      isPublicVideoItem(item) ? 'VIDEO' : 'PHOTO',
+      item.ownerUid,
+      item.id
+    );
+  }
+
+  private reportHandledContinuationFailure(
+    request: OpenPublicMixedMediaViewerRequest,
+    itemCount: number
+  ): void {
+    this.reportError(
+      new Error('Continuação mista sem candidatos após falha de fonte.'),
+      request,
+      'loadContinuation$.degraded',
+      itemCount
+    );
+  }
+
+  private reportError(
+    error: unknown,
+    request: OpenPublicMixedMediaViewerRequest,
+    operation: string,
+    itemCount = request.items?.length ?? 0,
+    notification: 'error' | 'none' = 'none',
+    fallbackMessage =
+      'Não foi possível atualizar a sequência pública de mídias agora.'
+  ): void {
+    this.applicationError.report(error, {
+      feature: 'public-mixed-media-viewer',
+      operation,
+      fallbackMessage,
+      notification,
+      metadata: {
+        scope: 'PublicMixedMediaViewerLauncherService',
+        source: request.source,
+        requestedItems: itemCount,
+        selectedType: isPublicVideoItem(request.selected) ? 'VIDEO' : 'PHOTO',
+      },
+    });
+  }
+}
+,
+          request.items?.length ?? 0,
+          'error',
+          'Não foi possível abrir esta publicação neste momento.'
+        );
         return throwError(() => error);
       })
     );
