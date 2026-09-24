@@ -179,19 +179,46 @@ const cancel = read(
   'functions/src/payments/application/cancel-platform-subscription-renewal.handler.ts'
 );
 for (const fragment of [
+  'assertRecurringContractBuyer',
+  'expectedBuyerUid: uid',
+  "contract.needsProviderCancellation === true",
   'requestRecurringContractCancellation',
   'cancelRecurringContractAtProvider',
   'accessEndsAt',
   'assertCallableAppCheck',
 ]) requireIncludes(cancel, fragment, 'cancel-renewal drift');
 
+const cancellationService = read(
+  'functions/src/payments/application/recurring-provider-cancellation.service.ts'
+);
+for (const fragment of [
+  'expectedBuyerUid?: string',
+  'assertRecurringContractBuyer',
+]) requireIncludes(
+  cancellationService,
+  fragment,
+  'recurring cancellation authority drift'
+);
+
 const accountDeletion = read(
   'functions/src/account_lifecycle/requestAccountDeletion.ts'
 );
-requireIncludes(
-  accountDeletion,
+for (const fragment of [
   'requestRecurringContractCancellation',
-  'account deletion must stop future recurring charges'
+  'expectedBuyerUid: uid',
+]) requireIncludes(
+  accountDeletion,
+  fragment,
+  'account deletion must stop only the owner recurring contract'
+);
+
+const financialRetention = read(
+  'functions/src/account_lifecycle/account-financial-retention.firestore.ts'
+);
+requireIncludes(
+  financialRetention,
+  'expectedBuyerUid: safeUid',
+  'financial retention must bind recurring cancellation to deleted buyer'
 );
 
 const indexConfig = JSON.parse(read('firestore.indexes.json'));
