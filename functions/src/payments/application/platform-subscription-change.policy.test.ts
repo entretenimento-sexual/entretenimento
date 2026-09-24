@@ -3,7 +3,32 @@ import test from 'node:test';
 
 import {
   resolvePlatformSubscriptionPlanChangePolicy,
+  shouldBlockDuplicateRecurringCheckout,
 } from './platform-subscription-change.policy';
+
+test('bloqueia checkout duplicado do mesmo plano com renovação ativa', () => {
+  assert.equal(
+    shouldBlockDuplicateRecurringCheckout({
+      currentRole: 'premium',
+      requestedRole: 'premium',
+      recurringPlanKey: 'premium',
+      renewalEnabled: true,
+    }),
+    true
+  );
+});
+
+test('não bloqueia nova contratação do mesmo plano após desligar renovação', () => {
+  assert.equal(
+    shouldBlockDuplicateRecurringCheckout({
+      currentRole: 'premium',
+      requestedRole: 'premium',
+      recurringPlanKey: 'premium',
+      renewalEnabled: false,
+    }),
+    false
+  );
+});
 
 test('permite nova assinatura quando não há plano ativo', () => {
   const policy = resolvePlatformSubscriptionPlanChangePolicy({
