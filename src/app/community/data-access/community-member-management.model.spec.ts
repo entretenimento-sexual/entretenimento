@@ -99,7 +99,17 @@ describe('community member management normalization', () => {
     expect(page?.items).toEqual([]);
   });
 
-  it('rejeita cursor malformado e resposta de ação sem papel conhecido', () => {
+  it('aceita cursor opaco e rejeita cursor malformado ou ação sem papel conhecido', () => {
+    const opaqueCursor = `v1_${'a'.repeat(180)}`;
+    expect(
+      normalizeCommunityManagedMembersPage({
+        items: [],
+        nextCursor: opaqueCursor,
+        generatedAt: 100,
+      })?.nextCursor
+    ).toBe(opaqueCursor);
+
+
     expect(
       normalizeCommunityManagedMembersPage({
         items: [],
