@@ -23,11 +23,11 @@ import type {
   CommunityPreviewViewerRole,
 } from '../data-access/community-preview.model';
 
-export type CommunitySocialSpaceDiscoveryMode = 'explore' | 'mine';
-export type CommunityMembershipActionKind = 'request' | 'leave';
-export type CommunityMembershipResultStatus = 'active' | 'pending' | 'left';
+type CommunitySocialSpaceDiscoveryMode = 'explore' | 'mine';
+type CommunityMembershipActionKind = 'request' | 'leave';
+type CommunityMembershipResultStatus = 'active' | 'pending' | 'left';
 
-export interface CommunitySocialSpaceFeedPresentation {
+interface CommunitySocialSpaceFeedPresentation {
   readonly sectionLabel: string;
   readonly ariaLabel: string;
   readonly loadingLabel: string;
@@ -36,8 +36,7 @@ export interface CommunitySocialSpaceFeedPresentation {
   readonly composerPlaceholder: string;
 }
 
-export interface CommunitySocialSpaceAdapter {
-  readonly sourceType: CommunityPreviewSourceType;
+interface CommunitySocialSpaceAdapter {
   readonly definition: SocialSpaceDefinition;
   readonly capabilities: Readonly<SocialSpaceCapabilities>;
   readonly ownerRoleLabel: string;
@@ -318,7 +317,6 @@ function createAdapter(
   const isVenue = sourceType === 'venue';
 
   return Object.freeze({
-    sourceType,
     definition,
     capabilities: definition.capabilities,
     ownerRoleLabel: copy.ownerRoleLabel,
@@ -406,7 +404,7 @@ function createAdapter(
   });
 }
 
-export const COMMUNITY_SOCIAL_SPACE_ADAPTERS: Readonly<
+const COMMUNITY_SOCIAL_SPACE_ADAPTERS: Readonly<
   Record<CommunityPreviewSourceType, CommunitySocialSpaceAdapter>
 > = Object.freeze({
   community: createAdapter('community'),
