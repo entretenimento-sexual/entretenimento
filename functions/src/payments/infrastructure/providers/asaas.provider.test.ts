@@ -268,3 +268,46 @@ test('checkout sandbox rejeita link retornado fora do host esperado e usa fallba
     globalThis.fetch = originalFetch;
   }
 });
+
+test('atualiza somente valor recorrente futuro sem dados de cartão', async () => {
+  const originalFetch = globalThis.fetch;
+  let capturedUrl = '';
+  let capturedBody: Record<string, unknown> | null = null;
+
+  globalThis.fetch = (async (
+    input: string | URL | Request,
+    init?: RequestInit
+  ) => {
+    capturedUrl = String(input);
+    capturedBody = JSON.parse(
+      String(init?.body ?? '{}')
+    ) as Record<string, unknown>;
+
+    return new Response(
+      JSON.stringify({ id: 'sub_1', value: 19.99 }),
+      { status: 200, headers: { 'content-type': 'application/json' } }
+    );
+  }) as typeof fetch;
+
+  try {
+    const provider = new AsaasPaymentProvider({
+      runtime,
+      apiKey: '$aact_hmlg_example_key',
+    });
+
+    await provider.updateRecurringSubscriptionAmount({
+      providerSubscriptionId: 'sub_1',
+      amountCents: 1999,
+      updatePendingPayments: true,
+    });
+
+    assert.match(capturedUrl, /\/subscriptions\/sub_1$/);
+    assert.deepEqual(capturedBody, {
+      value: 19.99,
+      updatePendingPayments: true,
+    });
+    assert.equal('creditCard' in (capturedBody ?? {}), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
