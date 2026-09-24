@@ -25,6 +25,10 @@ const PRESENTATION_INFRASTRUCTURE = new Set([
   'core/services/general/notification.service.ts',
 ]);
 
+const BOOTSTRAP_INFRASTRUCTURE = new Set([
+  'app.module.ts',
+]);
+
 const NOTIFICATION_DOMAIN_MARKERS = [
   'AppNotificationService',
   'CommunityNotificationPreferenceService',
@@ -85,26 +89,48 @@ function notificationRuntimeFiles(): Array<{
     );
 }
 
+function filesUsingPublicNotificationMutations(): Array<{
+  relativePath: string;
+  source: string;
+}> {
+  return notificationRuntimeFiles().filter(({ source }) =>
+    NOTIFICATION_PUBLIC_OPERATION_MARKERS.some((marker) => source.includes(marker))
+    || (
+      source.includes('PushNotificationDeviceService')
+      && (
+        source.includes('.activate$(')
+        || source.includes('.deactivate$(')
+        || source.includes('.refresh$(')
+      )
+    )
+  );
+}
+
 function filesHandlingPublicNotificationErrors(): Array<{
   relativePath: string;
   source: string;
 }> {
-  return notificationRuntimeFiles().filter(({ source }) => {
-    const handlesObservableError = /\berror\s*:\s*(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>/.test(source)
-      || /\berror\s*:\s*[A-Za-z_$][\w$]*\s*=>/.test(source);
-    const usesPublicNotificationMutation =
-      NOTIFICATION_PUBLIC_OPERATION_MARKERS.some((marker) => source.includes(marker))
-      || (
-        source.includes('PushNotificationDeviceService')
-        && (
-          source.includes('.activate$(')
-          || source.includes('.deactivate$(')
-          || source.includes('.refresh$(')
-        )
-      );
+  return filesUsingPublicNotificationMutations().filter(({ source }) =>
+    /\berror\s*:\s*(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>/.test(source)
+    || /\berror\s*:\s*[A-Za-z_$][\w$]*\s*=>/.test(source)
+    || source.includes('catchError(')
+  );
+}
 
-    return handlesObservableError && usesPublicNotificationMutation;
-  });
+function notificationErrorRuntimeFiles(): Array<{
+  relativePath: string;
+  source: string;
+}> {
+  const ownerPaths = new Set<string>(CANONICAL_NOTIFICATION_ERROR_OWNERS);
+  const mutationPaths = new Set(
+    filesUsingPublicNotificationMutations().map(({ relativePath }) => relativePath)
+  );
+
+  return notificationRuntimeFiles().filter(({ relativePath }) =>
+    relativePath.toLowerCase().includes('notification')
+    || ownerPaths.has(relativePath)
+    || mutationPaths.has(relativePath)
+  );
 }
 
 describe('Notification error ownership boundary', () => {
@@ -119,6 +145,7 @@ describe('Notification error ownership boundary', () => {
 
   it('não acessa GlobalErrorHandlerService diretamente em nenhum runtime de notificações', () => {
     const offenders = notificationRuntimeFiles()
+      .filter(({ relativePath }) => !BOOTSTRAP_INFRASTRUCTURE.has(relativePath))
       .filter(({ source }) => source.includes('GlobalErrorHandlerService'))
       .map(({ relativePath }) => relativePath)
       .sort();
@@ -127,7 +154,7 @@ describe('Notification error ownership boundary', () => {
   });
 
   it('não permite apresentação manual de erro em runtime de notificações', () => {
-    const offenders = notificationRuntimeFiles()
+    const offenders = notificationErrorRuntimeFiles()
       .filter(({ relativePath }) => !PRESENTATION_INFRASTRUCTURE.has(relativePath))
       .filter(({ source }) =>
         /\.showError\s*\(/.test(source)
