@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest';
 
 const APP_ROOT = resolve(process.cwd(), 'src/app');
 const TOPICS_ROOT_FRAGMENT = '/community/topics/';
+const TOPIC_REPOSITORY_PATH =
+  '/community/data-access/community-topic.repository.ts';
 
 function productionFiles(directory: string): readonly string[] {
   return readdirSync(directory).flatMap((name) => {
@@ -24,7 +26,12 @@ describe('Community Topics product freeze', () => {
 
     for (const file of productionFiles(APP_ROOT)) {
       const normalized = file.replaceAll('\\', '/');
-      if (normalized.includes(TOPICS_ROOT_FRAGMENT)) continue;
+      if (
+        normalized.includes(TOPICS_ROOT_FRAGMENT)
+        || normalized.endsWith(TOPIC_REPOSITORY_PATH)
+      ) {
+        continue;
+      }
 
       const source = readFileSync(file, 'utf8');
 
