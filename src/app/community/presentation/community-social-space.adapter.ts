@@ -2,10 +2,9 @@
 // -----------------------------------------------------------------------------
 // COMMUNITY SOCIAL-SPACE ADAPTER
 // -----------------------------------------------------------------------------
-// Community e Venue reutilizam infraestrutura social, mas não são o mesmo produto.
-// Este adapter concentra as diferenças de copy, navegação e capacidades usadas
-// pelas superfícies hospedadas em /community. Components devem consumir este
-// contrato em vez de espalhar comparações literais de source.type.
+// Community e Venue reutilizam infraestrutura social, mas são produtos distintos.
+// Este adapter concentra somente diferenças de apresentação/navegação usadas por
+// componentes compartilhados. Regras de domínio permanecem em suas policies.
 // -----------------------------------------------------------------------------
 
 import type {
@@ -61,7 +60,7 @@ export interface CommunitySocialSpaceAdapter {
     actionLabel(join: CommunityPreviewJoinPolicy): string;
     joinLabel(join: CommunityPreviewJoinPolicy): string;
     leaveActionLabel(join: CommunityPreviewJoinPolicy): string;
-    interactionRestrictedLabel: string;
+    readonly interactionRestrictedLabel: string;
     successMessage(input: {
       readonly kind: CommunityMembershipActionKind;
       readonly resultStatus: CommunityMembershipResultStatus;
@@ -86,7 +85,7 @@ export interface CommunitySocialSpaceAdapter {
   };
 }
 
-interface SocialSpaceCopy {
+interface ProductCopy {
   readonly ownerRoleLabel: string;
   readonly showKindBadge: boolean;
   readonly officialEntityTargetType: 'venue' | null;
@@ -109,12 +108,8 @@ interface SocialSpaceCopy {
     readonly leaveError: string;
     readonly requestError: string;
   };
-  readonly feed: {
+  readonly feed: Omit<CommunitySocialSpaceFeedPresentation, 'sectionLabel'> & {
     readonly sectionLabel: string;
-    readonly ariaLabel: string;
-    readonly loadingLabel: string;
-    readonly errorLabel: string;
-    readonly emptyLabel: string;
     readonly photosAriaLabel: string;
   };
   readonly management: {
@@ -126,128 +121,78 @@ interface SocialSpaceCopy {
     readonly loadRequestsError: string;
     readonly reviewRequestError: string;
   };
-  readonly leave: {
-    readonly owner: ConfirmationDialogData;
-    readonly admin: ConfirmationDialogData;
-    readonly moderator: ConfirmationDialogData;
-    readonly member: Omit<ConfirmationDialogData, 'detail'>;
-  };
 }
 
-const COPY: Readonly<Record<CommunityPreviewSourceType, SocialSpaceCopy>> =
+const COPY: Readonly<Record<CommunityPreviewSourceType, ProductCopy>> =
   Object.freeze({
     community: Object.freeze({
       ownerRoleLabel: 'Proprietário',
       showKindBadge: false,
       officialEntityTargetType: null,
-      discovery: Object.freeze({
+      discovery: {
         hubTitle: 'Comunidades',
         emptyExploreMessage: 'Ainda não há Comunidades por aqui.',
         canCreateVenue: false,
         canCreateCommunity: true,
-      }),
-      membership: Object.freeze({
+      },
+      membership: {
         openAction: 'Participar',
         restrictedAction: 'Solicitar',
-        joinLabels: Object.freeze({
+        joinLabels: {
           open: 'Participação aberta',
           approval: 'Entrada por aprovação',
           invite_only: 'Somente convite',
-        }),
+        },
         leaveOpenAction: 'Sair da Comunidade',
         leaveRestrictedAction: 'Sair da Comunidade',
-        interactionRestrictedLabel: 'Interação reservada aos membros da Comunidade',
+        interactionRestrictedLabel:
+          'Interação reservada aos membros da Comunidade',
         activeSuccess: 'Você entrou na Comunidade.',
         pendingSuccess: 'Solicitação enviada.',
         leftSuccess: 'Você saiu da Comunidade.',
         leaveError: 'Não foi possível sair desta Comunidade agora.',
         requestError:
           'Não foi possível concluir a participação nesta Comunidade agora.',
-      }),
-      feed: Object.freeze({
+      },
+      feed: {
         sectionLabel: 'Mural',
         ariaLabel: 'Mural da Comunidade',
         loadingLabel: 'Carregando mural...',
         errorLabel: 'Não foi possível carregar o mural da Comunidade.',
         emptyLabel: 'Nenhuma mensagem no Mural ainda.',
         photosAriaLabel: 'Fotos da Comunidade',
-      }),
-      management: Object.freeze({
+      },
+      management: {
         requestsTitle: 'Solicitações de entrada',
         hubTitle: 'Gestão da Comunidade',
         hubDescription:
           'Acompanhe pessoas, acesso e configurações sem transformar a Comunidade em um painel administrativo.',
         emptyRequestsMessage: 'Nenhuma solicitação de entrada pendente.',
         approvalSuccessSuffix: 'entrou na Comunidade.',
-        loadRequestsError: 'Não foi possível carregar as solicitações de entrada.',
-        reviewRequestError: 'Não foi possível revisar esta solicitação de entrada.',
-      }),
-      leave: Object.freeze({
-        owner: Object.freeze({
-          eyebrow: 'Propriedade da Comunidade',
-          title: 'Encerrar seu vínculo com a Comunidade?',
-          message:
-            'A Comunidade já está encerrada. Ao sair, sua propriedade será liberada e seu vínculo ficará inativo.',
-          detail:
-            'Essa ação não reabre a Comunidade nem transfere a propriedade para outra pessoa.',
-          confirmLabel: 'Liberar propriedade e sair',
-          cancelLabel: 'Manter meu vínculo',
-          icon: 'logout',
-          tone: 'danger',
-        }),
-        admin: Object.freeze({
-          eyebrow: 'Administração da Comunidade',
-          title: 'Sair da Comunidade?',
-          message:
-            'Você deixará esta Comunidade e perderá imediatamente seu papel de Administração.',
-          detail:
-            'Para voltar, será necessário entrar ou solicitar aprovação novamente. A Administração não será restaurada automaticamente.',
-          confirmLabel: 'Sair da Comunidade',
-          cancelLabel: 'Continuar na Administração',
-          icon: 'logout',
-          tone: 'danger',
-        }),
-        moderator: Object.freeze({
-          eyebrow: 'Moderação da Comunidade',
-          title: 'Sair da Comunidade?',
-          message:
-            'Você deixará esta Comunidade e perderá imediatamente seu papel de Moderação.',
-          detail:
-            'Para voltar, será necessário entrar ou solicitar aprovação novamente. A Moderação não será restaurada automaticamente.',
-          confirmLabel: 'Sair da Comunidade',
-          cancelLabel: 'Continuar na Moderação',
-          icon: 'logout',
-          tone: 'danger',
-        }),
-        member: Object.freeze({
-          eyebrow: 'Participação na Comunidade',
-          title: 'Sair da Comunidade?',
-          message: 'Você deixará de participar desta Comunidade.',
-          confirmLabel: 'Sair da Comunidade',
-          cancelLabel: 'Continuar participando',
-          icon: 'logout',
-          tone: 'warning',
-        }),
-      }),
+        loadRequestsError:
+          'Não foi possível carregar as solicitações de entrada.',
+        reviewRequestError:
+          'Não foi possível revisar esta solicitação de entrada.',
+      },
     }),
     venue: Object.freeze({
       ownerRoleLabel: 'Responsável',
       showKindBadge: true,
       officialEntityTargetType: 'venue',
-      discovery: Object.freeze({
+      discovery: {
         hubTitle: 'Locais',
         emptyExploreMessage: 'Nenhum Local disponível.',
         canCreateVenue: true,
         canCreateCommunity: false,
-      }),
-      membership: Object.freeze({
+      },
+      membership: {
         openAction: 'Seguir',
         restrictedAction: 'Solicitar acesso',
-        joinLabels: Object.freeze({
+        joinLabels: {
           open: 'Acompanhamento aberto',
           approval: 'Acesso por aprovação',
           invite_only: 'Acesso por convite',
-        }),
+        },
         leaveOpenAction: 'Deixar de seguir',
         leaveRestrictedAction: 'Sair do Local',
         interactionRestrictedLabel:
@@ -257,111 +202,108 @@ const COPY: Readonly<Record<CommunityPreviewSourceType, SocialSpaceCopy>> =
         leftSuccess: 'Você saiu do Local.',
         leaveError: 'Não foi possível sair deste Local agora.',
         requestError: 'Não foi possível solicitar acesso a este Local agora.',
-      }),
-      feed: Object.freeze({
+      },
+      feed: {
         sectionLabel: 'Novidades',
         ariaLabel: 'Novidades do Local',
         loadingLabel: 'Carregando novidades...',
         errorLabel: 'Não foi possível carregar as novidades.',
         emptyLabel: 'Nenhuma novidade publicada.',
         photosAriaLabel: 'Fotos do Local',
-      }),
-      management: Object.freeze({
+      },
+      management: {
         requestsTitle: 'Solicitações de acesso',
         hubTitle: 'Gestão do Local',
         hubDescription:
           'Acompanhe solicitações sem sair da experiência do Local.',
         emptyRequestsMessage: 'Nenhuma solicitação de acesso pendente.',
         approvalSuccessSuffix: 'recebeu acesso ao Local.',
-        loadRequestsError: 'Não foi possível carregar as solicitações de acesso.',
-        reviewRequestError: 'Não foi possível revisar esta solicitação de acesso.',
-      }),
-      leave: Object.freeze({
-        owner: Object.freeze({
-          eyebrow: 'Responsabilidade do Local',
-          title: 'Encerrar seu vínculo com o Local?',
-          message:
-            'Este espaço já está encerrado. Ao sair, sua responsabilidade será liberada e seu vínculo ficará inativo.',
-          detail:
-            'Essa ação não reabre o Local nem transfere sua responsabilidade para outra pessoa.',
-          confirmLabel: 'Liberar responsabilidade e sair',
-          cancelLabel: 'Manter meu vínculo',
-          icon: 'logout',
-          tone: 'danger',
-        }),
-        admin: Object.freeze({
-          eyebrow: 'Administração do Local',
-          title: 'Sair do Local?',
-          message:
-            'Você deixará este Local e perderá imediatamente seu acesso de Administração.',
-          detail:
-            'Para voltar, será necessário obter acesso novamente. A Administração não será restaurada automaticamente.',
-          confirmLabel: 'Sair do Local',
-          cancelLabel: 'Continuar na Administração',
-          icon: 'logout',
-          tone: 'danger',
-        }),
-        moderator: Object.freeze({
-          eyebrow: 'Moderação do Local',
-          title: 'Sair do Local?',
-          message:
-            'Você deixará este Local e perderá imediatamente seu acesso de Moderação.',
-          detail:
-            'Para voltar, será necessário obter acesso novamente. A Moderação não será restaurada automaticamente.',
-          confirmLabel: 'Sair do Local',
-          cancelLabel: 'Continuar na Moderação',
-          icon: 'logout',
-          tone: 'danger',
-        }),
-        member: Object.freeze({
-          eyebrow: 'Participação no Local',
-          title: 'Sair do Local?',
-          message: 'Você deixará de participar deste Local.',
-          confirmLabel: 'Sair do Local',
-          cancelLabel: 'Continuar participando',
-          icon: 'logout',
-          tone: 'warning',
-        }),
-      }),
+        loadRequestsError:
+          'Não foi possível carregar as solicitações de acesso.',
+        reviewRequestError:
+          'Não foi possível revisar esta solicitação de acesso.',
+      },
     }),
   });
 
-function feedPresentation(
-  copy: SocialSpaceCopy,
-  view: CommunityFeedView
-): CommunitySocialSpaceFeedPresentation {
-  if (view === 'photos') {
-    return {
-      sectionLabel: 'Fotos',
-      ariaLabel: copy.feed.photosAriaLabel,
-      loadingLabel: 'Carregando fotos...',
-      errorLabel: 'Não foi possível carregar as fotos.',
-      emptyLabel: 'Nenhuma foto compartilhada ainda.',
-    };
-  }
-
-  return copy.feed;
-}
-
-function leaveConfirmation(
-  copy: SocialSpaceCopy,
+function buildLeaveConfirmation(
+  sourceType: CommunityPreviewSourceType,
   input: {
     readonly viewerMode: CommunityPreviewViewerMode;
     readonly viewerRole: CommunityPreviewViewerRole | null;
     readonly join: CommunityPreviewJoinPolicy;
   }
 ): ConfirmationDialogData {
-  if (input.viewerRole === 'owner') return copy.leave.owner;
-  if (input.viewerRole === 'admin') return copy.leave.admin;
+  const isVenue = sourceType === 'venue';
+
+  if (input.viewerRole === 'owner') {
+    return {
+      eyebrow: isVenue ? 'Responsabilidade do Local' : 'Propriedade da Comunidade',
+      title: isVenue
+        ? 'Encerrar seu vínculo com o Local?'
+        : 'Encerrar seu vínculo com a Comunidade?',
+      message: isVenue
+        ? 'Este espaço já está encerrado. Ao sair, sua responsabilidade será liberada e seu vínculo ficará inativo.'
+        : 'A Comunidade já está encerrada. Ao sair, sua propriedade será liberada e seu vínculo ficará inativo.',
+      detail: isVenue
+        ? 'Essa ação não reabre o Local nem transfere sua responsabilidade para outra pessoa.'
+        : 'Essa ação não reabre a Comunidade nem transfere a propriedade para outra pessoa.',
+      confirmLabel: isVenue
+        ? 'Liberar responsabilidade e sair'
+        : 'Liberar propriedade e sair',
+      cancelLabel: 'Manter meu vínculo',
+      icon: 'logout',
+      tone: 'danger',
+    };
+  }
+
+  if (input.viewerRole === 'admin') {
+    return {
+      eyebrow: isVenue ? 'Administração do Local' : 'Administração da Comunidade',
+      title: isVenue ? 'Sair do Local?' : 'Sair da Comunidade?',
+      message: isVenue
+        ? 'Você deixará este Local e perderá imediatamente seu acesso de Administração.'
+        : 'Você deixará esta Comunidade e perderá imediatamente seu papel de Administração.',
+      detail: isVenue
+        ? 'Para voltar, será necessário obter acesso novamente. A Administração não será restaurada automaticamente.'
+        : 'Para voltar, será necessário entrar ou solicitar aprovação novamente. A Administração não será restaurada automaticamente.',
+      confirmLabel: isVenue ? 'Sair do Local' : 'Sair da Comunidade',
+      cancelLabel: 'Continuar na Administração',
+      icon: 'logout',
+      tone: 'danger',
+    };
+  }
+
   if (input.viewerRole === 'moderator' || input.viewerMode === 'moderator') {
-    return copy.leave.moderator;
+    return {
+      eyebrow: isVenue ? 'Moderação do Local' : 'Moderação da Comunidade',
+      title: isVenue ? 'Sair do Local?' : 'Sair da Comunidade?',
+      message: isVenue
+        ? 'Você deixará este Local e perderá imediatamente seu acesso de Moderação.'
+        : 'Você deixará esta Comunidade e perderá imediatamente seu papel de Moderação.',
+      detail: isVenue
+        ? 'Para voltar, será necessário obter acesso novamente. A Moderação não será restaurada automaticamente.'
+        : 'Para voltar, será necessário entrar ou solicitar aprovação novamente. A Moderação não será restaurada automaticamente.',
+      confirmLabel: isVenue ? 'Sair do Local' : 'Sair da Comunidade',
+      cancelLabel: 'Continuar na Moderação',
+      icon: 'logout',
+      tone: 'danger',
+    };
   }
 
   return {
-    ...copy.leave.member,
+    eyebrow: isVenue ? 'Participação no Local' : 'Participação na Comunidade',
+    title: isVenue ? 'Sair do Local?' : 'Sair da Comunidade?',
+    message: isVenue
+      ? 'Você deixará de participar deste Local.'
+      : 'Você deixará de participar desta Comunidade.',
     detail: input.join === 'approval'
       ? 'Para voltar, será necessário solicitar aprovação novamente.'
       : 'Você poderá entrar novamente enquanto este espaço continuar disponível.',
+    confirmLabel: isVenue ? 'Sair do Local' : 'Sair da Comunidade',
+    cancelLabel: 'Continuar participando',
+    icon: 'logout',
+    tone: 'warning',
   };
 }
 
@@ -370,34 +312,7 @@ function createAdapter(
 ): CommunitySocialSpaceAdapter {
   const copy = COPY[sourceType];
   const definition = getSocialSpaceDefinition(sourceType);
-
-  const communityDetailsRoute = (
-    communityId: string,
-    mode: CommunitySocialSpaceDiscoveryMode
-  ): readonly string[] =>
-    mode === 'mine'
-      ? ['/dashboard/comunidades/minhas', communityId]
-      : ['/dashboard/comunidades', communityId];
-
-  const communityReturnTarget = (
-    mode: CommunitySocialSpaceDiscoveryMode,
-    selectedTagId: string | null
-  ): string => {
-    if (mode === 'mine') return '/dashboard/comunidades/minhas';
-    return selectedTagId
-      ? `/dashboard/comunidades?interesse=${selectedTagId}`
-      : '/dashboard/comunidades';
-  };
-
-  const detailsRoute = sourceType === 'venue'
-    ? (communityId: string): readonly string[] => [
-        '/dashboard/locais',
-        communityId,
-      ]
-    : communityDetailsRoute;
-  const returnTarget = sourceType === 'venue'
-    ? (): string => '/dashboard/locais'
-    : communityReturnTarget;
+  const isVenue = sourceType === 'venue';
 
   return Object.freeze({
     sourceType,
@@ -408,8 +323,25 @@ function createAdapter(
     officialEntityTargetType: copy.officialEntityTargetType,
     discovery: Object.freeze({
       ...copy.discovery,
-      detailsRoute,
-      returnTarget,
+      detailsRoute: (
+        communityId: string,
+        mode: CommunitySocialSpaceDiscoveryMode
+      ): readonly string[] =>
+        isVenue
+          ? ['/dashboard/locais', communityId]
+          : mode === 'mine'
+            ? ['/dashboard/comunidades/minhas', communityId]
+            : ['/dashboard/comunidades', communityId],
+      returnTarget: (
+        mode: CommunitySocialSpaceDiscoveryMode,
+        selectedTagId: string | null
+      ): string => {
+        if (isVenue) return '/dashboard/locais';
+        if (mode === 'mine') return '/dashboard/comunidades/minhas';
+        return selectedTagId
+          ? `/dashboard/comunidades?interesse=${selectedTagId}`
+          : '/dashboard/comunidades';
+      },
     }),
     membership: Object.freeze({
       actionLabel: (join: CommunityPreviewJoinPolicy) =>
@@ -427,22 +359,32 @@ function createAdapter(
         readonly kind: CommunityMembershipActionKind;
         readonly resultStatus: CommunityMembershipResultStatus;
         readonly pending: boolean;
-      }) => {
+      }): string => {
         if (input.kind === 'request') {
           return input.resultStatus === 'active'
             ? copy.membership.activeSuccess
             : copy.membership.pendingSuccess;
         }
-        if (input.pending) return 'Solicitação cancelada.';
-        return copy.membership.leftSuccess;
+        return input.pending
+          ? 'Solicitação cancelada.'
+          : copy.membership.leftSuccess;
       },
       errorFallback: (kind: CommunityMembershipActionKind) =>
         kind === 'leave'
           ? copy.membership.leaveError
           : copy.membership.requestError,
-      leaveConfirmation: (input) => leaveConfirmation(copy, input),
+      leaveConfirmation: (input) => buildLeaveConfirmation(sourceType, input),
     }),
-    feed: (view: CommunityFeedView) => feedPresentation(copy, view),
+    feed: (view: CommunityFeedView): CommunitySocialSpaceFeedPresentation =>
+      view === 'photos'
+        ? {
+            sectionLabel: 'Fotos',
+            ariaLabel: copy.feed.photosAriaLabel,
+            loadingLabel: 'Carregando fotos...',
+            errorLabel: 'Não foi possível carregar as fotos.',
+            emptyLabel: 'Nenhuma foto compartilhada ainda.',
+          }
+        : copy.feed,
     management: Object.freeze({
       requestsTitle: copy.management.requestsTitle,
       hubTitle: copy.management.hubTitle,
