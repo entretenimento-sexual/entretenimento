@@ -1,5 +1,5 @@
 // src/app/community/discovery/community-discovery-sponsored.facade.ts
-import { DestroyRef, Injectable, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, Injector, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { catchError, of, switchMap, take } from 'rxjs';
 
@@ -26,7 +26,7 @@ export interface CommunityDiscoverySponsoredContext {
 
 @Injectable()
 export class CommunityDiscoverySponsoredFacade {
-  private readonly repository = inject(CommunityBoostRepository);
+  private readonly injector = inject(Injector);
   private readonly sessionBehavior = inject(CommunityDiscoverySessionBehaviorService);
   private readonly applicationError = inject(ApplicationErrorService);
   private readonly destroyRef = inject(DestroyRef);
@@ -68,7 +68,7 @@ export class CommunityDiscoverySponsoredFacade {
             hiddenCommunityIds: sessionBehavior.hiddenCommunityIds,
           });
 
-          return this.repository.getPlacement$({
+          return this.injector.get(CommunityBoostRepository).getPlacement$({
             sourceType: context.sourceType,
             tagId: context.canFilterByTags ? context.tagId : null,
             organicCommunityIds: organicItems.map((item) => item.communityId),
@@ -100,7 +100,7 @@ export class CommunityDiscoverySponsoredFacade {
   ): void {
     if (context.discoveryMode !== 'explore') return;
 
-    this.repository.recordEvent$(placement.placementId, 'qualified_exposure')
+    this.injector.get(CommunityBoostRepository).recordEvent$(placement.placementId, 'qualified_exposure')
       .pipe(
         catchError((error: unknown) => {
           this.reportError(
@@ -121,7 +121,7 @@ export class CommunityDiscoverySponsoredFacade {
   ): void {
     if (context.discoveryMode !== 'explore') return;
 
-    this.repository.recordEvent$(placement.placementId, 'click')
+    this.injector.get(CommunityBoostRepository).recordEvent$(placement.placementId, 'click')
       .pipe(
         catchError((error: unknown) => {
           this.reportError(error, 'recordCommunityBoostClick', context);
