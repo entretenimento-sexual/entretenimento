@@ -20,6 +20,10 @@ import {
   CommunityCapacityPreview,
   normalizeCommunityCapacityPreview,
 } from './community-capacity.model';
+import {
+  CommunityCapacityRegularizationPreview,
+  normalizeCommunityCapacityRegularizationPreview,
+} from './community-capacity-regularization.model';
 import type { CommunityTagCategory } from './community-tag.model';
 import {
   CommunityEditableSettings,
@@ -113,6 +117,7 @@ export interface CommunityPreviewResponse {
   canInviteCommunityMembers: boolean;
   canManageCommunitySettings: boolean;
   capacity: CommunityCapacityPreview | null;
+  capacityRegularization: CommunityCapacityRegularizationPreview | null;
   settings: CommunityEditableSettings | null;
   canLeaveMembership: boolean;
   generatedAt: number;
@@ -340,6 +345,7 @@ export function normalizeCommunityPreviewResponse(
   const viewerMode = source['viewerMode'];
   const generatedAt = Number(source['generatedAt']);
   const lifecycleStatus = normalizeLifecycleStatus(source['lifecycleStatus']);
+  const viewerRole = normalizeViewerRole(source['viewerRole']);
   const canManageCommunitySettings =
     community?.source.type === 'community'
     && source['canManageCommunitySettings'] === true;
@@ -349,6 +355,13 @@ export function normalizeCommunityPreviewResponse(
   const capacity = community?.source.type === 'community'
     ? normalizeCommunityCapacityPreview(source['capacity'])
     : null;
+  const capacityRegularization =
+    community?.source.type === 'community'
+    && (viewerRole === 'owner' || viewerRole === 'admin')
+      ? normalizeCommunityCapacityRegularizationPreview(
+          source['capacityRegularization']
+        )
+      : null;
 
   if (
     !community
@@ -373,12 +386,13 @@ export function normalizeCommunityPreviewResponse(
       ? lifecycleStatus
       : null,
     viewerMode,
-    viewerRole: normalizeViewerRole(source['viewerRole']),
+    viewerRole,
     canInteract: source['canInteract'] === true,
     canManageMemberships: source['canManageMemberships'] === true,
     canInviteCommunityMembers: source['canInviteCommunityMembers'] === true,
     canManageCommunitySettings,
     capacity,
+    capacityRegularization,
     settings,
     canLeaveMembership: source['canLeaveMembership'] === true,
     generatedAt: Number.isFinite(generatedAt) ? generatedAt : Date.now(),
