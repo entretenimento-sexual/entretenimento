@@ -114,6 +114,7 @@ export async function requestRecurringPlanDowngrade(input: {
       contractRef,
       {
         pendingPlanChange,
+        needsProviderPlanChangeSync: true,
         updatedAt: now,
       },
       { merge: true }
@@ -206,6 +207,7 @@ export async function applyPendingRecurringPlanChangeAtProvider(input: {
             now + retryDelayMs(attemptCount),
           providerUpdateLastErrorCode: errorCode(error),
         },
+        needsProviderPlanChangeSync: true,
         updatedAt: now,
       },
       { merge: true }
@@ -235,6 +237,7 @@ export async function applyPendingRecurringPlanChangeAtProvider(input: {
           providerUpdateLastErrorCode: null,
           providerUpdatedAt: now,
         },
+        needsProviderPlanChangeSync: false,
         updatedAt: now,
       },
       { merge: true }
@@ -255,4 +258,183 @@ export async function applyPendingRecurringPlanChangeAtProvider(input: {
   });
 
   return { applied: true, alreadyApplied: false };
+}
+
+
+export async function requestCancelRecurringPlanDowngrade(input: {
+  contractId: string;
+  buyerUid: string;
+}): Promise<PlatformRecurringSubscriptionDoc> {
+  const contractRef = db
+    .collection(PLATFORM_SUBSCRIPTION_COLLECTION)
+    .doc(input.contractId);
+  const now = Date.now();
+  let result!: PlatformRecurringSubscriptionDoc;
+
+  await db.runTransaction(async (tx) => {
+    const snapshot = await tx.get(contractRef);
+
+    if (!snapshot.exists) {
+      throw new HttpsError(
+        'failed-precondition',
+        'A assinatura recorrente atual não foi localizada.'
+      );
+    }
+
+    const contract = snapshot.data() as PlatformRecurringSubscriptionDoc;
+    const pending = contract.pendingPlanChange ?? null;
+
+    if (
+      contract.buyerUid !== input.buyerUid
+      || !pending
+      || contract.status !== 'active'
+      || contract.renewalEnabled !== true
+      || contract.isCurrent !== true
+      || contract.needsProviderCancellation === true
+    ) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Não existe uma redução de plano cancelável nesta assinatura.',
+        { reason: 'recurring_plan_change_not_scheduled' }
+      );
+    }
+
+    if (pending.cancellationRequestedAt) {
+      result = contract;
+      return;
+    }
+
+    const nextPending: PlatformRecurringPendingPlanChange = {
+      ...pending,
+      cancellationRequestedAt: now,
+      providerRevertAttemptCount: 0,
+      providerRevertNextAttemptAt: now,
+      providerRevertLastErrorCode: null,
+    };
+
+    tx.set(
+      contractRef,
+      {
+        pendingPlanChange: nextPending,
+        needsProviderPlanChangeSync: true,
+        updatedAt: now,
+      },
+      { merge: true }
+    );
+
+    tx.set(db.collection('billing_audit').doc(), {
+      action: 'request_cancel_recurring_subscription_downgrade',
+      buyerUid: contract.buyerUid,
+      contractId: contract.id,
+      providerSubscriptionId: contract.providerSubscriptionId,
+      scheduledPlanKey: pending.planKey,
+      effectiveAt: pending.effectiveAt,
+      accessChanged: false,
+      createdAt: now,
+    });
+
+    result = {
+      ...contract,
+      pendingPlanChange: nextPending,
+      needsProviderPlanChangeSync: true,
+      updatedAt: now,
+    };
+  });
+
+  return result;
+}
+
+export async function revertPendingRecurringPlanChangeAtProvider(input: {
+  contractId: string;
+  provider: AsaasPaymentProvider;
+}): Promise<{
+  reverted: boolean;
+  alreadyClear: boolean;
+}> {
+  const contractRef = db
+    .collection(PLATFORM_SUBSCRIPTION_COLLECTION)
+    .doc(input.contractId);
+  const snapshot = await contractRef.get();
+
+  if (!snapshot.exists) {
+    return { reverted: false, alreadyClear: true };
+  }
+
+  const contract = snapshot.data() as PlatformRecurringSubscriptionDoc;
+  const pending = contract.pendingPlanChange ?? null;
+
+  if (!pending) {
+    return { reverted: false, alreadyClear: true };
+  }
+
+  if (!pending.cancellationRequestedAt) {
+    throw new HttpsError(
+      'failed-precondition',
+      'A alteração de plano não está em cancelamento.',
+      { reason: 'recurring_plan_change_cancel_not_requested' }
+    );
+  }
+
+  const now = Date.now();
+
+  try {
+    await input.provider.updateRecurringSubscriptionAmount({
+      providerSubscriptionId: contract.providerSubscriptionId,
+      amountCents: contract.amountCents,
+      updatePendingPayments: true,
+    });
+  } catch (error: unknown) {
+    const attemptCount =
+      Math.max(0, pending.providerRevertAttemptCount ?? 0) + 1;
+
+    await contractRef.set(
+      {
+        pendingPlanChange: {
+          ...pending,
+          providerRevertAttemptCount: attemptCount,
+          providerRevertNextAttemptAt:
+            now + retryDelayMs(attemptCount),
+          providerRevertLastErrorCode: errorCode(error),
+        },
+        needsProviderPlanChangeSync: true,
+        updatedAt: now,
+      },
+      { merge: true }
+    );
+
+    throw error;
+  }
+
+  await db.runTransaction(async (tx) => {
+    const freshSnapshot = await tx.get(contractRef);
+    if (!freshSnapshot.exists) return;
+
+    const fresh = freshSnapshot.data() as PlatformRecurringSubscriptionDoc;
+    const freshPending = fresh.pendingPlanChange ?? null;
+
+    if (!freshPending?.cancellationRequestedAt) return;
+
+    tx.set(
+      contractRef,
+      {
+        pendingPlanChange: null,
+        needsProviderPlanChangeSync: false,
+        updatedAt: now,
+      },
+      { merge: true }
+    );
+
+    tx.set(db.collection('billing_audit').doc(), {
+      action: 'cancel_recurring_subscription_downgrade',
+      buyerUid: fresh.buyerUid,
+      contractId: fresh.id,
+      providerSubscriptionId: fresh.providerSubscriptionId,
+      restoredPlanKey: fresh.planKey,
+      restoredAmountCents: fresh.amountCents,
+      accessChanged: false,
+      createdAt: now,
+    });
+  });
+
+  return { reverted: true, alreadyClear: false };
 }
