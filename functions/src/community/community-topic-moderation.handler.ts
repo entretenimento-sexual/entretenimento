@@ -12,6 +12,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { buildCommunityOperationalRequestRetention } from './community-operational-retention.policy';
 import { db, Timestamp } from '../firebaseApp';
+import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   REQUIRE_COMMUNITY_APP_CHECK,
   assertCommunityCallableAppCheck,
@@ -34,6 +35,15 @@ import { getCommunityViewerContext } from './community-viewer-access.service';
 import {
   assertCommunityTopicsProductAvailable,
 } from './community-topics-product-state';
+
+function assertTopicsRuntime(): void {
+  if (isCommunityPreviewRuntimeAvailable()) return;
+
+  throw new HttpsError(
+    'failed-precondition',
+    'As Comunidades ainda não estão disponíveis neste ambiente.'
+  );
+}
 
 function assertAuthenticatedUid(
   auth: { uid?: string; token?: Record<string, unknown> } | undefined
@@ -142,6 +152,7 @@ export const moderateCommunityTopic = onCall<CommunityTopicModerationRequest>(
   },
   async (request): Promise<CommunityTopicModerationResponse> => {
     assertCommunityCallableAppCheck(request.app);
+    assertTopicsRuntime();
     assertCommunityTopicsProductAvailable();
     const actorUid = assertAuthenticatedUid(request.auth);
     const command = normalizeCommunityTopicModerationRequest(request.data);
