@@ -27,7 +27,9 @@ import {
 } from './community-callable-security';
 import {
   MAX_PERSONAL_COMMUNITIES_PER_OWNER,
+  isCommunityMemberLimitAllowed,
   resolveCommunityCapacitySponsorRole,
+  resolveCommunityConfiguredMemberLimit,
   resolvePersonalCommunityCreationPolicy,
 } from './community-capacity.policy';
 import { hasCommunityLifecycleHold } from './community-lifecycle.policy';
@@ -616,14 +618,18 @@ export const transferCommunityOwnership =
         const targetOwnershipPolicy = resolvePersonalCommunityCreationPolicy(
           targetSponsorRole
         );
+        const community = communitySnapshot.data() ?? {};
         const targetOwnershipCapacityEligible =
           targetOwnershipPolicy.canCreate
           && (
             targetOwnershipPolicy.maxOwnedCommunities === null
             || targetOwnedCommunitiesSnapshot.size
               < targetOwnershipPolicy.maxOwnedCommunities
+          )
+          && isCommunityMemberLimitAllowed(
+            resolveCommunityConfiguredMemberLimit(community),
+            targetSponsorRole
           );
-        const community = communitySnapshot.data() ?? {};
         assertCommunityOwnerPointer(community, actorUid);
         const source = (community['source'] ?? {}) as Record<string, unknown>;
         const actorMembership = actorMembershipSnapshot.exists
