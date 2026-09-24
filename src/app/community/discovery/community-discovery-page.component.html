@@ -85,8 +85,8 @@
               maxlength="80"
               autocomplete="off"
               placeholder="Buscar comunidade"
-              [value]="mine.searchValue()"
-              (input)="mine.changeSearch($event)"
+              [value]="mineFacade.searchValue()"
+              (input)="mineFacade.changeSearch($event)"
             />
           </label>
         }
@@ -99,30 +99,30 @@
           <button
             class="community-discovery__filter-chip"
             type="button"
-            [class.is-active]="mine.isParticipationFilterSelected('all')"
-            [attr.aria-pressed]="mine.isParticipationFilterSelected('all')"
-            (click)="mine.selectParticipationFilter('all')"
+            [class.is-active]="mineFacade.isParticipationFilterSelected('all')"
+            [attr.aria-pressed]="mineFacade.isParticipationFilterSelected('all')"
+            (click)="mineFacade.selectParticipationFilter('all')"
           >Todas</button>
           <button
             class="community-discovery__filter-chip"
             type="button"
-            [class.is-active]="mine.isParticipationFilterSelected('managed')"
-            [attr.aria-pressed]="mine.isParticipationFilterSelected('managed')"
-            (click)="mine.selectParticipationFilter('managed')"
+            [class.is-active]="mineFacade.isParticipationFilterSelected('managed')"
+            [attr.aria-pressed]="mineFacade.isParticipationFilterSelected('managed')"
+            (click)="mineFacade.selectParticipationFilter('managed')"
           >Administradas</button>
           <button
             class="community-discovery__filter-chip"
             type="button"
-            [class.is-active]="mine.isParticipationFilterSelected('member')"
-            [attr.aria-pressed]="mine.isParticipationFilterSelected('member')"
-            (click)="mine.selectParticipationFilter('member')"
+            [class.is-active]="mineFacade.isParticipationFilterSelected('member')"
+            [attr.aria-pressed]="mineFacade.isParticipationFilterSelected('member')"
+            (click)="mineFacade.selectParticipationFilter('member')"
           >Participo</button>
           <button
             class="community-discovery__filter-chip"
             type="button"
-            [class.is-active]="mine.isParticipationFilterSelected('muted')"
-            [attr.aria-pressed]="mine.isParticipationFilterSelected('muted')"
-            (click)="mine.selectParticipationFilter('muted')"
+            [class.is-active]="mineFacade.isParticipationFilterSelected('muted')"
+            [attr.aria-pressed]="mineFacade.isParticipationFilterSelected('muted')"
+            (click)="mineFacade.selectParticipationFilter('muted')"
           >Silenciadas</button>
         </div>
 
@@ -135,7 +135,7 @@
             <span>{{ state.items.length }} visíveis agora</span>
             <button
               type="button"
-              (click)="mine.clearControls()"
+              (click)="mineFacade.clearControls()"
             >Limpar filtros</button>
           </div>
         }
@@ -221,7 +221,7 @@
       </div>
     }
 
-    @if (mine.notificationPreferenceFeedback(); as notificationFeedback) {
+    @if (mineFacade.notificationPreferenceFeedback(); as notificationFeedback) {
       <div
         class="community-discovery__session-feedback"
         role="status"
@@ -304,7 +304,7 @@
         <p>Ajuste a busca ou os filtros para ver outras participações.</p>
         <button
           type="button"
-          (click)="mine.clearControls()"
+          (click)="mineFacade.clearControls()"
         >Limpar filtros</button>
 
         @if (state.nextCursor) {
@@ -333,13 +333,13 @@
         [attr.aria-busy]="state.loadingMore"
       >
         @for (item of state.items; track item.communityId; let itemIndex = $index) {
-          @if (mine.startsAttentionGroup(state.items, itemIndex)) {
+          @if (mineFacade.startsAttentionGroup(state.items, itemIndex)) {
             <li
               class="community-discovery__attention-heading"
               role="presentation"
-              [attr.data-attention-group]="mine.attentionGroupKey(item)"
+              [attr.data-attention-group]="mineFacade.attentionGroupKey(item)"
             >
-              @if (mine.attentionGroupPresentation(item); as attentionGroup) {
+              @if (mineFacade.attentionGroupPresentation(item); as attentionGroup) {
                 <h2>
                   <i class="fas {{ attentionGroup.icon }}" aria-hidden="true"></i>
                   <span>{{ attentionGroup.label }}</span>
@@ -352,7 +352,7 @@
             class="community-card-shell"
             [class.community-card-shell--mine]="discoveryMode === 'mine'"
             [attr.data-attention]="
-              discoveryMode === 'mine' ? mine.attentionGroupKey(item) : null
+              discoveryMode === 'mine' ? mineFacade.attentionGroupKey(item) : null
             "
             [class.is-muted]="
               discoveryMode === 'mine' && item.notificationsMuted
@@ -395,13 +395,13 @@
                     <div class="community-card__status-row">
                       <app-community-official-badge [community]="item" />
 
-                      @if (mine.notificationStatusPresentation(item); as notificationStatus) {
+                      @if (mineFacade.notificationStatusPresentation(item); as notificationStatus) {
                         <span
                           class="community-card__attention"
                           [attr.data-attention]="notificationStatus.attention"
                           [attr.aria-label]="
                             item.notificationUnreadCount > 0
-                              ? mine.notificationUnreadAriaLabel(item)
+                              ? mineFacade.notificationUnreadAriaLabel(item)
                               : 'Alertas push silenciados para ' + item.name
                           "
                         >
@@ -480,8 +480,8 @@
                 <button
                   class="community-card__notification-action"
                   type="button"
-                  [disabled]="mine.isNotificationPreferenceBusy(item.communityId)"
-                  [attr.aria-busy]="mine.isNotificationPreferenceBusy(item.communityId)"
+                  [disabled]="mineFacade.isNotificationPreferenceBusy(item.communityId)"
+                  [attr.aria-busy]="mineFacade.isNotificationPreferenceBusy(item.communityId)"
                   [attr.aria-pressed]="item.notificationsMuted"
                   [attr.aria-label]="
                     item.notificationsMuted
@@ -490,7 +490,7 @@
                   "
                   (click)="toggleCommunityNotifications(item)"
                 >
-                  @if (mine.isNotificationPreferenceBusy(item.communityId)) {
+                  @if (mineFacade.isNotificationPreferenceBusy(item.communityId)) {
                     <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
                     <span>Atualizando</span>
                   } @else if (item.notificationsMuted) {
