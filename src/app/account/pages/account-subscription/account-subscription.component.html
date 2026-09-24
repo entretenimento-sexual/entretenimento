@@ -86,6 +86,25 @@
                 }
               </div>
             </div>
+
+            @if (renewal.scheduledPlanChange) {
+              <div class="account-list__row">
+                <div class="account-list__copy">
+                  <strong>Próximo plano</strong>
+                  <small>
+                    A redução para {{ renewal.scheduledPlanChange.planKey | titlecase }}
+                    está prevista para
+                    {{ renewal.scheduledPlanChange.effectiveAt | date:'dd/MM/yyyy' }}.
+                    @if (renewal.scheduledPlanChange.providerUpdateStatus === 'pending') {
+                      A confirmação no provedor ainda está em processamento.
+                    }
+                  </small>
+                </div>
+                <span class="account-plan-hero__badge">
+                  Agendada
+                </span>
+              </div>
+            }
           </section>
         }
       }
