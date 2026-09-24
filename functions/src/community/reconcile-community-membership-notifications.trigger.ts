@@ -131,11 +131,11 @@ export const reconcileCommunityMembershipNotifications = onDocumentWritten(
 
         nextSummary = unreadCount > 0
           ? buildCommunityNotificationSummaryItem({
-              communityId,
-              unreadCount,
-              priorityUnreadCount,
-              updatedAtMs: now.toMillis(),
-            })
+            communityId,
+            unreadCount,
+            priorityUnreadCount,
+            updatedAtMs: now.toMillis(),
+          })
           : null;
 
         preparedGlobalWrite =
