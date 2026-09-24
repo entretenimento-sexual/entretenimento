@@ -21,6 +21,12 @@ describe('community public error reason contract', () => {
   });
 
   it('modaliza bloqueios e mantém falhas triviais leves', () => {
+    expect(COMMUNITY_PUBLIC_REASON_PRESENTATIONS.verification_required).toMatchObject({
+      surface: 'modal',
+      primaryAction: {
+        route: '/adulto/verificar-idade',
+      },
+    });
     expect(COMMUNITY_PUBLIC_REASON_PRESENTATIONS.owner_transfer_required.surface).toBe('modal');
     expect(COMMUNITY_PUBLIC_REASON_PRESENTATIONS.membership_status_invalid.surface).toBe('modal');
     expect(COMMUNITY_PUBLIC_REASON_PRESENTATIONS.ownership_inconsistent.surface).toBe('modal');
