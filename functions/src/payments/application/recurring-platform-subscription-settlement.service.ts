@@ -435,8 +435,8 @@ export async function settleRecurringPlatformSubscriptionPayment(
         status: 'paid',
         amountCents: payment.amountCents,
         currency: 'BRL',
-        planId: settlementPlan.planId,
-        planKey: settlementPlan.planKey,
+        planId: contract.planId,
+        planKey: contract.planKey,
         createdAt: now,
         updatedAt: now,
       };
