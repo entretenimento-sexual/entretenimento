@@ -45,6 +45,7 @@ import {
   CommunityFeedView,
 } from '../data-access/community-feed.model';
 import type { CommunityFeedRealtimeChange } from '../data-access/community-feed-realtime.model';
+import { CommunityFeedCommentStateFacade } from './community-feed-comment-state.facade';
 import { CommunityFeedCommentsComponent } from '../feed-comments/community-feed-comments.component';
 import { CommunityHighlightCardComponent } from '../highlight/community-highlight-card.component';
 import { CommunityHighlightMenuActionComponent } from '../highlight/community-highlight-menu-action.component';
@@ -100,6 +101,7 @@ const MAX_UNSEEN_NEW_POSTS = 99;
   ],
   providers: [
     CommunityFeedComposerFacade,
+    CommunityFeedCommentStateFacade,
     CommunityFeedReactionFacade,
     CommunityFeedReferenceNavigationFacade,
     CommunityFeedTimelineFacade,
@@ -117,6 +119,7 @@ export class CommunityFeedComponent {
   private readonly timeTicker = inject(CommunityFeedTimeTickerService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly composer = inject(CommunityFeedComposerFacade);
+  private readonly commentState = inject(CommunityFeedCommentStateFacade);
   private readonly reactions = inject(CommunityFeedReactionFacade);
   private readonly references = inject(CommunityFeedReferenceNavigationFacade);
   private readonly timeline = inject(CommunityFeedTimelineFacade);
@@ -144,9 +147,9 @@ export class CommunityFeedComponent {
   readonly locationCaptureState = this.composer.locationCaptureState;
   readonly actionPostId = this.moderation.actionPostId;
   readonly actionMode = this.moderation.actionMode;
-  readonly commentsPostId = signal<string | null>(null);
-  readonly replyPostId = signal<string | null>(null);
-  readonly postReplyRequestVersion = signal(0);
+  readonly commentsPostId = this.commentState.commentsPostId;
+  readonly replyPostId = this.commentState.replyPostId;
+  readonly postReplyRequestVersion = this.commentState.postReplyRequestVersion;
   readonly unseenNewPostCount = signal(0);
   readonly referenceNavigationState = this.references.navigationState;
   readonly now = toSignal(this.timeTicker.now$, { initialValue: Date.now() });
@@ -161,10 +164,6 @@ export class CommunityFeedComponent {
     ),
     { initialValue: null }
   );
-  private readonly commentCountOverrides = signal<ReadonlyMap<string, number>>(
-    new Map()
-  );
-
   readonly postForm = this.composer.postForm;
   readonly removalReason = this.moderation.removalReason;
 
@@ -527,40 +526,27 @@ export class CommunityFeedComponent {
   }
 
   toggleComments(item: CommunityFeedItem): void {
-    if (!item.capabilities.canViewComments) return;
-    const isOpen = this.commentsPostId() === item.postId;
-    this.commentsPostId.set(isOpen ? null : item.postId);
-    // Abrir pelo contador é modo de leitura; não deve herdar intenção de resposta.
-    this.replyPostId.set(null);
+    this.commentState.toggle(item);
   }
 
   openCommentsForReply(item: CommunityFeedItem): void {
-    if (!item.capabilities.canViewComments || !item.capabilities.canComment) return;
-    this.commentsPostId.set(item.postId);
-    this.replyPostId.set(item.postId);
-    this.postReplyRequestVersion.update((current) => current + 1);
+    this.commentState.openForReply(item);
   }
 
   clearPostReplyContext(item: CommunityFeedItem): void {
-    if (this.replyPostId() === item.postId) {
-      this.replyPostId.set(null);
-    }
+    this.commentState.clearReplyContext(item);
   }
 
   commentsOpen(item: CommunityFeedItem): boolean {
-    return this.commentsPostId() === item.postId;
+    return this.commentState.commentsOpen(item);
   }
 
   commentCount(item: CommunityFeedItem): number {
-    return this.commentCountOverrides().get(item.postId)
-      ?? item.metrics.commentCount;
+    return this.commentState.commentCount(item);
   }
 
   updateCommentCount(item: CommunityFeedItem, commentCount: number): void {
-    if (!Number.isFinite(commentCount) || commentCount < 0) return;
-    const next = new Map(this.commentCountOverrides());
-    next.set(item.postId, Math.trunc(commentCount));
-    this.commentCountOverrides.set(next);
+    this.commentState.updateCommentCount(item, commentCount);
   }
 
   loadMore(cursor: string | null): void {
@@ -683,40 +669,12 @@ export class CommunityFeedComponent {
     communityId: string
   ): void {
     this.reactions.reconcileRealtime(changes, communityId);
-    let commentMap: Map<string, number> | null = null;
-
-    for (const change of changes) {
-      const postId = change.projection.postId;
-      const removed = change.type === 'removed'
-        || change.projection.state === 'removed';
-
-      if (removed) {
-        if (this.commentCountOverrides().has(postId)) {
-          commentMap ??= new Map(this.commentCountOverrides());
-          commentMap.delete(postId);
-        }
-        continue;
-      }
-
-      if (this.commentCountOverrides().has(postId)) {
-        commentMap ??= new Map(this.commentCountOverrides());
-        commentMap.set(postId, change.projection.metrics.commentCount);
-      }
-    }
-
-    if (commentMap) this.commentCountOverrides.set(commentMap);
+    this.commentState.reconcileRealtime(changes);
   }
 
   private clearItemOverrides(postId: string): void {
     this.reactions.clearItem(postId, this.communityId().trim());
-    if (this.commentCountOverrides().has(postId)) {
-      const next = new Map(this.commentCountOverrides());
-      next.delete(postId);
-      this.commentCountOverrides.set(next);
-    }
-    if (this.replyPostId() === postId) {
-      this.replyPostId.set(null);
-    }
+    this.commentState.clearItem(postId);
   }
 
 
