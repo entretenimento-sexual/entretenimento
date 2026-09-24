@@ -228,7 +228,7 @@ export class SocialLinksAccordionComponent implements OnInit, OnDestroy {
     }
 
     if (this.isDangerousUrl(value)) {
-      this.notify.showError('Link inválido. Use URL segura (https) ou @handle.');
+      this.notify.showWarning('Link inválido. Use URL segura (https) ou @handle.');
       return;
     }
 
@@ -266,7 +266,7 @@ export class SocialLinksAccordionComponent implements OnInit, OnDestroy {
 
   removeLink(key: PlatformKey): void {
     if (!this.canManage()) {
-      this.notify.showError('Você não pode alterar as redes deste perfil.');
+      this.notify.showWarning('Você não pode alterar as redes deste perfil.');
       return;
     }
 
