@@ -139,7 +139,7 @@ describe('ExplorePersonalMediaService', () => {
     }),
     loadMore$: vi.fn(() => of(false)),
   };
-  const globalErrorMock = { handleError: vi.fn() };
+  const globalErrorMock = { report: vi.fn() };
   const notificationMock = { showWarning: vi.fn() };
 
   let store: MockStore;
@@ -189,7 +189,7 @@ describe('ExplorePersonalMediaService', () => {
           useValue: notificationMock,
         },
         {
-          provide: GlobalErrorHandlerService,
+          provide: ApplicationErrorService,
           useValue: globalErrorMock,
         },
       ],
