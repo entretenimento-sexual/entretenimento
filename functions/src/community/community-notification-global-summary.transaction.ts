@@ -44,6 +44,30 @@ export async function prepareCommunityNotificationGlobalSummaryWrite(
     transaction.get(attentionQuery),
   ]);
 
+  let rawGlobal = globalSnapshot.exists ? globalSnapshot.data() : null;
+
+  // Usuário genuinamente novo pode iniciar diretamente em v2. A leitura extra
+  // só ocorre quando o pai ainda não existe; no steady state ela desaparece.
+  if (!globalSnapshot.exists) {
+    const firstExistingItem = await transaction.get(
+      globalRef.collection('items').limit(1)
+    );
+    const freshInitialization =
+      firstExistingItem.empty
+      && input.changes.every((change) => change.before === null);
+
+    if (freshInitialization) {
+      rawGlobal = {
+        projectionVersion: 2,
+        requiresBackfill: false,
+        unreadCount: 0,
+        priorityUnreadCount: 0,
+        unreadCommunityCount: 0,
+        priorityCommunityCount: 0,
+      };
+    }
+  }
+
   const candidates = attentionSnapshot.docs.flatMap((document) => {
     const normalized = normalizeCommunityNotificationSummaryItem(
       document.id,
@@ -52,7 +76,7 @@ export async function prepareCommunityNotificationGlobalSummaryWrite(
     return normalized ? [normalized] : [];
   });
   const projection = buildCommunityNotificationGlobalProjection({
-    rawGlobal: globalSnapshot.exists ? globalSnapshot.data() : null,
+    rawGlobal,
     candidates,
     changes: input.changes,
     updatedAtMs: input.updatedAt.toMillis(),
