@@ -10,6 +10,10 @@ import {
   DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE,
   normalizeCommunityDiscoveryPageSize,
 } from '../data-access/community-discovery.contract';
+import {
+  getSocialSpaceDefinition,
+  normalizeActiveSocialSpaceKind,
+} from 'src/app/core/domain/social-space.definition';
 import type { CommunityPreviewSourceType } from '../data-access/community-preview.model';
 import { normalizeCommunityTagId } from '../data-access/community-tag.model';
 
@@ -52,13 +56,14 @@ export function normalizeCommunityDiscoveryViewerUid(value: unknown): string {
 export function normalizeCommunityDiscoveryCacheContext(
   context: Partial<CommunityDiscoveryCacheContext> | null | undefined
 ): CommunityDiscoveryCacheContext {
-  const sourceType = context?.sourceType === 'venue' ? 'venue' : 'community';
+  const sourceType = normalizeActiveSocialSpaceKind(context?.sourceType);
+  const capabilities = getSocialSpaceDefinition(sourceType).capabilities;
   const discoveryMode =
-    sourceType === 'community' && context?.discoveryMode === 'mine'
+    capabilities.personalMembershipHub && context?.discoveryMode === 'mine'
       ? 'mine'
       : 'explore';
   const tagId =
-    sourceType === 'community' && discoveryMode === 'explore'
+    capabilities.interestDiscovery && discoveryMode === 'explore'
       ? normalizeCommunityTagId(context?.tagId)
       : null;
 
