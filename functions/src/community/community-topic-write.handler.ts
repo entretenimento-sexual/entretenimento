@@ -12,7 +12,6 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { buildCommunityOperationalRequestRetention } from './community-operational-retention.policy';
 import { db, Timestamp } from '../firebaseApp';
-import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   REQUIRE_COMMUNITY_APP_CHECK,
   assertCommunityCallableAppCheck,
@@ -36,15 +35,9 @@ import {
   resolveCommunityTopicWriteLimit,
 } from './community-topic-write.policy';
 import { getCommunityViewerContext } from './community-viewer-access.service';
-
-function assertPreviewRuntime(): void {
-  if (isCommunityPreviewRuntimeAvailable()) return;
-
-  throw new HttpsError(
-    'failed-precondition',
-    'Os Tópicos de Comunidades ainda não estão disponíveis neste ambiente.'
-  );
-}
+import {
+  assertCommunityTopicsProductAvailable,
+} from './community-topics-product-state';
 
 function assertAuthenticatedUid(
   auth: { uid?: string; token?: Record<string, unknown> } | undefined
@@ -145,8 +138,8 @@ export const createCommunityTopic = onCall<CommunityTopicCreateRequest>(
     enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
   },
   async (request): Promise<CommunityTopicWriteResponse> => {
-    assertPreviewRuntime();
     assertCommunityCallableAppCheck(request.app);
+    assertCommunityTopicsProductAvailable();
     const actorUid = assertAuthenticatedUid(request.auth);
     const command = normalizeCommunityTopicCreateRequest(request.data);
 
@@ -375,8 +368,8 @@ export const createCommunityTopicReply = onCall<CommunityTopicReplyCreateRequest
     enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
   },
   async (request): Promise<CommunityTopicReplyWriteResponse> => {
-    assertPreviewRuntime();
     assertCommunityCallableAppCheck(request.app);
+    assertCommunityTopicsProductAvailable();
     const actorUid = assertAuthenticatedUid(request.auth);
     const command = normalizeCommunityTopicReplyCreateRequest(request.data);
 
