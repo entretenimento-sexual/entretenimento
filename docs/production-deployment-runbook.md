@@ -632,6 +632,26 @@ Não iniciar uma nova onda enquanto a anterior não estiver explicitamente verde
 - [ ] rollback SHA buildável e procedimentos revisados;
 - [ ] nenhuma mudança de ranking/preço/custo não relacionada misturada na release.
 
+## 14.1. Compatibilidade temporária a retirar em release posterior
+
+Além dos aliases de trigger já documentados, o callable
+`getCommunityOwnershipCandidates` permanece temporariamente publicado para
+clientes anteriores à paginação administrativa. Nenhum frontend novo pode
+consumi-lo; o caminho canônico é `getCommunityOwnershipCandidatesPage`.
+
+A remoção deve ocorrer em release separada e somente quando:
+
+- Hosting novo estiver estável e sem rollback pendente;
+- métricas de invocação confirmarem ausência de uso do callable legado durante
+  a janela de observação definida para a release;
+- `getCommunityOwnershipCandidatesPage` estiver com erro, latência e custo
+  dentro do baseline;
+- não houver sessão/cache de cliente anterior considerada suportada pela janela;
+- rollback da remoção estiver documentado.
+
+A retirada não deve ser misturada com mudanças de Rules, ranking, pricing,
+billing ou capacidade.
+
 ## 15. Encerramento da janela
 
 Após estabilidade:
