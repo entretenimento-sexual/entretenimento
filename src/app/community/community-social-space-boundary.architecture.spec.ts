@@ -75,14 +75,19 @@ function resolveTsImport(
   return null;
 }
 
-function productionTsInboundCounts(): ReadonlyMap<string, number> {
+function productionTsInboundCounts(
+  excludedImporters: ReadonlySet<string> = new Set()
+): ReadonlyMap<string, number> {
   const files = productionFiles(APP_ROOT).filter((file) => file.endsWith('.ts'));
   const fileSet = new Set(files);
-  const inbound = new Map(files.map((file) => [file, 0] as const));
+  const inbound = new Map<string, number>(
+    files.map((file) => [file, 0] as const)
+  );
   const importPattern =
     /\b(?:import|export)\s+(?:[^'"]*?\s+from\s+)?['"]([^'"]+)['"]|\bimport\(\s*['"]([^'"]+)['"]\s*\)/gu;
 
   for (const importer of files) {
+    if (excludedImporters.has(importer)) continue;
     const source = readFileSync(importer, 'utf8');
 
     for (const match of source.matchAll(importPattern)) {
@@ -152,6 +157,23 @@ describe('Community × Local social-space boundary', () => {
     expect(venue.discovery.canCreateCommunity).toBe(false);
     expect(venue.discovery.canCreateVenue).toBe(true);
     expect(venue.membership.actionLabel('open')).toBe('Seguir');
+  });
+
+  it('não mantém o antigo modelo/policy de Community como cluster isolado', () => {
+    const legacyCluster = new Set([
+      resolve(APP_ROOT, 'core/community/community.model.ts'),
+      resolve(APP_ROOT, 'core/community/community-access-policy.ts'),
+    ]);
+    const externalInbound = productionTsInboundCounts(legacyCluster);
+    const externallyConsumed = [...legacyCluster]
+      .filter((file) => (externalInbound.get(file) ?? 0) > 0)
+      .map((file) => relative(process.cwd(), file).replaceAll('\\', '/'))
+      .sort();
+
+    expect(
+      externallyConsumed,
+      'O modelo/policy legado só deve permanecer se houver consumidor de produção fora do próprio cluster'
+    ).not.toEqual([]);
   });
 
   it('não introduz arquivos TS órfãos no módulo Community', () => {
