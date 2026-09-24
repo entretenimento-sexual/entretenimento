@@ -12,6 +12,9 @@ import { db } from '../firebaseApp';
 import {
   resolveCommunityMemberLimitCapabilityOptionsForCeiling,
 } from './community-capacity.policy';
+import {
+  resolveCommunityCapacityRegularizationForViewer,
+} from './community-capacity-regularization.policy';
 import { getCommunityCapacityForOwner } from './community-capacity.service';
 import {
   isCommunityMemberActivityEnabledStatus,
@@ -63,6 +66,7 @@ export interface CommunityViewerContext {
   canInviteCommunityMembers: boolean;
   canManageCommunitySettings: boolean;
   capacity: CommunityPreviewResponse['capacity'];
+  capacityRegularization: CommunityPreviewResponse['capacityRegularization'];
   settings: CommunityEditableSettings | null;
   canLeaveMembership: boolean;
 }
@@ -223,6 +227,12 @@ export async function getCommunityViewerContext(
       capacityState.ownerPlanLimit
     )
     : [];
+  const capacityRegularization = community.source.type === 'community'
+    ? resolveCommunityCapacityRegularizationForViewer(
+      raw['capacityRegularization'],
+      viewer.role
+    )
+    : null;
 
   return {
     community,
@@ -253,6 +263,7 @@ export async function getCommunityViewerContext(
           .map((option) => option.memberLimit),
       }
       : null,
+    capacityRegularization,
     settings,
     canLeaveMembership: leaveDecision.allowed && !leaveDecision.idempotent,
   };
