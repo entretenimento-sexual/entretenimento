@@ -5,7 +5,6 @@ import {
   Component,
   DestroyRef,
   inject,
-  Injector,
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -16,47 +15,34 @@ import {
   RouterLinkActive,
 } from '@angular/router';
 import {
-  BehaviorSubject,
   catchError,
   combineLatest,
-  concat,
-  defer,
   distinctUntilChanged,
+  filter,
   finalize,
   map,
   Observable,
   of,
-  scan,
   shareReplay,
   startWith,
   Subject,
   switchMap,
-  take,
-  tap,
 } from 'rxjs';
 
 import { getSocialSpaceDefinition } from 'src/app/core/domain/social-space.definition';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
-import { CommunityNotificationPreferenceService } from 'src/app/core/services/notifications/community-notification-preference.service';
-import {
-  CommunityNotificationUnreadSummary,
-  CommunityNotificationUnreadSummaryService,
-} from 'src/app/core/services/notifications/community-notification-unread-summary.service';
 import type { PreferenceProfile } from 'src/app/preferences/models/preference-profile.model';
 import { ProfilePreferencesService } from 'src/app/preferences/services/profile-preferences.service';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import { CommunityCreationGateService } from '../community-create/community-creation-gate.service';
-import { CommunityBoostRepository } from '../data-access/community-boost.repository';
 import type {
   CommunitySponsoredPlacement,
 } from '../data-access/community-boost.model';
 import {
-  CommunityDiscoveryPage,
   CommunityPreviewCard,
   CommunityPreviewSourceType,
 } from '../data-access/community-preview.model';
-import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
 import {
   CommunityTagCategory,
   CommunityTagDefinition,
@@ -74,12 +60,11 @@ import {
   communityInitials as buildCommunityInitials,
   communityVisualVariant as resolveCommunityVisualVariant,
 } from '../presentation/community-visual-identity';
+import { CommunityDiscoveryMode } from './community-discovery-cache.model';
 import {
-  CommunityDiscoveryCacheContext,
-  CommunityDiscoveryMode,
-  DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE,
-} from './community-discovery-cache.model';
-import { CommunityDiscoveryCacheService } from './community-discovery-cache.service';
+  CommunityDiscoveryDataFacade,
+  CommunityDiscoveryState,
+} from './community-discovery-data.facade';
 import {
   communityContextualMatchLabel,
   personalizeCommunityDiscoveryCards,
@@ -88,38 +73,24 @@ import { CommunityDiscoveryExposureService } from './community-discovery-exposur
 import { CommunityDiscoverySessionBehaviorService } from './community-discovery-session-behavior.service';
 import { CommunityDiscoveryVisibilityDirective } from './community-discovery-visibility.directive';
 import {
-  COMMUNITY_BOOST_SESSION_ROTATION_CONTEXTS_MAX,
-  buildCommunityBoostSessionExclusions,
-  resolveCommunityBoostInsertionAfterIndex,
-} from './community-boost-display.policy';
+  CommunityDiscoveryMineCardView,
+  CommunityDiscoveryMineFacade,
+} from './community-discovery-mine.facade';
+import { CommunityDiscoverySponsoredFacade } from './community-discovery-sponsored.facade';
 import {
   CommunityMineParticipationFilter,
-  filterMineCommunityItems,
   shouldShowMineCommunitySearch,
 } from './community-mine-participation.policy';
 
-type CommunityDiscoveryStatus = 'loading' | 'ready' | 'empty' | 'error';
 type CommunityTagFilterState =
   | { status: 'loading'; items: readonly CommunityTagDefinition[] }
   | { status: 'ready'; items: readonly CommunityTagDefinition[] }
   | { status: 'error'; items: readonly CommunityTagDefinition[] };
 
-type CommunityDiscoveryCardView = CommunityPreviewCard & {
-  readonly notificationUnreadCount: number;
-  readonly notificationHasPriorityUnread: boolean;
-  readonly notificationUpdatedAt: number | null;
-  readonly notificationsMuted: boolean;
-};
-
-interface CommunityDiscoveryState {
-  status: CommunityDiscoveryStatus;
-  items: readonly CommunityPreviewCard[];
-  nextCursor: string | null;
-  loadingMore: boolean;
-}
+type CommunityDiscoveryCardView = CommunityDiscoveryMineCardView;
 
 interface CommunityDiscoveryViewState {
-  status: CommunityDiscoveryStatus;
+  status: CommunityDiscoveryState['status'];
   items: readonly CommunityDiscoveryCardView[];
   nextCursor: string | null;
   loadingMore: boolean;
@@ -128,40 +99,10 @@ interface CommunityDiscoveryViewState {
   mineControlsActive: boolean;
 }
 
-interface LoadRequest {
-  cursor: string | null;
-  append: boolean;
-  tagId: string | null;
-}
-
 interface HiddenCommunityFeedback {
   readonly communityId: string;
   readonly name: string;
 }
-
-interface NotificationPreferenceFeedback {
-  readonly communityId: string;
-  readonly name: string;
-  readonly muted: boolean;
-}
-
-type LoadEvent =
-  | { type: 'loading'; request: LoadRequest }
-  | { type: 'success'; request: LoadRequest; page: CommunityDiscoveryPage }
-  | { type: 'error'; request: LoadRequest };
-
-const INITIAL_STATE: CommunityDiscoveryState = Object.freeze({
-  status: 'loading',
-  items: [],
-  nextCursor: null,
-  loadingMore: false,
-});
-
-const EMPTY_NOTIFICATION_SUMMARY_MAP: ReadonlyMap<
-  string,
-  CommunityNotificationUnreadSummary
-> = new Map<string, CommunityNotificationUnreadSummary>();
-const EMPTY_MUTED_COMMUNITY_IDS: ReadonlySet<string> = new Set<string>();
 
 const COMMUNITY_QUICK_FILTER_TAG_IDS = Object.freeze([
   'intent:friendship',
@@ -175,109 +116,6 @@ const COMMUNITY_QUICK_FILTER_TAG_ID_SET = new Set<string>(
   COMMUNITY_QUICK_FILTER_TAG_IDS
 );
 
-function mergeCards(
-  current: readonly CommunityPreviewCard[],
-  incoming: readonly CommunityPreviewCard[]
-): readonly CommunityPreviewCard[] {
-  const merged = new Map<string, CommunityPreviewCard>();
-
-  for (const item of current) merged.set(item.communityId, item);
-  for (const item of incoming) merged.set(item.communityId, item);
-
-  return [...merged.values()];
-}
-
-function reduceState(
-  state: CommunityDiscoveryState,
-  event: LoadEvent
-): CommunityDiscoveryState {
-  if (event.type === 'loading') {
-    return event.request.append
-      ? { ...state, loadingMore: true }
-      : INITIAL_STATE;
-  }
-
-  if (event.type === 'error') {
-    if (state.items.length > 0) {
-      return { ...state, loadingMore: false };
-    }
-
-    return {
-      status: 'error',
-      items: [],
-      nextCursor: null,
-      loadingMore: false,
-    };
-  }
-
-  const items = event.request.append
-    ? mergeCards(state.items, event.page.items)
-    : event.page.items;
-
-  return {
-    status: items.length > 0 ? 'ready' : 'empty',
-    items,
-    nextCursor: event.page.nextCursor,
-    loadingMore: false,
-  };
-}
-
-function communityAttentionGroupKey(
-  item: CommunityDiscoveryCardView
-): CommunityAttentionGroupKey {
-  return resolveCommunityAttentionPresentation(
-    item.notificationUnreadCount,
-    item.notificationHasPriorityUnread
-  ).key;
-}
-
-function communityAttentionRank(item: CommunityDiscoveryCardView): number {
-  const group = communityAttentionGroupKey(item);
-
-  if (group === 'priority') return 0;
-  if (group === 'unread') return 1;
-  return 2;
-}
-
-function orderMineCommunityCardsByAttention(
-  items: readonly CommunityDiscoveryCardView[]
-): readonly CommunityDiscoveryCardView[] {
-  return items
-    .map((item, originalIndex) => ({ item, originalIndex }))
-    .sort((left, right) => {
-      const leftRank = communityAttentionRank(left.item);
-      const rightRank = communityAttentionRank(right.item);
-      const rankDifference = leftRank - rightRank;
-
-      if (rankDifference !== 0) {
-        return rankDifference;
-      }
-
-      if (leftRank < 2) {
-        const updatedAtDifference =
-          (right.item.notificationUpdatedAt ?? 0)
-          - (left.item.notificationUpdatedAt ?? 0);
-
-        if (updatedAtDifference !== 0) {
-          return updatedAtDifference;
-        }
-
-        const unreadDifference =
-          right.item.notificationUnreadCount
-          - left.item.notificationUnreadCount;
-
-        if (unreadDifference !== 0) {
-          return unreadDifference;
-        }
-      }
-
-      // Mute é preferência de interrupção/push e, por contrato, não participa
-      // da prioridade. Empates preservam a ordem canônica recebida do backend.
-      return left.originalIndex - right.originalIndex;
-    })
-    .map(({ item }) => item);
-}
-
 @Component({
   selector: 'app-community-discovery-page',
   standalone: true,
@@ -289,15 +127,18 @@ function orderMineCommunityCardsByAttention(
     CommunityOfficialBadgeComponent,
     CommunityDiscoveryVisibilityDirective,
   ],
+  providers: [
+    CommunityDiscoveryDataFacade,
+    CommunityDiscoveryMineFacade,
+    CommunityDiscoverySponsoredFacade,
+  ],
   templateUrl: './community-discovery-page.component.html',
   styleUrl: './community-discovery-page.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CommunityDiscoveryPageComponent {
-  private readonly repository = inject(CommunityPreviewRepository);
   private readonly tagRepository = inject(CommunityTagRepository);
   private readonly creationGate = inject(CommunityCreationGateService);
-  private readonly discoveryCache = inject(CommunityDiscoveryCacheService);
   private readonly exposureService = inject(CommunityDiscoveryExposureService);
   private readonly sessionBehavior = inject(
     CommunityDiscoverySessionBehaviorService
@@ -307,12 +148,11 @@ export class CommunityDiscoveryPageComponent {
   private readonly applicationError = inject(ApplicationErrorService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
-  private readonly injector = inject(Injector);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly loadRequests$ = new Subject<LoadRequest>();
+  private readonly dataFacade = inject(CommunityDiscoveryDataFacade);
+  private readonly mineFacade = inject(CommunityDiscoveryMineFacade);
+  private readonly sponsoredFacade = inject(CommunityDiscoverySponsoredFacade);
   private readonly tagCatalogReload$ = new Subject<void>();
-  private readonly lastSponsoredCommunityByContext = new Map<string, string>();
-  private sponsoredRequestSequence = 0;
 
   readonly sourceType: CommunityPreviewSourceType =
     this.route.snapshot.data['sourceType'] === 'venue' ? 'venue' : 'community';
@@ -348,36 +188,20 @@ export class CommunityDiscoveryPageComponent {
       )
     : null;
 
-  private readonly mineUnreadSummaryMap$: Observable<
-    ReadonlyMap<string, CommunityNotificationUnreadSummary>
-  > = this.discoveryMode === 'mine'
-    ? defer(() =>
-        this.injector.get(CommunityNotificationUnreadSummaryService)
-          .currentUserSummaryMap$
-      )
-    : of(EMPTY_NOTIFICATION_SUMMARY_MAP);
+  private readonly mineUnreadSummaryMap$ =
+    this.mineFacade.unreadSummaryMap$(this.discoveryMode === 'mine');
 
-  private readonly mineMutedCommunityIds$: Observable<ReadonlySet<string>> =
-    this.discoveryMode === 'mine'
-      ? defer(() =>
-          this.injector.get(CommunityNotificationPreferenceService)
-            .currentUserMutedCommunityIds$
-        )
-      : of(EMPTY_MUTED_COMMUNITY_IDS);
-
-  private readonly mineSearchTermSubject = new BehaviorSubject<string>('');
-  private readonly mineParticipationFilterSubject =
-    new BehaviorSubject<CommunityMineParticipationFilter>('all');
+  private readonly mineMutedCommunityIds$ =
+    this.mineFacade.mutedCommunityIds$(this.discoveryMode === 'mine');
 
   readonly selectedTagId = signal<string | null>(this.initialTagId);
-  readonly sponsoredPlacement = signal<CommunitySponsoredPlacement | null>(null);
+  readonly sponsoredPlacement = this.sponsoredFacade.sponsoredPlacement;
   readonly creationGateBusy = signal(false);
   readonly hiddenCommunityFeedback = signal<HiddenCommunityFeedback | null>(null);
-  readonly notificationPreferenceBusyCommunityIds = signal<ReadonlySet<string>>(
-    new Set<string>()
-  );
+  readonly notificationPreferenceBusyCommunityIds =
+    this.mineFacade.notificationPreferenceBusyCommunityIds;
   readonly notificationPreferenceFeedback =
-    signal<NotificationPreferenceFeedback | null>(null);
+    this.mineFacade.notificationPreferenceFeedback;
 
   readonly tagFilterState$: Observable<CommunityTagFilterState> =
     this.tagCatalogReload$.pipe(
@@ -418,21 +242,13 @@ export class CommunityDiscoveryPageComponent {
         )
       : of(null);
 
-  readonly state$ = this.loadRequests$.pipe(
-    startWith<LoadRequest>({
-      cursor: null,
-      append: false,
-      tagId: this.initialTagId,
-    }),
-    switchMap((request) =>
-      this.resolveLoadEvents$(request).pipe(
-        startWith<LoadEvent>({ type: 'loading', request }),
-        catchError((error: unknown) => this.recoverLoadError$(error, request))
-      )
-    ),
-    scan(reduceState, INITIAL_STATE),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
+  readonly state$ = this.dataFacade.connect({
+    sourceType: this.sourceType,
+    discoveryMode: this.discoveryMode,
+    canFilterByTags: this.canFilterByTags,
+    title: this.title,
+    initialTagId: this.initialTagId,
+  });
 
   readonly viewState$: Observable<CommunityDiscoveryViewState> = combineLatest([
     this.state$,
@@ -441,8 +257,8 @@ export class CommunityDiscoveryPageComponent {
     this.sessionBehavior.state$,
     this.mineUnreadSummaryMap$,
     this.mineMutedCommunityIds$,
-    this.mineSearchTermSubject,
-    this.mineParticipationFilterSubject,
+    this.mineFacade.searchTerm$,
+    this.mineFacade.participationFilter$,
   ]).pipe(
     map(([
       state,
@@ -471,21 +287,11 @@ export class CommunityDiscoveryPageComponent {
         status = items.length > 0 ? 'ready' : 'empty';
       }
 
-      const cardViews = items.map((item): CommunityDiscoveryCardView => {
-        const summary =
-          unreadSummaryMap.get(item.communityId)
-          ?? item.viewerNotificationSummary
-          ?? null;
-
-        return {
-          ...item,
-          notificationUnreadCount: summary?.unreadCount ?? 0,
-          notificationHasPriorityUnread:
-            summary?.hasPriorityUnread ?? false,
-          notificationUpdatedAt: summary?.updatedAt ?? null,
-          notificationsMuted: mutedCommunityIds.has(item.communityId),
-        };
-      });
+      const cardViews = this.mineFacade.decorateCards(
+        items,
+        unreadSummaryMap,
+        mutedCommunityIds
+      );
 
       if (this.discoveryMode !== 'mine') {
         return {
@@ -498,16 +304,14 @@ export class CommunityDiscoveryPageComponent {
         };
       }
 
-      const filteredMineItems = filterMineCommunityItems(
-        cardViews,
-        mineParticipationFilter,
-        mineSearchTerm
-      );
-
       return {
         ...state,
         status,
-        items: orderMineCommunityCardsByAttention(filteredMineItems),
+        items: this.mineFacade.filterAndOrder(
+          cardViews,
+          mineParticipationFilter,
+          mineSearchTerm
+        ),
         mineLoadedItemCount: cardViews.length,
         mineSearchVisible: shouldShowMineCommunitySearch(
           cardViews.length,
@@ -522,6 +326,18 @@ export class CommunityDiscoveryPageComponent {
   );
 
   constructor() {
+    this.dataFacade.pageLoaded$
+      .pipe(
+        filter(({ request }) => !request.append),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe(({ request, page }) =>
+        this.sponsoredFacade.loadForPage(
+          page.items,
+          this.sponsoredContext(request.tagId)
+        )
+      );
+
     this.route.queryParamMap
       .pipe(
         map((params) =>
@@ -548,21 +364,12 @@ export class CommunityDiscoveryPageComponent {
   }
 
   loadMore(cursor: string | null): void {
-    if (!cursor) return;
-
-    this.loadRequests$.next({
-      cursor,
-      append: true,
-      tagId: this.selectedTagId(),
-    });
+    this.dataFacade.loadMore(cursor, this.selectedTagId());
   }
 
   retry(): void {
-    this.loadRequests$.next({
-      cursor: null,
-      append: false,
-      tagId: this.selectedTagId(),
-    });
+    this.sponsoredFacade.reset();
+    this.dataFacade.reload(this.selectedTagId());
   }
 
   retryTagCatalog(): void {
@@ -577,41 +384,17 @@ export class CommunityDiscoveryPageComponent {
   recordSponsoredQualifiedExposure(
     placement: CommunitySponsoredPlacement
   ): void {
-    if (this.discoveryMode !== 'explore') return;
-
-    this.injector
-      .get(CommunityBoostRepository)
-      .recordEvent$(placement.placementId, 'qualified_exposure')
-      .pipe(
-        catchError((error: unknown) => {
-          this.reportSponsoredTelemetryError(
-            error,
-            'recordCommunityBoostExposure'
-          );
-          return of(null);
-        }),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe();
+    this.sponsoredFacade.recordQualifiedExposure(
+      placement,
+      this.sponsoredContext(this.selectedTagId())
+    );
   }
 
   recordSponsoredClick(placement: CommunitySponsoredPlacement): void {
-    if (this.discoveryMode !== 'explore') return;
-
-    this.injector
-      .get(CommunityBoostRepository)
-      .recordEvent$(placement.placementId, 'click')
-      .pipe(
-        catchError((error: unknown) => {
-          this.reportSponsoredTelemetryError(
-            error,
-            'recordCommunityBoostClick'
-          );
-          return of(null);
-        }),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe();
+    this.sponsoredFacade.recordClick(
+      placement,
+      this.sponsoredContext(this.selectedTagId())
+    );
   }
 
   hideSponsoredCommunity(
@@ -628,28 +411,21 @@ export class CommunityDiscoveryPageComponent {
     if (!communityId) return;
 
     this.sessionBehavior.hideCommunity(communityId);
-    this.rememberSponsoredCommunity(
-      this.communityBoostRotationContext(this.selectedTagId()),
-      communityId
+    this.sponsoredFacade.dismiss(
+      placement,
+      this.sponsoredContext(this.selectedTagId())
     );
     this.hiddenCommunityFeedback.set({
       communityId,
       name: placement.community.name,
     });
-    this.sponsoredPlacement.set(null);
   }
 
   sponsoredPlacementAfter(
     itemIndex: number,
     organicCardCount: number
   ): CommunitySponsoredPlacement | null {
-    const placement = this.sponsoredPlacement();
-    if (!placement) return null;
-
-    return resolveCommunityBoostInsertionAfterIndex(organicCardCount)
-      === itemIndex
-      ? placement
-      : null;
+    return this.sponsoredFacade.placementAfter(itemIndex, organicCardCount);
   }
 
   selectTagFilter(tagId: string | null): void {
@@ -760,7 +536,7 @@ export class CommunityDiscoveryPageComponent {
   mineAttentionGroupKey(
     item: CommunityDiscoveryCardView
   ): CommunityAttentionGroupKey {
-    return communityAttentionGroupKey(item);
+    return this.mineFacade.attentionGroupKey(item);
   }
 
   mineAttentionGroupPresentation(item: CommunityDiscoveryCardView) {
@@ -781,26 +557,21 @@ export class CommunityDiscoveryPageComponent {
 
     const previous = index > 0 ? items[index - 1] : null;
     return !previous
-      || communityAttentionGroupKey(previous) !== communityAttentionGroupKey(item);
+      || this.mineFacade.attentionGroupKey(previous)
+        !== this.mineFacade.attentionGroupKey(item);
   }
 
   selectMineParticipationFilter(
     filterValue: CommunityMineParticipationFilter
   ): void {
-    if (
-      this.discoveryMode !== 'mine'
-      || filterValue === this.mineParticipationFilterSubject.value
-    ) {
-      return;
-    }
-
-    this.mineParticipationFilterSubject.next(filterValue);
+    if (this.discoveryMode !== 'mine') return;
+    this.mineFacade.selectParticipationFilter(filterValue);
   }
 
   isMineParticipationFilterSelected(
     filterValue: CommunityMineParticipationFilter
   ): boolean {
-    return this.mineParticipationFilterSubject.value === filterValue;
+    return this.mineFacade.isParticipationFilterSelected(filterValue);
   }
 
   changeMineSearch(event: Event): void {
@@ -809,73 +580,25 @@ export class CommunityDiscoveryPageComponent {
     const value = event.target instanceof HTMLInputElement
       ? event.target.value.slice(0, 80)
       : '';
-
-    if (value === this.mineSearchTermSubject.value) return;
-    this.mineSearchTermSubject.next(value);
+    this.mineFacade.setSearchTerm(value);
   }
 
   mineSearchValue(): string {
-    return this.mineSearchTermSubject.value;
+    return this.mineFacade.searchValue();
   }
 
   clearMineParticipationControls(): void {
     if (this.discoveryMode !== 'mine') return;
-
-    if (this.mineSearchTermSubject.value) {
-      this.mineSearchTermSubject.next('');
-    }
-    if (this.mineParticipationFilterSubject.value !== 'all') {
-      this.mineParticipationFilterSubject.next('all');
-    }
+    this.mineFacade.clearControls();
   }
 
   isNotificationPreferenceBusy(communityId: string): boolean {
-    return this.notificationPreferenceBusyCommunityIds().has(communityId);
+    return this.mineFacade.isNotificationPreferenceBusy(communityId);
   }
 
   toggleCommunityNotifications(item: CommunityDiscoveryCardView): void {
-    if (
-      this.discoveryMode !== 'mine'
-      || this.isNotificationPreferenceBusy(item.communityId)
-    ) {
-      return;
-    }
-
-    const nextMuted = !item.notificationsMuted;
-    this.notificationPreferenceFeedback.set(null);
-    this.setNotificationPreferenceBusy(item.communityId, true);
-
-    this.injector.get(CommunityNotificationPreferenceService)
-      .updateMuted$(item.communityId, nextMuted)
-      .pipe(
-        tap((result) => {
-          this.notificationPreferenceFeedback.set({
-            communityId: result.communityId,
-            name: item.name,
-            muted: result.muted,
-          });
-        }),
-        catchError((error: unknown) => {
-          this.applicationError.report(error, {
-            feature: 'community',
-            operation: 'updateCommunityNotificationPreference',
-            fallbackMessage: nextMuted
-              ? 'Não foi possível silenciar os alertas desta Comunidade.'
-              : 'Não foi possível reativar os alertas desta Comunidade.',
-            metadata: {
-              ...this.errorMetadata(),
-              communityId: item.communityId,
-              muted: nextMuted,
-            },
-          });
-          return of(null);
-        }),
-        finalize(() =>
-          this.setNotificationPreferenceBusy(item.communityId, false)
-        ),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe();
+    if (this.discoveryMode !== 'mine') return;
+    this.mineFacade.toggleNotifications(item, this.errorMetadata());
   }
 
   detailsRoute(item: CommunityPreviewCard): readonly string[] {
@@ -888,164 +611,12 @@ export class CommunityDiscoveryPageComponent {
       : ['/dashboard/comunidades', item.communityId];
   }
 
-  private setNotificationPreferenceBusy(
-    communityId: string,
-    busy: boolean
-  ): void {
-    const next = new Set(this.notificationPreferenceBusyCommunityIds());
-
-    if (busy) {
-      next.add(communityId);
-    } else {
-      next.delete(communityId);
-    }
-
-    this.notificationPreferenceBusyCommunityIds.set(next);
-  }
-
-  private resolveLoadEvents$(request: LoadRequest): Observable<LoadEvent> {
-    const context = this.cacheContext(request.tagId);
-
-    if (request.append) {
-      return this.fetchPageEvent$(request, context);
-    }
-
-    const sponsoredRequestSequence = ++this.sponsoredRequestSequence;
-    this.sponsoredPlacement.set(null);
-
-    const requestSponsored = (event: LoadEvent): void => {
-      if (
-        event.type !== 'success'
-        || this.discoveryMode !== 'explore'
-      ) {
-        return;
-      }
-
-      this.loadSponsoredPlacement(
-        event.page.items,
-        request.tagId,
-        sponsoredRequestSequence
-      );
-    };
-
-    return this.discoveryCache.readSnapshot$(context).pipe(
-      switchMap((snapshot) => {
-        if (!snapshot) {
-          return this.fetchPageEvent$(request, context).pipe(
-            tap(requestSponsored)
-          );
-        }
-
-        const cachedEvent: LoadEvent = {
-          type: 'success',
-          request,
-          page: snapshot.page,
-        };
-        const cached$ = of(cachedEvent);
-
-        if (snapshot.fresh) {
-          requestSponsored(cachedEvent);
-          return cached$;
-        }
-
-        return concat(
-          cached$,
-          this.fetchPageEvent$(request, context).pipe(
-            tap(requestSponsored)
-          )
-        );
-      })
-    );
-  }
-
-  private fetchPageEvent$(
-    request: LoadRequest,
-    context: CommunityDiscoveryCacheContext
-  ): Observable<LoadEvent> {
-    const page$ = this.discoveryMode === 'mine'
-      ? this.repository.getMyCommunitiesPage$({
-          limit: DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE,
-          cursor: request.cursor,
-          sourceType: 'community',
-        })
-      : this.repository.getDiscoveryPage$({
-          limit: DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE,
-          cursor: request.cursor,
-          sourceType: this.sourceType,
-          tagId: this.canFilterByTags ? request.tagId : null,
-        });
-
-    return page$.pipe(
-      tap((page) =>
-        this.discoveryCache.rememberPage(context, page, request.append)
-      ),
-      map(
-        (page): LoadEvent => ({
-          type: 'success',
-          request,
-          page,
-        })
-      )
-    );
-  }
-
-  private recoverLoadError$(
-    error: unknown,
-    request: LoadRequest
-  ): Observable<LoadEvent> {
-    const options = {
-      feature: 'community',
-      operation: 'loadDiscoveryPage',
-      fallbackMessage:
-        `Não foi possível carregar ${this.title.toLowerCase()}.`,
-      metadata: this.errorMetadata(),
-    } as const;
-    const descriptor = this.applicationError.normalize(error, options);
-
-    if (
-      request.append
-      && this.discoveryMode === 'explore'
-      && descriptor.code === 'aborted'
-    ) {
-      this.applicationError.report(error, {
-        ...options,
-        notification: 'none',
-      });
-      const resetRequest: LoadRequest = {
-        cursor: null,
-        append: false,
-        tagId: request.tagId,
-      };
-
-      return this.fetchPageEvent$(
-        resetRequest,
-        this.cacheContext(resetRequest.tagId)
-      ).pipe(
-        catchError((refreshError: unknown) => {
-          this.reportError(refreshError);
-          return of<LoadEvent>({ type: 'error', request });
-        })
-      );
-    }
-
-    this.applicationError.report(error, options);
-    return of<LoadEvent>({ type: 'error', request });
-  }
-
-  private cacheContext(tagId: string | null): CommunityDiscoveryCacheContext {
-    return {
-      sourceType: this.sourceType,
-      discoveryMode: this.discoveryMode,
-      tagId: this.canFilterByTags ? tagId : null,
-      pageSize: DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE,
-    };
-  }
-
   private applyTagFilter(tagId: string | null, syncUrl: boolean): void {
     if (!this.canFilterByTags || tagId === this.selectedTagId()) return;
 
     this.selectedTagId.set(tagId);
-    this.loadRequests$.next({ cursor: null, append: false, tagId });
+    this.sponsoredFacade.reset();
+    this.dataFacade.reload(tagId);
 
     if (!syncUrl) return;
 
@@ -1068,116 +639,13 @@ export class CommunityDiscoveryPageComponent {
     });
   }
 
-  private loadSponsoredPlacement(
-    organicItems: readonly CommunityPreviewCard[],
-    tagId: string | null,
-    requestSequence: number
-  ): void {
-    if (
-      resolveCommunityBoostInsertionAfterIndex(organicItems.length) === null
-    ) {
-      return;
-    }
-
-    this.sessionBehavior.state$
-      .pipe(
-        take(1),
-        switchMap((sessionBehavior) => {
-          const rotationContext = this.communityBoostRotationContext(tagId);
-          const excludedCommunityIds =
-            buildCommunityBoostSessionExclusions({
-              lastSponsoredCommunityId:
-                this.lastSponsoredCommunityByContext.get(rotationContext)
-                  ?? null,
-              hiddenCommunityIds: sessionBehavior.hiddenCommunityIds,
-            });
-
-          return this.injector
-            .get(CommunityBoostRepository)
-            .getPlacement$({
-              sourceType: this.sourceType,
-              tagId: this.canFilterByTags ? tagId : null,
-              organicCommunityIds: organicItems.map(
-                (item) => item.communityId
-              ),
-              excludedCommunityIds,
-            });
-        }),
-        catchError((error: unknown) => {
-          this.reportSponsoredTelemetryError(
-            error,
-            'getCommunityBoostPlacement'
-          );
-          return of(null);
-        }),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe((placement) => {
-        if (requestSequence !== this.sponsoredRequestSequence) return;
-
-        if (placement) {
-          this.rememberSponsoredCommunity(
-            this.communityBoostRotationContext(tagId),
-            placement.community.communityId
-          );
-        }
-        this.sponsoredPlacement.set(placement);
-      });
-  }
-
-  private communityBoostRotationContext(tagId: string | null): string {
-    return [
-      this.sourceType,
-      this.canFilterByTags ? tagId ?? 'all' : 'all',
-    ].join('|');
-  }
-
-  private rememberSponsoredCommunity(
-    context: string,
-    communityId: string
-  ): void {
-    const normalizedCommunityId = String(communityId ?? '').trim();
-    if (!normalizedCommunityId) return;
-
-    this.lastSponsoredCommunityByContext.delete(context);
-    this.lastSponsoredCommunityByContext.set(context, normalizedCommunityId);
-
-    while (
-      this.lastSponsoredCommunityByContext.size
-      > COMMUNITY_BOOST_SESSION_ROTATION_CONTEXTS_MAX
-    ) {
-      const oldestContext =
-        this.lastSponsoredCommunityByContext.keys().next().value;
-      if (typeof oldestContext !== 'string') break;
-      this.lastSponsoredCommunityByContext.delete(oldestContext);
-    }
-  }
-
-  private reportSponsoredTelemetryError(
-    error: unknown,
-    operation: string
-  ): void {
-    this.applicationError.report(error, {
-      feature: 'community',
-      operation,
-      fallbackMessage:
-        'O conteúdo patrocinado não pôde ser atualizado agora.',
-      notification: 'none',
-      metadata: {
-        ...this.errorMetadata(),
-        sponsored: true,
-      },
-    });
-  }
-
-  private reportError(error: unknown): void {
-    this.applicationError.report(error, {
-      feature: 'community',
-      operation: 'loadDiscoveryPage',
-      fallbackMessage:
-        `Não foi possível carregar ${this.title.toLowerCase()}.`,
-      metadata: this.errorMetadata(),
-    });
+  private sponsoredContext(tagId: string | null) {
+    return {
+      sourceType: this.sourceType,
+      canFilterByTags: this.canFilterByTags,
+      tagId,
+      discoveryMode: this.discoveryMode,
+    } as const;
   }
 
   private errorMetadata(): Readonly<Record<string, unknown>> {
