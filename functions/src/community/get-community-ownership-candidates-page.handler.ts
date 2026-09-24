@@ -22,6 +22,7 @@ import {
 } from './community-membership-eligibility.service';
 import {
   COMMUNITY_OWNERSHIP_CANDIDATE_PAGE_SIZE,
+  resolveCommunityOwnershipCandidatePageWindow,
 } from './community-ownership-candidate-page.policy';
 import {
   CommunityMemberManagementRoleFilter,
@@ -347,10 +348,10 @@ export const getCommunityOwnershipCandidatesPage =
       const indexSnapshot = await candidateQuery
         .limit(COMMUNITY_OWNERSHIP_CANDIDATE_PAGE_SIZE + 1)
         .get();
-      const pageDocuments = indexSnapshot.docs.slice(
-        0,
-        COMMUNITY_OWNERSHIP_CANDIDATE_PAGE_SIZE
+      const page = resolveCommunityOwnershipCandidatePageWindow(
+        indexSnapshot.docs
       );
+      const pageDocuments = page.documents;
       const candidateDocuments = pageDocuments.filter((document) => {
         const memberId = normalizeSafeId(document.data()?.['memberId']);
         return memberId && memberId !== actorUid;
@@ -436,8 +437,7 @@ export const getCommunityOwnershipCandidatesPage =
         .filter((item): item is CommunityOwnershipCandidate => item !== null)
         .sort((left, right) => left.label.localeCompare(right.label, 'pt-BR'));
 
-      const hasMore =
-        indexSnapshot.docs.length > COMMUNITY_OWNERSHIP_CANDIDATE_PAGE_SIZE;
+      const hasMore = page.nextCursor !== null;
       const lastDocument = pageDocuments.at(-1) ?? null;
       const lastSortLabel = String(
         lastDocument?.data()?.['sortLabel'] ?? ''
