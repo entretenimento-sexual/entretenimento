@@ -76,6 +76,15 @@ export async function requestRecurringPlanDowngrade(input: {
     }
 
     const existing = contract.pendingPlanChange ?? null;
+
+    if (existing?.cancellationRequestedAt) {
+      throw new HttpsError(
+        'failed-precondition',
+        'O cancelamento da mudança de plano ainda está em processamento.',
+        { reason: 'recurring_plan_change_cancel_pending' }
+      );
+    }
+
     if (
       existing
       && existing.planKey === input.targetPlan.key
@@ -293,6 +302,14 @@ export async function requestCancelRecurringPlanDowngrade(input: {
     const contract = snapshot.data() as PlatformRecurringSubscriptionDoc;
     const pending = contract.pendingPlanChange ?? null;
 
+    if (pending && now >= pending.effectiveAt) {
+      throw new HttpsError(
+        'failed-precondition',
+        'A janela para cancelar esta redução já terminou.',
+        { reason: 'recurring_plan_change_cancel_window_closed' }
+      );
+    }
+
     if (
       contract.buyerUid !== input.buyerUid
       || !pending
@@ -385,6 +402,48 @@ export async function revertPendingRecurringPlanChangeAtProvider(input: {
   }
 
   const now = Date.now();
+
+  if (now >= pending.effectiveAt) {
+    await db.runTransaction(async (tx) => {
+      const freshSnapshot = await tx.get(contractRef);
+      if (!freshSnapshot.exists) return;
+
+      const fresh = freshSnapshot.data() as PlatformRecurringSubscriptionDoc;
+      const freshPending = fresh.pendingPlanChange ?? null;
+      if (!freshPending?.cancellationRequestedAt) return;
+
+      tx.set(
+        contractRef,
+        {
+          pendingPlanChange: {
+            ...freshPending,
+            cancellationRequestedAt: null,
+            providerRevertAttemptCount: 0,
+            providerRevertNextAttemptAt: null,
+            providerRevertLastErrorCode:
+              'recurring_plan_change_cancel_window_closed',
+          },
+          needsProviderPlanChangeSync:
+            freshPending.providerUpdateStatus !== 'applied',
+          updatedAt: now,
+        },
+        { merge: true }
+      );
+
+      tx.set(db.collection('billing_audit').doc(), {
+        action: 'recurring_subscription_downgrade_cancel_window_closed',
+        buyerUid: fresh.buyerUid,
+        contractId: fresh.id,
+        providerSubscriptionId: fresh.providerSubscriptionId,
+        scheduledPlanKey: freshPending.planKey,
+        effectiveAt: freshPending.effectiveAt,
+        accessChanged: false,
+        createdAt: now,
+      });
+    });
+
+    return { reverted: false, alreadyClear: false };
+  }
 
   try {
     await input.provider.updateRecurringSubscriptionAmount({
