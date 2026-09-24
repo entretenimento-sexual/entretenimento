@@ -179,6 +179,7 @@ export async function requestRecurringContractCancellation(input: {
       {
         renewalEnabled: false,
         pendingPlanChange: null,
+        needsProviderPlanChangeSync: false,
         needsProviderCancellation: true,
         providerCancellationNextAttemptAt: now,
         updatedAt: now,
