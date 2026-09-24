@@ -43,6 +43,7 @@ import { PublicPhotoCardComponent } from 'src/app/media/shared/components/public
 import { PublicVideoCardComponent } from 'src/app/media/shared/components/public-video-card/public-video-card.component';
 import { PublicMixedMediaViewerLauncherService } from 'src/app/media/shared/services/public-mixed-media-viewer-launcher.service';
 import { FeedPublicationComposerComponent } from '../../components/feed-publication-composer/feed-publication-composer.component';
+import { ExploreCommunityContentCardComponent } from '../../components/explore-community-content-card/explore-community-content-card.component';
 import { ExploreFeedFacade } from '../../facades/explore-feed.facade';
 import { buildExplorePersonalFeed } from '../../models/explore-personal-feed';
 import {
@@ -88,6 +89,7 @@ interface SocialExploreFeedWindow extends ExploreSocialFeedWindow {
     FeedPublicationComposerComponent,
     UserIntentStatusComposerComponent,
     CommunityDiscoveryVisibilityDirective,
+    ExploreCommunityContentCardComponent,
   ],
   templateUrl: './social-explore-page.component.html',
   styleUrls: ['./social-explore-page.component.css'],
