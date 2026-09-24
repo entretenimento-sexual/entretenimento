@@ -1,5 +1,5 @@
 // src/app/community/community-social-space-boundary.architecture.spec.ts
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -159,34 +159,25 @@ describe('Community × Local social-space boundary', () => {
     expect(venue.membership.actionLabel('open')).toBe('Seguir');
   });
 
-  it('não mantém o antigo modelo/policy de Community como cluster isolado', () => {
-    const legacyCluster = new Set([
+  it('não permite reintroduzir o modelo/policy duplicado de Community', () => {
+    const removedLegacyPaths = [
       resolve(APP_ROOT, 'core/community/community.model.ts'),
       resolve(APP_ROOT, 'core/community/community-access-policy.ts'),
-    ]);
-    const externalInbound = productionTsInboundCounts(legacyCluster);
-    const externallyConsumed = [...legacyCluster]
-      .filter((file) => (externalInbound.get(file) ?? 0) > 0)
-      .map((file) => relative(process.cwd(), file).replaceAll('\\', '/'))
-      .sort();
+    ];
 
     expect(
-      externallyConsumed,
-      'O modelo/policy legado só deve permanecer se houver consumidor de produção fora do próprio cluster'
-    ).not.toEqual([]);
+      removedLegacyPaths.filter((file) => existsSync(file)),
+      'O domínio duplicado de Community já não possui consumidores de produção'
+    ).toEqual([]);
   });
 
-  it('mantém FirestoreService legado somente enquanto houver consumidor de produção', () => {
+  it('não permite reintroduzir FirestoreService legado sem consumidores', () => {
     const legacyFirestore = resolve(
       APP_ROOT,
       'core/services/data-handling/legacy/firestore.service.ts'
     );
-    const inbound = productionTsInboundCounts();
 
-    expect(
-      inbound.get(legacyFirestore) ?? 0,
-      'FirestoreService legado sem consumidor deve ser removido'
-    ).toBeGreaterThan(0);
+    expect(existsSync(legacyFirestore)).toBe(false);
   });
 
   it('não introduz arquivos TS órfãos no módulo Community', () => {
@@ -234,9 +225,9 @@ describe('Community × Local social-space boundary', () => {
         );
       }
 
-      if (source.includes('official_space')) {
+      if (/['"]official_space['"]/u.test(source)) {
         violations.push(
-          `${displayPath} vazou alias legado official_space para frontend`
+          `${displayPath} tratou official_space como source type de frontend`
         );
       }
     }
