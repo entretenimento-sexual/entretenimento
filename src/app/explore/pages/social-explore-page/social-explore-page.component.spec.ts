@@ -9,6 +9,7 @@ import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-i
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { UserIntentStatusService } from 'src/app/core/services/discovery/user-intent-status.service';
+import { CommunityDiscoveryExposureService } from 'src/app/community/discovery/community-discovery-exposure.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PhotoUploadFlowService } from 'src/app/core/services/image-handling/photo-upload-flow.service';
@@ -21,6 +22,7 @@ import { PublicMixedMediaViewerLauncherService } from 'src/app/media/shared/serv
 import { FeedPublicationComposerComponent } from '../../components/feed-publication-composer/feed-publication-composer.component';
 import { ExploreFeedFacade } from '../../facades/explore-feed.facade';
 import { ExplorePersonalMediaService } from '../../services/explore-personal-media.service';
+import { ExploreCommunityDistributionService } from '../../services/explore-community-distribution.service';
 import { SocialExplorePageComponent } from './social-explore-page.component';
 
 const EMPTY_VM = {
@@ -162,6 +164,8 @@ describe('SocialExplorePageComponent', () => {
     open$: ReturnType<typeof vi.fn>;
   };
   let loadMorePersonalMedia: ReturnType<typeof vi.fn>;
+  let communityDistributionSubject: BehaviorSubject<any>;
+  let recordCommunityExposure: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     exploreVmSubject = new BehaviorSubject<any>(EMPTY_VM);
@@ -189,6 +193,11 @@ describe('SocialExplorePageComponent', () => {
       open$: vi.fn(() => of(void 0)),
     };
     loadMorePersonalMedia = vi.fn(() => of(false));
+    communityDistributionSubject = new BehaviorSubject<any>({
+      recommendations: [],
+      activity: [],
+    });
+    recordCommunityExposure = vi.fn();
 
     await TestBed.configureTestingModule({
       imports: [RouterTestingModule, SocialExplorePageComponent],
@@ -281,6 +290,14 @@ describe('SocialExplorePageComponent', () => {
           provide: GlobalErrorHandlerService,
           useValue: { handleError: vi.fn() },
         },
+        {
+          provide: ExploreCommunityDistributionService,
+          useValue: { vm$: communityDistributionSubject.asObservable() },
+        },
+        {
+          provide: CommunityDiscoveryExposureService,
+          useValue: { recordQualifiedExposure: recordCommunityExposure },
+        },
       ],
     }).compileComponents();
 
@@ -291,6 +308,59 @@ describe('SocialExplorePageComponent', () => {
   it('não exibe título visual de feed', () => {
     expect(fixture.debugElement.queryAll(By.css('h1'))).toHaveLength(0);
     expect(fixture.nativeElement.textContent).not.toContain('Feed');
+  });
+
+  it('distribui Comunidades no Explore sem misturar conteúdo do Mural', () => {
+    communityDistributionSubject.next({
+      recommendations: [
+        {
+          communityId: 'recommended-1',
+          name: 'Cinema independente',
+          slug: 'cinema-independente',
+          description: null,
+          source: { type: 'community', id: 'recommended-1' },
+          avatarUrl: null,
+          coverUrl: null,
+          metrics: { memberCount: 25, postCount: 5, mediaCount: 2 },
+          access: {
+            join: 'open',
+            minimumRole: null,
+            requiresActiveSubscription: false,
+          },
+          tags: [],
+        },
+      ],
+      activity: [
+        {
+          communityId: 'mine-1',
+          name: 'Fotografia urbana',
+          slug: 'fotografia-urbana',
+          description: null,
+          source: { type: 'community', id: 'mine-1' },
+          avatarUrl: null,
+          coverUrl: null,
+          metrics: { memberCount: 18, postCount: 8, mediaCount: 3 },
+          access: {
+            join: 'open',
+            minimumRole: null,
+            requiresActiveSubscription: false,
+          },
+          tags: [],
+          unreadCount: 3,
+          priorityUnreadCount: 1,
+          hasPriorityUnread: true,
+          activityUpdatedAt: 1_800_000_000_000,
+        },
+      ],
+    });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Comunidades para você');
+    expect(fixture.nativeElement.textContent).toContain('Atividade nas suas Comunidades');
+    expect(
+      fixture.debugElement.queryAll(By.css('.community-distribution__card'))
+    ).toHaveLength(2);
+    expect(fixture.nativeElement.textContent).not.toContain('Mural');
   });
 
   it('mantém somente a publicação persistente na barra superior', () => {
