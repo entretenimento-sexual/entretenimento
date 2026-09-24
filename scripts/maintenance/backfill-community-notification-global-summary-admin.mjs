@@ -67,6 +67,7 @@ const itemPageSize = Number.isFinite(requestedItemPageSize)
 const maxUsers = Number.isFinite(requestedMaxUsers)
   ? Math.max(1, Math.min(1_000_000, requestedMaxUsers))
   : 10_000;
+const MAX_USER_CONSISTENCY_RETRIES = 4;
 
 function initializeAdmin() {
   if (getApps().length) return;
@@ -168,7 +169,13 @@ async function readUserItems(db, uid, policy) {
   return { items, repairs, scanComplete };
 }
 
-async function writeUserProjection(db, uid, items, repairs, policy) {
+function snapshotVersionToken(snapshot) {
+  if (!snapshot.exists) return 'missing';
+  const updateTimeMs = snapshot.updateTime?.toMillis?.() ?? 0;
+  return `exists:${updateTimeMs}`;
+}
+
+function buildGlobalProjectionData(items, policy) {
   const unreadCount = items.reduce(
     (total, item) => total + item.unreadCount,
     0
@@ -186,53 +193,122 @@ async function writeUserProjection(db, uid, items, repairs, policy) {
   });
   const now = Timestamp.now();
 
-  const writes = [
-    ...repairs.map((repair) => ({
-      ref: repair.ref,
-      data: { attentionRank: repair.attentionRank },
-      merge: true,
-    })),
-    {
-      ref: db.collection('community_notification_summaries').doc(uid),
-      data: {
-        projectionVersion:
-          policy.COMMUNITY_NOTIFICATION_GLOBAL_SUMMARY_VERSION,
-        requiresBackfill: false,
-        unreadCount,
-        priorityUnreadCount,
-        unreadCommunityCount: items.length,
-        priorityCommunityCount,
-        hasPriorityUnread: priorityUnreadCount > 0,
-        attentionWindow: attentionWindow.map((item) => ({
-          communityId: item.communityId,
-          unreadCount: item.unreadCount,
-          priorityUnreadCount: item.priorityUnreadCount,
-          hasPriorityUnread: item.hasPriorityUnread,
-          updatedAt: item.updatedAtMs > 0
-            ? Timestamp.fromMillis(item.updatedAtMs)
-            : now,
-        })),
-        updatedAt: now,
-      },
-      merge: true,
-    },
-  ];
-
-  for (let index = 0; index < writes.length; index += 400) {
-    const batch = db.batch();
-    for (const write of writes.slice(index, index + 400)) {
-      batch.set(write.ref, write.data, { merge: write.merge });
-    }
-    await batch.commit();
-  }
-
   return {
+    projection: {
+      projectionVersion:
+        policy.COMMUNITY_NOTIFICATION_GLOBAL_SUMMARY_VERSION,
+      requiresBackfill: false,
+      unreadCount,
+      priorityUnreadCount,
+      unreadCommunityCount: items.length,
+      priorityCommunityCount,
+      hasPriorityUnread: priorityUnreadCount > 0,
+      attentionWindow: attentionWindow.map((item) => ({
+        communityId: item.communityId,
+        unreadCount: item.unreadCount,
+        priorityUnreadCount: item.priorityUnreadCount,
+        hasPriorityUnread: item.hasPriorityUnread,
+        updatedAt: item.updatedAtMs > 0
+          ? Timestamp.fromMillis(item.updatedAtMs)
+          : now,
+      })),
+      updatedAt: now,
+    },
     unreadCount,
     priorityUnreadCount,
     priorityCommunityCount,
     attentionWindowSize: attentionWindow.length,
-    writes: writes.length,
   };
+}
+
+async function writeRankRepairs(db, repairs) {
+  let writes = 0;
+
+  for (let index = 0; index < repairs.length; index += 400) {
+    const batch = db.batch();
+    const page = repairs.slice(index, index + 400);
+
+    for (const repair of page) {
+      batch.set(
+        repair.ref,
+        { attentionRank: repair.attentionRank },
+        { merge: true }
+      );
+    }
+
+    await batch.commit();
+    writes += page.length;
+  }
+
+  return writes;
+}
+
+async function backfillUserProjection(db, uid, policy) {
+  const globalRef = db
+    .collection('community_notification_summaries')
+    .doc(uid);
+
+  for (
+    let attempt = 1;
+    attempt <= MAX_USER_CONSISTENCY_RETRIES;
+    attempt += 1
+  ) {
+    // O novo writer atualiza este parent atomicamente com qualquer mudança em
+    // /items. Portanto, seu updateTime funciona como watermark barato do scan.
+    const baselineSnapshot = await globalRef.get();
+    const baselineToken = snapshotVersionToken(baselineSnapshot);
+    const result = await readUserItems(db, uid, policy);
+
+    if (!result.scanComplete) {
+      throw new Error(`Scan incompleto de summaries para ${uid}.`);
+    }
+
+    const projection = buildGlobalProjectionData(result.items, policy);
+
+    // Reparo de rank ocorre antes de promover o parent para v2. Se um writer
+    // concorrente alterar um item, ele também altera o parent e o token abaixo
+    // força re-scan; o writer canônico ainda regrava o rank correto.
+    const rankWrites = await writeRankRepairs(db, result.repairs);
+
+    try {
+      await db.runTransaction(async (transaction) => {
+        const currentSnapshot = await transaction.get(globalRef);
+
+        if (snapshotVersionToken(currentSnapshot) !== baselineToken) {
+          const conflict = new Error(
+            'Resumo mudou durante o backfill; usuário precisa ser reescaneado.'
+          );
+          conflict.code = 'community-summary-backfill-conflict';
+          throw conflict;
+        }
+
+        transaction.set(
+          globalRef,
+          projection.projection,
+          { merge: true }
+        );
+      });
+
+      return {
+        ...result,
+        ...projection,
+        rankWrites,
+        writes: rankWrites + 1,
+        consistencyRetries: attempt - 1,
+      };
+    } catch (error) {
+      if (
+        error?.code !== 'community-summary-backfill-conflict'
+        || attempt >= MAX_USER_CONSISTENCY_RETRIES
+      ) {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error(
+    `Não foi possível estabilizar o resumo de notificações para ${uid}.`
+  );
 }
 
 async function main() {
@@ -253,6 +329,7 @@ async function main() {
   let itemRepairsNeeded = 0;
   let usersWritten = 0;
   let writesCommitted = 0;
+  let consistencyRetries = 0;
   let pages = 0;
   let scanComplete = false;
 
@@ -278,28 +355,28 @@ async function main() {
 
     for (const userDocument of users.docs) {
       const uid = userDocument.id;
-      const result = await readUserItems(db, uid, policy);
-      if (!result.scanComplete) {
-        throw new Error(`Scan incompleto de summaries para ${uid}.`);
+
+      if (dryRun) {
+        const result = await readUserItems(db, uid, policy);
+        if (!result.scanComplete) {
+          throw new Error(`Scan incompleto de summaries para ${uid}.`);
+        }
+
+        scannedSummaryItems += result.items.length;
+        itemRepairsNeeded += result.repairs.length;
+        if (result.items.length > 0) usersWithSummaries += 1;
+        continue;
       }
 
+      const result = await backfillUserProjection(db, uid, policy);
       scannedSummaryItems += result.items.length;
       itemRepairsNeeded += result.repairs.length;
+      consistencyRetries += result.consistencyRetries;
 
       if (result.items.length === 0) continue;
       usersWithSummaries += 1;
-
-      if (!dryRun) {
-        const writeResult = await writeUserProjection(
-          db,
-          uid,
-          result.items,
-          result.repairs,
-          policy
-        );
-        usersWritten += 1;
-        writesCommitted += writeResult.writes;
-      }
+      usersWritten += 1;
+      writesCommitted += result.writes;
     }
 
     console.log('[community-notification-global-summary] scan', {
@@ -310,6 +387,7 @@ async function main() {
       itemRepairsNeeded,
       usersWritten,
       writesCommitted,
+      consistencyRetries,
       dryRun,
     });
 
@@ -332,6 +410,7 @@ async function main() {
     itemRepairsNeeded,
     usersWritten,
     writesCommitted,
+    consistencyRetries,
     pages,
     scanComplete,
     truncatedByMaxUsers: !scanComplete && scannedUsers >= maxUsers,
