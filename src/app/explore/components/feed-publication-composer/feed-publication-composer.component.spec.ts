@@ -63,7 +63,7 @@ describe('FeedPublicationComposerComponent', () => {
           },
         },
         {
-          provide: GlobalErrorHandlerService,
+          provide: ApplicationErrorService,
           useValue: { handleError: globalErrorMock },
         },
       ],
