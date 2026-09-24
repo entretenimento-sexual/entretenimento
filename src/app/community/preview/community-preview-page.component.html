@@ -81,7 +81,7 @@
                 <span>
                   <i class="fas fa-users" aria-hidden="true"></i>
                   @if (
-                    preview.community.source.type === 'community'
+                    spaceCapabilities(preview.community).capacityManagement
                     && preview.capacity
                   ) {
                     {{ preview.capacity.memberCount }} integrantes
@@ -106,7 +106,7 @@
                 && preview.community.access.join !== 'invite_only'
               ) {
                 @if (
-                  preview.community.source.type === 'community'
+                  spaceCapabilities(preview.community).capacityManagement
                   && preview.capacity?.acceptingNewMembers === false
                 ) {
                   <span class="community-preview__membership-state" role="status">
@@ -120,7 +120,7 @@
                     [disabled]="membershipAction.status === 'loading'"
                     [attr.aria-label]="membershipActionLabel(preview.community) + ' ' + preview.community.name"
                     [attr.aria-describedby]="
-                      preview.community.source.type === 'community'
+                      spaceCapabilities(preview.community).rules
                       && preview.rules
                       && activeSection() !== 'about'
                         ? 'community-preview-rules-before-entry-copy'
@@ -210,7 +210,7 @@
               }
 
               @if (
-                preview.community.source.type === 'community'
+                spaceCapabilities(preview.community).membershipProfileVisibility
                 && preview.viewerMode !== 'visitor'
                 && preview.viewerMode !== 'pending'
               ) {
@@ -228,7 +228,7 @@
           </header>
 
           @if (
-            preview.community.source.type === 'community'
+            spaceCapabilities(preview.community).managedLifecycle
             && (
               lifecycleNotice(preview.lifecycleStatus)
               || (
@@ -290,7 +290,7 @@
 
           <nav
             class="community-preview__tabs"
-            [class.has-members]="preview.community.source.type === 'community'"
+            [class.has-members]="spaceCapabilities(preview.community).memberDirectory"
             [attr.aria-label]="'Conteúdo do ' + sourceLabel(preview.community)"
           >
             <button
@@ -301,10 +301,10 @@
               (click)="selectSection('feed')"
             >
               <i class="fas {{ sectionIcons.feed }}" aria-hidden="true"></i>
-              <span>{{ preview.community.source.type === 'venue' ? 'Novidades' : 'Mural' }}</span>
+              <span>{{ feedSectionLabel(preview.community) }}</span>
             </button>
 
-            @if (preview.community.source.type === 'community') {
+            @if (spaceCapabilities(preview.community).topics) {
               <button
                 id="community-tab-topics"
                 type="button"
@@ -329,7 +329,7 @@
               <span>Fotos</span>
             </button>
 
-            @if (preview.community.source.type === 'community') {
+            @if (spaceCapabilities(preview.community).memberDirectory) {
               <button
                 id="community-tab-members"
                 type="button"
@@ -404,7 +404,7 @@
           <div
             class="community-preview__body"
             [class.has-context-rail]="
-              preview.community.source.type === 'community'
+              spaceCapabilities(preview.community).contextRail
               && (
                 activeSection() === 'feed'
                 || activeSection() === 'photos'
@@ -426,7 +426,7 @@
                 </section>
               } @else if (
                 activeSection() === 'topics'
-                && preview.community.source.type === 'community'
+                && spaceCapabilities(preview.community).topics
               ) {
                 <section id="community-panel-topics" aria-labelledby="community-tab-topics">
                   <app-community-topics
@@ -445,7 +445,7 @@
                 </section>
               } @else if (
                 activeSection() === 'members'
-                && preview.community.source.type === 'community'
+                && spaceCapabilities(preview.community).memberDirectory
               ) {
                 <section id="community-panel-members" aria-labelledby="community-tab-members">
                   @if (
@@ -507,16 +507,19 @@
                     <p>{{ preview.community.description }}</p>
                   }
 
-                  @if (preview.community.source.type === 'venue') {
+                  @if (
+                    officialEntityTargetType(preview.community);
+                    as officialEntityTargetType
+                  ) {
                     <app-official-entity-community-section
-                      targetType="venue"
+                      [targetType]="officialEntityTargetType"
                       [targetId]="preview.community.source.id"
                       [currentCommunityId]="preview.community.communityId"
                     />
                   }
 
                   @if (
-                    preview.community.source.type === 'community'
+                    spaceCapabilities(preview.community).membershipProfileVisibility
                     && preview.viewerMode !== 'visitor'
                     && preview.viewerMode !== 'pending'
                   ) {
@@ -526,7 +529,7 @@
                   }
 
                   @if (
-                    preview.community.source.type === 'community'
+                    spaceCapabilities(preview.community).rules
                     && preview.rules
                   ) {
                     <section
@@ -561,7 +564,7 @@
                     <span>
                       <i class="fas fa-users" aria-hidden="true"></i>
                       @if (
-                        preview.community.source.type === 'community'
+                        spaceCapabilities(preview.community).capacityManagement
                         && preview.capacity
                       ) {
                         {{ preview.capacity.memberCount }} de
@@ -593,15 +596,13 @@
                           && preview.viewerMode !== 'pending'
                         ) {
                           Interações temporariamente indisponíveis
-                        } @else if (preview.community.source.type === 'venue') {
-                          Interação reservada às pessoas autorizadas no Local
                         } @else {
-                          Interação reservada aos membros da Comunidade
+                          {{ interactionRestrictedLabel(preview.community) }}
                         }
                       </span>
                     }
                     @if (
-                      preview.community.source.type === 'community'
+                      spaceCapabilities(preview.community).capacityManagement
                       && preview.capacity?.acceptingNewMembers === false
                     ) {
                       <span role="status">
@@ -615,7 +616,7 @@
             </div>
 
             @if (
-              preview.community.source.type === 'community'
+              spaceCapabilities(preview.community).contextRail
               && (
                 activeSection() === 'feed'
                 || activeSection() === 'photos'
