@@ -54,6 +54,19 @@ export interface BillingSnapshotResult {
   renewalEnabled?: boolean;
   renewalStatus?: 'active' | 'cancel_pending' | 'canceled' | 'none';
   renewalCancellationPending?: boolean;
+  downgradeSchedulingAvailable?: boolean;
+  scheduledPlanChange?: {
+    planKey: BillingGrantedRole;
+    effectiveAt: number;
+    providerUpdateStatus: 'applied' | 'pending';
+  } | null;
+}
+
+export interface SchedulePlatformSubscriptionDowngradeResult {
+  scheduled: true;
+  planKey: BillingGrantedRole;
+  effectiveAt: number;
+  providerUpdateStatus: 'applied' | 'pending';
 }
 
 export interface CancelPlatformSubscriptionRenewalResult {
