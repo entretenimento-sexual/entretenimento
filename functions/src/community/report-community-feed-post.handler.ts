@@ -97,6 +97,9 @@ export const reportCommunityFeedPost = onCall<CommunityFeedReportRequest>(
       .doc(command.communityId)
       .collection('items')
       .doc(command.postId);
+    const exploreIndexRef = db
+      .collection('community_explore_content_index')
+      .doc(`${command.communityId}:${command.postId}`);
     const reportId = buildReportId(
       reporterUid,
       command.communityId,
@@ -188,6 +191,9 @@ export const reportCommunityFeedPost = onCall<CommunityFeedReportRequest>(
           moderationQuarantinedAt: timestamp,
           updatedAt: timestamp,
         });
+        // A quarentena precisa retirar a distribuição global na mesma
+        // transação; não dependemos da latência do trigger de projeção.
+        transaction.delete(exploreIndexRef);
       }
 
       // Serializa denúncia x exclusão no próprio post. Se uma exclusão concorrente

@@ -7,6 +7,7 @@ export { createVenueCommunity } from './create-venue-community.handler';
 export { createOfficialCommunity } from './create-official-community.handler';
 export { getCommunityTagCatalog } from './get-community-tag-catalog.handler';
 export { getCommunityDiscoveryPage } from './get-community-discovery-page.handler';
+export { getCommunityExploreContent } from './get-community-explore-content.handler';
 export {
   recordCommunityDiscoveryExposure,
 } from './record-community-discovery-exposure.handler';
@@ -142,6 +143,9 @@ export { runCommunityRanking } from './run-community-ranking.schedule';
 export {
   runCommunityDiscoveryExposureRetention,
 } from './run-community-discovery-exposure-retention.schedule';
+export {
+  runCommunityExploreContentRetention,
+} from './run-community-explore-content-retention.schedule';
 export {
   syncCommunityArchiveProjections,
 } from './sync-community-archive-projections.trigger';

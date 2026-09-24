@@ -31,6 +31,9 @@ import {
   hasBlockingCommunityFeedPostReportInTransaction,
 } from './community-feed-moderation-evidence.service';
 import {
+  buildCommunityExploreContentProjection,
+} from './community-explore-content.model';
+import {
   buildCommunityModerationNotificationCopy,
   buildCommunityModerationNotificationId,
   buildCommunityNotificationRoute,
@@ -173,6 +176,9 @@ export const reviewCommunityFeedPostReport = onCall<
         .doc(communityId)
         .collection('items')
         .doc(postId);
+      const exploreIndexRef = db
+        .collection('community_explore_content_index')
+        .doc(`${communityId}:${postId}`);
       const authorUserRef = db.collection('users').doc(authorUid);
       const adminLogRef = db.collection('admin_logs').doc();
       const actorActionRef = db
@@ -264,6 +270,27 @@ export const reviewCommunityFeedPostReport = onCall<
           moderationQuarantinedAt: FieldValue.delete(),
           updatedAt: timestamp,
         });
+
+        const restoredExploreProjection =
+          projectionSnapshot.exists && discoverySnapshot.exists
+            ? buildCommunityExploreContentProjection({
+              communityId,
+              postId,
+              discovery: discoverySnapshot.data(),
+              feed: projectionSnapshot.data(),
+              operationalPost: {
+                ...post,
+                moderationState: 'active',
+              },
+              now: nowMs,
+            })
+            : null;
+
+        if (restoredExploreProjection) {
+          transaction.set(exploreIndexRef, restoredExploreProjection);
+        } else {
+          transaction.delete(exploreIndexRef);
+        }
       }
 
       if (decision === 'REMOVE' && contentReviewable) {
@@ -276,6 +303,7 @@ export const reviewCommunityFeedPostReport = onCall<
           updatedAt: timestamp,
         });
         if (projectionSnapshot.exists) transaction.delete(projectionRef);
+        transaction.delete(exploreIndexRef);
         transaction.set(actorActionRef, {
           actorUid: adminUid,
           communityId,

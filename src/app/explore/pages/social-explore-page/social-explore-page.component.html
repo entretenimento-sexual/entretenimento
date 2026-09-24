@@ -5,6 +5,8 @@
   @let currentUser = (currentUser$ | async);
   @let viewerUid = ((authUid$ | async) || '');
   @let emptySuggestions = vm.compatibleProfiles.slice(0, 4);
+  @let communityDistribution = (communityDistribution$ | async);
+  @let communityContent = (communityDistribution?.content || []);
 
   <section class="social-feed-page" aria-label="Atualizações">
     @if (currentUser?.uid) {
@@ -125,7 +127,7 @@
     }
 
 
-    @if (communityDistribution$ | async; as communities) {
+    @if (communityDistribution; as communities) {
       @if (communities.activity.length > 0) {
         <section
           class="community-distribution community-distribution--activity"
@@ -245,19 +247,28 @@
 
     <section class="feed-timeline" aria-labelledby="timeline-title">
       <h2 id="timeline-title" class="visually-hidden">
-        Publicações e momentos recentes de amigos e perfis compatíveis
+        Publicações, momentos e destaques de Comunidades
       </h2>
 
       <div
         class="feed-list"
         role="list"
-        aria-label="Publicações, vídeos e momentos recentes"
+        aria-label="Publicações, vídeos, momentos e destaques de Comunidades"
       >
         @if (currentUser?.uid) {
           <app-user-intent-status-composer
             class="feed-status-composer"
             role="listitem"
             [user]="currentUser"
+          />
+        }
+
+        @if (feedItems.length === 0 && communityContent[0]) {
+          <app-explore-community-content-card
+            role="listitem"
+            [item]="communityContent[0]"
+            [appCommunityDiscoveryVisibility]="communityContent[0].communityId"
+            (qualifiedExposure)="recordCommunityExposure($event)"
           />
         }
 
@@ -332,6 +343,30 @@
                 <p>{{ item.status.destinationLabel }}</p>
               </div>
             </article>
+          }
+
+          @if (
+            communityContent[0]
+            && (
+              ($index === 0 && feedItems.length === 1)
+              || $index === 1
+            )
+          ) {
+            <app-explore-community-content-card
+              role="listitem"
+              [item]="communityContent[0]"
+              [appCommunityDiscoveryVisibility]="communityContent[0].communityId"
+              (qualifiedExposure)="recordCommunityExposure($event)"
+            />
+          }
+
+          @if ($index === 4 && communityContent[1]) {
+            <app-explore-community-content-card
+              role="listitem"
+              [item]="communityContent[1]"
+              [appCommunityDiscoveryVisibility]="communityContent[1].communityId"
+              (qualifiedExposure)="recordCommunityExposure($event)"
+            />
           }
         }
       </div>
@@ -418,7 +453,7 @@
             </button>
           </div>
         </section>
-      } @else {
+      } @else if (communityContent.length === 0) {
         <section class="feed-empty" aria-labelledby="feed-empty-title">
           <div class="feed-empty__copy">
             <strong id="feed-empty-title">Seu feed começa com conexões</strong>

@@ -5,6 +5,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { CommunityNotificationUnreadSummaryService } from 'src/app/core/services/notifications/community-notification-unread-summary.service';
 import { CommunityPreviewRepository } from 'src/app/community/data-access/community-preview.repository';
+import { CommunityExploreContentRepository } from 'src/app/community/data-access/community-explore-content.repository';
 import { CommunityDiscoveryCacheService } from 'src/app/community/discovery/community-discovery-cache.service';
 import { CommunityDiscoverySessionBehaviorService } from 'src/app/community/discovery/community-discovery-session-behavior.service';
 import { ExploreCommunityDistributionService } from './explore-community-distribution.service';
@@ -31,6 +32,7 @@ function card(id: string) {
 describe('ExploreCommunityDistributionService', () => {
   let discoveryCalls: ReturnType<typeof vi.fn>;
   let mineCalls: ReturnType<typeof vi.fn>;
+  let contentCalls: ReturnType<typeof vi.fn>;
   let unreadMap$: BehaviorSubject<ReadonlyMap<string, any>>;
   let sessionState$: BehaviorSubject<any>;
 
@@ -44,6 +46,25 @@ describe('ExploreCommunityDistributionService', () => {
       items: [card('b'), card('mine-1'), card('mine-2')],
       nextCursor: null,
       generatedAt: 1,
+    }));
+    contentCalls = vi.fn(() => of({
+      items: [{
+        communityId: 'a',
+        postId: 'post-a',
+        community: {
+          name: 'Comunidade a',
+          slug: 'comunidade-a',
+          avatarUrl: null,
+        },
+        post: {
+          kind: 'text',
+          author: { label: 'Autora A', avatarUrl: null },
+          text: 'Conteúdo público',
+          image: null,
+        },
+        publishedAt: 1_800_000_000_000,
+      }],
+      generatedAt: 1_800_000_000_100,
     }));
     unreadMap$ = new BehaviorSubject<ReadonlyMap<string, any>>(new Map([
       ['mine-1', {
@@ -74,6 +95,12 @@ describe('ExploreCommunityDistributionService', () => {
           useValue: {
             getDiscoveryPage$: discoveryCalls,
             getMyCommunitiesPage$: mineCalls,
+          },
+        },
+        {
+          provide: CommunityExploreContentRepository,
+          useValue: {
+            getContent$: contentCalls,
           },
         },
         {
@@ -110,7 +137,10 @@ describe('ExploreCommunityDistributionService', () => {
     expect(discoveryCalls).toHaveBeenCalledTimes(1);
     expect(mineCalls).toHaveBeenCalledTimes(1);
     expect(latest.recommendations.map((item: any) => item.communityId))
-      .toEqual(['a', 'd']);
+      .toEqual(['d']);
+    expect(latest.content.map((item: any) => item.communityId))
+      .toEqual(['a']);
+    expect(contentCalls).toHaveBeenCalledTimes(1);
     expect(latest.activity.map((item: any) => item.communityId))
       .toEqual(['mine-2', 'mine-1']);
 
@@ -130,6 +160,7 @@ describe('ExploreCommunityDistributionService', () => {
     expect(latest.activity).toEqual([]);
     expect(discoveryCalls).toHaveBeenCalledTimes(1);
     expect(mineCalls).toHaveBeenCalledTimes(1);
+    expect(contentCalls).toHaveBeenCalledTimes(1);
 
     subscription.unsubscribe();
   });

@@ -38,6 +38,9 @@ import {
   sanitizeCommunityFeedProjection,
 } from './community-feed.model';
 import {
+  buildCommunityExploreContentProjection,
+} from './community-explore-content.model';
+import {
   CommunityFeedWriterRole,
   evaluateCommunityFeedRateWindow,
   evaluateCommunityFeedWrite,
@@ -356,6 +359,9 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
             .collection('items');
           const postRef = postsCollection.doc(postId);
           const projectionRef = publicFeedCollection.doc(postId);
+          const exploreIndexRef = db
+            .collection('community_explore_content_index')
+            .doc(`${communityId}:${postId}`);
           const replyTargetRef = command.replyToPostId
             ? postsCollection.doc(command.replyToPostId)
             : null;
@@ -616,15 +622,31 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
             updatedAt: now,
           };
 
-          transaction.create(postRef, {
+          const operationalPost = {
             ...projection,
             actorUid,
             postId,
             communityId,
             createdAt: now,
             source: command.replyToPostId ? 'reply' : 'callable',
-          });
+          };
+          const exploreProjection =
+            buildCommunityExploreContentProjection({
+              communityId,
+              postId,
+              discovery: discoverySnapshot.exists
+                ? discoverySnapshot.data()
+                : null,
+              feed: projection,
+              operationalPost,
+              now: nowMs,
+            });
+
+          transaction.create(postRef, operationalPost);
           transaction.create(projectionRef, projection);
+          if (exploreProjection) {
+            transaction.set(exploreIndexRef, exploreProjection);
+          }
           transaction.create(userPostRef, {
             actorUid,
             communityId,
