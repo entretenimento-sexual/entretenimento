@@ -23,6 +23,7 @@ const ALL_COMMUNITY_NOTIFICATION_TYPES = [
   'community.invite.accepted',
   'community.invite.declined',
   'community.content.moderated',
+  'community.capacity.regularization',
 ] as const;
 
 test('matriz agregada cobre todos os tipos canônicos atuais de Comunidades', () => {
@@ -61,6 +62,7 @@ test('matriz prioriza gestão, perda de acesso e moderação', () => {
     'community.membership.removed',
     'community.membership.blocked',
     'community.content.moderated',
+    'community.capacity.regularization',
   ]);
 
   for (const type of ALL_COMMUNITY_NOTIFICATION_TYPES) {
