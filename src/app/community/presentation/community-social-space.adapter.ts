@@ -33,6 +33,7 @@ export interface CommunitySocialSpaceFeedPresentation {
   readonly loadingLabel: string;
   readonly errorLabel: string;
   readonly emptyLabel: string;
+  readonly composerPlaceholder: string;
 }
 
 export interface CommunitySocialSpaceAdapter {
@@ -160,6 +161,7 @@ const COPY: Readonly<Record<CommunityPreviewSourceType, ProductCopy>> =
         loadingLabel: 'Carregando mural...',
         errorLabel: 'Não foi possível carregar o mural da Comunidade.',
         emptyLabel: 'Nenhuma mensagem no Mural ainda.',
+        composerPlaceholder: 'Compartilhe algo com a Comunidade...',
         photosAriaLabel: 'Fotos da Comunidade',
       },
       management: {
@@ -209,6 +211,7 @@ const COPY: Readonly<Record<CommunityPreviewSourceType, ProductCopy>> =
         loadingLabel: 'Carregando novidades...',
         errorLabel: 'Não foi possível carregar as novidades.',
         emptyLabel: 'Nenhuma novidade publicada.',
+        composerPlaceholder: 'Compartilhe uma novidade...',
         photosAriaLabel: 'Fotos do Local',
       },
       management: {
@@ -387,6 +390,7 @@ function createAdapter(
             loadingLabel: 'Carregando fotos...',
             errorLabel: 'Não foi possível carregar as fotos.',
             emptyLabel: 'Nenhuma foto compartilhada ainda.',
+            composerPlaceholder: copy.feed.composerPlaceholder,
           }
         : copy.feed,
     management: Object.freeze({
