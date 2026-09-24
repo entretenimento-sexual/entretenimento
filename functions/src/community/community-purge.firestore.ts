@@ -208,8 +208,15 @@ implements CommunityPurgeExecutionAdapter {
         .doc(uid)
         .collection('items')
         .doc(communityId);
+      const managementIndexRef = db
+        .collection('community_member_management_index')
+        .doc(`${communityId}:${uid}`);
 
-      await deleteDocumentRefs([userIndexRef, membership.ref]);
+      await deleteDocumentRefs([
+        userIndexRef,
+        managementIndexRef,
+        membership.ref,
+      ]);
     }
 
     return snapshot.size;
