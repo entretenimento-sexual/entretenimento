@@ -48,6 +48,9 @@ import {
   PLATFORM_CHECKOUT_LOCK_COLLECTION,
 } from './platform-checkout-lock.service';
 import {
+  resolveRecurringPlanSettlementDecision,
+} from './recurring-platform-subscription-plan-change.policy';
+import {
   PLATFORM_SUBSCRIPTION_COLLECTION,
   PLATFORM_SUBSCRIPTION_STATE_COLLECTION,
   RetryableProviderWebhookError,
@@ -160,49 +163,38 @@ export async function settleRecurringPlatformSubscriptionPayment(
       contract.pendingPlanChange?.providerUpdateStatus === 'applied'
         ? contract.pendingPlanChange
         : null;
-    const settlesPendingPlan =
-      pendingPlanChange !== null
-      && payment.amountCents === pendingPlanChange.amountCents;
-    const settlesCurrentPlan =
-      payment.amountCents === contract.amountCents;
+    const settlementDecision =
+      resolveRecurringPlanSettlementDecision({
+        currentAmountCents: contract.amountCents,
+        pendingPlanChange,
+        paymentAmountCents: payment.amountCents,
+        paymentOccurredAt: occurredAt,
+        processingNow: now,
+      });
 
-    if (!settlesPendingPlan && !settlesCurrentPlan) {
-      throw new HttpsError(
-        'failed-precondition',
-        'Valor da cobrança recorrente diverge do contrato vigente.',
-        {
-          reason: 'recurring_amount_mismatch',
-          contractId,
-        }
-      );
-    }
-
-    if (
-      pendingPlanChange
-      && settlesCurrentPlan
-      && occurredAt >= pendingPlanChange.effectiveAt
-    ) {
-      throw new HttpsError(
-        'failed-precondition',
-        'A cobrança do novo ciclo não refletiu a redução de plano agendada.',
-        {
-          reason: 'recurring_scheduled_amount_mismatch',
-          contractId,
-        }
-      );
-    }
-
-    if (
-      pendingPlanChange
-      && settlesPendingPlan
-      && now < pendingPlanChange.effectiveAt
-    ) {
+    if (settlementDecision.kind === 'retry') {
       throw new RetryableProviderWebhookError(
         'scheduled-downgrade-effective-period-pending',
         'A cobrança do próximo plano foi confirmada antes da virada do ciclo.',
-        pendingPlanChange.effectiveAt
+        settlementDecision.retryAt
       );
     }
+
+    if (settlementDecision.kind === 'denied') {
+      throw new HttpsError(
+        'failed-precondition',
+        settlementDecision.reason === 'recurring_scheduled_amount_mismatch'
+          ? 'A cobrança do novo ciclo não refletiu a redução de plano agendada.'
+          : 'Valor da cobrança recorrente diverge do contrato vigente.',
+        {
+          reason: settlementDecision.reason,
+          contractId,
+        }
+      );
+    }
+
+    const settlesPendingPlan =
+      settlementDecision.kind === 'scheduled_downgrade';
 
     const entitlementId = `platform_subscription_${contract.buyerUid}`;
     const entitlementRef = db.collection('entitlements').doc(entitlementId);
