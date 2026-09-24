@@ -88,7 +88,7 @@
           aria-label="Resumo da gestão"
         >
           @if (
-            sourceType() === 'community'
+            supportsCapacityManagement()
             && capacityRegularization();
             as regularization
           ) {
@@ -143,7 +143,7 @@
           }
 
           @if (
-            sourceType() === 'community'
+            supportsCapacityManagement()
             && !capacityRegularization()
             && capacity()
             && (
@@ -245,7 +245,7 @@
               </button>
             }
 
-            @if (sourceType() === 'community') {
+            @if (supportsContentModeration()) {
               <button
                 type="button"
                 class="community-management-hub__card"
@@ -262,7 +262,7 @@
               </button>
             }
 
-            @if (sourceType() === 'community' && capacity()) {
+            @if (supportsCapacityManagement() && capacity()) {
               <div class="community-management-hub__card community-management-hub__card--status">
                 <span class="community-management-hub__card-icon" aria-hidden="true">
                   <i class="fas fa-gauge-high"></i>
@@ -320,7 +320,7 @@
             </button>
           </header>
 
-          @if (sourceType() === 'community' && capacity()?.acceptingNewMembers === false) {
+          @if (supportsCapacityManagement() && capacity()?.acceptingNewMembers === false) {
             <div class="community-membership-management__state community-membership-management__state--compact" role="status">
               <i class="fas fa-users-slash" aria-hidden="true"></i>
               <span>
