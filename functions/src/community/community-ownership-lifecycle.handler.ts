@@ -158,7 +158,10 @@ function normalizeSourceType(value: unknown): CommunityOwnershipSourceType {
 }
 
 function normalizeCommunityStatus(value: unknown): CommunityOwnershipStatus {
-  return value === 'active' || value === 'paused' || value === 'archived'
+  return value === 'active'
+    || value === 'paused'
+    || value === 'dormant'
+    || value === 'archived'
     ? value
     : null;
 }
