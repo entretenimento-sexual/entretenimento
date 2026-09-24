@@ -184,11 +184,7 @@ export function buildCommunityExploreContentProjection(input: {
     return null;
   }
 
-  if (
-    feed.item.kind === 'photo'
-    && !feed.imageStoragePath
-    && !feed.item.image?.url
-  ) {
+  if (feed.item.kind === 'photo' && !feed.imageStoragePath) {
     return null;
   }
 
