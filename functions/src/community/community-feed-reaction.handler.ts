@@ -286,6 +286,7 @@ export const toggleCommunityFeedReaction = onCall<
               communityId,
               postId,
               recipientUid,
+              actorUid,
               membershipCycleStartedAtMs,
               now
             )
