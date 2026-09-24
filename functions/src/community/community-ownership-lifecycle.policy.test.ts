@@ -18,6 +18,7 @@ const TRANSFER_BASE = Object.freeze({
   targetStatus: 'active' as const,
   targetRole: 'member' as const,
   targetAccountEligible: true,
+  targetOwnershipEntitlementEligible: true,
   activeOwnerCount: 1,
 });
 
@@ -101,6 +102,13 @@ test('nega alvo pendente, bloqueado, inativo ou inelegível', () => {
       targetAccountEligible: false,
     }).denialReason,
     'target_account_ineligible'
+  );
+  assert.equal(
+    evaluateCommunityOwnershipTransfer({
+      ...TRANSFER_BASE,
+      targetOwnershipEntitlementEligible: false,
+    }).denialReason,
+    'target_ownership_entitlement_ineligible'
   );
 });
 
