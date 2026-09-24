@@ -6,6 +6,7 @@ import {
   inject,
   input,
   output,
+  signal,
 } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { MatDialog } from '@angular/material/dialog';
@@ -13,6 +14,7 @@ import { Router } from '@angular/router';
 import {
   catchError,
   combineLatest,
+  debounceTime,
   distinctUntilChanged,
   exhaustMap,
   filter,
@@ -38,6 +40,7 @@ import {
 import {
   CommunityOwnershipCandidate,
   CommunityOwnershipCandidateRole,
+  CommunityOwnershipCandidateRoleFilter,
   CommunityOwnershipCandidatesResponse,
 } from '../data-access/community-ownership.model';
 import { CommunityOwnershipRepository } from '../data-access/community-ownership.repository';
@@ -46,6 +49,11 @@ import {
   COMMUNITY_OWNERSHIP_LOAD_CODE_MESSAGES,
   COMMUNITY_OWNERSHIP_REASON_MESSAGES,
 } from '../presentation/community-error.messages';
+
+interface OwnershipCandidateFilters {
+  readonly roleFilter: CommunityOwnershipCandidateRoleFilter;
+  readonly query: string;
+}
 
 interface OwnershipCandidatesState {
   status: 'loading' | 'ready' | 'error';
@@ -72,6 +80,15 @@ interface OwnershipCommand {
   candidate: CommunityOwnershipCandidate | null;
 }
 
+function normalizeSearchTerm(value: unknown): string {
+  const normalized = String(value ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 40);
+
+  return normalized.length >= 2 ? normalized : '';
+}
+
 @Component({
   selector: 'app-community-ownership-management',
   standalone: true,
@@ -93,6 +110,9 @@ export class CommunityOwnershipManagementComponent {
   readonly communityId = input.required<string>();
   readonly ownershipChanged = output<void>();
   readonly communityArchived = output<void>();
+  readonly selectedRoleFilter =
+    signal<CommunityOwnershipCandidateRoleFilter>('leadership');
+  readonly searchTerm = signal('');
 
   private readonly communityId$ = toObservable(this.communityId).pipe(
     map((communityId) => communityId.trim()),
@@ -101,56 +121,99 @@ export class CommunityOwnershipManagementComponent {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
+  private readonly filters$ = combineLatest([
+    toObservable(this.selectedRoleFilter),
+    toObservable(this.searchTerm).pipe(
+      debounceTime(250),
+      map(normalizeSearchTerm),
+      distinctUntilChanged()
+    ),
+  ]).pipe(
+    map(
+      ([roleFilter, query]): OwnershipCandidateFilters => ({
+        roleFilter,
+        query,
+      })
+    ),
+    distinctUntilChanged(
+      (left, right) =>
+        left.roleFilter === right.roleFilter
+        && left.query === right.query
+    ),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
   readonly state$ = combineLatest([
     this.communityId$,
+    this.filters$,
     this.refreshCandidates$.pipe(startWith(undefined)),
   ]).pipe(
-    switchMap(([communityId]) =>
-      this.repository.getCandidates$(communityId).pipe(
-        switchMap((initialResponse) => {
-          const initialState = this.readyCandidatesState(initialResponse);
+    switchMap(([communityId, filters]) =>
+      this.repository
+        .getCandidates$(
+          communityId,
+          null,
+          {
+            roleFilter: filters.roleFilter,
+            query: filters.query || null,
+          }
+        )
+        .pipe(
+          switchMap((initialResponse) => {
+            const initialState = this.readyCandidatesState(initialResponse);
 
-          return this.loadMoreCandidates$.pipe(
-            exhaustMap((cursor) =>
-              this.repository.getCandidates$(communityId, cursor).pipe(
-                map(
-                  (response): OwnershipCandidatePageEvent => ({
-                    kind: 'page',
-                    response,
-                  })
-                ),
-                startWith<OwnershipCandidatePageEvent>({ kind: 'loading-more' }),
-                catchError((error: unknown) => {
-                  this.reportLoadMoreError(error);
-                  return of<OwnershipCandidatePageEvent>({
-                    kind: 'load-more-error',
-                  });
-                })
-              )
-            ),
-            scan<OwnershipCandidatePageEvent, OwnershipCandidatesState>(
-              (state, event) => this.reduceCandidatesState(state, event),
-              initialState
-            ),
-            startWith<OwnershipCandidatesState>(initialState)
-          );
-        }),
-        startWith<OwnershipCandidatesState>({
-          status: 'loading',
-          items: [],
-          nextCursor: null,
-          loadingMore: false,
-        }),
-        catchError((error: unknown) => {
-          this.reportLoadError(error);
-          return of<OwnershipCandidatesState>({
-            status: 'error',
+            return this.loadMoreCandidates$.pipe(
+              exhaustMap((cursor) =>
+                this.repository
+                  .getCandidates$(
+                    communityId,
+                    cursor,
+                    {
+                      roleFilter: filters.roleFilter,
+                      query: filters.query || null,
+                    }
+                  )
+                  .pipe(
+                    map(
+                      (response): OwnershipCandidatePageEvent => ({
+                        kind: 'page',
+                        response,
+                      })
+                    ),
+                    startWith<OwnershipCandidatePageEvent>({
+                      kind: 'loading-more',
+                    }),
+                    catchError((error: unknown) => {
+                      this.reportLoadMoreError(error, filters);
+                      return of<OwnershipCandidatePageEvent>({
+                        kind: 'load-more-error',
+                      });
+                    })
+                  )
+              ),
+              scan<OwnershipCandidatePageEvent, OwnershipCandidatesState>(
+                (state, event) => this.reduceCandidatesState(state, event),
+                initialState
+              ),
+              startWith<OwnershipCandidatesState>(initialState)
+            );
+          }),
+          startWith<OwnershipCandidatesState>({
+            status: 'loading',
             items: [],
             nextCursor: null,
             loadingMore: false,
-          });
-        })
-      )
+          }),
+          catchError((error: unknown) => {
+            this.reportLoadError(error, filters);
+            return of<OwnershipCandidatesState>({
+              status: 'error',
+              items: [],
+              nextCursor: null,
+              loadingMore: false,
+            });
+          })
+        )
     ),
     shareReplay({ bufferSize: 1, refCount: true })
   );
@@ -214,6 +277,33 @@ export class CommunityOwnershipManagementComponent {
     }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
+
+  changeRoleFilter(event: Event): void {
+    const target = event.target;
+    const value = target instanceof HTMLSelectElement ? target.value : '';
+    const roleFilter: CommunityOwnershipCandidateRoleFilter | null =
+      value === 'all'
+      || value === 'leadership'
+      || value === 'admin'
+      || value === 'moderator'
+      || value === 'member'
+        ? value
+        : null;
+
+    if (!roleFilter || roleFilter === this.selectedRoleFilter()) return;
+    this.selectedRoleFilter.set(roleFilter);
+  }
+
+  updateSearch(event: Event): void {
+    const target = event.target;
+    const value = target instanceof HTMLInputElement ? target.value : '';
+    this.searchTerm.set(value.slice(0, 40));
+  }
+
+  clearSearch(): void {
+    if (!this.searchTerm()) return;
+    this.searchTerm.set('');
+  }
 
   refresh(): void {
     this.refreshCandidates$.next();
@@ -341,7 +431,10 @@ export class CommunityOwnershipManagementComponent {
       });
   }
 
-  private reportLoadError(error: unknown): void {
+  private reportLoadError(
+    error: unknown,
+    filters: OwnershipCandidateFilters
+  ): void {
     this.applicationError.report(error, {
       feature: 'community',
       operation: 'loadOwnershipCandidates',
@@ -353,11 +446,16 @@ export class CommunityOwnershipManagementComponent {
       metadata: {
         scope: 'CommunityOwnershipManagementComponent',
         communityId: this.communityId().trim(),
+        roleFilter: filters.roleFilter,
+        query: filters.query || null,
       },
     });
   }
 
-  private reportLoadMoreError(error: unknown): void {
+  private reportLoadMoreError(
+    error: unknown,
+    filters: OwnershipCandidateFilters
+  ): void {
     this.applicationError.report(error, {
       feature: 'community',
       operation: 'loadMoreOwnershipCandidates',
@@ -368,6 +466,8 @@ export class CommunityOwnershipManagementComponent {
       metadata: {
         scope: 'CommunityOwnershipManagementComponent',
         communityId: this.communityId().trim(),
+        roleFilter: filters.roleFilter,
+        query: filters.query || null,
       },
     });
   }
