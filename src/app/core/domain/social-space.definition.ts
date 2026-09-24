@@ -46,7 +46,6 @@ export interface SocialSpaceCapabilities {
   readonly interestDiscovery: boolean;
   readonly personalMembershipHub: boolean;
   readonly contextRail: boolean;
-  readonly officialEntityCommunityLink: boolean;
 }
 
 
@@ -75,7 +74,6 @@ const COMMUNITY_CAPABILITIES: Readonly<SocialSpaceCapabilities> = Object.freeze(
   interestDiscovery: true,
   personalMembershipHub: true,
   contextRail: true,
-  officialEntityCommunityLink: false,
 });
 
 const VENUE_CAPABILITIES: Readonly<SocialSpaceCapabilities> = Object.freeze({
@@ -93,7 +91,6 @@ const VENUE_CAPABILITIES: Readonly<SocialSpaceCapabilities> = Object.freeze({
   interestDiscovery: false,
   personalMembershipHub: false,
   contextRail: false,
-  officialEntityCommunityLink: true,
 });
 
 const LEGACY_ROOM_CAPABILITIES: Readonly<SocialSpaceCapabilities> = Object.freeze({
@@ -111,7 +108,6 @@ const LEGACY_ROOM_CAPABILITIES: Readonly<SocialSpaceCapabilities> = Object.freez
   interestDiscovery: false,
   personalMembershipHub: false,
   contextRail: false,
-  officialEntityCommunityLink: false,
 });
 
 export const SOCIAL_SPACE_DEFINITIONS: Readonly<
