@@ -110,7 +110,7 @@ test('rejeita qualquer terceiro valor', () => {
 });
 
 
-test('segura cobrança reduzida enquanto cancelamento do downgrade converge', () => {
+test('segura cobrança reduzida enquanto cancelamento converge antes da virada', () => {
   const decision = resolveRecurringPlanSettlementDecision({
     currentAmountCents: 3999,
     pendingPlanChange: {
@@ -119,12 +119,28 @@ test('segura cobrança reduzida enquanto cancelamento do downgrade converge', ()
       providerRevertNextAttemptAt: effectiveAt + 60_000,
     },
     paymentAmountCents: 1999,
+    paymentOccurredAt: effectiveAt - 60_000,
+    processingNow: effectiveAt - 30_000,
+  });
+
+  assert.equal(decision.kind, 'retry');
+  assert.equal(decision.retryAt, effectiveAt);
+});
+
+test('liquida o plano menor se o cancelamento não convergiu até a virada', () => {
+  const decision = resolveRecurringPlanSettlementDecision({
+    currentAmountCents: 3999,
+    pendingPlanChange: {
+      ...pending,
+      cancellationRequestedAt: effectiveAt - 120_000,
+    },
+    paymentAmountCents: 1999,
     paymentOccurredAt: effectiveAt,
     processingNow: effectiveAt,
   });
 
-  assert.equal(decision.kind, 'retry');
-  assert.equal(decision.retryAt, effectiveAt + 60_000);
+  assert.equal(decision.kind, 'scheduled_downgrade');
+  assert.equal(decision.allowed, true);
 });
 
 test('aceita preço atual quando cancelamento do downgrade já foi solicitado', () => {
