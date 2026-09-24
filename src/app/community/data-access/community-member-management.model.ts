@@ -8,6 +8,10 @@
 
 export type CommunityManagedMemberListStatus = 'active' | 'blocked';
 export type CommunityManagedMemberRole = 'owner' | 'admin' | 'moderator' | 'member';
+export type CommunityManagedMemberRoleFilter =
+  | 'all'
+  | 'leadership'
+  | CommunityManagedMemberRole;
 export type CommunityAssignableMemberRole = 'admin' | 'moderator' | 'member';
 export type CommunityMemberManagementAction =
   | 'set_role'
@@ -42,6 +46,8 @@ export interface CommunityManagedMembersPage {
 export interface CommunityManagedMembersPageRequest {
   communityId: string;
   status: CommunityManagedMemberListStatus;
+  roleFilter?: CommunityManagedMemberRoleFilter;
+  query?: string | null;
   cursor?: string | null;
   limit?: number;
 }
@@ -54,6 +60,7 @@ export interface CommunityManageMemberResponse {
 }
 
 const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
+const OPAQUE_CURSOR_PATTERN = /^[A-Za-z0-9_-]{1,512}$/;
 
 function normalizeText(value: unknown, maxLength: number): string {
   return String(value ?? '')
@@ -66,6 +73,11 @@ function normalizeText(value: unknown, maxLength: number): string {
 function normalizeSafeId(value: unknown): string | null {
   const normalized = normalizeText(value, 128);
   return SAFE_ID_PATTERN.test(normalized) ? normalized : null;
+}
+
+function normalizeOpaqueCursor(value: unknown): string | null {
+  const normalized = normalizeText(value, 512);
+  return OPAQUE_CURSOR_PATTERN.test(normalized) ? normalized : null;
 }
 
 function normalizeHttpsUrl(value: unknown): string | null {
@@ -126,7 +138,9 @@ export function normalizeCommunityManagedMembersPage(
   const source = (raw ?? {}) as Record<string, unknown>;
   const generatedAt = normalizeEpoch(source['generatedAt']);
   const nextCursorRaw = source['nextCursor'];
-  const nextCursor = nextCursorRaw == null ? null : normalizeSafeId(nextCursorRaw);
+  const nextCursor = nextCursorRaw == null
+    ? null
+    : normalizeOpaqueCursor(nextCursorRaw);
 
   if (
     !Array.isArray(source['items'])
