@@ -126,6 +126,21 @@ Uma mensalidade é liquidada por `payment.id`, portanto
 `PAYMENT_CONFIRMED` e `PAYMENT_RECEIVED` da mesma cobrança nunca acrescentam
 dois meses.
 
+Os reconciliadores não selecionam uma janela arbitrária e filtram depois:
+retries de webhook, leases abandonados e cancelamentos externos são consultados
+por **due time** no Firestore. Os índices necessários precisam estar `READY`
+antes das versões desses workers serem habilitadas.
+
+Invariantes adicionais:
+
+- um pagamento confirmado depois de pedido de cancelamento concede somente o
+  período efetivamente pago e **não reativa** a renovação;
+- `needsProviderCancellation` permanece até a convergência externa;
+- `SUBSCRIPTION_CREATED/UPDATED` com valor informado diferente do snapshot
+  contratual entra em quarentena, desliga renovação e agenda cancelamento;
+- inconsistência de `buyerUid` é rejeitada antes de qualquer mutação de
+  cancelamento.
+
 ## Preço e vigência
 
 Cada contrato recorrente guarda o snapshot do plano usado na contratação.
@@ -187,8 +202,10 @@ A UI diferencia:
 ## Exclusão da conta
 
 Ao iniciar exclusão da conta, a plataforma também solicita o cancelamento da
-recorrência. Indisponibilidade momentânea do Asaas não impede a exclusão:
-o pedido fica persistido e o reconciliador tenta novamente.
+recorrência. Indisponibilidade momentânea do Asaas não impede **solicitar** a
+exclusão, mas a finalização/pseudonimização financeira fica bloqueada até a
+recorrência externa estar efetivamente cancelada. O purge retenta sem apagar a
+evidência financeira necessária.
 
 ## Homologação antes de produção
 
@@ -202,9 +219,17 @@ Antes de ativar `ASAAS_RECURRING_ENABLED=true` em produção:
 6. testar checkout expirado;
 7. testar cobrança recusada/overdue;
 8. testar refund e chargeback;
-9. confirmar que nenhuma coleção financeira é acessível pelo cliente;
-10. confirmar que o webhook de produção usa o token correto;
-11. só então habilitar credenciais e endpoint de produção.
+9. testar pagamento confirmado chegando depois de pedido de cancelamento e
+   confirmar que a renovação continua desligada;
+10. testar backlog com retries futuros e vencidos, confirmando seleção por due
+    time sem starvation;
+11. testar divergência de valor em evento de assinatura e confirmar quarentena
+    + cancelamento externo;
+12. confirmar que nenhuma coleção financeira é acessível pelo cliente;
+13. confirmar que exclusão definitiva bloqueia enquanto cancelamento externo não
+    convergir;
+14. confirmar que o webhook de produção usa o token correto;
+15. só então habilitar a ativação operacional da recorrência.
 
 Merge de código não prova deploy nem configuração do Asaas. A ativação só deve
 ser considerada concluída após secrets, runtime, webhook, deploy e uma

@@ -6,6 +6,10 @@
 // fora de ordem e cancelamentos externos pendentes.
 // -----------------------------------------------------------------------------
 
+import {
+  FieldPath,
+  type QueryDocumentSnapshot,
+} from 'firebase-admin/firestore';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 
@@ -33,6 +37,112 @@ import {
 import type {
   PlatformRecurringSubscriptionDoc,
 } from '../domain/platform-recurring-subscription.model';
+import type {
+  ProviderWebhookEventDoc,
+} from '../domain/provider-webhook.model';
+import {
+  PROVIDER_WEBHOOK_PROCESSING_LEASE_MS,
+  PROVIDER_WEBHOOK_RECONCILIATION_LIMIT,
+  RECURRING_PROVIDER_CANCELLATION_LIMIT,
+  compareEligibleAt,
+  isRecurringCancellationDue,
+  providerWebhookEligibilityAt,
+  recurringCancellationEligibilityAt,
+} from './recurring-reconciliation-window.policy';
+
+function sortWebhookDocuments(
+  documents: QueryDocumentSnapshot[]
+): QueryDocumentSnapshot[] {
+  return documents.sort((left, right) =>
+    compareEligibleAt(
+      providerWebhookEligibilityAt(
+        left.data() as ProviderWebhookEventDoc
+      ) ?? Number.MAX_SAFE_INTEGER,
+      providerWebhookEligibilityAt(
+        right.data() as ProviderWebhookEventDoc
+      ) ?? Number.MAX_SAFE_INTEGER,
+      left.id,
+      right.id
+    )
+  );
+}
+
+async function loadDueProviderWebhookEvents(
+  now: number
+): Promise<QueryDocumentSnapshot[]> {
+  const collection = db.collection(PROVIDER_WEBHOOK_EVENT_COLLECTION);
+  const staleBefore = now - PROVIDER_WEBHOOK_PROCESSING_LEASE_MS;
+  const [pending, retry, staleProcessing] = await Promise.all([
+    collection
+      .where('processingStatus', '==', 'pending')
+      .orderBy('createdAt', 'asc')
+      .orderBy(FieldPath.documentId(), 'asc')
+      .limit(PROVIDER_WEBHOOK_RECONCILIATION_LIMIT)
+      .get(),
+    collection
+      .where('processingStatus', '==', 'retry')
+      .where('nextAttemptAt', '<=', now)
+      .orderBy('nextAttemptAt', 'asc')
+      .orderBy(FieldPath.documentId(), 'asc')
+      .limit(PROVIDER_WEBHOOK_RECONCILIATION_LIMIT)
+      .get(),
+    collection
+      .where('processingStatus', '==', 'processing')
+      .where('lastAttemptAt', '<=', staleBefore)
+      .orderBy('lastAttemptAt', 'asc')
+      .orderBy(FieldPath.documentId(), 'asc')
+      .limit(PROVIDER_WEBHOOK_RECONCILIATION_LIMIT)
+      .get(),
+  ]);
+
+  return sortWebhookDocuments([
+    ...pending.docs,
+    ...retry.docs,
+    ...staleProcessing.docs,
+  ]).slice(0, PROVIDER_WEBHOOK_RECONCILIATION_LIMIT);
+}
+
+async function loadDueRecurringCancellations(
+  now: number
+): Promise<QueryDocumentSnapshot[]> {
+  const collection = db.collection(PLATFORM_SUBSCRIPTION_COLLECTION);
+  const [scheduled, legacyNull] = await Promise.all([
+    collection
+      .where('needsProviderCancellation', '==', true)
+      .where('providerCancellationNextAttemptAt', '<=', now)
+      .orderBy('providerCancellationNextAttemptAt', 'asc')
+      .orderBy(FieldPath.documentId(), 'asc')
+      .limit(RECURRING_PROVIDER_CANCELLATION_LIMIT)
+      .get(),
+    collection
+      .where('needsProviderCancellation', '==', true)
+      .where('providerCancellationNextAttemptAt', '==', null)
+      .limit(RECURRING_PROVIDER_CANCELLATION_LIMIT)
+      .get(),
+  ]);
+  const byId = new Map<string, QueryDocumentSnapshot>();
+
+  for (const document of [...legacyNull.docs, ...scheduled.docs]) {
+    const contract = document.data() as PlatformRecurringSubscriptionDoc;
+    if (!isRecurringCancellationDue(contract, now)) continue;
+    byId.set(document.id, document);
+  }
+
+  return [...byId.values()]
+    .sort((left, right) =>
+      compareEligibleAt(
+        recurringCancellationEligibilityAt(
+          left.data() as PlatformRecurringSubscriptionDoc
+        ) ?? Number.MAX_SAFE_INTEGER,
+        recurringCancellationEligibilityAt(
+          right.data() as PlatformRecurringSubscriptionDoc
+        ) ?? Number.MAX_SAFE_INTEGER,
+        left.id,
+        right.id
+      )
+    )
+    .slice(0, RECURRING_PROVIDER_CANCELLATION_LIMIT);
+}
 
 function createProvider(): AsaasPaymentProvider {
   return new AsaasPaymentProvider({
@@ -72,27 +182,10 @@ export const reconcileProviderWebhookEvents = onSchedule(
   async () => {
     const provider = createProvider();
     const now = Date.now();
-    const snapshot = await db
-      .collection(PROVIDER_WEBHOOK_EVENT_COLLECTION)
-      .where('processingStatus', 'in', [
-        'pending',
-        'processing',
-        'retry',
-      ])
-      .limit(100)
-      .get();
-
+    const documents = await loadDueProviderWebhookEvents(now);
     let processed = 0;
 
-    for (const document of snapshot.docs) {
-      const data = document.data();
-      const nextAttemptAt = Number(data['nextAttemptAt'] ?? 0);
-      const lastAttemptAt = Number(data['lastAttemptAt'] ?? 0);
-      const processing = data['processingStatus'] === 'processing';
-
-      if (nextAttemptAt > now) continue;
-      if (processing && lastAttemptAt + 5 * 60 * 1_000 > now) continue;
-
+    for (const document of documents) {
       const result = await processProviderWebhookEventById({
         eventId: document.id,
         provider,
@@ -102,7 +195,7 @@ export const reconcileProviderWebhookEvents = onSchedule(
     }
 
     console.log('[billing] provider webhook reconciliation completed', {
-      scanned: snapshot.size,
+      selectedDue: documents.length,
       processed,
     });
   }
@@ -120,23 +213,11 @@ export const reconcileRecurringProviderCancellations = onSchedule(
   async () => {
     const provider = createProvider();
     const now = Date.now();
-    const snapshot = await db
-      .collection(PLATFORM_SUBSCRIPTION_COLLECTION)
-      .where('needsProviderCancellation', '==', true)
-      .limit(100)
-      .get();
-
+    const documents = await loadDueRecurringCancellations(now);
     let completed = 0;
     let failed = 0;
 
-    for (const document of snapshot.docs) {
-      const contract =
-        document.data() as PlatformRecurringSubscriptionDoc;
-      const nextAttemptAt =
-        contract.providerCancellationNextAttemptAt ?? 0;
-
-      if (nextAttemptAt > now) continue;
-
+    for (const document of documents) {
       try {
         await cancelRecurringContractAtProvider({
           contractId: document.id,
@@ -150,7 +231,7 @@ export const reconcileRecurringProviderCancellations = onSchedule(
     }
 
     console.log('[billing] recurring provider cancellation reconciliation', {
-      scanned: snapshot.size,
+      selectedDue: documents.length,
       completed,
       failed,
     });

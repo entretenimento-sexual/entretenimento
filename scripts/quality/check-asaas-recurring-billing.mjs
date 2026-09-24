@@ -79,7 +79,27 @@ for (const fragment of [
   'acquirePlatformCheckoutLock',
   'resolveAsaasRuntimeConfig',
   'assertAsaasRecurringCheckoutEnabled',
+  'shouldBlockDuplicateRecurringCheckout',
+  'shouldBlockCheckoutForPendingRecurringCancellation',
+  'resolvePlatformSubscriptionFinancialCurrentRole',
+  'assertRecurringContractBuyer',
+  "'recurring_renewal_already_enabled'",
+  "'recurring_cancellation_pending'",
+  "'recurring_state_contract_mismatch'",
+  'PLATFORM_SUBSCRIPTION_STATE_COLLECTION',
 ]) requireIncludes(checkout, fragment, 'production checkout drift');
+
+const checkoutFacade = read(
+  'src/app/payments-core/application/checkout.facade.ts'
+);
+for (const fragment of [
+  "'recurring_renewal_already_enabled'",
+  "'recurring_cancellation_pending'",
+]) requireIncludes(
+  checkoutFacade,
+  fragment,
+  'recurring checkout lifecycle error UX drift'
+);
 
 const webhook = read(
   'functions/src/payments/application/payment-webhook.handler.ts'
@@ -128,6 +148,9 @@ const recurringSettlement = read(
 );
 for (const fragment of [
   "transaction?.status === 'chargeback'",
+  'resolveRecurringRenewalAfterPayment',
+  'cancellationIntentPreserved',
+  'renewalEnabledAfterPayment',
   "'restore_recurring_chargeback_payment'",
   'renewalRestored: false',
 ]) requireIncludes(
@@ -140,30 +163,125 @@ const jobs = read(
   'functions/src/payments/application/process-provider-webhook.handler.ts'
 );
 for (const fragment of [
+  'loadDueProviderWebhookEvents',
+  'loadDueRecurringCancellations',
+  "'nextAttemptAt', '<=', now",
+  "'lastAttemptAt', '<=', staleBefore",
+  "'providerCancellationNextAttemptAt', '<=', now",
+]) requireIncludes(
+  jobs,
+  fragment,
+  'reconciliation workers must select due work server-side'
+);
+
+for (const fragment of [
   'processProviderWebhookEventTrigger',
   'reconcileProviderWebhookEvents',
   'reconcileRecurringProviderCancellations',
   'secrets: [ASAAS_API_KEY]',
 ]) requireIncludes(jobs, fragment, 'recurring worker drift');
 
+const recurringLifecycle = read(
+  'functions/src/payments/application/platform-recurring-subscription.service.ts'
+);
+for (const fragment of [
+  'evaluateRecurringSubscriptionAmountIntegrity',
+  'quarantineRecurringSubscriptionAmountMismatch',
+  "'recurring_subscription_amount_mismatch'",
+  'providerCancellationScheduled: true',
+]) requireIncludes(
+  recurringLifecycle,
+  fragment,
+  'recurring contract integrity drift'
+);
+
 const cancel = read(
   'functions/src/payments/application/cancel-platform-subscription-renewal.handler.ts'
 );
 for (const fragment of [
+  'assertRecurringContractBuyer',
+  'expectedBuyerUid: uid',
+  "contract.needsProviderCancellation === true",
   'requestRecurringContractCancellation',
   'cancelRecurringContractAtProvider',
   'accessEndsAt',
   'assertCallableAppCheck',
 ]) requireIncludes(cancel, fragment, 'cancel-renewal drift');
 
+const billingSnapshot = read(
+  'functions/src/payments/application/get-my-billing-snapshot.handler.ts'
+);
+for (const fragment of [
+  'assertRecurringContractBuyer',
+  "'recurring_state_buyer_mismatch'",
+  "'recurring_contract_missing'",
+  'const recurringConfigured = recurringContract !== null',
+]) requireIncludes(
+  billingSnapshot,
+  fragment,
+  'billing snapshot recurring pointer integrity drift'
+);
+
+const cancellationService = read(
+  'functions/src/payments/application/recurring-provider-cancellation.service.ts'
+);
+for (const fragment of [
+  'expectedBuyerUid?: string',
+  'assertRecurringContractBuyer',
+]) requireIncludes(
+  cancellationService,
+  fragment,
+  'recurring cancellation authority drift'
+);
+
 const accountDeletion = read(
   'functions/src/account_lifecycle/requestAccountDeletion.ts'
 );
-requireIncludes(
-  accountDeletion,
+for (const fragment of [
   'requestRecurringContractCancellation',
-  'account deletion must stop future recurring charges'
+  'expectedBuyerUid: uid',
+]) requireIncludes(
+  accountDeletion,
+  fragment,
+  'account deletion must stop only the owner recurring contract'
 );
+
+const financialRetention = read(
+  'functions/src/account_lifecycle/account-financial-retention.firestore.ts'
+);
+requireIncludes(
+  financialRetention,
+  'expectedBuyerUid: safeUid',
+  'financial retention must bind recurring cancellation to deleted buyer'
+);
+
+const indexConfig = JSON.parse(read('firestore.indexes.json'));
+const recurringIndexFields = new Set(
+  (indexConfig.indexes ?? [])
+    .filter((index) =>
+      index.collectionGroup === 'provider_webhook_events'
+      || index.collectionGroup === 'subscriptions'
+    )
+    .map((index) =>
+      [
+        index.collectionGroup,
+        ...(index.fields ?? []).map((field) => field.fieldPath),
+      ].join(':')
+    )
+);
+for (const expected of [
+  'provider_webhook_events:processingStatus:createdAt:__name__',
+  'provider_webhook_events:processingStatus:nextAttemptAt:__name__',
+  'provider_webhook_events:processingStatus:lastAttemptAt:__name__',
+  'subscriptions:needsProviderCancellation:providerCancellationNextAttemptAt:__name__',
+]) {
+  if (!recurringIndexFields.has(expected)) {
+    throw new Error(
+      '[asaas-recurring-billing] missing due-time reconciliation index: '
+      + expected
+    );
+  }
+}
 
 const rules = read('firestore-rules/billing.rules');
 for (const collection of [

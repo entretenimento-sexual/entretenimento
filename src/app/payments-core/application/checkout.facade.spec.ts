@@ -1,6 +1,11 @@
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, Router } from '@angular/router';
-import { BehaviorSubject, firstValueFrom, of } from 'rxjs';
+import {
+  BehaviorSubject,
+  firstValueFrom,
+  of,
+  throwError,
+} from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
@@ -76,6 +81,44 @@ describe('CheckoutFacade', () => {
       minimumRole: 'basic',
       returnUrl: COMMUNITY_CREATE_RETURN_URL,
     });
+  });
+
+  it('explica quando a renovação recorrente do mesmo plano já está ativa', async () => {
+    createPlatformCheckoutSession$.mockReturnValue(
+      throwError(() => ({
+        details: { reason: 'recurring_renewal_already_enabled' },
+      }))
+    );
+
+    expect(await firstValueFrom(facade.startCheckout$())).toEqual({
+      status: 'error',
+    });
+    expect(report).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        fallbackMessage:
+          'A renovação automática deste plano já está ativa. Você pode gerenciá-la na sua conta.',
+      })
+    );
+  });
+
+  it('explica quando o cancelamento recorrente ainda está convergindo', async () => {
+    createPlatformCheckoutSession$.mockReturnValue(
+      throwError(() => ({
+        details: { reason: 'recurring_cancellation_pending' },
+      }))
+    );
+
+    expect(await firstValueFrom(facade.startCheckout$())).toEqual({
+      status: 'error',
+    });
+    expect(report).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        fallbackMessage:
+          'O cancelamento da renovação anterior ainda está sendo confirmado. Aguarde essa conclusão antes de contratar outro plano.',
+      })
+    );
   });
 
   it('preserva o contexto ao voltar para os planos', async () => {

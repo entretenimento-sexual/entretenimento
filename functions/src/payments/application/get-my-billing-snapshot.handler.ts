@@ -19,8 +19,12 @@ import type {
   PlatformRecurringSubscriptionStateDoc,
 } from '../domain/platform-recurring-subscription.model';
 import {
+  PLATFORM_SUBSCRIPTION_COLLECTION,
   PLATFORM_SUBSCRIPTION_STATE_COLLECTION,
 } from './platform-recurring-subscription.service';
+import {
+  assertRecurringContractBuyer,
+} from './recurring-contract-authority.policy';
 import { PlatformRole } from '../domain/billing.model';
 import {
   PLATFORM_SUBSCRIPTION_PROJECTION_VERSION,
@@ -67,18 +71,48 @@ export const getMyBillingSnapshot = onCall<Record<string, never>>(
     const recurringState = recurringStateSnapshot.exists
       ? recurringStateSnapshot.data() as PlatformRecurringSubscriptionStateDoc
       : null;
-    const recurringConfigured = !!recurringState?.currentContractId;
-    const renewalEnabled = recurringState?.renewalEnabled === true;
+    if (
+      recurringStateSnapshot.exists
+      && recurringState?.buyerUid !== uid
+    ) {
+      throw new HttpsError(
+        'data-loss',
+        'O estado da assinatura recorrente está inconsistente.',
+        { reason: 'recurring_state_buyer_mismatch' }
+      );
+    }
+
     const recurringContractSnapshot = recurringState?.currentContractId
       ? await db
-        .collection('subscriptions')
+        .collection(PLATFORM_SUBSCRIPTION_COLLECTION)
         .doc(recurringState.currentContractId)
         .get()
       : null;
+
+    if (
+      recurringState?.currentContractId
+      && !recurringContractSnapshot?.exists
+    ) {
+      throw new HttpsError(
+        'data-loss',
+        'O contrato recorrente atual não foi localizado.',
+        { reason: 'recurring_contract_missing' }
+      );
+    }
+
     const recurringContract =
       recurringContractSnapshot?.exists
         ? recurringContractSnapshot.data() as PlatformRecurringSubscriptionDoc
         : null;
+
+    if (recurringContract) {
+      assertRecurringContractBuyer(recurringContract.buyerUid, uid);
+    }
+
+    const recurringConfigured = recurringContract !== null;
+    const renewalEnabled =
+      recurringConfigured
+      && recurringState?.renewalEnabled === true;
     const renewalCancellationPending =
       recurringContract?.needsProviderCancellation === true;
     const renewalStatus:

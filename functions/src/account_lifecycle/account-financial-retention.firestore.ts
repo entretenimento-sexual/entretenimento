@@ -210,6 +210,7 @@ implements AccountFinancialRetentionAdapter
         await requestRecurringContractCancellation({
           contractId: document.id,
           reason: 'account-deletion',
+          expectedBuyerUid: safeUid,
         });
         await cancelRecurringContractAtProvider({
           contractId: document.id,

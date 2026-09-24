@@ -21,14 +21,19 @@ import {
   resolveAsaasApiRuntimeConfig,
 } from '../config/asaas.config';
 import type {
+  PlatformRecurringSubscriptionDoc,
   PlatformRecurringSubscriptionStateDoc,
 } from '../domain/platform-recurring-subscription.model';
 import {
   AsaasPaymentProvider,
 } from '../infrastructure/providers/asaas.provider';
 import {
+  PLATFORM_SUBSCRIPTION_COLLECTION,
   PLATFORM_SUBSCRIPTION_STATE_COLLECTION,
 } from './platform-recurring-subscription.service';
+import {
+  assertRecurringContractBuyer,
+} from './recurring-contract-authority.policy';
 import {
   cancelRecurringContractAtProvider,
   requestRecurringContractCancellation,
@@ -96,11 +101,31 @@ export const cancelPlatformSubscriptionRenewal =
         };
       }
 
+      const contractSnapshot = await db
+        .collection(PLATFORM_SUBSCRIPTION_COLLECTION)
+        .doc(state.currentContractId)
+        .get();
+
+      if (!contractSnapshot.exists) {
+        throw new HttpsError(
+          'data-loss',
+          'A assinatura recorrente atual está inconsistente.',
+          { reason: 'recurring_contract_missing' }
+        );
+      }
+
+      const contract =
+        contractSnapshot.data() as PlatformRecurringSubscriptionDoc;
+      assertRecurringContractBuyer(contract.buyerUid, uid);
+
       if (state.renewalEnabled !== true) {
         return {
           changed: false,
           renewalEnabled: false,
-          providerCancellationStatus: 'pending',
+          providerCancellationStatus:
+            contract.needsProviderCancellation === true
+              ? 'pending'
+              : 'completed',
           accessActive: entitlement.active,
           accessEndsAt: entitlement.endsAt,
         };
@@ -109,9 +134,10 @@ export const cancelPlatformSubscriptionRenewal =
       const requested = await requestRecurringContractCancellation({
         contractId: state.currentContractId,
         reason: 'user-request',
+        expectedBuyerUid: uid,
       });
 
-      if (!requested || requested.buyerUid !== uid) {
+      if (!requested) {
         throw new HttpsError(
           'failed-precondition',
           'A assinatura recorrente atual não pôde ser validada.'

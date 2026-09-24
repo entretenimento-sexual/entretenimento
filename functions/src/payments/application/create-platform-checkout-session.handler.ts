@@ -14,17 +14,15 @@
 // Segurança:
 // - o frontend nunca informa valor financeiro confiável;
 // - o frontend nunca define role concedida;
-// - downgrade é bloqueado no backend até existir agendamento de próximo ciclo;
+// - downgrade automático permanece bloqueado enquanto não existir uma operação
+//   financeira segura para trocar a recorrência apenas no próximo ciclo;
 // - o checkout não confirma pagamento;
-// - em cloud, esta function falha até existir provider real validado;
-// - o provider local não se apresenta como Asaas real.
+// - em cloud, o Asaas real só é liberado quando ASAAS_RECURRING_ENABLED=true;
+// - App Check, rate limit e lock por comprador protegem a criação.
 //
 // Evolução futura:
-// - selecionar provider real por configuração segura;
-// - exigir App Check;
-// - aplicar idempotency key por tentativa de criação;
-// - implementar downgrade agendado no ciclo seguinte;
-// - permitir ciclos anuais, promoções e novos escopos financeiros.
+// - fluxo explícito de mudança futura/repricing com consentimento;
+// - ciclos anuais, promoções e novos escopos financeiros.
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
@@ -34,6 +32,10 @@ import { FUNCTIONS_REGION } from '../../config/functions-region';
 import {
   CheckoutSessionDoc,
 } from '../domain/billing.model';
+import type {
+  PlatformRecurringSubscriptionDoc,
+  PlatformRecurringSubscriptionStateDoc,
+} from '../domain/platform-recurring-subscription.model';
 
 import {
   createBillingPlanSnapshot,
@@ -43,7 +45,10 @@ import {
   evaluatePlatformSubscriptionEntitlement,
 } from './platform-subscription-entitlement.service';
 import {
+  resolvePlatformSubscriptionFinancialCurrentRole,
   resolvePlatformSubscriptionPlanChangePolicy,
+  shouldBlockCheckoutForPendingRecurringCancellation,
+  shouldBlockDuplicateRecurringCheckout,
 } from './platform-subscription-change.policy';
 import {
   resolvePlatformCheckoutPriceLockExpiresAt,
@@ -75,6 +80,13 @@ import {
   acquirePlatformCheckoutLock,
   releasePlatformCheckoutLock,
 } from './platform-checkout-lock.service';
+import {
+  PLATFORM_SUBSCRIPTION_COLLECTION,
+  PLATFORM_SUBSCRIPTION_STATE_COLLECTION,
+} from './platform-recurring-subscription.service';
+import {
+  assertRecurringContractBuyer,
+} from './recurring-contract-authority.policy';
 import {
   buildPlatformSubscriptionProviderReturnUrl,
   normalizePlatformSubscriptionFlowContext,
@@ -187,16 +199,111 @@ export const createPlatformCheckoutSession =
       const entitlementRef = db
         .collection('entitlements')
         .doc(`platform_subscription_${buyerUid}`);
-      const entitlementSnapshot = await entitlementRef.get();
+      const recurringStateRef = db
+        .collection(PLATFORM_SUBSCRIPTION_STATE_COLLECTION)
+        .doc(buyerUid);
+      const [entitlementSnapshot, recurringStateSnapshot] =
+        await Promise.all([
+          entitlementRef.get(),
+          recurringStateRef.get(),
+        ]);
       const currentSubscription = evaluatePlatformSubscriptionEntitlement(
         entitlementSnapshot.exists ? entitlementSnapshot.data() : null,
         buyerUid,
         now
       );
+      const recurringState = recurringStateSnapshot.exists
+        ? recurringStateSnapshot.data() as PlatformRecurringSubscriptionStateDoc
+        : null;
+
+      if (recurringState && recurringState.buyerUid !== buyerUid) {
+        throw new HttpsError(
+          'data-loss',
+          'O estado da assinatura recorrente está inconsistente.',
+          { reason: 'recurring_state_buyer_mismatch' }
+        );
+      }
+
+      const recurringContractSnapshot = recurringState?.currentContractId
+        ? await db
+          .collection(PLATFORM_SUBSCRIPTION_COLLECTION)
+          .doc(recurringState.currentContractId)
+          .get()
+        : null;
+
+      if (
+        recurringState?.currentContractId
+        && !recurringContractSnapshot?.exists
+      ) {
+        throw new HttpsError(
+          'data-loss',
+          'O contrato recorrente atual não foi localizado.',
+          { reason: 'recurring_contract_missing' }
+        );
+      }
+
+      const recurringContract = recurringContractSnapshot?.exists
+        ? recurringContractSnapshot.data() as PlatformRecurringSubscriptionDoc
+        : null;
+
+      if (recurringContract) {
+        assertRecurringContractBuyer(recurringContract.buyerUid, buyerUid);
+      }
+
+      if (
+        recurringState?.currentContractId
+        && recurringContract
+        && (
+          recurringState.currentPlanKey !== recurringContract.planKey
+          || recurringState.renewalEnabled !== recurringContract.renewalEnabled
+        )
+      ) {
+        throw new HttpsError(
+          'data-loss',
+          'O estado da assinatura recorrente diverge do contrato atual.',
+          { reason: 'recurring_state_contract_mismatch' }
+        );
+      }
+
+      if (
+        shouldBlockCheckoutForPendingRecurringCancellation(
+          recurringContract?.needsProviderCancellation === true
+        )
+      ) {
+        throw new HttpsError(
+          'failed-precondition',
+          'Aguarde a confirmação do cancelamento anterior antes de contratar outro plano.',
+          { reason: 'recurring_cancellation_pending' }
+        );
+      }
+
+      if (
+        shouldBlockDuplicateRecurringCheckout({
+          requestedRole: planSnapshot.grantedRole,
+          recurringPlanKey: recurringState?.currentPlanKey ?? null,
+          renewalEnabled: recurringState?.renewalEnabled === true,
+        })
+      ) {
+        throw new HttpsError(
+          'failed-precondition',
+          'A renovação automática deste plano já está ativa.',
+          {
+            reason: 'recurring_renewal_already_enabled',
+            planKey: planSnapshot.key,
+          }
+        );
+      }
+
+      const financialCurrentRole =
+        resolvePlatformSubscriptionFinancialCurrentRole({
+          activeEntitlementRole: currentSubscription.active
+            ? currentSubscription.role
+            : null,
+          recurringPlanKey: recurringState?.currentPlanKey ?? null,
+          renewalEnabled: recurringState?.renewalEnabled === true,
+        });
       const planChangePolicy = resolvePlatformSubscriptionPlanChangePolicy({
-        currentRole: currentSubscription.active
-          ? currentSubscription.role
-          : null,
+        currentRole: financialCurrentRole,
         requestedRole: planSnapshot.grantedRole,
       });
 

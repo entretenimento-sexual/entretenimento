@@ -51,6 +51,35 @@ const PLATFORM_ROLE_RANK: Readonly<Record<PlatformRole, number>> = Object.freeze
   vip: 3,
 });
 
+export function resolvePlatformSubscriptionFinancialCurrentRole(input: {
+  readonly activeEntitlementRole: PlatformRole | null;
+  readonly recurringPlanKey: PlatformRole | null;
+  readonly renewalEnabled: boolean;
+}): PlatformRole | null {
+  if (input.activeEntitlementRole) {
+    return input.activeEntitlementRole;
+  }
+
+  return input.renewalEnabled
+    ? input.recurringPlanKey
+    : null;
+}
+
+export function shouldBlockDuplicateRecurringCheckout(input: {
+  readonly requestedRole: PlatformRole;
+  readonly recurringPlanKey: PlatformRole | null;
+  readonly renewalEnabled: boolean;
+}): boolean {
+  return input.renewalEnabled
+    && input.recurringPlanKey === input.requestedRole;
+}
+
+export function shouldBlockCheckoutForPendingRecurringCancellation(
+  needsProviderCancellation: boolean
+): boolean {
+  return needsProviderCancellation;
+}
+
 export function resolvePlatformSubscriptionPlanChangePolicy(params: {
   currentRole: PlatformRole | null;
   requestedRole: PlatformRole;

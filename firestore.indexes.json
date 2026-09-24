@@ -1623,6 +1623,82 @@
         }
       ],
       "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "provider_webhook_events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "processingStatus",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "provider_webhook_events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "processingStatus",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "nextAttemptAt",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "provider_webhook_events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "processingStatus",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "lastAttemptAt",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "subscriptions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "needsProviderCancellation",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "providerCancellationNextAttemptAt",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
     }
   ],
   "fieldOverrides": [

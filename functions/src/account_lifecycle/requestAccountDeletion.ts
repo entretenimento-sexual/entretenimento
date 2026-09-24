@@ -279,6 +279,7 @@ export const requestAccountDeletion = onCall<RequestAccountDeletionRequest>(
           await requestRecurringContractCancellation({
             contractId: currentContractId,
             reason: 'account-deletion-request',
+            expectedBuyerUid: uid,
           });
 
         if (requestedCancellation) {
