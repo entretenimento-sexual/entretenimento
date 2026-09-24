@@ -54,6 +54,11 @@ test('rejeita campos livres, ids inseguros e lote acima do limite', () => {
     }],
     [{
       communityId: 'community-1',
+      surface: 'social_explore_activity',
+      eventType: 'open',
+    }],
+    [{
+      communityId: 'community-1',
       surface: 'arbitrary_surface',
       eventType: 'open',
     }],
@@ -66,7 +71,7 @@ test('rejeita campos livres, ids inseguros e lote acima do limite', () => {
       { length: COMMUNITY_DISTRIBUTION_TELEMETRY_BATCH_SIZE + 1 },
       (_, index) => ({
         communityId: `community-${index}`,
-        surface: 'social_explore_activity',
+        surface: 'social_explore_content',
         eventType: 'qualified_exposure',
       })
     ),
