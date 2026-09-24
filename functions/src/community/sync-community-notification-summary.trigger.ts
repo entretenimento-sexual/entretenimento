@@ -177,9 +177,9 @@ export const syncCommunityNotificationSummary = onDocumentWritten(
         const summarySnapshot = summarySnapshots[index]!;
         const before = summarySnapshot.exists
           ? normalizeCommunityNotificationSummaryItem(
-              delta.communityId,
-              summarySnapshot.data()
-            )
+            delta.communityId,
+            summarySnapshot.data()
+          )
           : null;
         const currentUnreadCount = before?.unreadCount ?? 0;
         const currentPriorityUnreadCount = before?.priorityUnreadCount ?? 0;
@@ -193,11 +193,11 @@ export const syncCommunityNotificationSummary = onDocumentWritten(
         );
         const after = unreadCount > 0
           ? buildCommunityNotificationSummaryItem({
-              communityId: delta.communityId,
-              unreadCount,
-              priorityUnreadCount,
-              updatedAtMs: now.toMillis(),
-            })
+            communityId: delta.communityId,
+            unreadCount,
+            priorityUnreadCount,
+            updatedAtMs: now.toMillis(),
+          })
           : null;
 
         return {
