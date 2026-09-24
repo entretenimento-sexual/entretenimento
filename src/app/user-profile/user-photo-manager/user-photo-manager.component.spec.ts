@@ -5,7 +5,7 @@ import { vi } from 'vitest';
 import { UserPhotoManagerComponent } from './user-photo-manager.component';
 import { PhotoFirestoreService } from '../../core/services/image-handling/photo-firestore.service';
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
-import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '../../core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
 
 describe('UserPhotoManagerComponent', () => {
