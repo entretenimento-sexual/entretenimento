@@ -119,6 +119,127 @@
   gap: 0.75rem;
 }
 
+.community-management-hub__regularization {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.7rem;
+  padding: 0.85rem;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--surface-border, #d5d5d5) 60%,
+    var(--warning-color, #a35f00) 40%
+  );
+  border-radius: 0.95rem;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #fff) 92%,
+    var(--warning-color, #a35f00) 8%
+  );
+}
+
+.community-management-hub__regularization[data-phase='overdue'] {
+  border-color: color-mix(
+    in oklab,
+    var(--surface-border, #d5d5d5) 48%,
+    var(--danger-color, #b42318) 52%
+  );
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #fff) 92%,
+    var(--danger-color, #b42318) 8%
+  );
+}
+
+.community-management-hub__regularization > i {
+  width: 1.15rem;
+  margin-top: 0.14rem;
+  color: var(--warning-color, #a35f00);
+  text-align: center;
+}
+
+.community-management-hub__regularization[data-phase='overdue'] > i {
+  color: var(--danger-color, #b42318);
+}
+
+.community-management-hub__regularization-copy {
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.community-management-hub__regularization-copy strong {
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.community-management-hub__regularization-copy span,
+.community-management-hub__regularization-copy small {
+  overflow-wrap: anywhere;
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+.community-management-hub__regularization-copy span {
+  opacity: 0.82;
+}
+
+.community-management-hub__regularization-copy small {
+  margin-top: 0.15rem;
+  font-weight: 700;
+  opacity: 0.78;
+}
+
+.community-management-hub__regularization-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.45rem;
+}
+
+.community-management-hub__regularization-actions a,
+.community-management-hub__regularization-actions button {
+  min-height: var(--tap-target, 2.75rem);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.38rem;
+  padding: 0.5rem 0.72rem;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--surface-border, #d5d5d5) 58%,
+    var(--primary-color, #d83768) 42%
+  );
+  border-radius: 0.72rem;
+  background: var(--surface-color, #fff);
+  color: var(--primary-color, #d83768);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 780;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.community-management-hub__regularization-actions a:hover,
+.community-management-hub__regularization-actions button:hover {
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #fff) 90%,
+    var(--primary-color, #d83768) 10%
+  );
+}
+
+.community-management-hub__regularization-actions a:focus-visible,
+.community-management-hub__regularization-actions button:focus-visible {
+  outline: 3px solid color-mix(
+    in oklab,
+    var(--primary-color, #d83768) 34%,
+    transparent
+  );
+  outline-offset: 2px;
+}
+
 .community-management-hub__capacity-alert {
   min-width: 0;
   display: grid;

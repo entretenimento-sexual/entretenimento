@@ -7,7 +7,14 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+  updateDoc,
+} from 'firebase/firestore';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 
 const PROJECT_ID = 'demo-entretenimento-rules';
@@ -59,6 +66,31 @@ describe('Firestore Rules / Community backend state', () => {
     for (const collectionName of PRIVATE_COLLECTIONS) {
       await assertFails(getDocs(collection(db, collectionName)));
     }
+  });
+
+  it('nega mutação client-side de capacityRegularization na Comunidade', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'communities', 'community-1'), {
+        name: 'Comunidade protegida',
+        capacityRegularization: {
+          state: 'capacity_regularization',
+          phase: 'grace_period',
+          reason: 'capacity_over_plan',
+          ownerUid: USER_UID,
+          startedAt: 100,
+          dueAt: 200,
+        },
+      });
+    });
+
+    const db = testEnv.authenticatedContext(USER_UID).firestore();
+
+    await assertFails(
+      updateDoc(doc(db, 'communities', 'community-1'), {
+        'capacityRegularization.phase': 'overdue',
+        'capacityRegularization.dueAt': Date.now() + 86_400_000,
+      })
+    );
   });
 
   it('nega escrita direta no estado operacional do lifecycle', async () => {

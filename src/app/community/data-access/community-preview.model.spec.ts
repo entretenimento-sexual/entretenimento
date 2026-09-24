@@ -146,6 +146,12 @@ describe('community preview normalization', () => {
       canInviteCommunityMembers: true,
       canManageCommunitySettings: true,
       capacity: communityCapacity(),
+      capacityRegularization: {
+        phase: 'grace_period',
+        reason: 'capacity_over_plan',
+        startedAt: Date.now() - 1_000,
+        dueAt: Date.now() + 86_400_000,
+      },
       settings: {
         name: 'Comunidade do Centro',
         description: 'Grupo permanente de pessoas da região central.',
@@ -168,6 +174,8 @@ describe('community preview normalization', () => {
     expect(preview?.capacity?.configuredLimit).toBe(250);
     expect(preview?.capacity?.allowedMemberLimits).toEqual([25, 50, 100, 250]);
     expect(preview?.capacity?.memberLimitOptions).toHaveLength(6);
+    expect(preview?.capacityRegularization?.reason).toBe('capacity_over_plan');
+    expect(preview?.capacityRegularization?.phase).toBe('grace_period');
     expect(preview?.canLeaveMembership).toBe(true);
     expect(preview?.viewerRole).toBe('owner');
     expect(preview?.community.tags).toHaveLength(2);
@@ -262,3 +270,61 @@ describe('community preview normalization', () => {
     expect(venue?.lifecycleStatus).toBeNull();
   });
 });
+
+
+  it('descarta regularização para papéis sem gestão de ownership', () => {
+    const raw = {
+      community: card(),
+      lifecycleStatus: 'active',
+      viewerMode: 'moderator',
+      viewerRole: 'moderator',
+      capacity: communityCapacity(),
+      capacityRegularization: {
+        phase: 'grace_period',
+        reason: 'ownership_over_plan',
+        startedAt: 100,
+        dueAt: Date.now() + 86_400_000,
+      },
+    };
+
+    expect(
+      normalizeCommunityPreviewResponse(raw)?.capacityRegularization
+    ).toBeNull();
+
+    expect(
+      normalizeCommunityPreviewResponse({
+        ...raw,
+        viewerMode: 'member',
+        viewerRole: 'member',
+      })?.capacityRegularization
+    ).toBeNull();
+  });
+
+  it('aceita regularização sanitizada para admin e owner sem dados financeiros', () => {
+    const regularization = {
+      phase: 'grace_period',
+      reason: 'ownership_over_plan',
+      startedAt: Date.now() - 1_000,
+      dueAt: Date.now() + 86_400_000,
+      ownerUid: 'nao-deve-ser-consumido',
+      price: 99,
+    };
+
+    const admin = normalizeCommunityPreviewResponse({
+      community: card(),
+      lifecycleStatus: 'active',
+      viewerMode: 'manager',
+      viewerRole: 'admin',
+      capacity: communityCapacity(),
+      capacityRegularization: regularization,
+    });
+
+    expect(admin?.capacityRegularization).toEqual({
+      phase: 'grace_period',
+      reason: 'ownership_over_plan',
+      startedAt: regularization.startedAt,
+      dueAt: regularization.dueAt,
+    });
+    expect(admin?.capacityRegularization).not.toHaveProperty('ownerUid');
+    expect(admin?.capacityRegularization).not.toHaveProperty('price');
+  });

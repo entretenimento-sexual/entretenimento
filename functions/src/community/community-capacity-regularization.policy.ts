@@ -29,6 +29,13 @@ export interface CommunityCapacityRegularization {
   readonly policyVersion: 1;
 }
 
+export interface CommunityCapacityRegularizationManagementProjection {
+  readonly phase: CommunityCapacityRegularizationPhase;
+  readonly reason: Exclude<CommunityCapacityRegularizationReason, null>;
+  readonly startedAt: number;
+  readonly dueAt: number;
+}
+
 const DAY_MS = 24 * 60 * 60 * 1_000;
 
 function finitePositiveTimestamp(value: unknown): number | null {
@@ -84,6 +91,58 @@ export function buildCommunityCapacityRegularization(input: {
     dueAt,
     policyVersion: 1 as const,
   });
+}
+
+function normalizeRegularizationReason(
+  value: unknown
+): Exclude<CommunityCapacityRegularizationReason, null> | null {
+  return value === 'owner_subscription_required'
+    || value === 'capacity_over_plan'
+    || value === 'ownership_over_plan'
+    || value === 'official_entitlement_required'
+    || value === 'capacity_over_entitlement'
+    ? value
+    : null;
+}
+
+export function sanitizeCommunityCapacityRegularizationForManagement(
+  rawRegularization: unknown,
+  now = Date.now()
+): Readonly<CommunityCapacityRegularizationManagementProjection> | null {
+  const value = record(rawRegularization);
+  const reason = normalizeRegularizationReason(value['reason']);
+  const startedAt = finitePositiveTimestamp(value['startedAt']);
+  const dueAt = finitePositiveTimestamp(value['dueAt']);
+
+  if (
+    value['state'] !== 'capacity_regularization'
+    || reason === null
+    || startedAt === null
+    || dueAt === null
+    || dueAt < startedAt
+  ) {
+    return null;
+  }
+
+  return Object.freeze({
+    phase: now >= dueAt ? 'overdue' as const : 'grace_period' as const,
+    reason,
+    startedAt,
+    dueAt,
+  });
+}
+
+export function resolveCommunityCapacityRegularizationForViewer(
+  rawRegularization: unknown,
+  viewerRole: unknown,
+  now = Date.now()
+): Readonly<CommunityCapacityRegularizationManagementProjection> | null {
+  if (viewerRole !== 'owner' && viewerRole !== 'admin') return null;
+
+  return sanitizeCommunityCapacityRegularizationForManagement(
+    rawRegularization,
+    now
+  );
 }
 
 export function resolveCommunityCapacityRegularizationClockOwnerUid(

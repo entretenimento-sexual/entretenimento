@@ -40,6 +40,7 @@ function preview(): CommunityPreviewResponse {
     canInviteCommunityMembers: false,
     canManageCommunitySettings: false,
     capacity: null,
+  capacityRegularization: null,
     settings: null,
     canLeaveMembership: false,
     generatedAt: 123,

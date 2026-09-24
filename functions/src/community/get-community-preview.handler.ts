@@ -69,6 +69,7 @@ export const getCommunityPreview = onCall<CommunityPreviewRequest>(
       canInviteCommunityMembers: context.canInviteCommunityMembers,
       canManageCommunitySettings: context.canManageCommunitySettings,
       capacity: context.capacity,
+      capacityRegularization: context.capacityRegularization,
       settings: context.settings,
       canLeaveMembership: context.canLeaveMembership,
       generatedAt: Date.now(),

@@ -9,6 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
+import { RouterLink } from '@angular/router';
 import {
   catchError,
   combineLatest,
@@ -27,6 +28,9 @@ import {
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import type { CommunityCapacityPreview } from '../data-access/community-capacity.model';
+import type {
+  CommunityCapacityRegularizationPreview,
+} from '../data-access/community-capacity-regularization.model';
 import {
   CommunityMembershipRequestItem,
   CommunityMembershipReviewAction,
@@ -87,6 +91,7 @@ const MEMBERSHIP_REVIEW_REASON_MESSAGES = Object.freeze({
   imports: [
     AsyncPipe,
     DatePipe,
+    RouterLink,
     CommunityMemberRosterManagementComponent,
     CommunityOwnershipManagementComponent,
     CommunitySettingsComponent,
@@ -109,6 +114,8 @@ export class CommunityMembershipManagementComponent {
   readonly canInviteCommunityMembers = input(false);
   readonly settings = input<CommunityEditableSettings | null>(null);
   readonly capacity = input<CommunityCapacityPreview | null>(null);
+  readonly capacityRegularization =
+    input<CommunityCapacityRegularizationPreview | null>(null);
   readonly membershipChanged = output<void>();
   readonly ownershipChanged = output<void>();
   readonly settingsChanged = output<void>();
@@ -252,6 +259,58 @@ export class CommunityMembershipManagementComponent {
   openModeration(): void {
     if (this.sourceType() !== 'community') return;
     this.feedRequested.emit();
+  }
+
+  regularizationTitle(): string {
+    return this.capacityRegularization()?.phase === 'overdue'
+      ? 'Regularização de capacidade vencida'
+      : 'Regularização de capacidade necessária';
+  }
+
+  regularizationReasonLabel(): string {
+    const reason = this.capacityRegularization()?.reason;
+
+    if (reason === 'owner_subscription_required') {
+      return 'A assinatura atual do proprietário não sustenta esta Comunidade.';
+    }
+    if (reason === 'capacity_over_plan') {
+      return 'A capacidade configurada está acima do limite suportado pelo plano atual do proprietário.';
+    }
+    if (reason === 'ownership_over_plan') {
+      return 'O proprietário mantém mais Comunidades pessoais do que o plano atual permite.';
+    }
+    if (reason === 'official_entitlement_required') {
+      return 'A autoridade atual não sustenta o vínculo oficial desta Comunidade.';
+    }
+    if (reason === 'capacity_over_entitlement') {
+      return 'A capacidade configurada está acima do entitlement atual.';
+    }
+
+    return 'A Comunidade precisa ser regularizada.';
+  }
+
+  regularizationTimingLabel(): string {
+    const regularization = this.capacityRegularization();
+    if (!regularization) return '';
+
+    if (
+      regularization.phase === 'overdue'
+      || Date.now() >= regularization.dueAt
+    ) {
+      return 'Prazo encerrado';
+    }
+
+    const dayMs = 24 * 60 * 60 * 1_000;
+    const days = Math.max(
+      1,
+      Math.ceil((regularization.dueAt - Date.now()) / dayMs)
+    );
+
+    return days === 1 ? '1 dia restante' : `${days} dias restantes`;
+  }
+
+  canResolveCapacityRegularization(): boolean {
+    return this.viewerRole() === 'owner';
   }
 
   capacityLabel(): string {

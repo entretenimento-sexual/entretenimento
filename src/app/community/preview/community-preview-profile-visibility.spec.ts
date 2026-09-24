@@ -51,7 +51,8 @@ function buildMemberPreview(): CommunityPreviewResponse {
       memberLimitOptions: [],
       allowedMemberLimits: [],
     },
-    settings: null,
+    capacityRegularization: null,
+  settings: null,
     canLeaveMembership: true,
     generatedAt: 123,
   };

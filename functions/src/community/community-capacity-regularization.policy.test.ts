@@ -6,6 +6,8 @@ import {
   isCommunityCapacityRegularizationOverdue,
   resolveCapacityRegularizationGracePeriodMs,
   resolveCommunityCapacityRegularizationClockOwnerUid,
+  resolveCommunityCapacityRegularizationForViewer,
+  sanitizeCommunityCapacityRegularizationForManagement,
 } from './community-capacity-regularization.policy';
 
 const NOW = 1_800_000_000_000;
@@ -162,6 +164,73 @@ test('seleciona owner para reconciliação de relógio somente ao vencer grace p
       ownerUid: '../invalid',
       dueAt,
     }, NOW + 1),
+    null
+  );
+});
+
+
+test('expõe regularização sanitizada apenas para owner/admin e deriva overdue pelo dueAt', () => {
+  const raw = {
+    state: 'capacity_regularization',
+    phase: 'grace_period',
+    reason: 'ownership_over_plan',
+    ownerUid: 'owner-sensitive',
+    configuredLimit: 100,
+    effectiveLimit: 0,
+    startedAt: NOW - 2_000,
+    dueAt: NOW - 1_000,
+    policyVersion: 1,
+  };
+
+  assert.deepEqual(
+    sanitizeCommunityCapacityRegularizationForManagement(raw, NOW),
+    {
+      phase: 'overdue',
+      reason: 'ownership_over_plan',
+      startedAt: NOW - 2_000,
+      dueAt: NOW - 1_000,
+    }
+  );
+  assert.deepEqual(
+    resolveCommunityCapacityRegularizationForViewer(raw, 'owner', NOW),
+    {
+      phase: 'overdue',
+      reason: 'ownership_over_plan',
+      startedAt: NOW - 2_000,
+      dueAt: NOW - 1_000,
+    }
+  );
+  assert.notEqual(
+    resolveCommunityCapacityRegularizationForViewer(raw, 'admin', NOW),
+    null
+  );
+  assert.equal(
+    resolveCommunityCapacityRegularizationForViewer(raw, 'moderator', NOW),
+    null
+  );
+  assert.equal(
+    resolveCommunityCapacityRegularizationForViewer(raw, 'member', NOW),
+    null
+  );
+});
+
+test('rejeita projeção de regularização malformada', () => {
+  assert.equal(
+    sanitizeCommunityCapacityRegularizationForManagement({
+      state: 'capacity_regularization',
+      reason: 'unknown',
+      startedAt: NOW,
+      dueAt: NOW + 1_000,
+    }, NOW),
+    null
+  );
+  assert.equal(
+    sanitizeCommunityCapacityRegularizationForManagement({
+      state: 'capacity_regularization',
+      reason: 'capacity_over_plan',
+      startedAt: NOW,
+      dueAt: NOW - 1,
+    }, NOW),
     null
   );
 });
