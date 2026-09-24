@@ -61,7 +61,8 @@ function buildPreview(join: JoinPolicy): CommunityPreviewResponse {
     canInviteCommunityMembers: false,
     canManageCommunitySettings: false,
     capacity: visitorCapacity(),
-    settings: null,
+    capacityRegularization: null,
+  settings: null,
     canLeaveMembership: false,
     generatedAt: 123,
   };
