@@ -366,9 +366,10 @@ Execução real exige `LEGACY_AGE_CLEANUP_CONFIRM=true`.
 
 Somente quando a release contiver busca server-side de membros e sucessores:
 
-1. implantar primeiro `syncCommunityMemberManagementIndex` e
+1. publicar os índices de `community_member_management_index` em T0 e
+   aguardar todos ficarem `READY`;
+2. implantar `syncCommunityMemberManagementIndex` e
    `syncCommunityMemberManagementIndexFromUser` na F2;
-2. aguardar os índices `community_member_management_index` ficarem `READY`;
 3. rodar `npm run maintenance:community-member-management-index` com
    `COMMUNITY_MEMBER_MANAGEMENT_INDEX_DRY_RUN=true`;
 4. revisar `scannedCommunities`, `scannedMemberships`, `projected`,
