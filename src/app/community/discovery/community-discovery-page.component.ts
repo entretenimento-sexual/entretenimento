@@ -29,7 +29,6 @@ import {
   switchMap,
 } from 'rxjs';
 
-import { getSocialSpaceDefinition } from 'src/app/core/domain/social-space.definition';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import type { PreferenceProfile } from 'src/app/preferences/models/preference-profile.model';
@@ -50,6 +49,10 @@ import {
 } from '../data-access/community-tag.model';
 import { CommunityTagRepository } from '../data-access/community-tag.repository';
 import { CommunityOfficialBadgeComponent } from '../presentation/community-official-badge.component';
+import {
+  getCommunitySocialSpaceAdapter,
+  normalizeCommunitySocialSpaceSourceType,
+} from '../presentation/community-social-space.adapter';
 import {
   CommunityAttentionGroupKey,
   resolveCommunityAttentionPresentation,
@@ -155,32 +158,34 @@ export class CommunityDiscoveryPageComponent {
   private readonly tagCatalogReload$ = new Subject<void>();
 
   readonly sourceType: CommunityPreviewSourceType =
-    this.route.snapshot.data['sourceType'] === 'venue' ? 'venue' : 'community';
+    normalizeCommunitySocialSpaceSourceType(
+      this.route.snapshot.data['sourceType']
+    );
+  private readonly socialSpace =
+    getCommunitySocialSpaceAdapter(this.sourceType);
+  readonly definition = this.socialSpace.definition;
   readonly discoveryMode: CommunityDiscoveryMode =
-    this.sourceType === 'community'
+    this.socialSpace.capabilities.personalMembershipHub
     && this.route.snapshot.data['discoveryMode'] === 'mine'
       ? 'mine'
       : 'explore';
-  readonly definition = getSocialSpaceDefinition(this.sourceType);
   readonly title = this.discoveryMode === 'mine'
     ? 'Minhas comunidades'
     : this.definition.pluralLabel;
-  readonly hubTitle = this.sourceType === 'community'
-    ? 'Comunidades'
-    : this.title;
+  readonly hubTitle = this.socialSpace.discovery.hubTitle;
   readonly description = this.discoveryMode === 'mine'
     ? 'Comunidades das quais você participa ou administra.'
     : this.definition.description;
-  readonly emptyMessage = this.sourceType === 'venue'
-    ? 'Nenhum Local disponível.'
-    : this.discoveryMode === 'mine'
-      ? 'Você ainda não participa de nenhuma Comunidade.'
-      : 'Ainda não há Comunidades por aqui.';
-  readonly canCreateVenue = this.sourceType === 'venue';
-  readonly canCreateCommunity = this.sourceType === 'community';
-  readonly showCommunityNavigation = this.sourceType === 'community';
+  readonly emptyMessage = this.discoveryMode === 'mine'
+    ? 'Você ainda não participa de nenhuma Comunidade.'
+    : this.socialSpace.discovery.emptyExploreMessage;
+  readonly canCreateVenue = this.socialSpace.discovery.canCreateVenue;
+  readonly canCreateCommunity = this.socialSpace.discovery.canCreateCommunity;
+  readonly showCommunityNavigation =
+    this.socialSpace.capabilities.personalMembershipHub;
   readonly canFilterByTags =
-    this.sourceType === 'community' && this.discoveryMode === 'explore';
+    this.socialSpace.capabilities.interestDiscovery
+    && this.discoveryMode === 'explore';
 
   private readonly initialTagId = this.canFilterByTags
     ? normalizeCommunityTagId(
@@ -489,7 +494,7 @@ export class CommunityDiscoveryPageComponent {
   }
 
   sourceLabel(item: CommunityPreviewCard): string {
-    return getSocialSpaceDefinition(item.source.type).label;
+    return getCommunitySocialSpaceAdapter(item.source.type).definition.label;
   }
 
   communityInitials(item: CommunityPreviewCard): string {
@@ -606,13 +611,19 @@ export class CommunityDiscoveryPageComponent {
   }
 
   detailsRoute(item: CommunityPreviewCard): readonly string[] {
-    if (item.source.type === 'venue') {
-      return ['/dashboard/locais', item.communityId];
-    }
+    return getCommunitySocialSpaceAdapter(
+      item.source.type
+    ).discovery.detailsRoute(item.communityId, this.discoveryMode);
+  }
 
-    return this.discoveryMode === 'mine'
-      ? ['/dashboard/comunidades/minhas', item.communityId]
-      : ['/dashboard/comunidades', item.communityId];
+  returnTarget(item: CommunityPreviewCard): string {
+    return getCommunitySocialSpaceAdapter(
+      item.source.type
+    ).discovery.returnTarget(this.discoveryMode, this.selectedTagId());
+  }
+
+  showKindBadge(item: CommunityPreviewCard): boolean {
+    return getCommunitySocialSpaceAdapter(item.source.type).showKindBadge;
   }
 
   private applyTagFilter(tagId: string | null, syncUrl: boolean): void {
