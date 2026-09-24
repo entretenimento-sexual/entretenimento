@@ -25,6 +25,7 @@ import {
 } from './community-callable-security';
 import {
   type CommunityExploreContentItem,
+  type CommunityExploreContentProjection,
   type CommunityExploreContentResponse,
   sanitizeCommunityExploreContentProjection,
 } from './community-explore-content.model';
@@ -95,7 +96,7 @@ export const getCommunityExploreContent =
         .map((document) =>
           sanitizeCommunityExploreContentProjection(document.data(), now)
         )
-        .filter((item): item is NonNullable<typeof item> => item !== null);
+        .filter((item): item is CommunityExploreContentProjection => item !== null);
 
       if (candidates.length === 0) {
         return { items: [], generatedAt: now };
