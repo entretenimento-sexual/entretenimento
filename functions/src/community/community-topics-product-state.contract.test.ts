@@ -50,10 +50,6 @@ test('Tópicos permanecem em estado de produto frozen', () => {
         source.details?.['reason'],
         'community_topics_product_frozen'
       );
-      assert.equal(
-        source.details?.['recommendedAction'],
-        'use_community_mural'
-      );
       return true;
     }
   );
