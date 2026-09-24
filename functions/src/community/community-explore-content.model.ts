@@ -118,27 +118,6 @@ function normalizeText(value: unknown, maxLength: number): string {
     .slice(0, maxLength);
 }
 
-export function communityExploreContentSourceFingerprint(raw: unknown): string {
-  const source = (raw ?? {}) as Record<string, unknown>;
-  const author = (source['author'] ?? {}) as Record<string, unknown>;
-  const image = (source['image'] ?? {}) as Record<string, unknown>;
-
-  return JSON.stringify({
-    kind: source['kind'] ?? null,
-    audience: source['audience'] ?? null,
-    status: source['status'] ?? null,
-    moderationState: source['moderationState'] ?? null,
-    authorLabel: author['label'] ?? null,
-    authorAvatarUrl: author['avatarUrl'] ?? null,
-    text: source['text'] ?? null,
-    imageStoragePath: image['storagePath'] ?? null,
-    imageAlt: image['alt'] ?? null,
-    replyToPostId: source['replyToPostId'] ?? null,
-    publishedAt: normalizeEpoch(source['publishedAt']),
-    expiresAt: normalizeEpoch(source['expiresAt']),
-  });
-}
-
 export function buildCommunityExploreContentProjection(input: {
   communityId: unknown;
   postId: unknown;
