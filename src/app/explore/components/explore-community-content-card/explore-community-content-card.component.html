@@ -6,6 +6,7 @@
     [routerLink]="['/dashboard/comunidades', content.communityId]"
     [queryParams]="{ post: content.postId }"
     [attr.aria-label]="'Abrir publicação na Comunidade ' + content.community.name"
+    (click)="recordOpen()"
   >
     <span class="community-content-card__community-avatar" aria-hidden="true">
       @if (content.community.avatarUrl) {
