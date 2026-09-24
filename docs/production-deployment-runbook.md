@@ -373,7 +373,13 @@ Somente quando a release contiver busca server-side de membros e sucessores:
 3. rodar `npm run maintenance:community-member-management-index` com
    `COMMUNITY_MEMBER_MANAGEMENT_INDEX_DRY_RUN=true`;
 4. revisar `scannedCommunities`, `scannedMemberships`, `projected`,
-   `skipped`, `failures` e qualquer truncamento;
+   `skipped`, `failures`, qualquer truncamento e também:
+   - `searchPrefixCompositeIndexCount`;
+   - `averageSearchPrefixesPerProjection`;
+   - `maxSearchPrefixesPerProjection`;
+   - `estimatedSearchPrefixCompositeEntries`;
+   a escrita real deve ser abortada se a amplificação projetada ficar fora do
+   baseline/orçamento aprovado para a release;
 5. escrita real exige simultaneamente:
    - `COMMUNITY_MEMBER_MANAGEMENT_INDEX_DRY_RUN=false`;
    - `COMMUNITY_MEMBER_MANAGEMENT_INDEX_CONFIRM=true`;
