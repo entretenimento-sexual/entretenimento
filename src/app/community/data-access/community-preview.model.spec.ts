@@ -328,3 +328,46 @@ describe('community preview normalization', () => {
     expect(admin?.capacityRegularization).not.toHaveProperty('ownerUid');
     expect(admin?.capacityRegularization).not.toHaveProperty('price');
   });
+
+
+describe('community mine notification detail normalization', () => {
+  it('normaliza unread privado anexado ao card paginado e limita prioridade', () => {
+    const page = normalizeCommunityDiscoveryPageResponse({
+      items: [
+        card({
+          viewerRole: 'member',
+          viewerNotificationSummary: {
+            unreadCount: 7,
+            priorityUnreadCount: 99,
+            hasPriorityUnread: true,
+            updatedAt: 1_800_000_000_000,
+          },
+        }),
+      ],
+      generatedAt: 1_800_000_000_100,
+    });
+
+    expect(page.items[0]?.viewerNotificationSummary).toEqual({
+      unreadCount: 7,
+      priorityUnreadCount: 7,
+      hasPriorityUnread: true,
+      updatedAt: 1_800_000_000_000,
+    });
+  });
+
+  it('não cria detalhe privado para unread zerado', () => {
+    const page = normalizeCommunityDiscoveryPageResponse({
+      items: [
+        card({
+          viewerNotificationSummary: {
+            unreadCount: 0,
+            priorityUnreadCount: 0,
+            hasPriorityUnread: false,
+          },
+        }),
+      ],
+    });
+
+    expect(page.items[0]?.viewerNotificationSummary).toBeUndefined();
+  });
+});

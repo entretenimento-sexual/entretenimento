@@ -130,15 +130,17 @@ export class ProfileMyCommunitiesComponent {
   readonly vm$: Observable<ProfileMyCommunitiesVm> = combineLatest([
     this.baseVm$,
     this.unreadSummary.currentUserSummaryMap$,
+    this.unreadSummary.currentUserPriorityCommunityCount$,
     this.notificationPreference.currentUserMutedCommunityIds$,
   ]).pipe(
-    map(([baseVm, unreadMap, mutedIds]) => ({
+    map(([baseVm, unreadMap, priorityCommunityCount, mutedIds]) => ({
       ...baseVm,
-      attentionCommunityCount: Array.from(unreadMap.values()).filter(
-        (summary) => summary.hasPriorityUnread
-      ).length,
+      attentionCommunityCount: priorityCommunityCount,
       items: baseVm.items.map((item): ProfileMyCommunityItemVm => {
-        const summary = unreadMap.get(item.communityId);
+        const summary =
+          unreadMap.get(item.communityId)
+          ?? item.viewerNotificationSummary
+          ?? null;
 
         return {
           ...item,

@@ -91,6 +91,13 @@ export interface CommunityPreviewCard {
   officialAssociation?: CommunityOfficialAssociationPublic | null;
   /** Presente apenas nas respostas privadas de Comunidades do próprio viewer. */
   viewerRole?: CommunityPreviewViewerRole | null;
+  /** Resumo bounded anexado somente às páginas privadas de "Minhas". */
+  viewerNotificationSummary?: {
+    readonly unreadCount: number;
+    readonly priorityUnreadCount: number;
+    readonly hasPriorityUnread: boolean;
+    readonly updatedAt: number | null;
+  } | null;
 }
 
 export interface CommunityDiscoveryPage {
@@ -287,6 +294,36 @@ function normalizeCard(raw: unknown): CommunityPreviewCard | null {
 
   const description = normalizeText(source['description'], 240);
   const viewerRole = normalizeViewerRole(source['viewerRole']);
+  const notificationSource =
+    source['viewerNotificationSummary']
+    && typeof source['viewerNotificationSummary'] === 'object'
+    && !Array.isArray(source['viewerNotificationSummary'])
+      ? source['viewerNotificationSummary'] as Record<string, unknown>
+      : null;
+  const notificationUnreadCount = notificationSource
+    ? normalizeCount(notificationSource['unreadCount'])
+    : 0;
+  const notificationPriorityUnreadCount = notificationSource
+    ? Math.min(
+        notificationUnreadCount,
+        normalizeCount(notificationSource['priorityUnreadCount'])
+      )
+    : 0;
+  const notificationUpdatedAtRaw = Number(notificationSource?.['updatedAt']);
+  const viewerNotificationSummary = notificationSource && notificationUnreadCount > 0
+    ? {
+        unreadCount: notificationUnreadCount,
+        priorityUnreadCount: notificationPriorityUnreadCount,
+        hasPriorityUnread:
+          notificationPriorityUnreadCount > 0
+          || notificationSource['hasPriorityUnread'] === true,
+        updatedAt:
+          Number.isFinite(notificationUpdatedAtRaw)
+            && notificationUpdatedAtRaw > 0
+            ? Math.trunc(notificationUpdatedAtRaw)
+            : null,
+      }
+    : null;
   const publicLocation = sourceType === 'venue'
     ? normalizePublicLocation(source['publicLocation'])
     : null;
@@ -316,6 +353,9 @@ function normalizeCard(raw: unknown): CommunityPreviewCard | null {
     ...(publicLocation ? { publicLocation } : {}),
     ...(officialAssociation ? { officialAssociation } : {}),
     ...(viewerRole ? { viewerRole } : {}),
+    ...(viewerNotificationSummary
+      ? { viewerNotificationSummary }
+      : {}),
   };
 }
 

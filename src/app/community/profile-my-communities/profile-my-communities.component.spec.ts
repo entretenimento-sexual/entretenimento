@@ -78,10 +78,13 @@ describe('ProfileMyCommunitiesComponent', () => {
                 {
                   communityId: 'community-1',
                   unreadCount: 7,
+                  priorityUnreadCount: 2,
                   hasPriorityUnread: true,
+                  updatedAt: 200,
                 },
               ],
             ])),
+            currentUserPriorityCommunityCount$: of(1),
           },
         },
         {

@@ -28,9 +28,14 @@ match /notifications/{notificationId} {
   allow create, update, delete: if false;
 }
 
-match /community_notification_summaries/{userId}/items/{communityId} {
-  allow get, list: if signedIn() && userId == uid();
-  allow create, update, delete: if false;
+match /community_notification_summaries/{userId} {
+  allow get: if signedIn() && userId == uid();
+  allow list, create, update, delete: if false;
+
+  match /items/{communityId} {
+    allow get, list: if signedIn() && userId == uid();
+    allow create, update, delete: if false;
+  }
 }
 
 match /community_notification_preferences/{userId}/items/{communityId} {

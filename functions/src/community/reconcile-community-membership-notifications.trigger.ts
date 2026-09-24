@@ -7,11 +7,19 @@
 // de deduplicação permanecem preservados; moderação obrigatória não é suprimida.
 // -----------------------------------------------------------------------------
 
+import { Timestamp } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
+import {
+  buildCommunityNotificationSummaryItem,
+  normalizeCommunityNotificationSummaryItem,
+} from './community-notification-global-summary.policy';
+import {
+  prepareCommunityNotificationGlobalSummaryWrite,
+} from './community-notification-global-summary.transaction';
 import {
   isCommunityNotificationMembershipCycleCurrent,
   shouldReconcileCommunityNotificationMembership,
@@ -52,7 +60,8 @@ export const reconcileCommunityMembershipNotifications = onDocumentWritten(
       .doc(communityId);
     const stateQuery = db
       .collection('community_notification_projection_state')
-      .where('userId', '==', uid);
+      .where('userId', '==', uid)
+      .where('communityId', '==', communityId);
 
     const result = await db.runTransaction(async (transaction) => {
       const membershipSnapshot = await transaction.get(membershipRef);
@@ -96,13 +105,21 @@ export const reconcileCommunityMembershipNotifications = onDocumentWritten(
         );
       }
 
+      const now = Timestamp.now();
+      let preparedGlobalWrite:
+        Awaited<ReturnType<typeof prepareCommunityNotificationGlobalSummaryWrite>>
+        | null = null;
+      let nextSummary:
+        ReturnType<typeof buildCommunityNotificationSummaryItem>
+        | null = null;
+
       if (removedUnreadCount > 0 && summarySnapshot.exists) {
-        const currentUnreadCount = normalizeCommunityNotificationSummaryCount(
-          summarySnapshot.data()?.['unreadCount']
+        const beforeSummary = normalizeCommunityNotificationSummaryItem(
+          communityId,
+          summarySnapshot.data()
         );
-        const currentPriorityUnreadCount = normalizeCommunityNotificationSummaryCount(
-          summarySnapshot.data()?.['priorityUnreadCount']
-        );
+        const currentUnreadCount = beforeSummary?.unreadCount ?? 0;
+        const currentPriorityUnreadCount = beforeSummary?.priorityUnreadCount ?? 0;
         const unreadCount = Math.max(0, currentUnreadCount - removedUnreadCount);
         const priorityUnreadCount = Math.max(
           0,
@@ -112,17 +129,47 @@ export const reconcileCommunityMembershipNotifications = onDocumentWritten(
           )
         );
 
-        if (unreadCount === 0) {
+        nextSummary = unreadCount > 0
+          ? buildCommunityNotificationSummaryItem({
+            communityId,
+            unreadCount,
+            priorityUnreadCount,
+            updatedAtMs: now.toMillis(),
+          })
+          : null;
+
+        preparedGlobalWrite =
+          await prepareCommunityNotificationGlobalSummaryWrite(transaction, {
+            uid,
+            changes: [{
+              before: beforeSummary,
+              after: nextSummary,
+            }],
+            updatedAt: now,
+          });
+      }
+
+      if (removedUnreadCount > 0 && summarySnapshot.exists) {
+        if (!nextSummary) {
           transaction.delete(summaryRef);
         } else {
           transaction.set(summaryRef, {
             userId: uid,
             communityId,
-            unreadCount,
-            priorityUnreadCount,
-            hasPriorityUnread: priorityUnreadCount > 0,
-            updatedAt: FieldValue.serverTimestamp(),
+            unreadCount: nextSummary.unreadCount,
+            priorityUnreadCount: nextSummary.priorityUnreadCount,
+            hasPriorityUnread: nextSummary.hasPriorityUnread,
+            attentionRank: nextSummary.attentionRank,
+            updatedAt: now,
           }, { merge: true });
+        }
+
+        if (preparedGlobalWrite) {
+          transaction.set(
+            preparedGlobalWrite.ref,
+            preparedGlobalWrite.data,
+            { merge: true }
+          );
         }
       }
 
