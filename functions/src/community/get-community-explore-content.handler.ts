@@ -23,6 +23,7 @@ import {
   assertCommunityCallableAppCheck,
   REQUIRE_COMMUNITY_APP_CHECK,
 } from './community-callable-security';
+import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   type CommunityExploreContentItem,
   type CommunityExploreContentProjection,
@@ -45,6 +46,15 @@ const DEFAULT_LIMIT = 2;
 const MAX_LIMIT = 2;
 const SCAN_MULTIPLIER = 6;
 const MEDIA_URL_TTL_MS = 20 * 60_000;
+
+function assertPreviewRuntime(): void {
+  if (isCommunityPreviewRuntimeAvailable()) return;
+
+  throw new HttpsError(
+    'failed-precondition',
+    'As Comunidades ainda não estão disponíveis neste ambiente.'
+  );
+}
 
 function normalizeLimit(value: unknown): number {
   const parsed = Math.trunc(Number(value));
@@ -81,6 +91,7 @@ export const getCommunityExploreContent =
     async (request): Promise<CommunityExploreContentResponse> => {
       const startedAt = Date.now();
       assertCommunityCallableAppCheck(request.app);
+      assertPreviewRuntime();
       const uid = assertAuthenticatedUid(request.auth);
       await assertCommunitySocialAccessForUid(uid);
 
