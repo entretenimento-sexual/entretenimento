@@ -274,16 +274,16 @@ export const reviewCommunityFeedPostReport = onCall<
         const restoredExploreProjection =
           projectionSnapshot.exists && discoverySnapshot.exists
             ? buildCommunityExploreContentProjection({
-                communityId,
-                postId,
-                discovery: discoverySnapshot.data(),
-                feed: projectionSnapshot.data(),
-                operationalPost: {
-                  ...post,
-                  moderationState: 'active',
-                },
-                now: nowMs,
-              })
+              communityId,
+              postId,
+              discovery: discoverySnapshot.data(),
+              feed: projectionSnapshot.data(),
+              operationalPost: {
+                ...post,
+                moderationState: 'active',
+              },
+              now: nowMs,
+            })
             : null;
 
         if (restoredExploreProjection) {
