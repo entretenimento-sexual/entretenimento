@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { Observable, defer, of } from 'rxjs';
 import { map, shareReplay, take } from 'rxjs/operators';
 
+import type { CommunityPreviewCard } from 'src/app/community/data-access/community-preview.model';
 import type { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import type { IUserIntentStatusCardVm } from 'src/app/core/interfaces/discovery/user-intent-status.interface';
 import type { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
@@ -56,6 +57,41 @@ const VISUAL_USER = {
   publicVisibility: 'visible',
   interactionBlocked: false,
 } as IUserDados;
+
+const VISUAL_COMMUNITIES: readonly CommunityPreviewCard[] = [
+  {
+    communityId: 'visual-community-1',
+    name: 'Conexões no Rio',
+    slug: 'conexoes-no-rio',
+    description: 'Encontros, interesses e conversas da região.',
+    source: { type: 'community', id: 'visual-community-1' },
+    avatarUrl: null,
+    coverUrl: null,
+    metrics: { memberCount: 428, postCount: 96, mediaCount: 38 },
+    access: {
+      join: 'open',
+      minimumRole: null,
+      requiresActiveSubscription: false,
+    },
+    tags: [],
+  },
+  {
+    communityId: 'visual-community-2',
+    name: 'Cinema e companhia',
+    slug: 'cinema-e-companhia',
+    description: 'Para combinar sessões e trocar recomendações.',
+    source: { type: 'community', id: 'visual-community-2' },
+    avatarUrl: null,
+    coverUrl: null,
+    metrics: { memberCount: 184, postCount: 51, mediaCount: 14 },
+    access: {
+      join: 'approval',
+      minimumRole: null,
+      requiresActiveSubscription: false,
+    },
+    tags: [],
+  },
+];
 
 const VISUAL_COMPATIBLES: readonly PublicProfileCard[] = [
   profile('visual-compatible-1', 'Marina', 31),
@@ -110,6 +146,36 @@ const VISUAL_STATUS: IUserIntentStatusCardVm = {
   expiresInLabel: 'Expira em 5h',
   isActive: true,
 };
+
+export interface CommunityExploreActivitySummary {
+  readonly unreadCount: number;
+  readonly communityCount: number;
+  readonly priorityCommunityCount: number;
+  readonly hasPriorityUnread: boolean;
+  readonly latestUpdatedAt: number | null;
+}
+
+export interface CommunityExploreDistributionVm {
+  readonly activity: CommunityExploreActivitySummary;
+  readonly recommendations: readonly CommunityPreviewCard[];
+}
+
+@Injectable({ providedIn: 'root' })
+export class CommunityExploreDistributionService {
+  readonly activity$: Observable<CommunityExploreActivitySummary> = of({
+    unreadCount: 0,
+    communityCount: 0,
+    priorityCommunityCount: 0,
+    hasPriorityUnread: false,
+    latestUpdatedAt: null,
+  });
+
+  readonly recommendations$: Observable<readonly CommunityPreviewCard[]> =
+    of(VISUAL_COMMUNITIES);
+
+  hideRecommendation(_communityId: string): void {}
+  recordQualifiedExposure(_communityId: string): void {}
+}
 
 @Injectable({ providedIn: 'root' })
 export class ExploreFeedFacade {
@@ -182,6 +248,14 @@ export class AuthSessionService {
   readonly isAuthenticated$: Observable<boolean> = of(true);
   readonly readyAuthUser$: Observable<User | null> = of(this.visualAuthUser);
   readonly readyUid$: Observable<string | null> = of(VISUAL_USER.uid);
+  readonly isTerminating$: Observable<boolean> = of(false);
+
+  beginTermination(): void {}
+  endTermination(): void {}
+
+  get isTerminatingSnapshot(): boolean {
+    return false;
+  }
 
   whenReady(): Promise<void> {
     return Promise.resolve();

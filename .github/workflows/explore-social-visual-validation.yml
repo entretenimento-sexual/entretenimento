@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - 'src/app/explore/**'
+      - 'src/app/community/distribution/**'
       - 'src/app/core/services/discovery/user-intent-status.service.ts'
       - 'src/app/core/services/discovery/user-intent-status-time.utils.ts'
       - 'src/app/core/interfaces/discovery/user-intent-status.interface.ts'
@@ -154,6 +155,7 @@ jobs:
             ['src/app/core/guards/profile-guard/email-verified.guard.ts', 'src/app/dashboard/discovery/visual-validation/discovery-visual.guards.ts'],
             ['src/app/core/guards/profile-guard/profile-completed.guard.ts', 'src/app/dashboard/discovery/visual-validation/discovery-visual.guards.ts'],
             ['src/app/explore/facades/explore-feed.facade.ts', 'src/app/explore/visual-validation/explore-social-visual.replacements.ts'],
+            ['src/app/community/distribution/community-explore-distribution.service.ts', 'src/app/explore/visual-validation/explore-social-visual.replacements.ts'],
             ['src/app/explore/services/explore-personal-media.service.ts', 'src/app/explore/visual-validation/explore-personal-media.visual.ts'],
             ['src/app/dashboard/discovery/application/compatible-profile-candidates.service.ts', 'src/app/explore/visual-validation/compatible-profile-candidates.visual.ts'],
             ['src/app/core/services/autentication/auth/current-user-store.service.ts', 'src/app/explore/visual-validation/explore-social-visual.replacements.ts'],
