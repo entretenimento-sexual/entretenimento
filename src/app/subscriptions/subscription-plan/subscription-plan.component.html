@@ -174,11 +174,19 @@
         @if (isDowngrade(plan.key, vm)) {
           <div class="plan-requirement-state" role="note">
             @if (vm.scheduledPlanChange?.planKey === plan.key) {
-              <strong>Redução agendada</strong>
+              <strong>
+                {{
+                  vm.scheduledPlanChange?.cancellationPending
+                    ? 'Cancelamento da redução em andamento'
+                    : 'Redução agendada'
+                }}
+              </strong>
               <small>
                 O plano atual continua válido até
                 {{ vm.scheduledPlanChange?.effectiveAt | date:'dd/MM/yyyy' }}.
-                @if (vm.scheduledPlanChange?.providerUpdateStatus === 'pending') {
+                @if (vm.scheduledPlanChange?.cancellationPending) {
+                  O provedor está restaurando a renovação no plano atual.
+                } @else if (vm.scheduledPlanChange?.providerUpdateStatus === 'pending') {
                   A confirmação da alteração no provedor ainda está em processamento.
                 } @else {
                   As próximas cobranças já estão configuradas para este plano.
