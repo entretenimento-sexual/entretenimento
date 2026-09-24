@@ -28,6 +28,10 @@ export interface PlatformRecurringPendingPlanChange {
   providerUpdateNextAttemptAt: number | null;
   providerUpdateLastErrorCode: string | null;
   providerUpdatedAt: number | null;
+  cancellationRequestedAt?: number | null;
+  providerRevertAttemptCount?: number;
+  providerRevertNextAttemptAt?: number | null;
+  providerRevertLastErrorCode?: string | null;
 }
 
 export type PlatformRecurringSubscriptionStatus =
@@ -69,6 +73,7 @@ export interface PlatformRecurringSubscriptionDoc {
   lastPaymentOccurredAt: number | null;
 
   pendingPlanChange?: PlatformRecurringPendingPlanChange | null;
+  needsProviderPlanChangeSync?: boolean;
 
   needsProviderCancellation: boolean;
   providerCancellationAttemptCount: number;
