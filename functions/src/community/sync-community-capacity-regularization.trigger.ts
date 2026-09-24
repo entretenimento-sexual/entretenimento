@@ -155,14 +155,16 @@ export const syncCommunityCapacityRegularizationAdminNotification =
       );
 
       if (!isAdmin) {
+        const notificationSnapshot = await notificationRef.get();
+        if (!notificationSnapshot.exists) return;
+
+        const now = Timestamp.now();
         await notificationRef.set(
           {
-            userId: memberId,
-            type: 'community.capacity.regularization',
             actionRequired: false,
-            readAt: Timestamp.now(),
-            resolvedAt: Timestamp.now(),
-            updatedAt: Timestamp.now(),
+            readAt: now,
+            resolvedAt: now,
+            updatedAt: now,
           },
           { merge: true }
         );
