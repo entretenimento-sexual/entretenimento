@@ -33,22 +33,22 @@ const feed = {
 };
 
 test('aceita somente publicação pública de Comunidade pública', () => {
-    const projection = buildCommunityExploreContentProjection({
-      communityId: 'community-1',
-      postId: 'post-1',
-      discovery,
-      feed,
-      operationalPost: {
-        actorUid: 'author-1',
-        status: 'active',
-        moderationState: 'active',
-      },
-      now: 1_800_000_000_100,
-    });
+  const projection = buildCommunityExploreContentProjection({
+    communityId: 'community-1',
+    postId: 'post-1',
+    discovery,
+    feed,
+    operationalPost: {
+      actorUid: 'author-1',
+      status: 'active',
+      moderationState: 'active',
+    },
+    now: 1_800_000_000_100,
+  });
 
   assert.equal(projection?.communityId, 'community-1');
   assert.equal(projection?.post.kind, 'text');
-  });
+});
 
 for (const [name, rawFeed] of [
   ['members_only', { ...feed, audience: 'members_only' }],
@@ -64,33 +64,39 @@ for (const [name, rawFeed] of [
     },
   }],
 ] as const) {
-test(`rejeita ${name} fora da distribuição global`, () => {
-    assert.equal(buildCommunityExploreContentProjection({
+  test(`rejeita ${name} fora da distribuição global`, () => {
+    assert.equal(
+      buildCommunityExploreContentProjection({
+        communityId: 'community-1',
+        postId: 'post-1',
+        discovery,
+        feed: rawFeed,
+        operationalPost: {
+          actorUid: 'author-1',
+          status: 'active',
+          moderationState: 'active',
+        },
+        now: 1_800_000_000_100,
+      }),
+      null
+    );
+  });
+}
+
+test('rejeita Comunidade que saiu da descoberta pública', () => {
+  assert.equal(
+    buildCommunityExploreContentProjection({
       communityId: 'community-1',
       postId: 'post-1',
-      discovery,
-      feed: rawFeed,
+      discovery: { ...discovery, visibility: 'members_only' },
+      feed,
       operationalPost: {
         actorUid: 'author-1',
         status: 'active',
         moderationState: 'active',
       },
       now: 1_800_000_000_100,
-    }), null);
-  });
-}
-
-test('rejeita Comunidade que saiu da descoberta pública', () => {
-  assert.equal(buildCommunityExploreContentProjection({
-    communityId: 'community-1',
-    postId: 'post-1',
-    discovery: { ...discovery, visibility: 'members_only' },
-    feed,
-    operationalPost: {
-      actorUid: 'author-1',
-      status: 'active',
-      moderationState: 'active',
-    },
-    now: 1_800_000_000_100,
-  }), null);
-  });
+    }),
+    null
+  );
+});
