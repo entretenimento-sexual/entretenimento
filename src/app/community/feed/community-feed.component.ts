@@ -571,6 +571,14 @@ export class CommunityFeedComponent {
     this.timeline.retry();
   }
 
+  composerPlaceholder(): string {
+    return this.socialSpace().feed(this.view()).composerPlaceholder;
+  }
+
+  supportsHighlights(): boolean {
+    return this.socialSpace().capabilities.highlights;
+  }
+
   sectionAriaLabel(): string {
     return this.socialSpace().feed(this.view()).ariaLabel;
   }
