@@ -12,6 +12,8 @@ import type {
 
 export const COMMON_APPLICATION_ERROR_REASON_MESSAGES:
   Readonly<Record<string, string>> = Object.freeze({
+    verification_required:
+      'Conclua a verificação de maioridade para continuar usando recursos adultos e sociais.',
     official_claim_verification_required:
       'Conclua a verificação necessária para este vínculo antes de solicitar a Comunidade Oficial.',
     official_claim_verification_inactive:
@@ -48,6 +50,18 @@ export const COMMON_APPLICATION_ERROR_REASON_MESSAGES:
 
 export const COMMON_APPLICATION_ERROR_REASON_PRESENTATIONS:
   ApplicationErrorPresentationMap = Object.freeze({
+    verification_required: {
+      surface: 'modal',
+      severity: 'info',
+      title: 'Verificação de maioridade necessária',
+      detail:
+        'Conclua a verificação de maioridade antes de continuar usando recursos adultos e sociais.',
+      primaryAction: {
+        label: 'Verificar agora',
+        route: '/adulto/verificar-idade',
+      },
+      dismissLabel: 'Agora não',
+    },
     'recent-authentication-required': {
       surface: 'modal',
       severity: 'warning',
@@ -252,6 +266,18 @@ export const COMMON_APPLICATION_ERROR_RECOMMENDED_ACTION_PRESENTATIONS:
       primaryAction: {
         label: 'Revisar termos',
         route: '/register/aceitar-termos',
+      },
+      dismissLabel: 'Agora não',
+    },
+    complete_age_verification: {
+      surface: 'modal',
+      severity: 'info',
+      title: 'Verificação de maioridade necessária',
+      detail:
+        'Conclua a verificação de maioridade antes de continuar.',
+      primaryAction: {
+        label: 'Verificar agora',
+        route: '/adulto/verificar-idade',
       },
       dismissLabel: 'Agora não',
     },
