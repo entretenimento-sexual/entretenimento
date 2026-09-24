@@ -9,15 +9,15 @@
         <h3>Atividade nas suas Comunidades</h3>
       </div>
 
-      <a routerLink="/dashboard/comunidades/minhas">
-        Abrir
+      <a routerLink="/notificacoes">
+        Ver atividade
       </a>
     </header>
 
     <p class="community-explore-distribution__activity-summary">
       <strong>{{ activity.unreadCount }}</strong>
       {{ activity.unreadCount === 1 ? 'nova atividade' : 'novas atividades' }}
-      em
+      {{ activity.unreadCount === 1 ? 'relacionada' : 'relacionadas' }} a
       <strong>{{ activity.communityCount }}</strong>
       {{ activity.communityCount === 1 ? 'Comunidade' : 'Comunidades' }}.
     </p>
