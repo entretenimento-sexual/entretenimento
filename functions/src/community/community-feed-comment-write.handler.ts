@@ -422,6 +422,7 @@ export const createCommunityFeedComment = onCall<FlatConversationCreateRequest>(
                 postId,
                 replyToCommentId,
                 recipientUid,
+                actorUid,
                 membershipCycleStartedAtMs,
                 nowMs
               )
