@@ -108,3 +108,37 @@ test('rejeita qualquer terceiro valor', () => {
   assert.equal(decision.allowed, false);
   assert.equal(decision.reason, 'recurring_amount_mismatch');
 });
+
+
+test('segura cobrança reduzida enquanto cancelamento do downgrade converge', () => {
+  const decision = resolveRecurringPlanSettlementDecision({
+    currentAmountCents: 3999,
+    pendingPlanChange: {
+      ...pending,
+      cancellationRequestedAt: effectiveAt - 120_000,
+      providerRevertNextAttemptAt: effectiveAt + 60_000,
+    },
+    paymentAmountCents: 1999,
+    paymentOccurredAt: effectiveAt,
+    processingNow: effectiveAt,
+  });
+
+  assert.equal(decision.kind, 'retry');
+  assert.equal(decision.retryAt, effectiveAt + 60_000);
+});
+
+test('aceita preço atual quando cancelamento do downgrade já foi solicitado', () => {
+  const decision = resolveRecurringPlanSettlementDecision({
+    currentAmountCents: 3999,
+    pendingPlanChange: {
+      ...pending,
+      cancellationRequestedAt: effectiveAt - 120_000,
+    },
+    paymentAmountCents: 3999,
+    paymentOccurredAt: effectiveAt,
+    processingNow: effectiveAt,
+  });
+
+  assert.equal(decision.kind, 'current_plan');
+  assert.equal(decision.allowed, true);
+});
