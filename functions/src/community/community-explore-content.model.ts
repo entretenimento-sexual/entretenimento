@@ -20,6 +20,31 @@ export const COMMUNITY_EXPLORE_CONTENT_RETENTION_MS =
 
 export type CommunityExploreContentKind = 'text' | 'photo';
 
+export interface CommunityExploreContentItem {
+  readonly communityId: string;
+  readonly postId: string;
+  readonly community: {
+    readonly name: string;
+    readonly slug: string;
+    readonly avatarUrl: string | null;
+  };
+  readonly post: {
+    readonly kind: CommunityExploreContentKind;
+    readonly author: CommunityFeedItem['author'];
+    readonly text: string | null;
+    readonly image: {
+      readonly url: string;
+      readonly alt: string;
+    } | null;
+  };
+  readonly publishedAt: number;
+}
+
+export interface CommunityExploreContentResponse {
+  readonly items: readonly CommunityExploreContentItem[];
+  readonly generatedAt: number;
+}
+
 export interface CommunityExploreContentProjection {
   readonly communityId: string;
   readonly postId: string;
