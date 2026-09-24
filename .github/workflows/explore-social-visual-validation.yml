@@ -151,6 +151,7 @@ jobs:
             ['src/app/core/guards/auth-guard/auth.guard.ts', 'src/app/dashboard/discovery/visual-validation/discovery-visual.guards.ts'],
             ['src/app/account/guards/account-lifecycle.guard.ts', 'src/app/dashboard/discovery/visual-validation/discovery-visual.guards.ts'],
             ['src/app/core/guards/compliance/adult-content-consent.guard.ts', 'src/app/dashboard/discovery/visual-validation/discovery-visual.guards.ts'],
+            ['src/app/core/guards/compliance/age-eligibility.guard.ts', 'src/app/dashboard/discovery/visual-validation/discovery-visual.guards.ts'],
             ['src/app/core/guards/compliance/age-reverification.guard.ts', 'src/app/dashboard/discovery/visual-validation/discovery-visual.guards.ts'],
             ['src/app/core/guards/profile-guard/email-verified.guard.ts', 'src/app/dashboard/discovery/visual-validation/discovery-visual.guards.ts'],
             ['src/app/core/guards/profile-guard/profile-completed.guard.ts', 'src/app/dashboard/discovery/visual-validation/discovery-visual.guards.ts'],
