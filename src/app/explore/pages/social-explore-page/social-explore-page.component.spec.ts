@@ -395,7 +395,7 @@ describe('SocialExplorePageComponent', () => {
     expect(fixture.nativeElement.textContent).not.toContain('Curtir');
   });
 
-  it('atribui aberturas às três superfícies comunitárias do Explore', () => {
+  it('atribui aberturas somente às superfícies de descoberta do Explore', () => {
     communityDistributionSubject.next({
       recommendations: [
         {
@@ -469,9 +469,9 @@ describe('SocialExplorePageComponent', () => {
     );
     contentAction.triggerEventHandler('click', new MouseEvent('click'));
 
-    expect(recordCommunityDistributionOpen).toHaveBeenCalledWith(
+    expect(recordCommunityDistributionOpen).not.toHaveBeenCalledWith(
       'mine-1',
-      'social_explore_activity'
+      expect.anything()
     );
     expect(recordCommunityDistributionOpen).toHaveBeenCalledWith(
       'recommended-1',
