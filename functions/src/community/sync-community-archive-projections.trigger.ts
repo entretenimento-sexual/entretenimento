@@ -4,7 +4,8 @@
 // -----------------------------------------------------------------------------
 // Quando uma Comunidade entra em archived, remove somente projeções de navegação:
 // - community_discovery_index;
-// - community_user_index de todos os vínculos conhecidos.
+// - community_user_index de todos os vínculos conhecidos;
+// - community_member_management_index derivado de cada vínculo.
 //
 // Memberships, mural, tópicos, mídia e auditoria permanecem preservados para
 // leitura histórica, moderação e retenção. Exclusões são idempotentes e paginadas.
@@ -18,7 +19,7 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import { shouldCleanupCommunityArchiveProjections } from './community-archive-projection.policy';
 
-const MEMBER_PAGE_SIZE = 300;
+const MEMBER_PAGE_SIZE = 200;
 
 async function deleteCommunityUserIndexes(communityId: string): Promise<number> {
   const membersCollection = db
@@ -45,7 +46,11 @@ async function deleteCommunityUserIndexes(communityId: string): Promise<number> 
         .doc(membership.id)
         .collection('items')
         .doc(communityId);
+      const managementIndexRef = db
+        .collection('community_member_management_index')
+        .doc(`${communityId}:${membership.id}`);
       batch.delete(indexRef);
+      batch.delete(managementIndexRef);
     }
 
     await batch.commit();
