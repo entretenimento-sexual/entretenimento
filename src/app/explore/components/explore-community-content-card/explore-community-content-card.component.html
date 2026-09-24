@@ -1,0 +1,79 @@
+@let content = item();
+
+<article class="community-content-card">
+  <a
+    class="community-content-card__community"
+    [routerLink]="['/dashboard/comunidades', content.communityId]"
+    [queryParams]="{ post: content.postId }"
+    [attr.aria-label]="'Abrir publicação na Comunidade ' + content.community.name"
+  >
+    <span class="community-content-card__community-avatar" aria-hidden="true">
+      @if (content.community.avatarUrl) {
+        <img
+          [src]="content.community.avatarUrl"
+          alt=""
+          width="42"
+          height="42"
+          loading="lazy"
+          decoding="async"
+          referrerpolicy="no-referrer"
+        />
+      } @else {
+        {{ initials(content.community.name) }}
+      }
+    </span>
+
+    <span class="community-content-card__community-copy">
+      <span>Da Comunidade</span>
+      <strong>{{ content.community.name }}</strong>
+    </span>
+  </a>
+
+  <div class="community-content-card__author">
+    <span class="community-content-card__author-avatar" aria-hidden="true">
+      @if (content.post.author.avatarUrl) {
+        <img
+          [src]="content.post.author.avatarUrl"
+          alt=""
+          width="32"
+          height="32"
+          loading="lazy"
+          decoding="async"
+          referrerpolicy="no-referrer"
+        />
+      } @else {
+        {{ initials(content.post.author.label) }}
+      }
+    </span>
+    <strong>{{ content.post.author.label }}</strong>
+  </div>
+
+  @if (content.post.text) {
+    <p class="community-content-card__text">{{ content.post.text }}</p>
+  }
+
+  @if (content.post.image) {
+    <a
+      class="community-content-card__media"
+      [routerLink]="['/dashboard/comunidades', content.communityId]"
+      [queryParams]="{ post: content.postId }"
+      [attr.aria-label]="'Ver foto publicada em ' + content.community.name"
+    >
+      <img
+        [src]="content.post.image.url"
+        [alt]="content.post.image.alt"
+        loading="lazy"
+        decoding="async"
+        referrerpolicy="no-referrer"
+      />
+    </a>
+  }
+
+  <a
+    class="community-content-card__action"
+    [routerLink]="['/dashboard/comunidades', content.communityId]"
+    [queryParams]="{ post: content.postId }"
+  >
+    Ver na Comunidade
+  </a>
+</article>
