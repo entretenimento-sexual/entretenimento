@@ -325,7 +325,6 @@ function throwTransferDecisionError(reason: string | null): never {
       'O plano atual do destinatário não permite assumir outra Comunidade.',
       {
         reason: 'community_ownership_target_capacity_reached',
-        recommendedAction: 'target_upgrade_or_choose_another_owner',
       }
     );
   }
