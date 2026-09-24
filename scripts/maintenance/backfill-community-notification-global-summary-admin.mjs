@@ -263,6 +263,19 @@ async function backfillUserProjection(db, uid, policy) {
       throw new Error(`Scan incompleto de summaries para ${uid}.`);
     }
 
+    if (result.items.length === 0 && !baselineSnapshot.exists) {
+      return {
+        ...result,
+        unreadCount: 0,
+        priorityUnreadCount: 0,
+        priorityCommunityCount: 0,
+        attentionWindowSize: 0,
+        rankWrites: 0,
+        writes: 0,
+        consistencyRetries: attempt - 1,
+      };
+    }
+
     const projection = buildGlobalProjectionData(result.items, policy);
 
     // Reparo de rank ocorre antes de promover o parent para v2. Se um writer
@@ -373,9 +386,8 @@ async function main() {
       itemRepairsNeeded += result.repairs.length;
       consistencyRetries += result.consistencyRetries;
 
-      if (result.items.length === 0) continue;
-      usersWithSummaries += 1;
-      usersWritten += 1;
+      if (result.items.length > 0) usersWithSummaries += 1;
+      if (result.writes > 0) usersWritten += 1;
       writesCommitted += result.writes;
     }
 
