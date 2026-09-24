@@ -5,6 +5,8 @@
   @let currentUser = (currentUser$ | async);
   @let viewerUid = ((authUid$ | async) || '');
   @let emptySuggestions = vm.compatibleProfiles.slice(0, 4);
+  @let communityDistribution = (communityDistribution$ | async);
+  @let communityContent = (communityDistribution?.content || []);
 
   <section class="social-feed-page" aria-label="Atualizações">
     @if (currentUser?.uid) {
@@ -125,7 +127,7 @@
     }
 
 
-    @if (communityDistribution$ | async; as communities) {
+    @if (communityDistribution; as communities) {
       @if (communities.activity.length > 0) {
         <section
           class="community-distribution community-distribution--activity"
@@ -261,6 +263,15 @@
           />
         }
 
+        @if (feedItems.length === 0 && communityContent[0]) {
+          <app-explore-community-content-card
+            role="listitem"
+            [item]="communityContent[0]"
+            [appCommunityDiscoveryVisibility]="communityContent[0].communityId"
+            (qualifiedExposure)="recordCommunityExposure($event)"
+          />
+        }
+
         @for (
           item of feedItems;
           track trackByFeedItem($index, item)
@@ -332,6 +343,30 @@
                 <p>{{ item.status.destinationLabel }}</p>
               </div>
             </article>
+          }
+
+          @if (
+            communityContent[0]
+            && (
+              ($index === 0 && feedItems.length === 1)
+              || $index === 1
+            )
+          ) {
+            <app-explore-community-content-card
+              role="listitem"
+              [item]="communityContent[0]"
+              [appCommunityDiscoveryVisibility]="communityContent[0].communityId"
+              (qualifiedExposure)="recordCommunityExposure($event)"
+            />
+          }
+
+          @if ($index === 4 && communityContent[1]) {
+            <app-explore-community-content-card
+              role="listitem"
+              [item]="communityContent[1]"
+              [appCommunityDiscoveryVisibility]="communityContent[1].communityId"
+              (qualifiedExposure)="recordCommunityExposure($event)"
+            />
           }
         }
       </div>
