@@ -151,3 +151,17 @@ test('comunidades públicas do perfil exigem projeção etária vigente', () => 
     false
   );
 });
+
+
+test('perfil público usa somente o gate de segurança, não o filtro de recomendação', () => {
+  const source = require('node:fs').readFileSync(
+    require('node:path').resolve(
+      process.cwd(),
+      'src/community/get-profile-public-communities.handler.ts'
+    ),
+    'utf8'
+  );
+
+  assert.match(source, /filterCommunityDiscoveryCardForViewer/);
+  assert.doesNotMatch(source, /filterCommunityRecommendationCardForViewer/);
+});
