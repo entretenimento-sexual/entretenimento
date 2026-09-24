@@ -128,8 +128,6 @@ export class ExploreFeedFacade {
       videoHighlights: videoError || empty ? [] : [...VISUAL_HIGHLIGHTS],
       videoHighlightsStatus: videoError ? 'error' : empty ? 'empty' : 'ready',
       compatibleProfiles: [...VISUAL_COMPATIBLES],
-      totalItems: empty ? 0 : VISUAL_PHOTOS.length + VISUAL_HIGHLIGHTS.length,
-      hasAnyContent: !empty,
     });
   }).pipe(shareReplay({ bufferSize: 1, refCount: true }));
 
