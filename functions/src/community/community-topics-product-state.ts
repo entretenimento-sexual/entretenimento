@@ -21,7 +21,6 @@ export function assertCommunityTopicsProductAvailable(): void {
     'Discussões estão desativadas. Use o Mural da Comunidade.',
     {
       reason: 'community_topics_product_frozen',
-      recommendedAction: 'use_community_mural',
       productState: COMMUNITY_TOPICS_PRODUCT_STATE,
     }
   );
