@@ -12,6 +12,7 @@ import type {
 } from 'src/app/shared/components-globais/confirmation-dialog/confirmation-dialog.component';
 import {
   getSocialSpaceDefinition,
+  normalizeActiveSocialSpaceKind,
   type SocialSpaceCapabilities,
   type SocialSpaceDefinition,
 } from 'src/app/core/domain/social-space.definition';
@@ -414,7 +415,7 @@ const COMMUNITY_SOCIAL_SPACE_ADAPTERS: Readonly<
 export function normalizeCommunitySocialSpaceSourceType(
   value: unknown
 ): CommunityPreviewSourceType {
-  return value === 'venue' ? 'venue' : 'community';
+  return normalizeActiveSocialSpaceKind(value);
 }
 
 export function getCommunitySocialSpaceAdapter(
