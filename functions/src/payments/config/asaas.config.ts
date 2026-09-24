@@ -92,6 +92,26 @@ export function assertAsaasRecurringCheckoutEnabled(): void {
   );
 }
 
+export function assertAsaasSubscriptionUpdateEnabled(): void {
+  if (isFunctionsEmulatorRuntime()) return;
+
+  if (
+    String(process.env.ASAAS_SUBSCRIPTION_UPDATE_ENABLED ?? '')
+      .trim()
+      .toLowerCase() === 'true'
+  ) {
+    return;
+  }
+
+  throw new HttpsError(
+    'failed-precondition',
+    'A alteração automática de assinatura ainda não foi habilitada operacionalmente.',
+    {
+      reason: 'recurring_subscription_update_not_enabled',
+    }
+  );
+}
+
 export function resolveAsaasApiRuntimeConfig(): AsaasApiRuntimeConfig {
   if (isFunctionsEmulatorRuntime()) {
     return {
