@@ -51,6 +51,18 @@ const PLATFORM_ROLE_RANK: Readonly<Record<PlatformRole, number>> = Object.freeze
   vip: 3,
 });
 
+export function shouldBlockDuplicateRecurringCheckout(input: {
+  readonly currentRole: PlatformRole | null;
+  readonly requestedRole: PlatformRole;
+  readonly recurringPlanKey: PlatformRole | null;
+  readonly renewalEnabled: boolean;
+}): boolean {
+  return input.currentRole !== null
+    && input.currentRole === input.requestedRole
+    && input.recurringPlanKey === input.requestedRole
+    && input.renewalEnabled;
+}
+
 export function resolvePlatformSubscriptionPlanChangePolicy(params: {
   currentRole: PlatformRole | null;
   requestedRole: PlatformRole;
