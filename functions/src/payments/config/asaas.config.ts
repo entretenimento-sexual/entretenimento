@@ -92,16 +92,16 @@ export function assertAsaasRecurringCheckoutEnabled(): void {
   );
 }
 
-export function assertAsaasSubscriptionUpdateEnabled(): void {
-  if (isFunctionsEmulatorRuntime()) return;
+export function isAsaasSubscriptionUpdateEnabled(): boolean {
+  if (isFunctionsEmulatorRuntime()) return true;
 
-  if (
-    String(process.env.ASAAS_SUBSCRIPTION_UPDATE_ENABLED ?? '')
-      .trim()
-      .toLowerCase() === 'true'
-  ) {
-    return;
-  }
+  return String(process.env.ASAAS_SUBSCRIPTION_UPDATE_ENABLED ?? '')
+    .trim()
+    .toLowerCase() === 'true';
+}
+
+export function assertAsaasSubscriptionUpdateEnabled(): void {
+  if (isAsaasSubscriptionUpdateEnabled()) return;
 
   throw new HttpsError(
     'failed-precondition',
