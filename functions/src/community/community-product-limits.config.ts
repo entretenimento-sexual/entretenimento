@@ -36,8 +36,8 @@ const MEMBER_LIMIT_BY_SPONSOR_ROLE = Object.freeze({
 const OWNED_PERSONAL_COMMUNITIES_BY_SPONSOR_ROLE = Object.freeze({
   free: 0,
   basic: 1,
-  premium: 3,
-  vip: 5,
+  premium: 2,
+  vip: 3,
   admin: null,
 } as const);
 
@@ -77,6 +77,9 @@ export const COMMUNITY_PRODUCT_LIMITS = Object.freeze({
   memberLimitBySponsorRole: MEMBER_LIMIT_BY_SPONSOR_ROLE,
   ownedPersonalCommunitiesBySponsorRole:
     OWNED_PERSONAL_COMMUNITIES_BY_SPONSOR_ROLE,
+  capacityRegularization: Object.freeze({
+    gracePeriodDays: 30,
+  }),
   contentWriteQuotas: Object.freeze({
     feedPosts: Object.freeze({
       windowMs: CONTENT_QUOTA_WINDOW_MS,
