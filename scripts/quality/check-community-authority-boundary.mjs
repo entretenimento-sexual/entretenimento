@@ -17,7 +17,7 @@
 // - detalhe por Comunidade é bounded/paginado e nunca usa collectionData global;
 // - Explore/Locais não resolvem os serviços privados usados por Minhas comunidades;
 // - community_feed_realtime possui owner único de leitura;
-// - CommunityFeed só abre esse listener através do coordenador de primeiro plano;
+// - CommunityFeedTimelineFacade só abre esse listener através do coordenador de primeiro plano;
 // - qualquer Comunidade fora do lease ativo permanece no modo agregado.
 // -----------------------------------------------------------------------------
 
@@ -40,6 +40,12 @@ const COMMUNITY_NOTIFICATION_SUMMARY_OWNER = path.normalize(
 const COMMUNITY_DISCOVERY_COMPONENT = path.normalize(
   'src/app/community/discovery/community-discovery-page.component.ts'
 );
+const COMMUNITY_DISCOVERY_MINE_FACADE = path.normalize(
+  'src/app/community/discovery/community-discovery-mine.facade.ts'
+);
+const COMMUNITY_DISCOVERY_SPONSORED_FACADE = path.normalize(
+  'src/app/community/discovery/community-discovery-sponsored.facade.ts'
+);
 const COMMUNITY_FEED_REALTIME_COLLECTION = 'community_feed_realtime';
 const COMMUNITY_FEED_REALTIME_OWNER = path.normalize(
   'src/app/community/data-access/community-feed.repository.ts'
@@ -48,6 +54,9 @@ const COMMUNITY_FEED_REALTIME_COORDINATOR = path.normalize(
   'src/app/community/data-access/community-realtime-attention-coordinator.service.ts'
 );
 const COMMUNITY_FEED_REALTIME_CONSUMER = path.normalize(
+  'src/app/community/feed/community-feed-timeline.facade.ts'
+);
+const COMMUNITY_FEED_COMPONENT = path.normalize(
   'src/app/community/feed/community-feed.component.ts'
 );
 const COMMUNITY_FEED_COMMENT_REALTIME_CONSUMER = path.normalize(
@@ -450,6 +459,10 @@ function validateCommunityNotificationClientBoundary(architectureViolations) {
     COMMUNITY_FEED_REALTIME_CONSUMER,
     architectureViolations
   );
+  const realtimeComponentSource = readRequiredSource(
+    COMMUNITY_FEED_COMPONENT,
+    architectureViolations
+  );
   const realtimeCommentConsumerSource = readRequiredSource(
     COMMUNITY_FEED_COMMENT_REALTIME_CONSUMER,
     architectureViolations
@@ -497,6 +510,31 @@ function validateCommunityNotificationClientBoundary(architectureViolations) {
     }
   }
 
+  if (realtimeComponentSource) {
+    for (const required of [
+      'CommunityFeedTimelineFacade',
+      'this.timeline.connect(',
+    ]) {
+      if (!realtimeComponentSource.includes(required)) {
+        architectureViolations.push(
+          `${COMMUNITY_FEED_COMPONENT} (view adapter sem delegação realtime canônica: ${required})`
+        );
+      }
+    }
+
+    for (const forbidden of [
+      'CommunityRealtimeAttentionCoordinatorService',
+      '.claimMode$(communityId)',
+      '.watchLatestChanges$(communityId, 20)',
+    ]) {
+      if (realtimeComponentSource.includes(forbidden)) {
+        architectureViolations.push(
+          `${COMMUNITY_FEED_COMPONENT} (view adapter reabsorveu realtime detalhado: ${forbidden})`
+        );
+      }
+    }
+  }
+
   if (realtimeCommentConsumerSource) {
     for (const required of [
       'CommunityRealtimeAttentionCoordinatorService',
@@ -516,79 +554,107 @@ function validateCommunityNotificationClientBoundary(architectureViolations) {
     COMMUNITY_DISCOVERY_COMPONENT,
     architectureViolations
   );
+  const discoveryMineFacadeSource = readRequiredSource(
+    COMMUNITY_DISCOVERY_MINE_FACADE,
+    architectureViolations
+  );
 
-  if (!discoverySource) return;
+  if (!discoverySource || !discoveryMineFacadeSource) return;
+
+  for (const required of [
+    'CommunityDiscoveryMineFacade',
+    'this.mineFacade.unreadSummaryMap$(',
+    'this.mineFacade.mutedCommunityIds$(',
+  ]) {
+    if (!discoverySource.includes(required)) {
+      architectureViolations.push(
+        `${COMMUNITY_DISCOVERY_COMPONENT} (view adapter sem read model mine canônico: ${required})`
+      );
+    }
+  }
+
+  const componentNotificationGuard =
+    /toggleCommunityNotifications\s*\([^)]*\)\s*:\s*void\s*\{[\s\S]{0,220}?this\.discoveryMode\s*!==\s*['"]mine['"][\s\S]{0,500}?this\.mineFacade\.toggleNotifications\s*\(/m;
+  if (!componentNotificationGuard.test(discoverySource)) {
+    architectureViolations.push(
+      `${COMMUNITY_DISCOVERY_COMPONENT} (mutação de preferência deve permanecer protegida por discoveryMode mine antes da facade)`
+    );
+  }
 
   const privateServices = [
     {
       serviceName: 'CommunityNotificationUnreadSummaryService',
       expectedLazyGetCount: 1,
+      guardedReadPattern:
+        /unreadSummaryMap\$\s*\([\s\S]{0,180}?enabled[\s\S]{0,260}?enabled\s*\?[\s\S]{0,180}?defer\s*\(\s*\(\)\s*=>[\s\S]{0,240}?this\.injector\.get\s*\(\s*CommunityNotificationUnreadSummaryService\s*\)/m,
     },
     {
       serviceName: 'CommunityNotificationPreferenceService',
       expectedLazyGetCount: 2,
-      guardedCommandPattern: /toggleCommunityNotifications\s*\([^)]*\)\s*:\s*void\s*\{[\s\S]{0,350}?this\.discoveryMode\s*!==\s*['"]mine['"][\s\S]{0,700}?this\.injector\.get\s*\(\s*CommunityNotificationPreferenceService\s*\)/m,
+      guardedReadPattern:
+        /mutedCommunityIds\$\s*\([\s\S]{0,180}?enabled[\s\S]{0,260}?enabled\s*\?[\s\S]{0,180}?defer\s*\(\s*\(\)\s*=>[\s\S]{0,240}?this\.injector\.get\s*\(\s*CommunityNotificationPreferenceService\s*\)/m,
+      guardedCommandPattern:
+        /toggleNotifications\s*\([^)]*enabled\s*:\s*boolean[^)]*\)\s*:\s*void\s*\{[\s\S]{0,220}?if\s*\(\s*!enabled[\s\S]{0,600}?this\.injector\.get\s*\(\s*CommunityNotificationPreferenceService\s*\)/m,
     },
   ];
 
   for (const {
     serviceName,
     expectedLazyGetCount,
+    guardedReadPattern,
     guardedCommandPattern,
   } of privateServices) {
     const eagerInjectPattern = new RegExp(
-      String.raw`\binject\s*\(\s*${serviceName}\s*\)`,
+      String.raw`\\binject\\s*\\(\\s*${serviceName}\\s*\\)`,
       'm'
     );
     const constructorInjectionPattern = new RegExp(
-      String.raw`\bconstructor\s*\([^)]*\b(?:private|protected|public)?\s*(?:readonly\s+)?[A-Za-z_$][\w$]*\s*:\s*${serviceName}\b`,
+      String.raw`\\bconstructor\\s*\\([^)]*\\b(?:private|protected|public)?\\s*(?:readonly\\s+)?[A-Za-z_$][\\w$]*\\s*:\\s*${serviceName}\\b`,
       'ms'
     );
     const lazyGetPattern = new RegExp(
-      String.raw`\bthis\.injector\.get\s*\(\s*${serviceName}\s*\)`,
+      String.raw`\\bthis\\.injector\\.get\\s*\\(\\s*${serviceName}\\s*\\)`,
       'gm'
     );
-    const mineGuardedLazyPattern = new RegExp(
-      String.raw`this\.discoveryMode\s*===\s*['"]mine['"][\s\S]{0,500}?defer\s*\(\s*\(\)\s*=>[\s\S]{0,300}?this\.injector\.get\s*\(\s*${serviceName}\s*\)`,
-      'm'
+
+    for (const [relativePath, source] of [
+      [COMMUNITY_DISCOVERY_COMPONENT, discoverySource],
+      [COMMUNITY_DISCOVERY_MINE_FACADE, discoveryMineFacadeSource],
+    ]) {
+      if (eagerInjectPattern.test(source)) {
+        architectureViolations.push(
+          `${relativePath} (${serviceName} não pode usar inject() eager em Explore/Locais)`
+        );
+      }
+      if (constructorInjectionPattern.test(source)) {
+        architectureViolations.push(
+          `${relativePath} (${serviceName} não pode ser dependência de constructor eager)`
+        );
+      }
+    }
+
+    const lazyGetCount = countMatches(
+      discoveryMineFacadeSource,
+      lazyGetPattern
     );
-
-    if (eagerInjectPattern.test(discoverySource)) {
-      architectureViolations.push(
-        `${COMMUNITY_DISCOVERY_COMPONENT} `
-          + `(${serviceName} não pode usar inject() eager em Explore/Locais)`
-      );
-    }
-
-    if (constructorInjectionPattern.test(discoverySource)) {
-      architectureViolations.push(
-        `${COMMUNITY_DISCOVERY_COMPONENT} `
-          + `(${serviceName} não pode ser dependência de constructor eager)`
-      );
-    }
-
-    const lazyGetCount = countMatches(discoverySource, lazyGetPattern);
     if (lazyGetCount !== expectedLazyGetCount) {
       architectureViolations.push(
-        `${COMMUNITY_DISCOVERY_COMPONENT} `
-          + `(${serviceName} deve possuir ${expectedLazyGetCount} resolução(ões) lazy canônica(s); encontrado ${lazyGetCount})`
+        `${COMMUNITY_DISCOVERY_MINE_FACADE} (${serviceName} deve possuir ${expectedLazyGetCount} resolução(ões) lazy canônica(s); encontrado ${lazyGetCount})`
       );
     }
 
-    if (!mineGuardedLazyPattern.test(discoverySource)) {
+    if (!guardedReadPattern.test(discoveryMineFacadeSource)) {
       architectureViolations.push(
-        `${COMMUNITY_DISCOVERY_COMPONENT} `
-          + `(${serviceName} deve alimentar o read model via defer + Injector.get somente em mine)`
+        `${COMMUNITY_DISCOVERY_MINE_FACADE} (${serviceName} deve alimentar o read model via defer + Injector.get somente quando mine estiver habilitado)`
       );
     }
 
     if (
       guardedCommandPattern
-      && !guardedCommandPattern.test(discoverySource)
+      && !guardedCommandPattern.test(discoveryMineFacadeSource)
     ) {
       architectureViolations.push(
-        `${COMMUNITY_DISCOVERY_COMPONENT} `
-          + `(${serviceName} deve manter a mutação de preferência protegida por discoveryMode mine)`
+        `${COMMUNITY_DISCOVERY_MINE_FACADE} (${serviceName} deve manter a mutação protegida por enabled antes de Injector.get)`
       );
     }
   }
@@ -693,6 +759,10 @@ function validateCommunityRankingV3Boundary(architectureViolations) {
   );
   const discoveryComponentSource = readRequiredSource(
     COMMUNITY_DISCOVERY_COMPONENT,
+    architectureViolations
+  );
+  const discoverySponsoredFacadeSource = readRequiredSource(
+    COMMUNITY_DISCOVERY_SPONSORED_FACADE,
     architectureViolations
   );
 
@@ -872,20 +942,46 @@ function validateCommunityRankingV3Boundary(architectureViolations) {
 
   if (discoveryComponentSource) {
     for (const required of [
+      'CommunityDiscoverySponsoredFacade',
       'sponsoredPlacementAfter',
-      'loadSponsoredPlacement',
-      '.get(CommunityBoostRepository)',
+      'recordSponsoredQualifiedExposure',
+      'recordSponsoredClick',
     ]) {
       if (!discoveryComponentSource.includes(required)) {
         architectureViolations.push(
-          `${COMMUNITY_DISCOVERY_COMPONENT} (integração patrocinada visual/lazy incompleta: ${required})`
+          `${COMMUNITY_DISCOVERY_COMPONENT} (view adapter patrocinado incompleto: ${required})`
         );
       }
     }
 
-    if (discoveryComponentSource.includes('inject(CommunityBoostRepository)')) {
+    if (discoveryComponentSource.includes('CommunityBoostRepository')) {
       architectureViolations.push(
-        `${COMMUNITY_DISCOVERY_COMPONENT} (Boost deve permanecer lazy e fora da dependência eager de Explore)`
+        `${COMMUNITY_DISCOVERY_COMPONENT} (Boost repository não pode voltar para o view adapter)`
+      );
+    }
+  }
+
+  if (discoverySponsoredFacadeSource) {
+    for (const required of [
+      'this.injector.get(CommunityBoostRepository)',
+      'loadForPage(',
+      'recordQualifiedExposure(',
+      'recordClick(',
+    ]) {
+      if (!discoverySponsoredFacadeSource.includes(required)) {
+        architectureViolations.push(
+          `${COMMUNITY_DISCOVERY_SPONSORED_FACADE} (integração patrocinada lazy incompleta: ${required})`
+        );
+      }
+    }
+
+    if (
+      discoverySponsoredFacadeSource.includes(
+        'inject(CommunityBoostRepository)'
+      )
+    ) {
+      architectureViolations.push(
+        `${COMMUNITY_DISCOVERY_SPONSORED_FACADE} (Boost deve permanecer lazy via Injector.get)`
       );
     }
   }
