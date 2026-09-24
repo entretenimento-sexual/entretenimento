@@ -51,14 +51,14 @@ export function buildCommunityCapacityRegularization(input: {
   readonly rawExisting: unknown;
   readonly capacity: Readonly<CommunityCapacityState>;
   readonly ownerUid: string;
+  readonly reasonOverride?: Exclude<CommunityCapacityRegularizationReason, null>;
   readonly now?: number;
 }): Readonly<CommunityCapacityRegularization> | null {
-  if (
-    !input.capacity.regularizationRequired
-    || input.capacity.regularizationReason === null
-  ) {
+  const reason = input.reasonOverride ?? input.capacity.regularizationReason;
+  if (!input.capacity.regularizationRequired && reason === null) {
     return null;
   }
+  if (reason === null) return null;
 
   const now = Number.isFinite(input.now)
     ? Math.trunc(input.now as number)
@@ -66,7 +66,7 @@ export function buildCommunityCapacityRegularization(input: {
   const existing = record(input.rawExisting);
   const sameCycle =
     existing['state'] === 'capacity_regularization'
-    && existing['reason'] === input.capacity.regularizationReason
+    && existing['reason'] === reason
     && existing['ownerUid'] === input.ownerUid;
   const startedAt = sameCycle
     ? finitePositiveTimestamp(existing['startedAt']) ?? now
@@ -76,7 +76,7 @@ export function buildCommunityCapacityRegularization(input: {
   return Object.freeze({
     state: 'capacity_regularization' as const,
     phase: now >= dueAt ? 'overdue' as const : 'grace_period' as const,
-    reason: input.capacity.regularizationReason,
+    reason,
     ownerUid: input.ownerUid,
     configuredLimit: input.capacity.configuredLimit,
     effectiveLimit: input.capacity.effectiveLimit,
