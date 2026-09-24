@@ -7,6 +7,7 @@
 // -----------------------------------------------------------------------------
 
 import type { CommunityPreviewCard } from '../data-access/community-preview.model';
+import { getCommunitySocialSpaceAdapter } from './community-social-space.adapter';
 
 export interface CommunityOfficialPresentation {
   readonly label: string;
@@ -23,7 +24,9 @@ export function resolveCommunityOfficialPresentation(
 
   if (target.type === 'venue') {
     if (
-      community.source.type === 'venue'
+      getCommunitySocialSpaceAdapter(
+        community.source.type
+      ).officialEntityTargetType === 'venue'
       && community.source.id === target.id
     ) {
       return {
