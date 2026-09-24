@@ -18,7 +18,7 @@ import type { DiscoveryPreferenceRejectionReason } from 'src/app/core/utils/disc
 import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { UserPresenceQueryService } from 'src/app/core/services/data-handling/queries/user-presence.query.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { GeolocationTrackingService } from 'src/app/core/services/geolocation/geolocation-tracking.service';
 import * as DiscoveryActions from 'src/app/store/actions/actions.discovery/discovery-feed.actions';
 import { selectDiscoveryFeedSlice } from 'src/app/store/selectors/selectors.discovery/discovery-feed.selectors';
@@ -103,7 +103,7 @@ export class DiscoveryPublicProfilesFacade {
   private readonly visibleLocationRepository = inject(
     DiscoveryVisibleProfileLocationRepository
   );
-  private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
 
   /**
    * O cache contém apenas perfis públicos brutos. As preferências do viewer são
@@ -400,13 +400,15 @@ export class DiscoveryPublicProfilesFacade {
           .filter((entry): entry is readonly [string, IUserDados] => !!entry[0])
       )),
       catchError((error: unknown) => {
-        const normalized = error instanceof Error
-          ? error
-          : new Error('Falha ao enriquecer presença da descoberta.');
-        (normalized as Error & { skipUserNotification?: boolean }).skipUserNotification = true;
-        (normalized as Error & { context?: string }).context =
-          'DiscoveryPublicProfilesFacade.getOnlinePresenceByUid$';
-        this.globalErrorHandler.handleError(normalized);
+        this.applicationError.report(error, {
+          feature: 'profile-discovery',
+          operation: 'getOnlinePresenceByUid',
+          fallbackMessage: 'Não foi possível atualizar a presença dos perfis agora.',
+          notification: 'none',
+          metadata: {
+            scope: 'DiscoveryPublicProfilesFacade',
+          },
+        });
         return of(new Map<string, IUserDados>());
       })
     );

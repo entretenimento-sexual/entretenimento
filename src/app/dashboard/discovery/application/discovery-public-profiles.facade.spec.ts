@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { UserPresenceQueryService } from 'src/app/core/services/data-handling/queries/user-presence.query.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { GeolocationTrackingService } from 'src/app/core/services/geolocation/geolocation-tracking.service';
 import { emptyDiscoveryFeedSlice } from 'src/app/store/states/states.discovery/discovery-feed.state';
 
@@ -106,8 +106,8 @@ describe('DiscoveryPublicProfilesFacade', () => {
           useValue: visibleLocationRepositoryMock,
         },
         {
-          provide: GlobalErrorHandlerService,
-          useValue: { handleError: vi.fn() },
+          provide: ApplicationErrorService,
+          useValue: { report: vi.fn() },
         },
       ],
     });

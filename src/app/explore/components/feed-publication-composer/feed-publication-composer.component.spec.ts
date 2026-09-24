@@ -3,7 +3,7 @@ import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { PhotoEditorLauncherService } from 'src/app/core/services/image-handling/photo-editor-launcher.service';
 import { PhotoUploadFlowService } from 'src/app/core/services/image-handling/photo-upload-flow.service';
 import { resolveImageMaxBytes } from 'src/app/core/services/media/media-format.policy';
@@ -18,7 +18,7 @@ describe('FeedPublicationComposerComponent', () => {
   let publishMock: ReturnType<typeof vi.fn>;
   let showWarningMock: ReturnType<typeof vi.fn>;
   let showErrorMock: ReturnType<typeof vi.fn>;
-  let globalErrorMock: ReturnType<typeof vi.fn>;
+  let applicationErrorReportMock: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     editFileMock = vi.fn();
@@ -26,7 +26,7 @@ describe('FeedPublicationComposerComponent', () => {
     publishMock = vi.fn(() => of(void 0));
     showWarningMock = vi.fn();
     showErrorMock = vi.fn();
-    globalErrorMock = vi.fn();
+    applicationErrorReportMock = vi.fn();
 
     Object.defineProperty(URL, 'createObjectURL', {
       configurable: true,
@@ -63,8 +63,8 @@ describe('FeedPublicationComposerComponent', () => {
           },
         },
         {
-          provide: GlobalErrorHandlerService,
-          useValue: { handleError: globalErrorMock },
+          provide: ApplicationErrorService,
+          useValue: { report: applicationErrorReportMock },
         },
       ],
     }).compileComponents();
@@ -144,10 +144,20 @@ describe('FeedPublicationComposerComponent', () => {
 
     component.onFileSelected(fileEvent(source));
 
-    expect(showErrorMock).toHaveBeenCalledWith(
-      'Não foi possível abrir o editor para esta foto.'
+    expect(showErrorMock).not.toHaveBeenCalled();
+    expect(applicationErrorReportMock).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        feature: 'explore-publication',
+        operation: 'editImage',
+        fallbackMessage: 'Não foi possível abrir o editor para esta foto.',
+        metadata: expect.objectContaining({
+          scope: 'FeedPublicationComposerComponent',
+          mimeType: 'image/jpeg',
+          size: source.size,
+        }),
+      })
     );
-    expect(globalErrorMock).toHaveBeenCalledTimes(1);
     expect(component.selectedFile()).toBeNull();
     expect(component.editingPhoto()).toBe(false);
   });

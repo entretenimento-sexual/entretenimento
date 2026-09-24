@@ -6,7 +6,7 @@ import { combineLatest, finalize, Subject, takeUntil } from 'rxjs';
 import { IUserSocialLinks } from 'src/app/core/interfaces/interfaces-user-dados/iuser-social-links';
 import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { PlatformSubscriptionAccessService } from 'src/app/core/services/subscriptions/platform-subscription-access.service';
 import { UserSocialLinksService } from 'src/app/core/services/user-profile/user-social-links.service';
 
@@ -59,7 +59,7 @@ export class EditProfileSocialLinksComponent implements OnInit, OnDestroy {
     private readonly accessControl: AccessControlService,
     private readonly subscriptionAccess: PlatformSubscriptionAccessService,
     private readonly userSocialLinksService: UserSocialLinksService,
-    private readonly globalError: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly notification: ErrorNotificationService
   ) {}
 
@@ -136,10 +136,15 @@ export class EditProfileSocialLinksComponent implements OnInit, OnDestroy {
           this.notification.showSuccess('Redes sociais publicadas.');
           this.router.navigate(['/perfil', this.uid]).catch(() => undefined);
         },
-        error: () => {
-          this.notification.showError(
-            'Não foi possível publicar suas redes sociais.'
-          );
+        error: (error: unknown) => {
+          this.applicationError.report(error, {
+            feature: 'profile-social-links',
+            operation: 'saveSocialLinks',
+            fallbackMessage: 'Não foi possível publicar suas redes sociais.',
+            metadata: {
+              scope: 'EditProfileSocialLinksComponent',
+            },
+          });
         },
       });
   }
@@ -168,8 +173,16 @@ export class EditProfileSocialLinksComponent implements OnInit, OnDestroy {
           this.socialLinks = next;
           this.notification.showSuccess('Link removido.');
         },
-        error: () => {
-          this.notification.showError('Não foi possível remover este link.');
+        error: (error: unknown) => {
+          this.applicationError.report(error, {
+            feature: 'profile-social-links',
+            operation: 'removeSocialLink',
+            fallbackMessage: 'Não foi possível remover este link.',
+            metadata: {
+              scope: 'EditProfileSocialLinksComponent',
+              key,
+            },
+          });
         },
       });
   }
@@ -195,21 +208,16 @@ export class EditProfileSocialLinksComponent implements OnInit, OnDestroy {
 
   private reportError(
     message: string,
-    context: Record<string, unknown>
+    context: Readonly<Record<string, unknown>>
   ): void {
-    const error = new Error(message);
-    (error as any).context = {
-      scope: 'EditProfileSocialLinksComponent',
-      ...context,
-    };
-    (error as any).skipUserNotification = true;
-
-    try {
-      this.globalError.handleError(error);
-    } catch {
-      // noop
-    }
-
-    this.notification.showError(message);
+    this.applicationError.report(new Error(message), {
+      feature: 'profile-social-links',
+      operation: String(context['op'] ?? 'unknown'),
+      fallbackMessage: message,
+      metadata: {
+        scope: 'EditProfileSocialLinksComponent',
+        ...context,
+      },
+    });
   }
 }

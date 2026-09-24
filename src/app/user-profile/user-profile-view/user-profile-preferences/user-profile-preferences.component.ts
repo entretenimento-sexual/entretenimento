@@ -26,7 +26,7 @@ import { IUserPreferenceProfile } from '@core/interfaces/preferences/user-prefer
 
 import { UserPreferencesService } from 'src/app/core/services/preferences/user-preferences.service';
 import { UserPreferenceProfileService } from 'src/app/core/services/preferences/user-preference-profile.service';
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 
 import { mapeamentoCategorias } from 'src/app/core/interfaces/icategoria-mapeamento';
 import {
@@ -65,7 +65,7 @@ export class UserProfilePreferencesComponent implements OnInit {
   constructor(
     private readonly preferenceProfileService: UserPreferenceProfileService,
     private readonly userPreferencesService: UserPreferencesService,
-    private readonly errorNotifier: ErrorNotificationService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly cdr: ChangeDetectorRef,
     private readonly router: Router,
   ) {}
@@ -81,15 +81,33 @@ export class UserProfilePreferencesComponent implements OnInit {
     }
 
     const profileV2$ = this.preferenceProfileService.getPreferenceProfile$(userId).pipe(
-      catchError((error) => {
-        this.dbg('erro ao ler V2', error);
+      catchError((error: unknown) => {
+        this.applicationError.report(error, {
+          feature: 'profile-preferences',
+          operation: 'loadPreferenceProfile',
+          fallbackMessage: 'Não foi possível atualizar parte das preferências agora.',
+          notification: 'none',
+          metadata: {
+            scope: 'UserProfilePreferencesComponent',
+            source: 'v2',
+          },
+        });
         return of(null as IUserPreferenceProfile | null);
       })
     );
 
     const legacy$ = this.userPreferencesService.getUserPreferences$(userId).pipe(
-      catchError((error) => {
-        this.dbg('erro ao ler legado', error);
+      catchError((error: unknown) => {
+        this.applicationError.report(error, {
+          feature: 'profile-preferences',
+          operation: 'loadLegacyPreferences',
+          fallbackMessage: 'Não foi possível atualizar parte das preferências agora.',
+          notification: 'none',
+          metadata: {
+            scope: 'UserProfilePreferencesComponent',
+            source: 'legacy',
+          },
+        });
         return of(null as IUserPreferences | null);
       })
     );
@@ -119,9 +137,15 @@ export class UserProfilePreferencesComponent implements OnInit {
         this.agruparPreferencias(preferences);
         this.cdr.detectChanges();
       }),
-      catchError((error) => {
-        this.dbg('erro final no viewer', error);
-        this.errorNotifier.showError('Não foi possível carregar as preferências.');
+      catchError((error: unknown) => {
+        this.applicationError.report(error, {
+          feature: 'profile-preferences',
+          operation: 'composePreferenceViewer',
+          fallbackMessage: 'Não foi possível carregar as preferências.',
+          metadata: {
+            scope: 'UserProfilePreferencesComponent',
+          },
+        });
         this.resetCategorias();
         this.cdr.detectChanges();
         return of(null);

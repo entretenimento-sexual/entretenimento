@@ -7,7 +7,7 @@ import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-i
 import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
 import { UserDiscoveryQueryService } from 'src/app/core/services/data-handling/queries/user-discovery.query.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { PublicMediaOwnerPageQueryService } from 'src/app/core/services/media/public-media-owner-page-query.service';
 import { CompatibleProfileCandidatesService } from 'src/app/dashboard/discovery/application/compatible-profile-candidates.service';
 import * as FriendsPageActions from 'src/app/store/actions/actions.interactions/friends/friends-pagination.actions';
@@ -139,7 +139,7 @@ describe('ExplorePersonalMediaService', () => {
     }),
     loadMore$: vi.fn(() => of(false)),
   };
-  const globalErrorMock = { handleError: vi.fn() };
+  const globalErrorMock = { report: vi.fn() };
   const notificationMock = { showWarning: vi.fn() };
 
   let store: MockStore;
@@ -189,7 +189,7 @@ describe('ExplorePersonalMediaService', () => {
           useValue: notificationMock,
         },
         {
-          provide: GlobalErrorHandlerService,
+          provide: ApplicationErrorService,
           useValue: globalErrorMock,
         },
       ],

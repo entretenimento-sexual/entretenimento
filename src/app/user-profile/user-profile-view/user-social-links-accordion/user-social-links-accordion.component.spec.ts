@@ -11,7 +11,7 @@ import { AccessControlService } from '../../../core/services/autentication/auth/
 import { AuthSessionService } from '../../../core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from '../../../core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from '../../../core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '../../../core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '../../../core/services/error-handler/application-error.service';
 import { UserSocialLinksService } from '../../../core/services/user-profile/user-social-links.service';
 
 class MockUserSocialLinksService {
@@ -51,8 +51,8 @@ class MockErrorNotificationService {
   showWarning = vi.fn();
 }
 
-class MockGlobalErrorHandlerService {
-  handleError = vi.fn();
+class MockApplicationErrorService {
+  report = vi.fn();
 }
 
 describe('SocialLinksAccordionComponent', () => {
@@ -77,7 +77,7 @@ describe('SocialLinksAccordionComponent', () => {
         { provide: AuthSessionService, useClass: MockAuthSessionService },
         { provide: AccessControlService, useClass: MockAccessControlService },
         { provide: ErrorNotificationService, useClass: MockErrorNotificationService },
-        { provide: GlobalErrorHandlerService, useClass: MockGlobalErrorHandlerService },
+        { provide: ApplicationErrorService, useClass: MockApplicationErrorService },
       ],
     }).compileComponents();
 

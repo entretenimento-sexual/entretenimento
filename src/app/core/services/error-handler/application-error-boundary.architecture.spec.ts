@@ -66,12 +66,8 @@ const LEGACY_MANUAL_COMPOSITION_BASELINE = new Set<string>([
   'core/services/user-profile/user-profile.service.ts',
   'core/services/user-profile/user-social-links.service.ts',
   'dashboard/online/online-users/online-users.component.ts',
-  'explore/components/feed-publication-composer/feed-publication-composer.component.ts',
-  'explore/pages/social-explore-page/social-explore-page.component.ts',
-  'explore/services/explore-personal-media.service.ts',
   'layout/friend-management/friend-search/friend-search.component.ts',
   'layout/friend-management/friend-settings/friend-settings.component.ts',
-  'layout/other-user-profile-view/other-user-profile-view.component.ts',
   'layout/perfis-proximos/perfis-proximos.component.ts',
   'media/photos/boosted-public-photos/boosted-public-photos.component.ts',
   'media/photos/latest-public-photos/latest-public-photos.component.ts',
@@ -93,12 +89,6 @@ const LEGACY_MANUAL_COMPOSITION_BASELINE = new Set<string>([
   'shared/components-globais/upload-photo/upload-photo.component.ts',
   'store/effects/effects.location/nearby-profiles.effects.ts',
   'store/effects/effects.user/online-users-effect-feedback.service.ts',
-  'user-profile/user-photo-manager/user-photo-manager.component.ts',
-  'user-profile/user-profile-edit/edit-preferences/edit-profile-preferences.component.ts',
-  'user-profile/user-profile-edit/edit-profile-social-links/edit-profile-social-links.component.ts',
-  'user-profile/user-profile-edit/edit-user-profile/edit-user-profile.component.ts',
-  'user-profile/user-profile-view/user-profile-view.component.ts',
-  'user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component.ts',
 ]);
 
 const ERROR_NOTIFICATION_IMPORT =
@@ -192,6 +182,6 @@ describe('Application error ownership boundary', () => {
   });
 
   it('mantém explícito o tamanho atual da dívida fora de Comunidades', () => {
-    expect(LEGACY_MANUAL_COMPOSITION_BASELINE.size).toBe(67);
+    expect(LEGACY_MANUAL_COMPOSITION_BASELINE.size).toBe(57);
   });
 });

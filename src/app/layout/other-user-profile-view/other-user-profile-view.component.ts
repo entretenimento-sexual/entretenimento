@@ -46,7 +46,7 @@ import { AuthSessionService } from 'src/app/core/services/autentication/auth/aut
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { DirectChatService } from 'src/app/messaging/direct-chat/services/direct-chat.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import { ProfileMediaShowcaseComponent } from 'src/app/media/shared/components/profile-media-showcase/profile-media-showcase.component';
@@ -102,7 +102,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     private readonly friendshipService: FriendshipService,
     private readonly directChatService: DirectChatService,
     private readonly cdr: ChangeDetectorRef,
-    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly errorNotification: ErrorNotificationService
   ) {
     this.friendshipInteractionState$ = this.buildFriendshipInteractionStateStream();
@@ -537,34 +537,18 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
 
   private reportError(
     message: string,
-    extra?: Record<string, unknown>,
+    extra?: Readonly<Record<string, unknown>>,
     cause?: unknown
   ): void {
-    const err = new Error(message);
-
-    (err as any).context = {
-      scope: 'OtherUserProfileViewComponent',
-      hasUid: !!this.uid,
-      ...(extra ?? {}),
-    };
-
-    if (cause !== undefined) {
-      (err as any).cause = cause;
-      (err as any).original = cause;
-    }
-
-    (err as any).skipUserNotification = true;
-
-    try {
-      this.globalErrorHandler.handleError(err);
-    } catch {
-      // noop
-    }
-
-    try {
-      this.errorNotification.showError(message);
-    } catch {
-      // noop
-    }
+    this.applicationError.report(cause ?? new Error(message), {
+      feature: 'profile-view',
+      operation: String(extra?.['op'] ?? 'unknown'),
+      fallbackMessage: message,
+      metadata: {
+        scope: 'OtherUserProfileViewComponent',
+        hasUid: !!this.uid,
+        ...(extra ?? {}),
+      },
+    });
   }
 }
