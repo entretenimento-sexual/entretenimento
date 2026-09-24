@@ -31,9 +31,28 @@ export interface ErrorTestingProviderMocks {
 }
 
 export function createApplicationErrorTestingMock(): ApplicationErrorTestingMock {
+  const descriptor = (
+    options?: { fallbackMessage?: string }
+  ) => ({
+    code: null,
+    reason: null,
+    recommendedAction: null,
+    userMessage:
+      options?.fallbackMessage ?? 'Não foi possível concluir a ação agora.',
+    retryable: false,
+    presentation: {
+      surface: 'snackbar',
+      severity: 'error',
+    },
+  });
+
   return {
-    normalize: vi.fn(),
-    report: vi.fn(),
+    normalize: vi.fn((_error: unknown, options?: { fallbackMessage?: string }) =>
+      descriptor(options)
+    ),
+    report: vi.fn((_error: unknown, options?: { fallbackMessage?: string }) =>
+      descriptor(options)
+    ),
   };
 }
 
