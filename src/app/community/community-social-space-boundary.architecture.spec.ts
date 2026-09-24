@@ -104,21 +104,28 @@ describe('Community × Local social-space boundary', () => {
       /sourceType\s*!==\s*['"](?:community|venue)['"]/u,
     ] as const;
 
+    const violations: string[] = [];
+
     for (const file of productionComponentFiles(COMMUNITY_ROOT)) {
       const source = readFileSync(file, 'utf8');
       const displayPath = relative(process.cwd(), file);
 
-      for (const pattern of forbidden) {
-        expect(
-          pattern.test(source),
-          `${displayPath} voltou a decidir produto por discriminante literal; use social-space adapter/capabilities`
-        ).toBe(false);
+      if (forbidden.some((pattern) => pattern.test(source))) {
+        violations.push(
+          `${displayPath} decide produto por discriminante literal`
+        );
       }
 
-      expect(
-        source.includes('official_space'),
-        `${displayPath} vazou alias legado official_space para UI`
-      ).toBe(false);
+      if (source.includes('official_space')) {
+        violations.push(
+          `${displayPath} vazou alias legado official_space para UI`
+        );
+      }
     }
+
+    expect(
+      violations,
+      'Components devem consumir social-space adapter/capabilities'
+    ).toEqual([]);
   });
 });
