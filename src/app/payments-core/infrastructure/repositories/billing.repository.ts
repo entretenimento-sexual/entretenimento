@@ -36,6 +36,7 @@ import {
   CancelPlatformSubscriptionRenewalResult,
   ProcessBillingReturnInput,
   ProcessBillingReturnResult,
+  SchedulePlatformSubscriptionDowngradeResult,
 } from '../../domain/models/billing-return.model';
 import {
   CreateCheckoutResult,
@@ -118,6 +119,18 @@ export class BillingRepository {
     Record<string, never>,
     BillingSnapshotResult | null
   >(this.functions, 'getMyBillingSnapshot');
+
+  private readonly schedulePlatformSubscriptionDowngradeCallable = httpsCallable<
+    {
+      planId: string;
+      planKey: string;
+      expectedAmountCents: number;
+      expectedCurrency: string;
+      expectedInterval: string;
+      expectedCatalogVersion: number;
+    },
+    SchedulePlatformSubscriptionDowngradeResult
+  >(this.functions, 'schedulePlatformSubscriptionDowngrade');
 
   private readonly cancelPlatformSubscriptionRenewalCallable = httpsCallable<
     Record<string, never>,
@@ -208,6 +221,24 @@ export class BillingRepository {
       this.getMyBillingSnapshotCallable({})
     ).pipe(
       map((result) => result.data ?? null)
+    );
+  }
+
+
+  schedulePlatformSubscriptionDowngrade$(
+    plan: BillingPlan
+  ): Observable<SchedulePlatformSubscriptionDowngradeResult> {
+    return from(
+      this.schedulePlatformSubscriptionDowngradeCallable({
+        planId: plan.id,
+        planKey: String(plan.key),
+        expectedAmountCents: plan.amountCents,
+        expectedCurrency: plan.currency,
+        expectedInterval: plan.interval,
+        expectedCatalogVersion: plan.catalogVersion,
+      })
+    ).pipe(
+      map((result) => result.data)
     );
   }
 
