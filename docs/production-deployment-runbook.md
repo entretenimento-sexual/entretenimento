@@ -206,7 +206,9 @@ Implantar antes dos backfills que dependem deles:
 - `syncCommunityRankingFromDiscovery`;
 - `syncCommunityUserIndex`;
 - `syncVenuePublicLocation`;
-- `syncCommunityCapacityRegularization`.
+- `syncCommunityCapacityRegularization`;
+- `syncCommunityMemberManagementIndex`;
+- `syncCommunityMemberManagementIndexFromUser`.
 
 Os aliases com sufixo `Trigger` existem deliberadamente porque produção pode
 conter Functions HTTPS legadas sob o nome antigo. **Não apagar os exports legados
@@ -227,7 +229,8 @@ incluindo, conforme o diff:
 - comentários/respostas/reactions/moderação;
 - Discussões/Tópicos;
 - membership, convites e roster;
-- ownership/arquivamento;
+- busca/filtros administrativos de membros;
+- ownership/arquivamento e busca/shortlist de sucessão;
 - associação Official;
 - notificações/preferências;
 - gestão e leitura de Communities/Profiles.
@@ -359,6 +362,29 @@ Não é parte do rollout normal. É uma operação destrutiva separada, ainda qu
 limitada ao campo legado. Só pode ocorrer após novo dry-run e GO específico.
 Execução real exige `LEGACY_AGE_CLEANUP_CONFIRM=true`.
 
+### B8 — índice administrativo de membros/sucessão
+
+Somente quando a release contiver busca server-side de membros e sucessores:
+
+1. publicar os índices de `community_member_management_index` em T0 e
+   aguardar todos ficarem `READY`;
+2. implantar `syncCommunityMemberManagementIndex` e
+   `syncCommunityMemberManagementIndexFromUser` na F2;
+3. rodar `npm run maintenance:community-member-management-index` com
+   `COMMUNITY_MEMBER_MANAGEMENT_INDEX_DRY_RUN=true`;
+4. revisar `scannedCommunities`, `scannedMemberships`, `projected`,
+   `skipped`, `failures` e qualquer truncamento;
+5. escrita real exige simultaneamente:
+   - `COMMUNITY_MEMBER_MANAGEMENT_INDEX_DRY_RUN=false`;
+   - `COMMUNITY_MEMBER_MANAGEMENT_INDEX_CONFIRM=true`;
+6. somente depois do backfill verde implantar em F3 as versões consumidoras de
+   `getCommunityMembersForManagement` e
+   `getCommunityOwnershipCandidatesPage`;
+7. Hosting com busca/filtros permanece depois de F3 e Rules.
+
+A projeção é derivada e descartável. O backfill **não** altera membership,
+papel, elegibilidade, ownership, capacidade ou billing.
+
 ## 8. Firestore Rules e Storage Rules
 
 Depois das Functions/backfills e antes do Hosting:
@@ -442,6 +468,14 @@ real nem operações destrutivas apenas para smoke test.
 - Discussões: lista, detalhe, resposta e moderação;
 - membership, solicitações e convites;
 - roster e gestão;
+- em Comunidade sintética com 500+ membros, busca por nome/apelido sem scan
+  client-side, filtro por papel, combinação busca+papel e paginação sem
+  duplicação/omissão;
+- bloqueados preservam filtro pelo papel anterior quando disponível;
+- ownership abre shortlist de admins/moderadores, permite ampliar para todos os
+  elegíveis e pesquisar no servidor;
+- candidato que perde papel/elegibilidade entre listagem e confirmação é
+  recusado pela revalidação canônica;
 - ownership/transfer/archive sem transferência automática indevida;
 - Official/Business respeitando autoridade e entitlement;
 - capacidade/regularização;
@@ -539,6 +573,12 @@ forward. Não importar Firestore completo para “desfazer” um backfill sem an
 de impacto, pois isso pode sobrescrever escritas legítimas feitas depois do
 snapshot.
 
+Para o índice `community_member_management_index`, rollback de F3/Hosting não
+exige apagar a projeção: ela não concede autorização e pode permanecer inerte.
+Se um sincronizador de F2 produzir writes anômalos, reverter somente a Function
+afetada e interromper o B8. Nunca reconstruir membership, papel ou ownership a
+partir dessa projeção.
+
 Operações destrutivas, como cleanup de campo legado, ficam fora da janela
 principal justamente para manter essa propriedade.
 
@@ -583,7 +623,7 @@ Não iniciar uma nova onda enquanto a anterior não estiver explicitamente verde
 - [ ] diff de Rules classificado e compatível;
 - [ ] Functions a implantar listadas por onda;
 - [ ] aliases de triggers legados preservados;
-- [ ] dry-runs dos backfills revisados;
+- [ ] dry-runs dos backfills revisados, incluindo B8 quando aplicável;
 - [ ] backfills obrigatórios concluídos antes do frontend;
 - [ ] App Check e Web Push validados;
 - [ ] billing recorrente explicitamente incluído ou explicitamente fora da janela;

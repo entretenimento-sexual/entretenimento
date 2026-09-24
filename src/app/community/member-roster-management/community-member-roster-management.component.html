@@ -43,6 +43,54 @@
         </button>
       </div>
 
+      <div class="community-member-roster__filters">
+        <label class="community-member-roster__search">
+          <span class="visually-hidden">Buscar participante</span>
+          <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
+          <input
+            type="search"
+            autocomplete="off"
+            maxlength="40"
+            placeholder="Buscar participante"
+            [value]="searchTerm()"
+            [disabled]="action.status === 'loading'"
+            (input)="updateSearch($event)"
+          />
+          @if (searchTerm()) {
+            <button
+              type="button"
+              aria-label="Limpar busca de participantes"
+              [disabled]="action.status === 'loading'"
+              (click)="clearSearch()"
+            >
+              <i class="fas fa-xmark" aria-hidden="true"></i>
+            </button>
+          }
+        </label>
+
+        <label class="community-member-roster__role-filter">
+          <span>Papel</span>
+          <select
+            [value]="selectedRoleFilter()"
+            [disabled]="action.status === 'loading'"
+            (change)="changeRoleFilter($event)"
+          >
+            <option value="all">Todos</option>
+            <option value="leadership">Admins e moderadores</option>
+            <option value="owner">Proprietário</option>
+            <option value="admin">Administração</option>
+            <option value="moderator">Moderação</option>
+            <option value="member">Membros</option>
+          </select>
+        </label>
+      </div>
+
+      @if (searchTerm().trim().length === 1) {
+        <p class="community-member-roster__search-hint" role="status">
+          Digite pelo menos 2 caracteres para buscar.
+        </p>
+      }
+
       @if (confirmation(); as pendingConfirmation) {
         <div
           class="community-member-roster__confirmation"
@@ -113,8 +161,12 @@
           ></i>
           <span>
             {{ selectedStatus() === 'blocked'
-              ? 'Nenhuma pessoa bloqueada.'
-              : 'Nenhum outro participante ativo.' }}
+              ? (searchTerm().trim().length >= 2
+                  ? 'Nenhuma pessoa bloqueada corresponde à busca.'
+                  : 'Nenhuma pessoa bloqueada.')
+              : (searchTerm().trim().length >= 2
+                  ? 'Nenhum participante ativo corresponde à busca.'
+                  : 'Nenhum outro participante ativo.') }}
           </span>
         </div>
       } @else {

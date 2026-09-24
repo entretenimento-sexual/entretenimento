@@ -110,6 +110,12 @@ export {
   manageCommunityMember,
 } from './community-member-management.handler';
 export {
+  syncCommunityMemberManagementIndex,
+} from './sync-community-member-management-index.trigger';
+export {
+  syncCommunityMemberManagementIndexFromUser,
+} from './sync-community-member-management-index-from-user.trigger';
+export {
   getCommunityMembershipRequests,
   leaveCommunityMembership,
   reviewCommunityMembership,

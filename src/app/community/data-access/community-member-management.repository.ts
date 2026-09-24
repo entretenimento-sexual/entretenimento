@@ -24,6 +24,8 @@ export class CommunityMemberManagementRepository {
     {
       communityId: string;
       status: 'active' | 'blocked';
+      roleFilter: 'all' | 'leadership' | 'owner' | 'admin' | 'moderator' | 'member';
+      query: string | null;
       cursor: string | null;
       limit: number;
     },
@@ -48,6 +50,8 @@ export class CommunityMemberManagementRepository {
         this.getMembersPageCallable({
           communityId: request.communityId.trim(),
           status: request.status,
+          roleFilter: request.roleFilter ?? 'all',
+          query: request.query?.trim() || null,
           cursor: request.cursor?.trim() || null,
           limit: request.limit ?? 20,
         })

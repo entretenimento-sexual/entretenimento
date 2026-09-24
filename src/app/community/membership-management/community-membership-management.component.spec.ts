@@ -230,6 +230,8 @@ describe('CommunityMembershipManagementComponent', () => {
     expect(memberManagementRepositoryMock.getManagedMembersPage$).toHaveBeenCalledWith({
       communityId: 'community-1',
       status: 'active',
+      roleFilter: 'all',
+      query: null,
       cursor: null,
       limit: 20,
     });

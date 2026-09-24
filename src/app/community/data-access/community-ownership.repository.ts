@@ -13,6 +13,7 @@ import { defer, from, map, Observable, tap } from 'rxjs';
 import { CommunityDiscoveryCacheService } from '../discovery/community-discovery-cache.service';
 import {
   CommunityArchiveResponse,
+  CommunityOwnershipCandidatesRequest,
   CommunityOwnershipCandidatesResponse,
   CommunityOwnershipTransferResponse,
   normalizeCommunityArchiveResponse,
@@ -26,7 +27,12 @@ export class CommunityOwnershipRepository {
   private readonly discoveryCache = inject(CommunityDiscoveryCacheService);
 
   private readonly getCandidatesCallable = httpsCallable<
-    { communityId: string; cursor: string | null },
+    {
+      communityId: string;
+      roleFilter: 'all' | 'leadership' | 'admin' | 'moderator' | 'member';
+      query: string | null;
+      cursor: string | null;
+    },
     unknown
   >(this.functions, 'getCommunityOwnershipCandidatesPage');
 
@@ -42,12 +48,15 @@ export class CommunityOwnershipRepository {
 
   getCandidates$(
     communityId: string,
-    cursor: string | null = null
+    cursor: string | null = null,
+    request: CommunityOwnershipCandidatesRequest = {}
   ): Observable<CommunityOwnershipCandidatesResponse> {
     return defer(() =>
       from(
         this.getCandidatesCallable({
           communityId: communityId.trim(),
+          roleFilter: request.roleFilter ?? 'all',
+          query: request.query?.trim() || null,
           cursor: cursor?.trim() || null,
         })
       )

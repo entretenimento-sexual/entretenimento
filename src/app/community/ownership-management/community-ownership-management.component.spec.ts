@@ -101,7 +101,9 @@ describe('CommunityOwnershipManagementComponent', () => {
     await vi.waitFor(() => {
       expect(repositoryMock.getCandidates$).toHaveBeenNthCalledWith(
         1,
-        'community-1'
+        'community-1',
+        null,
+        { roleFilter: 'leadership', query: null }
       );
     });
 
@@ -111,7 +113,8 @@ describe('CommunityOwnershipManagementComponent', () => {
       expect(repositoryMock.getCandidates$).toHaveBeenNthCalledWith(
         2,
         'community-1',
-        'member-050'
+        'member-050',
+        { roleFilter: 'leadership', query: null }
       );
       expect(states.at(-1)?.items.map((item) => item.uid)).toEqual([
         'member-2',
@@ -120,6 +123,43 @@ describe('CommunityOwnershipManagementComponent', () => {
     });
 
     subscription.unsubscribe();
+  });
+
+
+  it('abre sucessão priorizando admins/moderadores e permite ampliar a busca', async () => {
+    const fixture = TestBed.createComponent(CommunityOwnershipManagementComponent);
+    fixture.componentRef.setInput('communityId', 'community-1');
+    fixture.detectChanges();
+
+    await vi.waitFor(() => {
+      expect(repositoryMock.getCandidates$).toHaveBeenCalledWith(
+        'community-1',
+        null,
+        { roleFilter: 'leadership', query: null }
+      );
+    });
+
+    const role = fixture.nativeElement.querySelector(
+      '.community-ownership-management__role-filter select'
+    ) as HTMLSelectElement;
+    role.value = 'all';
+    role.dispatchEvent(new Event('change'));
+
+    const search = fixture.nativeElement.querySelector(
+      '.community-ownership-management__search input'
+    ) as HTMLInputElement;
+    search.value = 'Pessoa';
+    search.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    await new Promise((resolve) => setTimeout(resolve, 280));
+    fixture.detectChanges();
+
+    expect(repositoryMock.getCandidates$).toHaveBeenLastCalledWith(
+      'community-1',
+      null,
+      { roleFilter: 'all', query: 'Pessoa' }
+    );
   });
 
   it('não transfere propriedade quando o diálogo é cancelado', () => {
