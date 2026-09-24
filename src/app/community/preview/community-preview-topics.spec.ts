@@ -12,6 +12,7 @@ import { StorageService } from 'src/app/core/services/image-handling/storage.ser
 import { CommunityFeedRepository } from '../data-access/community-feed.repository';
 import { CommunityMembershipRepository } from '../data-access/community-membership.repository';
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
+import { CommunityTopicRepository } from '../data-access/community-topic.repository';
 import { CommunityHighlightUiService } from '../highlight/community-highlight-ui.service';
 import { CommunityPreviewPageComponent } from './community-preview-page.component';
 
@@ -49,6 +50,14 @@ describe('CommunityPreviewPageComponent / seções principais', () => {
     getItems$: vi.fn(),
     watchLatestChanges$: vi.fn(),
   };
+  const topicRepositoryMock = {
+    getPage$: vi.fn(),
+    getDetail$: vi.fn(),
+    getRepliesPage$: vi.fn(),
+    createTopic$: vi.fn(),
+    createReply$: vi.fn(),
+    moderateTopic$: vi.fn(),
+  };
   const membershipRepositoryMock = {
     requestMembership$: vi.fn(),
     leaveMembership$: vi.fn(),
@@ -71,6 +80,22 @@ describe('CommunityPreviewPageComponent / seções principais', () => {
       of({ items: [], nextCursor: null, generatedAt: now })
     );
     feedRepositoryMock.watchLatestChanges$.mockReturnValue(of([]));
+    topicRepositoryMock.getPage$.mockReturnValue(
+      of({
+        items: [{
+          topicId: 'topic-1',
+          title: 'Convivência e segurança',
+          excerpt: 'Discussão organizada para consulta posterior.',
+          author: { label: 'Pessoa', avatarUrl: null },
+          status: 'active',
+          metrics: { replyCount: 2, reactionCount: 0 },
+          createdAt: now - 10_000,
+          lastActivityAt: now - 1_000,
+        }],
+        nextCursor: null,
+        generatedAt: now,
+      })
+    );
     highlightUiMock.state$.mockReturnValue(of({
       status: 'ready',
       communityId: 'community-1',
@@ -99,6 +124,7 @@ describe('CommunityPreviewPageComponent / seções principais', () => {
         { provide: MatDialog, useValue: { open: vi.fn() } },
         { provide: CommunityPreviewRepository, useValue: previewRepositoryMock },
         { provide: CommunityFeedRepository, useValue: feedRepositoryMock },
+        { provide: CommunityTopicRepository, useValue: topicRepositoryMock },
         { provide: CommunityHighlightUiService, useValue: highlightUiMock },
         { provide: CommunityMembershipRepository, useValue: membershipRepositoryMock },
         { provide: StorageService, useValue: { uploadFile: vi.fn() } },
@@ -124,7 +150,7 @@ describe('CommunityPreviewPageComponent / seções principais', () => {
     });
   });
 
-  it('mantém Mural, Fotos e Sobre e converte link legado de tópicos para Mural', () => {
+  it('expõe Discussões como seção canônica complementar ao Mural', () => {
     const fixture = TestBed.createComponent(CommunityPreviewPageComponent);
     fixture.detectChanges();
     fixture.detectChanges();
@@ -133,17 +159,21 @@ describe('CommunityPreviewPageComponent / seções principais', () => {
       '.community-preview__tabs button'
     ) as NodeListOf<HTMLButtonElement>;
 
-    expect(fixture.componentInstance.activeSection()).toBe('feed');
-    expect(tabs).toHaveLength(4);
+    expect(fixture.componentInstance.activeSection()).toBe('topics');
+    expect(tabs).toHaveLength(5);
     expect(fixture.nativeElement.textContent).toContain('Membros');
     expect(fixture.nativeElement.textContent).toContain('Mural');
+    expect(fixture.nativeElement.textContent).toContain('Discussões');
     expect(fixture.nativeElement.textContent).toContain('Fotos');
     expect(fixture.nativeElement.textContent).toContain('Sobre');
-    expect(fixture.nativeElement.textContent).not.toContain('Discussões');
-    expect(fixture.nativeElement.querySelector('#community-tab-topics')).toBeNull();
-    expect(fixture.nativeElement.querySelector('app-community-topics')).toBeNull();
-    expect(feedRepositoryMock.getPage$).toHaveBeenCalledWith(
-      expect.objectContaining({ communityId: 'community-1', view: 'feed' })
-    );
+    expect(fixture.nativeElement.querySelector('#community-tab-topics')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('app-community-topics')).not.toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Convivência e segurança');
+    expect(topicRepositoryMock.getPage$).toHaveBeenCalledWith({
+      communityId: 'community-1',
+      limit: 12,
+      cursor: null,
+    });
+    expect(feedRepositoryMock.getPage$).not.toHaveBeenCalled();
   });
 });
