@@ -7,6 +7,7 @@ import {
   IAppNotification,
   ICommunityNotificationSummary,
 } from 'src/app/core/interfaces/app-notification.interface';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { AppNotificationService } from 'src/app/core/services/notifications/app-notification.service';
 import {
@@ -96,9 +97,14 @@ describe('NotificationsPageComponent', () => {
           },
         },
         {
+          provide: ApplicationErrorService,
+          useValue: {
+            report: vi.fn(),
+          },
+        },
+        {
           provide: ErrorNotificationService,
           useValue: {
-            showError: vi.fn(),
             showWarning: vi.fn(),
             showSuccess: vi.fn(),
           },
