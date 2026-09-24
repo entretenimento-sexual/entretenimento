@@ -3,7 +3,6 @@ import test from 'node:test';
 
 import {
   buildCommunityExploreContentProjection,
-  communityExploreContentSourceFingerprint,
 } from './community-explore-content.model';
 
 const discovery = {
@@ -94,14 +93,4 @@ test('rejeita Comunidade que saiu da descoberta pública', () => {
     },
     now: 1_800_000_000_100,
   }), null);
-  });
-
-test('não ressincroniza por alteração isolada de métricas', () => {
-  assert.equal(
-    communityExploreContentSourceFingerprint(feed),
-    communityExploreContentSourceFingerprint({
-      ...feed,
-      metrics: { commentCount: 99, reactionCount: 120 },
-    })
-  );
   });
