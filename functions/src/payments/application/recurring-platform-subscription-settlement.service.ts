@@ -504,6 +504,11 @@ export async function settleRecurringPlatformSubscriptionPayment(
       );
     }
 
+    const renewalDecision = resolveRecurringRenewalAfterPayment({
+      contract,
+      activatingNewContract,
+    });
+
     const period = resolvePlatformSubscriptionSettlementPeriod(
       existingEntitlement,
       contract.buyerUid,
@@ -638,16 +643,19 @@ export async function settleRecurringPlatformSubscriptionPayment(
     tx.set(
       contractRef,
       {
-        status: 'active',
-        renewalEnabled: true,
+        status: renewalDecision.status,
+        renewalEnabled: renewalDecision.renewalEnabled,
         isCurrent: true,
         lastSettledProviderPaymentId: payment.paymentId,
         lastPaymentStatus: event.eventName,
         lastPaymentOccurredAt: occurredAt,
         activatedAt: contract.activatedAt ?? now,
-        needsProviderCancellation: false,
-        providerCancellationNextAttemptAt: null,
-        providerCancellationLastErrorCode: null,
+        needsProviderCancellation:
+          renewalDecision.needsProviderCancellation,
+        providerCancellationNextAttemptAt:
+          renewalDecision.providerCancellationNextAttemptAt,
+        providerCancellationLastErrorCode:
+          renewalDecision.providerCancellationLastErrorCode,
         updatedAt: now,
       },
       { merge: true }
@@ -658,7 +666,7 @@ export async function settleRecurringPlatformSubscriptionPayment(
       currentContractId: contractId,
       currentProviderSubscriptionId: contract.providerSubscriptionId,
       currentPlanKey: contract.planKey,
-      renewalEnabled: true,
+      renewalEnabled: renewalDecision.renewalEnabled,
       updatedAt: now,
     };
     tx.set(stateRef, stateDoc, { merge: false });
@@ -743,6 +751,11 @@ export async function settleRecurringPlatformSubscriptionPayment(
       currency: 'BRL',
       catalogVersion: contract.planSnapshot.catalogVersion,
       recurringContractPriceLocked: true,
+      renewalEnabledAfterPayment: renewalDecision.renewalEnabled,
+      cancellationIntentPreserved:
+        renewalDecision.preservedCancellationIntent,
+      providerCancellationPending:
+        renewalDecision.needsProviderCancellation,
       priceTreatment: 'contract_snapshot_until_explicit_change',
       periodTreatment: 'extend_from_current_end',
       prorationSupported: false,
