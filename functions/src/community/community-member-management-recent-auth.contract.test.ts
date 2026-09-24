@@ -142,17 +142,17 @@ function installTransactionProbe(
     ...(scenario.targetEligible === false
       ? {}
       : {
-          'age_eligibility_records/member-1': {
-            uid: 'member-1',
-            status: 'VERIFIED_ADULT',
-            policyVersion: 1,
-            source: 'INITIAL_VERIFICATION',
-            method: 'EXTERNAL_PROVIDER',
-            caseId: 'contract-age-target-1',
-            verifiedAtMs: Date.now() - 1_000,
-            expiresAtMs: null,
-          },
-        }),
+        'age_eligibility_records/member-1': {
+          uid: 'member-1',
+          status: 'VERIFIED_ADULT',
+          policyVersion: 1,
+          source: 'INITIAL_VERIFICATION',
+          method: 'EXTERNAL_PROVIDER',
+          caseId: 'contract-age-target-1',
+          verifiedAtMs: Date.now() - 1_000,
+          expiresAtMs: null,
+        },
+      }),
   };
   const transaction: TransactionProbe = {
     get: async (ref) => ({
