@@ -13,7 +13,7 @@ import {
   CommunityDistributionTelemetryService,
 } from 'src/app/community/discovery/community-distribution-telemetry.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { PhotoUploadFlowService } from 'src/app/core/services/image-handling/photo-upload-flow.service';
 import { MediaPublicationService } from 'src/app/core/services/media/media-publication.service';
 import { MediaReactionsService } from 'src/app/core/services/media/media-reactions.service';
@@ -291,8 +291,8 @@ describe('SocialExplorePageComponent', () => {
           },
         },
         {
-          provide: GlobalErrorHandlerService,
-          useValue: { handleError: vi.fn() },
+          provide: ApplicationErrorService,
+          useValue: { report: vi.fn() },
         },
         {
           provide: ExploreCommunityDistributionService,
