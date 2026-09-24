@@ -68,7 +68,7 @@ export interface PlatformRecurringSubscriptionDoc {
   lastPaymentStatus: string | null;
   lastPaymentOccurredAt: number | null;
 
-  pendingPlanChange: PlatformRecurringPendingPlanChange | null;
+  pendingPlanChange?: PlatformRecurringPendingPlanChange | null;
 
   needsProviderCancellation: boolean;
   providerCancellationAttemptCount: number;
