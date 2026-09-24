@@ -8,7 +8,7 @@
 // - cada usuário só acessa preferences/{uid} pelas Rules atuais;
 // - grava apenas um submapa conhecido: notificationPreferences;
 // - conta/segurança permanece sempre ativo na normalização;
-// - erros técnicos seguem para GlobalErrorHandlerService;
+// - erros técnicos seguem pela entrada canônica ApplicationErrorService;
 // - falhas da leitura principal expõem estado recuperável para a página;
 // - retry manual substitui o listener atual, sem abrir listener paralelo.
 // -----------------------------------------------------------------------------
@@ -46,18 +46,10 @@ import {
 } from 'src/app/core/interfaces/notification-preferences.interface';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 
 interface UserPreferencesDocument {
   notificationPreferences?: unknown;
-}
-
-interface NotificationPreferencesReportableError extends Error {
-  context?: string;
-  operation?: string;
-  extra?: Record<string, unknown>;
-  original?: unknown;
-  skipUserNotification?: boolean;
 }
 
 export type NotificationPreferencesReadState = 'loading' | 'ready' | 'error';
@@ -67,7 +59,7 @@ export class NotificationPreferencesService {
   private readonly firestore = inject(Firestore);
   private readonly session = inject(AuthSessionService);
   private readonly firestoreContext = inject(FirestoreContextService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly currentRefreshSubject = new BehaviorSubject(0);
   private readonly currentReadStateSubject =
     new BehaviorSubject<NotificationPreferencesReadState>('loading');
@@ -164,10 +156,7 @@ export class NotificationPreferencesService {
           );
         }).pipe(map(() => undefined));
       }),
-      catchError((error) => {
-        this.reportError(error, 'updateCurrentPreferences', { patch: normalizedPatch });
-        return throwError(() => error);
-      })
+      catchError((error) => throwError(() => error))
     );
   }
 
@@ -231,21 +220,15 @@ export class NotificationPreferencesService {
     operation: string,
     extra: Record<string, unknown>
   ): void {
-    try {
-      const reportable = (error instanceof Error
-        ? error
-        : new Error('[NotificationPreferencesService] operation failed')) as
-        NotificationPreferencesReportableError;
-
-      reportable.context = 'NotificationPreferencesService';
-      reportable.operation = operation;
-      reportable.extra = extra;
-      reportable.original = error;
-      reportable.skipUserNotification = true;
-
-      this.globalError.handleError(reportable);
-    } catch {
-      // noop
-    }
+    this.applicationError.report(error, {
+      feature: 'notifications.preferences',
+      operation,
+      fallbackMessage: 'Não foi possível carregar suas preferências de notificações.',
+      notification: 'none',
+      metadata: {
+        scope: 'NotificationPreferencesService',
+        ...extra,
+      },
+    });
   }
 }
