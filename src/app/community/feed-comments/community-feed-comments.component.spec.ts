@@ -28,7 +28,6 @@ function item(
     author: { label: 'Pessoa participante', avatarUrl: null },
     text: 'Mensagem carregada.',
     replyTo: null,
-    replyCount: 0,
     capabilities: {
       canDeleteOwn: false,
       canModerate: false,
@@ -49,12 +48,9 @@ function page(
 describe('CommunityFeedCommentsComponent', () => {
   const repositoryMock = {
     getPage$: vi.fn(),
-    getRepliesPage$: vi.fn(),
     watchCommentCount$: vi.fn(),
     createComment$: vi.fn(),
-    createReply$: vi.fn(),
     moderateComment$: vi.fn(),
-    moderateReply$: vi.fn(),
   };
   const feedRepositoryMock = {
     createPost$: vi.fn(),
@@ -76,11 +72,6 @@ describe('CommunityFeedCommentsComponent', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     repositoryMock.watchCommentCount$.mockReturnValue(of(0));
-    repositoryMock.getRepliesPage$.mockReturnValue(of({
-      items: [],
-      nextCursor: null,
-      generatedAt: Date.now(),
-    }));
     TestBed.configureTestingModule({
       imports: [CommunityFeedCommentsComponent],
       providers: [
@@ -198,7 +189,6 @@ describe('CommunityFeedCommentsComponent', () => {
       replyToCommentId: 'comment-1',
       text: 'Resposta na mesma timeline.',
     }));
-    expect(repositoryMock.createReply$).not.toHaveBeenCalled();
     expect(feedRepositoryMock.createPost$).not.toHaveBeenCalled();
     expect(fixture.componentInstance.replyTarget()).toBeNull();
     expect(fixture.nativeElement.textContent).toContain('Resposta na mesma timeline.');
