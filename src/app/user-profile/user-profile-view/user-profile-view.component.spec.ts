@@ -16,7 +16,7 @@ import { AuthSessionService } from '../../core/services/autentication/auth/auth-
 import { CurrentUserStoreService } from '../../core/services/autentication/auth/current-user-store.service';
 import { FirestoreUserQueryService } from '../../core/services/data-handling/firestore-user-query.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '../../core/services/error-handler/application-error.service';
 import { RoomManagementService } from '../../core/services/batepapo/room-services/room-management.service';
 import { NetworkStatusService } from '../../core/services/network/network-status.service';
 import { PrivacyDebugLoggerService } from '../../core/services/privacy/privacy-debug-logger.service';
@@ -169,8 +169,8 @@ describe('UserProfileViewComponent', () => {
           useClass: MockErrorNotificationService,
         },
         {
-          provide: GlobalErrorHandlerService,
-          useValue: { handleError: vi.fn() },
+          provide: ApplicationErrorService,
+          useValue: { report: vi.fn() },
         },
         {
           provide: NetworkStatusService,
