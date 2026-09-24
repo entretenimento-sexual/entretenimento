@@ -2,16 +2,27 @@
 // -----------------------------------------------------------------------------
 // SYNC COMMUNITY NOTIFICATION SUMMARY
 // -----------------------------------------------------------------------------
-// Projeta a coleção canônica `notifications` em um único resumo privado por
-// usuário/Comunidade. O estado aplicado por notificationId torna o processamento
-// convergente e idempotente mesmo com retries ou eventos fora de ordem: cada
-// execução relê a notificação atual antes de calcular a diferença.
+// Projeta a coleção canônica `notifications` em:
+// 1) detalhe privado por usuário/Comunidade, paginado sob /items;
+// 2) um único documento global O(1) por usuário com totais + pequena janela.
+//
+// O estado aplicado por notificationId mantém o processamento convergente e
+// idempotente mesmo com retries ou eventos fora de ordem.
 // -----------------------------------------------------------------------------
 
+import { Timestamp } from 'firebase-admin/firestore';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
+import {
+  buildCommunityNotificationSummaryItem,
+  normalizeCommunityNotificationSummaryItem,
+  type CommunityNotificationSummaryChange,
+} from './community-notification-global-summary.policy';
+import {
+  prepareCommunityNotificationGlobalSummaryWrite,
+} from './community-notification-global-summary.transaction';
 import { isCommunityNotificationMembershipCycleCurrent } from './community-notification-membership.policy';
 import {
   type CommunityNotificationSummaryContribution,
@@ -26,6 +37,14 @@ interface CommunityNotificationSummaryDelta {
   communityId: string;
   unreadCount: number;
   priorityUnreadCount: number;
+}
+
+interface PreparedSummaryMutation {
+  readonly ref: FirebaseFirestore.DocumentReference;
+  readonly userId: string;
+  readonly communityId: string;
+  readonly before: ReturnType<typeof normalizeCommunityNotificationSummaryItem>;
+  readonly after: ReturnType<typeof buildCommunityNotificationSummaryItem>;
 }
 
 function normalizeAppliedContribution(
@@ -151,18 +170,19 @@ export const syncCommunityNotificationSummary = onDocumentWritten(
       const summarySnapshots = await Promise.all(
         summaryRefs.map((summaryRef) => transaction.get(summaryRef))
       );
+      const now = Timestamp.now();
 
-      deltas.forEach((delta, index) => {
-        const summaryRef = summaryRefs[index];
-        const summarySnapshot = summarySnapshots[index];
-        if (!summaryRef || !summarySnapshot) return;
-
-        const currentUnreadCount = normalizeCommunityNotificationSummaryCount(
-          summarySnapshot.data()?.['unreadCount']
-        );
-        const currentPriorityUnreadCount = normalizeCommunityNotificationSummaryCount(
-          summarySnapshot.data()?.['priorityUnreadCount']
-        );
+      const mutations: PreparedSummaryMutation[] = deltas.map((delta, index) => {
+        const summaryRef = summaryRefs[index]!;
+        const summarySnapshot = summarySnapshots[index]!;
+        const before = summarySnapshot.exists
+          ? normalizeCommunityNotificationSummaryItem(
+              delta.communityId,
+              summarySnapshot.data()
+            )
+          : null;
+        const currentUnreadCount = before?.unreadCount ?? 0;
+        const currentPriorityUnreadCount = before?.priorityUnreadCount ?? 0;
         const unreadCount = Math.max(0, currentUnreadCount + delta.unreadCount);
         const priorityUnreadCount = Math.max(
           0,
@@ -171,21 +191,65 @@ export const syncCommunityNotificationSummary = onDocumentWritten(
             currentPriorityUnreadCount + delta.priorityUnreadCount
           )
         );
+        const after = unreadCount > 0
+          ? buildCommunityNotificationSummaryItem({
+              communityId: delta.communityId,
+              unreadCount,
+              priorityUnreadCount,
+              updatedAtMs: now.toMillis(),
+            })
+          : null;
 
-        if (unreadCount === 0) {
-          transaction.delete(summaryRef);
-          return;
-        }
-
-        transaction.set(summaryRef, {
+        return {
+          ref: summaryRef,
           userId: delta.userId,
           communityId: delta.communityId,
-          unreadCount,
-          priorityUnreadCount,
-          hasPriorityUnread: priorityUnreadCount > 0,
-          updatedAt: FieldValue.serverTimestamp(),
-        }, { merge: true });
+          before,
+          after,
+        };
       });
+
+      const changesByUser = new Map<string, CommunityNotificationSummaryChange[]>();
+      for (const mutation of mutations) {
+        const changes = changesByUser.get(mutation.userId) ?? [];
+        changes.push({
+          before: mutation.before,
+          after: mutation.after,
+        });
+        changesByUser.set(mutation.userId, changes);
+      }
+
+      // TODAS as leituras da projeção global acontecem antes do primeiro write.
+      const globalWrites = await Promise.all(
+        [...changesByUser.entries()].map(([uid, changes]) =>
+          prepareCommunityNotificationGlobalSummaryWrite(transaction, {
+            uid,
+            changes,
+            updatedAt: now,
+          })
+        )
+      );
+
+      for (const mutation of mutations) {
+        if (!mutation.after) {
+          transaction.delete(mutation.ref);
+          continue;
+        }
+
+        transaction.set(mutation.ref, {
+          userId: mutation.userId,
+          communityId: mutation.communityId,
+          unreadCount: mutation.after.unreadCount,
+          priorityUnreadCount: mutation.after.priorityUnreadCount,
+          hasPriorityUnread: mutation.after.hasPriorityUnread,
+          attentionRank: mutation.after.attentionRank,
+          updatedAt: now,
+        }, { merge: true });
+      }
+
+      for (const globalWrite of globalWrites) {
+        transaction.set(globalWrite.ref, globalWrite.data, { merge: true });
+      }
 
       if (desired) {
         transaction.set(stateRef, {
