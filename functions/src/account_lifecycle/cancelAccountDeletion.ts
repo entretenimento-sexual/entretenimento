@@ -2,6 +2,9 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FieldValue, db } from '../firebaseApp';
 import {
+  PLATFORM_SUBSCRIPTION_STATE_COLLECTION,
+} from '../payments/application/platform-recurring-subscription.service';
+import {
   ACCOUNT_LIFECYCLE_REGION,
   RestorableAccountStatus,
   UserDoc,
@@ -23,6 +26,7 @@ interface AccountLifecycleCommandResult {
   suspensionSource: 'self' | 'moderator' | 'automation' | null;
   suspensionEndsAt: number | null;
   statusUpdatedAt: number;
+  subscriptionRenewalStatus: 'active' | 'canceled' | 'none';
   message: string;
 }
 
@@ -50,7 +54,10 @@ export const cancelAccountDeletion = onCall<Record<string, never>>(
     const restored = await db.runTransaction(
       async (
         tx: FirebaseFirestore.Transaction
-      ): Promise<Omit<AccountLifecycleCommandResult, 'ok' | 'message'>> => {
+      ): Promise<Omit<
+        AccountLifecycleCommandResult,
+        'ok' | 'message' | 'subscriptionRenewalStatus'
+      >> => {
         const userRef = db.collection('users').doc(uid);
         const publicProfileRef = db.collection('public_profiles').doc(uid);
 
@@ -189,10 +196,25 @@ export const cancelAccountDeletion = onCall<Record<string, never>>(
     const activeButRestricted =
       restored.accountStatus === 'active' &&
       restored.publicVisibility === 'hidden';
+    const recurringStateSnapshot = await db
+      .collection(PLATFORM_SUBSCRIPTION_STATE_COLLECTION)
+      .doc(uid)
+      .get();
+    const recurringState = recurringStateSnapshot.exists
+      ? recurringStateSnapshot.data() ?? {}
+      : null;
+    const subscriptionRenewalStatus:
+      'active' | 'canceled' | 'none' =
+      !recurringState?.['currentContractId']
+        ? 'none'
+        : recurringState['renewalEnabled'] === true
+          ? 'active'
+          : 'canceled';
 
     return {
       ok: true,
       ...restored,
+      subscriptionRenewalStatus,
       message: activeButRestricted
         ? 'Exclusão cancelada. Conclua as verificações pendentes para voltar a aparecer e interagir.'
         : restored.accountStatus === 'active'
