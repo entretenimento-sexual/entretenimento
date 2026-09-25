@@ -359,9 +359,10 @@ memberships.
 
 ### B6 — discovery legado, se necessário
 
-Usar o runner administrativo somente se a auditoria apontar perfis ainda não
-migrados. Ele usa dry-run por padrão e escrita real exige
-`BACKFILL_CONFIRM_WRITE=YES`.
+Usar o runner administrativo
+`scripts/maintenance/backfill-public-profile-discovery-admin.mjs` somente se a
+auditoria apontar perfis ainda não migrados. Ele usa dry-run por padrão e escrita
+real exige `BACKFILL_CONFIRM_WRITE=YES`.
 
 ### B7 — cleanup de `ageVerification`
 
