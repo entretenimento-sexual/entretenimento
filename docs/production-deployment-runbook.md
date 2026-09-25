@@ -773,18 +773,27 @@ Não iniciar uma nova onda enquanto a anterior não estiver explicitamente verde
 
 ## 14.1. Compatibilidade temporária a retirar em release posterior
 
-Além dos aliases de trigger já documentados, o callable
-`getCommunityOwnershipCandidates` permanece temporariamente publicado para
-clientes anteriores à paginação administrativa. Nenhum frontend novo pode
-consumi-lo; o caminho canônico é `getCommunityOwnershipCandidatesPage`.
+Além dos aliases de trigger já documentados, permanecem temporariamente
+publicados:
+
+- `getCommunityOwnershipCandidates`, para clientes anteriores à paginação
+  administrativa. Nenhum frontend novo pode consumi-lo; o caminho canônico é
+  `getCommunityOwnershipCandidatesPage`;
+- `unpublishPhoto` e `unpublishVideo`, exclusivamente como compatibilidade
+  fail-closed para clientes antigos que ainda tentem o fluxo removido de
+  “despublicar mantendo privado”;
+- `normalizeLegacyVideoModeration`, como migração idempotente de publicações
+  criadas sob a regra antiga de pré-moderação.
+
+Nenhum frontend novo deve introduzir dependência nesses três endpoints de mídia.
 
 A remoção deve ocorrer em release separada e somente quando:
 
 - Hosting novo estiver estável e sem rollback pendente;
 - métricas de invocação confirmarem ausência de uso do callable legado durante
   a janela de observação definida para a release;
-- `getCommunityOwnershipCandidatesPage` estiver com erro, latência e custo
-  dentro do baseline;
+- os caminhos canônicos substitutos estiverem com erro, latência e custo dentro
+  do baseline;
 - não houver sessão/cache de cliente anterior considerada suportada pela janela;
 - rollback da remoção estiver documentado.
 
