@@ -15,8 +15,6 @@ import {
 } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-import { IUserDados } from '@core/interfaces/iuser-dados';
-import { UserPublic } from 'src/app/core/interfaces/user-public.interface';
 import { FirestoreReadService } from '../firestore/core/firestore-read.service';
 import { FirestoreErrorHandlerService } from '@core/services/error-handler/firestore-error-handler.service';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
@@ -119,35 +117,6 @@ export class UserPresenceQueryService {
     return isNaN(d.getTime()) ? 0 : d.getTime();
   }
 
-  /**
-   * Adapter LEGACY (não é 100% “presença”):
-   * - Isso é mais “mapeamento de modelo” (UserPublic -> IUserDados)
-   * - Se você quiser, dá pra extrair pra um "UserModelAdapterService" / utils,
-   *   e reutilizar também no user-discovery.query.service.ts
-   */
-  private toUserDadosPublic(u: UserPublic): IUserDados {// está esmaecido
-    return {
-      uid: u.uid,
-      nickname: u.nickname ?? null,
-      photoURL: (u.avatarUrl ?? (u as any).photoURL) ?? null,
-
-      role: u.role ?? 'basic',
-      gender: (u as any).gender ?? null,
-      age: (u as any).age ?? null,
-      orientation: (u as any).orientation ?? null,
-      municipio: u.municipio ?? null,
-      estado: u.estado ?? null,
-
-      isOnline: !!u.isOnline,
-      lastSeen: (u as any).lastSeen ?? null,
-      lastOnlineAt: (u as any).lastOnlineAt ?? null,
-      lastOfflineAt: (u as any).lastOfflineAt ?? null,
-
-      latitude: (u as any).latitude ?? null,
-      longitude: (u as any).longitude ?? null,
-      geohash: (u as any).geohash ?? null,
-    } as unknown as IUserDados;
-  }
 
   /**
    * Filtro de "online efetivo":
