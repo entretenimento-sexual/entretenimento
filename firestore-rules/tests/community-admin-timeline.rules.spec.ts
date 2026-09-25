@@ -47,6 +47,31 @@ describe('Firestore Rules / community_admin_timeline', () => {
     await assertFails(getDoc(doc(items, 'event-1')));
   });
 
+  it('nega leitura direta dos audits brutos usados ou relacionados à timeline', async () => {
+    const db = testEnv.authenticatedContext(USER_UID).firestore();
+    const rawAuditCollections = [
+      'community_membership_audit',
+      'community_settings_audit',
+      'community_highlight_audit',
+      'community_feed_audit',
+      'community_topic_audit',
+      'community_official_claim_audit',
+      'community_official_association_audit',
+      'community_lifecycle_audit',
+      'community_ranking_mode_audit',
+      'community_purge_audit',
+    ];
+
+    for (const collectionName of rawAuditCollections) {
+      await assertFails(
+        getDoc(doc(db, collectionName, 'audit-1'))
+      );
+      await assertFails(
+        getDocs(collection(db, collectionName))
+      );
+    }
+  });
+
   it('nega escrita direta da projeção pelo cliente', async () => {
     const db = testEnv.authenticatedContext(USER_UID).firestore();
 
