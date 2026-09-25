@@ -211,10 +211,14 @@ implements CommunityPurgeExecutionAdapter {
       const managementIndexRef = db
         .collection('community_member_management_index')
         .doc(`${communityId}:${uid}`);
+      const memberSearchIndexRef = db
+        .collection('community_member_search_index')
+        .doc(`${communityId}:${uid}`);
 
       await deleteDocumentRefs([
         userIndexRef,
         managementIndexRef,
+        memberSearchIndexRef,
         membership.ref,
       ]);
     }
