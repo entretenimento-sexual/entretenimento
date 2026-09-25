@@ -172,7 +172,7 @@ describe('Community × Local social-space boundary', () => {
   });
 
   it('não permite novo consumidor frontend do callable legado de ownership', () => {
-    const violations = productionFiles(COMMUNITY_ROOT)
+    const violations = productionFiles(APP_ROOT)
       .filter((file) => file.endsWith('.ts'))
       .filter((file) =>
         /['"]getCommunityOwnershipCandidates['"]/u.test(
@@ -243,10 +243,7 @@ describe('Community × Local social-space boundary', () => {
         );
       }
 
-      if (
-        displayPath.startsWith('src/app/community/')
-        && /['"]official_space['"]/u.test(source)
-      ) {
+      if (/['"]official_space['"]/u.test(source)) {
         violations.push(
           `${displayPath} tratou official_space como source type de frontend`
         );
