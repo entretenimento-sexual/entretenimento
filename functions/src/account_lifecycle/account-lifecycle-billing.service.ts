@@ -69,18 +69,24 @@ export function buildAccountLifecycleBillingCancellationPatch(input: {
 export async function getAccountLifecycleSubscriptionRenewalStatus(
   uid: string
 ): Promise<AccountLifecycleSubscriptionRenewalStatus> {
-  const [userSnapshot, stateSnapshot] = await Promise.all([
-    db.collection('users').doc(uid).get(),
-    db.collection(PLATFORM_SUBSCRIPTION_STATE_COLLECTION).doc(uid).get(),
-  ]);
-  const user = userSnapshot.exists
-    ? userSnapshot.data() as UserDoc
-    : null;
-  const state = stateSnapshot.exists ? stateSnapshot.data() ?? {} : null;
+  try {
+    const [userSnapshot, stateSnapshot] = await Promise.all([
+      db.collection('users').doc(uid).get(),
+      db.collection(PLATFORM_SUBSCRIPTION_STATE_COLLECTION).doc(uid).get(),
+    ]);
+    const user = userSnapshot.exists
+      ? userSnapshot.data() as UserDoc
+      : null;
+    const state = stateSnapshot.exists ? stateSnapshot.data() ?? {} : null;
 
-  if (user?.billingCancellationPending === true) return 'pending';
-  if (!state?.['currentContractId']) return 'none';
-  return state['renewalEnabled'] === true ? 'active' : 'canceled';
+    if (user?.billingCancellationPending === true) return 'pending';
+    if (!state?.['currentContractId']) return 'none';
+    return state['renewalEnabled'] === true ? 'active' : 'canceled';
+  } catch {
+    // A conta já pode ter sido reativada/restaurada. Uma falha de leitura
+    // financeira posterior não transforma essa mutação em falso erro.
+    return 'pending';
+  }
 }
 
 export async function reconcileAccountLifecycleBillingCancellation(input: {
