@@ -80,6 +80,7 @@ const retiredPaths = [
   'src/app/chat-module/modals/create-room-modal',
   'src/app/chat-module/modals/room-create-confirm-modal',
   'src/app/chat-module/invite-list',
+  'src/app/header/global-invite-badge',
 ];
 
 const frozenRoomProductionRoots = [
@@ -338,7 +339,7 @@ forbid(
 
 forbid(
   files.layoutShell,
-  /\bInviteActions\b|\bselectPendingInvitesCount\b|['"]room-invites['"]/,
+  /\bInviteActions\b|\bselectPendingInvitesCount\b|['"]room-invites['"]|<app-global-invite-badge\b/,
   'o shell global não pode reativar listener/badge de convites de Sala.'
 );
 
@@ -354,7 +355,7 @@ forbid(
 
 const appRoot = path.join(root, 'src/app');
 const retiredSymbolPattern =
-  /\b(?:RoomsModule|CreateRoomModalComponent|RoomCreationConfirmationModalComponent|RoomInteractionComponent|InviteListComponent)\b/;
+  /\b(?:RoomsModule|CreateRoomModalComponent|RoomCreationConfirmationModalComponent|RoomInteractionComponent|InviteListComponent|GlobalInviteBadgeComponent)\b/;
 
 for (const appFile of walkTypeScriptFiles(appRoot)) {
   const source = fs.readFileSync(appFile, 'utf8');
