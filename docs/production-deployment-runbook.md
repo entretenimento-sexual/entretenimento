@@ -261,6 +261,14 @@ Jobs destrutivos/retention/purge não devem ser o primeiro evento executado por
 uma nova versão. Confirmar configuração, elegibilidade e dry-run/inspection
 quando houver.
 
+**Descomissionamento legado fora da onda normal:** `cleanupOldData` e
+`moderateContent`, ambos vinculados à coleção raiz aposentada `posts`, foram
+retirados do código-fonte. Se ainda existirem em produção, não removê-los como
+efeito colateral de um deploy amplo. A exclusão deve ser uma ação explícita,
+somente após confirmar que não há escritor suportado para `posts`, inspecionar
+eventual dado residual e registrar rollback/estado anterior. A ausência desses
+exports no código não autoriza execução dessa remoção nesta fase.
+
 ### Onda F5 — demais domínios alterados
 
 Media, chat, friendship, account lifecycle, notifications e subscriber
