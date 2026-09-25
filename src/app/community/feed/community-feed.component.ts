@@ -40,9 +40,11 @@ import { PublicUserIdentityComponent } from 'src/app/core/components/public-user
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import { ReportContentButtonComponent } from 'src/app/shared/components-globais/moderation-report/report-content-button/report-content-button.component';
 import {
+  COMMUNITY_FEED_RENDER_WINDOW_MAX_ITEMS,
   CommunityFeedItem,
   CommunityFeedPostAction,
   CommunityFeedView,
+  DEFAULT_COMMUNITY_FEED_PAGE_SIZE,
 } from '../data-access/community-feed.model';
 import type { CommunityFeedRealtimeChange } from '../data-access/community-feed-realtime.model';
 import { CommunityFeedCommentStateFacade } from './community-feed-comment-state.facade';
@@ -77,6 +79,12 @@ import {
   formatCommunityFeedIso,
   formatCommunityFeedTime,
 } from './community-feed-time.util';
+import {
+  buildCommunityBoundedRenderWindow,
+  communityRenderWindowStartForIndex,
+  communityTailRenderWindowStart,
+  normalizeCommunityRenderWindowStart,
+} from '../community-bounded-render-window.util';
 
 export {
   INITIAL_COMMUNITY_FEED_STATE,
@@ -129,6 +137,14 @@ export class CommunityFeedComponent {
   private readonly postElements = viewChildren<ElementRef<HTMLElement>>('postElement');
   private readonly postMenus = viewChildren<ElementRef<HTMLDetailsElement>>('postMenu');
   private readonly attachmentMenu = viewChild<ElementRef<HTMLDetailsElement>>('attachmentMenu');
+  private readonly renderWindowStart = signal(0);
+  private lastWindowItems: readonly CommunityFeedItem[] = [];
+  private followRenderWindowTail = false;
+  private pendingRevealPostId: string | null = null;
+  private pendingScrollAnchor: {
+    readonly postId: string;
+    readonly top: number;
+  } | null = null;
   private readonly pendingOwnPostFollowId = signal<string | null>(null);
   private readonly unseenAnchorPostId = signal<string | null>(null);
   private pendingRealtimeFollowIntent: boolean | null = null;
@@ -187,6 +203,8 @@ export class CommunityFeedComponent {
       onRealtimeChanges: (changes, communityId) =>
         this.reconcileRealtimeOverrides(changes, communityId),
       captureRealtimeFollowIntent: () => {
+        if (this.renderWindowStart() > 0) return false;
+
         const currentLatestPostId = this.orderedPostIds()[0] ?? null;
         return this.unseenNewPostCount() === 0
           && (currentLatestPostId
@@ -325,6 +343,21 @@ export class CommunityFeedComponent {
   readonly reactionState$ = this.reactions.reactionState$;
 
   constructor() {
+    this.timeline.pageLoaded$
+      .pipe(
+        filter(({ request }) => request.append),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe(() => {
+        this.followRenderWindowTail = true;
+      });
+
+    this.state$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((state) =>
+        this.reconcileRenderWindow(state.items, state.loadingMore)
+      );
+
     this.composer.postCreated$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((result) => this.followCreatedPost(result.postId));
@@ -332,6 +365,7 @@ export class CommunityFeedComponent {
     this.references.referencedItem$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((item) => {
+        this.pendingRevealPostId = item.postId;
         this.timeline.applyLocalEvent({
           type: 'reference',
           item,
@@ -465,15 +499,23 @@ export class CommunityFeedComponent {
 
     if (!normalizedPostId || !communityId) return;
 
-    this.references.navigate(
-      normalizedPostId,
-      {
-        communityId,
-        view: this.view(),
-        sourceType: this.sourceType(),
-      },
-      (candidatePostId) => this.findRenderedPostElement(candidatePostId)
-    );
+    const navigate = () =>
+      this.references.navigate(
+        normalizedPostId,
+        {
+          communityId,
+          view: this.view(),
+          sourceType: this.sourceType(),
+        },
+        (candidatePostId) => this.findRenderedPostElement(candidatePostId)
+      );
+
+    if (this.revealLoadedPost(normalizedPostId)) {
+      this.runAfterRender(navigate);
+      return;
+    }
+
+    navigate();
   }
 
   followCreatedPost(postId: string): void {
@@ -481,6 +523,7 @@ export class CommunityFeedComponent {
     if (!normalizedPostId) return;
 
     this.pendingOwnPostFollowId.set(normalizedPostId);
+    this.pendingRevealPostId = normalizedPostId;
     this.timeline.hydratePost(normalizedPostId);
   }
 
@@ -513,9 +556,14 @@ export class CommunityFeedComponent {
 
   showLatestPosts(): void {
     const latestPostId = this.orderedPostIds()[0] ?? null;
+    this.followRenderWindowTail = false;
+    this.renderWindowStart.set(0);
     this.clearUnseenNewPosts();
-    if (latestPostId) this.postHighlightRequests$.next(latestPostId);
-    this.scrollToLatestPost('start');
+
+    this.runAfterRender(() => {
+      if (latestPostId) this.postHighlightRequests$.next(latestPostId);
+      this.scrollToLatestPost('start');
+    });
   }
 
   newPostsLabel(): string {
@@ -550,7 +598,25 @@ export class CommunityFeedComponent {
   }
 
   loadMore(cursor: string | null): void {
+    if (!cursor) return;
+    this.captureScrollAnchor();
     this.timeline.loadMore(cursor);
+  }
+
+  feedRenderWindow(items: readonly CommunityFeedItem[]) {
+    return buildCommunityBoundedRenderWindow(
+      items,
+      COMMUNITY_FEED_RENDER_WINDOW_MAX_ITEMS,
+      this.renderWindowStart()
+    );
+  }
+
+  showNewerLoadedPosts(items: readonly CommunityFeedItem[]): void {
+    this.shiftRenderWindow(items, -DEFAULT_COMMUNITY_FEED_PAGE_SIZE);
+  }
+
+  showOlderLoadedPosts(items: readonly CommunityFeedItem[]): void {
+    this.shiftRenderWindow(items, DEFAULT_COMMUNITY_FEED_PAGE_SIZE);
   }
 
   retry(): void {
@@ -619,7 +685,8 @@ export class CommunityFeedComponent {
 
   private isPostInsideFollowZone(postId: string): boolean {
     const element = this.findRenderedPostElement(postId)?.nativeElement;
-    if (!element || typeof window === 'undefined') return true;
+    if (!element) return false;
+    if (typeof window === 'undefined') return true;
 
     const rect = element.getBoundingClientRect();
     const viewportHeight = window.innerHeight
@@ -630,6 +697,158 @@ export class CommunityFeedComponent {
     // A decisão é capturada antes da hidratação do novo item. Assim uma foto ou
     // mensagem longa não muda retroativamente a intenção de acompanhar o topo.
     return rect.bottom >= 0 && rect.top <= viewportHeight * 0.55;
+  }
+
+  private reconcileRenderWindow(
+    items: readonly CommunityFeedItem[],
+    loadingMore: boolean
+  ): void {
+    const previousFirstId =
+      this.lastWindowItems[this.renderWindowStart()]?.postId ?? null;
+    let nextStart = this.renderWindowStart();
+
+    if (this.pendingRevealPostId) {
+      const revealIndex = items.findIndex(
+        (item) => item.postId === this.pendingRevealPostId
+      );
+      if (revealIndex >= 0) {
+        nextStart = communityRenderWindowStartForIndex(
+          items.length,
+          COMMUNITY_FEED_RENDER_WINDOW_MAX_ITEMS,
+          revealIndex
+        );
+        this.pendingRevealPostId = null;
+        this.followRenderWindowTail = false;
+      }
+    } else if (this.followRenderWindowTail) {
+      nextStart = communityTailRenderWindowStart(
+        items.length,
+        COMMUNITY_FEED_RENDER_WINDOW_MAX_ITEMS
+      );
+      this.followRenderWindowTail = false;
+    } else if (previousFirstId) {
+      const anchoredIndex = items.findIndex(
+        (item) => item.postId === previousFirstId
+      );
+      nextStart = anchoredIndex >= 0
+        ? normalizeCommunityRenderWindowStart(
+            items.length,
+            COMMUNITY_FEED_RENDER_WINDOW_MAX_ITEMS,
+            anchoredIndex
+          )
+        : normalizeCommunityRenderWindowStart(
+            items.length,
+            COMMUNITY_FEED_RENDER_WINDOW_MAX_ITEMS,
+            nextStart
+          );
+    } else {
+      nextStart = normalizeCommunityRenderWindowStart(
+        items.length,
+        COMMUNITY_FEED_RENDER_WINDOW_MAX_ITEMS,
+        nextStart
+      );
+    }
+
+    this.lastWindowItems = items;
+
+    if (nextStart !== this.renderWindowStart()) {
+      this.renderWindowStart.set(nextStart);
+    }
+
+    if (!loadingMore && this.pendingScrollAnchor) {
+      this.restoreScrollAnchor();
+    }
+  }
+
+  private shiftRenderWindow(
+    items: readonly CommunityFeedItem[],
+    delta: number
+  ): void {
+    if (items.length <= COMMUNITY_FEED_RENDER_WINDOW_MAX_ITEMS) return;
+
+    this.captureScrollAnchor();
+    this.followRenderWindowTail = false;
+    this.renderWindowStart.set(
+      normalizeCommunityRenderWindowStart(
+        items.length,
+        COMMUNITY_FEED_RENDER_WINDOW_MAX_ITEMS,
+        this.renderWindowStart() + delta
+      )
+    );
+    this.restoreScrollAnchor();
+  }
+
+  private revealLoadedPost(postId: string): boolean {
+    if (this.findRenderedPostElement(postId)) return false;
+
+    const index = this.lastWindowItems.findIndex(
+      (item) => item.postId === postId
+    );
+    if (index < 0) return false;
+
+    this.followRenderWindowTail = false;
+    this.renderWindowStart.set(
+      communityRenderWindowStartForIndex(
+        this.lastWindowItems.length,
+        COMMUNITY_FEED_RENDER_WINDOW_MAX_ITEMS,
+        index
+      )
+    );
+    return true;
+  }
+
+  private captureScrollAnchor(): void {
+    const elements = this.postElements();
+    if (elements.length === 0) {
+      this.pendingScrollAnchor = null;
+      return;
+    }
+
+    const candidate =
+      elements[Math.floor(elements.length / 2)]?.nativeElement ?? null;
+    const postId = candidate?.dataset['postId']?.trim() ?? '';
+
+    if (!candidate || !postId) {
+      this.pendingScrollAnchor = null;
+      return;
+    }
+
+    this.pendingScrollAnchor = {
+      postId,
+      top: candidate.getBoundingClientRect().top,
+    };
+  }
+
+  private restoreScrollAnchor(): void {
+    const anchor = this.pendingScrollAnchor;
+    this.pendingScrollAnchor = null;
+    if (!anchor) return;
+
+    this.runAfterRender(() => {
+      const target = this.findRenderedPostElement(anchor.postId)?.nativeElement;
+      if (
+        !target
+        || typeof window === 'undefined'
+        || typeof window.scrollBy !== 'function'
+      ) {
+        return;
+      }
+
+      const delta = target.getBoundingClientRect().top - anchor.top;
+      if (Math.abs(delta) > 0.5) {
+        window.scrollBy(0, delta);
+      }
+    });
+  }
+
+  private runAfterRender(callback: () => void): void {
+    queueMicrotask(() => {
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(() => callback());
+      } else {
+        callback();
+      }
+    });
   }
 
   private clearUnseenNewPosts(): void {
