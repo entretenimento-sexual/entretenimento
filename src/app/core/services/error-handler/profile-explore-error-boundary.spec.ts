@@ -22,7 +22,6 @@ const CANONICAL_REPORTERS = [
   'preferences/application/preferences-editor.facade.ts',
   'user-profile/user-profile-edit/edit-profile-social-links/edit-profile-social-links.component.ts',
   'user-profile/user-profile-edit/edit-user-profile/edit-user-profile.component.ts',
-  'user-profile/user-profile-view/user-profile-preferences/user-profile-preferences.component.ts',
   'user-profile/user-profile-view/user-profile-view.component.ts',
   'user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component.ts',
 ] as const;
