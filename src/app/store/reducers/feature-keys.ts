@@ -5,13 +5,8 @@ export const STORE_FEATURE = {
   // USER DOMAIN
   auth: 'auth',
   user: 'user',
-  terms: 'terms',
   file: 'file',
   userPreferences: 'userPreferences',
-
-  // MESSAGING GLOBAL
-  // Chat direto e salas são Observable-first fora do Store global.
-  invite: 'invite',
 
   // LOCATION DOMAIN
   location: 'location',
@@ -26,4 +21,3 @@ export const STORE_FEATURE = {
   interactionsFriends: 'interactions_friends',
 } as const;
 
-export type StoreFeatureKey = typeof STORE_FEATURE[keyof typeof STORE_FEATURE];
