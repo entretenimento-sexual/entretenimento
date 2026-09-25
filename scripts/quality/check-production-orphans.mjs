@@ -569,6 +569,8 @@ function dependencyReferenced(packageName) {
     `'${packageName}/`,
     `"${packageName}/`,
     `node_modules/${packageName}/`,
+    `"${packageName}:`,
+    `'${packageName}:`,
   ];
 
   return dependencyAuditTexts.some(({ source }) =>
@@ -647,12 +649,28 @@ function developmentDependencyExecutableReferenced(packageName) {
   );
 }
 
+const intentionalDevelopmentDependencies = new Set([
+  // Ferramenta de IDE/workspace: usada pelo Angular Language Service, não pelo runtime.
+  '@angular/language-service',
+]);
+
+function isTypeCompanionOfReferencedDependency(packageName) {
+  if (!packageName.startsWith('@types/')) return false;
+  const runtimeName = packageName.slice('@types/'.length);
+  return [...productionDependencies, ...developmentDependencies].some(
+    (directDependency) =>
+      directDependency === runtimeName && dependencyReferenced(directDependency)
+  );
+}
+
 const unreferencedDevelopmentDependencies = developmentDependencies
   .filter(
     (packageName) =>
       !dependencyReferenced(packageName)
       && !requiredPeerOfReferencedDirectDependency(packageName)
       && !developmentDependencyExecutableReferenced(packageName)
+      && !intentionalDevelopmentDependencies.has(packageName)
+      && !isTypeCompanionOfReferencedDependency(packageName)
   )
   .sort();
 
