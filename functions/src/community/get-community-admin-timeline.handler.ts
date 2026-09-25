@@ -71,6 +71,7 @@ const EVENT_TYPES = new Set<CommunityAdminTimelineEventType>([
   'ownership_transferred',
   'community_archived',
   'settings_changed',
+  'highlight_changed',
   'content_removed',
   'topic_moderated',
   'official_status_changed',
@@ -192,6 +193,8 @@ function safeDetails(value: unknown): CommunityAdminTimelineDetails {
     raw['action'] === 'locked'
     || raw['action'] === 'unlocked'
     || raw['action'] === 'removed'
+    || raw['action'] === 'pinned'
+    || raw['action'] === 'unpinned'
   ) {
     details.action = raw['action'];
   }

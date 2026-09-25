@@ -10,15 +10,26 @@ describe('CommunityAdminTimelineComponent', () => {
   it('renderiza evento sanitizado sem depender do audit bruto', async () => {
     const repository = {
       getPage$: vi.fn().mockReturnValue(of({
-        items: [{
-          id: 'event-1',
-          category: 'membership',
-          eventType: 'member_blocked',
-          actor: { kind: 'user', label: 'ANA' },
-          subject: { kind: 'user', label: 'BIA' },
-          details: {},
-          createdAt: 1_000,
-        }],
+        items: [
+          {
+            id: 'event-1',
+            category: 'membership',
+            eventType: 'member_blocked',
+            actor: { kind: 'user', label: 'ANA' },
+            subject: { kind: 'user', label: 'BIA' },
+            details: {},
+            createdAt: 1_000,
+          },
+          {
+            id: 'event-2',
+            category: 'moderation',
+            eventType: 'highlight_changed',
+            actor: { kind: 'user', label: 'CARLA' },
+            subject: null,
+            details: { target: 'post', action: 'pinned' },
+            createdAt: 900,
+          },
+        ],
         nextCursor: null,
         generatedAt: 1_100,
       })),
@@ -42,6 +53,9 @@ describe('CommunityAdminTimelineComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('ANA bloqueou BIA.');
+    expect(fixture.nativeElement.textContent).toContain(
+      'CARLA destacou uma publicação.'
+    );
     expect(repository.getPage$).toHaveBeenCalledWith('community-1');
   });
 });
