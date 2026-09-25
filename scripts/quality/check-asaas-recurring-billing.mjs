@@ -200,13 +200,41 @@ for (const fragment of [
   'assertCallableAppCheck',
 ]) requireIncludes(cancel, fragment, 'cancel-renewal drift');
 
+const accountLifecycleBilling = read(
+  'functions/src/account_lifecycle/account-lifecycle-billing.service.ts'
+);
+for (const fragment of [
+  'requestRecurringContractCancellation',
+  'cancelRecurringContractAtProvider',
+  'PLATFORM_SUBSCRIPTION_STATE_COLLECTION',
+]) requireIncludes(
+  accountLifecycleBilling,
+  fragment,
+  'account lifecycle billing coordination drift'
+);
+
 const accountDeletion = read(
   'functions/src/account_lifecycle/requestAccountDeletion.ts'
 );
-requireIncludes(
+for (const fragment of [
+  'cancelRecurringBillingForAccountLifecycle',
+  'secrets: [ASAAS_API_KEY]',
+]) requireIncludes(
   accountDeletion,
-  'requestRecurringContractCancellation',
-  'account deletion must stop future recurring charges'
+  fragment,
+  'self account deletion billing drift'
+);
+
+const moderatedAccountDeletion = read(
+  'functions/src/account_lifecycle/moderateScheduleDeletion.ts'
+);
+for (const fragment of [
+  'cancelRecurringBillingForAccountLifecycle',
+  'secrets: [ASAAS_API_KEY]',
+]) requireIncludes(
+  moderatedAccountDeletion,
+  fragment,
+  'moderated account deletion billing drift'
 );
 
 const rules = read('firestore-rules/billing.rules');
