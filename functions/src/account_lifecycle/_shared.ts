@@ -81,6 +81,12 @@ export type UserDoc = {
   legalHold?: boolean;
   billingHold?: boolean;
 
+  billingCancellationPending?: boolean | null;
+  billingCancellationReason?: string | null;
+  billingCancellationRequestedAt?: number | null;
+  billingCancellationLastAttemptAt?: number | null;
+  billingCancellationLastErrorCode?: string | null;
+
   staffRoles?: string[] | null;
   roles?: string[] | null;
   permissions?: string[] | null;
