@@ -149,6 +149,16 @@ export class CommunityFeedRenderWindowFacade {
 
   resetToLatest(): void {
     this.followTailAfterAppend = false;
+    this.pendingRevealPostId = null;
+    this.pendingScrollAnchor = null;
+    this.renderWindowStart.set(0);
+  }
+
+  reset(): void {
+    this.followTailAfterAppend = false;
+    this.pendingRevealPostId = null;
+    this.pendingScrollAnchor = null;
+    this.lastItemIds = [];
     this.renderWindowStart.set(0);
   }
 
