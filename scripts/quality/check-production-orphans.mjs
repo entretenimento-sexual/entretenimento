@@ -414,6 +414,12 @@ const missingStaticAssets = [...declaredAssetReferences]
 
 const rootPackage = readJson(path.join(root, 'package.json'));
 const productionDependencies = Object.keys(rootPackage.dependencies ?? {});
+const dependencyAuditTexts = auditTexts.filter(({ filePath }) => {
+  const relative = posix(filePath);
+  return relative !== 'package.json'
+    && relative !== 'package-lock.json'
+    && !relative.startsWith('docs/');
+});
 
 function dependencyReferenced(packageName) {
   const patterns = [
@@ -424,13 +430,45 @@ function dependencyReferenced(packageName) {
     `node_modules/${packageName}/`,
   ];
 
-  return auditTexts.some(({ source }) =>
+  return dependencyAuditTexts.some(({ source }) =>
     patterns.some((pattern) => source.includes(pattern))
   );
 }
 
 const unreferencedProductionDependencies = productionDependencies
   .filter((packageName) => !dependencyReferenced(packageName))
+  .sort();
+
+// -----------------------------------------------------------------------------
+// SCRIPTS: arquivos sem chamada/referência identificável
+// -----------------------------------------------------------------------------
+
+const scriptRoot = path.join(root, 'scripts');
+const operationalScripts = walk(scriptRoot).filter((filePath) =>
+  ['.cmd', '.js', '.mjs', '.ps1', '.sh', '.ts'].includes(
+    path.extname(filePath).toLowerCase()
+  )
+);
+
+const unreferencedScripts = operationalScripts
+  .filter((scriptPath) => {
+    const normalized = path.normalize(scriptPath);
+    const relative = posix(scriptPath);
+    const basename = path.basename(scriptPath);
+    return !auditTexts.some(
+      ({ filePath, source }) =>
+        filePath !== normalized
+        && (source.includes(relative) || source.includes(basename))
+    );
+  })
+  .map(posix)
+  .sort();
+
+const allowedEmptyFiles = new Set(['src/assets/.gitkeep']);
+const emptyTrackedFiles = walkAuditText(root)
+  .filter((filePath) => fs.statSync(filePath).size === 0)
+  .map(posix)
+  .filter((filePath) => !allowedEmptyFiles.has(filePath))
   .sort();
 
 function printGroup(label, items) {
@@ -449,6 +487,8 @@ printGroup('Functions fora do grafo exportável', functionOrphans);
 printGroup('Assets estáticos sem referência textual', unreferencedStaticAssets);
 printGroup('Referências a assets locais inexistentes', missingStaticAssets);
 printGroup('Dependências de produção sem referência identificável', unreferencedProductionDependencies);
+printGroup('Scripts sem referência identificável', unreferencedScripts);
+printGroup('Arquivos vazios rastreados', emptyTrackedFiles);
 
 if (
   strict
