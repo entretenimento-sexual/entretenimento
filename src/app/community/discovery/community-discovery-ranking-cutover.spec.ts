@@ -134,9 +134,8 @@ describe('CommunityDiscoveryPageComponent / ranking cutover', () => {
       .mockReturnValueOnce(of(initialPage))
       .mockReturnValueOnce(throwError(() => ({ code: 'functions/aborted' })))
       .mockReturnValueOnce(of(refreshedPage));
-    const component = TestBed.runInInjectionContext(
-      () => new CommunityDiscoveryPageComponent()
-    );
+    const fixture = TestBed.createComponent(CommunityDiscoveryPageComponent);
+    const component = fixture.componentInstance;
     const persistentSubscription = component.state$.subscribe();
 
     const initialState = await firstValueFrom(
