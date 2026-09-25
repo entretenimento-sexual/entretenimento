@@ -19,7 +19,8 @@ import {
   inspectAccountDeletionOwnedResourcesInTransaction,
 } from './account-deletion-owned-resources.service';
 import {
-  cancelRecurringBillingForAccountLifecycle,
+  buildAccountLifecycleBillingCancellationPatch,
+  reconcileAccountLifecycleBillingCancellation,
 } from './account-lifecycle-billing.service';
 
 interface RequestAccountDeletionRequest {
@@ -119,6 +120,17 @@ export const requestAccountDeletion = onCall<RequestAccountDeletionRequest>(
             );
           }
 
+          if (user.billingCancellationPending !== true) {
+            tx.set(
+              userRef,
+              buildAccountLifecycleBillingCancellationPatch({
+                reason: 'account-deletion-request',
+                now,
+              }),
+              { merge: true }
+            );
+          }
+
           return {
             deletionRequestedAt: existingRequestedAt,
             deletionUndoUntil: existingUndoUntil,
@@ -165,6 +177,11 @@ export const requestAccountDeletion = onCall<RequestAccountDeletionRequest>(
 
             statusUpdatedAt: now,
             statusUpdatedBy: 'self',
+
+            ...buildAccountLifecycleBillingCancellationPatch({
+              reason: 'account-deletion-request',
+              now,
+            }),
           },
           { merge: true }
         );
@@ -199,10 +216,10 @@ export const requestAccountDeletion = onCall<RequestAccountDeletionRequest>(
       }
     );
 
-    await cancelRecurringBillingForAccountLifecycle({
+    await reconcileAccountLifecycleBillingCancellation({
       uid,
-      reason: 'account-deletion-request',
-    }).catch(() => undefined);
+      fallbackReason: 'account-deletion-request',
+    });
 
     return {
       ok: true,
