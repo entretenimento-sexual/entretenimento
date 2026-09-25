@@ -863,12 +863,12 @@ printGroup('HTML/CSS sem referência declarada', meaningfulAssetOrphans);
 printGroup('Helpers/stubs de teste sem consumidor', testSupportOrphans);
 printGroup('Functions fora do grafo exportável', functionOrphans);
 printGroup('Assets estáticos sem referência textual', unreferencedStaticAssets);
-printGroup('Assets referenciados somente por documentação (revisão humana)', staticAssetsReferencedOnlyByDocumentation);
+printGroup('Assets referenciados somente por documentação', staticAssetsReferencedOnlyByDocumentation);
 printGroup('Referências a assets locais inexistentes', missingStaticAssets);
 printGroup('Dependências de produção sem referência identificável', unreferencedProductionDependencies);
-printGroup('DevDependencies sem referência identificável (revisão humana)', unreferencedDevelopmentDependencies);
+printGroup('DevDependencies sem referência identificável', unreferencedDevelopmentDependencies);
 printGroup('Dependências de Functions sem referência identificável', unreferencedFunctionsDependencies);
-printGroup('DevDependencies de Functions sem referência identificável (revisão humana)', unreferencedFunctionsDevelopmentDependencies);
+printGroup('DevDependencies de Functions sem referência identificável', unreferencedFunctionsDevelopmentDependencies);
 printGroup('Consumidores produtivos proibidos da coleção raiz posts', legacyRootPostsConsumers);
 printGroup('Fragments de Firestore Rules fora do manifesto', ruleFragmentsOutsideManifest);
 printGroup('Scripts sem referência identificável', unreferencedScripts);
@@ -881,9 +881,12 @@ if (
     || meaningfulAssetOrphans.length > 0
     || testSupportOrphans.length > 0
     || functionOrphans.length > 0
+    || staticAssetsReferencedOnlyByDocumentation.length > 0
     || missingStaticAssets.length > 0
     || unreferencedProductionDependencies.length > 0
+    || unreferencedDevelopmentDependencies.length > 0
     || unreferencedFunctionsDependencies.length > 0
+    || unreferencedFunctionsDevelopmentDependencies.length > 0
     || legacyRootPostsConsumers.length > 0
     || ruleFragmentsOutsideManifest.length > 0
     || unreferencedScripts.length > 0
@@ -897,5 +900,5 @@ if (
 }
 
 console.log(
-  '[production-orphans] Auditoria global concluída; candidatos de assets/dependências exigem revisão humana antes de remoção.'
+  '[production-orphans] Auditoria global concluída; nenhum órfão bloqueante identificado.'
 );
