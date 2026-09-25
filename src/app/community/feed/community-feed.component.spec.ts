@@ -173,6 +173,50 @@ describe('CommunityFeedComponent', () => {
     ).toBe('Novidades do Local');
   });
 
+  it('reinicia a janela de DOM ao trocar de comunidade no mesmo componente', () => {
+    const firstPage: CommunityFeedPage = {
+      items: Array.from({ length: 70 }, (_, index) =>
+        textItem(`old-${index + 1}`, `Antiga ${index + 1}`)
+      ),
+      nextCursor: null,
+      generatedAt: Date.now(),
+    };
+    const secondPage: CommunityFeedPage = {
+      items: Array.from({ length: 70 }, (_, index) =>
+        textItem(`new-${index + 1}`, `Nova ${index + 1}`)
+      ),
+      nextCursor: null,
+      generatedAt: Date.now() + 1,
+    };
+
+    repositoryMock.getPage$.mockImplementation(
+      ({ communityId }: { communityId: string }) =>
+        of(communityId === 'community-2' ? secondPage : firstPage)
+    );
+
+    const fixture = create('feed', 'community');
+    expect(
+      fixture.nativeElement.querySelector('#community-feed-post-old-1')
+    ).not.toBeNull();
+
+    fixture.componentInstance.showOlderLoadedPosts(firstPage.items);
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('#community-feed-post-old-1')
+    ).toBeNull();
+
+    fixture.componentRef.setInput('communityId', 'community-2');
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('#community-feed-post-new-1')
+    ).not.toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('#community-feed-post-new-70')
+    ).toBeNull();
+  });
+
   it('consulta a visualização de fotos como compilação da timeline', () => {
     const fixture = create('photos', 'venue');
 
