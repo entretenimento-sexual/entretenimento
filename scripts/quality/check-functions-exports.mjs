@@ -400,11 +400,16 @@ const leakedLegacyTriggerExports = forbiddenLegacyTriggerExports.filter(
 );
 
 function isFirebaseDeploymentExport(value) {
-  return typeof value === 'function'
-    && (
-      typeof value.__endpoint === 'object'
-      || typeof value.__trigger === 'object'
-    );
+  if (typeof value !== 'function') {
+    return false;
+  }
+
+  // Não leia __endpoint/__trigger aqui. Em Functions v1 alguns desses campos
+  // são getters que materializam metadata e exigem GCLOUD_PROJECT. O auditor
+  // só precisa saber se a marca de deployment existe; o operador "in" verifica
+  // a propriedade sem executar o getter, mantendo o check independente do
+  // ambiente local/CI.
+  return '__endpoint' in value || '__trigger' in value;
 }
 
 const deploymentExports = Object.entries(compiledFunctions ?? {})
