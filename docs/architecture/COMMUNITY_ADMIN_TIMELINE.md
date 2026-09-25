@@ -45,12 +45,17 @@ entra na timeline até ser explicitamente whitelisted e sanitizado.
 ## Backfill
 
 scripts/maintenance/backfill-community-admin-timeline-admin.mjs é dry-run por
-padrão e idempotente. Escrita real exige:
+padrão e idempotente. O dry-run pode inventariar todas as fontes e reporta
+contagens separadas por fonte. Escrita real exige:
+
 - COMMUNITY_ADMIN_TIMELINE_DRY_RUN=false
 - COMMUNITY_ADMIN_TIMELINE_CONFIRM=true
+- COMMUNITY_ADMIN_TIMELINE_SOURCE=<fonte>
 
-Não executar o backfill real antes dos triggers estarem publicados e
-estabilizados.
+A execução real é obrigatoriamente feita uma fonte por vez. O limite
+COMMUNITY_ADMIN_TIMELINE_MAX_AUDITS_PER_SOURCE controla o teto de leitura de
+cada rodada. Não executar o backfill real antes dos triggers estarem publicados
+e estabilizados.
 
 ## Ordem futura de produção
 

@@ -33,16 +33,23 @@ const pageSize = Math.max(
     ) || 200
   )
 );
-const maxAudits = Math.max(
+const maxAuditsPerSource = Math.max(
   1,
   Math.min(
     2_000_000,
     Number.parseInt(
-      String(process.env.COMMUNITY_ADMIN_TIMELINE_MAX_AUDITS || '500000'),
+      String(
+        process.env.COMMUNITY_ADMIN_TIMELINE_MAX_AUDITS_PER_SOURCE
+        || process.env.COMMUNITY_ADMIN_TIMELINE_MAX_AUDITS
+        || '500000'
+      ),
       10
     ) || 500_000
   )
 );
+const sourceFilter = String(
+  process.env.COMMUNITY_ADMIN_TIMELINE_SOURCE || ''
+).trim();
 
 const SOURCES = [
   ['membership', 'community_membership_audit'],
@@ -92,13 +99,13 @@ async function processSource(
   db,
   projectionModule,
   source,
-  collectionName,
-  counters
+  collectionName
 ) {
   let cursor = null;
+  const counters = { scanned: 0, projected: 0, skipped: 0 };
 
-  while (counters.scanned < maxAudits) {
-    const remaining = maxAudits - counters.scanned;
+  while (counters.scanned < maxAuditsPerSource) {
+    const remaining = maxAuditsPerSource - counters.scanned;
     const currentLimit = Math.min(pageSize, remaining);
     let query = db
       .collection(collectionName)
@@ -108,7 +115,7 @@ async function processSource(
     if (cursor) query = query.startAfter(cursor);
 
     const snapshot = await query.get();
-    if (snapshot.empty) return;
+    if (snapshot.empty) return counters;
 
     cursor = snapshot.docs.at(-1);
     counters.scanned += snapshot.size;
@@ -157,8 +164,10 @@ async function processSource(
       }
     }
 
-    if (snapshot.size < currentLimit) return;
+    if (snapshot.size < currentLimit) return counters;
   }
+
+  return counters;
 }
 
 async function main() {
@@ -168,26 +177,47 @@ async function main() {
     );
   }
 
+  const availableSources = new Set(SOURCES.map(([source]) => source));
+  if (sourceFilter && !availableSources.has(sourceFilter)) {
+    throw new Error(
+      `Fonte inválida em COMMUNITY_ADMIN_TIMELINE_SOURCE: ${sourceFilter}.`
+    );
+  }
+  if (!dryRun && !sourceFilter) {
+    throw new Error(
+      'Backfill real exige COMMUNITY_ADMIN_TIMELINE_SOURCE para executar uma fonte por vez.'
+    );
+  }
+
   initializeAdmin();
   const db = getFirestore();
   const projectionModule = await loadProjectionModule();
+  const selectedSources = sourceFilter
+    ? SOURCES.filter(([source]) => source === sourceFilter)
+    : SOURCES;
   const counters = { scanned: 0, projected: 0, skipped: 0 };
+  const bySource = {};
 
-  for (const [source, collectionName] of SOURCES) {
-    if (counters.scanned >= maxAudits) break;
-    await processSource(
+  for (const [source, collectionName] of selectedSources) {
+    const sourceCounters = await processSource(
       db,
       projectionModule,
       source,
-      collectionName,
-      counters
+      collectionName
     );
+    bySource[source] = sourceCounters;
+    counters.scanned += sourceCounters.scanned;
+    counters.projected += sourceCounters.projected;
+    counters.skipped += sourceCounters.skipped;
   }
 
   console.log(JSON.stringify({
     projectId,
     dryRun,
+    sourceFilter: sourceFilter || null,
+    maxAuditsPerSource,
     ...counters,
+    bySource,
   }, null, 2));
 }
 
