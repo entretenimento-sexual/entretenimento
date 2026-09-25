@@ -8,7 +8,6 @@ import {
   authSessionChanged,
 } from '../../actions/actions.user/auth.actions';
 
-import { initialInviteState } from '../../states/states.chat/invite.state';
 import { initialLocationState } from '../../states/states.location/location.state';
 import { initialNearbyProfilesState } from '../../states/states.location/nearby-profiles.state';
 import { initialDiscoveryFeedState } from '../../states/states.discovery/discovery-feed.state';
@@ -16,7 +15,6 @@ import { initialCommunityDiscoveryCacheState } from '../../states/states.discove
 import { initialFriendsPaginationState } from '../../states/states.interactions/friends-pagination.state';
 import { initialState as initialFriendsState } from '../../states/states.interactions/friends.state';
 import { initialUserState } from '../../states/states.user/user.state';
-import { initialTermsState } from '../../states/states.user/terms.state';
 import { initialFileState } from '../../states/states.user/file.state';
 import { initialUserPreferencesState } from '../../states/states.user/user-preferences.state';
 
@@ -44,6 +42,10 @@ import { initialUserPreferencesState } from '../../states/states.user/user-prefe
  * Chats diretos e salas não aparecem neste reset porque não possuem slice
  * global. Suas facades reabrem os listeners com escopo explícito de UID e emitem
  * estado vazio antes do primeiro snapshot da nova sessão.
+ *
+ * O aceite jurídico também não possui slice NgRx: TermsAcceptanceService grava
+ * pela Function canônica e CurrentUserStoreService recebe a projeção persistida.
+ * O antigo estado booleano local foi retirado para não competir com essa fonte.
  */
 function resetUserScopedSlices(
   nextState: AppState,
@@ -53,11 +55,9 @@ function resetUserScopedSlices(
     ...nextState,
 
     [STORE_FEATURE.user]: initialUserState as any,
-    [STORE_FEATURE.terms]: initialTermsState as any,
     [STORE_FEATURE.file]: initialFileState as any,
     [STORE_FEATURE.userPreferences]: initialUserPreferencesState as any,
 
-    [STORE_FEATURE.invite]: initialInviteState as any,
 
     [STORE_FEATURE.location]: initialLocationState as any,
     [STORE_FEATURE.nearbyProfiles]: initialNearbyProfilesState as any,
