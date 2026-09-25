@@ -70,6 +70,7 @@ const COMMUNITY_CALLABLE_RECENT_AUTH_REQUIREMENTS =
     ['get-community-highlight.handler.ts:getCommunityHighlight', 'none'],
     ['get-community-invites.handler.ts:getCommunityInvites', 'none'],
     ['get-community-member-roster-page.handler.ts:getCommunityMemberRosterPage', 'none'],
+    ['search-community-members-page.handler.ts:searchCommunityMembersPage', 'none'],
     ['get-community-membership-context.handler.ts:getCommunityMembershipContext', 'none'],
     ['get-community-official-claim-capability.handler.ts:getCommunityOfficialClaimCapability', 'none'],
     ['get-community-official-claim-review-queue.handler.ts:getCommunityOfficialClaimReviewQueue', 'none'],
