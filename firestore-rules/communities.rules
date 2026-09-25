@@ -281,6 +281,12 @@ match /community_member_management_index/{projectionId} {
   allow read, write: if false;
 }
 
+// Índice interno de busca de integrantes por identidade pública. Mesmo sendo
+// sanitizado, continua backend-only para impedir enumeração direta.
+match /community_member_search_index/{projectionId} {
+  allow read, write: if false;
+}
+
 // Cursor do Scheduler e trilha de transições do lifecycle nunca são dados de UI.
 match /community_lifecycle_runtime/{runtimeId} {
   allow read, write: if false;
