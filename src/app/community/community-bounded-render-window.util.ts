@@ -1,8 +1,6 @@
 export interface CommunityBoundedRenderWindow<T> {
   readonly items: readonly T[];
   readonly start: number;
-  readonly end: number;
-  readonly total: number;
   readonly hasPrevious: boolean;
   readonly hasNext: boolean;
 }
@@ -73,8 +71,6 @@ export function buildCommunityBoundedRenderWindow<T>(
   return {
     items: items.slice(start, end),
     start,
-    end,
-    total,
     hasPrevious: start > 0,
     hasNext: end < total,
   };
