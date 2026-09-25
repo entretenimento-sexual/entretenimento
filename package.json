@@ -106,7 +106,7 @@
     "deadcode:check": "npm run audit:typescript:unused && node scripts/quality/check-production-orphans.mjs --strict && npm run deadcode:deep:audit",
     "test:community:e2e": "npm run rules:build && npm run rules:check && npm run functions:build && firebase emulators:exec --config firebase.media-e2e.json --only auth,firestore,functions --project demo-entretenimento-media-e2e \"node scripts/tests/community-creation.e2e.mjs && node scripts/tests/community-discovery-tags.e2e.mjs && node scripts/tests/community-topics.e2e.mjs\"",
     "maintenance:community-member-count-reconcile": "node scripts/admin/run-community-member-count-reconcile.mjs",
-    "deadcode:deep:audit": "node scripts/quality/audit-export-consumers.mjs && node scripts/quality/audit-css-selectors.mjs && node scripts/quality/audit-dependency-scope.mjs --strict && node scripts/quality/audit-legacy-store-slices.mjs"
+    "deadcode:deep:audit": "node scripts/quality/audit-export-consumers.mjs && node scripts/quality/audit-css-selectors.mjs && node scripts/quality/audit-dependency-scope.mjs --strict && node scripts/quality/check-retired-store-slices.mjs"
   },
   "private": true,
   "dependencies": {
