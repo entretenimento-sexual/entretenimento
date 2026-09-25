@@ -300,6 +300,20 @@
               <span>{{ feedSectionLabel(preview.community) }}</span>
             </button>
 
+            @if (spaceCapabilities(preview.community).internalSearch) {
+              <button
+                id="community-tab-search"
+                type="button"
+                aria-controls="community-panel-search"
+                [attr.aria-pressed]="activeSection() === 'search'"
+                [class.is-active]="activeSection() === 'search'"
+                (click)="selectSection('search')"
+              >
+                <i class="fas {{ sectionIcons.search }}" aria-hidden="true"></i>
+                <span>Buscar</span>
+              </button>
+            }
+
             @if (spaceCapabilities(preview.community).topics) {
               <button
                 id="community-tab-topics"
@@ -421,6 +435,16 @@
                   />
                 </section>
               } @else if (
+                activeSection() === 'search'
+                && spaceCapabilities(preview.community).internalSearch
+              ) {
+                <section id="community-panel-search" aria-labelledby="community-tab-search">
+                  <app-community-search
+                    [communityId]="preview.community.communityId"
+                    (topicRequested)="openTopicFromSearch($event)"
+                  />
+                </section>
+              } @else if (
                 activeSection() === 'topics'
                 && spaceCapabilities(preview.community).topics
               ) {
@@ -429,6 +453,7 @@
                     [communityId]="preview.community.communityId"
                     [canInteract]="preview.canInteract"
                     [viewerRole]="preview.viewerRole"
+                    [focusTopicId]="focusedTopicId()"
                   />
                 </section>
               } @else if (activeSection() === 'photos') {
