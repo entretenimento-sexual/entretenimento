@@ -230,6 +230,7 @@ incluindo, conforme o diff:
 - Discussões/Tópicos;
 - membership, convites e roster;
 - busca/filtros administrativos de membros;
+- busca interna paginada de Membros e Discussões (`getCommunitySearchPage`), somente depois dos backfills B8/B9;
 - ownership/arquivamento e busca/shortlist de sucessão;
 - associação Official;
 - notificações/preferências;
@@ -283,6 +284,30 @@ Nesse caso, não redeployar Functions por conveniência. O kernel entra somente 
 onda de Hosting, que continua sendo a última onda do rollout geral. Se o
 `RELEASE_SHA` futuro também contiver mudanças reais de Functions, aplicar F1–F5
 normalmente para **essas** mudanças antes de publicar o Hosting.
+
+### Regra específica — busca interna de Comunidades
+
+A busca interna possui dependência de dados materializados e deve ser dividida
+em produtor e consumidor. Quando este delta estiver presente no `RELEASE_SHA`:
+
+1. em T0, publicar e aguardar `READY` para os índices de
+   `community_member_management_index` e de `community_public_topics/*/items`;
+2. em F2, implantar as versões v2 de
+   `syncCommunityMemberManagementIndex` e
+   `syncCommunityMemberManagementIndexFromUser`, que passam a manter
+   `searchKey` opaco para novos writes/renomes;
+3. antes do B9, implantar seletivamente a versão produtora de
+   `createCommunityTopic`, que passa a gravar `searchPrefixes` no mesmo
+   commit do novo Tópico, e executar smoke de criação/leitura sem habilitar a
+   nova UI;
+4. executar B8 para preencher/atualizar `searchKey` nos membros existentes;
+5. executar B9 para preencher `searchPrefixes` nas Discussões existentes;
+6. somente com B8 e B9 verdes implantar `getCommunitySearchPage`;
+7. validar o callable com contas de teste e manter o Hosting da busca para a
+   última onda.
+
+O Mural **não faz parte desta primeira fase**. Nenhum scan cronológico ou
+fallback client-side deve ser introduzido para simulá-lo.
 
 ## 7. Migrações/backfills — ordem e gates
 
@@ -386,13 +411,41 @@ Somente quando a release contiver busca server-side de membros e sucessores:
 5. escrita real exige simultaneamente:
    - `COMMUNITY_MEMBER_MANAGEMENT_INDEX_DRY_RUN=false`;
    - `COMMUNITY_MEMBER_MANAGEMENT_INDEX_CONFIRM=true`;
-6. somente depois do backfill verde implantar em F3 as versões consumidoras de
+6. confirmar que todas as projeções existentes foram elevadas para a versão do
+   índice que contém `searchKey`, sem UID no cursor da busca comum;
+7. somente depois do backfill verde implantar em F3 as versões consumidoras de
    `getCommunityMembersForManagement` e
    `getCommunityOwnershipCandidatesPage`;
-7. Hosting com busca/filtros permanece depois de F3 e Rules.
+8. `getCommunitySearchPage` permanece bloqueada até B9 também estar verde;
+9. Hosting com busca/filtros permanece depois de F3 e Rules.
 
 A projeção é derivada e descartável. O backfill **não** altera membership,
 papel, elegibilidade, ownership, capacidade ou billing.
+
+### B9 — prefixos de busca das Discussões
+
+Obrigatório quando a release contiver a primeira fase da busca interna:
+
+1. o índice composto de `community_public_topics/{communityId}/items` com
+   `searchPrefixes + lastActivityAt + __name__` deve estar `READY`;
+2. a versão de `createCommunityTopic` que grava `searchPrefixes` deve estar
+   implantada e smoke-tested antes do backfill, para não abrir uma lacuna entre
+   conteúdo novo e histórico;
+3. rodar `npm run maintenance:community-topic-search` com
+   `COMMUNITY_TOPIC_SEARCH_BACKFILL_DRY_RUN=true`;
+4. revisar `scanComplete`, `scannedCommunities`, `scannedTopics`,
+   `projected`, `alreadyCurrent`, `failures`,
+   `averagePrefixesPerTopic` e `maxPrefixesPerTopic`;
+5. abortar se houver truncamento, falha ou amplificação fora do baseline/custo
+   aprovado;
+6. escrita real exige simultaneamente:
+   - `COMMUNITY_TOPIC_SEARCH_BACKFILL_DRY_RUN=false`;
+   - `COMMUNITY_TOPIC_SEARCH_BACKFILL_CONFIRM=true`;
+7. repetir uma amostra pós-escrita e só então liberar
+   `getCommunitySearchPage`.
+
+B9 altera somente a projeção derivada de leitura. Não muda audiência, texto,
+moderação, métricas ou o Tópico operacional.
 
 ## 8. Firestore Rules e Storage Rules
 
@@ -477,6 +530,11 @@ real nem operações destrutivas apenas para smoke test.
 - Discussões: lista, detalhe, resposta e moderação;
 - membership, solicitações e convites;
 - roster e gestão;
+- busca interna: termo com acento/caixa normaliza de forma consistente e consultas com menos de 2 caracteres não disparam scan;
+- busca interna: Membros e Discussões paginam no backend sem duplicação/omissão; Mural continua fora da fase 1;
+- busca de Membros: visitante/pendente não enumera roster; participante ativo recebe somente perfis públicos adultos vigentes e bloqueios bilaterais somem dos resultados;
+- busca de Discussões: `public_preview` e `members_only` respeitam exatamente a audiência do Tópico; removidos/arquivados não aparecem;
+- abrir uma Discussão encontrada leva à superfície canônica de Tópicos e preserva o deep link;
 - em Comunidade sintética com 500+ membros, busca por nome/apelido sem scan
   client-side, filtro por papel, combinação busca+papel e paginação sem
   duplicação/omissão;
@@ -584,6 +642,9 @@ snapshot.
 
 Para o índice `community_member_management_index`, rollback de F3/Hosting não
 exige apagar a projeção: ela não concede autorização e pode permanecer inerte.
+`searchKey` e `searchPrefixes` adicionados pela busca interna também são
+campos derivados aditivos; não devem ser removidos durante rollback. Um rollback
+do Hosting/`getCommunitySearchPage` pode deixá-los inertes sem alterar acesso.
 Se um sincronizador de F2 produzir writes anômalos, reverter somente a Function
 afetada e interromper o B8. Nunca reconstruir membership, papel ou ownership a
 partir dessa projeção.
@@ -650,7 +711,8 @@ Não iniciar uma nova onda enquanto a anterior não estiver explicitamente verde
 - [ ] diff de Rules classificado e compatível;
 - [ ] Functions a implantar listadas por onda;
 - [ ] aliases de triggers legados preservados;
-- [ ] dry-runs dos backfills revisados, incluindo B8 quando aplicável;
+- [ ] dry-runs dos backfills revisados, incluindo B8 e B9 quando aplicáveis;
+- [ ] `searchKey` de membros e `searchPrefixes` de Discussões completos antes de liberar a busca interna;
 - [ ] backfills obrigatórios concluídos antes do frontend;
 - [ ] App Check e Web Push validados;
 - [ ] billing recorrente explicitamente incluído ou explicitamente fora da janela;
