@@ -149,9 +149,9 @@ async function readPublicProfiles(db, memberDocs) {
   );
 }
 
-async function applyWrites(writes) {
+async function applyWrites(db, writes) {
   for (let offset = 0; offset < writes.length; offset += 400) {
-    const batch = writes[offset].ref.firestore.batch();
+    const batch = db.batch();
 
     for (const write of writes.slice(offset, offset + 400)) {
       if (write.projection) {
@@ -233,7 +233,7 @@ async function processCommunity(db, policy, communityDocument, counters) {
     });
 
     if (!dryRun && writes.length) {
-      await applyWrites(writes);
+      await applyWrites(db, writes);
       counters.written += writes.filter((write) => write.projection).length;
       counters.deleted += writes.filter((write) => !write.projection).length;
     }
