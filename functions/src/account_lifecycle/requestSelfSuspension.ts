@@ -1,5 +1,8 @@
 // functions/src/account_lifecycle/requestSelfSuspension.ts
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import {
+  assertAccountLifecycleMutationSecurity,
+} from './account-lifecycle-mutation-security';
 import { db } from '../firebaseApp';
 import {
   ACCOUNT_LIFECYCLE_REGION,
@@ -35,6 +38,12 @@ export const requestSelfSuspension = onCall<RequestSelfSuspensionRequest>(
     assertRecentAuthentication(
       request.auth?.token as Record<string, unknown> | undefined
     );
+
+    await assertAccountLifecycleMutationSecurity({
+      action: 'self_suspend',
+      subjectUid: uid,
+      appContext: request.app,
+    });
 
     const reason = normalizeOptionalReason(request.data?.reason);
     const now = Date.now();
