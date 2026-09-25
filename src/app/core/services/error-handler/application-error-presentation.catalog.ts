@@ -12,6 +12,22 @@ import type {
 
 export const COMMON_APPLICATION_ERROR_REASON_MESSAGES:
   Readonly<Record<string, string>> = Object.freeze({
+    plan_quote_changed:
+      'O valor do plano foi atualizado. Recarregue os planos antes de continuar.',
+    recurring_subscription_update_not_enabled:
+      'A alteração automática para o próximo ciclo ainda não está disponível nesta assinatura.',
+    recurring_plan_change_unavailable:
+      'A assinatura atual não pode receber esta mudança de plano agora.',
+    recurring_plan_change_already_scheduled:
+      'Já existe uma mudança de plano aguardando o próximo ciclo.',
+    recurring_plan_change_not_scheduled:
+      'Não existe uma redução de plano agendada para cancelar.',
+    recurring_plan_change_cancel_pending:
+      'O cancelamento da mudança de plano ainda está sendo processado.',
+    recurring_plan_change_cancel_window_closed:
+      'A data efetiva desta mudança já foi alcançada e ela não pode mais ser cancelada.',
+    downgrade_requires_lower_plan:
+      'Selecione um plano inferior ao plano atualmente ativo.',
     verification_required:
       'Conclua a verificação de maioridade para continuar usando recursos adultos e sociais.',
     official_claim_verification_required:
@@ -50,6 +66,82 @@ export const COMMON_APPLICATION_ERROR_REASON_MESSAGES:
 
 export const COMMON_APPLICATION_ERROR_REASON_PRESENTATIONS:
   ApplicationErrorPresentationMap = Object.freeze({
+    plan_quote_changed: {
+      surface: 'modal',
+      severity: 'info',
+      title: 'Valor do plano atualizado',
+      detail:
+        'Recarregue os planos para confirmar o preço vigente antes de continuar.',
+      primaryAction: {
+        label: 'Ver planos',
+        route: '/subscription-plan',
+      },
+      dismissLabel: 'Agora não',
+    },
+    recurring_subscription_update_not_enabled: {
+      surface: 'modal',
+      severity: 'info',
+      title: 'Mudança para o próximo ciclo indisponível',
+      detail:
+        'Sua assinatura atual continua sem alterações. Você poderá revisar as opções novamente mais tarde.',
+      dismissLabel: 'Fechar',
+    },
+    recurring_plan_change_unavailable: {
+      surface: 'modal',
+      severity: 'warning',
+      title: 'Mudança de plano indisponível',
+      detail:
+        'O estado atual da assinatura não permite agendar esta alteração agora.',
+      dismissLabel: 'Fechar',
+    },
+    recurring_plan_change_already_scheduled: {
+      surface: 'modal',
+      severity: 'info',
+      title: 'Mudança já agendada',
+      detail:
+        'Revise a alteração já programada na área da sua assinatura antes de solicitar outra.',
+      primaryAction: {
+        label: 'Ver assinatura',
+        route: '/conta/assinatura',
+      },
+      dismissLabel: 'Fechar',
+    },
+    recurring_plan_change_not_scheduled: {
+      surface: 'modal',
+      severity: 'info',
+      title: 'Nenhuma redução agendada',
+      detail:
+        'Não há uma redução de plano pendente para cancelar.',
+      dismissLabel: 'Fechar',
+    },
+    recurring_plan_change_cancel_pending: {
+      surface: 'modal',
+      severity: 'info',
+      title: 'Cancelamento em andamento',
+      detail:
+        'A restauração do plano atual ainda está sendo confirmada no provedor.',
+      dismissLabel: 'Fechar',
+    },
+    recurring_plan_change_cancel_window_closed: {
+      surface: 'modal',
+      severity: 'warning',
+      title: 'Prazo de cancelamento encerrado',
+      detail:
+        'A data efetiva da mudança já foi alcançada. Consulte o estado atual da assinatura.',
+      primaryAction: {
+        label: 'Ver assinatura',
+        route: '/conta/assinatura',
+      },
+      dismissLabel: 'Fechar',
+    },
+    downgrade_requires_lower_plan: {
+      surface: 'modal',
+      severity: 'info',
+      title: 'Escolha um plano inferior',
+      detail:
+        'Esta ação é exclusiva para redução de plano no próximo ciclo.',
+      dismissLabel: 'Fechar',
+    },
     verification_required: {
       surface: 'modal',
       severity: 'info',

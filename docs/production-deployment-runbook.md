@@ -594,6 +594,23 @@ Se houver ativação de webhook na mesma release (somente com GO específico),
 registrar a configuração anterior antes do apply e reverter o endpoint/eventos
 separadamente. Nunca imprimir ou versionar API keys/tokens.
 
+A capability de mudança de valor da recorrência é um gate separado do checkout
+recorrente. Antes de considerar `ASAAS_SUBSCRIPTION_UPDATE_ENABLED=true`:
+
+- validar schedule + cancel de downgrade no Sandbox;
+- confirmar que alteração de valor com cartão está habilitada para a conta
+  Asaas de produção;
+- validar que `updatePendingPayments: true` converge uma cobrança do próximo
+  ciclo já criada sem alterar períodos pagos;
+- validar cobrança menor recebida antes de `endsAt` e settlement somente na
+  data efetiva;
+- validar cancelamento do downgrade antes da data efetiva e restauração do
+  valor recorrente atual;
+- manter a flag **false/ausente** se qualquer requisito não estiver confirmado.
+
+Ativar `ASAAS_RECURRING_ENABLED` não implica ativar
+`ASAAS_SUBSCRIPTION_UPDATE_ENABLED`.
+
 ## 13. Janela operacional
 
 Escolher a janela usando tráfego real; não presumir horário de menor uso.
@@ -633,6 +650,8 @@ Não iniciar uma nova onda enquanto a anterior não estiver explicitamente verde
 - [ ] backfills obrigatórios concluídos antes do frontend;
 - [ ] App Check e Web Push validados;
 - [ ] billing recorrente explicitamente incluído ou explicitamente fora da janela;
+- [ ] capability de update de recorrência Asaas homologada ou
+      `ASAAS_SUBSCRIPTION_UPDATE_ENABLED` mantida desabilitada;
 - [ ] smoke test accounts/dados preparados;
 - [ ] critérios de abortar e responsáveis conhecidos;
 - [ ] rollback SHA buildável e procedimentos revisados;

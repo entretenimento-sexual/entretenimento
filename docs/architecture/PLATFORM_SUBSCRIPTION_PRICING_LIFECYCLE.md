@@ -66,12 +66,23 @@ com suporte seguro a proration.
 
 ### Downgrade
 
-Downgrade não é aplicado durante um período já pago.
+Downgrade nunca reduz um período já pago.
 
-Nesta etapa também não existe agendamento automático, porque ainda não há
-cobrança recorrente real capaz de garantir a próxima renovação no plano menor.
-A UI deve informar que a redução poderá ser contratada após o término do ciclo
-atual; não deve sugerir que ela já foi programada.
+Quando a capability de atualização da recorrência está habilitada, a redução
+pode ser agendada para `endsAt`:
+
+- o entitlement e o papel atuais permanecem intactos até o fim do ciclo;
+- o backend persiste um snapshot do plano menor e sua data efetiva;
+- o valor da recorrência futura é atualizado no provedor;
+- uma cobrança do valor menor confirmada antes de `endsAt` fica retida para
+  settlement até a virada do ciclo;
+- na virada, o novo pagamento inicia o período seguinte no plano menor;
+- o usuário pode cancelar o agendamento, restaurando o valor futuro do plano
+  atual sem cancelar a renovação.
+
+Fora do Emulator, a capability é fail-closed e depende de
+`ASAAS_SUBSCRIPTION_UPDATE_ENABLED=true`. Sem essa capacidade operacional a
+UI continua informando que a redução só poderá ocorrer após o ciclo atual.
 
 ## Invariantes
 

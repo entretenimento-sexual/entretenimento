@@ -23,7 +23,7 @@
 //   ErrorNotificationService e GlobalErrorHandlerService.
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { from, Observable } from 'rxjs';
+import { defer, from, Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
 import {
@@ -33,9 +33,11 @@ import {
 } from '../../domain/models/billing-plan.model';
 import {
   BillingSnapshotResult,
+  CancelPlatformSubscriptionDowngradeResult,
   CancelPlatformSubscriptionRenewalResult,
   ProcessBillingReturnInput,
   ProcessBillingReturnResult,
+  SchedulePlatformSubscriptionDowngradeResult,
 } from '../../domain/models/billing-return.model';
 import {
   CreateCheckoutResult,
@@ -118,6 +120,23 @@ export class BillingRepository {
     Record<string, never>,
     BillingSnapshotResult | null
   >(this.functions, 'getMyBillingSnapshot');
+
+  private readonly cancelPlatformSubscriptionDowngradeCallable = httpsCallable<
+    Record<string, never>,
+    CancelPlatformSubscriptionDowngradeResult
+  >(this.functions, 'cancelPlatformSubscriptionDowngrade');
+
+  private readonly schedulePlatformSubscriptionDowngradeCallable = httpsCallable<
+    {
+      planId: string;
+      planKey: string;
+      expectedAmountCents: number;
+      expectedCurrency: string;
+      expectedInterval: string;
+      expectedCatalogVersion: number;
+    },
+    SchedulePlatformSubscriptionDowngradeResult
+  >(this.functions, 'schedulePlatformSubscriptionDowngrade');
 
   private readonly cancelPlatformSubscriptionRenewalCallable = httpsCallable<
     Record<string, never>,
@@ -208,6 +227,42 @@ export class BillingRepository {
       this.getMyBillingSnapshotCallable({})
     ).pipe(
       map((result) => result.data ?? null)
+    );
+  }
+
+
+  schedulePlatformSubscriptionDowngrade$(
+    plan: BillingPlan
+  ): Observable<SchedulePlatformSubscriptionDowngradeResult> {
+    return defer(() => {
+      if (
+        typeof plan.catalogVersion !== 'number'
+        || !Number.isInteger(plan.catalogVersion)
+      ) {
+        throw new Error('Plano sem versão de catálogo válida.');
+      }
+
+      return from(
+        this.schedulePlatformSubscriptionDowngradeCallable({
+          planId: plan.id,
+          planKey: String(plan.key),
+          expectedAmountCents: plan.amountCents,
+          expectedCurrency: plan.currency,
+          expectedInterval: plan.interval,
+          expectedCatalogVersion: plan.catalogVersion,
+        })
+      );
+    }).pipe(
+      map((result) => result.data)
+    );
+  }
+
+  cancelPlatformSubscriptionDowngrade$():
+    Observable<CancelPlatformSubscriptionDowngradeResult> {
+    return from(
+      this.cancelPlatformSubscriptionDowngradeCallable({})
+    ).pipe(
+      map((result) => result.data)
     );
   }
 

@@ -13,6 +13,7 @@ import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
 import {
   ASAAS_API_KEY,
+  isAsaasSubscriptionUpdateEnabled,
   resolveAsaasApiRuntimeConfig,
 } from '../config/asaas.config';
 import {
@@ -30,6 +31,10 @@ import {
 import {
   cancelRecurringContractAtProvider,
 } from './recurring-provider-cancellation.service';
+import {
+  applyPendingRecurringPlanChangeAtProvider,
+  revertPendingRecurringPlanChangeAtProvider,
+} from './recurring-platform-subscription-plan-change.service';
 import type {
   PlatformRecurringSubscriptionDoc,
 } from '../domain/platform-recurring-subscription.model';
@@ -152,6 +157,80 @@ export const reconcileRecurringProviderCancellations = onSchedule(
     console.log('[billing] recurring provider cancellation reconciliation', {
       scanned: snapshot.size,
       completed,
+      failed,
+    });
+  }
+);
+
+
+export const reconcileRecurringProviderPlanChanges = onSchedule(
+  {
+    schedule: 'every 15 minutes',
+    timeZone: 'America/Sao_Paulo',
+    region: FUNCTIONS_REGION,
+    timeoutSeconds: 300,
+    memory: '256MiB',
+    secrets: [ASAAS_API_KEY],
+  },
+  async () => {
+    if (!isAsaasSubscriptionUpdateEnabled()) {
+      console.log('[billing] recurring plan change reconciliation disabled');
+      return;
+    }
+
+    const provider = createProvider();
+    const now = Date.now();
+    const snapshot = await db
+      .collection(PLATFORM_SUBSCRIPTION_COLLECTION)
+      .where('needsProviderPlanChangeSync', '==', true)
+      .limit(100)
+      .get();
+
+    let completed = 0;
+    let deferred = 0;
+    let failed = 0;
+
+    for (const document of snapshot.docs) {
+      const contract =
+        document.data() as PlatformRecurringSubscriptionDoc;
+      const pending = contract.pendingPlanChange ?? null;
+
+      if (!pending) continue;
+      const canceling = !!pending.cancellationRequestedAt;
+      const nextAttemptAt = canceling
+        ? pending.providerRevertNextAttemptAt
+        : pending.providerUpdateNextAttemptAt;
+
+      if (
+        typeof nextAttemptAt === 'number'
+        && nextAttemptAt > now
+      ) {
+        deferred += 1;
+        continue;
+      }
+
+      try {
+        if (canceling) {
+          await revertPendingRecurringPlanChangeAtProvider({
+            contractId: document.id,
+            provider,
+          });
+        } else {
+          await applyPendingRecurringPlanChangeAtProvider({
+            contractId: document.id,
+            provider,
+          });
+        }
+        completed += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+
+    console.log('[billing] recurring plan change reconciliation', {
+      scanned: snapshot.size,
+      completed,
+      deferred,
       failed,
     });
   }

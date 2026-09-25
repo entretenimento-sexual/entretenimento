@@ -14,6 +14,26 @@ import type {
   PlatformRole,
 } from './billing.model';
 
+export interface PlatformRecurringPendingPlanChange {
+  planId: string;
+  planKey: PlatformPlanKey;
+  grantedRole: PlatformRole;
+  planSnapshot: BillingPlanSnapshot;
+  amountCents: number;
+  currency: 'BRL';
+  effectiveAt: number;
+  requestedAt: number;
+  providerUpdateStatus: 'pending' | 'applied' | 'retry';
+  providerUpdateAttemptCount: number;
+  providerUpdateNextAttemptAt: number | null;
+  providerUpdateLastErrorCode: string | null;
+  providerUpdatedAt: number | null;
+  cancellationRequestedAt?: number | null;
+  providerRevertAttemptCount?: number;
+  providerRevertNextAttemptAt?: number | null;
+  providerRevertLastErrorCode?: string | null;
+}
+
 export type PlatformRecurringSubscriptionStatus =
   | 'pending_payment'
   | 'active'
@@ -51,6 +71,9 @@ export interface PlatformRecurringSubscriptionDoc {
   lastSettledProviderPaymentId: string | null;
   lastPaymentStatus: string | null;
   lastPaymentOccurredAt: number | null;
+
+  pendingPlanChange?: PlatformRecurringPendingPlanChange | null;
+  needsProviderPlanChangeSync?: boolean;
 
   needsProviderCancellation: boolean;
   providerCancellationAttemptCount: number;

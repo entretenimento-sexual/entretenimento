@@ -421,6 +421,40 @@ export class AsaasPaymentProvider extends PaymentProviderPort {
     );
   }
 
+  async updateRecurringSubscriptionAmount(input: {
+    providerSubscriptionId: string;
+    amountCents: number;
+    updatePendingPayments: boolean;
+  }): Promise<void> {
+    const apiKey = this.requireApiKey();
+    const id = this.requireProviderId(
+      input.providerSubscriptionId,
+      'subscription'
+    );
+
+    if (
+      !Number.isInteger(input.amountCents)
+      || input.amountCents <= 0
+    ) {
+      throw new HttpsError(
+        'invalid-argument',
+        'Valor recorrente inválido.'
+      );
+    }
+
+    await this.request(
+      `/subscriptions/${encodeURIComponent(id)}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({
+          value: input.amountCents / 100,
+          updatePendingPayments: input.updatePendingPayments,
+        }),
+      },
+      apiKey
+    );
+  }
+
   async verifyWebhook(
     input: ProviderWebhookInput
   ): Promise<VerifiedProviderWebhookEvent> {

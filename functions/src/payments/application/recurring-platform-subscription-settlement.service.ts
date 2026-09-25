@@ -29,6 +29,7 @@ import type {
   PlatformRecurringSubscriptionStateDoc,
 } from '../domain/platform-recurring-subscription.model';
 import {
+  calculatePlatformSubscriptionPeriodEnd,
   evaluatePlatformSubscriptionEntitlement,
   resolvePlatformSubscriptionSettlementPeriod,
 } from './platform-subscription-entitlement.service';
@@ -46,6 +47,9 @@ import {
 import {
   PLATFORM_CHECKOUT_LOCK_COLLECTION,
 } from './platform-checkout-lock.service';
+import {
+  resolveRecurringPlanSettlementDecision,
+} from './recurring-platform-subscription-plan-change.policy';
 import {
   PLATFORM_SUBSCRIPTION_COLLECTION,
   PLATFORM_SUBSCRIPTION_STATE_COLLECTION,
@@ -155,16 +159,48 @@ export async function settleRecurringPlatformSubscriptionPayment(
       );
     }
 
-    if (contract.amountCents !== payment.amountCents) {
+    const rawPendingPlanChange = contract.pendingPlanChange ?? null;
+    const pendingPlanChange =
+      rawPendingPlanChange?.providerUpdateStatus === 'applied'
+      || rawPendingPlanChange?.cancellationRequestedAt
+        ? rawPendingPlanChange
+        : null;
+    const settlementDecision =
+      resolveRecurringPlanSettlementDecision({
+        currentAmountCents: contract.amountCents,
+        pendingPlanChange,
+        paymentAmountCents: payment.amountCents,
+        paymentOccurredAt: occurredAt,
+        processingNow: now,
+      });
+
+    if (settlementDecision.kind === 'retry') {
+      throw new RetryableProviderWebhookError(
+        'scheduled-downgrade-effective-period-pending',
+        'A cobrança do próximo plano foi confirmada antes da virada do ciclo.',
+        settlementDecision.retryAt
+      );
+    }
+
+    if (settlementDecision.kind === 'denied') {
       throw new HttpsError(
         'failed-precondition',
-        'Valor da cobrança recorrente diverge do contrato vigente.',
+        settlementDecision.reason === 'recurring_scheduled_amount_mismatch'
+          ? 'A cobrança do novo ciclo não refletiu a redução de plano agendada.'
+          : 'Valor da cobrança recorrente diverge do contrato vigente.',
         {
-          reason: 'recurring_amount_mismatch',
+          reason: settlementDecision.reason,
           contractId,
         }
       );
     }
+
+    const settlesPendingPlan =
+      settlementDecision.kind === 'scheduled_downgrade';
+    const resolvesCanceledDowngradeWithCurrentPlan =
+      settlementDecision.kind === 'current_plan'
+      && !!pendingPlanChange?.cancellationRequestedAt
+      && occurredAt >= pendingPlanChange.effectiveAt;
 
     const entitlementId = `platform_subscription_${contract.buyerUid}`;
     const entitlementRef = db.collection('entitlements').doc(entitlementId);
@@ -486,37 +522,64 @@ export async function settleRecurringPlatformSubscriptionPayment(
       }
     }
 
-    const planChange = resolvePlatformSubscriptionPlanChangePolicy({
-      currentRole: entitlementAtPayment.active
-        ? entitlementAtPayment.role
-        : null,
-      requestedRole: contract.grantedRole,
-    });
+    const settlementPlan = settlesPendingPlan && pendingPlanChange
+      ? {
+        planId: pendingPlanChange.planId,
+        planKey: pendingPlanChange.planKey,
+        grantedRole: pendingPlanChange.grantedRole,
+        planSnapshot: pendingPlanChange.planSnapshot,
+        amountCents: pendingPlanChange.amountCents,
+      }
+      : {
+        planId: contract.planId,
+        planKey: contract.planKey,
+        grantedRole: contract.grantedRole,
+        planSnapshot: contract.planSnapshot,
+        amountCents: contract.amountCents,
+      };
 
-    if (!planChange.allowed) {
-      throw new HttpsError(
-        'failed-precondition',
-        'Cobrança recorrente tentaria reduzir um benefício ainda vigente.',
-        {
-          reason: 'recurring_downgrade_blocked',
-          contractId,
-        }
-      );
+    if (!settlesPendingPlan) {
+      const planChange = resolvePlatformSubscriptionPlanChangePolicy({
+        currentRole: entitlementAtPayment.active
+          ? entitlementAtPayment.role
+          : null,
+        requestedRole: settlementPlan.grantedRole,
+      });
+
+      if (!planChange.allowed) {
+        throw new HttpsError(
+          'failed-precondition',
+          'Cobrança recorrente tentaria reduzir um benefício ainda vigente.',
+          {
+            reason: 'recurring_downgrade_blocked',
+            contractId,
+          }
+        );
+      }
     }
 
-    const period = resolvePlatformSubscriptionSettlementPeriod(
-      existingEntitlement,
-      contract.buyerUid,
-      occurredAt
-    );
+    const period = settlesPendingPlan && pendingPlanChange
+      ? {
+        startsAt: pendingPlanChange.effectiveAt,
+        extensionBase: pendingPlanChange.effectiveAt,
+        endsAt: calculatePlatformSubscriptionPeriodEnd(
+          pendingPlanChange.effectiveAt
+        ),
+        extendedExistingAccess: false,
+      }
+      : resolvePlatformSubscriptionSettlementPeriod(
+        existingEntitlement,
+        contract.buyerUid,
+        occurredAt
+      );
     const entitlementDoc: EntitlementDoc = {
       id: entitlementId,
       buyerUid: contract.buyerUid,
       sellerUid: null,
       scope: 'platform_subscription',
-      planId: contract.planId,
-      planKey: contract.planKey,
-      grantedRole: contract.grantedRole,
+      planId: settlementPlan.planId,
+      planKey: settlementPlan.planKey,
+      grantedRole: settlementPlan.grantedRole,
       active: true,
       startsAt: period.startsAt,
       endsAt: period.endsAt,
@@ -562,8 +625,8 @@ export async function settleRecurringPlatformSubscriptionPayment(
       status: 'paid',
       amountCents: payment.amountCents,
       currency: 'BRL',
-      planId: contract.planId,
-      planKey: contract.planKey,
+      planId: settlementPlan.planId,
+      planKey: settlementPlan.planKey,
       createdAt: now,
       updatedAt: now,
     };
@@ -591,6 +654,8 @@ export async function settleRecurringPlatformSubscriptionPayment(
             status: 'superseded',
             renewalEnabled: false,
             isCurrent: false,
+            pendingPlanChange: null,
+            needsProviderPlanChangeSync: false,
             needsProviderCancellation: true,
             providerCancellationNextAttemptAt: now,
             supersededAt: now,
@@ -641,6 +706,22 @@ export async function settleRecurringPlatformSubscriptionPayment(
         status: 'active',
         renewalEnabled: true,
         isCurrent: true,
+        ...(settlesPendingPlan && pendingPlanChange
+          ? {
+            planId: settlementPlan.planId,
+            planKey: settlementPlan.planKey,
+            grantedRole: settlementPlan.grantedRole,
+            planSnapshot: settlementPlan.planSnapshot,
+            amountCents: settlementPlan.amountCents,
+            pendingPlanChange: null,
+            needsProviderPlanChangeSync: false,
+          }
+          : resolvesCanceledDowngradeWithCurrentPlan
+            ? {
+              pendingPlanChange: null,
+              needsProviderPlanChangeSync: false,
+            }
+            : {}),
         lastSettledProviderPaymentId: payment.paymentId,
         lastPaymentStatus: event.eventName,
         lastPaymentOccurredAt: occurredAt,
@@ -657,7 +738,7 @@ export async function settleRecurringPlatformSubscriptionPayment(
       buyerUid: contract.buyerUid,
       currentContractId: contractId,
       currentProviderSubscriptionId: contract.providerSubscriptionId,
-      currentPlanKey: contract.planKey,
+      currentPlanKey: settlementPlan.planKey,
       renewalEnabled: true,
       updatedAt: now,
     };
@@ -737,14 +818,17 @@ export async function settleRecurringPlatformSubscriptionPayment(
       transactionId,
       entitlementId,
       sourceCheckoutSessionId: contract.sourceCheckoutSessionId,
-      planId: contract.planId,
-      planKey: contract.planKey,
+      planId: settlementPlan.planId,
+      planKey: settlementPlan.planKey,
       amountCents: payment.amountCents,
       currency: 'BRL',
-      catalogVersion: contract.planSnapshot.catalogVersion,
+      catalogVersion: settlementPlan.planSnapshot.catalogVersion,
       recurringContractPriceLocked: true,
       priceTreatment: 'contract_snapshot_until_explicit_change',
-      periodTreatment: 'extend_from_current_end',
+      periodTreatment:
+        settlesPendingPlan
+          ? 'scheduled_downgrade_next_cycle'
+          : 'extend_from_current_end',
       prorationSupported: false,
       paymentOccurredAt: occurredAt,
       subscriptionStartsAt: period.startsAt,
@@ -768,7 +852,7 @@ export async function settleRecurringPlatformSubscriptionPayment(
       entitlementId,
       scope: 'platform_subscription',
       status: 'paid',
-      role: contract.grantedRole,
+      role: settlementPlan.grantedRole,
       accessGranted: entitlementNow.active,
       contractId,
       supersededContractId,
