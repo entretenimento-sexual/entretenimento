@@ -23,6 +23,11 @@ import {
   AsaasPaymentProvider,
 } from '../payments/infrastructure/providers/asaas.provider';
 
+export type AccountLifecycleSubscriptionRenewalStatus =
+  | 'active'
+  | 'canceled'
+  | 'none';
+
 export interface AccountLifecycleBillingCancellationResult {
   recurringConfigured: boolean;
   cancellationRequested: boolean;
@@ -30,6 +35,19 @@ export interface AccountLifecycleBillingCancellationResult {
     | 'not_configured'
     | 'completed'
     | 'pending';
+}
+
+export async function getAccountLifecycleSubscriptionRenewalStatus(
+  uid: string
+): Promise<AccountLifecycleSubscriptionRenewalStatus> {
+  const stateSnapshot = await db
+    .collection(PLATFORM_SUBSCRIPTION_STATE_COLLECTION)
+    .doc(uid)
+    .get();
+  const state = stateSnapshot.exists ? stateSnapshot.data() ?? {} : null;
+
+  if (!state?.['currentContractId']) return 'none';
+  return state['renewalEnabled'] === true ? 'active' : 'canceled';
 }
 
 export async function cancelRecurringBillingForAccountLifecycle(input: {

@@ -1,9 +1,13 @@
 // functions/src/account_lifecycle/moderateSuspendAccount.ts
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { ASAAS_API_KEY } from '../payments/config/asaas.config';
 import {
   assertAccountLifecycleMutationSecurity,
 } from './account-lifecycle-mutation-security';
 import { db } from '../firebaseApp';
+import {
+  cancelRecurringBillingForAccountLifecycle,
+} from './account-lifecycle-billing.service';
 import {
   ACCOUNT_LIFECYCLE_REGION,
   UserDoc,
@@ -23,6 +27,7 @@ interface ModerateSuspendAccountRequest {
 interface AccountLifecycleCommandResult {
   ok: boolean;
   accountStatus: 'moderation_suspended';
+  subscriptionRenewalStatus: 'canceled' | 'none';
   message: string;
 }
 
@@ -65,13 +70,14 @@ function buildSuspensionNotificationBody(endsAt: number | null): string {
 
   return [
     'Uma medida de suspensão foi aplicada à sua conta.',
+    'Se havia renovação automática, novas cobranças serão interrompidas sem revogar antecipadamente o período já pago.',
     'Consulte o motivo e',
     destination,
   ].join(' ');
 }
 
 export const moderateSuspendAccount = onCall<ModerateSuspendAccountRequest>(
-  { region: ACCOUNT_LIFECYCLE_REGION },
+  { region: ACCOUNT_LIFECYCLE_REGION, secrets: [ASAAS_API_KEY] },
   async (request): Promise<AccountLifecycleCommandResult> => {
     const actorUid = request.auth?.uid ?? null;
     const authToken = (request.auth?.token ?? {}) as Record<string, unknown>;
@@ -189,10 +195,21 @@ export const moderateSuspendAccount = onCall<ModerateSuspendAccountRequest>(
       });
     });
 
+    const billingCancellation =
+      await cancelRecurringBillingForAccountLifecycle({
+        uid: targetUid,
+        reason: 'moderation-account-suspension',
+      });
+
     return {
       ok: true,
       accountStatus: 'moderation_suspended',
-      message: 'Conta suspensa pela moderação.',
+      subscriptionRenewalStatus:
+        billingCancellation.recurringConfigured ? 'canceled' : 'none',
+      message:
+        billingCancellation.recurringConfigured
+          ? 'Conta suspensa pela moderação e renovação automática interrompida.'
+          : 'Conta suspensa pela moderação.',
     };
   }
 );

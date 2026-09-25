@@ -5,6 +5,9 @@ import {
 } from './account-lifecycle-mutation-security';
 import { db } from '../firebaseApp';
 import {
+  getAccountLifecycleSubscriptionRenewalStatus,
+} from './account-lifecycle-billing.service';
+import {
   ACCOUNT_LIFECYCLE_REGION,
   UserDoc,
   assertRecentAuthentication,
@@ -25,6 +28,7 @@ interface AccountLifecycleCommandResult {
   suspensionSource: null;
   suspensionEndsAt: null;
   statusUpdatedAt: number;
+  subscriptionRenewalStatus: 'active' | 'canceled' | 'none';
   message: string;
 }
 
@@ -150,6 +154,9 @@ export const reactivateSelfSuspension = onCall<Record<string, never>>(
       }
     );
 
+    const subscriptionRenewalStatus =
+      await getAccountLifecycleSubscriptionRenewalStatus(uid);
+
     return {
       ok: true,
       accountStatus: 'active',
@@ -159,10 +166,16 @@ export const reactivateSelfSuspension = onCall<Record<string, never>>(
       suspensionSource: null,
       suspensionEndsAt: null,
       statusUpdatedAt: now,
+      subscriptionRenewalStatus,
       message:
-        restored.publicVisibility === 'visible'
-          ? 'Conta reativada com sucesso.'
-          : 'Conta reativada. Conclua as verificações pendentes para voltar a aparecer e interagir.',
+        subscriptionRenewalStatus === 'canceled'
+          ? [
+            'Conta reativada. A renovação automática permanece cancelada;',
+            'revise sua assinatura se quiser voltar a renovar.',
+          ].join(' ')
+          : restored.publicVisibility === 'visible'
+            ? 'Conta reativada com sucesso.'
+            : 'Conta reativada. Conclua as verificações pendentes para voltar a aparecer e interagir.',
     };
   }
 );

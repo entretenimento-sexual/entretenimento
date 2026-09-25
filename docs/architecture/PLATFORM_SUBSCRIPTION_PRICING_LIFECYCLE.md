@@ -148,6 +148,23 @@ Somente depois do primeiro pagamento confirmado:
 Isso evita cancelar o plano antigo antes de saber que o upgrade foi realmente
 pago.
 
+### Suspensão da conta
+
+Suspensão própria ou aplicada pela moderação interrompe futuras renovações
+automáticas, mas não revoga nem encurta um período já pago.
+
+A ordem é deliberada:
+
+1. o estado da conta é persistido como suspenso e as interações são bloqueadas;
+2. o backend registra a intenção de cancelamento da recorrência;
+3. falha externa do provider permanece em retry;
+4. o entitlement já pago conserva seu `endsAt`.
+
+Reativar a conta **não** reativa a recorrência silenciosamente. Se a renovação
+foi cancelada pela suspensão, o usuário precisa contratar/reativar a assinatura
+por um fluxo financeiro explícito. Essa propriedade também vale após remoção de
+suspensão pela moderação.
+
 ### Cancelamento pelo usuário
 
 Cancelar renovação:
