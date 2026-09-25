@@ -364,7 +364,13 @@ async function searchTopics(input: {
     .collection('items');
   const scanLimit = Math.min(input.limit * 3 + 1, MAX_PAGE_LIMIT * 3 + 1);
   let query = topicsCollection
-    .where('searchPrefixes', 'array-contains', input.query)
+    .where('searchPrefixes', 'array-contains', input.query);
+
+  if (!input.topicContentAccess) {
+    query = query.where('audience', '==', 'public_preview');
+  }
+
+  query = query
     .orderBy('lastActivityAt', 'desc')
     .orderBy(FieldPath.documentId())
     .limit(scanLimit);
