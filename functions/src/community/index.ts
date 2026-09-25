@@ -106,12 +106,21 @@ export {
   getCommunityMemberRosterPage,
 } from './get-community-member-roster-page.handler';
 export {
+  searchCommunityMembersPage,
+} from './search-community-members-page.handler';
+export {
   getCommunityMembersForManagement,
   manageCommunityMember,
 } from './community-member-management.handler';
 export {
   syncCommunityMemberManagementIndex,
 } from './sync-community-member-management-index.trigger';
+export {
+  syncCommunityMemberSearchIndex,
+} from './sync-community-member-search-index.trigger';
+export {
+  syncCommunityMemberSearchIndexFromPublicProfile,
+} from './sync-community-member-search-index-from-public-profile.trigger';
 export {
   syncCommunityMemberManagementIndexFromUser,
 } from './sync-community-member-management-index-from-user.trigger';
