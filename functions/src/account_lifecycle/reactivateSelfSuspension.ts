@@ -169,7 +169,10 @@ export const reactivateSelfSuspension = onCall<Record<string, never>>(
       subscriptionRenewalStatus,
       message:
         subscriptionRenewalStatus === 'canceled'
-          ? 'Conta reativada. A renovação automática permanece cancelada; revise sua assinatura se quiser voltar a renovar.'
+          ? [
+            'Conta reativada. A renovação automática permanece cancelada;',
+            'revise sua assinatura se quiser voltar a renovar.',
+          ].join(' ')
           : restored.publicVisibility === 'visible'
             ? 'Conta reativada com sucesso.'
             : 'Conta reativada. Conclua as verificações pendentes para voltar a aparecer e interagir.',
