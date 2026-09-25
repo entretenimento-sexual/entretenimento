@@ -35,6 +35,7 @@ import {
   canViewerReadCommunityTopicProjection,
   resolveCommunityTopicContentAccess,
 } from './community-topic-access.policy';
+import { assertCommunityTopicsProductAvailable } from './community-topics-product-state';
 import {
   type CommunityTopicListItem,
   sanitizeCommunityTopicProjection,
@@ -490,6 +491,10 @@ export const getCommunitySearchPage = onCall<CommunitySearchPageRequest>(
         'A busca interna está disponível apenas em Comunidades.',
         { reason: 'community_search_not_supported' }
       );
+    }
+
+    if (scope === 'topics') {
+      assertCommunityTopicsProductAvailable();
     }
 
     const page = scope === 'members'
