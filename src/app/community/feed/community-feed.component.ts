@@ -68,10 +68,6 @@ import { CommunityFeedReferenceNavigationFacade } from './community-feed-referen
 import { CommunityFeedLocationFacade } from './community-feed-location.facade';
 import { CommunityFeedRenderWindowFacade } from './community-feed-render-window.facade';
 import { CommunityFeedModerationFacade } from './community-feed-moderation.facade';
-import {
-  INITIAL_COMMUNITY_FEED_STATE,
-  reduceCommunityFeedState,
-} from './community-feed-state.model';
 import { CommunityFeedTimelineFacade } from './community-feed-timeline.facade';
 import { CommunityFeedTimeTickerService } from './community-feed-time-ticker.service';
 import {
