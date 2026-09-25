@@ -2,9 +2,9 @@
 // -----------------------------------------------------------------------------
 // ACCOUNT LIFECYCLE BILLING COORDINATION
 // -----------------------------------------------------------------------------
-// Interrompe novas cobranças quando uma conta entra em exclusão. A intenção é
-// persistida antes da chamada externa; indisponibilidade do provider não bloqueia
-// o lifecycle e o reconciliador financeiro retoma a convergência.
+// Lifecycle persiste primeiro uma obrigação de interromper cobranças futuras.
+// Este bridge converge a obrigação com billing; falha financeira posterior não
+// desfaz uma suspensão/exclusão de conta já confirmada.
 // -----------------------------------------------------------------------------
 
 import { db } from '../firebaseApp';
@@ -22,10 +22,12 @@ import {
 import {
   AsaasPaymentProvider,
 } from '../payments/infrastructure/providers/asaas.provider';
+import type { UserDoc } from './_shared';
 
 export type AccountLifecycleSubscriptionRenewalStatus =
   | 'active'
   | 'canceled'
+  | 'pending'
   | 'none';
 
 export interface AccountLifecycleBillingCancellationResult {
@@ -37,32 +39,61 @@ export interface AccountLifecycleBillingCancellationResult {
     | 'pending';
 }
 
+function safeErrorCode(error: unknown): string {
+  const source = error as { code?: unknown; name?: unknown };
+  return String(
+    source?.code ?? source?.name ?? 'account-lifecycle-billing-failed'
+  ).slice(0, 120);
+}
+
+export function buildAccountLifecycleBillingCancellationPatch(input: {
+  reason: string;
+  now: number;
+}): Pick<
+  UserDoc,
+  | 'billingCancellationPending'
+  | 'billingCancellationReason'
+  | 'billingCancellationRequestedAt'
+  | 'billingCancellationLastAttemptAt'
+  | 'billingCancellationLastErrorCode'
+> {
+  return {
+    billingCancellationPending: true,
+    billingCancellationReason: input.reason.slice(0, 120),
+    billingCancellationRequestedAt: input.now,
+    billingCancellationLastAttemptAt: null,
+    billingCancellationLastErrorCode: null,
+  };
+}
+
 export async function getAccountLifecycleSubscriptionRenewalStatus(
   uid: string
 ): Promise<AccountLifecycleSubscriptionRenewalStatus> {
-  const stateSnapshot = await db
-    .collection(PLATFORM_SUBSCRIPTION_STATE_COLLECTION)
-    .doc(uid)
-    .get();
+  const [userSnapshot, stateSnapshot] = await Promise.all([
+    db.collection('users').doc(uid).get(),
+    db.collection(PLATFORM_SUBSCRIPTION_STATE_COLLECTION).doc(uid).get(),
+  ]);
+  const user = userSnapshot.exists
+    ? userSnapshot.data() as UserDoc
+    : null;
   const state = stateSnapshot.exists ? stateSnapshot.data() ?? {} : null;
 
+  if (user?.billingCancellationPending === true) return 'pending';
   if (!state?.['currentContractId']) return 'none';
   return state['renewalEnabled'] === true ? 'active' : 'canceled';
 }
 
-export async function cancelRecurringBillingForAccountLifecycle(input: {
+export async function reconcileAccountLifecycleBillingCancellation(input: {
   uid: string;
-  reason: string;
+  fallbackReason?: string;
 }): Promise<AccountLifecycleBillingCancellationResult> {
-  const stateSnapshot = await db
-    .collection(PLATFORM_SUBSCRIPTION_STATE_COLLECTION)
-    .doc(input.uid)
-    .get();
-  const currentContractId = String(
-    stateSnapshot.data()?.['currentContractId'] ?? ''
-  ).trim();
+  const userRef = db.collection('users').doc(input.uid);
+  const userSnapshot = await userRef.get();
+  const user = userSnapshot.exists
+    ? userSnapshot.data() as UserDoc
+    : null;
 
-  if (!currentContractId) {
+  if (!user || user.billingCancellationPending !== true) {
     return {
       recurringConfigured: false,
       cancellationRequested: false,
@@ -70,41 +101,122 @@ export async function cancelRecurringBillingForAccountLifecycle(input: {
     };
   }
 
-  const requestedCancellation =
-    await requestRecurringContractCancellation({
+  const reason = String(
+    user.billingCancellationReason
+      ?? input.fallbackReason
+      ?? 'account-lifecycle'
+  ).trim().slice(0, 120) || 'account-lifecycle';
+  const now = Date.now();
+
+  try {
+    const stateSnapshot = await db
+      .collection(PLATFORM_SUBSCRIPTION_STATE_COLLECTION)
+      .doc(input.uid)
+      .get();
+    const currentContractId = String(
+      stateSnapshot.data()?.['currentContractId'] ?? ''
+    ).trim();
+
+    if (!currentContractId) {
+      await userRef.set(
+        {
+          billingCancellationPending: false,
+          billingCancellationLastAttemptAt: now,
+          billingCancellationLastErrorCode: null,
+        },
+        { merge: true }
+      );
+
+      return {
+        recurringConfigured: false,
+        cancellationRequested: false,
+        providerCancellationStatus: 'not_configured',
+      };
+    }
+
+    const requested = await requestRecurringContractCancellation({
       contractId: currentContractId,
-      reason: input.reason,
+      reason,
     });
 
-  if (!requestedCancellation) {
+    if (!requested) {
+      throw Object.assign(
+        new Error('Recurring contract could not be resolved.'),
+        { code: 'billing/recurring-contract-unresolved' }
+      );
+    }
+
+    let providerCancellationStatus: 'completed' | 'pending' = 'completed';
+
+    try {
+      const provider = new AsaasPaymentProvider({
+        runtime: resolveAsaasApiRuntimeConfig(),
+        apiKey: ASAAS_API_KEY.value(),
+      });
+
+      await cancelRecurringContractAtProvider({
+        contractId: currentContractId,
+        provider,
+        reason,
+      });
+    } catch {
+      // O contrato já carrega needsProviderCancellation. O reconciliador do
+      // domínio financeiro assume daqui em diante a convergência externa.
+      providerCancellationStatus = 'pending';
+    }
+
+    await userRef.set(
+      {
+        billingCancellationPending: false,
+        billingCancellationLastAttemptAt: now,
+        billingCancellationLastErrorCode: null,
+      },
+      { merge: true }
+    );
+
+    return {
+      recurringConfigured: true,
+      cancellationRequested: true,
+      providerCancellationStatus,
+    };
+  } catch (error: unknown) {
+    await userRef.set(
+      {
+        billingCancellationPending: true,
+        billingCancellationLastAttemptAt: now,
+        billingCancellationLastErrorCode: safeErrorCode(error),
+      },
+      { merge: true }
+    ).catch(() => undefined);
+
     return {
       recurringConfigured: true,
       cancellationRequested: false,
       providerCancellationStatus: 'pending',
     };
   }
+}
 
-  let providerCancellationStatus: 'completed' | 'pending' = 'completed';
+/**
+ * Compatibilidade para callers existentes. Ao ser usado fora de uma transação
+ * de lifecycle, persiste a obrigação antes de tentar billing.
+ */
+export async function cancelRecurringBillingForAccountLifecycle(input: {
+  uid: string;
+  reason: string;
+}): Promise<AccountLifecycleBillingCancellationResult> {
+  const now = Date.now();
 
-  try {
-    const provider = new AsaasPaymentProvider({
-      runtime: resolveAsaasApiRuntimeConfig(),
-      apiKey: ASAAS_API_KEY.value(),
-    });
-
-    await cancelRecurringContractAtProvider({
-      contractId: currentContractId,
-      provider,
+  await db.collection('users').doc(input.uid).set(
+    buildAccountLifecycleBillingCancellationPatch({
       reason: input.reason,
-    });
-  } catch {
-    // A intenção já está persistida. O reconciliador financeiro conclui depois.
-    providerCancellationStatus = 'pending';
-  }
+      now,
+    }),
+    { merge: true }
+  );
 
-  return {
-    recurringConfigured: true,
-    cancellationRequested: true,
-    providerCancellationStatus,
-  };
+  return reconcileAccountLifecycleBillingCancellation({
+    uid: input.uid,
+    fallbackReason: input.reason,
+  });
 }
