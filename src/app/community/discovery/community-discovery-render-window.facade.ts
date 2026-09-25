@@ -6,9 +6,12 @@ import {
   normalizeCommunityRenderWindowStart,
 } from '../community-bounded-render-window.util';
 import {
-  COMMUNITY_DISCOVERY_RENDER_WINDOW_MAX_ITEMS,
   DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE,
 } from './community-discovery-cache.model';
+
+const COMMUNITY_DISCOVERY_RENDER_WINDOW_PAGES = 6;
+const COMMUNITY_DISCOVERY_RENDER_WINDOW_MAX_ITEMS =
+  DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE * COMMUNITY_DISCOVERY_RENDER_WINDOW_PAGES;
 
 interface CommunityDiscoveryWindowItem {
   readonly communityId: string;
