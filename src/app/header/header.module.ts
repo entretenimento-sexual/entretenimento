@@ -29,7 +29,6 @@ import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback
   exports: [
     NavbarComponent,
     LogoComponent,
-    GlobalInviteBadgeComponent,
     LegalUpdateNoticeBridgeComponent,
   ],
 })
