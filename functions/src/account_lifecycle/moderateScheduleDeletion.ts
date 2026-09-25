@@ -1,6 +1,11 @@
 // functions/src/account_lifecycle/moderateScheduleDeletion.ts
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { db } from '../firebaseApp';
+import { ASAAS_API_KEY } from '../payments/config/asaas.config';
+import {
+  buildAccountLifecycleBillingCancellationPatch,
+  reconcileAccountLifecycleBillingCancellation,
+} from './account-lifecycle-billing.service';
 import {
   ACCOUNT_LIFECYCLE_REGION,
   UserDoc,
@@ -58,7 +63,7 @@ function normalizeOptionalWindow(value?: number | null): number {
 }
 
 export const moderateScheduleDeletion = onCall<ModerateScheduleDeletionRequest>(
-  { region: ACCOUNT_LIFECYCLE_REGION },
+  { region: ACCOUNT_LIFECYCLE_REGION, secrets: [ASAAS_API_KEY] },
   async (request): Promise<AccountLifecycleCommandResult> => {
     const actorUid = request.auth?.uid ?? null;
     const authToken = (request.auth?.token ?? {}) as Record<string, unknown>;
@@ -123,6 +128,17 @@ export const moderateScheduleDeletion = onCall<ModerateScheduleDeletionRequest>(
             );
           }
 
+          if (user.billingCancellationPending !== true) {
+            tx.set(
+              userRef,
+              buildAccountLifecycleBillingCancellationPatch({
+                reason: 'moderation-account-deletion',
+                now,
+              }),
+              { merge: true }
+            );
+          }
+
           return {
             deletionUndoUntil: currentUndoUntil,
             purgeAfter: currentPurgeAfter,
@@ -148,6 +164,11 @@ export const moderateScheduleDeletion = onCall<ModerateScheduleDeletionRequest>(
             purgeAfter: deletionUndoUntil,
             statusUpdatedAt: now,
             statusUpdatedBy: actorUid,
+
+            ...buildAccountLifecycleBillingCancellationPatch({
+              reason: 'moderation-account-deletion',
+              now,
+            }),
           },
           { merge: true }
         );
@@ -179,6 +200,11 @@ export const moderateScheduleDeletion = onCall<ModerateScheduleDeletionRequest>(
         };
       }
     );
+
+    await reconcileAccountLifecycleBillingCancellation({
+      uid: targetUid,
+      fallbackReason: 'moderation-account-deletion',
+    });
 
     return {
       ok: true,
