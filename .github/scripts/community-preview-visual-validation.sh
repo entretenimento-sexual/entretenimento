@@ -142,7 +142,7 @@ playwright-cli screenshot --filename="$OUT/desktop/feed.viewport.png"
 playwright-cli screenshot --full-page --filename="$OUT/desktop/feed.full-page.png"
 
 run_checked "$OUT/desktop/members.metrics.log" "async (page) => {
-  await page.getByRole('button', { name: 'Membros', exact: true }).click();
+  await page.getByRole('tab', { name: 'Membros', exact: true }).click();
   await page.waitForSelector('.community-members__profile', { state: 'visible' });
   const panel = page.locator('#community-panel-members');
   const initialCount = await panel.locator('.community-members__item').count();
@@ -191,7 +191,7 @@ run_checked "$OUT/desktop/members.metrics.log" "async (page) => {
 playwright-cli screenshot --full-page --filename="$OUT/desktop/members.full-page.png"
 
 run_checked "$OUT/desktop/about.metrics.log" "async (page) => {
-  await page.getByRole('button', { name: 'Sobre', exact: true }).click();
+  await page.getByRole('tab', { name: 'Sobre', exact: true }).click();
   await page.waitForSelector('.community-preview__about', { state: 'visible' });
   const text = (await page.locator('.community-preview__about').innerText()).trim();
   const metrics = {
@@ -270,7 +270,7 @@ playwright-cli screenshot --filename="$OUT/mobile/feed.viewport.png"
 playwright-cli screenshot --full-page --filename="$OUT/mobile/feed.full-page.png"
 
 run_checked "$OUT/mobile/members.metrics.log" "async (page) => {
-  await page.getByRole('button', { name: 'Membros', exact: true }).click();
+  await page.getByRole('tab', { name: 'Membros', exact: true }).click();
   await page.waitForSelector('.community-members__profile', { state: 'visible' });
   const panel = page.locator('#community-panel-members');
   const initialCount = await panel.locator('.community-members__item').count();
@@ -319,7 +319,7 @@ run_checked "$OUT/mobile/members.metrics.log" "async (page) => {
 playwright-cli screenshot --full-page --filename="$OUT/mobile/members.full-page.png"
 
 run_checked "$OUT/mobile/about.metrics.log" "async (page) => {
-  await page.getByRole('button', { name: 'Sobre', exact: true }).click();
+  await page.getByRole('tab', { name: 'Sobre', exact: true }).click();
   await page.waitForSelector('.community-preview__about', { state: 'visible' });
   const metrics = await page.evaluate(() => ({
     viewportWidth: window.innerWidth,
@@ -340,7 +340,7 @@ playwright-cli goto 'http://127.0.0.1:4200/?scenario=owner'
 playwright-cli resize 1440 1100
 
 run_checked "$OUT/management/desktop/overview.metrics.log" "async (page) => {
-  await page.getByRole('button', { name: 'Gestão', exact: true }).click();
+  await page.getByRole('tab', { name: 'Gestão', exact: true }).click();
   await page.waitForSelector('.community-management-hub', { state: 'visible' });
   const metrics = await page.evaluate(() => {
     const hub = document.querySelector('.community-management-hub');
@@ -438,7 +438,7 @@ playwright-cli goto 'http://127.0.0.1:4200/?scenario=owner'
 playwright-cli resize 390 844
 
 run_checked "$OUT/management/mobile/overview.metrics.log" "async (page) => {
-  await page.getByRole('button', { name: 'Gestão', exact: true }).click();
+  await page.getByRole('tab', { name: 'Gestão', exact: true }).click();
   await page.waitForSelector('.community-management-hub', { state: 'visible' });
   const metrics = await page.evaluate(() => {
     const hub = document.querySelector('.community-management-hub');
