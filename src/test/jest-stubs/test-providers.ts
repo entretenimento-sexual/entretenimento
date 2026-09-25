@@ -23,10 +23,8 @@ import { FirestoreUserQueryService } from '../../app/core/services/data-handling
 import { AuthSessionService } from '../../app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from '../../app/core/services/autentication/auth/current-user-store.service';
 import { ChatService } from '../../app/core/services/batepapo/chat-service/chat.service';
-import { UserPreferencesService } from '../../app/core/services/preferences/user-preferences.service';
 import { StorageService } from '../../app/core/services/image-handling/storage.service';
 import { PhotoFirestoreService } from '../../app/core/services/image-handling/photo-firestore.service';
-import { SubscriptionService } from '../../app/core/services/subscriptions/subscription.service';
 import { RoomManagementService } from '../../app/core/services/batepapo/room-services/room-management.service';
 import { FriendshipService } from '../../app/core/services/interactions/friendship/friendship.service';
 import { GlobalErrorHandlerService } from '../../app/core/services/error-handler/global-error-handler.service';
@@ -203,8 +201,6 @@ export const appServiceStubs: Provider[] = [
     },
   },
 
-  { provide: UserPreferencesService, useValue: {} },
-
   {
     provide: FriendshipService,
     useValue: {
@@ -229,13 +225,6 @@ export const appServiceStubs: Provider[] = [
       saveImageState: vi.fn(async () => void 0),
       updatePhotoMetadata: vi.fn(async () => void 0),
       deletePhoto: vi.fn(async () => void 0),
-    },
-  },
-
-  {
-    provide: SubscriptionService,
-    useValue: {
-      promptSubscription: vi.fn(),
     },
   },
 
