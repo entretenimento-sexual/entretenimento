@@ -28,6 +28,13 @@ export class BlocksRepo extends FirestoreRepoBase {
     super(db, env);
   }
 
+  private eventsCol(ownerUid: string, targetUid: string) {
+    return collection(
+      this.db,
+      `users/${ownerUid}/blocks/${targetUid}/events`
+    );
+  }
+
   listBlocked(uid: string) {
     return this.inCtx$(() =>
       getDocs(
