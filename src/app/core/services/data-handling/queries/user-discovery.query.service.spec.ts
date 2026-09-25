@@ -4,8 +4,6 @@ import { firstValueFrom, of } from 'rxjs';
 import { where } from 'firebase/firestore';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { IUserDados } from '@core/interfaces/iuser-dados';
-
 import { UserDiscoveryQueryService } from './user-discovery.query.service';
 
 describe('UserDiscoveryQueryService', () => {
