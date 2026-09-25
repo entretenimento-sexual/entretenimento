@@ -5,8 +5,8 @@ import {
 } from './account-lifecycle-mutation-security';
 import { FieldValue, db } from '../firebaseApp';
 import {
-  PLATFORM_SUBSCRIPTION_STATE_COLLECTION,
-} from '../payments/application/platform-recurring-subscription.service';
+  getAccountLifecycleSubscriptionRenewalStatus,
+} from './account-lifecycle-billing.service';
 import {
   ACCOUNT_LIFECYCLE_REGION,
   RestorableAccountStatus,
@@ -205,20 +205,8 @@ export const cancelAccountDeletion = onCall<Record<string, never>>(
     const activeButRestricted =
       restored.accountStatus === 'active' &&
       restored.publicVisibility === 'hidden';
-    const recurringStateSnapshot = await db
-      .collection(PLATFORM_SUBSCRIPTION_STATE_COLLECTION)
-      .doc(uid)
-      .get();
-    const recurringState = recurringStateSnapshot.exists
-      ? recurringStateSnapshot.data() ?? {}
-      : null;
-    const subscriptionRenewalStatus:
-      'active' | 'canceled' | 'none' =
-      !recurringState?.['currentContractId']
-        ? 'none'
-        : recurringState['renewalEnabled'] === true
-          ? 'active'
-          : 'canceled';
+    const subscriptionRenewalStatus =
+      await getAccountLifecycleSubscriptionRenewalStatus(uid);
 
     return {
       ok: true,
