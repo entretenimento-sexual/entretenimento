@@ -207,6 +207,9 @@ for (const fragment of [
   'requestRecurringContractCancellation',
   'cancelRecurringContractAtProvider',
   'PLATFORM_SUBSCRIPTION_STATE_COLLECTION',
+  'buildAccountLifecycleBillingCancellationPatch',
+  'reconcileAccountLifecycleBillingCancellation',
+  'billingCancellationPending',
 ]) requireIncludes(
   accountLifecycleBilling,
   fragment,
@@ -217,7 +220,8 @@ const accountDeletion = read(
   'functions/src/account_lifecycle/requestAccountDeletion.ts'
 );
 for (const fragment of [
-  'cancelRecurringBillingForAccountLifecycle',
+  'buildAccountLifecycleBillingCancellationPatch',
+  'reconcileAccountLifecycleBillingCancellation',
   'secrets: [ASAAS_API_KEY]',
 ]) requireIncludes(
   accountDeletion,
@@ -229,12 +233,52 @@ const moderatedAccountDeletion = read(
   'functions/src/account_lifecycle/moderateScheduleDeletion.ts'
 );
 for (const fragment of [
-  'cancelRecurringBillingForAccountLifecycle',
+  'buildAccountLifecycleBillingCancellationPatch',
+  'reconcileAccountLifecycleBillingCancellation',
   'secrets: [ASAAS_API_KEY]',
 ]) requireIncludes(
   moderatedAccountDeletion,
   fragment,
   'moderated account deletion billing drift'
+);
+
+const selfSuspension = read(
+  'functions/src/account_lifecycle/requestSelfSuspension.ts'
+);
+for (const fragment of [
+  'buildAccountLifecycleBillingCancellationPatch',
+  'reconcileAccountLifecycleBillingCancellation',
+  'secrets: [ASAAS_API_KEY]',
+]) requireIncludes(
+  selfSuspension,
+  fragment,
+  'self suspension billing drift'
+);
+
+const moderatedSuspension = read(
+  'functions/src/account_lifecycle/moderateSuspendAccount.ts'
+);
+for (const fragment of [
+  'buildAccountLifecycleBillingCancellationPatch',
+  'reconcileAccountLifecycleBillingCancellation',
+  'secrets: [ASAAS_API_KEY]',
+]) requireIncludes(
+  moderatedSuspension,
+  fragment,
+  'moderated suspension billing drift'
+);
+
+const accountLifecycleBillingWorker = read(
+  'functions/src/account_lifecycle/reconcileAccountLifecycleBilling.ts'
+);
+for (const fragment of [
+  "where('billingCancellationPending', '==', true)",
+  'reconcileAccountLifecycleBillingCancellation',
+  'secrets: [ASAAS_API_KEY]',
+]) requireIncludes(
+  accountLifecycleBillingWorker,
+  fragment,
+  'account lifecycle billing reconciliation drift'
 );
 
 const rules = read('firestore-rules/billing.rules');
