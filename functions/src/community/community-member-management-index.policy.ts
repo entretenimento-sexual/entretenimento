@@ -10,10 +10,24 @@
 // idade, nome civil adicional ou capability administrativa é persistido aqui.
 // -----------------------------------------------------------------------------
 
-export const COMMUNITY_MEMBER_MANAGEMENT_INDEX_VERSION = 1;
-export const COMMUNITY_MEMBER_MANAGEMENT_MIN_SEARCH_LENGTH = 2;
-export const COMMUNITY_MEMBER_MANAGEMENT_MAX_SEARCH_LENGTH = 40;
-export const COMMUNITY_MEMBER_MANAGEMENT_MAX_SEARCH_PREFIXES = 64;
+import { createHash } from 'node:crypto';
+
+import {
+  COMMUNITY_SEARCH_MAX_PREFIXES,
+  COMMUNITY_SEARCH_MAX_QUERY_LENGTH,
+  COMMUNITY_SEARCH_MIN_QUERY_LENGTH,
+  buildCommunitySearchPrefixes,
+  normalizeCommunitySearchQuery,
+  normalizeCommunitySearchText,
+} from './community-search-text.policy';
+
+export const COMMUNITY_MEMBER_MANAGEMENT_INDEX_VERSION = 2;
+export const COMMUNITY_MEMBER_MANAGEMENT_MIN_SEARCH_LENGTH =
+  COMMUNITY_SEARCH_MIN_QUERY_LENGTH;
+export const COMMUNITY_MEMBER_MANAGEMENT_MAX_SEARCH_LENGTH =
+  COMMUNITY_SEARCH_MAX_QUERY_LENGTH;
+export const COMMUNITY_MEMBER_MANAGEMENT_MAX_SEARCH_PREFIXES =
+  COMMUNITY_SEARCH_MAX_PREFIXES;
 
 export type CommunityMemberManagementIndexStatus = 'active' | 'blocked';
 export type CommunityMemberManagementIndexRole =
@@ -39,6 +53,7 @@ export interface CommunityMemberManagementIndexProjection
   readonly projectionVersion: number;
   readonly communityId: string;
   readonly memberId: string;
+  readonly searchKey: string;
   readonly status: CommunityMemberManagementIndexStatus;
   readonly managementRole: CommunityMemberManagementIndexRole;
   readonly leadership: boolean;
@@ -84,37 +99,13 @@ function normalizeDisplayText(value: unknown, maxLength: number): string {
 export function normalizeCommunityMemberManagementSearchText(
   value: unknown
 ): string {
-  return normalizeDisplayText(
-    value,
-    COMMUNITY_MEMBER_MANAGEMENT_MAX_SEARCH_LENGTH
-  )
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLocaleLowerCase('pt-BR')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return normalizeCommunitySearchText(value);
 }
 
 export function normalizeCommunityMemberManagementSearchQuery(
   value: unknown
 ): string | null {
-  const raw = normalizeDisplayText(
-    value,
-    COMMUNITY_MEMBER_MANAGEMENT_MAX_SEARCH_LENGTH
-  );
-
-  if (!raw) return '';
-
-  const normalized = normalizeCommunityMemberManagementSearchText(raw);
-  if (
-    normalized.length < COMMUNITY_MEMBER_MANAGEMENT_MIN_SEARCH_LENGTH
-    || normalized.length > COMMUNITY_MEMBER_MANAGEMENT_MAX_SEARCH_LENGTH
-  ) {
-    return null;
-  }
-
-  return normalized;
+  return normalizeCommunitySearchQuery(value);
 }
 
 export function normalizeCommunityMemberManagementRoleFilter(
@@ -144,43 +135,19 @@ function normalizeHttpsUrl(value: unknown): string | null {
   }
 }
 
-function buildPrefixes(value: string): string[] {
-  if (value.length < COMMUNITY_MEMBER_MANAGEMENT_MIN_SEARCH_LENGTH) return [];
-
-  const prefixes: string[] = [];
-  const maxLength = Math.min(
-    value.length,
-    COMMUNITY_MEMBER_MANAGEMENT_MAX_SEARCH_LENGTH
-  );
-
-  for (
-    let length = COMMUNITY_MEMBER_MANAGEMENT_MIN_SEARCH_LENGTH;
-    length <= maxLength;
-    length += 1
-  ) {
-    prefixes.push(value.slice(0, length));
-  }
-
-  return prefixes;
-}
-
 export function buildCommunityMemberManagementSearchPrefixes(
   label: string
 ): readonly string[] {
-  const normalized = normalizeCommunityMemberManagementSearchText(label);
-  if (!normalized) return [];
+  return buildCommunitySearchPrefixes(label);
+}
 
-  const candidates = [
-    ...buildPrefixes(normalized),
-    ...normalized
-      .split(' ')
-      .filter(Boolean)
-      .flatMap((token) => buildPrefixes(token)),
-  ];
-
-  return Array.from(new Set(candidates))
-    .sort((left, right) => left.length - right.length || left.localeCompare(right))
-    .slice(0, COMMUNITY_MEMBER_MANAGEMENT_MAX_SEARCH_PREFIXES);
+export function buildCommunityMemberManagementSearchKey(
+  communityId: string,
+  memberId: string
+): string {
+  return createHash('sha256')
+    .update(`${communityId}\0${memberId}`, 'utf8')
+    .digest('hex');
 }
 
 export function communityMemberManagementSearchIdentityEquals(
@@ -247,6 +214,7 @@ export function buildCommunityMemberManagementIndexProjection(input: {
     projectionVersion: COMMUNITY_MEMBER_MANAGEMENT_INDEX_VERSION,
     communityId,
     memberId,
+    searchKey: buildCommunityMemberManagementSearchKey(communityId, memberId),
     status,
     managementRole,
     leadership:
