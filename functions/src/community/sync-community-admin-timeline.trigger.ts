@@ -83,6 +83,21 @@ export const syncCommunityAdminTimelineSettingsAudit = onDocumentCreated(
   }
 );
 
+export const syncCommunityAdminTimelineHighlightAudit = onDocumentCreated(
+  {
+    document: 'community_highlight_audit/{auditId}',
+    region: FUNCTIONS_REGION,
+  },
+  async (event) => {
+    if (!event.data) return;
+    await projectAudit(
+      'highlight',
+      String(event.params['auditId'] ?? ''),
+      event.data.data()
+    );
+  }
+);
+
 export const syncCommunityAdminTimelineFeedAudit = onDocumentCreated(
   {
     document: 'community_feed_audit/{auditId}',

@@ -148,3 +148,50 @@ test('projeta revogação da associação oficial sem reason ou target bruto', (
   });
   assert.equal(Object.hasOwn(result ?? {}, 'reason'), false);
 });
+
+
+test('projeta alteração da política de visibilidade como configuração segura', () => {
+  const result = buildCommunityAdminTimelineProjection({
+    source: 'settings',
+    auditId: 'settings-disclosure-1',
+    rawAudit: {
+      action: 'community_membership_disclosure_updated',
+      communityId: 'community-1',
+      actorUid: 'owner-1',
+      previousMode: 'hidden',
+      nextMode: 'visible',
+      previousPolicyVersion: 1,
+      nextPolicyVersion: 2,
+      createdAt: 6_000,
+    },
+  });
+
+  assert.deepEqual(result?.details, {
+    changedFields: ['membershipDisclosure'],
+  });
+});
+
+test('projeta destaque administrativo sem expor targetId ou duração', () => {
+  const result = buildCommunityAdminTimelineProjection({
+    source: 'highlight',
+    auditId: 'highlight-1',
+    rawAudit: {
+      action: 'community-highlight-pinned',
+      communityId: 'community-1',
+      actorUid: 'admin-1',
+      actorRole: 'admin',
+      targetType: 'feed_post',
+      targetId: 'private-post-id',
+      duration: '24h',
+      changed: true,
+      createdAt: 7_000,
+    },
+  });
+
+  assert.equal(result?.eventType, 'highlight_changed');
+  assert.deepEqual(result?.details, {
+    target: 'post',
+    action: 'pinned',
+  });
+  assert.equal(Object.hasOwn(result ?? {}, 'targetId'), false);
+});

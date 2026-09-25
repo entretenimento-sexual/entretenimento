@@ -148,6 +148,7 @@ export { getCommunityAdminTimeline } from './get-community-admin-timeline.handle
 export {
   syncCommunityAdminTimelineMembershipAudit,
   syncCommunityAdminTimelineSettingsAudit,
+  syncCommunityAdminTimelineHighlightAudit,
   syncCommunityAdminTimelineFeedAudit,
   syncCommunityAdminTimelineTopicAudit,
   syncCommunityAdminTimelineOfficialClaimAudit,

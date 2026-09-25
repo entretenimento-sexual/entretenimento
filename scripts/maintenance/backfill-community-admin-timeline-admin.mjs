@@ -47,6 +47,7 @@ const maxAudits = Math.max(
 const SOURCES = [
   ['membership', 'community_membership_audit'],
   ['settings', 'community_settings_audit'],
+  ['highlight', 'community_highlight_audit'],
   ['feed', 'community_feed_audit'],
   ['topic', 'community_topic_audit'],
   ['official', 'community_official_claim_audit'],

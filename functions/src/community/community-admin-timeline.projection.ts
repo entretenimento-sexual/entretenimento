@@ -11,6 +11,7 @@ import { createHash } from 'node:crypto';
 export type CommunityAdminTimelineSource =
   | 'membership'
   | 'settings'
+  | 'highlight'
   | 'feed'
   | 'topic'
   | 'official'
@@ -35,6 +36,7 @@ export type CommunityAdminTimelineEventType =
   | 'ownership_transferred'
   | 'community_archived'
   | 'settings_changed'
+  | 'highlight_changed'
   | 'content_removed'
   | 'topic_moderated'
   | 'official_status_changed'
@@ -51,7 +53,7 @@ export interface CommunityAdminTimelineDetails {
   nextRole?: CommunityAdminTimelineRole | null;
   changedFields?: readonly string[];
   target?: 'post' | 'comment' | 'reply' | 'topic';
-  action?: 'locked' | 'unlocked' | 'removed';
+  action?: 'locked' | 'unlocked' | 'removed' | 'pinned' | 'unpinned';
   previousStatus?: string | null;
   nextStatus?: string | null;
 }
@@ -80,6 +82,7 @@ const SAFE_SETTINGS_FIELDS = new Set([
   'membersCanInvite',
   'memberLimit',
   'tagIds',
+  'membershipDisclosure',
 ]);
 
 function safeId(value: unknown): string | null {
@@ -266,16 +269,22 @@ function settingsProjection(
 ): CommunityAdminTimelineProjection | null {
   const base = baseProjection('settings', auditId, raw);
   const actorData = actor(raw);
-  const safeFields = changedFields(raw['changedFields']);
+  const action = String(raw['action'] ?? '');
+
+  if (!base || !actorData.actorUid) return null;
+
+  const safeFields = action === 'community_membership_disclosure_updated'
+    ? ['membershipDisclosure']
+    : changedFields(raw['changedFields']);
 
   if (
-    !base
-    || String(raw['action'] ?? '') !== 'community_settings_updated'
-    || !actorData.actorUid
-    || safeFields.length === 0
+    action !== 'community_settings_updated'
+    && action !== 'community_membership_disclosure_updated'
   ) {
     return null;
   }
+
+  if (safeFields.length === 0) return null;
 
   return {
     ...base,
@@ -284,6 +293,41 @@ function settingsProjection(
     eventType: 'settings_changed',
     subjectUid: null,
     details: { changedFields: safeFields },
+  };
+}
+
+function highlightProjection(
+  auditId: string,
+  raw: Record<string, unknown>
+): CommunityAdminTimelineProjection | null {
+  const base = baseProjection('highlight', auditId, raw);
+  const actorData = actor(raw);
+  const action = String(raw['action'] ?? '');
+
+  if (
+    !base
+    || !actorData.actorUid
+    || raw['changed'] !== true
+    || (
+      action !== 'community-highlight-pinned'
+      && action !== 'community-highlight-unpinned'
+    )
+  ) {
+    return null;
+  }
+
+  return {
+    ...base,
+    ...actorData,
+    category: 'moderation',
+    eventType: 'highlight_changed',
+    subjectUid: null,
+    details: {
+      target: 'post',
+      action: action === 'community-highlight-pinned'
+        ? 'pinned'
+        : 'unpinned',
+    },
   };
 }
 
@@ -418,6 +462,9 @@ export function buildCommunityAdminTimelineProjection(input: {
   }
   if (input.source === 'settings') {
     return settingsProjection(input.auditId, raw);
+  }
+  if (input.source === 'highlight') {
+    return highlightProjection(input.auditId, raw);
   }
   if (input.source === 'feed') {
     return feedProjection(input.auditId, raw);
