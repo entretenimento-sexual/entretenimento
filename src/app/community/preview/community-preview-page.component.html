@@ -284,16 +284,26 @@
             </div>
           }
 
-          <nav
-            class="community-preview__tabs"
-            [class.has-members]="spaceCapabilities(preview.community).memberDirectory"
-            [attr.aria-label]="'Conteúdo do ' + sourceLabel(preview.community)"
+          <div
+            class="community-preview__tablist"
+            role="tablist"
+            aria-orientation="horizontal"
+            [attr.aria-label]="'Seções do ' + sourceLabel(preview.community)"
           >
+            <div
+              class="community-preview__tabs"
+              role="presentation"
+              [class.has-members]="spaceCapabilities(preview.community).memberDirectory"
+            >
             <button
               id="community-tab-feed"
               type="button"
-              [attr.aria-pressed]="activeSection() === 'feed'"
+              role="tab"
+              aria-controls="community-panel-feed"
+              [attr.aria-selected]="activeSection() === 'feed'"
+              [attr.tabindex]="activeSection() === 'feed' ? 0 : -1"
               [class.is-active]="activeSection() === 'feed'"
+              (keydown)="handleTabKeydown($event)"
               (click)="selectSection('feed')"
             >
               <i class="fas {{ sectionIcons.feed }}" aria-hidden="true"></i>
@@ -304,9 +314,12 @@
               <button
                 id="community-tab-topics"
                 type="button"
+                role="tab"
                 aria-controls="community-panel-topics"
-                [attr.aria-pressed]="activeSection() === 'topics'"
+                [attr.aria-selected]="activeSection() === 'topics'"
+                [attr.tabindex]="activeSection() === 'topics' ? 0 : -1"
                 [class.is-active]="activeSection() === 'topics'"
+                (keydown)="handleTabKeydown($event)"
                 (click)="selectSection('topics')"
               >
                 <i class="fas {{ sectionIcons.topics }}" aria-hidden="true"></i>
@@ -317,8 +330,12 @@
             <button
               id="community-tab-photos"
               type="button"
-              [attr.aria-pressed]="activeSection() === 'photos'"
+              role="tab"
+              aria-controls="community-panel-photos"
+              [attr.aria-selected]="activeSection() === 'photos'"
+              [attr.tabindex]="activeSection() === 'photos' ? 0 : -1"
               [class.is-active]="activeSection() === 'photos'"
+              (keydown)="handleTabKeydown($event)"
               (click)="selectSection('photos')"
             >
               <i class="fas {{ sectionIcons.photos }}" aria-hidden="true"></i>
@@ -329,9 +346,12 @@
               <button
                 id="community-tab-members"
                 type="button"
+                role="tab"
                 aria-controls="community-panel-members"
-                [attr.aria-pressed]="activeSection() === 'members'"
+                [attr.aria-selected]="activeSection() === 'members'"
+                [attr.tabindex]="activeSection() === 'members' ? 0 : -1"
                 [class.is-active]="activeSection() === 'members'"
+                (keydown)="handleTabKeydown($event)"
                 (click)="selectSection('members')"
               >
                 <i class="fas {{ sectionIcons.members }}" aria-hidden="true"></i>
@@ -342,19 +362,23 @@
             <button
               id="community-tab-about"
               type="button"
-              [attr.aria-pressed]="activeSection() === 'about'"
+              role="tab"
+              aria-controls="community-panel-about"
+              [attr.aria-selected]="activeSection() === 'about'"
+              [attr.tabindex]="activeSection() === 'about' ? 0 : -1"
               [class.is-active]="activeSection() === 'about'"
+              (keydown)="handleTabKeydown($event)"
               (click)="selectSection('about')"
             >
               <i class="fas {{ sectionIcons.about }}" aria-hidden="true"></i>
               <span>Sobre</span>
             </button>
-          </nav>
+            </div>
 
           @if (preview.canManageMemberships || preview.canInviteCommunityMembers) {
-            <nav
+            <div
               class="community-preview__management-nav"
-              aria-label="Administração da Comunidade"
+              role="presentation"
             >
               <span class="community-preview__management-label">
                 <i class="fas fa-shield-halved" aria-hidden="true"></i>
@@ -366,8 +390,12 @@
                   <button
                     id="community-tab-requests"
                     type="button"
-                    [attr.aria-pressed]="activeSection() === 'requests'"
+                    role="tab"
+                    aria-controls="community-panel-requests"
+                    [attr.aria-selected]="activeSection() === 'requests'"
+                    [attr.tabindex]="activeSection() === 'requests' ? 0 : -1"
                     [class.is-active]="activeSection() === 'requests'"
+                    (keydown)="handleTabKeydown($event)"
                     (click)="selectSection('requests')"
                   >
                     <i
@@ -382,8 +410,12 @@
                   <button
                     id="community-tab-invites"
                     type="button"
-                    [attr.aria-pressed]="activeSection() === 'invites'"
+                    role="tab"
+                    aria-controls="community-panel-invites"
+                    [attr.aria-selected]="activeSection() === 'invites'"
+                    [attr.tabindex]="activeSection() === 'invites' ? 0 : -1"
                     [class.is-active]="activeSection() === 'invites'"
+                    (keydown)="handleTabKeydown($event)"
                     (click)="selectSection('invites')"
                   >
                     <i
@@ -394,8 +426,9 @@
                   </button>
                 }
               </div>
-            </nav>
+            </div>
           }
+          </div>
 
           <div
             class="community-preview__body"
@@ -409,7 +442,7 @@
           >
             <div class="community-preview__primary">
               @if (activeSection() === 'feed') {
-                <section id="community-panel-feed" aria-labelledby="community-tab-feed">
+                <section id="community-panel-feed" role="tabpanel" tabindex="0" aria-labelledby="community-tab-feed">
                   <app-community-feed
                     [communityId]="preview.community.communityId"
                     [sourceType]="preview.community.source.type"
@@ -424,7 +457,7 @@
                 activeSection() === 'topics'
                 && spaceCapabilities(preview.community).topics
               ) {
-                <section id="community-panel-topics" aria-labelledby="community-tab-topics">
+                <section id="community-panel-topics" role="tabpanel" tabindex="0" aria-labelledby="community-tab-topics">
                   <app-community-topics
                     [communityId]="preview.community.communityId"
                     [canInteract]="preview.canInteract"
@@ -432,7 +465,7 @@
                   />
                 </section>
               } @else if (activeSection() === 'photos') {
-                <section id="community-panel-photos" aria-labelledby="community-tab-photos">
+                <section id="community-panel-photos" role="tabpanel" tabindex="0" aria-labelledby="community-tab-photos">
                   <app-community-feed
                     [communityId]="preview.community.communityId"
                     [sourceType]="preview.community.source.type"
@@ -443,7 +476,7 @@
                 activeSection() === 'members'
                 && spaceCapabilities(preview.community).memberDirectory
               ) {
-                <section id="community-panel-members" aria-labelledby="community-tab-members">
+                <section id="community-panel-members" role="tabpanel" tabindex="0" aria-labelledby="community-tab-members">
                   @if (
                     preview.viewerMode === 'member'
                     || preview.viewerMode === 'moderator'
@@ -464,7 +497,7 @@
                 activeSection() === 'invites'
                 && preview.canInviteCommunityMembers
               ) {
-                <section id="community-panel-invites" aria-labelledby="community-tab-invites">
+                <section id="community-panel-invites" role="tabpanel" tabindex="0" aria-labelledby="community-tab-invites">
                   <app-community-invite-management
                     [communityId]="preview.community.communityId"
                     (invitesChanged)="membershipReviewed()"
@@ -474,7 +507,7 @@
                 activeSection() === 'requests'
                 && preview.canManageMemberships
               ) {
-                <section id="community-panel-requests" aria-labelledby="community-tab-requests">
+                <section id="community-panel-requests" role="tabpanel" tabindex="0" aria-labelledby="community-tab-requests">
                   <app-community-membership-management
                     [communityId]="preview.community.communityId"
                     [sourceType]="preview.community.source.type"
@@ -493,7 +526,7 @@
                 </section>
               } @else {
                 <section
-                  id="community-panel-about"
+                  id="community-panel-about" role="tabpanel" tabindex="0"
                   class="community-preview__about"
                   aria-labelledby="community-tab-about"
                 >
