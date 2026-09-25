@@ -25,7 +25,7 @@ function searchPage(
   return {
     items: ids.map((id, index) => ({
       memberKey: id,
-      identity: { profileId: id, nickname: index ? 'Bia' : 'Ana', avatarUrl: null },
+      identity: { profileId: id, nickname: index ? 'Bia' : 'Ana', label: index ? 'Bia' : 'Ana', avatarUrl: null },
       role: 'member',
     })),
     nextCursor,
