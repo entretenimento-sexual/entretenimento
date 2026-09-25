@@ -3,6 +3,8 @@ import { readFile } from 'node:fs/promises';
 import net from 'node:net';
 import path from 'node:path';
 
+import { probeFunctionsCallable } from './functions-emulator-health.mjs';
+
 const HOST = '127.0.0.1';
 const REQUIRED_PORTS = [4000, 4200, 4400, 4500, 5001, 8080, 9099, 9199];
 const CONNECT_TIMEOUT_MS = 800;
@@ -131,10 +133,19 @@ function isExpectedAngularEmulatorProcess(commandLine) {
 }
 
 async function isExpectedSessionHealthy() {
-  const [angular, firebaseUi, sessionHead] = await Promise.all([
+  const [angular, firebaseUi, sessionHead, criticalCallable] = await Promise.all([
     fetchText(`http://${HOST}:4200/`),
     fetchText(`http://${HOST}:4000/`),
     getSessionHead(),
+    probeFunctionsCallable({
+      name: 'acceptAdultSelfDeclaration',
+      host: HOST,
+      port: 5001,
+      projectId: process.env.FIREBASE_PROJECT_ID || 'entretenimento-sexual',
+      region: 'us-central1',
+      origin: 'http://localhost:4200',
+      timeoutMs: HTTP_TIMEOUT_MS,
+    }),
   ]);
 
   const currentHead = getCurrentHead();
@@ -157,12 +168,14 @@ async function isExpectedSessionHealthy() {
       angularSignature &&
       angularEmulatorProcess &&
       firebaseSignature &&
+      criticalCallable.ready &&
       headMatches,
     angularStatus: angular.status,
     firebaseUiStatus: firebaseUi.status,
     angularSignature,
     angularEmulatorProcess,
     firebaseSignature,
+    criticalCallable,
     headMatches,
     currentHead,
     sessionHead,
@@ -198,6 +211,11 @@ if (occupiedPorts.length === 0) {
     );
     console.error(
       `[dev:session] Firebase UI status=${health.firebaseUiStatus} assinatura=${health.firebaseSignature}.`
+    );
+    console.error(
+      `[dev:session] Callable acceptAdultSelfDeclaration pronta=${health.criticalCallable.ready} ` +
+        `status=${health.criticalCallable.status} ` +
+        `allow-origin=${health.criticalCallable.allowOrigin || 'ausente'}.`
     );
     console.error(
       `[dev:session] HEAD atual=${health.currentHead || 'indisponível'} sessão=${health.sessionHead || 'indisponível'} correspondência=${health.headMatches}.`
