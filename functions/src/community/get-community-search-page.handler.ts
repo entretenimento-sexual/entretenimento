@@ -234,8 +234,8 @@ async function searchMembers(input: {
     .collection('community_member_management_index')
     .where('communityId', '==', input.communityId)
     .where('status', '==', 'active')
-    .where('searchPrefixes', 'array-contains', input.query)
-    .orderBy('sortLabel')
+    .where('publicSearchPrefixes', 'array-contains', input.query)
+    .orderBy('publicSearchSortLabel')
     .orderBy('searchKey')
     .limit(scanLimit);
 
@@ -328,7 +328,7 @@ async function searchMembers(input: {
   const mayHaveAnotherPage =
     snapshot.docs.length === scanLimit || buffered;
   const lastSortLabel = String(
-    lastConsumedDocument?.data()?.['sortLabel'] ?? ''
+    lastConsumedDocument?.data()?.['publicSearchSortLabel'] ?? ''
   ).trim();
   const lastSearchKey = String(
     lastConsumedDocument?.data()?.['searchKey'] ?? ''
