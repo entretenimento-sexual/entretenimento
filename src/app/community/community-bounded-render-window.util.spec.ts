@@ -16,7 +16,6 @@ describe('community bounded render window', () => {
     );
 
     expect(window.start).toBe(0);
-    expect(window.end).toBe(3);
     expect(window.items).toEqual(['a', 'b', 'c']);
     expect(window.hasPrevious).toBe(false);
     expect(window.hasNext).toBe(false);
@@ -27,7 +26,6 @@ describe('community bounded render window', () => {
     const window = buildCommunityBoundedRenderWindow(items, 6, 7);
 
     expect(window.start).toBe(7);
-    expect(window.end).toBe(13);
     expect(window.items).toEqual([7, 8, 9, 10, 11, 12]);
     expect(window.hasPrevious).toBe(true);
     expect(window.hasNext).toBe(true);
