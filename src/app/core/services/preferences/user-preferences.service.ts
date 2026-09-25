@@ -31,8 +31,6 @@ import {
   collection,
   doc,
   getDocs,
-  query,
-  where,
   writeBatch,
 } from '@angular/fire/firestore';
 
