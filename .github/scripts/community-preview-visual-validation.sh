@@ -112,7 +112,7 @@ run_checked "$OUT/desktop/feed.metrics.log" "async (page) => {
   if (
     metrics.scrollWidth > metrics.viewportWidth + 1
     || metrics.h1Count !== 1
-    || metrics.tabCount !== 4
+    || metrics.tabCount !== 5
     || !metrics.hasMembersTab
     || metrics.postCount !== 3
     || !metrics.hasComposer
@@ -249,7 +249,7 @@ run_checked "$OUT/mobile/feed.metrics.log" "async (page) => {
     metrics.scrollWidth > metrics.viewportWidth + 1
     || metrics.contentWidth > metrics.viewportWidth + 1
     || metrics.tabsWidth > metrics.viewportWidth + 1
-    || metrics.tabCount !== 4
+    || metrics.tabCount !== 5
     || !metrics.hasMembersTab
     || metrics.postCount !== 3
     || metrics.railCount !== 1
@@ -379,7 +379,7 @@ run_checked "$OUT/management/desktop/overview.metrics.log" "async (page) => {
       ).length,
     };
   });
-  const expectedContentTabs = ['Mural', 'Fotos', 'Membros', 'Sobre'];
+  const expectedContentTabs = ['Mural', 'Discussões', 'Fotos', 'Membros', 'Sobre'];
   const expectedManagementActions = ['Gestão', 'Convites'];
   const expectedNav = ['Visão geral', 'Solicitações', 'Participantes', 'Configurações', 'Propriedade'];
   const expectedCards = ['Solicitações', 'Participantes', 'Convites', 'Configurações', 'Moderação', 'Capacidade', 'Propriedade'];
