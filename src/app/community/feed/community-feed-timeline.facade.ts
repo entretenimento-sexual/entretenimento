@@ -52,7 +52,7 @@ export interface CommunityFeedTimelineConfig {
   readonly hooks: CommunityFeedTimelineHooks;
 }
 
-export interface CommunityFeedPageLoaded {
+interface CommunityFeedPageLoaded {
   readonly request: CommunityFeedLoadRequest;
   readonly page: CommunityFeedPage;
 }
