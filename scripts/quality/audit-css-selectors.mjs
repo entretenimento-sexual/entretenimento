@@ -74,9 +74,18 @@ for (const cssFile of cssFiles) {
   }
 
   for (const className of classNames) {
+    const dynamicModifierPrefix = className.includes('--')
+      ? `${className.split('--')[0]}--`
+      : null;
+
     const referenced = consumerTexts.some(({ source: consumer }) =>
       consumer.includes(className)
+      || (
+        dynamicModifierPrefix
+        && consumer.includes(dynamicModifierPrefix)
+      )
     );
+
     if (!referenced) {
       candidates.push(`${relative(cssFile)} :: .${className}`);
     }
