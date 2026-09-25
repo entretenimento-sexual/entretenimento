@@ -8,6 +8,7 @@
 // (ex.: room:deprecation-boundary:check).
 // -----------------------------------------------------------------------------
 
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -39,6 +40,44 @@ function walk(directory) {
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+}
+
+function listGitRepositoryFiles({ includeUntracked = false } = {}) {
+  const args = ['ls-files', '--cached'];
+
+  if (includeUntracked) {
+    args.push('--others', '--exclude-standard');
+  }
+
+  args.push('-z');
+
+  const output = execFileSync('git', args, {
+    cwd: root,
+    encoding: 'utf8',
+    maxBuffer: 32 * 1024 * 1024,
+    stdio: ['ignore', 'pipe', 'inherit'],
+  });
+
+  return output
+    .split('\0')
+    .filter(Boolean)
+    .map((relativePath) => path.normalize(path.resolve(root, relativePath)))
+    .filter((filePath) => fs.existsSync(filePath) && fs.statSync(filePath).isFile());
+}
+
+const trackedRepositoryFiles = listGitRepositoryFiles();
+const repositoryVisibleFiles = listGitRepositoryFiles({
+  includeUntracked: true,
+});
+
+function repositoryFilesUnder(directory, files = repositoryVisibleFiles) {
+  const normalizedDirectory = path.normalize(directory);
+  const prefix = normalizedDirectory + path.sep;
+
+  return files.filter(
+    (filePath) =>
+      filePath === normalizedDirectory || filePath.startsWith(prefix)
+  );
 }
 
 function isProductionTypeScript(filePath) {
@@ -117,7 +156,7 @@ const parsedConfig = ts.parseJsonConfigFileContent(
 
 const angularConfig = readJson(path.join(root, 'angular.json'));
 const appRoot = path.join(root, 'src', 'app');
-const allAppFiles = walk(appRoot);
+const allAppFiles = repositoryFilesUnder(appRoot);
 const productionTs = allAppFiles.filter(isProductionTypeScript);
 const productionSet = new Set(productionTs.map((filePath) => path.normalize(filePath)));
 
@@ -250,7 +289,7 @@ const meaningfulAssetOrphans = assetOrphans.filter(
 // -----------------------------------------------------------------------------
 
 const testRoot = path.join(root, 'src', 'test');
-const allSourceTs = walk(path.join(root, 'src')).filter(
+const allSourceTs = repositoryFilesUnder(path.join(root, 'src')).filter(
   (filePath) => filePath.endsWith('.ts') && !filePath.endsWith('.d.ts')
 );
 const specRoots = allSourceTs.filter((filePath) =>
@@ -313,7 +352,7 @@ while (testQueue.length > 0) {
   }
 }
 
-const testSupportOrphans = walk(testRoot)
+const testSupportOrphans = repositoryFilesUnder(testRoot)
   .filter(
     (filePath) =>
       filePath.endsWith('.ts')
@@ -330,7 +369,7 @@ const testSupportOrphans = walk(testRoot)
 // -----------------------------------------------------------------------------
 
 const functionsSourceRoot = path.join(root, 'functions', 'src');
-const functionsFiles = walk(functionsSourceRoot);
+const functionsFiles = repositoryFilesUnder(functionsSourceRoot);
 const functionsProductionTs = functionsFiles.filter(isProductionTypeScript);
 const functionsConfigPath = path.join(root, 'functions', 'tsconfig.json');
 const functionsRawConfig = ts.readConfigFile(functionsConfigPath, ts.sys.readFile);
@@ -411,40 +450,16 @@ const functionOrphans = functionsProductionTs
 // ASSETS ESTÁTICOS: arquivos copiados para Hosting sem referência textual
 // -----------------------------------------------------------------------------
 
-const ignoredAuditDirectories = new Set([
-  '.git',
-  '.angular',
-  'coverage',
-  'dist',
-  'lib',
-  'node_modules',
-  'out-tsc',
-  'tmp',
-]);
-
-function walkAuditText(directory) {
-  if (!fs.existsSync(directory)) return [];
-  const found = [];
-
-  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-    if (entry.isDirectory() && ignoredAuditDirectories.has(entry.name)) continue;
-    const absolute = path.join(directory, entry.name);
-    if (entry.isDirectory()) {
-      found.push(...walkAuditText(absolute));
-    } else if (entry.isFile()) {
-      found.push(absolute);
-    }
-  }
-
-  return found;
-}
-
+// A auditoria textual deve refletir o conteúdo do repositório, não snapshots,
+// exports, caches ou ferramentas locais ignoradas. `git ls-files --cached
+// --others --exclude-standard` preserva arquivos novos ainda não commitados,
+// mas respeita integralmente o .gitignore.
 const auditTextExtensions = new Set([
   '.cmd', '.css', '.html', '.js', '.json', '.md', '.mjs', '.ps1', '.scss',
   '.sh', '.ts', '.txt', '.yaml', '.yml',
 ]);
 
-const auditTextFiles = walkAuditText(root).filter((filePath) =>
+const auditTextFiles = repositoryVisibleFiles.filter((filePath) =>
   auditTextExtensions.has(path.extname(filePath).toLowerCase())
 );
 
@@ -454,7 +469,7 @@ const auditTexts = auditTextFiles.map((filePath) => ({
 }));
 
 const assetsRoot = path.join(root, 'src', 'assets');
-const staticAssets = walk(assetsRoot).filter(
+const staticAssets = repositoryFilesUnder(assetsRoot).filter(
   (filePath) => path.basename(filePath) !== '.gitkeep'
 );
 
@@ -809,7 +824,7 @@ const retiredClientCallableConsumers = auditTexts
 // -----------------------------------------------------------------------------
 
 const rulesRoot = path.join(root, 'firestore-rules');
-const ruleFragments = walk(rulesRoot)
+const ruleFragments = repositoryFilesUnder(rulesRoot)
   .filter(
     (filePath) =>
       filePath.endsWith('.rules')
@@ -833,7 +848,7 @@ const ruleFragmentsOutsideManifest = ruleFragments
 // -----------------------------------------------------------------------------
 
 const scriptRoot = path.join(root, 'scripts');
-const operationalScripts = walk(scriptRoot).filter((filePath) =>
+const operationalScripts = repositoryFilesUnder(scriptRoot).filter((filePath) =>
   ['.cmd', '.js', '.mjs', '.ps1', '.sh', '.ts'].includes(
     path.extname(filePath).toLowerCase()
   )
@@ -872,7 +887,7 @@ const unreferencedScripts = operationalScripts
   .sort();
 
 const allowedEmptyFiles = new Set(['src/assets/.gitkeep']);
-const emptyTrackedFiles = walkAuditText(root)
+const emptyTrackedFiles = trackedRepositoryFiles
   .filter((filePath) => fs.statSync(filePath).size === 0)
   .map(posix)
   .filter((filePath) => !allowedEmptyFiles.has(filePath))
