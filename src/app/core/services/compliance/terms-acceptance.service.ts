@@ -11,7 +11,6 @@ import { CurrentUserStoreService } from 'src/app/core/services/autentication/aut
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { environment } from 'src/environments/environment';
 import {
-  PLATFORM_LEGAL_MANIFEST,
   PRIVACY_NOTICE_VERSION,
   TERMS_ACCEPTANCE_VERSION,
   TERMS_DOCUMENT_VERSION,
