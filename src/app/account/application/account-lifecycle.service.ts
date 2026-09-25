@@ -375,7 +375,7 @@ export class AccountLifecycleService {
 
   private resolveReasonMessages(
     error: unknown,
-    context: string
+    context = ''
   ): Readonly<Record<string, string>> {
     const source = this.asRecord(error);
     const details = this.asRecord(source?.['details']);
@@ -411,7 +411,7 @@ export class AccountLifecycleService {
 
   private resolveOwnedResourcesMessage(
     details: Record<string, unknown>,
-    context: string
+    context = ''
   ): string {
     const activeRoomCount = this.normalizeNonNegativeCount(
       details['activeOwnedRoomCount']
