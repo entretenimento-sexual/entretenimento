@@ -27,6 +27,267 @@ const temporaryCompatibilityExports = [
   'normalizeLegacyVideoModeration',
 ];
 
+const expectedDeploymentExports = [
+  'acceptAdultConsent',
+  'acceptAdultSelfDeclaration',
+  'acceptCommunityInvite',
+  'acceptFriendRequest',
+  'acceptPlatformTerms',
+  'acceptRoomInvite',
+  'appealProfileAgeReverification',
+  'archiveCommunity',
+  'auditUserPrivilegeChanges',
+  'backfillPublicProfileDiscovery',
+  'blockUser',
+  'cancelAccountDeletion',
+  'cancelFriendRequest',
+  'cancelPlatformSubscriptionDowngrade',
+  'cancelPlatformSubscriptionRenewal',
+  'cleanupCancelledVideoProcessing',
+  'cleanupFailedVideoUploads',
+  'cleanupPendingPhotoDeletions',
+  'cleanupPendingPrivateVideoUploadAssets',
+  'cleanupPendingPublishedPhotoAssets',
+  'cleanupPendingPublishedVideoAssets',
+  'cleanupPendingVideoDeletions',
+  'cleanupRetriedVideoProcessingOutputs',
+  'cleanupUnpublishedVideoInteractions',
+  'cleanupVideoRotationInput',
+  'clearStalePresence',
+  'closePrivateRoom',
+  'configureCommunityRankingMode',
+  'createCommunity',
+  'createCommunityFeedComment',
+  'createCommunityFeedCommentReply',
+  'createCommunityFeedPost',
+  'createCommunityTopic',
+  'createCommunityTopicReply',
+  'createOfficialCommunity',
+  'createPhotoComment',
+  'createPlatformCheckoutSession',
+  'createPrivateRoom',
+  'createVenueCommunity',
+  'createVideoComment',
+  'declineCommunityInvite',
+  'declineFriendRequest',
+  'declineRoomInvite',
+  'deleteDirectMessage',
+  'deleteProfilePhoto',
+  'deleteProfileVideo',
+  'discardFailedVideoUpload',
+  'endFriendship',
+  'ensureCurrentLegalNotice',
+  'ensureDirectChat',
+  'expireAgeEligibilityAtBoundary',
+  'expireAgeEligibilityRecords',
+  'findCommunityInviteCandidate',
+  'getAccountDeletionOperations',
+  'getAuthorizedPhotoOwnerPage',
+  'getCommunityAdminTimeline',
+  'getCommunityBoostCampaignDashboard',
+  'getCommunityBoostPlacement',
+  'getCommunityCreationCapability',
+  'getCommunityDiscoveryPage',
+  'getCommunityExploreContent',
+  'getCommunityFeedCommentRepliesPage',
+  'getCommunityFeedCommentsPage',
+  'getCommunityFeedItems',
+  'getCommunityFeedPage',
+  'getCommunityHighlight',
+  'getCommunityInvites',
+  'getCommunityMemberRosterPage',
+  'getCommunityMembersForManagement',
+  'getCommunityMembershipContext',
+  'getCommunityMembershipProfileVisibility',
+  'getCommunityMembershipRequests',
+  'getCommunityOfficialClaimCapability',
+  'getCommunityOfficialClaimReviewQueue',
+  'getCommunityOwnershipCandidates',
+  'getCommunityOwnershipCandidatesPage',
+  'getCommunityPreview',
+  'getCommunitySentInvites',
+  'getCommunityTagCatalog',
+  'getCommunityTopicDetail',
+  'getCommunityTopicRepliesPage',
+  'getCommunityTopicsPage',
+  'getMyAccountPrivilegeHistory',
+  'getMyBillingSnapshot',
+  'getMyCommunitiesPage',
+  'getMyCommunityActivityCards',
+  'getMyCommunityOfficialClaim',
+  'getMyComplianceCases',
+  'getMyExclusiveConnectionsPage',
+  'getMyPlatformSubscriptionHistory',
+  'getOfficialCommunitiesForTarget',
+  'getPendingFriendRequests',
+  'getPlatformPlanByKey',
+  'getPlatformPlans',
+  'getPrivateVideoAccessUrls',
+  'getProfileOfficialCommunities',
+  'getProfilePublicCommunities',
+  'getPublicMediaDiscovery',
+  'getPublicPhotoAccessUrls',
+  'getPublicProfilesPage',
+  'getPublicVideoAccessUrls',
+  'getRecentPublicMediaViews',
+  'getUserIntentStatuses',
+  'getVideoProcessingOperationalStatus',
+  'hideUserIntentStatus',
+  'initializePublicAgeEligibilityProjection',
+  'inspectCommunityPurgeReadiness',
+  'inspectCommunityRankingReadiness',
+  'issueEventAuthority',
+  'issueSuspectedViolationNotice',
+  'leaveCommunityMembership',
+  'listVideoProcessingRecoveryJobs',
+  'manageBusinessOfficialEntitlement',
+  'manageCommunityBoostAdvertiserAccount',
+  'manageCommunityBoostBillingConfig',
+  'manageCommunityBoostCampaign',
+  'manageCommunityHighlight',
+  'manageCommunityMember',
+  'markAllNotificationsRead',
+  'markNotificationRead',
+  'moderateCommunityFeedComment',
+  'moderateCommunityFeedCommentReply',
+  'moderateCommunityFeedPost',
+  'moderateCommunityTopic',
+  'moderatePhotoComment',
+  'moderateScheduleDeletion',
+  'moderateSuspendAccount',
+  'moderateUnsuspendAccount',
+  'moderateVideoComment',
+  'normalizeLegacyVideoModeration',
+  'onUserCreate',
+  'onUserCreateIndexNickname',
+  'paymentWebhook',
+  'processAgeVerificationProviderAssertion',
+  'processBillingReturn',
+  'processProviderWebhookEventTrigger',
+  'publishPhoto',
+  'publishUserIntentStatus',
+  'publishVideo',
+  'publishVideoWhenReady',
+  'purgeDeletedAccounts',
+  'queueHighRiskModerationLegalReview',
+  'queuePrivateVideoProcessing',
+  'rateVideo',
+  'reactivateSelfSuspension',
+  'reconcileAccountLifecycleBilling',
+  'reconcileCommunityMemberCounts',
+  'reconcileCommunityMembershipNotificationsTrigger',
+  'reconcileModerationSuspensions',
+  'reconcilePlatformSubscriptions',
+  'reconcileProviderWebhookEvents',
+  'reconcileRecurringProviderCancellations',
+  'reconcileRecurringProviderPlanChanges',
+  'reconcileVideoProcessing',
+  'recordCommunityBoostEvent',
+  'recordCommunityDiscoveryExposure',
+  'recordCommunityDistributionEvents',
+  'recordPhotoView',
+  'recordVideoRetention',
+  'recordVideoView',
+  'recoverRegistrationSeed',
+  'recoverVideoProcessingJob',
+  'refreshMyAgeEligibility',
+  'registerPrivateVideoUpload',
+  'registerPushDevice',
+  'reportCommunityFeedComment',
+  'reportCommunityFeedCommentReply',
+  'reportCommunityFeedPost',
+  'reportPhotoContent',
+  'reportProfileMinorSafety',
+  'reportVideoContent',
+  'requestAccountDeletion',
+  'requestCommunityMembership',
+  'requestInitialAgeVerificationReview',
+  'requestProfileAgeReverification',
+  'requestSelfSuspension',
+  'retryPendingModerationEvidencePreservation',
+  'reviewCommunityFeedCommentReplyReport',
+  'reviewCommunityFeedCommentReport',
+  'reviewCommunityFeedPostReport',
+  'reviewCommunityMembership',
+  'reviewCommunityOfficialClaim',
+  'reviewInitialAgeVerification',
+  'reviewPhotoContentReport',
+  'reviewProfileAgeReverification',
+  'reviewProfileMinorSafetyReport',
+  'reviewVideoContentReport',
+  'revokeCommunityInvite',
+  'revokeEventAuthority',
+  'runCommunityBoostLifecycle',
+  'runCommunityDiscoveryExposureRetention',
+  'runCommunityExploreContentRetention',
+  'runCommunityLifecycle',
+  'runCommunityOfficialAssociationLifecycle',
+  'runCommunityPurge',
+  'runCommunityRanking',
+  'scheduleAgeEligibilityExpirationTask',
+  'schedulePlatformSubscriptionDowngrade',
+  'searchCommunityMembersPage',
+  'sendCommunityInvite',
+  'sendDirectMessage',
+  'sendDirectVideoReference',
+  'sendFriendRequest',
+  'sendNotification',
+  'sendRoomInvite',
+  'setCoverPhoto',
+  'startPublicVideoPlaybackSession',
+  'submitCommunityOfficialClaim',
+  'submitComplianceCaseResponse',
+  'submitProfileAgeReverification',
+  'submitQueuedVideoProcessing',
+  'syncAccountLifecycleSubscriptionProjection',
+  'syncCommunityAdminTimelineFeedAudit',
+  'syncCommunityAdminTimelineHighlightAudit',
+  'syncCommunityAdminTimelineLifecycleAudit',
+  'syncCommunityAdminTimelineMembershipAudit',
+  'syncCommunityAdminTimelineOfficialAssociationAudit',
+  'syncCommunityAdminTimelineOfficialClaimAudit',
+  'syncCommunityAdminTimelineSettingsAudit',
+  'syncCommunityAdminTimelineTopicAudit',
+  'syncCommunityArchiveProjections',
+  'syncCommunityCapacityRegularization',
+  'syncCommunityFeedActivity',
+  'syncCommunityFeedRealtimeTrigger',
+  'syncCommunityHighlightCommunityTrigger',
+  'syncCommunityHighlightTarget',
+  'syncCommunityMemberManagementIndex',
+  'syncCommunityMemberManagementIndexFromUser',
+  'syncCommunityMemberSearchIndex',
+  'syncCommunityMemberSearchIndexFromPublicProfile',
+  'syncCommunityMembershipActivity',
+  'syncCommunityNotificationSummaryTrigger',
+  'syncCommunityOfficialAssociation',
+  'syncCommunityOfficialAssociationLifecycle',
+  'syncCommunityProfileMembershipIndexTrigger',
+  'syncCommunityRankingFromCommunity',
+  'syncCommunityRankingFromDiscovery',
+  'syncCommunityUserIndex',
+  'syncPlatformSubscriptionEntitlement',
+  'syncPublicAgeEligibilityProjection',
+  'syncPublicPreferenceProjectionTrigger',
+  'syncPublicProfileDiscovery',
+  'syncPublishedPhotoOnPrivateUpdate',
+  'syncPublishedVideoSettings',
+  'syncVenuePublicLocation',
+  'toggleCommunityFeedReaction',
+  'togglePhotoReaction',
+  'toggleVideoReaction',
+  'transferCommunityOwnership',
+  'unblockUser',
+  'unpublishPhoto',
+  'unpublishVideo',
+  'unregisterPushDevice',
+  'updateCommunityMembershipDisclosurePolicy',
+  'updateCommunityMembershipProfileVisibility',
+  'updateCommunityNotificationPreference',
+  'updateCommunitySettings',
+  'updateVideoPublicationSettings',
+];
+
 const requiredExports = [
   'syncAccountLifecycleSubscriptionProjection',
   'reconcileAccountLifecycleBilling',
@@ -151,9 +412,14 @@ const deploymentExports = Object.entries(compiledFunctions ?? {})
   .map(([exportName]) => exportName)
   .sort();
 
-const classifiedDeploymentExports = new Set(requiredExports);
-const unclassifiedDeploymentExports = deploymentExports.filter(
-  (exportName) => !classifiedDeploymentExports.has(exportName)
+const expectedDeploymentExportSet = new Set(
+  expectedDeploymentExports
+);
+const missingDeploymentExports = expectedDeploymentExports.filter(
+  (exportName) => !deploymentExports.includes(exportName)
+);
+const unexpectedDeploymentExports = deploymentExports.filter(
+  (exportName) => !expectedDeploymentExportSet.has(exportName)
 );
 
 if (leakedLegacyTriggerExports.length > 0) {
@@ -163,6 +429,34 @@ if (leakedLegacyTriggerExports.length > 0) {
   for (const exportName of leakedLegacyTriggerExports) {
     console.error(`- ${exportName}`);
   }
+  process.exit(1);
+}
+
+if (
+  missingDeploymentExports.length > 0
+  || unexpectedDeploymentExports.length > 0
+) {
+  if (missingDeploymentExports.length > 0) {
+    console.error(
+      '[functions:exports] Deployment exports esperados ausentes:'
+    );
+    for (const exportName of missingDeploymentExports) {
+      console.error(`- ${exportName}`);
+    }
+  }
+
+  if (unexpectedDeploymentExports.length > 0) {
+    console.error(
+      '[functions:exports] Deployment exports inesperados fora da allowlist:'
+    );
+    for (const exportName of unexpectedDeploymentExports) {
+      console.error(`- ${exportName}`);
+    }
+  }
+
+  console.error(
+    '[functions:exports] Atualize a allowlist somente após classificar explicitamente a mudança de superfície pública.'
+  );
   process.exit(1);
 }
 
@@ -187,16 +481,6 @@ console.log(
 console.log(
   `[functions:exports] Deployment exports detectados: ${deploymentExports.join(', ')}`
 );
-
-if (unclassifiedDeploymentExports.length > 0) {
-  console.log(
-    '[functions:exports] Deployment exports ainda não classificados pela allowlist estrita:'
-  );
-  for (const exportName of unclassifiedDeploymentExports) {
-    console.log(`- ${exportName}`);
-  }
-} else {
-  console.log(
-    '[functions:exports] Todos os deployment exports já estão classificados.'
-  );
-}
+console.log(
+  `[functions:exports] Superfície implantável exata validada: ${deploymentExports.length} export(s).`
+);
