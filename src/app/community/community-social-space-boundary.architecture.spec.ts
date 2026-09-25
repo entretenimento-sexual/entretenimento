@@ -84,7 +84,7 @@ function productionTsInboundCounts(
     files.map((file) => [file, 0] as const)
   );
   const importPattern =
-    /\b(?:import|export)\s+(?:[^'"]*?\s+from\s+)?['"]([^'"]+)['"]|\bimport\(\s*['"]([^'"]+)['"]\s*\)/gu;
+    /\b(?:import|export)\s+(?:[^'\"]*?\s+from\s+)?['\"]([^'\"]+)['\"]|\bimport\(\s*['\"]([^'\"]+)['\"]\s*\)/gu;
 
   for (const importer of files) {
     if (excludedImporters.has(importer)) continue;
@@ -175,7 +175,7 @@ describe('Community × Local social-space boundary', () => {
     const violations = productionFiles(COMMUNITY_ROOT)
       .filter((file) => file.endsWith('.ts'))
       .filter((file) =>
-        /['"]getCommunityOwnershipCandidates['"]/u.test(
+        /['\"]getCommunityOwnershipCandidates['\"]/u.test(
           readFileSync(file, 'utf8')
         )
       )
@@ -213,23 +213,24 @@ describe('Community × Local social-space boundary', () => {
     ).toEqual([]);
   });
 
-  it('limita branching Community/Venue às fronteiras canônicas', () => {
+  it('limita branching Community/Venue às fronteiras canônicas em todo frontend', () => {
     const forbidden = [
-      /source\.type\s*===\s*['"](?:community|venue)['"]/u,
-      /source\.type\s*!==\s*['"](?:community|venue)['"]/u,
-      /sourceType\(\)\s*===\s*['"](?:community|venue)['"]/u,
-      /sourceType\(\)\s*!==\s*['"](?:community|venue)['"]/u,
-      /sourceType\s*===\s*['"](?:community|venue)['"]/u,
-      /sourceType\s*!==\s*['"](?:community|venue)['"]/u,
+      /source\.type\s*===\s*['\"](?:community|venue)['\"]/u,
+      /source\.type\s*!==\s*['\"](?:community|venue)['\"]/u,
+      /sourceType\(\)\s*===\s*['\"](?:community|venue)['\"]/u,
+      /sourceType\(\)\s*!==\s*['\"](?:community|venue)['\"]/u,
+      /sourceType\s*===\s*['\"](?:community|venue)['\"]/u,
+      /sourceType\s*!==\s*['\"](?:community|venue)['\"]/u,
     ] as const;
 
     const allowedBranching = new Set([
       'src/app/community/data-access/community-preview.model.ts',
       'src/app/community/presentation/community-social-space.adapter.ts',
+      'src/app/core/domain/social-space.definition.ts',
     ]);
     const violations: string[] = [];
 
-    for (const file of productionFiles(COMMUNITY_ROOT)) {
+    for (const file of productionFiles(APP_ROOT)) {
       const source = readFileSync(file, 'utf8');
       const displayPath = relative(process.cwd(), file).replaceAll('\\', '/');
 
@@ -242,7 +243,10 @@ describe('Community × Local social-space boundary', () => {
         );
       }
 
-      if (/['"]official_space['"]/u.test(source)) {
+      if (
+        displayPath.startsWith('src/app/community/')
+        && /['\"]official_space['\"]/u.test(source)
+      ) {
         violations.push(
           `${displayPath} tratou official_space como source type de frontend`
         );
