@@ -869,7 +869,7 @@ printGroup('Dependências de produção sem referência identificável', unrefer
 printGroup('DevDependencies sem referência identificável (revisão humana)', unreferencedDevelopmentDependencies);
 printGroup('Dependências de Functions sem referência identificável', unreferencedFunctionsDependencies);
 printGroup('DevDependencies de Functions sem referência identificável (revisão humana)', unreferencedFunctionsDevelopmentDependencies);
-printGroup('Consumidores produtivos da coleção raiz posts (revisão humana)', legacyRootPostsConsumers);
+printGroup('Consumidores produtivos proibidos da coleção raiz posts', legacyRootPostsConsumers);
 printGroup('Fragments de Firestore Rules fora do manifesto', ruleFragmentsOutsideManifest);
 printGroup('Scripts sem referência identificável', unreferencedScripts);
 printGroup('Arquivos vazios rastreados', emptyTrackedFiles);
@@ -884,6 +884,7 @@ if (
     || missingStaticAssets.length > 0
     || unreferencedProductionDependencies.length > 0
     || unreferencedFunctionsDependencies.length > 0
+    || legacyRootPostsConsumers.length > 0
     || ruleFragmentsOutsideManifest.length > 0
     || unreferencedScripts.length > 0
     || emptyTrackedFiles.length > 0
