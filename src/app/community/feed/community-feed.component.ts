@@ -330,6 +330,10 @@ export class CommunityFeedComponent {
   readonly reactionState$ = this.reactions.reactionState$;
 
   constructor() {
+    this.feedScope$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.renderWindow.reset());
+
     this.timeline.pageLoaded$
       .pipe(
         filter(({ request }) => request.append),
