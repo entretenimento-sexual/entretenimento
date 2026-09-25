@@ -9,11 +9,6 @@
     [attr.data-app-navigation-available]="vm.shellMode === 'auth' && vm.showSidebar && vm.sidebarShouldOverlay ? 'true' : null"
   ></app-navbar>
   <app-legal-update-notice-bridge></app-legal-update-notice-bridge>
-  <app-global-invite-badge
-    *ngIf="vm.shellMode === 'auth' && (vm.sidebarShouldOverlay || !vm.showSidebar)"
-    [mobile]="vm.sidebarShouldOverlay"
-  ></app-global-invite-badge>
-
   <app-email-verification-gate-banner></app-email-verification-gate-banner>
 
   <div
