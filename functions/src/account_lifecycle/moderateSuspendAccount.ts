@@ -220,8 +220,8 @@ export const moderateSuspendAccount = onCall<ModerateSuspendAccountRequest>(
         billingCancellation.providerCancellationStatus === 'pending'
           ? 'Conta suspensa pela moderação. A interrupção da renovação ainda está sendo processada.'
           : billingCancellation.recurringConfigured
-          ? 'Conta suspensa pela moderação e renovação automática interrompida.'
-          : 'Conta suspensa pela moderação.',
+            ? 'Conta suspensa pela moderação e renovação automática interrompida.'
+            : 'Conta suspensa pela moderação.',
     };
   }
 );
