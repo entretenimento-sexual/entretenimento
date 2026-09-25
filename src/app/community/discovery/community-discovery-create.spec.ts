@@ -220,9 +220,8 @@ describe('CommunityDiscoveryPageComponent / criação direta', () => {
       },
     });
 
-    const component = TestBed.runInInjectionContext(
-      () => new CommunityDiscoveryPageComponent()
-    );
+    const fixture = TestBed.createComponent(CommunityDiscoveryPageComponent);
+    const component = fixture.componentInstance;
     component.state$.subscribe();
 
     expect(component.selectedTagId()).toBe('intent:friendship');
@@ -258,9 +257,8 @@ describe('CommunityDiscoveryPageComponent / criação direta', () => {
   });
 
   it('gera identidade visual estável para a mesma Comunidade', () => {
-    const component = TestBed.runInInjectionContext(
-      () => new CommunityDiscoveryPageComponent()
-    );
+    const fixture = TestBed.createComponent(CommunityDiscoveryPageComponent);
+    const component = fixture.componentInstance;
 
     const firstVariant = component.communityVisualVariant(DISCOVERY_CARD);
     const repeatedVariant = component.communityVisualVariant({
