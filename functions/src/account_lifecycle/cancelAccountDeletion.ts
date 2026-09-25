@@ -1,5 +1,8 @@
 // functions/src/account_lifecycle/cancelAccountDeletion.ts
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import {
+  assertAccountLifecycleMutationSecurity,
+} from './account-lifecycle-mutation-security';
 import { FieldValue, db } from '../firebaseApp';
 import {
   PLATFORM_SUBSCRIPTION_STATE_COLLECTION,
@@ -48,6 +51,12 @@ export const cancelAccountDeletion = onCall<Record<string, never>>(
     assertRecentAuthentication(
       request.auth?.token as Record<string, unknown> | undefined
     );
+
+    await assertAccountLifecycleMutationSecurity({
+      action: 'self_cancel_deletion',
+      subjectUid: uid,
+      appContext: request.app,
+    });
 
     const now = Date.now();
 
