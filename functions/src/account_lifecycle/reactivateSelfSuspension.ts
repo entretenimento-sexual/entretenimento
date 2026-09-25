@@ -28,7 +28,7 @@ interface AccountLifecycleCommandResult {
   suspensionSource: null;
   suspensionEndsAt: null;
   statusUpdatedAt: number;
-  subscriptionRenewalStatus: 'active' | 'canceled' | 'none';
+  subscriptionRenewalStatus: 'active' | 'canceled' | 'pending' | 'none';
   message: string;
 }
 
@@ -168,12 +168,14 @@ export const reactivateSelfSuspension = onCall<Record<string, never>>(
       statusUpdatedAt: now,
       subscriptionRenewalStatus,
       message:
-        subscriptionRenewalStatus === 'canceled'
-          ? [
-            'Conta reativada. A renovação automática permanece cancelada;',
-            'revise sua assinatura se quiser voltar a renovar.',
-          ].join(' ')
-          : restored.publicVisibility === 'visible'
+        subscriptionRenewalStatus === 'pending'
+          ? 'Conta reativada. A interrupção da renovação automática ainda está sendo processada.'
+          : subscriptionRenewalStatus === 'canceled'
+            ? [
+              'Conta reativada. A renovação automática permanece cancelada;',
+              'revise sua assinatura se quiser voltar a renovar.',
+            ].join(' ')
+            : restored.publicVisibility === 'visible'
             ? 'Conta reativada com sucesso.'
             : 'Conta reativada. Conclua as verificações pendentes para voltar a aparecer e interagir.',
     };
