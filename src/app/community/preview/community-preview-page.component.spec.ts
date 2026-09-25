@@ -251,6 +251,16 @@ describe('CommunityPreviewPageComponent / Local', () => {
 
     expect(fixture.componentInstance.activeSection()).toBe('feed');
     expect(document.activeElement).toBe(feed);
+
+    feed.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'ArrowRight',
+      altKey: true,
+      bubbles: true,
+    }));
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.activeSection()).toBe('feed');
+    expect(document.activeElement).toBe(feed);
   });
 
   it('abre Membros dentro da Comunidade e só consulta a lista após o clique', () => {
