@@ -255,7 +255,8 @@ export class CommunityFeedCommentsComponent implements OnDestroy {
     validators: [Validators.required, Validators.minLength(3), Validators.maxLength(240)],
   });
 
-  private readonly focusPostReplyEffect = effect(() => {
+  constructor() {
+    effect(() => {
     const requested = this.replyToPostRequested();
     const requestVersion = this.replyRequestVersion();
     if (!requested || requestVersion < 1) return;
@@ -263,7 +264,7 @@ export class CommunityFeedCommentsComponent implements OnDestroy {
     queueMicrotask(() => this.focusComposer());
   });
 
-  private readonly externalCommentFocusEffect = effect(() => {
+    effect(() => {
     const commentId = String(this.focusCommentId() ?? '').trim();
     this.lastExternalFocusKey = null;
     this.externalFocusCursor = null;
@@ -271,6 +272,7 @@ export class CommunityFeedCommentsComponent implements OnDestroy {
 
     queueMicrotask(() => this.focusExternalComment(this.latestLoadState));
   });
+  }
 
   readonly state$ = combineLatest([
     toObservable(this.communityId),
