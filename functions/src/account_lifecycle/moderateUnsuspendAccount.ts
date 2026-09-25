@@ -5,6 +5,9 @@ import {
 } from './account-lifecycle-mutation-security';
 import { db } from '../firebaseApp';
 import {
+  getAccountLifecycleSubscriptionRenewalStatus,
+} from './account-lifecycle-billing.service';
+import {
   ACCOUNT_LIFECYCLE_REGION,
   UserDoc,
   assertRecentAuthentication,
@@ -25,6 +28,7 @@ interface AccountLifecycleCommandResult {
   accountStatus: 'active';
   publicVisibility: 'visible' | 'hidden';
   interactionBlocked: boolean;
+  subscriptionRenewalStatus: 'active' | 'canceled' | 'none';
   message: string;
 }
 
@@ -158,14 +162,20 @@ export const moderateUnsuspendAccount = onCall<ModerateUnsuspendAccountRequest>(
       }
     );
 
+    const subscriptionRenewalStatus =
+      await getAccountLifecycleSubscriptionRenewalStatus(targetUid);
+
     return {
       ok: true,
       accountStatus: 'active',
       ...restored,
+      subscriptionRenewalStatus,
       message:
-        restored.publicVisibility === 'visible'
-          ? 'Conta reativada pela moderação.'
-          : 'Conta reativada, mas permanece privada até concluir as verificações pendentes.',
+        subscriptionRenewalStatus === 'canceled'
+          ? 'Conta reativada pela moderação. A renovação automática permanece cancelada.'
+          : restored.publicVisibility === 'visible'
+            ? 'Conta reativada pela moderação.'
+            : 'Conta reativada, mas permanece privada até concluir as verificações pendentes.',
     };
   }
 );
