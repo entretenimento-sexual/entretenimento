@@ -39,6 +39,31 @@ export interface AccountLifecycleBillingCancellationResult {
     | 'pending';
 }
 
+export function resolveAccountLifecycleSubscriptionRenewalStatus(input: {
+  billingCancellationPending: boolean;
+  currentContractId: unknown;
+  stateRenewalEnabled: unknown;
+  contractExists: boolean;
+  contractData: unknown;
+}): AccountLifecycleSubscriptionRenewalStatus {
+  if (input.billingCancellationPending) return 'pending';
+
+  const currentContractId = String(input.currentContractId ?? '').trim();
+  if (!currentContractId) return 'none';
+  if (!input.contractExists) return 'pending';
+
+  const contract = (input.contractData ?? {}) as Record<string, unknown>;
+
+  if (
+    contract['needsProviderCancellation'] === true
+    || typeof contract['providerCancellationNextAttemptAt'] === 'number'
+  ) {
+    return 'pending';
+  }
+
+  return input.stateRenewalEnabled === true ? 'active' : 'canceled';
+}
+
 function safeErrorCode(error: unknown): string {
   const source = error as { code?: unknown; name?: unknown };
   return String(
@@ -79,9 +104,24 @@ export async function getAccountLifecycleSubscriptionRenewalStatus(
       : null;
     const state = stateSnapshot.exists ? stateSnapshot.data() ?? {} : null;
 
-    if (user?.billingCancellationPending === true) return 'pending';
-    if (!state?.['currentContractId']) return 'none';
-    return state['renewalEnabled'] === true ? 'active' : 'canceled';
+    const currentContractId = String(
+      state?.['currentContractId'] ?? ''
+    ).trim();
+    const contractSnapshot = currentContractId
+      ? await db.collection('subscriptions').doc(currentContractId).get()
+      : null;
+
+    return resolveAccountLifecycleSubscriptionRenewalStatus({
+      billingCancellationPending:
+        user?.billingCancellationPending === true,
+      currentContractId,
+      stateRenewalEnabled: state?.['renewalEnabled'],
+      contractExists: contractSnapshot?.exists === true,
+      contractData:
+        contractSnapshot?.exists
+          ? contractSnapshot.data() ?? {}
+          : null,
+    });
   } catch {
     // A conta já pode ter sido reativada/restaurada. Uma falha de leitura
     // financeira posterior não transforma essa mutação em falso erro.
