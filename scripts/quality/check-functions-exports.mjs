@@ -74,6 +74,7 @@ const requiredExports = [
   'reviewCommunityFeedCommentReport',
   'reviewCommunityFeedCommentReplyReport',
   'getCommunityTopicsPage',
+  'getCommunitySearchPage',
   'getCommunityTopicDetail',
   'getCommunityTopicRepliesPage',
   'createCommunityTopic',
