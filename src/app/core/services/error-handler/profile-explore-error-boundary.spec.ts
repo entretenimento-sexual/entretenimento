@@ -19,7 +19,7 @@ const CANONICAL_REPORTERS = [
   'layout/other-user-profile-view/other-user-profile-view.component.ts',
   'media/shared/services/public-mixed-media-viewer-launcher.service.ts',
   'user-profile/user-photo-manager/user-photo-manager.component.ts',
-  'user-profile/user-profile-edit/edit-preferences/edit-profile-preferences.component.ts',
+  'preferences/application/preferences-editor.facade.ts',
   'user-profile/user-profile-edit/edit-profile-social-links/edit-profile-social-links.component.ts',
   'user-profile/user-profile-edit/edit-user-profile/edit-user-profile.component.ts',
   'user-profile/user-profile-view/user-profile-preferences/user-profile-preferences.component.ts',
