@@ -21,6 +21,12 @@ describe('social space definitions', () => {
     expect(getSocialSpaceDefinition('room').capabilities.auditTimeline).toBe(false);
   });
 
+  it('habilita busca interna somente na Comunidade', () => {
+    expect(getSocialSpaceDefinition('community').capabilities.internalSearch).toBe(true);
+    expect(getSocialSpaceDefinition('venue').capabilities.internalSearch).toBe(false);
+    expect(getSocialSpaceDefinition('room').capabilities.internalSearch).toBe(false);
+  });
+
   it('mantém rotas canônicas separadas', () => {
     expect(getSocialSpaceDefinition('venue').navigationRoute).toBe(
       '/dashboard/locais'
