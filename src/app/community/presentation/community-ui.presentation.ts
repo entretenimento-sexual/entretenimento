@@ -27,6 +27,7 @@ export interface CommunityAttentionPresentation
 
 export const COMMUNITY_SECTION_ICONS = Object.freeze({
   feed: 'fa-message',
+  search: 'fa-magnifying-glass',
   topics: 'fa-comments',
   photos: 'fa-images',
   members: 'fa-users',
