@@ -208,7 +208,9 @@ Implantar antes dos backfills que dependem deles:
 - `syncVenuePublicLocation`;
 - `syncCommunityCapacityRegularization`;
 - `syncCommunityMemberManagementIndex`;
-- `syncCommunityMemberManagementIndexFromUser`.
+- `syncCommunityMemberManagementIndexFromUser`;
+- `syncCommunityMemberSearchIndex`;
+- `syncCommunityMemberSearchIndexFromPublicProfile`.
 
 Os aliases com sufixo `Trigger` existem deliberadamente porque produção pode
 conter Functions HTTPS legadas sob o nome antigo. **Não apagar os exports legados
@@ -229,6 +231,7 @@ incluindo, conforme o diff:
 - comentários/respostas/reactions/moderação;
 - Discussões/Tópicos;
 - membership, convites e roster;
+- `searchCommunityMembersPage`, quando a busca interna de membros fizer parte do diff;
 - busca/filtros administrativos de membros;
 - ownership/arquivamento e busca/shortlist de sucessão;
 - associação Official;
@@ -394,6 +397,44 @@ Somente quando a release contiver busca server-side de membros e sucessores:
 A projeção é derivada e descartável. O backfill **não** altera membership,
 papel, elegibilidade, ownership, capacidade ou billing.
 
+
+### B9 — índice de busca interna de membros
+
+Somente quando a release contiver a busca interna de membros:
+
+1. publicar o índice de `community_member_search_index` em T0 e aguardar
+   estado `READY`;
+2. implantar `syncCommunityMemberSearchIndex` e
+   `syncCommunityMemberSearchIndexFromPublicProfile` na F2;
+3. rodar `npm run maintenance:community-member-search-index` com
+   `COMMUNITY_MEMBER_SEARCH_INDEX_DRY_RUN=true`;
+4. revisar `scannedCommunities`, `scannedMemberships`, `projected`,
+   `skipped`, `failures`, truncamento e também:
+   - `searchPrefixCompositeIndexCount`;
+   - `averageSearchPrefixesPerProjection`;
+   - `maxSearchPrefixesPerProjection`;
+   - `estimatedSearchPrefixCompositeEntries`;
+   a escrita real deve ser abortada se a amplificação de índice/writes ficar
+   fora do baseline/orçamento aprovado;
+5. a aplicação real exige simultaneamente:
+   - `COMMUNITY_MEMBER_SEARCH_INDEX_DRY_RUN=false`;
+   - `COMMUNITY_MEMBER_SEARCH_INDEX_CONFIRM=true`;
+6. validar amostras garantindo que somente nickname/profileId públicos estejam
+   presentes e que nenhum campo de `users/{uid}` tenha sido projetado;
+7. somente depois do backfill verde implantar `searchCommunityMembersPage` em
+   F3;
+8. publicar Rules compatíveis mantendo
+   `community_member_search_index` backend-only;
+9. Hosting com o campo de busca permanece por último.
+
+A projeção é derivada e descartável. Ela nunca concede acesso e nunca substitui
+a revalidação de membership, maioridade pública ou bloqueio bilateral. Rollback
+não deve alterar memberships nem apagar o índice durante a janela emergencial.
+
+Tópicos/Discussões permanecem fora deste rollout enquanto o gate canônico de
+produto estiver congelado. A busca interna de membros não autoriza nem reativa
+Tópicos.
+
 ## 8. Firestore Rules e Storage Rules
 
 Depois das Functions/backfills e antes do Hosting:
@@ -474,10 +515,20 @@ real nem operações destrutivas apenas para smoke test.
 - discovery e cache/paginação;
 - preview/deep links;
 - Mural, comentários, respostas, reactions e moderação;
-- Discussões: lista, detalhe, resposta e moderação;
+- Discussões: lista, detalhe, resposta e moderação, somente quando o gate canônico do produto estiver habilitado;
 - membership, solicitações e convites;
 - roster e gestão;
-- em Comunidade sintética com 500+ membros, busca por nome/apelido sem scan
+- busca interna de membros por nickname público, com mínimo de 2 caracteres,
+  paginação backend e sem filtragem client-side;
+- busca por nickname com acento deve funcionar com termo equivalente sem acento;
+- nome civil/privado que não seja o nickname público não pode produzir resultado;
+- visitante, membership pendente ou bloqueada não pode enumerar integrantes;
+- bloqueio bilateral remove o alvo dos resultados;
+- mudança de nickname público converge para o índice sem alterar membership;
+- cursor adulterado ou pertencente a outra consulta é rejeitado com erro seguro;
+- estado sem resultado não é tratado como falha;
+- rate limit da busca usa apresentação canônica e não expõe termo pesquisado em log;
+- em Comunidade sintética com 500+ membros, busca administrativa por nome/apelido sem scan
   client-side, filtro por papel, combinação busca+papel e paginação sem
   duplicação/omissão;
 - bloqueados preservam filtro pelo papel anterior quando disponível;
@@ -499,7 +550,7 @@ Além do smoke geral de Comunidades:
 - abrir `/dashboard/comunidades` e `/dashboard/locais` por navegação e deep link;
 - confirmar que cards de Local continuam retornando para `/dashboard/locais`;
 - confirmar que “Minhas comunidades”, filtros por interesse, Discussões,
-  Membros, regras, lifecycle, capacidade, ownership e moderação aparecem apenas
+  Membros, busca de membros, regras, lifecycle, capacidade, ownership e moderação aparecem apenas
   quando a capability correspondente estiver habilitada;
 - confirmar que Local mantém “Seguir”, “Solicitar acesso”, “Novidades”,
   localização pública e vínculo com Comunidade oficial;
