@@ -8,7 +8,6 @@ import { AppState } from '../states/app.state';
 
 import { STORE_FEATURE } from './feature-keys';
 
-import { chatReducers } from './reducers.chat';
 import { userReducers } from './reducers.user';
 import { locationReducers } from './reducers.location';
 import { interactionsReducers } from './reducers.interactions';
@@ -19,12 +18,8 @@ export const reducers: ActionReducerMap<AppState> = {
   // USER DOMAIN
   [STORE_FEATURE.auth]: userReducers.auth,
   [STORE_FEATURE.user]: userReducers.user,
-  [STORE_FEATURE.terms]: userReducers.terms,
   [STORE_FEATURE.file]: userReducers.file,
   [STORE_FEATURE.userPreferences]: userReducers.userPreferences,
-
-  // MESSAGING GLOBAL
-  [STORE_FEATURE.invite]: chatReducers.invite,
 
   // LOCATION DOMAIN
   [STORE_FEATURE.location]: locationReducers.location,
