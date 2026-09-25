@@ -29,7 +29,7 @@ interface AccountLifecycleCommandResult {
   suspensionSource: 'self' | 'moderator' | 'automation' | null;
   suspensionEndsAt: number | null;
   statusUpdatedAt: number;
-  subscriptionRenewalStatus: 'active' | 'canceled' | 'none';
+  subscriptionRenewalStatus: 'active' | 'canceled' | 'pending' | 'none';
   message: string;
 }
 
@@ -212,11 +212,16 @@ export const cancelAccountDeletion = onCall<Record<string, never>>(
       ok: true,
       ...restored,
       subscriptionRenewalStatus,
-      message: activeButRestricted
-        ? 'Exclusão cancelada. Conclua as verificações pendentes para voltar a aparecer e interagir.'
-        : restored.accountStatus === 'active'
-          ? 'Exclusão cancelada. Sua conta voltou ao estado ativo.'
-          : 'Exclusão cancelada. O estado anterior da conta foi restaurado.',
+      message:
+        subscriptionRenewalStatus === 'pending'
+          ? 'Exclusão cancelada. A interrupção da renovação automática ainda está sendo processada.'
+          : subscriptionRenewalStatus === 'canceled'
+            ? 'Exclusão cancelada. A renovação automática permanece cancelada.'
+            : activeButRestricted
+              ? 'Exclusão cancelada. Conclua as verificações pendentes para voltar a aparecer e interagir.'
+              : restored.accountStatus === 'active'
+                ? 'Exclusão cancelada. Sua conta voltou ao estado ativo.'
+                : 'Exclusão cancelada. O estado anterior da conta foi restaurado.',
     };
   }
 );
