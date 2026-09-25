@@ -244,6 +244,195 @@ const meaningfulAssetOrphans = assetOrphans.filter(
   (filePath) => !filePath.includes('/visual-validation/')
 );
 
+
+// -----------------------------------------------------------------------------
+// FUNCTIONS: arquivos produtivos que não chegam ao export raiz
+// -----------------------------------------------------------------------------
+
+const functionsSourceRoot = path.join(root, 'functions', 'src');
+const functionsFiles = walk(functionsSourceRoot);
+const functionsProductionTs = functionsFiles.filter(isProductionTypeScript);
+const functionsConfigPath = path.join(root, 'functions', 'tsconfig.json');
+const functionsRawConfig = ts.readConfigFile(functionsConfigPath, ts.sys.readFile);
+if (functionsRawConfig.error) {
+  throw new Error(
+    ts.flattenDiagnosticMessageText(functionsRawConfig.error.messageText, '\n')
+  );
+}
+const functionsParsedConfig = ts.parseJsonConfigFileContent(
+  functionsRawConfig.config,
+  ts.sys,
+  path.dirname(functionsConfigPath),
+  undefined,
+  functionsConfigPath
+);
+const functionsReachable = new Set();
+const functionsQueue = [path.join(functionsSourceRoot, 'index.ts')];
+
+while (functionsQueue.length > 0) {
+  const filePath = path.normalize(functionsQueue.shift());
+  if (!filePath || functionsReachable.has(filePath) || !fs.existsSync(filePath)) {
+    continue;
+  }
+
+  functionsReachable.add(filePath);
+  const sourceText = fs.readFileSync(filePath, 'utf8');
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    sourceText,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS
+  );
+
+  for (const specifier of moduleSpecifiers(sourceFile)) {
+    const resolved = ts.resolveModuleName(
+      specifier,
+      filePath,
+      functionsParsedConfig.options,
+      ts.sys
+    ).resolvedModule?.resolvedFileName;
+    if (!resolved) continue;
+
+    const normalized = path.normalize(resolved);
+    if (
+      normalized.startsWith(functionsSourceRoot + path.sep)
+      && normalized.endsWith('.ts')
+      && !normalized.endsWith('.d.ts')
+      && !functionsReachable.has(normalized)
+    ) {
+      functionsQueue.push(normalized);
+    }
+  }
+}
+
+const functionOrphans = functionsProductionTs
+  .filter((filePath) => !functionsReachable.has(path.normalize(filePath)))
+  .map(posix)
+  .sort();
+
+// -----------------------------------------------------------------------------
+// ASSETS ESTÁTICOS: arquivos copiados para Hosting sem referência textual
+// -----------------------------------------------------------------------------
+
+const ignoredAuditDirectories = new Set([
+  '.git',
+  '.angular',
+  'coverage',
+  'dist',
+  'lib',
+  'node_modules',
+  'out-tsc',
+  'tmp',
+]);
+
+function walkAuditText(directory) {
+  if (!fs.existsSync(directory)) return [];
+  const found = [];
+
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    if (entry.isDirectory() && ignoredAuditDirectories.has(entry.name)) continue;
+    const absolute = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      found.push(...walkAuditText(absolute));
+    } else if (entry.isFile()) {
+      found.push(absolute);
+    }
+  }
+
+  return found;
+}
+
+const auditTextExtensions = new Set([
+  '.css', '.html', '.js', '.json', '.md', '.mjs', '.ps1', '.scss',
+  '.sh', '.ts', '.txt', '.yaml', '.yml',
+]);
+
+const auditTextFiles = walkAuditText(root).filter((filePath) =>
+  auditTextExtensions.has(path.extname(filePath).toLowerCase())
+);
+
+const auditTexts = auditTextFiles.map((filePath) => ({
+  filePath: path.normalize(filePath),
+  source: fs.readFileSync(filePath, 'utf8'),
+}));
+
+const assetsRoot = path.join(root, 'src', 'assets');
+const staticAssets = walk(assetsRoot).filter(
+  (filePath) => path.basename(filePath) !== '.gitkeep'
+);
+
+function assetReferenceTokens(filePath) {
+  const relative = path.relative(assetsRoot, filePath).replaceAll('\\', '/');
+  const encodedRelative = relative
+    .split('/')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+
+  return [
+    path.basename(filePath),
+    relative,
+    encodedRelative,
+    `assets/${relative}`,
+    `/assets/${relative}`,
+    `assets/${encodedRelative}`,
+    `/assets/${encodedRelative}`,
+  ];
+}
+
+const unreferencedStaticAssets = staticAssets
+  .filter((assetPath) => {
+    const normalizedAsset = path.normalize(assetPath);
+    const tokens = assetReferenceTokens(assetPath);
+    return !auditTexts.some(
+      ({ filePath, source }) =>
+        filePath !== normalizedAsset && tokens.some((token) => source.includes(token))
+    );
+  })
+  .map(posix)
+  .sort();
+
+const declaredAssetReferences = new Set();
+for (const { source } of auditTexts) {
+  for (const match of source.matchAll(
+    /(?:https?:\/\/[^"'\s()<>]+)?\/(assets\/[^"'\s()<>?#]+)/g
+  )) {
+    declaredAssetReferences.add(match[1].replaceAll('%20', ' '));
+  }
+}
+
+const missingStaticAssets = [...declaredAssetReferences]
+  .filter((reference) => {
+    if (reference.startsWith('assets/webfonts/')) return false;
+    return !fs.existsSync(path.join(root, 'src', reference));
+  })
+  .sort();
+
+// -----------------------------------------------------------------------------
+// DEPENDÊNCIAS DIRETAS: produção sem import/referência identificável
+// -----------------------------------------------------------------------------
+
+const rootPackage = readJson(path.join(root, 'package.json'));
+const productionDependencies = Object.keys(rootPackage.dependencies ?? {});
+
+function dependencyReferenced(packageName) {
+  const patterns = [
+    `'${packageName}'`,
+    `"${packageName}"`,
+    `'${packageName}/`,
+    `"${packageName}/`,
+    `node_modules/${packageName}/`,
+  ];
+
+  return auditTexts.some(({ source }) =>
+    patterns.some((pattern) => source.includes(pattern))
+  );
+}
+
+const unreferencedProductionDependencies = productionDependencies
+  .filter((packageName) => !dependencyReferenced(packageName))
+  .sort();
+
 function printGroup(label, items) {
   if (items.length === 0) {
     console.log(`[production-orphans] ${label}: nenhum.`);
@@ -256,10 +445,18 @@ function printGroup(label, items) {
 
 printGroup('TypeScript fora do grafo carregável', meaningfulTsOrphans);
 printGroup('HTML/CSS sem referência declarada', meaningfulAssetOrphans);
+printGroup('Functions fora do grafo exportável', functionOrphans);
+printGroup('Assets estáticos sem referência textual', unreferencedStaticAssets);
+printGroup('Referências a assets locais inexistentes', missingStaticAssets);
+printGroup('Dependências de produção sem referência identificável', unreferencedProductionDependencies);
 
 if (
   strict
-  && (meaningfulTsOrphans.length > 0 || meaningfulAssetOrphans.length > 0)
+  && (
+    meaningfulTsOrphans.length > 0
+    || meaningfulAssetOrphans.length > 0
+    || functionOrphans.length > 0
+  )
 ) {
   console.error(
     '[production-orphans] Falha: remova o código órfão ou torne sua entrada explícita.'
@@ -268,5 +465,5 @@ if (
 }
 
 console.log(
-  '[production-orphans] Auditoria concluída; arquivos de visual-validation são tratados por seus próprios harnesses.'
+  '[production-orphans] Auditoria global concluída; candidatos de assets/dependências exigem revisão humana antes de remoção.'
 );
