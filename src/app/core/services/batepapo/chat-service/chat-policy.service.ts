@@ -1,7 +1,7 @@
 // src/app/core/services/batepapo/chat-service/chat-policy.service.ts
 // Não esqueça os comentários
 import { Injectable } from '@angular/core';
-import { Observable, combineLatest, of } from 'rxjs';
+import { Observable, of } from 'rxjs';
 import { map, shareReplay } from 'rxjs/operators';
 
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
