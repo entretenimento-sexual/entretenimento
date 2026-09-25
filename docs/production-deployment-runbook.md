@@ -466,6 +466,23 @@ firebase deploy --only hosting --project entretenimento-sexual
 Após publicação, validar tanto navegação nova quanto refresh/deep links, além de
 uma sessão já aberta antes do deploy para detectar incompatibilidades de cache.
 
+### 9.1 — classificação do delta de janela limitada de DOM
+
+A limitação de DOM de Discovery/Mural é um delta de frontend. Isoladamente, ela
+não exige alteração de Functions, Firestore Rules, Storage Rules, índices,
+schedulers, backfill ou migração de dados. O page size de backend permanece o
+mesmo; apenas a quantidade de cards/posts simultaneamente montados no DOM é
+limitada.
+
+Portanto, **se este delta for isolado em uma release própria**, a implantação é
+Hosting-only depois dos gates normais de build/test/staging. O rollback também é
+Hosting-only, reconstruindo o `ROLLBACK_SHA`.
+
+Esta classificação não pode ser extrapolada para o branch inteiro. Antes da
+release real, o diff `ROLLBACK_SHA..RELEASE_SHA` continua sendo a autoridade
+para decidir F1–F5, Rules, índices e backfills. Nunca redeployar Functions sem
+mudança apenas porque o frontend foi alterado.
+
 ## 10. Smoke tests de produção
 
 Usar contas de teste designadas e dados não sensíveis. Não provocar cobrança
@@ -564,6 +581,44 @@ Além do smoke geral de Comunidades:
 Para uma release que contenha somente esta refatoração, rollback operacional é
 rebuild/redeploy do Hosting a partir do `ROLLBACK_SHA`; não há rollback de
 Functions, Rules, índices ou dados associado a este delta.
+
+### S4.2 — sessões longas / janela limitada de DOM
+
+Executar com massa de teste suficiente para ultrapassar seis páginas sem alterar
+o page size canônico:
+
+- Discovery: carregar mais de 72 cards e confirmar que no máximo 72
+  `.community-card-shell` orgânicos permanecem montados simultaneamente;
+- Mural: carregar mais de 60 posts e confirmar que no máximo 60
+  `.community-post` permanecem montados simultaneamente;
+- confirmar que “Ver anteriores/Ver seguintes” e
+  “Mais recentes/Mais antigas” navegam apenas por conteúdo já carregado e não
+  disparam nova chamada de paginação;
+- confirmar que a chamada ao backend ocorre somente quando o usuário alcança a
+  borda final carregada e aciona o “Ver mais” canônico;
+- em cada append e troca de janela, medir visualmente/por teste automatizado que
+  a âncora de leitura preserva sua posição no viewport, sem salto perceptível;
+- com o Mural numa janela antiga, receber novos posts realtime: a leitura não
+  deve ser puxada para o topo; o indicador de novas publicações deve aparecer;
+- acionar o indicador de novidades e confirmar retorno ao topo, foco/highlight e
+  comportamento de `prefers-reduced-motion`;
+- navegar por uma resposta/highlight para um post já carregado, porém fora da
+  janela atual: a janela deve revelá-lo antes de foco/highlight, sem nova
+  hidratação desnecessária;
+- publicar um post próprio enquanto estiver numa janela antiga e confirmar que o
+  post criado é revelado sem consumir/ocultar novidades externas pendentes;
+- abrir comentários/menus, avançar a janela e retornar, confirmando que não há
+  foco órfão, menu preso ou erro de acessibilidade;
+- em “Minhas comunidades”, alterar busca/filtro depois de muitas páginas
+  carregadas: a janela deve reiniciar no começo do recorte filtrado sem perder
+  o conjunto carregado no estado;
+- recarregar/reentrar no Discovery após uma sessão longa e confirmar que o cache
+  continua preservando paginação/itens já carregados conforme o contrato atual;
+  o limite de 72 é de DOM, não de cache.
+
+Para este delta, qualquer crescimento do DOM acima desses tetos, salto de scroll,
+perda de foco dirigido ou nova chamada de backend provocada por navegação local
+é critério de **NO-GO**.
 
 ### S5 — integração transversal
 
@@ -708,6 +763,8 @@ Não iniciar uma nova onda enquanto a anterior não estiver explicitamente verde
 - [ ] capability de update de recorrência Asaas homologada ou
       `ASAAS_SUBSCRIPTION_UPDATE_ENABLED` mantida desabilitada;
 - [ ] smoke test accounts/dados preparados;
+- [ ] smoke de sessão longa confirma teto de 72 cards no Discovery e 60 posts
+      no Mural, âncora de scroll e navegação local sem chamadas extras;
 - [ ] critérios de abortar e responsáveis conhecidos;
 - [ ] rollback SHA buildável e procedimentos revisados;
 - [ ] nenhuma mudança de ranking/preço/custo não relacionada misturada na release.
