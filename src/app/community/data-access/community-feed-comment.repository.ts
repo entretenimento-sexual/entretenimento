@@ -44,20 +44,10 @@ export class CommunityFeedCommentRepository {
     unknown
   >(this.functions, 'createCommunityFeedComment');
 
-  // Compatibilidade legada: novas respostas não usam mais estas callables.
-  private readonly getRepliesPageCallable = httpsCallable<
-      unknown
-  >(this.functions, 'getCommunityFeedCommentRepliesPage');
-  private readonly createReplyCallable = httpsCallable<
-      unknown
-  >(this.functions, 'createCommunityFeedCommentReply');
   private readonly moderateCallable = httpsCallable<
     CommunityFeedCommentActionRequest,
     unknown
   >(this.functions, 'moderateCommunityFeedComment');
-  private readonly moderateReplyCallable = httpsCallable<
-      unknown
-  >(this.functions, 'moderateCommunityFeedCommentReply');
 
   getPage$(
     request: CommunityFeedCommentPageRequest
