@@ -25,7 +25,7 @@ export type AccountLifecycleMutationAction =
 
 interface AccountLifecycleMutationSecurityInput {
   action: AccountLifecycleMutationAction;
-  subjectUid: string;
+  subjectUid: string | null;
   appContext: unknown;
 }
 
