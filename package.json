@@ -87,6 +87,7 @@
     "audit:typescript:unused": "tsc -p tsconfig.unused-audit.json",
     "audit:typescript:orphans": "node scripts/quality/check-typescript-orphans.mjs",
     "audit:view-orphans": "node scripts/quality/check-template-style-orphans.mjs",
+    "audit:dependencies:unused": "node scripts/quality/check-unused-production-dependencies.mjs",
     "community:cost-operations:check": "node scripts/quality/check-community-cost-operations.mjs",
     "community:calibration-freeze:check": "node scripts/quality/check-community-calibration-freeze.mjs",
     "billing:pricing-boundary:check": "node scripts/quality/check-billing-pricing-boundary.mjs",
