@@ -36,6 +36,7 @@ export interface AccountLifecycleCommandResult {
   deletionUndoUntil?: number | null;
   purgeAfter?: number | null;
   statusUpdatedAt?: number | null;
+  subscriptionRenewalStatus?: 'active' | 'canceled' | 'none' | null;
   message?: string | null;
 }
 
@@ -280,7 +281,7 @@ export class AccountLifecycleService {
             'invalid-argument':
               'Revise os dados informados e tente novamente.',
           },
-          reasonMessages: this.resolveReasonMessages(error),
+          reasonMessages: this.resolveReasonMessages(error, opts.context),
           metadata: {
             scope: 'AccountLifecycleService',
             phase: 'callFunction$',
@@ -373,7 +374,8 @@ export class AccountLifecycleService {
   }
 
   private resolveReasonMessages(
-    error: unknown
+    error: unknown,
+    context: string
   ): Readonly<Record<string, string>> {
     const source = this.asRecord(error);
     const details = this.asRecord(source?.['details']);
@@ -397,7 +399,10 @@ export class AccountLifecycleService {
         };
       case 'owned-resources-require-resolution':
         return {
-          [rawReason]: this.resolveOwnedResourcesMessage(details ?? {}),
+          [rawReason]: this.resolveOwnedResourcesMessage(
+            details ?? {},
+            context
+          ),
         };
       default:
         return {};
@@ -405,7 +410,8 @@ export class AccountLifecycleService {
   }
 
   private resolveOwnedResourcesMessage(
-    details: Record<string, unknown>
+    details: Record<string, unknown>,
+    context: string
   ): string {
     const activeRoomCount = this.normalizeNonNegativeCount(
       details['activeOwnedRoomCount']
@@ -413,6 +419,20 @@ export class AccountLifecycleService {
     const ownedCommunityCount = this.normalizeNonNegativeCount(
       details['ownedCommunityCount']
     );
+    const moderatedDeletion =
+      context.includes('moderateScheduleDeletion');
+
+    if (moderatedDeletion) {
+      if (activeRoomCount > 0 && ownedCommunityCount > 0) {
+        return 'Resolva as Salas ativas e as Comunidades sob responsabilidade do usuário antes de agendar a exclusão.';
+      }
+      if (activeRoomCount > 0) {
+        return 'Resolva as Salas ativas sob responsabilidade do usuário antes de agendar a exclusão.';
+      }
+      if (ownedCommunityCount > 0) {
+        return 'Transfira ou arquive as Comunidades sob responsabilidade do usuário antes de agendar a exclusão.';
+      }
+    }
 
     if (activeRoomCount > 0 && ownedCommunityCount > 0) {
       return 'Encerre suas Salas ativas e transfira ou arquive suas Comunidades antes de excluir a conta.';
