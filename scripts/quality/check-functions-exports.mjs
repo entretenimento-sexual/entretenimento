@@ -18,6 +18,13 @@ const temporaryCompatibilityExports = [
   // Cliente publicado antes da paginação administrativa. Remover somente em
   // release pós-estabilização, após telemetria confirmar ausência de chamadas.
   'getCommunityOwnershipCandidates',
+
+  // Clientes antigos de mídia ainda podem chamar estes nomes. Os endpoints de
+  // unpublish são fail-closed e a normalização é migração idempotente. Manter
+  // explicitamente até a janela de compatibilidade ser encerrada por telemetria.
+  'unpublishPhoto',
+  'unpublishVideo',
+  'normalizeLegacyVideoModeration',
 ];
 
 const requiredExports = [
