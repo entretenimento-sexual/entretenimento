@@ -208,21 +208,21 @@ export const searchCommunityMembersPage =
       const [membershipSnapshots, profileSnapshots] =
         visibleCandidateIds.length > 0
           ? await Promise.all([
-              db.getAll(
-                ...visibleCandidateIds.map((memberId) =>
-                  db
-                    .collection('communities')
-                    .doc(communityId)
-                    .collection('members')
-                    .doc(memberId)
-                )
-              ),
-              db.getAll(
-                ...visibleCandidateIds.map((memberId) =>
-                  db.collection('public_profiles').doc(memberId)
-                )
-              ),
-            ])
+            db.getAll(
+              ...visibleCandidateIds.map((memberId) =>
+                db
+                  .collection('communities')
+                  .doc(communityId)
+                  .collection('members')
+                  .doc(memberId)
+              )
+            ),
+            db.getAll(
+              ...visibleCandidateIds.map((memberId) =>
+                db.collection('public_profiles').doc(memberId)
+              )
+            ),
+          ])
           : [[], []];
 
       const validationByMemberId = new Map(
@@ -290,8 +290,8 @@ export const searchCommunityMembersPage =
 
       const lastConsumedIndex = lastConsumedDocument
         ? indexSnapshot.docs.findIndex(
-            (document) => document.id === lastConsumedDocument?.id
-          )
+          (document) => document.id === lastConsumedDocument?.id
+        )
         : -1;
       const hasBufferedDocuments =
         lastConsumedIndex >= 0
@@ -301,12 +301,12 @@ export const searchCommunityMembersPage =
       const nextCursor =
         mayHaveAnotherPage && lastConsumedDocument
           ? encodeCommunityMemberSearchCursor({
-              query,
-              publicLabelNormalized: String(
-                lastConsumedDocument.data()?.['publicLabelNormalized'] ?? ''
-              ),
-              documentId: lastConsumedDocument.id,
-            })
+            query,
+            publicLabelNormalized: String(
+              lastConsumedDocument.data()?.['publicLabelNormalized'] ?? ''
+            ),
+            documentId: lastConsumedDocument.id,
+          })
           : null;
 
       return {
