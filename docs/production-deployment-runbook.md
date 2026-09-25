@@ -328,6 +328,7 @@ Este é gate obrigatório antes do frontend que usa a projeção global v2.
 6. só então liberar o frontend dependente.
 
 O backfill legado que “toca” notificações para gerar summaries por Comunidade
+(`scripts/maintenance/backfill-community-notification-summaries-admin.mjs`)
 não faz parte automaticamente desta release. Ele só deve ser usado se auditoria
 mostrar lacunas nessa geração anterior, em uma ação explicitamente aprovada.
 
