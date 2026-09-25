@@ -19,7 +19,8 @@ import {
   inspectAccountDeletionOwnedResourcesInTransaction,
 } from './account-deletion-owned-resources.service';
 import {
-  cancelRecurringBillingForAccountLifecycle,
+  buildAccountLifecycleBillingCancellationPatch,
+  reconcileAccountLifecycleBillingCancellation,
 } from './account-lifecycle-billing.service';
 
 interface ModerateScheduleDeletionRequest {
@@ -140,6 +141,17 @@ export const moderateScheduleDeletion = onCall<ModerateScheduleDeletionRequest>(
             );
           }
 
+          if (user.billingCancellationPending !== true) {
+            tx.set(
+              userRef,
+              buildAccountLifecycleBillingCancellationPatch({
+                reason: 'moderation-account-deletion',
+                now,
+              }),
+              { merge: true }
+            );
+          }
+
           return {
             deletionUndoUntil: currentUndoUntil,
             purgeAfter: currentPurgeAfter,
@@ -174,6 +186,11 @@ export const moderateScheduleDeletion = onCall<ModerateScheduleDeletionRequest>(
             purgeAfter: deletionUndoUntil,
             statusUpdatedAt: now,
             statusUpdatedBy: actorUid,
+
+            ...buildAccountLifecycleBillingCancellationPatch({
+              reason: 'moderation-account-deletion',
+              now,
+            }),
           },
           { merge: true }
         );
@@ -206,10 +223,10 @@ export const moderateScheduleDeletion = onCall<ModerateScheduleDeletionRequest>(
       }
     );
 
-    await cancelRecurringBillingForAccountLifecycle({
+    await reconcileAccountLifecycleBillingCancellation({
       uid: targetUid,
-      reason: 'moderation-account-deletion',
-    }).catch(() => undefined);
+      fallbackReason: 'moderation-account-deletion',
+    });
 
     return {
       ok: true,
