@@ -360,7 +360,7 @@ function walkAuditText(directory) {
 }
 
 const auditTextExtensions = new Set([
-  '.css', '.html', '.js', '.json', '.md', '.mjs', '.ps1', '.scss',
+  '.cmd', '.css', '.html', '.js', '.json', '.md', '.mjs', '.ps1', '.scss',
   '.sh', '.ts', '.txt', '.yaml', '.yml',
 ]);
 
@@ -562,11 +562,16 @@ const unreferencedScripts = operationalScripts
   .filter((scriptPath) => {
     const normalized = path.normalize(scriptPath);
     const relative = posix(scriptPath);
+    const windowsRelative = relative.replaceAll('/', '\\');
     const basename = path.basename(scriptPath);
     return !auditTexts.some(
       ({ filePath, source }) =>
         filePath !== normalized
-        && (source.includes(relative) || source.includes(basename))
+        && (
+          source.includes(relative)
+          || source.includes(windowsRelative)
+          || source.includes(basename)
+        )
     );
   })
   .map(posix)
