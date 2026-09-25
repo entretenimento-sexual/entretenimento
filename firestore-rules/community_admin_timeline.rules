@@ -1,0 +1,14 @@
+// =============================================================================
+// COMMUNITY ADMIN TIMELINE
+// =============================================================================
+// Projeção backend-only. Mesmo sanitizada, a leitura passa pela callable para
+// aplicar autorização owner/admin e resolver identidades sem expor UID.
+// =============================================================================
+
+match /community_admin_timeline/{communityId} {
+  allow read, write: if false;
+
+  match /items/{eventId} {
+    allow read, write: if false;
+  }
+}

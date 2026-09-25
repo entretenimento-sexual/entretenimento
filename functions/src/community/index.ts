@@ -144,6 +144,15 @@ export {
   updateCommunityNotificationPreference,
 } from './update-community-notification-preference.handler';
 export { updateCommunitySettings } from './update-community-settings.handler';
+export { getCommunityAdminTimeline } from './get-community-admin-timeline.handler';
+export {
+  syncCommunityAdminTimelineMembershipAudit,
+  syncCommunityAdminTimelineSettingsAudit,
+  syncCommunityAdminTimelineFeedAudit,
+  syncCommunityAdminTimelineTopicAudit,
+  syncCommunityAdminTimelineOfficialClaimAudit,
+  syncCommunityAdminTimelineLifecycleAudit,
+} from './sync-community-admin-timeline.trigger';
 export { runCommunityLifecycle } from './run-community-lifecycle.schedule';
 export {
   runCommunityOfficialAssociationLifecycle,
