@@ -132,6 +132,7 @@ for (const required of [
   'const MAX_PAGE_LIMIT = 20',
   '.limit(scanLimit)',
   "'publicSearchPrefixes', 'array-contains'",
+  "query.where('audience', '==', 'public_preview')",
   "resolveBlockedTargetUids",
   "if (!input.activeMembership)",
 ]) {
