@@ -334,15 +334,17 @@
   .chat-rooms__card,
   .chat-rooms__state {
     border-radius: var(--radius-md);
-  }}
+  }
+}
 
-html.high-contrast .chat-rooms__identity-icon,
-html.high-contrast .chat-rooms__limit-note,
 html.high-contrast .chat-rooms__state,
 html.high-contrast .chat-rooms__card,
-html.high-contrast .chat-rooms__place,
-html.high-contrast .chat-rooms__close-action,
-html.high-contrast html.high-contrast .chat-rooms__create-action {
+html.high-contrast .chat-rooms__close-action {
+  border: 2px solid var(--text-color);
+  box-shadow: none;
+}
+
+html.high-contrast .chat-rooms__create-action {
   border: 2px solid currentColor;
 }
 
