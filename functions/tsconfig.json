@@ -8,6 +8,8 @@
     "rootDir": "src",
     "esModuleInterop": true,
     "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "skipLibCheck": true,
     "sourceMap": true,
     "types": ["node"]
