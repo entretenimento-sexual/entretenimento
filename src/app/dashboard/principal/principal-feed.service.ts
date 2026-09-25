@@ -42,6 +42,10 @@ import {
 import { CommunityFeedRepository } from 'src/app/community/data-access/community-feed.repository';
 import { CommunityPreviewCard } from 'src/app/community/data-access/community-preview.model';
 import { CommunityPreviewRepository } from 'src/app/community/data-access/community-preview.repository';
+import {
+  getSocialSpaceDefinition,
+  type ActiveSocialSpaceKind,
+} from 'src/app/core/domain/social-space.definition';
 import { isFeatureEnabled } from 'src/app/core/guards/access-guard/feature-flag.guard';
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
@@ -101,6 +105,17 @@ const SPACE_LIMIT = 4;
 const COMMUNITY_ACTIVITY_LIMIT = 2;
 const COMMUNITIES_ENABLED = isFeatureEnabled('communitiesEnabled');
 const VENUES_ENABLED = isFeatureEnabled('communityPreview');
+const SPACE_ENABLED: Readonly<Record<ActiveSocialSpaceKind, boolean>> =
+  Object.freeze({
+    community: COMMUNITIES_ENABLED,
+    venue: VENUES_ENABLED,
+  });
+const SPACE_ERROR_SOURCE: Readonly<
+  Record<ActiveSocialSpaceKind, PrincipalFeedSource>
+> = Object.freeze({
+  community: 'communities',
+  venue: 'venues',
+});
 
 const EMPTY_PHOTO_RESULT: FeedSourceResult<readonly IPublicPhotoItem[]> =
   Object.freeze({ value: [], failed: false });
@@ -494,7 +509,10 @@ export class PrincipalFeedService {
     }
 
     const targets = communities
-      .filter((community) => community.source.type === 'community')
+      .filter((community) =>
+        getSocialSpaceDefinition(community.source.type).capabilities
+          .personalMembershipHub
+      )
       .slice(0, COMMUNITY_ACTIVITY_LIMIT);
 
     if (targets.length === 0) {
@@ -541,11 +559,9 @@ export class PrincipalFeedService {
   }
 
   private loadSpaces$(
-    sourceType: 'community' | 'venue'
+    sourceType: ActiveSocialSpaceKind
   ): Observable<FeedSourceResult<readonly CommunityPreviewCard[]>> {
-    const enabled = sourceType === 'community'
-      ? COMMUNITIES_ENABLED
-      : VENUES_ENABLED;
+    const enabled = SPACE_ENABLED[sourceType];
 
     if (!enabled) {
       return of({ value: [], failed: false });
@@ -559,7 +575,7 @@ export class PrincipalFeedService {
       map((page) => ({ value: page.items, failed: false })),
       catchError((error: unknown) => {
         this.reportSourceError(
-          sourceType === 'community' ? 'communities' : 'venues',
+          SPACE_ERROR_SOURCE[sourceType],
           error
         );
         return of({ value: [], failed: true });
