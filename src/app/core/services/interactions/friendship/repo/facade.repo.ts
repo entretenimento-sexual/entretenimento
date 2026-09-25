@@ -9,7 +9,6 @@ import {
 } from '@angular/fire/firestore';
 import { FriendsRepo } from './friends.repo';
 import { BlocksRepo } from './blocks.repo';
-import { CooldownRepo } from './cooldown.repo';
 import { RequestsRepo } from './requests.repo';
 import { map, from, Observable, of } from 'rxjs';
 import { IUserDados } from '../../../../interfaces/iuser-dados';
@@ -22,7 +21,6 @@ export class FriendshipRepo {
   private db = inject(Firestore);
   private friends = inject(FriendsRepo);
   private blocks = inject(BlocksRepo);
-  private cd = inject(CooldownRepo);
   private reqs = inject(RequestsRepo);
   private publicProfileRead = inject(PublicProfileReadBoundaryService);
 
@@ -47,18 +45,8 @@ watchFriends(uid: string) {
   /* Requests */
   listInboundRequests(uid: string) { return this.reqs.listInboundRequests(uid); }
   listOutboundRequests(uid: string) { return this.reqs.listOutboundRequests(uid); }
-  findDuplicatePending(a: string, b: string) { return this.reqs.findDuplicatePending(a, b); }
-  createRequest(a: string, b: string, m?: string) { return this.reqs.createRequest(a, b, m); }
-  acceptRequestBatch(id: string, a: string, b: string) { return this.reqs.acceptRequestBatch(id, a, b); }
-  declineRequest(id: string) { return this.reqs.declineRequest(id); }
-  declineRequestWithCooldown(id: string, ms: number) { return this.reqs.declineRequestWithCooldown(id, ms); }
-  cancelOutboundRequest(id: string) { return this.reqs.cancelOutboundRequest(id); }
   watchInboundRequests(uid: string) { return this.reqs.watchInboundRequests(uid); }
   watchOutboundRequests(uid: string) { return this.reqs.watchOutboundRequests(uid); }
-
-  /* Cooldown */
-  readCooldown(a: string, b: string) { return this.cd.readCooldown(a, b); }
-  setCooldown(a: string, b: string, until: Date) { return this.cd.setCooldown(a, b, until); }
 
   /* Checks reusados no service */
   isAlreadyFriends(a: string, b: string) { return this.getFriendDoc$(a, b); }
@@ -124,6 +112,4 @@ watchFriends(uid: string) {
     return this.friends.listFriendsPage(uid, pageSize, after);
   }
 
-  /* util */
-  getDocExists(path: string) { return this.reqs.getDocExists(path); }
 }
