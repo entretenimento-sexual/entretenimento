@@ -37,6 +37,7 @@ export interface SocialSpaceCapabilities {
   readonly publicLocation: boolean;
   readonly topics: boolean;
   readonly memberDirectory: boolean;
+  readonly memberSearch: boolean;
   readonly rules: boolean;
   readonly managedLifecycle: boolean;
   readonly capacityManagement: boolean;
@@ -67,6 +68,7 @@ const COMMUNITY_CAPABILITIES: Readonly<SocialSpaceCapabilities> = Object.freeze(
   publicLocation: false,
   topics: true,
   memberDirectory: true,
+  memberSearch: true,
   rules: true,
   managedLifecycle: true,
   capacityManagement: true,
@@ -86,6 +88,8 @@ const VENUE_CAPABILITIES: Readonly<SocialSpaceCapabilities> = Object.freeze({
   publicLocation: true,
   topics: false,
   memberDirectory: false,
+  memberSearch: false,
+  memberSearch: false,
   rules: false,
   managedLifecycle: false,
   capacityManagement: false,
