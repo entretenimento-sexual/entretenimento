@@ -1,5 +1,8 @@
 // functions/src/account_lifecycle/requestAccountDeletion.ts
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import {
+  assertAccountLifecycleMutationSecurity,
+} from './account-lifecycle-mutation-security';
 import { db } from '../firebaseApp';
 import {
   ACCOUNT_LIFECYCLE_REGION,
@@ -62,6 +65,12 @@ export const requestAccountDeletion = onCall<RequestAccountDeletionRequest>(
     assertRecentAuthentication(
       request.auth?.token as Record<string, unknown> | undefined
     );
+
+    await assertAccountLifecycleMutationSecurity({
+      action: 'self_delete',
+      subjectUid: uid,
+      appContext: request.app,
+    });
 
     const reason = normalizeOptionalReason(request.data?.reason);
     const now = Date.now();

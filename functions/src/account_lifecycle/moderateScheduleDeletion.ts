@@ -1,5 +1,8 @@
 // functions/src/account_lifecycle/moderateScheduleDeletion.ts
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import {
+  assertAccountLifecycleMutationSecurity,
+} from './account-lifecycle-mutation-security';
 import { db } from '../firebaseApp';
 import { ASAAS_API_KEY } from '../payments/config/asaas.config';
 import {
@@ -76,6 +79,12 @@ export const moderateScheduleDeletion = onCall<ModerateScheduleDeletionRequest>(
       actorUid,
       authToken,
       requiredPermission: 'users:delete',
+    });
+
+    await assertAccountLifecycleMutationSecurity({
+      action: 'moderation_schedule_deletion',
+      subjectUid: actorUid,
+      appContext: request.app,
     });
 
     const targetUid = normalizeUid(request.data?.targetUid);
