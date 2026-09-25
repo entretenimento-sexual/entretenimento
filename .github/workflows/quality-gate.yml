@@ -260,6 +260,11 @@ jobs:
 
       - name: Verify compiled Functions exports
         shell: bash
+        env:
+          GCLOUD_PROJECT: demo-entretenimento-functions-ci
+          GCP_PROJECT: demo-entretenimento-functions-ci
+          FIREBASE_CONFIG: >-
+            {"projectId":"demo-entretenimento-functions-ci","storageBucket":"demo-entretenimento-functions-ci.appspot.com"}
         run: |
           set -o pipefail
           node scripts/quality/check-functions-exports.mjs \
