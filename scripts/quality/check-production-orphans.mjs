@@ -488,6 +488,27 @@ const unreferencedStaticAssets = staticAssets
   .map(posix)
   .sort();
 
+const nonDocumentationAuditTexts = auditTexts.filter(
+  ({ filePath }) => !posix(filePath).startsWith('docs/')
+);
+
+const staticAssetsReferencedOnlyByDocumentation = staticAssets
+  .filter((assetPath) => {
+    const normalizedAsset = path.normalize(assetPath);
+    const tokens = assetReferenceTokens(assetPath);
+    const referencedAnywhere = auditTexts.some(
+      ({ filePath, source }) =>
+        filePath !== normalizedAsset && tokens.some((token) => source.includes(token))
+    );
+    const referencedOutsideDocumentation = nonDocumentationAuditTexts.some(
+      ({ filePath, source }) =>
+        filePath !== normalizedAsset && tokens.some((token) => source.includes(token))
+    );
+    return referencedAnywhere && !referencedOutsideDocumentation;
+  })
+  .map(posix)
+  .sort();
+
 const declaredAssetReferences = new Map();
 for (const { filePath, source } of auditTexts) {
   const relativeSource = posix(filePath);
@@ -747,6 +768,7 @@ printGroup('HTML/CSS sem referência declarada', meaningfulAssetOrphans);
 printGroup('Helpers/stubs de teste sem consumidor', testSupportOrphans);
 printGroup('Functions fora do grafo exportável', functionOrphans);
 printGroup('Assets estáticos sem referência textual', unreferencedStaticAssets);
+printGroup('Assets referenciados somente por documentação (revisão humana)', staticAssetsReferencedOnlyByDocumentation);
 printGroup('Referências a assets locais inexistentes', missingStaticAssets);
 printGroup('Dependências de produção sem referência identificável', unreferencedProductionDependencies);
 printGroup('DevDependencies sem referência identificável (revisão humana)', unreferencedDevelopmentDependencies);
