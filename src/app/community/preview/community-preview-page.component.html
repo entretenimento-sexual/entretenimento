@@ -441,8 +441,14 @@
             "
           >
             <div class="community-preview__primary">
-              @if (activeSection() === 'feed') {
-                <section id="community-panel-feed" role="tabpanel" tabindex="0" aria-labelledby="community-tab-feed">
+              <section
+                id="community-panel-feed"
+                role="tabpanel"
+                tabindex="0"
+                aria-labelledby="community-tab-feed"
+                [hidden]="activeSection() !== 'feed'"
+              >
+                @if (activeSection() === 'feed') {
                   <app-community-feed
                     [communityId]="preview.community.communityId"
                     [sourceType]="preview.community.source.type"
@@ -452,196 +458,238 @@
                     [focusCommentId]="focusedCommentId()"
                     view="feed"
                   />
+                }
+              </section>
+
+              @if (spaceCapabilities(preview.community).topics) {
+                <section
+                  id="community-panel-topics"
+                  role="tabpanel"
+                  tabindex="0"
+                  aria-labelledby="community-tab-topics"
+                  [hidden]="activeSection() !== 'topics'"
+                >
+                  @if (activeSection() === 'topics') {
+                    <app-community-topics
+                      [communityId]="preview.community.communityId"
+                      [canInteract]="preview.canInteract"
+                      [viewerRole]="preview.viewerRole"
+                    />
+                  }
                 </section>
-              } @else if (
-                activeSection() === 'topics'
-                && spaceCapabilities(preview.community).topics
-              ) {
-                <section id="community-panel-topics" role="tabpanel" tabindex="0" aria-labelledby="community-tab-topics">
-                  <app-community-topics
-                    [communityId]="preview.community.communityId"
-                    [canInteract]="preview.canInteract"
-                    [viewerRole]="preview.viewerRole"
-                  />
-                </section>
-              } @else if (activeSection() === 'photos') {
-                <section id="community-panel-photos" role="tabpanel" tabindex="0" aria-labelledby="community-tab-photos">
+              }
+
+              <section
+                id="community-panel-photos"
+                role="tabpanel"
+                tabindex="0"
+                aria-labelledby="community-tab-photos"
+                [hidden]="activeSection() !== 'photos'"
+              >
+                @if (activeSection() === 'photos') {
                   <app-community-feed
                     [communityId]="preview.community.communityId"
                     [sourceType]="preview.community.source.type"
                     view="photos"
                   />
-                </section>
-              } @else if (
-                activeSection() === 'members'
-                && spaceCapabilities(preview.community).memberDirectory
-              ) {
-                <section id="community-panel-members" role="tabpanel" tabindex="0" aria-labelledby="community-tab-members">
-                  @if (
-                    preview.viewerMode === 'member'
-                    || preview.viewerMode === 'moderator'
-                    || preview.viewerMode === 'manager'
-                  ) {
-                    <app-community-members-page [embedded]="true" />
-                  } @else {
-                    <div class="community-preview__state" role="status">
-                      <i class="fas fa-lock" aria-hidden="true"></i>
-                      <p>A lista de membros é visível somente para participantes ativos da Comunidade.</p>
-                      @if (preview.viewerMode === 'pending') {
-                        <p>Sua solicitação está aguardando aprovação.</p>
-                      }
-                    </div>
-                  }
-                </section>
-              } @else if (
-                activeSection() === 'invites'
-                && preview.canInviteCommunityMembers
-              ) {
-                <section id="community-panel-invites" role="tabpanel" tabindex="0" aria-labelledby="community-tab-invites">
-                  <app-community-invite-management
-                    [communityId]="preview.community.communityId"
-                    (invitesChanged)="membershipReviewed()"
-                  />
-                </section>
-              } @else if (
-                activeSection() === 'requests'
-                && preview.canManageMemberships
-              ) {
-                <section id="community-panel-requests" role="tabpanel" tabindex="0" aria-labelledby="community-tab-requests">
-                  <app-community-membership-management
-                    [communityId]="preview.community.communityId"
-                    [sourceType]="preview.community.source.type"
-                    [viewerRole]="preview.viewerRole"
-                    [canManageCommunitySettings]="preview.canManageCommunitySettings"
-                    [canInviteCommunityMembers]="preview.canInviteCommunityMembers"
-                    [settings]="preview.settings"
-                    [capacity]="preview.capacity"
-                    [capacityRegularization]="preview.capacityRegularization"
-                    (membershipChanged)="membershipReviewed()"
-                    (settingsChanged)="membershipReviewed()"
-                    (ownershipChanged)="selectSection('about'); membershipReviewed()"
-                    (inviteRequested)="selectSection('invites')"
-                    (feedRequested)="selectSection('feed')"
-                  />
-                </section>
-              } @else {
+                }
+              </section>
+
+              @if (spaceCapabilities(preview.community).memberDirectory) {
                 <section
-                  id="community-panel-about" role="tabpanel" tabindex="0"
-                  class="community-preview__about"
-                  aria-labelledby="community-tab-about"
+                  id="community-panel-members"
+                  role="tabpanel"
+                  tabindex="0"
+                  aria-labelledby="community-tab-members"
+                  [hidden]="activeSection() !== 'members'"
                 >
-                  <p>{{ sourceDescription(preview.community) }}</p>
-
-                  @if (preview.community.description) {
-                    <p>{{ preview.community.description }}</p>
-                  }
-
-                  @if (
-                    officialEntityTargetType(preview.community);
-                    as officialEntityTargetType
-                  ) {
-                    <app-official-entity-community-section
-                      [targetType]="officialEntityTargetType"
-                      [targetId]="preview.community.source.id"
-                      [currentCommunityId]="preview.community.communityId"
-                    />
-                  }
-
-                  @if (
-                    spaceCapabilities(preview.community).membershipProfileVisibility
-                    && preview.viewerMode !== 'visitor'
-                    && preview.viewerMode !== 'pending'
-                  ) {
-                    <app-community-membership-profile-visibility
-                      [communityId]="preview.community.communityId"
-                    />
-                  }
-
-                  @if (
-                    spaceCapabilities(preview.community).rules
-                    && preview.rules
-                  ) {
-                    <section
-                      class="community-preview__rules community-preview__rules--about"
-                      aria-labelledby="community-preview-rules-about-title"
-                    >
-                      <div class="community-preview__rules-heading">
-                        <i class="fas fa-scale-balanced" aria-hidden="true"></i>
-                        <h2 id="community-preview-rules-about-title">
-                          Regras da Comunidade
-                        </h2>
-                      </div>
-                      <p>{{ preview.rules }}</p>
-                    </section>
-                  }
-
-                  @if (preview.community.tags.length > 0) {
-                    <div
-                      class="community-preview__tags"
-                      aria-label="Interesses e afinidades deste espaço"
-                    >
-                      @for (tag of preview.community.tags; track tag.id) {
-                        <span class="app-chip app-chip--muted">#{{ tag.label }}</span>
-                      }
-                    </div>
-                  }
-
-                  <div
-                    class="community-preview__metrics"
-                    [attr.aria-label]="metricsAriaLabel(preview.community)"
-                  >
-                    <span>
-                      <i class="fas fa-users" aria-hidden="true"></i>
-                      @if (
-                        spaceCapabilities(preview.community).capacityManagement
-                        && preview.capacity
-                      ) {
-                        {{ preview.capacity.memberCount }} de
-                        {{ preview.capacity.configuredLimit }} integrantes
-                      } @else {
-                        {{ preview.community.metrics.memberCount }} pessoas conectadas
-                      }
-                    </span>
-                    <span>
-                      <i class="fas fa-message" aria-hidden="true"></i>
-                      {{ preview.community.metrics.postCount }} publicações
-                    </span>
-                    <span>
-                      <i class="fas fa-image" aria-hidden="true"></i>
-                      {{ preview.community.metrics.mediaCount }} mídias
-                    </span>
-                  </div>
-
-                  <div class="community-preview__access">
-                    <span>
-                      <i class="fas fa-door-open" aria-hidden="true"></i>
-                      {{ joinLabel(preview.community) }}
-                    </span>
-                    @if (!preview.canInteract) {
-                      <span>
-                        <i class="fas fa-lock" aria-hidden="true"></i>
-                        @if (
-                          preview.viewerMode !== 'visitor'
-                          && preview.viewerMode !== 'pending'
-                        ) {
-                          Interações temporariamente indisponíveis
-                        } @else {
-                          {{ interactionRestrictedLabel(preview.community) }}
-                        }
-                      </span>
-                    }
+                  @if (activeSection() === 'members') {
                     @if (
-                      spaceCapabilities(preview.community).capacityManagement
-                      && preview.capacity?.acceptingNewMembers === false
+                      preview.viewerMode === 'member'
+                      || preview.viewerMode === 'moderator'
+                      || preview.viewerMode === 'manager'
                     ) {
-                      <span role="status">
-                        <i class="fas fa-users-slash" aria-hidden="true"></i>
-                        Capacidade atingida: novas entradas estão pausadas
-                      </span>
+                      <app-community-members-page [embedded]="true" />
+                    } @else {
+                      <div class="community-preview__state" role="status">
+                        <i class="fas fa-lock" aria-hidden="true"></i>
+                        <p>A lista de membros é visível somente para participantes ativos da Comunidade.</p>
+                        @if (preview.viewerMode === 'pending') {
+                          <p>Sua solicitação está aguardando aprovação.</p>
+                        }
+                      </div>
                     }
-                  </div>
+                  }
                 </section>
               }
+
+              @if (preview.canInviteCommunityMembers) {
+                <section
+                  id="community-panel-invites"
+                  role="tabpanel"
+                  tabindex="0"
+                  aria-labelledby="community-tab-invites"
+                  [hidden]="activeSection() !== 'invites'"
+                >
+                  @if (activeSection() === 'invites') {
+                    <app-community-invite-management
+                      [communityId]="preview.community.communityId"
+                      (invitesChanged)="membershipReviewed()"
+                    />
+                  }
+                </section>
+              }
+
+              @if (preview.canManageMemberships) {
+                <section
+                  id="community-panel-requests"
+                  role="tabpanel"
+                  tabindex="0"
+                  aria-labelledby="community-tab-requests"
+                  [hidden]="activeSection() !== 'requests'"
+                >
+                  @if (activeSection() === 'requests') {
+                    <app-community-membership-management
+                      [communityId]="preview.community.communityId"
+                      [sourceType]="preview.community.source.type"
+                      [viewerRole]="preview.viewerRole"
+                      [canManageCommunitySettings]="preview.canManageCommunitySettings"
+                      [canInviteCommunityMembers]="preview.canInviteCommunityMembers"
+                      [settings]="preview.settings"
+                      [capacity]="preview.capacity"
+                      [capacityRegularization]="preview.capacityRegularization"
+                      (membershipChanged)="membershipReviewed()"
+                      (settingsChanged)="membershipReviewed()"
+                      (ownershipChanged)="selectSection('about'); membershipReviewed()"
+                      (inviteRequested)="selectSection('invites')"
+                      (feedRequested)="selectSection('feed')"
+                    />
+                  }
+                </section>
+              }
+
+              <section
+                id="community-panel-about"
+                role="tabpanel"
+                tabindex="0"
+                class="community-preview__about"
+                aria-labelledby="community-tab-about"
+                [hidden]="activeSection() !== 'about'"
+              >
+                @if (activeSection() === 'about') {
+  
+                    <p>{{ sourceDescription(preview.community) }}</p>
+  
+                    @if (preview.community.description) {
+                      <p>{{ preview.community.description }}</p>
+                    }
+  
+                    @if (
+                      officialEntityTargetType(preview.community);
+                      as officialEntityTargetType
+                    ) {
+                      <app-official-entity-community-section
+                        [targetType]="officialEntityTargetType"
+                        [targetId]="preview.community.source.id"
+                        [currentCommunityId]="preview.community.communityId"
+                      />
+                    }
+  
+                    @if (
+                      spaceCapabilities(preview.community).membershipProfileVisibility
+                      && preview.viewerMode !== 'visitor'
+                      && preview.viewerMode !== 'pending'
+                    ) {
+                      <app-community-membership-profile-visibility
+                        [communityId]="preview.community.communityId"
+                      />
+                    }
+  
+                    @if (
+                      spaceCapabilities(preview.community).rules
+                      && preview.rules
+                    ) {
+                      <section
+                        class="community-preview__rules community-preview__rules--about"
+                        aria-labelledby="community-preview-rules-about-title"
+                      >
+                        <div class="community-preview__rules-heading">
+                          <i class="fas fa-scale-balanced" aria-hidden="true"></i>
+                          <h2 id="community-preview-rules-about-title">
+                            Regras da Comunidade
+                          </h2>
+                        </div>
+                        <p>{{ preview.rules }}</p>
+                      </section>
+                    }
+  
+                    @if (preview.community.tags.length > 0) {
+                      <div
+                        class="community-preview__tags"
+                        aria-label="Interesses e afinidades deste espaço"
+                      >
+                        @for (tag of preview.community.tags; track tag.id) {
+                          <span class="app-chip app-chip--muted">#{{ tag.label }}</span>
+                        }
+                      </div>
+                    }
+  
+                    <div
+                      class="community-preview__metrics"
+                      [attr.aria-label]="metricsAriaLabel(preview.community)"
+                    >
+                      <span>
+                        <i class="fas fa-users" aria-hidden="true"></i>
+                        @if (
+                          spaceCapabilities(preview.community).capacityManagement
+                          && preview.capacity
+                        ) {
+                          {{ preview.capacity.memberCount }} de
+                          {{ preview.capacity.configuredLimit }} integrantes
+                        } @else {
+                          {{ preview.community.metrics.memberCount }} pessoas conectadas
+                        }
+                      </span>
+                      <span>
+                        <i class="fas fa-message" aria-hidden="true"></i>
+                        {{ preview.community.metrics.postCount }} publicações
+                      </span>
+                      <span>
+                        <i class="fas fa-image" aria-hidden="true"></i>
+                        {{ preview.community.metrics.mediaCount }} mídias
+                      </span>
+                    </div>
+  
+                    <div class="community-preview__access">
+                      <span>
+                        <i class="fas fa-door-open" aria-hidden="true"></i>
+                        {{ joinLabel(preview.community) }}
+                      </span>
+                      @if (!preview.canInteract) {
+                        <span>
+                          <i class="fas fa-lock" aria-hidden="true"></i>
+                          @if (
+                            preview.viewerMode !== 'visitor'
+                            && preview.viewerMode !== 'pending'
+                          ) {
+                            Interações temporariamente indisponíveis
+                          } @else {
+                            {{ interactionRestrictedLabel(preview.community) }}
+                          }
+                        </span>
+                      }
+                      @if (
+                        spaceCapabilities(preview.community).capacityManagement
+                        && preview.capacity?.acceptingNewMembers === false
+                      ) {
+                        <span role="status">
+                          <i class="fas fa-users-slash" aria-hidden="true"></i>
+                          Capacidade atingida: novas entradas estão pausadas
+                        </span>
+                      }
+                    </div>
+                }
+              </section>
             </div>
 
             @if (
