@@ -133,7 +133,6 @@ export class PublicIndexRepository {
     const oldDocId = oldN ? this.nicknameDocId(oldN) : null;
     const newDocId = this.nicknameDocId(newN);
 
-    const nowTs = Timestamp.now();
     const nowMs = Date.now();
 
     return this.ctx.deferPromise$(() =>
