@@ -411,7 +411,10 @@ const unreferencedStaticAssets = staticAssets
 const declaredAssetReferences = new Map();
 for (const { filePath, source } of auditTexts) {
   const relativeSource = posix(filePath);
-  if (relativeSource === 'scripts/quality/check-production-orphans.mjs') {
+  if (
+    relativeSource === 'scripts/quality/check-production-orphans.mjs'
+    || /\.(?:spec|test)\.[cm]?[jt]s$/i.test(relativeSource)
+  ) {
     continue;
   }
 
@@ -472,8 +475,28 @@ function dependencyReferenced(packageName) {
   );
 }
 
+const rootLock = readJson(path.join(root, 'package-lock.json'));
+
+function requiredPeerOfReferencedDependency(packageName) {
+  return productionDependencies.some((directDependency) => {
+    if (directDependency === packageName || !dependencyReferenced(directDependency)) {
+      return false;
+    }
+
+    const entry = rootLock.packages?.[`node_modules/${directDependency}`];
+    const peerRange = entry?.peerDependencies?.[packageName];
+    if (!peerRange) return false;
+
+    return entry?.peerDependenciesMeta?.[packageName]?.optional !== true;
+  });
+}
+
 const unreferencedProductionDependencies = productionDependencies
-  .filter((packageName) => !dependencyReferenced(packageName))
+  .filter(
+    (packageName) =>
+      !dependencyReferenced(packageName)
+      && !requiredPeerOfReferencedDependency(packageName)
+  )
   .sort();
 
 
