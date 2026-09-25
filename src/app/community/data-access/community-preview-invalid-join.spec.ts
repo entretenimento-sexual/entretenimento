@@ -1,5 +1,5 @@
 // src/app/community/data-access/community-preview-invalid-join.spec.ts
-import { describe, expect, it } from 'vitest';
+import { expect } from 'vitest';
 
 import {
   normalizeCommunityDiscoveryPageResponse,
