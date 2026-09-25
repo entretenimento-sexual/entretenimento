@@ -2,6 +2,9 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FieldValue, db } from '../firebaseApp';
 import {
+  getAccountLifecycleSubscriptionRenewalStatus,
+} from './account-lifecycle-billing.service';
+import {
   ACCOUNT_LIFECYCLE_REGION,
   RestorableAccountStatus,
   UserDoc,
@@ -23,6 +26,7 @@ interface AccountLifecycleCommandResult {
   suspensionSource: 'self' | 'moderator' | 'automation' | null;
   suspensionEndsAt: number | null;
   statusUpdatedAt: number;
+  subscriptionRenewalStatus: 'active' | 'canceled' | 'pending' | 'none';
   message: string;
 }
 
@@ -186,6 +190,9 @@ export const cancelAccountDeletion = onCall<Record<string, never>>(
       }
     );
 
+    const subscriptionRenewalStatus =
+      await getAccountLifecycleSubscriptionRenewalStatus(uid);
+
     const activeButRestricted =
       restored.accountStatus === 'active' &&
       restored.publicVisibility === 'hidden';
@@ -193,11 +200,17 @@ export const cancelAccountDeletion = onCall<Record<string, never>>(
     return {
       ok: true,
       ...restored,
-      message: activeButRestricted
-        ? 'Exclusão cancelada. Conclua as verificações pendentes para voltar a aparecer e interagir.'
-        : restored.accountStatus === 'active'
-          ? 'Exclusão cancelada. Sua conta voltou ao estado ativo.'
-          : 'Exclusão cancelada. O estado anterior da conta foi restaurado.',
+      subscriptionRenewalStatus,
+      message:
+        subscriptionRenewalStatus === 'pending'
+          ? 'Exclusão cancelada. A interrupção da renovação automática ainda está sendo processada.'
+          : subscriptionRenewalStatus === 'canceled'
+            ? 'Exclusão cancelada. A renovação automática permanece cancelada.'
+            : activeButRestricted
+              ? 'Exclusão cancelada. Conclua as verificações pendentes para voltar a aparecer e interagir.'
+              : restored.accountStatus === 'active'
+                ? 'Exclusão cancelada. Sua conta voltou ao estado ativo.'
+                : 'Exclusão cancelada. O estado anterior da conta foi restaurado.',
     };
   }
 );
