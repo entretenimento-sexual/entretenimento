@@ -77,6 +77,7 @@ export {
   reviewCommunityFeedCommentReplyReport,
 } from './review-community-feed-comment-reply-report.handler';
 export { getCommunityTopicsPage } from './get-community-topics-page.handler';
+export { getCommunitySearchPage } from './get-community-search-page.handler';
 export {
   getCommunityTopicDetail,
   getCommunityTopicRepliesPage,
