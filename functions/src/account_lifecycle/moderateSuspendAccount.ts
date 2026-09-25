@@ -1,6 +1,11 @@
 // functions/src/account_lifecycle/moderateSuspendAccount.ts
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { db } from '../firebaseApp';
+import { ASAAS_API_KEY } from '../payments/config/asaas.config';
+import {
+  buildAccountLifecycleBillingCancellationPatch,
+  reconcileAccountLifecycleBillingCancellation,
+} from './account-lifecycle-billing.service';
 import {
   ACCOUNT_LIFECYCLE_REGION,
   UserDoc,
@@ -68,7 +73,7 @@ function buildSuspensionNotificationBody(endsAt: number | null): string {
 }
 
 export const moderateSuspendAccount = onCall<ModerateSuspendAccountRequest>(
-  { region: ACCOUNT_LIFECYCLE_REGION },
+  { region: ACCOUNT_LIFECYCLE_REGION, secrets: [ASAAS_API_KEY] },
   async (request): Promise<AccountLifecycleCommandResult> => {
     const actorUid = request.auth?.uid ?? null;
     const authToken = (request.auth?.token ?? {}) as Record<string, unknown>;
@@ -143,6 +148,11 @@ export const moderateSuspendAccount = onCall<ModerateSuspendAccountRequest>(
           purgeAfter: null,
           statusUpdatedAt: now,
           statusUpdatedBy: actorUid,
+
+          ...buildAccountLifecycleBillingCancellationPatch({
+            reason: 'moderation-account-suspension',
+            now,
+          }),
         },
         { merge: true }
       );
@@ -180,10 +190,20 @@ export const moderateSuspendAccount = onCall<ModerateSuspendAccountRequest>(
       });
     });
 
+    const billing = await reconcileAccountLifecycleBillingCancellation({
+      uid: targetUid,
+      fallbackReason: 'moderation-account-suspension',
+    });
+
     return {
       ok: true,
       accountStatus: 'moderation_suspended',
-      message: 'Conta suspensa pela moderação.',
+      message:
+        billing.providerCancellationStatus === 'pending'
+          ? 'Conta suspensa pela moderação. A interrupção da renovação ainda está sendo processada.'
+          : billing.recurringConfigured
+            ? 'Conta suspensa pela moderação e renovação automática interrompida.'
+            : 'Conta suspensa pela moderação.',
     };
   }
 );
