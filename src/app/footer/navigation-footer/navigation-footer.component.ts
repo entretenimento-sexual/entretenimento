@@ -13,7 +13,7 @@ export class NavigationFooterComponent {
   constructor(public dialog: MatDialog) { }
 
   openTermsAndConditions() {
-    const dialogRef = this.dialog.open(TermosECondicoesComponent, {
+    this.dialog.open(TermosECondicoesComponent, {
       width: '40%',
       // outras configurações se necessário
     });
