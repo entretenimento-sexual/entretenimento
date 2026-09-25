@@ -173,7 +173,7 @@ describe('CommunityFeedComponent', () => {
     ).toBe('Novidades do Local');
   });
 
-  it('reinicia a janela de DOM ao trocar de comunidade no mesmo componente', () => {
+  it('reinicia a janela de DOM ao trocar de comunidade no mesmo componente', async () => {
     const firstPage: CommunityFeedPage = {
       items: Array.from({ length: 70 }, (_, index) =>
         textItem(`old-${index + 1}`, `Antiga ${index + 1}`)
@@ -215,6 +215,8 @@ describe('CommunityFeedComponent', () => {
     expect(repositoryMock.getPage$).toHaveBeenCalledTimes(1);
 
     fixture.componentRef.setInput('communityId', 'community-2');
+    fixture.detectChanges();
+    await fixture.whenStable();
     fixture.detectChanges();
 
     expect(
