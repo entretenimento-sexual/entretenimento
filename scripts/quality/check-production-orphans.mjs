@@ -750,6 +750,31 @@ const unreferencedFunctionsDevelopmentDependencies =
     .sort();
 
 // -----------------------------------------------------------------------------
+// RECURSOS FIRESTORE LEGADOS: referências produtivas à coleção raiz posts
+// -----------------------------------------------------------------------------
+
+const legacyRootPostsConsumers = auditTexts
+  .filter(({ filePath, source }) => {
+    const relative = posix(filePath);
+    if (
+      relative.startsWith('docs/')
+      || relative === 'scripts/quality/check-production-orphans.mjs'
+      || /\.(?:spec|test)\.[cm]?[jt]s$/i.test(relative)
+    ) {
+      return false;
+    }
+
+    return (
+      /\.collection\(\s*['"]posts['"]\s*\)/.test(source)
+      || /\bcollection\([^,\n]+,\s*['"]posts['"]\s*\)/.test(source)
+      || /['"]posts\//.test(source)
+      || /match\s+\/posts(?:\/|\{)/.test(source)
+    );
+  })
+  .map(({ filePath }) => posix(filePath))
+  .sort();
+
+// -----------------------------------------------------------------------------
 // FIRESTORE RULES: fragments que não entram no manifesto canônico
 // -----------------------------------------------------------------------------
 
@@ -844,6 +869,7 @@ printGroup('Dependências de produção sem referência identificável', unrefer
 printGroup('DevDependencies sem referência identificável (revisão humana)', unreferencedDevelopmentDependencies);
 printGroup('Dependências de Functions sem referência identificável', unreferencedFunctionsDependencies);
 printGroup('DevDependencies de Functions sem referência identificável (revisão humana)', unreferencedFunctionsDevelopmentDependencies);
+printGroup('Consumidores produtivos da coleção raiz posts (revisão humana)', legacyRootPostsConsumers);
 printGroup('Fragments de Firestore Rules fora do manifesto', ruleFragmentsOutsideManifest);
 printGroup('Scripts sem referência identificável', unreferencedScripts);
 printGroup('Arquivos vazios rastreados', emptyTrackedFiles);
