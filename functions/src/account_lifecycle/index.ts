@@ -15,3 +15,5 @@ export {
 } from './user-privilege-audit.handler';
 
 export { purgeDeletedAccounts } from './purgeDeletedAccounts';
+
+export { reconcileAccountLifecycleBilling } from './reconcileAccountLifecycleBilling';
