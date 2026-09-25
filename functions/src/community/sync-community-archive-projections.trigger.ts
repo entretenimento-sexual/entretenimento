@@ -5,7 +5,8 @@
 // Quando uma Comunidade entra em archived, remove somente projeções de navegação:
 // - community_discovery_index;
 // - community_user_index de todos os vínculos conhecidos;
-// - community_member_management_index derivado de cada vínculo.
+// - community_member_management_index derivado de cada vínculo;
+// - community_member_search_index derivado de cada vínculo.
 //
 // Memberships, mural, tópicos, mídia e auditoria permanecem preservados para
 // leitura histórica, moderação e retenção. Exclusões são idempotentes e paginadas.
@@ -49,8 +50,12 @@ async function deleteCommunityUserIndexes(communityId: string): Promise<number> 
       const managementIndexRef = db
         .collection('community_member_management_index')
         .doc(`${communityId}:${membership.id}`);
+      const memberSearchIndexRef = db
+        .collection('community_member_search_index')
+        .doc(`${communityId}:${membership.id}`);
       batch.delete(indexRef);
       batch.delete(managementIndexRef);
+      batch.delete(memberSearchIndexRef);
     }
 
     await batch.commit();
