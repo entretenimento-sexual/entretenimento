@@ -214,6 +214,12 @@ export class CommunitySearchComponent {
     this.topicRequested.emit(topicId.trim());
   }
 
+  itemKey(item: CommunitySearchItem): string {
+    return item.type === 'member'
+      ? `member:${item.memberKey}`
+      : `topic:${item.topicId}`;
+  }
+
   roleLabel(role: CommunitySearchMemberRole): string {
     if (role === 'owner') return 'Proprietário';
     if (role === 'admin') return 'Administração';
