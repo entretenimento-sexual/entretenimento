@@ -117,6 +117,9 @@ export {
   syncCommunityMemberManagementIndexFromUser,
 } from './sync-community-member-management-index-from-user.trigger';
 export {
+  syncCommunityMemberManagementIndexFromPublicProfile,
+} from './sync-community-member-management-index-from-public-profile.trigger';
+export {
   getCommunityMembershipRequests,
   leaveCommunityMembership,
   reviewCommunityMembership,
