@@ -18,6 +18,54 @@ run_checked() {
   check_log "$file"
 }
 
+run_axe() {
+  local file="$1"
+
+  run_checked "$file" "async (page) => {
+    await page.addScriptTag({ path: 'node_modules/axe-core/axe.min.js' });
+    const result = await page.evaluate(async () => {
+      const root = document.querySelector('.community-preview');
+      if (!root) throw new Error('Community preview root unavailable for axe audit.');
+
+      const audit = await window.axe.run(root, {
+        runOnly: {
+          type: 'rule',
+          values: [
+            'aria-allowed-attr',
+            'aria-conditional-attr',
+            'aria-prohibited-attr',
+            'aria-required-attr',
+            'aria-required-children',
+            'aria-required-parent',
+            'aria-roles',
+            'aria-valid-attr',
+            'aria-valid-attr-value',
+            'duplicate-id-aria',
+            'tabindex',
+          ],
+        },
+      });
+
+      return {
+        violations: audit.violations.map((violation) => ({
+          id: violation.id,
+          impact: violation.impact,
+          nodes: violation.nodes.map((node) => ({
+            target: node.target,
+            failureSummary: node.failureSummary,
+          })),
+        })),
+      };
+    });
+
+    if (result.violations.length > 0) {
+      throw new Error('Community preview axe audit failed: ' + JSON.stringify(result));
+    }
+
+    return result;
+  }"
+}
+
 playwright-cli open 'http://127.0.0.1:4200/'
 playwright-cli resize 1440 1100
 
@@ -88,6 +136,7 @@ run_checked "$OUT/desktop/feed.metrics.log" "async (page) => {
   return metrics;
 }"
 
+run_axe "$OUT/desktop/feed.axe.log"
 playwright-cli snapshot --filename="$OUT/desktop/feed.accessibility.yml"
 playwright-cli screenshot --filename="$OUT/desktop/feed.viewport.png"
 playwright-cli screenshot --full-page --filename="$OUT/desktop/feed.full-page.png"
@@ -215,6 +264,7 @@ run_checked "$OUT/mobile/feed.metrics.log" "async (page) => {
   return metrics;
 }"
 
+run_axe "$OUT/mobile/feed.axe.log"
 playwright-cli snapshot --filename="$OUT/mobile/feed.accessibility.yml"
 playwright-cli screenshot --filename="$OUT/mobile/feed.viewport.png"
 playwright-cli screenshot --full-page --filename="$OUT/mobile/feed.full-page.png"
@@ -355,6 +405,7 @@ run_checked "$OUT/management/desktop/overview.metrics.log" "async (page) => {
   return metrics;
 }"
 
+run_axe "$OUT/management/desktop/overview.axe.log"
 playwright-cli snapshot --filename="$OUT/management/desktop/overview.accessibility.yml"
 playwright-cli screenshot --filename="$OUT/management/desktop/overview.viewport.png"
 playwright-cli screenshot --full-page --filename="$OUT/management/desktop/overview.full-page.png"
