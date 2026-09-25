@@ -15,6 +15,12 @@ describe('social space definitions', () => {
     expect(SOCIAL_SPACE_DEFINITIONS.room.description).toContain('Comunidades');
   });
 
+  it('habilita busca de membros apenas na Comunidade', () => {
+    expect(getSocialSpaceDefinition('community').capabilities.memberSearch).toBe(true);
+    expect(getSocialSpaceDefinition('venue').capabilities.memberSearch).toBe(false);
+    expect(getSocialSpaceDefinition('room').capabilities.memberSearch).toBe(false);
+  });
+
   it('habilita audit timeline apenas na Comunidade', () => {
     expect(getSocialSpaceDefinition('community').capabilities.auditTimeline).toBe(true);
     expect(getSocialSpaceDefinition('venue').capabilities.auditTimeline).toBe(false);
