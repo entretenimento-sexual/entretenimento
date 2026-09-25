@@ -7,7 +7,6 @@
 // -----------------------------------------------------------------------------
 
 import {
-  DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE,
   normalizeCommunityDiscoveryPageSize,
 } from '../data-access/community-discovery.contract';
 import {
