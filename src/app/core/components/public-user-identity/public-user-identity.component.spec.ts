@@ -36,6 +36,10 @@ describe('PublicUserIdentityComponent', () => {
     expect(element.querySelector('time')?.getAttribute('datetime')).toBe(
       '2026-08-31T18:00:00.000Z'
     );
+    const meta = element.querySelector('.public-user-identity__meta') as HTMLElement;
+    expect(meta.hasAttribute('aria-label')).toBe(false);
+    expect(meta.querySelector('.visually-hidden')?.textContent).toContain('Mulher');
+    expect(meta.querySelector('.visually-hidden')?.textContent).toContain('Rio de Janeiro/RJ');
   });
 
   it('aceita aliases legados somente como ponte visual de migração', () => {

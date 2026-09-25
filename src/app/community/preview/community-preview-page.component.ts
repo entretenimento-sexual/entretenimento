@@ -378,6 +378,49 @@ export class CommunityPreviewPageComponent {
     }
   }
 
+  handleTabKeydown(event: KeyboardEvent): void {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+
+    if (
+      event.key !== 'ArrowLeft'
+      && event.key !== 'ArrowRight'
+      && event.key !== 'Home'
+      && event.key !== 'End'
+    ) {
+      return;
+    }
+
+    const currentTab = event.currentTarget;
+    if (!(currentTab instanceof HTMLButtonElement)) return;
+
+    const tablist = currentTab.closest<HTMLElement>('[role="tablist"]');
+    if (!tablist) return;
+
+    const tabs = Array.from(
+      tablist.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+    ).filter((tab) => !tab.disabled);
+
+    const currentIndex = tabs.indexOf(currentTab);
+    if (currentIndex < 0 || tabs.length === 0) return;
+
+    event.preventDefault();
+
+    const lastIndex = tabs.length - 1;
+    const targetIndex = event.key === 'Home'
+      ? 0
+      : event.key === 'End'
+        ? lastIndex
+        : event.key === 'ArrowRight'
+          ? (currentIndex + 1) % tabs.length
+          : (currentIndex - 1 + tabs.length) % tabs.length;
+
+    const targetTab = tabs[targetIndex];
+    if (!targetTab) return;
+
+    targetTab.focus();
+    targetTab.click();
+  }
+
   retryPreview(): void {
     this.refreshPreview$.next();
   }

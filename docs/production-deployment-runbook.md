@@ -287,6 +287,27 @@ onda de Hosting, que continua sendo a última onda do rollout geral. Se o
 `RELEASE_SHA` futuro também contiver mudanças reais de Functions, aplicar F1–F5
 normalmente para **essas** mudanças antes de publicar o Hosting.
 
+### Regra específica — tabs/acessibilidade do preview
+
+Quando o diff de acessibilidade estiver limitado ao preview Angular, seus testes,
+o harness visual e dependências de desenvolvimento de auditoria:
+
+- a lista de Functions desta mudança é vazia;
+- não há backfill, índice, Firestore Rules, Storage Rules ou migração de dados;
+- `axe-core` é dependência de desenvolvimento e não deve ser importado pelo bundle
+  de runtime da aplicação;
+- a ordem obrigatória é `npm ci` → unit tests do preview → harness Chromium +
+  axe → staging → Hosting por último;
+- o frontend deve continuar instanciando apenas o conteúdo da tab ativa; manter
+  os contêineres `tabpanel` ocultos não autoriza eager loading de feed, roster,
+  gestão ou convites;
+- rollback deste delta é somente rebuild/redeploy de Hosting a partir do
+  `ROLLBACK_SHA`.
+
+Se o `RELEASE_SHA` futuro contiver alterações reais de backend, aplicar F1–F5,
+backfills e Rules correspondentes normalmente antes do Hosting. A correção de
+tabs não justifica redeploy de Functions por conveniência.
+
 ## 7. Migrações/backfills — ordem e gates
 
 Todos os backfills são executados **depois do runtime que manterá o estado novo**
@@ -565,6 +586,27 @@ Para uma release que contenha somente esta refatoração, rollback operacional �
 rebuild/redeploy do Hosting a partir do `ROLLBACK_SHA`; não há rollback de
 Functions, Rules, índices ou dados associado a este delta.
 
+### S4.2 — tabs e acessibilidade do preview
+
+- existe uma única `tablist` lógica para as seções do preview, incluindo ações
+  administrativas que trocam o mesmo painel;
+- cada tab expõe `role="tab"`, `aria-selected`, `aria-controls` e roving
+  `tabindex` coerentes;
+- cada ID de `aria-controls` resolve para um `role="tabpanel"` existente,
+  rotulado pela tab correspondente;
+- somente uma tab está selecionada por vez;
+- setas esquerda/direita percorrem as tabs disponíveis com wrap-around;
+- Home e End movem e ativam a primeira/última tab;
+- tabs condicionais ausentes por capability não entram na ordem de teclado;
+- conteúdo pesado de painel inativo não é instanciado nem dispara leitura,
+  realtime ou paginação;
+- foco visível, navegação por Tab e `prefers-reduced-motion` permanecem
+  preservados;
+- harness Chromium executa axe sem violações nas regras ARIA selecionadas em
+  desktop, mobile e cenário de administração;
+- navegação por mouse/toque, deep link de `secao` e restauração por URL mantêm
+  o comportamento anterior.
+
 ### S5 — integração transversal
 
 - amizade/bloqueio;
@@ -708,6 +750,8 @@ Não iniciar uma nova onda enquanto a anterior não estiver explicitamente verde
 - [ ] capability de update de recorrência Asaas homologada ou
       `ASAAS_SUBSCRIPTION_UPDATE_ENABLED` mantida desabilitada;
 - [ ] smoke test accounts/dados preparados;
+- [ ] unit tests de tabs/teclado verdes;
+- [ ] harness Chromium + axe do preview verde no SHA de release;
 - [ ] critérios de abortar e responsáveis conhecidos;
 - [ ] rollback SHA buildável e procedimentos revisados;
 - [ ] nenhuma mudança de ranking/preço/custo não relacionada misturada na release.

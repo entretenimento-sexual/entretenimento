@@ -20,6 +20,24 @@ on:
       - '.github/visual-harness/community-preview-visual.app-component.ts'
       - '.github/scripts/community-preview-visual-validation.sh'
       - '.github/workflows/community-preview-visual-validation.yml'
+  pull_request:
+    paths:
+      - 'src/app/community/preview/**'
+      - 'src/app/community/feed/**'
+      - 'src/app/community/feed-comments/**'
+      - 'src/app/community/membership-management/**'
+      - 'src/app/community/member-roster-management/**'
+      - 'src/app/community/ownership-management/**'
+      - 'src/app/community/community-settings/**'
+      - 'src/app/community/data-access/community-preview*.ts'
+      - 'src/app/community/data-access/community-feed*.ts'
+      - 'src/app/community/presentation/**'
+      - 'src/styles/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/visual-harness/community-preview-visual.app-component.ts'
+      - '.github/scripts/community-preview-visual-validation.sh'
+      - '.github/workflows/community-preview-visual-validation.yml'
 
 permissions:
   contents: read
