@@ -86,6 +86,7 @@ const requiredExports = [
   'manageCommunityMember',
   'syncCommunityMemberManagementIndex',
   'syncCommunityMemberManagementIndexFromUser',
+  'syncCommunityMemberManagementIndexFromPublicProfile',
   'syncCommunityArchiveProjections',
   'syncCommunityFeedRealtimeTrigger',
   'reconcileCommunityMembershipNotificationsTrigger',
