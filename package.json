@@ -98,7 +98,8 @@
     "maintenance:community-explore-content": "npm run functions:build && node scripts/maintenance/backfill-community-explore-content-admin.mjs",
     "maintenance:community-notification-global-summary": "npm run functions:build && node scripts/maintenance/backfill-community-notification-global-summary-admin.mjs",
     "maintenance:community-member-management-index": "npm run functions:build && node scripts/maintenance/backfill-community-member-management-index-admin.mjs",
-    "maintenance:community-admin-timeline": "npm run functions:build && node scripts/maintenance/backfill-community-admin-timeline-admin.mjs"
+    "maintenance:community-admin-timeline": "npm run functions:build && node scripts/maintenance/backfill-community-admin-timeline-admin.mjs",
+    "maintenance:community-member-search-index": "npm run functions:build && node scripts/maintenance/backfill-community-member-search-index-admin.mjs"
   },
   "private": true,
   "dependencies": {
