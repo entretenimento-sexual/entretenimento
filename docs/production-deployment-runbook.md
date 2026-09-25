@@ -208,7 +208,8 @@ Implantar antes dos backfills que dependem deles:
 - `syncVenuePublicLocation`;
 - `syncCommunityCapacityRegularization`;
 - `syncCommunityMemberManagementIndex`;
-- `syncCommunityMemberManagementIndexFromUser`.
+- `syncCommunityMemberManagementIndexFromUser`;
+- `syncCommunityMemberManagementIndexFromPublicProfile`.
 
 Os aliases com sufixo `Trigger` existem deliberadamente porque produção pode
 conter Functions HTTPS legadas sob o nome antigo. **Não apagar os exports legados
@@ -293,9 +294,13 @@ em produtor e consumidor. Quando este delta estiver presente no `RELEASE_SHA`:
 1. em T0, publicar e aguardar `READY` para os índices de
    `community_member_management_index` e de `community_public_topics/*/items`;
 2. em F2, implantar as versões v2 de
-   `syncCommunityMemberManagementIndex` e
-   `syncCommunityMemberManagementIndexFromUser`, que passam a manter
-   `searchKey` opaco para novos writes/renomes;
+   `syncCommunityMemberManagementIndex`,
+   `syncCommunityMemberManagementIndexFromUser` e
+   `syncCommunityMemberManagementIndexFromPublicProfile`; a busca comum passa
+   a manter `searchKey` opaco e os campos
+   `publicSearchSortLabel/publicSearchPrefixes` derivados exclusivamente de
+   `public_profiles.nickname`, sem reutilizar `users.nome` ou qualquer
+   identidade administrativa;
 3. antes do B9, implantar seletivamente a versão produtora de
    `createCommunityTopic`, que passa a gravar `searchPrefixes` no mesmo
    commit do novo Tópico, e executar smoke de criação/leitura sem habilitar a
@@ -533,6 +538,7 @@ real nem operações destrutivas apenas para smoke test.
 - busca interna: termo com acento/caixa normaliza de forma consistente e consultas com menos de 2 caracteres não disparam scan;
 - busca interna: Membros e Discussões paginam no backend sem duplicação/omissão; Mural continua fora da fase 1;
 - busca de Membros: visitante/pendente não enumera roster; participante ativo recebe somente perfis públicos adultos vigentes e bloqueios bilaterais somem dos resultados;
+- busca de Membros: apelido público é localizável, mas nome/label presente apenas em `users/{uid}` ou na identidade administrativa não produz resultado na busca comum;
 - busca de Discussões: `public_preview` e `members_only` respeitam exatamente a audiência do Tópico; removidos/arquivados não aparecem;
 - abrir uma Discussão encontrada leva à superfície canônica de Tópicos e preserva o deep link;
 - em Comunidade sintética com 500+ membros, busca por nome/apelido sem scan
