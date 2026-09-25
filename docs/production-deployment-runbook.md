@@ -431,8 +431,10 @@ papel, elegibilidade, ownership, capacidade ou billing.
 
 Obrigatório quando a release contiver a primeira fase da busca interna:
 
-1. o índice composto de `community_public_topics/{communityId}/items` com
-   `searchPrefixes + lastActivityAt + __name__` deve estar `READY`;
+1. os índices compostos de `community_public_topics/{communityId}/items`
+   devem estar `READY`: `searchPrefixes + lastActivityAt + __name__` para
+   participantes e `audience + searchPrefixes + lastActivityAt + __name__`
+   para preview autenticado;
 2. a versão de `createCommunityTopic` que grava `searchPrefixes` deve estar
    implantada e smoke-tested antes do backfill, para não abrir uma lacuna entre
    conteúdo novo e histórico;
@@ -539,7 +541,7 @@ real nem operações destrutivas apenas para smoke test.
 - busca interna: Membros e Discussões paginam no backend sem duplicação/omissão; Mural continua fora da fase 1;
 - busca de Membros: visitante/pendente não enumera roster; participante ativo recebe somente perfis públicos adultos vigentes e bloqueios bilaterais somem dos resultados;
 - busca de Membros: apelido público é localizável, mas nome/label presente apenas em `users/{uid}` ou na identidade administrativa não produz resultado na busca comum;
-- busca de Discussões: `public_preview` e `members_only` respeitam exatamente a audiência do Tópico; removidos/arquivados não aparecem;
+- busca de Discussões: `public_preview` e `members_only` respeitam exatamente a audiência do Tópico; preview autenticado consulta somente candidatos `public_preview` no índice, e removidos/arquivados não aparecem;
 - abrir uma Discussão encontrada leva à superfície canônica de Tópicos e preserva o deep link;
 - em Comunidade sintética com 500+ membros, busca por nome/apelido sem scan
   client-side, filtro por papel, combinação busca+papel e paginação sem
