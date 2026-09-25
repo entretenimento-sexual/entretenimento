@@ -6,7 +6,9 @@
     "types": [
       "@angular/localize"
     ], // ← redundante, mas força no alvo
-    "useDefineForClassFields": false
+    "useDefineForClassFields": false,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
   },
   "files": ["src/main.ts"],
   "include": ["src/**/*.ts"],
