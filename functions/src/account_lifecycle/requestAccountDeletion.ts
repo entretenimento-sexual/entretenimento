@@ -11,15 +11,11 @@ import {
   normalizeOptionalReason,
 } from './_shared';
 import { evaluateAccountDeletionOwnedResources } from './account-deletion-owned-resources.policy';
-import { ASAAS_API_KEY, resolveAsaasApiRuntimeConfig } from '../payments/config/asaas.config';
-import { AsaasPaymentProvider } from '../payments/infrastructure/providers/asaas.provider';
+import { ASAAS_API_KEY } from '../payments/config/asaas.config';
 import {
-  PLATFORM_SUBSCRIPTION_STATE_COLLECTION,
-} from '../payments/application/platform-recurring-subscription.service';
-import {
-  cancelRecurringContractAtProvider,
-  requestRecurringContractCancellation,
-} from '../payments/application/recurring-provider-cancellation.service';
+  buildAccountLifecycleBillingCancellationPatch,
+  reconcileAccountLifecycleBillingCancellation,
+} from './account-lifecycle-billing.service';
 
 interface RequestAccountDeletionRequest {
   reason?: string | null;
@@ -152,6 +148,17 @@ export const requestAccountDeletion = onCall<RequestAccountDeletionRequest>(
             );
           }
 
+          if (user.billingCancellationPending !== true) {
+            tx.set(
+              userRef,
+              buildAccountLifecycleBillingCancellationPatch({
+                reason: 'account-deletion-request',
+                now,
+              }),
+              { merge: true }
+            );
+          }
+
           return {
             deletionRequestedAt: existingRequestedAt,
             deletionUndoUntil: existingUndoUntil,
@@ -231,6 +238,11 @@ export const requestAccountDeletion = onCall<RequestAccountDeletionRequest>(
 
             statusUpdatedAt: now,
             statusUpdatedBy: 'self',
+
+            ...buildAccountLifecycleBillingCancellationPatch({
+              reason: 'account-deletion-request',
+              now,
+            }),
           },
           { merge: true }
         );
@@ -265,40 +277,10 @@ export const requestAccountDeletion = onCall<RequestAccountDeletionRequest>(
       }
     );
 
-    try {
-      const recurringStateSnapshot = await db
-        .collection(PLATFORM_SUBSCRIPTION_STATE_COLLECTION)
-        .doc(uid)
-        .get();
-      const currentContractId = String(
-        recurringStateSnapshot.data()?.['currentContractId'] ?? ''
-      ).trim();
-
-      if (currentContractId) {
-        const requestedCancellation =
-          await requestRecurringContractCancellation({
-            contractId: currentContractId,
-            reason: 'account-deletion-request',
-          });
-
-        if (requestedCancellation) {
-          const provider = new AsaasPaymentProvider({
-            runtime: resolveAsaasApiRuntimeConfig(),
-            apiKey: ASAAS_API_KEY.value(),
-          });
-
-          await cancelRecurringContractAtProvider({
-            contractId: currentContractId,
-            provider,
-            reason: 'account-deletion-request',
-          }).catch(() => undefined);
-        }
-      }
-    } catch {
-      // Exclusão da conta não depende da disponibilidade do provider.
-      // A solicitação de cancelamento, quando persistida, será retomada pelo
-      // reconciliador recorrente.
-    }
+    await reconcileAccountLifecycleBillingCancellation({
+      uid,
+      fallbackReason: 'account-deletion-request',
+    });
 
     return {
       ok: true,
