@@ -244,6 +244,24 @@ describe('CommunityPreviewPageComponent / Local', () => {
     expect(document.activeElement).toBe(about);
 
     about.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Home',
+      bubbles: true,
+    }));
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.activeSection()).toBe('feed');
+    expect(document.activeElement).toBe(feed);
+
+    feed.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'End',
+      bubbles: true,
+    }));
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.activeSection()).toBe('about');
+    expect(document.activeElement).toBe(about);
+
+    about.dispatchEvent(new KeyboardEvent('keydown', {
       key: 'ArrowRight',
       bubbles: true,
     }));
