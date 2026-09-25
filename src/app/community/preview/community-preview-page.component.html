@@ -441,6 +441,11 @@
                 <section id="community-panel-search" aria-labelledby="community-tab-search">
                   <app-community-search
                     [communityId]="preview.community.communityId"
+                    [canSearchMembers]="
+                      preview.viewerMode === 'member'
+                      || preview.viewerMode === 'moderator'
+                      || preview.viewerMode === 'manager'
+                    "
                     (topicRequested)="openTopicFromSearch($event)"
                   />
                 </section>
