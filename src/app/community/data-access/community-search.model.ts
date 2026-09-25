@@ -47,7 +47,7 @@ const CURSOR_PATTERN = /^[A-Za-z0-9:_-]{1,512}$/;
 
 function normalizeText(value: unknown, maxLength: number): string {
   return String(value ?? '')
-    .replace(/\p{Cc}/gu, ' ')
+    .replace(/[\u0000-\u001F\u007F]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, maxLength);
