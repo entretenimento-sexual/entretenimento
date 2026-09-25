@@ -176,8 +176,8 @@ export const reactivateSelfSuspension = onCall<Record<string, never>>(
               'revise sua assinatura se quiser voltar a renovar.',
             ].join(' ')
             : restored.publicVisibility === 'visible'
-            ? 'Conta reativada com sucesso.'
-            : 'Conta reativada. Conclua as verificações pendentes para voltar a aparecer e interagir.',
+              ? 'Conta reativada com sucesso.'
+              : 'Conta reativada. Conclua as verificações pendentes para voltar a aparecer e interagir.',
     };
   }
 );
