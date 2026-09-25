@@ -70,6 +70,21 @@ const notificationChannelPath = path.join(
   'admin',
   'create-community-cost-notification-channel.mjs'
 );
+const communitySearchHandlerPath = path.join(
+  root,
+  'functions',
+  'src',
+  'community',
+  'get-community-search-page.handler.ts'
+);
+const communitySearchComponentPath = path.join(
+  root,
+  'src',
+  'app',
+  'community',
+  'search',
+  'community-search.component.ts'
+);
 
 for (const file of [
   contractPath,
@@ -83,6 +98,8 @@ for (const file of [
   baselineWorkflowPath,
   gcpBootstrapPath,
   notificationChannelPath,
+  communitySearchHandlerPath,
+  communitySearchComponentPath,
 ]) {
   if (!fs.existsSync(file)) {
     throw new Error('Community cost operations file missing: ' + file);
@@ -102,6 +119,53 @@ const baselineWorkflowSource = fs.readFileSync(
   baselineWorkflowPath,
   'utf8'
 );
+const communitySearchHandlerSource = fs.readFileSync(
+  communitySearchHandlerPath,
+  'utf8'
+);
+const communitySearchComponentSource = fs.readFileSync(
+  communitySearchComponentPath,
+  'utf8'
+);
+
+for (const required of [
+  'const MAX_PAGE_LIMIT = 20',
+  '.limit(scanLimit)',
+  "'publicSearchPrefixes', 'array-contains'",
+  "resolveBlockedTargetUids",
+  "if (!input.activeMembership)",
+]) {
+  if (!communitySearchHandlerSource.includes(required)) {
+    throw new Error(
+      'Community internal search lost bounded/security invariant: ' + required
+    );
+  }
+}
+
+for (const required of [
+  'debounceTime(250)',
+  'canSearchMembers',
+  "scope === 'members' && !canSearchMembers",
+]) {
+  if (!communitySearchComponentSource.includes(required)) {
+    throw new Error(
+      'Community internal search lost client cost invariant: ' + required
+    );
+  }
+}
+
+if (
+  communitySearchHandlerSource.includes(
+    ".collection('community_member_management_index').get()"
+  )
+  || communitySearchHandlerSource.includes(
+    ".collection('community_public_topics').get()"
+  )
+) {
+  throw new Error(
+    'Community internal search must never scan an index collection without a bounded query.'
+  );
+}
 
 for (const [name, workflow] of [
   ['monitoring', monitoringWorkflowSource],
