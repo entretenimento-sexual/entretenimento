@@ -4,6 +4,7 @@ import type {
   CommunityPreviewSourceType,
 } from 'src/app/community/data-access/community-preview.model';
 import {
+  COMMUNITY_DISCOVERY_CACHE_MAX_ITEMS_PER_QUERY,
   COMMUNITY_DISCOVERY_CACHE_MAX_QUERIES,
   buildCommunityDiscoveryCacheQuery,
 } from 'src/app/community/discovery/community-discovery-cache.model';
@@ -60,6 +61,57 @@ describe('communityDiscoveryCacheReducer', () => {
     expect(slice.items.map((item) => item.communityId)).toEqual(['a', 'b', 'c']);
     expect(slice.lastLoadedAt).toBe(200);
     expect(slice.query).toEqual(query);
+  });
+
+  it('mantém somente páginas completas no cache quando a sessão aprofunda o scroll', () => {
+    const cachedItems = Array.from(
+      { length: COMMUNITY_DISCOVERY_CACHE_MAX_ITEMS_PER_QUERY },
+      (_, index) => card(`cached-${index}`)
+    );
+    const boundary = communityDiscoveryCacheReducer(
+      viewerOneState,
+      Actions.storeCommunityDiscoveryPage({
+        query,
+        page: {
+          items: cachedItems,
+          nextCursor: 'cursor-cache-boundary',
+          generatedAt: 10,
+        },
+        append: false,
+        storedAt: 100,
+      })
+    );
+
+    const overflow = communityDiscoveryCacheReducer(
+      boundary,
+      Actions.storeCommunityDiscoveryPage({
+        query,
+        page: {
+          items: [
+            {
+              ...card('cached-0'),
+              name: 'Comunidade atualizada',
+            },
+            card('outside-cache-window'),
+          ],
+          nextCursor: 'cursor-after-overflow',
+          generatedAt: 20,
+        },
+        append: true,
+        storedAt: 200,
+      })
+    );
+
+    const slice = Object.values(overflow.byQuery)[0]!;
+    expect(slice.items).toHaveLength(
+      COMMUNITY_DISCOVERY_CACHE_MAX_ITEMS_PER_QUERY
+    );
+    expect(slice.items[0]?.name).toBe('Comunidade atualizada');
+    expect(
+      slice.items.some((item) => item.communityId === 'outside-cache-window')
+    ).toBe(false);
+    expect(slice.nextCursor).toBe('cursor-cache-boundary');
+    expect(slice.lastLoadedAt).toBe(100);
   });
 
   it('rejeita página atrasada da conta A depois que B assumiu a sessão', () => {
