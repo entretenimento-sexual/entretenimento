@@ -27,6 +27,7 @@ import {
 
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { CommunityAdminTimelineComponent } from '../admin-timeline/community-admin-timeline.component';
 import type { CommunityCapacityPreview } from '../data-access/community-capacity.model';
 import type {
   CommunityCapacityRegularizationPreview,
@@ -79,6 +80,7 @@ export type CommunityManagementPanel =
   | 'requests'
   | 'members'
   | 'settings'
+  | 'audit'
   | 'ownership';
 
 const MEMBERSHIP_REVIEW_REASON_MESSAGES = Object.freeze({
@@ -93,6 +95,7 @@ const MEMBERSHIP_REVIEW_REASON_MESSAGES = Object.freeze({
     AsyncPipe,
     DatePipe,
     RouterLink,
+    CommunityAdminTimelineComponent,
     CommunityMemberRosterManagementComponent,
     CommunityOwnershipManagementComponent,
     CommunitySettingsComponent,
@@ -242,6 +245,11 @@ export class CommunityMembershipManagementComponent {
       && this.viewerRole() === 'owner';
   }
 
+  canViewAuditPanel(): boolean {
+    return this.socialSpace().capabilities.auditTimeline
+      && (this.viewerRole() === 'owner' || this.viewerRole() === 'admin');
+  }
+
   supportsCapacityManagement(): boolean {
     return this.socialSpace().capabilities.capacityManagement;
   }
@@ -350,6 +358,7 @@ export class CommunityMembershipManagementComponent {
     if (panel === 'overview' || panel === 'requests') return true;
     if (panel === 'members') return this.canManageMembersPanel();
     if (panel === 'settings') return this.canManageSettingsPanel();
+    if (panel === 'audit') return this.canViewAuditPanel();
     return this.canManageOwnershipPanel();
   }
 

@@ -69,6 +69,18 @@
           </button>
         }
 
+        @if (canViewAuditPanel()) {
+          <button
+            type="button"
+            [class.is-active]="activePanel() === 'audit'"
+            [attr.aria-pressed]="activePanel() === 'audit'"
+            (click)="selectPanel('audit')"
+          >
+            <i class="fas fa-clock-rotate-left" aria-hidden="true"></i>
+            <span>Histórico</span>
+          </button>
+        }
+
         @if (canManageOwnershipPanel()) {
           <button
             type="button"
@@ -275,6 +287,23 @@
               </div>
             }
 
+            @if (canViewAuditPanel()) {
+              <button
+                type="button"
+                class="community-management-hub__card"
+                (click)="selectPanel('audit')"
+              >
+                <span class="community-management-hub__card-icon" aria-hidden="true">
+                  <i class="fas fa-clock-rotate-left"></i>
+                </span>
+                <span class="community-management-hub__card-copy">
+                  <strong>Histórico administrativo</strong>
+                  <span>Acompanhe ações relevantes da equipe sem expor a auditoria interna.</span>
+                </span>
+                <i class="fas fa-chevron-right" aria-hidden="true"></i>
+              </button>
+            }
+
             @if (canManageOwnershipPanel()) {
               <button
                 type="button"
@@ -421,6 +450,8 @@
           [communityId]="communityId()"
           (membershipChanged)="membershipChanged.emit()"
         />
+      } @else if (activePanel() === 'audit' && canViewAuditPanel()) {
+        <app-community-admin-timeline [communityId]="communityId()" />
       } @else if (activePanel() === 'ownership' && canManageOwnershipPanel()) {
         <app-community-ownership-management
           [communityId]="communityId()"

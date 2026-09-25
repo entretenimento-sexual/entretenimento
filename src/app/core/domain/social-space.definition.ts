@@ -43,6 +43,7 @@ export interface SocialSpaceCapabilities {
   readonly settingsManagement: boolean;
   readonly ownershipManagement: boolean;
   readonly contentModeration: boolean;
+  readonly auditTimeline: boolean;
   readonly highlights: boolean;
   readonly feedComposer: boolean;
   readonly membershipProfileVisibility: boolean;
@@ -72,6 +73,7 @@ const COMMUNITY_CAPABILITIES: Readonly<SocialSpaceCapabilities> = Object.freeze(
   settingsManagement: true,
   ownershipManagement: true,
   contentModeration: true,
+  auditTimeline: true,
   highlights: true,
   feedComposer: true,
   membershipProfileVisibility: true,
@@ -90,6 +92,7 @@ const VENUE_CAPABILITIES: Readonly<SocialSpaceCapabilities> = Object.freeze({
   settingsManagement: false,
   ownershipManagement: false,
   contentModeration: false,
+  auditTimeline: false,
   highlights: false,
   feedComposer: false,
   membershipProfileVisibility: false,
@@ -108,6 +111,7 @@ const LEGACY_ROOM_CAPABILITIES: Readonly<SocialSpaceCapabilities> = Object.freez
   settingsManagement: false,
   ownershipManagement: false,
   contentModeration: false,
+  auditTimeline: false,
   highlights: false,
   feedComposer: false,
   membershipProfileVisibility: false,
