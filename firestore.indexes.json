@@ -1694,12 +1694,12 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "searchPrefixes",
-          "arrayConfig": "CONTAINS"
-        },
-        {
           "fieldPath": "audience",
           "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "searchPrefixes",
+          "arrayConfig": "CONTAINS"
         },
         {
           "fieldPath": "lastActivityAt",
