@@ -101,7 +101,9 @@
     "maintenance:community-admin-timeline": "npm run functions:build && node scripts/maintenance/backfill-community-admin-timeline-admin.mjs",
     "maintenance:community-member-search-index": "npm run functions:build && node scripts/maintenance/backfill-community-member-search-index-admin.mjs",
     "deadcode:audit": "node scripts/quality/check-production-orphans.mjs",
-    "deadcode:check": "node scripts/quality/check-production-orphans.mjs --strict"
+    "deadcode:check": "node scripts/quality/check-production-orphans.mjs --strict",
+    "test:community:e2e": "npm run rules:build && npm run rules:check && npm run functions:build && firebase emulators:exec --config firebase.media-e2e.json --only auth,firestore,functions --project demo-entretenimento-media-e2e \"node scripts/tests/community-creation.e2e.mjs && node scripts/tests/community-discovery-tags.e2e.mjs && node scripts/tests/community-topics.e2e.mjs\"",
+    "maintenance:community-member-count-reconcile": "node scripts/admin/run-community-member-count-reconcile.mjs"
   },
   "private": true,
   "dependencies": {
