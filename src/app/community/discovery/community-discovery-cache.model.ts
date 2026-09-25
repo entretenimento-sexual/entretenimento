@@ -39,15 +39,6 @@ export interface CommunityDiscoveryCacheQuery
 }
 
 export const COMMUNITY_DISCOVERY_CACHE_TTL_MS = 30_000;
-
-/**
- * A UI mantém no máximo seis páginas de cards montadas simultaneamente.
- * O estado vivo da sessão pode continuar conhecendo páginas anteriores para
- * permitir navegação local, busca/filtros e restauração sem nova chamada.
- */
-const COMMUNITY_DISCOVERY_RENDER_WINDOW_PAGES = 6;
-export const COMMUNITY_DISCOVERY_RENDER_WINDOW_MAX_ITEMS =
-  DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE * COMMUNITY_DISCOVERY_RENDER_WINDOW_PAGES;
 /**
  * Limite por viewer ativo. Evita crescimento indefinido quando a pessoa alterna
  * entre muitos filtros/tags numa sessão longa, especialmente em mobile/PWA.
