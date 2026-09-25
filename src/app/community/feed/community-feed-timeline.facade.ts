@@ -20,6 +20,7 @@ import {
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import {
   CommunityFeedView,
+  DEFAULT_COMMUNITY_FEED_PAGE_SIZE,
 } from '../data-access/community-feed.model';
 import { CommunityFeedRepository } from '../data-access/community-feed.repository';
 import { CommunityRealtimeAttentionCoordinatorService } from '../data-access/community-realtime-attention-coordinator.service';
@@ -75,7 +76,7 @@ export class CommunityFeedTimelineFacade {
               .getPage$({
                 communityId,
                 view,
-                limit: 10,
+                limit: DEFAULT_COMMUNITY_FEED_PAGE_SIZE,
                 cursor: request.cursor,
               })
               .pipe(
