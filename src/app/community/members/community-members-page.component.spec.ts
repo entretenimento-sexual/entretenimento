@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { CommunityMemberSearchPage } from '../data-access/community-member-search.model';
+import { CommunityMemberSearchRepository } from '../data-access/community-member-search.repository';
 import { normalizeCommunityMemberRosterPage, CommunityMemberRosterPage } from '../data-access/community-member-roster.model';
 import { CommunityMemberRosterRepository } from '../data-access/community-member-roster.repository';
 import { CommunityMembersPageComponent } from './community-members-page.component';
@@ -15,6 +17,22 @@ class ProfileTargetComponent {}
 
 const firstId = 'profile-00000000-0000-4000-8000-000000000001';
 const secondId = 'profile-00000000-0000-4000-8000-000000000002';
+
+function searchPage(
+  ids = [firstId],
+  nextCursor: string | null = null
+): CommunityMemberSearchPage {
+  return {
+    items: ids.map((id, index) => ({
+      memberKey: id,
+      identity: { profileId: id, nickname: index ? 'Bia' : 'Ana', avatarUrl: null },
+      role: 'member',
+    })),
+    nextCursor,
+    memberCount: 2,
+    generatedAt: 123,
+  };
+}
 
 function page(ids = [firstId], nextCursor: string | null = firstId): CommunityMemberRosterPage {
   return normalizeCommunityMemberRosterPage({
@@ -29,6 +47,7 @@ function page(ids = [firstId], nextCursor: string | null = firstId): CommunityMe
 
 describe('CommunityMembersPageComponent / fluxo completo', () => {
   const getPage$ = vi.fn();
+  const searchPage$ = vi.fn();
   const handleError = vi.fn();
   const showApplicationError = vi.fn();
   let params: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
@@ -36,14 +55,17 @@ describe('CommunityMembersPageComponent / fluxo completo', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getPage$.mockReset();
+    searchPage$.mockReset();
     params = new BehaviorSubject(convertToParamMap({ communityId: 'community-1' }));
     getPage$.mockReturnValue(of(page()));
+    searchPage$.mockReturnValue(of(searchPage()));
     TestBed.configureTestingModule({
       imports: [CommunityMembersPageComponent],
       providers: [
         provideRouter([{ path: 'perfil/:uid', component: ProfileTargetComponent }]),
         { provide: ActivatedRoute, useValue: { paramMap: params } },
         { provide: CommunityMemberRosterRepository, useValue: { getPage$ } },
+        { provide: CommunityMemberSearchRepository, useValue: { searchPage$ } },
         { provide: GlobalErrorHandlerService, useValue: { handleError } },
         { provide: ErrorNotificationService, useValue: { showApplicationError } },
       ],
@@ -73,6 +95,32 @@ describe('CommunityMembersPageComponent / fluxo completo', () => {
     link.click();
     await fixture.whenStable();
     expect(TestBed.inject(Router).url).toBe('/perfil/' + firstId);
+  });
+
+
+  it('busca integrantes de forma reativa sem filtrar a lista localmente', async () => {
+    vi.useFakeTimers();
+    try {
+      const fixture = create();
+      fixture.componentInstance.searchControl.setValue('Ana');
+      await vi.advanceTimersByTimeAsync(301);
+      fixture.detectChanges();
+
+      expect(searchPage$).toHaveBeenCalledWith({
+        communityId: 'community-1',
+        query: 'Ana',
+        cursor: null,
+        limit: 20,
+      });
+      expect(fixture.nativeElement.textContent).toContain('Ana');
+      expect(
+        fixture.nativeElement.querySelector(
+          '[aria-label="Resultados da busca por Ana"]'
+        )
+      ).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('pagina sem duplicar integrantes nem repetir solicitações simultâneas', () => {
