@@ -172,7 +172,10 @@ export async function restoreModerationSuspension(input: {
             title: 'Suspensão encerrada',
             body: canPublish
               ? 'O período de suspensão terminou e sua conta voltou ao estado ativo.'
-              : 'O período de suspensão terminou. A conta foi reativada, mas algumas verificações ainda limitam visibilidade e interação.',
+              : [
+                'O período de suspensão terminou. A conta foi reativada,',
+                'mas algumas verificações ainda limitam visibilidade e interação.',
+              ].join(' '),
             route: '/conta/status',
             actionRequired: !canPublish,
             readAt: null,
