@@ -5,7 +5,6 @@ import { createReducer, on } from '@ngrx/store';
 import { getSocialSpaceDefinition } from 'src/app/core/domain/social-space.definition';
 
 import {
-  COMMUNITY_DISCOVERY_CACHE_MAX_ITEMS_PER_QUERY,
   COMMUNITY_DISCOVERY_CACHE_MAX_QUERIES,
   buildCommunityDiscoveryCacheKey,
 } from 'src/app/community/discovery/community-discovery-cache.model';
@@ -30,19 +29,6 @@ function mergeCards(
   for (const item of incoming) byId.set(item.communityId, item);
 
   return [...byId.values()];
-}
-
-function mergeExistingCardUpdates(
-  current: readonly CommunityPreviewCard[],
-  incoming: readonly CommunityPreviewCard[]
-): readonly CommunityPreviewCard[] {
-  const incomingById = new Map(
-    incoming.map((item) => [item.communityId, item] as const)
-  );
-
-  return current.map(
-    (item) => incomingById.get(item.communityId) ?? item
-  );
 }
 
 function limitCachedQueries(
@@ -98,29 +84,16 @@ export const communityDiscoveryCacheReducer = createReducer(
 
       const key = buildCommunityDiscoveryCacheKey(query);
       const current = state.byQuery[key];
-      const mergedItems = append && current
+      const items = append && current
         ? mergeCards(current.items, page.items)
         : [...page.items];
-      const exceededCacheBoundary =
-        append
-        && !!current
-        && mergedItems.length > COMMUNITY_DISCOVERY_CACHE_MAX_ITEMS_PER_QUERY;
-      const items = exceededCacheBoundary && current
-        ? mergeExistingCardUpdates(current.items, page.items)
-        : mergedItems;
-      const nextCursor = exceededCacheBoundary && current
-        ? current.nextCursor
-        : page.nextCursor;
-      const lastLoadedAt = exceededCacheBoundary && current
-        ? current.lastLoadedAt
-        : Math.max(0, Math.trunc(storedAt));
       const nextByQuery = {
         ...state.byQuery,
         [key]: {
           query,
           items,
-          nextCursor,
-          lastLoadedAt,
+          nextCursor: page.nextCursor,
+          lastLoadedAt: Math.max(0, Math.trunc(storedAt)),
         },
       };
 
