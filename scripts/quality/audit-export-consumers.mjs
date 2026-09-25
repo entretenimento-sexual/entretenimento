@@ -42,8 +42,9 @@ function hasExportModifier(node) {
   ) === true;
 }
 
-function declarationNames(sourceFile) {
-  const names = [];
+function exportedDeclarations(sourceFile) {
+  const declarations = [];
+
   for (const statement of sourceFile.statements) {
     if (!hasExportModifier(statement)) continue;
 
@@ -57,22 +58,47 @@ function declarationNames(sourceFile) {
       )
       && statement.name
     ) {
-      names.push(statement.name.text);
+      declarations.push({
+        name: statement.name.text,
+        kind: ts.SyntaxKind[statement.kind],
+      });
       continue;
     }
 
     if (ts.isVariableStatement(statement)) {
       for (const declaration of statement.declarationList.declarations) {
-        if (ts.isIdentifier(declaration.name)) names.push(declaration.name.text);
+        if (!ts.isIdentifier(declaration.name)) continue;
+        declarations.push({
+          name: declaration.name.text,
+          kind: 'VariableDeclaration',
+        });
       }
     }
   }
-  return [...new Set(names)];
+
+  return declarations.filter(
+    (item, index, items) =>
+      items.findIndex(
+        (candidate) =>
+          candidate.name === item.name && candidate.kind === item.kind
+      ) === index
+  );
 }
 
-function wordPattern(name) {
-  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`\\b${escaped}\\b`);
+function escapedName(name) {
+  return name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function hasWord(source, name) {
+  return new RegExp(`\\b${escapedName(name)}\\b`).test(source);
+}
+
+function countWords(source, name) {
+  return [
+    ...source.matchAll(
+      new RegExp(`\\b${escapedName(name)}\\b`, 'g')
+    ),
+  ].length;
 }
 
 const allTs = walk(appRoot).filter(
@@ -89,8 +115,9 @@ const testTexts = testFiles.map((filePath) => ({
   source: fs.readFileSync(filePath, 'utf8'),
 }));
 
-const unconsumed = [];
-const testOnly = [];
+const deadDeclarations = [];
+const localOnlyExports = [];
+const testOnlyExports = [];
 
 for (const filePath of productionFiles) {
   const source = fs.readFileSync(filePath, 'utf8');
@@ -102,32 +129,44 @@ for (const filePath of productionFiles) {
     ts.ScriptKind.TS
   );
 
-  for (const name of declarationNames(sourceFile)) {
-    const pattern = wordPattern(name);
+  for (const declaration of exportedDeclarations(sourceFile)) {
+    const { name, kind } = declaration;
     const productionConsumers = productionTexts
       .filter(
-        (item) => item.filePath !== filePath && pattern.test(item.source)
+        (item) =>
+          item.filePath !== filePath && hasWord(item.source, name)
       )
       .map((item) => relative(item.filePath));
     const testConsumers = testTexts
-      .filter((item) => pattern.test(item.source))
+      .filter((item) => hasWord(item.source, name))
       .map((item) => relative(item.filePath));
 
-    if (productionConsumers.length === 0 && testConsumers.length === 0) {
-      unconsumed.push(`${relative(filePath)} :: ${name}`);
-    } else if (
-      productionConsumers.length === 0
-      && testConsumers.length > 0
-    ) {
-      testOnly.push(
-        `${relative(filePath)} :: ${name} <- ${testConsumers.join(', ')}`
+    if (productionConsumers.length > 0) continue;
+
+    if (testConsumers.length > 0) {
+      testOnlyExports.push(
+        `${relative(filePath)} :: ${kind} ${name} <- ${testConsumers.join(', ')}`
+      );
+      continue;
+    }
+
+    const localOccurrences = countWords(source, name);
+
+    if (localOccurrences <= 1) {
+      deadDeclarations.push(
+        `${relative(filePath)} :: ${kind} ${name}`
+      );
+    } else {
+      localOnlyExports.push(
+        `${relative(filePath)} :: ${kind} ${name}`
       );
     }
   }
 }
 
-unconsumed.sort();
-testOnly.sort();
+deadDeclarations.sort();
+localOnlyExports.sort();
+testOnlyExports.sort();
 
 function printGroup(label, items) {
   if (items.length === 0) {
@@ -140,17 +179,21 @@ function printGroup(label, items) {
 }
 
 printGroup(
-  'Exports Angular sem consumidor externo identificado',
-  unconsumed
+  'Declarações exportadas sem consumidor e sem uso local identificado',
+  deadDeclarations
 );
 printGroup(
-  'Exports Angular consumidos apenas por testes',
-  testOnly
+  'Exports usados somente dentro do próprio arquivo',
+  localOnlyExports
+);
+printGroup(
+  'Exports consumidos apenas por testes',
+  testOnlyExports
 );
 
-if (strict && unconsumed.length > 0) {
+if (strict && deadDeclarations.length > 0) {
   console.error(
-    '[export-consumers] Falha: remova o export desnecessário ou documente uma entrada externa real antes de criar exceção.'
+    '[export-consumers] Falha: remova a declaração morta ou comprove um consumidor externo real antes de criar exceção.'
   );
   process.exit(1);
 }
