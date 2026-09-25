@@ -679,6 +679,58 @@ const unreferencedFunctionsDependencies = functionsDependencies
   .filter((packageName) => !functionsDependencyReferenced(packageName))
   .sort();
 
+const functionsDevelopmentDependencies = Object.keys(
+  functionsPackage.devDependencies ?? {}
+);
+const functionsPackageScripts = Object.values(
+  functionsPackage.scripts ?? {}
+).join('\n');
+const functionsDevelopmentDependencyExecutables = new Map([
+  ['eslint', ['eslint']],
+  ['typescript', ['tsc']],
+]);
+
+function functionsDevelopmentDependencyReferenced(packageName) {
+  if (functionsDependencyReferenced(packageName)) return true;
+
+  const executables =
+    functionsDevelopmentDependencyExecutables.get(packageName) ?? [];
+  if (
+    executables.some((executable) =>
+      new RegExp(`(?:^|[;&|\\s])${executable}(?:\\s|$)`).test(
+        functionsPackageScripts
+      )
+    )
+  ) {
+    return true;
+  }
+
+  return dependencyAuditTexts.some(({ filePath, source }) => {
+    const relative = posix(filePath);
+    if (
+      !relative.startsWith('functions/')
+      && relative !== 'firebase.json'
+      && !relative.startsWith('scripts/')
+    ) {
+      return false;
+    }
+
+    return [
+      `'${packageName}'`,
+      `"${packageName}"`,
+      `'${packageName}/`,
+      `"${packageName}/`,
+    ].some((pattern) => source.includes(pattern));
+  });
+}
+
+const unreferencedFunctionsDevelopmentDependencies =
+  functionsDevelopmentDependencies
+    .filter(
+      (packageName) => !functionsDevelopmentDependencyReferenced(packageName)
+    )
+    .sort();
+
 // -----------------------------------------------------------------------------
 // FIRESTORE RULES: fragments que não entram no manifesto canônico
 // -----------------------------------------------------------------------------
@@ -773,6 +825,7 @@ printGroup('Referências a assets locais inexistentes', missingStaticAssets);
 printGroup('Dependências de produção sem referência identificável', unreferencedProductionDependencies);
 printGroup('DevDependencies sem referência identificável (revisão humana)', unreferencedDevelopmentDependencies);
 printGroup('Dependências de Functions sem referência identificável', unreferencedFunctionsDependencies);
+printGroup('DevDependencies de Functions sem referência identificável (revisão humana)', unreferencedFunctionsDevelopmentDependencies);
 printGroup('Fragments de Firestore Rules fora do manifesto', ruleFragmentsOutsideManifest);
 printGroup('Scripts sem referência identificável', unreferencedScripts);
 printGroup('Arquivos vazios rastreados', emptyTrackedFiles);
