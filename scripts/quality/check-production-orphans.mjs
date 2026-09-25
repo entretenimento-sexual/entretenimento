@@ -246,6 +246,86 @@ const meaningfulAssetOrphans = assetOrphans.filter(
 
 
 // -----------------------------------------------------------------------------
+// TEST SUPPORT: helpers/stubs sem consumidor nos specs ativos
+// -----------------------------------------------------------------------------
+
+const testRoot = path.join(root, 'src', 'test');
+const allSourceTs = walk(path.join(root, 'src')).filter(
+  (filePath) => filePath.endsWith('.ts') && !filePath.endsWith('.d.ts')
+);
+const specRoots = allSourceTs.filter((filePath) =>
+  /\.(?:spec|test)\.ts$/i.test(filePath)
+);
+const configuredTestSetup = path.join(testRoot, 'setup-vitest.ts');
+
+const specConfigPath = path.join(root, 'tsconfig.spec.json');
+const specRawConfig = ts.readConfigFile(specConfigPath, ts.sys.readFile);
+if (specRawConfig.error) {
+  throw new Error(
+    ts.flattenDiagnosticMessageText(specRawConfig.error.messageText, '\n')
+  );
+}
+const specParsedConfig = ts.parseJsonConfigFileContent(
+  specRawConfig.config,
+  ts.sys,
+  root,
+  undefined,
+  specConfigPath
+);
+
+const reachableTestSupport = new Set();
+const testQueue = [...specRoots, configuredTestSetup]
+  .map((filePath) => path.normalize(filePath))
+  .filter((filePath) => fs.existsSync(filePath));
+
+while (testQueue.length > 0) {
+  const filePath = path.normalize(testQueue.shift());
+  if (!filePath || reachableTestSupport.has(filePath)) continue;
+
+  reachableTestSupport.add(filePath);
+  const sourceText = fs.readFileSync(filePath, 'utf8');
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    sourceText,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS
+  );
+
+  for (const specifier of moduleSpecifiers(sourceFile)) {
+    const resolved = ts.resolveModuleName(
+      specifier,
+      filePath,
+      specParsedConfig.options,
+      ts.sys
+    ).resolvedModule?.resolvedFileName;
+    if (!resolved) continue;
+
+    const normalized = path.normalize(resolved);
+    if (
+      normalized.startsWith(testRoot + path.sep)
+      && normalized.endsWith('.ts')
+      && !normalized.endsWith('.d.ts')
+      && !reachableTestSupport.has(normalized)
+    ) {
+      testQueue.push(normalized);
+    }
+  }
+}
+
+const testSupportOrphans = walk(testRoot)
+  .filter(
+    (filePath) =>
+      filePath.endsWith('.ts')
+      && !filePath.endsWith('.d.ts')
+      && !/\.(?:spec|test)\.ts$/i.test(filePath)
+      && path.normalize(filePath) !== path.normalize(configuredTestSetup)
+      && !reachableTestSupport.has(path.normalize(filePath))
+  )
+  .map(posix)
+  .sort();
+
+// -----------------------------------------------------------------------------
 // FUNCTIONS: arquivos produtivos que não chegam ao export raiz
 // -----------------------------------------------------------------------------
 
@@ -609,6 +689,7 @@ function printGroup(label, items) {
 
 printGroup('TypeScript fora do grafo carregável', meaningfulTsOrphans);
 printGroup('HTML/CSS sem referência declarada', meaningfulAssetOrphans);
+printGroup('Helpers/stubs de teste sem consumidor', testSupportOrphans);
 printGroup('Functions fora do grafo exportável', functionOrphans);
 printGroup('Assets estáticos sem referência textual', unreferencedStaticAssets);
 printGroup('Referências a assets locais inexistentes', missingStaticAssets);
@@ -623,6 +704,7 @@ if (
   && (
     meaningfulTsOrphans.length > 0
     || meaningfulAssetOrphans.length > 0
+    || testSupportOrphans.length > 0
     || functionOrphans.length > 0
     || missingStaticAssets.length > 0
     || unreferencedProductionDependencies.length > 0
