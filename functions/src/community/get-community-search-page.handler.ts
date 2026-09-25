@@ -86,7 +86,7 @@ interface MemberCursor {
 }
 
 const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
-const CURSOR_PATTERN = /^[A-Za-z0-9_-]{1,512}$/;
+const CURSOR_PATTERN = /^[A-Za-z0-9:_-]{1,512}$/;
 const SEARCH_KEY_PATTERN = /^[a-f0-9]{64}$/;
 const DEFAULT_PAGE_LIMIT = 12;
 const MAX_PAGE_LIMIT = 20;
