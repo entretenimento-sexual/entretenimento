@@ -49,6 +49,8 @@ const COMMUNITY_DISCOVERY_SPONSORED_FACADE = path.normalize(
 const COMMUNITY_FEED_REALTIME_COLLECTION = 'community_feed_realtime';
 const COMMUNITY_MEMBER_MANAGEMENT_INDEX_COLLECTION =
   'community_member_management_index';
+const COMMUNITY_MEMBER_SEARCH_INDEX_COLLECTION =
+  'community_member_search_index';
 const COMMUNITY_FEED_REALTIME_OWNER = path.normalize(
   'src/app/community/data-access/community-feed.repository.ts'
 );
@@ -368,6 +370,18 @@ function validateCommunityNotificationClientBoundary(architectureViolations) {
       architectureViolations.push(
         `${relativePath}:${position.line}:${position.column} `
           + `(${COMMUNITY_MEMBER_MANAGEMENT_INDEX_COLLECTION} é backend-only)`
+      );
+    }
+
+    const memberSearchIndexCollectionIndex = source.indexOf(
+      COMMUNITY_MEMBER_SEARCH_INDEX_COLLECTION
+    );
+
+    if (memberSearchIndexCollectionIndex >= 0) {
+      const position = lineAndColumn(source, memberSearchIndexCollectionIndex);
+      architectureViolations.push(
+        `${relativePath}:${position.line}:${position.column} `
+          + `(${COMMUNITY_MEMBER_SEARCH_INDEX_COLLECTION} é backend-only)`
       );
     }
 
