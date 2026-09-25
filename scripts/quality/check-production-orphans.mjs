@@ -587,6 +587,53 @@ const unreferencedProductionDependencies = productionDependencies
   )
   .sort();
 
+const developmentDependencies = Object.keys(rootPackage.devDependencies ?? {});
+
+function requiredPeerOfReferencedDirectDependency(packageName) {
+  return [...productionDependencies, ...developmentDependencies].some(
+    (directDependency) => {
+      if (
+        directDependency === packageName
+        || !dependencyReferenced(directDependency)
+      ) {
+        return false;
+      }
+
+      const entry = rootLock.packages?.[`node_modules/${directDependency}`];
+      const peerRange = entry?.peerDependencies?.[packageName];
+      if (!peerRange) return false;
+
+      return entry?.peerDependenciesMeta?.[packageName]?.optional !== true;
+    }
+  );
+}
+
+// Binários invocados pelos scripts do package.json não aparecem como imports.
+// O mapa fica explícito para não transformar qualquer devDependency em exceção.
+const developmentDependencyExecutables = new Map([
+  ['@angular/cli', ['ng']],
+  ['eslint', ['eslint']],
+  ['firebase-tools', ['firebase']],
+  ['typescript', ['tsc']],
+]);
+
+const packageScripts = Object.values(rootPackage.scripts ?? {}).join('\n');
+
+function developmentDependencyExecutableReferenced(packageName) {
+  return (developmentDependencyExecutables.get(packageName) ?? []).some(
+    (executable) =>
+      new RegExp(`(?:^|[;&|\\s])${executable}(?:\\s|$)`).test(packageScripts)
+  );
+}
+
+const unreferencedDevelopmentDependencies = developmentDependencies
+  .filter(
+    (packageName) =>
+      !dependencyReferenced(packageName)
+      && !requiredPeerOfReferencedDirectDependency(packageName)
+      && !developmentDependencyExecutableReferenced(packageName)
+  )
+  .sort();
 
 const functionsPackage = readJson(path.join(root, 'functions', 'package.json'));
 const functionsDependencies = Object.keys(functionsPackage.dependencies ?? {});
@@ -702,6 +749,7 @@ printGroup('Functions fora do grafo exportável', functionOrphans);
 printGroup('Assets estáticos sem referência textual', unreferencedStaticAssets);
 printGroup('Referências a assets locais inexistentes', missingStaticAssets);
 printGroup('Dependências de produção sem referência identificável', unreferencedProductionDependencies);
+printGroup('DevDependencies sem referência identificável (revisão humana)', unreferencedDevelopmentDependencies);
 printGroup('Dependências de Functions sem referência identificável', unreferencedFunctionsDependencies);
 printGroup('Fragments de Firestore Rules fora do manifesto', ruleFragmentsOutsideManifest);
 printGroup('Scripts sem referência identificável', unreferencedScripts);
