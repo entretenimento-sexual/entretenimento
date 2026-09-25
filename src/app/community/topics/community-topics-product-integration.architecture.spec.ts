@@ -69,7 +69,7 @@ describe('Community Discussions product integration', () => {
       /spaceCapabilities\(preview\.community\)\.topics[\s\S]{0,700}?community-tab-topics/
     );
     expect(previewTemplate).toMatch(
-      /activeSection\(\) === 'topics'[\s\S]{0,350}?spaceCapabilities\(preview\.community\)\.topics/
+      /@if \(spaceCapabilities\(preview\.community\)\.topics\) \{[\s\S]{0,500}?id="community-panel-topics"[\s\S]{0,300}?\[hidden\]="activeSection\(\) !== 'topics'"[\s\S]{0,300}?@if \(activeSection\(\) === 'topics'\) \{[\s\S]{0,220}?<app-community-topics/
     );
   });
 
