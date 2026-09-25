@@ -35,6 +35,7 @@ const guardedFiles = [
   'src/app/store/store.module.ts',
   'src/app/layout/layout-shell/layout-shell.component.html',
   'src/app/header/header.module.ts',
+  'src/app/store/reducers/meta-reducers/reset-store-on-auth-change.metareducer.spec.ts',
 ];
 
 const forbiddenPatterns = [
