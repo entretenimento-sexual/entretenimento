@@ -31,7 +31,7 @@ import {
 } from 'rxjs';
 
 import { FirestoreRepoBase } from './base.repo';
-import { Friend, FriendDocWrite } from '../../../../interfaces/friendship/friend.interface';
+import { FriendDocWrite } from '../../../../interfaces/friendship/friend.interface';
 import { FriendRequest } from '../../../../interfaces/friendship/friend-request.interface';
 import { CooldownRepo } from './cooldown.repo';
 
