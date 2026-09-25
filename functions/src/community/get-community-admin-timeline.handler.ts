@@ -23,6 +23,7 @@ import type {
   CommunityAdminTimelineEventType,
 } from './community-admin-timeline.projection';
 import { normalizeCommunityId } from './community-preview.model';
+import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import { getCommunityViewerContext } from './community-viewer-access.service';
 
 interface CommunityAdminTimelineRequest {
@@ -83,6 +84,16 @@ const CATEGORIES = new Set<CommunityAdminTimelineCategory>([
   'official',
   'lifecycle',
 ]);
+
+function assertRuntime(): void {
+  if (isCommunityPreviewRuntimeAvailable()) return;
+
+  throw new HttpsError(
+    'failed-precondition',
+    'O histórico administrativo não está disponível neste ambiente.',
+    { reason: 'community_runtime_unavailable' }
+  );
+}
 
 function authenticatedUid(
   auth: { uid?: string; token?: Record<string, unknown> } | undefined
@@ -227,6 +238,7 @@ export const getCommunityAdminTimeline = onCall<CommunityAdminTimelineRequest>(
   },
   async (request): Promise<CommunityAdminTimelineResponse> => {
     assertCommunityCallableAppCheck(request.app);
+    assertRuntime();
 
     const actorUid = authenticatedUid(request.auth);
     const communityId = normalizeCommunityId(request.data?.communityId);

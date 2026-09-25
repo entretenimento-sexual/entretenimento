@@ -29,6 +29,9 @@ import {
   CommunityAdminTimelineRole,
 } from '../data-access/community-admin-timeline.model';
 import { CommunityAdminTimelineRepository } from '../data-access/community-admin-timeline.repository';
+import {
+  COMMUNITY_ADMIN_TIMELINE_REASON_MESSAGES,
+} from '../presentation/community-error.messages';
 
 type TimelineState =
   | {
@@ -302,6 +305,7 @@ export class CommunityAdminTimelineComponent {
       operation,
       fallbackMessage: 'Não foi possível carregar o histórico administrativo.',
       notification: 'none',
+      reasonMessages: COMMUNITY_ADMIN_TIMELINE_REASON_MESSAGES,
       metadata: {
         scope: 'CommunityAdminTimelineComponent',
         communityId: this.communityId().trim(),

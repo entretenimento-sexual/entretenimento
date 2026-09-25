@@ -59,6 +59,7 @@ const COMMUNITY_CALLABLE_RECENT_AUTH_REQUIREMENTS =
     ['create-community.handler.ts:createCommunity', 'none'],
     ['create-official-community.handler.ts:createOfficialCommunity', 'always'],
     ['create-venue-community.handler.ts:createVenueCommunity', 'always'],
+    ['get-community-admin-timeline.handler.ts:getCommunityAdminTimeline', 'none'],
     ['get-community-creation-capability.handler.ts:getCommunityCreationCapability', 'none'],
     ['get-community-discovery-page.handler.ts:getCommunityDiscoveryPage', 'none'],
     ['get-community-explore-content.handler.ts:getCommunityExploreContent', 'none'],
