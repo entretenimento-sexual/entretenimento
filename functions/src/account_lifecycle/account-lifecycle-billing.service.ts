@@ -80,8 +80,31 @@ export async function getAccountLifecycleSubscriptionRenewalStatus(
     const state = stateSnapshot.exists ? stateSnapshot.data() ?? {} : null;
 
     if (user?.billingCancellationPending === true) return 'pending';
-    if (!state?.['currentContractId']) return 'none';
-    return state['renewalEnabled'] === true ? 'active' : 'canceled';
+
+    const currentContractId = String(
+      state?.['currentContractId'] ?? ''
+    ).trim();
+
+    if (!currentContractId) return 'none';
+
+    const contractSnapshot = await db
+      .collection('subscriptions')
+      .doc(currentContractId)
+      .get();
+    const contract = contractSnapshot.exists
+      ? contractSnapshot.data() ?? {}
+      : null;
+
+    if (!contract) return 'pending';
+
+    if (
+      contract['needsProviderCancellation'] === true
+      || typeof contract['providerCancellationNextAttemptAt'] === 'number'
+    ) {
+      return 'pending';
+    }
+
+    return state?.['renewalEnabled'] === true ? 'active' : 'canceled';
   } catch {
     // A conta já pode ter sido reativada/restaurada. Uma falha de leitura
     // financeira posterior não transforma essa mutação em falso erro.
