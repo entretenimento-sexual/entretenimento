@@ -25,6 +25,7 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import { resolveBlockedTargetUids } from '../friendship/application/bilateral-block-access.policy';
 import { normalizePublicProfileId } from '../identity/public-profile-id';
+import { isCurrentCommunityMemberPublicProfile } from './community-member-public-profile.policy';
 import {
   assertCommunityCallableAppCheck,
   REQUIRE_COMMUNITY_APP_CHECK,
@@ -129,44 +130,6 @@ function normalizePageLimit(value: unknown): number {
     : DEFAULT_PAGE_LIMIT;
 }
 
-
-function timestampToMillis(value: unknown): number | null {
-  if (
-    value &&
-    typeof value === 'object' &&
-    typeof (value as { toMillis?: unknown }).toMillis === 'function'
-  ) {
-    try {
-      const millis = (value as { toMillis: () => number }).toMillis();
-      return Number.isFinite(millis) ? millis : null;
-    } catch {
-      return null;
-    }
-  }
-
-  if (value instanceof Date) {
-    const millis = value.getTime();
-    return Number.isFinite(millis) ? millis : null;
-  }
-
-  const numeric = Number(value);
-  return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
-}
-
-export function isCurrentCommunityMemberPublicProfile(
-  profile: Record<string, unknown> | null | undefined,
-  nowMs: number
-): boolean {
-  if (!profile || profile['ageEligibilityVerifiedAdult'] !== true) {
-    return false;
-  }
-
-  const validUntilMs = timestampToMillis(
-    profile['ageEligibilityValidUntil']
-  );
-
-  return validUntilMs !== null && validUntilMs > nowMs;
-}
 
 async function resolveCursorMemberId(
   communityId: string,
