@@ -39,6 +39,24 @@ export interface CommunityDiscoveryCacheQuery
 }
 
 export const COMMUNITY_DISCOVERY_CACHE_TTL_MS = 30_000;
+
+/**
+ * A UI mantém no máximo seis páginas de cards montadas simultaneamente.
+ * O estado vivo da sessão pode continuar conhecendo páginas anteriores para
+ * permitir navegação local, busca/filtros e restauração sem nova chamada.
+ */
+export const COMMUNITY_DISCOVERY_RENDER_WINDOW_PAGES = 6;
+export const COMMUNITY_DISCOVERY_RENDER_WINDOW_MAX_ITEMS =
+  DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE * COMMUNITY_DISCOVERY_RENDER_WINDOW_PAGES;
+
+/**
+ * O cache de continuidade não precisa espelhar uma sessão de scroll profundo.
+ * Ele preserva somente páginas completas até o mesmo envelope da janela de DOM.
+ * Ao atingir o limite, o reducer mantém o cursor da última página integralmente
+ * cacheada para que uma sessão futura possa retomar sem criar lacunas.
+ */
+export const COMMUNITY_DISCOVERY_CACHE_MAX_ITEMS_PER_QUERY =
+  COMMUNITY_DISCOVERY_RENDER_WINDOW_MAX_ITEMS;
 /**
  * Limite por viewer ativo. Evita crescimento indefinido quando a pessoa alterna
  * entre muitos filtros/tags numa sessão longa, especialmente em mobile/PWA.
