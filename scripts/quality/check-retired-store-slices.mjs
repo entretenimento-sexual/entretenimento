@@ -25,6 +25,7 @@ const retiredPaths = [
   'src/app/store/states/states.chat/invite.state.ts',
   'src/app/store/reducers/reducers.chat/index.ts',
   'src/app/header/global-invite-badge',
+  'src/app/core/interfaces/interfaces-chat/invite.interface.ts',
 ];
 
 const guardedFiles = [
