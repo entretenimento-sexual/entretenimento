@@ -19,6 +19,7 @@ import {
 
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import {
+  CommunityFeedPage,
   CommunityFeedView,
   DEFAULT_COMMUNITY_FEED_PAGE_SIZE,
 } from '../data-access/community-feed.model';
@@ -51,6 +52,11 @@ export interface CommunityFeedTimelineConfig {
   readonly hooks: CommunityFeedTimelineHooks;
 }
 
+export interface CommunityFeedPageLoaded {
+  readonly request: CommunityFeedLoadRequest;
+  readonly page: CommunityFeedPage;
+}
+
 @Injectable()
 export class CommunityFeedTimelineFacade {
   private readonly repository = inject(CommunityFeedRepository);
@@ -61,6 +67,9 @@ export class CommunityFeedTimelineFacade {
   private readonly loadRequests$ = new Subject<CommunityFeedLoadRequest>();
   private readonly realtimeHydrationRequests$ = new Subject<string>();
   private readonly localFeedEvents$ = new Subject<CommunityFeedLoadEvent>();
+  private readonly pageLoadedSubject = new Subject<CommunityFeedPageLoaded>();
+
+  readonly pageLoaded$ = this.pageLoadedSubject.asObservable();
 
   connect(config: CommunityFeedTimelineConfig): Observable<CommunityFeedState> {
     return config.scope$.pipe(
@@ -80,6 +89,9 @@ export class CommunityFeedTimelineFacade {
                 cursor: request.cursor,
               })
               .pipe(
+                tap((page) =>
+                  this.pageLoadedSubject.next({ request, page })
+                ),
                 map(
                   (page): CommunityFeedLoadEvent => ({
                     type: 'success',
