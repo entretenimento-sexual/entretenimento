@@ -2,7 +2,6 @@
 import { ActionReducer } from '@ngrx/store';
 
 import { authSessionChanged } from '../../actions/actions.user/auth.actions';
-import { initialInviteState } from '../../states/states.chat/invite.state';
 import { initialDiscoveryFeedState } from '../../states/states.discovery/discovery-feed.state';
 import { initialCommunityDiscoveryCacheState } from '../../states/states.discovery/community-discovery-cache.state';
 import { initialFriendsPaginationState } from '../../states/states.interactions/friends-pagination.state';
@@ -10,7 +9,6 @@ import { initialState as initialFriendsState } from '../../states/states.interac
 import { initialLocationState } from '../../states/states.location/location.state';
 import { initialNearbyProfilesState } from '../../states/states.location/nearby-profiles.state';
 import { initialFileState } from '../../states/states.user/file.state';
-import { initialTermsState } from '../../states/states.user/terms.state';
 import { initialUserPreferencesState } from '../../states/states.user/user-preferences.state';
 import { initialUserState } from '../../states/states.user/user.state';
 import { AppState } from '../../states/app.state';
@@ -33,10 +31,8 @@ function buildState(uid: string): AppState {
       error: null,
     },
     [STORE_FEATURE.user]: { __previous: 'user' } as any,
-    [STORE_FEATURE.terms]: { __previous: 'terms' } as any,
     [STORE_FEATURE.file]: { __previous: 'file' } as any,
     [STORE_FEATURE.userPreferences]: { __previous: 'preferences' } as any,
-    [STORE_FEATURE.invite]: { __previous: 'invite' } as any,
     [STORE_FEATURE.location]: { __previous: 'location' } as any,
     [STORE_FEATURE.nearbyProfiles]: { __previous: 'nearby' } as any,
     [STORE_FEATURE.discoveryFeeds]: { __previous: 'discovery' } as any,
@@ -56,10 +52,8 @@ function expectUserScopedSlicesReset(
   viewerUid: string | null
 ): void {
   expect(next[STORE_FEATURE.user]).toEqual(initialUserState);
-  expect(next[STORE_FEATURE.terms]).toEqual(initialTermsState);
   expect(next[STORE_FEATURE.file]).toEqual(initialFileState);
   expect(next[STORE_FEATURE.userPreferences]).toEqual(initialUserPreferencesState);
-  expect(next[STORE_FEATURE.invite]).toEqual(initialInviteState);
   expect(next[STORE_FEATURE.location]).toEqual(initialLocationState);
   expect(next[STORE_FEATURE.nearbyProfiles]).toEqual(initialNearbyProfilesState);
   expect(next[STORE_FEATURE.discoveryFeeds]).toEqual(initialDiscoveryFeedState);
