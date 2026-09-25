@@ -1,6 +1,11 @@
 // functions/src/account_lifecycle/requestSelfSuspension.ts
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { db } from '../firebaseApp';
+import { ASAAS_API_KEY } from '../payments/config/asaas.config';
+import {
+  buildAccountLifecycleBillingCancellationPatch,
+  reconcileAccountLifecycleBillingCancellation,
+} from './account-lifecycle-billing.service';
 import {
   ACCOUNT_LIFECYCLE_REGION,
   UserDoc,
@@ -24,7 +29,7 @@ interface AccountLifecycleCommandResult {
 }
 
 export const requestSelfSuspension = onCall<RequestSelfSuspensionRequest>(
-  { region: ACCOUNT_LIFECYCLE_REGION },
+  { region: ACCOUNT_LIFECYCLE_REGION, secrets: [ASAAS_API_KEY] },
   async (request): Promise<AccountLifecycleCommandResult> => {
     const uid = request.auth?.uid ?? null;
 
@@ -76,6 +81,16 @@ export const requestSelfSuspension = onCall<RequestSelfSuspensionRequest>(
       }
 
       if (currentStatus === 'self_suspended') {
+        if (user.billingCancellationPending !== true) {
+          tx.set(
+            userRef,
+            buildAccountLifecycleBillingCancellationPatch({
+              reason: 'account-self-suspension',
+              now,
+            }),
+            { merge: true }
+          );
+        }
         return;
       }
 
@@ -111,6 +126,11 @@ export const requestSelfSuspension = onCall<RequestSelfSuspensionRequest>(
 
           statusUpdatedAt: now,
           statusUpdatedBy: 'self',
+
+          ...buildAccountLifecycleBillingCancellationPatch({
+            reason: 'account-self-suspension',
+            now,
+          }),
         },
         { merge: true }
       );
@@ -134,13 +154,23 @@ export const requestSelfSuspension = onCall<RequestSelfSuspensionRequest>(
       });
     });
 
+    const billing = await reconcileAccountLifecycleBillingCancellation({
+      uid,
+      fallbackReason: 'account-self-suspension',
+    });
+
     return {
       ok: true,
       accountStatus: 'self_suspended',
       publicVisibility: 'hidden',
       interactionBlocked: true,
       statusUpdatedAt: now,
-      message: 'Conta suspensa com sucesso.',
+      message:
+        billing.providerCancellationStatus === 'pending'
+          ? 'Conta suspensa. A interrupção da renovação automática ainda está sendo processada.'
+          : billing.recurringConfigured
+            ? 'Conta suspensa. A renovação automática foi interrompida sem retirar o período já pago.'
+            : 'Conta suspensa com sucesso.',
     };
   }
 );
