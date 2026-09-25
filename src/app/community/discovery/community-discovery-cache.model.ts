@@ -45,7 +45,7 @@ export const COMMUNITY_DISCOVERY_CACHE_TTL_MS = 30_000;
  * O estado vivo da sessão pode continuar conhecendo páginas anteriores para
  * permitir navegação local, busca/filtros e restauração sem nova chamada.
  */
-export const COMMUNITY_DISCOVERY_RENDER_WINDOW_PAGES = 6;
+const COMMUNITY_DISCOVERY_RENDER_WINDOW_PAGES = 6;
 export const COMMUNITY_DISCOVERY_RENDER_WINDOW_MAX_ITEMS =
   DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE * COMMUNITY_DISCOVERY_RENDER_WINDOW_PAGES;
 /**
