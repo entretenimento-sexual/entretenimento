@@ -7,9 +7,12 @@ import {
   normalizeCommunityRenderWindowStart,
 } from '../community-bounded-render-window.util';
 import {
-  COMMUNITY_FEED_RENDER_WINDOW_MAX_ITEMS,
   DEFAULT_COMMUNITY_FEED_PAGE_SIZE,
 } from '../data-access/community-feed.model';
+
+const COMMUNITY_FEED_RENDER_WINDOW_PAGES = 6;
+const COMMUNITY_FEED_RENDER_WINDOW_MAX_ITEMS =
+  DEFAULT_COMMUNITY_FEED_PAGE_SIZE * COMMUNITY_FEED_RENDER_WINDOW_PAGES;
 
 interface CommunityFeedWindowItem {
   readonly postId: string;
