@@ -1,160 +1,28 @@
 // src/app/core/services/interactions/friendship/repo/requests.repo.spec.ts
 import { EnvironmentInjector } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, take } from 'rxjs';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const firestoreTest = (() => {
-  type DocRef = { path: string };
-  type ColRef = { path: string };
-
-  const store = new Map<string, any>();
-
-  const materializeTs = (value: any): any => {
-    if (!value || typeof value !== 'object') return value;
-    if (Array.isArray(value)) return value.map((item) => materializeTs(item));
-
-    const out: any = {};
-    for (const key of Object.keys(value)) {
-      const item = value[key];
-      out[key] = item?.__isServerTs ? Date.now() : materializeTs(item);
-    }
-    return out;
-  };
-
-  return {
-    store,
-    materializeTs,
-    doc: (_db: unknown, path: string): DocRef => ({ path }),
-    collection: (_db: unknown, path: string): ColRef => ({ path }),
-  };
-})();
-
-class FakeCooldownRepo {
-  getCooldownRef() {
-    return { path: 'cooldown/noop' };
-  }
-}
-
-describe('RequestsRepo.acceptRequestBatch', () => {
+describe('RequestsRepo', () => {
   let RequestsRepoToken: any;
   let repo: any;
 
+  const callable = vi.fn();
+  const httpsCallable = vi.fn(() => callable);
   const db = {} as any;
+  const functions = {} as any;
   const env = {
     runInContext: <T>(fn: () => T) => fn(),
   } as unknown as EnvironmentInjector;
 
-  const requestId = 'req-1';
-  const requesterUid = 'alice';
-  const targetUid = 'bob';
-
   beforeAll(async () => {
     vi.resetModules();
+    vi.doMock('@angular/fire/functions', () => ({
+      Functions: class Functions {},
+      httpsCallable,
+    }));
     vi.doMock('@angular/fire/firestore', () => ({
-      Timestamp: class Timestamp {},
       Firestore: class Firestore {},
-      doc: firestoreTest.doc,
-      collection: firestoreTest.collection,
-      serverTimestamp: () => ({ __isServerTs: true }),
-      query: vi.fn(
-        (collectionRef: unknown, ...constraints: unknown[]) => ({
-          collectionRef,
-          constraints,
-        })
-      ),
-      where: vi.fn((field: string, op: string, value: unknown) => ({
-        field,
-        op,
-        value,
-      })),
-      getDocs: vi.fn(),
-      writeBatch: vi.fn(),
-      deleteDoc: vi.fn(),
-      addDoc: async (col: { path: string }, data: unknown) => {
-        const id = Math.random().toString(36).slice(2);
-        firestoreTest.store.set(
-          `${col.path}/${id}`,
-          firestoreTest.materializeTs(data)
-        );
-        return { id, path: `${col.path}/${id}` };
-      },
-      async getDoc(ref: { path: string }) {
-        const data = firestoreTest.store.get(ref.path);
-        return {
-          exists: () => firestoreTest.store.has(ref.path),
-          data: () => JSON.parse(JSON.stringify(data)),
-        };
-      },
-      async updateDoc(ref: { path: string }, patch: unknown) {
-        if (!firestoreTest.store.has(ref.path)) {
-          throw new Error(`update on missing doc ${ref.path}`);
-        }
-
-        const current = firestoreTest.store.get(ref.path);
-        firestoreTest.store.set(ref.path, {
-          ...current,
-          ...firestoreTest.materializeTs(patch),
-        });
-      },
-      async runTransaction(
-        _db: unknown,
-        updateFn: (tx: unknown) => Promise<void> | void
-      ) {
-        const pendingWrites: Array<{
-          op: 'set' | 'update';
-          ref: { path: string };
-          data: unknown;
-          merge?: boolean;
-        }> = [];
-
-        const tx = {
-          async get(ref: { path: string }) {
-            const data = firestoreTest.store.get(ref.path);
-            return {
-              exists: () => firestoreTest.store.has(ref.path),
-              data: () => JSON.parse(JSON.stringify(data)),
-            };
-          },
-          set(
-            ref: { path: string },
-            data: unknown,
-            opts?: { merge?: boolean }
-          ) {
-            pendingWrites.push({
-              op: 'set',
-              ref,
-              data,
-              merge: !!opts?.merge,
-            });
-          },
-          update(ref: { path: string }, data: unknown) {
-            pendingWrites.push({ op: 'update', ref, data });
-          },
-        };
-
-        await updateFn(tx);
-
-        for (const write of pendingWrites) {
-          if (write.op === 'set') {
-            const current = firestoreTest.store.get(write.ref.path) ?? {};
-            const data = firestoreTest.materializeTs(write.data);
-            firestoreTest.store.set(
-              write.ref.path,
-              write.merge ? { ...current, ...data } : data
-            );
-            continue;
-          }
-
-          if (!firestoreTest.store.has(write.ref.path)) {
-            throw new Error(`tx.update on missing doc ${write.ref.path}`);
-          }
-
-          const current = firestoreTest.store.get(write.ref.path);
-          firestoreTest.store.set(write.ref.path, {
-            ...current,
-            ...firestoreTest.materializeTs(write.data),
-          });
-        }
-      },
     }));
 
     const repoModule = await import('./requests.repo');
@@ -162,76 +30,85 @@ describe('RequestsRepo.acceptRequestBatch', () => {
   });
 
   afterAll(() => {
+    vi.doUnmock('@angular/fire/functions');
     vi.doUnmock('@angular/fire/firestore');
     vi.resetModules();
   });
 
   beforeEach(() => {
-    firestoreTest.store.clear();
-    repo = new RequestsRepoToken(db, env, new FakeCooldownRepo() as any);
+    vi.clearAllMocks();
+    repo = new RequestsRepoToken(db, env, functions);
   });
 
-  it('deve aceitar uma solicitação pendente e criar as duas arestas', async () => {
-    firestoreTest.store.set(`friendRequests/${requestId}`, {
-      requesterUid,
-      targetUid,
-      status: 'pending',
-      createdAt: Date.now(),
+  it('lista solicitações recebidas pela callable canônica', async () => {
+    callable.mockResolvedValue({
+      data: {
+        items: [{
+          id: 'req-in',
+          requesterUid: 'alice',
+          targetUid: 'bob',
+          status: 'pending',
+        }],
+        fetchedAt: 1,
+        scanned: 1,
+      },
     });
 
-    await firstValueFrom(
-      repo.acceptRequestBatch(requestId, requesterUid, targetUid)
-    );
+    const items = await firstValueFrom(repo.listInboundRequests('bob'));
 
-    const requesterSide = firestoreTest.store.get(
-      `users/${requesterUid}/friends/${targetUid}`
+    expect(httpsCallable).toHaveBeenCalledWith(
+      functions,
+      'getPendingFriendRequests'
     );
-    const targetSide = firestoreTest.store.get(
-      `users/${targetUid}/friends/${requesterUid}`
-    );
-    const request = firestoreTest.store.get(`friendRequests/${requestId}`);
-
-    expect(requesterSide.friendUid).toBe(targetUid);
-    expect(targetSide.friendUid).toBe(requesterUid);
-    expect(request.status).toBe('accepted');
-    expect(request.acceptedAt).toBeDefined();
-    expect(request.respondedAt).toBeDefined();
-    expect(request.updatedAt).toBeDefined();
+    expect(callable).toHaveBeenCalledWith({
+      direction: 'inbound',
+      limit: 60,
+    });
+    expect(items).toEqual([
+      expect.objectContaining({ id: 'req-in', status: 'pending' }),
+    ]);
   });
 
-  it('deve falhar se a solicitação não estiver pendente', async () => {
-    firestoreTest.store.set(`friendRequests/${requestId}`, {
-      requesterUid,
-      targetUid,
-      status: 'accepted',
-      createdAt: Date.now(),
+  it('lista solicitações enviadas pela mesma fronteira backend-only', async () => {
+    callable.mockResolvedValue({
+      data: {
+        items: [{
+          id: 'req-out',
+          requesterUid: 'alice',
+          targetUid: 'bob',
+          status: 'pending',
+        }],
+        fetchedAt: 1,
+        scanned: 1,
+      },
     });
 
-    await expect(
-      firstValueFrom(
-        repo.acceptRequestBatch(requestId, requesterUid, targetUid)
-      )
-    ).rejects.toThrow('Solicitação não está pendente.');
+    const items = await firstValueFrom(repo.listOutboundRequests('alice'));
+
+    expect(callable).toHaveBeenCalledWith({
+      direction: 'outbound',
+      limit: 60,
+    });
+    expect(items).toHaveLength(1);
   });
 
-  it('deve falhar se os usuários já forem amigos', async () => {
-    firestoreTest.store.set(`friendRequests/${requestId}`, {
-      requesterUid,
-      targetUid,
-      status: 'pending',
-      createdAt: Date.now(),
+  it('watch inbound reutiliza a leitura backend-only sem write Firestore', async () => {
+    callable.mockResolvedValue({
+      data: {
+        items: [],
+        fetchedAt: 1,
+        scanned: 0,
+      },
     });
 
-    firestoreTest.store.set(`users/${requesterUid}/friends/${targetUid}`, {
-      friendUid: targetUid,
-      since: Date.now(),
-      lastInteractionAt: Date.now(),
-    });
+    const items = await firstValueFrom(
+      repo.watchInboundRequests('bob').pipe(take(1))
+    );
 
-    await expect(
-      firstValueFrom(
-        repo.acceptRequestBatch(requestId, requesterUid, targetUid)
-      )
-    ).rejects.toThrow('Vocês já são amigos.');
+    expect(items).toEqual([]);
+    expect(callable).toHaveBeenCalledWith({
+      direction: 'inbound',
+      limit: 60,
+    });
   });
 });
