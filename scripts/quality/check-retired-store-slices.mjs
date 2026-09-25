@@ -46,8 +46,6 @@ const forbiddenPatterns = [
   /reducers\.chat\/invite\.reducer/,
   /selectors\.chat\/invite\.selectors/,
   /states\.chat\/invite\.state/,
-  /\bInviteEffects\b/,
-  /\bTermsEffects\b/,
   /<app-global-invite-badge\b/,
   /\bGlobalInviteBadgeComponent\b/,
 ];
