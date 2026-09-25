@@ -624,11 +624,16 @@ if (
     meaningfulTsOrphans.length > 0
     || meaningfulAssetOrphans.length > 0
     || functionOrphans.length > 0
+    || missingStaticAssets.length > 0
+    || unreferencedProductionDependencies.length > 0
+    || unreferencedFunctionsDependencies.length > 0
     || ruleFragmentsOutsideManifest.length > 0
+    || unreferencedScripts.length > 0
+    || emptyTrackedFiles.length > 0
   )
 ) {
   console.error(
-    '[production-orphans] Falha: remova o código órfão ou torne sua entrada explícita.'
+    '[production-orphans] Falha: remova o artefato órfão ou torne sua entrada/necessidade explícita.'
   );
   process.exit(1);
 }
