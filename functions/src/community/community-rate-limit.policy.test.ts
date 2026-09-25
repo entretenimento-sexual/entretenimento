@@ -22,6 +22,7 @@ const ACTION_COVERAGE = {
   membership_leave: true,
   membership_review: true,
   member_management: true,
+  member_search: true,
   highlight_management: true,
   settings_update: true,
   notification_preference_update: true,
@@ -144,6 +145,7 @@ test('gestão permite operação legítima em lote sem deixar a ação ilimitada
   const review = getCommunityRateLimitPolicy('membership_review');
   const highlight = getCommunityRateLimitPolicy('highlight_management');
   const moderation = getCommunityRateLimitPolicy('content_moderation');
+  const search = getCommunityRateLimitPolicy('member_search');
 
   assert.equal(management.backendAction, 'manageCommunityMember');
   assert.equal(management.config.burstMax, 20);
@@ -155,6 +157,10 @@ test('gestão permite operação legítima em lote sem deixar a ação ilimitada
   assert.equal(highlight.reason, 'community_management_rate_limited');
   assert.equal(moderation.backendAction, 'communityContentModeration');
   assert.equal(moderation.config.sustainedMax, 180);
+  assert.equal(search.backendAction, 'searchCommunityMembersPage');
+  assert.equal(search.config.burstMax, 45);
+  assert.equal(search.config.sustainedMax, 240);
+  assert.equal(search.reason, 'community_search_rate_limited');
 });
 
 test('ações sensíveis de configuração, propriedade e ranking permanecem restritas', () => {
