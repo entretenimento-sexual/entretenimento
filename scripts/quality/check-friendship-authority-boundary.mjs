@@ -1,6 +1,7 @@
 // scripts/quality/check-friendship-authority-boundary.mjs
 import fs from 'node:fs';
 import path from 'node:path';
+import ts from 'typescript';
 
 const ROOT = process.cwd();
 const DOMAIN = path.join(
@@ -15,27 +16,48 @@ function walk(dir) {
   });
 }
 
-const forbiddenWrites = [
+const forbiddenWrites = new Set([
   'addDoc',
   'setDoc',
   'updateDoc',
   'deleteDoc',
   'writeBatch',
   'runTransaction',
-];
+]);
 
 const violations = [];
 
 for (const file of walk(DOMAIN)) {
   if (!file.endsWith('.ts') || file.endsWith('.spec.ts')) continue;
-  const source = fs.readFileSync(file, 'utf8');
 
-  for (const symbol of forbiddenWrites) {
-    const pattern = new RegExp(`\\b${symbol}\\b`);
-    if (pattern.test(source)) {
-      violations.push(
-        `${path.relative(ROOT, file).split(path.sep).join('/')}: ${symbol}`
-      );
+  const sourceText = fs.readFileSync(file, 'utf8');
+  const sourceFile = ts.createSourceFile(
+    file,
+    sourceText,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS
+  );
+
+  for (const statement of sourceFile.statements) {
+    if (
+      !ts.isImportDeclaration(statement)
+      || !ts.isStringLiteralLike(statement.moduleSpecifier)
+      || statement.moduleSpecifier.text !== '@angular/fire/firestore'
+    ) {
+      continue;
+    }
+
+    const bindings = statement.importClause?.namedBindings;
+    if (!bindings || !ts.isNamedImports(bindings)) continue;
+
+    for (const element of bindings.elements) {
+      const importedName = element.propertyName?.text ?? element.name.text;
+      if (forbiddenWrites.has(importedName)) {
+        violations.push(
+          `${path.relative(ROOT, file).split(path.sep).join('/')}: ${importedName}`
+        );
+      }
     }
   }
 }
