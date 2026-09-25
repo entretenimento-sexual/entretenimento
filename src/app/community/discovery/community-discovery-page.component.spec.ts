@@ -155,7 +155,7 @@ describe('CommunityDiscoveryPageComponent / Locais', () => {
     ]);
   });
 
-  it('limita o DOM a 72 cards sem consultar backend ao navegar no cache já carregado', () => {
+  it('limita o DOM a 72 cards sem consultar backend ao navegar no cache já carregado', async () => {
     const cachedItems = Array.from({ length: 80 }, (_, index) => ({
       ...venueCard(),
       communityId: `community-local-${index + 1}`,
@@ -186,6 +186,12 @@ describe('CommunityDiscoveryPageComponent / Locais', () => {
 
     const fixture = TestBed.createComponent(CommunityDiscoveryPageComponent);
     fixture.detectChanges();
+    const state = await firstValueFrom(
+      fixture.componentInstance.viewState$.pipe(
+        filter((value) => value.status === 'ready'),
+        take(1)
+      )
+    );
 
     expect(
       fixture.nativeElement.querySelectorAll('.community-card-shell')
@@ -197,7 +203,7 @@ describe('CommunityDiscoveryPageComponent / Locais', () => {
     ).not.toBeNull();
     expect(getDiscoveryPage$).not.toHaveBeenCalled();
 
-    fixture.componentInstance.showNextLoadedResults(cachedItems);
+    fixture.componentInstance.showNextLoadedResults(state.items);
     fixture.detectChanges();
 
     expect(
