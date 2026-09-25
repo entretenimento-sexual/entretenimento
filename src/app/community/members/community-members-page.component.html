@@ -28,70 +28,173 @@
       }
     </header>
 
-    @if (state.status === 'loading') {
-      <section class="community-members__state" role="status" aria-live="polite">
-        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
-        <span>Carregando integrantes…</span>
-      </section>
-    } @else if (state.status === 'error') {
-      <section class="community-members__state" role="alert">
-        <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
-        <span>{{ state.errorMessage || 'Não foi possível carregar os integrantes.' }}</span>
-        <button type="button" (click)="retry()">Tentar novamente</button>
-      </section>
-    } @else {
-      @if (state.items.length > 0) {
-        <ul class="community-members__list" aria-label="Integrantes da Comunidade">
-          @for (member of state.items; track member.memberKey) {
-            <li class="community-members__item">
-              <a
-                class="community-members__profile"
-                [routerLink]="['/perfil', member.identity.profileId]"
-                [attr.aria-label]="'Ver perfil de ' + member.identity.nickname"
-              >
-                <app-public-user-identity
-                  [identity]="member.identity"
-                  density="comfortable"
-                  emphasis="strong"
-                  [contextText]="roleLabel(member.role)"
-                />
-              </a>
-            </li>
-          }
-        </ul>
-      } @else {
-        <section class="community-members__state" role="status">
-          <i class="fas fa-users" aria-hidden="true"></i>
-          <span>Nenhum integrante disponível para exibição nesta página.</span>
-        </section>
-      }
-
-      @if (state.loadMoreFailed) {
-        <p class="community-members__more-error" role="status">
-          {{ state.errorMessage }} A lista acima foi preservada.
-        </p>
-      }
-
-      @if (state.restartRequired) {
-        <div class="community-members__more">
-          <button type="button" (click)="retry()">Atualizar lista</button>
-        </div>
-      } @else if (state.nextCursor) {
-        <div class="community-members__more">
+    <section class="community-members__search" aria-label="Buscar integrantes">
+      <label for="community-member-search">Buscar integrantes</label>
+      <div class="community-members__search-field">
+        <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
+        <input
+          id="community-member-search"
+          type="search"
+          [formControl]="searchControl"
+          maxlength="40"
+          autocomplete="off"
+          placeholder="Digite pelo menos 2 caracteres"
+          aria-describedby="community-member-search-help"
+        />
+        @if (searchControl.value) {
           <button
             type="button"
-            [disabled]="state.loadingMore"
-            (click)="loadMore(state.nextCursor)"
+            class="community-members__search-clear"
+            aria-label="Limpar busca"
+            (click)="clearSearch()"
           >
-            @if (state.loadingMore) {
-              <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
-              <span>Carregando…</span>
-            } @else {
-              <i class="fas fa-chevron-down" aria-hidden="true"></i>
-              <span>Ver mais integrantes</span>
-            }
+            <i class="fas fa-xmark" aria-hidden="true"></i>
           </button>
-        </div>
+        }
+      </div>
+      <p id="community-member-search-help">
+        A busca usa somente o nome público exibido no perfil.
+      </p>
+    </section>
+
+    @if (searchState$ | async; as search) {
+      @if (search.active) {
+        @if (search.status === 'loading') {
+          <section class="community-members__state" role="status" aria-live="polite">
+            <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+            <span>Buscando integrantes…</span>
+          </section>
+        } @else if (search.status === 'error') {
+          <section class="community-members__state" role="alert">
+            <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+            <span>{{ search.errorMessage || 'Não foi possível buscar integrantes.' }}</span>
+            <button type="button" (click)="retrySearch()">Tentar novamente</button>
+          </section>
+        } @else {
+          @if (search.items.length > 0) {
+            <ul
+              class="community-members__list"
+              [attr.aria-label]="'Resultados da busca por ' + search.query"
+            >
+              @for (member of search.items; track member.memberKey) {
+                <li class="community-members__item">
+                  <a
+                    class="community-members__profile"
+                    [routerLink]="['/perfil', member.identity.profileId]"
+                    [attr.aria-label]="'Ver perfil de ' + member.identity.nickname"
+                  >
+                    <app-public-user-identity
+                      [identity]="member.identity"
+                      density="comfortable"
+                      emphasis="strong"
+                      [contextText]="roleLabel(member.role)"
+                    />
+                  </a>
+                </li>
+              }
+            </ul>
+          } @else {
+            <section class="community-members__state" role="status">
+              <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
+              <span>Nenhum integrante encontrado para esta busca.</span>
+            </section>
+          }
+
+          @if (search.loadMoreFailed) {
+            <p class="community-members__more-error" role="status">
+              {{ search.errorMessage }} Os resultados acima foram preservados.
+            </p>
+          }
+
+          @if (search.restartRequired) {
+            <div class="community-members__more">
+              <button type="button" (click)="retrySearch()">Atualizar resultados</button>
+            </div>
+          } @else if (search.nextCursor) {
+            <div class="community-members__more">
+              <button
+                type="button"
+                [disabled]="search.loadingMore"
+                (click)="loadMoreSearch(search.nextCursor)"
+              >
+                @if (search.loadingMore) {
+                  <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                  <span>Carregando…</span>
+                } @else {
+                  <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                  <span>Ver mais resultados</span>
+                }
+              </button>
+            </div>
+          }
+        }
+      } @else {
+        @if (state.status === 'loading') {
+          <section class="community-members__state" role="status" aria-live="polite">
+            <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+            <span>Carregando integrantes…</span>
+          </section>
+        } @else if (state.status === 'error') {
+          <section class="community-members__state" role="alert">
+            <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+            <span>{{ state.errorMessage || 'Não foi possível carregar os integrantes.' }}</span>
+            <button type="button" (click)="retry()">Tentar novamente</button>
+          </section>
+        } @else {
+          @if (state.items.length > 0) {
+            <ul class="community-members__list" aria-label="Integrantes da Comunidade">
+              @for (member of state.items; track member.memberKey) {
+                <li class="community-members__item">
+                  <a
+                    class="community-members__profile"
+                    [routerLink]="['/perfil', member.identity.profileId]"
+                    [attr.aria-label]="'Ver perfil de ' + member.identity.nickname"
+                  >
+                    <app-public-user-identity
+                      [identity]="member.identity"
+                      density="comfortable"
+                      emphasis="strong"
+                      [contextText]="roleLabel(member.role)"
+                    />
+                  </a>
+                </li>
+              }
+            </ul>
+          } @else {
+            <section class="community-members__state" role="status">
+              <i class="fas fa-users" aria-hidden="true"></i>
+              <span>Nenhum integrante disponível para exibição nesta página.</span>
+            </section>
+          }
+
+          @if (state.loadMoreFailed) {
+            <p class="community-members__more-error" role="status">
+              {{ state.errorMessage }} A lista acima foi preservada.
+            </p>
+          }
+
+          @if (state.restartRequired) {
+            <div class="community-members__more">
+              <button type="button" (click)="retry()">Atualizar lista</button>
+            </div>
+          } @else if (state.nextCursor) {
+            <div class="community-members__more">
+              <button
+                type="button"
+                [disabled]="state.loadingMore"
+                (click)="loadMore(state.nextCursor)"
+              >
+                @if (state.loadingMore) {
+                  <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                  <span>Carregando…</span>
+                } @else {
+                  <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                  <span>Ver mais integrantes</span>
+                }
+              </button>
+            </div>
+          }
+        }
       }
     }
 
