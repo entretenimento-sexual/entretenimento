@@ -16,7 +16,7 @@ export type CommunityFeedAudience = 'public_preview' | 'members_only';
 export type CommunityFeedLocationPrecision = 'approximate' | 'precise';
 
 export const DEFAULT_COMMUNITY_FEED_PAGE_SIZE = 10;
-export const COMMUNITY_FEED_RENDER_WINDOW_PAGES = 6;
+const COMMUNITY_FEED_RENDER_WINDOW_PAGES = 6;
 export const COMMUNITY_FEED_RENDER_WINDOW_MAX_ITEMS =
   DEFAULT_COMMUNITY_FEED_PAGE_SIZE * COMMUNITY_FEED_RENDER_WINDOW_PAGES;
 
