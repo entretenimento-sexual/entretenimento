@@ -6,6 +6,7 @@ import {
   buildCommunityMemberManagementSearchIdentity,
   buildCommunityMemberManagementSearchKey,
   buildCommunityMemberManagementSearchPrefixes,
+  buildCommunityMemberPublicSearchIdentity,
   communityMemberManagementSearchIdentityEquals,
   decodeCommunityMemberManagementCursor,
   encodeCommunityMemberManagementCursor,
@@ -100,6 +101,28 @@ describe('community member management index policy', () => {
     });
     assert.equal(projection?.searchKey, first);
     assert.equal(projection?.projectionVersion, 2);
+  });
+
+  it('separa identidade administrativa da identidade pública pesquisável', () => {
+    const projection = buildCommunityMemberManagementIndexProjection({
+      communityId: 'community-1',
+      memberId: 'member-1',
+      rawMembership: { status: 'active', role: 'member' },
+      rawUser: { nome: 'Nome Privado', nickname: '' },
+      rawPublicProfile: { nickname: 'Apelido Público' },
+    });
+
+    assert.ok(projection?.searchPrefixes.includes('nome'));
+    assert.ok(projection?.publicSearchPrefixes.includes('apelido'));
+    assert.equal(projection?.publicSearchPrefixes.includes('nome'), false);
+
+    assert.deepEqual(
+      buildCommunityMemberPublicSearchIdentity(null),
+      {
+        publicSearchSortLabel: '',
+        publicSearchPrefixes: [],
+      }
+    );
   });
 
   it('não projeta pendentes/left e nunca fabrica papel', () => {
