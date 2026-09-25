@@ -235,8 +235,27 @@
         <span>{{ emptyLabel() }}</span>
       </div>
     } @else {
+      @let renderWindow = feedRenderWindow(state.items);
+
+      @if (renderWindow.hasPrevious) {
+        <div
+          class="community-feed__more community-feed__more--window"
+          role="group"
+          aria-label="Navegar pelas publicações já carregadas"
+        >
+          <button
+            type="button"
+            aria-label="Ver publicações mais recentes já carregadas"
+            (click)="showNewerLoadedPosts(state.items)"
+          >
+            <i class="fas fa-chevron-up" aria-hidden="true"></i>
+            <span>Mais recentes</span>
+          </button>
+        </div>
+      }
+
       <ul class="community-feed__items" role="list">
-        @for (item of state.items; track item.postId) {
+        @for (item of renderWindow.items; track item.postId) {
           <li>
             <article
               #postElement
@@ -614,7 +633,22 @@
         }
       </ul>
 
-      @if (state.nextCursor) {
+      @if (renderWindow.hasNext) {
+        <div
+          class="community-feed__more community-feed__more--window"
+          role="group"
+          aria-label="Navegar pelas publicações já carregadas"
+        >
+          <button
+            type="button"
+            aria-label="Ver publicações anteriores já carregadas"
+            (click)="showOlderLoadedPosts(state.items)"
+          >
+            <i class="fas fa-chevron-down" aria-hidden="true"></i>
+            <span>Mais antigas</span>
+          </button>
+        </div>
+      } @else if (state.nextCursor) {
         <div class="community-feed__more">
           @if (state.loadMoreError) {
             <p
