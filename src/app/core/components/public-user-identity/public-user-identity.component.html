@@ -41,10 +41,8 @@
   </span>
 
   @if (metaParts().length > 0) {
-    <span
-      class="public-user-identity__meta"
-      [attr.aria-label]="metaAriaLabel()"
-    >
+    <span class="public-user-identity__meta">
+      <span class="visually-hidden">{{ metaAriaLabel() }}</span>
       @for (part of metaParts(); track $index) {
         @if (!$first) {
           <span class="public-user-identity__separator" aria-hidden="true">·</span>
