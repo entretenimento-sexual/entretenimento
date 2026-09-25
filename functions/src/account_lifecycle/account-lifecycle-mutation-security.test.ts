@@ -42,7 +42,7 @@ test('canonical lifecycle mutation security requires App Check and backend rate 
 
   assert.equal(security.includes('assertCallableAppCheck(input.appContext)'), true);
   assert.equal(security.includes('consumeBackendRateLimitQuota({'), true);
-  assert.equal(security.includes("action: `account-lifecycle:${input.action}`"), true);
+  assert.equal(security.includes('action: `account-lifecycle:${input.action}`'), true);
 });
 
 test('staff lifecycle mutations authorize staff before consuming mutation quota', () => {
