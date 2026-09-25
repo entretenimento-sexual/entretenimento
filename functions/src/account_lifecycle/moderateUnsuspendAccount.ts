@@ -1,5 +1,8 @@
 // functions/src/account_lifecycle/moderateUnsuspendAccount.ts
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import {
+  assertAccountLifecycleMutationSecurity,
+} from './account-lifecycle-mutation-security';
 import { db } from '../firebaseApp';
 import {
   ACCOUNT_LIFECYCLE_REGION,
@@ -40,6 +43,12 @@ export const moderateUnsuspendAccount = onCall<ModerateUnsuspendAccountRequest>(
       actorUid,
       authToken,
       requiredPermission: 'users:suspend',
+    });
+
+    await assertAccountLifecycleMutationSecurity({
+      action: 'moderation_unsuspend',
+      subjectUid: actorUid,
+      appContext: request.app,
     });
 
     const targetUid = normalizeUid(request.data?.targetUid);
