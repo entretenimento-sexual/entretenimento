@@ -17,6 +17,7 @@ export type CommunityAdminTimelineEventType =
   | 'ownership_transferred'
   | 'community_archived'
   | 'settings_changed'
+  | 'highlight_changed'
   | 'content_removed'
   | 'topic_moderated'
   | 'official_status_changed'
@@ -38,7 +39,7 @@ export interface CommunityAdminTimelineDetails {
   nextRole?: CommunityAdminTimelineRole | null;
   changedFields?: readonly string[];
   target?: 'post' | 'comment' | 'reply' | 'topic';
-  action?: 'locked' | 'unlocked' | 'removed';
+  action?: 'locked' | 'unlocked' | 'removed' | 'pinned' | 'unpinned';
   previousStatus?: string | null;
   nextStatus?: string | null;
 }
@@ -78,6 +79,7 @@ const EVENT_TYPES = new Set<CommunityAdminTimelineEventType>([
   'ownership_transferred',
   'community_archived',
   'settings_changed',
+  'highlight_changed',
   'content_removed',
   'topic_moderated',
   'official_status_changed',
@@ -152,6 +154,8 @@ function normalizeDetails(value: unknown): CommunityAdminTimelineDetails {
     raw['action'] === 'locked'
     || raw['action'] === 'unlocked'
     || raw['action'] === 'removed'
+    || raw['action'] === 'pinned'
+    || raw['action'] === 'unpinned'
   ) {
     details.action = raw['action'];
   }

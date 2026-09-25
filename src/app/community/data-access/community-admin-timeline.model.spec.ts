@@ -46,3 +46,23 @@ describe('normalizeCommunityAdminTimelinePage', () => {
     })).toBeNull();
   });
 });
+
+
+it('aceita destaque administrativo no contrato consumível', () => {
+  const page = normalizeCommunityAdminTimelinePage({
+    items: [{
+      id: 'highlight-1',
+      category: 'moderation',
+      eventType: 'highlight_changed',
+      actor: { kind: 'user', label: 'ANA' },
+      subject: null,
+      details: { target: 'post', action: 'pinned' },
+      createdAt: 2_000,
+    }],
+    nextCursor: null,
+    generatedAt: 2_100,
+  });
+
+  expect(page?.items[0]?.eventType).toBe('highlight_changed');
+  expect(page?.items[0]?.details.action).toBe('pinned');
+});

@@ -216,6 +216,11 @@ export class CommunityAdminTimelineComponent {
         ? `${actor} alterou configurações: ${fields}.`
         : `${actor} alterou configurações da Comunidade.`;
     }
+    if (item.eventType === 'highlight_changed') {
+      return item.details.action === 'pinned'
+        ? `${actor} destacou uma publicação.`
+        : `${actor} removeu o destaque de uma publicação.`;
+    }
     if (item.eventType === 'content_removed') {
       return `${actor} removeu ${this.targetLabel(item.details.target)}.`;
     }
@@ -258,6 +263,7 @@ export class CommunityAdminTimelineComponent {
       membersCanInvite: 'permissão de convites',
       memberLimit: 'capacidade',
       tagIds: 'interesses',
+      membershipDisclosure: 'visibilidade da participação',
     };
 
     return labels[field] ?? 'configuração';

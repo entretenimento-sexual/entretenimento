@@ -7,7 +7,8 @@ expor os documentos brutos de auditoria.
 
 A superfície cobre mudanças de papel, bloqueio/desbloqueio/remoção,
 aprovação/recusa de entrada, transferência/arquivamento, alterações de
-configuração, moderação de conteúdo/tópicos, vínculo oficial e lifecycle.
+configuração e visibilidade de participação, destaque administrativo,
+moderação de conteúdo/tópicos, vínculo oficial e lifecycle.
 
 Nunca entram na projeção: reason de moderação, evidência, KYC/KYB, resolução
 interna, IDs de conteúdo ou payloads arbitrários. UID interno existe somente na
@@ -23,6 +24,23 @@ callable.
 4. Firestore Rules negam leitura e escrita client-side.
 5. getCommunityAdminTimeline valida App Check e contexto social existente.
 6. Somente owner/admin recebem o DTO sanitizado, com nomes resolvidos no backend.
+
+## Exclusões intencionais
+
+A timeline é de gestão, não um espelho do audit bruto. Ficam fora por decisão:
+
+- criação autoral de posts, comentários, respostas e tópicos;
+- reactions e ações ordinárias de membros;
+- envio/aceite/recusa/revogação de convites, para evitar ruído operacional;
+- preferência individual de visibilidade do próprio membro;
+- community_ranking_mode_audit, reservado a operações da plataforma;
+- business_official_entitlement_usage_audit, por conter estado comercial interno;
+- community_purge_audit, que permanece como recibo operacional de destruição;
+- eventos duplicados de criação/associação oficial quando a mesma transição já
+  é representada pelo fluxo de claim oficial.
+
+Essas exclusões são deliberadas e devem continuar fail-closed: evento novo não
+entra na timeline até ser explicitamente whitelisted e sanitizado.
 
 ## Backfill
 
@@ -42,7 +60,7 @@ autorização explícita para produção.
 1. Congelar o SHA aprovado e executar validate:prod, testes de Functions, Rules
    e build Angular.
 2. Publicar Firestore Rules com o deny explícito da projeção.
-3. Publicar somente os sete triggers syncCommunityAdminTimeline*.
+3. Publicar somente os oito triggers syncCommunityAdminTimeline*.
 4. Validar eventos sintéticos controlados em staging.
 5. Publicar getCommunityAdminTimeline.
 6. Smoke test owner/admin e negação para moderator/member.
@@ -55,7 +73,7 @@ autorização explícita para produção.
 
 - UI: reverter Hosting; a projeção continua privada e inerte.
 - Callable: rollback/remover getCommunityAdminTimeline.
-- Triggers: rollback dos sete syncCommunityAdminTimeline*; audits originais
+- Triggers: rollback dos oito syncCommunityAdminTimeline*; audits originais
   continuam intactos.
 - Backfill: a coleção é derivada; corrigir a policy e reconstruir apenas a
   projeção afetada.
@@ -70,6 +88,8 @@ autorização explícita para produção.
 - promoção/rebaixamento mostra papéis anterior/novo;
 - bloqueio/desbloqueio/remoção não mostra motivo interno;
 - configuração mostra somente nomes dos campos alterados;
+- alteração de visibilidade de participação aparece como configuração;
+- pin/unpin de destaque aparece sem targetId ou duração;
 - moderação mostra apenas o tipo do alvo, sem IDs/reason;
 - vínculo oficial mostra somente a transição de status;
 - evento não-whitelisted não aparece;
