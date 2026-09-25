@@ -51,7 +51,7 @@
               <p class="community-search__state">Nenhum membro encontrado.</p>
             } @else if (members.status === 'ready') {
               <ul class="community-search__members">
-                @for (item of members.items; track item.type === 'member' ? item.memberKey : item.topicId) {
+                @for (item of members.items; track itemKey(item)) {
                   @if (item.type === 'member') {
                     <li>
                       <a
@@ -113,7 +113,7 @@
               <p class="community-search__state">Nenhuma Discussão encontrada.</p>
             } @else if (topics.status === 'ready') {
               <div class="community-search__topics">
-                @for (item of topics.items; track item.type === 'topic' ? item.topicId : item.memberKey) {
+                @for (item of topics.items; track itemKey(item)) {
                   @if (item.type === 'topic') {
                     <button
                       type="button"
