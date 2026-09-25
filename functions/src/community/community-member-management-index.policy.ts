@@ -48,8 +48,14 @@ export interface CommunityMemberManagementSearchIdentity {
   readonly searchPrefixes: readonly string[];
 }
 
+export interface CommunityMemberPublicSearchIdentity {
+  readonly publicSearchSortLabel: string;
+  readonly publicSearchPrefixes: readonly string[];
+}
+
 export interface CommunityMemberManagementIndexProjection
-  extends CommunityMemberManagementSearchIdentity {
+  extends CommunityMemberManagementSearchIdentity,
+    CommunityMemberPublicSearchIdentity {
   readonly projectionVersion: number;
   readonly communityId: string;
   readonly memberId: string;
@@ -150,6 +156,34 @@ export function buildCommunityMemberManagementSearchKey(
     .digest('hex');
 }
 
+export function buildCommunityMemberPublicSearchIdentity(
+  rawPublicProfile: unknown
+): CommunityMemberPublicSearchIdentity {
+  const profile = (rawPublicProfile ?? {}) as Record<string, unknown>;
+  const nickname = normalizeDisplayText(profile['nickname'], 60);
+  const publicSearchSortLabel = nickname.length >= 2
+    ? normalizeCommunitySearchText(nickname)
+    : '';
+
+  return {
+    publicSearchSortLabel,
+    publicSearchPrefixes: publicSearchSortLabel
+      ? buildCommunitySearchPrefixes(nickname)
+      : [],
+  };
+}
+
+export function communityMemberPublicSearchIdentityEquals(
+  left: CommunityMemberPublicSearchIdentity,
+  right: CommunityMemberPublicSearchIdentity
+): boolean {
+  return left.publicSearchSortLabel === right.publicSearchSortLabel
+    && left.publicSearchPrefixes.length === right.publicSearchPrefixes.length
+    && left.publicSearchPrefixes.every(
+      (value, index) => value === right.publicSearchPrefixes[index]
+    );
+}
+
 export function communityMemberManagementSearchIdentityEquals(
   left: CommunityMemberManagementSearchIdentity,
   right: CommunityMemberManagementSearchIdentity
@@ -199,6 +233,7 @@ export function buildCommunityMemberManagementIndexProjection(input: {
   readonly memberId: unknown;
   readonly rawMembership: unknown;
   readonly rawUser: unknown;
+  readonly rawPublicProfile?: unknown;
 }): CommunityMemberManagementIndexProjection | null {
   const communityId = normalizeSafeId(input.communityId);
   const memberId = normalizeSafeId(input.memberId);
@@ -220,6 +255,7 @@ export function buildCommunityMemberManagementIndexProjection(input: {
     leadership:
       managementRole === 'admin' || managementRole === 'moderator',
     ...buildCommunityMemberManagementSearchIdentity(input.rawUser),
+    ...buildCommunityMemberPublicSearchIdentity(input.rawPublicProfile),
   };
 }
 
