@@ -126,9 +126,10 @@ describe('CommunityDiscoveryPageComponent / Locais', () => {
   });
 
   it('carrega somente Locais e usa a rota canônica', async () => {
-    const component = TestBed.runInInjectionContext(
-      () => new CommunityDiscoveryPageComponent()
-    );
+    const fixture = TestBed.createComponent(CommunityDiscoveryPageComponent);
+    const component = fixture.componentInstance;
+    fixture.detectChanges();
+
     const state = await firstValueFrom(
       component.state$.pipe(
         filter((value) => value.status === 'ready'),
