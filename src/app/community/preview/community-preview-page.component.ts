@@ -52,6 +52,7 @@ import {
 } from '../data-access/community-preview.model';
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
 import { CommunityMembersPageComponent } from '../members/community-members-page.component';
+import { CommunitySearchComponent } from '../search/community-search.component';
 import { CommunityFeedComponent } from '../feed/community-feed.component';
 import { CommunityTopicsComponent } from '../topics/community-topics.component';
 import { CommunityInviteManagementComponent } from '../invite-management/community-invite-management.component';
@@ -79,6 +80,7 @@ import { CommunityMembershipProfileVisibilityComponent } from './community-membe
 
 export type CommunityPreviewSection =
   | 'feed'
+  | 'search'
   | 'topics'
   | 'photos'
   | 'members'
@@ -166,6 +168,7 @@ function normalizeCommunityFeedTargetId(value: unknown): string | null {
 const SECTION_QUERY_VALUES: Readonly<Record<CommunityPreviewSection, string | null>> =
   Object.freeze({
     feed: null,
+    search: 'buscar',
     topics: 'topicos',
     photos: 'fotos',
     members: 'membros',
@@ -182,6 +185,7 @@ const SECTION_QUERY_VALUES: Readonly<Record<CommunityPreviewSection, string | nu
     RouterLink,
     ImageFallbackDirective,
     CommunityFeedComponent,
+    CommunitySearchComponent,
     CommunityTopicsComponent,
     CommunityMembersPageComponent,
     CommunityInviteManagementComponent,
@@ -228,6 +232,11 @@ export class CommunityPreviewPageComponent {
           this.route.snapshot.queryParamMap?.get('comentario')
         )
       : null
+  );
+  readonly focusedTopicId = signal<string | null>(
+    normalizeCommunityFeedTargetId(
+      this.route.snapshot.queryParamMap?.get('topico')
+    )
   );
 
   private readonly communityId$ = this.route.paramMap.pipe(
@@ -315,12 +324,18 @@ export class CommunityPreviewPageComponent {
           const commentId = postId
             ? normalizeCommunityFeedTargetId(params.get('comentario'))
             : null;
+          const topicId = normalizeCommunityFeedTargetId(params.get('topico'));
 
           return {
-            section: postId ? 'feed' as const : this.sectionFromQuery(rawSection),
+            section: postId
+              ? 'feed' as const
+              : topicId
+                ? 'topics' as const
+                : this.sectionFromQuery(rawSection),
             returnTarget: this.resolveReturnTarget(params.get('retorno')),
             postId,
             commentId,
+            topicId,
           };
         }),
         distinctUntilChanged(
@@ -329,6 +344,7 @@ export class CommunityPreviewPageComponent {
             && previous.returnTarget === current.returnTarget
             && previous.postId === current.postId
             && previous.commentId === current.commentId
+            && previous.topicId === current.topicId
         ),
         takeUntilDestroyed(this.destroyRef)
       )
@@ -337,11 +353,13 @@ export class CommunityPreviewPageComponent {
         returnTarget,
         postId,
         commentId,
+        topicId,
       }) => {
         this.activeSection.set(section);
         this.returnTarget.set(returnTarget);
         this.focusedPostId.set(postId);
         this.focusedCommentId.set(commentId);
+        this.focusedTopicId.set(topicId);
       });
   }
 
@@ -351,22 +369,31 @@ export class CommunityPreviewPageComponent {
   ): void {
     this.activeSection.set(section);
     const clearFeedTarget = section !== 'feed' && !!this.focusedPostId();
+    const clearTopicTarget = section !== 'topics' && !!this.focusedTopicId();
 
     if (clearFeedTarget) {
       this.focusedPostId.set(null);
       this.focusedCommentId.set(null);
     }
+    if (clearTopicTarget) {
+      this.focusedTopicId.set(null);
+    }
+
+    const queryParams: Record<string, string | null> = {
+      secao: SECTION_QUERY_VALUES[section],
+    };
+    if (clearFeedTarget) {
+      queryParams['post'] = null;
+      queryParams['comentario'] = null;
+    }
+    if (clearTopicTarget) {
+      queryParams['topico'] = null;
+    }
 
     try {
       const navigation = this.router.navigate([], {
         relativeTo: this.route,
-        queryParams: clearFeedTarget
-          ? {
-              secao: SECTION_QUERY_VALUES[section],
-              post: null,
-              comentario: null,
-            }
-          : { secao: SECTION_QUERY_VALUES[section] },
+        queryParams,
         queryParamsHandling: 'merge',
         replaceUrl,
       });
@@ -375,6 +402,34 @@ export class CommunityPreviewPageComponent {
       );
     } catch (error) {
       this.reportTechnicalError(error, 'navigateSection');
+    }
+  }
+
+  openTopicFromSearch(topicId: string): void {
+    const normalizedTopicId = normalizeCommunityFeedTargetId(topicId);
+    if (!normalizedTopicId) return;
+
+    this.activeSection.set('topics');
+    this.focusedTopicId.set(normalizedTopicId);
+    this.focusedPostId.set(null);
+    this.focusedCommentId.set(null);
+
+    try {
+      const navigation = this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: {
+          secao: SECTION_QUERY_VALUES.topics,
+          topico: normalizedTopicId,
+          post: null,
+          comentario: null,
+        },
+        queryParamsHandling: 'merge',
+      });
+      void navigation.catch((error: unknown) =>
+        this.reportTechnicalError(error, 'navigateSearchTopic')
+      );
+    } catch (error) {
+      this.reportTechnicalError(error, 'navigateSearchTopic');
     }
   }
 
@@ -573,7 +628,9 @@ export class CommunityPreviewPageComponent {
         ? preview.canInviteCommunityMembers
         : section === 'members'
           ? capabilities.memberDirectory
-          : section === 'topics'
+          : section === 'search'
+            ? capabilities.internalSearch
+            : section === 'topics'
             ? capabilities.topics
             : true;
 
@@ -584,6 +641,8 @@ export class CommunityPreviewPageComponent {
 
   private sectionFromQuery(value: unknown): CommunityPreviewSection {
     switch (String(value ?? '').trim().toLowerCase()) {
+      case 'buscar':
+        return 'search';
       case 'topicos':
         return 'topics';
       case 'fotos':
