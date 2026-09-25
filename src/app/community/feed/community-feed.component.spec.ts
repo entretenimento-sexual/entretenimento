@@ -196,15 +196,23 @@ describe('CommunityFeedComponent', () => {
 
     const fixture = create('feed', 'community');
     expect(
+      fixture.nativeElement.querySelectorAll('.community-post')
+    ).toHaveLength(60);
+    expect(
       fixture.nativeElement.querySelector('#community-feed-post-old-1')
     ).not.toBeNull();
+    expect(repositoryMock.getPage$).toHaveBeenCalledTimes(1);
 
     fixture.componentInstance.showOlderLoadedPosts(firstPage.items);
     fixture.detectChanges();
 
     expect(
+      fixture.nativeElement.querySelectorAll('.community-post')
+    ).toHaveLength(60);
+    expect(
       fixture.nativeElement.querySelector('#community-feed-post-old-1')
     ).toBeNull();
+    expect(repositoryMock.getPage$).toHaveBeenCalledTimes(1);
 
     fixture.componentRef.setInput('communityId', 'community-2');
     fixture.detectChanges();
