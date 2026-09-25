@@ -6,7 +6,6 @@ import { RouterModule } from '@angular/router';
 import { NavbarComponent } from './navbar/navbar.component';
 import { LogoComponent } from './logo/logo.component';
 import { GuestBannerComponent } from './guest-banner/guest-banner.component';
-import { GlobalInviteBadgeComponent } from './global-invite-badge/global-invite-badge.component';
 import {
   LegalUpdateNoticeBridgeComponent,
 } from './legal-update-notice-bridge/legal-update-notice-bridge.component';
@@ -25,7 +24,6 @@ import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback
     RouterModule,
     SharedMaterialModule,
     ImageFallbackDirective,
-    GlobalInviteBadgeComponent,
     LegalUpdateNoticeBridgeComponent,
   ],
   exports: [
