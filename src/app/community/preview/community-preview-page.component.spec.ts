@@ -176,6 +176,83 @@ describe('CommunityPreviewPageComponent / Local', () => {
   }
 
 
+  it('expõe tabs com semântica ARIA completa e navegação horizontal por teclado', () => {
+    const fixture = createFixture();
+    const tablist = fixture.nativeElement.querySelector(
+      '.community-preview__tablist'
+    ) as HTMLElement;
+    const tabs = Array.from(
+      tablist.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+    );
+
+    expect(tablist.getAttribute('role')).toBe('tablist');
+    expect(tablist.getAttribute('aria-orientation')).toBe('horizontal');
+    expect(tabs).toHaveLength(3);
+
+    for (const tab of tabs) {
+      const panelId = tab.getAttribute('aria-controls');
+      expect(panelId).toBeTruthy();
+
+      const panel = fixture.nativeElement.querySelector(
+        `#${panelId}`
+      ) as HTMLElement | null;
+
+      expect(panel).not.toBeNull();
+      expect(panel?.getAttribute('role')).toBe('tabpanel');
+      expect(panel?.getAttribute('aria-labelledby')).toBe(tab.id);
+    }
+
+    const feed = fixture.nativeElement.querySelector(
+      '#community-tab-feed'
+    ) as HTMLButtonElement;
+    const photos = fixture.nativeElement.querySelector(
+      '#community-tab-photos'
+    ) as HTMLButtonElement;
+    const about = fixture.nativeElement.querySelector(
+      '#community-tab-about'
+    ) as HTMLButtonElement;
+
+    expect(feed.getAttribute('aria-selected')).toBe('true');
+    expect(feed.tabIndex).toBe(0);
+    expect(photos.getAttribute('aria-selected')).toBe('false');
+    expect(photos.tabIndex).toBe(-1);
+    expect(
+      (fixture.nativeElement.querySelector('#community-panel-feed') as HTMLElement).hidden
+    ).toBe(false);
+    expect(
+      (fixture.nativeElement.querySelector('#community-panel-photos') as HTMLElement).hidden
+    ).toBe(true);
+
+    feed.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'ArrowRight',
+      bubbles: true,
+    }));
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.activeSection()).toBe('photos');
+    expect(document.activeElement).toBe(photos);
+    expect(photos.getAttribute('aria-selected')).toBe('true');
+    expect(photos.tabIndex).toBe(0);
+
+    photos.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'End',
+      bubbles: true,
+    }));
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.activeSection()).toBe('about');
+    expect(document.activeElement).toBe(about);
+
+    about.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'ArrowRight',
+      bubbles: true,
+    }));
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.activeSection()).toBe('feed');
+    expect(document.activeElement).toBe(feed);
+  });
+
   it('abre Membros dentro da Comunidade e só consulta a lista após o clique', () => {
     previewRepositoryMock.getPreview$.mockReturnValue(of(preview({
       community: {
@@ -194,7 +271,7 @@ describe('CommunityPreviewPageComponent / Local', () => {
     button.click();
     fixture.detectChanges();
 
-    expect(button.getAttribute('aria-pressed')).toBe('true');
+    expect(button.getAttribute('aria-selected')).toBe('true');
     expect(rosterRepositoryMock.getPage$).toHaveBeenCalledWith({
       communityId: 'community-1', cursor: null, limit: 20,
     });
