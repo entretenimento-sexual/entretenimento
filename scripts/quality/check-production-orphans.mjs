@@ -571,11 +571,19 @@ function requiredPeerOfReferencedDependency(packageName) {
   });
 }
 
+// Dependências carregadas por código empacotado de frameworks podem não
+// aparecer como imports literais no código da aplicação. Mantemos exceções
+// explícitas somente quando o build prova a necessidade em runtime.
+const indirectRuntimeDependencies = new Set([
+  '@angular/animations',
+]);
+
 const unreferencedProductionDependencies = productionDependencies
   .filter(
     (packageName) =>
       !dependencyReferenced(packageName)
       && !requiredPeerOfReferencedDependency(packageName)
+      && !indirectRuntimeDependencies.has(packageName)
   )
   .sort();
 
