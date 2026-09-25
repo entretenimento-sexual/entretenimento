@@ -75,6 +75,7 @@ const COMMUNITY_CALLABLE_RECENT_AUTH_REQUIREMENTS =
     ['get-community-official-claim-review-queue.handler.ts:getCommunityOfficialClaimReviewQueue', 'none'],
     ['get-community-ownership-candidates-page.handler.ts:getCommunityOwnershipCandidatesPage', 'none'],
     ['get-community-preview.handler.ts:getCommunityPreview', 'none'],
+    ['get-community-search-page.handler.ts:getCommunitySearchPage', 'none'],
     ['get-community-tag-catalog.handler.ts:getCommunityTagCatalog', 'none'],
     ['get-community-topic-detail.handler.ts:getCommunityTopicDetail', 'none'],
     ['get-community-topic-detail.handler.ts:getCommunityTopicRepliesPage', 'none'],

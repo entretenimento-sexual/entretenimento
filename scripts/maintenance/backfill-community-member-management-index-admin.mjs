@@ -61,7 +61,7 @@ const maxCommunities = Math.max(
     ) || 10_000
   )
 );
-function countSearchPrefixCompositeIndexes() {
+function countSearchPrefixCompositeIndexes(fieldPath) {
   const indexPath = resolve(process.cwd(), 'firestore.indexes.json');
   const config = JSON.parse(readFileSync(indexPath, 'utf8'));
   const indexes = Array.isArray(config?.indexes) ? config.indexes : [];
@@ -71,14 +71,16 @@ function countSearchPrefixCompositeIndexes() {
     && Array.isArray(index?.fields)
     && index.fields.some(
       (field) =>
-        field?.fieldPath === 'searchPrefixes'
+        field?.fieldPath === fieldPath
         && field?.arrayConfig === 'CONTAINS'
     )
   ).length;
 }
 
 const searchPrefixCompositeIndexCount =
-  countSearchPrefixCompositeIndexes();
+  countSearchPrefixCompositeIndexes('searchPrefixes');
+const publicSearchPrefixCompositeIndexCount =
+  countSearchPrefixCompositeIndexes('publicSearchPrefixes');
 
 const maxMemberships = Math.max(
   1,
@@ -150,6 +152,15 @@ async function readUsers(db, memberDocs) {
   return db.getAll(...refs);
 }
 
+async function readPublicProfiles(db, memberDocs) {
+  const refs = memberDocs.map((document) =>
+    db.collection('public_profiles').doc(document.id)
+  );
+
+  if (!refs.length) return [];
+  return db.getAll(...refs);
+}
+
 async function writeProjectionPage(db, writes) {
   for (let offset = 0; offset < writes.length; offset += 400) {
     const batch = db.batch();
@@ -192,7 +203,10 @@ async function processCommunity(db, policy, communityDocument, counters) {
       const status = document.data()?.status;
       return status === 'active' || status === 'blocked';
     });
-    const userSnapshots = await readUsers(db, candidates);
+    const [userSnapshots, publicProfileSnapshots] = await Promise.all([
+      readUsers(db, candidates),
+      readPublicProfiles(db, candidates),
+    ]);
     const writes = [];
 
     candidates.forEach((document, index) => {
@@ -202,6 +216,9 @@ async function processCommunity(db, policy, communityDocument, counters) {
         rawMembership: document.data(),
         rawUser: userSnapshots[index]?.exists
           ? userSnapshots[index].data()
+          : null,
+        rawPublicProfile: publicProfileSnapshots[index]?.exists
+          ? publicProfileSnapshots[index].data()
           : null,
       });
 
@@ -221,6 +238,19 @@ async function processCommunity(db, policy, communityDocument, counters) {
       );
       counters.estimatedSearchPrefixCompositeEntries +=
         searchPrefixCount * searchPrefixCompositeIndexCount;
+
+      const publicSearchPrefixCount = Array.isArray(
+        projection.publicSearchPrefixes
+      )
+        ? projection.publicSearchPrefixes.length
+        : 0;
+      counters.publicSearchPrefixValues += publicSearchPrefixCount;
+      counters.maxPublicSearchPrefixesPerProjection = Math.max(
+        counters.maxPublicSearchPrefixesPerProjection,
+        publicSearchPrefixCount
+      );
+      counters.estimatedPublicSearchPrefixCompositeEntries +=
+        publicSearchPrefixCount * publicSearchPrefixCompositeIndexCount;
 
       writes.push({
         ref: db
@@ -274,6 +304,9 @@ async function main() {
     searchPrefixValues: 0,
     maxSearchPrefixesPerProjection: 0,
     estimatedSearchPrefixCompositeEntries: 0,
+    publicSearchPrefixValues: 0,
+    maxPublicSearchPrefixesPerProjection: 0,
+    estimatedPublicSearchPrefixCompositeEntries: 0,
     written: 0,
     skipped: 0,
     failures: 0,
@@ -342,10 +375,17 @@ async function main() {
     maxCommunities,
     maxMemberships,
     searchPrefixCompositeIndexCount,
+    publicSearchPrefixCompositeIndexCount,
     averageSearchPrefixesPerProjection:
       counters.projected > 0
         ? Number(
             (counters.searchPrefixValues / counters.projected).toFixed(2)
+          )
+        : 0,
+    averagePublicSearchPrefixesPerProjection:
+      counters.projected > 0
+        ? Number(
+            (counters.publicSearchPrefixValues / counters.projected).toFixed(2)
           )
         : 0,
     ...counters,

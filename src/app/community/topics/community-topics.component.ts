@@ -3,11 +3,12 @@ import { AsyncPipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   inject,
   input,
   signal,
 } from '@angular/core';
-import { toObservable } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import {
   FormControl,
   FormGroup,
@@ -71,6 +72,8 @@ type CommunityTopicWriteState =
 
 type CommunityTopicWriteKind = 'topic' | 'reply';
 
+const COMMUNITY_TOPIC_TARGET_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
+
 const DATE_TIME_FORMATTER = new Intl.DateTimeFormat('pt-BR', {
   dateStyle: 'medium',
   timeStyle: 'short',
@@ -91,6 +94,7 @@ const DATE_TIME_FORMATTER = new Intl.DateTimeFormat('pt-BR', {
 })
 export class CommunityTopicsComponent {
   private readonly repository = inject(CommunityTopicRepository);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly applicationError = inject(ApplicationErrorService);
   private readonly topicLoadRequests$ = new Subject<CommunityTopicsLoadRequest>();
@@ -104,6 +108,7 @@ export class CommunityTopicsComponent {
   readonly communityId = input<string>('');
   readonly canInteract = input<boolean>(false);
   readonly viewerRole = input<CommunityPreviewViewerRole | null>(null);
+  readonly focusTopicId = input<string | null>(null);
   readonly selectedTopicId = signal<string | null>(null);
   readonly composerOpen = signal(false);
 
@@ -138,6 +143,12 @@ export class CommunityTopicsComponent {
 
   private readonly selectedTopicId$ = toObservable(this.selectedTopicId).pipe(
     filter((topicId): topicId is string => Boolean(topicId)),
+    distinctUntilChanged()
+  );
+
+  private readonly focusTopicId$ = toObservable(this.focusTopicId).pipe(
+    map((topicId) => String(topicId ?? '').trim()),
+    filter((topicId) => COMMUNITY_TOPIC_TARGET_PATTERN.test(topicId)),
     distinctUntilChanged()
   );
 
@@ -308,6 +319,16 @@ export class CommunityTopicsComponent {
     startWith<CommunityTopicWriteState>({ status: 'idle' }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
+
+  constructor() {
+    this.focusTopicId$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((topicId) => {
+        if (this.selectedTopicId() !== topicId) {
+          this.selectTopic(topicId);
+        }
+      });
+  }
 
   toggleComposer(): void {
     if (!this.canInteract()) return;

@@ -44,9 +44,10 @@ export const syncCommunityMemberManagementIndex = onDocumentWritten(
       return;
     }
 
-    const [communitySnapshot, userSnapshot] = await Promise.all([
+    const [communitySnapshot, userSnapshot, publicProfileSnapshot] = await Promise.all([
       db.collection('communities').doc(communityId).get(),
       db.collection('users').doc(memberId).get(),
+      db.collection('public_profiles').doc(memberId).get(),
     ]);
     const community = communitySnapshot.exists
       ? communitySnapshot.data() ?? null
@@ -62,6 +63,9 @@ export const syncCommunityMemberManagementIndex = onDocumentWritten(
       memberId,
       rawMembership: membershipSnapshot.data(),
       rawUser: userSnapshot.exists ? userSnapshot.data() : null,
+      rawPublicProfile: publicProfileSnapshot.exists
+        ? publicProfileSnapshot.data()
+        : null,
     });
 
     if (!projection) {

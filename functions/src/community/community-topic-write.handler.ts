@@ -22,6 +22,7 @@ import {
   assertCommunityMembershipActorEligibleInTransaction,
 } from './community-membership-eligibility.service';
 import { consumeCommunityRateLimit } from './community-rate-limit.service';
+import { buildCommunitySearchPrefixes } from './community-search-text.policy';
 import {
   CommunityTopicCreateRequest,
   CommunityTopicReplyCreateRequest,
@@ -259,12 +260,6 @@ export const createCommunityTopic = onCall<CommunityTopicCreateRequest>(
         userSnapshot.exists ? userSnapshot.data() : null
       );
 
-      await assertCommunityMembershipActorEligibleInTransaction(
-        transaction,
-        actorUid,
-        userSnapshot.exists ? userSnapshot.data() : null
-      );
-
       assertTransactionalInteractionAllowed(
         communitySnapshot.data(),
         membershipSnapshot.exists ? membershipSnapshot.data() : null
@@ -296,6 +291,10 @@ export const createCommunityTopic = onCall<CommunityTopicCreateRequest>(
       const author = buildAuthor(userSnapshot.data());
       const now = Timestamp.fromMillis(nowMs);
       const excerpt = topicBody.slice(0, 320);
+      const searchPrefixes = buildCommunitySearchPrefixes(
+        command.title,
+        excerpt
+      );
 
       transaction.create(topicRef, {
         topicId,
@@ -320,6 +319,7 @@ export const createCommunityTopic = onCall<CommunityTopicCreateRequest>(
       transaction.create(projectionRef, {
         title: command.title,
         excerpt,
+        searchPrefixes,
         audience: effectiveAudience,
         status: 'active',
         moderationState: 'active',

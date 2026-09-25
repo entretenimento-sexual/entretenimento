@@ -77,6 +77,7 @@ export {
   reviewCommunityFeedCommentReplyReport,
 } from './review-community-feed-comment-reply-report.handler';
 export { getCommunityTopicsPage } from './get-community-topics-page.handler';
+export { getCommunitySearchPage } from './get-community-search-page.handler';
 export {
   getCommunityTopicDetail,
   getCommunityTopicRepliesPage,
@@ -115,6 +116,9 @@ export {
 export {
   syncCommunityMemberManagementIndexFromUser,
 } from './sync-community-member-management-index-from-user.trigger';
+export {
+  syncCommunityMemberManagementIndexFromPublicProfile,
+} from './sync-community-member-management-index-from-public-profile.trigger';
 export {
   getCommunityMembershipRequests,
   leaveCommunityMembership,

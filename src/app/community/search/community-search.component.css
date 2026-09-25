@@ -1,0 +1,114 @@
+.community-search {
+  display: grid;
+  gap: 1rem;
+}
+
+.community-search__header h2,
+.community-search__section h3,
+.community-search__header p,
+.community-search__state,
+.community-search__hint {
+  margin: 0;
+}
+
+.community-search__header p,
+.community-search__hint,
+.community-search__state,
+.community-search__topic small,
+.community-search__topic-meta {
+  color: var(--app-text-muted, #666);
+}
+
+.community-search__field {
+  display: grid;
+  gap: 0.4rem;
+  font-weight: 600;
+}
+
+.community-search__input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 2.8rem;
+  padding: 0 0.9rem;
+  border: 1px solid var(--app-border-color, #d7d7d7);
+  border-radius: 0.8rem;
+}
+
+.community-search__input-wrap input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.community-search__sections {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.community-search__section {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.community-search__members {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.community-search__members a {
+  display: block;
+  padding: 0.65rem;
+  border-radius: 0.75rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+.community-search__topics {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.community-search__topic {
+  display: grid;
+  gap: 0.45rem;
+  width: 100%;
+  padding: 0.8rem;
+  text-align: left;
+  border: 1px solid var(--app-border-color, #d7d7d7);
+  border-radius: 0.75rem;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.community-search__topic > span:first-child {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.community-search__topic small {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.community-search__topic-meta {
+  font-size: 0.82rem;
+}
+
+.community-search__state.is-error {
+  color: var(--app-danger-color, #b42318);
+}
+
+.community-search__more {
+  justify-self: start;
+}
