@@ -558,10 +558,23 @@ const operationalScripts = walk(scriptRoot).filter((filePath) =>
   )
 );
 
+// Ferramentas que são, por contrato, entrypoints manuais. Elas não precisam ser
+// chamadas por package.json/workflows/outros scripts para serem consideradas
+// vivas; manter a lista explícita impede que qualquer script novo seja
+// silenciosamente tratado da mesma forma.
+const intentionalStandaloneScripts = new Set([
+  'scripts/dev/inspect-auth-profile-integrity-emulator.mjs',
+  'scripts/dev/inspect-community-membership.cmd',
+  'scripts/dev/migrate-community-comment-replies.mjs',
+  'scripts/dev/repair-discovery-location-emulator.mjs',
+  'scripts/dev/resume-home-session.cmd',
+]);
+
 const unreferencedScripts = operationalScripts
   .filter((scriptPath) => {
     const normalized = path.normalize(scriptPath);
     const relative = posix(scriptPath);
+    if (intentionalStandaloneScripts.has(relative)) return false;
     const windowsRelative = relative.replaceAll('/', '\\');
     const basename = path.basename(scriptPath);
     return !auditTexts.some(
