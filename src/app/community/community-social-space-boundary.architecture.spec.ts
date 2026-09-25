@@ -84,7 +84,7 @@ function productionTsInboundCounts(
     files.map((file) => [file, 0] as const)
   );
   const importPattern =
-    /\b(?:import|export)\s+(?:[^'\"]*?\s+from\s+)?['\"]([^'\"]+)['\"]|\bimport\(\s*['\"]([^'\"]+)['\"]\s*\)/gu;
+    /\b(?:import|export)\s+(?:[^'"]*?\s+from\s+)?['"]([^'"]+)['"]|\bimport\(\s*['"]([^'"]+)['"]\s*\)/gu;
 
   for (const importer of files) {
     if (excludedImporters.has(importer)) continue;
@@ -175,7 +175,7 @@ describe('Community × Local social-space boundary', () => {
     const violations = productionFiles(COMMUNITY_ROOT)
       .filter((file) => file.endsWith('.ts'))
       .filter((file) =>
-        /['\"]getCommunityOwnershipCandidates['\"]/u.test(
+        /['"]getCommunityOwnershipCandidates['"]/u.test(
           readFileSync(file, 'utf8')
         )
       )
@@ -215,12 +215,12 @@ describe('Community × Local social-space boundary', () => {
 
   it('limita branching Community/Venue às fronteiras canônicas em todo frontend', () => {
     const forbidden = [
-      /source\.type\s*===\s*['\"](?:community|venue)['\"]/u,
-      /source\.type\s*!==\s*['\"](?:community|venue)['\"]/u,
-      /sourceType\(\)\s*===\s*['\"](?:community|venue)['\"]/u,
-      /sourceType\(\)\s*!==\s*['\"](?:community|venue)['\"]/u,
-      /sourceType\s*===\s*['\"](?:community|venue)['\"]/u,
-      /sourceType\s*!==\s*['\"](?:community|venue)['\"]/u,
+      /source\.type\s*===\s*['"](?:community|venue)['"]/u,
+      /source\.type\s*!==\s*['"](?:community|venue)['"]/u,
+      /sourceType\(\)\s*===\s*['"](?:community|venue)['"]/u,
+      /sourceType\(\)\s*!==\s*['"](?:community|venue)['"]/u,
+      /sourceType\s*===\s*['"](?:community|venue)['"]/u,
+      /sourceType\s*!==\s*['"](?:community|venue)['"]/u,
     ] as const;
 
     const allowedBranching = new Set([
@@ -245,7 +245,7 @@ describe('Community × Local social-space boundary', () => {
 
       if (
         displayPath.startsWith('src/app/community/')
-        && /['\"]official_space['\"]/u.test(source)
+        && /['"]official_space['"]/u.test(source)
       ) {
         violations.push(
           `${displayPath} tratou official_space como source type de frontend`
