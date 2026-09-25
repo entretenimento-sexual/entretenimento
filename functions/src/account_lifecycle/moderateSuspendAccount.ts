@@ -6,7 +6,8 @@ import {
 } from './account-lifecycle-mutation-security';
 import { db } from '../firebaseApp';
 import {
-  cancelRecurringBillingForAccountLifecycle,
+  buildAccountLifecycleBillingCancellationPatch,
+  reconcileAccountLifecycleBillingCancellation,
 } from './account-lifecycle-billing.service';
 import {
   ACCOUNT_LIFECYCLE_REGION,
@@ -27,7 +28,7 @@ interface ModerateSuspendAccountRequest {
 interface AccountLifecycleCommandResult {
   ok: boolean;
   accountStatus: 'moderation_suspended';
-  subscriptionRenewalStatus: 'canceled' | 'none';
+  subscriptionRenewalStatus: 'canceled' | 'pending' | 'none';
   message: string;
 }
 
@@ -158,6 +159,11 @@ export const moderateSuspendAccount = onCall<ModerateSuspendAccountRequest>(
           purgeAfter: null,
           statusUpdatedAt: now,
           statusUpdatedBy: actorUid,
+
+          ...buildAccountLifecycleBillingCancellationPatch({
+            reason: 'moderation-account-suspension',
+            now,
+          }),
         },
         { merge: true }
       );
@@ -196,18 +202,24 @@ export const moderateSuspendAccount = onCall<ModerateSuspendAccountRequest>(
     });
 
     const billingCancellation =
-      await cancelRecurringBillingForAccountLifecycle({
+      await reconcileAccountLifecycleBillingCancellation({
         uid: targetUid,
-        reason: 'moderation-account-suspension',
+        fallbackReason: 'moderation-account-suspension',
       });
 
     return {
       ok: true,
       accountStatus: 'moderation_suspended',
       subscriptionRenewalStatus:
-        billingCancellation.recurringConfigured ? 'canceled' : 'none',
+        billingCancellation.providerCancellationStatus === 'pending'
+          ? 'pending'
+          : billingCancellation.recurringConfigured
+            ? 'canceled'
+            : 'none',
       message:
-        billingCancellation.recurringConfigured
+        billingCancellation.providerCancellationStatus === 'pending'
+          ? 'Conta suspensa pela moderação. A interrupção da renovação ainda está sendo processada.'
+          : billingCancellation.recurringConfigured
           ? 'Conta suspensa pela moderação e renovação automática interrompida.'
           : 'Conta suspensa pela moderação.',
     };
