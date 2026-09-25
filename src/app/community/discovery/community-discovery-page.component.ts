@@ -62,11 +62,7 @@ import {
   communityInitials as buildCommunityInitials,
   communityVisualVariant as resolveCommunityVisualVariant,
 } from '../presentation/community-visual-identity';
-import {
-  COMMUNITY_DISCOVERY_RENDER_WINDOW_MAX_ITEMS,
-  CommunityDiscoveryMode,
-  DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE,
-} from './community-discovery-cache.model';
+import { CommunityDiscoveryMode } from './community-discovery-cache.model';
 import {
   CommunityDiscoveryDataFacade,
   CommunityDiscoveryState,
@@ -83,14 +79,10 @@ import {
   CommunityDiscoveryMineFacade,
 } from './community-discovery-mine.facade';
 import { CommunityDiscoverySponsoredFacade } from './community-discovery-sponsored.facade';
+import { CommunityDiscoveryRenderWindowFacade } from './community-discovery-render-window.facade';
 import {
   shouldShowMineCommunitySearch,
 } from './community-mine-participation.policy';
-import {
-  buildCommunityBoundedRenderWindow,
-  communityTailRenderWindowStart,
-  normalizeCommunityRenderWindowStart,
-} from '../community-bounded-render-window.util';
 
 type CommunityTagFilterState =
   | { status: 'loading'; items: readonly CommunityTagDefinition[] }
@@ -142,6 +134,7 @@ const COMMUNITY_QUICK_FILTER_TAG_ID_SET = new Set<string>(
     CommunityDiscoveryDataFacade,
     CommunityDiscoveryMineFacade,
     CommunityDiscoverySponsoredFacade,
+    CommunityDiscoveryRenderWindowFacade,
   ],
   templateUrl: './community-discovery-page.component.html',
   styleUrl: './community-discovery-page.component.css',
@@ -163,17 +156,10 @@ export class CommunityDiscoveryPageComponent {
   private readonly dataFacade = inject(CommunityDiscoveryDataFacade);
   readonly mineFacade = inject(CommunityDiscoveryMineFacade);
   private readonly sponsoredFacade = inject(CommunityDiscoverySponsoredFacade);
+  private readonly renderWindow = inject(CommunityDiscoveryRenderWindowFacade);
   private readonly tagCatalogReload$ = new Subject<void>();
   private readonly discoveryCardElements =
     viewChildren<ElementRef<HTMLElement>>('discoveryCardShell');
-  private readonly renderWindowStart = signal(0);
-  private lastWindowItems: readonly CommunityDiscoveryCardView[] = [];
-  private lastMineWindowKey = '';
-  private followRenderWindowTail = false;
-  private pendingScrollAnchor: {
-    readonly communityId: string;
-    readonly top: number;
-  } | null = null;
 
   readonly sourceType: CommunityPreviewSourceType =
     normalizeCommunitySocialSpaceSourceType(
@@ -365,13 +351,18 @@ export class CommunityDiscoveryPageComponent {
         filter(({ request }) => request.append),
         takeUntilDestroyed(this.destroyRef)
       )
-      .subscribe(() => {
-        this.followRenderWindowTail = true;
-      });
+      .subscribe(() => this.renderWindow.markAppendLoaded());
 
     this.viewState$
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((state) => this.reconcileRenderWindow(state));
+      .subscribe((state) =>
+        this.renderWindow.reconcile(state.items, {
+          mineMode: this.discoveryMode === 'mine',
+          mineWindowKey: state.mineWindowKey,
+          loadingMore: state.loadingMore,
+          resolveElements: () => this.discoveryCardElements(),
+        })
+      );
 
     this.route.queryParamMap
       .pipe(
@@ -400,32 +391,34 @@ export class CommunityDiscoveryPageComponent {
 
   loadMore(cursor: string | null): void {
     if (!cursor) return;
-    this.captureScrollAnchor();
+    this.renderWindow.prepareLoadMore(() => this.discoveryCardElements());
     this.dataFacade.loadMore(cursor, this.selectedTagId());
   }
 
   discoveryRenderWindow(items: readonly CommunityDiscoveryCardView[]) {
-    return buildCommunityBoundedRenderWindow(
-      items,
-      COMMUNITY_DISCOVERY_RENDER_WINDOW_MAX_ITEMS,
-      this.renderWindowStart()
-    );
+    return this.renderWindow.window(items);
   }
 
   showPreviousLoadedResults(
     items: readonly CommunityDiscoveryCardView[]
   ): void {
-    this.shiftRenderWindow(items, -DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE);
+    this.renderWindow.showPreviousLoaded(
+      items,
+      () => this.discoveryCardElements()
+    );
   }
 
   showNextLoadedResults(
     items: readonly CommunityDiscoveryCardView[]
   ): void {
-    this.shiftRenderWindow(items, DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE);
+    this.renderWindow.showNextLoaded(
+      items,
+      () => this.discoveryCardElements()
+    );
   }
 
   retry(): void {
-    this.resetRenderWindow();
+    this.renderWindow.reset();
     this.sponsoredFacade.reset();
     this.dataFacade.reload(this.selectedTagId());
   }
@@ -602,7 +595,7 @@ export class CommunityDiscoveryPageComponent {
     if (!this.canFilterByTags || tagId === this.selectedTagId()) return;
 
     this.selectedTagId.set(tagId);
-    this.resetRenderWindow();
+    this.renderWindow.reset();
     this.sponsoredFacade.reset();
     this.dataFacade.reload(tagId);
 
@@ -613,141 +606,6 @@ export class CommunityDiscoveryPageComponent {
       queryParams: { interesse: tagId },
       queryParamsHandling: 'merge',
       replaceUrl: true,
-    });
-  }
-
-  private reconcileRenderWindow(
-    state: CommunityDiscoveryViewState
-  ): void {
-    const mineWindowChanged =
-      this.discoveryMode === 'mine'
-      && state.mineWindowKey !== this.lastMineWindowKey;
-    const previousFirstId = mineWindowChanged
-      ? null
-      : this.lastWindowItems[this.renderWindowStart()]?.communityId ?? null;
-
-    let nextStart = this.renderWindowStart();
-
-    if (mineWindowChanged) {
-      nextStart = 0;
-    } else if (this.followRenderWindowTail) {
-      nextStart = communityTailRenderWindowStart(
-        state.items.length,
-        COMMUNITY_DISCOVERY_RENDER_WINDOW_MAX_ITEMS
-      );
-      this.followRenderWindowTail = false;
-    } else if (previousFirstId) {
-      const anchoredIndex = state.items.findIndex(
-        (item) => item.communityId === previousFirstId
-      );
-      nextStart = anchoredIndex >= 0
-        ? normalizeCommunityRenderWindowStart(
-            state.items.length,
-            COMMUNITY_DISCOVERY_RENDER_WINDOW_MAX_ITEMS,
-            anchoredIndex
-          )
-        : normalizeCommunityRenderWindowStart(
-            state.items.length,
-            COMMUNITY_DISCOVERY_RENDER_WINDOW_MAX_ITEMS,
-            nextStart
-          );
-    } else {
-      nextStart = normalizeCommunityRenderWindowStart(
-        state.items.length,
-        COMMUNITY_DISCOVERY_RENDER_WINDOW_MAX_ITEMS,
-        nextStart
-      );
-    }
-
-    this.lastWindowItems = state.items;
-    this.lastMineWindowKey = state.mineWindowKey;
-
-    if (nextStart !== this.renderWindowStart()) {
-      this.renderWindowStart.set(nextStart);
-    }
-
-    if (!state.loadingMore && this.pendingScrollAnchor) {
-      this.restoreScrollAnchor();
-    }
-  }
-
-  private shiftRenderWindow(
-    items: readonly CommunityDiscoveryCardView[],
-    delta: number
-  ): void {
-    if (items.length <= COMMUNITY_DISCOVERY_RENDER_WINDOW_MAX_ITEMS) return;
-
-    this.captureScrollAnchor();
-    this.followRenderWindowTail = false;
-    this.renderWindowStart.set(
-      normalizeCommunityRenderWindowStart(
-        items.length,
-        COMMUNITY_DISCOVERY_RENDER_WINDOW_MAX_ITEMS,
-        this.renderWindowStart() + delta
-      )
-    );
-    this.restoreScrollAnchor();
-  }
-
-  private resetRenderWindow(): void {
-    this.followRenderWindowTail = false;
-    this.pendingScrollAnchor = null;
-    this.lastWindowItems = [];
-    this.renderWindowStart.set(0);
-  }
-
-  private captureScrollAnchor(): void {
-    const elements = this.discoveryCardElements();
-    if (elements.length === 0) {
-      this.pendingScrollAnchor = null;
-      return;
-    }
-
-    const candidate =
-      elements[Math.floor(elements.length / 2)]?.nativeElement ?? null;
-    const communityId = candidate?.dataset['communityId']?.trim() ?? '';
-
-    if (!candidate || !communityId) {
-      this.pendingScrollAnchor = null;
-      return;
-    }
-
-    this.pendingScrollAnchor = {
-      communityId,
-      top: candidate.getBoundingClientRect().top,
-    };
-  }
-
-  private restoreScrollAnchor(): void {
-    const anchor = this.pendingScrollAnchor;
-    this.pendingScrollAnchor = null;
-    if (!anchor) return;
-
-    queueMicrotask(() => {
-      const restore = () => {
-        const target = this.discoveryCardElements().find(
-          (element) =>
-            element.nativeElement.dataset['communityId'] === anchor.communityId
-        )?.nativeElement;
-        if (
-          !target
-          || typeof window === 'undefined'
-          || typeof window.scrollBy !== 'function'
-        ) {
-          return;
-        }
-
-        const delta = target.getBoundingClientRect().top - anchor.top;
-        if (Math.abs(delta) > 0.5) {
-          window.scrollBy(0, delta);
-        }
-      };
-
-      if (typeof requestAnimationFrame === 'function') {
-        requestAnimationFrame(restore);
-      } else {
-        restore();
-      }
     });
   }
 
