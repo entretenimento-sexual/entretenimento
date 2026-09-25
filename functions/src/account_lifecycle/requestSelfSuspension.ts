@@ -164,7 +164,11 @@ export const requestSelfSuspension = onCall<RequestSelfSuspensionRequest>(
         billingCancellation.recurringConfigured ? 'canceled' : 'none',
       message:
         billingCancellation.recurringConfigured
-          ? 'Conta suspensa. A renovação automática foi interrompida; o período já pago permanece válido e a renovação não será reativada automaticamente.'
+          ? [
+            'Conta suspensa. A renovação automática foi interrompida;',
+            'o período já pago permanece válido e a renovação não será',
+            'reativada automaticamente.',
+          ].join(' ')
           : 'Conta suspensa com sucesso.',
     };
   }
