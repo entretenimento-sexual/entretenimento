@@ -408,20 +408,41 @@ const unreferencedStaticAssets = staticAssets
   .map(posix)
   .sort();
 
-const declaredAssetReferences = new Set();
-for (const { source } of auditTexts) {
+const declaredAssetReferences = new Map();
+for (const { filePath, source } of auditTexts) {
+  const relativeSource = posix(filePath);
+  if (relativeSource === 'scripts/quality/check-production-orphans.mjs') {
+    continue;
+  }
+
   for (const match of source.matchAll(
     /(?:https?:\/\/[^"'\s()<>]+)?\/(assets\/[^"'\s()<>?#]+)/g
   )) {
-    declaredAssetReferences.add(match[1].replaceAll('%20', ' '));
+    const reference = match[1].replaceAll('%20', ' ');
+    if (
+      reference.includes('${')
+      || reference.includes('[')
+      || reference.includes(']')
+      || reference.includes('`')
+    ) {
+      continue;
+    }
+
+    const sources = declaredAssetReferences.get(reference) ?? new Set();
+    sources.add(relativeSource);
+    declaredAssetReferences.set(reference, sources);
   }
 }
 
-const missingStaticAssets = [...declaredAssetReferences]
-  .filter((reference) => {
+const missingStaticAssets = [...declaredAssetReferences.entries()]
+  .filter(([reference]) => {
     if (reference.startsWith('assets/webfonts/')) return false;
     return !fs.existsSync(path.join(root, 'src', reference));
   })
+  .map(
+    ([reference, sources]) =>
+      `${reference} <- ${[...sources].sort().join(', ')}`
+  )
   .sort();
 
 // -----------------------------------------------------------------------------
