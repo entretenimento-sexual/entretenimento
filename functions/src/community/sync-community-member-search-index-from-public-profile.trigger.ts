@@ -3,8 +3,8 @@
 // SYNC MEMBER SEARCH IDENTITY FROM PUBLIC PROFILE
 // -----------------------------------------------------------------------------
 // Mudanças relevantes em public_profiles atualizam somente a projeção de busca
-// dos memberships localizados. community_member_management_index é usado aqui
-// apenas como locator backend; nenhum campo privado dele é copiado.
+// dos memberships ativos localizados em community_user_index. Esse índice é
+// apenas um locator backend; autorização continua na membership canônica.
 // -----------------------------------------------------------------------------
 
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
@@ -47,15 +47,22 @@ export const syncCommunityMemberSearchIndexFromPublicProfile = onDocumentWritten
     if (previousFingerprint === nextFingerprint) return;
 
     const locatorSnapshot = await db
-      .collection('community_member_management_index')
-      .where('memberId', '==', memberId)
+      .collection('community_user_index')
+      .doc(memberId)
+      .collection('items')
       .get();
 
     if (locatorSnapshot.empty) return;
 
     const communityIds = Array.from(new Set(
       locatorSnapshot.docs
-        .map((document) => String(document.data()?.['communityId'] ?? '').trim())
+        .filter((document) => {
+          const data = document.data() ?? {};
+          return data['status'] === 'active'
+            && (data['source'] as Record<string, unknown> | undefined)?.['type']
+              === 'community';
+        })
+        .map((document) => String(document.data()?.['communityId'] ?? document.id).trim())
         .filter(Boolean)
     ));
     if (!communityIds.length) return;
