@@ -62,6 +62,9 @@ tree*.txt
 scripts/service-account.json
 scripts/check-auth-user.mjs
 
+# Artefatos locais gerados pela Firebase CLI
+/.firebase/
+
 # Estado local persistido do Firebase Emulator
 .firebase/emulator-data/
 .emulator-data/
