@@ -16,6 +16,7 @@ import {
   map,
   of,
   Subject,
+  startWith,
   switchMap,
   take,
   tap,
@@ -84,6 +85,7 @@ export class CommunityAdminTimelineComponent {
     this.communityId$.pipe(
       switchMap((communityId) =>
         this.refreshRequests$.pipe(
+          startWith(undefined),
           tap(() => {
             this.stateSubject.next({
               status: 'loading',
@@ -162,8 +164,6 @@ export class CommunityAdminTimelineComponent {
       ),
       takeUntilDestroyed(this.destroyRef)
     ).subscribe();
-
-    this.refreshRequests$.next();
   }
 
   refresh(): void {

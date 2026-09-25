@@ -203,16 +203,15 @@ async function labelsFor(uids: readonly string[]): Promise<Map<string, string>> 
   if (unique.length === 0) return new Map();
 
   const snapshots = await db.getAll(
-    ...unique.map((uid) => db.collection('users').doc(uid))
+    ...unique.map((uid) => db.collection('public_profiles').doc(uid))
   );
 
   return new Map(
     snapshots.map((snapshot) => {
-      const user = snapshot.exists ? snapshot.data() ?? {} : {};
+      const profile = snapshot.exists ? snapshot.data() ?? {} : {};
       const label =
-        text(user['nickname'])
-        || text(user['nome'])
-        || text(user['displayName'])
+        text(profile['nickname'])
+        || text(profile['displayName'])
         || 'Conta indisponível';
 
       return [snapshot.id, label] as const;
