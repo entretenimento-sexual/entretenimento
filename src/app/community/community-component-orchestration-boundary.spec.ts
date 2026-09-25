@@ -50,9 +50,11 @@ describe('Community component orchestration boundary', () => {
       'discovery/community-discovery-data.facade.ts',
       'discovery/community-discovery-mine.facade.ts',
       'discovery/community-discovery-sponsored.facade.ts',
+      'discovery/community-discovery-render-window.facade.ts',
       'feed/community-feed-timeline.facade.ts',
       'feed/community-feed-moderation.facade.ts',
       'feed/community-feed-location.facade.ts',
+      'feed/community-feed-render-window.facade.ts',
     ] as const;
 
     for (const path of facadePaths) {
