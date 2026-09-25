@@ -25,6 +25,7 @@ const retiredPaths = [
   'src/app/store/states/states.chat/invite.state.ts',
   'src/app/store/reducers/reducers.chat/index.ts',
   'src/app/header/global-invite-badge',
+  'src/app/core/interfaces/interfaces-chat/invite.interface.ts',
 ];
 
 const guardedFiles = [
@@ -34,6 +35,7 @@ const guardedFiles = [
   'src/app/store/store.module.ts',
   'src/app/layout/layout-shell/layout-shell.component.html',
   'src/app/header/header.module.ts',
+  'src/app/store/reducers/meta-reducers/reset-store-on-auth-change.metareducer.spec.ts',
 ];
 
 const forbiddenPatterns = [
