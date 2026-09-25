@@ -10,15 +10,20 @@ function source(relativePath: string): string {
   );
 }
 
-test('self suspension persists account state before stopping recurring billing', () => {
+test('self suspension persists billing obligation before reconciliation', () => {
   const current = source('requestSelfSuspension.ts');
   const stateIndex = current.indexOf('await db.runTransaction');
-  const billingIndex = current.indexOf(
-    'await cancelRecurringBillingForAccountLifecycle'
+  const transactionSource = current.slice(stateIndex);
+  const markerIndex = transactionSource.indexOf(
+    'buildAccountLifecycleBillingCancellationPatch'
+  );
+  const reconcileIndex = current.lastIndexOf(
+    'await reconcileAccountLifecycleBillingCancellation'
   );
 
   assert.ok(stateIndex >= 0);
-  assert.ok(billingIndex > stateIndex);
+  assert.ok(markerIndex >= 0);
+  assert.ok(reconcileIndex > stateIndex);
   assert.equal(current.includes('secrets: [ASAAS_API_KEY]'), true);
   assert.equal(
     current.includes("reason: 'account-self-suspension'"),
@@ -26,15 +31,20 @@ test('self suspension persists account state before stopping recurring billing',
   );
 });
 
-test('moderation suspension persists account state before stopping recurring billing', () => {
+test('moderation suspension persists billing obligation before reconciliation', () => {
   const current = source('moderateSuspendAccount.ts');
   const stateIndex = current.indexOf('await db.runTransaction');
-  const billingIndex = current.indexOf(
-    'await cancelRecurringBillingForAccountLifecycle'
+  const transactionSource = current.slice(stateIndex);
+  const markerIndex = transactionSource.indexOf(
+    'buildAccountLifecycleBillingCancellationPatch'
+  );
+  const reconcileIndex = current.lastIndexOf(
+    'await reconcileAccountLifecycleBillingCancellation'
   );
 
   assert.ok(stateIndex >= 0);
-  assert.ok(billingIndex > stateIndex);
+  assert.ok(markerIndex >= 0);
+  assert.ok(reconcileIndex > stateIndex);
   assert.equal(current.includes('secrets: [ASAAS_API_KEY]'), true);
   assert.equal(
     current.includes("reason: 'moderation-account-suspension'"),
