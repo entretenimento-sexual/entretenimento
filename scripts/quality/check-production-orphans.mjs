@@ -306,9 +306,25 @@ while (functionsQueue.length > 0) {
   }
 }
 
+const functionsOperationalPolicyArtifacts = new Set([
+  posix(path.join(
+    functionsSourceRoot,
+    'community-boost/community-boost-cost-calibration.policy.ts'
+  )),
+  posix(path.join(
+    functionsSourceRoot,
+    'community/community-business-official-calibration.policy.ts'
+  )),
+  posix(path.join(
+    functionsSourceRoot,
+    'shared/observability/operational-cost-baseline.policy.ts'
+  )),
+]);
+
 const functionOrphans = functionsProductionTs
   .filter((filePath) => !functionsReachable.has(path.normalize(filePath)))
   .map(posix)
+  .filter((filePath) => !functionsOperationalPolicyArtifacts.has(filePath))
   .sort();
 
 // -----------------------------------------------------------------------------
