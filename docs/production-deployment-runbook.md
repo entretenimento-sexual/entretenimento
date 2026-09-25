@@ -250,6 +250,9 @@ Schedules entram depois dos writers/triggers que recebem seus efeitos:
 - `runCommunityExploreContentRetention`;
 - `runCommunityBoostLifecycle`;
 - reconciliadores periódicos de billing, se billing estiver aprovado.
+- reconciliador de suspensão moderada temporária
+  (`reconcileModerationSuspensions`) somente depois do índice
+  `users(accountStatus, suspensionEndsAt, __name__)` estar READY;
 
 Jobs destrutivos/retention/purge não devem ser o primeiro evento executado por
 uma nova versão. Confirmar configuração, elegibilidade e dry-run/inspection
@@ -643,6 +646,7 @@ Não iniciar uma nova onda enquanto a anterior não estiver explicitamente verde
 - [ ] backup Firestore concluído;
 - [ ] alertas/dashboards ativos;
 - [ ] índices novos READY;
+- [ ] índice de suspensões moderadas temporárias READY antes do reconciliador;
 - [ ] diff de Rules classificado e compatível;
 - [ ] Functions a implantar listadas por onda;
 - [ ] aliases de triggers legados preservados;

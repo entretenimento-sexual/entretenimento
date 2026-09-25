@@ -21,7 +21,9 @@ const temporaryCompatibilityExports = [
 ];
 
 const requiredExports = [
+  'syncAccountLifecycleSubscriptionProjection',
   'reconcileAccountLifecycleBilling',
+  'reconcileModerationSuspensions',
   'reconcileRecurringProviderCancellations',
   'reconcileRecurringProviderPlanChanges',
   'reconcileProviderWebhookEvents',

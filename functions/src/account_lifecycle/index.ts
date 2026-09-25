@@ -16,4 +16,8 @@ export {
 
 export { purgeDeletedAccounts } from './purgeDeletedAccounts';
 
+export { reconcileModerationSuspensions } from './reconcileModerationSuspensions';
+
 export { reconcileAccountLifecycleBilling } from './reconcileAccountLifecycleBilling';
+
+export { syncAccountLifecycleSubscriptionProjection } from './sync-account-lifecycle-subscription-projection.trigger';
