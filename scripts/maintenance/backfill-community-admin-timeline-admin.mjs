@@ -50,6 +50,7 @@ const SOURCES = [
   ['feed', 'community_feed_audit'],
   ['topic', 'community_topic_audit'],
   ['official', 'community_official_claim_audit'],
+  ['official_association', 'community_official_association_audit'],
   ['lifecycle', 'community_lifecycle_audit'],
 ];
 

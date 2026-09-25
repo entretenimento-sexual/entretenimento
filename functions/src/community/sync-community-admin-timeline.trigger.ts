@@ -128,6 +128,22 @@ export const syncCommunityAdminTimelineOfficialClaimAudit = onDocumentCreated(
   }
 );
 
+export const syncCommunityAdminTimelineOfficialAssociationAudit =
+  onDocumentCreated(
+    {
+      document: 'community_official_association_audit/{auditId}',
+      region: FUNCTIONS_REGION,
+    },
+    async (event) => {
+      if (!event.data) return;
+      await projectAudit(
+        'official_association',
+        String(event.params['auditId'] ?? ''),
+        event.data.data()
+      );
+    }
+  );
+
 export const syncCommunityAdminTimelineLifecycleAudit = onDocumentCreated(
   {
     document: 'community_lifecycle_audit/{auditId}',

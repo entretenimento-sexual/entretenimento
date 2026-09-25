@@ -151,6 +151,7 @@ export {
   syncCommunityAdminTimelineFeedAudit,
   syncCommunityAdminTimelineTopicAudit,
   syncCommunityAdminTimelineOfficialClaimAudit,
+  syncCommunityAdminTimelineOfficialAssociationAudit,
   syncCommunityAdminTimelineLifecycleAudit,
 } from './sync-community-admin-timeline.trigger';
 export { runCommunityLifecycle } from './run-community-lifecycle.schedule';

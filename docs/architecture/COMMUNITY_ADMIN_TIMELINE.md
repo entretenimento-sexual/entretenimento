@@ -17,7 +17,8 @@ callable.
 ## Fluxo
 
 1. Operações existentes continuam produzindo audits canônicos.
-2. Triggers onDocumentCreated aceitam somente ações explicitamente whitelisted.
+2. Triggers onDocumentCreated aceitam somente ações explicitamente whitelisted,
+   incluindo community_official_claim_audit e community_official_association_audit.
 3. O evento seguro vai para community_admin_timeline/{communityId}/items.
 4. Firestore Rules negam leitura e escrita client-side.
 5. getCommunityAdminTimeline valida App Check e contexto social existente.
@@ -41,7 +42,7 @@ autorização explícita para produção.
 1. Congelar o SHA aprovado e executar validate:prod, testes de Functions, Rules
    e build Angular.
 2. Publicar Firestore Rules com o deny explícito da projeção.
-3. Publicar somente os seis triggers syncCommunityAdminTimeline*.
+3. Publicar somente os sete triggers syncCommunityAdminTimeline*.
 4. Validar eventos sintéticos controlados em staging.
 5. Publicar getCommunityAdminTimeline.
 6. Smoke test owner/admin e negação para moderator/member.
@@ -54,7 +55,7 @@ autorização explícita para produção.
 
 - UI: reverter Hosting; a projeção continua privada e inerte.
 - Callable: rollback/remover getCommunityAdminTimeline.
-- Triggers: rollback dos seis syncCommunityAdminTimeline*; audits originais
+- Triggers: rollback dos sete syncCommunityAdminTimeline*; audits originais
   continuam intactos.
 - Backfill: a coleção é derivada; corrigir a policy e reconstruir apenas a
   projeção afetada.

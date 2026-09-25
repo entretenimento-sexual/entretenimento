@@ -123,3 +123,28 @@ test('gera id determinístico sem expor o audit id', () => {
   assert.equal(first, second);
   assert.equal(first.includes('audit-1'), false);
 });
+
+test('projeta revogação da associação oficial sem reason ou target bruto', () => {
+  const result = buildCommunityAdminTimelineProjection({
+    source: 'official_association',
+    auditId: 'association-1',
+    rawAudit: {
+      action: 'official_association_revoked',
+      communityId: 'community-1',
+      associationKey: 'private-association-key',
+      target: { type: 'venue', id: 'private-target' },
+      previousStatus: 'verified',
+      nextStatus: 'revoked',
+      reason: 'community_terminal',
+      createdAt: 5_000,
+    },
+  });
+
+  assert.equal(result?.actorKind, 'system');
+  assert.equal(result?.actorUid, null);
+  assert.deepEqual(result?.details, {
+    previousStatus: 'verified',
+    nextStatus: 'revoked',
+  });
+  assert.equal(Object.hasOwn(result ?? {}, 'reason'), false);
+});

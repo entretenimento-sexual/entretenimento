@@ -14,6 +14,7 @@ export type CommunityAdminTimelineSource =
   | 'feed'
   | 'topic'
   | 'official'
+  | 'official_association'
   | 'lifecycle';
 
 export type CommunityAdminTimelineCategory =
@@ -349,15 +350,19 @@ function topicProjection(
 }
 
 function officialProjection(
+  source: 'official' | 'official_association',
   auditId: string,
   raw: Record<string, unknown>
 ): CommunityAdminTimelineProjection | null {
-  const base = baseProjection('official', auditId, raw);
+  const base = baseProjection(source, auditId, raw);
   const action = String(raw['action'] ?? '');
   const previousStatus = status(raw['previousStatus']);
   const nextStatus = status(raw['nextStatus']);
+  const supportedAction = source === 'official'
+    ? action.startsWith('official_claim_')
+    : action === 'official_association_revoked';
 
-  if (!base || !action.startsWith('official_claim_') || !nextStatus) {
+  if (!base || !supportedAction || !nextStatus) {
     return null;
   }
 
@@ -420,8 +425,11 @@ export function buildCommunityAdminTimelineProjection(input: {
   if (input.source === 'topic') {
     return topicProjection(input.auditId, raw);
   }
-  if (input.source === 'official') {
-    return officialProjection(input.auditId, raw);
+  if (
+    input.source === 'official'
+    || input.source === 'official_association'
+  ) {
+    return officialProjection(input.source, input.auditId, raw);
   }
   return lifecycleProjection(input.auditId, raw);
 }
