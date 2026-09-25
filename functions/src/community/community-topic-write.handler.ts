@@ -260,12 +260,6 @@ export const createCommunityTopic = onCall<CommunityTopicCreateRequest>(
         userSnapshot.exists ? userSnapshot.data() : null
       );
 
-      await assertCommunityMembershipActorEligibleInTransaction(
-        transaction,
-        actorUid,
-        userSnapshot.exists ? userSnapshot.data() : null
-      );
-
       assertTransactionalInteractionAllowed(
         communitySnapshot.data(),
         membershipSnapshot.exists ? membershipSnapshot.data() : null
