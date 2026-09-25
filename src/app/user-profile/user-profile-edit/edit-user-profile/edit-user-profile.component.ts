@@ -33,7 +33,6 @@ import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/f
 import { LocalDraftService } from 'src/app/core/services/drafts/local-draft.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
-import { ValidatorService } from 'src/app/core/services/general/validator.service';
 import { PhotoEditorLauncherService } from 'src/app/core/services/image-handling/photo-editor-launcher.service';
 import { StorageService } from 'src/app/core/services/image-handling/storage.service';
 import {
