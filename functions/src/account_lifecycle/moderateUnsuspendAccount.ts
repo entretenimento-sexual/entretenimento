@@ -176,8 +176,8 @@ export const moderateUnsuspendAccount = onCall<ModerateUnsuspendAccountRequest>(
           : subscriptionRenewalStatus === 'canceled'
             ? 'Conta reativada pela moderação. A renovação automática permanece cancelada.'
             : restored.publicVisibility === 'visible'
-            ? 'Conta reativada pela moderação.'
-            : 'Conta reativada, mas permanece privada até concluir as verificações pendentes.',
+              ? 'Conta reativada pela moderação.'
+              : 'Conta reativada, mas permanece privada até concluir as verificações pendentes.',
     };
   }
 );
