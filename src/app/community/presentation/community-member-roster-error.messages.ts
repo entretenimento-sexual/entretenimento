@@ -18,6 +18,16 @@ export const COMMUNITY_MEMBER_ROSTER_REASON_MESSAGES: CommunityErrorMessageMap =
       'Não foi possível validar esta consulta de integrantes.',
     community_member_roster_membership_required:
       'Somente participantes ativos podem ver os integrantes desta Comunidade.',
+    community_search_unavailable:
+      'A busca de integrantes está temporariamente indisponível. Tente novamente.',
+    community_search_query_invalid:
+      'Digite pelo menos 2 caracteres para buscar integrantes.',
+    community_search_cursor_invalid:
+      'A paginação da busca perdeu a validade. Atualize os resultados e tente novamente.',
+    community_search_membership_required:
+      'Somente participantes ativos podem buscar integrantes desta Comunidade.',
+    community_search_rate_limited:
+      'Muitas buscas foram realizadas em pouco tempo. Aguarde um pouco e tente novamente.',
     email_verification_required:
       'Verifique seu e-mail antes de consultar os integrantes desta Comunidade.',
   });
