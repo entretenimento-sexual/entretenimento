@@ -120,6 +120,7 @@ describe('Community × Local social-space boundary', () => {
     expect(getSocialSpaceDefinition('community').capabilities).toMatchObject({
       topics: true,
       memberDirectory: true,
+      memberSearch: true,
       managedLifecycle: true,
       capacityManagement: true,
       interestDiscovery: true,
@@ -129,6 +130,7 @@ describe('Community × Local social-space boundary', () => {
       publicLocation: true,
       topics: false,
       memberDirectory: false,
+      memberSearch: false,
       managedLifecycle: false,
       capacityManagement: false,
       interestDiscovery: false,
@@ -137,6 +139,7 @@ describe('Community × Local social-space boundary', () => {
     expect(getSocialSpaceDefinition('room').capabilities).toMatchObject({
       topics: false,
       memberDirectory: false,
+      memberSearch: false,
       managedLifecycle: false,
       capacityManagement: false,
       contentModeration: false,
