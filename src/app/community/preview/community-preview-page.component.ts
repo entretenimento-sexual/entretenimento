@@ -379,6 +379,8 @@ export class CommunityPreviewPageComponent {
   }
 
   handleTabKeydown(event: KeyboardEvent): void {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+
     if (
       event.key !== 'ArrowLeft'
       && event.key !== 'ArrowRight'
