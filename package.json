@@ -83,6 +83,7 @@
     "audit:prod": "npm run audit:root:prod && npm run functions:audit:prod",
     "audit:all": "npm run audit:root:all && npm run functions:audit:all",
     "room:deprecation-boundary:check": "node scripts/quality/check-room-deprecation-boundary.mjs",
+    "audit:typescript:unused": "tsc -p tsconfig.unused-audit.json",
     "community:cost-operations:check": "node scripts/quality/check-community-cost-operations.mjs",
     "community:calibration-freeze:check": "node scripts/quality/check-community-calibration-freeze.mjs",
     "billing:pricing-boundary:check": "node scripts/quality/check-billing-pricing-boundary.mjs",
