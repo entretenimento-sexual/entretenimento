@@ -31,17 +31,12 @@ function addResolved(fromFile, raw) {
 for (const file of textFiles) {
   const source = fs.readFileSync(file, 'utf8');
 
-  const patterns = [
-    /templateUrl\s*:\s*['"]([^'"]+\.html)['"]/g,
-    /styleUrls?\s*:\s*\[?\s*['"]([^'"]+\.(?:css|scss))['"]/g,
-    /@import\s+(?:url\()?\s*['"]([^'"]+\.(?:css|scss))['"]/g,
-  ];
-
-  for (const pattern of patterns) {
-    let match;
-    while ((match = pattern.exec(source)) !== null) {
-      addResolved(file, match[1]);
-    }
+  // Captura todas as referências locais de template/estilo, inclusive
+  // múltiplos itens de styleUrls e @imports em CSS compartilhado.
+  for (const match of source.matchAll(
+    /['"]([^'"]+\.(?:html|css|scss))['"]/g
+  )) {
+    addResolved(file, match[1]);
   }
 }
 
