@@ -775,6 +775,36 @@ const legacyRootPostsConsumers = auditTexts
   .sort();
 
 // -----------------------------------------------------------------------------
+// CALLABLES LEGADOS: compatibilidade backend-only sem consumidor no cliente atual
+// -----------------------------------------------------------------------------
+
+const retiredClientCallableNames = [
+  'unpublishPhoto',
+  'unpublishVideo',
+  'getCommunityOwnershipCandidates',
+];
+
+const retiredClientCallableConsumers = auditTexts
+  .filter(({ filePath, source }) => {
+    const relative = posix(filePath);
+    if (
+      !relative.startsWith('src/app/')
+      || /.(?:spec|test)\.[cm]?[jt]s$/i.test(relative)
+      || relative.includes('/visual-validation/')
+    ) {
+      return false;
+    }
+
+    return retiredClientCallableNames.some((callableName) =>
+      new RegExp(
+        `httpsCallable(?:<[^;]+?>)?[\\s\\S]{0,240}['"]${callableName}['"]`
+      ).test(source)
+    );
+  })
+  .map(({ filePath }) => posix(filePath))
+  .sort();
+
+// -----------------------------------------------------------------------------
 // FIRESTORE RULES: fragments que não entram no manifesto canônico
 // -----------------------------------------------------------------------------
 
@@ -870,6 +900,7 @@ printGroup('DevDependencies sem referência identificável', unreferencedDevelop
 printGroup('Dependências de Functions sem referência identificável', unreferencedFunctionsDependencies);
 printGroup('DevDependencies de Functions sem referência identificável', unreferencedFunctionsDevelopmentDependencies);
 printGroup('Consumidores produtivos proibidos da coleção raiz posts', legacyRootPostsConsumers);
+printGroup('Consumidores client-side de callables legados backend-only', retiredClientCallableConsumers);
 printGroup('Fragments de Firestore Rules fora do manifesto', ruleFragmentsOutsideManifest);
 printGroup('Scripts sem referência identificável', unreferencedScripts);
 printGroup('Arquivos vazios rastreados', emptyTrackedFiles);
@@ -888,6 +919,7 @@ if (
     || unreferencedFunctionsDependencies.length > 0
     || unreferencedFunctionsDevelopmentDependencies.length > 0
     || legacyRootPostsConsumers.length > 0
+    || retiredClientCallableConsumers.length > 0
     || ruleFragmentsOutsideManifest.length > 0
     || unreferencedScripts.length > 0
     || emptyTrackedFiles.length > 0
