@@ -113,6 +113,7 @@ function limitValue(value: unknown): number {
 
 function text(value: unknown, maxLength = 60): string {
   return String(value ?? '')
+    // eslint-disable-next-line no-control-regex -- Sanitização intencional.
     .replace(/[\u0000-\u001F\u007F]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
@@ -322,18 +323,17 @@ export const getCommunityAdminTimeline = onCall<CommunityAdminTimelineRequest>(
       id: item.id,
       category: item.category,
       eventType: item.eventType,
-      actor:
-        item.actorKind === 'system'
-          ? { kind: 'system', label: 'Sistema' }
-          : {
-              kind: 'user',
-              label: labels.get(item.actorUid ?? '') ?? 'Conta indisponível',
-            },
+      actor: item.actorKind === 'system'
+        ? { kind: 'system', label: 'Sistema' }
+        : {
+          kind: 'user',
+          label: labels.get(item.actorUid ?? '') ?? 'Conta indisponível',
+        },
       subject: item.subjectUid
         ? {
-            kind: 'user',
-            label: labels.get(item.subjectUid) ?? 'Conta indisponível',
-          }
+          kind: 'user',
+          label: labels.get(item.subjectUid) ?? 'Conta indisponível',
+        }
         : null,
       details: item.details,
       createdAt: item.createdAt,
@@ -350,9 +350,9 @@ export const getCommunityAdminTimeline = onCall<CommunityAdminTimelineRequest>(
       nextCursor:
         hasMore && lastDocument && Number.isFinite(lastCreatedAt)
           ? encodeCursor({
-              createdAtMs: lastCreatedAt,
-              documentId: lastDocument.id,
-            })
+            createdAtMs: lastCreatedAt,
+            documentId: lastDocument.id,
+          })
           : null,
       generatedAt: Date.now(),
     };
