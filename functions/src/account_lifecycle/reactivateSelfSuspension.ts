@@ -1,5 +1,8 @@
 // functions/src/account_lifecycle/reactivateSelfSuspension.ts
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import {
+  assertAccountLifecycleMutationSecurity,
+} from './account-lifecycle-mutation-security';
 import { db } from '../firebaseApp';
 import {
   ACCOUNT_LIFECYCLE_REGION,
@@ -37,6 +40,12 @@ export const reactivateSelfSuspension = onCall<Record<string, never>>(
     assertRecentAuthentication(
       request.auth?.token as Record<string, unknown> | undefined
     );
+
+    await assertAccountLifecycleMutationSecurity({
+      action: 'self_reactivate',
+      subjectUid: uid,
+      appContext: request.app,
+    });
 
     const now = Date.now();
 
