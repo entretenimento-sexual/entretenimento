@@ -439,6 +439,54 @@ const unreferencedProductionDependencies = productionDependencies
   .filter((packageName) => !dependencyReferenced(packageName))
   .sort();
 
+
+const functionsPackage = readJson(path.join(root, 'functions', 'package.json'));
+const functionsDependencies = Object.keys(functionsPackage.dependencies ?? {});
+const functionsAuditTexts = auditTexts.filter(({ filePath }) =>
+  filePath.startsWith(functionsSourceRoot + path.sep)
+);
+
+function functionsDependencyReferenced(packageName) {
+  const patterns = [
+    `'${packageName}'`,
+    `"${packageName}"`,
+    `'${packageName}/`,
+    `"${packageName}/`,
+  ];
+
+  return functionsAuditTexts.some(({ source }) =>
+    patterns.some((pattern) => source.includes(pattern))
+  );
+}
+
+const unreferencedFunctionsDependencies = functionsDependencies
+  .filter((packageName) => !functionsDependencyReferenced(packageName))
+  .sort();
+
+// -----------------------------------------------------------------------------
+// FIRESTORE RULES: fragments que não entram no manifesto canônico
+// -----------------------------------------------------------------------------
+
+const rulesRoot = path.join(root, 'firestore-rules');
+const ruleFragments = walk(rulesRoot)
+  .filter(
+    (filePath) =>
+      filePath.endsWith('.rules')
+      && path.dirname(filePath) === rulesRoot
+  )
+  .map((filePath) => path.basename(filePath))
+  .sort();
+
+const rulesManifestPath = path.join(
+  rulesRoot,
+  'tools-rules',
+  'firestore-rules-parts.mjs'
+);
+const rulesManifestSource = fs.readFileSync(rulesManifestPath, 'utf8');
+const ruleFragmentsOutsideManifest = ruleFragments
+  .filter((fileName) => !rulesManifestSource.includes(`'${fileName}'`))
+  .map((fileName) => `firestore-rules/${fileName}`);
+
 // -----------------------------------------------------------------------------
 // SCRIPTS: arquivos sem chamada/referência identificável
 // -----------------------------------------------------------------------------
@@ -487,6 +535,8 @@ printGroup('Functions fora do grafo exportável', functionOrphans);
 printGroup('Assets estáticos sem referência textual', unreferencedStaticAssets);
 printGroup('Referências a assets locais inexistentes', missingStaticAssets);
 printGroup('Dependências de produção sem referência identificável', unreferencedProductionDependencies);
+printGroup('Dependências de Functions sem referência identificável', unreferencedFunctionsDependencies);
+printGroup('Fragments de Firestore Rules fora do manifesto', ruleFragmentsOutsideManifest);
 printGroup('Scripts sem referência identificável', unreferencedScripts);
 printGroup('Arquivos vazios rastreados', emptyTrackedFiles);
 
@@ -496,6 +546,7 @@ if (
     meaningfulTsOrphans.length > 0
     || meaningfulAssetOrphans.length > 0
     || functionOrphans.length > 0
+    || ruleFragmentsOutsideManifest.length > 0
   )
 ) {
   console.error(
