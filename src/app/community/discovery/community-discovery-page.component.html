@@ -326,14 +326,33 @@
         }
       </div>
     } @else {
+      @let renderWindow = discoveryRenderWindow(state.items);
+
+      @if (renderWindow.hasPrevious) {
+        <div
+          class="community-discovery__more community-discovery__more--window"
+          role="group"
+          aria-label="Navegar pelos resultados já carregados"
+        >
+          <button
+            type="button"
+            aria-label="Ver resultados anteriores já carregados"
+            (click)="showPreviousLoadedResults(state.items)"
+          >
+            <i class="fas fa-chevron-up" aria-hidden="true"></i>
+            <span>Ver anteriores</span>
+          </button>
+        </div>
+      }
+
       <ul
         class="community-discovery__grid"
         [attr.aria-label]="title + ' disponíveis'"
         [attr.aria-describedby]="discoveryMode === 'mine' ? 'community-mine-attention-scope' : null"
         [attr.aria-busy]="state.loadingMore"
       >
-        @for (item of state.items; track item.communityId; let itemIndex = $index) {
-          @if (mineFacade.startsAttentionGroup(state.items, itemIndex)) {
+        @for (item of renderWindow.items; track item.communityId; let itemIndex = $index) {
+          @if (mineFacade.startsAttentionGroup(renderWindow.items, itemIndex)) {
             <li
               class="community-discovery__attention-heading"
               role="presentation"
@@ -349,7 +368,9 @@
           }
 
           <li
+            #discoveryCardShell
             class="community-card-shell"
+            [attr.data-community-id]="item.communityId"
             [class.community-card-shell--mine]="discoveryMode === 'mine'"
             [attr.data-attention]="
               discoveryMode === 'mine' ? mineFacade.attentionGroupKey(item) : null
@@ -515,9 +536,9 @@
             }
           </li>
 
-          @if (discoveryMode === 'explore') {
+          @if (discoveryMode === 'explore' && renderWindow.start === 0) {
             @if (
-              sponsoredPlacementAfter(itemIndex, state.items.length);
+              sponsoredPlacementAfter(itemIndex, renderWindow.items.length);
               as placement
             ) {
               <li
@@ -675,7 +696,22 @@
         }
       </ul>
 
-      @if (state.nextCursor) {
+      @if (renderWindow.hasNext) {
+        <div
+          class="community-discovery__more community-discovery__more--window"
+          role="group"
+          aria-label="Navegar pelos resultados já carregados"
+        >
+          <button
+            type="button"
+            aria-label="Ver resultados seguintes já carregados"
+            (click)="showNextLoadedResults(state.items)"
+          >
+            <i class="fas fa-chevron-down" aria-hidden="true"></i>
+            <span>Ver seguintes</span>
+          </button>
+        </div>
+      } @else if (state.nextCursor) {
         <div class="community-discovery__more">
           <button
             type="button"
