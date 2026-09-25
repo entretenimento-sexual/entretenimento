@@ -221,7 +221,14 @@ export class CommunityFeedComponent {
     { initialValue: [] }
   );
 
-  private readonly smartFollowEffect = effect(() => {
+  readonly postCreateState$ = this.composer.postCreateState$;
+
+  readonly postActionState$ = this.moderation.state$;
+
+  readonly reactionState$ = this.reactions.reactionState$;
+
+  constructor() {
+    effect(() => {
     const orderedPostIds = this.orderedPostIds();
     const latestPostId = orderedPostIds[0] ?? null;
 
@@ -283,7 +290,7 @@ export class CommunityFeedComponent {
     });
   });
 
-  private readonly externalFocusEffect = effect(() => {
+    effect(() => {
     const communityId = this.communityId().trim();
     const postId = String(this.focusPostId() ?? '').trim();
     const commentId = String(this.focusCommentId() ?? '').trim();
@@ -308,7 +315,7 @@ export class CommunityFeedComponent {
     this.navigateToPost(postId);
   });
 
-  private readonly ownPostFollowEffect = effect(() => {
+    effect(() => {
     const postId = this.pendingOwnPostFollowId();
     if (!postId) return;
 
@@ -323,13 +330,6 @@ export class CommunityFeedComponent {
     });
   });
 
-  readonly postCreateState$ = this.composer.postCreateState$;
-
-  readonly postActionState$ = this.moderation.state$;
-
-  readonly reactionState$ = this.reactions.reactionState$;
-
-  constructor() {
     this.feedScope$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.renderWindow.reset());
