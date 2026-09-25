@@ -1,0 +1,163 @@
+<section class="community-search" aria-label="Buscar nesta Comunidade">
+  <header class="community-search__header">
+    <div>
+      <h2>Buscar na Comunidade</h2>
+      <p>Encontre membros e Discussões sem percorrer o histórico inteiro.</p>
+    </div>
+  </header>
+
+  <label class="community-search__field" for="community-internal-search">
+    <span>Buscar</span>
+    <span class="community-search__input-wrap">
+      <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
+      <input
+        id="community-internal-search"
+        type="search"
+        maxlength="40"
+        autocomplete="off"
+        placeholder="Nome de membro ou assunto"
+        [formControl]="searchControl"
+      />
+    </span>
+  </label>
+
+  @if (queryState$ | async; as queryState) {
+    @if (!queryState.searchable) {
+      <p class="community-search__hint" role="status">
+        Digite pelo menos 2 caracteres para pesquisar.
+      </p>
+    } @else {
+      <div class="community-search__sections">
+        @if (membersState$ | async; as members) {
+          <section class="community-search__section" aria-labelledby="community-search-members-title">
+            <div class="community-search__section-heading">
+              <h3 id="community-search-members-title">Membros</h3>
+            </div>
+
+            @if (members.status === 'loading') {
+              <p class="community-search__state" role="status">
+                <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                Buscando membros…
+              </p>
+            } @else if (members.status === 'error') {
+              <p class="community-search__state is-error" role="alert">
+                {{ members.errorMessage }}
+              </p>
+            } @else if (!members.available) {
+              <p class="community-search__state">
+                A lista de membros é pesquisável somente por participantes ativos.
+              </p>
+            } @else if (members.status === 'empty') {
+              <p class="community-search__state">Nenhum membro encontrado.</p>
+            } @else if (members.status === 'ready') {
+              <ul class="community-search__members">
+                @for (item of members.items; track item.type === 'member' ? item.memberKey : item.topicId) {
+                  @if (item.type === 'member') {
+                    <li>
+                      <a
+                        [routerLink]="['/perfil', item.identity.profileId]"
+                        [attr.aria-label]="'Ver perfil de ' + item.identity.nickname"
+                      >
+                        <app-public-user-identity
+                          [identity]="item.identity"
+                          density="comfortable"
+                          emphasis="strong"
+                          [contextText]="roleLabel(item.role)"
+                        />
+                      </a>
+                    </li>
+                  }
+                }
+              </ul>
+            }
+
+            @if (members.loadMoreFailed) {
+              <p class="community-search__state is-error" role="status">
+                {{ members.errorMessage }} Os resultados acima foram preservados.
+              </p>
+            }
+            @if (members.nextCursor) {
+              <button
+                class="community-search__more"
+                type="button"
+                [disabled]="members.loadingMore"
+                (click)="loadMoreMembers(members.nextCursor)"
+              >
+                @if (members.loadingMore) {
+                  <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                  Carregando…
+                } @else {
+                  Ver mais membros
+                }
+              </button>
+            }
+          </section>
+        }
+
+        @if (topicsState$ | async; as topics) {
+          <section class="community-search__section" aria-labelledby="community-search-topics-title">
+            <div class="community-search__section-heading">
+              <h3 id="community-search-topics-title">Discussões</h3>
+            </div>
+
+            @if (topics.status === 'loading') {
+              <p class="community-search__state" role="status">
+                <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                Buscando Discussões…
+              </p>
+            } @else if (topics.status === 'error') {
+              <p class="community-search__state is-error" role="alert">
+                {{ topics.errorMessage }}
+              </p>
+            } @else if (topics.status === 'empty') {
+              <p class="community-search__state">Nenhuma Discussão encontrada.</p>
+            } @else if (topics.status === 'ready') {
+              <div class="community-search__topics">
+                @for (item of topics.items; track item.type === 'topic' ? item.topicId : item.memberKey) {
+                  @if (item.type === 'topic') {
+                    <button
+                      type="button"
+                      class="community-search__topic"
+                      [attr.aria-label]="'Abrir discussão ' + item.title"
+                      (click)="openTopic(item.topicId)"
+                    >
+                      <span>
+                        <strong>{{ item.title }}</strong>
+                        <small>{{ item.excerpt }}</small>
+                      </span>
+                      <span class="community-search__topic-meta">
+                        {{ item.author.label }} · {{ item.metrics.replyCount }}
+                        {{ item.metrics.replyCount === 1 ? 'resposta' : 'respostas' }}
+                      </span>
+                    </button>
+                  }
+                }
+              </div>
+            }
+
+            @if (topics.loadMoreFailed) {
+              <p class="community-search__state is-error" role="status">
+                {{ topics.errorMessage }} Os resultados acima foram preservados.
+              </p>
+            }
+            @if (topics.nextCursor) {
+              <button
+                class="community-search__more"
+                type="button"
+                [disabled]="topics.loadingMore"
+                (click)="loadMoreTopics(topics.nextCursor)"
+              >
+                @if (topics.loadingMore) {
+                  <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                  Carregando…
+                } @else {
+                  Ver mais Discussões
+                }
+              </button>
+            }
+          </section>
+        }
+      </div>
+    }
+  }
+</section>
