@@ -578,6 +578,10 @@
   min-width: 0;
 }
 
+.community-preview__primary > [role='tabpanel'][hidden] {
+  display: none !important;
+}
+
 .community-preview__rail {
   display: none;
 }
