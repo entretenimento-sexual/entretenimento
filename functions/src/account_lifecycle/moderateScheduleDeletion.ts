@@ -1,6 +1,7 @@
 // functions/src/account_lifecycle/moderateScheduleDeletion.ts
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { db } from '../firebaseApp';
+import { ASAAS_API_KEY } from '../payments/config/asaas.config';
 import {
   ACCOUNT_LIFECYCLE_REGION,
   UserDoc,
@@ -10,6 +11,13 @@ import {
   getNicknameIndexDocId,
   normalizeRequiredReason,
 } from './_shared';
+import {
+  assertAccountDeletionOwnedResourcesResolved,
+  inspectAccountDeletionOwnedResourcesInTransaction,
+} from './account-deletion-owned-resources.service';
+import {
+  cancelRecurringBillingForAccountLifecycle,
+} from './account-lifecycle-billing.service';
 
 interface ModerateScheduleDeletionRequest {
   targetUid: string;
@@ -58,7 +66,7 @@ function normalizeOptionalWindow(value?: number | null): number {
 }
 
 export const moderateScheduleDeletion = onCall<ModerateScheduleDeletionRequest>(
-  { region: ACCOUNT_LIFECYCLE_REGION },
+  { region: ACCOUNT_LIFECYCLE_REGION, secrets: [ASAAS_API_KEY] },
   async (request): Promise<AccountLifecycleCommandResult> => {
     const actorUid = request.auth?.uid ?? null;
     const authToken = (request.auth?.token ?? {}) as Record<string, unknown>;
@@ -129,6 +137,15 @@ export const moderateScheduleDeletion = onCall<ModerateScheduleDeletionRequest>(
           };
         }
 
+        const ownedResourceDecision =
+          await inspectAccountDeletionOwnedResourcesInTransaction(
+            tx,
+            targetUid
+          );
+        assertAccountDeletionOwnedResourcesResolved(
+          ownedResourceDecision
+        );
+
         const nicknameIndexDocId = getNicknameIndexDocId(user);
 
         tx.set(
@@ -179,6 +196,11 @@ export const moderateScheduleDeletion = onCall<ModerateScheduleDeletionRequest>(
         };
       }
     );
+
+    await cancelRecurringBillingForAccountLifecycle({
+      uid: targetUid,
+      reason: 'moderation-account-deletion',
+    }).catch(() => undefined);
 
     return {
       ok: true,
