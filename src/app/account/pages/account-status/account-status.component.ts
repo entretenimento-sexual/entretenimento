@@ -180,6 +180,12 @@ export class AccountStatusComponent {
             result.message ?? 'Exclusão cancelada com sucesso.'
           );
 
+          if (result.subscriptionRenewalStatus === 'canceled') {
+            this.notify.showInfo(
+              'A renovação automática permanece cancelada por segurança. Revise sua assinatura se quiser voltar a renovar o plano.'
+            );
+          }
+
           if (accountStatus === 'active') {
             this.router.navigate(['/conta'], { replaceUrl: true });
             return;
