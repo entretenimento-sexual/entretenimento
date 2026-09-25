@@ -138,6 +138,24 @@ const leakedLegacyTriggerExports = forbiddenLegacyTriggerExports.filter(
   (exportName) => typeof compiledFunctions?.[exportName] === 'function'
 );
 
+function isFirebaseDeploymentExport(value) {
+  return typeof value === 'function'
+    && (
+      typeof value.__endpoint === 'object'
+      || typeof value.__trigger === 'object'
+    );
+}
+
+const deploymentExports = Object.entries(compiledFunctions ?? {})
+  .filter(([, value]) => isFirebaseDeploymentExport(value))
+  .map(([exportName]) => exportName)
+  .sort();
+
+const classifiedDeploymentExports = new Set(requiredExports);
+const unclassifiedDeploymentExports = deploymentExports.filter(
+  (exportName) => !classifiedDeploymentExports.has(exportName)
+);
+
 if (leakedLegacyTriggerExports.length > 0) {
   console.error(
     '[functions:exports] Exports legados de trigger não podem voltar ao root:'
@@ -165,3 +183,20 @@ console.log(
 console.log(
   `[functions:exports] Compatibilidade temporária preservada: ${temporaryCompatibilityExports.join(', ')}`
 );
+
+console.log(
+  `[functions:exports] Deployment exports detectados: ${deploymentExports.join(', ')}`
+);
+
+if (unclassifiedDeploymentExports.length > 0) {
+  console.log(
+    '[functions:exports] Deployment exports ainda não classificados pela allowlist estrita:'
+  );
+  for (const exportName of unclassifiedDeploymentExports) {
+    console.log(`- ${exportName}`);
+  }
+} else {
+  console.log(
+    '[functions:exports] Todos os deployment exports já estão classificados.'
+  );
+}
