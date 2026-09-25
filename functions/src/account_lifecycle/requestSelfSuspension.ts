@@ -1,9 +1,13 @@
 // functions/src/account_lifecycle/requestSelfSuspension.ts
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { ASAAS_API_KEY } from '../payments/config/asaas.config';
 import {
   assertAccountLifecycleMutationSecurity,
 } from './account-lifecycle-mutation-security';
 import { db } from '../firebaseApp';
+import {
+  cancelRecurringBillingForAccountLifecycle,
+} from './account-lifecycle-billing.service';
 import {
   ACCOUNT_LIFECYCLE_REGION,
   UserDoc,
@@ -23,11 +27,12 @@ interface AccountLifecycleCommandResult {
   publicVisibility: 'hidden';
   interactionBlocked: true;
   statusUpdatedAt: number;
+  subscriptionRenewalStatus: 'canceled' | 'none';
   message: string;
 }
 
 export const requestSelfSuspension = onCall<RequestSelfSuspensionRequest>(
-  { region: ACCOUNT_LIFECYCLE_REGION },
+  { region: ACCOUNT_LIFECYCLE_REGION, secrets: [ASAAS_API_KEY] },
   async (request): Promise<AccountLifecycleCommandResult> => {
     const uid = request.auth?.uid ?? null;
 
@@ -143,13 +148,24 @@ export const requestSelfSuspension = onCall<RequestSelfSuspensionRequest>(
       });
     });
 
+    const billingCancellation =
+      await cancelRecurringBillingForAccountLifecycle({
+        uid,
+        reason: 'account-self-suspension',
+      });
+
     return {
       ok: true,
       accountStatus: 'self_suspended',
       publicVisibility: 'hidden',
       interactionBlocked: true,
       statusUpdatedAt: now,
-      message: 'Conta suspensa com sucesso.',
+      subscriptionRenewalStatus:
+        billingCancellation.recurringConfigured ? 'canceled' : 'none',
+      message:
+        billingCancellation.recurringConfigured
+          ? 'Conta suspensa. A renovação automática foi interrompida; o período já pago permanece válido e a renovação não será reativada automaticamente.'
+          : 'Conta suspensa com sucesso.',
     };
   }
 );
