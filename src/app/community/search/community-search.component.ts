@@ -11,6 +11,7 @@ import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import {
   Subject,
+  combineLatest,
   catchError,
   debounceTime,
   distinctUntilChanged,
@@ -160,6 +161,7 @@ export class CommunitySearchComponent {
   private readonly topicLoadRequests$ = new Subject<SearchLoadRequest>();
 
   readonly communityId = input<string>('');
+  readonly canSearchMembers = input<boolean>(false);
   readonly topicRequested = output<string>();
   readonly searchControl = new FormControl('', { nonNullable: true });
 
@@ -179,14 +181,19 @@ export class CommunitySearchComponent {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  private readonly context$ = toObservable(this.communityId).pipe(
-    map((communityId) => communityId.trim()),
-    distinctUntilChanged(),
-    switchMap((communityId) =>
-      this.query$.pipe(
-        map((query) => ({ communityId, query }))
-      )
+  private readonly context$ = combineLatest([
+    toObservable(this.communityId).pipe(
+      map((communityId) => communityId.trim()),
+      distinctUntilChanged()
     ),
+    toObservable(this.canSearchMembers).pipe(distinctUntilChanged()),
+    this.query$,
+  ]).pipe(
+    map(([communityId, canSearchMembers, query]) => ({
+      communityId,
+      canSearchMembers,
+      query,
+    })),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -232,9 +239,17 @@ export class CommunitySearchComponent {
     requests$: Subject<SearchLoadRequest>
   ) {
     return this.context$.pipe(
-      switchMap(({ communityId, query }) => {
+      switchMap(({ communityId, canSearchMembers, query }) => {
         if (!communityId || query.length < 2) {
           return of<SearchSectionState>(EMPTY_SECTION);
+        }
+
+        if (scope === 'members' && !canSearchMembers) {
+          return of<SearchSectionState>({
+            ...EMPTY_SECTION,
+            status: 'empty',
+            available: false,
+          });
         }
 
         return requests$.pipe(
