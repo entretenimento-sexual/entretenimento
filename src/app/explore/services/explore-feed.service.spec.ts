@@ -5,7 +5,7 @@ import { filter, firstValueFrom, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { UserDiscoveryQueryService } from 'src/app/core/services/data-handling/queries/user-discovery.query.service';
-import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
+import { PublicPhotoRankingQueryService } from 'src/app/core/services/media/public-photo-ranking-query.service';
 import { PublicVideoRankingQueryService } from 'src/app/core/services/media/public-video-ranking-query.service';
 import { CompatibleProfileCandidatesService } from 'src/app/dashboard/discovery/application/compatible-profile-candidates.service';
 import { PublicProfileCard } from 'src/app/dashboard/discovery/models/public-profile-card.model';
@@ -36,10 +36,8 @@ describe('ExploreFeedService', () => {
     title: 'Vídeo B',
   } as any;
 
-  const mediaPublicQueryMock = {
-    getBoostedPublicPhotos$: vi.fn(() => of([])),
-    getTopPublicPhotos$: vi.fn(() => of([])),
-    getLatestPublicPhotos$: vi.fn(() => of([])),
+  const publicPhotoRankingMock = {
+    loadPage$: vi.fn(),
   };
 
   const publicVideoRankingMock = {
@@ -62,6 +60,22 @@ describe('ExploreFeedService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    publicPhotoRankingMock.loadPage$.mockImplementation(
+      (rankingRequest: {
+        mode: 'top' | 'latest' | 'boosted';
+        pageSize: number;
+        cursor?: unknown;
+      }) =>
+        of({
+          mode: rankingRequest.mode,
+          source: rankingRequest.mode,
+          items: [],
+          nextCursor: null,
+          hasMore: false,
+          loadedAt: 1_700_000_000_000,
+        })
+    );
+
     publicVideoRankingMock.loadPage$.mockImplementation(
       (rankingRequest: { mode: 'top' | 'latest' }) =>
         of({
@@ -79,8 +93,8 @@ describe('ExploreFeedService', () => {
     TestBed.configureTestingModule({
       providers: [
         {
-          provide: MediaPublicQueryService,
-          useValue: mediaPublicQueryMock,
+          provide: PublicPhotoRankingQueryService,
+          useValue: publicPhotoRankingMock,
         },
         {
           provide: PublicVideoRankingQueryService,
@@ -114,6 +128,78 @@ describe('ExploreFeedService', () => {
 
     expect('getAllUsers$' in discoveryQueryMock).toBe(false);
     expect(discoveryQueryMock.getProfilesByUids$).not.toHaveBeenCalled();
+  });
+
+  it('usa ranking cursorizado para fotos do Explore', async () => {
+    await firstValueFrom(service.boostedPhotos$);
+    await firstValueFrom(service.topPhotos$);
+
+    expect(publicPhotoRankingMock.loadPage$).toHaveBeenCalledWith({
+      mode: 'boosted',
+      pageSize: 8,
+      propagateErrors: true,
+    });
+    expect(publicPhotoRankingMock.loadPage$).toHaveBeenCalledWith({
+      mode: 'top',
+      pageSize: 12,
+      propagateErrors: true,
+    });
+  });
+
+  it('preserva pool recente de 48 fotos em duas páginas cursorizadas', async () => {
+    const firstCursor = {
+      mode: 'latest',
+      score: 0,
+      publishedAt: 123,
+      documentPath: 'public_profiles/a/public_photos/p24',
+    };
+
+    publicPhotoRankingMock.loadPage$.mockImplementation(
+      (rankingRequest: {
+        mode: 'top' | 'latest' | 'boosted';
+        pageSize: number;
+        cursor?: unknown;
+      }) => {
+        if (rankingRequest.mode !== 'latest') {
+          return of({
+            mode: rankingRequest.mode,
+            source: rankingRequest.mode,
+            items: [],
+            nextCursor: null,
+            hasMore: false,
+            loadedAt: 1_700_000_000_000,
+          });
+        }
+
+        const offset = rankingRequest.cursor ? 24 : 0;
+        return of({
+          mode: 'latest',
+          source: 'latest',
+          items: Array.from({ length: 24 }, (_, index) => ({
+            id: `photo-${offset + index + 1}`,
+            ownerUid: `owner-${offset + index + 1}`,
+          })),
+          nextCursor: rankingRequest.cursor ? null : firstCursor,
+          hasMore: !rankingRequest.cursor,
+          loadedAt: 1_700_000_000_000,
+        });
+      }
+    );
+
+    const vm = await firstValueFrom(service.vm$);
+
+    expect(vm.latestPhotos).toHaveLength(16);
+    expect(publicPhotoRankingMock.loadPage$).toHaveBeenCalledWith({
+      mode: 'latest',
+      pageSize: 24,
+      propagateErrors: true,
+    });
+    expect(publicPhotoRankingMock.loadPage$).toHaveBeenCalledWith({
+      mode: 'latest',
+      pageSize: 24,
+      cursor: firstCursor,
+      propagateErrors: true,
+    });
   });
 
   it('combina top e latest sem duplicar vídeos e mantém signed URL fora do NgRx', async () => {

@@ -22,13 +22,18 @@ import {
 
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
 import {
+  IPublicPhotoRankingCursor,
+  IPublicPhotoRankingPage,
+  TPublicPhotoRankingMode,
+} from 'src/app/core/interfaces/media/i-public-photo-ranking';
+import {
   IPublicVideoRankingPage,
   TPublicVideoRankingMode,
 } from 'src/app/core/interfaces/media/i-public-video-ranking';
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { UserDiscoveryQueryService } from 'src/app/core/services/data-handling/queries/user-discovery.query.service';
-import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
+import { PublicPhotoRankingQueryService } from 'src/app/core/services/media/public-photo-ranking-query.service';
 import { PublicVideoRankingQueryService } from 'src/app/core/services/media/public-video-ranking-query.service';
 import { CompatibleProfileCandidatesService } from 'src/app/dashboard/discovery/application/compatible-profile-candidates.service';
 import { PublicProfileCard } from 'src/app/dashboard/discovery/models/public-profile-card.model';
@@ -36,6 +41,7 @@ import { PublicProfileCard } from 'src/app/dashboard/discovery/models/public-pro
 import { IExploreSection } from '../models/i-explore-section';
 
 const EXPLORE_COMPATIBLE_VISIBLE_LIMIT = 6;
+const EXPLORE_PHOTO_RANKING_PAGE_SIZE = 24;
 const EXPLORE_VIDEO_RANKING_PAGE_SIZE = 4;
 const EXPLORE_VIDEO_VISIBLE_LIMIT = 6;
 
@@ -65,26 +71,26 @@ export interface IExploreFeedVm {
 
 @Injectable({ providedIn: 'root' })
 export class ExploreFeedService {
-  private readonly mediaPublicQuery = inject(MediaPublicQueryService);
+  private readonly publicPhotoRanking = inject(PublicPhotoRankingQueryService);
   private readonly publicVideoRanking = inject(PublicVideoRankingQueryService);
   private readonly discoveryQuery = inject(UserDiscoveryQueryService);
   private readonly compatibleCandidates = inject(CompatibleProfileCandidatesService);
   private readonly videoHighlightsRefreshSubject = new BehaviorSubject<number>(0);
 
   readonly boostedPhotos$: Observable<IPublicPhotoItem[]> =
-    this.mediaPublicQuery.getBoostedPublicPhotos$(8).pipe(
+    this.loadPhotoRankingItems$('boosted', 8).pipe(
       switchMap((photos) => this.enrichPublicPhotos$(photos)),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
   readonly topPhotos$: Observable<IPublicPhotoItem[]> =
-    this.mediaPublicQuery.getTopPublicPhotos$(12).pipe(
+    this.loadPhotoRankingItems$('top', 12).pipe(
       switchMap((photos) => this.enrichPublicPhotos$(photos)),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
   private readonly publicPool$: Observable<IPublicPhotoItem[]> =
-    this.mediaPublicQuery.getLatestPublicPhotos$(48).pipe(
+    this.loadPhotoRankingItems$('latest', 48).pipe(
       switchMap((photos) => this.enrichPublicPhotos$(photos)),
       shareReplay({ bufferSize: 1, refCount: true })
     );
@@ -226,6 +232,69 @@ export class ExploreFeedService {
     }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
+
+  private loadPhotoRankingItems$(
+    mode: TPublicPhotoRankingMode,
+    limit: number
+  ): Observable<IPublicPhotoItem[]> {
+    const safeLimit = Math.max(1, Math.floor(limit));
+    const firstPageSize = Math.min(
+      EXPLORE_PHOTO_RANKING_PAGE_SIZE,
+      safeLimit
+    );
+
+    return this.publicPhotoRanking.loadPage$({
+      mode,
+      pageSize: firstPageSize,
+      propagateErrors: true,
+    }).pipe(
+      switchMap((firstPage) => {
+        const firstItems = [...firstPage.items];
+
+        if (
+          firstItems.length >= safeLimit ||
+          !firstPage.hasMore ||
+          !firstPage.nextCursor
+        ) {
+          return of(firstItems.slice(0, safeLimit));
+        }
+
+        return this.loadNextPhotoRankingPage$(
+          mode,
+          firstPage,
+          safeLimit
+        );
+      }),
+      catchError(() => of([]))
+    );
+  }
+
+  private loadNextPhotoRankingPage$(
+    mode: TPublicPhotoRankingMode,
+    firstPage: IPublicPhotoRankingPage,
+    limit: number
+  ): Observable<IPublicPhotoItem[]> {
+    const cursor: IPublicPhotoRankingCursor | null = firstPage.nextCursor;
+
+    if (!cursor) {
+      return of([...firstPage.items].slice(0, limit));
+    }
+
+    return this.publicPhotoRanking.loadPage$({
+      mode,
+      pageSize: Math.min(
+        EXPLORE_PHOTO_RANKING_PAGE_SIZE,
+        Math.max(1, limit - firstPage.items.length)
+      ),
+      cursor,
+      propagateErrors: true,
+    }).pipe(
+      map((secondPage) =>
+        [...firstPage.items, ...secondPage.items].slice(0, limit)
+      ),
+      catchError(() => of([...firstPage.items].slice(0, limit)))
+    );
+  }
 
   retryVideoHighlights(): void {
     this.videoHighlightsRefreshSubject.next(
