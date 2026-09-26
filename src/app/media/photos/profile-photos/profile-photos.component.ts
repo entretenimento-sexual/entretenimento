@@ -443,8 +443,9 @@ export class ProfilePhotosComponent {
 
           this.dialog.open(PhotoViewerComponent, {
             data: { ownerUid, items, startIndex },
-            autoFocus: false,
+            autoFocus: 'dialog',
             restoreFocus: true,
+            ariaLabel: 'Visualizador de foto',
             width: '100vw',
             height: '100vh',
             maxWidth: '100vw',
