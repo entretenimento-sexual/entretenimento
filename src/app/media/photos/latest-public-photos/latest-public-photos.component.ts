@@ -21,6 +21,8 @@ import {
 import { NetworkStatusService } from 'src/app/core/services/network/network-status.service';
 import { ContentStateComponent } from 'src/app/shared/content-state/content-state.component';
 import { PublicPhotoCardComponent } from '../../shared/components/public-photo-card/public-photo-card.component';
+import { PhotoPromotionExposureDirective } from '../../shared/directives/photo-promotion-exposure.directive';
+import { PhotoPromotionPlacementService } from 'src/app/core/services/media/photo-promotion-placement.service';
 import { PublicPhotoViewerLauncherService } from '../photo-viewer/public-photo-viewer-launcher.service';
 
 interface LatestPhotosViewModel extends PublicPhotoDiscoveryFeedState {
@@ -42,6 +44,7 @@ interface LatestPhotosViewModel extends PublicPhotoDiscoveryFeedState {
     RouterModule,
     ContentStateComponent,
     PublicPhotoCardComponent,
+    PhotoPromotionExposureDirective,
   ],
   providers: [PublicPhotoDiscoveryFeedService],
   templateUrl: './latest-public-photos.component.html',
@@ -53,6 +56,7 @@ export class LatestPublicPhotosComponent {
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly network = inject(NetworkStatusService);
   private readonly photoViewer = inject(PublicPhotoViewerLauncherService);
+  private readonly promotion = inject(PhotoPromotionPlacementService);
 
   private readonly loadState$: Observable<PublicPhotoDiscoveryFeedState> =
     this.discovery.connect$('latest').pipe(
@@ -141,6 +145,30 @@ export class LatestPublicPhotosComponent {
           );
           return EMPTY;
         })
+      )
+      .subscribe();
+  }
+
+  openSponsoredPhoto(): void {
+    this.vm$
+      .pipe(
+        take(1),
+        switchMap((vm) => {
+          const placement = vm.sponsoredPlacement;
+          if (!placement) return EMPTY;
+
+          this.promotion
+            .recordEvent$(placement.placementId, 'click')
+            .pipe(take(1))
+            .subscribe();
+
+          return this.photoViewer.open$({
+            items: [placement.photo],
+            selected: placement.photo,
+            source: 'boosted',
+          });
+        }),
+        catchError(() => EMPTY)
       )
       .subscribe();
   }
