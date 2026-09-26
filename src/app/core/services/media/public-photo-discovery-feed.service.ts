@@ -23,6 +23,10 @@ import {
   TPublicPhotoRankingMode,
 } from 'src/app/core/interfaces/media/i-public-photo-ranking';
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
+import {
+  PhotoPromotionPlacement,
+  PhotoPromotionPlacementService,
+} from './photo-promotion-placement.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalActivityService } from 'src/app/core/services/network/global-activity.service';
 import { NetworkStatusService } from 'src/app/core/services/network/network-status.service';
@@ -40,6 +44,7 @@ export interface PublicPhotoDiscoveryFeedState {
   readonly loading: boolean;
   readonly error: boolean;
   readonly stale: boolean;
+  readonly sponsoredPlacement: PhotoPromotionPlacement | null;
 }
 
 const PUBLIC_PHOTO_DISCOVERY_PAGE_SIZE = 24;
@@ -57,13 +62,15 @@ export class PublicPhotoDiscoveryFeedService {
 
   private mode: TPublicPhotoRankingMode | null = null;
   private initialized = false;
+  private promotionRequested = false;
 
   constructor(
     private readonly ranking: PublicPhotoRankingQueryService,
     private readonly snapshots: PublicMediaSnapshotService,
     private readonly network: NetworkStatusService,
     private readonly activity: GlobalActivityService,
-    private readonly errorNotifier: ErrorNotificationService
+    private readonly errorNotifier: ErrorNotificationService,
+    private readonly promotion: PhotoPromotionPlacementService
   ) {}
 
   connect$(
@@ -115,6 +122,7 @@ export class PublicPhotoDiscoveryFeedService {
 
           this.snapshots.write(this.snapshotKind(mode), items);
           this.stateSubject.next({
+            ...latest,
             items,
             nextCursor: page.nextCursor,
             hasMore: page.hasMore,
@@ -195,10 +203,30 @@ export class PublicPhotoDiscoveryFeedService {
       });
 
       return this.loadPage$(mode, null).pipe(
-        tap((page) => {
+        switchMap((page) => {
           const items = this.mergeItems([], page.items);
 
           this.snapshots.write(this.snapshotKind(mode), items);
+
+          if (this.promotionRequested || mode === 'boosted') {
+            return of({
+              page,
+              items,
+              sponsoredPlacement:
+                this.stateSubject.value.sponsoredPlacement,
+            });
+          }
+
+          this.promotionRequested = true;
+          return this.promotion.loadPlacement$(items).pipe(
+            map((sponsoredPlacement) => ({
+              page,
+              items,
+              sponsoredPlacement,
+            }))
+          );
+        }),
+        tap(({ page, items, sponsoredPlacement }) => {
           this.stateSubject.next({
             items,
             nextCursor: page.nextCursor,
@@ -206,6 +234,7 @@ export class PublicPhotoDiscoveryFeedService {
             loading: false,
             error: false,
             stale: false,
+            sponsoredPlacement,
           });
         }),
         map(() => true),
@@ -252,6 +281,7 @@ export class PublicPhotoDiscoveryFeedService {
 
     this.mode = mode;
     this.initialized = false;
+    this.promotionRequested = false;
     this.stateSubject.next(this.emptyState());
   }
 
@@ -305,6 +335,7 @@ export class PublicPhotoDiscoveryFeedService {
       loading: true,
       error: false,
       stale: false,
+      sponsoredPlacement: null,
     };
   }
 }
