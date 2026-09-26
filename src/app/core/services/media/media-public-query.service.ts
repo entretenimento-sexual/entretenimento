@@ -13,7 +13,7 @@ import {
   doc,
   docData,
 } from '@angular/fire/firestore';
-import { Observable, combineLatest, of, throwError, timer } from 'rxjs';
+import { Observable, combineLatest, of, throwError } from 'rxjs';
 import {
   catchError,
   map,
@@ -47,7 +47,6 @@ export interface MediaPublicProfileQueryOptions {
 
 const PUBLIC_MEDIA_OWNER_FILTER_LIMIT = 30;
 const PUBLIC_MEDIA_BATCH_LIMIT = 60;
-const PUBLIC_MEDIA_SERVER_REFRESH_MS = 60_000;
 const SAFE_PUBLIC_MEDIA_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 
 @Injectable({ providedIn: 'root' })
@@ -407,8 +406,7 @@ export class MediaPublicQueryService {
   private readGlobalMedia$(
     request: PublicMediaReadRequest
   ): Observable<readonly Record<string, unknown>[]> {
-    return timer(0, PUBLIC_MEDIA_SERVER_REFRESH_MS).pipe(
-      switchMap(() => this.publicMediaRead.read$(request)),
+    return this.publicMediaRead.read$(request).pipe(
       map((response) => [...(response.items ?? [])])
     );
   }

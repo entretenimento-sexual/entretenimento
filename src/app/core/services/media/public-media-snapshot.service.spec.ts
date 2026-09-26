@@ -120,6 +120,9 @@ describe('PublicMediaSnapshotService', () => {
     uid$.next('viewer-2');
 
     expect(deleteCache).toHaveBeenCalledWith(
+      'media:public:snapshot:uid:viewer-1:latest-photos'
+    );
+    expect(deleteCache).toHaveBeenCalledWith(
       'media:public:snapshot:uid:viewer-1:top-photos'
     );
     expect(deleteCache).toHaveBeenCalledWith(

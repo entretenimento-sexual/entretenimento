@@ -479,9 +479,15 @@ export class PublicPhotoContinuationService {
   private resolveModeOrder(
     source: PublicPhotoContinuationRequest['source']
   ): [TPublicPhotoRankingMode, TPublicPhotoRankingMode] {
-    return source === 'latest'
-      ? ['latest', 'top']
-      : ['top', 'latest'];
+    if (source === 'latest') {
+      return ['latest', 'top'];
+    }
+
+    if (source === 'boosted') {
+      return ['boosted', 'top'];
+    }
+
+    return ['top', 'latest'];
   }
 
   private normalizeLimit(value: unknown): number {

@@ -37,13 +37,19 @@ export class PublicPhotoRankingFirestoreGateway {
   ): Observable<IPublicPhotoRankingRawPage> {
     return this.publicMediaRead.read$({
       mediaType: 'PHOTO',
-      mode: request.mode === 'top' ? 'TOP' : 'LATEST',
+      mode:
+        request.mode === 'top'
+          ? 'TOP'
+          : request.mode === 'boosted'
+            ? 'BOOSTED'
+            : 'LATEST',
       limit: request.pageSize,
       cursor: request.cursor
         ? {
             documentPath: request.cursor.documentPath,
             score: request.cursor.score,
             publishedAt: request.cursor.publishedAt,
+            boostedUntil: request.cursor.boostedUntil,
           }
         : null,
     }).pipe(
@@ -64,6 +70,9 @@ export class PublicPhotoRankingFirestoreGateway {
               score: this.safeNumber(response.nextCursor.score),
               publishedAt: this.safeNumber(
                 response.nextCursor.publishedAt
+              ),
+              boostedUntil: this.safeNumber(
+                response.nextCursor.boostedUntil
               ),
               documentPath: String(
                 response.nextCursor.documentPath ?? ''

@@ -124,6 +124,34 @@ describe('PublicPhotoRankingQueryService', () => {
     });
   });
 
+  it('aceita boosted e preserva boostedUntil no cursor de entrada', async () => {
+    const context = createService();
+    const boostedCursor: IPublicPhotoRankingCursor = {
+      mode: 'boosted',
+      score: 0,
+      publishedAt: PUBLISHED_AT,
+      boostedUntil: PUBLISHED_AT + 60_000,
+      documentPath: 'public_profiles/owner-1/public_photos/photo-boosted',
+    };
+
+    const page = await firstValueFrom(context.service.loadPage$({
+      mode: 'boosted',
+      pageSize: 24,
+      cursor: boostedCursor,
+    }));
+
+    expect(context.gateway.loadPage$).toHaveBeenCalledWith({
+      mode: 'boosted',
+      pageSize: 24,
+      cursor: {
+        ...boostedCursor,
+        score: 0,
+      },
+    });
+    expect(page.mode).toBe('boosted');
+    expect(page.source).toBe('boosted');
+  });
+
   it('centraliza erro e devolve página vazia estável por padrão', async () => {
     const failure = new Error('firestore unavailable');
     const context = createService({ gatewayError: failure });

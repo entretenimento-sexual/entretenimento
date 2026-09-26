@@ -18,7 +18,7 @@ import {
 } from './public-photo-ranking-firestore.gateway';
 
 const DEFAULT_PAGE_SIZE = 12;
-const MAX_PAGE_SIZE = 16;
+const MAX_PAGE_SIZE = 24;
 
 @Injectable({ providedIn: 'root' })
 export class PublicPhotoRankingQueryService {
@@ -75,7 +75,11 @@ export class PublicPhotoRankingQueryService {
   }
 
   private normalizeMode(value: unknown): TPublicPhotoRankingMode {
-    return value === 'latest' ? 'latest' : 'top';
+    if (value === 'latest' || value === 'boosted') {
+      return value;
+    }
+
+    return 'top';
   }
 
   private normalizePageSize(value: unknown): number {
@@ -106,6 +110,7 @@ export class PublicPhotoRankingQueryService {
       mode,
       score: this.safeNumber(value.score),
       publishedAt: this.safeNumber(value.publishedAt),
+      boostedUntil: this.safeNumber(value.boostedUntil),
       documentPath,
     };
   }

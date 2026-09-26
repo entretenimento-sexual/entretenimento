@@ -1,11 +1,12 @@
 import type { IPublicPhotoItem } from './i-public-photo-item';
 
-export type TPublicPhotoRankingMode = 'top' | 'latest';
+export type TPublicPhotoRankingMode = 'top' | 'latest' | 'boosted';
 
 export interface IPublicPhotoRankingCursor {
   readonly mode: TPublicPhotoRankingMode;
   readonly score: number;
   readonly publishedAt: number;
+  readonly boostedUntil?: number;
   readonly documentPath: string;
 }
 
@@ -19,7 +20,7 @@ export interface IPublicPhotoRankingRequest {
 
 export interface IPublicPhotoRankingPage {
   readonly mode: TPublicPhotoRankingMode;
-  readonly source: 'top' | 'latest';
+  readonly source: TPublicPhotoRankingMode;
   readonly items: readonly IPublicPhotoItem[];
   readonly nextCursor: IPublicPhotoRankingCursor | null;
   readonly hasMore: boolean;

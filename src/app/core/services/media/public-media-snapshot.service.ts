@@ -31,7 +31,10 @@ import { AuthSessionService } from 'src/app/core/services/autentication/auth/aut
 import { CacheService } from 'src/app/core/services/general/cache/cache.service';
 import { PublicPhotoAccessService } from './public-photo-access.service';
 
-export type PublicMediaSnapshotKind = 'top-photos' | 'boosted-photos';
+export type PublicMediaSnapshotKind =
+  | 'latest-photos'
+  | 'top-photos'
+  | 'boosted-photos';
 
 const PUBLIC_MEDIA_SNAPSHOT_TTL_MS = 5 * 60 * 1000;
 const MAX_PUBLIC_MEDIA_SNAPSHOT_ITEMS = 48;
@@ -144,7 +147,7 @@ export class PublicMediaSnapshotService {
   }
 
   private snapshotKinds(): readonly PublicMediaSnapshotKind[] {
-    return ['top-photos', 'boosted-photos'];
+    return ['latest-photos', 'top-photos', 'boosted-photos'];
   }
 
   private normalizeProjections(value: unknown): IPublicPhotoProjection[] {
