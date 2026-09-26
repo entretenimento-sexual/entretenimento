@@ -1,0 +1,40 @@
+// firestore-rules/promotion_boost.rules
+// =============================================================================
+// PROMOTION / BOOST - BACKEND ONLY
+// =============================================================================
+// Campanhas, placements, frequency caps, slots, métricas, ledger e auditoria
+// são autoridade exclusiva do backend. O cliente recebe somente projeções
+// sanitizadas por callable; nenhuma coleção financeira é client-authoritative.
+// =============================================================================
+
+match /promotion_boost_active_slots/{slotId} {
+  allow read, write: if false;
+}
+
+match /promotion_boost_campaigns/{campaignId} {
+  allow read, write: if false;
+
+  match /metrics_daily/{dayId} {
+    allow read, write: if false;
+  }
+
+  match /billing_ledger/{dayId} {
+    allow read, write: if false;
+  }
+}
+
+match /promotion_boost_placements/{placementId} {
+  allow read, write: if false;
+}
+
+match /promotion_boost_frequency_caps/{capId} {
+  allow read, write: if false;
+}
+
+match /promotion_boost_requests/{requestId} {
+  allow read, write: if false;
+}
+
+match /promotion_boost_audit/{auditId} {
+  allow read, write: if false;
+}
