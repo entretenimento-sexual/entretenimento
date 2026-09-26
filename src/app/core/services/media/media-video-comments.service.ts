@@ -307,24 +307,16 @@ export class MediaVideoCommentsService {
       ? resolvePublicMediaCallableUserMessage(error, action, userMessage)
       : userMessage;
 
-    if (!silent) {
-      this.errorNotifier.showError(safeUserMessage);
-    }
-
-    try {
-      const normalized = error instanceof Error
-        ? error
-        : new Error(safeUserMessage);
-      (normalized as any).original = error;
-      (normalized as any).context = {
+    this.errorHandler.report(error, {
+      operation: String(context['op'] ?? 'unknown'),
+      fallbackMessage: safeUserMessage,
+      metadata: {
         scope: 'MediaVideoCommentsService',
         ...context,
-      };
-      (normalized as any).skipUserNotification = true;
-      this.errorHandler.handleError(normalized);
-      this.privacyDebug.log('media', 'MediaVideoCommentsService: falha', context);
-    } catch {
-      // noop
-    }
+      },
+      silent,
+    });
+
+    this.privacyDebug.log('media', 'MediaVideoCommentsService: falha', context);
   }
 }

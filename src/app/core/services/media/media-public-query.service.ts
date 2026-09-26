@@ -31,7 +31,6 @@ import {
   IPublicVideoProjection,
 } from 'src/app/core/interfaces/media/i-public-video-item';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { MediaApplicationErrorService } from './media-application-error.service';
 import { PublicPhotoAccessService } from './public-photo-access.service';
 import {
@@ -57,9 +56,7 @@ export class MediaPublicQueryService {
     private readonly firestoreCtx: FirestoreContextService,
     private readonly publicMediaRead: PublicMediaReadBoundaryService,
     private readonly publicPhotoAccess: PublicPhotoAccessService,
-    private readonly publicVideoAccess: PublicVideoAccessService,
-    private readonly errorNotifier: ErrorNotificationService,
-    private readonly errorHandler: MediaApplicationErrorService
+    private readonly publicVideoAccess: PublicVideoAccessService,    private readonly errorHandler: MediaApplicationErrorService
   ) {}
 
   getProfilePublicMedia$(
@@ -480,25 +477,14 @@ export class MediaPublicQueryService {
     context?: Record<string, unknown>,
     silent = false
   ): void {
-    if (!silent) {
-      try {
-        this.errorNotifier.showError(userMessage);
-      } catch {
-        // noop
-      }
-    }
-
-    try {
-      const err = error instanceof Error ? error : new Error(userMessage);
-      (err as any).original = error;
-      (err as any).context = {
+    this.errorHandler.report(error, {
+      operation: String(context?.['op'] ?? 'unknown'),
+      fallbackMessage: userMessage,
+      metadata: {
         scope: 'MediaPublicQueryService',
         ...(context ?? {}),
-      };
-      (err as any).skipUserNotification = silent;
-      this.errorHandler.handleError(err);
-    } catch {
-      // noop
-    }
+      },
+      silent,
+    });
   }
 }

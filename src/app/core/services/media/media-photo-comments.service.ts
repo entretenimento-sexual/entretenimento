@@ -413,27 +413,14 @@ private commentsPath(ownerUid: string, photoId: string): string {
       ? resolvePublicMediaCallableUserMessage(error, action, userMessage)
       : userMessage;
 
-    if (!silent) {
-      try {
-        this.errorNotifier.showError(safeUserMessage);
-      } catch {
-        // noop
-      }
-    }
-
-    try {
-      const err = error instanceof Error ? error : new Error(safeUserMessage);
-
-      (err as any).original = error;
-      (err as any).context = {
+    this.errorHandler.report(error, {
+      operation: String(context?.['op'] ?? 'unknown'),
+      fallbackMessage: safeUserMessage,
+      metadata: {
         scope: 'MediaPhotoCommentsService',
         ...(context ?? {}),
-      };
-      (err as any).skipUserNotification = true;
-
-      this.errorHandler.handleError(err);
-    } catch {
-      // noop
-    }
+      },
+      silent,
+    });
   }
 }

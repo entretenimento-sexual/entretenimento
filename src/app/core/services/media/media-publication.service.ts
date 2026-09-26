@@ -360,27 +360,14 @@ export class MediaPublicationService {
     context?: Record<string, unknown>,
     silent = false
   ): void {
-    if (!silent) {
-      try {
-        this.errorNotifier.showError(userMessage);
-      } catch {
-        // noop
-      }
-    }
-
-    try {
-      const err = error instanceof Error ? error : new Error(userMessage);
-
-      (err as any).original = error;
-      (err as any).context = {
+    this.errorHandler.report(error, {
+      operation: String(context?.['op'] ?? 'unknown'),
+      fallbackMessage: userMessage,
+      metadata: {
         scope: 'MediaPublicationService',
         ...(context ?? {}),
-      };
-      (err as any).skipUserNotification = silent;
-
-      this.errorHandler.handleError(err);
-    } catch {
-      // noop
-    }
+      },
+      silent,
+    });
   }
 }
