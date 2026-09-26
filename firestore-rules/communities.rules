@@ -275,11 +275,37 @@ match /community_user_index/{userId}/items/{communityId} {
   allow read, write: if false;
 }
 
+// Índice privado de busca administrativa de membros. Contém apenas projeções
+// mínimas para paginação/busca e nunca substitui a membership canônica.
+match /community_member_management_index/{projectionId} {
+  allow read, write: if false;
+}
+
+// Índice interno de busca de integrantes por identidade pública. Mesmo sendo
+// sanitizado, continua backend-only para impedir enumeração direta.
+match /community_member_search_index/{projectionId} {
+  allow read, write: if false;
+}
+
 // Cursor do Scheduler e trilha de transições do lifecycle nunca são dados de UI.
 match /community_lifecycle_runtime/{runtimeId} {
   allow read, write: if false;
 }
 
 match /community_lifecycle_audit/{auditId} {
+  allow read, write: if false;
+}
+
+
+// Trilhas administrativas adicionais permanecem estritamente backend-only.
+match /community_highlight_audit/{auditId} {
+  allow read, write: if false;
+}
+
+match /community_ranking_mode_audit/{auditId} {
+  allow read, write: if false;
+}
+
+match /community_purge_audit/{auditId} {
   allow read, write: if false;
 }

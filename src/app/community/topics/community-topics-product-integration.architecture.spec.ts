@@ -66,10 +66,10 @@ describe('Community Discussions product integration', () => {
     expect(previewTemplate).toContain('community-tab-topics');
     expect(previewTemplate).toContain('<app-community-topics');
     expect(previewTemplate).toMatch(
-      /preview\.community\.source\.type === 'community'[\s\S]{0,700}?community-tab-topics/
+      /spaceCapabilities\(preview\.community\)\.topics[\s\S]{0,700}?community-tab-topics/
     );
     expect(previewTemplate).toMatch(
-      /activeSection\(\) === 'topics'[\s\S]{0,350}?preview\.community\.source\.type === 'community'/
+      /activeSection\(\) === 'topics'[\s\S]{0,350}?spaceCapabilities\(preview\.community\)\.topics/
     );
   });
 

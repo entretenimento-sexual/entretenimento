@@ -400,6 +400,14 @@ export const COMMUNITY_TOPIC_MODERATION_CODE_MESSAGES: CommunityErrorMessageMap 
       'A discussão está inconsistente e exige revisão antes de nova moderação.',
   });
 
+export const COMMUNITY_ADMIN_TIMELINE_REASON_MESSAGES: CommunityErrorMessageMap =
+  Object.freeze({
+    invalid_community_admin_timeline_query:
+      'Não foi possível validar a consulta do histórico administrativo.',
+    community_admin_timeline_forbidden:
+      'Somente proprietário e Administração podem consultar este histórico.',
+  });
+
 export const COMMUNITY_MEMBER_MANAGEMENT_REASON_MESSAGES: CommunityErrorMessageMap =
   Object.freeze({
     'recent-authentication-required':

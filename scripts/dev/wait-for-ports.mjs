@@ -1,4 +1,4 @@
-import tcpPortUsed from 'tcp-port-used';
+import net from 'node:net';
 
 const options = Object.fromEntries(
   process.argv.slice(2).map((arg) => {
@@ -43,11 +43,30 @@ console.log(
 const sleep = (durationMs) =>
   new Promise((resolve) => setTimeout(resolve, durationMs));
 
+function isPortUsed(port) {
+  return new Promise((resolve) => {
+    const socket = net.createConnection({ host, port });
+    let settled = false;
+
+    const finish = (used) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve(used);
+    };
+
+    socket.setTimeout(Math.min(1000, pollingIntervalMs));
+    socket.once('connect', () => finish(true));
+    socket.once('timeout', () => finish(false));
+    socket.once('error', () => finish(false));
+  });
+}
+
 async function readPortStates() {
   return Promise.all(
     ports.map(async (port) => ({
       port,
-      used: await tcpPortUsed.check(port, host),
+      used: await isPortUsed(port),
     }))
   );
 }
@@ -63,29 +82,19 @@ function pendingPorts(states) {
 const startedAt = Date.now();
 let pending = [...ports];
 
-try {
-  while (Date.now() - startedAt <= timeoutMs) {
-    const states = await readPortStates();
-    pending = pendingPorts(states);
+while (Date.now() - startedAt <= timeoutMs) {
+  const states = await readPortStates();
+  pending = pendingPorts(states);
 
-    if (pending.length === 0) {
-      console.log(`[wait] ${label} pronto.`);
-      process.exit(0);
-    }
-
-    await sleep(pollingIntervalMs);
+  if (pending.length === 0) {
+    console.log(`[wait] ${label} pronto.`);
+    process.exit(0);
   }
 
-  const pendingLabel =
-    expectedState === 'free'
-      ? 'Portas ainda ocupadas'
-      : 'Portas ainda indisponíveis';
-
-  console.error(`[wait] Tempo esgotado aguardando ${label}.`);
-  console.error(`[wait] ${pendingLabel}: ${pending.join(', ')}.`);
-  process.exit(1);
-} catch (error) {
-  console.error(`[wait] Falha ao verificar ${label}.`);
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exit(1);
+  await sleep(pollingIntervalMs);
 }
+
+console.error(
+  `[wait] Timeout aguardando ${label}. Portas pendentes: ${pending.join(', ')}.`
+);
+process.exit(1);

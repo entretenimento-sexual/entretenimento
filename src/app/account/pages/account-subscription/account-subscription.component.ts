@@ -48,9 +48,11 @@ export class AccountSubscriptionComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly refreshRenewal$ = new Subject<void>();
   private readonly cancelRequest$ = new Subject<void>();
+  private readonly cancelDowngradeRequest$ = new Subject<void>();
 
   readonly vm$ = this.facade.vm$;
   readonly cancelingRenewal = signal(false);
+  readonly cancelingDowngrade = signal(false);
 
   readonly renewalState$ = this.refreshRenewal$.pipe(
     startWith(void 0),
@@ -124,10 +126,67 @@ export class AccountSubscriptionComponent {
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe();
+
+    this.cancelDowngradeRequest$
+      .pipe(
+        exhaustMap(() =>
+          this.dialog
+            .open(ConfirmationDialogComponent, {
+              data: {
+                title: 'Cancelar redução agendada',
+                eyebrow: 'Assinatura',
+                message:
+                  'Sua assinatura continuará no plano atual e o valor recorrente anterior será restaurado no provedor.',
+                detail:
+                  'O período já pago não muda. Esta ação cancela somente a redução programada, não a renovação automática.',
+                confirmLabel: 'Cancelar redução',
+                cancelLabel: 'Manter redução agendada',
+                tone: 'warning',
+                icon: 'undo',
+              },
+              autoFocus: false,
+              restoreFocus: true,
+            })
+            .afterClosed()
+        ),
+        filter((confirmed): confirmed is true => confirmed === true),
+        tap(() => this.cancelingDowngrade.set(true)),
+        exhaustMap(() =>
+          this.billingRepository
+            .cancelPlatformSubscriptionDowngrade$()
+            .pipe(
+              tap(() => this.refreshRenewal$.next()),
+              catchError((error: unknown) => {
+                this.applicationError.report(error, {
+                  feature: 'account-subscription',
+                  operation: 'cancelScheduledDowngrade',
+                  fallbackMessage:
+                    'Não foi possível cancelar a redução agendada agora.',
+                  presentation: {
+                    surface: 'modal',
+                    severity: 'error',
+                  },
+                  metadata: {
+                    scope: 'AccountSubscriptionComponent',
+                  },
+                });
+                return of(null);
+              }),
+              finalize(() => this.cancelingDowngrade.set(false))
+            )
+        ),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
   }
 
   cancelRenewal(): void {
     if (this.cancelingRenewal()) return;
     this.cancelRequest$.next();
+  }
+
+  cancelScheduledDowngrade(): void {
+    if (this.cancelingDowngrade()) return;
+    this.cancelDowngradeRequest$.next();
   }
 }

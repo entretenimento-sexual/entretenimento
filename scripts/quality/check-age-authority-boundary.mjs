@@ -50,7 +50,6 @@ const requiredFiles = Object.freeze([
   'functions/src/community/get-community-member-roster-page.handler.ts',
   'functions/src/community/get-profile-public-communities.handler.ts',
   'src/app/core/services/geolocation/nearby-profiles-query.gateway.ts',
-  'src/app/core/services/batepapo/invite-service/invite-search.service.ts',
   'src/app/core/services/interactions/friendship/repo/friends.repo.ts',
   'src/app/core/services/media/media-public-preview-query.service.ts',
 ]);

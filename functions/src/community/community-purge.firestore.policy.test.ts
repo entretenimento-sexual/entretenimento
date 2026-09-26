@@ -72,6 +72,8 @@ test('nenhum namespace de retenção aparece entre os alvos de purge', () => {
     ...COMMUNITY_PURGE_PROJECTION_ROOT_COLLECTIONS,
     ...COMMUNITY_PURGE_FINAL_ROOT_COLLECTIONS,
     'community_user_index',
+    'community_member_management_index',
+    'community_member_search_index',
   ]);
 
   for (const protectedCollection of COMMUNITY_PURGE_PROTECTED_COLLECTIONS) {

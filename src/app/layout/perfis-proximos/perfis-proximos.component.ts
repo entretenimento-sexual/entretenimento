@@ -143,13 +143,8 @@ export class PerfisProximosComponent {
   private readonly accessControl = inject(AccessControlService);
   private readonly store = inject(Store);
 
-  readonly user$ = this.currentUserStore.user$.pipe(
-    distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b))
-  );
-
-  private readonly uid$ = this.currentUserStore.getLoggedUserUID$();
-
-  private readonly syncUiWithStore$ = this.store
+  constructor() {
+    this.store
     .select(selectMaxDistanceKm)
     .pipe(
       tap((v) => {
@@ -161,7 +156,21 @@ export class PerfisProximosComponent {
       }),
       takeUntilDestroyed(this.destroyRef)
     )
-    .subscribe();
+      .subscribe();
+
+    effect(() => {
+    const v = this._uiDistanceKm();
+    if (v && Number.isFinite(v)) {
+      this.cache.set('uiDistanceKm', v, 15 * 60 * 1000);
+    }
+  });
+  }
+
+  readonly user$ = this.currentUserStore.user$.pipe(
+    distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b))
+  );
+
+  private readonly uid$ = this.currentUserStore.getLoggedUserUID$();
 
   private readonly reload$ = new BehaviorSubject<void>(undefined);
 
@@ -263,13 +272,6 @@ export class PerfisProximosComponent {
       }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
-
-  private readonly uiDistancePersistEffect = effect(() => {
-    const v = this._uiDistanceKm();
-    if (v && Number.isFinite(v)) {
-      this.cache.set('uiDistanceKm', v, 15 * 60 * 1000);
-    }
-  });
 
   private normalizeRedirectTarget(url: string | null | undefined): string {
     const clean = (url ?? '').trim();

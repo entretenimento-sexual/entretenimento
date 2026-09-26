@@ -4,9 +4,6 @@ import {
   normalizeCommunityFeedCommentActionResponse,
   normalizeCommunityFeedCommentCreateResponse,
   normalizeCommunityFeedCommentPageResponse,
-  normalizeCommunityFeedCommentReplyActionResponse,
-  normalizeCommunityFeedCommentReplyCreateResponse,
-  normalizeCommunityFeedCommentReplyPageResponse,
 } from './community-feed-comment.model';
 
 const CREATED_AT = Date.now() - 60_000;
@@ -20,34 +17,12 @@ function comment(overrides: Record<string, unknown> = {}) {
       avatarUrl: 'https://example.com/avatar.webp',
     },
     text: 'Uma contribuição para a conversa.',
-    replyCount: 2,
     capabilities: {
       canDeleteOwn: true,
       canModerate: false,
       canReport: false,
     },
     createdAt: CREATED_AT,
-    ...overrides,
-  };
-}
-
-function reply(overrides: Record<string, unknown> = {}) {
-  return {
-    replyId: 'reply-1',
-    actorUid: 'private-reply-user-id',
-    author: {
-      label: 'Pessoa que respondeu',
-      avatarUrl: 'https://example.com/reply.webp',
-      identityCode: 'mulher',
-      identityDiscoveryGroup: 'woman',
-    },
-    text: 'Uma resposta curta.',
-    capabilities: {
-      canDeleteOwn: false,
-      canModerate: false,
-      canReport: true,
-    },
-    createdAt: CREATED_AT + 1_000,
     ...overrides,
   };
 }
@@ -79,7 +54,6 @@ describe('normalizeCommunityFeedCommentPageResponse', () => {
         },
         text: 'Uma contribuição para a conversa.',
         replyTo: null,
-        replyCount: 2,
         capabilities: {
           canDeleteOwn: true,
           canModerate: false,
@@ -172,28 +146,6 @@ describe('normalizeCommunityFeedCommentPageResponse', () => {
   });
 });
 
-describe('normalizeCommunityFeedCommentReplyPageResponse legado', () => {
-  it('mantém leitura sanitizada de respostas legadas durante a migração', () => {
-    const page = normalizeCommunityFeedCommentReplyPageResponse({
-      items: [reply()],
-      nextCursor: 'reply-1',
-      generatedAt: CREATED_AT + 2_000,
-    });
-
-    expect(page.items).toHaveLength(1);
-    expect(page.items[0].text).toBe('Uma resposta curta.');
-    expect('actorUid' in page.items[0]).toBe(false);
-    expect(page.nextCursor).toBe('reply-1');
-  });
-
-  it('descarta resposta legada com identificador inválido', () => {
-    const page = normalizeCommunityFeedCommentReplyPageResponse({
-      items: [reply({ replyId: '../unsafe' })],
-    });
-    expect(page.items).toEqual([]);
-  });
-});
-
 describe('community feed comment write responses', () => {
   it('normaliza criação e contador autoritativo da conversa', () => {
     expect(normalizeCommunityFeedCommentCreateResponse({
@@ -204,30 +156,6 @@ describe('community feed comment write responses', () => {
       created: true,
       deduplicated: false,
     }).commentCount).toBe(9);
-  });
-
-  it('mantém contratos legados de criação e moderação durante a migração', () => {
-    expect(normalizeCommunityFeedCommentReplyCreateResponse({
-      communityId: 'community-1',
-      postId: 'post-1',
-      commentId: 'comment-1',
-      replyId: 'reply-1',
-      replyCount: 3,
-      created: true,
-      deduplicated: false,
-    }).replyCount).toBe(3);
-
-    expect(normalizeCommunityFeedCommentReplyActionResponse({
-      communityId: 'community-1',
-      postId: 'post-1',
-      commentId: 'comment-1',
-      replyId: 'reply-1',
-      action: 'remove',
-      status: 'removed',
-      replyCount: 2,
-      deduplicated: false,
-      generatedAt: CREATED_AT,
-    }).status).toBe('removed');
   });
 
   it('normaliza remoção e rejeita referências inválidas', () => {

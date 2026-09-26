@@ -1,5 +1,8 @@
 // functions/src/account_lifecycle/requestAccountDeletion.ts
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import {
+  assertAccountLifecycleMutationSecurity,
+} from './account-lifecycle-mutation-security';
 import { db } from '../firebaseApp';
 import {
   ACCOUNT_LIFECYCLE_REGION,
@@ -10,16 +13,15 @@ import {
   getNicknameIndexDocId,
   normalizeOptionalReason,
 } from './_shared';
-import { evaluateAccountDeletionOwnedResources } from './account-deletion-owned-resources.policy';
-import { ASAAS_API_KEY, resolveAsaasApiRuntimeConfig } from '../payments/config/asaas.config';
-import { AsaasPaymentProvider } from '../payments/infrastructure/providers/asaas.provider';
+import { ASAAS_API_KEY } from '../payments/config/asaas.config';
 import {
-  PLATFORM_SUBSCRIPTION_STATE_COLLECTION,
-} from '../payments/application/platform-recurring-subscription.service';
+  assertAccountDeletionOwnedResourcesResolved,
+  inspectAccountDeletionOwnedResourcesInTransaction,
+} from './account-deletion-owned-resources.service';
 import {
-  cancelRecurringContractAtProvider,
-  requestRecurringContractCancellation,
-} from '../payments/application/recurring-provider-cancellation.service';
+  buildAccountLifecycleBillingCancellationPatch,
+  reconcileAccountLifecycleBillingCancellation,
+} from './account-lifecycle-billing.service';
 
 interface RequestAccountDeletionRequest {
   reason?: string | null;
@@ -45,31 +47,11 @@ interface DeletionSchedule {
 }
 
 const DEFAULT_UNDO_WINDOW_MS = 24 * 60 * 60 * 1_000;
-const TERMINAL_ROOM_STATUSES = new Set(['closed', 'archived']);
 
 function normalizeRestorableStatus(value: unknown): RestorableAccountStatus {
   return value === 'self_suspended' || value === 'moderation_suspended'
     ? value
     : 'active';
-}
-
-function normalizeRoomStatus(value: unknown): string {
-  return String(value ?? '').trim().toLowerCase();
-}
-
-function countOwnedCommunityMemberships(
-  snapshot: FirebaseFirestore.QuerySnapshot,
-  uid: string
-): number {
-  return snapshot.docs.filter((documentSnapshot) => {
-    const segments = documentSnapshot.ref.path.split('/');
-    return (
-      segments.length === 4 &&
-      segments[0] === 'communities' &&
-      segments[2] === 'members' &&
-      segments[3] === uid
-    );
-  }).length;
 }
 
 export const requestAccountDeletion = onCall<RequestAccountDeletionRequest>(
@@ -85,6 +67,12 @@ export const requestAccountDeletion = onCall<RequestAccountDeletionRequest>(
       request.auth?.token as Record<string, unknown> | undefined
     );
 
+    await assertAccountLifecycleMutationSecurity({
+      action: 'self_delete',
+      subjectUid: uid,
+      appContext: request.app,
+    });
+
     const reason = normalizeOptionalReason(request.data?.reason);
     const now = Date.now();
 
@@ -92,27 +80,7 @@ export const requestAccountDeletion = onCall<RequestAccountDeletionRequest>(
       async (tx: FirebaseFirestore.Transaction): Promise<DeletionSchedule> => {
         const userRef = db.collection('users').doc(uid);
         const publicProfileRef = db.collection('public_profiles').doc(uid);
-        const ownerSlotRef = db.collection('room_owner_slots').doc(uid);
-        const ownedRoomsQuery = db
-          .collection('rooms')
-          .where('createdBy', '==', uid);
-        const ownedCommunityMembershipsQuery = db
-          .collectionGroup('members')
-          .where('uid', '==', uid)
-          .where('role', '==', 'owner')
-          .limit(10);
-
-        const [
-          userSnap,
-          ownerSlotSnapshot,
-          ownedRoomsSnapshot,
-          ownedCommunityMembershipsSnapshot,
-        ] = await Promise.all([
-          tx.get(userRef),
-          tx.get(ownerSlotRef),
-          tx.get(ownedRoomsQuery),
-          tx.get(ownedCommunityMembershipsQuery),
-        ]);
+        const userSnap = await tx.get(userRef);
 
         if (!userSnap.exists) {
           throw new HttpsError('not-found', 'Usuário não encontrado.');
@@ -152,6 +120,17 @@ export const requestAccountDeletion = onCall<RequestAccountDeletionRequest>(
             );
           }
 
+          if (user.billingCancellationPending !== true) {
+            tx.set(
+              userRef,
+              buildAccountLifecycleBillingCancellationPatch({
+                reason: 'account-deletion-request',
+                now,
+              }),
+              { merge: true }
+            );
+          }
+
           return {
             deletionRequestedAt: existingRequestedAt,
             deletionUndoUntil: existingUndoUntil,
@@ -160,44 +139,11 @@ export const requestAccountDeletion = onCall<RequestAccountDeletionRequest>(
           };
         }
 
-        const ownedRoomStatuses = ownedRoomsSnapshot.docs.map(
-          (documentSnapshot) => ({
-            roomId: documentSnapshot.id,
-            status: normalizeRoomStatus(documentSnapshot.data()?.['status']),
-          })
+        const ownedResourceDecision =
+          await inspectAccountDeletionOwnedResourcesInTransaction(tx, uid);
+        assertAccountDeletionOwnedResourcesResolved(
+          ownedResourceDecision
         );
-        const ownerSlot = ownerSlotSnapshot.data() ?? {};
-        const ownerSlotRoomId = String(ownerSlot['roomId'] ?? '').trim();
-        const ownerSlotRoom = ownedRoomStatuses.find(
-          (room) => room.roomId === ownerSlotRoomId
-        );
-        const activeOwnerSlot =
-          ownerSlot['active'] === true &&
-          !!ownerSlotRoom &&
-          !TERMINAL_ROOM_STATUSES.has(ownerSlotRoom.status);
-        const ownedResourceDecision = evaluateAccountDeletionOwnedResources({
-          ownedRoomStatuses: ownedRoomStatuses.map((room) => room.status),
-          activeOwnerSlot,
-          ownedCommunityCount: countOwnedCommunityMemberships(
-            ownedCommunityMembershipsSnapshot,
-            uid
-          ),
-        });
-
-        if (!ownedResourceDecision.allowed) {
-          throw new HttpsError(
-            'failed-precondition',
-            'Resolva os espaços sob sua responsabilidade antes de excluir a conta.',
-            {
-              reason: 'owned-resources-require-resolution',
-              activeOwnedRoomCount:
-                ownedResourceDecision.activeOwnedRoomCount,
-              ownedCommunityCount:
-                ownedResourceDecision.ownedCommunityCount,
-              recommendedAction: 'resolve-owned-spaces',
-            }
-          );
-        }
 
         const restoreStatus = normalizeRestorableStatus(currentStatus);
         const deletionUndoUntil = now + DEFAULT_UNDO_WINDOW_MS;
@@ -231,6 +177,11 @@ export const requestAccountDeletion = onCall<RequestAccountDeletionRequest>(
 
             statusUpdatedAt: now,
             statusUpdatedBy: 'self',
+
+            ...buildAccountLifecycleBillingCancellationPatch({
+              reason: 'account-deletion-request',
+              now,
+            }),
           },
           { merge: true }
         );
@@ -265,40 +216,10 @@ export const requestAccountDeletion = onCall<RequestAccountDeletionRequest>(
       }
     );
 
-    try {
-      const recurringStateSnapshot = await db
-        .collection(PLATFORM_SUBSCRIPTION_STATE_COLLECTION)
-        .doc(uid)
-        .get();
-      const currentContractId = String(
-        recurringStateSnapshot.data()?.['currentContractId'] ?? ''
-      ).trim();
-
-      if (currentContractId) {
-        const requestedCancellation =
-          await requestRecurringContractCancellation({
-            contractId: currentContractId,
-            reason: 'account-deletion-request',
-          });
-
-        if (requestedCancellation) {
-          const provider = new AsaasPaymentProvider({
-            runtime: resolveAsaasApiRuntimeConfig(),
-            apiKey: ASAAS_API_KEY.value(),
-          });
-
-          await cancelRecurringContractAtProvider({
-            contractId: currentContractId,
-            provider,
-            reason: 'account-deletion-request',
-          }).catch(() => undefined);
-        }
-      }
-    } catch {
-      // Exclusão da conta não depende da disponibilidade do provider.
-      // A solicitação de cancelamento, quando persistida, será retomada pelo
-      // reconciliador recorrente.
-    }
+    await reconcileAccountLifecycleBillingCancellation({
+      uid,
+      fallbackReason: 'account-deletion-request',
+    });
 
     return {
       ok: true,

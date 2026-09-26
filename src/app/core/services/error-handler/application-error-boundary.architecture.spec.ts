@@ -37,19 +37,12 @@ const LEGACY_MANUAL_COMPOSITION_BASELINE = new Set<string>([
   'chat-module/chat-module-layout/chat-module-layout.component.ts',
   'chat-module/chat-rooms/chat-rooms.component.ts',
   'chat-module/directives/delete-direct-message.directive.ts',
-  'chat-module/modals/invite-user-modal/invite-user-modal.component.ts',
-  'core/services/batepapo/invite-service/invite-search.service.ts',
-  'core/services/batepapo/invite-service/invite.service.ts',
   'core/services/batepapo/room-services/room-management.service.ts',
   'core/services/batepapo/room-services/room-messages.service.ts',
-  'core/services/batepapo/room-services/room-participants.service.ts',
-  'core/services/batepapo/room-services/room-reports.service.ts',
-  'core/services/batepapo/room-services/user-room-ids.service.ts',
   'core/services/filtering/filters/region-filter.service.ts',
   'core/services/image-handling/photo-firestore.service.ts',
   'core/services/image-handling/photo-upload-flow.service.ts',
   'core/services/image-handling/storage.service.ts',
-  'core/services/media/media-command.service.ts',
   'core/services/media/media-photo-comments.service.ts',
   'core/services/media/media-public-query.service.ts',
   'core/services/media/media-publication.service.ts',
@@ -62,7 +55,6 @@ const LEGACY_MANUAL_COMPOSITION_BASELINE = new Set<string>([
   'core/services/media/public-video-ranking-query.service.ts',
   'core/services/media/public-video-share.service.ts',
   'core/services/media/video-library.service.ts',
-  'core/services/preferences/user-preferences.service.ts',
   'core/services/user-profile/user-profile.service.ts',
   'core/services/user-profile/user-social-links.service.ts',
   'dashboard/online/online-users/online-users.component.ts',
@@ -181,6 +173,6 @@ describe('Application error ownership boundary', () => {
   });
 
   it('mantém explícito o tamanho atual da dívida fora de Comunidades', () => {
-    expect(LEGACY_MANUAL_COMPOSITION_BASELINE.size).toBe(56);
+    expect(LEGACY_MANUAL_COMPOSITION_BASELINE.size).toBe(48);
   });
 });

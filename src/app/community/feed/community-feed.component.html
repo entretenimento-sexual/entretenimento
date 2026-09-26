@@ -68,7 +68,7 @@
               maxlength="1000"
               enterkeyhint="send"
               formControlName="text"
-              [placeholder]="sourceType() === 'venue' ? 'Compartilhe uma novidade...' : 'Compartilhe algo com a Comunidade...'"
+              [placeholder]="composerPlaceholder()"
               [attr.aria-invalid]="postForm.controls.text.invalid && postForm.controls.text.touched ? 'true' : null"
               [attr.aria-describedby]="composerExpanded() || selectedAttachment() ? 'community-feed-post-help' : null"
               (focus)="expandComposer()"
@@ -195,7 +195,7 @@
       }
     }
 
-    @if (view() === 'feed' && sourceType() === 'community') {
+    @if (view() === 'feed' && supportsHighlights()) {
       <app-community-highlight-card
         [communityId]="communityId()"
         (navigateRequested)="navigateToReferencedPost($event.event, $event.postId)"
@@ -235,8 +235,27 @@
         <span>{{ emptyLabel() }}</span>
       </div>
     } @else {
+      @let renderWindow = feedRenderWindow(state.items);
+
+      @if (renderWindow.hasPrevious) {
+        <div
+          class="community-feed__more"
+          role="group"
+          aria-label="Navegar pelas publicações já carregadas"
+        >
+          <button
+            type="button"
+            aria-label="Ver publicações mais recentes já carregadas"
+            (click)="showNewerLoadedPosts(state.items)"
+          >
+            <i class="fas fa-chevron-up" aria-hidden="true"></i>
+            <span>Mais recentes</span>
+          </button>
+        </div>
+      }
+
       <ul class="community-feed__items" role="list">
-        @for (item of state.items; track item.postId) {
+        @for (item of renderWindow.items; track item.postId) {
           <li>
             <article
               #postElement
@@ -297,7 +316,7 @@
                         </button>
                       }
 
-                      @if (sourceType() === 'community' && view() === 'feed') {
+                      @if (supportsHighlights() && view() === 'feed') {
                         <app-community-highlight-menu-action
                           [communityId]="communityId()"
                           [postId]="item.postId"
@@ -614,7 +633,22 @@
         }
       </ul>
 
-      @if (state.nextCursor) {
+      @if (renderWindow.hasNext) {
+        <div
+          class="community-feed__more"
+          role="group"
+          aria-label="Navegar pelas publicações já carregadas"
+        >
+          <button
+            type="button"
+            aria-label="Ver publicações anteriores já carregadas"
+            (click)="showOlderLoadedPosts(state.items)"
+          >
+            <i class="fas fa-chevron-down" aria-hidden="true"></i>
+            <span>Mais antigas</span>
+          </button>
+        </div>
+      } @else if (state.nextCursor) {
         <div class="community-feed__more">
           @if (state.loadMoreError) {
             <p

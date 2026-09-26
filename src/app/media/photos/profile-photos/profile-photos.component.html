@@ -340,7 +340,7 @@
                     type="button"
                     class="management-action management-action--primary app-action app-action--primary"
                     (click)="publishPhoto(item, $event)"
-                    [disabled]="!publicationFeatureReady || publishingPhotoId === item.id || savingDisplayDateId === item.id"
+                    [disabled]="publishingPhotoId === item.id || savingDisplayDateId === item.id"
                     aria-label="Publicar foto"
                     title="Publicar foto"
                   >
@@ -355,7 +355,7 @@
                     type="button"
                     class="management-action management-action--icon management-action--neutral app-action app-action--ghost"
                     (click)="setCoverPhoto(item, $event)"
-                    [disabled]="quarantined || !publicationFeatureReady || publishingPhotoId === item.id || savingDisplayDateId === item.id"
+                    [disabled]="quarantined || publishingPhotoId === item.id || savingDisplayDateId === item.id"
                     aria-label="Definir foto como capa do perfil"
                     title="Definir como capa"
                   >
@@ -410,12 +410,6 @@
           </article>
         }
       </div>
-
-      @if (!publicationFeatureReady) {
-        <p class="publication-note">
-          A publicação de fotos já está preparada na interface, mas ainda depende da camada pública ativa.
-        </p>
-      }
     }
   }
 </section>

@@ -3,7 +3,7 @@
 //
 // Responsabilidades:
 // - observar biblioteca privada e configurações de publicação;
-// - permitir edição, exclusão, publicação, despublicação e capa;
+// - permitir edição, exclusão, publicação e capa;
 // - manter a edição visual desacoplada da persistência: o editor devolve um
 //   arquivo processado e este componente executa a substituição da foto.
 //
@@ -94,8 +94,6 @@ export class ProfilePhotosComponent {
   private readonly photoUploadFlow = inject(PhotoUploadFlowService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
 
-  // Troque para true só depois de deployar as novas rules da camada de publicação.
-  readonly publicationFeatureReady = true;
 
   private readonly confirmDeleteIdSubject = new BehaviorSubject<string | null>(null);
   readonly confirmDeleteId$ = this.confirmDeleteIdSubject.asObservable();
@@ -639,13 +637,6 @@ export class ProfilePhotosComponent {
   publishPhoto(item: IPhotoCardVm, event?: Event): void {
     event?.stopPropagation();
 
-    if (!this.publicationFeatureReady) {
-      this.errorNotifier.showWarning(
-        'A publicação de fotos ainda está desabilitada até a camada pública estar pronta.'
-      );
-      return;
-    }
-
     this.canManagePhotoPublication$()
       .pipe(
         switchMap(({ canManage, ownerUid }) => {
@@ -701,63 +692,8 @@ export class ProfilePhotosComponent {
       .subscribe();
   }
 
-  unpublishPhoto(item: IPhotoCardVm, event?: Event): void {
-    event?.stopPropagation();
-
-    if (!this.publicationFeatureReady) {
-      this.errorNotifier.showWarning(
-        'A publicação de fotos ainda está desabilitada até a camada pública estar pronta.'
-      );
-      return;
-    }
-
-    this.canManagePhotoPublication$()
-      .pipe(
-        switchMap(({ canManage, ownerUid }) => {
-          if (!canManage) {
-            this.errorNotifier.showError('Você não tem permissão para despublicar esta foto.');
-            return EMPTY;
-          }
-
-          if (!item.id?.trim()) {
-            this.errorNotifier.showWarning('Metadados insuficientes para despublicar esta foto.');
-            return EMPTY;
-          }
-
-          this.publishingPhotoIdSubject.next(item.id);
-
-          return this.mediaPublicationService.unpublishPhoto$(ownerUid, item.id).pipe(
-            tap(() => {
-              this.errorNotifier.showSuccess('Foto despublicada com sucesso.');
-            }),
-            catchError((error) => {
-              this.reportError(
-                'Erro ao despublicar a foto.',
-                error,
-                {
-                  op: 'unpublishPhoto',
-                  ownerUid,
-                  photoId: item.id,
-                }
-              );
-              return EMPTY;
-            }),
-            finalize(() => this.publishingPhotoIdSubject.next(null))
-          );
-        })
-      )
-      .subscribe();
-  }
-
   setCoverPhoto(item: IPhotoCardVm, event?: Event): void {
     event?.stopPropagation();
-
-    if (!this.publicationFeatureReady) {
-      this.errorNotifier.showWarning(
-        'A publicação de fotos ainda está desabilitada até a camada pública estar pronta.'
-      );
-      return;
-    }
 
     this.canManagePhotoPublication$()
       .pipe(

@@ -119,7 +119,7 @@ export class AccountLifecycleDialogComponent {
   readonly description = computed(() => {
     switch (this.intent()) {
       case 'self_suspend':
-        return 'Sua conta ficará invisível e as interações serão bloqueadas até você reativá-la. Uma suspensão aplicada pela moderação não pode ser removida por este fluxo.';
+        return 'Sua conta ficará invisível e as interações serão bloqueadas até você reativá-la. Se houver renovação automática, novas cobranças serão interrompidas; o período já pago permanece válido e a renovação não volta automaticamente ao reativar.';
       case 'self_delete':
         return 'Sua conta ficará invisível imediatamente. Você poderá cancelar a solicitação por 24 horas; depois desse prazo, a exclusão definitiva poderá ser iniciada.';
       case 'reactivate_self_suspend':
@@ -127,7 +127,7 @@ export class AccountLifecycleDialogComponent {
       case 'cancel_pending_deletion':
         return 'A exclusão pendente será cancelada e o estado que a conta possuía antes da solicitação será restaurado.';
       case 'moderator_suspend':
-        return 'A conta ficará invisível para terceiros, com interações bloqueadas e acesso restrito à página de status.';
+        return 'A conta ficará invisível para terceiros, com interações bloqueadas e acesso restrito à página de status. Se houver renovação automática, novas cobranças serão interrompidas sem revogar o período já pago.';
       case 'moderator_delete':
         return 'A conta entrará em exclusão pendente, ficará invisível imediatamente e seguirá para retenção e expurgo posterior.';
       default:

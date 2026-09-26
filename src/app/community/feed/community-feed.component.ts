@@ -33,6 +33,7 @@ import {
   startWith,
   Subject,
   switchMap,
+  tap,
   timer,
 } from 'rxjs';
 
@@ -45,6 +46,7 @@ import {
   CommunityFeedView,
 } from '../data-access/community-feed.model';
 import type { CommunityFeedRealtimeChange } from '../data-access/community-feed-realtime.model';
+import { CommunityFeedCommentStateFacade } from './community-feed-comment-state.facade';
 import { CommunityFeedCommentsComponent } from '../feed-comments/community-feed-comments.component';
 import { CommunityHighlightCardComponent } from '../highlight/community-highlight-card.component';
 import { CommunityHighlightMenuActionComponent } from '../highlight/community-highlight-menu-action.component';
@@ -53,6 +55,7 @@ import {
   CommunityPreviewViewerRole,
 } from '../data-access/community-preview.model';
 import { CommunityCameraCaptureComponent } from './community-camera-capture.component';
+import { getCommunitySocialSpaceAdapter } from '../presentation/community-social-space.adapter';
 import {
   CommunityFeedComposerContext,
   CommunityFeedComposerFacade,
@@ -64,11 +67,8 @@ import {
 import { CommunityFeedReactionFacade } from './community-feed-reaction.facade';
 import { CommunityFeedReferenceNavigationFacade } from './community-feed-reference-navigation.facade';
 import { CommunityFeedLocationFacade } from './community-feed-location.facade';
+import { CommunityFeedRenderWindowFacade } from './community-feed-render-window.facade';
 import { CommunityFeedModerationFacade } from './community-feed-moderation.facade';
-import {
-  INITIAL_COMMUNITY_FEED_STATE,
-  reduceCommunityFeedState,
-} from './community-feed-state.model';
 import { CommunityFeedTimelineFacade } from './community-feed-timeline.facade';
 import { CommunityFeedTimeTickerService } from './community-feed-time-ticker.service';
 import {
@@ -99,11 +99,13 @@ const MAX_UNSEEN_NEW_POSTS = 99;
   ],
   providers: [
     CommunityFeedComposerFacade,
+    CommunityFeedCommentStateFacade,
     CommunityFeedReactionFacade,
     CommunityFeedReferenceNavigationFacade,
     CommunityFeedTimelineFacade,
     CommunityFeedModerationFacade,
     CommunityFeedLocationFacade,
+    CommunityFeedRenderWindowFacade,
   ],
   templateUrl: './community-feed.component.html',
   styleUrls: [
@@ -116,11 +118,13 @@ export class CommunityFeedComponent {
   private readonly timeTicker = inject(CommunityFeedTimeTickerService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly composer = inject(CommunityFeedComposerFacade);
+  private readonly commentState = inject(CommunityFeedCommentStateFacade);
   private readonly reactions = inject(CommunityFeedReactionFacade);
   private readonly references = inject(CommunityFeedReferenceNavigationFacade);
   private readonly timeline = inject(CommunityFeedTimelineFacade);
   private readonly moderation = inject(CommunityFeedModerationFacade);
   private readonly location = inject(CommunityFeedLocationFacade);
+  private readonly renderWindow = inject(CommunityFeedRenderWindowFacade);
   private readonly postHighlightRequests$ = new Subject<string>();
   private readonly postElements = viewChildren<ElementRef<HTMLElement>>('postElement');
   private readonly postMenus = viewChildren<ElementRef<HTMLDetailsElement>>('postMenu');
@@ -143,9 +147,9 @@ export class CommunityFeedComponent {
   readonly locationCaptureState = this.composer.locationCaptureState;
   readonly actionPostId = this.moderation.actionPostId;
   readonly actionMode = this.moderation.actionMode;
-  readonly commentsPostId = signal<string | null>(null);
-  readonly replyPostId = signal<string | null>(null);
-  readonly postReplyRequestVersion = signal(0);
+  readonly commentsPostId = this.commentState.commentsPostId;
+  readonly replyPostId = this.commentState.replyPostId;
+  readonly postReplyRequestVersion = this.commentState.postReplyRequestVersion;
   readonly unseenNewPostCount = signal(0);
   readonly referenceNavigationState = this.references.navigationState;
   readonly now = toSignal(this.timeTicker.now$, { initialValue: Date.now() });
@@ -160,10 +164,6 @@ export class CommunityFeedComponent {
     ),
     { initialValue: null }
   );
-  private readonly commentCountOverrides = signal<ReadonlyMap<string, number>>(
-    new Map()
-  );
-
   readonly postForm = this.composer.postForm;
   readonly removalReason = this.moderation.removalReason;
 
@@ -177,6 +177,7 @@ export class CommunityFeedComponent {
       ([previousId, previousView], [currentId, currentView]) =>
         previousId === currentId && previousView === currentView
     ),
+    tap(() => this.renderWindow.reset()),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -187,6 +188,8 @@ export class CommunityFeedComponent {
       onRealtimeChanges: (changes, communityId) =>
         this.reconcileRealtimeOverrides(changes, communityId),
       captureRealtimeFollowIntent: () => {
+        if (!this.renderWindow.isLatestWindow()) return false;
+
         const currentLatestPostId = this.orderedPostIds()[0] ?? null;
         return this.unseenNewPostCount() === 0
           && (currentLatestPostId
@@ -216,7 +219,14 @@ export class CommunityFeedComponent {
     { initialValue: [] }
   );
 
-  private readonly smartFollowEffect = effect(() => {
+  readonly postCreateState$ = this.composer.postCreateState$;
+
+  readonly postActionState$ = this.moderation.state$;
+
+  readonly reactionState$ = this.reactions.reactionState$;
+
+  constructor() {
+    effect(() => {
     const orderedPostIds = this.orderedPostIds();
     const latestPostId = orderedPostIds[0] ?? null;
 
@@ -278,7 +288,7 @@ export class CommunityFeedComponent {
     });
   });
 
-  private readonly externalFocusEffect = effect(() => {
+    effect(() => {
     const communityId = this.communityId().trim();
     const postId = String(this.focusPostId() ?? '').trim();
     const commentId = String(this.focusCommentId() ?? '').trim();
@@ -303,7 +313,7 @@ export class CommunityFeedComponent {
     this.navigateToPost(postId);
   });
 
-  private readonly ownPostFollowEffect = effect(() => {
+    effect(() => {
     const postId = this.pendingOwnPostFollowId();
     if (!postId) return;
 
@@ -318,13 +328,24 @@ export class CommunityFeedComponent {
     });
   });
 
-  readonly postCreateState$ = this.composer.postCreateState$;
 
-  readonly postActionState$ = this.moderation.state$;
+    this.timeline.pageLoaded$
+      .pipe(
+        filter(({ request }) => request.append),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe(() => this.renderWindow.markAppendLoaded());
 
-  readonly reactionState$ = this.reactions.reactionState$;
+    this.state$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((state) =>
+        this.renderWindow.reconcile(
+          state.items,
+          state.loadingMore,
+          () => this.postElements()
+        )
+      );
 
-  constructor() {
     this.composer.postCreated$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((result) => this.followCreatedPost(result.postId));
@@ -332,6 +353,7 @@ export class CommunityFeedComponent {
     this.references.referencedItem$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((item) => {
+        this.renderWindow.requestReveal(item.postId);
         this.timeline.applyLocalEvent({
           type: 'reference',
           item,
@@ -465,15 +487,23 @@ export class CommunityFeedComponent {
 
     if (!normalizedPostId || !communityId) return;
 
-    this.references.navigate(
-      normalizedPostId,
-      {
-        communityId,
-        view: this.view(),
-        sourceType: this.sourceType(),
-      },
-      (candidatePostId) => this.findRenderedPostElement(candidatePostId)
-    );
+    const navigate = () =>
+      this.references.navigate(
+        normalizedPostId,
+        {
+          communityId,
+          view: this.view(),
+          sourceType: this.sourceType(),
+        },
+        (candidatePostId) => this.findRenderedPostElement(candidatePostId)
+      );
+
+    if (this.renderWindow.revealLoadedPost(normalizedPostId)) {
+      this.renderWindow.runAfterRender(navigate);
+      return;
+    }
+
+    navigate();
   }
 
   followCreatedPost(postId: string): void {
@@ -481,6 +511,7 @@ export class CommunityFeedComponent {
     if (!normalizedPostId) return;
 
     this.pendingOwnPostFollowId.set(normalizedPostId);
+    this.renderWindow.requestReveal(normalizedPostId);
     this.timeline.hydratePost(normalizedPostId);
   }
 
@@ -513,9 +544,20 @@ export class CommunityFeedComponent {
 
   showLatestPosts(): void {
     const latestPostId = this.orderedPostIds()[0] ?? null;
+    this.renderWindow.resetToLatest();
     this.clearUnseenNewPosts();
-    if (latestPostId) this.postHighlightRequests$.next(latestPostId);
-    this.scrollToLatestPost('start');
+
+    const followLatest = () => {
+      if (latestPostId) this.postHighlightRequests$.next(latestPostId);
+      this.scrollToLatestPost('start');
+    };
+
+    if (!latestPostId || this.findRenderedPostElement(latestPostId)) {
+      followLatest();
+      return;
+    }
+
+    this.renderWindow.runAfterRender(followLatest);
   }
 
   newPostsLabel(): string {
@@ -526,81 +568,73 @@ export class CommunityFeedComponent {
   }
 
   toggleComments(item: CommunityFeedItem): void {
-    if (!item.capabilities.canViewComments) return;
-    const isOpen = this.commentsPostId() === item.postId;
-    this.commentsPostId.set(isOpen ? null : item.postId);
-    // Abrir pelo contador é modo de leitura; não deve herdar intenção de resposta.
-    this.replyPostId.set(null);
+    this.commentState.toggle(item);
   }
 
   openCommentsForReply(item: CommunityFeedItem): void {
-    if (!item.capabilities.canViewComments || !item.capabilities.canComment) return;
-    this.commentsPostId.set(item.postId);
-    this.replyPostId.set(item.postId);
-    this.postReplyRequestVersion.update((current) => current + 1);
+    this.commentState.openForReply(item);
   }
 
   clearPostReplyContext(item: CommunityFeedItem): void {
-    if (this.replyPostId() === item.postId) {
-      this.replyPostId.set(null);
-    }
+    this.commentState.clearReplyContext(item);
   }
 
   commentsOpen(item: CommunityFeedItem): boolean {
-    return this.commentsPostId() === item.postId;
+    return this.commentState.commentsOpen(item);
   }
 
   commentCount(item: CommunityFeedItem): number {
-    return this.commentCountOverrides().get(item.postId)
-      ?? item.metrics.commentCount;
+    return this.commentState.commentCount(item);
   }
 
   updateCommentCount(item: CommunityFeedItem, commentCount: number): void {
-    if (!Number.isFinite(commentCount) || commentCount < 0) return;
-    const next = new Map(this.commentCountOverrides());
-    next.set(item.postId, Math.trunc(commentCount));
-    this.commentCountOverrides.set(next);
+    this.commentState.updateCommentCount(item, commentCount);
   }
 
   loadMore(cursor: string | null): void {
+    if (!cursor) return;
+    this.renderWindow.prepareLoadMore(() => this.postElements());
     this.timeline.loadMore(cursor);
+  }
+
+  feedRenderWindow(items: readonly CommunityFeedItem[]) {
+    return this.renderWindow.window(items);
+  }
+
+  showNewerLoadedPosts(items: readonly CommunityFeedItem[]): void {
+    this.renderWindow.showNewerLoaded(items, () => this.postElements());
+  }
+
+  showOlderLoadedPosts(items: readonly CommunityFeedItem[]): void {
+    this.renderWindow.showOlderLoaded(items, () => this.postElements());
   }
 
   retry(): void {
     this.timeline.retry();
   }
 
-  sectionAriaLabel(): string {
-    if (this.view() === 'photos') {
-      return this.sourceType() === 'venue'
-        ? 'Fotos do Local'
-        : 'Fotos da Comunidade';
-    }
+  composerPlaceholder(): string {
+    return this.socialSpace().feed(this.view()).composerPlaceholder;
+  }
 
-    return this.sourceType() === 'venue'
-      ? 'Novidades do Local'
-      : 'Mural da Comunidade';
+  supportsHighlights(): boolean {
+    return this.socialSpace().capabilities.highlights;
+  }
+
+  sectionAriaLabel(): string {
+    return this.socialSpace().feed(this.view()).ariaLabel;
   }
 
   loadingLabel(): string {
-    if (this.view() === 'photos') return 'Carregando fotos...';
-    return this.sourceType() === 'venue'
-      ? 'Carregando novidades...'
-      : 'Carregando mural...';
+    return this.socialSpace().feed(this.view()).loadingLabel;
   }
 
   errorStateLabel(): string {
-    if (this.view() === 'photos') return 'Não foi possível carregar as fotos.';
-    return this.sourceType() === 'venue'
-      ? 'Não foi possível carregar as novidades.'
-      : 'Não foi possível carregar o mural da Comunidade.';
+    return this.socialSpace().feed(this.view()).errorLabel;
   }
 
   emptyLabel(): string {
-    if (this.view() === 'photos') return 'Nenhuma foto compartilhada ainda.';
-    return this.sourceType() === 'venue'
-      ? 'Nenhuma novidade publicada.'
-      : 'Nenhuma mensagem no Mural ainda.';
+    return this.socialSpace().feed(this.view()).emptyLabel;
   }
 
   publishedIso(publishedAt: number): string {
@@ -609,6 +643,10 @@ export class CommunityFeedComponent {
 
   publishedLabel(publishedAt: number): string {
     return formatCommunityFeedTime(publishedAt, this.now());
+  }
+
+  private socialSpace() {
+    return getCommunitySocialSpaceAdapter(this.sourceType());
   }
 
   private composerContext(): CommunityFeedComposerContext {
@@ -637,7 +675,8 @@ export class CommunityFeedComponent {
 
   private isPostInsideFollowZone(postId: string): boolean {
     const element = this.findRenderedPostElement(postId)?.nativeElement;
-    if (!element || typeof window === 'undefined') return true;
+    if (!element) return false;
+    if (typeof window === 'undefined') return true;
 
     const rect = element.getBoundingClientRect();
     const viewportHeight = window.innerHeight
@@ -687,40 +726,12 @@ export class CommunityFeedComponent {
     communityId: string
   ): void {
     this.reactions.reconcileRealtime(changes, communityId);
-    let commentMap: Map<string, number> | null = null;
-
-    for (const change of changes) {
-      const postId = change.projection.postId;
-      const removed = change.type === 'removed'
-        || change.projection.state === 'removed';
-
-      if (removed) {
-        if (this.commentCountOverrides().has(postId)) {
-          commentMap ??= new Map(this.commentCountOverrides());
-          commentMap.delete(postId);
-        }
-        continue;
-      }
-
-      if (this.commentCountOverrides().has(postId)) {
-        commentMap ??= new Map(this.commentCountOverrides());
-        commentMap.set(postId, change.projection.metrics.commentCount);
-      }
-    }
-
-    if (commentMap) this.commentCountOverrides.set(commentMap);
+    this.commentState.reconcileRealtime(changes);
   }
 
   private clearItemOverrides(postId: string): void {
     this.reactions.clearItem(postId, this.communityId().trim());
-    if (this.commentCountOverrides().has(postId)) {
-      const next = new Map(this.commentCountOverrides());
-      next.delete(postId);
-      this.commentCountOverrides.set(next);
-    }
-    if (this.replyPostId() === postId) {
-      this.replyPostId.set(null);
-    }
+    this.commentState.clearItem(postId);
   }
 
 

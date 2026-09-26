@@ -31,6 +31,7 @@ for (const fragment of [
   "'$aact_prod_'",
   "'$aact_hmlg_'",
   'ASAAS_RECURRING_ENABLED',
+  'ASAAS_SUBSCRIPTION_UPDATE_ENABLED',
   'resolveAsaasApiRuntimeConfig',
 ]) requireIncludes(config, fragment, 'Asaas config drift');
 
@@ -44,6 +45,8 @@ for (const fragment of [
   "'asaas-access-token'",
   'timingSafeEqual',
   'cancelRecurringSubscription',
+  'updateRecurringSubscriptionAmount',
+  'updatePendingPayments',
   '/subscriptions/',
   'input.expiredUrl',
   'input.expiresAt',
@@ -143,8 +146,49 @@ for (const fragment of [
   'processProviderWebhookEventTrigger',
   'reconcileProviderWebhookEvents',
   'reconcileRecurringProviderCancellations',
+  'reconcileRecurringProviderPlanChanges',
   'secrets: [ASAAS_API_KEY]',
 ]) requireIncludes(jobs, fragment, 'recurring worker drift');
+
+const scheduleDowngrade = read(
+  'functions/src/payments/application/schedule-platform-subscription-downgrade.handler.ts'
+);
+for (const fragment of [
+  'assertAsaasSubscriptionUpdateEnabled',
+  'requestRecurringPlanDowngrade',
+  'applyPendingRecurringPlanChangeAtProvider',
+  'assertRecentAuthentication',
+]) requireIncludes(
+  scheduleDowngrade,
+  fragment,
+  'scheduled downgrade drift'
+);
+
+const cancelDowngrade = read(
+  'functions/src/payments/application/cancel-platform-subscription-downgrade.handler.ts'
+);
+for (const fragment of [
+  'requestCancelRecurringPlanDowngrade',
+  'revertPendingRecurringPlanChangeAtProvider',
+  'assertRecentAuthentication',
+]) requireIncludes(
+  cancelDowngrade,
+  fragment,
+  'downgrade cancellation drift'
+);
+
+const settlementPlanPolicy = read(
+  'functions/src/payments/application/recurring-platform-subscription-plan-change.policy.ts'
+);
+for (const fragment of [
+  'scheduled_downgrade',
+  'recurring_scheduled_amount_mismatch',
+  'scheduled_downgrade_effective_period_pending',
+]) requireIncludes(
+  settlementPlanPolicy,
+  fragment,
+  'scheduled downgrade settlement policy drift'
+);
 
 const cancel = read(
   'functions/src/payments/application/cancel-platform-subscription-renewal.handler.ts'
@@ -156,13 +200,85 @@ for (const fragment of [
   'assertCallableAppCheck',
 ]) requireIncludes(cancel, fragment, 'cancel-renewal drift');
 
+const accountLifecycleBilling = read(
+  'functions/src/account_lifecycle/account-lifecycle-billing.service.ts'
+);
+for (const fragment of [
+  'requestRecurringContractCancellation',
+  'cancelRecurringContractAtProvider',
+  'PLATFORM_SUBSCRIPTION_STATE_COLLECTION',
+  'buildAccountLifecycleBillingCancellationPatch',
+  'reconcileAccountLifecycleBillingCancellation',
+  'billingCancellationPending',
+]) requireIncludes(
+  accountLifecycleBilling,
+  fragment,
+  'account lifecycle billing coordination drift'
+);
+
 const accountDeletion = read(
   'functions/src/account_lifecycle/requestAccountDeletion.ts'
 );
-requireIncludes(
+for (const fragment of [
+  'buildAccountLifecycleBillingCancellationPatch',
+  'reconcileAccountLifecycleBillingCancellation',
+  'secrets: [ASAAS_API_KEY]',
+]) requireIncludes(
   accountDeletion,
-  'requestRecurringContractCancellation',
-  'account deletion must stop future recurring charges'
+  fragment,
+  'self account deletion billing drift'
+);
+
+const moderatedAccountDeletion = read(
+  'functions/src/account_lifecycle/moderateScheduleDeletion.ts'
+);
+for (const fragment of [
+  'buildAccountLifecycleBillingCancellationPatch',
+  'reconcileAccountLifecycleBillingCancellation',
+  'secrets: [ASAAS_API_KEY]',
+]) requireIncludes(
+  moderatedAccountDeletion,
+  fragment,
+  'moderated account deletion billing drift'
+);
+
+const selfSuspension = read(
+  'functions/src/account_lifecycle/requestSelfSuspension.ts'
+);
+for (const fragment of [
+  'buildAccountLifecycleBillingCancellationPatch',
+  'reconcileAccountLifecycleBillingCancellation',
+  'secrets: [ASAAS_API_KEY]',
+]) requireIncludes(
+  selfSuspension,
+  fragment,
+  'self suspension billing drift'
+);
+
+const moderatedSuspension = read(
+  'functions/src/account_lifecycle/moderateSuspendAccount.ts'
+);
+for (const fragment of [
+  'buildAccountLifecycleBillingCancellationPatch',
+  'reconcileAccountLifecycleBillingCancellation',
+  'secrets: [ASAAS_API_KEY]',
+]) requireIncludes(
+  moderatedSuspension,
+  fragment,
+  'moderated suspension billing drift'
+);
+
+const accountLifecycleBillingWorker = read(
+  'functions/src/account_lifecycle/reconcileAccountLifecycleBilling.ts'
+);
+for (const fragment of [
+  "where('billingCancellationPending', '==', true)",
+  'reconcileAccountLifecycleBillingCancellation',
+  'secrets: [ASAAS_API_KEY]',
+]) requireIncludes(
+  accountLifecycleBillingWorker,
+  fragment,
+  'account lifecycle billing reconciliation drift'
 );
 
 const rules = read('firestore-rules/billing.rules');
@@ -182,6 +298,8 @@ for (const collection of [
 const exports = read('functions/src/payments/index.ts');
 for (const symbol of [
   'cancelPlatformSubscriptionRenewal',
+  'schedulePlatformSubscriptionDowngrade',
+  'cancelPlatformSubscriptionDowngrade',
   'processProviderWebhookEventTrigger',
   'reconcileProviderWebhookEvents',
   'reconcileRecurringProviderCancellations',

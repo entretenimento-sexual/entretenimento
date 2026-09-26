@@ -569,14 +569,6 @@ export class UserIntentStatusService {
     return normalized || null;
   }
 
-  private toNullableNumber(value: unknown): number | null {
-    if (typeof value !== 'number' || !Number.isFinite(value)) {
-      return null;
-    }
-
-    return Math.max(Math.trunc(value), 0);
-  }
-
   private toFiniteNumber(value: unknown, fallback: number): number {
     return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
   }

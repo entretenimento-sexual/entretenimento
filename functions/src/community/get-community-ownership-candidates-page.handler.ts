@@ -25,6 +25,15 @@ import {
   resolveCommunityOwnershipCandidatePageWindow,
 } from './community-ownership-candidate-page.policy';
 import {
+  CommunityMemberManagementRoleFilter,
+  decodeCommunityMemberManagementCursor,
+  encodeCommunityMemberManagementCursor,
+  matchesCommunityMemberManagementRoleFilter,
+  normalizeCommunityMemberManagementCursorToken,
+  normalizeCommunityMemberManagementRoleFilter,
+  normalizeCommunityMemberManagementSearchQuery,
+} from './community-member-management-index.policy';
+import {
   CommunityOwnershipMembershipRole,
   CommunityOwnershipMembershipStatus,
   CommunityOwnershipSourceType,
@@ -35,6 +44,8 @@ import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 
 interface CommunityOwnershipCandidatesPagePayload {
   communityId?: unknown;
+  roleFilter?: unknown;
+  query?: unknown;
   cursor?: unknown;
 }
 
@@ -67,18 +78,32 @@ function normalizeSafeId(value: unknown): string | null {
   return SAFE_ID_PATTERN.test(normalized) ? normalized : null;
 }
 
-function normalizeCandidateCursor(value: unknown): string | null {
-  const normalized = String(value ?? '').trim();
-  if (!normalized) return null;
+async function resolveOwnershipCursorPosition(
+  communityId: string,
+  cursor: string
+): Promise<{ sortLabel: string; documentId: string } | null> {
+  const decoded = decodeCommunityMemberManagementCursor(cursor);
+  if (decoded) return decoded;
 
-  if (!SAFE_ID_PATTERN.test(normalized)) {
-    throw new HttpsError(
-      'invalid-argument',
-      'Cursor de sucessão inválido.'
-    );
-  }
+  const legacyMemberId = normalizeSafeId(cursor);
+  if (!legacyMemberId) return null;
 
-  return normalized;
+  const snapshot = await db
+    .collection('community_member_management_index')
+    .doc(`${communityId}:${legacyMemberId}`)
+    .get();
+  const sortLabel = String(snapshot.data()?.['sortLabel'] ?? '').trim();
+
+  return snapshot.exists && sortLabel
+    ? { sortLabel, documentId: snapshot.id }
+    : null;
+}
+
+function ownershipCandidateMatchesRoleFilter(
+  role: 'admin' | 'moderator' | 'member',
+  roleFilter: CommunityMemberManagementRoleFilter
+): boolean {
+  return matchesCommunityMemberManagementRoleFilter(role, roleFilter);
 }
 
 function assertAuthenticatedUid(auth: unknown): string {
@@ -217,10 +242,28 @@ export const getCommunityOwnershipCandidatesPage =
       assertCommunityCallableAppCheck(request.app);
       const actorUid = assertAuthenticatedUid(request.auth);
       const communityId = normalizeCommunityId(request.data?.communityId);
-      const cursor = normalizeCandidateCursor(request.data?.cursor);
+      const roleFilter = normalizeCommunityMemberManagementRoleFilter(
+        request.data?.roleFilter
+      );
+      const searchQuery = normalizeCommunityMemberManagementSearchQuery(
+        request.data?.query
+      );
+      const cursor = normalizeCommunityMemberManagementCursorToken(
+        request.data?.cursor
+      );
+      const providedCursor = String(request.data?.cursor ?? '').trim();
 
-      if (!communityId) {
-        throw new HttpsError('invalid-argument', 'Comunidade inválida.');
+      if (
+        !communityId
+        || !roleFilter
+        || roleFilter === 'owner'
+        || searchQuery === null
+        || (providedCursor && !cursor)
+      ) {
+        throw new HttpsError(
+          'invalid-argument',
+          'Consulta de sucessão inválida.'
+        );
       }
 
       const communityRef = db.collection('communities').doc(communityId);
@@ -256,76 +299,159 @@ export const getCommunityOwnershipCandidatesPage =
         );
       }
 
-      let membershipQuery = communityRef
-        .collection('members')
-        .where('status', '==', 'active')
-        .orderBy(FieldPath.documentId())
-        .limit(COMMUNITY_OWNERSHIP_CANDIDATE_PAGE_SIZE + 1);
+      let candidateQuery = db
+        .collection('community_member_management_index')
+        .where('communityId', '==', communityId)
+        .where('status', '==', 'active');
 
-      if (cursor) {
-        membershipQuery = membershipQuery.startAfter(cursor);
+      if (roleFilter === 'leadership') {
+        candidateQuery = candidateQuery.where('leadership', '==', true);
+      } else if (roleFilter !== 'all') {
+        candidateQuery = candidateQuery.where(
+          'managementRole',
+          '==',
+          roleFilter
+        );
       }
 
-      const membershipSnapshot = await membershipQuery.get();
-      const page = resolveCommunityOwnershipCandidatePageWindow(
-        membershipSnapshot.docs
-      );
-      const candidateMemberships = page.documents.filter((document) => {
-        if (document.id === actorUid) return false;
-        return isTransferCandidateRole(
-          normalizeMembershipRole(document.data()?.['role'])
+      if (searchQuery) {
+        candidateQuery = candidateQuery.where(
+          'searchPrefixes',
+          'array-contains',
+          searchQuery
         );
-      });
-      const [userSnapshots, ageEligibilitySnapshots] = await Promise.all([
-        Promise.all(
-          candidateMemberships.map((membership) =>
-            db.collection('users').doc(membership.id).get()
-          )
-        ),
-        Promise.all(
-          candidateMemberships.map((membership) =>
-            db.collection('age_eligibility_records').doc(membership.id).get()
-          )
-        ),
-      ]);
+      }
 
-      const items = candidateMemberships
-        .map((membership, index): CommunityOwnershipCandidate | null => {
+      candidateQuery = candidateQuery
+        .orderBy('sortLabel')
+        .orderBy(FieldPath.documentId());
+
+      if (cursor) {
+        const position = await resolveOwnershipCursorPosition(
+          communityId,
+          cursor
+        );
+
+        if (!position) {
+          throw new HttpsError(
+            'invalid-argument',
+            'Cursor de sucessão inválido.'
+          );
+        }
+
+        candidateQuery = candidateQuery.startAfter(
+          position.sortLabel,
+          position.documentId
+        );
+      }
+
+      const indexSnapshot = await candidateQuery
+        .limit(COMMUNITY_OWNERSHIP_CANDIDATE_PAGE_SIZE + 1)
+        .get();
+      const page = resolveCommunityOwnershipCandidatePageWindow(
+        indexSnapshot.docs
+      );
+      const pageDocuments = page.documents;
+      const candidateDocuments = pageDocuments.filter((document) => {
+        const memberId = normalizeSafeId(document.data()?.['memberId']);
+        return memberId && memberId !== actorUid;
+      });
+      const [membershipSnapshots, userSnapshots, ageEligibilitySnapshots] =
+        await Promise.all([
+          Promise.all(
+            candidateDocuments.map((document) => {
+              const memberId = normalizeSafeId(document.data()?.['memberId']);
+              return memberId
+                ? communityRef.collection('members').doc(memberId).get()
+                : Promise.resolve(null);
+            })
+          ),
+          Promise.all(
+            candidateDocuments.map((document) => {
+              const memberId = normalizeSafeId(document.data()?.['memberId']);
+              return memberId
+                ? db.collection('users').doc(memberId).get()
+                : Promise.resolve(null);
+            })
+          ),
+          Promise.all(
+            candidateDocuments.map((document) => {
+              const memberId = normalizeSafeId(document.data()?.['memberId']);
+              return memberId
+                ? db.collection('age_eligibility_records').doc(memberId).get()
+                : Promise.resolve(null);
+            })
+          ),
+        ]);
+
+      const items = candidateDocuments
+        .map((document, index): CommunityOwnershipCandidate | null => {
+          const projection = document.data() ?? {};
+          const memberId = normalizeSafeId(projection['memberId']);
+          const membershipSnapshot = membershipSnapshots[index];
           const userSnapshot = userSnapshots[index];
-          const user = userSnapshot?.exists ? userSnapshot.data() ?? {} : null;
-          const role = normalizeMembershipRole(membership.data()?.['role']);
+          const ageEligibilitySnapshot = ageEligibilitySnapshots[index];
 
           if (
-            !user
+            !memberId
+            || !membershipSnapshot
+            || !membershipSnapshot.exists
+            || !userSnapshot
+            || !userSnapshot.exists
+          ) {
+            return null;
+          }
+
+          const membership = membershipSnapshot.data() ?? {};
+          const role = normalizeMembershipRole(membership['role']);
+
+          if (
+            normalizeMembershipStatus(membership['status']) !== 'active'
             || !isTransferCandidateRole(role)
+            || !ownershipCandidateMatchesRoleFilter(role, roleFilter)
             || !isTargetAccountEligible(
-              user,
-              membership.id,
-              ageEligibilitySnapshots[index]?.exists
-                ? ageEligibilitySnapshots[index].data()
+              userSnapshot.data() ?? {},
+              memberId,
+              ageEligibilitySnapshot?.exists
+                ? ageEligibilitySnapshot.data()
                 : null
             )
           ) {
             return null;
           }
 
-          const label = normalizeText(user['nickname'], 60)
-            || normalizeText(user['nome'], 60)
-            || 'Participante';
-
           return {
-            uid: membership.id,
-            label,
-            avatarUrl: normalizeHttpsUrl(user['photoURL']),
+            uid: memberId,
+            label:
+              normalizeText(projection['label'], 60)
+              || normalizeText(userSnapshot.data()?.['nickname'], 60)
+              || normalizeText(userSnapshot.data()?.['nome'], 60)
+              || 'Participante',
+            avatarUrl:
+              normalizeHttpsUrl(projection['avatarUrl'])
+              ?? normalizeHttpsUrl(userSnapshot.data()?.['avatarUrl'])
+              ?? normalizeHttpsUrl(userSnapshot.data()?.['photoURL']),
             role,
           };
         })
         .filter((item): item is CommunityOwnershipCandidate => item !== null)
         .sort((left, right) => left.label.localeCompare(right.label, 'pt-BR'));
 
+      const hasMore = page.nextCursor !== null;
+      const lastDocument = pageDocuments.at(-1) ?? null;
+      const lastSortLabel = String(
+        lastDocument?.data()?.['sortLabel'] ?? ''
+      ).trim();
+
       return {
         items,
-        nextCursor: page.nextCursor,
+        nextCursor:
+          hasMore && lastDocument && lastSortLabel
+            ? encodeCommunityMemberManagementCursor({
+              sortLabel: lastSortLabel,
+              documentId: lastDocument.id,
+            })
+            : null,
         generatedAt: Date.now(),
       };
     }

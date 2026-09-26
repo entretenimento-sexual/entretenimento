@@ -35,25 +35,9 @@ const files = {
     root,
     'src/app/core/services/batepapo/room-services/room-management.service.ts'
   ),
-  invites: path.join(
-    root,
-    'src/app/core/services/batepapo/room-services/room-invite-flow.service.ts'
-  ),
-  participants: path.join(
-    root,
-    'src/app/core/services/batepapo/room-services/room-participants.service.ts'
-  ),
-  userRoomIds: path.join(
-    root,
-    'src/app/core/services/batepapo/room-services/user-room-ids.service.ts'
-  ),
   messages: path.join(
     root,
     'src/app/core/services/batepapo/room-services/room-messages.service.ts'
-  ),
-  reports: path.join(
-    root,
-    'src/app/core/services/batepapo/room-services/room-reports.service.ts'
   ),
   chatRoutes: path.join(
     root,
@@ -96,6 +80,7 @@ const retiredPaths = [
   'src/app/chat-module/modals/create-room-modal',
   'src/app/chat-module/modals/room-create-confirm-modal',
   'src/app/chat-module/invite-list',
+  'src/app/header/global-invite-badge',
 ];
 
 const frozenRoomProductionRoots = [
@@ -117,13 +102,9 @@ const frozenRoomProductionFiles = new Set([
   'src/app/chat-module/chat-rooms/chat-rooms.component.html',
   'src/app/chat-module/chat-rooms/chat-rooms.component.ts',
   'src/app/core/services/batepapo/room-services/room-firestore.gateway.ts',
-  'src/app/core/services/batepapo/room-services/room-invite-flow.service.ts',
   'src/app/core/services/batepapo/room-services/room-management.service.ts',
   'src/app/core/services/batepapo/room-services/room-messages.service.ts',
-  'src/app/core/services/batepapo/room-services/room-participants.service.ts',
-  'src/app/core/services/batepapo/room-services/room-reports.service.ts',
   'src/app/core/services/batepapo/room-services/room.service.ts',
-  'src/app/core/services/batepapo/room-services/user-room-ids.service.ts',
 ]);
 
 const violations = [];
@@ -256,33 +237,9 @@ forbid(
 );
 
 forbid(
-  files.invites,
-  /['"]acceptRoomInvite['"]|['"]sendRoomInvite['"]/,
-  'aceite/envio de convite legado não pode voltar ao cliente.'
-);
-
-forbid(
-  files.participants,
-  /\b(?:runTransaction|addDoc|setDoc|updateDoc|deleteDoc|writeBatch)\s*\(/,
-  'membership de Sala não pode ser mutado pelo navegador.'
-);
-
-forbid(
-  files.userRoomIds,
-  /(?:@angular\/fire\/firestore|firebase\/firestore)/,
-  'users.roomIds é projeção legada e não pode ter I/O Firestore no cliente.'
-);
-
-forbid(
   files.messages,
   /(?:@angular\/fire\/firestore|firebase\/firestore)/,
   'mensagens de Sala estão fechadas para I/O do cliente.'
-);
-
-forbid(
-  files.reports,
-  /(?:@angular\/fire\/firestore|firebase\/firestore)/,
-  'Salas legadas não podem receber novos reports pelo cliente.'
 );
 
 // -----------------------------------------------------------------------------
@@ -382,7 +339,7 @@ forbid(
 
 forbid(
   files.layoutShell,
-  /\bInviteActions\b|\bselectPendingInvitesCount\b|['"]room-invites['"]/,
+  /\bInviteActions\b|\bselectPendingInvitesCount\b|['"]room-invites['"]|<app-global-invite-badge\b/,
   'o shell global não pode reativar listener/badge de convites de Sala.'
 );
 
@@ -398,7 +355,7 @@ forbid(
 
 const appRoot = path.join(root, 'src/app');
 const retiredSymbolPattern =
-  /\b(?:RoomsModule|CreateRoomModalComponent|RoomCreationConfirmationModalComponent|RoomInteractionComponent|InviteListComponent)\b/;
+  /\b(?:RoomsModule|CreateRoomModalComponent|RoomCreationConfirmationModalComponent|RoomInteractionComponent|InviteListComponent|GlobalInviteBadgeComponent)\b/;
 
 for (const appFile of walkTypeScriptFiles(appRoot)) {
   const source = fs.readFileSync(appFile, 'utf8');

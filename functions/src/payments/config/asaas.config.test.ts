@@ -5,6 +5,7 @@ import { HttpsError } from 'firebase-functions/v2/https';
 
 import {
   assertAsaasApiKeyMatchesEnvironment,
+  assertAsaasSubscriptionUpdateEnabled,
   requireCloudAppBaseUrl,
   resolveAsaasEnvironment,
 } from './asaas.config';
@@ -61,4 +62,33 @@ test('APP_BASE_URL de cloud precisa ser HTTPS e retorna somente origin', () => {
       error instanceof HttpsError &&
       error.code === 'failed-precondition'
   );
+});
+
+test('update de assinatura permanece fail-closed fora do emulator', () => {
+  const previousEmulator = process.env.FUNCTIONS_EMULATOR;
+  const previousEnabled = process.env.ASAAS_SUBSCRIPTION_UPDATE_ENABLED;
+
+  try {
+    process.env.FUNCTIONS_EMULATOR = '';
+    delete process.env.ASAAS_SUBSCRIPTION_UPDATE_ENABLED;
+
+    assert.throws(
+      () => assertAsaasSubscriptionUpdateEnabled(),
+      (error: unknown) =>
+        error instanceof HttpsError &&
+        error.code === 'failed-precondition' &&
+        (error.details as Record<string, unknown> | undefined)?.['reason']
+          === 'recurring_subscription_update_not_enabled'
+    );
+
+    process.env.ASAAS_SUBSCRIPTION_UPDATE_ENABLED = 'true';
+    assert.doesNotThrow(() => assertAsaasSubscriptionUpdateEnabled());
+  } finally {
+    process.env.FUNCTIONS_EMULATOR = previousEmulator;
+    if (previousEnabled === undefined) {
+      delete process.env.ASAAS_SUBSCRIPTION_UPDATE_ENABLED;
+    } else {
+      process.env.ASAAS_SUBSCRIPTION_UPDATE_ENABLED = previousEnabled;
+    }
+  }
 });

@@ -162,7 +162,12 @@ async function failEvent(
         processingStatus: status,
         nextAttemptAt:
           status === 'retry'
-            ? now + retryDelayMs(event.attemptCount)
+            ? (
+              error instanceof RetryableProviderWebhookError
+              && error.retryAt !== null
+                ? Math.max(now + 30_000, error.retryAt)
+                : now + retryDelayMs(event.attemptCount)
+            )
             : null,
         lastErrorCode: safeErrorCode(error),
         processedAt: status === 'failed' ? now : null,

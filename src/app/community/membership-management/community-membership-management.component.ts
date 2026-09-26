@@ -27,6 +27,7 @@ import {
 
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { CommunityAdminTimelineComponent } from '../admin-timeline/community-admin-timeline.component';
 import type { CommunityCapacityPreview } from '../data-access/community-capacity.model';
 import type {
   CommunityCapacityRegularizationPreview,
@@ -53,6 +54,7 @@ import {
 import {
   COMMUNITY_RATE_LIMIT_REASON_MESSAGES,
 } from '../presentation/community-rate-limit.messages';
+import { getCommunitySocialSpaceAdapter } from '../presentation/community-social-space.adapter';
 import { CommunitySettingsComponent } from '../community-settings/community-settings.component';
 
 type MembershipRequestsState =
@@ -78,6 +80,7 @@ export type CommunityManagementPanel =
   | 'requests'
   | 'members'
   | 'settings'
+  | 'audit'
   | 'ownership';
 
 const MEMBERSHIP_REVIEW_REASON_MESSAGES = Object.freeze({
@@ -92,6 +95,7 @@ const MEMBERSHIP_REVIEW_REASON_MESSAGES = Object.freeze({
     AsyncPipe,
     DatePipe,
     RouterLink,
+    CommunityAdminTimelineComponent,
     CommunityMemberRosterManagementComponent,
     CommunityOwnershipManagementComponent,
     CommunitySettingsComponent,
@@ -201,49 +205,57 @@ export class CommunityMembershipManagementComponent {
   );
 
   managementTitle(): string {
-    return this.sourceType() === 'venue'
-      ? 'Solicitações de acesso'
-      : 'Solicitações de entrada';
+    return this.socialSpace().management.requestsTitle;
   }
 
   managementHubTitle(): string {
-    return this.sourceType() === 'venue' ? 'Gestão do Local' : 'Gestão da Comunidade';
+    return this.socialSpace().management.hubTitle;
   }
 
   managementHubDescription(): string {
-    return this.sourceType() === 'venue'
-      ? 'Acompanhe solicitações sem sair da experiência do Local.'
-      : 'Acompanhe pessoas, acesso e configurações sem transformar a Comunidade em um painel administrativo.';
+    return this.socialSpace().management.hubDescription;
   }
 
   viewerRoleLabel(): string {
-    if (this.viewerRole() === 'owner') return 'Proprietário';
+    if (this.viewerRole() === 'owner') return this.socialSpace().ownerRoleLabel;
     if (this.viewerRole() === 'admin') return 'Administração';
     if (this.viewerRole() === 'moderator') return 'Moderação';
     return 'Gestão';
   }
 
   emptyMessage(): string {
-    return this.sourceType() === 'venue'
-      ? 'Nenhuma solicitação de acesso pendente.'
-      : 'Nenhuma solicitação de entrada pendente.';
+    return this.socialSpace().management.emptyRequestsMessage;
   }
 
   canManageMembersPanel(): boolean {
-    return this.sourceType() === 'community'
+    return this.socialSpace().capabilities.memberDirectory
       && (this.viewerRole() === 'owner'
         || this.viewerRole() === 'admin'
         || this.viewerRole() === 'moderator');
   }
 
   canManageSettingsPanel(): boolean {
-    return this.sourceType() === 'community'
+    return this.socialSpace().capabilities.settingsManagement
       && this.canManageCommunitySettings()
       && this.settings() !== null;
   }
 
   canManageOwnershipPanel(): boolean {
-    return this.sourceType() === 'community' && this.viewerRole() === 'owner';
+    return this.socialSpace().capabilities.ownershipManagement
+      && this.viewerRole() === 'owner';
+  }
+
+  canViewAuditPanel(): boolean {
+    return this.socialSpace().capabilities.auditTimeline
+      && (this.viewerRole() === 'owner' || this.viewerRole() === 'admin');
+  }
+
+  supportsCapacityManagement(): boolean {
+    return this.socialSpace().capabilities.capacityManagement;
+  }
+
+  supportsContentModeration(): boolean {
+    return this.socialSpace().capabilities.contentModeration;
   }
 
   selectPanel(panel: CommunityManagementPanel): void {
@@ -257,7 +269,7 @@ export class CommunityMembershipManagementComponent {
   }
 
   openModeration(): void {
-    if (this.sourceType() !== 'community') return;
+    if (!this.supportsContentModeration()) return;
     this.feedRequested.emit();
   }
 
@@ -338,26 +350,27 @@ export class CommunityMembershipManagementComponent {
     this.reviewRequests$.next({ request, action });
   }
 
+  private socialSpace() {
+    return getCommunitySocialSpaceAdapter(this.sourceType());
+  }
+
   private isPanelAvailable(panel: CommunityManagementPanel): boolean {
     if (panel === 'overview' || panel === 'requests') return true;
     if (panel === 'members') return this.canManageMembersPanel();
     if (panel === 'settings') return this.canManageSettingsPanel();
+    if (panel === 'audit') return this.canViewAuditPanel();
     return this.canManageOwnershipPanel();
   }
 
   private approvalSuccessMessage(label: string): string {
-    return this.sourceType() === 'venue'
-      ? `${label} recebeu acesso ao Local.`
-      : `${label} entrou na Comunidade.`;
+    return this.socialSpace().management.approvalSuccessMessage(label);
   }
 
   private reportLoadError(error: unknown): void {
     this.applicationError.report(error, {
       feature: 'community',
       operation: 'loadMembershipRequests',
-      fallbackMessage: this.sourceType() === 'venue'
-        ? 'Não foi possível carregar as solicitações de acesso.'
-        : 'Não foi possível carregar as solicitações de entrada.',
+      fallbackMessage: this.socialSpace().management.loadRequestsError,
       notification: 'none',
       reasonMessages: MEMBERSHIP_REVIEW_REASON_MESSAGES,
       metadata: {
@@ -375,9 +388,7 @@ export class CommunityMembershipManagementComponent {
     this.applicationError.report(error, {
       feature: 'community',
       operation: 'reviewMembership',
-      fallbackMessage: this.sourceType() === 'venue'
-        ? 'Não foi possível revisar esta solicitação de acesso.'
-        : 'Não foi possível revisar esta solicitação de entrada.',
+      fallbackMessage: this.socialSpace().management.reviewRequestError,
       reasonMessages: MEMBERSHIP_REVIEW_REASON_MESSAGES,
       reasonPresentations: COMMUNITY_MEMBERSHIP_ACTION_REASON_PRESENTATIONS,
       codeMessages: COMMUNITY_MEMBERSHIP_REVIEW_CODE_MESSAGES,

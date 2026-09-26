@@ -5,12 +5,24 @@ import {
   DestroyRef,
   OnInit,
   inject,
+  signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { combineLatest, of } from 'rxjs';
-import { catchError, distinctUntilChanged, map, shareReplay, tap } from 'rxjs/operators';
+import { MatDialog } from '@angular/material/dialog';
+import { combineLatest, EMPTY, of, Subject } from 'rxjs';
+import {
+  catchError,
+  distinctUntilChanged,
+  filter,
+  finalize,
+  map,
+  shareReplay,
+  startWith,
+  switchMap,
+  tap,
+} from 'rxjs/operators';
 
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 import { PlatformSubscriptionAccessService } from '@core/services/subscriptions/platform-subscription-access.service';
@@ -20,6 +32,12 @@ import { IUserDados } from '@core/interfaces/iuser-dados';
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 import { BillingRepository } from 'src/app/payments-core/infrastructure/repositories/billing.repository';
 import type { BillingPlan } from 'src/app/payments-core/domain/models/billing-plan.model';
+import type {
+  BillingSnapshotResult,
+} from 'src/app/payments-core/domain/models/billing-return.model';
+import {
+  ConfirmationDialogComponent,
+} from 'src/app/shared/components-globais/confirmation-dialog/confirmation-dialog.component';
 import {
   isCommunityCreationSubscriptionFlow,
   normalizeSubscriptionFlowContext,
@@ -50,6 +68,14 @@ interface SubscriptionPlanPageVm {
   canGoToProfile: boolean;
   flowContext: SubscriptionFlowContext;
   communityCreationFlow: boolean;
+  subscriptionEndsAt: number | null;
+  downgradeSchedulingAvailable: boolean;
+  scheduledPlanChange: {
+    planKey: PaidPlanKey;
+    effectiveAt: number;
+    providerUpdateStatus: 'applied' | 'pending';
+    cancellationPending: boolean;
+  } | null;
 }
 
 /**
@@ -98,6 +124,10 @@ export class SubscriptionPlanComponent implements OnInit {
   );
   private readonly billingRepository = inject(BillingRepository);
   private readonly applicationError = inject(ApplicationErrorService);
+  private readonly dialog = inject(MatDialog);
+  private readonly refreshBilling$ = new Subject<void>();
+
+  readonly schedulingDowngrade = signal(false);
 
   readonly currentUser$ = this.currentUserStore.user$.pipe(
     map((user) => user ?? null),
@@ -119,13 +149,34 @@ export class SubscriptionPlanComponent implements OnInit {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
+  readonly billingState$ = this.refreshBilling$.pipe(
+    startWith(void 0),
+    switchMap(() =>
+      this.billingRepository.getMyBillingSnapshot$().pipe(
+        catchError((error: unknown) => {
+          this.applicationError.report(error, {
+            feature: 'subscription-plan',
+            operation: 'loadBillingSnapshot',
+            fallbackMessage:
+              'Não foi possível carregar as opções de mudança de plano.',
+            presentation: { surface: 'none', severity: 'error' },
+            metadata: { scope: 'SubscriptionPlanComponent' },
+          });
+          return of(null);
+        })
+      )
+    ),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
   readonly vm$ = combineLatest([
     this.currentUser$,
     this.subscriptionAccess.state$,
     this.flowContext$,
+    this.billingState$,
   ]).pipe(
-    map(([user, access, flowContext]) =>
-      this.buildVm(user, access, flowContext)
+    map(([user, access, flowContext, billing]) =>
+      this.buildVm(user, access, flowContext, billing)
     ),
     shareReplay({ bufferSize: 1, refCount: true })
   );
@@ -183,12 +234,77 @@ export class SubscriptionPlanComponent implements OnInit {
       return;
     }
 
+    if (this.isDowngrade(plan, vm)) {
+      this.scheduleDowngrade(plan, vm);
+      return;
+    }
+
     this.router.navigate(['/checkout'], {
       queryParams: {
         plan,
         ...subscriptionFlowQueryParams(vm.flowContext),
       },
     });
+  }
+
+  private scheduleDowngrade(
+    planKey: PaidPlanKey,
+    vm: SubscriptionPlanPageVm
+  ): void {
+    if (this.schedulingDowngrade()) return;
+
+    const effectiveDate = vm.subscriptionEndsAt
+      ? new Intl.DateTimeFormat('pt-BR', {
+        dateStyle: 'long',
+      }).format(new Date(vm.subscriptionEndsAt))
+      : 'o fim do ciclo atual';
+
+    this.dialog
+      .open(ConfirmationDialogComponent, {
+        data: {
+          title: 'Agendar redução de plano',
+          eyebrow: 'Assinatura',
+          message:
+            `Seu plano atual continuará sem alteração até ${effectiveDate}.`,
+          detail:
+            'Depois disso, as próximas cobranças e o acesso passarão para o plano selecionado. Não haverá estorno nem redução antecipada do período já pago.',
+          confirmLabel: 'Agendar redução',
+          cancelLabel: 'Manter plano atual',
+          tone: 'warning',
+          icon: 'event_repeat',
+        },
+        autoFocus: false,
+        restoreFocus: true,
+      })
+      .afterClosed()
+      .pipe(
+        filter((confirmed): confirmed is true => confirmed === true),
+        tap(() => this.schedulingDowngrade.set(true)),
+        switchMap(() =>
+          this.billingRepository.getPlatformPlanByKey$(planKey)
+        ),
+        switchMap((plan) =>
+          plan
+            ? this.billingRepository
+              .schedulePlatformSubscriptionDowngrade$(plan)
+            : EMPTY
+        ),
+        tap(() => this.refreshBilling$.next()),
+        catchError((error: unknown) => {
+          this.applicationError.report(error, {
+            feature: 'subscription-plan',
+            operation: 'scheduleDowngrade',
+            fallbackMessage:
+              'Não foi possível agendar a redução de plano agora.',
+            presentation: { surface: 'modal', severity: 'error' },
+            metadata: { scope: 'SubscriptionPlanComponent' },
+          });
+          return EMPTY;
+        }),
+        finalize(() => this.schedulingDowngrade.set(false)),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
   }
 
   isRecommendedPlan(
@@ -216,7 +332,14 @@ export class SubscriptionPlanComponent implements OnInit {
   canSelectPlan(plan: PaidPlanKey, vm: SubscriptionPlanPageVm): boolean {
     if (!this.planMeetsMinimum(plan, vm)) return false;
     if (vm.subscriptionActive && vm.currentPlanKey === plan) return false;
-    return !this.isDowngrade(plan, vm);
+
+    if (this.isDowngrade(plan, vm)) {
+      return vm.downgradeSchedulingAvailable
+        && vm.scheduledPlanChange === null
+        && !this.schedulingDowngrade();
+    }
+
+    return true;
   }
 
   minimumPlanLabel(vm: SubscriptionPlanPageVm): string | null {
@@ -248,6 +371,20 @@ export class SubscriptionPlanComponent implements OnInit {
     }
 
     if (this.isDowngrade(plan, vm)) {
+      if (vm.scheduledPlanChange?.planKey === plan) {
+        return 'Redução agendada';
+      }
+
+      if (vm.scheduledPlanChange) {
+        return 'Outra redução já agendada';
+      }
+
+      if (vm.downgradeSchedulingAvailable) {
+        return this.schedulingDowngrade()
+          ? 'Agendando...'
+          : 'Agendar para próximo ciclo';
+      }
+
       return 'Disponível após ciclo atual';
     }
 
@@ -335,7 +472,8 @@ export class SubscriptionPlanComponent implements OnInit {
   private buildVm(
     user: IUserDados | null,
     access: PlatformSubscriptionAccessState,
-    flowContext: SubscriptionFlowContext
+    flowContext: SubscriptionFlowContext,
+    billing: BillingSnapshotResult | null
   ): SubscriptionPlanPageVm {
     const currentPlanKey = access.active ? access.role : null;
     const currentPlanLabel = currentPlanKey
@@ -360,6 +498,20 @@ export class SubscriptionPlanComponent implements OnInit {
       flowContext,
       communityCreationFlow:
         isCommunityCreationSubscriptionFlow(flowContext),
+      subscriptionEndsAt: access.endsAt,
+      downgradeSchedulingAvailable:
+        billing?.downgradeSchedulingAvailable === true,
+      scheduledPlanChange:
+        billing?.scheduledPlanChange
+          ? {
+            planKey: billing.scheduledPlanChange.planKey,
+            effectiveAt: billing.scheduledPlanChange.effectiveAt,
+            providerUpdateStatus:
+              billing.scheduledPlanChange.providerUpdateStatus,
+            cancellationPending:
+              billing.scheduledPlanChange.cancellationPending,
+          }
+          : null,
     };
   }
 
@@ -376,7 +528,7 @@ export class SubscriptionPlanComponent implements OnInit {
     }
   }
 
-  private getPlanDisplayName(plan: PaidPlanKey): string {
+  getPlanDisplayName(plan: PaidPlanKey): string {
     switch (plan) {
       case 'basic':
         return 'Plano Básico';

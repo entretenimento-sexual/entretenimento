@@ -448,10 +448,3 @@ export class FriendshipService {
     return this.repo.searchUsers(term);
   }
 }
-/* segurança é uma prepcucação muito forte do projeto, mas preciso que sigamos mais convictamente 
-do que implantar de segurança, mais passo a passo e mais explicadamente, 
-além de seguirmos mais o modelo das grandes plataformas, 
-e acho que contamos com a segurança oferecida pelo google firebase e angular. 
-quero compreender o modelo de segurança e uma plataforma com aspecto, 
-visual e modelo profissional que um usuário possa desfrutar para suas aventuras amorosas 
-e sexuais de forma assertiva, discreta e sem risco de comprometimento */

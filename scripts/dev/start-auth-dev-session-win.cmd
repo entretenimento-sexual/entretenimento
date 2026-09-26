@@ -87,11 +87,19 @@ if "%ENTRETENIMENTO_FORCE_ANGULAR_CACHE_CLEAN%"=="1" (
 echo [dev:auth] Abrindo emuladores em uma nova janela...
 start "Entretenimento - Emuladores" /D "%PROJECT_ROOT%" cmd /k "call npm.cmd run emu:media:full:win"
 
-echo [dev:auth] Aguardando Auth 9099, Firestore 8080 e UI 4000...
-node "%PROJECT_ROOT%\scripts\dev\wait-for-ports.mjs" --ports=9099,8080,4000 --timeout=180000 --label=Firebase
+echo [dev:auth] Aguardando Auth 9099, Firestore 8080, Functions 5001, Storage 9199 e UI 4000...
+node "%PROJECT_ROOT%\scripts\dev\wait-for-ports.mjs" --ports=9099,8080,5001,9199,4000 --timeout=180000 --label=Firebase
 if errorlevel 1 (
   echo [dev:auth] ERRO: Firebase nao ficou pronto no tempo esperado.
   echo [dev:auth] Verifique a janela Entretenimento - Emuladores.
+  exit /b 1
+)
+
+echo [dev:auth] Validando callables criticas do Functions Emulator...
+node "%PROJECT_ROOT%\scripts\dev\wait-for-functions-callables.mjs" --names=acceptPlatformTerms,acceptAdultSelfDeclaration,refreshMyAgeEligibility --timeout=180000
+if errorlevel 1 (
+  echo [dev:auth] ERRO: o Functions Emulator abriu a porta, mas nao carregou as callables criticas.
+  echo [dev:auth] Verifique a janela Entretenimento - Emuladores e o build em functions\lib.
   exit /b 1
 )
 

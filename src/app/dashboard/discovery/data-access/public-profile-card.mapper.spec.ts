@@ -12,11 +12,6 @@ const ACTIVE_AGE_PROJECTION = Object.freeze({
   ageEligibilityValidUntil: new Date(Date.now() + 60_000),
 });
 
-const currentAdultProjection = {
-  ageEligibilityVerifiedAdult: true,
-  ageEligibilityValidUntil: new Date('2099-01-01T00:00:00.000Z'),
-};
-
 describe('public-profile-card.mapper', () => {
   it('deve normalizar aliases, métricas e timestamps para valores serializáveis', () => {
     const card = mapPublicProfileCard({

@@ -126,9 +126,10 @@ describe('CommunityDiscoveryPageComponent / Locais', () => {
   });
 
   it('carrega somente Locais e usa a rota canônica', async () => {
-    const component = TestBed.runInInjectionContext(
-      () => new CommunityDiscoveryPageComponent()
-    );
+    const fixture = TestBed.createComponent(CommunityDiscoveryPageComponent);
+    const component = fixture.componentInstance;
+    fixture.detectChanges();
+
     const state = await firstValueFrom(
       component.state$.pipe(
         filter((value) => value.status === 'ready'),
@@ -152,6 +153,73 @@ describe('CommunityDiscoveryPageComponent / Locais', () => {
       '/dashboard/locais',
       'community-local-1',
     ]);
+  });
+
+  it('limita o DOM a 72 cards sem consultar backend ao navegar no cache já carregado', async () => {
+    const cachedItems = Array.from({ length: 80 }, (_, index) => ({
+      ...venueCard(),
+      communityId: `community-local-${index + 1}`,
+      name: `Local ${index + 1}`,
+      slug: `local-${index + 1}`,
+      source: {
+        type: 'venue' as const,
+        id: `venue-local-${index + 1}`,
+      },
+      officialAssociation: {
+        target: {
+          type: 'venue' as const,
+          id: `venue-local-${index + 1}`,
+        },
+        verified: true as const,
+      },
+    }));
+    readSnapshot$.mockReturnValue(
+      of({
+        fresh: true,
+        page: {
+          items: cachedItems,
+          nextCursor: 'cursor-after-cache',
+          generatedAt: 456,
+        },
+      })
+    );
+
+    const fixture = TestBed.createComponent(CommunityDiscoveryPageComponent);
+    fixture.detectChanges();
+    const state = await firstValueFrom(
+      fixture.componentInstance.viewState$.pipe(
+        filter((value) => value.status === 'ready'),
+        take(1)
+      )
+    );
+
+    expect(
+      fixture.nativeElement.querySelectorAll('.community-card-shell')
+    ).toHaveLength(72);
+    expect(
+      fixture.nativeElement.querySelector(
+        '[data-community-id="community-local-1"]'
+      )
+    ).not.toBeNull();
+    expect(getDiscoveryPage$).not.toHaveBeenCalled();
+
+    fixture.componentInstance.showNextLoadedResults(state.items);
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelectorAll('.community-card-shell')
+    ).toHaveLength(72);
+    expect(
+      fixture.nativeElement.querySelector(
+        '[data-community-id="community-local-1"]'
+      )
+    ).toBeNull();
+    expect(
+      fixture.nativeElement.querySelector(
+        '[data-community-id="community-local-80"]'
+      )
+    ).not.toBeNull();
+    expect(getDiscoveryPage$).not.toHaveBeenCalled();
   });
 
   it('não repete Comunidades, Locais e Salas como navegação no corpo', () => {

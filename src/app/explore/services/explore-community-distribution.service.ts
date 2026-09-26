@@ -19,6 +19,7 @@ import {
 } from 'src/app/core/services/notifications/community-notification-unread-summary.service';
 import { CommunityExploreContentRepository } from 'src/app/community/data-access/community-explore-content.repository';
 import type { CommunityExploreContentItem } from 'src/app/community/data-access/community-explore-content.model';
+import { getSocialSpaceDefinition } from 'src/app/core/domain/social-space.definition';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import {
   CommunityDiscoveryPage,
@@ -187,7 +188,7 @@ export class ExploreCommunityDistributionService {
       const recommendations = discoveryPage.items
         .filter(
           (item) =>
-            item.source.type === 'community'
+            getSocialSpaceDefinition(item.source.type).capabilities.interestDiscovery
             && !hiddenIds.has(item.communityId)
             && !contentCommunityIds.has(item.communityId)
         )

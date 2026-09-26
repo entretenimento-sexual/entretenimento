@@ -8,6 +8,7 @@ import { ContentAccessNavigationService } from 'src/app/core/access/content-acce
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { CommunityMemberRosterRepository } from '../data-access/community-member-roster.repository';
+import { CommunityMemberSearchRepository } from '../data-access/community-member-search.repository';
 import { CommunityFeedRepository } from '../data-access/community-feed.repository';
 import { CommunityMembershipRepository } from '../data-access/community-membership.repository';
 import { CommunityPreviewResponse } from '../data-access/community-preview.model';
@@ -72,6 +73,7 @@ function basePreview(): CommunityPreviewResponse {
 
 describe('CommunityPreviewPageComponent / Local', () => {
   const rosterRepositoryMock = { getPage$: vi.fn() };
+  const memberSearchRepositoryMock = { searchPage$: vi.fn() };
   const dialogMock = { open: vi.fn() };
   const previewRepositoryMock = {
     getPreview$: vi.fn(),
@@ -97,6 +99,9 @@ describe('CommunityPreviewPageComponent / Local', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     rosterRepositoryMock.getPage$.mockReturnValue(of({
+      items: [], nextCursor: null, memberCount: 12, generatedAt: 123,
+    }));
+    memberSearchRepositoryMock.searchPage$.mockReturnValue(of({
       items: [], nextCursor: null, memberCount: 12, generatedAt: 123,
     }));
     previewRepositoryMock.getPreview$.mockReturnValue(of(preview()));
@@ -139,6 +144,7 @@ describe('CommunityPreviewPageComponent / Local', () => {
           },
         },
         { provide: CommunityMemberRosterRepository, useValue: rosterRepositoryMock },
+        { provide: CommunityMemberSearchRepository, useValue: memberSearchRepositoryMock },
         { provide: MatDialog, useValue: dialogMock },
         { provide: CommunityPreviewRepository, useValue: previewRepositoryMock },
         { provide: CommunityFeedRepository, useValue: feedRepositoryMock },

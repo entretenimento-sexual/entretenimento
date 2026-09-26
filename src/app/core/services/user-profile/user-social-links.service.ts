@@ -122,7 +122,7 @@ export class UserSocialLinksService {
 
     return this.resolveReadContext$(safeUid, options).pipe(
       switchMap((context) =>
-        this.getCacheState$(context.uid, context.scope, options).pipe(
+        this.getCacheState$(context.uid, context.scope).pipe(
           map((state) => ({ context, state }))
         )
       ),
@@ -487,8 +487,7 @@ export class UserSocialLinksService {
 
   private getCacheState$(
     uid: string,
-    scope: SocialLinksReadScope,
-    options: SocialLinksOptions
+    scope: SocialLinksReadScope
   ): Observable<CacheState<IUserSocialLinks | null>> {
     if (scope === 'public') {
       return of({ kind: 'miss' } as const);

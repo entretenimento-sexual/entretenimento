@@ -20,6 +20,7 @@ const frontendRateLimitMessagesPath = path.join(
 );
 
 const READ_ONLY_CALLABLES = new Set([
+  'getCommunityAdminTimeline',
   'getCommunityCreationCapability',
   'getCommunityOfficialClaimCapability',
   'getCommunityTagCatalog',
@@ -79,6 +80,7 @@ const EXPECTED_CANONICAL_ACTION_BY_CALLABLE: Readonly<Record<
   leaveCommunityMembership: 'membership_leave',
   reviewCommunityMembership: 'membership_review',
   manageCommunityMember: 'member_management',
+  searchCommunityMembersPage: 'member_search',
   manageCommunityHighlight: 'highlight_management',
   updateCommunitySettings: 'settings_update',
   updateCommunityMembershipDisclosurePolicy: 'settings_update',

@@ -42,6 +42,7 @@ import {
 import {
   CommunityFeedPage,
   CommunityFeedPageRequest,
+  DEFAULT_COMMUNITY_FEED_PAGE_SIZE,
   CommunityFeedPostCreateRequest,
   CommunityFeedPostCreateResponse,
   CommunityFeedPostActionRequest,
@@ -126,7 +127,7 @@ export class CommunityFeedRepository {
     const payload: CommunityFeedPageRequest = {
       communityId: request.communityId.trim(),
       view: request.view,
-      limit: request.limit ?? 10,
+      limit: request.limit ?? DEFAULT_COMMUNITY_FEED_PAGE_SIZE,
       cursor: request.cursor ?? null,
     };
 

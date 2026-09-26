@@ -2,6 +2,8 @@
 
 import { createReducer, on } from '@ngrx/store';
 
+import { getSocialSpaceDefinition } from 'src/app/core/domain/social-space.definition';
+
 import {
   COMMUNITY_DISCOVERY_CACHE_MAX_QUERIES,
   buildCommunityDiscoveryCacheKey,
@@ -147,7 +149,8 @@ export const communityDiscoveryCacheReducer = createReducer(
       const byQuery = Object.fromEntries(
         Object.entries(state.byQuery).map(([key, slice]) => {
           if (
-            slice.query.sourceType !== 'community'
+            !getSocialSpaceDefinition(slice.query.sourceType).capabilities
+              .personalMembershipHub
             || slice.query.discoveryMode !== 'mine'
           ) {
             return [key, slice];

@@ -50,6 +50,7 @@ interface Scenario {
   targetRole?: 'admin' | 'moderator' | 'member';
   nextRole?: 'admin' | 'moderator' | 'member';
   authTime?: number;
+  targetEligible?: boolean;
 }
 
 async function loadManageCallable() {
@@ -127,6 +128,31 @@ function installTransactionProbe(
       verifiedAtMs: Date.now() - 1_000,
       expiresAtMs: null,
     },
+    'users/member-1': {
+      uid: 'member-1',
+      profileCompleted: true,
+      interactionBlocked: false,
+      acceptedTerms: {
+        accepted: true,
+        version: TERMS_ACCEPTANCE_VERSION,
+        acknowledgedPrivacyNotice: true,
+      },
+      adultConsent: { accepted: true, version: ADULT_CONSENT_VERSION },
+    },
+    ...(scenario.targetEligible === false
+      ? {}
+      : {
+        'age_eligibility_records/member-1': {
+          uid: 'member-1',
+          status: 'VERIFIED_ADULT',
+          policyVersion: 1,
+          source: 'INITIAL_VERIFICATION',
+          method: 'EXTERNAL_PROVIDER',
+          caseId: 'contract-age-target-1',
+          verifiedAtMs: Date.now() - 1_000,
+          expiresAtMs: null,
+        },
+      }),
   };
   const transaction: TransactionProbe = {
     get: async (ref) => ({
@@ -263,6 +289,14 @@ test('manageCommunityMember promove member → moderator com autenticação rece
   assert.equal(result.rateLimitCalls, 1);
   assert.equal(result.writes[0]?.path, 'communities/community-1/members/member-1');
   assert.equal((result.writes[0]?.data as { role: string }).role, 'moderator');
+});
+
+test('manageCommunityMember nega promoção quando destinatário não está elegível', async () => {
+  await runRejectedScenario(
+    { authTime: -30, targetEligible: false },
+    'failed-precondition',
+    'verification_required'
+  );
 });
 
 test('manageCommunityMember preserva recent-auth para member → admin', async () => {

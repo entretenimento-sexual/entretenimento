@@ -1,5 +1,4 @@
 // src/app/core/services/data-handling/queries/user-presence.query.service.ts
-// Não esqueça dos comentários e ferramentas de debug
 import { Injectable, DestroyRef, inject } from '@angular/core';
 import { QueryConstraint, Timestamp, where } from 'firebase/firestore';
 import { Observable, of, combineLatest, interval, defer, from } from 'rxjs';
@@ -16,7 +15,6 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { IUserDados } from '@core/interfaces/iuser-dados';
-import { UserPublic } from 'src/app/core/interfaces/user-public.interface';
 import { FirestoreReadService } from '../firestore/core/firestore-read.service';
 import { FirestoreErrorHandlerService } from '@core/services/error-handler/firestore-error-handler.service';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
@@ -119,35 +117,6 @@ export class UserPresenceQueryService {
     return isNaN(d.getTime()) ? 0 : d.getTime();
   }
 
-  /**
-   * Adapter LEGACY (não é 100% “presença”):
-   * - Isso é mais “mapeamento de modelo” (UserPublic -> IUserDados)
-   * - Se você quiser, dá pra extrair pra um "UserModelAdapterService" / utils,
-   *   e reutilizar também no user-discovery.query.service.ts
-   */
-  private toUserDadosPublic(u: UserPublic): IUserDados {// está esmaecido
-    return {
-      uid: u.uid,
-      nickname: u.nickname ?? null,
-      photoURL: (u.avatarUrl ?? (u as any).photoURL) ?? null,
-
-      role: u.role ?? 'basic',
-      gender: (u as any).gender ?? null,
-      age: (u as any).age ?? null,
-      orientation: (u as any).orientation ?? null,
-      municipio: u.municipio ?? null,
-      estado: u.estado ?? null,
-
-      isOnline: !!u.isOnline,
-      lastSeen: (u as any).lastSeen ?? null,
-      lastOnlineAt: (u as any).lastOnlineAt ?? null,
-      lastOfflineAt: (u as any).lastOfflineAt ?? null,
-
-      latitude: (u as any).latitude ?? null,
-      longitude: (u as any).longitude ?? null,
-      geohash: (u as any).geohash ?? null,
-    } as unknown as IUserDados;
-  }
 
   /**
    * Filtro de "online efetivo":
@@ -157,7 +126,7 @@ export class UserPresenceQueryService {
   private filterEffectiveOnline(list: IUserDados[], windowMs: number): IUserDados[] {
     const cutoff = Date.now() - windowMs;
     return (list ?? []).filter((u: any) => this.toLastSeenMs(u) >= cutoff);
-  }//150linhas
+  }
 
   /**
    * Guard reativo:
@@ -330,37 +299,3 @@ export class UserPresenceQueryService {
     return stream$;
   }
 }
-
-/*
-Linha ~180 - Perguntas/Notas (respondendo diretamente):
-
-1) "Há métodos aqui que não seja tão específicos de presença?"
-   - Sim:
-     - toUserDadosPublic() é mais “adapter/mapeamento de modelo” do que presença.
-       Ideal extrair para um serviço/utility de mapeamento de usuário e reutilizar
-       no user-discovery.query.service.ts.
-     - toLastSeenMs() também é utilitário genérico (pode ir para utils/time-utils).
-
-2) "É assim que funcionam as grandes plataformas?"
-   - O desenho (writer/orquestrador + query + multi-aba leader) é bem alinhado.
-   - O que plataformas “grandes” fazem diferente:
-     - presença costuma ser RTDB/WebSocket (latência menor e TTL natural),
-       e Firestore fica mais para dados de perfil/descoberta.
-     - Quando usam Firestore, lastSeen + janela + recálculo local é obrigatório
-       para não “congelar online” na UI.
-
-3) "Compatibilizar o estado online com o presence.service e aproximar do ideal"
-   - Feito:
-     - getOnlineUsers$ mantém isOnline como filtro “compat”, mas valida lastSeen
-       (porque isOnline pode ficar stale quando o tab fecha).
-     - Tick local garante que a UI reflita expiração por tempo.
-
-4) "deixar explícito Firebase/AngularFire vs NgRx"
-   - Este serviço é Query Firebase (FirestoreReadService por baixo).
-   - Não lê Store, não depende de CurrentUserStore. UID é AuthSession.
-
-5) "privilegiar observables e evitar arquivos gigantes"
-   - Mantive API pública pequena.
-   - Se quiser especializar mais: extrair adapters (toLastSeenMs/toUserDadosPublic)
-     para utils/services dedicados, e manter aqui só política de presença (queries).
-*/

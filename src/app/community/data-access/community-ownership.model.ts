@@ -6,6 +6,15 @@
 // -----------------------------------------------------------------------------
 
 export type CommunityOwnershipCandidateRole = 'admin' | 'moderator' | 'member';
+export type CommunityOwnershipCandidateRoleFilter =
+  | 'all'
+  | 'leadership'
+  | CommunityOwnershipCandidateRole;
+
+export interface CommunityOwnershipCandidatesRequest {
+  readonly roleFilter?: CommunityOwnershipCandidateRoleFilter;
+  readonly query?: string | null;
+}
 
 export interface CommunityOwnershipCandidate {
   uid: string;
@@ -35,6 +44,7 @@ export interface CommunityArchiveResponse {
 }
 
 const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
+const OPAQUE_CURSOR_PATTERN = /^[A-Za-z0-9_-]{1,512}$/;
 
 function normalizeText(value: unknown, maxLength: number): string {
   return String(value ?? '')
@@ -47,6 +57,11 @@ function normalizeText(value: unknown, maxLength: number): string {
 function normalizeSafeId(value: unknown): string | null {
   const normalized = normalizeText(value, 128);
   return SAFE_ID_PATTERN.test(normalized) ? normalized : null;
+}
+
+function normalizeOpaqueCursor(value: unknown): string | null {
+  const normalized = normalizeText(value, 512);
+  return OPAQUE_CURSOR_PATTERN.test(normalized) ? normalized : null;
 }
 
 function normalizeHttpsUrl(value: unknown): string | null {
@@ -100,7 +115,7 @@ export function normalizeCommunityOwnershipCandidatesResponse(
   const rawNextCursor = source['nextCursor'];
   const nextCursor = rawNextCursor === null || rawNextCursor === undefined
     ? null
-    : normalizeSafeId(rawNextCursor);
+    : normalizeOpaqueCursor(rawNextCursor);
 
   if (rawNextCursor !== null && rawNextCursor !== undefined && !nextCursor) {
     return null;

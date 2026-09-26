@@ -9,10 +9,7 @@
 import { EnvironmentInjector, Injectable } from '@angular/core';
 import {
   collection,
-  doc,
-  DocumentReference,
   Firestore,
-  getDoc,
   getDocs,
   query,
   where,
@@ -31,25 +28,11 @@ export class BlocksRepo extends FirestoreRepoBase {
     super(db, env);
   }
 
-  private ref(
-    ownerUid: string,
-    targetUid: string
-  ): DocumentReference<BlockedUserActive> {
-    return doc(
-      this.db,
-      `users/${ownerUid}/blocks/${targetUid}`
-    ) as DocumentReference<BlockedUserActive>;
-  }
-
   private eventsCol(ownerUid: string, targetUid: string) {
     return collection(
       this.db,
       `users/${ownerUid}/blocks/${targetUid}/events`
     );
-  }
-
-  getBlockedDoc$(ownerUid: string, targetUid: string) {
-    return this.inCtx$(() => getDoc(this.ref(ownerUid, targetUid)));
   }
 
   listBlocked(uid: string) {

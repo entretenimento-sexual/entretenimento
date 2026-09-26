@@ -11,6 +11,7 @@ import type {
   CommunityPreviewSourceType,
   CommunityPreviewViewerRole,
 } from '../data-access/community-preview.model';
+import { getCommunitySocialSpaceAdapter } from './community-social-space.adapter';
 
 export interface CommunityUiPresentation {
   readonly label: string;
@@ -69,8 +70,11 @@ export function resolveCommunityMembershipRolePresentation(
 ): CommunityUiPresentation | null {
   if (!role) return null;
 
-  if (role === 'owner' && sourceType === 'venue') {
-    return { label: 'Responsável', icon: 'fa-crown' };
+  if (role === 'owner') {
+    return {
+      label: getCommunitySocialSpaceAdapter(sourceType).ownerRoleLabel,
+      icon: 'fa-crown',
+    };
   }
 
   return COMMUNITY_ROLE_PRESENTATIONS[role];

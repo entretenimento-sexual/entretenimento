@@ -42,6 +42,53 @@
           </div>
         </div>
 
+        <div class="community-ownership-management__filters">
+          <label class="community-ownership-management__search">
+            <span class="visually-hidden">Buscar sucessor</span>
+            <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
+            <input
+              type="search"
+              autocomplete="off"
+              maxlength="40"
+              placeholder="Buscar membro elegível"
+              [value]="searchTerm()"
+              [disabled]="action.status === 'loading'"
+              (input)="updateSearch($event)"
+            />
+            @if (searchTerm()) {
+              <button
+                type="button"
+                aria-label="Limpar busca de sucessor"
+                [disabled]="action.status === 'loading'"
+                (click)="clearSearch()"
+              >
+                <i class="fas fa-xmark" aria-hidden="true"></i>
+              </button>
+            }
+          </label>
+
+          <label class="community-ownership-management__role-filter">
+            <span>Priorizar</span>
+            <select
+              [value]="selectedRoleFilter()"
+              [disabled]="action.status === 'loading'"
+              (change)="changeRoleFilter($event)"
+            >
+              <option value="leadership">Admins e moderadores</option>
+              <option value="all">Todos os elegíveis</option>
+              <option value="admin">Administração</option>
+              <option value="moderator">Moderação</option>
+              <option value="member">Membros</option>
+            </select>
+          </label>
+        </div>
+
+        @if (searchTerm().trim().length === 1) {
+          <p class="community-ownership-management__search-hint" role="status">
+            Digite pelo menos 2 caracteres para buscar.
+          </p>
+        }
+
         @if (state.status === 'loading') {
           <div class="community-ownership-management__state" role="status" aria-live="polite">
             <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
@@ -56,7 +103,13 @@
           @if (state.items.length === 0 && !state.nextCursor) {
             <div class="community-ownership-management__state" role="status">
               <i class="fas fa-user-shield" aria-hidden="true"></i>
-              <span>Nenhum membro pode assumir a propriedade agora.</span>
+              <span>
+                {{ searchTerm().trim().length >= 2
+                  ? 'Nenhum membro elegível corresponde à busca.'
+                  : selectedRoleFilter() === 'leadership'
+                    ? 'Nenhum admin ou moderador elegível pode assumir agora.'
+                    : 'Nenhum membro pode assumir a propriedade agora.' }}
+              </span>
             </div>
           } @else {
             @if (state.items.length > 0) {

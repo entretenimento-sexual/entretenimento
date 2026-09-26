@@ -34,11 +34,20 @@ const MATCH_WINDOW_MS = 24 * 60 * 60 * 1_000;
 
 export class RetryableProviderWebhookError extends Error {
   readonly code: string;
+  readonly retryAt: number | null;
 
-  constructor(code: string, message: string) {
+  constructor(
+    code: string,
+    message: string,
+    retryAt: number | null = null
+  ) {
     super(message);
     this.name = 'RetryableProviderWebhookError';
     this.code = code;
+    this.retryAt =
+      typeof retryAt === 'number' && Number.isFinite(retryAt)
+        ? retryAt
+        : null;
   }
 }
 
@@ -299,6 +308,8 @@ export async function applyAsaasSubscriptionLifecycleEvent(
       lastSettledProviderPaymentId: null,
       lastPaymentStatus: null,
       lastPaymentOccurredAt: null,
+      pendingPlanChange: null,
+      needsProviderPlanChangeSync: false,
       needsProviderCancellation: false,
       providerCancellationAttemptCount: 0,
       providerCancellationNextAttemptAt: null,
@@ -366,6 +377,10 @@ export async function applyAsaasSubscriptionLifecycleEvent(
       {
         status: terminalStatus,
         renewalEnabled: isTerminal ? false : current.renewalEnabled,
+        pendingPlanChange:
+          isTerminal ? null : current.pendingPlanChange ?? null,
+        needsProviderPlanChangeSync:
+          isTerminal ? false : current.needsProviderPlanChangeSync ?? false,
         canceledAt: isTerminal ? now : current.canceledAt,
         lastPaymentStatus: event.providerStatus ?? current.lastPaymentStatus,
         updatedAt: now,

@@ -173,10 +173,48 @@
 
         @if (isDowngrade(plan.key, vm)) {
           <div class="plan-requirement-state" role="note">
-            <strong>Redução disponível após o ciclo atual</strong>
-            <small>
-              Seu plano atual e os benefícios já pagos continuam válidos. Não há agendamento automático de downgrade nesta etapa; escolha o plano menor depois do vencimento atual.
-            </small>
+            @if (vm.scheduledPlanChange?.planKey === plan.key) {
+              <strong>
+                {{
+                  vm.scheduledPlanChange?.cancellationPending
+                    ? 'Cancelamento da redução em andamento'
+                    : 'Redução agendada'
+                }}
+              </strong>
+              <small>
+                O plano atual continua válido até
+                {{ vm.scheduledPlanChange?.effectiveAt | date:'dd/MM/yyyy' }}.
+                @if (vm.scheduledPlanChange?.cancellationPending) {
+                  O provedor está restaurando a renovação no plano atual.
+                } @else if (vm.scheduledPlanChange?.providerUpdateStatus === 'pending') {
+                  A confirmação da alteração no provedor ainda está em processamento.
+                } @else {
+                  As próximas cobranças já estão configuradas para este plano.
+                }
+              </small>
+            } @else if (vm.scheduledPlanChange) {
+              <strong>Já existe uma redução agendada</strong>
+              <small>
+                A alteração para
+                {{ getPlanDisplayName(vm.scheduledPlanChange.planKey) }}
+                entra em vigor em
+                {{ vm.scheduledPlanChange.effectiveAt | date:'dd/MM/yyyy' }}.
+              </small>
+            } @else if (vm.downgradeSchedulingAvailable) {
+              <strong>Redução no próximo ciclo</strong>
+              <small>
+                Seu plano atual e todos os benefícios já pagos permanecem até
+                {{ vm.subscriptionEndsAt | date:'dd/MM/yyyy' }}. A redução só
+                entra em vigor depois dessa data.
+              </small>
+            } @else {
+              <strong>Redução disponível após o ciclo atual</strong>
+              <small>
+                Seu plano atual e os benefícios já pagos continuam válidos.
+                O agendamento automático ainda não está habilitado para esta
+                assinatura.
+              </small>
+            }
           </div>
         } @else if (!planMeetsMinimum(plan.key, vm)) {
           <div class="plan-requirement-state">

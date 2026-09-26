@@ -33,6 +33,8 @@ export const COMMUNITY_RATE_LIMIT_REASON_MESSAGES: Readonly<Record<string, strin
       'Você tentou sair de muitas Comunidades em pouco tempo. Aguarde e tente novamente.',
     community_management_rate_limited:
       'Muitas ações de gestão foram executadas em pouco tempo. Aguarde e tente novamente.',
+    community_search_rate_limited:
+      'Muitas buscas de integrantes foram realizadas em pouco tempo. Aguarde e tente novamente.',
     community_notification_preference_rate_limited:
       'Você alterou as notificações muitas vezes em pouco tempo. Aguarde um instante e tente novamente.',
     community_operations_rate_limited:

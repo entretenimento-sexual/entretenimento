@@ -26,9 +26,6 @@
 import { Injectable, EnvironmentInjector } from '@angular/core';
 import {
   Firestore,
-  doc,
-  getDoc,
-  DocumentReference,
   collection,
   getDocs,
   query,
@@ -41,7 +38,6 @@ import {
 import {
   CollectionReference,
   DocumentData,
-  DocumentSnapshot,
   Timestamp,
 } from 'firebase/firestore';
 
@@ -91,27 +87,6 @@ export class FriendsRepo extends FirestoreRepoBase {
 private dbg(msg: string, extra?: unknown): void {
   this.privacyDebug.log('friends', msg, extra);
 }
-
-  /**
-   * Mantido por compatibilidade com chamadas antigas.
-   *
-   * Observação:
-   * - o fluxo seguro novo deve validar amizade bilateral por Cloud Function;
-   * - este documento global /friends/{pairKey} não deve ser a autoridade
-   *   principal da relação social.
-   */
-  private key(a: string, b: string): string {
-    return [a, b].sort().join('_');
-  }
-
-  private ref(a: string, b: string): DocumentReference<FriendDoc> {
-    return doc(this.db, `friends/${this.key(a, b)}`) as DocumentReference<FriendDoc>;
-  }
-
-  /** Valida amizade existente no caminho legado/global. */
-  getFriendDoc$(a: string, b: string): Observable<DocumentSnapshot<FriendDoc>> {
-    return this.inCtx$(() => getDoc(this.ref(a, b)));
-  }
 
   /**
    * Lista simples de amigos.

@@ -16,15 +16,13 @@
 // - o frontend nunca define role concedida;
 // - downgrade é bloqueado no backend até existir agendamento de próximo ciclo;
 // - o checkout não confirma pagamento;
-// - em cloud, esta function falha até existir provider real validado;
+// - em cloud, o provider Asaas permanece fail-closed até a recorrência ser
+//   habilitada operacionalmente;
 // - o provider local não se apresenta como Asaas real.
 //
 // Evolução futura:
-// - selecionar provider real por configuração segura;
-// - exigir App Check;
-// - aplicar idempotency key por tentativa de criação;
-// - implementar downgrade agendado no ciclo seguinte;
-// - permitir ciclos anuais, promoções e novos escopos financeiros.
+// - permitir ciclos anuais, promoções e novos escopos financeiros;
+// - evoluir repricing contratual somente com migração/consentimento explícitos.
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 

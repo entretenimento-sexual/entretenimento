@@ -1,6 +1,12 @@
 // functions/src/account_lifecycle/cancelAccountDeletion.ts
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import {
+  assertAccountLifecycleMutationSecurity,
+} from './account-lifecycle-mutation-security';
 import { FieldValue, db } from '../firebaseApp';
+import {
+  getAccountLifecycleSubscriptionRenewalStatus,
+} from './account-lifecycle-billing.service';
 import {
   ACCOUNT_LIFECYCLE_REGION,
   RestorableAccountStatus,
@@ -23,6 +29,7 @@ interface AccountLifecycleCommandResult {
   suspensionSource: 'self' | 'moderator' | 'automation' | null;
   suspensionEndsAt: number | null;
   statusUpdatedAt: number;
+  subscriptionRenewalStatus: 'active' | 'canceled' | 'pending' | 'none';
   message: string;
 }
 
@@ -45,12 +52,21 @@ export const cancelAccountDeletion = onCall<Record<string, never>>(
       request.auth?.token as Record<string, unknown> | undefined
     );
 
+    await assertAccountLifecycleMutationSecurity({
+      action: 'self_cancel_deletion',
+      subjectUid: uid,
+      appContext: request.app,
+    });
+
     const now = Date.now();
 
     const restored = await db.runTransaction(
       async (
         tx: FirebaseFirestore.Transaction
-      ): Promise<Omit<AccountLifecycleCommandResult, 'ok' | 'message'>> => {
+      ): Promise<Omit<
+        AccountLifecycleCommandResult,
+        'ok' | 'message' | 'subscriptionRenewalStatus'
+      >> => {
         const userRef = db.collection('users').doc(uid);
         const publicProfileRef = db.collection('public_profiles').doc(uid);
 
@@ -189,15 +205,23 @@ export const cancelAccountDeletion = onCall<Record<string, never>>(
     const activeButRestricted =
       restored.accountStatus === 'active' &&
       restored.publicVisibility === 'hidden';
+    const subscriptionRenewalStatus =
+      await getAccountLifecycleSubscriptionRenewalStatus(uid);
 
     return {
       ok: true,
       ...restored,
-      message: activeButRestricted
-        ? 'Exclusão cancelada. Conclua as verificações pendentes para voltar a aparecer e interagir.'
-        : restored.accountStatus === 'active'
-          ? 'Exclusão cancelada. Sua conta voltou ao estado ativo.'
-          : 'Exclusão cancelada. O estado anterior da conta foi restaurado.',
+      subscriptionRenewalStatus,
+      message:
+        subscriptionRenewalStatus === 'pending'
+          ? 'Exclusão cancelada. A interrupção da renovação automática ainda está sendo processada.'
+          : subscriptionRenewalStatus === 'canceled'
+            ? 'Exclusão cancelada. A renovação automática permanece cancelada.'
+            : activeButRestricted
+              ? 'Exclusão cancelada. Conclua as verificações pendentes para voltar a aparecer e interagir.'
+              : restored.accountStatus === 'active'
+                ? 'Exclusão cancelada. Sua conta voltou ao estado ativo.'
+                : 'Exclusão cancelada. O estado anterior da conta foi restaurado.',
     };
   }
 );

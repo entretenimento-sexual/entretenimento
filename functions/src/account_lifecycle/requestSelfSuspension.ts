@@ -1,6 +1,14 @@
 // functions/src/account_lifecycle/requestSelfSuspension.ts
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { ASAAS_API_KEY } from '../payments/config/asaas.config';
+import {
+  assertAccountLifecycleMutationSecurity,
+} from './account-lifecycle-mutation-security';
 import { db } from '../firebaseApp';
+import {
+  buildAccountLifecycleBillingCancellationPatch,
+  reconcileAccountLifecycleBillingCancellation,
+} from './account-lifecycle-billing.service';
 import {
   ACCOUNT_LIFECYCLE_REGION,
   UserDoc,
@@ -20,11 +28,12 @@ interface AccountLifecycleCommandResult {
   publicVisibility: 'hidden';
   interactionBlocked: true;
   statusUpdatedAt: number;
+  subscriptionRenewalStatus: 'canceled' | 'pending' | 'none';
   message: string;
 }
 
 export const requestSelfSuspension = onCall<RequestSelfSuspensionRequest>(
-  { region: ACCOUNT_LIFECYCLE_REGION },
+  { region: ACCOUNT_LIFECYCLE_REGION, secrets: [ASAAS_API_KEY] },
   async (request): Promise<AccountLifecycleCommandResult> => {
     const uid = request.auth?.uid ?? null;
 
@@ -35,6 +44,12 @@ export const requestSelfSuspension = onCall<RequestSelfSuspensionRequest>(
     assertRecentAuthentication(
       request.auth?.token as Record<string, unknown> | undefined
     );
+
+    await assertAccountLifecycleMutationSecurity({
+      action: 'self_suspend',
+      subjectUid: uid,
+      appContext: request.app,
+    });
 
     const reason = normalizeOptionalReason(request.data?.reason);
     const now = Date.now();
@@ -76,6 +91,16 @@ export const requestSelfSuspension = onCall<RequestSelfSuspensionRequest>(
       }
 
       if (currentStatus === 'self_suspended') {
+        if (user.billingCancellationPending !== true) {
+          tx.set(
+            userRef,
+            buildAccountLifecycleBillingCancellationPatch({
+              reason: 'account-self-suspension',
+              now,
+            }),
+            { merge: true }
+          );
+        }
         return;
       }
 
@@ -111,6 +136,11 @@ export const requestSelfSuspension = onCall<RequestSelfSuspensionRequest>(
 
           statusUpdatedAt: now,
           statusUpdatedBy: 'self',
+
+          ...buildAccountLifecycleBillingCancellationPatch({
+            reason: 'account-self-suspension',
+            now,
+          }),
         },
         { merge: true }
       );
@@ -134,13 +164,34 @@ export const requestSelfSuspension = onCall<RequestSelfSuspensionRequest>(
       });
     });
 
+    const billingCancellation =
+      await reconcileAccountLifecycleBillingCancellation({
+        uid,
+        fallbackReason: 'account-self-suspension',
+      });
+
     return {
       ok: true,
       accountStatus: 'self_suspended',
       publicVisibility: 'hidden',
       interactionBlocked: true,
       statusUpdatedAt: now,
-      message: 'Conta suspensa com sucesso.',
+      subscriptionRenewalStatus:
+        billingCancellation.providerCancellationStatus === 'pending'
+          ? 'pending'
+          : billingCancellation.recurringConfigured
+            ? 'canceled'
+            : 'none',
+      message:
+        billingCancellation.providerCancellationStatus === 'pending'
+          ? 'Conta suspensa. A interrupção da renovação automática ainda está sendo processada.'
+          : billingCancellation.recurringConfigured
+            ? [
+              'Conta suspensa. A renovação automática foi interrompida;',
+              'o período já pago permanece válido e a renovação não será',
+              'reativada automaticamente.',
+            ].join(' ')
+            : 'Conta suspensa com sucesso.',
     };
   }
 );

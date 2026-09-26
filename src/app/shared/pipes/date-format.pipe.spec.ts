@@ -8,7 +8,7 @@ describe('DateFormatPipe', () => {
     TestBed.configureTestingModule({
       providers: [
         DateFormatPipe,
-        { provide: DateTimeService, useValue: { format: (d: any) => '01/01/2025' } }
+        { provide: DateTimeService, useValue: { format: (_d: any) => '01/01/2025' } }
       ]
     });
   });

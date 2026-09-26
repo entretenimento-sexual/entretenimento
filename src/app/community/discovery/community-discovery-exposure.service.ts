@@ -1,4 +1,5 @@
 // src/app/community/discovery/community-discovery-exposure.service.ts
+import { ACTIVE_SOCIAL_SPACE_KINDS } from 'src/app/core/domain/social-space.definition';
 import { DestroyRef, Injectable, Injector, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
@@ -100,30 +101,20 @@ export class CommunityDiscoveryExposureService {
     );
     if (activeBatch.length === 0) return EMPTY;
 
-    const communityIds = activeBatch
-      .filter((entry) => entry.sourceType === 'community')
-      .map((entry) => entry.communityId);
-    const venueIds = activeBatch
-      .filter((entry) => entry.sourceType === 'venue')
-      .map((entry) => entry.communityId);
-    const requests = [
-      communityIds.length > 0
+    const requests = ACTIVE_SOCIAL_SPACE_KINDS.map((sourceType) => {
+      const communityIds = activeBatch
+        .filter((entry) => entry.sourceType === sourceType)
+        .map((entry) => entry.communityId);
+
+      return communityIds.length > 0
         ? this.persistSourceBatch$(
-          'community',
+          sourceType,
           communityIds,
           viewerUid,
           viewerSession
         )
-        : EMPTY,
-      venueIds.length > 0
-        ? this.persistSourceBatch$(
-          'venue',
-          venueIds,
-          viewerUid,
-          viewerSession
-        )
-        : EMPTY,
-    ];
+        : EMPTY;
+    });
 
     return concat(...requests);
   }

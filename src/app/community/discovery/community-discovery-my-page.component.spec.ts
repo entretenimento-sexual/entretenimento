@@ -159,9 +159,8 @@ describe('CommunityDiscoveryPageComponent / Minhas comunidades', () => {
   });
 
   it('usa a callable privada e não a descoberta global', async () => {
-    const component = TestBed.runInInjectionContext(
-      () => new CommunityDiscoveryPageComponent()
-    );
+    const fixture = TestBed.createComponent(CommunityDiscoveryPageComponent);
+    const component = fixture.componentInstance;
     const state = await firstValueFrom(
       component.state$.pipe(
         filter((value) => value.status === 'ready'),
@@ -521,9 +520,8 @@ describe('CommunityDiscoveryPageComponent / Minhas comunidades', () => {
       })
     );
 
-    const component = TestBed.runInInjectionContext(
-      () => new CommunityDiscoveryPageComponent()
-    );
+    const fixture = TestBed.createComponent(CommunityDiscoveryPageComponent);
+    const component = fixture.componentInstance;
     const state = await firstValueFrom(
       component.state$.pipe(
         filter((value) => value.status === 'ready'),

@@ -1,0 +1,81 @@
+@if (state$ | async; as state) {
+  <section class="community-admin-timeline" aria-labelledby="community-admin-timeline-title">
+    <header class="community-admin-timeline__header">
+      <div>
+        <span>Auditoria consumível</span>
+        <h3 id="community-admin-timeline-title">Histórico administrativo</h3>
+        <p>
+          Ações relevantes da gestão. Dados internos de auditoria e evidências não
+          são exibidos aqui.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        [disabled]="state.status === 'loading' || state.status === 'loading-more'"
+        aria-label="Atualizar histórico administrativo"
+        (click)="refresh()"
+      >
+        <i
+          class="fas {{ state.status === 'loading' ? 'fa-spinner fa-spin' : 'fa-rotate' }}"
+          aria-hidden="true"
+        ></i>
+      </button>
+    </header>
+
+    @if (state.status === 'loading') {
+      <div class="community-admin-timeline__state" role="status">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Carregando histórico...</span>
+      </div>
+    } @else if (state.status === 'error') {
+      <div class="community-admin-timeline__state" role="alert">
+        <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+        <span>Histórico temporariamente indisponível.</span>
+        <button type="button" (click)="refresh()">Tentar novamente</button>
+      </div>
+    } @else if (state.items.length === 0) {
+      <div class="community-admin-timeline__state" role="status">
+        <i class="fas fa-clock-rotate-left" aria-hidden="true"></i>
+        <span>Ainda não há ações administrativas registradas nesta linha do tempo.</span>
+      </div>
+    } @else {
+      <ol class="community-admin-timeline__list">
+        @for (item of state.items; track item.id) {
+          <li>
+            <span class="community-admin-timeline__marker" aria-hidden="true">
+              <i class="fas fa-shield-halved"></i>
+            </span>
+            <div>
+              <div class="community-admin-timeline__meta">
+                <strong>{{ categoryLabel(item) }}</strong>
+                <time [attr.datetime]="item.createdAt | date:'yyyy-MM-ddTHH:mm:ss'">
+                  {{ item.createdAt | date:'dd/MM/yyyy HH:mm' }}
+                </time>
+              </div>
+              <p>{{ eventText(item) }}</p>
+            </div>
+          </li>
+        }
+      </ol>
+
+      @if (state.nextCursor) {
+        <div class="community-admin-timeline__footer">
+          <button
+            type="button"
+            [disabled]="state.status === 'loading-more'"
+            (click)="loadMore()"
+          >
+            @if (state.status === 'loading-more') {
+              <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+              Carregando...
+            } @else {
+              <i class="fas fa-chevron-down" aria-hidden="true"></i>
+              Carregar mais
+            }
+          </button>
+        </div>
+      }
+    }
+  </section>
+}

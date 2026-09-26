@@ -28,6 +28,7 @@ describe('Community component orchestration boundary', () => {
     expect(component).toContain('inject(CommunityDiscoveryDataFacade)');
     expect(component).toContain('inject(CommunityDiscoveryMineFacade)');
     expect(component).toContain('inject(CommunityDiscoverySponsoredFacade)');
+    expect(component).toContain('inject(CommunityDiscoveryRenderWindowFacade)');
   });
 
   it('mantém Feed como adaptador de view, sem reabsorver timeline/moderação/mapa', () => {
@@ -43,6 +44,7 @@ describe('Community component orchestration boundary', () => {
     expect(component).toContain('inject(CommunityFeedTimelineFacade)');
     expect(component).toContain('inject(CommunityFeedModerationFacade)');
     expect(component).toContain('inject(CommunityFeedLocationFacade)');
+    expect(component).toContain('inject(CommunityFeedRenderWindowFacade)');
   });
 
   it('impede substituir god components por god facades', () => {
@@ -50,9 +52,11 @@ describe('Community component orchestration boundary', () => {
       'discovery/community-discovery-data.facade.ts',
       'discovery/community-discovery-mine.facade.ts',
       'discovery/community-discovery-sponsored.facade.ts',
+      'discovery/community-discovery-render-window.facade.ts',
       'feed/community-feed-timeline.facade.ts',
       'feed/community-feed-moderation.facade.ts',
       'feed/community-feed-location.facade.ts',
+      'feed/community-feed-render-window.facade.ts',
     ] as const;
 
     for (const path of facadePaths) {

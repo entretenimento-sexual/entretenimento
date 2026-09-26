@@ -1,8 +1,6 @@
 // functions/src/index.ts
 import { onUserCreate } from './auth/onUserCreate';
 import { recoverRegistrationSeed } from './auth/recoverRegistrationSeed';
-import { cleanupOldData } from './cron/cleanupOldData';
-import { moderateContent } from './moderation/moderateContent';
 import {
   registerPushDevice,
   unregisterPushDevice,
@@ -18,13 +16,11 @@ import { onUserCreateIndexNickname } from './public_index/onUserCreateIndexNickn
 export {
   onUserCreate,
   recoverRegistrationSeed,
-  moderateContent,
   sendNotification,
   registerPushDevice,
   unregisterPushDevice,
   markNotificationRead,
   markAllNotificationsRead,
-  cleanupOldData,
   onUserCreateIndexNickname,
   clearStalePresence,
 };

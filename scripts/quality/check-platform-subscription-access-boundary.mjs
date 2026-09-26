@@ -5,10 +5,10 @@
 // Garante uma única autoridade para capacidades pagas no Angular:
 //
 // backend entitlement -> users/{uid} projection -> realtime user listener ->
-// PlatformSubscriptionAccessService -> AccessControlService -> guards/features.
+// PlatformSubscriptionAccessService -> AccessControlService -> features/rotas ativas.
 //
-// O frontend não pode fabricar role/tier/isSubscriber por patch local, e guards
-// genéricos não podem voltar a interpretar user.role como prova financeira.
+// O frontend não pode fabricar role/tier/isSubscriber por patch local. Guards
+// comerciais antigos não fazem parte do grafo carregável e não são autoridade.
 // -----------------------------------------------------------------------------
 
 import fs from 'node:fs';
@@ -95,38 +95,6 @@ for (const forbidden of [
   );
 }
 
-const roleGuard = read(
-  'src/app/core/guards/access-guard/role.guard.ts'
-);
-for (const fragment of [
-  'AccessControlService',
-  'access.hasAny$(allowed)',
-  'normalizeAllowedRoles',
-  'hasConfiguredRestriction',
-  "'role_configuration_invalid'",
-  "source:',",
-  "'AccessControlService'",
-]) {
-  requireIncludes(
-    roleGuard,
-    fragment,
-    'generic role guard must use canonical access authority'
-  );
-}
-for (const forbidden of [
-  'FirestoreUserQueryService',
-  'getUserOnce$(',
-  'allowedNormalized.includes(',
-  'roleFromStore',
-  "user?.role || ''",
-]) {
-  forbidIncludes(
-    roleGuard,
-    forbidden,
-    'generic role guard contains a parallel role authority'
-  );
-}
-
 const accessControl = read(
   'src/app/core/services/autentication/auth/access-control.service.ts'
 );
@@ -141,39 +109,6 @@ for (const fragment of [
     accessControl,
     fragment,
     'AccessControlService paid-role derivation drift'
-  );
-}
-
-for (const guardPath of [
-  'src/app/core/guards/access-guard/basic.guard.ts',
-  'src/app/core/guards/access-guard/premium.guard.ts',
-  'src/app/core/guards/access-guard/vip.guard.ts',
-]) {
-  const guard = read(guardPath);
-  requireIncludes(
-    guard,
-    'AccessControlService',
-    guardPath + ' must consume AccessControlService'
-  );
-  requireIncludes(
-    guard,
-    'this.access.hasAtLeast$(',
-    guardPath + ' must derive paid capability canonically'
-  );
-}
-
-const legacySubscription = read(
-  'src/app/core/services/subscriptions/subscription.service.ts'
-);
-for (const fragment of [
-  'PlatformSubscriptionAccessService',
-  'this.subscriptionAccess.state$',
-  'hasMinimumPlatformSubscriptionRole',
-]) {
-  requireIncludes(
-    legacySubscription,
-    fragment,
-    'legacy SubscriptionService must remain an alias of canonical paid access'
   );
 }
 

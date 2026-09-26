@@ -86,6 +86,48 @@
                 }
               </div>
             </div>
+
+            @if (renewal.scheduledPlanChange) {
+              <div class="account-list">
+                <div class="account-list__row">
+                  <div class="account-list__copy">
+                    <strong>Próximo plano</strong>
+                    <small>
+                      A redução para {{ renewal.scheduledPlanChange.planKey | titlecase }}
+                      está prevista para
+                      {{ renewal.scheduledPlanChange.effectiveAt | date:'dd/MM/yyyy' }}.
+                      @if (renewal.scheduledPlanChange.cancellationPending) {
+                        O cancelamento desta alteração está sendo confirmado
+                        no provedor.
+                      } @else if (renewal.scheduledPlanChange.providerUpdateStatus === 'pending') {
+                        A confirmação da redução no provedor ainda está em
+                        processamento.
+                      }
+                    </small>
+                  </div>
+
+                  @if (renewal.scheduledPlanChange.cancellationPending) {
+                    <span class="account-plan-hero__badge">
+                      Cancelando alteração
+                    </span>
+                  } @else {
+                    <button
+                      type="button"
+                      class="account-support-link"
+                      [disabled]="cancelingDowngrade()"
+                      [attr.aria-busy]="cancelingDowngrade() ? 'true' : null"
+                      (click)="cancelScheduledDowngrade()"
+                    >
+                      {{
+                        cancelingDowngrade()
+                          ? 'Cancelando...'
+                          : 'Cancelar redução'
+                      }}
+                    </button>
+                  }
+                </div>
+              </div>
+            }
           </section>
         }
       }

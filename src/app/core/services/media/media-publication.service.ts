@@ -4,7 +4,7 @@
 // OBJETIVO:
 // - separar publicação da biblioteca privada;
 // - ler configuração privada de publicação;
-// - solicitar publicação/despublicação/capa via Cloud Functions;
+// - solicitar publicação/capa via Cloud Functions;
 // - registrar visualização pública por backend confiável;
 // - manter Observable na API pública;
 // - impedir escrita direta do cliente na projeção pública.
@@ -244,43 +244,6 @@ export class MediaPublicationService {
             op: 'publishPhoto$',
             ownerUid: safeOwnerUid,
             photoId: safePhotoId,
-          },
-          true
-        );
-
-        return throwError(() => error);
-      })
-    );
-  }
-
-  unpublishPhoto$(ownerUid: string, privatePhotoId: string): Observable<void> {
-    const safeOwnerUid = (ownerUid ?? '').trim();
-    const safePhotoId = (privatePhotoId ?? '').trim();
-
-    if (!safeOwnerUid || !safePhotoId) {
-      return of(void 0);
-    }
-
-    return this.firestoreCtx.deferPromise$(async () => {
-      const callable = httpsCallable<PhotoIdCallableRequest, { photoId: string }>(
-        this.functions,
-        'unpublishPhoto'
-      );
-
-      await callable({
-        ownerUid: safeOwnerUid,
-        photoId: safePhotoId,
-      });
-    }).pipe(
-      map(() => void 0),
-      catchError((error) => {
-        this.reportError(
-          'Erro ao despublicar a foto.',
-          error,
-          {
-            op: 'unpublishPhoto$',
-            ownerUid: safeOwnerUid,
-            privatePhotoId: safePhotoId,
           },
           true
         );

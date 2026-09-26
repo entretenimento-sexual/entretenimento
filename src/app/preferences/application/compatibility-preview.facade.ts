@@ -8,7 +8,7 @@
 // - manter UI desacoplada de infraestrutura
 import { Injectable, inject } from '@angular/core';
 import { Observable, combineLatest, of, throwError } from 'rxjs';
-import { catchError, map, shareReplay, switchMap } from 'rxjs/operators';
+import { catchError, map, shareReplay } from 'rxjs/operators';
 
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';

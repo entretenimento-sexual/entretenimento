@@ -25,6 +25,7 @@ import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback
 import type { CommunityPreviewCard } from '../data-access/community-preview.model';
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
 import { CommunityOfficialBadgeComponent } from '../presentation/community-official-badge.component';
+import { getCommunitySocialSpaceAdapter } from '../presentation/community-social-space.adapter';
 import {
   communityInitials as buildCommunityInitials,
   communityVisualVariant as resolveCommunityVisualVariant,
@@ -193,9 +194,9 @@ export class OfficialCommunitiesForTargetComponent {
   }
 
   detailsRoute(item: CommunityPreviewCard): readonly string[] {
-    return item.source.type === 'venue'
-      ? ['/dashboard/locais', item.communityId]
-      : ['/dashboard/comunidades', item.communityId];
+    return getCommunitySocialSpaceAdapter(
+      item.source.type
+    ).discovery.detailsRoute(item.communityId, 'explore');
   }
 
   communityInitials(item: CommunityPreviewCard): string {

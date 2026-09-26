@@ -26,7 +26,10 @@ import {
   assertCommunityCallableAppCheck,
 } from './community-callable-security';
 import { resolveCommunityMemberCountDelta } from './community-member-count.policy';
-import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
+import {
+  assertCommunityMembershipActorEligible,
+  assertCommunityMembershipActorEligibleInTransaction,
+} from './community-membership-eligibility.service';
 import {
   CommunityAssignableMemberRole,
   CommunityManagedMemberRole,
@@ -44,11 +47,22 @@ import {
 } from './community-notification.policy';
 import { normalizeCommunityId } from './community-preview.model';
 import { consumeCommunityRateLimit } from './community-rate-limit.service';
+import {
+  CommunityMemberManagementRoleFilter,
+  decodeCommunityMemberManagementCursor,
+  encodeCommunityMemberManagementCursor,
+  matchesCommunityMemberManagementRoleFilter,
+  normalizeCommunityMemberManagementCursorToken,
+  normalizeCommunityMemberManagementRoleFilter,
+  normalizeCommunityMemberManagementSearchQuery,
+} from './community-member-management-index.policy';
 import { syncCommunityUserIndexInTransaction } from './community-user-index.transaction';
 
 interface ManagedMembersPagePayload {
   communityId?: unknown;
   status?: unknown;
+  roleFilter?: unknown;
+  query?: unknown;
   cursor?: unknown;
   limit?: unknown;
 }
@@ -238,6 +252,59 @@ function normalizePageLimit(value: unknown): number {
     : DEFAULT_PAGE_LIMIT;
 }
 
+function managementIndexProjectionId(
+  communityId: string,
+  memberId: string
+): string {
+  return `${communityId}:${memberId}`;
+}
+
+async function resolveManagementCursorPosition(
+  communityId: string,
+  cursor: string
+): Promise<{ sortLabel: string; documentId: string } | null> {
+  const decoded = decodeCommunityMemberManagementCursor(cursor);
+  if (decoded) return decoded;
+
+  const legacyMemberId = normalizeSafeId(cursor);
+  if (!legacyMemberId) return null;
+
+  const legacySnapshot = await db
+    .collection('community_member_management_index')
+    .doc(managementIndexProjectionId(communityId, legacyMemberId))
+    .get();
+
+  if (!legacySnapshot.exists) return null;
+
+  const sortLabel = String(legacySnapshot.data()?.['sortLabel'] ?? '').trim();
+  return sortLabel
+    ? { sortLabel, documentId: legacySnapshot.id }
+    : null;
+}
+
+function resolveManagementFilterRole(
+  rawMembership: Record<string, unknown>,
+  status: 'active' | 'blocked'
+): 'owner' | 'admin' | 'moderator' | 'member' | null {
+  if (status === 'blocked') {
+    const previousRole = roleBeforeBlock(rawMembership);
+    if (previousRole) return previousRole;
+  }
+
+  return normalizeMembershipRole(rawMembership['role']);
+}
+
+function membershipMatchesManagementRoleFilter(
+  rawMembership: Record<string, unknown>,
+  status: 'active' | 'blocked',
+  roleFilter: CommunityMemberManagementRoleFilter
+): boolean {
+  const role = resolveManagementFilterRole(rawMembership, status);
+  return role
+    ? matchesCommunityMemberManagementRoleFilter(role, roleFilter)
+    : false;
+}
+
 function resolveMemberCountDelta(
   rawCommunity: unknown,
   delta: -1 | 1
@@ -422,11 +489,25 @@ export const getCommunityMembersForManagement = onCall<ManagedMembersPagePayload
     const actorUid = assertAuthenticatedUid(request.auth);
     const communityId = normalizeCommunityId(request.data?.communityId);
     const status = normalizeListStatus(request.data?.status);
-    const cursor = normalizeSafeId(request.data?.cursor);
+    const roleFilter = normalizeCommunityMemberManagementRoleFilter(
+      request.data?.roleFilter
+    );
+    const searchQuery = normalizeCommunityMemberManagementSearchQuery(
+      request.data?.query
+    );
+    const cursor = normalizeCommunityMemberManagementCursorToken(
+      request.data?.cursor
+    );
     const providedCursor = String(request.data?.cursor ?? '').trim();
     const limit = normalizePageLimit(request.data?.limit);
 
-    if (!communityId || !status || (providedCursor && !cursor)) {
+    if (
+      !communityId
+      || !status
+      || !roleFilter
+      || searchQuery === null
+      || (providedCursor && !cursor)
+    ) {
       throw new HttpsError(
         'invalid-argument',
         'Consulta de participantes inválida.',
@@ -475,35 +556,83 @@ export const getCommunityMembersForManagement = onCall<ManagedMembersPagePayload
       actorMembershipSnapshot.exists ? actorMembershipSnapshot.data() : null
     );
 
-    let membersQuery = communityRef
-      .collection('members')
-      .where('status', '==', status)
+    let membersQuery = db
+      .collection('community_member_management_index')
+      .where('communityId', '==', communityId)
+      .where('status', '==', status);
+
+    if (roleFilter === 'leadership') {
+      membersQuery = membersQuery.where('leadership', '==', true);
+    } else if (roleFilter !== 'all') {
+      membersQuery = membersQuery.where('managementRole', '==', roleFilter);
+    }
+
+    if (searchQuery) {
+      membersQuery = membersQuery.where(
+        'searchPrefixes',
+        'array-contains',
+        searchQuery
+      );
+    }
+
+    membersQuery = membersQuery
+      .orderBy('sortLabel')
       .orderBy(FieldPath.documentId());
 
-    if (cursor) membersQuery = membersQuery.startAfter(cursor);
+    if (cursor) {
+      const cursorPosition = await resolveManagementCursorPosition(
+        communityId,
+        cursor
+      );
 
-    const membershipSnapshot = await membersQuery.limit(limit + 2).get();
-    const candidateDocuments = membershipSnapshot.docs.filter(
-      (document) => document.id !== actorUid
-    );
-    const pageDocuments = candidateDocuments.slice(0, limit);
-    const userSnapshots = await Promise.all(
-      pageDocuments.map((document) => db.collection('users').doc(document.id).get())
+      if (!cursorPosition) {
+        throw new HttpsError(
+          'invalid-argument',
+          'Cursor de participantes inválido.',
+          { reason: 'invalid_management_query' }
+        );
+      }
+
+      membersQuery = membersQuery.startAfter(
+        cursorPosition.sortLabel,
+        cursorPosition.documentId
+      );
+    }
+
+    const indexSnapshot = await membersQuery.limit(limit + 1).get();
+    const pageDocuments = indexSnapshot.docs.slice(0, limit);
+    const membershipSnapshots = await Promise.all(
+      pageDocuments.map((document) => {
+        const memberId = normalizeSafeId(document.data()?.['memberId']);
+        return memberId
+          ? communityRef.collection('members').doc(memberId).get()
+          : Promise.resolve(null);
+      })
     );
 
     const items = pageDocuments
       .map((document, index): CommunityManagedMemberItem | null => {
-        const membership = document.data() ?? {};
+        const projection = document.data() ?? {};
+        const memberId = normalizeSafeId(projection['memberId']);
+        const membershipSnapshot = membershipSnapshots[index];
+
+        if (
+          !memberId
+          || memberId === actorUid
+          || !membershipSnapshot
+          || !membershipSnapshot.exists
+        ) {
+          return null;
+        }
+
+        const membership = membershipSnapshot.data() ?? {};
         const memberStatus = normalizeMembershipStatus(membership['status']);
         const role = resolveCanonicalCommunityMemberRole(
           community,
-          document.id,
+          memberId,
           normalizeMembershipRole(membership['role'])
         );
         const previousRole = roleBeforeBlock(membership);
-        const user = userSnapshots[index]?.exists
-          ? userSnapshots[index]?.data() ?? {}
-          : {};
         const updatedAt =
           normalizeTimestamp(membership['updatedAt'])
           ?? normalizeTimestamp(membership['joinedAt'])
@@ -511,19 +640,23 @@ export const getCommunityMembersForManagement = onCall<ManagedMembersPagePayload
           ?? Date.now();
 
         if (
-          (memberStatus !== 'active' && memberStatus !== 'blocked')
+          memberStatus !== status
           || !role
+          || !membershipMatchesManagementRoleFilter(
+            membership,
+            status,
+            roleFilter
+          )
         ) {
           return null;
         }
 
         return {
-          memberId: document.id,
+          memberId,
           label:
-            normalizeText(user['nickname'], 60)
-            || normalizeText(user['nome'], 60)
+            normalizeText(projection['label'], 60)
             || 'Participante',
-          avatarUrl: normalizeHttpsUrl(user['photoURL']),
+          avatarUrl: normalizeHttpsUrl(projection['avatarUrl']),
           status: memberStatus,
           role,
           roleBeforeBlock:
@@ -536,7 +669,7 @@ export const getCommunityMembersForManagement = onCall<ManagedMembersPagePayload
           capabilities: buildCapabilities(
             actorUid,
             actor,
-            document.id,
+            memberId,
             membership,
             community
           ),
@@ -544,12 +677,19 @@ export const getCommunityMembersForManagement = onCall<ManagedMembersPagePayload
       })
       .filter((item): item is CommunityManagedMemberItem => item !== null);
 
-    const hasMore = candidateDocuments.length > limit;
+    const hasMore = indexSnapshot.docs.length > limit;
     const lastDocument = pageDocuments.at(-1) ?? null;
+    const lastSortLabel = String(lastDocument?.data()?.['sortLabel'] ?? '').trim();
 
     return {
       items,
-      nextCursor: hasMore ? (lastDocument?.id ?? null) : null,
+      nextCursor:
+        hasMore && lastDocument && lastSortLabel
+          ? encodeCommunityMemberManagementCursor({
+            sortLabel: lastSortLabel,
+            documentId: lastDocument.id,
+          })
+          : null,
       generatedAt: Date.now(),
     };
   }
@@ -707,9 +847,24 @@ export const manageCommunityMember = onCall<ManageCommunityMemberPayload>(
           action === 'remove' || action === 'block' || action === 'unblock'
             ? action
             : null;
-      const targetUserSnapshot = lifecycleNotificationAction
-        ? await transaction.get(targetUserRef)
-        : null;
+      const requiresTargetEligibility =
+        action === 'set_role'
+        && (nextRole === 'admin' || nextRole === 'moderator');
+      const targetUserSnapshot =
+        lifecycleNotificationAction !== null || requiresTargetEligibility
+          ? await transaction.get(targetUserRef)
+          : null;
+
+      if (requiresTargetEligibility) {
+        await assertCommunityMembershipActorEligibleInTransaction(
+          transaction,
+          memberId,
+          targetUserSnapshot?.exists
+            ? targetUserSnapshot.data()
+            : null
+        );
+      }
+
       const targetUser = targetUserSnapshot?.data() as
         | CommunityNotificationUser
         | undefined;

@@ -173,14 +173,6 @@ async function run() {
     const likeRef = publicPhotoRef.collection('likes').doc(visitorUid);
 
     await Promise.all([
-      db.doc(`public_profiles/${ownerUid}`).set({
-        uid: ownerUid,
-        nickname: 'Autor da foto',
-      }),
-      db.doc(`public_profiles/${visitorUid}`).set({
-        uid: visitorUid,
-        nickname: 'Visitante',
-      }),
       publicPhotoRef.set({
         id: photoId,
         ownerUid,
@@ -217,6 +209,57 @@ async function run() {
     await expectCallableFailure(togglePhotoReaction, { ownerUid, photoId });
 
     await seedPublicMediaCompliance(db, [ownerUid, visitorUid]);
+
+    // Compliance/user creation dispara projeções assíncronas. A fixture social
+    // precisa alinhar a identidade canônica e a projeção pública depois disso,
+    // para que triggers tardios convirjam para os mesmos nicknames.
+    await Promise.all([
+      ownerUserRef.set(
+        {
+          nickname: 'Autor da foto',
+          nicknameNormalized: 'autor_da_foto',
+        },
+        { merge: true }
+      ),
+      visitorUserRef.set(
+        {
+          nickname: 'Visitante',
+          nicknameNormalized: 'visitante',
+        },
+        { merge: true }
+      ),
+      db.doc(`public_profiles/${ownerUid}`).set(
+        {
+          uid: ownerUid,
+          nickname: 'Autor da foto',
+          nicknameNormalized: 'autor_da_foto',
+        },
+        { merge: true }
+      ),
+      db.doc(`public_profiles/${visitorUid}`).set(
+        {
+          uid: visitorUid,
+          nickname: 'Visitante',
+          nicknameNormalized: 'visitante',
+        },
+        { merge: true }
+      ),
+    ]);
+
+    await waitFor(
+      'identidade pública estável dos usuários sociais de foto',
+      async () => ({
+        owner: await readDocumentData(
+          db.doc(`public_profiles/${ownerUid}`)
+        ),
+        visitor: await readDocumentData(
+          db.doc(`public_profiles/${visitorUid}`)
+        ),
+      }),
+      (state) =>
+        state.owner?.nickname === 'Autor da foto'
+        && state.visitor?.nickname === 'Visitante'
+    );
 
     const firstLike = await togglePhotoReaction({ ownerUid, photoId });
     assert.equal(firstLike.data.liked, true);

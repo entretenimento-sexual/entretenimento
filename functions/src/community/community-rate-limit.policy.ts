@@ -30,6 +30,7 @@ export type CommunityRateLimitAction =
   | 'membership_leave'
   | 'membership_review'
   | 'member_management'
+  | 'member_search'
   | 'highlight_management'
   | 'settings_update'
   | 'notification_preference_update'
@@ -224,6 +225,17 @@ const POLICY_BY_ACTION: Readonly<Record<
     }),
     reason: 'community_management_rate_limited',
     message: 'Muitas ações de gestão foram executadas em pouco tempo.',
+  }),
+  member_search: Object.freeze({
+    backendAction: 'searchCommunityMembersPage',
+    config: Object.freeze({
+      burstWindowMs: MINUTE_MS,
+      burstMax: 45,
+      sustainedWindowMs: HOUR_MS,
+      sustainedMax: 240,
+    }),
+    reason: 'community_search_rate_limited',
+    message: 'Muitas buscas de integrantes foram realizadas em pouco tempo.',
   }),
   highlight_management: Object.freeze({
     backendAction: 'manageCommunityHighlight',

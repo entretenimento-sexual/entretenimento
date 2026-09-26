@@ -3,13 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { DASHBOARD_FEATURE_EFFECTS } from '../../dashboard/dashboard-feature.effects';
 import { LAYOUT_FEATURE_EFFECTS } from '../../layout/layout-feature.effects';
 import { ROOT_EFFECTS } from '../store.module';
-import { InviteEffects } from './effects.chat/invite.effects';
 import { DiscoveryFeedEffects } from './effects.discovery/discovery-feed.effects';
 import { NearbyProfilesEffects } from './effects.location/nearby-profiles.effects';
 
 describe('NgRx effect registration boundaries', () => {
   it('mantém apenas owners globais necessários no root', () => {
-    expect(ROOT_EFFECTS).not.toContain(InviteEffects);
     expect(ROOT_EFFECTS).not.toContain(NearbyProfilesEffects);
     expect(ROOT_EFFECTS).not.toContain(DiscoveryFeedEffects);
   });

@@ -4,8 +4,10 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  ElementRef,
   inject,
   signal,
+  viewChildren,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
@@ -29,7 +31,6 @@ import {
   switchMap,
 } from 'rxjs';
 
-import { getSocialSpaceDefinition } from 'src/app/core/domain/social-space.definition';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import type { PreferenceProfile } from 'src/app/preferences/models/preference-profile.model';
@@ -51,10 +52,11 @@ import {
 import { CommunityTagRepository } from '../data-access/community-tag.repository';
 import { CommunityOfficialBadgeComponent } from '../presentation/community-official-badge.component';
 import {
-  CommunityAttentionGroupKey,
-  resolveCommunityAttentionPresentation,
+  getCommunitySocialSpaceAdapter,
+  normalizeCommunitySocialSpaceSourceType,
+} from '../presentation/community-social-space.adapter';
+import {
   resolveCommunityMembershipRolePresentation,
-  resolveCommunityNotificationStatusPresentation,
 } from '../presentation/community-ui.presentation';
 import {
   communityInitials as buildCommunityInitials,
@@ -77,8 +79,8 @@ import {
   CommunityDiscoveryMineFacade,
 } from './community-discovery-mine.facade';
 import { CommunityDiscoverySponsoredFacade } from './community-discovery-sponsored.facade';
+import { CommunityDiscoveryRenderWindowFacade } from './community-discovery-render-window.facade';
 import {
-  CommunityMineParticipationFilter,
   shouldShowMineCommunitySearch,
 } from './community-mine-participation.policy';
 
@@ -97,6 +99,7 @@ interface CommunityDiscoveryViewState {
   mineLoadedItemCount: number;
   mineSearchVisible: boolean;
   mineControlsActive: boolean;
+  mineWindowKey: string;
 }
 
 interface HiddenCommunityFeedback {
@@ -131,6 +134,7 @@ const COMMUNITY_QUICK_FILTER_TAG_ID_SET = new Set<string>(
     CommunityDiscoveryDataFacade,
     CommunityDiscoveryMineFacade,
     CommunityDiscoverySponsoredFacade,
+    CommunityDiscoveryRenderWindowFacade,
   ],
   templateUrl: './community-discovery-page.component.html',
   styleUrl: './community-discovery-page.component.css',
@@ -150,37 +154,42 @@ export class CommunityDiscoveryPageComponent {
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly dataFacade = inject(CommunityDiscoveryDataFacade);
-  private readonly mineFacade = inject(CommunityDiscoveryMineFacade);
+  readonly mineFacade = inject(CommunityDiscoveryMineFacade);
   private readonly sponsoredFacade = inject(CommunityDiscoverySponsoredFacade);
+  private readonly renderWindow = inject(CommunityDiscoveryRenderWindowFacade);
   private readonly tagCatalogReload$ = new Subject<void>();
+  private readonly discoveryCardElements =
+    viewChildren<ElementRef<HTMLElement>>('discoveryCardShell');
 
   readonly sourceType: CommunityPreviewSourceType =
-    this.route.snapshot.data['sourceType'] === 'venue' ? 'venue' : 'community';
+    normalizeCommunitySocialSpaceSourceType(
+      this.route.snapshot.data['sourceType']
+    );
+  private readonly socialSpace =
+    getCommunitySocialSpaceAdapter(this.sourceType);
+  readonly definition = this.socialSpace.definition;
   readonly discoveryMode: CommunityDiscoveryMode =
-    this.sourceType === 'community'
+    this.socialSpace.capabilities.personalMembershipHub
     && this.route.snapshot.data['discoveryMode'] === 'mine'
       ? 'mine'
       : 'explore';
-  readonly definition = getSocialSpaceDefinition(this.sourceType);
   readonly title = this.discoveryMode === 'mine'
     ? 'Minhas comunidades'
     : this.definition.pluralLabel;
-  readonly hubTitle = this.sourceType === 'community'
-    ? 'Comunidades'
-    : this.title;
+  readonly hubTitle = this.socialSpace.discovery.hubTitle;
   readonly description = this.discoveryMode === 'mine'
     ? 'Comunidades das quais você participa ou administra.'
     : this.definition.description;
-  readonly emptyMessage = this.sourceType === 'venue'
-    ? 'Nenhum Local disponível.'
-    : this.discoveryMode === 'mine'
-      ? 'Você ainda não participa de nenhuma Comunidade.'
-      : 'Ainda não há Comunidades por aqui.';
-  readonly canCreateVenue = this.sourceType === 'venue';
-  readonly canCreateCommunity = this.sourceType === 'community';
-  readonly showCommunityNavigation = this.sourceType === 'community';
+  readonly emptyMessage = this.discoveryMode === 'mine'
+    ? 'Você ainda não participa de nenhuma Comunidade.'
+    : this.socialSpace.discovery.emptyExploreMessage;
+  readonly canCreateVenue = this.socialSpace.discovery.canCreateVenue;
+  readonly canCreateCommunity = this.socialSpace.discovery.canCreateCommunity;
+  readonly showCommunityNavigation =
+    this.socialSpace.capabilities.personalMembershipHub;
   readonly canFilterByTags =
-    this.sourceType === 'community' && this.discoveryMode === 'explore';
+    this.socialSpace.capabilities.interestDiscovery
+    && this.discoveryMode === 'explore';
 
   private readonly initialTagId = this.canFilterByTags
     ? normalizeCommunityTagId(
@@ -198,10 +207,6 @@ export class CommunityDiscoveryPageComponent {
   readonly sponsoredPlacement = this.sponsoredFacade.sponsoredPlacement;
   readonly creationGateBusy = signal(false);
   readonly hiddenCommunityFeedback = signal<HiddenCommunityFeedback | null>(null);
-  readonly notificationPreferenceBusyCommunityIds =
-    this.mineFacade.notificationPreferenceBusyCommunityIds;
-  readonly notificationPreferenceFeedback =
-    this.mineFacade.notificationPreferenceFeedback;
 
   readonly tagFilterState$: Observable<CommunityTagFilterState> =
     this.tagCatalogReload$.pipe(
@@ -301,6 +306,7 @@ export class CommunityDiscoveryPageComponent {
           mineLoadedItemCount: 0,
           mineSearchVisible: false,
           mineControlsActive: false,
+          mineWindowKey: '',
         };
       }
 
@@ -320,6 +326,8 @@ export class CommunityDiscoveryPageComponent {
         mineControlsActive:
           mineParticipationFilter !== 'all'
           || mineSearchTerm.trim().length > 0,
+        mineWindowKey:
+          `${mineParticipationFilter}|${mineSearchTerm.trim().toLocaleLowerCase('pt-BR')}`,
       };
     }),
     shareReplay({ bufferSize: 1, refCount: true })
@@ -336,6 +344,24 @@ export class CommunityDiscoveryPageComponent {
           page.items,
           this.sponsoredContext(request.tagId)
         )
+      );
+
+    this.dataFacade.pageLoaded$
+      .pipe(
+        filter(({ request }) => request.append),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe(() => this.renderWindow.markAppendLoaded());
+
+    this.viewState$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((state) =>
+        this.renderWindow.reconcile(state.items, {
+          mineMode: this.discoveryMode === 'mine',
+          mineWindowKey: state.mineWindowKey,
+          loadingMore: state.loadingMore,
+          resolveElements: () => this.discoveryCardElements(),
+        })
       );
 
     this.route.queryParamMap
@@ -364,10 +390,35 @@ export class CommunityDiscoveryPageComponent {
   }
 
   loadMore(cursor: string | null): void {
+    if (!cursor) return;
+    this.renderWindow.prepareLoadMore(() => this.discoveryCardElements());
     this.dataFacade.loadMore(cursor, this.selectedTagId());
   }
 
+  discoveryRenderWindow(items: readonly CommunityDiscoveryCardView[]) {
+    return this.renderWindow.window(items);
+  }
+
+  showPreviousLoadedResults(
+    items: readonly CommunityDiscoveryCardView[]
+  ): void {
+    this.renderWindow.showPreviousLoaded(
+      items,
+      () => this.discoveryCardElements()
+    );
+  }
+
+  showNextLoadedResults(
+    items: readonly CommunityDiscoveryCardView[]
+  ): void {
+    this.renderWindow.showNextLoaded(
+      items,
+      () => this.discoveryCardElements()
+    );
+  }
+
   retry(): void {
+    this.renderWindow.reset();
     this.sponsoredFacade.reset();
     this.dataFacade.reload(this.selectedTagId());
   }
@@ -489,7 +540,7 @@ export class CommunityDiscoveryPageComponent {
   }
 
   sourceLabel(item: CommunityPreviewCard): string {
-    return getSocialSpaceDefinition(item.source.type).label;
+    return getCommunitySocialSpaceAdapter(item.source.type).definition.label;
   }
 
   communityInitials(item: CommunityPreviewCard): string {
@@ -515,87 +566,6 @@ export class CommunityDiscoveryPageComponent {
       : null;
   }
 
-  notificationStatusPresentation(item: CommunityDiscoveryCardView) {
-    return this.discoveryMode === 'mine'
-      ? resolveCommunityNotificationStatusPresentation(
-          item.notificationUnreadCount,
-          item.notificationHasPriorityUnread,
-          item.notificationsMuted
-        )
-      : null;
-  }
-
-  notificationUnreadAriaLabel(item: CommunityDiscoveryCardView): string {
-    const priority = item.notificationHasPriorityUnread
-      ? ', incluindo atividade prioritária'
-      : '';
-
-    return `${item.notificationUnreadCount} atividades não lidas${priority}`;
-  }
-
-  mineAttentionGroupKey(
-    item: CommunityDiscoveryCardView
-  ): CommunityAttentionGroupKey {
-    return this.mineFacade.attentionGroupKey(item);
-  }
-
-  mineAttentionGroupPresentation(item: CommunityDiscoveryCardView) {
-    return resolveCommunityAttentionPresentation(
-      item.notificationUnreadCount,
-      item.notificationHasPriorityUnread
-    );
-  }
-
-  startsMineAttentionGroup(
-    items: readonly CommunityDiscoveryCardView[],
-    index: number
-  ): boolean {
-    if (this.discoveryMode !== 'mine') return false;
-
-    const item = items[index];
-    if (!item) return false;
-
-    const previous = index > 0 ? items[index - 1] : null;
-    return !previous
-      || this.mineFacade.attentionGroupKey(previous)
-        !== this.mineFacade.attentionGroupKey(item);
-  }
-
-  selectMineParticipationFilter(
-    filterValue: CommunityMineParticipationFilter
-  ): void {
-    if (this.discoveryMode !== 'mine') return;
-    this.mineFacade.selectParticipationFilter(filterValue);
-  }
-
-  isMineParticipationFilterSelected(
-    filterValue: CommunityMineParticipationFilter
-  ): boolean {
-    return this.mineFacade.isParticipationFilterSelected(filterValue);
-  }
-
-  changeMineSearch(event: Event): void {
-    if (this.discoveryMode !== 'mine') return;
-
-    const value = event.target instanceof HTMLInputElement
-      ? event.target.value.slice(0, 80)
-      : '';
-    this.mineFacade.setSearchTerm(value);
-  }
-
-  mineSearchValue(): string {
-    return this.mineFacade.searchValue();
-  }
-
-  clearMineParticipationControls(): void {
-    if (this.discoveryMode !== 'mine') return;
-    this.mineFacade.clearControls();
-  }
-
-  isNotificationPreferenceBusy(communityId: string): boolean {
-    return this.mineFacade.isNotificationPreferenceBusy(communityId);
-  }
-
   toggleCommunityNotifications(item: CommunityDiscoveryCardView): void {
     if (this.discoveryMode !== 'mine') return;
     this.mineFacade.toggleNotifications(
@@ -606,19 +576,26 @@ export class CommunityDiscoveryPageComponent {
   }
 
   detailsRoute(item: CommunityPreviewCard): readonly string[] {
-    if (item.source.type === 'venue') {
-      return ['/dashboard/locais', item.communityId];
-    }
+    return getCommunitySocialSpaceAdapter(
+      item.source.type
+    ).discovery.detailsRoute(item.communityId, this.discoveryMode);
+  }
 
-    return this.discoveryMode === 'mine'
-      ? ['/dashboard/comunidades/minhas', item.communityId]
-      : ['/dashboard/comunidades', item.communityId];
+  returnTarget(item: CommunityPreviewCard): string {
+    return getCommunitySocialSpaceAdapter(
+      item.source.type
+    ).discovery.returnTarget(this.discoveryMode, this.selectedTagId());
+  }
+
+  showKindBadge(item: CommunityPreviewCard): boolean {
+    return getCommunitySocialSpaceAdapter(item.source.type).showKindBadge;
   }
 
   private applyTagFilter(tagId: string | null, syncUrl: boolean): void {
     if (!this.canFilterByTags || tagId === this.selectedTagId()) return;
 
     this.selectedTagId.set(tagId);
+    this.renderWindow.reset();
     this.sponsoredFacade.reset();
     this.dataFacade.reload(tagId);
 

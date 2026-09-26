@@ -60,6 +60,7 @@ export const FIRESTORE_RULE_PARTS = Object.freeze([
   'communities.rules',
   'community_profile_membership_index.rules',
   'community_official_associations.rules',
+  'community_admin_timeline.rules',
   'invites.rules',
   'admin_logs.rules',
 

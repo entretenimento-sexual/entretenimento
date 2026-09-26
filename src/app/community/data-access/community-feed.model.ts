@@ -15,6 +15,8 @@ export type CommunityFeedKind = 'text' | 'photo' | 'location';
 export type CommunityFeedAudience = 'public_preview' | 'members_only';
 export type CommunityFeedLocationPrecision = 'approximate' | 'precise';
 
+export const DEFAULT_COMMUNITY_FEED_PAGE_SIZE = 10;
+
 export interface CommunityFeedReplyReference {
   readonly postId: string;
   readonly authorLabel: string;

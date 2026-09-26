@@ -17,7 +17,6 @@ import {
 } from 'src/app/core/interfaces/media/i-public-photo-item';
 import {
   IPublicVideoItem,
-  IPublicVideoProjection,
 } from 'src/app/core/interfaces/media/i-public-video-item';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';

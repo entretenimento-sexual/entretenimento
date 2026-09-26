@@ -34,7 +34,6 @@ import {
   ContentAccessRecommendedAction,
 } from 'src/app/core/access/content-access-policy.model';
 import { ContentAccessNavigationService } from 'src/app/core/access/content-access-navigation.service';
-import { getSocialSpaceDefinition } from 'src/app/core/domain/social-space.definition';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import {
@@ -67,6 +66,7 @@ import {
   COMMUNITY_MEMBERSHIP_ACTION_REASON_PRESENTATIONS,
 } from '../presentation/community-error.presentations';
 import { CommunityOfficialBadgeComponent } from '../presentation/community-official-badge.component';
+import { getCommunitySocialSpaceAdapter } from '../presentation/community-social-space.adapter';
 import {
   COMMUNITY_SECTION_ICONS,
   resolveCommunityMembershipRolePresentation,
@@ -455,11 +455,9 @@ export class CommunityPreviewPageComponent {
   }
 
   membershipActionLabel(community: CommunityPreviewCard): string {
-    if (community.source.type === 'venue') {
-      return community.access.join === 'open' ? 'Seguir' : 'Solicitar acesso';
-    }
-
-    return community.access.join === 'open' ? 'Participar' : 'Solicitar';
+    return getCommunitySocialSpaceAdapter(
+      community.source.type
+    ).membership.actionLabel(community.access.join);
   }
 
   membershipReviewed(): void {
@@ -467,11 +465,45 @@ export class CommunityPreviewPageComponent {
   }
 
   sourceLabel(community: CommunityPreviewCard): string {
-    return getSocialSpaceDefinition(community.source.type).label;
+    return getCommunitySocialSpaceAdapter(
+      community.source.type
+    ).definition.label;
   }
 
   sourceDescription(community: CommunityPreviewCard): string {
-    return getSocialSpaceDefinition(community.source.type).description;
+    return getCommunitySocialSpaceAdapter(
+      community.source.type
+    ).definition.description;
+  }
+
+  spaceCapabilities(community: CommunityPreviewCard) {
+    return getCommunitySocialSpaceAdapter(community.source.type).capabilities;
+  }
+
+  officialEntityTargetType(
+    community: CommunityPreviewCard
+  ): 'venue' | null {
+    return getCommunitySocialSpaceAdapter(
+      community.source.type
+    ).officialEntityTargetType;
+  }
+
+  feedSectionLabel(community: CommunityPreviewCard): string {
+    return getCommunitySocialSpaceAdapter(
+      community.source.type
+    ).feed('feed').sectionLabel;
+  }
+
+  leaveMembershipLabel(community: CommunityPreviewCard): string {
+    return getCommunitySocialSpaceAdapter(
+      community.source.type
+    ).membership.leaveActionLabel(community.access.join);
+  }
+
+  interactionRestrictedLabel(community: CommunityPreviewCard): string {
+    return getCommunitySocialSpaceAdapter(
+      community.source.type
+    ).membership.interactionRestrictedLabel;
   }
 
   communityInitials(community: CommunityPreviewCard): string {
@@ -501,7 +533,7 @@ export class CommunityPreviewPageComponent {
     sourceType: CommunityPreviewSourceType = 'community'
   ): string {
     if (role === 'owner') {
-      return sourceType === 'venue' ? 'Responsável' : 'Proprietário';
+      return getCommunitySocialSpaceAdapter(sourceType).ownerRoleLabel;
     }
     if (role === 'admin') return 'Administração';
 
@@ -517,21 +549,9 @@ export class CommunityPreviewPageComponent {
   }
 
   joinLabel(community: CommunityPreviewCard): string {
-    if (community.source.type === 'venue') {
-      const venueLabels = {
-        open: 'Acompanhamento aberto',
-        approval: 'Acesso por aprovação',
-        invite_only: 'Acesso por convite',
-      } as const;
-      return venueLabels[community.access.join];
-    }
-
-    const communityLabels = {
-      open: 'Participação aberta',
-      approval: 'Entrada por aprovação',
-      invite_only: 'Somente convite',
-    } as const;
-    return communityLabels[community.access.join];
+    return getCommunitySocialSpaceAdapter(
+      community.source.type
+    ).membership.joinLabel(community.access.join);
   }
 
   metricsAriaLabel(community: CommunityPreviewCard): string {
@@ -546,13 +566,16 @@ export class CommunityPreviewPageComponent {
 
   private ensureSectionAvailable(preview: CommunityPreviewResponse): void {
     const section = this.activeSection();
+    const capabilities = this.spaceCapabilities(preview.community);
     const allowed = section === 'requests'
       ? preview.canManageMemberships
       : section === 'invites'
         ? preview.canInviteCommunityMembers
-        : section === 'members' || section === 'topics'
-          ? preview.community.source.type === 'community'
-          : true;
+        : section === 'members'
+          ? capabilities.memberDirectory
+          : section === 'topics'
+            ? capabilities.topics
+            : true;
 
     if (!allowed) {
       this.selectSection('about', true);
@@ -598,92 +621,26 @@ export class CommunityPreviewPageComponent {
     viewerMode: CommunityPreviewViewerMode,
     viewerRole: CommunityPreviewViewerRole | null
   ): ConfirmationDialogData {
-    const isVenue = community.source.type === 'venue';
-
-    if (viewerRole === 'owner') {
-      return {
-        eyebrow: isVenue ? 'Responsabilidade do Local' : 'Propriedade da Comunidade',
-        title: isVenue ? 'Encerrar seu vínculo com o Local?' : 'Encerrar seu vínculo com a Comunidade?',
-        message: isVenue
-          ? 'Este espaço já está encerrado. Ao sair, sua responsabilidade será liberada e seu vínculo ficará inativo.'
-          : 'A Comunidade já está encerrada. Ao sair, sua propriedade será liberada e seu vínculo ficará inativo.',
-        detail: isVenue
-          ? 'Essa ação não reabre o Local nem transfere sua responsabilidade para outra pessoa.'
-          : 'Essa ação não reabre a Comunidade nem transfere a propriedade para outra pessoa.',
-        confirmLabel: isVenue ? 'Liberar responsabilidade e sair' : 'Liberar propriedade e sair',
-        cancelLabel: 'Manter meu vínculo',
-        icon: 'logout',
-        tone: 'danger',
-      };
-    }
-
-    if (viewerRole === 'admin') {
-      return {
-        eyebrow: isVenue ? 'Administração do Local' : 'Administração da Comunidade',
-        title: isVenue ? 'Sair do Local?' : 'Sair da Comunidade?',
-        message: isVenue
-          ? 'Você deixará este Local e perderá imediatamente seu acesso de Administração.'
-          : 'Você deixará esta Comunidade e perderá imediatamente seu papel de Administração.',
-        detail: isVenue
-          ? 'Para voltar, será necessário obter acesso novamente. A Administração não será restaurada automaticamente.'
-          : 'Para voltar, será necessário entrar ou solicitar aprovação novamente. A Administração não será restaurada automaticamente.',
-        confirmLabel: isVenue ? 'Sair do Local' : 'Sair da Comunidade',
-        cancelLabel: 'Continuar na Administração',
-        icon: 'logout',
-        tone: 'danger',
-      };
-    }
-
-    if (viewerRole === 'moderator' || viewerMode === 'moderator') {
-      return {
-        eyebrow: isVenue ? 'Moderação do Local' : 'Moderação da Comunidade',
-        title: isVenue ? 'Sair do Local?' : 'Sair da Comunidade?',
-        message: isVenue
-          ? 'Você deixará este Local e perderá imediatamente seu acesso de Moderação.'
-          : 'Você deixará esta Comunidade e perderá imediatamente seu papel de Moderação.',
-        detail: isVenue
-          ? 'Para voltar, será necessário obter acesso novamente. A Moderação não será restaurada automaticamente.'
-          : 'Para voltar, será necessário entrar ou solicitar aprovação novamente. A Moderação não será restaurada automaticamente.',
-        confirmLabel: isVenue ? 'Sair do Local' : 'Sair da Comunidade',
-        cancelLabel: 'Continuar na Moderação',
-        icon: 'logout',
-        tone: 'danger',
-      };
-    }
-
-    return {
-      eyebrow: isVenue ? 'Participação no Local' : 'Participação na Comunidade',
-      title: isVenue ? 'Sair do Local?' : 'Sair da Comunidade?',
-      message: isVenue
-        ? 'Você deixará de participar deste Local.'
-        : 'Você deixará de participar desta Comunidade.',
-      detail: community.access.join === 'approval'
-        ? 'Para voltar, será necessário solicitar aprovação novamente.'
-        : 'Você poderá entrar novamente enquanto este espaço continuar disponível.',
-      confirmLabel: isVenue ? 'Sair do Local' : 'Sair da Comunidade',
-      cancelLabel: 'Continuar participando',
-      icon: 'logout',
-      tone: 'warning',
-    };
+    return getCommunitySocialSpaceAdapter(
+      community.source.type
+    ).membership.leaveConfirmation({
+      viewerMode,
+      viewerRole,
+      join: community.access.join,
+    });
   }
 
   private membershipSuccessMessage(
     command: CommunityMembershipCommand,
     resultStatus: 'active' | 'pending' | 'left'
   ): string {
-    const isVenue = command.community.source.type === 'venue';
-
-    if (command.kind === 'request') {
-      if (resultStatus === 'active') {
-        return isVenue
-          ? 'Você começou a seguir o Local.'
-          : 'Você entrou na Comunidade.';
-      }
-      return isVenue ? 'Solicitação de acesso enviada.' : 'Solicitação enviada.';
-    }
-
-    if (command.pending) return 'Solicitação cancelada.';
-    return isVenue ? 'Você saiu do Local.' : 'Você saiu da Comunidade.';
+    return getCommunitySocialSpaceAdapter(
+      command.community.source.type
+    ).membership.successMessage({
+      kind: command.kind,
+      resultStatus,
+      pending: command.pending,
+    });
   }
 
   private handleMembershipError(
@@ -791,14 +748,9 @@ export class CommunityPreviewPageComponent {
     community: CommunityPreviewCard,
     kind: CommunityMembershipActionKind
   ): void {
-    const isVenue = community.source.type === 'venue';
-    const fallbackMessage = kind === 'leave'
-      ? isVenue
-        ? 'Não foi possível sair deste Local agora.'
-        : 'Não foi possível sair desta Comunidade agora.'
-      : isVenue
-        ? 'Não foi possível solicitar acesso a este Local agora.'
-        : 'Não foi possível concluir a participação nesta Comunidade agora.';
+    const fallbackMessage = getCommunitySocialSpaceAdapter(
+      community.source.type
+    ).membership.errorFallback(kind);
 
     this.applicationError.report(error, {
       feature: 'community',

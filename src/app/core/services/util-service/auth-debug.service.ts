@@ -27,7 +27,7 @@ import {
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { environment } from 'src/environments/environment';
-import { Subscription, combineLatest, EMPTY, from, defer, of } from 'rxjs';
+import { Subscription, combineLatest, EMPTY, from, defer } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -37,7 +37,6 @@ import {
   auditTime,
   debounceTime,
   filter,
-  switchMap,
   tap,
 } from 'rxjs/operators';
 
@@ -188,18 +187,6 @@ private maskEmail(value: unknown): string | null {
   }
 
   return `${name.slice(0, 1)}***@${domain}`;
-}
-
-private maskAuthSnapshot<T extends Record<string, unknown> | null>(snapshot: T): T | Record<string, unknown> | null {
-  if (!snapshot) {
-    return null;
-  }
-
-  return {
-    ...snapshot,
-    uid: this.maskUid(snapshot['uid']),
-    email: this.maskEmail(snapshot['email']),
-  };
 }
 
 private maskAuthPayload(value: unknown): unknown {
@@ -425,7 +412,7 @@ if (typeof value === 'string') {
     return order[level] >= order[this.cfg.level];
   }
 
-private log(level: LogLevel, key: string, ...args: any[]): void {
+private log(level: LogLevel, _key: string, ...args: any[]): void {
   if (!this.canRunAuthDebug()) {
     return;
   }

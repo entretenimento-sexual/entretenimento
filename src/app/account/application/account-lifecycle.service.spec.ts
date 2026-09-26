@@ -102,4 +102,32 @@ describe('AccountLifecycleService', () => {
         'Encerre suas Salas ativas e transfira ou arquive suas Comunidades antes de excluir a conta.',
     });
   });
+
+  it('usa orientação administrativa para ownership em exclusão moderada', () => {
+    const resolveReasonMessages = (
+      service as unknown as {
+        resolveReasonMessages(
+          error: unknown,
+          context?: string
+        ): Readonly<Record<string, string>>;
+      }
+    ).resolveReasonMessages.bind(service);
+
+    expect(
+      resolveReasonMessages(
+        {
+          details: {
+            reason: 'owned-resources-require-resolution',
+            activeOwnedRoomCount: 1,
+            ownedCommunityCount: 2,
+          },
+        },
+        'AccountLifecycleService.moderateScheduleDeletion$'
+      )
+    ).toEqual({
+      'owned-resources-require-resolution':
+        'Resolva as Salas ativas e as Comunidades sob responsabilidade do usuário antes de agendar a exclusão.',
+    });
+  });
+
 });

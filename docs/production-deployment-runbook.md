@@ -206,7 +206,11 @@ Implantar antes dos backfills que dependem deles:
 - `syncCommunityRankingFromDiscovery`;
 - `syncCommunityUserIndex`;
 - `syncVenuePublicLocation`;
-- `syncCommunityCapacityRegularization`.
+- `syncCommunityCapacityRegularization`;
+- `syncCommunityMemberManagementIndex`;
+- `syncCommunityMemberManagementIndexFromUser`;
+- `syncCommunityMemberSearchIndex`;
+- `syncCommunityMemberSearchIndexFromPublicProfile`.
 
 Os aliases com sufixo `Trigger` existem deliberadamente porque produção pode
 conter Functions HTTPS legadas sob o nome antigo. **Não apagar os exports legados
@@ -227,7 +231,9 @@ incluindo, conforme o diff:
 - comentários/respostas/reactions/moderação;
 - Discussões/Tópicos;
 - membership, convites e roster;
-- ownership/arquivamento;
+- `searchCommunityMembersPage`, quando a busca interna de membros fizer parte do diff;
+- busca/filtros administrativos de membros;
+- ownership/arquivamento e busca/shortlist de sucessão;
 - associação Official;
 - notificações/preferências;
 - gestão e leitura de Communities/Profiles.
@@ -247,10 +253,21 @@ Schedules entram depois dos writers/triggers que recebem seus efeitos:
 - `runCommunityExploreContentRetention`;
 - `runCommunityBoostLifecycle`;
 - reconciliadores periódicos de billing, se billing estiver aprovado.
+- reconciliador de suspensão moderada temporária
+  (`reconcileModerationSuspensions`) somente depois do índice
+  `users(accountStatus, suspensionEndsAt, __name__)` estar READY;
 
 Jobs destrutivos/retention/purge não devem ser o primeiro evento executado por
 uma nova versão. Confirmar configuração, elegibilidade e dry-run/inspection
 quando houver.
+
+**Descomissionamento legado fora da onda normal:** `cleanupOldData` e
+`moderateContent`, ambos vinculados à coleção raiz aposentada `posts`, foram
+retirados do código-fonte. Se ainda existirem em produção, não removê-los como
+efeito colateral de um deploy amplo. A exclusão deve ser uma ação explícita,
+somente após confirmar que não há escritor suportado para `posts`, inspecionar
+eventual dado residual e registrar rollback/estado anterior. A ausência desses
+exports no código não autoriza execução dessa remoção nesta fase.
 
 ### Onda F5 — demais domínios alterados
 
@@ -258,6 +275,25 @@ Media, chat, friendship, account lifecycle, notifications e subscriber
 experiences são implantados seletivamente depois das dependências transversais
 que consumirem. Não redeployar domínio sem diff somente para “uniformizar” a
 release.
+
+### Regra específica — kernel `Community × Local`
+
+A refatoração do kernel `social-space`, quando o diff estiver limitado a
+`src/app/core/domain/social-space.definition.ts`,
+`src/app/community/**` e testes/documentação de frontend, é **client-only**:
+
+- a lista de Functions desta mudança deve ser vazia;
+- não há backfill;
+- não há alteração de Firestore Rules, Storage Rules ou índices;
+- não há migração de dados;
+- não há mudança de entitlement, pricing, ownership ou capacidade;
+- `official_space` permanece somente como alias de compatibilidade no backend
+  e não deve ser transportado para a UI.
+
+Nesse caso, não redeployar Functions por conveniência. O kernel entra somente na
+onda de Hosting, que continua sendo a última onda do rollout geral. Se o
+`RELEASE_SHA` futuro também contiver mudanças reais de Functions, aplicar F1–F5
+normalmente para **essas** mudanças antes de publicar o Hosting.
 
 ## 7. Migrações/backfills — ordem e gates
 
@@ -300,6 +336,7 @@ Este é gate obrigatório antes do frontend que usa a projeção global v2.
 6. só então liberar o frontend dependente.
 
 O backfill legado que “toca” notificações para gerar summaries por Comunidade
+(`scripts/maintenance/backfill-community-notification-summaries-admin.mjs`)
 não faz parte automaticamente desta release. Ele só deve ser usado se auditoria
 mostrar lacunas nessa geração anterior, em uma ação explicitamente aprovada.
 
@@ -330,15 +367,83 @@ memberships.
 
 ### B6 — discovery legado, se necessário
 
-Usar o runner administrativo somente se a auditoria apontar perfis ainda não
-migrados. Ele usa dry-run por padrão e escrita real exige
-`BACKFILL_CONFIRM_WRITE=YES`.
+Usar o runner administrativo
+`scripts/maintenance/backfill-public-profile-discovery-admin.mjs` somente se a
+auditoria apontar perfis ainda não migrados. Ele usa dry-run por padrão e escrita
+real exige `BACKFILL_CONFIRM_WRITE=YES`.
 
 ### B7 — cleanup de `ageVerification`
 
 Não é parte do rollout normal. É uma operação destrutiva separada, ainda que
 limitada ao campo legado. Só pode ocorrer após novo dry-run e GO específico.
 Execução real exige `LEGACY_AGE_CLEANUP_CONFIRM=true`.
+
+### B8 — índice administrativo de membros/sucessão
+
+Somente quando a release contiver busca server-side de membros e sucessores:
+
+1. publicar os índices de `community_member_management_index` em T0 e
+   aguardar todos ficarem `READY`;
+2. implantar `syncCommunityMemberManagementIndex` e
+   `syncCommunityMemberManagementIndexFromUser` na F2;
+3. rodar `npm run maintenance:community-member-management-index` com
+   `COMMUNITY_MEMBER_MANAGEMENT_INDEX_DRY_RUN=true`;
+4. revisar `scannedCommunities`, `scannedMemberships`, `projected`,
+   `skipped`, `failures`, qualquer truncamento e também:
+   - `searchPrefixCompositeIndexCount`;
+   - `averageSearchPrefixesPerProjection`;
+   - `maxSearchPrefixesPerProjection`;
+   - `estimatedSearchPrefixCompositeEntries`;
+   a escrita real deve ser abortada se a amplificação projetada ficar fora do
+   baseline/orçamento aprovado para a release;
+5. escrita real exige simultaneamente:
+   - `COMMUNITY_MEMBER_MANAGEMENT_INDEX_DRY_RUN=false`;
+   - `COMMUNITY_MEMBER_MANAGEMENT_INDEX_CONFIRM=true`;
+6. somente depois do backfill verde implantar em F3 as versões consumidoras de
+   `getCommunityMembersForManagement` e
+   `getCommunityOwnershipCandidatesPage`;
+7. Hosting com busca/filtros permanece depois de F3 e Rules.
+
+A projeção é derivada e descartável. O backfill **não** altera membership,
+papel, elegibilidade, ownership, capacidade ou billing.
+
+
+### B9 — índice de busca interna de membros
+
+Somente quando a release contiver a busca interna de membros:
+
+1. publicar o índice de `community_member_search_index` em T0 e aguardar
+   estado `READY`;
+2. implantar `syncCommunityMemberSearchIndex` e
+   `syncCommunityMemberSearchIndexFromPublicProfile` na F2;
+3. rodar `npm run maintenance:community-member-search-index` com
+   `COMMUNITY_MEMBER_SEARCH_INDEX_DRY_RUN=true`;
+4. revisar `scannedCommunities`, `scannedMemberships`, `projected`,
+   `skipped`, `failures`, truncamento e também:
+   - `searchPrefixCompositeIndexCount`;
+   - `averageSearchPrefixesPerProjection`;
+   - `maxSearchPrefixesPerProjection`;
+   - `estimatedSearchPrefixCompositeEntries`;
+   a escrita real deve ser abortada se a amplificação de índice/writes ficar
+   fora do baseline/orçamento aprovado;
+5. a aplicação real exige simultaneamente:
+   - `COMMUNITY_MEMBER_SEARCH_INDEX_DRY_RUN=false`;
+   - `COMMUNITY_MEMBER_SEARCH_INDEX_CONFIRM=true`;
+6. validar amostras garantindo que somente nickname/profileId públicos estejam
+   presentes e que nenhum campo de `users/{uid}` tenha sido projetado;
+7. somente depois do backfill verde implantar `searchCommunityMembersPage` em
+   F3;
+8. publicar Rules compatíveis mantendo
+   `community_member_search_index` backend-only;
+9. Hosting com o campo de busca permanece por último.
+
+A projeção é derivada e descartável. Ela nunca concede acesso e nunca substitui
+a revalidação de membership, maioridade pública ou bloqueio bilateral. Rollback
+não deve alterar memberships nem apagar o índice durante a janela emergencial.
+
+Tópicos/Discussões permanecem fora deste rollout enquanto o gate canônico de
+produto estiver congelado. A busca interna de membros não autoriza nem reativa
+Tópicos.
 
 ## 8. Firestore Rules e Storage Rules
 
@@ -370,6 +475,23 @@ firebase deploy --only hosting --project entretenimento-sexual
 
 Após publicação, validar tanto navegação nova quanto refresh/deep links, além de
 uma sessão já aberta antes do deploy para detectar incompatibilidades de cache.
+
+### 9.1 — classificação do delta de janela limitada de DOM
+
+A limitação de DOM de Discovery/Mural é um delta de frontend. Isoladamente, ela
+não exige alteração de Functions, Firestore Rules, Storage Rules, índices,
+schedulers, backfill ou migração de dados. O page size de backend permanece o
+mesmo; apenas a quantidade de cards/posts simultaneamente montados no DOM é
+limitada.
+
+Portanto, **se este delta for isolado em uma release própria**, a implantação é
+Hosting-only depois dos gates normais de build/test/staging. O rollback também é
+Hosting-only, reconstruindo o `ROLLBACK_SHA`.
+
+Esta classificação não pode ser extrapolada para o branch inteiro. Antes da
+release real, o diff `ROLLBACK_SHA..RELEASE_SHA` continua sendo a autoridade
+para decidir F1–F5, Rules, índices e backfills. Nunca redeployar Functions sem
+mudança apenas porque o frontend foi alterado.
 
 ## 10. Smoke tests de produção
 
@@ -420,15 +542,93 @@ real nem operações destrutivas apenas para smoke test.
 - discovery e cache/paginação;
 - preview/deep links;
 - Mural, comentários, respostas, reactions e moderação;
-- Discussões: lista, detalhe, resposta e moderação;
+- Discussões: lista, detalhe, resposta e moderação, somente quando o gate canônico do produto estiver habilitado;
 - membership, solicitações e convites;
 - roster e gestão;
+- busca interna de membros por nickname público, com mínimo de 2 caracteres,
+  paginação backend e sem filtragem client-side;
+- busca por nickname com acento deve funcionar com termo equivalente sem acento;
+- nome civil/privado que não seja o nickname público não pode produzir resultado;
+- visitante, membership pendente ou bloqueada não pode enumerar integrantes;
+- bloqueio bilateral remove o alvo dos resultados;
+- mudança de nickname público converge para o índice sem alterar membership;
+- cursor adulterado ou pertencente a outra consulta é rejeitado com erro seguro;
+- estado sem resultado não é tratado como falha;
+- rate limit da busca usa apresentação canônica e não expõe termo pesquisado em log;
+- em Comunidade sintética com 500+ membros, busca administrativa por nome/apelido sem scan
+  client-side, filtro por papel, combinação busca+papel e paginação sem
+  duplicação/omissão;
+- bloqueados preservam filtro pelo papel anterior quando disponível;
+- ownership abre shortlist de admins/moderadores, permite ampliar para todos os
+  elegíveis e pesquisar no servidor;
+- candidato que perde papel/elegibilidade entre listagem e confirmação é
+  recusado pela revalidação canônica;
 - ownership/transfer/archive sem transferência automática indevida;
 - Official/Business respeitando autoridade e entitlement;
 - capacidade/regularização;
 - notificações/unread global e detalhe paginado;
 - bloqueio bilateral em leitura/interação;
 - sponsored/Boost sem herdar dívida entre proprietários.
+
+### S4.1 — kernel Community × Local
+
+Além do smoke geral de Comunidades:
+
+- abrir `/dashboard/comunidades` e `/dashboard/locais` por navegação e deep link;
+- confirmar que cards de Local continuam retornando para `/dashboard/locais`;
+- confirmar que “Minhas comunidades”, filtros por interesse, Discussões,
+  Membros, busca de membros, regras, lifecycle, capacidade, ownership e moderação aparecem apenas
+  quando a capability correspondente estiver habilitada;
+- confirmar que Local mantém “Seguir”, “Solicitar acesso”, “Novidades”,
+  localização pública e vínculo com Comunidade oficial;
+- confirmar que owner de Local aparece como “Responsável” e owner de Comunidade
+  como “Proprietário”;
+- confirmar que feed/fotos, solicitações e saída preservam comportamento e
+  mensagens sem branches literais na view;
+- confirmar que nenhuma superfície de Room foi reativada;
+- confirmar que nenhum texto/estado `official_space` aparece no frontend.
+
+Para uma release que contenha somente esta refatoração, rollback operacional é
+rebuild/redeploy do Hosting a partir do `ROLLBACK_SHA`; não há rollback de
+Functions, Rules, índices ou dados associado a este delta.
+
+### S4.2 — sessões longas / janela limitada de DOM
+
+Executar com massa de teste suficiente para ultrapassar seis páginas sem alterar
+o page size canônico:
+
+- Discovery: carregar mais de 72 cards e confirmar que no máximo 72
+  `.community-card-shell` orgânicos permanecem montados simultaneamente;
+- Mural: carregar mais de 60 posts e confirmar que no máximo 60
+  `.community-post` permanecem montados simultaneamente;
+- confirmar que “Ver anteriores/Ver seguintes” e
+  “Mais recentes/Mais antigas” navegam apenas por conteúdo já carregado e não
+  disparam nova chamada de paginação;
+- confirmar que a chamada ao backend ocorre somente quando o usuário alcança a
+  borda final carregada e aciona o “Ver mais” canônico;
+- em cada append e troca de janela, medir visualmente/por teste automatizado que
+  a âncora de leitura preserva sua posição no viewport, sem salto perceptível;
+- com o Mural numa janela antiga, receber novos posts realtime: a leitura não
+  deve ser puxada para o topo; o indicador de novas publicações deve aparecer;
+- acionar o indicador de novidades e confirmar retorno ao topo, foco/highlight e
+  comportamento de `prefers-reduced-motion`;
+- navegar por uma resposta/highlight para um post já carregado, porém fora da
+  janela atual: a janela deve revelá-lo antes de foco/highlight, sem nova
+  hidratação desnecessária;
+- publicar um post próprio enquanto estiver numa janela antiga e confirmar que o
+  post criado é revelado sem consumir/ocultar novidades externas pendentes;
+- abrir comentários/menus, avançar a janela e retornar, confirmando que não há
+  foco órfão, menu preso ou erro de acessibilidade;
+- em “Minhas comunidades”, alterar busca/filtro depois de muitas páginas
+  carregadas: a janela deve reiniciar no começo do recorte filtrado sem perder
+  o conjunto carregado no estado;
+- recarregar/reentrar no Discovery após uma sessão longa e confirmar que o cache
+  continua preservando paginação/itens já carregados conforme o contrato atual;
+  o limite de 72 é de DOM, não de cache.
+
+Para este delta, qualquer crescimento do DOM acima desses tetos, salto de scroll,
+perda de foco dirigido ou nova chamada de backend provocada por navegação local
+é critério de **NO-GO**.
 
 ### S5 — integração transversal
 
@@ -498,6 +698,12 @@ forward. Não importar Firestore completo para “desfazer” um backfill sem an
 de impacto, pois isso pode sobrescrever escritas legítimas feitas depois do
 snapshot.
 
+Para o índice `community_member_management_index`, rollback de F3/Hosting não
+exige apagar a projeção: ela não concede autorização e pode permanecer inerte.
+Se um sincronizador de F2 produzir writes anômalos, reverter somente a Function
+afetada e interromper o B8. Nunca reconstruir membership, papel ou ownership a
+partir dessa projeção.
+
 Operações destrutivas, como cleanup de campo legado, ficam fora da janela
 principal justamente para manter essa propriedade.
 
@@ -506,6 +712,23 @@ principal justamente para manter essa propriedade.
 Se houver ativação de webhook na mesma release (somente com GO específico),
 registrar a configuração anterior antes do apply e reverter o endpoint/eventos
 separadamente. Nunca imprimir ou versionar API keys/tokens.
+
+A capability de mudança de valor da recorrência é um gate separado do checkout
+recorrente. Antes de considerar `ASAAS_SUBSCRIPTION_UPDATE_ENABLED=true`:
+
+- validar schedule + cancel de downgrade no Sandbox;
+- confirmar que alteração de valor com cartão está habilitada para a conta
+  Asaas de produção;
+- validar que `updatePendingPayments: true` converge uma cobrança do próximo
+  ciclo já criada sem alterar períodos pagos;
+- validar cobrança menor recebida antes de `endsAt` e settlement somente na
+  data efetiva;
+- validar cancelamento do downgrade antes da data efetiva e restauração do
+  valor recorrente atual;
+- manter a flag **false/ausente** se qualquer requisito não estiver confirmado.
+
+Ativar `ASAAS_RECURRING_ENABLED` não implica ativar
+`ASAAS_SUBSCRIPTION_UPDATE_ENABLED`.
 
 ## 13. Janela operacional
 
@@ -539,17 +762,51 @@ Não iniciar uma nova onda enquanto a anterior não estiver explicitamente verde
 - [ ] backup Firestore concluído;
 - [ ] alertas/dashboards ativos;
 - [ ] índices novos READY;
+- [ ] índice de suspensões moderadas temporárias READY antes do reconciliador;
 - [ ] diff de Rules classificado e compatível;
 - [ ] Functions a implantar listadas por onda;
 - [ ] aliases de triggers legados preservados;
-- [ ] dry-runs dos backfills revisados;
+- [ ] dry-runs dos backfills revisados, incluindo B8 quando aplicável;
 - [ ] backfills obrigatórios concluídos antes do frontend;
 - [ ] App Check e Web Push validados;
 - [ ] billing recorrente explicitamente incluído ou explicitamente fora da janela;
+- [ ] capability de update de recorrência Asaas homologada ou
+      `ASAAS_SUBSCRIPTION_UPDATE_ENABLED` mantida desabilitada;
 - [ ] smoke test accounts/dados preparados;
+- [ ] smoke de sessão longa confirma teto de 72 cards no Discovery e 60 posts
+      no Mural, âncora de scroll e navegação local sem chamadas extras;
 - [ ] critérios de abortar e responsáveis conhecidos;
 - [ ] rollback SHA buildável e procedimentos revisados;
 - [ ] nenhuma mudança de ranking/preço/custo não relacionada misturada na release.
+
+## 14.1. Compatibilidade temporária a retirar em release posterior
+
+Além dos aliases de trigger já documentados, permanecem temporariamente
+publicados:
+
+- `getCommunityOwnershipCandidates`, para clientes anteriores à paginação
+  administrativa. Nenhum frontend novo pode consumi-lo; o caminho canônico é
+  `getCommunityOwnershipCandidatesPage`;
+- `unpublishPhoto` e `unpublishVideo`, exclusivamente como compatibilidade
+  fail-closed para clientes antigos que ainda tentem o fluxo removido de
+  “despublicar mantendo privado”;
+- `normalizeLegacyVideoModeration`, como migração idempotente de publicações
+  criadas sob a regra antiga de pré-moderação.
+
+Nenhum frontend novo deve introduzir dependência nesses três endpoints de mídia.
+
+A remoção deve ocorrer em release separada e somente quando:
+
+- Hosting novo estiver estável e sem rollback pendente;
+- métricas de invocação confirmarem ausência de uso do callable legado durante
+  a janela de observação definida para a release;
+- os caminhos canônicos substitutos estiverem com erro, latência e custo dentro
+  do baseline;
+- não houver sessão/cache de cliente anterior considerada suportada pela janela;
+- rollback da remoção estiver documentado.
+
+A retirada não deve ser misturada com mudanças de Rules, ranking, pricing,
+billing ou capacidade.
 
 ## 15. Encerramento da janela
 

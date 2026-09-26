@@ -21,6 +21,17 @@ describe('community ownership model', () => {
     expect(result?.items).toHaveLength(1);
   });
 
+  it('aceita cursor opaco da busca administrativa', () => {
+    const opaqueCursor = `v1_${'b'.repeat(180)}`;
+    const result = normalizeCommunityOwnershipCandidatesResponse({
+      items: [],
+      nextCursor: opaqueCursor,
+      generatedAt: 1,
+    });
+
+    expect(result?.nextCursor).toBe(opaqueCursor);
+  });
+
   it('aceita fim de paginação explícito', () => {
     const result = normalizeCommunityOwnershipCandidatesResponse({
       items: [],

@@ -1,4 +1,5 @@
 import type { CommunityPreviewCard } from '../data-access/community-preview.model';
+import { getCommunitySocialSpaceAdapter } from './community-social-space.adapter';
 
 type CommunityVisualIdentity = Pick<
   CommunityPreviewCard,
@@ -13,7 +14,9 @@ export function communityInitials(item: CommunityVisualIdentity): string {
     .filter(Boolean);
 
   if (words.length === 0) {
-    return item.source.type === 'venue' ? 'L' : 'C';
+    return getCommunitySocialSpaceAdapter(
+      item.source.type
+    ).definition.label.slice(0, 1).toLocaleUpperCase('pt-BR');
   }
 
   const initials = words.length === 1

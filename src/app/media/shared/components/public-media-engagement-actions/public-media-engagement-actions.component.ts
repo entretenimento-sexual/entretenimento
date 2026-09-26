@@ -128,14 +128,15 @@ export class PublicMediaEngagementActionsComponent {
     this.commentCount().toLocaleString('pt-BR')
   );
 
-  private readonly resetTransientState = effect(() => {
+  constructor() {
+    effect(() => {
     this.identityKey();
     this.likedOverride.set(null);
     this.reactionCountOverride.set(null);
     this.announcement.set('');
   });
 
-  private readonly reconcileReactionState = effect(() => {
+    effect(() => {
     const override = this.likedOverride();
 
     if (override !== null && this.likedFromServer() === override) {
@@ -149,6 +150,7 @@ export class PublicMediaEngagementActionsComponent {
       this.reactionCountOverride.set(null);
     }
   });
+  }
 
   toggleLike(): void {
     if (!this.reactionsEnabled() || this.reactionPending()) {

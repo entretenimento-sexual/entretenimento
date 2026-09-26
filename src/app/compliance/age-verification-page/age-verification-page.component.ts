@@ -121,7 +121,12 @@ export class AgeVerificationPageComponent implements OnInit {
           message:
             'Sua confirmação foi registrada. Estamos preparando a próxima etapa.',
         });
-        this.continueAfterAgeStep();
+
+        /**
+         * A navegação pertence exclusivamente à projeção autoritativa
+         * adultAccessAllowed$. A callable confirma a persistência, mas não deve
+         * competir com o listener realtime iniciando uma segunda navegação.
+         */
       });
   }
 
