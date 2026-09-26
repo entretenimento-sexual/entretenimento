@@ -73,11 +73,6 @@ export interface IPublicPhotoBase {
    */
   officialPhoto?: IOfficialPhotoProjection | null;
 
-  /** Monetização/placement; independente de officialPhoto. */
-  boostActive?: boolean;
-  boostPriority?: number;
-  boostedUntil?: number | null;
-
   ownerNickname?: string | null;
   ownerPhotoURL?: string | null;
   ownerGender?: string | null;
