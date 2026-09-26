@@ -5,8 +5,6 @@ import {
   advertiserInteractionFieldsChanged,
   isPhotoPromotionPublicProjectionEligible,
   photoPublicationEligibilityChanged,
-  publicPhotoPromotionEligibilityChanged,
-  publicProfilePromotionEligibilityChanged,
 } from './photo-promotion-target.policy';
 
 const NOW = 1_800_000_000_000;
@@ -16,47 +14,27 @@ function timestamp(value: number) {
 }
 
 describe('photo promotion target policy', () => {
-  it('ignora writes de métricas que não alteram elegibilidade', () => {
+  it('ignora writes de publicação que não alteram elegibilidade', () => {
     assert.equal(
       photoPublicationEligibilityChanged(
         {
           isPublished: true,
           visibility: 'PUBLIC',
           moderationStatus: 'APPROVED',
-          viewsCount: 10,
+          updatedAt: 1,
         },
         {
           isPublished: true,
           visibility: 'PUBLIC',
           moderationStatus: 'APPROVED',
-          viewsCount: 11,
-        }
-      ),
-      false
-    );
-
-    assert.equal(
-      publicPhotoPromotionEligibilityChanged(
-        {
-          visibility: 'PUBLIC',
-          moderationStatus: 'APPROVED',
-          ageEligibilityVerifiedAdult: true,
-          ageEligibilityValidUntil: timestamp(NOW + 60_000),
-          viewsCount: 10,
-        },
-        {
-          visibility: 'PUBLIC',
-          moderationStatus: 'APPROVED',
-          ageEligibilityVerifiedAdult: true,
-          ageEligibilityValidUntil: timestamp(NOW + 60_000),
-          viewsCount: 11,
+          updatedAt: 2,
         }
       ),
       false
     );
   });
 
-  it('detecta mudanças que retiram eligibility da foto', () => {
+  it('detecta mudança autoritativa que retira eligibility da foto', () => {
     assert.equal(
       photoPublicationEligibilityChanged(
         {
@@ -68,24 +46,6 @@ describe('photo promotion target policy', () => {
           isPublished: false,
           visibility: 'PUBLIC',
           moderationStatus: 'APPROVED',
-        }
-      ),
-      true
-    );
-
-    assert.equal(
-      publicPhotoPromotionEligibilityChanged(
-        {
-          visibility: 'PUBLIC',
-          moderationStatus: 'APPROVED',
-          ageEligibilityVerifiedAdult: true,
-          ageEligibilityValidUntil: timestamp(NOW + 60_000),
-        },
-        {
-          visibility: 'PRIVATE',
-          moderationStatus: 'APPROVED',
-          ageEligibilityVerifiedAdult: true,
-          ageEligibilityValidUntil: timestamp(NOW + 60_000),
         }
       ),
       true
@@ -162,31 +122,4 @@ describe('photo promotion target policy', () => {
     );
   });
 
-  it('ignora métricas do perfil e detecta mudança de validade etária', () => {
-    const before = {
-      ageEligibilityVerifiedAdult: true,
-      ageEligibilityAdultAccessAllowed: true,
-      ageEligibilityValidUntil: timestamp(NOW + 60_000),
-      viewsCount: 10,
-    };
-
-    assert.equal(
-      publicProfilePromotionEligibilityChanged(
-        before,
-        { ...before, viewsCount: 11 }
-      ),
-      false
-    );
-
-    assert.equal(
-      publicProfilePromotionEligibilityChanged(
-        before,
-        {
-          ...before,
-          ageEligibilityValidUntil: timestamp(NOW + 30_000),
-        }
-      ),
-      true
-    );
-  });
 });
