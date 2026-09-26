@@ -83,7 +83,7 @@ describe('AgeVerificationPageComponent', () => {
     vi.restoreAllMocks();
   });
 
-  it('registra uma autodeclaração explícita e avança sem revisão humana', async () => {
+  it('registra a autodeclaração e deixa a projeção backend autorizar o avanço', async () => {
     component.confirmAdult();
 
     expect(ageEligibilityMock.acceptSelfDeclaration$).toHaveBeenCalledTimes(1);
@@ -93,8 +93,12 @@ describe('AgeVerificationPageComponent', () => {
         title: 'Maioridade declarada',
       })
     );
+    expect(router.navigate).not.toHaveBeenCalled();
+
+    adultAccessAllowed$.next(true);
 
     await vi.waitFor(() => {
+      expect(router.navigate).toHaveBeenCalledTimes(1);
       expect(router.navigate).toHaveBeenCalledWith(
         ['/adulto/confirmar'],
         {
@@ -177,6 +181,18 @@ describe('AgeVerificationPageComponent', () => {
           },
         })
       );
+    });
+  });
+
+  it('não cria uma segunda navegação quando a callable conclui antes da projeção realtime', async () => {
+    component.confirmAdult();
+
+    expect(router.navigate).not.toHaveBeenCalled();
+
+    adultAccessAllowed$.next(true);
+
+    await vi.waitFor(() => {
+      expect(router.navigate).toHaveBeenCalledTimes(1);
     });
   });
 });
