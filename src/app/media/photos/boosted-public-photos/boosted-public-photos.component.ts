@@ -2,11 +2,13 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterModule } from '@angular/router';
-import { Observable, combineLatest } from 'rxjs';
+import { EMPTY, Observable, combineLatest } from 'rxjs';
 import {
+  catchError,
   distinctUntilChanged,
   map,
   shareReplay,
+  switchMap,
   take,
 } from 'rxjs/operators';
 
@@ -19,8 +21,7 @@ import {
 import { NetworkStatusService } from 'src/app/core/services/network/network-status.service';
 import { ContentStateComponent } from 'src/app/shared/content-state/content-state.component';
 import { PublicPhotoCardComponent } from '../../shared/components/public-photo-card/public-photo-card.component';
-import { PublicPhotoLightboxComponent } from '../../shared/components/public-photo-lightbox/public-photo-lightbox.component';
-import { PublicPhotoViewerStateService } from '../../shared/components/public-photo-lightbox/public-photo-viewer-state.service';
+import { PublicPhotoViewerLauncherService } from '../photo-viewer/public-photo-viewer-launcher.service';
 
 interface BoostedPhotosViewModel extends PublicPhotoDiscoveryFeedState {
   offline: boolean;
@@ -41,9 +42,8 @@ interface BoostedPhotosViewModel extends PublicPhotoDiscoveryFeedState {
     RouterModule,
     ContentStateComponent,
     PublicPhotoCardComponent,
-    PublicPhotoLightboxComponent,
   ],
-  providers: [PublicPhotoDiscoveryFeedService, PublicPhotoViewerStateService],
+  providers: [PublicPhotoDiscoveryFeedService],
   templateUrl: './boosted-public-photos.component.html',
   styleUrls: ['./boosted-public-photos.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -52,9 +52,7 @@ export class BoostedPublicPhotosComponent {
   private readonly discovery = inject(PublicPhotoDiscoveryFeedService);
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly network = inject(NetworkStatusService);
-  private readonly viewer = inject(PublicPhotoViewerStateService);
-
-  readonly selectedIndex$ = this.viewer.selectedIndex$;
+  private readonly photoViewer = inject(PublicPhotoViewerLauncherService);
 
   private readonly loadState$: Observable<PublicPhotoDiscoveryFeedState> =
     this.discovery.connect$('boosted').pipe(
@@ -118,25 +116,33 @@ export class BoostedPublicPhotosComponent {
   }
 
   openPhoto(index: number): void {
-    this.vm$.pipe(take(1)).subscribe((vm) => {
-      this.viewer.open(index, vm.items.length);
-    });
-  }
+    this.vm$
+      .pipe(
+        take(1),
+        switchMap((vm) => {
+          const selected = vm.items[index];
 
-  closeViewer(): void {
-    this.viewer.close();
-  }
+          if (!selected) {
+            this.errorNotifier.showWarning(
+              'Esta foto não está mais disponível.'
+            );
+            return EMPTY;
+          }
 
-  prev(): void {
-    this.vm$.pipe(take(1)).subscribe((vm) => {
-      this.viewer.previous(vm.items.length);
-    });
-  }
-
-  next(): void {
-    this.vm$.pipe(take(1)).subscribe((vm) => {
-      this.viewer.next(vm.items.length);
-    });
+          return this.photoViewer.open$({
+            items: vm.items,
+            selected,
+            source: 'boosted',
+          });
+        }),
+        catchError(() => {
+          this.errorNotifier.showError(
+            'Não foi possível abrir esta foto turbinada agora.'
+          );
+          return EMPTY;
+        })
+      )
+      .subscribe();
   }
 
   trackByPhotoId(_index: number, item: IPublicPhotoItem): string {
