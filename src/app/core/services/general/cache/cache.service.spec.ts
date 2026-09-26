@@ -221,16 +221,28 @@ describe('CacheService', () => {
     service.set('search:user-1:hash', [{ uid: 'user-2' }], 60_000, {
       persist: false,
     });
+    service.set(
+      'media:public:snapshot:uid:user-1:top-photos',
+      [{ id: 'photo-1', ownerUid: 'user-2' }],
+      60_000,
+      { persist: false }
+    );
 
     await firstValueFrom(service.clearSensitiveSessionCache$());
 
     expect(service.has('preferences:user-1')).toBe(false);
     expect(service.has('friendSettings:user-1')).toBe(false);
     expect(service.has('search:user-1:hash')).toBe(false);
+    expect(
+      service.has('media:public:snapshot:uid:user-1:top-photos')
+    ).toBe(false);
 
     expect(deletePersistentByPrefix).toHaveBeenCalledWith('preferences:');
     expect(deletePersistentByPrefix).toHaveBeenCalledWith('friendSettings:');
     expect(deletePersistentByPrefix).toHaveBeenCalledWith('search:');
+    expect(deletePersistentByPrefix).toHaveBeenCalledWith(
+      'media:public:snapshot:'
+    );
     expect(deletePersistentMany).toHaveBeenCalledWith(
       expect.arrayContaining([
         'friendSettings',

@@ -107,6 +107,7 @@ export class CacheService {
     'room:',
     'direct_',
     'discovery:public_profiles:uids:',
+    'media:public:snapshot:',
   ];
 
   private readonly noisyPrefixes: ReadonlyArray<string> = ['validation:'];

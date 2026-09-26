@@ -47,6 +47,7 @@ interface PublicPhotoAccessCacheEntry {
 
 const MAX_ITEMS_PER_REQUEST = 32;
 const CACHE_EXPIRY_SAFETY_MS = 30_000;
+export const PUBLIC_PHOTO_ACCESS_CACHE_MAX_ENTRIES = 192;
 
 export function isSupportedPublicPhotoAccessAudience(value: unknown): boolean {
   const visibility = String(value ?? '').trim().toUpperCase();
@@ -77,10 +78,7 @@ export class PublicPhotoAccessService {
       .subscribe((uid) => {
         const normalizedUid = uid?.trim() || null;
 
-        if (
-          this.lastSessionUid !== undefined &&
-          this.lastSessionUid !== normalizedUid
-        ) {
+        if (this.lastSessionUid !== normalizedUid) {
           this.accessCache.clear();
         }
 
@@ -107,6 +105,7 @@ export class PublicPhotoAccessService {
       return of([]);
     }
 
+    const sessionScope = this.currentSessionScope();
     const resolvedUrls = new Map<string, string>();
     const projectionByIdentity = new Map(
       eligible.map((projection) => [
@@ -118,22 +117,15 @@ export class PublicPhotoAccessService {
     const now = Date.now();
 
     for (const projection of eligible) {
-      const cacheKey = this.buildCacheKey(projection);
-      const cached = this.accessCache.get(cacheKey);
+      const cacheKey = this.buildCacheKey(projection, sessionScope);
+      const cached = this.getCachedAccess(cacheKey, now);
 
-      if (
-        cached &&
-        cached.expiresAt > now + CACHE_EXPIRY_SAFETY_MS
-      ) {
+      if (cached) {
         resolvedUrls.set(
           this.buildIdentityKey(projection.ownerUid, projection.id),
           cached.url
         );
         continue;
-      }
-
-      if (cached) {
-        this.accessCache.delete(cacheKey);
       }
 
       pending.push(projection);
@@ -149,6 +141,10 @@ export class PublicPhotoAccessService {
 
     return forkJoin(requests).pipe(
       map((responses) => {
+        if (sessionScope !== this.currentSessionScope()) {
+          return [];
+        }
+
         for (const response of responses) {
           for (const accessItem of response.items) {
             const identityKey = this.buildIdentityKey(
@@ -162,10 +158,13 @@ export class PublicPhotoAccessService {
             }
 
             resolvedUrls.set(identityKey, accessItem.url);
-            this.accessCache.set(this.buildCacheKey(projection), {
-              url: accessItem.url,
-              expiresAt: accessItem.expiresAt,
-            });
+            this.setCachedAccess(
+              this.buildCacheKey(projection, sessionScope),
+              {
+                url: accessItem.url,
+                expiresAt: accessItem.expiresAt,
+              }
+            );
           }
         }
 
@@ -235,14 +234,87 @@ export class PublicPhotoAccessService {
     );
   }
 
-  private buildCacheKey(projection: IPublicPhotoProjection): string {
-    return buildPublicMediaAccessCacheKey({
+  private buildCacheKey(
+    projection: IPublicPhotoProjection,
+    sessionScope = this.currentSessionScope()
+  ): string {
+    const mediaKey = buildPublicMediaAccessCacheKey({
       namespace: 'public-photo-access',
       ownerUid: projection.ownerUid,
       mediaId: projection.id,
       assetVersion: projection.assetVersion,
       publishedAt: projection.publishedAt,
     });
+
+    return `${sessionScope}:${mediaKey}`;
+  }
+
+  private currentSessionScope(): string {
+    if (this.lastSessionUid === undefined) {
+      return 'session:pending';
+    }
+
+    return this.lastSessionUid
+      ? `session:uid:${this.lastSessionUid}`
+      : 'session:anonymous';
+  }
+
+  private getCachedAccess(
+    cacheKey: string,
+    now: number
+  ): PublicPhotoAccessCacheEntry | null {
+    const cached = this.accessCache.get(cacheKey);
+
+    if (
+      !cached ||
+      !this.isHttpUrl(cached.url) ||
+      !Number.isFinite(cached.expiresAt) ||
+      cached.expiresAt <= now + CACHE_EXPIRY_SAFETY_MS
+    ) {
+      if (cached) {
+        this.accessCache.delete(cacheKey);
+      }
+      return null;
+    }
+
+    // Map mantém ordem de inserção: remover + reinserir promove para MRU.
+    this.accessCache.delete(cacheKey);
+    this.accessCache.set(cacheKey, cached);
+    return cached;
+  }
+
+  private setCachedAccess(
+    cacheKey: string,
+    entry: PublicPhotoAccessCacheEntry
+  ): void {
+    if (
+      !cacheKey ||
+      !this.isHttpUrl(entry.url) ||
+      !Number.isFinite(entry.expiresAt)
+    ) {
+      return;
+    }
+
+    this.accessCache.delete(cacheKey);
+    this.accessCache.set(cacheKey, entry);
+    this.enforceAccessCacheLimit();
+  }
+
+  private enforceAccessCacheLimit(): void {
+    while (
+      this.accessCache.size >
+      PUBLIC_PHOTO_ACCESS_CACHE_MAX_ENTRIES
+    ) {
+      const oldestKey = this.accessCache.keys().next().value as
+        | string
+        | undefined;
+
+      if (!oldestKey) {
+        break;
+      }
+
+      this.accessCache.delete(oldestKey);
+    }
   }
 
   private buildIdentityKey(ownerUid: string, photoId: string): string {
