@@ -350,21 +350,15 @@ export class PublicVideoAccessService {
     error: unknown,
     context: Record<string, unknown>
   ): void {
-    try {
-      const normalizedError = error instanceof Error
-        ? error
-        : new Error('Erro ao autorizar acesso temporário ao vídeo.');
-
-      (normalizedError as any).original = error;
-      (normalizedError as any).context = {
+    this.errorHandler.reportSilently(
+      error,
+      String(context['op'] ?? 'authorizeVideoAccess'),
+      'Erro ao autorizar acesso temporário ao vídeo.',
+      {
         scope: 'PublicVideoAccessService',
         ...context,
-      };
-      (normalizedError as any).skipUserNotification = true;
-
-      this.errorHandler.handleError(normalizedError);
-    } catch {
-      // noop
-    }
+      }
+    );
   }
+
 }

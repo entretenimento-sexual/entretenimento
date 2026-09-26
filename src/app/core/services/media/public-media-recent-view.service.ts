@@ -103,26 +103,15 @@ export class PublicMediaRecentViewService {
   }
 
   private reportError(error: unknown, candidateCount: number): void {
-    try {
-      const normalized = error instanceof Error
-        ? error
-        : new Error('Falha ao resolver mídias vistas recentemente.');
-      const contextual = normalized as Error & {
-        original?: unknown;
-        context?: Record<string, unknown>;
-        skipUserNotification?: boolean;
-      };
-
-      contextual.original = error;
-      contextual.context = {
+    this.globalError.reportSilently(
+      error,
+      'resolveRecentViewedKeys$',
+      'Falha ao resolver mídias vistas recentemente.',
+      {
         scope: 'PublicMediaRecentViewService',
-        op: 'resolveRecentViewedKeys$',
         candidateCount,
-      };
-      contextual.skipUserNotification = true;
-      this.globalError.handleError(contextual);
-    } catch {
-      // A falha de diagnóstico não deve afetar o feed.
-    }
+      }
+    );
   }
+
 }

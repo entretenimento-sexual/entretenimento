@@ -167,24 +167,17 @@ export class PublicProfileVideoPaginationService {
     pageSize: number,
     hasCursor: boolean
   ): void {
-    try {
-      const normalized = error instanceof Error
-        ? error
-        : new Error('Falha ao paginar vídeos públicos do perfil.');
-
-      (normalized as any).original = error;
-      (normalized as any).context = {
+    this.globalErrorHandler.reportSilently(
+      error,
+      'loadPage$',
+      'Falha ao paginar vídeos públicos do perfil.',
+      {
         scope: 'PublicProfileVideoPaginationService',
-        op: 'loadPage$',
         hasOwnerUid: !!ownerUid,
         pageSize,
         hasCursor,
-      };
-      (normalized as any).skipUserNotification = true;
-
-      this.globalErrorHandler.handleError(normalized);
-    } catch {
-      // O diagnóstico não deve interromper a propagação do erro ao componente.
-    }
+      }
+    );
   }
+
 }
