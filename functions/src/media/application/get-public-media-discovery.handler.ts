@@ -288,7 +288,6 @@ function applyOrderingAndCursor(input: {
   mediaType: PublicMediaDiscoveryType;
   mode: PublicMediaDiscoveryMode;
   cursor: PublicMediaDiscoveryCursor | null;
-  nowMs: number;
 }): FirebaseFirestore.Query {
   let query = input.query;
 
@@ -449,7 +448,6 @@ export const getPublicMediaDiscovery = onCall<PublicMediaDiscoveryRequest>(
       mediaType,
       mode,
       cursor,
-      nowMs,
     });
 
     const maxScanned = Math.min(
