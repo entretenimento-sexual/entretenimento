@@ -252,7 +252,7 @@ async function run() {
       commentsPolicy: 'EVERYONE',
       reactionsEnabled: true,
     });
-    assert.equal(publicationResponse.data.moderationStatus, 'APPROVED');
+    assert.equal(publicationResponse.data.moderationStatus, 'PENDING_REVIEW');
 
     const publicationRef = adminDb.doc(
       `users/${ownerUid}/photo_publications/${photoId}`
@@ -267,6 +267,34 @@ async function run() {
     assert.ok(publishedStoragePath);
     assert.equal(await fileExists(bucket.file(publishedStoragePath)), true);
 
+    const preventiveReportId = String(
+      initialPublication?.preventiveReviewReportId ?? ''
+    );
+    assert.ok(preventiveReportId);
+
+    const reviewAsAdmin = httpsCallable(
+      moderatorClient.functions,
+      'reviewPhotoContentReport'
+    );
+
+    await reviewAsAdmin({
+      reportId: preventiveReportId,
+      decision: 'KEEP',
+      resolution: 'Foto aprovada na revisão preventiva do cenário de denúncias.',
+    });
+
+    await waitFor(
+      'revisão preventiva liberar foto antes das denúncias',
+      async () => ({
+        photo: await readDocumentData(publicPhotoRef),
+        publication: await readDocumentData(publicationRef),
+      }),
+      (state) =>
+        state.photo?.moderationStatus === 'APPROVED' &&
+        state.publication?.moderationStatus === 'APPROVED' &&
+        state.publication?.preventiveReviewReportId === undefined
+    );
+
     const reportAsA = httpsCallable(
       visitorAClient.functions,
       'reportPhotoContent'
@@ -274,10 +302,6 @@ async function run() {
     const reportAsB = httpsCallable(
       visitorBClient.functions,
       'reportPhotoContent'
-    );
-    const reviewAsAdmin = httpsCallable(
-      moderatorClient.functions,
-      'reviewPhotoContentReport'
     );
     const reviewAsVisitor = httpsCallable(
       visitorAClient.functions,
@@ -402,6 +426,7 @@ async function run() {
         state.legalReview?.automaticDisclosure === false
     );
 
+    console.log('✔ revisão preventiva liberou a foto antes dos cenários de denúncia');
     console.log('✔ denúncia comum isolada manteve a foto aprovada');
     console.log('✔ usuário comum não revisou denúncia e duplicata foi bloqueada');
     console.log('✔ denúncia grave colocou a foto em quarentena e preservou o binário');
