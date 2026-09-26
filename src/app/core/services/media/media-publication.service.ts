@@ -30,10 +30,8 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
 import { IPhotoItem } from 'src/app/core/interfaces/media/i-photo-item';
 import {
   IPhotoPublicationConfig,
-  TPhotoCommentsPolicy,
   TPhotoPublishableCommentsPolicy,
   TPhotoPublishableVisibility,
-  TPhotoVisibility,
 } from 'src/app/core/interfaces/media/i-photo-publication-config';
 
 const MAX_PUBLICATION_CAPTION_LENGTH = 800;
