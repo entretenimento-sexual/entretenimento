@@ -21,9 +21,44 @@ export interface PhotoPromotionPlacement {
   readonly placementId: string;
   readonly campaignId: string;
   readonly disclosure: typeof PROMOTION_BOOST_DISCLOSURE;
-  readonly photo: {
-    readonly ownerUid: string;
-    readonly photoId: string;
+  readonly photo: Record<string, unknown>;
+}
+
+function publicPhotoProjection(
+  ownerUid: string,
+  photoId: string,
+  raw: Record<string, unknown>
+): Record<string, unknown> {
+  return {
+    id: photoId,
+    ownerUid,
+    mediaType: 'PHOTO',
+    assetAccess: 'SIGNED_URL',
+    alt: raw['alt'] ?? 'Foto pública',
+    caption: raw['caption'] ?? null,
+    createdAt: raw['createdAt'] ?? 0,
+    publishedAt: raw['publishedAt'] ?? 0,
+    assetVersion: raw['assetVersion'] ?? raw['publishedAt'] ?? 0,
+    updatedAt: raw['updatedAt'] ?? null,
+    visibility: raw['visibility'],
+    isCover: raw['isCover'] === true,
+    orderIndex: Number(raw['orderIndex'] ?? 0),
+    commentsEnabled: raw['commentsEnabled'] === true,
+    commentsPolicy: raw['commentsPolicy'] ?? 'OFF',
+    commentsCount: Number(raw['commentsCount'] ?? 0),
+    reactionsEnabled: raw['reactionsEnabled'] === true,
+    reactionsCount: Number(raw['reactionsCount'] ?? 0),
+    moderationStatus: raw['moderationStatus'],
+    reportsCount: Number(raw['reportsCount'] ?? 0),
+    score: Number(raw['score'] ?? 0),
+    scoreBreakdown: raw['scoreBreakdown'] ?? null,
+    likesCount: Number(raw['likesCount'] ?? 0),
+    engagementScore: Number(raw['engagementScore'] ?? 0),
+    viewsCount: Number(raw['viewsCount'] ?? 0),
+    uniqueViewersCount: Number(raw['uniqueViewersCount'] ?? 0),
+    lastViewedAt: raw['lastViewedAt'] ?? null,
+    viewScore: Number(raw['viewScore'] ?? 0),
+    officialPhoto: raw['officialPhoto'] ?? null,
   };
 }
 
@@ -284,10 +319,11 @@ async function claimPlacement(input: {
       placementId: placementRef.id,
       campaignId: campaign.campaignId,
       disclosure: PROMOTION_BOOST_DISCLOSURE,
-      photo: {
-        ownerUid: campaign.targetOwnerUid,
-        photoId: campaign.targetId,
-      },
+      photo: publicPhotoProjection(
+        campaign.targetOwnerUid,
+        campaign.targetId,
+        publicPhoto
+      ),
     });
   });
 }
