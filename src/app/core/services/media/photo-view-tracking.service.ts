@@ -24,7 +24,7 @@ export type TPhotoViewSource =
   | 'profile'
   | 'latest'
   | 'top'
-  | 'boosted'
+  | 'sponsored'
   | 'unknown';
 
 interface IRecordPhotoViewRequest {
