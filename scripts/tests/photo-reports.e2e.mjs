@@ -203,10 +203,29 @@ async function run() {
     ]);
 
     const privateStorageRef = ref(ownerClient.storage, privateStoragePath);
-    const privateBytes = new TextEncoder().encode(`photo-report-${runId}`);
+    const privateBytes = new Uint8Array(Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+      'base64'
+    ));
+    const reservePhotoUpload = httpsCallable(
+      ownerClient.functions,
+      'reservePhotoUpload'
+    );
+    const reservation = await reservePhotoUpload({
+      ownerUid,
+      storagePath: privateStoragePath,
+      sizeBytes: privateBytes.byteLength,
+      contentType: 'image/png',
+    });
+    const reservationId = String(reservation.data.reservationId ?? '');
+    assert.ok(reservationId);
+
     await uploadBytes(privateStorageRef, privateBytes, {
       contentType: 'image/png',
       cacheControl: 'private, max-age=0, no-store',
+      customMetadata: {
+        mediaPhotoReservationId: reservationId,
+      },
     });
     const privateDownloadUrl = await getDownloadURL(privateStorageRef);
 
