@@ -34,16 +34,19 @@ service firebase.storage {
         && request.resource.metadata.mediaPhotoReservationId.size() <= 128;
     }
 
-    function hasActivePhotoUploadReservation(uid, objectPath) {
-      let reservation = firestore.get(
+    function photoUploadReservation() {
+      return firestore.get(
         /databases/(default)/documents/media_photo_upload_reservations/$(request.resource.metadata.mediaPhotoReservationId)
       ).data;
+    }
+
+    function hasActivePhotoUploadReservation(uid, objectPath) {
       return hasPhotoUploadReservationId()
-        && reservation.ownerUid == uid
-        && reservation.storagePath == objectPath
-        && reservation.sizeBytes == request.resource.size
-        && reservation.contentType == request.resource.contentType
-        && reservation.expiresAt > request.time;
+        && photoUploadReservation().ownerUid == uid
+        && photoUploadReservation().storagePath == objectPath
+        && photoUploadReservation().sizeBytes == request.resource.size
+        && photoUploadReservation().contentType == request.resource.contentType
+        && photoUploadReservation().expiresAt > request.time;
     }
 
     function isVideoCreateOrUpdate() {
