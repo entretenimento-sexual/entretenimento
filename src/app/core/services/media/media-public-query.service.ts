@@ -32,7 +32,7 @@ import {
 } from 'src/app/core/interfaces/media/i-public-video-item';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from './media-application-error.service';
 import { PublicPhotoAccessService } from './public-photo-access.service';
 import {
   PublicMediaReadBoundaryService,
@@ -59,7 +59,7 @@ export class MediaPublicQueryService {
     private readonly publicPhotoAccess: PublicPhotoAccessService,
     private readonly publicVideoAccess: PublicVideoAccessService,
     private readonly errorNotifier: ErrorNotificationService,
-    private readonly errorHandler: GlobalErrorHandlerService
+    private readonly errorHandler: MediaApplicationErrorService
   ) {}
 
   getProfilePublicMedia$(

@@ -7,7 +7,7 @@
 // - responder comentário via Callable segura;
 // - moderar comentário via Callable segura;
 // - manter Observable na API pública;
-// - centralizar erro no GlobalErrorHandlerService;
+// - centralizar erro no MediaApplicationErrorService;
 // - evitar logs/dados sensíveis.
 //
 // Segurança:
@@ -31,7 +31,7 @@ import { catchError, map } from 'rxjs/operators';
 
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from './media-application-error.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import { IPhotoComment, TPhotoCommentStatus } from 'src/app/core/interfaces/media/i-photo-comment';
 import {
@@ -88,7 +88,7 @@ export class MediaPhotoCommentsService {
   constructor(
     private readonly firestoreCtx: FirestoreContextService,
     private readonly errorNotifier: ErrorNotificationService,
-    private readonly errorHandler: GlobalErrorHandlerService,
+    private readonly errorHandler: MediaApplicationErrorService,
     private readonly privacyDebug: PrivacyDebugLoggerService
   ) {}
 

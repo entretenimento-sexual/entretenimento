@@ -17,7 +17,7 @@ import {
 } from 'src/app/core/interfaces/media/i-video-comment';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from './media-application-error.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import {
   resolvePublicMediaCallableUserMessage,
@@ -79,7 +79,7 @@ export class MediaVideoCommentsService {
   constructor(
     private readonly firestoreCtx: FirestoreContextService,
     private readonly errorNotifier: ErrorNotificationService,
-    private readonly errorHandler: GlobalErrorHandlerService,
+    private readonly errorHandler: MediaApplicationErrorService,
     private readonly privacyDebug: PrivacyDebugLoggerService
   ) {}
 
