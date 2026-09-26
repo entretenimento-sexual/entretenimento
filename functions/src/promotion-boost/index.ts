@@ -9,4 +9,6 @@ export {
   syncPhotoPromotionFromPublicPhoto,
   syncPhotoPromotionFromOwnerProfile,
   syncPhotoPromotionFromAdvertiserAccount,
+  syncPhotoPromotionFromAdvertiserUser,
+  syncPhotoPromotionFromAdvertiserAgeEligibility,
 } from './sync-photo-promotion-lifecycle.trigger';
