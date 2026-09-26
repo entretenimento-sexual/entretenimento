@@ -54,7 +54,7 @@ for (const fragment of [
   'this.snapshots.read$(',
   'this.snapshots.write(',
   'this.network.reconnected$',
-  "connect$('",
+  'connect$(',
 ]) {
   requireIncludes(
     feed,
