@@ -6,8 +6,6 @@ export { runPromotionBoostLifecycle } from './run-promotion-boost-lifecycle.sche
 
 export {
   syncPhotoPromotionFromPublication,
-  syncPhotoPromotionFromPublicPhoto,
-  syncPhotoPromotionFromOwnerProfile,
   syncPhotoPromotionFromAdvertiserAccount,
   syncPhotoPromotionFromAdvertiserUser,
   syncPhotoPromotionFromAdvertiserAgeEligibility,
