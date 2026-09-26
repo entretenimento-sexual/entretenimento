@@ -16,7 +16,7 @@ export const runPromotionBoostLifecycle = onSchedule(
     const now = Date.now();
     const snapshot = await db
       .collection('promotion_boost_campaigns')
-      .where('status', '==', 'active')
+      .where('status', 'in', ['active', 'paused'])
       .where('endsAt', '<=', now)
       .orderBy('endsAt', 'asc')
       .limit(SWEEP_LIMIT)
