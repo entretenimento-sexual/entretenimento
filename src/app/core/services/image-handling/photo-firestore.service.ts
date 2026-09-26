@@ -19,8 +19,7 @@ import {
 } from 'rxjs';
 
 import { FirestoreContextService } from '../data-handling/firestore/core/firestore-context.service';
-import { ErrorNotificationService } from '../error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from '../media/media-application-error.service';
 
 export interface Photo {
   id: string;
@@ -59,8 +58,7 @@ export class PhotoFirestoreService {
   private readonly functions = inject(Functions);
 
   constructor(
-    private readonly errorNotifier: ErrorNotificationService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly errorHandler: MediaApplicationErrorService,
     private readonly firestoreCtx: FirestoreContextService,
   ) {}
 
@@ -139,8 +137,14 @@ export class PhotoFirestoreService {
         { op: 'countPhotos', userId: safeUserId }
       );
 
-      this.globalErrorHandler.handleError(normalizedError);
-      this.errorNotifier.showError('Erro ao contar as fotos.');
+      this.errorHandler.report(error, {
+        operation: 'countPhotos',
+        fallbackMessage: 'Erro ao contar as fotos.',
+        metadata: {
+          scope: 'PhotoFirestoreService',
+          userId: safeUserId,
+        },
+      });
       throw normalizedError;
     }
   }
@@ -353,7 +357,12 @@ export class PhotoFirestoreService {
         { op: 'requireUserId', userId }
       );
 
-      this.globalErrorHandler.handleError(error);
+      this.errorHandler.reportSilently(
+        error,
+        'requireUserId',
+        'Usuário não autenticado.',
+        { scope: 'PhotoFirestoreService' }
+      );
       throw error;
     }
 
@@ -371,8 +380,14 @@ export class PhotoFirestoreService {
       context
     );
 
-    this.globalErrorHandler.handleError(normalizedError);
-    this.errorNotifier.showError(userMessage);
+    this.errorHandler.report(error, {
+      operation: String(context?.['op'] ?? 'read'),
+      fallbackMessage: userMessage,
+      metadata: {
+        scope: 'PhotoFirestoreService',
+        ...(context ?? {}),
+      },
+    });
 
     return throwError(() => normalizedError);
   }
@@ -396,7 +411,15 @@ export class PhotoFirestoreService {
         context
       );
 
-      this.globalErrorHandler.handleError(normalizedError);
+      this.errorHandler.reportSilently(
+        error,
+        String(context?.['op'] ?? 'write'),
+        errorMessage,
+        {
+          scope: 'PhotoFirestoreService',
+          ...(context ?? {}),
+        }
+      );
       throw normalizedError;
     }
   }

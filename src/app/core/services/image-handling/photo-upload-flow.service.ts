@@ -6,8 +6,7 @@ import { catchError, map, switchMap } from 'rxjs/operators';
 import { StorageService } from './storage.service';
 import { PhotoFirestoreService } from './photo-firestore.service';
 import { PhotoStorageLifecycleService } from './photo-storage-lifecycle.service';
-import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
-import { ErrorNotificationService } from '../error-handler/error-notification.service';
+import { MediaApplicationErrorService } from '../media/media-application-error.service';
 
 export interface IPhotoUploadFlowCommand {
   userId: string;
@@ -52,8 +51,7 @@ export class PhotoUploadFlowService {
     private readonly storageService: StorageService,
     private readonly photoFirestoreService: PhotoFirestoreService,
     private readonly photoStorageLifecycle: PhotoStorageLifecycleService,
-    private readonly errorHandler: GlobalErrorHandlerService,
-    private readonly errorNotifier: ErrorNotificationService,
+    private readonly errorHandler: MediaApplicationErrorService,
   ) {}
 
   uploadProcessedPhoto$(
@@ -506,19 +504,15 @@ export class PhotoUploadFlowService {
     context?: Record<string, unknown>
   ): void {
     try {
-      const normalizedError = error instanceof Error
-        ? error
-        : new Error('[PhotoUploadFlowService] Falha secundária.');
-
-      (normalizedError as any).original = error;
-      (normalizedError as any).context = {
-        scope: 'PhotoUploadFlowService',
-        ...(context ?? {}),
-      };
-      (normalizedError as any).silent = true;
-      (normalizedError as any).skipUserNotification = true;
-
-      this.errorHandler.handleError(normalizedError);
+      this.errorHandler.reportSilently(
+        error,
+        String(context?.['op'] ?? 'secondaryFailure'),
+        'Falha secundária no fluxo de upload de foto.',
+        {
+          scope: 'PhotoUploadFlowService',
+          ...(context ?? {}),
+        }
+      );
     } catch {
       // noop
     }
@@ -529,20 +523,17 @@ export class PhotoUploadFlowService {
     userMessage: string,
     context?: Record<string, unknown>
   ): Observable<never> {
-    const normalizedError = error instanceof Error
-      ? error
-      : new Error(userMessage);
+    this.errorHandler.report(error, {
+      operation: String(context?.['op'] ?? 'flowFailure'),
+      fallbackMessage: userMessage,
+      metadata: {
+        scope: 'PhotoUploadFlowService',
+        ...(context ?? {}),
+      },
+    });
 
-    (normalizedError as any).original = error;
-    (normalizedError as any).context = {
-      scope: 'PhotoUploadFlowService',
-      ...(context ?? {}),
-    };
-    (normalizedError as any).skipUserNotification = true;
-
-    this.errorHandler.handleError(normalizedError);
-    this.errorNotifier.showError(userMessage);
-
-    return throwError(() => normalizedError);
+    return throwError(() =>
+      error instanceof Error ? error : new Error(userMessage)
+    );
   }
 }

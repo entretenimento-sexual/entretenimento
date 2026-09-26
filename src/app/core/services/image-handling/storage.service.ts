@@ -39,8 +39,8 @@ import {
   uploadSuccess,
 } from '../../../store/actions/actions.user/file.actions';
 
+import { ApplicationErrorService } from '../error-handler/application-error.service';
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 import {
   resolveImageInputFormat,
   resolveVideoInputFormat,
@@ -74,7 +74,7 @@ export class StorageService {
 
   constructor(
     private readonly errorNotifier: ErrorNotificationService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly store: Store<AppState>,
     private readonly privacyDebug: PrivacyDebugLoggerService
   ) {}
@@ -96,21 +96,27 @@ export class StorageService {
   }
 
   private routeError(
-    message: string,
+    operation: string,
     original: unknown,
     meta?: Record<string, unknown>,
-    notifyUser = false
+    options: {
+      notifyUser?: boolean;
+      fallbackMessage?: string;
+    } = {}
   ): void {
-    try {
-      const error = new Error(message);
-      (error as any).original = original;
-      (error as any).meta = meta;
-      (error as any).silent = notifyUser === false;
-      (error as any).skipUserNotification = notifyUser === false;
-      this.globalErrorHandler.handleError(error);
-    } catch {
-      // Evita que o tratamento de erro quebre o fluxo principal.
-    }
+    this.applicationError.report(original, {
+      feature: 'storage',
+      operation,
+      fallbackMessage:
+        options.fallbackMessage ?? 'Não foi possível concluir a operação de armazenamento.',
+      presentation: options.notifyUser === true
+        ? undefined
+        : { surface: 'none', severity: 'error' },
+      metadata: {
+        scope: 'StorageService',
+        ...(meta ?? {}),
+      },
+    });
   }
 
   private extractErrorMessage(error: unknown): string {
@@ -506,16 +512,19 @@ export class StorageService {
         });
         this.store.dispatch(uploadError({ error: errorMsg }));
         this.routeError(
-          '[StorageService] Erro no fluxo de uploadFile.',
+          'uploadFile',
           error,
           this.getSafeStorageDebugMeta(kind, file, {
             hasRequestedPath: !!String(path ?? '').trim(),
             hasUserId: !!safeUid,
           }),
-          false
-        );
-        this.errorNotifier.showError(
-          kind === 'video' ? 'Erro no upload do vídeo.' : 'Erro no upload da foto.'
+          {
+            notifyUser: true,
+            fallbackMessage:
+              kind === 'video'
+                ? 'Erro no upload do vídeo.'
+                : 'Erro no upload da foto.',
+          }
         );
         return throwError(() => error);
       })
@@ -569,14 +578,16 @@ export class StorageService {
           hasUserId: !!safeUid,
         });
         this.routeError(
-          '[StorageService] Erro no fluxo de uploadProfileAvatar.',
+          'uploadProfileAvatar',
           error,
           this.getSafeStorageDebugMeta('avatar', file, {
             hasUserId: !!safeUid,
           }),
-          false
+          {
+            notifyUser: true,
+            fallbackMessage: 'Erro no upload do avatar.',
+          }
         );
-        this.errorNotifier.showError('Erro no upload do avatar.');
         return throwError(() => error);
       })
     );
@@ -615,14 +626,13 @@ export class StorageService {
         const errorMsg = this.extractErrorMessage(error);
         this.dbg('getPhotoUrl failed', { errorMsg, hasPath: !!cleanPath });
         this.routeError(
-          '[StorageService] Erro ao carregar foto por path.',
+          'getPhotoUrl',
           error,
           {
             hasPath: !!cleanPath,
             isPublishedPath: this.isPublishedReadablePath(cleanPath),
             isOwnUploadPath: !!uid && this.isOwnUploadPath(cleanPath, uid),
-          },
-          false
+          }
         );
         return of('');
       })
@@ -685,15 +695,16 @@ export class StorageService {
           hasPath: !!String(path ?? '').trim(),
         });
         this.routeError(
-          '[StorageService] Erro ao substituir arquivo.',
+          'replaceFile',
           error,
           { kind, hasPath: !!String(path ?? '').trim() },
-          false
-        );
-        this.errorNotifier.showError(
-          kind === 'video'
-            ? 'Erro ao substituir o vídeo.'
-            : 'Erro ao substituir a foto.'
+          {
+            notifyUser: true,
+            fallbackMessage:
+              kind === 'video'
+                ? 'Erro ao substituir o vídeo.'
+                : 'Erro ao substituir a foto.',
+          }
         );
         return of('');
       })
@@ -722,12 +733,14 @@ export class StorageService {
           hasPath: !!String(path ?? '').trim(),
         });
         this.routeError(
-          '[StorageService] Erro ao deletar arquivo.',
+          'deleteFile',
           error,
           { hasPath: !!String(path ?? '').trim() },
-          false
+          {
+            notifyUser: true,
+            fallbackMessage: 'Erro ao deletar o arquivo.',
+          }
         );
-        this.errorNotifier.showError('Erro ao deletar o arquivo.');
         return of(void 0);
       })
     );
