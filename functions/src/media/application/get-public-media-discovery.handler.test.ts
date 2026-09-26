@@ -88,7 +88,7 @@ describe('get-public-media-discovery backend-time boundary', () => {
       'public_profiles/owner-1/public_photos/media-1',
       media(),
       NOW,
-      { ownerAllowed: true, requireActiveBoost: false }
+      { ownerAllowed: true }
     );
 
     assert.ok(serialized);
@@ -108,7 +108,7 @@ describe('get-public-media-discovery backend-time boundary', () => {
         ageEligibilityValidUntil: { toMillis: () => NOW - 1 },
       }),
       NOW,
-      { ownerAllowed: true, requireActiveBoost: false }
+      { ownerAllowed: true }
     );
 
     assert.equal(serialized, null);
@@ -121,33 +121,25 @@ describe('get-public-media-discovery backend-time boundary', () => {
         'public_profiles/owner-1/public_photos/media-blocked',
         media(),
         NOW,
-        { ownerAllowed: false, requireActiveBoost: false }
+        { ownerAllowed: false }
       ),
       null
     );
   });
 
-  it('boost exige campanha ativa além da base pública canônica', () => {
-    assert.equal(
-      serializePublicMediaForDiscovery(
-        'media-boost',
-        'public_profiles/owner-1/public_photos/media-boost',
-        media({ boostActive: true, boostedUntil: NOW + 60_000 }),
-        NOW,
-        { ownerAllowed: true, requireActiveBoost: true }
-      )?.['id'],
-      'media-boost'
+  it('ignora qualquer campo comercial residual na projeção orgânica', () => {
+    const serialized = serializePublicMediaForDiscovery(
+      'media-organic',
+      'public_profiles/owner-1/public_photos/media-organic',
+      media({
+        legacyPromotionFlag: true,
+        legacyPromotionUntil: NOW + 60_000,
+      }),
+      NOW,
+      { ownerAllowed: true }
     );
-    assert.equal(
-      serializePublicMediaForDiscovery(
-        'media-boost-expired',
-        'public_profiles/owner-1/public_photos/media-boost-expired',
-        media({ boostActive: true, boostedUntil: NOW }),
-        NOW,
-        { ownerAllowed: true, requireActiveBoost: true }
-      ),
-      null
-    );
+
+    assert.equal(serialized?.['id'], 'media-organic');
   });
 
   it('pondera a quota pela quantidade máxima solicitada', () => {
