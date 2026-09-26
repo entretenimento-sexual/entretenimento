@@ -179,6 +179,7 @@ export class PublicPhotoDiscoveryFeedService {
           loading: true,
           error: false,
           stale: cachedItems.length > 0,
+          sponsoredPlacement: null,
         });
       }),
       switchMap(() => this.revalidateFirstPage$()),
