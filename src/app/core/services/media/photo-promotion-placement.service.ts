@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable, defer, from, of, throwError } from 'rxjs';
+import { Observable, defer, from, of } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
 
 import type {
