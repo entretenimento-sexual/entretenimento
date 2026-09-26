@@ -110,9 +110,7 @@ export const MEDIA_ROUTES: Routes = [
   },
   {
     path: 'fotos-turbinadas',
-    loadComponent: () =>
-      import('./photos/boosted-public-photos/boosted-public-photos.component').then(
-        (m) => m.BoostedPublicPhotosComponent
-      ),
+    redirectTo: 'ultimas-fotos',
+    pathMatch: 'full',
   },
 ];
