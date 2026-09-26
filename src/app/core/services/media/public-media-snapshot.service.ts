@@ -170,7 +170,7 @@ export class PublicMediaSnapshotService {
         continue;
       }
 
-      const projection = {
+      const projection: Record<string, unknown> = {
         ...(candidate as unknown as Record<string, unknown>),
         id,
         ownerUid,
