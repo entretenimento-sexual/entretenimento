@@ -15,6 +15,9 @@ import {
   isPromotionBoostAdvertiserInteractionEligible,
 } from './promotion-boost-advertiser-eligibility';
 import {
+  isPhotoPromotionTargetEligible,
+} from './photo-promotion-target.policy';
+import {
   PROMOTION_BOOST_CANDIDATE_SCAN_LIMIT,
   PROMOTION_BOOST_DISCLOSURE,
   PROMOTION_BOOST_FREQUENCY_CAP_TTL_MS,
@@ -86,7 +89,8 @@ function stableKey(uid: string, day: string, campaignId: string): string {
 }
 
 async function photoStillEligible(
-  campaign: Readonly<PromotionBoostCampaign>
+  campaign: Readonly<PromotionBoostCampaign>,
+  now: number
 ): Promise<boolean> {
   const [publicationSnapshot, publicPhotoSnapshot] = await Promise.all([
     db.doc(
@@ -99,21 +103,13 @@ async function photoStillEligible(
 
   if (!publicationSnapshot.exists || !publicPhotoSnapshot.exists) return false;
 
-  const publication = publicationSnapshot.data() ?? {};
-  const publicPhoto = publicPhotoSnapshot.data() ?? {};
-
-  return (
-    publication['ownerUid'] === campaign.targetOwnerUid
-    && publication['photoId'] === campaign.targetId
-    && publication['isPublished'] === true
-    && String(publication['visibility'] ?? '').toUpperCase() === 'PUBLIC'
-    && publication['moderationStatus'] === 'APPROVED'
-    && publicPhoto['ownerUid'] === campaign.targetOwnerUid
-    && publicPhoto['id'] === campaign.targetId
-    && String(publicPhoto['visibility'] ?? '').toUpperCase() === 'PUBLIC'
-    && publicPhoto['moderationStatus'] === 'APPROVED'
-    && publicPhoto['ageEligibilityVerifiedAdult'] === true
-  );
+  return isPhotoPromotionTargetEligible({
+    ownerUid: campaign.targetOwnerUid,
+    photoId: campaign.targetId,
+    publication: publicationSnapshot.data() ?? {},
+    publicPhoto: publicPhotoSnapshot.data() ?? {},
+    nowMs: now,
+  });
 }
 
 async function stopIneligibleCampaign(
@@ -265,19 +261,20 @@ async function claimPlacement(input: {
     const publication = publicationSnapshot.exists
       ? publicationSnapshot.data() ?? {}
       : {};
-    const publicPhoto = publicPhotoSnapshot.exists ? publicPhotoSnapshot.data() ?? {} : {};
-    const eligible =
-      publication['ownerUid'] === campaign.targetOwnerUid
-      && publication['photoId'] === campaign.targetId
-      && publication['isPublished'] === true
-      && String(publication['visibility'] ?? '').toUpperCase() === 'PUBLIC'
-      && publication['moderationStatus'] === 'APPROVED'
-      && publicPhoto['ownerUid'] === campaign.targetOwnerUid
-      && publicPhoto['id'] === campaign.targetId
-      && String(publicPhoto['visibility'] ?? '').toUpperCase() === 'PUBLIC'
-      && publicPhoto['moderationStatus'] === 'APPROVED'
-      && publicPhoto['ageEligibilityVerifiedAdult'] === true;
-    if (!eligible) return null;
+    const publicPhoto = publicPhotoSnapshot.exists
+      ? publicPhotoSnapshot.data() ?? {}
+      : {};
+    if (
+      !isPhotoPromotionTargetEligible({
+        ownerUid: campaign.targetOwnerUid,
+        photoId: campaign.targetId,
+        publication,
+        publicPhoto,
+        nowMs: input.now,
+      })
+    ) {
+      return null;
+    }
 
     const cap = capSnapshot.exists ? capSnapshot.data() ?? {} : {};
     const deliveredToday =
@@ -470,7 +467,7 @@ export async function selectPhotoPromotionPlacement(input: {
     );
 
   for (const { campaign } of ordered) {
-    if (!(await photoStillEligible(campaign))) {
+    if (!(await photoStillEligible(campaign, input.now))) {
       await stopIneligibleCampaign(campaign, input.now, 'photo_target_ineligible');
       continue;
     }
