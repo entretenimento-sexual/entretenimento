@@ -67,6 +67,10 @@ export {
 } from './application/sync-published-video-settings.handler';
 
 export {
+  cleanupUnpublishedPhotoInteractions,
+} from './application/cleanup-unpublished-photo-interactions.handler';
+
+export {
   cleanupUnpublishedVideoInteractions,
 } from './application/cleanup-unpublished-video-interactions.handler';
 
