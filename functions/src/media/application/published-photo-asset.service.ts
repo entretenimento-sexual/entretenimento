@@ -228,15 +228,15 @@ async function encodePublishedPhoto(
     });
 
   switch (format) {
-    case 'jpeg':
-      pipeline = pipeline.jpeg({ quality: 88, progressive: true });
-      break;
-    case 'png':
-      pipeline = pipeline.png({ compressionLevel: 9, adaptiveFiltering: true });
-      break;
-    case 'webp':
-      pipeline = pipeline.webp({ quality: 88, effort: 4 });
-      break;
+  case 'jpeg':
+    pipeline = pipeline.jpeg({ quality: 88, progressive: true });
+    break;
+  case 'png':
+    pipeline = pipeline.png({ compressionLevel: 9, adaptiveFiltering: true });
+    break;
+  case 'webp':
+    pipeline = pipeline.webp({ quality: 88, effort: 4 });
+    break;
   }
 
   const output = await pipeline.toBuffer({ resolveWithObject: true });
