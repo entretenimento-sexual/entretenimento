@@ -6,6 +6,12 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { normalizeCommunityBoostAdvertiserAccount } from '../community-boost/community-boost.policy';
 import { db } from '../firebaseApp';
 import {
+  resolveSocialConnectionAccess,
+} from '../friendship/application/social-connection-access.policy';
+import {
+  resolvePublicMediaSignedOwnerExposure,
+} from '../media/application/public-media-owner-exposure.service';
+import {
   PROMOTION_BOOST_CANDIDATE_SCAN_LIMIT,
   PROMOTION_BOOST_DISCLOSURE,
   PROMOTION_BOOST_FREQUENCY_CAP_TTL_MS,
@@ -356,14 +362,33 @@ export async function selectPhotoPromotionPlacement(input: {
     )
     .slice(0, PROMOTION_BOOST_MAX_SELECTION_ATTEMPTS);
 
-  const capRefs = candidates.map((campaign) =>
+  const ownerUids = [
+    ...new Set(candidates.map((campaign) => campaign.targetOwnerUid)),
+  ];
+  const socialAccess = ownerUids.length
+    ? await resolveSocialConnectionAccess(input.viewerUid, ownerUids)
+    : null;
+  const ownerExposure = ownerUids.length && socialAccess
+    ? await resolvePublicMediaSignedOwnerExposure(
+      ownerUids,
+      socialAccess.blockedTargetUids,
+      input.now
+    )
+    : new Map();
+
+  const visibleCandidates = candidates.filter(
+    (campaign) =>
+      ownerExposure.get(campaign.targetOwnerUid)?.allowed === true
+  );
+
+  const capRefs = visibleCandidates.map((campaign) =>
     db.collection('promotion_boost_frequency_caps').doc(
       capId(campaign.campaignId, input.viewerUid, day)
     )
   );
   const capSnapshots = capRefs.length ? await db.getAll(...capRefs) : [];
 
-  const ordered = candidates
+  const ordered = visibleCandidates
     .map((campaign, index) => {
       const cap = capSnapshots[index]?.exists ? capSnapshots[index]?.data() ?? {} : {};
       const deliveredToday =
