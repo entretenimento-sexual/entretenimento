@@ -16,6 +16,14 @@ import type {
 export type TPublicMediaType = 'PHOTO' | 'VIDEO';
 export type TPublicAssetAccess = 'SIGNED_URL';
 
+export interface IOfficialPhotoProjection {
+  verified: true;
+  target: {
+    type: 'profile';
+    id: string;
+  };
+}
+
 export interface IPublicPhotoBase {
   id: string;
   ownerUid: string;
@@ -59,6 +67,13 @@ export interface IPublicPhotoBase {
   lastViewedAt?: number;
   viewScore?: number;
 
+  /**
+   * Selo oficial derivado exclusivamente da associação oficial canônica do
+   * perfil proprietário. Não representa boost, patrocínio, plano ou ranking.
+   */
+  officialPhoto?: IOfficialPhotoProjection | null;
+
+  /** Monetização/placement; independente de officialPhoto. */
   boostActive?: boolean;
   boostPriority?: number;
   boostedUntil?: number | null;
