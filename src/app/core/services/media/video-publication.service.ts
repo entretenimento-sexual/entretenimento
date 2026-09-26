@@ -18,7 +18,7 @@ import {
   TVideoPublishableVisibility,
 } from 'src/app/core/interfaces/media/i-video-publication-config';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from './media-application-error.service';
 
 interface PublishVideoRequest {
   ownerUid: string;
@@ -109,7 +109,7 @@ export class VideoPublicationService {
 
   constructor(
     private readonly firestoreCtx: FirestoreContextService,
-    private readonly errorHandler: GlobalErrorHandlerService
+    private readonly errorHandler: MediaApplicationErrorService
   ) {}
 
   watchOwnVideoPublications$(

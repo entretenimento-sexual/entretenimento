@@ -18,7 +18,7 @@ import {
 } from 'src/app/core/interfaces/media/i-public-video-item';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from './media-application-error.service';
 import { buildPublicMediaAccessCacheKey } from './public-media-access-cache-key';
 import {
   buildPublicVideoKey,
@@ -64,7 +64,7 @@ export class PublicVideoAccessService {
   constructor(
     private readonly firestoreCtx: FirestoreContextService,
     private readonly authSession: AuthSessionService,
-    private readonly errorHandler: GlobalErrorHandlerService
+    private readonly errorHandler: MediaApplicationErrorService
   ) {
     this.authSession.uid$
       .pipe(

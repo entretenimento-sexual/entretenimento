@@ -22,7 +22,7 @@ import {
 } from 'src/app/core/interfaces/media/i-video-edit-recipe';
 import { IVideoItem } from 'src/app/core/interfaces/media/i-video-item';
 import { IVideoPublicationSettingsInput } from 'src/app/core/interfaces/media/i-video-publication-config';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from './media-application-error.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import {
   MEDIA_VIDEO_POSTER_MAX_BYTES,
@@ -111,7 +111,7 @@ export class VideoUploadFlowService {
   private readonly storage = inject(Storage);
   private readonly injector = inject(Injector);
   private readonly metadataPreparation = inject(VideoMetadataPreparationService);
-  private readonly errorHandler = inject(GlobalErrorHandlerService);
+  private readonly errorHandler = inject(MediaApplicationErrorService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
   private readonly registerPrivateVideoUploadCallable = httpsCallable<
     RegisterPrivateVideoUploadRequest,

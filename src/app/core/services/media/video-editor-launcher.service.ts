@@ -12,7 +12,7 @@ import {
 import { catchError } from 'rxjs/operators';
 
 import { AuthSessionService } from '../autentication/auth/auth-session.service';
-import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from '../error-handler/global-error-handler.service';
 import { validateVideoMediaFile } from './media-format.policy';
 import {
   IVideoEditorState,
@@ -34,7 +34,7 @@ export interface VideoEditorLaunchOptions {
 export class VideoEditorLauncherService {
   private readonly authSession = inject(AuthSessionService);
   private readonly session = inject(VideoEditorSessionService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly globalError = inject(MediaApplicationErrorService);
 
   readonly draft$ = this.session.draft$;
   readonly state$ = this.session.state$;
