@@ -17,8 +17,9 @@
 import { FieldPath } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
-import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
+import { assertRecentAuthentication } from '../../account_lifecycle/_shared';
 import {
   normalizeCanonicalAuthorityResourceId,
 } from '../../authority/canonical-resource-authority.model';
@@ -28,6 +29,10 @@ import {
 } from '../../community/community-official-association.model';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue } from '../../firebaseApp';
+import {
+  REQUIRE_CALLABLE_APP_CHECK,
+  assertCallableAppCheck,
+} from '../../shared/security/callable-app-check';
 
 export interface OfficialPhotoProjection {
   readonly verified: true;
@@ -257,28 +262,62 @@ export const syncOfficialPhotoProjectionFromAssociation = onDocumentWritten(
 
 
 /**
- * Backfill incremental de rollout para associações já verificadas antes da
- * criação da projeção Official Photo.
+ * Backfill administrativo incremental de rollout para associações já
+ * verificadas antes da criação da projeção Official Photo.
  *
- * O job termina de forma persistente ao alcançar o fim do conjunto. Vínculos
- * criados/alterados depois disso são mantidos pelos triggers acima, evitando
- * um scan recorrente permanente da base.
+ * Não é agendado: deve ser chamado somente durante o rollout futuro até
+ * `completed=true`. Depois disso os triggers acima mantêm o estado.
  */
-export const backfillExistingOfficialPhotoProjections = onSchedule(
+export const backfillExistingOfficialPhotoProjections = onCall(
   {
     region: FUNCTIONS_REGION,
-    schedule: 'every 60 minutes',
-    timeZone: 'America/Sao_Paulo',
-    retryCount: 3,
-    maxInstances: 1,
+    enforceAppCheck: REQUIRE_CALLABLE_APP_CHECK,
   },
-  async () => {
+  async (request): Promise<{
+    completed: boolean;
+    scanned: number;
+    profileAssociations: number;
+    synchronizedOwners: number;
+  }> => {
+    assertCallableAppCheck(request.app);
+
+    const adminUid = String(request.auth?.uid ?? '').trim();
+    const token = request.auth?.token ?? {};
+    const roles = Array.isArray(token['roles']) ? token['roles'] : [];
+    const isAdmin =
+      token['admin'] === true
+      || token['role'] === 'admin'
+      || roles.includes('admin');
+
+    if (!adminUid) {
+      throw new HttpsError(
+        'unauthenticated',
+        'Administrador não autenticado.'
+      );
+    }
+
+    if (!isAdmin) {
+      throw new HttpsError(
+        'permission-denied',
+        'Apenas administradores podem reconciliar Official Photo.'
+      );
+    }
+
+    assertRecentAuthentication(
+      request.auth?.token as Record<string, unknown> | undefined
+    );
+
     const stateRef = db.doc(BACKFILL_STATE_PATH);
     const stateSnapshot = await stateRef.get();
     const state = stateSnapshot.exists ? stateSnapshot.data() ?? {} : {};
 
     if (state['completed'] === true) {
-      return;
+      return {
+        completed: true,
+        scanned: 0,
+        profileAssociations: 0,
+        synchronizedOwners: 0,
+      };
     }
 
     const cursorAssociationKey = String(
@@ -332,6 +371,7 @@ export const backfillExistingOfficialPhotoProjections = onSchedule(
         profileAssociations,
         synchronizedOwners,
         updatedAt: Date.now(),
+        updatedBy: adminUid,
         ...(completed ? { completedAt: Date.now() } : {}),
       },
       { merge: true }
@@ -343,5 +383,12 @@ export const backfillExistingOfficialPhotoProjections = onSchedule(
       synchronizedOwners,
       completed,
     });
+
+    return {
+      completed,
+      scanned: snapshot.size,
+      profileAssociations,
+      synchronizedOwners,
+    };
   }
 );
