@@ -73,11 +73,7 @@ export class PublicPhotoRankingQueryService {
   }
 
   private normalizeMode(value: unknown): TPublicPhotoRankingMode {
-    if (value === 'latest' || value === 'boosted') {
-      return value;
-    }
-
-    return 'top';
+    return value === 'latest' ? 'latest' : 'top';
   }
 
   private normalizePageSize(value: unknown): number {
@@ -108,7 +104,6 @@ export class PublicPhotoRankingQueryService {
       mode,
       score: this.safeNumber(value.score),
       publishedAt: this.safeNumber(value.publishedAt),
-      boostedUntil: this.safeNumber(value.boostedUntil),
       documentPath,
     };
   }
