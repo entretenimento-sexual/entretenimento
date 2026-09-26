@@ -77,6 +77,13 @@ display: grid;
 gap: 1px;
 }
 
+.viewer-owner-title {
+min-width: 0;
+display: flex;
+align-items: center;
+gap: 6px;
+}
+
 .viewer-owner-copy strong {
 overflow: hidden;
 color: #fff;
@@ -84,6 +91,21 @@ font-size: 0.78rem;
 font-weight: 820;
 line-height: 1.05;
 text-overflow: ellipsis;
+white-space: nowrap;
+}
+
+.viewer-official-badge {
+flex: 0 0 auto;
+display: inline-flex;
+align-items: center;
+gap: 3px;
+padding: 2px 5px;
+border: 1px solid rgb(255 255 255 / 20%);
+border-radius: 999px;
+color: color-mix(in oklab, var(--success-color, #5ed39a) 72%, #fff 28%);
+font-size: 0.58rem;
+font-weight: 820;
+line-height: 1;
 white-space: nowrap;
 }
 
@@ -682,4 +704,9 @@ width: auto;
 .viewer-nav-btn {
 transition: none;
 }
+}
+
+:host-context(html.high-contrast) .viewer-official-badge {
+color: currentColor !important;
+border-color: currentColor !important;
 }
