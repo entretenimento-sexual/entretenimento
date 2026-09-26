@@ -23,7 +23,8 @@ const MAX_PAGE_SIZE = 24;
 export class PublicPhotoRankingQueryService {
   constructor(
     private readonly gateway: PublicPhotoRankingFirestoreGateway,
-    private readonly publicPhotoAccess: PublicPhotoAccessService,    private readonly errorHandler: MediaApplicationErrorService
+    private readonly publicPhotoAccess: PublicPhotoAccessService,
+    private readonly errorHandler: MediaApplicationErrorService
   ) {}
 
   loadPage$(

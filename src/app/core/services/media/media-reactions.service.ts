@@ -59,7 +59,8 @@ export class MediaReactionsService {
   >(this.functions, 'toggleVideoReaction');
 
   constructor(
-    private readonly firestoreCtx: FirestoreContextService,    private readonly errorHandler: MediaApplicationErrorService,
+    private readonly firestoreCtx: FirestoreContextService,
+    private readonly errorHandler: MediaApplicationErrorService,
     private readonly privacyDebug: PrivacyDebugLoggerService
   ) {}
 

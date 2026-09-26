@@ -24,7 +24,8 @@ const MAX_PAGE_SIZE = 16;
 export class PublicVideoRankingQueryService {
   constructor(
     private readonly gateway: PublicVideoRankingFirestoreGateway,
-    private readonly publicVideoAccess: PublicVideoAccessService,    private readonly errorHandler: MediaApplicationErrorService
+    private readonly publicVideoAccess: PublicVideoAccessService,
+    private readonly errorHandler: MediaApplicationErrorService
   ) {}
 
   loadPage$(
