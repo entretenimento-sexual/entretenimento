@@ -14,6 +14,7 @@ import {
 } from '../media-format.generated';
 import { extractOwnedPrivatePhotoPath } from './photo-storage-path';
 import {
+  PHOTO_CLEANUP_DEAD_LETTER_RETENTION_MS,
   PHOTO_CLEANUP_MAX_ATTEMPTS,
   nextPhotoCleanupRetry,
 } from './photo-cleanup-job.policy';
@@ -138,6 +139,7 @@ async function moveReservationCleanupToDeadLetter(
       cleanupAttempts: PHOTO_CLEANUP_MAX_ATTEMPTS,
       lastError: normalizeErrorMessage(error),
       deadLetteredAt: now,
+      deadLetterExpiresAt: now + PHOTO_CLEANUP_DEAD_LETTER_RETENTION_MS,
     },
     { merge: true }
   );
@@ -390,6 +392,7 @@ export const cleanupExpiredPhotoUploadReservations = onSchedule(
       missingObject: 0,
       retryable: 0,
       deadLetter: 0,
+      deadLetterPurged: 0,
     };
 
     for (
@@ -419,6 +422,19 @@ export const cleanupExpiredPhotoUploadReservations = onSchedule(
         if (outcome === 'retryable') counts.retryable += 1;
         if (outcome === 'dead_letter') counts.deadLetter += 1;
       }
+    }
+
+    const expiredDeadLetters = await db
+      .collection(DEAD_LETTER_COLLECTION)
+      .where('deadLetterExpiresAt', '<=', Date.now())
+      .limit(CLEANUP_BATCH_SIZE)
+      .get();
+
+    if (!expiredDeadLetters.empty) {
+      const purgeBatch = db.batch();
+      expiredDeadLetters.docs.forEach((doc) => purgeBatch.delete(doc.ref));
+      await purgeBatch.commit();
+      counts.deadLetterPurged = expiredDeadLetters.size;
     }
 
     logPhotoOperation({
