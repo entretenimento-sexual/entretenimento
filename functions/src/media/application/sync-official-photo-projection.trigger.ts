@@ -282,7 +282,7 @@ export const backfillExistingOfficialPhotoProjections = onCall(
     assertCallableAppCheck(request.app);
 
     const adminUid = String(request.auth?.uid ?? '').trim();
-    const token = request.auth?.token ?? {};
+    const token = (request.auth?.token ?? {}) as Record<string, unknown>;
     const roles = Array.isArray(token['roles']) ? token['roles'] : [];
     const isAdmin =
       token['admin'] === true
