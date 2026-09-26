@@ -86,6 +86,16 @@ function buildCleanupJobId(storagePath: string): string {
   return createHash('sha256').update(storagePath).digest('hex');
 }
 
+function safeCleanupAttempts(value: unknown): number {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : 0;
+}
+
+function safeCleanupCreatedAt(value: unknown, fallback: number): number {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 function normalizeRetentionGuard(
   value: PublishedPhotoAssetRetentionGuard | undefined
 ): PublishedPhotoAssetRetentionGuard | null {
@@ -159,26 +169,34 @@ async function enqueuePublishedPhotoAssetCleanup(
 ): Promise<void> {
   const now = Date.now();
   const retentionGuard = normalizeRetentionGuard(command.retentionGuard);
-  const retry = nextPhotoCleanupRetry(0, now);
-  const job: PublishedPhotoAssetCleanupJob = {
-    ownerUid: command.ownerUid,
-    photoId: command.photoId,
-    storagePath,
-    reason: command.reason,
-    ...(retentionGuard ? { retentionGuard } : {}),
-    createdAt: now,
-    updatedAt: now,
-    attempts: retry.attempts,
-    lastError: normalizeErrorMessage(error),
-    state: retry.state,
-    nextAttemptAt: retry.nextAttemptAt,
-    deadLetterExpiresAt: retry.deadLetterExpiresAt,
-  };
-
-  await db
+  const jobRef = db
     .collection(CLEANUP_COLLECTION)
-    .doc(buildCleanupJobId(storagePath))
-    .set(job, { merge: true });
+    .doc(buildCleanupJobId(storagePath));
+
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(jobRef);
+    const current = snapshot.exists
+      ? (snapshot.data() as Partial<PublishedPhotoAssetCleanupJob>)
+      : null;
+    const retry = nextPhotoCleanupRetry(current?.attempts ?? 0, now);
+
+    const job: PublishedPhotoAssetCleanupJob = {
+      ownerUid: command.ownerUid,
+      photoId: command.photoId,
+      storagePath,
+      reason: command.reason,
+      ...(retentionGuard ? { retentionGuard } : {}),
+      createdAt: safeCleanupCreatedAt(current?.createdAt, now),
+      updatedAt: now,
+      attempts: retry.attempts,
+      lastError: normalizeErrorMessage(error),
+      state: retry.state,
+      nextAttemptAt: retry.nextAttemptAt,
+      deadLetterExpiresAt: retry.deadLetterExpiresAt,
+    };
+
+    transaction.set(jobRef, job, { merge: true });
+  });
 }
 
 export function stagePublishedPhotoAssetCleanup(
@@ -355,19 +373,27 @@ export async function deletePublishedPhotoAssetOrQueue(
     if (await hasPublishedPhotoRetentionBlocker(command)) {
       const now = Date.now();
       const retentionGuard = normalizeRetentionGuard(command.retentionGuard);
-      await db
+      const jobRef = db
         .collection(CLEANUP_COLLECTION)
-        .doc(buildCleanupJobId(storagePath))
-        .set(
+        .doc(buildCleanupJobId(storagePath));
+
+      await db.runTransaction(async (transaction) => {
+        const snapshot = await transaction.get(jobRef);
+        const current = snapshot.exists
+          ? (snapshot.data() as Partial<PublishedPhotoAssetCleanupJob>)
+          : null;
+
+        transaction.set(
+          jobRef,
           {
             ownerUid: command.ownerUid,
             photoId: command.photoId,
             storagePath,
             reason: command.reason,
             ...(retentionGuard ? { retentionGuard } : {}),
-            createdAt: now,
+            createdAt: safeCleanupCreatedAt(current?.createdAt, now),
             updatedAt: now,
-            attempts: 0,
+            attempts: safeCleanupAttempts(current?.attempts),
             lastError: null,
             state: 'waiting_retention',
             nextAttemptAt: photoCleanupRetentionRecheckAt(now),
@@ -375,6 +401,7 @@ export async function deletePublishedPhotoAssetOrQueue(
           },
           { merge: true }
         );
+      });
 
       logPhotoOperation({
         operation: 'photo.cleanup_published_asset',
