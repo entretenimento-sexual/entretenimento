@@ -790,6 +790,35 @@ const legacyRootPostsConsumers = auditTexts
   .sort();
 
 // -----------------------------------------------------------------------------
+// MEDIA FRONTEND: APIs aposentadas após cursor/paginação dedicada
+// -----------------------------------------------------------------------------
+
+const retiredMediaFrontendApis = [
+  'getLatestPublicPhotos$(',
+  'getTopPublicPhotos$(',
+  'getBoostedPublicPhotos$(',
+  'getProfilePublicMedia$(',
+  'getProfilePublicVideos$(',
+];
+
+const retiredMediaFrontendApiConsumers = auditTexts
+  .filter(({ filePath, source }) => {
+    const relative = posix(filePath);
+    if (
+      !relative.startsWith('src/app/')
+      || /\.(?:spec|test)\.[cm]?[jt]s$/i.test(relative)
+      || relative.includes('/visual-validation/')
+      || relative === 'scripts/quality/check-production-orphans.mjs'
+    ) {
+      return false;
+    }
+
+    return retiredMediaFrontendApis.some((apiName) => source.includes(apiName));
+  })
+  .map(({ filePath }) => posix(filePath))
+  .sort();
+
+// -----------------------------------------------------------------------------
 // CALLABLES LEGADOS: compatibilidade backend-only sem consumidor no cliente atual
 // -----------------------------------------------------------------------------
 
@@ -915,6 +944,7 @@ printGroup('DevDependencies sem referência identificável', unreferencedDevelop
 printGroup('Dependências de Functions sem referência identificável', unreferencedFunctionsDependencies);
 printGroup('DevDependencies de Functions sem referência identificável', unreferencedFunctionsDevelopmentDependencies);
 printGroup('Consumidores produtivos proibidos da coleção raiz posts', legacyRootPostsConsumers);
+printGroup('Consumidores de APIs frontend de mídia aposentadas', retiredMediaFrontendApiConsumers);
 printGroup('Consumidores client-side de callables legados backend-only', retiredClientCallableConsumers);
 printGroup('Fragments de Firestore Rules fora do manifesto', ruleFragmentsOutsideManifest);
 printGroup('Scripts sem referência identificável', unreferencedScripts);
@@ -934,6 +964,7 @@ if (
     || unreferencedFunctionsDependencies.length > 0
     || unreferencedFunctionsDevelopmentDependencies.length > 0
     || legacyRootPostsConsumers.length > 0
+    || retiredMediaFrontendApiConsumers.length > 0
     || retiredClientCallableConsumers.length > 0
     || ruleFragmentsOutsideManifest.length > 0
     || unreferencedScripts.length > 0

@@ -13,7 +13,7 @@ import {
   doc,
   docData,
 } from '@angular/fire/firestore';
-import { Observable, combineLatest, of, throwError } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 import {
   catchError,
   map,
@@ -21,7 +21,6 @@ import {
   switchMap,
 } from 'rxjs/operators';
 
-import { IPublicProfileMediaItem } from 'src/app/core/interfaces/media/i-public-profile-media-item';
 import {
   IPublicPhotoItem,
   IPublicPhotoProjection,
@@ -60,23 +59,6 @@ export class MediaPublicQueryService {
     private readonly errorHandler: MediaApplicationErrorService
   ) {}
 
-  getProfilePublicMedia$(
-    ownerUid: string,
-    options: MediaPublicProfileQueryOptions = {}
-  ): Observable<IPublicProfileMediaItem[]> {
-    return combineLatest([
-      this.getProfilePublicPhotos$(ownerUid, options),
-      this.getProfilePublicVideos$(ownerUid, options),
-    ]).pipe(
-      map(([photos, videos]) =>
-        [...photos, ...videos].sort((left, right) =>
-          this.compareProfileMedia(left, right)
-        )
-      ),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
-  }
-
   getProfilePublicPhotos$(
     ownerUid: string,
     options: MediaPublicProfileQueryOptions = {}
@@ -110,44 +92,6 @@ export class MediaPublicQueryService {
         return options.propagateErrors
           ? throwError(() => error)
           : of([] as IPublicPhotoItem[]);
-      }),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
-  }
-
-  getProfilePublicVideos$(
-    ownerUid: string,
-    options: MediaPublicProfileQueryOptions = {}
-  ): Observable<IPublicVideoItem[]> {
-    const safeOwnerUid = (ownerUid ?? '').trim();
-
-    if (!safeOwnerUid) {
-      return of([]);
-    }
-
-    return this.publicMediaRead.read$({
-      mediaType: 'VIDEO',
-      mode: 'PROFILE',
-      ownerUids: [safeOwnerUid],
-      limit: PUBLIC_MEDIA_BATCH_LIMIT,
-    }).pipe(
-      map((response) =>
-        (response.items ?? []) as unknown as IPublicVideoProjection[]
-      ),
-      switchMap((items) =>
-        this.publicVideoAccess.hydratePublicVideoUrls$(items)
-      ),
-      catchError((error: unknown) => {
-        this.reportError(
-          'Erro ao carregar vídeos públicos do perfil.',
-          error,
-          { op: 'getProfilePublicVideos$', ownerUid: safeOwnerUid },
-          true
-        );
-
-        return options.propagateErrors
-          ? throwError(() => error)
-          : of([] as IPublicVideoItem[]);
       }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
@@ -331,28 +275,6 @@ export class MediaPublicQueryService {
     );
   }
 
-  private compareProfileMedia(
-    left: IPublicProfileMediaItem,
-    right: IPublicProfileMediaItem
-  ): number {
-    const leftCover = 'isCover' in left && left.isCover === true ? 1 : 0;
-    const rightCover = 'isCover' in right && right.isCover === true ? 1 : 0;
-
-    if (leftCover !== rightCover) {
-      return rightCover - leftCover;
-    }
-
-    const orderDifference = this.safeNumber(left.orderIndex) -
-      this.safeNumber(right.orderIndex);
-
-    if (orderDifference !== 0) {
-      return orderDifference;
-    }
-
-    return this.safeNumber(right.publishedAt) -
-      this.safeNumber(left.publishedAt);
-  }
-
   private normalizeOwnerUids(values: readonly string[]): string[] {
     const unique = new Set<string>();
 
@@ -378,12 +300,6 @@ export class MediaPublicQueryService {
       : fallback;
 
     return Math.min(normalized, PUBLIC_MEDIA_BATCH_LIMIT);
-  }
-
-  private safeNumber(value: unknown): number {
-    return typeof value === 'number' && Number.isFinite(value)
-      ? value
-      : 0;
   }
 
   private isPermissionDenied(error: unknown): boolean {
