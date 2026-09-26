@@ -135,8 +135,6 @@ const promotionLifecycle = read(
 );
 for (const fragment of [
   'syncPhotoPromotionFromPublication',
-  'syncPhotoPromotionFromPublicPhoto',
-  'syncPhotoPromotionFromOwnerProfile',
   'syncPhotoPromotionFromAdvertiserAccount',
   'syncPhotoPromotionFromAdvertiserUser',
   'syncPhotoPromotionFromAdvertiserAgeEligibility',
