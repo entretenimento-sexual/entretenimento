@@ -19,6 +19,7 @@ import {
   resolveSocialConnectionAccess,
 } from '../../friendship/application/social-connection-access.policy';
 import { calculateMediaViewScore } from './media-audience-score';
+import { logPhotoOperation } from './photo-operation-telemetry';
 import {
   canReadPublishedPhotoAudience,
   resolvePhotoAudienceAccessInTransaction,
@@ -127,6 +128,7 @@ export const recordPhotoView = onCall<RecordPhotoViewRequest>(
     const ownerUid = cleanId(request.data?.ownerUid);
     const photoId = cleanId(request.data?.photoId);
     const source = cleanSource(request.data?.source);
+    const startedAt = Date.now();
 
     if (!viewerUid) {
       throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
@@ -175,7 +177,7 @@ export const recordPhotoView = onCall<RecordPhotoViewRequest>(
       .collection(PROFILE_VIEWERS_COLLECTION)
       .doc(viewerUid);
 
-    await db.runTransaction(async (transaction) => {
+    const outcome = await db.runTransaction(async (transaction) => {
       const publicProfileSnap = await transaction.get(publicProfileRef);
       const publicPhotoSnap = await transaction.get(publicPhotoRef);
       const photoViewerSnap = await transaction.get(photoViewerRef);
@@ -276,49 +278,56 @@ export const recordPhotoView = onCall<RecordPhotoViewRequest>(
         ),
       });
 
-      transaction.set(
-        photoViewerRef,
-        {
-          ownerUid,
-          photoId,
-          viewerUid,
-          source,
-          firstViewedAt: isUniquePhotoViewer
-            ? now
-            : photoViewerData.firstViewedAt ?? now,
-          lastViewedAt: now,
-          ...(canCountView
-            ? {
-              lastCountedAt: now,
-              viewsCount: FieldValue.increment(1),
-            }
-            : {}),
-        },
-        { merge: true }
-      );
+      // O documento por viewer é também o marcador de unicidade histórica.
+      // Não aplicamos TTL nele: isso faria uma pessoa voltar a ser "única" após
+      // a expiração. Em vez disso, cortamos write amplification: dentro da
+      // janela antifraude nenhum touch é persistido.
+      if (canCountView) {
+        transaction.set(
+          photoViewerRef,
+          {
+            ownerUid,
+            photoId,
+            viewerUid,
+            source,
+            firstViewedAt: isUniquePhotoViewer
+              ? now
+              : photoViewerData.firstViewedAt ?? now,
+            lastViewedAt: now,
+            lastCountedAt: now,
+            viewsCount: FieldValue.increment(1),
+          },
+          { merge: true }
+        );
+      }
 
-      transaction.set(
-        profileViewerRef,
-        {
-          ownerUid,
-          viewerUid,
-          firstViewedAt: isUniqueProfileViewer
-            ? now
-            : profileViewerData.firstViewedAt ??
-              profileViewerData.historicalFirstViewedAt ??
-              now,
-          lastViewedAt: now,
-          lastSource: source,
-          indexVersion: PROFILE_VIEWER_INDEX_VERSION,
-          ...(canCountView
-            ? {
-              lastCountedAt: now,
-              viewsCount: FieldValue.increment(1),
-            }
-            : {}),
-        },
-        { merge: true }
-      );
+      const shouldTouchProfileViewer =
+        canCountView || isUniqueProfileViewer;
+
+      if (shouldTouchProfileViewer) {
+        transaction.set(
+          profileViewerRef,
+          {
+            ownerUid,
+            viewerUid,
+            firstViewedAt: isUniqueProfileViewer
+              ? now
+              : profileViewerData.firstViewedAt ??
+                profileViewerData.historicalFirstViewedAt ??
+                now,
+            lastViewedAt: now,
+            lastSource: source,
+            indexVersion: PROFILE_VIEWER_INDEX_VERSION,
+            ...(canCountView
+              ? {
+                lastCountedAt: now,
+                viewsCount: FieldValue.increment(1),
+              }
+              : {}),
+          },
+          { merge: true }
+        );
+      }
 
       if (canCountView) {
         transaction.set(
@@ -352,6 +361,33 @@ export const recordPhotoView = onCall<RecordPhotoViewRequest>(
           { merge: true }
         );
       }
+
+      return {
+        counted: canCountView,
+        uniquePhotoViewer: isUniquePhotoViewer,
+        uniqueProfileViewer: isUniqueProfileViewer,
+        viewerWrites:
+          (canCountView ? 1 : 0) + (shouldTouchProfileViewer ? 1 : 0),
+        aggregateWrites:
+          (canCountView ? 1 : 0) +
+          (canCountView || isUniqueProfileViewer ? 1 : 0),
+      };
+    });
+
+    logPhotoOperation({
+      operation: 'photo.record_view',
+      outcome: outcome.counted ? 'success' : 'skipped',
+      startedAt,
+      counts: {
+        viewerWrites: outcome.viewerWrites,
+        aggregateWrites: outcome.aggregateWrites,
+        uniquePhotoViewer: outcome.uniquePhotoViewer ? 1 : 0,
+        uniqueProfileViewer: outcome.uniqueProfileViewer ? 1 : 0,
+      },
+      details: {
+        source,
+        counted: outcome.counted,
+      },
     });
 
     return {
