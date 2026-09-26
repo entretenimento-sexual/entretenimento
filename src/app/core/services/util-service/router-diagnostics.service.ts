@@ -10,6 +10,7 @@ import {
   NavigationStart,
   NavigationEnd,
   NavigationCancel,
+  NavigationCancellationCode,
   NavigationError,
   RoutesRecognized,
   GuardsCheckStart,
@@ -277,10 +278,27 @@ export class RouterDiagnosticsService {
   private handleNavigationFailure(e: NavigationCancel | NavigationError): void {
     if (e instanceof NavigationCancel) {
       const reason = String((e as any).reason ?? '');
-      const isRedirect = reason.includes('Redirecting to');
+      const isRedirect =
+        e.code === NavigationCancellationCode.Redirect ||
+        reason.includes('Redirecting to');
 
       if (isRedirect) {
         this.bumpRedirectCancelLoopCounter(e, reason);
+        return;
+      }
+
+      /**
+       * O Router usa NavigationCancel para controle de fluxo quando uma
+       * navegação mais nova substitui a anterior. Isso não é falha técnica e
+       * não deve atravessar ApplicationErrorService/GlobalErrorHandler.
+       */
+      if (
+        e.code === NavigationCancellationCode.SupersededByNewNavigation
+      ) {
+        this.dbg(
+          'navigation superseded by a newer navigation',
+          this.sanitizeRouterEvent(e)
+        );
         return;
       }
 
