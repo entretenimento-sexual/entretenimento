@@ -308,23 +308,14 @@
   gap: 0.28rem;
 }
 
-.feed-card-official,
-.feed-card-sponsored {
+.feed-card-official {
   display: inline-flex;
   align-items: center;
   gap: 0.2rem;
   flex: 0 0 auto;
-  white-space: nowrap;
-}
-
-.feed-card-official {
   color: var(--success-color, #5ed39a);
   font-weight: 800;
-}
-
-.feed-card-sponsored {
-  margin-left: auto;
-  color: var(--primary-color, #ff7070);
+  white-space: nowrap;
 }
 
 .photo-official-badge {
