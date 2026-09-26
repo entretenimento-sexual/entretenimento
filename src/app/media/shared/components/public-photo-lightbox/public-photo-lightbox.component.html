@@ -8,14 +8,20 @@
     class="lightbox-dialog"
     role="dialog"
     aria-modal="true"
-    [attr.aria-label]="title()"
+    aria-labelledby="public-photo-lightbox-title"
+    aria-describedby="public-photo-lightbox-position"
     tabindex="-1"
     (click)="$event.stopPropagation()">
 
     <header class="lightbox-header">
       <div class="lightbox-title">
-        <strong>{{ title() }}</strong>
-        <span>{{ activeIndex() + 1 }}/{{ items().length }}</span>
+        <strong id="public-photo-lightbox-title">{{ title() }}</strong>
+        <span
+          id="public-photo-lightbox-position"
+          aria-live="polite"
+          aria-atomic="true">
+          Foto {{ activeIndex() + 1 }} de {{ items().length }}
+        </span>
       </div>
 
       @if (photo && profileLink()) {
@@ -47,7 +53,8 @@
         type="button"
         class="btn btn-ghost icon"
         (click)="close()"
-        aria-label="Fechar visualização">
+        aria-label="Fechar visualização"
+        aria-keyshortcuts="Escape">
         ✕
       </button>
     </header>
@@ -69,7 +76,8 @@
         class="btn btn-secondary"
         (click)="prev()"
         [disabled]="!hasPrev()"
-        aria-label="Foto anterior">
+        aria-label="Foto anterior"
+        aria-keyshortcuts="ArrowLeft">
         ← Anterior
       </button>
 
@@ -78,7 +86,8 @@
         class="btn btn-secondary"
         (click)="next()"
         [disabled]="!hasNext()"
-        aria-label="Próxima foto">
+        aria-label="Próxima foto"
+        aria-keyshortcuts="ArrowRight">
         Próxima →
       </button>
     </footer>
