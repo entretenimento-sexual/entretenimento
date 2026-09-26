@@ -119,6 +119,7 @@
         class="viewer-close-btn"
         (click)="close()"
         aria-label="Fechar visualizador"
+        aria-keyshortcuts="Escape"
       >
         ✕
       </button>
@@ -130,7 +131,7 @@
   </span>
 
   <div class="viewer-shell">
-    <main class="viewer-media-panel" aria-label="Foto selecionada">
+    <section class="viewer-media-panel" aria-label="Foto selecionada">
       <div class="viewer-media-frame">
         @if (current) {
           <img
@@ -152,6 +153,7 @@
           (click)="prev()"
           [disabled]="!hasPrev"
           aria-label="Foto anterior"
+          aria-keyshortcuts="ArrowLeft"
         >
           ‹
         </button>
@@ -163,11 +165,12 @@
           [disabled]="!hasNext || waitingForContinuation"
           [attr.aria-busy]="waitingForContinuation ? 'true' : null"
           [attr.aria-label]="waitingForContinuation ? 'Carregando próxima foto' : 'Próxima foto'"
+          aria-keyshortcuts="ArrowRight"
         >
           ›
         </button>
       </nav>
-    </main>
+    </section>
 
     <aside class="viewer-social-panel" aria-label="Comentários e reações da foto">
       <section class="comments-section" aria-label="Comentários da foto">
