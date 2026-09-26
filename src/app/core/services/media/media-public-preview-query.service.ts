@@ -33,7 +33,7 @@ import {
   IPublicVideoProjection,
 } from 'src/app/core/interfaces/media/i-public-video-item';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from './media-application-error.service';
 import { PublicPhotoAccessService } from './public-photo-access.service';
 import {
   PublicMediaReadBoundaryService,
@@ -114,7 +114,7 @@ export class MediaPublicPreviewQueryService {
     private readonly publicMediaRead: PublicMediaReadBoundaryService,
     private readonly publicPhotoAccess: PublicPhotoAccessService,
     private readonly publicVideoAccess: PublicVideoAccessService,
-    private readonly errorHandler: GlobalErrorHandlerService
+    private readonly errorHandler: MediaApplicationErrorService
   ) {}
 
   getProfilePublicMediaPreview$(

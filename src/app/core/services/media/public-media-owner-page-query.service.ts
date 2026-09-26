@@ -20,7 +20,7 @@ import {
 } from 'src/app/core/interfaces/media/i-public-video-item';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from './media-application-error.service';
 import { PublicPhotoAccessService } from './public-photo-access.service';
 import { PublicMediaReadBoundaryService } from './public-media-read-boundary.service';
 import { PublicVideoAccessService } from './public-video-access.service';
@@ -78,7 +78,7 @@ export class PublicMediaOwnerPageQueryService {
   private readonly photoAccess = inject(PublicPhotoAccessService);
   private readonly videoAccess = inject(PublicVideoAccessService);
   private readonly errorNotification = inject(ErrorNotificationService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly globalError = inject(MediaApplicationErrorService);
 
   loadPhotoPage$(
     request: IPublicMediaOwnerPageRequest

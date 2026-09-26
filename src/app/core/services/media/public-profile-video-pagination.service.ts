@@ -6,7 +6,7 @@ import {
   IPublicVideoItem,
   IPublicVideoProjection,
 } from 'src/app/core/interfaces/media/i-public-video-item';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from './media-application-error.service';
 import {
   PublicMediaReadBoundaryService,
 } from './public-media-read-boundary.service';
@@ -32,7 +32,7 @@ const MAX_PAGE_SIZE = 24;
 export class PublicProfileVideoPaginationService {
   private readonly publicMediaRead = inject(PublicMediaReadBoundaryService);
   private readonly publicVideoAccess = inject(PublicVideoAccessService);
-  private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
+  private readonly globalErrorHandler = inject(MediaApplicationErrorService);
 
   loadPage$(
     ownerUid: string,

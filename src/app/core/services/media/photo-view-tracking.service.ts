@@ -5,7 +5,7 @@ import { Observable, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from './media-application-error.service';
 
 export type TPhotoViewSource =
   | 'discover'
@@ -33,7 +33,7 @@ export class PhotoViewTrackingService {
 
   constructor(
     private readonly firestoreCtx: FirestoreContextService,
-    private readonly errorHandler: GlobalErrorHandlerService
+    private readonly errorHandler: MediaApplicationErrorService
   ) {}
 
   recordPhotoView$(
