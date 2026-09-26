@@ -1,6 +1,5 @@
 <section class="top-photos-page" aria-labelledby="top-photos-title">
   @let vm = (vm$ | async);
-  @let selectedIndex = (selectedIndex$ | async);
 
   <header class="top-photos-header gallery-header-clean">
     <h1 id="top-photos-title">Fotos em destaque</h1>
@@ -75,16 +74,6 @@
           </button>
         </div>
       }
-    }
-
-    @if (selectedIndex !== null) {
-      <app-public-photo-lightbox
-        [items]="vm.items"
-        [activeIndex]="selectedIndex"
-        title="Fotos em destaque"
-        (closed)="closeViewer()"
-        (prevRequested)="prev()"
-        (nextRequested)="next()" />
     }
   }
 </section>
