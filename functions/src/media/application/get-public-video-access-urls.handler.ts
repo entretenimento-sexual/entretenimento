@@ -1,7 +1,6 @@
 import { logger } from 'firebase-functions';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import { evaluateCanonicalAgeEligibility } from '../../compliance/age-eligibility.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
 import {
@@ -12,6 +11,13 @@ import {
   REQUIRE_PUBLIC_MEDIA_APP_CHECK,
 } from './public-media-callable-security';
 import { assertPublicMediaConsumptionAccess } from './public-media-consumption-access.policy';
+import {
+  isCurrentPublicMediaAssetExposure,
+} from './public-media-exposure.policy';
+import {
+  resolvePublicMediaSignedOwnerExposure,
+  type PublicMediaOwnerExposureContext,
+} from './public-media-owner-exposure.service';
 import {
   normalizePublicVideoAccessMode,
   shouldIssuePublicVideoPlaybackAccess,
@@ -57,12 +63,6 @@ interface PublicVideoAccessResolution {
   technicalFailure: boolean;
 }
 
-interface PublicProfileAccessResolution {
-  exists: boolean;
-  technicalFailure: boolean;
-  validUntilMs: number | null;
-}
-
 const MAX_ITEMS_PER_REQUEST = 16;
 const SIGNED_URL_TTL_MS = 5 * 60 * 1000;
 
@@ -90,10 +90,11 @@ async function resolveAccessItem(
   technicalExpiresAt: number,
   viewerExpiresAt: number,
   ownerExpiresAt: number,
-  publicProfileExists: boolean,
-  mode: TPublicVideoAccessMode
+  ownerExposureAllowed: boolean,
+  mode: TPublicVideoAccessMode,
+  nowMs: number
 ): Promise<PublicVideoAccessResponseItem | null> {
-  if (!publicProfileExists) {
+  if (!ownerExposureAllowed) {
     return null;
   }
 
@@ -112,18 +113,19 @@ async function resolveAccessItem(
     return null;
   }
 
-  const publicVideo = publicVideoSnap.data();
-  const publication = publicationSnap.data();
-
-  const mediaValidUntilMs =
-    publicAgeProjectionValidUntilMs(publicVideo);
+  const publicVideo = publicVideoSnap.data() as Record<string, unknown>;
+  const publication = publicationSnap.data() as Record<string, unknown>;
+  const mediaValidUntilMs = publicAgeProjectionValidUntilMs(publicVideo);
 
   if (
     mediaValidUntilMs === null ||
-    mediaValidUntilMs <= Date.now() ||
-    publicVideo?.visibility !== 'PUBLIC' ||
-    publicVideo?.moderationStatus !== 'APPROVED' ||
-    publication?.isPublished !== true
+    !isCurrentPublicMediaAssetExposure({
+      publicMedia: publicVideo,
+      publication,
+      ownerExposureAllowed,
+      nowMs,
+      allowedVisibilities: ['PUBLIC'],
+    })
   ) {
     return null;
   }
@@ -139,7 +141,7 @@ async function resolveAccessItem(
   }
 
   const expiresAt = resolvePublicMediaSignedUrlExpiresAt({
-    nowMs: Date.now(),
+    nowMs,
     technicalExpiresAtMs: technicalExpiresAt,
     viewerExpiresAtMs: viewerExpiresAt,
     ownerExpiresAtMs: ownerExpiresAt,
@@ -292,85 +294,33 @@ export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
       );
     }
 
-    const ownerProfileEntries = await Promise.all(
-      ownerUids.map(async (ownerUid) => {
-        if (blockedOwnerUids.has(ownerUid)) {
-          return [
-            ownerUid,
-            {
-              exists: false,
-              technicalFailure: false,
-              validUntilMs: null,
-            },
-          ] as const;
+    let publicProfileAccessByOwner:
+      ReadonlyMap<string, PublicMediaOwnerExposureContext>;
+
+    try {
+      publicProfileAccessByOwner = await resolvePublicMediaSignedOwnerExposure(
+        ownerUids,
+        blockedOwnerUids,
+        nowMs
+      );
+    } catch (error) {
+      logger.warn(
+        '[getPublicVideoAccessUrls] Falha ao validar exposure dos proprietários.',
+        {
+          viewerUid,
+          ownerCount: ownerUids.length,
+          error: error instanceof Error
+            ? error.message
+            : String(error ?? ''),
         }
+      );
 
-        try {
-          const [profileSnapshot, ageEligibilitySnapshot] =
-            await Promise.all([
-              db.doc(`public_profiles/${ownerUid}`).get(),
-              db.doc(`age_eligibility_records/${ownerUid}`).get(),
-            ]);
-          const profileValidUntilMs =
-            profileSnapshot.exists
-              ? publicAgeProjectionValidUntilMs(profileSnapshot.data())
-              : null;
-          const ownerAgeDecision = evaluateCanonicalAgeEligibility({
-            uid: ownerUid,
-            rawRecord: ageEligibilitySnapshot.exists
-              ? ageEligibilitySnapshot.data()
-              : null,
-            nowMs,
-          });
-          const ownerCanonicalValidUntilMs =
-            ownerAgeDecision.allowed
-              ? ownerAgeDecision.expiresAtMs ?? Number.POSITIVE_INFINITY
-              : null;
-          const validUntilMs =
-            profileValidUntilMs !== null &&
-            ownerCanonicalValidUntilMs !== null
-              ? Math.min(
-                profileValidUntilMs,
-                ownerCanonicalValidUntilMs
-              )
-              : null;
+      throw new HttpsError(
+        'internal',
+        'Não foi possível validar o acesso aos vídeos neste momento.'
+      );
+    }
 
-          return [
-            ownerUid,
-            {
-              exists:
-                validUntilMs !== null &&
-                validUntilMs > nowMs,
-              technicalFailure: false,
-              validUntilMs,
-            },
-          ] as const;
-        } catch (error) {
-          logger.warn(
-            '[getPublicVideoAccessUrls] Falha ao validar perfil público.',
-            {
-              ownerUid,
-              error: error instanceof Error
-                ? error.message
-                : String(error ?? ''),
-            }
-          );
-
-          return [
-            ownerUid,
-            {
-              exists: false,
-              technicalFailure: true,
-              validUntilMs: null,
-            },
-          ] as const;
-        }
-      })
-    );
-    const publicProfileAccessByOwner = new Map<
-      string,
-      PublicProfileAccessResolution
-    >(ownerProfileEntries);
     const technicalExpiresAt = nowMs + SIGNED_URL_TTL_MS;
     const viewerExpiresAt =
       viewerAccess.ageEligibilityExpiresAtMs ??
@@ -379,10 +329,6 @@ export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
       [...uniqueItems.values()].map(
         async ({ ownerUid, videoId }): Promise<PublicVideoAccessResolution> => {
           const profileAccess = publicProfileAccessByOwner.get(ownerUid);
-
-          if (profileAccess?.technicalFailure === true) {
-            return { item: null, technicalFailure: true };
-          }
 
           try {
             return {
@@ -393,8 +339,9 @@ export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
                 viewerExpiresAt,
                 profileAccess?.validUntilMs ??
                   Number.NEGATIVE_INFINITY,
-                profileAccess?.exists === true,
-                mode
+                profileAccess?.allowed === true,
+                mode,
+                nowMs
               ),
               technicalFailure: false,
             };

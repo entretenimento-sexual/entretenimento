@@ -1,14 +1,10 @@
 import { logger } from 'firebase-functions';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import { evaluateCanonicalAgeEligibility } from '../../compliance/age-eligibility.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
 import { resolveSocialConnectionAccess } from '../../friendship/application/social-connection-access.policy';
 import { consumeBackendRateLimitQuota } from './backend-rate-limit.service';
-import {
-  canReadPublishedPhotoAudience,
-} from './photo-audience-access.policy';
 import {
   containsControlCharacter,
   normalizeOwnedPublishedPhotoPath,
@@ -18,6 +14,13 @@ import {
   REQUIRE_PUBLIC_MEDIA_APP_CHECK,
 } from './public-media-callable-security';
 import { assertPublicMediaConsumptionAccess } from './public-media-consumption-access.policy';
+import {
+  isCurrentPublicPhotoAssetExposure,
+} from './public-media-exposure.policy';
+import {
+  resolvePublicMediaSignedOwnerExposure,
+  type PublicMediaOwnerExposureContext,
+} from './public-media-owner-exposure.service';
 import {
   publicAgeProjectionValidUntilMs,
   resolvePublicMediaSignedUrlExpiresAt,
@@ -47,12 +50,6 @@ interface PublicPhotoAccessResponse {
 interface PublicPhotoAccessResolution {
   item: PublicPhotoAccessResponseItem | null;
   technicalFailure: boolean;
-}
-
-interface PublicProfileAccessResolution {
-  exists: boolean;
-  technicalFailure: boolean;
-  validUntilMs: number | null;
 }
 
 const MAX_ITEMS_PER_REQUEST = 32;
@@ -105,11 +102,12 @@ async function resolveAccessItem(
   technicalExpiresAt: number,
   viewerExpiresAt: number,
   ownerExpiresAt: number,
-  publicProfileExists: boolean,
+  ownerExposureAllowed: boolean,
   viewerIsOwner: boolean,
-  viewerIsFriend: boolean
+  viewerIsFriend: boolean,
+  nowMs: number
 ): Promise<PublicPhotoAccessResponseItem | null> {
-  if (!publicProfileExists) {
+  if (!ownerExposureAllowed) {
     return null;
   }
 
@@ -128,26 +126,20 @@ async function resolveAccessItem(
     return null;
   }
 
-  const publicPhoto = publicPhotoSnap.data();
-  const publication = publicationSnap.data();
-  const visibility = String(publicPhoto?.visibility ?? '')
-    .trim()
-    .toUpperCase();
-
-  const mediaValidUntilMs =
-    publicAgeProjectionValidUntilMs(publicPhoto);
+  const publicPhoto = publicPhotoSnap.data() as Record<string, unknown>;
+  const publication = publicationSnap.data() as Record<string, unknown>;
+  const mediaValidUntilMs = publicAgeProjectionValidUntilMs(publicPhoto);
 
   if (
     mediaValidUntilMs === null ||
-    mediaValidUntilMs <= Date.now() ||
-    !canReadPublishedPhotoAudience({
-      visibility,
+    !isCurrentPublicPhotoAssetExposure({
+      publicMedia: publicPhoto,
+      publication,
+      ownerExposureAllowed,
       viewerIsOwner,
       viewerIsFriend,
-    }) ||
-    publicPhoto?.moderationStatus !== 'APPROVED' ||
-    publication?.isPublished !== true ||
-    String(publication?.visibility ?? '').trim().toUpperCase() !== visibility
+      nowMs,
+    })
   ) {
     return null;
   }
@@ -170,7 +162,7 @@ async function resolveAccessItem(
   }
 
   const expiresAt = resolvePublicMediaSignedUrlExpiresAt({
-    nowMs: Date.now(),
+    nowMs,
     technicalExpiresAtMs: technicalExpiresAt,
     viewerExpiresAtMs: viewerExpiresAt,
     ownerExpiresAtMs: ownerExpiresAt,
@@ -270,85 +262,33 @@ export const getPublicPhotoAccessUrls = onCall<PublicPhotoAccessRequest>(
       );
     }
 
-    const ownerProfileEntries = await Promise.all(
-      ownerUids.map(async (ownerUid) => {
-        if (socialAccess.blockedTargetUids.has(ownerUid)) {
-          return [
-            ownerUid,
-            {
-              exists: false,
-              technicalFailure: false,
-              validUntilMs: null,
-            },
-          ] as const;
+    let publicProfileAccessByOwner:
+      ReadonlyMap<string, PublicMediaOwnerExposureContext>;
+
+    try {
+      publicProfileAccessByOwner = await resolvePublicMediaSignedOwnerExposure(
+        ownerUids,
+        socialAccess.blockedTargetUids,
+        nowMs
+      );
+    } catch (error) {
+      logger.warn(
+        '[getPublicPhotoAccessUrls] Falha ao validar exposure dos proprietários.',
+        {
+          viewerUid,
+          ownerCount: ownerUids.length,
+          error: error instanceof Error
+            ? error.message
+            : String(error ?? ''),
         }
+      );
 
-        try {
-          const [profileSnapshot, ageEligibilitySnapshot] =
-            await Promise.all([
-              db.doc(`public_profiles/${ownerUid}`).get(),
-              db.doc(`age_eligibility_records/${ownerUid}`).get(),
-            ]);
-          const profileValidUntilMs =
-            profileSnapshot.exists
-              ? publicAgeProjectionValidUntilMs(profileSnapshot.data())
-              : null;
-          const ownerAgeDecision = evaluateCanonicalAgeEligibility({
-            uid: ownerUid,
-            rawRecord: ageEligibilitySnapshot.exists
-              ? ageEligibilitySnapshot.data()
-              : null,
-            nowMs,
-          });
-          const ownerCanonicalValidUntilMs =
-            ownerAgeDecision.allowed
-              ? ownerAgeDecision.expiresAtMs ?? Number.POSITIVE_INFINITY
-              : null;
-          const validUntilMs =
-            profileValidUntilMs !== null &&
-            ownerCanonicalValidUntilMs !== null
-              ? Math.min(
-                profileValidUntilMs,
-                ownerCanonicalValidUntilMs
-              )
-              : null;
+      throw new HttpsError(
+        'internal',
+        'Não foi possível validar o acesso às fotos neste momento.'
+      );
+    }
 
-          return [
-            ownerUid,
-            {
-              exists:
-                validUntilMs !== null &&
-                validUntilMs > nowMs,
-              technicalFailure: false,
-              validUntilMs,
-            },
-          ] as const;
-        } catch (error) {
-          logger.warn(
-            '[getPublicPhotoAccessUrls] Falha ao validar perfil público.',
-            {
-              ownerUid,
-              error: error instanceof Error
-                ? error.message
-                : String(error ?? ''),
-            }
-          );
-
-          return [
-            ownerUid,
-            {
-              exists: false,
-              technicalFailure: true,
-              validUntilMs: null,
-            },
-          ] as const;
-        }
-      })
-    );
-    const publicProfileAccessByOwner = new Map<
-      string,
-      PublicProfileAccessResolution
-    >(ownerProfileEntries);
     const technicalExpiresAt = nowMs + SIGNED_URL_TTL_MS;
     const viewerExpiresAt =
       viewerAccess.ageEligibilityExpiresAtMs ??
@@ -357,10 +297,6 @@ export const getPublicPhotoAccessUrls = onCall<PublicPhotoAccessRequest>(
       [...uniqueItems.values()].map(
         async ({ ownerUid, photoId }): Promise<PublicPhotoAccessResolution> => {
           const profileAccess = publicProfileAccessByOwner.get(ownerUid);
-
-          if (profileAccess?.technicalFailure === true) {
-            return { item: null, technicalFailure: true };
-          }
 
           try {
             return {
@@ -371,9 +307,10 @@ export const getPublicPhotoAccessUrls = onCall<PublicPhotoAccessRequest>(
                 viewerExpiresAt,
                 profileAccess?.validUntilMs ??
                   Number.NEGATIVE_INFINITY,
-                profileAccess?.exists === true,
+                profileAccess?.allowed === true,
                 ownerUid === viewerUid,
-                socialAccess.friendTargetUids.has(ownerUid)
+                socialAccess.friendTargetUids.has(ownerUid),
+                nowMs
               ),
               technicalFailure: false,
             };

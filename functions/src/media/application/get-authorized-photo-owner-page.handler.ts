@@ -11,6 +11,12 @@ import {
   REQUIRE_PUBLIC_MEDIA_APP_CHECK,
 } from './public-media-callable-security';
 import { assertPublicMediaConsumptionAccess } from './public-media-consumption-access.policy';
+import {
+  isCurrentPublicMediaProjectionExposure,
+} from './public-media-exposure.policy';
+import {
+  resolvePublicMediaOwnerExposure,
+} from './public-media-owner-exposure.service';
 
 interface AuthorizedPhotoOwnerPageCursorInput {
   publishedAt?: unknown;
@@ -66,30 +72,6 @@ function cleanId(value: unknown): string {
   }
 
   return normalized;
-}
-
-function hasCurrentPublicAgeEligibility(
-  data: FirebaseFirestore.DocumentData | undefined,
-  nowMs: number
-): boolean {
-  if (data?.['ageEligibilityVerifiedAdult'] !== true) return false;
-
-  const validUntil = data?.['ageEligibilityValidUntil'] as
-    | { toMillis?: unknown }
-    | null
-    | undefined;
-
-  if (!validUntil || typeof validUntil.toMillis !== 'function') {
-    return false;
-  }
-
-  try {
-    const validUntilMs =
-      (validUntil as { toMillis: () => number }).toMillis();
-    return Number.isFinite(validUntilMs) && validUntilMs > nowMs;
-  } catch {
-    return false;
-  }
 }
 
 function normalizeOwnerUids(value: unknown): string[] {
@@ -157,30 +139,6 @@ async function consumeAuthorizedPhotoPageQuota(
   });
 }
 
-async function resolveExistingPublicProfileOwnerUids(
-  ownerUids: readonly string[],
-  nowMs: number
-): Promise<Set<string>> {
-  if (!ownerUids.length) return new Set<string>();
-
-  const snapshots = await db.getAll(
-    ...ownerUids.map((ownerUid) => db.doc(`public_profiles/${ownerUid}`))
-  );
-  const existing = new Set<string>();
-
-  ownerUids.forEach((ownerUid, index) => {
-    const snapshot = snapshots[index];
-    if (
-      snapshot?.exists === true &&
-      hasCurrentPublicAgeEligibility(snapshot.data(), nowMs)
-    ) {
-      existing.add(ownerUid);
-    }
-  });
-
-  return existing;
-}
-
 async function loadVisibilityPage(input: {
   ownerUids: readonly string[];
   visibility: 'PUBLIC' | 'FRIENDS';
@@ -217,7 +175,11 @@ async function loadVisibilityPage(input: {
       !ownerUid ||
       !Number.isFinite(publishedAt) ||
       publishedAt < 0 ||
-      !hasCurrentPublicAgeEligibility(data, input.nowMs)
+      !isCurrentPublicMediaProjectionExposure(
+        data as Record<string, unknown>,
+        input.nowMs,
+        [input.visibility]
+      )
     ) {
       return [];
     }
@@ -274,14 +236,17 @@ export const getAuthorizedPhotoOwnerPage = onCall<AuthorizedPhotoOwnerPageReques
     await assertPublicMediaConsumptionAccess(viewerUid);
 
     try {
-      const [existingOwnerUids, socialAccess] = await Promise.all([
-        resolveExistingPublicProfileOwnerUids(ownerUids, nowMs),
-        resolveSocialConnectionAccess(viewerUid, ownerUids),
-      ]);
+      const socialAccess = await resolveSocialConnectionAccess(
+        viewerUid,
+        ownerUids
+      );
+      const ownerExposureByUid = await resolvePublicMediaOwnerExposure(
+        ownerUids,
+        socialAccess.blockedTargetUids,
+        nowMs
+      );
       const publicOwnerUids = ownerUids.filter(
-        (ownerUid) =>
-          existingOwnerUids.has(ownerUid) &&
-          !socialAccess.blockedTargetUids.has(ownerUid)
+        (ownerUid) => ownerExposureByUid.get(ownerUid)?.allowed === true
       );
       const friendOwnerUids = publicOwnerUids.filter(
         (ownerUid) =>

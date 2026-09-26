@@ -13,6 +13,9 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
 import {
+  resolveBilateralBlockedUidsForActor,
+} from '../../friendship/application/bilateral-block-access.policy';
+import {
   consumeBackendRateLimitQuota,
 } from '../../shared/security/backend-rate-limit.service';
 import {
@@ -22,6 +25,14 @@ import {
 import {
   assertPublicMediaConsumptionAccess,
 } from './public-media-consumption-access.policy';
+import {
+  isCurrentPublicMediaBoostExposure,
+  isCurrentPublicMediaProjectionExposure,
+} from './public-media-exposure.policy';
+import {
+  resolvePublicMediaOwnerExposure,
+  type PublicMediaOwnerExposureContext,
+} from './public-media-owner-exposure.service';
 
 type PublicMediaDiscoveryType = 'PHOTO' | 'VIDEO';
 type PublicMediaDiscoveryMode =
@@ -227,27 +238,28 @@ export function isCurrentPublicMediaExposure(
   data: Record<string, unknown>,
   nowMs: number
 ): boolean {
-  const validUntilMs = timestampToMillis(
-    data['ageEligibilityValidUntil']
-  );
-
-  return data['ageEligibilityVerifiedAdult'] === true
-    && validUntilMs !== null
-    && validUntilMs > nowMs
-    && data['visibility'] === 'PUBLIC'
-    && data['moderationStatus'] === 'APPROVED';
+  return isCurrentPublicMediaProjectionExposure(data, nowMs, ['PUBLIC']);
 }
 
 export function serializePublicMediaForDiscovery(
   documentId: string,
   documentPath: string,
   data: Record<string, unknown>,
-  nowMs: number
+  nowMs: number,
+  exposure: {
+    readonly ownerAllowed: boolean;
+    readonly requireActiveBoost: boolean;
+  }
 ): Record<string, unknown> | null {
+  const mediaAllowed = exposure.requireActiveBoost
+    ? isCurrentPublicMediaBoostExposure(data, nowMs)
+    : isCurrentPublicMediaExposure(data, nowMs);
+
   if (
+    !exposure.ownerAllowed ||
     !cleanId(documentId) ||
     !cleanId(data['ownerUid']) ||
-    !isCurrentPublicMediaExposure(data, nowMs)
+    !mediaAllowed
   ) {
     return null;
   }
@@ -470,28 +482,75 @@ export const getPublicMediaDiscovery = onCall<PublicMediaDiscoveryRequest>(
       MAX_SCAN_ABSOLUTE,
       Math.max(resultLimit + 1, resultLimit * MAX_SCAN_MULTIPLIER)
     );
-    const snapshot = await mediaQuery.limit(maxScanned).get();
+    const [snapshot, blockedTargetUids] = await Promise.all([
+      mediaQuery.limit(maxScanned).get(),
+      resolveBilateralBlockedUidsForActor(viewerUid),
+    ]);
     const items: Record<string, unknown>[] = [];
+    const ownerExposureByUid = new Map<
+      string,
+      PublicMediaOwnerExposureContext
+    >();
+    const exposureBatchSize = Math.min(60, Math.max(12, resultLimit));
 
     let stoppedEarly = false;
     let cursorDocument: FirebaseFirestore.QueryDocumentSnapshot | null = null;
 
-    for (const document of snapshot.docs) {
-      cursorDocument = document;
-      const serialized = serializePublicMediaForDiscovery(
-        document.id,
-        document.ref.path,
-        document.data() as Record<string, unknown>,
-        nowMs
+    for (
+      let offset = 0;
+      offset < snapshot.docs.length && !stoppedEarly;
+      offset += exposureBatchSize
+    ) {
+      const batchDocuments = snapshot.docs.slice(
+        offset,
+        offset + exposureBatchSize
+      );
+      const unresolvedOwnerUids = Array.from(
+        new Set(
+          batchDocuments
+            .map((document) => cleanId(document.data()?.['ownerUid']))
+            .filter(
+              (ownerUid) => ownerUid && !ownerExposureByUid.has(ownerUid)
+            )
+        )
       );
 
-      if (serialized) {
-        items.push(serialized);
+      if (unresolvedOwnerUids.length) {
+        const resolvedOwnerExposure = await resolvePublicMediaOwnerExposure(
+          unresolvedOwnerUids,
+          blockedTargetUids,
+          nowMs
+        );
+
+        resolvedOwnerExposure.forEach((value, ownerUid) => {
+          ownerExposureByUid.set(ownerUid, value);
+        });
       }
 
-      if (items.length >= resultLimit) {
-        stoppedEarly = true;
-        break;
+      for (const document of batchDocuments) {
+        cursorDocument = document;
+        const data = document.data() as Record<string, unknown>;
+        const ownerUid = cleanId(data['ownerUid']);
+        const serialized = serializePublicMediaForDiscovery(
+          document.id,
+          document.ref.path,
+          data,
+          nowMs,
+          {
+            ownerAllowed:
+              ownerExposureByUid.get(ownerUid)?.allowed === true,
+            requireActiveBoost: mode === 'BOOSTED',
+          }
+        );
+
+        if (serialized) {
+          items.push(serialized);
+        }
+
+        if (items.length >= resultLimit) {
+          stoppedEarly = true;
+          break;
+        }
       }
     }
 

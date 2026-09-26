@@ -87,7 +87,8 @@ describe('get-public-media-discovery backend-time boundary', () => {
       'media-1',
       'public_profiles/owner-1/public_photos/media-1',
       media(),
-      NOW
+      NOW,
+      { ownerAllowed: true, requireActiveBoost: false }
     );
 
     assert.ok(serialized);
@@ -106,10 +107,47 @@ describe('get-public-media-discovery backend-time boundary', () => {
       media({
         ageEligibilityValidUntil: { toMillis: () => NOW - 1 },
       }),
-      NOW
+      NOW,
+      { ownerAllowed: true, requireActiveBoost: false }
     );
 
     assert.equal(serialized, null);
+  });
+
+  it('não serializa candidato quando o lifecycle do proprietário bloqueia exposição', () => {
+    assert.equal(
+      serializePublicMediaForDiscovery(
+        'media-blocked',
+        'public_profiles/owner-1/public_photos/media-blocked',
+        media(),
+        NOW,
+        { ownerAllowed: false, requireActiveBoost: false }
+      ),
+      null
+    );
+  });
+
+  it('boost exige campanha ativa além da base pública canônica', () => {
+    assert.equal(
+      serializePublicMediaForDiscovery(
+        'media-boost',
+        'public_profiles/owner-1/public_photos/media-boost',
+        media({ boostActive: true, boostedUntil: NOW + 60_000 }),
+        NOW,
+        { ownerAllowed: true, requireActiveBoost: true }
+      )?.['id'],
+      'media-boost'
+    );
+    assert.equal(
+      serializePublicMediaForDiscovery(
+        'media-boost-expired',
+        'public_profiles/owner-1/public_photos/media-boost-expired',
+        media({ boostActive: true, boostedUntil: NOW }),
+        NOW,
+        { ownerAllowed: true, requireActiveBoost: true }
+      ),
+      null
+    );
   });
 
   it('pondera a quota pela quantidade máxima solicitada', () => {
