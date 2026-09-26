@@ -347,22 +347,17 @@ export class MediaPublicPreviewQueryService {
     error: unknown,
     context: Record<string, unknown>
   ): void {
-    try {
-      const normalized = error instanceof Error
-        ? error
-        : new Error('Falha ao carregar prévia pública de mídias.');
-
-      (normalized as any).original = error;
-      (normalized as any).context = {
+    this.errorHandler.reportSilently(
+      error,
+      String(context['op'] ?? 'loadProfilePublicMediaPreview$'),
+      'Falha ao carregar prévia pública de mídias.',
+      {
         scope: 'MediaPublicPreviewQueryService',
         ...context,
-      };
-      (normalized as any).skipUserNotification = true;
-      this.errorHandler.handleError(normalized);
-    } catch {
-      // O diagnóstico não pode interromper a prévia pública.
-    }
+      }
+    );
   }
+
 }
 
 function normalizePreviewLimit(value: unknown): number {

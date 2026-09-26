@@ -74,23 +74,19 @@ export class PhotoViewTrackingService {
     );
   }
 
-  private reportError(error: unknown, context: Record<string, unknown>): void {
-    try {
-      const err =
-        error instanceof Error
-          ? error
-          : new Error('Erro ao registrar visualização da foto.');
-
-      (err as any).original = error;
-      (err as any).context = {
+  private reportError(
+    error: unknown,
+    context: Record<string, unknown>
+  ): void {
+    this.errorHandler.reportSilently(
+      error,
+      String(context['op'] ?? 'recordPhotoView$'),
+      'Erro ao registrar visualização da foto.',
+      {
         scope: 'PhotoViewTrackingService',
         ...context,
-      };
-      (err as any).skipUserNotification = true;
-
-      this.errorHandler.handleError(err);
-    } catch {
-      // noop
-    }
+      }
+    );
   }
+
 }

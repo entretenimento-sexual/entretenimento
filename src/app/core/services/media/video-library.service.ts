@@ -450,32 +450,7 @@ export class VideoLibraryService {
     });
 
     this.globalErrorHandler.report(error, {
-      operation: 'watchOwnedVideoMetadata
-  }
-
-  private reportSilent(
-    error: unknown,
-    context: Record<string, unknown>
-  ): void {
-    try {
-      const normalized = error instanceof Error
-        ? error
-        : new Error('Erro ao carregar vídeo.');
-
-      (normalized as any).original = error;
-      (normalized as any).context = {
-        scope: 'VideoLibraryService',
-        ...context,
-      };
-      (normalized as any).skipUserNotification = true;
-
-      this.globalErrorHandler.handleError(normalized);
-    } catch {
-      // noop
-    }
-  }
-}
-,
+      operation: 'watchOwnedVideoMetadata$',
       fallbackMessage: 'Erro ao carregar vídeos.',
       metadata: {
         scope: 'VideoLibraryService',
@@ -484,5 +459,18 @@ export class VideoLibraryService {
     });
   }
 
-
+  private reportSilent(
+    error: unknown,
+    context: Record<string, unknown>
+  ): void {
+    this.globalErrorHandler.reportSilently(
+      error,
+      String(context['op'] ?? 'unknown'),
+      'Erro ao carregar vídeo.',
+      {
+        scope: 'VideoLibraryService',
+        ...context,
+      }
+    );
+  }
 }

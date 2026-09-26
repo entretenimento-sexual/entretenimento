@@ -12,7 +12,7 @@ import {
 import { catchError } from 'rxjs/operators';
 
 import { AuthSessionService } from '../autentication/auth/auth-session.service';
-import { MediaApplicationErrorService } from '../error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from './media-application-error.service';
 import { validateVideoMediaFile } from './media-format.policy';
 import {
   IVideoEditorState,
@@ -160,23 +160,15 @@ export class VideoEditorLauncherService {
     error: unknown,
     source: VideoEditorSource
   ): void {
-    try {
-      const normalized = error instanceof Error
-        ? error
-        : new Error(String(error ?? 'Falha no editor de vídeo.'));
-      const contextual = normalized as Error & {
-        context?: unknown;
-        skipUserNotification?: boolean;
-      };
-      contextual.context = {
+    this.globalError.reportSilently(
+      error,
+      'launchVideoEditor',
+      'Falha no editor de vídeo.',
+      {
         scope: 'VideoEditorLauncherService',
-        op: 'launchVideoEditor',
         source,
-      };
-      contextual.skipUserNotification = true;
-      this.globalError.handleError(contextual);
-    } catch {
-      // Diagnóstico secundário não altera o fluxo de edição.
-    }
+      }
+    );
   }
+
 }
