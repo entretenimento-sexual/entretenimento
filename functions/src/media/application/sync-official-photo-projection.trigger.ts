@@ -14,8 +14,10 @@
 // - a projeção não participa de score, ranking ou cobrança.
 // -----------------------------------------------------------------------------
 
+import { FieldPath } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import {
   normalizeCanonicalAuthorityResourceId,
@@ -36,6 +38,9 @@ export interface OfficialPhotoProjection {
 }
 
 const PHOTO_BATCH_SIZE = 400;
+const BACKFILL_PAGE_SIZE = 50;
+const BACKFILL_STATE_PATH =
+  'media_projection_maintenance/official_photo_association_backfill';
 
 function normalizeProfileId(value: unknown): string | null {
   return normalizeCanonicalAuthorityResourceId(value);
@@ -247,5 +252,96 @@ export const syncOfficialPhotoProjectionFromAssociation = onDocumentWritten(
       const expected = buildOfficialPhotoProjection(after, profileId);
       await syncOwnerPublicPhotos(ownerUid, expected);
     }
+  }
+);
+
+
+/**
+ * Backfill incremental de rollout para associações já verificadas antes da
+ * criação da projeção Official Photo.
+ *
+ * O job termina de forma persistente ao alcançar o fim do conjunto. Vínculos
+ * criados/alterados depois disso são mantidos pelos triggers acima, evitando
+ * um scan recorrente permanente da base.
+ */
+export const backfillExistingOfficialPhotoProjections = onSchedule(
+  {
+    region: FUNCTIONS_REGION,
+    schedule: 'every 60 minutes',
+    timeZone: 'America/Sao_Paulo',
+    retryCount: 3,
+    maxInstances: 1,
+  },
+  async () => {
+    const stateRef = db.doc(BACKFILL_STATE_PATH);
+    const stateSnapshot = await stateRef.get();
+    const state = stateSnapshot.exists ? stateSnapshot.data() ?? {} : {};
+
+    if (state['completed'] === true) {
+      return;
+    }
+
+    const cursorAssociationKey = String(
+      state['cursorAssociationKey'] ?? ''
+    ).trim();
+
+    let query: FirebaseFirestore.Query = db
+      .collection('community_official_associations')
+      .where('status', '==', 'verified')
+      .orderBy(FieldPath.documentId())
+      .limit(BACKFILL_PAGE_SIZE);
+
+    if (cursorAssociationKey) {
+      query = query.startAfter(cursorAssociationKey);
+    }
+
+    const snapshot = await query.get();
+    let profileAssociations = 0;
+    let synchronizedOwners = 0;
+
+    for (const document of snapshot.docs) {
+      const association = document.data() ?? {};
+      const profileId = profileIdFromAssociation(association);
+      if (!profileId) continue;
+
+      profileAssociations += 1;
+
+      const ownerUid = await resolveOwnerUidByProfileId(profileId);
+      if (!ownerUid) continue;
+
+      const expected = buildOfficialPhotoProjection(
+        association,
+        profileId
+      );
+      if (!expected) continue;
+
+      await syncOwnerPublicPhotos(ownerUid, expected);
+      synchronizedOwners += 1;
+    }
+
+    const lastDocument = snapshot.docs.at(-1);
+    const completed = snapshot.size < BACKFILL_PAGE_SIZE;
+
+    await stateRef.set(
+      {
+        completed,
+        cursorAssociationKey: completed
+          ? null
+          : lastDocument?.id ?? cursorAssociationKey,
+        scanned: snapshot.size,
+        profileAssociations,
+        synchronizedOwners,
+        updatedAt: Date.now(),
+        ...(completed ? { completedAt: Date.now() } : {}),
+      },
+      { merge: true }
+    );
+
+    logger.info('official_photo_projection_backfill_page_completed', {
+      scanned: snapshot.size,
+      profileAssociations,
+      synchronizedOwners,
+      completed,
+    });
   }
 );
