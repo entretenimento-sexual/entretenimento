@@ -83,6 +83,9 @@ const legacyQuery = read(
 for (const forbidden of [
   'PUBLIC_MEDIA_SERVER_REFRESH_MS',
   'timer(0, PUBLIC_MEDIA_SERVER_REFRESH_MS)',
+  'getLatestPublicPhotos$(',
+  'getTopPublicPhotos$(',
+  'getBoostedPublicPhotos$(',
 ]) {
   forbidIncludes(
     legacyQuery,

@@ -56,7 +56,8 @@ export class MediaPublicQueryService {
     private readonly firestoreCtx: FirestoreContextService,
     private readonly publicMediaRead: PublicMediaReadBoundaryService,
     private readonly publicPhotoAccess: PublicPhotoAccessService,
-    private readonly publicVideoAccess: PublicVideoAccessService,    private readonly errorHandler: MediaApplicationErrorService
+    private readonly publicVideoAccess: PublicVideoAccessService,
+    private readonly errorHandler: MediaApplicationErrorService
   ) {}
 
   getProfilePublicMedia$(
@@ -317,84 +318,6 @@ export class MediaPublicQueryService {
         return options.propagateErrors
           ? throwError(() => error)
           : of(null);
-      }),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
-  }
-
-  getLatestPublicPhotos$(takeCount = 24): Observable<IPublicPhotoItem[]> {
-    const safeTakeCount = this.normalizeBatchLimit(takeCount, 24);
-
-    return this.readGlobalMedia$({
-      mediaType: 'PHOTO',
-      mode: 'LATEST',
-      limit: safeTakeCount,
-    }).pipe(
-      map((items) => items as unknown as readonly IPublicPhotoProjection[]),
-      switchMap((items) =>
-        this.publicPhotoAccess.hydratePublicPhotoUrls$(items)
-      ),
-      catchError((error: unknown) => {
-        this.reportError(
-          'Erro ao carregar últimas fotos públicas.',
-          error,
-          { op: 'getLatestPublicPhotos$', takeCount: safeTakeCount },
-          true
-        );
-        return of([]);
-      }),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
-  }
-
-  getTopPublicPhotos$(takeCount = 24): Observable<IPublicPhotoItem[]> {
-    const safeTakeCount = this.normalizeBatchLimit(takeCount, 24);
-
-    return this.readGlobalMedia$({
-      mediaType: 'PHOTO',
-      mode: 'TOP',
-      limit: safeTakeCount,
-    }).pipe(
-      map((items) => items as unknown as readonly IPublicPhotoProjection[]),
-      switchMap((items) =>
-        this.publicPhotoAccess.hydratePublicPhotoUrls$(items)
-      ),
-      catchError((error: unknown) => {
-        this.reportError(
-          'Erro ao carregar fotos em destaque.',
-          error,
-          { op: 'getTopPublicPhotos$', takeCount: safeTakeCount },
-          true
-        );
-        return of([]);
-      }),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
-  }
-
-  getBoostedPublicPhotos$(
-    takeCount = 24,
-    nowMs = Date.now()
-  ): Observable<IPublicPhotoItem[]> {
-    const safeTakeCount = this.normalizeBatchLimit(takeCount, 24);
-
-    return this.readGlobalMedia$({
-      mediaType: 'PHOTO',
-      mode: 'BOOSTED',
-      limit: safeTakeCount,
-    }).pipe(
-      map((items) => items as unknown as readonly IPublicPhotoProjection[]),
-      switchMap((items) =>
-        this.publicPhotoAccess.hydratePublicPhotoUrls$(items)
-      ),
-      catchError((error: unknown) => {
-        this.reportError(
-          'Erro ao carregar fotos turbinadas.',
-          error,
-          { op: 'getBoostedPublicPhotos$', takeCount: safeTakeCount, nowMs },
-          true
-        );
-        return of([]);
       }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
