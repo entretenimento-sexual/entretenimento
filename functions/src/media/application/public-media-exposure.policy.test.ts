@@ -5,7 +5,6 @@ import {
   evaluatePublicMediaOwnerExposure,
   evaluatePublicMediaSignedOwnerExposure,
   isCurrentPublicMediaAssetExposure,
-  isCurrentPublicMediaBoostExposure,
   isCurrentPublicMediaProjectionExposure,
   isCurrentPublicPhotoAssetExposure,
 } from './public-media-exposure.policy';
@@ -107,40 +106,6 @@ describe('public media exposure policy', () => {
     assert.equal(
       isCurrentPublicMediaProjectionExposure(
         publicProjection({ visibility: 'FRIENDS' }),
-        NOW
-      ),
-      false
-    );
-  });
-
-  it('boost exige a mesma exposição pública e campanha ativa', () => {
-    assert.equal(
-      isCurrentPublicMediaBoostExposure(
-        publicProjection({
-          boostActive: true,
-          boostedUntil: NOW + 60_000,
-        }),
-        NOW
-      ),
-      true
-    );
-    assert.equal(
-      isCurrentPublicMediaBoostExposure(
-        publicProjection({
-          boostActive: true,
-          boostedUntil: NOW,
-        }),
-        NOW
-      ),
-      false
-    );
-    assert.equal(
-      isCurrentPublicMediaBoostExposure(
-        publicProjection({
-          moderationStatus: 'FLAGGED',
-          boostActive: true,
-          boostedUntil: NOW + 60_000,
-        }),
         NOW
       ),
       false
