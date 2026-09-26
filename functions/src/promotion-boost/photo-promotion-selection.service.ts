@@ -129,6 +129,9 @@ async function claimPlacement(input: {
   const advertiserRef = db.collection('community_boost_advertiser_accounts').doc(
     input.campaign.advertiserUid
   );
+  const activeSlotRef = db.collection('promotion_boost_active_slots').doc(
+    `photo:${input.campaign.targetOwnerUid}:${input.campaign.targetId}`
+  );
   const metricsRef = campaignRef.collection('metrics_daily').doc(day);
   const ledgerRef = campaignRef.collection('billing_ledger').doc(day);
 
@@ -248,6 +251,9 @@ async function claimPlacement(input: {
       ...(completesCampaign ? { status: 'completed' } : {}),
       updatedAt: input.now,
     });
+    if (completesCampaign) {
+      transaction.delete(activeSlotRef);
+    }
 
     transaction.set(metricsRef, {
       day,
