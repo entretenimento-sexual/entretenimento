@@ -64,7 +64,11 @@ function setup(options: {
   }) => IPublicPhotoRankingPage;
 }) {
   const ranking = {
-    loadPage$: vi.fn((request) => {
+    loadPage$: vi.fn((request: {
+      mode: TPublicPhotoRankingMode;
+      pageSize?: number;
+      cursor?: IPublicPhotoRankingCursor | null;
+    }) => {
       try {
         return of(options.loadPage(request));
       } catch (error) {
@@ -81,7 +85,7 @@ function setup(options: {
     isOnlineSnapshot: vi.fn(() => true),
   };
   const activity = {
-    track$: vi.fn((source) => source),
+    track$: vi.fn((source: unknown) => source),
   };
   const errorNotifier = {
     showError: vi.fn(),
