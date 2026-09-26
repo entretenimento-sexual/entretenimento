@@ -33,6 +33,7 @@ import {
   startWith,
   Subject,
   switchMap,
+  tap,
   timer,
 } from 'rxjs';
 
@@ -176,6 +177,7 @@ export class CommunityFeedComponent {
       ([previousId, previousView], [currentId, currentView]) =>
         previousId === currentId && previousView === currentView
     ),
+    tap(() => this.renderWindow.reset()),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -326,9 +328,6 @@ export class CommunityFeedComponent {
     });
   });
 
-    this.feedScope$
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.renderWindow.reset());
 
     this.timeline.pageLoaded$
       .pipe(
