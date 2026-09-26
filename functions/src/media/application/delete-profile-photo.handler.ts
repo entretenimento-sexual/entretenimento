@@ -3,7 +3,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
-import { db, FieldValue, getDefaultStorageBucket } from '../../firebaseApp';
+import { db, getDefaultStorageBucket } from '../../firebaseApp';
 import { isPhotoPublicationApproved } from './photo-publication-moderation.policy';
 import { extractOwnedPrivatePhotoPath } from './photo-storage-path';
 import {
@@ -301,7 +301,19 @@ export const deleteProfilePhoto = onCall<DeleteProfilePhotoRequest>(
     }
 
     assertOwner(requesterUid, ownerUid);
-    return deleteProfilePhotoResources(ownerUid, photoId);
+    const startedAt = Date.now();
+    const result = await deleteProfilePhotoResources(ownerUid, photoId);
+
+    logPhotoOperation({
+      operation: 'photo.delete',
+      outcome: result.cleanupPending ? 'partial' : 'success',
+      startedAt,
+      counts: {
+        cleanupPending: result.cleanupPending ? 1 : 0,
+      },
+    });
+
+    return result;
   }
 );
 
