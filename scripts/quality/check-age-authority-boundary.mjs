@@ -44,6 +44,8 @@ const requiredFiles = Object.freeze([
   'functions/src/discovery/get-public-profiles-page.handler.ts',
   'functions/src/discovery/get-user-intent-statuses.handler.ts',
   'functions/src/media/application/get-public-media-discovery.handler.ts',
+  'functions/src/media/application/public-media-exposure.policy.ts',
+  'functions/src/media/application/public-media-owner-exposure.service.ts',
   'src/app/core/services/discovery/public-profile-read-boundary.service.ts',
   'src/app/core/services/media/public-media-read-boundary.service.ts',
   'functions/src/friendship/application/get-pending-friend-requests.handler.ts',
@@ -673,24 +675,89 @@ for (const rule of backendOnlyListRules) {
 }
 
 const temporalReadBoundaries = Object.freeze([
-  'functions/src/discovery/get-public-profiles-page.handler.ts',
-  'functions/src/discovery/get-user-intent-statuses.handler.ts',
-  'functions/src/media/application/get-public-media-discovery.handler.ts',
+  {
+    path: 'functions/src/discovery/get-public-profiles-page.handler.ts',
+    required: [
+      'ageEligibilityVerifiedAdult',
+      'ageEligibilityValidUntil',
+      'Date.now()',
+    ],
+  },
+  {
+    path: 'functions/src/discovery/get-user-intent-statuses.handler.ts',
+    required: [
+      'ageEligibilityVerifiedAdult',
+      'ageEligibilityValidUntil',
+      'Date.now()',
+    ],
+  },
+  {
+    path: 'functions/src/media/application/get-public-media-discovery.handler.ts',
+    required: [
+      'isCurrentPublicMediaProjectionExposure',
+      'resolvePublicMediaOwnerExposure',
+      'Date.now()',
+    ],
+  },
 ]);
 
-for (const relativePath of temporalReadBoundaries) {
-  const absolutePath = path.join(root, relativePath);
+for (const boundary of temporalReadBoundaries) {
+  const absolutePath = path.join(root, boundary.path);
   if (!fs.existsSync(absolutePath)) continue;
 
   const source = fs.readFileSync(absolutePath, 'utf8');
-  if (
-    !source.includes('ageEligibilityVerifiedAdult') ||
-    !source.includes('ageEligibilityValidUntil') ||
-    !source.includes('Date.now()')
-  ) {
-    violations.push(
-      `${relativePath} (boundary público deve validar projeção adulta e relógio do backend)`
-    );
+  for (const required of boundary.required) {
+    if (!source.includes(required)) {
+      violations.push(
+        `${boundary.path} (boundary público deve preservar: ${required})`
+      );
+    }
+  }
+}
+
+const publicMediaExposurePolicyPath = path.join(
+  root,
+  'functions/src/media/application/public-media-exposure.policy.ts'
+);
+if (fs.existsSync(publicMediaExposurePolicyPath)) {
+  const source = fs.readFileSync(publicMediaExposurePolicyPath, 'utf8');
+
+  for (const required of [
+    'publicAgeProjectionValidUntilMs',
+    'evaluatePublicMediaOwnerExposure',
+    'evaluatePublicMediaSignedOwnerExposure',
+    'isCurrentPublicMediaProjectionExposure',
+    'isCurrentPublicMediaAssetExposure',
+    'BILATERAL_BLOCK',
+    'APPROVED',
+  ]) {
+    if (!source.includes(required)) {
+      violations.push(
+        `functions/src/media/application/public-media-exposure.policy.ts (policy canônica de exposure deve preservar: ${required})`
+      );
+    }
+  }
+}
+
+const publicMediaOwnerExposureServicePath = path.join(
+  root,
+  'functions/src/media/application/public-media-owner-exposure.service.ts'
+);
+if (fs.existsSync(publicMediaOwnerExposureServicePath)) {
+  const source = fs.readFileSync(publicMediaOwnerExposureServicePath, 'utf8');
+
+  for (const required of [
+    'public_profiles',
+    'age_eligibility_records',
+    'evaluateCanonicalAgeEligibility',
+    'evaluatePublicMediaOwnerExposure',
+    'evaluatePublicMediaSignedOwnerExposure',
+  ]) {
+    if (!source.includes(required)) {
+      violations.push(
+        `functions/src/media/application/public-media-owner-exposure.service.ts (resolver canônico de owner exposure deve preservar: ${required})`
+      );
+    }
   }
 }
 
@@ -706,8 +773,7 @@ for (const relativePath of signedMediaAgeBoundaryFiles) {
   const source = fs.readFileSync(absolutePath, 'utf8');
   for (const required of [
     'resolvePublicMediaSignedUrlExpiresAt',
-    'evaluateCanonicalAgeEligibility',
-    'age_eligibility_records',
+    'resolvePublicMediaSignedOwnerExposure',
     'ageEligibilityExpiresAtMs',
   ]) {
     if (!source.includes(required)) {
