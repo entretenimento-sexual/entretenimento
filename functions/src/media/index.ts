@@ -170,3 +170,8 @@ export {
 export {
   getPublicMediaDiscovery,
 } from './application/get-public-media-discovery.handler';
+
+export {
+  syncOfficialPhotoProjectionFromPhoto,
+  syncOfficialPhotoProjectionFromAssociation,
+} from './application/sync-official-photo-projection.trigger';
