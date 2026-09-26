@@ -49,31 +49,6 @@ function normalizedUpper(value: unknown): string {
   return String(value ?? '').trim().toUpperCase();
 }
 
-function epochMillis(value: unknown): number | null {
-  const direct = Number(value);
-
-  if (Number.isFinite(direct) && direct > 0) {
-    return Math.trunc(direct);
-  }
-
-  if (
-    value &&
-    typeof value === 'object' &&
-    typeof (value as { toMillis?: unknown }).toMillis === 'function'
-  ) {
-    try {
-      const millis = (value as { toMillis: () => number }).toMillis();
-      return Number.isFinite(millis) && millis > 0
-        ? Math.trunc(millis)
-        : null;
-    } catch {
-      return null;
-    }
-  }
-
-  return null;
-}
-
 /**
  * Base canônica de exposição do proprietário.
  *
@@ -195,21 +170,6 @@ export function isCurrentPublicMediaProjectionExposure(
     && validUntilMs > nowMs
     && allowed.has(visibility)
     && normalizedUpper(data['moderationStatus']) === 'APPROVED';
-}
-
-export function isCurrentPublicMediaBoostExposure(
-  data: Record<string, unknown> | null | undefined,
-  nowMs: number
-): boolean {
-  if (!isCurrentPublicMediaProjectionExposure(data, nowMs, ['PUBLIC'])) {
-    return false;
-  }
-
-  const boostedUntilMs = epochMillis(data?.['boostedUntil']);
-
-  return data?.['boostActive'] === true
-    && boostedUntilMs !== null
-    && boostedUntilMs > nowMs;
 }
 
 /**
