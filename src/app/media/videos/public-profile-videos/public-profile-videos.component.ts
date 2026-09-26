@@ -40,7 +40,7 @@ import {
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
 import {
   IPublicProfileVideoCursor,
@@ -86,7 +86,7 @@ export class PublicProfileVideosComponent implements OnInit {
   private readonly videoPagination = inject(PublicProfileVideoPaginationService);
   private readonly publicVideoShare = inject(PublicVideoShareService);
   private readonly errorNotification = inject(ErrorNotificationService);
-  private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
+  private readonly mediaError = inject(MediaApplicationErrorService);
 
   private readonly refreshSubject = new BehaviorSubject<number>(0);
   private readonly galleryPagesSubject = new BehaviorSubject<
@@ -255,13 +255,14 @@ export class PublicProfileVideosComponent implements OnInit {
           this.galleryOwnerUid === ownerUid &&
           this.galleryRevision === revision
         ) {
-          this.errorNotification.showError(
-            'Não foi possível carregar mais vídeos agora.'
-          );
-          this.reportSilent(error, {
-            op: 'loadMorePublicProfileVideos',
-            hasOwnerUid: true,
-            hasCursor: true,
+          this.mediaError.report(error, {
+            operation: 'loadMorePublicProfileVideos',
+            fallbackMessage: 'Não foi possível carregar mais vídeos agora.',
+            metadata: {
+              scope: 'PublicProfileVideosComponent',
+              hasOwnerUid: true,
+              hasCursor: true,
+            },
           });
         }
 
@@ -332,10 +333,15 @@ export class PublicProfileVideosComponent implements OnInit {
             });
           }),
           catchError((error: unknown) => {
-            this.reportViewerError(error, selected);
-            this.errorNotification.showError(
-              'Não foi possível abrir o vídeo neste momento.'
-            );
+            this.mediaError.report(error, {
+              operation: 'openPublicVideoViewer',
+              fallbackMessage: 'Não foi possível abrir o vídeo neste momento.',
+              metadata: {
+                scope: 'PublicProfileVideosComponent',
+                hasOwnerUid: !!selected.ownerUid,
+                hasVideoId: !!selected.id,
+              },
+            });
             return EMPTY;
           }),
           finalize(() => {
@@ -359,14 +365,15 @@ export class PublicProfileVideosComponent implements OnInit {
 
     defer(() => from(this.publicVideoShare.sharePublicVideo(item))).pipe(
       catchError((error: unknown) => {
-        this.reportSilent(error, {
-          op: 'sharePublicVideo',
-          hasOwnerUid: !!item.ownerUid,
-          hasVideoId: !!item.id,
+        this.mediaError.report(error, {
+          operation: 'sharePublicVideo',
+          fallbackMessage: 'Não foi possível compartilhar este vídeo agora.',
+          metadata: {
+            scope: 'PublicProfileVideosComponent',
+            hasOwnerUid: !!item.ownerUid,
+            hasVideoId: !!item.id,
+          },
         });
-        this.errorNotification.showError(
-          'Não foi possível compartilhar este vídeo agora.'
-        );
         return EMPTY;
       }),
       finalize(() => {
@@ -564,18 +571,18 @@ export class PublicProfileVideosComponent implements OnInit {
     ownerUid: string,
     requestedVideoId: string | null = null
   ): void {
-    this.errorNotification.showError(
-      requestedVideoId
-        ? 'Não foi possível carregar este vídeo público.'
-        : 'Não foi possível carregar os vídeos públicos deste perfil.'
-    );
-
-    this.reportSilent(error, {
-      op: requestedVideoId
+    this.mediaError.report(error, {
+      operation: requestedVideoId
         ? 'loadPublicVideoDeepLink'
         : 'loadPublicProfileVideos',
-      hasOwnerUid: !!ownerUid,
-      hasVideoId: !!requestedVideoId,
+      fallbackMessage: requestedVideoId
+        ? 'Não foi possível carregar este vídeo público.'
+        : 'Não foi possível carregar os vídeos públicos deste perfil.',
+      metadata: {
+        scope: 'PublicProfileVideosComponent',
+        hasOwnerUid: !!ownerUid,
+        hasVideoId: !!requestedVideoId,
+      },
     });
   }
 
@@ -591,21 +598,15 @@ export class PublicProfileVideosComponent implements OnInit {
     error: unknown,
     context: Record<string, unknown>
   ): void {
-    try {
-      const normalized = error instanceof Error
-        ? new Error(error.message)
-        : new Error('Falha na galeria pública de vídeos.');
-
-      (normalized as any).original = error;
-      (normalized as any).context = {
+    this.mediaError.reportSilently(
+      error,
+      String(context['op'] ?? 'unknown'),
+      'Falha na galeria pública de vídeos.',
+      {
         scope: 'PublicProfileVideosComponent',
         ...context,
-      };
-      (normalized as any).skipUserNotification = true;
-
-      this.globalErrorHandler.handleError(normalized);
-    } catch {
-      // noop
-    }
+      }
+    );
   }
+
 }

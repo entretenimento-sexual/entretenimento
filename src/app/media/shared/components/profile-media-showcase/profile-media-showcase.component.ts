@@ -32,7 +32,7 @@ import {
 } from 'src/app/core/interfaces/media/i-public-profile-media-item';
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 import {
   IPublicProfileMediaPreview,
   MediaPublicPreviewQueryService,
@@ -66,7 +66,7 @@ export class ProfileMediaShowcaseComponent {
   private readonly mediaPublicPreview = inject(MediaPublicPreviewQueryService);
   private readonly mixedViewerLauncher = inject(PublicMixedMediaViewerLauncherService);
   private readonly errorNotification = inject(ErrorNotificationService);
-  private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
+  private readonly mediaError = inject(MediaApplicationErrorService);
 
   readonly ownerUid = input.required<string>();
   readonly profileName = input('Perfil');
@@ -104,10 +104,15 @@ export class ProfileMediaShowcaseComponent {
           preview
         )),
         startWith(this.buildState('loading')),
-        catchError(() => {
-          this.errorNotification.showError(
-            'Não foi possível carregar as mídias deste perfil agora.'
-          );
+        catchError((error: unknown) => {
+          this.mediaError.report(error, {
+            operation: 'loadProfileMediaPreview',
+            fallbackMessage: 'Não foi possível carregar as mídias deste perfil agora.',
+            metadata: {
+              scope: 'ProfileMediaShowcaseComponent',
+              hasOwnerUid: !!ownerUid,
+            },
+          });
 
           return of(this.buildState('error'));
         })
@@ -143,10 +148,15 @@ export class ProfileMediaShowcaseComponent {
           { propagateErrors: true }
         )
       );
-    } catch {
-      this.errorNotification.showError(
-        'Não foi possível atualizar o acesso às mídias deste perfil.'
-      );
+    } catch (error) {
+      this.mediaError.report(error, {
+        operation: 'refreshProfileMediaPreview',
+        fallbackMessage: 'Não foi possível atualizar o acesso às mídias deste perfil.',
+        metadata: {
+          scope: 'ProfileMediaShowcaseComponent',
+          hasOwnerUid: !!ownerUid,
+        },
+      });
       this.viewerOpening.set(false);
       return;
     }
@@ -182,10 +192,16 @@ export class ProfileMediaShowcaseComponent {
         source: 'profile',
       }));
     } catch (error) {
-      this.reportViewerError(error, ownerUid, refreshedItem);
-      this.errorNotification.showError(
-        'Não foi possível abrir a visualização imersiva.'
-      );
+      this.mediaError.report(error, {
+        operation: 'openMedia.viewer',
+        fallbackMessage: 'Não foi possível abrir a visualização imersiva.',
+        metadata: {
+          scope: 'ProfileMediaShowcaseComponent',
+          mediaType: this.isVideo(refreshedItem) ? 'VIDEO' : 'PHOTO',
+          hasOwnerUid: !!ownerUid,
+          hasMediaId: !!refreshedItem.id,
+        },
+      });
     } finally {
       this.viewerOpening.set(false);
     }
@@ -268,29 +284,5 @@ export class ProfileMediaShowcaseComponent {
     return `${this.isVideo(item) ? 'VIDEO' : 'PHOTO'}:${item.id}`;
   }
 
-  private reportViewerError(
-    error: unknown,
-    ownerUid: string,
-    item: IPublicProfileMediaItem
-  ): void {
-    try {
-      const normalizedError = error instanceof Error
-        ? error
-        : new Error('Falha ao carregar o visualizador de mídia.');
 
-      (normalizedError as any).original = error;
-      (normalizedError as any).context = {
-        scope: 'ProfileMediaShowcaseComponent',
-        op: 'openMedia.viewer',
-        mediaType: this.isVideo(item) ? 'VIDEO' : 'PHOTO',
-        hasOwnerUid: !!ownerUid,
-        hasMediaId: !!item.id,
-      };
-      (normalizedError as any).skipUserNotification = true;
-
-      this.globalErrorHandler.handleError(normalizedError);
-    } catch {
-      // noop
-    }
-  }
 }

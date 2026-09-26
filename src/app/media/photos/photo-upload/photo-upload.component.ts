@@ -25,7 +25,7 @@ import {
 
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 import { PhotoEditorLauncherService } from 'src/app/core/services/image-handling/photo-editor-launcher.service';
 import {
   IPhotoUploadFlowEvent,
@@ -65,7 +65,7 @@ export class PhotoUploadComponent {
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly policy = inject(MediaPolicyService);
   private readonly errorNotifier = inject(ErrorNotificationService);
-  private readonly errorHandler = inject(GlobalErrorHandlerService);
+  private readonly errorHandler = inject(MediaApplicationErrorService);
   private readonly photoUploadFlow = inject(PhotoUploadFlowService);
   private readonly photoEditor = inject(PhotoEditorLauncherService);
 
@@ -562,24 +562,14 @@ export class PhotoUploadComponent {
     error: unknown,
     context?: Record<string, unknown>
   ): void {
-    try {
-      this.errorNotifier.showError(userMessage);
-    } catch {
-      // A notificação não pode interromper o fluxo de erro centralizado.
-    }
-
-    try {
-      const err = error instanceof Error ? error : new Error(userMessage);
-      (err as any).original = error;
-      (err as any).context = {
+    this.errorHandler.report(error, {
+      operation: String(context?.['op'] ?? 'unknown'),
+      fallbackMessage: userMessage,
+      metadata: {
         scope: 'PhotoUploadComponent',
         ...(context ?? {}),
-      };
-      (err as any).skipUserNotification = true;
-      this.errorHandler.handleError(err);
-    } catch {
-      // A telemetria não pode quebrar o fluxo da interface.
-    }
+      },
+    });
 
     this.debug('reportError', { userMessage, context, error });
   }

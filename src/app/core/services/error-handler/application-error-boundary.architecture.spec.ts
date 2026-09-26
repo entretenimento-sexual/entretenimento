@@ -39,36 +39,12 @@ const LEGACY_MANUAL_COMPOSITION_BASELINE = new Set<string>([
   'core/services/batepapo/room-services/room-management.service.ts',
   'core/services/batepapo/room-services/room-messages.service.ts',
   'core/services/filtering/filters/region-filter.service.ts',
-  'core/services/image-handling/photo-firestore.service.ts',
-  'core/services/image-handling/photo-upload-flow.service.ts',
-  'core/services/image-handling/storage.service.ts',
-  'core/services/media/media-photo-comments.service.ts',
-  'core/services/media/media-public-query.service.ts',
-  'core/services/media/media-publication.service.ts',
-  'core/services/media/media-reactions.service.ts',
-  'core/services/media/media-video-comments.service.ts',
-  'core/services/media/media-video-ratings.service.ts',
-  'core/services/media/public-media-owner-page-query.service.ts',
-  'core/services/media/public-photo-ranking-query.service.ts',
-  'core/services/media/public-video-chat-share.service.ts',
-  'core/services/media/public-video-ranking-query.service.ts',
-  'core/services/media/public-video-share.service.ts',
-  'core/services/media/video-library.service.ts',
   'core/services/user-profile/user-profile.service.ts',
   'core/services/user-profile/user-social-links.service.ts',
   'dashboard/online/online-users/online-users.component.ts',
   'layout/friend-management/friend-search/friend-search.component.ts',
   'layout/friend-management/friend-settings/friend-settings.component.ts',
   'layout/perfis-proximos/perfis-proximos.component.ts',
-  'media/photos/boosted-public-photos/boosted-public-photos.component.ts',
-  'media/photos/latest-public-photos/latest-public-photos.component.ts',
-  'media/photos/photo-upload/photo-upload.component.ts',
-  'media/photos/profile-photos/profile-photos.component.ts',
-  'media/photos/public-profile-photos/public-profile-photos.component.ts',
-  'media/photos/top-public-photos/top-public-photos.component.ts',
-  'media/shared/components/profile-media-showcase/profile-media-showcase.component.ts',
-  'media/videos/public-profile-videos/public-profile-videos.component.ts',
-  'photo-editor/photo-editor/photo-editor.component.ts',
   'preferences/application/compatibility-preview.facade.ts',
   'preferences/application/discovery-settings.facade.ts',
   'preferences/application/match-profile.facade.ts',
@@ -167,6 +143,6 @@ describe('Application error ownership boundary', () => {
   });
 
   it('mantém explícito o tamanho atual da dívida legada', () => {
-    expect(LEGACY_MANUAL_COMPOSITION_BASELINE.size).toBe(48);
+    expect(LEGACY_MANUAL_COMPOSITION_BASELINE.size).toBe(24);
   });
 });

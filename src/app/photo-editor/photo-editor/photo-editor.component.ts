@@ -23,8 +23,7 @@ import { BehaviorSubject, Observable, of } from 'rxjs';
 import { catchError, distinctUntilChanged, map } from 'rxjs/operators';
 
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 import {
   PhotoEditorHistoryService,
   PhotoEditorHistorySnapshot,
@@ -251,8 +250,7 @@ export class PhotoEditorComponent implements AfterViewInit {
   constructor(
     public readonly activeModal: NgbActiveModal,
     private readonly authSession: AuthSessionService,
-    private readonly errorHandler: GlobalErrorHandlerService,
-    private readonly errorNotifier: ErrorNotificationService
+    private readonly errorHandler: MediaApplicationErrorService
   ) {
     this.captureAndReleaseBackgroundFocus();
 
@@ -1709,23 +1707,14 @@ export class PhotoEditorComponent implements AfterViewInit {
     context?: Record<string, unknown>
   ): void {
     this.errorMessageSubject.next(userMessage);
-    try {
-      this.errorNotifier.showError(userMessage);
-    } catch {
-      // O erro seguirá para o handler global.
-    }
-    try {
-      const normalized = error instanceof Error ? error : new Error(userMessage);
-      (normalized as any).original = error;
-      (normalized as any).context = {
+    this.errorHandler.report(error, {
+      operation: String(context?.['op'] ?? 'unknown'),
+      fallbackMessage: userMessage,
+      metadata: {
         scope: 'PhotoEditorComponent',
         ...(context ?? {}),
-      };
-      (normalized as any).skipUserNotification = true;
-      this.errorHandler.handleError(normalized);
-    } catch {
-      // Evita que uma falha de telemetria quebre o editor.
-    }
+      },
+    });
   }
 
   private captureAndReleaseBackgroundFocus(): void {
