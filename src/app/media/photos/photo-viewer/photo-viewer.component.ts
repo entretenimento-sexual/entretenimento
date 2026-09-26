@@ -50,7 +50,10 @@ import {
 } from 'rxjs/operators';
 
 import type { IPublicMediaContinuationContext } from 'src/app/core/interfaces/media/i-public-media-continuation-context';
-import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
+import {
+  IPublicPhotoItem,
+  type IOfficialPhotoProjection,
+} from 'src/app/core/interfaces/media/i-public-photo-item';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
@@ -77,6 +80,7 @@ export interface IProfilePhotoItem {
 
   ownerNickname?: string | null;
   ownerPhotoURL?: string | null;
+  officialPhoto?: IOfficialPhotoProjection | null;
 
   commentsEnabled?: boolean;
   commentsPolicy?: TPhotoCommentsPolicy;
