@@ -12,6 +12,9 @@ import {
   resolvePublicMediaSignedOwnerExposure,
 } from '../media/application/public-media-owner-exposure.service';
 import {
+  isPromotionBoostAdvertiserInteractionEligible,
+} from './promotion-boost-advertiser-eligibility';
+import {
   PROMOTION_BOOST_CANDIDATE_SCAN_LIMIT,
   PROMOTION_BOOST_DISCLOSURE,
   PROMOTION_BOOST_FREQUENCY_CAP_TTL_MS,
@@ -170,6 +173,12 @@ async function claimPlacement(input: {
   const advertiserRef = db.collection('community_boost_advertiser_accounts').doc(
     input.campaign.advertiserUid
   );
+  const advertiserUserRef = db
+    .collection('users')
+    .doc(input.campaign.advertiserUid);
+  const advertiserAgeEligibilityRef = db
+    .collection('age_eligibility_records')
+    .doc(input.campaign.advertiserUid);
   const activeSlotRef = db.collection('promotion_boost_active_slots').doc(
     `photo:${input.campaign.targetOwnerUid}:${input.campaign.targetId}`
   );
@@ -177,18 +186,31 @@ async function claimPlacement(input: {
   const ledgerRef = campaignRef.collection('billing_ledger').doc(day);
 
   return db.runTransaction(async (transaction) => {
-    const [campaignSnapshot, capSnapshot, advertiserSnapshot, publicationSnapshot, publicPhotoSnapshot] =
-      await Promise.all([
-        transaction.get(campaignRef),
-        transaction.get(capRef),
-        transaction.get(advertiserRef),
-        transaction.get(
-          db.doc(`users/${input.campaign.targetOwnerUid}/photo_publications/${input.campaign.targetId}`)
-        ),
-        transaction.get(
-          db.doc(`public_profiles/${input.campaign.targetOwnerUid}/public_photos/${input.campaign.targetId}`)
-        ),
-      ]);
+    const [
+      campaignSnapshot,
+      capSnapshot,
+      advertiserSnapshot,
+      advertiserUserSnapshot,
+      advertiserAgeEligibilitySnapshot,
+      publicationSnapshot,
+      publicPhotoSnapshot,
+    ] = await Promise.all([
+      transaction.get(campaignRef),
+      transaction.get(capRef),
+      transaction.get(advertiserRef),
+      transaction.get(advertiserUserRef),
+      transaction.get(advertiserAgeEligibilityRef),
+      transaction.get(
+        db.doc(
+          `users/${input.campaign.targetOwnerUid}/photo_publications/${input.campaign.targetId}`
+        )
+      ),
+      transaction.get(
+        db.doc(
+          `public_profiles/${input.campaign.targetOwnerUid}/public_photos/${input.campaign.targetId}`
+        )
+      ),
+    ]);
 
     const campaign = campaignSnapshot.exists
       ? normalizePromotionBoostCampaign(campaignSnapshot.data())
@@ -204,7 +226,45 @@ async function claimPlacement(input: {
       return null;
     }
 
-    const publication = publicationSnapshot.exists ? publicationSnapshot.data() ?? {} : {};
+    const advertiserInteractionEligible =
+      isPromotionBoostAdvertiserInteractionEligible({
+        rawUser: advertiserUserSnapshot.exists
+          ? advertiserUserSnapshot.data()
+          : null,
+        rawAgeEligibility: advertiserAgeEligibilitySnapshot.exists
+          ? advertiserAgeEligibilitySnapshot.data()
+          : null,
+        advertiserUid: campaign.advertiserUid,
+      });
+
+    if (!advertiserInteractionEligible) {
+      transaction.update(campaignRef, {
+        status: 'canceled',
+        stoppedAt: input.now,
+        stoppedReason: 'advertiser_interaction_ineligible',
+        updatedAt: input.now,
+      });
+      transaction.delete(activeSlotRef);
+      transaction.create(db.collection('promotion_boost_audit').doc(), {
+        action: 'photo_promotion_campaign_stopped',
+        campaignId: campaign.campaignId,
+        targetType: 'photo',
+        ownerUid: campaign.targetOwnerUid,
+        photoId: campaign.targetId,
+        advertiserUid: campaign.advertiserUid,
+        actorUid: 'system',
+        previousStatus: campaign.status,
+        nextStatus: 'canceled',
+        reason: 'advertiser_interaction_ineligible',
+        ledgerOwnershipTransferred: false,
+        createdAt: input.now,
+      });
+      return null;
+    }
+
+    const publication = publicationSnapshot.exists
+      ? publicationSnapshot.data() ?? {}
+      : {};
     const publicPhoto = publicPhotoSnapshot.exists ? publicPhotoSnapshot.data() ?? {} : {};
     const eligible =
       publication['ownerUid'] === campaign.targetOwnerUid
