@@ -55,15 +55,6 @@
               </span>
             }
 
-            @if (item.boostActive) {
-              <span
-                class="feed-card-boosted"
-                aria-label="Publicação impulsionada"
-              >
-                <span aria-hidden="true">⚡</span>
-                Impulsionada
-              </span>
-            }
           </span>
         </span>
       </a>
@@ -213,8 +204,11 @@
         }
 
         @case ('boosted') {
-          <span class="meta-chip meta-boost app-chip app-chip--primary">
-            Turbo ativo
+          <span
+            class="meta-chip meta-boost app-chip app-chip--primary"
+            aria-label="Conteúdo patrocinado"
+          >
+            Patrocinado
           </span>
         }
       }
