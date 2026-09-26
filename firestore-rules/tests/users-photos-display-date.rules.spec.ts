@@ -34,9 +34,9 @@ function authenticatedDb() {
 }
 
 async function seedUser(options: {
-  canonicalSubscriber: boolean;
+  canonicalSubscriber?: boolean;
   legacyAliases?: boolean;
-}) {
+} = {}) {
   const now = Date.now();
 
   await testEnv.withSecurityRulesDisabled(async (context) => {
@@ -118,26 +118,35 @@ describe('Firestore Rules / users photos displayDate', () => {
 
   afterAll(async () => testEnv.cleanup());
 
-  it('não trata aliases comerciais locais como entitlement', async () => {
-    await seedUser({ canonicalSubscriber: false, legacyAliases: true });
-    const ref = doc(authenticatedDb(), 'users', UID, 'photos', PHOTO_ID);
-
-    await assertFails(setDoc(ref, photoPayload(Date.now())));
-    await assertSucceeds(setDoc(ref, photoPayload(null)));
-    await assertFails(updateDoc(ref, {
-      displayDate: Date.now(),
-      updatedAt: Timestamp.now(),
-    }));
-  });
-
-  it('autoriza displayDate pela projeção canônica global de assinatura', async () => {
-    await seedUser({ canonicalSubscriber: true });
+  it('permite displayDate ao próprio usuário sem depender de assinatura', async () => {
+    await seedUser();
     const ref = doc(authenticatedDb(), 'users', UID, 'photos', PHOTO_ID);
 
     await assertSucceeds(setDoc(ref, photoPayload(Date.now())));
     await assertSucceeds(updateDoc(ref, {
       displayDate: Date.now() - 86_400_000,
       updatedAt: Timestamp.now(),
+    }));
+  });
+
+  it('mantém displayDate independente de aliases ou projeções comerciais', async () => {
+    await seedUser({ canonicalSubscriber: true, legacyAliases: true });
+    const ref = doc(authenticatedDb(), 'users', UID, 'photos', PHOTO_ID);
+
+    await assertSucceeds(setDoc(ref, photoPayload(Date.now())));
+    await assertSucceeds(updateDoc(ref, {
+      displayDate: null,
+      updatedAt: Timestamp.now(),
+    }));
+  });
+
+  it('continua rejeitando displayDate inválido por contrato de dados', async () => {
+    await seedUser();
+    const ref = doc(authenticatedDb(), 'users', UID, 'photos', PHOTO_ID);
+
+    await assertFails(setDoc(ref, {
+      ...photoPayload(),
+      displayDate: '2026-09-26',
     }));
   });
 });

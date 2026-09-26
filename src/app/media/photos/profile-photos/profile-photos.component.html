@@ -22,7 +22,6 @@
 @let deletingPhotoId = (deletingPhotoId$ | async);
 @let publishingPhotoId = (publishingPhotoId$ | async);
 @let savingDisplayDateId = (savingDisplayDateId$ | async);
-@let canUsePhotoDate = (canUsePhotoDate$ | async);
 
 <section class="photos-page" aria-label="Fotos do perfil">
   <header class="photos-header">
@@ -294,37 +293,24 @@
                 [class.management-bar--busy]="publishingPhotoId === item.id || deletingPhotoId === item.id || savingDisplayDateId === item.id"
                 aria-label="Organização da foto"
               >
-                @if (canUsePhotoDate) {
-                  <span
-                    class="management-action management-action--icon management-action--neutral app-action app-action--ghost"
-                    aria-hidden="true"
-                    title="Data da foto"
-                  >
-                    📅
-                  </span>
+                <span
+                  class="management-action management-action--icon management-action--neutral app-action app-action--ghost"
+                  aria-hidden="true"
+                  title="Data da foto"
+                >
+                  📅
+                </span>
 
-                  <input
-                    type="date"
-                    class="management-action management-action--neutral app-action app-action--ghost"
-                    [value]="getDisplayDateInputValue(item)"
-                    (click)="$event.stopPropagation()"
-                    (change)="updatePhotoDisplayDate(item, $event, canUsePhotoDate === true)"
-                    [disabled]="moderationLocked || savingDisplayDateId === item.id || deletingPhotoId === item.id || publishingPhotoId === item.id"
-                    [attr.aria-label]="'Data da foto ' + (item.alt || item.id)"
-                    title="Definir data da foto"
-                  />
-                } @else {
-                  <button
-                    type="button"
-                    class="management-action management-action--neutral app-action app-action--ghost"
-                    (click)="notifyPhotoDateUpgrade($event)"
-                    [disabled]="moderationLocked || deletingPhotoId === item.id || publishingPhotoId === item.id"
-                    aria-label="Organização por data disponível com assinatura ativa"
-                    title="Organização por data requer assinatura ativa"
-                  >
-                    Data para assinantes
-                  </button>
-                }
+                <input
+                  type="date"
+                  class="management-action management-action--neutral app-action app-action--ghost"
+                  [value]="getDisplayDateInputValue(item)"
+                  (click)="$event.stopPropagation()"
+                  (change)="updatePhotoDisplayDate(item, $event)"
+                  [disabled]="moderationLocked || savingDisplayDateId === item.id || deletingPhotoId === item.id || publishingPhotoId === item.id"
+                  [attr.aria-label]="'Data da foto ' + (item.alt || item.id)"
+                  title="Definir data da foto"
+                />
               </div>
 
               <div

@@ -2,7 +2,7 @@
 // USERS / photos + imageStates + comments
 // - Fluxo atual: metadado da foto salva id, url, path, fileName, createdAt
 // - Somente o dono lê/escreve
-// - displayDate usa somente a projeção canônica global de assinatura
+// - displayDate é metadado de organização do próprio acervo, sem regra comercial
 // - Sem scraping, sem enumeração
 // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
 // uso de helpers globais
@@ -37,17 +37,6 @@ match /users/{userId}/photos/{photoId} {
       );
   }
 
-  function displayDateCreateAllowed() {
-    return !hasField("displayDate")
-      || request.resource.data.displayDate == null
-      || isActiveSubscriber(userId);
-  }
-
-  function displayDateUpdateAllowed() {
-    return !request.resource.data.diff(resource.data).changedKeys().hasAny(["displayDate"])
-      || isActiveSubscriber(userId);
-  }
-
   function validPhotoPayload() {
     return allowedKeys()
       && (!hasField("id") || request.resource.data.id is string)
@@ -63,13 +52,11 @@ match /users/{userId}/photos/{photoId} {
 
   allow create: if isSelf(userId)
     && currentUserCanUseAdultSocialPlatform()
-    && validPhotoPayload()
-    && displayDateCreateAllowed();
+    && validPhotoPayload();
 
   allow update: if isSelf(userId)
     && currentUserCanUseAdultSocialPlatform()
-    && validPhotoPayload()
-    && displayDateUpdateAllowed();
+    && validPhotoPayload();
 
   allow delete: if isSelf(userId);
 

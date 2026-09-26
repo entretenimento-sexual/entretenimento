@@ -153,17 +153,11 @@ for (const fragment of [
 const profilePhotos = read(
   'src/app/media/photos/profile-photos/profile-photos.component.ts'
 );
-for (const fragment of [
-  'PlatformSubscriptionAccessService',
-  'this.subscriptionAccess.isSubscriber$',
-]) {
-  requireIncludes(
-    profilePhotos,
-    fragment,
-    'displayDate must consume canonical subscription access'
-  );
-}
 for (const forbidden of [
+  'PlatformSubscriptionAccessService',
+  'subscriptionAccess',
+  'canUsePhotoDate',
+  'notifyPhotoDateUpgrade',
   'monthlyPayer',
   'hasPhotoDateAccess(',
   "subscriptionStatus !== 'active'",
@@ -171,27 +165,58 @@ for (const forbidden of [
   forbidIncludes(
     profilePhotos,
     forbidden,
-    'displayDate must not recreate commercial rules locally'
+    'displayDate is organizational metadata and must not carry commercial gating'
   );
 }
+requireIncludes(
+  profilePhotos,
+  'updatePhotoDisplayDate(',
+  'displayDate editing must remain available to the owner'
+);
 
 const usersPhotosRules = read('firestore-rules/users_photos.rules');
 requireIncludes(
   usersPhotosRules,
-  'isActiveSubscriber(userId)',
-  'displayDate Rules must consume the global canonical subscription helper'
+  'validDisplayDate()',
+  'displayDate Rules must preserve data validation'
 );
 for (const forbidden of [
+  'isActiveSubscriber(userId)',
+  'activeSubscriptionRank',
   'hasPaidPhotoDateAccess',
   'monthlyPayer',
+  'subscriptionStatus',
   'user.role ==',
 ]) {
   forbidIncludes(
     usersPhotosRules,
     forbidden,
-    'displayDate Rules must not maintain local billing aliases or tier matrices'
+    'displayDate Rules must remain independent from commercial state'
   );
 }
+
+const photoPublicationContract = read(
+  'src/app/core/interfaces/media/i-photo-publication-config.ts'
+);
+requireIncludes(
+  photoPublicationContract,
+  "export type TPhotoPublishableVisibility = 'FRIENDS' | 'PUBLIC';",
+  'photo write contract must not expose reserved paid audiences'
+);
+requireIncludes(
+  photoPublicationContract,
+  "export type TPhotoPublishableCommentsPolicy =",
+  'photo write comments contract must remain explicit'
+);
+
+const videoPublicationContract = read(
+  'src/app/core/interfaces/media/i-video-publication-config.ts'
+);
+requireIncludes(
+  videoPublicationContract,
+  "export type TVideoPublishableVisibility = 'FRIENDS' | 'PUBLIC';",
+  'video write contract must not expose reserved paid audiences'
+);
 
 const mediaAudiencePolicy = read(
   'functions/src/media/application/media-publication-audience.policy.ts'
