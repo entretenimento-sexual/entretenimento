@@ -676,3 +676,10 @@ width: auto;
 width: auto;
 }
 }
+
+@media (prefers-reduced-motion: reduce) {
+.comment-actions,
+.viewer-nav-btn {
+transition: none;
+}
+}
