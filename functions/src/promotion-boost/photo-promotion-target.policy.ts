@@ -11,26 +11,6 @@ function asRecord(value: unknown): UnknownRecord {
     : {};
 }
 
-function timestampMillis(value: unknown): number | null {
-  if (
-    value
-    && typeof value === 'object'
-    && typeof (value as { toMillis?: unknown }).toMillis === 'function'
-  ) {
-    try {
-      const parsed = (value as { toMillis: () => number }).toMillis();
-      return Number.isFinite(parsed) ? parsed : null;
-    } catch {
-      return null;
-    }
-  }
-
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0
-    ? Math.trunc(parsed)
-    : null;
-}
-
 export function isPhotoPromotionPublicationEligible(
   raw: unknown
 ): boolean {
@@ -79,49 +59,6 @@ export function photoPublicationEligibilityChanged(
   return left['isPublished'] !== right['isPublished']
     || left['visibility'] !== right['visibility']
     || left['moderationStatus'] !== right['moderationStatus'];
-}
-
-export function publicPhotoPromotionEligibilityChanged(
-  before: unknown,
-  after: unknown
-): boolean {
-  const left = asRecord(before);
-  const right = asRecord(after);
-
-  return left['visibility'] !== right['visibility']
-    || left['moderationStatus'] !== right['moderationStatus']
-    || left['ageEligibilityVerifiedAdult']
-      !== right['ageEligibilityVerifiedAdult']
-    || timestampMillis(left['ageEligibilityValidUntil'])
-      !== timestampMillis(right['ageEligibilityValidUntil']);
-}
-
-export function isPublicProfilePromotionOwnerEligible(
-  raw: unknown,
-  nowMs: number
-): boolean {
-  const source = asRecord(raw);
-  const validUntilMs = timestampMillis(source['ageEligibilityValidUntil']);
-
-  return source['ageEligibilityVerifiedAdult'] === true
-    && source['ageEligibilityAdultAccessAllowed'] === true
-    && validUntilMs !== null
-    && validUntilMs > nowMs;
-}
-
-export function publicProfilePromotionEligibilityChanged(
-  before: unknown,
-  after: unknown
-): boolean {
-  const left = asRecord(before);
-  const right = asRecord(after);
-
-  return left['ageEligibilityVerifiedAdult']
-      !== right['ageEligibilityVerifiedAdult']
-    || left['ageEligibilityAdultAccessAllowed']
-      !== right['ageEligibilityAdultAccessAllowed']
-    || timestampMillis(left['ageEligibilityValidUntil'])
-      !== timestampMillis(right['ageEligibilityValidUntil']);
 }
 
 export function advertiserInteractionFieldsChanged(
