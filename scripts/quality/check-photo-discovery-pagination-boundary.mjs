@@ -97,7 +97,6 @@ for (const forbidden of [
 const componentPaths = [
   'src/app/media/photos/latest-public-photos/latest-public-photos.component.ts',
   'src/app/media/photos/top-public-photos/top-public-photos.component.ts',
-  'src/app/media/photos/boosted-public-photos/boosted-public-photos.component.ts',
 ];
 
 for (const relativePath of componentPaths) {
@@ -136,27 +135,31 @@ const rankingContract = read(
 );
 requireIncludes(
   rankingContract,
-  "'top' | 'latest' | 'boosted'",
-  'ranking contract must include boosted cursor mode'
+  "'top' | 'latest'",
+  'ranking contract must remain organic-only'
 );
-requireIncludes(
+forbidIncludes(
   rankingContract,
-  'readonly boostedUntil?: number;',
-  'boosted cursor must preserve boostedUntil'
+  "'boosted'",
+  'paid placement must not be an organic ranking mode'
+);
+forbidIncludes(
+  rankingContract,
+  'boostedUntil',
+  'paid placement state must not leak into organic cursor'
 );
 
 const rankingGateway = read(
   'src/app/core/services/media/public-photo-ranking-firestore.gateway.ts'
 );
-for (const fragment of [
+for (const forbidden of [
   "'BOOSTED'",
-  'boostedUntil: request.cursor.boostedUntil',
-  'response.nextCursor.boostedUntil',
+  'boostedUntil',
 ]) {
-  requireIncludes(
+  forbidIncludes(
     rankingGateway,
-    fragment,
-    'boosted cursor gateway drift'
+    forbidden,
+    'paid placement must stay outside ranking gateway'
   );
 }
 
@@ -166,7 +169,6 @@ const snapshots = read(
 for (const fragment of [
   "'latest-photos'",
   "'top-photos'",
-  "'boosted-photos'",
   "delete projection['url'];",
   'PUBLIC_MEDIA_SNAPSHOT_TTL_MS',
 ]) {
@@ -178,5 +180,5 @@ for (const fragment of [
 }
 
 console.log(
-  '[photo-discovery-pagination-boundary] OK: latest/top/boosted use cursor pagination + session-scoped SWR, without integral 60s polling or cumulative-limit load-more.'
+  '[photo-discovery-pagination-boundary] OK: latest/top use cursor pagination + session-scoped SWR; paid promotion remains outside organic ranking/snapshots.'
 );
