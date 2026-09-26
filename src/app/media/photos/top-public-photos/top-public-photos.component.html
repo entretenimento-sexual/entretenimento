@@ -56,6 +56,15 @@
 
     @if (vm.hasItems) {
       <div class="photos-grid" role="list" aria-label="Fotos públicas em destaque">
+        @if (vm.sponsoredPlacement; as sponsored) {
+          <div [appPhotoPromotionExposure]="sponsored.placementId">
+            <app-public-photo-card
+              [photo]="sponsored.photo"
+              variant="boosted"
+              (preview)="openSponsoredPhoto()" />
+          </div>
+        }
+
         @for (item of vm.items; track trackByPhotoId($index, item); let i = $index) {
           <app-public-photo-card
             [photo]="item"
