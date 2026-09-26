@@ -329,11 +329,45 @@ export const managePhotoPromotionCampaign = onCall<Request>(
           );
         }
 
-        const [publicationSnapshot, publicPhotoSnapshot, advertiserSnapshot] = await Promise.all([
-          transaction.get(db.doc(`users/${campaign.targetOwnerUid}/photo_publications/${campaign.targetId}`)),
-          transaction.get(db.doc(`public_profiles/${campaign.targetOwnerUid}/public_photos/${campaign.targetId}`)),
-          transaction.get(db.collection('community_boost_advertiser_accounts').doc(campaign.advertiserUid)),
+        const [
+          publicationSnapshot,
+          publicPhotoSnapshot,
+          advertiserSnapshot,
+          advertiserUserSnapshot,
+          advertiserAgeSnapshot,
+        ] = await Promise.all([
+          transaction.get(
+            db.doc(
+              `users/${campaign.targetOwnerUid}/photo_publications/${campaign.targetId}`
+            )
+          ),
+          transaction.get(
+            db.doc(
+              `public_profiles/${campaign.targetOwnerUid}/public_photos/${campaign.targetId}`
+            )
+          ),
+          transaction.get(
+            db.collection('community_boost_advertiser_accounts')
+              .doc(campaign.advertiserUid)
+          ),
+          transaction.get(
+            db.collection('users').doc(campaign.advertiserUid)
+          ),
+          transaction.get(
+            db.collection('age_eligibility_records')
+              .doc(campaign.advertiserUid)
+          ),
         ]);
+
+        assertInteractionAccessData(
+          advertiserUserSnapshot.exists
+            ? advertiserUserSnapshot.data()
+            : null,
+          advertiserAgeSnapshot.exists
+            ? advertiserAgeSnapshot.data()
+            : null,
+          campaign.advertiserUid
+        );
         assertPhotoEligible(
           campaign.targetOwnerUid,
           campaign.targetId,
