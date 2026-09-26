@@ -207,6 +207,17 @@
   box-shadow: 0 0 0 2px rgb(255 255 255 / 72%);
 }
 
+.photo-owner-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.photo-owner-heading strong {
+  min-width: 0;
+}
+
 .photo-owner-link strong,
 .photo-owner-link small {
   display: block;
@@ -297,9 +308,47 @@
   gap: 0.28rem;
 }
 
+.feed-card-official,
+.feed-card-boosted {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.feed-card-official {
+  color: var(--success-color, #5ed39a);
+  font-weight: 800;
+}
+
 .feed-card-boosted {
   margin-left: auto;
   color: var(--primary-color, #ff7070);
+}
+
+.photo-official-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--success-color, #5ed39a) 48%,
+    rgb(255 255 255 / 20%)
+  );
+  border-radius: 999px;
+  background: rgb(0 0 0 / 34%);
+  color: color-mix(
+    in oklab,
+    var(--success-color, #5ed39a) 72%,
+    white 28%
+  );
+  font-size: 0.62rem;
+  font-weight: 860;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 /* Meta inferior das galerias ---------------------------------------------- */
@@ -429,4 +478,10 @@
 
 :host-context(html.high-contrast) .photo-tile--cover {
   box-shadow: none !important;
+}
+
+:host-context(html.high-contrast) .feed-card-official,
+:host-context(html.high-contrast) .photo-official-badge {
+  color: currentColor !important;
+  border-color: currentColor !important;
 }
