@@ -45,8 +45,21 @@
               {{ getPublishedLabel(item) }}
             </time>
 
+            @if (item.officialPhoto?.verified) {
+              <span
+                class="feed-card-official"
+                aria-label="Publicação de perfil oficial verificado"
+              >
+                <span aria-hidden="true">✓</span>
+                Oficial
+              </span>
+            }
+
             @if (item.boostActive) {
-              <span class="feed-card-boosted">
+              <span
+                class="feed-card-boosted"
+                aria-label="Publicação impulsionada"
+              >
                 <span aria-hidden="true">⚡</span>
                 Impulsionada
               </span>
@@ -92,7 +105,19 @@
           [routerLink]="profileLink()"
           [attr.aria-label]="'Abrir perfil de ' + getOwnerName(item)"
         >
-          <strong>{{ getOwnerName(item) }}</strong>
+          <span class="photo-owner-heading">
+            <strong>{{ getOwnerName(item) }}</strong>
+
+            @if (item.officialPhoto?.verified) {
+              <span
+                class="photo-official-badge"
+                aria-label="Perfil oficial verificado"
+              >
+                <span aria-hidden="true">✓</span>
+                Oficial
+              </span>
+            }
+          </span>
 
           @if (getOwnerMeta(item)) {
             <small>{{ getOwnerMeta(item) }}</small>
