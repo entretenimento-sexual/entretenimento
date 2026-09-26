@@ -16,6 +16,7 @@ export const FIRESTORE_RULE_PARTS = Object.freeze([
   'push_devices.rules',
   'billing.rules',
   'community_boost.rules',
+  'promotion_boost.rules',
   'backend_rate_limits.rules',
   'exclusive_connection_candidates.rules',
   'organizations.rules',
