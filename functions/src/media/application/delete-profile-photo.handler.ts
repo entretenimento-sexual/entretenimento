@@ -6,6 +6,12 @@ import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue, getDefaultStorageBucket } from '../../firebaseApp';
 import { isPhotoPublicationApproved } from './photo-publication-moderation.policy';
 import { extractOwnedPrivatePhotoPath } from './photo-storage-path';
+import {
+  PHOTO_CLEANUP_MAX_ATTEMPTS,
+  nextPhotoCleanupRetry,
+  type PhotoCleanupJobState,
+} from './photo-cleanup-job.policy';
+import { logPhotoOperation } from './photo-operation-telemetry';
 import { deletePublishedPhotoAssetOrQueue } from './published-photo-asset.service';
 import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
 
@@ -31,6 +37,9 @@ interface PhotoDeletionJob {
   updatedAt: number;
   attempts: number;
   lastError: string | null;
+  state: PhotoCleanupJobState;
+  nextAttemptAt: number | null;
+  deadLetterExpiresAt: number | null;
 }
 
 type PrivatePhotoDoc = {
@@ -102,14 +111,20 @@ async function executeDeletionJob(
 
 async function recordDeletionAttemptFailure(
   jobId: string,
+  currentAttempts: unknown,
   error: unknown
-): Promise<void> {
+): Promise<PhotoCleanupJobState> {
   const jobRef = db.collection(DELETION_JOBS_COLLECTION).doc(jobId);
+  const now = Date.now();
+  const retry = nextPhotoCleanupRetry(currentAttempts, now);
 
   try {
     await jobRef.update({
-      attempts: FieldValue.increment(1),
-      updatedAt: Date.now(),
+      state: retry.state,
+      attempts: retry.attempts,
+      nextAttemptAt: retry.nextAttemptAt,
+      deadLetterExpiresAt: retry.deadLetterExpiresAt,
+      updatedAt: now,
       lastError: normalizeErrorMessage(error),
     });
   } catch (updateError) {
@@ -118,6 +133,8 @@ async function recordDeletionAttemptFailure(
       error: normalizeErrorMessage(updateError),
     });
   }
+
+  return retry.state;
 }
 
 /**
@@ -216,6 +233,9 @@ export async function deleteProfilePhotoResources(
     updatedAt: now,
     attempts: 0,
     lastError: null,
+    state: 'retryable',
+    nextAttemptAt: now,
+    deadLetterExpiresAt: null,
   };
 
   const hideBatch = db.batch();
@@ -247,7 +267,13 @@ export async function deleteProfilePhotoResources(
       cleanupPending: !publishedAssetDeleted,
     };
   } catch (error) {
-    await recordDeletionAttemptFailure(jobId, error);
+    const state = await recordDeletionAttemptFailure(jobId, job.attempts, error);
+
+    logPhotoOperation({
+      operation: 'photo.delete_private_asset',
+      outcome: state === 'dead_letter' ? 'dead_letter' : 'retryable',
+      counts: { queued: 1 },
+    });
 
     logger.error('[deleteProfilePhoto] Limpeza física pendente.', {
       ownerUid,
@@ -287,10 +313,15 @@ export const cleanupPendingPhotoDeletions = onSchedule(
     retryCount: 3,
   },
   async () => {
+    const startedAt = Date.now();
     const jobsSnapshot = await db
       .collection(DELETION_JOBS_COLLECTION)
+      .where('nextAttemptAt', '<=', startedAt)
       .limit(CLEANUP_BATCH_SIZE)
       .get();
+    let deleted = 0;
+    let retryable = 0;
+    let deadLetter = 0;
 
     for (const jobDoc of jobsSnapshot.docs) {
       const job = jobDoc.data() as PhotoDeletionJob;
@@ -300,6 +331,18 @@ export const cleanupPendingPhotoDeletions = onSchedule(
         !cleanId(job.photoId) ||
         !extractOwnedPrivatePhotoPath(job.ownerUid, job.storagePath)
       ) {
+        await jobDoc.ref.set(
+          {
+            state: 'dead_letter',
+            attempts: PHOTO_CLEANUP_MAX_ATTEMPTS,
+            nextAttemptAt: null,
+            deadLetterExpiresAt: null,
+            updatedAt: Date.now(),
+            lastError: 'Job de exclusão privada inválido.',
+          },
+          { merge: true }
+        );
+        deadLetter += 1;
         logger.error('[cleanupPendingPhotoDeletions] Job inválido.', {
           jobId: jobDoc.id,
         });
@@ -308,16 +351,45 @@ export const cleanupPendingPhotoDeletions = onSchedule(
 
       try {
         await executeDeletionJob(jobDoc.id, job);
+        deleted += 1;
       } catch (error) {
-        await recordDeletionAttemptFailure(jobDoc.id, error);
+        const state = await recordDeletionAttemptFailure(
+          jobDoc.id,
+          job.attempts,
+          error
+        );
+
+        if (state === 'dead_letter') {
+          deadLetter += 1;
+        } else {
+          retryable += 1;
+        }
 
         logger.error('[cleanupPendingPhotoDeletions] Falha no retry.', {
           jobId: jobDoc.id,
           ownerUid: job.ownerUid,
           photoId: job.photoId,
+          state,
           error: normalizeErrorMessage(error),
         });
       }
     }
+
+    logPhotoOperation({
+      operation: 'photo.cleanup_private_deletions',
+      outcome:
+        deadLetter > 0
+          ? 'partial'
+          : retryable > 0
+            ? 'retryable'
+            : 'success',
+      startedAt,
+      counts: {
+        scanned: jobsSnapshot.size,
+        deleted,
+        retryable,
+        deadLetter,
+      },
+    });
   }
 );
