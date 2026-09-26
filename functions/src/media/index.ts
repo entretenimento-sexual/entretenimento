@@ -174,4 +174,5 @@ export {
 export {
   syncOfficialPhotoProjectionFromPhoto,
   syncOfficialPhotoProjectionFromAssociation,
+  backfillExistingOfficialPhotoProjections,
 } from './application/sync-official-photo-projection.trigger';
