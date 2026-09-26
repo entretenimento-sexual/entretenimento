@@ -409,23 +409,15 @@ export class VideoPublicationService {
     error: unknown,
     context: Record<string, unknown>
   ): void {
-    try {
-      const normalizedError = error instanceof Error
-        ? error
-        : new Error('Erro no fluxo de publicação do vídeo.');
-
-      if (normalizedError !== error) {
-        (normalizedError as any).original = error;
-      }
-      (normalizedError as any).context = {
+    this.errorHandler.reportSilently(
+      error,
+      String(context['op'] ?? 'videoPublication'),
+      'Erro no fluxo de publicação do vídeo.',
+      {
         scope: 'VideoPublicationService',
         ...context,
-      };
-      (normalizedError as any).skipUserNotification = true;
-
-      this.errorHandler.handleError(normalizedError);
-    } catch {
-      // noop
-    }
+      }
+    );
   }
+
 }

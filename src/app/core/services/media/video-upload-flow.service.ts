@@ -585,23 +585,15 @@ export class VideoUploadFlowService {
     error: unknown,
     context: Record<string, unknown>
   ): void {
-    try {
-      const normalized = error instanceof Error
-        ? error
-        : new Error('Falha no fluxo de upload de vídeo.');
-
-      if (normalized !== error) {
-        (normalized as any).original = error;
-      }
-      (normalized as any).context = {
+    this.errorHandler.reportSilently(
+      error,
+      String(context['op'] ?? 'videoUpload'),
+      'Falha no fluxo de upload de vídeo.',
+      {
         scope: 'VideoUploadFlowService',
         ...context,
-      };
-      (normalized as any).skipUserNotification = true;
-
-      this.errorHandler.handleError(normalized);
-    } catch {
-      // noop
-    }
+      }
+    );
   }
+
 }

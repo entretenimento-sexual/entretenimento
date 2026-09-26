@@ -609,21 +609,15 @@ export class VideoViewTrackingService {
     error: unknown,
     context: Record<string, unknown>
   ): void {
-    try {
-      const normalizedError = error instanceof Error
-        ? error
-        : new Error('Erro ao registrar visualização do vídeo.');
-
-      (normalizedError as any).original = error;
-      (normalizedError as any).context = {
+    this.errorHandler.reportSilently(
+      error,
+      String(context['op'] ?? 'videoViewTracking'),
+      'Erro ao registrar visualização do vídeo.',
+      {
         scope: 'VideoViewTrackingService',
         ...context,
-      };
-      (normalizedError as any).skipUserNotification = true;
-
-      this.errorHandler.handleError(normalizedError);
-    } catch {
-      // noop
-    }
+      }
+    );
   }
+
 }
