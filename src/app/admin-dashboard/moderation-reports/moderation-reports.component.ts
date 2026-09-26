@@ -259,6 +259,8 @@ export class ModerationReportsComponent {
         return 'Possível menor em conteúdo';
       case 'age_verification_request':
         return 'Verificação de maioridade';
+      case 'preventive_media_review':
+        return 'Revisão preventiva de mídia';
       case 'other':
         return 'Outro motivo';
       default:
@@ -517,6 +519,7 @@ export class ModerationReportsComponent {
       'minor_safety',
       'minor_content_safety',
       'age_verification_request',
+      'preventive_media_review',
       'other',
     ].includes(reason) ? reason : null;
   }

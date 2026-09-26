@@ -98,6 +98,9 @@ match /moderation_reports/{reportId} {
       "illegal_content",
       "privacy",
       "minor_safety",
+      "minor_content_safety",
+      "age_verification_request",
+      "preventive_media_review",
       "other"
     ];
   }

@@ -285,7 +285,7 @@ async function run() {
     });
 
     assert.equal(publicationResponse.data.photoId, photoId);
-    assert.equal(publicationResponse.data.moderationStatus, 'APPROVED');
+    assert.equal(publicationResponse.data.moderationStatus, 'PENDING_REVIEW');
 
     const publicationRef = adminDb.doc(
       `users/${ownerUid}/photo_publications/${photoId}`
@@ -301,8 +301,58 @@ async function run() {
     assert.ok(initialPublicPhoto);
     assert.equal(initialPublication.isPublished, true);
     assert.equal(initialPublication.sourceStoragePath, resolvedOriginalPath);
-    assert.equal(initialPublication.moderationStatus, 'APPROVED');
-    assert.equal(initialPublicPhoto.moderationStatus, 'APPROVED');
+    assert.equal(initialPublication.moderationStatus, 'PENDING_REVIEW');
+    assert.equal(initialPublication.safetyScore, null);
+    assert.equal(initialPublication.scoreBreakdown?.safetyScore, null);
+    assert.equal(initialPublication.lastModeratedAt, null);
+    assert.equal(initialPublicPhoto.moderationStatus, 'PENDING_REVIEW');
+    assert.equal(initialPublicPhoto.safetyScore, null);
+    assert.equal(initialPublicPhoto.scoreBreakdown?.safetyScore, null);
+
+    const preventiveReportId = String(
+      initialPublication.preventiveReviewReportId ?? ''
+    );
+    assert.ok(preventiveReportId);
+
+    const preventiveReportRef = adminDb
+      .collection('moderation_reports')
+      .doc(preventiveReportId);
+    const preventiveReport = await readDocumentData(preventiveReportRef);
+    assert.equal(preventiveReport?.source, 'system');
+    assert.equal(preventiveReport?.reason, 'preventive_media_review');
+    assert.equal(preventiveReport?.contentQuarantined, true);
+
+    await adminAuth.setCustomUserClaims(ownerUid, { admin: true });
+    await authenticatedUser.getIdToken(true);
+
+    const reviewPhotoContentReport = httpsCallable(
+      clientFunctions,
+      'reviewPhotoContentReport'
+    );
+    await reviewPhotoContentReport({
+      reportId: preventiveReportId,
+      decision: 'KEEP',
+      resolution: 'Conteúdo aprovado na revisão preventiva de teste.',
+    });
+
+    const approvedPublication = await waitFor(
+      'aprovação explícita da publicação',
+      () => readDocumentData(publicationRef),
+      (value) =>
+        value?.moderationStatus === 'APPROVED' &&
+        value?.safetyScore === 100 &&
+        value?.scoreBreakdown?.safetyScore === 100
+    );
+    const approvedPublicPhoto = await waitFor(
+      'aprovação explícita da projeção pública',
+      () => readDocumentData(publicPhotoRef),
+      (value) =>
+        value?.moderationStatus === 'APPROVED' &&
+        value?.safetyScore === 100 &&
+        value?.scoreBreakdown?.safetyScore === 100
+    );
+    assert.equal(approvedPublication.preventiveReviewReportId, undefined);
+    assert.equal(approvedPublicPhoto.preventiveReviewReportId, undefined);
 
     const originalPublishedPath = String(
       initialPublication.publishedStoragePath ?? ''
@@ -386,11 +436,26 @@ async function run() {
     assert.equal(synchronizedPublication.commentsCount, 7);
     assert.equal(synchronizedPublication.reactionsCount, 5);
     assert.equal(synchronizedPublication.reportsCount, 2);
-    assert.equal(synchronizedPublication.moderationStatus, 'APPROVED');
+    assert.equal(synchronizedPublication.moderationStatus, 'PENDING_REVIEW');
+    assert.equal(synchronizedPublication.safetyScore, null);
+    assert.equal(synchronizedPublication.scoreBreakdown?.safetyScore, null);
     assert.equal(synchronizedPublicPhoto.commentsCount, 7);
     assert.equal(synchronizedPublicPhoto.reactionsCount, 5);
     assert.equal(synchronizedPublicPhoto.reportsCount, 2);
-    assert.equal(synchronizedPublicPhoto.moderationStatus, 'APPROVED');
+    assert.equal(synchronizedPublicPhoto.moderationStatus, 'PENDING_REVIEW');
+    assert.equal(synchronizedPublicPhoto.safetyScore, null);
+    assert.equal(synchronizedPublicPhoto.scoreBreakdown?.safetyScore, null);
+
+    const editedPreventiveReportId = String(
+      synchronizedPublication.preventiveReviewReportId ?? ''
+    );
+    assert.ok(editedPreventiveReportId);
+    assert.notEqual(editedPreventiveReportId, preventiveReportId);
+    const editedPreventiveReport = await readDocumentData(
+      adminDb.collection('moderation_reports').doc(editedPreventiveReportId)
+    );
+    assert.equal(editedPreventiveReport?.reason, 'preventive_media_review');
+    assert.equal(editedPreventiveReport?.status, 'open');
 
     const editedPublishedFile = bucket.file(editedPublishedPath);
     await waitFor(
@@ -420,8 +485,9 @@ async function run() {
     );
 
     console.log('✔ usuário temporário autenticado no Auth Emulator');
-    console.log('✔ upload privado autorizado por reserva e publicado pela callable');
-    console.log('✔ edição sincronizada por trigger para uma nova versão pública');
+    console.log('✔ upload privado autorizado por reserva e retido em revisão preventiva');
+    console.log('✔ aprovação explícita libera o ativo e estabelece safetyScore avaliado');
+    console.log('✔ edição binária reabre revisão preventiva e bloqueia distribuição');
     console.log('✔ conteúdo binário editado validado no Storage Emulator');
     console.log('✔ versão pública anterior removida');
     console.log('✔ configuração e métricas preservadas');

@@ -671,7 +671,9 @@ export class ProfilePhotosComponent {
             reactionsEnabled: true,
           }).pipe(
             tap(() => {
-              this.errorNotifier.showSuccess('Foto publicada com sucesso.');
+              this.errorNotifier.showSuccess(
+                'Foto enviada para análise. Ela ficará fora da distribuição até a aprovação.'
+              );
             }),
             catchError((error) => {
               this.reportError(

@@ -145,7 +145,7 @@ export class MediaPublicationService {
               rankingScore: 0,
               qualityScore: 0,
               engagementScore: 0,
-              safetyScore: 100,
+              safetyScore: null,
             },
 
             publishedAt: item.publishedAt ?? null,
@@ -200,7 +200,7 @@ export class MediaPublicationService {
         rankingScore: 0,
         qualityScore: 0,
         engagementScore: 0,
-        safetyScore: 100,
+        safetyScore: null,
       },
 
       publishedAt: null,

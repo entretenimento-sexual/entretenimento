@@ -7,6 +7,11 @@ import {
   copyPrivatePhotoToPublishedAsset,
   deletePublishedPhotoAssetOrQueue,
 } from './published-photo-asset.service';
+import {
+  PHOTO_PREVENTIVE_REVIEW_MESSAGE,
+  PHOTO_PREVENTIVE_REVIEW_REASON,
+  buildPreventivePhotoReviewId,
+} from './photo-publication-moderation.policy';
 import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
 import {
   PhotoPublicationDoc,
@@ -48,7 +53,6 @@ export const syncPublishedPhotoOnPrivateUpdate = onDocumentUpdated(
         after: (afterSnapshot.data() ?? {}) as PrivatePhotoDoc,
       },
       {
-        moderationStatus: 'APPROVED',
         now: () => Date.now(),
         loadPublication: async () => {
           const snapshot = await publicationRef.get();
@@ -59,8 +63,64 @@ export const syncPublishedPhotoOnPrivateUpdate = onDocumentUpdated(
         copyPublishedAsset: copyPrivatePhotoToPublishedAsset,
         commitPatches: async (commit) => {
           const batch = db.batch();
-          batch.set(publicationRef, commit.publicationPatch, { merge: true });
-          batch.set(publicPhotoRef, commit.publicPhotoPatch, { merge: true });
+          const assetVersion = Number(commit.publicationPatch['assetVersion']);
+          const needsPreventiveReview =
+            commit.publicationPatch['moderationStatus'] === 'PENDING_REVIEW' &&
+            Number.isFinite(assetVersion) &&
+            assetVersion > 0;
+
+          if (needsPreventiveReview) {
+            const moderationReportId = buildPreventivePhotoReviewId(
+              ownerUid,
+              photoId,
+              assetVersion
+            );
+            const moderationReportRef = db
+              .collection('moderation_reports')
+              .doc(moderationReportId);
+
+            batch.set(
+              publicationRef,
+              {
+                ...commit.publicationPatch,
+                preventiveReviewReportId: moderationReportId,
+              },
+              { merge: true }
+            );
+            batch.set(
+              publicPhotoRef,
+              {
+                ...commit.publicPhotoPatch,
+                preventiveReviewReportId: moderationReportId,
+              },
+              { merge: true }
+            );
+            batch.create(moderationReportRef, {
+              reporterUid: 'system',
+              targetType: 'photo',
+              targetId: photoId,
+              parentTargetId: null,
+              targetOwnerUid: ownerUid,
+              targetAuthorUid: ownerUid,
+              reason: PHOTO_PREVENTIVE_REVIEW_REASON,
+              details: PHOTO_PREVENTIVE_REVIEW_MESSAGE,
+              route: null,
+              status: 'open',
+              moderationAction: null,
+              contentQuarantined: true,
+              evidencePreservationStatus: 'NOT_REQUIRED',
+              evidenceRetentionStatus: 'PUBLISHED_ASSET_LOCKED',
+              legalReviewStatus: null,
+              source: 'system',
+              reviewAssetVersion: assetVersion,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+          } else {
+            batch.set(publicationRef, commit.publicationPatch, { merge: true });
+            batch.set(publicPhotoRef, commit.publicPhotoPatch, { merge: true });
+          }
+
           await batch.commit();
         },
         deletePublishedAsset: deletePublishedPhotoAssetOrQueue,

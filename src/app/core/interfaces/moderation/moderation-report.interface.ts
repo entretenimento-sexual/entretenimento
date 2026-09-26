@@ -42,6 +42,7 @@ export type ModerationReportReason =
   | 'minor_safety'
   | 'minor_content_safety'
   | 'age_verification_request'
+  | 'preventive_media_review'
   | 'other';
 
 export type ModerationReportStatus =

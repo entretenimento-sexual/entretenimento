@@ -50,7 +50,6 @@ function createHarness(options: HarnessOptions = {}) {
     };
 
   const dependencies: PhotoSyncDependencies = {
-    moderationStatus: 'APPROVED',
     now: () => options.now ?? 123456,
     loadPublication: async () => publication,
     copyPublishedAsset: async (command) => {
@@ -114,7 +113,7 @@ describe('synchronizePublishedPhotoUpdate', () => {
       binaryChanged: true,
       metadataChanged: false,
       copiedAsset: true,
-      moderationStatus: 'APPROVED',
+      moderationStatus: 'PENDING_REVIEW',
     });
     assert.deepEqual(harness.copyCalls, [
       {
@@ -129,16 +128,34 @@ describe('synchronizePublishedPhotoUpdate', () => {
       sourceStoragePath: NEW_PRIVATE_PATH,
       publishedStoragePath: NEW_PUBLIC_PATH,
       assetVersion: 123456,
-      moderationStatus: 'APPROVED',
-      moderationReason: null,
-      lastModeratedAt: 123456,
+      moderationStatus: 'PENDING_REVIEW',
+      moderationReason: 'Conteúdo aguardando avaliação preventiva antes da distribuição.',
+      lastModeratedAt: null,
+      moderatedBy: null,
+      safetyScore: null,
+      score: 0,
+      scoreBreakdown: {
+        rankingScore: 0,
+        qualityScore: 0,
+        engagementScore: 0,
+        safetyScore: null,
+      },
+      reviewEvidenceRetention: 'PUBLISHED_ASSET_LOCKED',
     });
     assert.deepEqual(harness.commitCalls[0].publicPhotoPatch, {
       alt: 'Foto do perfil',
       updatedAt: 123456,
       assetVersion: 123456,
-      moderationStatus: 'APPROVED',
-      moderationReason: null,
+      moderationStatus: 'PENDING_REVIEW',
+      moderationReason: 'Conteúdo aguardando avaliação preventiva antes da distribuição.',
+      safetyScore: null,
+      score: 0,
+      scoreBreakdown: {
+        rankingScore: 0,
+        qualityScore: 0,
+        engagementScore: 0,
+        safetyScore: null,
+      },
     });
     assert.deepEqual(harness.deleteCalls, [
       {
@@ -244,6 +261,39 @@ describe('synchronizePublishedPhotoUpdate', () => {
         sourceStoragePath: OLD_PRIVATE_PATH,
         publishedStoragePath: OLD_PUBLIC_PATH,
         moderationStatus: 'FLAGGED',
+      },
+    });
+
+    const result = await synchronizePublishedPhotoUpdate(
+      {
+        ownerUid: OWNER_UID,
+        photoId: PHOTO_ID,
+        before: {
+          path: OLD_PRIVATE_PATH,
+          fileName: 'foto.jpg',
+        },
+        after: {
+          path: NEW_PRIVATE_PATH,
+          fileName: 'foto-editada.jpg',
+        },
+      },
+      harness.dependencies
+    );
+
+    assert.deepEqual(result, { status: 'ignored-quarantined' });
+    assert.equal(harness.copyCalls.length, 0);
+    assert.equal(harness.commitCalls.length, 0);
+    assert.equal(harness.deleteCalls.length, 0);
+    assert.equal(harness.metricCalls.length, 0);
+  });
+
+  it('também congela a foto enquanto a revisão preventiva está pendente', async () => {
+    const harness = createHarness({
+      publication: {
+        isPublished: true,
+        sourceStoragePath: OLD_PRIVATE_PATH,
+        publishedStoragePath: OLD_PUBLIC_PATH,
+        moderationStatus: 'PENDING_REVIEW',
       },
     });
 

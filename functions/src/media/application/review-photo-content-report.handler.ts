@@ -43,18 +43,30 @@ interface ModerationReportDocument {
   evidencePreservationStatus?: string;
 }
 
+interface PhotoScoreBreakdown {
+  rankingScore?: unknown;
+  qualityScore?: unknown;
+  engagementScore?: unknown;
+  safetyScore?: unknown;
+}
+
 interface PublicPhotoDocument {
   ownerUid?: string;
   visibility?: string;
   reportsCount?: number;
   openReportsCount?: number;
   confirmedReportsCount?: number;
-  safetyScore?: number;
+  safetyScore?: number | null;
+  scoreBreakdown?: PhotoScoreBreakdown;
 }
 
 interface PhotoPublicationDocument {
+  isPublished?: boolean;
+  isCover?: boolean;
+  requestedIsCover?: boolean;
   visibility?: string;
   publishedStoragePath?: string;
+  scoreBreakdown?: PhotoScoreBreakdown;
 }
 
 interface TransactionResult {
@@ -100,6 +112,24 @@ function cleanReason(value: unknown): MediaReportSafetyReason | null {
   ].includes(normalized)
     ? normalized as MediaReportSafetyReason
     : null;
+}
+
+function normalizeScorePart(value: unknown): number {
+  const parsed = Number(value ?? 0);
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.max(0, Math.min(100, Math.round(parsed)));
+}
+
+function withSafetyScore(
+  current: PhotoScoreBreakdown | undefined,
+  safetyScore: number
+): Required<PhotoScoreBreakdown> {
+  return {
+    rankingScore: normalizeScorePart(current?.rankingScore),
+    qualityScore: normalizeScorePart(current?.qualityScore),
+    engagementScore: normalizeScorePart(current?.engagementScore),
+    safetyScore: normalizeScorePart(safetyScore),
+  };
 }
 
 function cleanModeratedPhotoVisibility(
@@ -219,6 +249,9 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
         const photoId = cleanId(report.targetId);
         const status = String(report.status ?? '').trim().toLowerCase();
         const reason = cleanReason(report.reason);
+        const isPreventiveReview =
+          String(report.reason ?? '').trim().toLowerCase() ===
+          'preventive_media_review';
 
         if (targetType !== 'photo' || !ownerUid || !photoId) {
           throw new HttpsError(
@@ -262,6 +295,21 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
           decision === 'KEEP' ? 'KEEP' : 'REMOVE'
         );
         const now = Date.now();
+        const approvedCover = isPreventiveReview
+          ? publication?.requestedIsCover === true
+          : publication?.isCover === true;
+
+        let otherPublishedPhotos:
+          FirebaseFirestore.QuerySnapshot<FirebaseFirestore.DocumentData> |
+          null = null;
+
+        if (decision === 'KEEP' && isPreventiveReview && approvedCover) {
+          otherPublishedPhotos = await transaction.get(
+            db
+              .collection(`users/${ownerUid}/photo_publications`)
+              .where('isPublished', '==', true)
+          );
+        }
 
         if (decision === 'KEEP') {
           if (!photo) {
@@ -270,10 +318,16 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
 
           transaction.update(photoRef, {
             ...safetyState,
+            scoreBreakdown: withSafetyScore(
+              photo.scoreBreakdown,
+              safetyState.safetyScore
+            ),
             ...(report.contentQuarantined === true
               ? {
                 moderationStatus: 'APPROVED',
                 moderationReason: null,
+                isCover: approvedCover,
+                preventiveReviewReportId: FieldValue.delete(),
               }
               : {}),
             updatedAt: now,
@@ -287,15 +341,51 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
               );
             }
 
+            if (otherPublishedPhotos) {
+              otherPublishedPhotos.docs.forEach((publishedDoc) => {
+                if (publishedDoc.id === photoId) {
+                  return;
+                }
+
+                transaction.set(
+                  publishedDoc.ref,
+                  {
+                    isCover: false,
+                    updatedAt: now,
+                  },
+                  { merge: true }
+                );
+                transaction.set(
+                  db.doc(
+                    `public_profiles/${ownerUid}/public_photos/${publishedDoc.id}`
+                  ),
+                  {
+                    isCover: false,
+                    updatedAt: now,
+                  },
+                  { merge: true }
+                );
+              });
+            }
+
             transaction.set(
               publicationRef,
               {
                 isPublished: true,
                 visibility,
+                isCover: approvedCover,
+                requestedIsCover: FieldValue.delete(),
                 moderationStatus: 'APPROVED',
                 moderationReason: null,
+                safetyScore: safetyState.safetyScore,
+                scoreBreakdown: withSafetyScore(
+                  publication?.scoreBreakdown,
+                  safetyState.safetyScore
+                ),
                 lastModeratedAt: FieldValue.serverTimestamp(),
                 moderatedBy: adminUid,
+                preventiveReviewReportId: FieldValue.delete(),
+                reviewEvidenceRetention: 'RELEASED_AFTER_REVIEW',
                 updatedAt: FieldValue.serverTimestamp(),
               },
               { merge: true }
@@ -305,6 +395,10 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
           if (photo) {
             transaction.update(photoRef, {
               ...safetyState,
+              scoreBreakdown: withSafetyScore(
+                photo.scoreBreakdown,
+                safetyState.safetyScore
+              ),
               moderationStatus: 'HIDDEN',
               moderationReason: resolution,
               updatedAt: now,
@@ -326,6 +420,11 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
                 visibility,
                 moderationStatus: 'FLAGGED',
                 moderationReason: resolution,
+                safetyScore: safetyState.safetyScore,
+                scoreBreakdown: withSafetyScore(
+                  publication?.scoreBreakdown,
+                  safetyState.safetyScore
+                ),
                 lastModeratedAt: FieldValue.serverTimestamp(),
                 moderatedBy: adminUid,
                 updatedAt: FieldValue.serverTimestamp(),

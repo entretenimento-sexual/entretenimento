@@ -10,8 +10,10 @@
 // - o acesso temporário é emitido por backend após nova validação;
 // - cliente não grava projeção pública, score ou contadores;
 // - métricas públicas são recalculadas no backend;
-// - publicação normal nasce APPROVED; denúncia posterior pode colocar em quarentena;
-// - republicação usa precondition para não sobrescrever FLAGGED concorrente.
+// - publicação nasce PENDING_REVIEW e sem safetyScore presumido;
+// - enquanto não avaliada, o ativo versionado fica retido e fora da distribuição;
+// - denúncia posterior pode manter/agravar a quarentena e acionar evidência probatória;
+// - republicação usa precondition para não sobrescrever estado de revisão concorrente.
 
 import { logger } from 'firebase-functions';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
@@ -24,18 +26,19 @@ import {
   copyPrivatePhotoToPublishedAsset,
   deletePublishedPhotoAssetOrQueue,
 } from './published-photo-asset.service';
+import {
+  PHOTO_PREVENTIVE_REVIEW_MESSAGE,
+  PHOTO_PREVENTIVE_REVIEW_REASON,
+  buildPreventivePhotoReviewId,
+  buildUnassessedPhotoScoreBreakdown,
+  defaultPhotoPublicationModerationStatus,
+  isPhotoPublicationApproved,
+} from './photo-publication-moderation.policy';
 import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
 
 type PhotoVisibility = 'FRIENDS' | 'SUBSCRIBERS' | 'PREMIUM' | 'PUBLIC';
 type CommentsPolicy = 'OFF' | 'FRIENDS' | 'SUBSCRIBERS' | 'EVERYONE';
-type ModerationStatus = 'APPROVED';
-
-type ScoreBreakdown = {
-  rankingScore: number;
-  qualityScore: number;
-  engagementScore: number;
-  safetyScore: number;
-};
+type ModerationStatus = 'PENDING_REVIEW';
 
 type PrivatePhotoDoc = {
   id?: string;
@@ -165,17 +168,8 @@ function normalizeCreatedAt(value: unknown): number {
   return Math.floor(parsed);
 }
 
-function buildInitialScoreBreakdown(): ScoreBreakdown {
-  return {
-    rankingScore: 0,
-    qualityScore: 0,
-    engagementScore: 0,
-    safetyScore: 100,
-  };
-}
-
 function resolveModerationStatus(): ModerationStatus {
-  return 'APPROVED';
+  return defaultPhotoPublicationModerationStatus();
 }
 
 function assertOwner(requesterUid: string | null, ownerUid: string): void {
@@ -191,12 +185,11 @@ function assertOwner(requesterUid: string | null, ownerUid: string): void {
   }
 }
 
-function isQuarantinedPublication(
+function isModerationLockedPublication(
   publication: PhotoPublicationDoc | null
 ): boolean {
-  return String(publication?.moderationStatus ?? '')
-    .trim()
-    .toUpperCase() === 'FLAGGED';
+  return publication?.isPublished === true &&
+    !isPhotoPublicationApproved(publication.moderationStatus);
 }
 
 function resolvePrivatePhotoStoragePath(
@@ -260,7 +253,7 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
       ? (previousPublicationSnap.data() as PhotoPublicationDoc)
       : null;
 
-    if (isQuarantinedPublication(previousPublication)) {
+    if (isModerationLockedPublication(previousPublication)) {
       throw new HttpsError(
         'failed-precondition',
         'Esta foto está temporariamente preservada durante uma análise de segurança.'
@@ -307,39 +300,16 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
 
     const now = Date.now();
     const moderationStatus = resolveModerationStatus();
-    const scoreBreakdown = buildInitialScoreBreakdown();
+    const scoreBreakdown = buildUnassessedPhotoScoreBreakdown();
+    const moderationReportId = buildPreventivePhotoReviewId(
+      ownerUid,
+      photoId,
+      now
+    );
+    const moderationReportRef = db
+      .collection('moderation_reports')
+      .doc(moderationReportId);
     const batch = db.batch();
-
-    if (isCover) {
-      const publishedSnapshot = await db
-        .collection(`users/${ownerUid}/photo_publications`)
-        .where('isPublished', '==', true)
-        .get();
-
-      publishedSnapshot.docs.forEach((docSnap) => {
-        if (docSnap.id === photoId) {
-          return;
-        }
-
-        batch.set(
-          docSnap.ref,
-          {
-            isCover: false,
-            updatedAt: now,
-          },
-          { merge: true }
-        );
-
-        batch.set(
-          db.doc(`public_profiles/${ownerUid}/public_photos/${docSnap.id}`),
-          {
-            isCover: false,
-            updatedAt: now,
-          },
-          { merge: true }
-        );
-      });
-    }
 
     const publicationPayload = {
       ownerUid,
@@ -347,7 +317,8 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
       isPublished: true,
       visibility,
       caption,
-      isCover,
+      isCover: false,
+      requestedIsCover: isCover,
       orderIndex,
       commentsEnabled,
       commentsPolicy,
@@ -355,13 +326,19 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
       reactionsEnabled,
       reactionsCount: 0,
       moderationStatus,
-      moderationReason: null,
+      moderationReason: PHOTO_PREVENTIVE_REVIEW_MESSAGE,
       reportsCount: 0,
+      openReportsCount: 0,
+      confirmedReportsCount: 0,
+      safetyScore: null,
       score: 0,
       scoreBreakdown,
       publishedAt: now,
       updatedAt: now,
-      lastModeratedAt: now,
+      lastModeratedAt: null,
+      moderatedBy: null,
+      preventiveReviewReportId: moderationReportId,
+      reviewEvidenceRetention: 'PUBLISHED_ASSET_LOCKED',
       sourceStoragePath,
       publishedStoragePath,
       assetVersion: now,
@@ -393,7 +370,7 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
         publishedAt: now,
         updatedAt: now,
         visibility,
-        isCover,
+        isCover: false,
         orderIndex,
         commentsEnabled,
         commentsPolicy,
@@ -401,13 +378,39 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
         reactionsEnabled,
         reactionsCount: 0,
         moderationStatus,
-        moderationReason: null,
+        moderationReason: PHOTO_PREVENTIVE_REVIEW_MESSAGE,
         reportsCount: 0,
+        openReportsCount: 0,
+        confirmedReportsCount: 0,
+        safetyScore: null,
         score: 0,
         scoreBreakdown,
+        preventiveReviewReportId: moderationReportId,
       },
       { merge: true }
     );
+
+    batch.create(moderationReportRef, {
+      reporterUid: 'system',
+      targetType: 'photo',
+      targetId: photoId,
+      parentTargetId: null,
+      targetOwnerUid: ownerUid,
+      targetAuthorUid: ownerUid,
+      reason: PHOTO_PREVENTIVE_REVIEW_REASON,
+      details: PHOTO_PREVENTIVE_REVIEW_MESSAGE,
+      route: null,
+      status: 'open',
+      moderationAction: null,
+      contentQuarantined: true,
+      evidencePreservationStatus: 'NOT_REQUIRED',
+      evidenceRetentionStatus: 'PUBLISHED_ASSET_LOCKED',
+      legalReviewStatus: null,
+      source: 'system',
+      reviewAssetVersion: now,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
 
     try {
       await batch.commit();
@@ -476,7 +479,7 @@ export const unpublishPhoto = onCall<UnpublishPhotoRequest>(
       ? (publicationSnap.data() as PhotoPublicationDoc)
       : null;
 
-    if (isQuarantinedPublication(publication)) {
+    if (isModerationLockedPublication(publication)) {
       throw new HttpsError(
         'failed-precondition',
         'Esta foto está temporariamente preservada durante uma análise de segurança.'
@@ -550,10 +553,10 @@ export const setCoverPhoto = onCall<SetCoverPhotoRequest>(
       );
     }
 
-    if (isQuarantinedPublication(targetPublication)) {
+    if (!isPhotoPublicationApproved(targetPublication.moderationStatus)) {
       throw new HttpsError(
         'failed-precondition',
-        'Uma foto em análise de segurança não pode ser definida como capa.'
+        'A foto precisa ser aprovada pela moderação antes de ser definida como capa.'
       );
     }
 

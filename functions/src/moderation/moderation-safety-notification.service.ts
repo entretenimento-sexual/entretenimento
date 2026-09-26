@@ -18,6 +18,7 @@ import { db, FieldValue } from '../firebaseApp';
 
 interface ModerationReportSnapshot {
   reporterUid?: unknown;
+  source?: unknown;
   targetType?: unknown;
   targetOwnerUid?: unknown;
   targetAuthorUid?: unknown;
@@ -209,6 +210,7 @@ export async function notifyModerationReportReviewed(
 
   const { reportId, report } = loaded;
   const reporterUid = cleanId(report.reporterUid);
+  const systemGenerated = String(report.source ?? '').trim() === 'system';
   const targetUid = reportTargetUid(report);
   const targetType = String(report.targetType ?? '').trim();
   const action = String(report.moderationAction ?? '')
@@ -217,7 +219,7 @@ export async function notifyModerationReportReviewed(
   const wasQuarantined = report.contentQuarantined === true;
   const isCommunity = targetType.startsWith('community_feed_');
 
-  if (reporterUid) {
+  if (reporterUid && !systemGenerated) {
     await writeNotification({
       id: notificationId(reportId, 'reporter', 'reviewed'),
       userId: reporterUid,

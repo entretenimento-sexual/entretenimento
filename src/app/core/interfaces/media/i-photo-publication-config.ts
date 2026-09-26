@@ -51,7 +51,7 @@ export interface IPhotoPublicationScore {
    * Segurança/moderação.
    * Denúncias, rejeições ou flags reduzem esse score.
    */
-  safetyScore: number;
+  safetyScore: number | null;
 }
 
 export interface IPhotoPublicationConfig {

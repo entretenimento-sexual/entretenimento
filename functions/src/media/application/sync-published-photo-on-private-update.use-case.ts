@@ -1,6 +1,12 @@
+import {
+  PHOTO_PREVENTIVE_REVIEW_MESSAGE,
+  buildUnassessedPhotoScoreBreakdown,
+  defaultPhotoPublicationModerationStatus,
+  isPhotoPublicationApproved,
+} from './photo-publication-moderation.policy';
 import { extractOwnedPrivatePhotoPath } from './photo-storage-path';
 
-export type ModerationStatus = 'APPROVED';
+export type ModerationStatus = 'APPROVED' | 'PENDING_REVIEW';
 
 export interface PrivatePhotoDoc {
   path?: string;
@@ -32,7 +38,6 @@ export interface PhotoSyncCommit {
 }
 
 export interface PhotoSyncDependencies {
-  moderationStatus: ModerationStatus;
   now: () => number;
   loadPublication: (
     ownerUid: string,
@@ -141,13 +146,11 @@ export async function synchronizePublishedPhotoUpdate(
   }
 
   /**
-   * Conteúdo em quarentena fica congelado até a decisão administrativa.
-   * Isso evita substituir o ativo publicado enquanto uma cópia probatória
-   * ainda pode estar sendo preservada.
+   * Qualquer publicação sem aprovação explícita fica congelada até decisão
+   * administrativa. Isso cobre tanto a quarentena preventiva quanto flags
+   * posteriores e impede substituir o ativo retido para revisão/evidência.
    */
-  if (
-    String(publication.moderationStatus ?? '').trim().toUpperCase() === 'FLAGGED'
-  ) {
+  if (!isPhotoPublicationApproved(publication.moderationStatus)) {
     return { status: 'ignored-quarantined' };
   }
 
@@ -181,7 +184,7 @@ export async function synchronizePublishedPhotoUpdate(
       binaryChanged: true,
       metadataChanged: false,
       copiedAsset: false,
-      moderationStatus: dependencies.moderationStatus,
+      moderationStatus: 'APPROVED',
     };
   }
 
@@ -206,12 +209,20 @@ export async function synchronizePublishedPhotoUpdate(
   };
 
   if (shouldCopyAsset) {
+    const moderationStatus = defaultPhotoPublicationModerationStatus();
+    const scoreBreakdown = buildUnassessedPhotoScoreBreakdown();
+
     publicationPatch['sourceStoragePath'] = sourceStoragePath;
     publicationPatch['publishedStoragePath'] = nextPublishedStoragePath;
     publicationPatch['assetVersion'] = now;
-    publicationPatch['moderationStatus'] = dependencies.moderationStatus;
-    publicationPatch['moderationReason'] = null;
-    publicationPatch['lastModeratedAt'] = now;
+    publicationPatch['moderationStatus'] = moderationStatus;
+    publicationPatch['moderationReason'] = PHOTO_PREVENTIVE_REVIEW_MESSAGE;
+    publicationPatch['lastModeratedAt'] = null;
+    publicationPatch['moderatedBy'] = null;
+    publicationPatch['safetyScore'] = null;
+    publicationPatch['score'] = 0;
+    publicationPatch['scoreBreakdown'] = scoreBreakdown;
+    publicationPatch['reviewEvidenceRetention'] = 'PUBLISHED_ASSET_LOCKED';
 
     /**
      * A projeção pública precisa receber a mesma versão física. O cache de URL
@@ -219,8 +230,11 @@ export async function synchronizePublishedPhotoUpdate(
      * mudando `updatedAt` sem invalidar o acesso ao mesmo arquivo.
      */
     publicPhotoPatch['assetVersion'] = now;
-    publicPhotoPatch['moderationStatus'] = dependencies.moderationStatus;
-    publicPhotoPatch['moderationReason'] = null;
+    publicPhotoPatch['moderationStatus'] = moderationStatus;
+    publicPhotoPatch['moderationReason'] = PHOTO_PREVENTIVE_REVIEW_MESSAGE;
+    publicPhotoPatch['safetyScore'] = null;
+    publicPhotoPatch['score'] = 0;
+    publicPhotoPatch['scoreBreakdown'] = scoreBreakdown;
   }
 
   try {
@@ -272,6 +286,8 @@ export async function synchronizePublishedPhotoUpdate(
     binaryChanged,
     metadataChanged,
     copiedAsset: shouldCopyAsset,
-    moderationStatus: dependencies.moderationStatus,
+    moderationStatus: shouldCopyAsset
+      ? defaultPhotoPublicationModerationStatus()
+      : 'APPROVED',
   };
 }

@@ -4,6 +4,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue, getDefaultStorageBucket } from '../../firebaseApp';
+import { isPhotoPublicationApproved } from './photo-publication-moderation.policy';
 import { extractOwnedPrivatePhotoPath } from './photo-storage-path';
 import { deletePublishedPhotoAssetOrQueue } from './published-photo-asset.service';
 import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
@@ -38,6 +39,7 @@ type PrivatePhotoDoc = {
 };
 
 type PhotoPublicationDoc = {
+  isPublished?: boolean;
   publishedStoragePath?: string;
   moderationStatus?: string;
 };
@@ -62,12 +64,11 @@ function assertOwner(requesterUid: string | null, ownerUid: string): void {
   }
 }
 
-function isQuarantinedPublication(
+function isModerationLockedPublication(
   publication: PhotoPublicationDoc | null
 ): boolean {
-  return String(publication?.moderationStatus ?? '')
-    .trim()
-    .toUpperCase() === 'FLAGGED';
+  return publication?.isPublished === true &&
+    !isPhotoPublicationApproved(publication.moderationStatus);
 }
 
 function buildDeletionJobId(ownerUid: string, photoId: string): string {
@@ -125,7 +126,8 @@ async function recordDeletionAttemptFailure(
  * system/moderation-evidence e não é removida por este fluxo.
  *
  * `allowQuarantined` é reservado à moderação depois da preservação probatória.
- * A exclusão do proprietário permanece fail-closed enquanto FLAGGED.
+ * A exclusão do proprietário permanece fail-closed enquanto a publicação
+ * estiver sem aprovação explícita, inclusive PENDING_REVIEW e FLAGGED.
  */
 export async function deleteProfilePhotoResources(
   ownerUidValue: unknown,
@@ -154,7 +156,10 @@ export async function deleteProfilePhotoResources(
     ? (publicationSnap.data() as PhotoPublicationDoc)
     : null;
 
-  if (isQuarantinedPublication(publication) && options.allowQuarantined !== true) {
+  if (
+    isModerationLockedPublication(publication) &&
+    options.allowQuarantined !== true
+  ) {
     throw new HttpsError(
       'failed-precondition',
       'Esta foto está temporariamente preservada durante uma análise de segurança.'

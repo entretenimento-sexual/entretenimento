@@ -9,7 +9,7 @@
   - não oferece mais "ocultar mantendo privada" para foto já publicada;
   - mantém capa como recurso discreto de destaque, fora dos filtros principais;
   - adiciona organização por data sem criar pastas ou eventos;
-  - bloqueia mutações do proprietário enquanto a mídia estiver FLAGGED;
+  - bloqueia mutações do proprietário enquanto a mídia estiver em revisão;
   - prioriza mobile, acessibilidade e leitura clara dos estados.
 -->
 
@@ -180,7 +180,11 @@
         aria-label="Lista de fotos"
       >
         @for (item of (items || []); track item.id) {
-          @let quarantined = item.publication.moderationStatus === 'FLAGGED';
+          @let moderationLocked =
+            item.publication.moderationStatus === 'PENDING_REVIEW' ||
+            item.publication.moderationStatus === 'FLAGGED' ||
+            item.publication.moderationStatus === 'HIDDEN' ||
+            item.publication.moderationStatus === 'REJECTED';
 
           <article
             class="photo-tile app-card app-card--media app-card--interactive"
@@ -227,7 +231,7 @@
                     @switch (item.publication.moderationStatus) {
                       @case ('PENDING_REVIEW') {
                         <span class="status-chip status-chip--pending app-chip app-chip--overlay">
-                          Migração pendente
+                          Aguardando análise
                         </span>
                       }
 
@@ -275,9 +279,13 @@
             </button>
 
             @if (isOwner) {
-              @if (quarantined) {
+              @if (item.publication.moderationStatus === 'PENDING_REVIEW') {
                 <p class="publication-note" role="status">
-                  Esta foto está temporariamente bloqueada enquanto uma denúncia é analisada.
+                  Esta foto está retida para revisão preventiva e ainda não participa da distribuição pública.
+                </p>
+              } @else if (moderationLocked) {
+                <p class="publication-note" role="status">
+                  Esta foto está temporariamente bloqueada enquanto uma análise de segurança é concluída.
                 </p>
               }
 
@@ -301,7 +309,7 @@
                     [value]="getDisplayDateInputValue(item)"
                     (click)="$event.stopPropagation()"
                     (change)="updatePhotoDisplayDate(item, $event, canUsePhotoDate === true)"
-                    [disabled]="quarantined || savingDisplayDateId === item.id || deletingPhotoId === item.id || publishingPhotoId === item.id"
+                    [disabled]="moderationLocked || savingDisplayDateId === item.id || deletingPhotoId === item.id || publishingPhotoId === item.id"
                     [attr.aria-label]="'Data da foto ' + (item.alt || item.id)"
                     title="Definir data da foto"
                   />
@@ -310,7 +318,7 @@
                     type="button"
                     class="management-action management-action--neutral app-action app-action--ghost"
                     (click)="notifyPhotoDateUpgrade($event)"
-                    [disabled]="quarantined || deletingPhotoId === item.id || publishingPhotoId === item.id"
+                    [disabled]="moderationLocked || deletingPhotoId === item.id || publishingPhotoId === item.id"
                     aria-label="Organização por data disponível para assinantes"
                     title="Organização por data é recurso para assinantes"
                   >
@@ -328,7 +336,7 @@
                   type="button"
                   class="management-action management-action--icon management-action--neutral app-action app-action--ghost"
                   (click)="editPhoto(item, $event)"
-                  [disabled]="quarantined || deletingPhotoId === item.id || publishingPhotoId === item.id || savingDisplayDateId === item.id"
+                  [disabled]="moderationLocked || deletingPhotoId === item.id || publishingPhotoId === item.id || savingDisplayDateId === item.id"
                   [attr.aria-label]="'Editar foto ' + (item.alt || item.id)"
                   title="Editar foto"
                 >
@@ -355,7 +363,7 @@
                     type="button"
                     class="management-action management-action--icon management-action--neutral app-action app-action--ghost"
                     (click)="setCoverPhoto(item, $event)"
-                    [disabled]="quarantined || publishingPhotoId === item.id || savingDisplayDateId === item.id"
+                    [disabled]="moderationLocked || publishingPhotoId === item.id || savingDisplayDateId === item.id"
                     aria-label="Definir foto como capa do perfil"
                     title="Definir como capa"
                   >
@@ -368,9 +376,9 @@
                     type="button"
                     class="management-action management-action--icon management-action--danger app-action app-action--danger"
                     (click)="requestDelete(item, $event)"
-                    [disabled]="quarantined || deletingPhotoId === item.id || publishingPhotoId === item.id || savingDisplayDateId === item.id"
+                    [disabled]="moderationLocked || deletingPhotoId === item.id || publishingPhotoId === item.id || savingDisplayDateId === item.id"
                     [attr.aria-label]="'Excluir foto ' + (item.alt || item.id)"
-                    [title]="quarantined ? 'A foto não pode ser excluída durante a análise de segurança' : 'Excluir foto'"
+                    [title]="moderationLocked ? 'A foto não pode ser excluída enquanto a revisão de segurança estiver pendente' : 'Excluir foto'"
                   >
                     <span aria-hidden="true">🗑</span>
                   </button>
@@ -386,7 +394,7 @@
                       type="button"
                       class="management-action management-action--danger management-action--solid app-action app-action--danger"
                       (click)="confirmDelete(item, $event)"
-                      [disabled]="quarantined || deletingPhotoId === item.id"
+                      [disabled]="moderationLocked || deletingPhotoId === item.id"
                     >
                       @if (deletingPhotoId === item.id) {
                         Excluindo...
