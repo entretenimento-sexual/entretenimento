@@ -12,11 +12,7 @@ import {
 import {
   advertiserInteractionFieldsChanged,
   isPhotoPromotionPublicationEligible,
-  isPhotoPromotionPublicProjectionEligible,
-  isPublicProfilePromotionOwnerEligible,
   photoPublicationEligibilityChanged,
-  publicPhotoPromotionEligibilityChanged,
-  publicProfilePromotionEligibilityChanged,
 } from './photo-promotion-target.policy';
 import { normalizePromotionBoostCampaign } from './promotion-boost.policy';
 
@@ -146,16 +142,16 @@ async function cancelAdvertiserPhotoPromotions(
   await cancelPhotoPromotionSlots(query, reason, now);
 }
 
-async function reconcileAdvertiserInteractionEligibility(
-  advertiserUid: string,
+async function reconcileUserPromotionEligibility(
+  userUid: string,
   reason: string,
   now: number
 ): Promise<void> {
-  if (!advertiserUid) return;
+  if (!userUid) return;
 
   const [userSnapshot, ageEligibilitySnapshot] = await Promise.all([
-    db.collection('users').doc(advertiserUid).get(),
-    db.collection('age_eligibility_records').doc(advertiserUid).get(),
+    db.collection('users').doc(userUid).get(),
+    db.collection('age_eligibility_records').doc(userUid).get(),
   ]);
 
   if (
@@ -164,13 +160,16 @@ async function reconcileAdvertiserInteractionEligibility(
       rawAgeEligibility: ageEligibilitySnapshot.exists
         ? ageEligibilitySnapshot.data()
         : null,
-      advertiserUid,
+      advertiserUid: userUid,
     })
   ) {
     return;
   }
 
-  await cancelAdvertiserPhotoPromotions(advertiserUid, reason, now);
+  await Promise.all([
+    cancelAdvertiserPhotoPromotions(userUid, reason, now),
+    cancelOwnerPhotoPromotions(userUid, reason, now),
+  ]);
 }
 
 export const syncPhotoPromotionFromPublication = onDocumentWritten(
@@ -203,68 +202,6 @@ export const syncPhotoPromotionFromPublication = onDocumentWritten(
     });
   }
 );
-
-export const syncPhotoPromotionFromPublicPhoto = onDocumentWritten(
-  {
-    document: 'public_profiles/{ownerUid}/public_photos/{photoId}',
-    region: FUNCTIONS_REGION,
-    retry: true,
-  },
-  async (event) => {
-    const before = event.data?.before.exists
-      ? event.data.before.data() ?? null
-      : null;
-    const after = event.data?.after.exists
-      ? event.data.after.data() ?? null
-      : null;
-
-    if (
-      event.data?.after.exists
-      && !publicPhotoPromotionEligibilityChanged(before, after)
-    ) {
-      return;
-    }
-    if (isPhotoPromotionPublicProjectionEligible(after, Date.now())) return;
-
-    await cancelOpenPhotoPromotion({
-      ownerUid: String(event.params.ownerUid ?? '').trim(),
-      photoId: String(event.params.photoId ?? '').trim(),
-      reason: after ? 'public_photo_ineligible' : 'public_photo_removed',
-      now: Date.now(),
-    });
-  }
-);
-
-export const syncPhotoPromotionFromOwnerProfile = onDocumentWritten(
-  {
-    document: 'public_profiles/{ownerUid}',
-    region: FUNCTIONS_REGION,
-    retry: true,
-  },
-  async (event) => {
-    const before = event.data?.before.exists
-      ? event.data.before.data() ?? null
-      : null;
-    const after = event.data?.after.exists
-      ? event.data.after.data() ?? null
-      : null;
-
-    if (
-      event.data?.after.exists
-      && !publicProfilePromotionEligibilityChanged(before, after)
-    ) {
-      return;
-    }
-    if (isPublicProfilePromotionOwnerEligible(after, Date.now())) return;
-
-    await cancelOwnerPhotoPromotions(
-      String(event.params.ownerUid ?? '').trim(),
-      after ? 'owner_profile_ineligible' : 'owner_profile_removed',
-      Date.now()
-    );
-  }
-);
-
 
 export const syncPhotoPromotionFromAdvertiserAccount = onDocumentWritten(
   {
@@ -318,7 +255,7 @@ export const syncPhotoPromotionFromAdvertiserUser = onDocumentWritten(
       return;
     }
 
-    await reconcileAdvertiserInteractionEligibility(
+    await reconcileUserPromotionEligibility(
       String(event.params.advertiserUid ?? '').trim(),
       'advertiser_interaction_ineligible',
       Date.now()
@@ -334,7 +271,7 @@ export const syncPhotoPromotionFromAdvertiserAgeEligibility =
       retry: true,
     },
     async (event) => {
-      await reconcileAdvertiserInteractionEligibility(
+      await reconcileUserPromotionEligibility(
         String(event.params.advertiserUid ?? '').trim(),
         'advertiser_age_ineligible',
         Date.now()
