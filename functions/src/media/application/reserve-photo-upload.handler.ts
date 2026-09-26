@@ -49,7 +49,8 @@ interface PhotoUploadReservationDocument {
 
 const RESERVATION_COLLECTION = 'media_photo_upload_reservations';
 const QUOTA_COLLECTION = 'media_photo_upload_quota';
-const CLEANUP_BATCH_SIZE = 400;
+const CLEANUP_BATCH_SIZE = 100;
+const CLEANUP_CONCURRENCY = 8;
 const DEAD_LETTER_COLLECTION = 'media_photo_upload_cleanup_dead_letters';
 const ALLOWED_CONTENT_TYPES = new Set<string>(IMAGE_INPUT_MIME_TYPES);
 
@@ -372,6 +373,7 @@ export const cleanupExpiredPhotoUploadReservations = onSchedule(
     schedule: 'every 24 hours',
     timeZone: 'America/Sao_Paulo',
     retryCount: 3,
+    timeoutSeconds: 300,
   },
   async () => {
     const startedAt = Date.now();
@@ -390,19 +392,33 @@ export const cleanupExpiredPhotoUploadReservations = onSchedule(
       deadLetter: 0,
     };
 
-    for (const documentSnapshot of snapshot.docs) {
-      const reservation =
-        documentSnapshot.data() as PhotoUploadReservationDocument;
-      const outcome = await reconcileExpiredPhotoUploadReservation(
-        documentSnapshot,
-        reservation
+    for (
+      let offset = 0;
+      offset < snapshot.docs.length;
+      offset += CLEANUP_CONCURRENCY
+    ) {
+      const chunk = snapshot.docs.slice(
+        offset,
+        offset + CLEANUP_CONCURRENCY
+      );
+      const outcomes = await Promise.all(
+        chunk.map(async (documentSnapshot) => {
+          const reservation =
+            documentSnapshot.data() as PhotoUploadReservationDocument;
+          return reconcileExpiredPhotoUploadReservation(
+            documentSnapshot,
+            reservation
+          );
+        })
       );
 
-      if (outcome === 'referenced') counts.referenced += 1;
-      if (outcome === 'orphan_deleted') counts.orphanDeleted += 1;
-      if (outcome === 'missing_object') counts.missingObject += 1;
-      if (outcome === 'retryable') counts.retryable += 1;
-      if (outcome === 'dead_letter') counts.deadLetter += 1;
+      for (const outcome of outcomes) {
+        if (outcome === 'referenced') counts.referenced += 1;
+        if (outcome === 'orphan_deleted') counts.orphanDeleted += 1;
+        if (outcome === 'missing_object') counts.missingObject += 1;
+        if (outcome === 'retryable') counts.retryable += 1;
+        if (outcome === 'dead_letter') counts.deadLetter += 1;
+      }
     }
 
     logPhotoOperation({
