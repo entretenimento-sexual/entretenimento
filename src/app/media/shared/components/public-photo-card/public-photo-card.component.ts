@@ -18,7 +18,7 @@ export type TPublicPhotoCardVariant =
   | 'feed'
   | 'latest'
   | 'top'
-  | 'boosted';
+  | 'sponsored';
 
 @Component({
   selector: 'app-public-photo-card',
