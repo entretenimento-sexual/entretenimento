@@ -16,8 +16,7 @@ export type PublicMediaReadMode =
   | 'PROFILE'
   | 'RECENT_BY_OWNERS'
   | 'LATEST'
-  | 'TOP'
-  | 'BOOSTED';
+  | 'TOP';
 
 export interface PublicMediaReadCursor {
   readonly documentPath: string;
@@ -25,7 +24,6 @@ export interface PublicMediaReadCursor {
   readonly score?: number;
   readonly uniqueViewersCount?: number;
   readonly viewsCount?: number;
-  readonly boostedUntil?: number;
   readonly orderIndex?: number;
 }
 
