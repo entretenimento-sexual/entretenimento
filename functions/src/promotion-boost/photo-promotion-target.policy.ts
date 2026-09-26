@@ -96,6 +96,19 @@ export function publicPhotoPromotionEligibilityChanged(
       !== timestampMillis(right['ageEligibilityValidUntil']);
 }
 
+export function isPublicProfilePromotionOwnerEligible(
+  raw: unknown,
+  nowMs: number
+): boolean {
+  const source = asRecord(raw);
+  const validUntilMs = timestampMillis(source['ageEligibilityValidUntil']);
+
+  return source['ageEligibilityVerifiedAdult'] === true
+    && source['ageEligibilityAdultAccessAllowed'] === true
+    && validUntilMs !== null
+    && validUntilMs > nowMs;
+}
+
 export function publicProfilePromotionEligibilityChanged(
   before: unknown,
   after: unknown
