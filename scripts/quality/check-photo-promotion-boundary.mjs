@@ -136,8 +136,8 @@ const promotionLifecycle = read(
 for (const fragment of [
   'syncPhotoPromotionFromPublication',
   'syncPhotoPromotionFromAdvertiserAccount',
-  'syncPhotoPromotionFromAdvertiserUser',
-  'syncPhotoPromotionFromAdvertiserAgeEligibility',
+  'syncPhotoPromotionFromUserLifecycle',
+  'syncPhotoPromotionFromAgeEligibility',
   'photo_promotion_campaign_stopped_by_target_lifecycle',
 ]) {
   requireIncludes(
