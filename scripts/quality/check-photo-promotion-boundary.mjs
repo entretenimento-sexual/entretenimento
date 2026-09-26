@@ -121,6 +121,7 @@ for (const fragment of [
   "collection('billing_ledger')",
   'ledgerOwnershipTransferred: false',
   'rateCpmCentsSnapshot',
+  'isPromotionBoostAdvertiserInteractionEligible',
 ]) {
   requireIncludes(
     promotionSelection,
@@ -136,6 +137,9 @@ for (const fragment of [
   'syncPhotoPromotionFromPublication',
   'syncPhotoPromotionFromPublicPhoto',
   'syncPhotoPromotionFromOwnerProfile',
+  'syncPhotoPromotionFromAdvertiserAccount',
+  'syncPhotoPromotionFromAdvertiserUser',
+  'syncPhotoPromotionFromAdvertiserAgeEligibility',
   'photo_promotion_campaign_stopped_by_target_lifecycle',
 ]) {
   requireIncludes(
