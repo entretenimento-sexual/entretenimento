@@ -67,28 +67,6 @@ export class MediaApplicationErrorService {
     });
   }
 
-  /**
-   * Aceita erros já enriquecidos por fluxos legados durante a migração.
-   * A apresentação e o diagnóstico passam a pertencer ao ApplicationErrorService.
-   */
-  handleError(error: unknown): ApplicationErrorDescriptor {
-    const source = this.asRecord(error);
-    const context = this.asRecord(source?.['context']) ?? {};
-    const original = source?.['original'] ?? error;
-    const operation = this.safeText(context['op'], 'unknown');
-    const fallbackMessage = this.safeText(
-      source?.['userFacingMessage'],
-      'Não foi possível concluir a operação de mídia.'
-    );
-
-    return this.report(original, {
-      operation,
-      fallbackMessage,
-      metadata: context,
-      silent: source?.['skipUserNotification'] === true,
-    });
-  }
-
   private messageOverride(
     error: unknown,
     message: string

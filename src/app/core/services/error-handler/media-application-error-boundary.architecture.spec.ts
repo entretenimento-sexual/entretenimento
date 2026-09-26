@@ -12,6 +12,8 @@ const APP_ROOT = resolve(process.cwd(), 'src/app');
 const DIRECT_GLOBAL_ERROR_IMPORT =
   /import\s*\{[^}]*\bGlobalErrorHandlerService\b[^}]*\}\s*from\s*['"][^'"]*global-error-handler\.service['"]/m;
 
+const LEGACY_MEDIA_HANDLE_ERROR_CALL = /\.handleError\s*\(/m;
+
 const SCANNED_DIRECTORIES = [
   resolve(APP_ROOT, 'core/services/media'),
   resolve(APP_ROOT, 'media'),
@@ -69,6 +71,33 @@ describe('Media application error boundary', () => {
         'apresentação canônica, diagnóstico sanitizado e ausência de toast duplicado.',
       ].join(' ')
     ).toEqual([]);
+  });
+
+  it('impede retorno do adapter legado handleError', () => {
+    const files = [
+      ...SCANNED_DIRECTORIES.flatMap(collectRuntimeTypeScriptFiles),
+      ...SCANNED_FILES,
+    ];
+
+    const violations = files
+      .filter((filePath) =>
+        LEGACY_MEDIA_HANDLE_ERROR_CALL.test(readFileSync(filePath, 'utf8'))
+      )
+      .map((filePath) =>
+        relative(APP_ROOT, filePath).replaceAll('\\', '/')
+      )
+      .sort();
+
+    expect(
+      violations,
+      'Use report()/reportSilently(); o adapter handleError foi removido.'
+    ).toEqual([]);
+
+    const mediaBoundary = readFileSync(
+      resolve(APP_ROOT, 'core/services/media/media-application-error.service.ts'),
+      'utf8'
+    );
+    expect(mediaBoundary).not.toMatch(/\bhandleError\s*\(/);
   });
 
   it('mantém a topologia ApplicationError -> notifier + diagnóstico global', () => {
