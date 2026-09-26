@@ -165,7 +165,7 @@ export class TopPublicPhotosComponent {
           return this.photoViewer.open$({
             items: [placement.photo],
             selected: placement.photo,
-            source: 'boosted',
+            source: 'sponsored',
           });
         }),
         catchError(() => EMPTY)
