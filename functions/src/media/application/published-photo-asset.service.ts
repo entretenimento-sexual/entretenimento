@@ -450,6 +450,7 @@ export async function processPendingPublishedPhotoAssetCleanupJobs(
   let waitingRetention = 0;
   let retryable = 0;
   let deadLetter = 0;
+  let deadLetterPurged = 0;
 
   for (const jobDoc of jobsSnapshot.docs) {
     const job = jobDoc.data() as PublishedPhotoAssetCleanupJob;
@@ -532,6 +533,19 @@ export async function processPendingPublishedPhotoAssetCleanupJobs(
     }
   }
 
+  const expiredDeadLetters = await db
+    .collection(CLEANUP_COLLECTION)
+    .where('deadLetterExpiresAt', '<=', Date.now())
+    .limit(batchSize)
+    .get();
+
+  if (!expiredDeadLetters.empty) {
+    const purgeBatch = db.batch();
+    expiredDeadLetters.docs.forEach((doc) => purgeBatch.delete(doc.ref));
+    await purgeBatch.commit();
+    deadLetterPurged = expiredDeadLetters.size;
+  }
+
   logPhotoOperation({
     operation: 'photo.cleanup_published_assets',
     outcome:
@@ -549,6 +563,7 @@ export async function processPendingPublishedPhotoAssetCleanupJobs(
       waitingRetention,
       retryable,
       deadLetter,
+      deadLetterPurged,
     },
   });
 }
