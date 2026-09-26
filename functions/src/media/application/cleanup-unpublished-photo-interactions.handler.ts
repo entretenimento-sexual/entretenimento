@@ -5,6 +5,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
 import {
+  PHOTO_CLEANUP_DEAD_LETTER_RETENTION_MS,
   PHOTO_CLEANUP_MAX_ATTEMPTS,
   nextPhotoCleanupRetry,
   type PhotoCleanupJobState,
@@ -209,11 +210,27 @@ export const cleanupPendingPhotoInteractionTrees = onSchedule(
   },
   async () => {
     const startedAt = Date.now();
-    const snapshot = await db
-      .collection(CLEANUP_COLLECTION)
-      .where('nextAttemptAt', '<=', startedAt)
-      .limit(CLEANUP_BATCH_SIZE)
-      .get();
+    const [expiredDeadLetters, snapshot] = await Promise.all([
+      db
+        .collection(CLEANUP_COLLECTION)
+        .where('deadLetterExpiresAt', '<=', startedAt)
+        .limit(CLEANUP_BATCH_SIZE)
+        .get(),
+      db
+        .collection(CLEANUP_COLLECTION)
+        .where('nextAttemptAt', '<=', startedAt)
+        .limit(CLEANUP_BATCH_SIZE)
+        .get(),
+    ]);
+
+    if (!expiredDeadLetters.empty) {
+      const purgeBatch = db.batch();
+      expiredDeadLetters.docs.forEach((documentSnapshot) => {
+        purgeBatch.delete(documentSnapshot.ref);
+      });
+      await purgeBatch.commit();
+    }
+
     let deleted = 0;
     let retryable = 0;
     let deadLetter = 0;
@@ -229,7 +246,8 @@ export const cleanupPendingPhotoInteractionTrees = onSchedule(
             state: 'dead_letter',
             attempts: PHOTO_CLEANUP_MAX_ATTEMPTS,
             nextAttemptAt: null,
-            deadLetterExpiresAt: null,
+            deadLetterExpiresAt:
+              Date.now() + PHOTO_CLEANUP_DEAD_LETTER_RETENTION_MS,
             updatedAt: Date.now(),
             lastError: 'Job de interações públicas inválido.',
           },
@@ -271,6 +289,7 @@ export const cleanupPendingPhotoInteractionTrees = onSchedule(
       startedAt,
       counts: {
         scanned: snapshot.size,
+        purgedDeadLetters: expiredDeadLetters.size,
         deleted,
         retryable,
         deadLetter,
