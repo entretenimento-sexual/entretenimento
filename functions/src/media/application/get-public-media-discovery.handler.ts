@@ -263,7 +263,6 @@ export function serializePublicMediaForDiscovery(
 }
 
 function assertSupportedMode(
-  mediaType: PublicMediaDiscoveryType,
   mode: PublicMediaDiscoveryMode,
   ownerUids: readonly string[]
 ): void {
@@ -411,7 +410,7 @@ export const getPublicMediaDiscovery = onCall<PublicMediaDiscoveryRequest>(
     const cursor = normalizeCursor(request.data?.cursor, mediaType);
     const nowMs = Date.now();
 
-    assertSupportedMode(mediaType, mode, ownerUids);
+    assertSupportedMode(mode, ownerUids);
 
     await consumeBackendRateLimitQuota({
       action: 'public-media-discovery-read',
