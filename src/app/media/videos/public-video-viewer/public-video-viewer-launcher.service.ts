@@ -9,7 +9,7 @@ import type {
   IPublicMediaViewerMixedNavigation,
 } from 'src/app/core/interfaces/media/i-public-media-viewer-session';
 import type { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 import type { TVideoViewSource } from 'src/app/core/services/media/video-view-tracking.service';
 
 export interface OpenPublicVideoViewerRequest {
@@ -23,7 +23,7 @@ export interface OpenPublicVideoViewerRequest {
 @Injectable({ providedIn: 'root' })
 export class PublicVideoViewerLauncherService {
   private readonly dialog = inject(MatDialog);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly mediaError = inject(MediaApplicationErrorService);
 
   open$(request: OpenPublicVideoViewerRequest): Observable<void> {
     return this.openDialog$(request).pipe(map(() => void 0));
@@ -110,29 +110,18 @@ export class PublicVideoViewerLauncherService {
     source: TVideoViewSource,
     itemCount: number
   ): void {
-    try {
-      const normalized = error instanceof Error
-        ? error
-        : new Error('Falha ao abrir o visualizador público de vídeo.');
-      const contextual = normalized as Error & {
-        original?: unknown;
-        context?: Record<string, unknown>;
-        skipUserNotification?: boolean;
-      };
-
-      contextual.original = error;
-      contextual.context = {
+    this.mediaError.reportSilently(
+      error,
+      'open$',
+      'Falha ao abrir o visualizador público de vídeo.',
+      {
         scope: 'PublicVideoViewerLauncherService',
-        op: 'open$',
         source,
         hasOwnerUid: !!selected.ownerUid,
         hasVideoId: !!selected.id,
         itemCount,
-      };
-      contextual.skipUserNotification = true;
-      this.globalError.handleError(contextual);
-    } catch {
-      // A falha de diagnóstico não deve substituir o erro original.
-    }
+      }
+    );
   }
+
 }

@@ -9,7 +9,7 @@ import type {
   IPublicMediaViewerMixedNavigation,
 } from 'src/app/core/interfaces/media/i-public-media-viewer-session';
 import type { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 import type { TPhotoViewSource } from 'src/app/core/services/media/photo-view-tracking.service';
 import type { IProfilePhotoItem } from './photo-viewer.component';
 
@@ -31,7 +31,7 @@ export interface OpenPublicPhotoViewerRequest {
 @Injectable({ providedIn: 'root' })
 export class PublicPhotoViewerLauncherService {
   private readonly dialog = inject(MatDialog);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly mediaError = inject(MediaApplicationErrorService);
 
   open$(request: OpenPublicPhotoViewerRequest): Observable<void> {
     return this.openDialog$(request).pipe(map(() => void 0));
@@ -152,29 +152,18 @@ export class PublicPhotoViewerLauncherService {
     source: TPhotoViewSource,
     itemCount: number
   ): void {
-    try {
-      const normalized = error instanceof Error
-        ? error
-        : new Error('Falha ao abrir o visualizador público de foto.');
-      const contextual = normalized as Error & {
-        original?: unknown;
-        context?: Record<string, unknown>;
-        skipUserNotification?: boolean;
-      };
-
-      contextual.original = error;
-      contextual.context = {
+    this.mediaError.reportSilently(
+      error,
+      'open$',
+      'Falha ao abrir o visualizador público de foto.',
+      {
         scope: 'PublicPhotoViewerLauncherService',
-        op: 'open$',
         source,
         hasOwnerUid: !!selected.ownerUid,
         hasPhotoId: !!selected.id,
         itemCount,
-      };
-      contextual.skipUserNotification = true;
-      this.globalError.handleError(contextual);
-    } catch {
-      // A falha de diagnóstico não deve substituir o erro original.
-    }
+      }
+    );
   }
+
 }
