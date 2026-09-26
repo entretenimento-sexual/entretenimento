@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { Auth } from '@angular/fire/auth';
 import { Storage } from '@angular/fire/storage';
+import { Functions } from '@angular/fire/functions';
 
 import { StorageService } from './storage.service';
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
@@ -31,6 +32,10 @@ describe('StorageService', () => {
               uid: 'u1',
             },
           },
+        },
+        {
+          provide: Functions,
+          useValue: {},
         },
         {
           provide: ErrorNotificationService,

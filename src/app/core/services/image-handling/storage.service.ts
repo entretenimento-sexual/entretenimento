@@ -19,12 +19,14 @@
 import { Injectable, inject } from '@angular/core';
 import { Auth } from '@angular/fire/auth';
 import { Storage } from '@angular/fire/storage';
+import { Functions, httpsCallable } from '@angular/fire/functions';
 import {
   deleteObject,
   getDownloadURL,
   ref,
   uploadBytes,
   uploadBytesResumable,
+  type UploadMetadata,
 } from 'firebase/storage';
 import { Observable, defer, from, of, throwError } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
@@ -50,12 +52,25 @@ import { PrivacyDebugLoggerService } from '../privacy/privacy-debug-logger.servi
 type UploadKind = 'image' | 'video';
 type StorageDebugKind = UploadKind | 'avatar';
 
+interface ReservePhotoUploadCallableRequest {
+  ownerUid: string;
+  storagePath: string;
+  sizeBytes: number;
+  contentType: string;
+}
+
+interface ReservePhotoUploadCallableResponse {
+  reservationId: string;
+  expiresAt: number;
+}
+
 @Injectable({
   providedIn: 'root',
 })
 export class StorageService {
   private readonly storage = inject(Storage);
   private readonly auth = inject(Auth);
+  private readonly functions = inject(Functions);
 
   constructor(
     private readonly errorNotifier: ErrorNotificationService,
@@ -309,11 +324,12 @@ export class StorageService {
     file: File,
     kind: StorageDebugKind,
     progressCallback?: (progress: number) => void,
-    dispatchStoreProgress = false
+    dispatchStoreProgress = false,
+    metadata?: UploadMetadata
   ): Observable<string> {
     return new Observable<string>((observer) => {
       const storageRef = ref(this.storage, storagePath);
-      const uploadTask = uploadBytesResumable(storageRef, file);
+      const uploadTask = uploadBytesResumable(storageRef, file, metadata);
       const unsubscribe = uploadTask.on(
         'state_changed',
         (snapshot) => {
@@ -356,6 +372,72 @@ export class StorageService {
     );
   }
 
+  private reservePhotoUpload$(
+    userId: string,
+    storagePath: string,
+    file: File
+  ): Observable<string> {
+    const resolvedFormat = resolveImageInputFormat(file);
+
+    if (!resolvedFormat) {
+      return throwError(() =>
+        new Error('Formato de imagem inválido para reserva de upload.')
+      );
+    }
+
+    const callable = httpsCallable<
+      ReservePhotoUploadCallableRequest,
+      ReservePhotoUploadCallableResponse
+    >(this.functions, 'reservePhotoUpload');
+
+    return from(callable({
+      ownerUid: userId,
+      storagePath,
+      sizeBytes: file.size,
+      contentType: resolvedFormat.mimeType,
+    })).pipe(
+      map((response) => {
+        const reservationId = String(
+          response.data?.reservationId ?? ''
+        ).trim();
+
+        if (!reservationId) {
+          throw new Error(
+            'A reserva de upload terminou sem um identificador válido.'
+          );
+        }
+
+        return reservationId;
+      })
+    );
+  }
+
+  private buildUploadMetadata(
+    file: File,
+    kind: StorageDebugKind,
+    reservationId: string | null
+  ): UploadMetadata | undefined {
+    if (kind === 'video') {
+      return undefined;
+    }
+
+    const resolvedFormat = resolveImageInputFormat(file);
+    if (!resolvedFormat) {
+      return undefined;
+    }
+
+    return {
+      contentType: resolvedFormat.mimeType,
+      ...(reservationId
+        ? {
+            customMetadata: {
+              mediaPhotoReservationId: reservationId,
+            },
+          }
+        : {}),
+    };
+  }
+
   uploadFile(
     file: File,
     path: string,
@@ -385,13 +467,21 @@ export class StorageService {
               sameAuthenticatedUser: true,
             })
           );
-          return this.uploadResumablePath$(
-            resolvedPath,
-            file,
-            kind,
-            progressCallback,
-            true
-          ).pipe(
+          const reservation$ = kind === 'image'
+            ? this.reservePhotoUpload$(safeUid, resolvedPath, file)
+            : of(null as string | null);
+
+          return reservation$.pipe(
+            switchMap((reservationId) =>
+              this.uploadResumablePath$(
+                resolvedPath,
+                file,
+                kind,
+                progressCallback,
+                true,
+                this.buildUploadMetadata(file, kind, reservationId)
+              )
+            ),
             switchMap((uploadedPath) => this.resolveReadableLocation$(uploadedPath)),
             map((location) => {
               this.store.dispatch(uploadSuccess({ url: location }));
@@ -456,7 +546,8 @@ export class StorageService {
             file,
             'avatar',
             progressCallback,
-            false
+            false,
+            this.buildUploadMetadata(file, 'avatar', null)
           ).pipe(
             switchMap((uploadedPath) => this.resolveReadableLocation$(uploadedPath)),
             map((location) => {
@@ -552,7 +643,23 @@ export class StorageService {
       switchMap((safePath) => validation$.pipe(map(() => safePath))),
       switchMap((safePath) => {
         const storageRef = ref(this.storage, safePath);
-        return from(uploadBytes(storageRef, file)).pipe(
+        const upload$ = kind === 'image'
+          ? this.reservePhotoUpload$(
+              this.requireAuthenticatedOwnerUid(this.currentUid ?? ''),
+              safePath,
+              file
+            ).pipe(
+              switchMap((reservationId) =>
+                from(uploadBytes(
+                  storageRef,
+                  file,
+                  this.buildUploadMetadata(file, kind, reservationId)
+                ))
+              )
+            )
+          : from(uploadBytes(storageRef, file));
+
+        return upload$.pipe(
           switchMap(() => this.resolveReadableLocation$(safePath)),
           map((location) => {
             this.dbg('replaceFile completed', {

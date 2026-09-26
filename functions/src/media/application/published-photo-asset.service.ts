@@ -1,16 +1,21 @@
 import { createHash, randomUUID } from 'node:crypto';
 
 import { logger } from 'firebase-functions';
+import sharp from 'sharp';
 
 import { db, getDefaultStorageBucket } from '../../firebaseApp';
-import {
-  IMAGE_INPUT_MIME_TYPES,
-  IMAGE_MAX_BYTES,
-} from '../media-format.generated';
 import {
   buildPublishedPhotoPath,
   normalizeOwnedPublishedPhotoPath,
 } from './photo-storage-path';
+import {
+  PUBLISHED_PHOTO_MAX_INPUT_PIXELS,
+  PUBLISHED_PHOTO_MAX_OUTPUT_EDGE,
+  assertPublishedPhotoDecodedMetadata,
+  assertPublishedPhotoOutput,
+  assertPublishedPhotoSourceMetadata,
+  type CanonicalPublishedPhotoFormat,
+} from './published-photo-asset.policy';
 
 export interface PublishedPhotoAssetRetentionGuard {
   targetType: 'community_feed_post';
@@ -53,7 +58,6 @@ export interface StagedPublishedPhotoAssetCleanup {
 }
 
 const CLEANUP_COLLECTION = 'media_published_asset_cleanup_jobs';
-const ALLOWED_IMAGE_CONTENT_TYPES = new Set<string>(IMAGE_INPUT_MIME_TYPES);
 const COMMUNITY_FEED_CLEANUP_REASONS = new Set([
   'community-feed-post-deleted-by-author',
   'community-feed-post-removed-by-management',
@@ -206,6 +210,51 @@ export function stagePublishedPhotoAssetCleanup(
   };
 }
 
+async function encodePublishedPhoto(
+  sourceBuffer: Buffer,
+  format: CanonicalPublishedPhotoFormat
+): Promise<{ data: Buffer; contentType: string }> {
+  let pipeline = sharp(sourceBuffer, {
+    failOn: 'warning',
+    limitInputPixels: PUBLISHED_PHOTO_MAX_INPUT_PIXELS,
+    sequentialRead: true,
+  })
+    .rotate()
+    .resize({
+      width: PUBLISHED_PHOTO_MAX_OUTPUT_EDGE,
+      height: PUBLISHED_PHOTO_MAX_OUTPUT_EDGE,
+      fit: 'inside',
+      withoutEnlargement: true,
+    });
+
+  switch (format) {
+    case 'jpeg':
+      pipeline = pipeline.jpeg({ quality: 88, progressive: true });
+      break;
+    case 'png':
+      pipeline = pipeline.png({ compressionLevel: 9, adaptiveFiltering: true });
+      break;
+    case 'webp':
+      pipeline = pipeline.webp({ quality: 88, effort: 4 });
+      break;
+  }
+
+  const output = await pipeline.toBuffer({ resolveWithObject: true });
+  assertPublishedPhotoOutput({
+    sizeBytes: output.data.byteLength,
+    width: output.info.width,
+    height: output.info.height,
+  });
+
+  const contentType = format === 'jpeg'
+    ? 'image/jpeg'
+    : format === 'png'
+      ? 'image/png'
+      : 'image/webp';
+
+  return { data: output.data, contentType };
+}
+
 export async function copyPrivatePhotoToPublishedAsset(
   command: CopyPublishedPhotoAssetCommand
 ): Promise<string> {
@@ -221,25 +270,32 @@ export async function copyPrivatePhotoToPublishedAsset(
       sourceStoragePath: command.sourceStoragePath,
       storageEmulator: !!process.env.STORAGE_EMULATOR_HOST,
     });
-
     throw new Error('O arquivo privado da foto não foi encontrado.');
   }
 
   const [sourceMetadata] = await sourceFile.getMetadata();
-  const contentType = String(sourceMetadata.contentType ?? '').trim().toLowerCase();
-  const sizeBytes = Number(sourceMetadata.size ?? 0);
+  const source = assertPublishedPhotoSourceMetadata({
+    contentType: sourceMetadata.contentType,
+    sizeBytes: sourceMetadata.size,
+  });
+  const [sourceBuffer] = await sourceFile.download();
 
-  if (!ALLOWED_IMAGE_CONTENT_TYPES.has(contentType)) {
-    throw new Error('O arquivo privado não possui um formato de imagem suportado.');
+  if (sourceBuffer.byteLength !== source.sizeBytes) {
+    throw new Error(
+      'O tamanho real da imagem privada diverge dos metadados do Storage.'
+    );
   }
 
-  if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
-    throw new Error('Não foi possível validar o tamanho da imagem privada.');
-  }
-
-  if (sizeBytes > IMAGE_MAX_BYTES) {
-    throw new Error('A imagem privada excede o limite permitido para publicação.');
-  }
+  const decoder = sharp(sourceBuffer, {
+    failOn: 'warning',
+    limitInputPixels: PUBLISHED_PHOTO_MAX_INPUT_PIXELS,
+    sequentialRead: true,
+  });
+  const decoded = assertPublishedPhotoDecodedMetadata(
+    await decoder.metadata(),
+    source.expectedFormat
+  );
+  const sanitized = await encodePublishedPhoto(sourceBuffer, decoded.format);
 
   const assetVersion = `${Date.now()}-${randomUUID()}`;
   const destinationPath = buildPublishedPhotoPath(
@@ -250,14 +306,14 @@ export async function copyPrivatePhotoToPublishedAsset(
   const destinationFile = bucket.file(destinationPath);
 
   try {
-    await sourceFile.copy(destinationFile, {
+    await destinationFile.save(sanitized.data, {
+      resumable: false,
       metadata: {
-        contentType,
+        contentType: sanitized.contentType,
         contentDisposition: 'inline',
         cacheControl: 'private, max-age=0, no-store, no-transform',
       },
     });
-
     return destinationPath;
   } catch (error) {
     await destinationFile.delete({ ignoreNotFound: true }).catch(() => undefined);

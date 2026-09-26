@@ -16,8 +16,34 @@ service firebase.storage {
 
     function isImageCreateOrUpdate() {
       return request.resource != null
-        && request.resource.contentType.matches('image/.*')
+        && (
+          request.resource.contentType == 'image/jpeg'
+          || request.resource.contentType == 'image/jpg'
+          || request.resource.contentType == 'image/png'
+          || request.resource.contentType == 'image/webp'
+        )
+        && request.resource.size > 0
         && request.resource.size <= 10 * 1024 * 1024;
+    }
+
+    function hasPhotoUploadReservationId() {
+      return request.resource != null
+        && request.resource.metadata != null
+        && request.resource.metadata.mediaPhotoReservationId is string
+        && request.resource.metadata.mediaPhotoReservationId.size() > 0
+        && request.resource.metadata.mediaPhotoReservationId.size() <= 128;
+    }
+
+    function hasActivePhotoUploadReservation(uid, objectPath) {
+      let reservation = firestore.get(
+        /databases/(default)/documents/media_photo_upload_reservations/$(request.resource.metadata.mediaPhotoReservationId)
+      ).data;
+      return hasPhotoUploadReservationId()
+        && reservation.ownerUid == uid
+        && reservation.storagePath == objectPath
+        && reservation.sizeBytes == request.resource.size
+        && reservation.contentType == request.resource.contentType
+        && reservation.expiresAt > request.time;
     }
 
     function isVideoCreateOrUpdate() {
@@ -37,7 +63,12 @@ service firebase.storage {
 
     match /users/{uid}/uploads/images/{fileName} {
       allow read: if isSelf(uid);
-      allow create, update: if isSelf(uid) && isImageCreateOrUpdate();
+      allow create, update: if isSelf(uid)
+        && isImageCreateOrUpdate()
+        && hasActivePhotoUploadReservation(
+          uid,
+          'users/' + uid + '/uploads/images/' + fileName
+        );
       allow delete: if isSelf(uid);
     }
 

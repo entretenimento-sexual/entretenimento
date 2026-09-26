@@ -128,6 +128,19 @@ match /users/{userId}/imageStates/{stateId} {
     && validPayload();
   allow update, delete: if false;
 }
+// -------------------------------------------------------------------------
+// Reservas e contadores de upload são backend-only. O Storage consulta a
+// reserva diretamente pela rules engine; o navegador não recebe autoridade
+// para ler, criar ou alterar estes documentos.
+// -------------------------------------------------------------------------
+match /media_photo_upload_reservations/{reservationId} {
+  allow read, write: if false;
+}
+
+match /media_photo_upload_quota/{userId} {
+  allow read, write: if false;
+}
+
 // ===============================================================
 //                   FIM DO PHOTOS + IMAGESTATES
 // ===============================================================

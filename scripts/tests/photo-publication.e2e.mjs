@@ -122,8 +122,12 @@ async function run() {
   const password = `E2e-${runId}-Aa1!`;
   const originalPath = `users/pending/uploads/images/original-${runId}.png`;
   const editedPath = `users/pending/uploads/images/edited-${runId}.png`;
-  const originalBytes = new TextEncoder().encode(`original-image-${runId}`);
-  const editedBytes = new TextEncoder().encode(`edited-image-${runId}`);
+  const validPngBytes = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+    'base64'
+  );
+  const originalBytes = new Uint8Array(validPngBytes);
+  const editedBytes = new Uint8Array(validPngBytes);
 
   const clientApp = initializeClientApp(
     {
@@ -228,10 +232,28 @@ async function run() {
     resolvedOriginalPath = originalPath.replace('/pending/', `/${ownerUid}/`);
     resolvedEditedPath = editedPath.replace('/pending/', `/${ownerUid}/`);
 
+    const reservePhotoUpload = httpsCallable(
+      clientFunctions,
+      'reservePhotoUpload'
+    );
+    const originalReservation = await reservePhotoUpload({
+      ownerUid,
+      storagePath: resolvedOriginalPath,
+      sizeBytes: originalBytes.byteLength,
+      contentType: 'image/png',
+    });
+    const originalReservationId = String(
+      originalReservation.data.reservationId ?? ''
+    );
+    assert.ok(originalReservationId);
+
     const originalStorageRef = ref(clientStorage, resolvedOriginalPath);
     await uploadBytes(originalStorageRef, originalBytes, {
       contentType: 'image/png',
       cacheControl: 'private, max-age=0, no-store',
+      customMetadata: {
+        mediaPhotoReservationId: originalReservationId,
+      },
     });
     const originalDownloadUrl = await getDownloadURL(originalStorageRef);
 
@@ -290,7 +312,13 @@ async function run() {
     const originalPublishedFile = bucket.file(originalPublishedPath);
     assert.equal(await readFileExists(originalPublishedFile), true);
     const [originalPublishedBytes] = await originalPublishedFile.download();
-    assert.deepEqual(originalPublishedBytes, Buffer.from(originalBytes));
+    const [originalPublishedMetadata] = await originalPublishedFile.getMetadata();
+    assert.ok(originalPublishedBytes.byteLength > 0);
+    assert.equal(originalPublishedMetadata.contentType, 'image/png');
+    assert.equal(
+      originalPublishedMetadata.metadata?.mediaPhotoReservationId,
+      undefined
+    );
 
     await Promise.all([
       publicationRef.set(
@@ -311,10 +339,24 @@ async function run() {
       ),
     ]);
 
+    const editedReservation = await reservePhotoUpload({
+      ownerUid,
+      storagePath: resolvedEditedPath,
+      sizeBytes: editedBytes.byteLength,
+      contentType: 'image/png',
+    });
+    const editedReservationId = String(
+      editedReservation.data.reservationId ?? ''
+    );
+    assert.ok(editedReservationId);
+
     const editedStorageRef = ref(clientStorage, resolvedEditedPath);
     await uploadBytes(editedStorageRef, editedBytes, {
       contentType: 'image/png',
       cacheControl: 'private, max-age=0, no-store',
+      customMetadata: {
+        mediaPhotoReservationId: editedReservationId,
+      },
     });
     const editedDownloadUrl = await getDownloadURL(editedStorageRef);
 
@@ -357,7 +399,13 @@ async function run() {
       Boolean
     );
     const [editedPublishedBytes] = await editedPublishedFile.download();
-    assert.deepEqual(editedPublishedBytes, Buffer.from(editedBytes));
+    const [editedPublishedMetadata] = await editedPublishedFile.getMetadata();
+    assert.ok(editedPublishedBytes.byteLength > 0);
+    assert.equal(editedPublishedMetadata.contentType, 'image/png');
+    assert.equal(
+      editedPublishedMetadata.metadata?.mediaPhotoReservationId,
+      undefined
+    );
 
     await waitFor(
       'versão pública anterior ser removida',
@@ -372,7 +420,7 @@ async function run() {
     );
 
     console.log('✔ usuário temporário autenticado no Auth Emulator');
-    console.log('✔ upload privado criado pelo SDK cliente e publicado pela callable');
+    console.log('✔ upload privado autorizado por reserva e publicado pela callable');
     console.log('✔ edição sincronizada por trigger para uma nova versão pública');
     console.log('✔ conteúdo binário editado validado no Storage Emulator');
     console.log('✔ versão pública anterior removida');
