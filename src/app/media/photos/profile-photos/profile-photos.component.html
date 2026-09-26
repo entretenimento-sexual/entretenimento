@@ -319,8 +319,8 @@
                     class="management-action management-action--neutral app-action app-action--ghost"
                     (click)="notifyPhotoDateUpgrade($event)"
                     [disabled]="moderationLocked || deletingPhotoId === item.id || publishingPhotoId === item.id"
-                    aria-label="Organização por data disponível para assinantes"
-                    title="Organização por data é recurso para assinantes"
+                    aria-label="Organização por data disponível com assinatura ativa"
+                    title="Organização por data requer assinatura ativa"
                   >
                     Data para assinantes
                   </button>

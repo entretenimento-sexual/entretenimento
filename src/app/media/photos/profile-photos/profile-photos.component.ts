@@ -44,6 +44,7 @@ import { MediaPolicyService, IMediaPolicyResult } from 'src/app/core/services/me
 import { MediaPublicationService } from 'src/app/core/services/media/media-publication.service';
 import { MediaQueryService } from 'src/app/core/services/media/media-query.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
+import { PlatformSubscriptionAccessService } from 'src/app/core/services/subscriptions/platform-subscription-access.service';
 
 import { PhotoViewerComponent, IProfilePhotoItem } from '../photo-viewer/photo-viewer.component';
 
@@ -60,12 +61,6 @@ type IPhotoCardVm = IManageablePhotoItem & {
 
 type TProfilePhotoFilterMode = 'all' | 'published' | 'private';
 type TProfilePhotoSortMode = 'newest' | 'oldest';
-
-type TPhotoDateAccessUser = {
-  role?: string | null;
-  monthlyPayer?: boolean | null;
-  subscriptionStatus?: string | null;
-};
 
 const DENY_UNKNOWN: IMediaPolicyResult = { decision: 'DENY', reason: 'UNKNOWN' };
 
@@ -93,6 +88,7 @@ export class ProfilePhotosComponent {
   private readonly photoEditor = inject(PhotoEditorLauncherService);
   private readonly photoUploadFlow = inject(PhotoUploadFlowService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
+  private readonly subscriptionAccess = inject(PlatformSubscriptionAccessService);
 
 
   private readonly confirmDeleteIdSubject = new BehaviorSubject<string | null>(null);
@@ -117,11 +113,8 @@ export class ProfilePhotosComponent {
     this.privacyDebug.log('media', `ProfilePhotos: ${message}`, extra);
   }
 
-  readonly canUsePhotoDate$: Observable<boolean> = this.currentUserStore.user$.pipe(
-    map((user) => this.hasPhotoDateAccess(user)),
-    distinctUntilChanged(),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
+  readonly canUsePhotoDate$: Observable<boolean> =
+    this.subscriptionAccess.isSubscriber$;
 
   readonly viewerUid$: Observable<string | null> = this.currentUserStore.user$.pipe(
     map((u) => u?.uid ?? null),
@@ -446,16 +439,6 @@ export class ProfilePhotosComponent {
     }
 
     return date.getTime();
-  }
-
-  private hasPhotoDateAccess(user: TPhotoDateAccessUser | null | undefined): boolean {
-    if (!user?.monthlyPayer || user.subscriptionStatus !== 'active') {
-      return false;
-    }
-
-    return ['basic', 'premium', 'vip', 'admin'].includes(
-      String(user.role ?? '').toLowerCase()
-    );
   }
 
   openUpload(ownerUid: string): void {

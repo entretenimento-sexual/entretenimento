@@ -31,6 +31,8 @@ import { IPhotoItem } from 'src/app/core/interfaces/media/i-photo-item';
 import {
   IPhotoPublicationConfig,
   TPhotoCommentsPolicy,
+  TPhotoPublishableCommentsPolicy,
+  TPhotoPublishableVisibility,
   TPhotoVisibility,
 } from 'src/app/core/interfaces/media/i-photo-publication-config';
 
@@ -39,12 +41,12 @@ const MAX_PUBLICATION_CAPTION_LENGTH = 800;
 export interface IPublishPhotoCommand {
   ownerUid: string;
   photo: IPhotoItem;
-  visibility: Exclude<TPhotoVisibility, 'PRIVATE'>;
+  visibility: TPhotoPublishableVisibility;
   caption?: string | null;
   isCover?: boolean;
   orderIndex?: number;
   commentsEnabled?: boolean;
-  commentsPolicy?: TPhotoCommentsPolicy;
+  commentsPolicy?: TPhotoPublishableCommentsPolicy;
   reactionsEnabled?: boolean;
 }
 
@@ -59,12 +61,12 @@ type TRecordPhotoViewSource =
 interface PublishPhotoCallableRequest {
   ownerUid: string;
   photoId: string;
-  visibility: Exclude<TPhotoVisibility, 'PRIVATE'>;
+  visibility: TPhotoPublishableVisibility;
   caption: string | null;
   isCover: boolean;
   orderIndex: number;
   commentsEnabled: boolean;
-  commentsPolicy: TPhotoCommentsPolicy;
+  commentsPolicy: TPhotoPublishableCommentsPolicy;
   reactionsEnabled: boolean;
 }
 

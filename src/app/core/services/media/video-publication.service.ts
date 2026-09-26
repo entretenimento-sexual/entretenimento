@@ -15,6 +15,7 @@ import {
   IVideoPublicationSettingsInput,
   TVideoPublicationModerationStatus,
   TVideoPublicationVisibility,
+  TVideoPublishableVisibility,
 } from 'src/app/core/interfaces/media/i-video-publication-config';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
@@ -22,7 +23,7 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
 interface PublishVideoRequest {
   ownerUid: string;
   videoId: string;
-  visibility: Exclude<TVideoPublicationVisibility, 'PRIVATE'>;
+  visibility: TVideoPublishableVisibility;
   orderIndex: number;
 }
 

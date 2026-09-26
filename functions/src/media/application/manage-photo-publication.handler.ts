@@ -21,6 +21,12 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { getCanonicalAgeEligibilityForUid } from '../../compliance/age-eligibility.service';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue, Timestamp } from '../../firebaseApp';
+import {
+  resolveMediaPublicationVisibility,
+  resolvePhotoCommentsPolicy,
+  type AvailableMediaPublicationVisibility,
+  type AvailablePhotoCommentsPolicy,
+} from './media-publication-audience.policy';
 import { extractOwnedPrivatePhotoPath } from './photo-storage-path';
 import {
   copyPrivatePhotoToPublishedAsset,
@@ -36,8 +42,8 @@ import {
 } from './photo-publication-moderation.policy';
 import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
 
-type PhotoVisibility = 'FRIENDS' | 'SUBSCRIBERS' | 'PREMIUM' | 'PUBLIC';
-type CommentsPolicy = 'OFF' | 'FRIENDS' | 'SUBSCRIBERS' | 'EVERYONE';
+type PhotoVisibility = AvailableMediaPublicationVisibility;
+type CommentsPolicy = AvailablePhotoCommentsPolicy;
 type ModerationStatus = 'PENDING_REVIEW';
 
 type PrivatePhotoDoc = {
@@ -113,39 +119,43 @@ function cleanCaption(value: unknown): string | null {
 }
 
 function cleanVisibility(value: unknown): PhotoVisibility {
-  const text = String(value ?? '').trim().toUpperCase();
+  const decision = resolveMediaPublicationVisibility(value);
 
-  if (
-    text === 'FRIENDS' ||
-    text === 'SUBSCRIBERS' ||
-    text === 'PREMIUM' ||
-    text === 'PUBLIC'
-  ) {
-    return text;
+  if (decision.status === 'UNAVAILABLE_ENTITLEMENT') {
+    throw new HttpsError(
+      'failed-precondition',
+      'Audiências exclusivas para assinantes ainda não estão disponíveis.'
+    );
   }
 
-  return 'PUBLIC';
+  if (decision.status === 'INVALID') {
+    throw new HttpsError('invalid-argument', 'Visibilidade de foto inválida.');
+  }
+
+  return decision.value;
 }
 
 function cleanCommentsPolicy(
   value: unknown,
   commentsEnabled: boolean
 ): CommentsPolicy {
-  if (!commentsEnabled) {
-    return 'OFF';
+  const decision = resolvePhotoCommentsPolicy(value, commentsEnabled);
+
+  if (decision.status === 'UNAVAILABLE_ENTITLEMENT') {
+    throw new HttpsError(
+      'failed-precondition',
+      'Comentários exclusivos para assinantes ainda não estão disponíveis.'
+    );
   }
 
-  const text = String(value ?? '').trim().toUpperCase();
-
-  if (
-    text === 'FRIENDS' ||
-    text === 'SUBSCRIBERS' ||
-    text === 'EVERYONE'
-  ) {
-    return text;
+  if (decision.status === 'INVALID') {
+    throw new HttpsError(
+      'invalid-argument',
+      'Política de comentários da foto inválida.'
+    );
   }
 
-  return 'EVERYONE';
+  return decision.value;
 }
 
 function normalizeOrderIndex(value: unknown): number {

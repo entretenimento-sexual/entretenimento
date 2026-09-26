@@ -14,10 +14,21 @@ export type TPhotoVisibility =
   | 'PREMIUM'
   | 'PUBLIC';
 
+/**
+ * Contrato de escrita atual. SUBSCRIBERS/PREMIUM permanecem apenas no modelo
+ * de leitura/legado até existir entitlement de audiência completo no backend.
+ */
+export type TPhotoPublishableVisibility = 'FRIENDS' | 'PUBLIC';
+
 export type TPhotoCommentsPolicy =
   | 'OFF'
   | 'FRIENDS'
   | 'SUBSCRIBERS'
+  | 'EVERYONE';
+
+export type TPhotoPublishableCommentsPolicy =
+  | 'OFF'
+  | 'FRIENDS'
   | 'EVERYONE';
 
 export type TPhotoModerationStatus =
@@ -68,8 +79,8 @@ export interface IPhotoPublicationConfig {
    *
    * PRIVATE: não aparece publicamente.
    * FRIENDS: apenas conexões/amigos.
-   * SUBSCRIBERS: assinantes.
-   * PREMIUM: conteúdo pago/exclusivo futuro.
+   * SUBSCRIBERS/PREMIUM: reservados e indisponíveis para novas publicações
+   * até existir entitlement de audiência completo no backend.
    * PUBLIC: público conforme política da plataforma.
    */
   visibility: TPhotoVisibility;

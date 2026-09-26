@@ -4,6 +4,10 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { getCanonicalAgeEligibilityForUid } from '../../compliance/age-eligibility.service';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue, Timestamp } from '../../firebaseApp';
+import {
+  resolveMediaPublicationVisibility,
+  type AvailableMediaPublicationVisibility,
+} from './media-publication-audience.policy';
 import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
 import {
   copyPrivateVideoToPublishedAsset,
@@ -19,7 +23,7 @@ import {
   extractOwnedPrivateVideoPosterPath,
 } from './video-storage-path';
 
-type VideoVisibility = 'FRIENDS' | 'SUBSCRIBERS' | 'PREMIUM' | 'PUBLIC';
+type VideoVisibility = AvailableMediaPublicationVisibility;
 type ModerationStatus = 'APPROVED';
 type PublishedVideoAssets = Awaited<
   ReturnType<typeof copyPrivateVideoToPublishedAsset>
@@ -91,18 +95,20 @@ function cleanId(value: unknown): string {
 }
 
 function cleanVisibility(value: unknown): VideoVisibility {
-  const text = String(value ?? '').trim().toUpperCase();
+  const decision = resolveMediaPublicationVisibility(value);
 
-  if (
-    text === 'FRIENDS' ||
-    text === 'SUBSCRIBERS' ||
-    text === 'PREMIUM' ||
-    text === 'PUBLIC'
-  ) {
-    return text;
+  if (decision.status === 'UNAVAILABLE_ENTITLEMENT') {
+    throw new HttpsError(
+      'failed-precondition',
+      'Audiências exclusivas para assinantes ainda não estão disponíveis.'
+    );
   }
 
-  return 'PUBLIC';
+  if (decision.status === 'INVALID') {
+    throw new HttpsError('invalid-argument', 'Visibilidade de vídeo inválida.');
+  }
+
+  return decision.value;
 }
 
 function normalizeOrderIndex(value: unknown): number {

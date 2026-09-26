@@ -5,6 +5,12 @@ export type TVideoPublicationVisibility =
   | 'PREMIUM'
   | 'PUBLIC';
 
+/**
+ * Contrato de escrita atual. Audiências pagas permanecem reservadas até a
+ * autorização por entitlement estar completa em todas as fronteiras.
+ */
+export type TVideoPublishableVisibility = 'FRIENDS' | 'PUBLIC';
+
 export type TVideoPublicationModerationStatus =
   | 'PRIVATE'
   | 'PENDING_REVIEW'
