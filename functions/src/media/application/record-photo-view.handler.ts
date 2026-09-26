@@ -34,7 +34,7 @@ import {
 interface RecordPhotoViewRequest {
   ownerUid?: string;
   photoId?: string;
-  source?: 'discover' | 'profile' | 'latest' | 'top' | 'boosted' | 'unknown';
+  source?: 'discover' | 'profile' | 'latest' | 'top' | 'sponsored' | 'unknown';
 }
 
 interface RecordPhotoViewResponse {
@@ -59,7 +59,7 @@ function cleanSource(
     source === 'profile' ||
     source === 'latest' ||
     source === 'top' ||
-    source === 'boosted'
+    source === 'sponsored'
   ) {
     return source;
   }
