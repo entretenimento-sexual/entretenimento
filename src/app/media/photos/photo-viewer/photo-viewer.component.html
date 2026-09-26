@@ -41,7 +41,19 @@
         }
 
         <span class="viewer-owner-copy">
-          <strong>{{ photo.ownerNickname || 'Perfil' }}</strong>
+          <span class="viewer-owner-title">
+            <strong>{{ photo.ownerNickname || 'Perfil' }}</strong>
+
+            @if (photo.officialPhoto?.verified) {
+              <span
+                class="viewer-official-badge"
+                aria-label="Perfil oficial verificado"
+              >
+                <span aria-hidden="true">✓</span>
+                Oficial
+              </span>
+            }
+          </span>
 
           <span class="viewer-owner-context">
             @if (data.source === 'profile') {
