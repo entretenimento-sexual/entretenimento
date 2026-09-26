@@ -9,6 +9,13 @@ import {
   normalizeOwnedPublishedPhotoPath,
 } from './photo-storage-path';
 import {
+  PHOTO_CLEANUP_MAX_ATTEMPTS,
+  nextPhotoCleanupRetry,
+  photoCleanupRetentionRecheckAt,
+  type PhotoCleanupJobState,
+} from './photo-cleanup-job.policy';
+import { logPhotoOperation } from './photo-operation-telemetry';
+import {
   PUBLISHED_PHOTO_MAX_INPUT_PIXELS,
   PUBLISHED_PHOTO_MAX_OUTPUT_EDGE,
   assertPublishedPhotoDecodedMetadata,
@@ -33,6 +40,9 @@ interface PublishedPhotoAssetCleanupJob {
   updatedAt: number;
   attempts: number;
   lastError: string | null;
+  state: PhotoCleanupJobState;
+  nextAttemptAt: number | null;
+  deadLetterExpiresAt: number | null;
 }
 
 interface CopyPublishedPhotoAssetCommand {
@@ -149,6 +159,7 @@ async function enqueuePublishedPhotoAssetCleanup(
 ): Promise<void> {
   const now = Date.now();
   const retentionGuard = normalizeRetentionGuard(command.retentionGuard);
+  const retry = nextPhotoCleanupRetry(0, now);
   const job: PublishedPhotoAssetCleanupJob = {
     ownerUid: command.ownerUid,
     photoId: command.photoId,
@@ -157,8 +168,11 @@ async function enqueuePublishedPhotoAssetCleanup(
     ...(retentionGuard ? { retentionGuard } : {}),
     createdAt: now,
     updatedAt: now,
-    attempts: 1,
+    attempts: retry.attempts,
     lastError: normalizeErrorMessage(error),
+    state: retry.state,
+    nextAttemptAt: retry.nextAttemptAt,
+    deadLetterExpiresAt: retry.deadLetterExpiresAt,
   };
 
   await db
@@ -197,6 +211,9 @@ export function stagePublishedPhotoAssetCleanup(
       updatedAt: now,
       attempts: 0,
       lastError: null,
+      state: 'retryable',
+      nextAttemptAt: now,
+      deadLetterExpiresAt: null,
     },
     { merge: true }
   );
@@ -336,10 +353,33 @@ export async function deletePublishedPhotoAssetOrQueue(
 
   try {
     if (await hasPublishedPhotoRetentionBlocker(command)) {
-      logger.info('[publishedPhotoAsset] Limpeza adiada por evidência de moderação.', {
-        ownerUid: command.ownerUid,
-        photoId: command.photoId,
-        reason: command.reason,
+      const now = Date.now();
+      const retentionGuard = normalizeRetentionGuard(command.retentionGuard);
+      await db
+        .collection(CLEANUP_COLLECTION)
+        .doc(buildCleanupJobId(storagePath))
+        .set(
+          {
+            ownerUid: command.ownerUid,
+            photoId: command.photoId,
+            storagePath,
+            reason: command.reason,
+            ...(retentionGuard ? { retentionGuard } : {}),
+            createdAt: now,
+            updatedAt: now,
+            attempts: 0,
+            lastError: null,
+            state: 'waiting_retention',
+            nextAttemptAt: photoCleanupRetentionRecheckAt(now),
+            deadLetterExpiresAt: null,
+          },
+          { merge: true }
+        );
+
+      logPhotoOperation({
+        operation: 'photo.cleanup_published_asset',
+        outcome: 'waiting_retention',
+        counts: { queued: 1 },
       });
       return false;
     }
@@ -373,10 +413,16 @@ export async function deletePublishedPhotoAssetOrQueue(
 export async function processPendingPublishedPhotoAssetCleanupJobs(
   batchSize = 100
 ): Promise<void> {
+  const startedAt = Date.now();
   const jobsSnapshot = await db
     .collection(CLEANUP_COLLECTION)
+    .where('nextAttemptAt', '<=', startedAt)
     .limit(batchSize)
     .get();
+  let deleted = 0;
+  let waitingRetention = 0;
+  let retryable = 0;
+  let deadLetter = 0;
 
   for (const jobDoc of jobsSnapshot.docs) {
     const job = jobDoc.data() as PublishedPhotoAssetCleanupJob;
@@ -387,6 +433,18 @@ export async function processPendingPublishedPhotoAssetCleanupJobs(
     );
 
     if (!storagePath) {
+      await jobDoc.ref.set(
+        {
+          state: 'dead_letter',
+          attempts: PHOTO_CLEANUP_MAX_ATTEMPTS,
+          nextAttemptAt: null,
+          deadLetterExpiresAt: null,
+          updatedAt: Date.now(),
+          lastError: 'Job de limpeza com storagePath inválido.',
+        },
+        { merge: true }
+      );
+      deadLetter += 1;
       logger.error('[publishedPhotoAsset] Job de limpeza inválido.', {
         jobId: jobDoc.id,
       });
@@ -395,13 +453,18 @@ export async function processPendingPublishedPhotoAssetCleanupJobs(
 
     try {
       if (await hasPublishedPhotoRetentionBlocker(job)) {
+        const now = Date.now();
         await jobDoc.ref.set(
           {
-            updatedAt: Date.now(),
+            state: 'waiting_retention',
+            nextAttemptAt: photoCleanupRetentionRecheckAt(now),
+            deadLetterExpiresAt: null,
+            updatedAt: now,
             lastError: null,
           },
           { merge: true }
         );
+        waitingRetention += 1;
         continue;
       }
 
@@ -409,22 +472,56 @@ export async function processPendingPublishedPhotoAssetCleanupJobs(
         .file(storagePath)
         .delete({ ignoreNotFound: true });
       await jobDoc.ref.delete();
+      deleted += 1;
     } catch (error) {
+      const now = Date.now();
+      const retry = nextPhotoCleanupRetry(job.attempts, now);
       await jobDoc.ref.set(
         {
-          attempts: Number(job.attempts ?? 0) + 1,
-          updatedAt: Date.now(),
+          state: retry.state,
+          attempts: retry.attempts,
+          nextAttemptAt: retry.nextAttemptAt,
+          deadLetterExpiresAt: retry.deadLetterExpiresAt,
+          updatedAt: now,
           lastError: normalizeErrorMessage(error),
         },
         { merge: true }
       );
 
+      if (retry.state === 'dead_letter') {
+        deadLetter += 1;
+      } else {
+        retryable += 1;
+      }
+
       logger.error('[publishedPhotoAsset] Falha no retry de limpeza.', {
         jobId: jobDoc.id,
         ownerUid: job.ownerUid,
         photoId: job.photoId,
+        state: retry.state,
+        attempts: retry.attempts,
         error: normalizeErrorMessage(error),
       });
     }
   }
+
+  logPhotoOperation({
+    operation: 'photo.cleanup_published_assets',
+    outcome:
+      deadLetter > 0
+        ? 'partial'
+        : waitingRetention > 0
+          ? 'waiting_retention'
+          : retryable > 0
+            ? 'retryable'
+            : 'success',
+    startedAt,
+    counts: {
+      scanned: jobsSnapshot.size,
+      deleted,
+      waitingRetention,
+      retryable,
+      deadLetter,
+    },
+  });
 }
