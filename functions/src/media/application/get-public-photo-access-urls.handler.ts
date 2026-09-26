@@ -26,6 +26,7 @@ import {
   resolvePublicMediaSignedUrlExpiresAt,
 } from './public-media-age-expiry.policy';
 import { createTemporaryStorageReadUrl } from './temporary-storage-read-url.service';
+import { logPhotoOperation } from './photo-operation-telemetry';
 
 interface PublicPhotoAccessRequestItem {
   ownerUid?: string;
@@ -187,6 +188,7 @@ export const getPublicPhotoAccessUrls = onCall<PublicPhotoAccessRequest>(
     enforceAppCheck: REQUIRE_PUBLIC_MEDIA_APP_CHECK,
   },
   async (request): Promise<PublicPhotoAccessResponse> => {
+    const startedAt = Date.now();
     assertPublicMediaCallableAppCheck(request.app);
 
     const viewerUid = cleanId(request.auth?.uid);
@@ -339,11 +341,36 @@ export const getPublicPhotoAccessUrls = onCall<PublicPhotoAccessRequest>(
     ).length;
 
     if (!items.length && technicalFailureCount > 0) {
+      logPhotoOperation({
+        operation: 'photo.authorize_access_urls',
+        outcome: 'partial',
+        startedAt,
+        counts: {
+          requested: rawItems.length,
+          unique: uniqueItems.size,
+          owners: ownerUids.length,
+          issued: 0,
+          technicalFailures: technicalFailureCount,
+        },
+      });
       throw new HttpsError(
         'internal',
         'Não foi possível liberar as fotos neste momento.'
       );
     }
+
+    logPhotoOperation({
+      operation: 'photo.authorize_access_urls',
+      outcome: technicalFailureCount > 0 ? 'partial' : 'success',
+      startedAt,
+      counts: {
+        requested: rawItems.length,
+        unique: uniqueItems.size,
+        owners: ownerUids.length,
+        issued: items.length,
+        technicalFailures: technicalFailureCount,
+      },
+    });
 
     return { items };
   }
