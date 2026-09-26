@@ -25,8 +25,8 @@ import {
   CommunityOfficialClaimReviewQueueResponse,
 } from 'src/app/community/data-access/community-official-claim-admin.model';
 import { CommunityOfficialClaimAdminRepository } from 'src/app/community/data-access/community-official-claim-admin.repository';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 
 @Component({
   selector: 'app-community-official-claims',
@@ -39,7 +39,7 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
 export class CommunityOfficialClaimsComponent {
   private readonly repository = inject(CommunityOfficialClaimAdminRepository);
   private readonly errorNotification = inject(ErrorNotificationService);
-  private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly formBuilder = inject(FormBuilder);
   private readonly refreshSubject = new BehaviorSubject<void>(undefined);
@@ -243,27 +243,18 @@ export class CommunityOfficialClaimsComponent {
   private reportError(
     message: string,
     cause: unknown,
-    context: Record<string, unknown>
+    context: { readonly op: string; readonly [key: string]: unknown }
   ): void {
-    const error = new Error(message);
-    (error as any).cause = cause;
-    (error as any).original = cause;
-    (error as any).context = {
-      scope: 'CommunityOfficialClaimsComponent',
-      ...context,
-    };
-    (error as any).skipUserNotification = true;
+    const { op, ...metadata } = context;
 
-    try {
-      this.globalErrorHandler.handleError(error);
-    } catch {
-      // noop
-    }
-
-    try {
-      this.errorNotification.showError(message);
-    } catch {
-      // noop
-    }
+    this.applicationError.report(cause, {
+      feature: 'community-official-claims-admin',
+      operation: op,
+      fallbackMessage: message,
+      metadata: {
+        scope: 'CommunityOfficialClaimsComponent',
+        ...metadata,
+      },
+    });
   }
 }
