@@ -54,7 +54,7 @@
     0 12px 32px rgb(0 0 0 / 22%);
 }
 
-.photo-tile--boosted {
+.photo-tile--sponsored {
   border-color: color-mix(
     in oklab,
     var(--primary-color, #ff7070) 42%,
@@ -309,7 +309,7 @@
 }
 
 .feed-card-official,
-.feed-card-boosted {
+.feed-card-sponsored {
   display: inline-flex;
   align-items: center;
   gap: 0.2rem;
@@ -322,7 +322,7 @@
   font-weight: 800;
 }
 
-.feed-card-boosted {
+.feed-card-sponsored {
   margin-left: auto;
   color: var(--primary-color, #ff7070);
 }
@@ -376,8 +376,8 @@
   );
 }
 
-.meta-boost,
-.meta-boost.app-chip {
+.meta-sponsored,
+.meta-sponsored.app-chip {
   border-color: color-mix(
     in oklab,
     var(--primary-color, #ff7070) 32%,
