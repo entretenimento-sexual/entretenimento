@@ -426,7 +426,11 @@ export const cleanupExpiredPhotoUploadReservations = onSchedule(
 
     const expiredDeadLetters = await db
       .collection(DEAD_LETTER_COLLECTION)
-      .where('deadLetterExpiresAt', '<=', Date.now())
+      .where(
+        'deadLetteredAt',
+        '<=',
+        Date.now() - PHOTO_CLEANUP_DEAD_LETTER_RETENTION_MS
+      )
       .limit(CLEANUP_BATCH_SIZE)
       .get();
 
