@@ -2,7 +2,7 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterModule } from '@angular/router';
-import { BehaviorSubject, Observable, combineLatest } from 'rxjs';
+import { Observable, combineLatest } from 'rxjs';
 import {
   distinctUntilChanged,
   map,
@@ -20,6 +20,7 @@ import { NetworkStatusService } from 'src/app/core/services/network/network-stat
 import { ContentStateComponent } from 'src/app/shared/content-state/content-state.component';
 import { PublicPhotoCardComponent } from '../../shared/components/public-photo-card/public-photo-card.component';
 import { PublicPhotoLightboxComponent } from '../../shared/components/public-photo-lightbox/public-photo-lightbox.component';
+import { PublicPhotoViewerStateService } from '../../shared/components/public-photo-lightbox/public-photo-viewer-state.service';
 
 interface TopPhotosViewModel extends PublicPhotoDiscoveryFeedState {
   offline: boolean;
@@ -42,7 +43,7 @@ interface TopPhotosViewModel extends PublicPhotoDiscoveryFeedState {
     PublicPhotoCardComponent,
     PublicPhotoLightboxComponent,
   ],
-  providers: [PublicPhotoDiscoveryFeedService],
+  providers: [PublicPhotoDiscoveryFeedService, PublicPhotoViewerStateService],
   templateUrl: './top-public-photos.component.html',
   styleUrls: ['./top-public-photos.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -51,10 +52,9 @@ export class TopPublicPhotosComponent {
   private readonly discovery = inject(PublicPhotoDiscoveryFeedService);
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly network = inject(NetworkStatusService);
+  private readonly viewer = inject(PublicPhotoViewerStateService);
 
-  private readonly selectedIndexSubject =
-    new BehaviorSubject<number | null>(null);
-  readonly selectedIndex$ = this.selectedIndexSubject.asObservable();
+  readonly selectedIndex$ = this.viewer.selectedIndex$;
 
   private readonly loadState$: Observable<PublicPhotoDiscoveryFeedState> =
     this.discovery.connect$('top').pipe(
@@ -118,45 +118,25 @@ export class TopPublicPhotosComponent {
   }
 
   openPhoto(index: number): void {
-    this.selectedIndexSubject.next(index);
+    this.vm$.pipe(take(1)).subscribe((vm) => {
+      this.viewer.open(index, vm.items.length);
+    });
   }
 
   closeViewer(): void {
-    this.selectedIndexSubject.next(null);
+    this.viewer.close();
   }
 
   prev(): void {
-    this.topPhotos$
-      .pipe(take(1))
-      .subscribe((items) => {
-        const currentIndex = this.selectedIndexSubject.value;
-        if (
-          currentIndex === null ||
-          currentIndex <= 0 ||
-          items.length === 0
-        ) {
-          return;
-        }
-
-        this.selectedIndexSubject.next(currentIndex - 1);
-      });
+    this.vm$.pipe(take(1)).subscribe((vm) => {
+      this.viewer.previous(vm.items.length);
+    });
   }
 
   next(): void {
-    this.topPhotos$
-      .pipe(take(1))
-      .subscribe((items) => {
-        const currentIndex = this.selectedIndexSubject.value;
-        if (
-          currentIndex === null ||
-          currentIndex >= items.length - 1 ||
-          items.length === 0
-        ) {
-          return;
-        }
-
-        this.selectedIndexSubject.next(currentIndex + 1);
-      });
+    this.vm$.pipe(take(1)).subscribe((vm) => {
+      this.viewer.next(vm.items.length);
+    });
   }
 
   trackByPhotoId(_index: number, item: IPublicPhotoItem): string {
