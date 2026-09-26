@@ -209,7 +209,7 @@ export class PublicPhotoDiscoveryFeedService {
 
           this.snapshots.write(this.snapshotKind(mode), items);
 
-          if (this.promotionRequested || mode === 'boosted') {
+          if (this.promotionRequested) {
             return of({
               page,
               items,
@@ -293,9 +293,7 @@ export class PublicPhotoDiscoveryFeedService {
       return 'latest-photos';
     }
 
-    return mode === 'boosted'
-      ? 'boosted-photos'
-      : 'top-photos';
+    return 'top-photos';
   }
 
   private mergeItems(
@@ -323,9 +321,7 @@ export class PublicPhotoDiscoveryFeedService {
       return 'Erro ao carregar últimas fotos públicas.';
     }
 
-    return mode === 'boosted'
-      ? 'Erro ao carregar fotos turbinadas.'
-      : 'Erro ao carregar fotos em destaque.';
+    return 'Erro ao carregar fotos em destaque.';
   }
 
   private emptyState(): PublicPhotoDiscoveryFeedState {
