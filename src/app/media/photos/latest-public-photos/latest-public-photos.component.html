@@ -1,6 +1,5 @@
 <section class="latest-photos-page" aria-labelledby="latest-photos-title">
   @let vm = (vm$ | async);
-  @let selectedIndex = (selectedIndex$ | async);
 
   <header class="latest-photos-header gallery-header-clean">
     <h1 id="latest-photos-title">Fotos recentes</h1>
@@ -70,16 +69,6 @@
           </button>
         </div>
       }
-    }
-
-    @if (selectedIndex !== null) {
-      <app-public-photo-lightbox
-        [items]="vm.items"
-        [activeIndex]="selectedIndex"
-        title="Fotos recentes"
-        (closed)="closeViewer()"
-        (prevRequested)="prev()"
-        (nextRequested)="next()" />
     }
   }
 </section>
