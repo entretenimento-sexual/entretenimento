@@ -211,7 +211,7 @@ export const syncPhotoPromotionFromAdvertiserAccount = onDocumentWritten(
   },
   async (event) => {
     const advertiserUid = String(
-      event.params.advertiserUid ?? ''
+      event.params.userUid ?? ''
     ).trim();
     if (!advertiserUid) return;
 
@@ -234,9 +234,9 @@ export const syncPhotoPromotionFromAdvertiserAccount = onDocumentWritten(
 );
 
 
-export const syncPhotoPromotionFromAdvertiserUser = onDocumentWritten(
+export const syncPhotoPromotionFromUserLifecycle = onDocumentWritten(
   {
-    document: 'users/{advertiserUid}',
+    document: 'users/{userUid}',
     region: FUNCTIONS_REGION,
     retry: true,
   },
@@ -256,23 +256,23 @@ export const syncPhotoPromotionFromAdvertiserUser = onDocumentWritten(
     }
 
     await reconcileUserPromotionEligibility(
-      String(event.params.advertiserUid ?? '').trim(),
+      String(event.params.userUid ?? '').trim(),
       'advertiser_interaction_ineligible',
       Date.now()
     );
   }
 );
 
-export const syncPhotoPromotionFromAdvertiserAgeEligibility =
+export const syncPhotoPromotionFromAgeEligibility =
   onDocumentWritten(
     {
-      document: 'age_eligibility_records/{advertiserUid}',
+      document: 'age_eligibility_records/{userUid}',
       region: FUNCTIONS_REGION,
       retry: true,
     },
     async (event) => {
       await reconcileUserPromotionEligibility(
-        String(event.params.advertiserUid ?? '').trim(),
+        String(event.params.userUid ?? '').trim(),
         'advertiser_age_ineligible',
         Date.now()
       );
