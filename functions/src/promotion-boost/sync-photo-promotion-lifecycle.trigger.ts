@@ -1,6 +1,9 @@
 // functions/src/promotion-boost/sync-photo-promotion-lifecycle.trigger.ts
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 
+import {
+  normalizeCommunityBoostAdvertiserAccount,
+} from '../community-boost/community-boost.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import { normalizePromotionBoostCampaign } from './promotion-boost.policy';
@@ -173,5 +176,54 @@ export const syncPhotoPromotionFromOwnerProfile = onDocumentWritten(
       after ? 'owner_profile_ineligible' : 'owner_profile_removed',
       Date.now()
     );
+  }
+);
+
+
+export const syncPhotoPromotionFromAdvertiserAccount = onDocumentWritten(
+  {
+    document: 'community_boost_advertiser_accounts/{advertiserUid}',
+    region: FUNCTIONS_REGION,
+    retry: true,
+  },
+  async (event) => {
+    const advertiserUid = String(
+      event.params.advertiserUid ?? ''
+    ).trim();
+    if (!advertiserUid) return;
+
+    const after = event.data?.after.exists
+      ? event.data.after.data() ?? null
+      : null;
+    const advertiser = normalizeCommunityBoostAdvertiserAccount(
+      after,
+      advertiserUid
+    );
+
+    if (advertiser) return;
+
+    const slots = await db
+      .collection('promotion_boost_active_slots')
+      .where('targetType', '==', 'photo')
+      .where('advertiserUid', '==', advertiserUid)
+      .limit(100)
+      .get();
+
+    for (const slot of slots.docs) {
+      const ownerUid = String(slot.data()?.['ownerUid'] ?? '').trim();
+      const photoId = String(slot.data()?.['photoId'] ?? '').trim();
+
+      if (!ownerUid || !photoId) {
+        await slot.ref.delete();
+        continue;
+      }
+
+      await cancelOpenPhotoPromotion({
+        ownerUid,
+        photoId,
+        reason: 'advertiser_account_ineligible',
+        now: Date.now(),
+      });
+    }
   }
 );
