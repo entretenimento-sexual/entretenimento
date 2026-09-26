@@ -322,6 +322,13 @@ export const managePhotoPromotionCampaign = onCall<Request>(
       }
 
       if (action === 'resume') {
+        if (now < campaign.startsAt || now >= campaign.endsAt) {
+          throw new HttpsError(
+            'failed-precondition',
+            'O período desta campanha já foi encerrado.'
+          );
+        }
+
         const [publicationSnapshot, publicPhotoSnapshot, advertiserSnapshot] = await Promise.all([
           transaction.get(db.doc(`users/${campaign.targetOwnerUid}/photo_publications/${campaign.targetId}`)),
           transaction.get(db.doc(`public_profiles/${campaign.targetOwnerUid}/public_photos/${campaign.targetId}`)),
