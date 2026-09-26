@@ -9,8 +9,7 @@ import {
   TPublicVideoRankingMode,
 } from 'src/app/core/interfaces/media/i-public-video-ranking';
 import { IPublicVideoProjection } from 'src/app/core/interfaces/media/i-public-video-item';
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from './media-application-error.service';
 import { PublicVideoAccessService } from './public-video-access.service';
 import {
   IPublicVideoRankingRawDocument,
@@ -25,9 +24,7 @@ const MAX_PAGE_SIZE = 16;
 export class PublicVideoRankingQueryService {
   constructor(
     private readonly gateway: PublicVideoRankingFirestoreGateway,
-    private readonly publicVideoAccess: PublicVideoAccessService,
-    private readonly errorNotifier: ErrorNotificationService,
-    private readonly errorHandler: GlobalErrorHandlerService
+    private readonly publicVideoAccess: PublicVideoAccessService,    private readonly errorHandler: MediaApplicationErrorService
   ) {}
 
   loadPage$(
@@ -140,29 +137,15 @@ export class PublicVideoRankingQueryService {
     pageSize: number,
     notifyUser: boolean
   ): void {
-    if (notifyUser) {
-      this.errorNotifier.showError(
-        'Não foi possível carregar os vídeos públicos.'
-      );
-    }
-
-    try {
-      const normalized = error instanceof Error
-        ? error
-        : new Error('Erro ao consultar ranking público de vídeos.');
-
-      (normalized as any).original = error;
-      (normalized as any).context = {
+    this.errorHandler.report(error, {
+      operation: 'loadPage$',
+      fallbackMessage: 'Não foi possível carregar os vídeos públicos.',
+      metadata: {
         scope: 'PublicVideoRankingQueryService',
-        op: 'loadPage$',
         mode,
         pageSize,
-      };
-      (normalized as any).skipUserNotification = true;
-
-      this.errorHandler.handleError(normalized);
-    } catch {
-      // noop
-    }
+      },
+      silent: !notifyUser,
+    });
   }
 }

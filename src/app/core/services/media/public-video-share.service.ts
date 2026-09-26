@@ -3,7 +3,7 @@ import { Injectable, PLATFORM_ID, inject } from '@angular/core';
 
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from './media-application-error.service';
 
 export type PublicVideoShareOutcome =
   | 'shared'
@@ -35,7 +35,7 @@ export class PublicVideoShareService {
   private readonly document = inject(DOCUMENT);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly errorNotification = inject(ErrorNotificationService);
-  private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
+  private readonly globalErrorHandler = inject(MediaApplicationErrorService);
 
   async sharePublicVideo(
     video: Pick<IPublicVideoItem, 'id' | 'ownerUid'>
@@ -56,7 +56,7 @@ export class PublicVideoShareService {
     const navigatorRef = this.document.defaultView?.navigator;
 
     if (!navigatorRef) {
-      this.errorNotification.showError(
+      this.errorNotification.showWarning(
         'Não foi possível compartilhar este vídeo agora.'
       );
       return 'failed';
@@ -84,9 +84,6 @@ export class PublicVideoShareService {
       }
 
       this.reportError(error);
-      this.errorNotification.showError(
-        'Não foi possível compartilhar este vídeo agora.'
-      );
       return 'failed';
     }
   }
@@ -154,21 +151,12 @@ export class PublicVideoShareService {
   }
 
   private reportError(error: unknown): void {
-    try {
-      const normalized = error instanceof Error
-        ? new Error(error.message)
-        : new Error('Falha ao compartilhar vídeo público.');
-
-      (normalized as any).original = error;
-      (normalized as any).context = {
+    this.globalErrorHandler.report(error, {
+      operation: 'sharePublicVideo',
+      fallbackMessage: 'Não foi possível compartilhar este vídeo agora.',
+      metadata: {
         scope: 'PublicVideoShareService',
-        op: 'sharePublicVideo',
-      };
-      (normalized as any).skipUserNotification = true;
-
-      this.globalErrorHandler.handleError(normalized);
-    } catch {
-      // noop
-    }
+      },
+    });
   }
 }

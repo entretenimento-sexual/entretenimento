@@ -36,7 +36,7 @@ import {
 } from 'src/app/core/interfaces/media/i-video-item';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from './media-application-error.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
 interface IVideoDoc {
@@ -95,7 +95,7 @@ export class VideoLibraryService {
   private readonly functions = inject(Functions);
   private readonly firestoreCtx = inject(FirestoreContextService);
   private readonly errorNotifier = inject(ErrorNotificationService);
-  private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
+  private readonly globalErrorHandler = inject(MediaApplicationErrorService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
   private readonly accessWarningOwners = new Set<string>();
   private readonly privateVideoAccessCallable = httpsCallable<
@@ -449,11 +449,8 @@ export class VideoLibraryService {
       hasOwnerUid: !!ownerUid,
     });
 
-    this.reportSilent(error, {
-      op: 'watchOwnedVideoMetadata$',
-      hasOwnerUid: !!ownerUid,
-    });
-    this.errorNotifier.showError('Erro ao carregar vídeos.');
+    this.globalErrorHandler.report(error, {
+      operation: 'watchOwnedVideoMetadata
   }
 
   private reportSilent(
@@ -477,4 +474,15 @@ export class VideoLibraryService {
       // noop
     }
   }
+}
+,
+      fallbackMessage: 'Erro ao carregar vídeos.',
+      metadata: {
+        scope: 'VideoLibraryService',
+        hasOwnerUid: !!ownerUid,
+      },
+    });
+  }
+
+
 }

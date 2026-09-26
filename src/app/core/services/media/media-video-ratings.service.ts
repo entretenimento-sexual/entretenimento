@@ -6,7 +6,7 @@ import { catchError, map, shareReplay } from 'rxjs/operators';
 
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from './media-application-error.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import {
   resolvePublicMediaCallableUserMessage,
@@ -50,7 +50,7 @@ export class MediaVideoRatingsService {
   constructor(
     private readonly firestoreCtx: FirestoreContextService,
     private readonly errorNotifier: ErrorNotificationService,
-    private readonly errorHandler: GlobalErrorHandlerService,
+    private readonly errorHandler: MediaApplicationErrorService,
     private readonly privacyDebug: PrivacyDebugLoggerService
   ) {}
 
@@ -233,24 +233,16 @@ export class MediaVideoRatingsService {
       ? resolvePublicMediaCallableUserMessage(error, action, userMessage)
       : userMessage;
 
-    if (!silent) {
-      this.errorNotifier.showError(safeUserMessage);
-    }
-
-    try {
-      const normalized = error instanceof Error
-        ? error
-        : new Error(safeUserMessage);
-      (normalized as any).original = error;
-      (normalized as any).context = {
+    this.errorHandler.report(error, {
+      operation: String(context['op'] ?? 'unknown'),
+      fallbackMessage: safeUserMessage,
+      metadata: {
         scope: 'MediaVideoRatingsService',
         ...context,
-      };
-      (normalized as any).skipUserNotification = true;
-      this.errorHandler.handleError(normalized);
-      this.privacyDebug.log('media', 'MediaVideoRatingsService: falha', context);
-    } catch {
-      // noop
-    }
+      },
+      silent,
+    });
+
+    this.privacyDebug.log('media', 'MediaVideoRatingsService: falha', context);
   }
 }

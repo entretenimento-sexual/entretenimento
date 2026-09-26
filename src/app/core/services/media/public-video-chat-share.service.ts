@@ -3,7 +3,7 @@ import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable, defer, from, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from './media-application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 
 interface SendDirectVideoReferenceRequest {
@@ -27,7 +27,7 @@ const SAFE_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 export class PublicVideoChatShareService {
   private readonly functions = inject(Functions);
   private readonly errorNotification = inject(ErrorNotificationService);
-  private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
+  private readonly globalErrorHandler = inject(MediaApplicationErrorService);
   private readonly callable = httpsCallable<
     SendDirectVideoReferenceRequest,
     SendDirectVideoReferenceResponse
@@ -64,9 +64,6 @@ export class PublicVideoChatShareService {
       map((result) => String(result.data?.messageId ?? '').trim() || null),
       catchError((error: unknown) => {
         this.reportError(error, { chatId, ownerUid, videoId });
-        this.errorNotification.showError(
-          this.resolveUserMessage(error)
-        );
         return of(null);
       })
     );
@@ -116,20 +113,13 @@ export class PublicVideoChatShareService {
     error: unknown,
     context: Record<string, unknown>
   ): void {
-    try {
-      const normalized = error instanceof Error
-        ? new Error(error.message)
-        : new Error('Falha ao enviar referência de vídeo.');
-      (normalized as any).original = error;
-      (normalized as any).context = {
+    this.globalErrorHandler.report(error, {
+      operation: 'sendToChat$',
+      fallbackMessage: this.resolveUserMessage(error),
+      metadata: {
         scope: 'PublicVideoChatShareService',
-        op: 'sendToChat$',
         ...context,
-      };
-      (normalized as any).skipUserNotification = true;
-      this.globalErrorHandler.handleError(normalized);
-    } catch {
-      // noop
-    }
+      },
+    });
   }
 }

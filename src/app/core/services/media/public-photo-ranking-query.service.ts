@@ -9,8 +9,7 @@ import {
   TPublicPhotoRankingMode,
 } from 'src/app/core/interfaces/media/i-public-photo-ranking';
 import { IPublicPhotoProjection } from 'src/app/core/interfaces/media/i-public-photo-item';
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from './media-application-error.service';
 import { PublicPhotoAccessService } from './public-photo-access.service';
 import {
   IPublicPhotoRankingRawDocument,
@@ -24,9 +23,7 @@ const MAX_PAGE_SIZE = 24;
 export class PublicPhotoRankingQueryService {
   constructor(
     private readonly gateway: PublicPhotoRankingFirestoreGateway,
-    private readonly publicPhotoAccess: PublicPhotoAccessService,
-    private readonly errorNotifier: ErrorNotificationService,
-    private readonly errorHandler: GlobalErrorHandlerService
+    private readonly publicPhotoAccess: PublicPhotoAccessService,    private readonly errorHandler: MediaApplicationErrorService
   ) {}
 
   loadPage$(
@@ -141,33 +138,15 @@ export class PublicPhotoRankingQueryService {
     pageSize: number,
     notifyUser: boolean
   ): void {
-    if (notifyUser) {
-      this.errorNotifier.showError(
-        'Não foi possível carregar as fotos públicas.'
-      );
-    }
-
-    try {
-      const normalized = error instanceof Error
-        ? error
-        : new Error('Erro ao consultar ranking público de fotos.');
-      const contextual = normalized as Error & {
-        original?: unknown;
-        context?: Record<string, unknown>;
-        skipUserNotification?: boolean;
-      };
-
-      contextual.original = error;
-      contextual.context = {
+    this.errorHandler.report(error, {
+      operation: 'loadPage$',
+      fallbackMessage: 'Não foi possível carregar as fotos públicas.',
+      metadata: {
         scope: 'PublicPhotoRankingQueryService',
-        op: 'loadPage$',
         mode,
         pageSize,
-      };
-      contextual.skipUserNotification = true;
-      this.errorHandler.handleError(contextual);
-    } catch {
-      // A falha de diagnóstico não deve substituir o erro de consulta.
-    }
+      },
+      silent: !notifyUser,
+    });
   }
 }
