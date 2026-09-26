@@ -287,7 +287,7 @@ export const reservePhotoUpload = onCall<ReservePhotoUploadRequest>(
     const quotaRef = db.collection(QUOTA_COLLECTION).doc(ownerUid);
     const nowMs = Date.now();
 
-    return db.runTransaction(async (transaction) => {
+    const result = await db.runTransaction(async (transaction) => {
       const reservationSnapshot = await transaction.get(reservationRef);
 
       if (reservationSnapshot.exists) {
@@ -352,6 +352,17 @@ export const reservePhotoUpload = onCall<ReservePhotoUploadRequest>(
 
       return { reservationId, expiresAt: expiresAtMs };
     });
+
+    logPhotoOperation({
+      operation: 'photo.reserve_upload',
+      outcome: 'success',
+      startedAt: nowMs,
+      counts: {
+        sizeBytes,
+      },
+    });
+
+    return result;
   }
 );
 
