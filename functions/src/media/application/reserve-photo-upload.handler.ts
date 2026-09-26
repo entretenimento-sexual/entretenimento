@@ -1,17 +1,23 @@
 import { createHash } from 'node:crypto';
 
 import { Timestamp } from 'firebase-admin/firestore';
+import { logger } from 'firebase-functions';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { assertInteractionAccess } from '../../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
-import { db } from '../../firebaseApp';
+import { db, getDefaultStorageBucket } from '../../firebaseApp';
 import {
   IMAGE_INPUT_MIME_TYPES,
   IMAGE_MAX_BYTES,
 } from '../media-format.generated';
 import { extractOwnedPrivatePhotoPath } from './photo-storage-path';
+import {
+  PHOTO_CLEANUP_MAX_ATTEMPTS,
+  nextPhotoCleanupRetry,
+} from './photo-cleanup-job.policy';
+import { logPhotoOperation } from './photo-operation-telemetry';
 import {
   PHOTO_UPLOAD_RESERVATION_TTL_MS,
   evaluatePhotoUploadQuota,
@@ -37,11 +43,14 @@ interface PhotoUploadReservationDocument {
   contentType: string;
   createdAt: Timestamp;
   expiresAt: Timestamp;
+  cleanupAttempts?: number;
+  cleanupLastError?: string | null;
 }
 
 const RESERVATION_COLLECTION = 'media_photo_upload_reservations';
 const QUOTA_COLLECTION = 'media_photo_upload_quota';
 const CLEANUP_BATCH_SIZE = 400;
+const DEAD_LETTER_COLLECTION = 'media_photo_upload_cleanup_dead_letters';
 const ALLOWED_CONTENT_TYPES = new Set<string>(IMAGE_INPUT_MIME_TYPES);
 
 function cleanId(value: unknown): string {
@@ -87,6 +96,133 @@ function reservationExpiryMs(value: unknown): number {
     return Number((value as { toMillis: () => number }).toMillis());
   }
   return 0;
+}
+
+function normalizeErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message.slice(0, 500);
+  }
+  return String(error ?? 'unknown').slice(0, 500);
+}
+
+async function hasCanonicalPhotoReference(
+  reservation: PhotoUploadReservationDocument
+): Promise<boolean> {
+  const snapshot = await db
+    .collection(`users/${reservation.ownerUid}/photos`)
+    .where('path', '==', reservation.storagePath)
+    .limit(1)
+    .get();
+
+  return !snapshot.empty;
+}
+
+async function moveReservationCleanupToDeadLetter(
+  documentSnapshot: FirebaseFirestore.QueryDocumentSnapshot,
+  reservation: PhotoUploadReservationDocument,
+  error: unknown
+): Promise<void> {
+  const now = Date.now();
+  const batch = db.batch();
+  batch.set(
+    db.collection(DEAD_LETTER_COLLECTION).doc(documentSnapshot.id),
+    {
+      reservationId: documentSnapshot.id,
+      ownerUid: reservation.ownerUid,
+      storagePath: reservation.storagePath,
+      sizeBytes: reservation.sizeBytes,
+      contentType: reservation.contentType,
+      createdAt: reservation.createdAt,
+      expiresAt: reservation.expiresAt,
+      cleanupAttempts: PHOTO_CLEANUP_MAX_ATTEMPTS,
+      lastError: normalizeErrorMessage(error),
+      deadLetteredAt: now,
+    },
+    { merge: true }
+  );
+  batch.delete(documentSnapshot.ref);
+  await batch.commit();
+}
+
+async function reconcileExpiredPhotoUploadReservation(
+  documentSnapshot: FirebaseFirestore.QueryDocumentSnapshot,
+  reservation: PhotoUploadReservationDocument
+): Promise<
+  'referenced' | 'orphan_deleted' | 'missing_object' | 'retryable' | 'dead_letter'
+> {
+  const storagePath = extractOwnedPrivatePhotoPath(
+    reservation.ownerUid,
+    reservation.storagePath
+  );
+
+  if (!storagePath || storagePath !== reservation.storagePath) {
+    await moveReservationCleanupToDeadLetter(
+      documentSnapshot,
+      reservation,
+      new Error('Reserva expirada com storagePath inválido.')
+    );
+    return 'dead_letter';
+  }
+
+  try {
+    if (await hasCanonicalPhotoReference(reservation)) {
+      await documentSnapshot.ref.delete();
+      return 'referenced';
+    }
+
+    const file = getDefaultStorageBucket().file(storagePath);
+    const [exists] = await file.exists();
+
+    if (!exists) {
+      await documentSnapshot.ref.delete();
+      return 'missing_object';
+    }
+
+    const [metadata] = await file.getMetadata();
+    const storedReservationId = String(
+      metadata.metadata?.['mediaPhotoReservationId'] ?? ''
+    ).trim();
+
+    if (storedReservationId !== documentSnapshot.id) {
+      throw new Error(
+        'Objeto sem vínculo verificável com a reserva de upload.'
+      );
+    }
+
+    await file.delete({ ignoreNotFound: true });
+    await documentSnapshot.ref.delete();
+    return 'orphan_deleted';
+  } catch (error) {
+    const retry = nextPhotoCleanupRetry(
+      reservation.cleanupAttempts ?? 0,
+      Date.now()
+    );
+
+    if (retry.state === 'dead_letter') {
+      await moveReservationCleanupToDeadLetter(
+        documentSnapshot,
+        reservation,
+        error
+      );
+      return 'dead_letter';
+    }
+
+    await documentSnapshot.ref.set(
+      {
+        cleanupAttempts: retry.attempts,
+        cleanupLastError: normalizeErrorMessage(error),
+        cleanupUpdatedAt: Date.now(),
+      },
+      { merge: true }
+    );
+
+    logger.warn('[photoUploadReservation] Falha ao reconciliar upload expirado.', {
+      reservationId: documentSnapshot.id,
+      attempts: retry.attempts,
+      error: normalizeErrorMessage(error),
+    });
+    return 'retryable';
+  }
 }
 
 function sameReservation(
@@ -227,18 +363,47 @@ export const cleanupExpiredPhotoUploadReservations = onSchedule(
     retryCount: 3,
   },
   async () => {
+    const startedAt = Date.now();
     const snapshot = await db
       .collection(RESERVATION_COLLECTION)
       .where('expiresAt', '<=', Timestamp.now())
       .limit(CLEANUP_BATCH_SIZE)
       .get();
 
-    if (snapshot.empty) return;
+    const counts = {
+      scanned: snapshot.size,
+      referenced: 0,
+      orphanDeleted: 0,
+      missingObject: 0,
+      retryable: 0,
+      deadLetter: 0,
+    };
 
-    const batch = db.batch();
-    snapshot.docs.forEach((documentSnapshot) => {
-      batch.delete(documentSnapshot.ref);
+    for (const documentSnapshot of snapshot.docs) {
+      const reservation =
+        documentSnapshot.data() as PhotoUploadReservationDocument;
+      const outcome = await reconcileExpiredPhotoUploadReservation(
+        documentSnapshot,
+        reservation
+      );
+
+      if (outcome === 'referenced') counts.referenced += 1;
+      if (outcome === 'orphan_deleted') counts.orphanDeleted += 1;
+      if (outcome === 'missing_object') counts.missingObject += 1;
+      if (outcome === 'retryable') counts.retryable += 1;
+      if (outcome === 'dead_letter') counts.deadLetter += 1;
+    }
+
+    logPhotoOperation({
+      operation: 'photo.cleanup_expired_uploads',
+      outcome:
+        counts.deadLetter > 0
+          ? 'partial'
+          : counts.retryable > 0
+            ? 'retryable'
+            : 'success',
+      startedAt,
+      counts,
     });
-    await batch.commit();
   }
 );
