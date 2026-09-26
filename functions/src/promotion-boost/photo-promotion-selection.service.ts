@@ -349,6 +349,8 @@ export async function selectPhotoPromotionPlacement(input: {
     .filter((campaign): campaign is Readonly<PromotionBoostCampaign> =>
       !!campaign
       && campaign.targetType === 'photo'
+      && campaign.advertiserUid !== input.viewerUid
+      && campaign.targetOwnerUid !== input.viewerUid
       && promotionBoostCampaignEligible(campaign, input.now)
       && !excluded.has(`${campaign.targetOwnerUid}:${campaign.targetId}`)
     )
