@@ -9,21 +9,16 @@ import { db } from '../firebaseApp';
 import {
   isPromotionBoostAdvertiserInteractionEligible,
 } from './promotion-boost-advertiser-eligibility';
+import {
+  advertiserInteractionFieldsChanged,
+  isPhotoPromotionPublicationEligible,
+  isPhotoPromotionPublicProjectionEligible,
+  isPublicProfilePromotionOwnerEligible,
+  photoPublicationEligibilityChanged,
+  publicPhotoPromotionEligibilityChanged,
+  publicProfilePromotionEligibilityChanged,
+} from './photo-promotion-target.policy';
 import { normalizePromotionBoostCampaign } from './promotion-boost.policy';
-
-function eligiblePublication(raw: unknown): boolean {
-  const source = (raw ?? {}) as Record<string, unknown>;
-  return source['isPublished'] === true
-    && String(source['visibility'] ?? '').toUpperCase() === 'PUBLIC'
-    && source['moderationStatus'] === 'APPROVED';
-}
-
-function eligiblePublicPhoto(raw: unknown): boolean {
-  const source = (raw ?? {}) as Record<string, unknown>;
-  return String(source['visibility'] ?? '').toUpperCase() === 'PUBLIC'
-    && source['moderationStatus'] === 'APPROVED'
-    && source['ageEligibilityVerifiedAdult'] === true;
-}
 
 async function cancelOpenPhotoPromotion(input: {
   ownerUid: string;
@@ -185,10 +180,20 @@ export const syncPhotoPromotionFromPublication = onDocumentWritten(
     retry: true,
   },
   async (event) => {
+    const before = event.data?.before.exists
+      ? event.data.before.data() ?? null
+      : null;
     const after = event.data?.after.exists
       ? event.data.after.data() ?? null
       : null;
-    if (eligiblePublication(after)) return;
+
+    if (
+      event.data?.after.exists
+      && !photoPublicationEligibilityChanged(before, after)
+    ) {
+      return;
+    }
+    if (isPhotoPromotionPublicationEligible(after)) return;
 
     await cancelOpenPhotoPromotion({
       ownerUid: String(event.params.ownerUid ?? '').trim(),
@@ -206,10 +211,20 @@ export const syncPhotoPromotionFromPublicPhoto = onDocumentWritten(
     retry: true,
   },
   async (event) => {
+    const before = event.data?.before.exists
+      ? event.data.before.data() ?? null
+      : null;
     const after = event.data?.after.exists
       ? event.data.after.data() ?? null
       : null;
-    if (eligiblePublicPhoto(after)) return;
+
+    if (
+      event.data?.after.exists
+      && !publicPhotoPromotionEligibilityChanged(before, after)
+    ) {
+      return;
+    }
+    if (isPhotoPromotionPublicProjectionEligible(after, Date.now())) return;
 
     await cancelOpenPhotoPromotion({
       ownerUid: String(event.params.ownerUid ?? '').trim(),
@@ -227,14 +242,20 @@ export const syncPhotoPromotionFromOwnerProfile = onDocumentWritten(
     retry: true,
   },
   async (event) => {
+    const before = event.data?.before.exists
+      ? event.data.before.data() ?? null
+      : null;
     const after = event.data?.after.exists
       ? event.data.after.data() ?? null
       : null;
-    const allowed = after
-      && after['ageEligibilityVerifiedAdult'] === true
-      && after['ageEligibilityAdultAccessAllowed'] === true;
 
-    if (allowed) return;
+    if (
+      event.data?.after.exists
+      && !publicProfilePromotionEligibilityChanged(before, after)
+    ) {
+      return;
+    }
+    if (isPublicProfilePromotionOwnerEligible(after, Date.now())) return;
 
     await cancelOwnerPhotoPromotions(
       String(event.params.ownerUid ?? '').trim(),
@@ -283,6 +304,20 @@ export const syncPhotoPromotionFromAdvertiserUser = onDocumentWritten(
     retry: true,
   },
   async (event) => {
+    const before = event.data?.before.exists
+      ? event.data.before.data() ?? null
+      : null;
+    const after = event.data?.after.exists
+      ? event.data.after.data() ?? null
+      : null;
+
+    if (
+      event.data?.after.exists
+      && !advertiserInteractionFieldsChanged(before, after)
+    ) {
+      return;
+    }
+
     await reconcileAdvertiserInteractionEligibility(
       String(event.params.advertiserUid ?? '').trim(),
       'advertiser_interaction_ineligible',
