@@ -6,6 +6,9 @@ import {
 } from '../community-boost/community-boost.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
+import {
+  isPromotionBoostAdvertiserInteractionEligible,
+} from './promotion-boost-advertiser-eligibility';
 import { normalizePromotionBoostCampaign } from './promotion-boost.policy';
 
 function eligiblePublication(raw: unknown): boolean {
@@ -91,26 +94,88 @@ async function cancelOpenPhotoPromotion(input: {
   });
 }
 
+async function cancelPhotoPromotionSlots(
+  query: FirebaseFirestore.Query,
+  reason: string,
+  now: number
+): Promise<void> {
+  let hasMore = true;
+
+  while (hasMore) {
+    const slots = await query.limit(100).get();
+
+    for (const slot of slots.docs) {
+      const ownerUid = String(slot.data()?.['ownerUid'] ?? '').trim();
+      const photoId = String(slot.data()?.['photoId'] ?? '').trim();
+
+      if (!ownerUid || !photoId) {
+        await slot.ref.delete();
+        continue;
+      }
+
+      await cancelOpenPhotoPromotion({
+        ownerUid,
+        photoId,
+        reason,
+        now,
+      });
+    }
+
+    hasMore = slots.size === 100;
+  }
+}
+
 async function cancelOwnerPhotoPromotions(
   ownerUid: string,
   reason: string,
   now: number
 ): Promise<void> {
-  const slots = await db
+  const query = db
     .collection('promotion_boost_active_slots')
     .where('targetType', '==', 'photo')
-    .where('ownerUid', '==', ownerUid)
-    .limit(100)
-    .get();
+    .where('ownerUid', '==', ownerUid);
 
-  for (const slot of slots.docs) {
-    const photoId = String(slot.data()?.['photoId'] ?? '').trim();
-    if (!photoId) {
-      await slot.ref.delete();
-      continue;
-    }
-    await cancelOpenPhotoPromotion({ ownerUid, photoId, reason, now });
+  await cancelPhotoPromotionSlots(query, reason, now);
+}
+
+async function cancelAdvertiserPhotoPromotions(
+  advertiserUid: string,
+  reason: string,
+  now: number
+): Promise<void> {
+  const query = db
+    .collection('promotion_boost_active_slots')
+    .where('targetType', '==', 'photo')
+    .where('advertiserUid', '==', advertiserUid);
+
+  await cancelPhotoPromotionSlots(query, reason, now);
+}
+
+async function reconcileAdvertiserInteractionEligibility(
+  advertiserUid: string,
+  reason: string,
+  now: number
+): Promise<void> {
+  if (!advertiserUid) return;
+
+  const [userSnapshot, ageEligibilitySnapshot] = await Promise.all([
+    db.collection('users').doc(advertiserUid).get(),
+    db.collection('age_eligibility_records').doc(advertiserUid).get(),
+  ]);
+
+  if (
+    isPromotionBoostAdvertiserInteractionEligible({
+      rawUser: userSnapshot.exists ? userSnapshot.data() : null,
+      rawAgeEligibility: ageEligibilitySnapshot.exists
+        ? ageEligibilitySnapshot.data()
+        : null,
+      advertiserUid,
+    })
+  ) {
+    return;
   }
+
+  await cancelAdvertiserPhotoPromotions(advertiserUid, reason, now);
 }
 
 export const syncPhotoPromotionFromPublication = onDocumentWritten(
@@ -202,28 +267,42 @@ export const syncPhotoPromotionFromAdvertiserAccount = onDocumentWritten(
 
     if (advertiser) return;
 
-    const slots = await db
-      .collection('promotion_boost_active_slots')
-      .where('targetType', '==', 'photo')
-      .where('advertiserUid', '==', advertiserUid)
-      .limit(100)
-      .get();
-
-    for (const slot of slots.docs) {
-      const ownerUid = String(slot.data()?.['ownerUid'] ?? '').trim();
-      const photoId = String(slot.data()?.['photoId'] ?? '').trim();
-
-      if (!ownerUid || !photoId) {
-        await slot.ref.delete();
-        continue;
-      }
-
-      await cancelOpenPhotoPromotion({
-        ownerUid,
-        photoId,
-        reason: 'advertiser_account_ineligible',
-        now: Date.now(),
-      });
-    }
+    await cancelAdvertiserPhotoPromotions(
+      advertiserUid,
+      'advertiser_account_ineligible',
+      Date.now()
+    );
   }
 );
+
+
+export const syncPhotoPromotionFromAdvertiserUser = onDocumentWritten(
+  {
+    document: 'users/{advertiserUid}',
+    region: FUNCTIONS_REGION,
+    retry: true,
+  },
+  async (event) => {
+    await reconcileAdvertiserInteractionEligibility(
+      String(event.params.advertiserUid ?? '').trim(),
+      'advertiser_interaction_ineligible',
+      Date.now()
+    );
+  }
+);
+
+export const syncPhotoPromotionFromAdvertiserAgeEligibility =
+  onDocumentWritten(
+    {
+      document: 'age_eligibility_records/{advertiserUid}',
+      region: FUNCTIONS_REGION,
+      retry: true,
+    },
+    async (event) => {
+      await reconcileAdvertiserInteractionEligibility(
+        String(event.params.advertiserUid ?? '').trim(),
+        'advertiser_age_ineligible',
+        Date.now()
+      );
+    }
+  );
