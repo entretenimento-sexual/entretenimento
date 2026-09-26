@@ -26,7 +26,6 @@ import {
   assertPublicMediaConsumptionAccess,
 } from './public-media-consumption-access.policy';
 import {
-  isCurrentPublicMediaBoostExposure,
   isCurrentPublicMediaProjectionExposure,
 } from './public-media-exposure.policy';
 import {
@@ -39,8 +38,7 @@ type PublicMediaDiscoveryMode =
   | 'PROFILE'
   | 'RECENT_BY_OWNERS'
   | 'LATEST'
-  | 'TOP'
-  | 'BOOSTED';
+  | 'TOP';
 
 interface PublicMediaDiscoveryCursorInput {
   documentPath?: unknown;
@@ -48,7 +46,6 @@ interface PublicMediaDiscoveryCursorInput {
   score?: unknown;
   uniqueViewersCount?: unknown;
   viewsCount?: unknown;
-  boostedUntil?: unknown;
   orderIndex?: unknown;
 }
 
@@ -66,7 +63,6 @@ interface PublicMediaDiscoveryCursor {
   score: number;
   uniqueViewersCount: number;
   viewsCount: number;
-  boostedUntil: number;
   orderIndex: number;
 }
 
@@ -133,8 +129,7 @@ function normalizeMode(value: unknown): PublicMediaDiscoveryMode {
     value === 'PROFILE' ||
     value === 'RECENT_BY_OWNERS' ||
     value === 'LATEST' ||
-    value === 'TOP' ||
-    value === 'BOOSTED'
+    value === 'TOP'
   ) {
     return value;
   }
@@ -224,7 +219,6 @@ function normalizeCursor(
     score: nonNegativeNumber(value.score),
     uniqueViewersCount: nonNegativeNumber(value.uniqueViewersCount),
     viewsCount: nonNegativeNumber(value.viewsCount),
-    boostedUntil: nonNegativeNumber(value.boostedUntil),
     orderIndex: nonNegativeNumber(value.orderIndex),
   };
 }
@@ -248,12 +242,9 @@ export function serializePublicMediaForDiscovery(
   nowMs: number,
   exposure: {
     readonly ownerAllowed: boolean;
-    readonly requireActiveBoost: boolean;
   }
 ): Record<string, unknown> | null {
-  const mediaAllowed = exposure.requireActiveBoost
-    ? isCurrentPublicMediaBoostExposure(data, nowMs)
-    : isCurrentPublicMediaExposure(data, nowMs);
+  const mediaAllowed = isCurrentPublicMediaExposure(data, nowMs);
 
   if (
     !exposure.ownerAllowed ||
@@ -290,12 +281,6 @@ function assertSupportedMode(
     );
   }
 
-  if (mediaType === 'VIDEO' && mode === 'BOOSTED') {
-    throw new HttpsError(
-      'invalid-argument',
-      'Boost global não está disponível para vídeos nesta superfície.'
-    );
-  }
 }
 
 function applyOrderingAndCursor(input: {
@@ -386,20 +371,10 @@ function applyOrderingAndCursor(input: {
     return query;
   }
 
-  query = query
-    .where('boostActive', '==', true)
-    .where('boostedUntil', '>', input.nowMs)
-    .orderBy('boostedUntil', 'desc')
-    .orderBy(FieldPath.documentId(), 'desc');
-
-  if (input.cursor) {
-    query = query.startAfter(
-      input.cursor.boostedUntil,
-      db.doc(input.cursor.documentPath)
-    );
-  }
-
-  return query;
+  throw new HttpsError(
+    'invalid-argument',
+    'Modo de descoberta de mídia não suportado.'
+  );
 }
 
 function buildCursor(
@@ -413,7 +388,6 @@ function buildCursor(
     score: nonNegativeNumber(data['score']),
     uniqueViewersCount: nonNegativeNumber(data['uniqueViewersCount']),
     viewsCount: nonNegativeNumber(data['viewsCount']),
-    boostedUntil: nonNegativeNumber(data['boostedUntil']),
     orderIndex: nonNegativeNumber(data['orderIndex']),
   };
 }
@@ -539,7 +513,6 @@ export const getPublicMediaDiscovery = onCall<PublicMediaDiscoveryRequest>(
           {
             ownerAllowed:
               ownerExposureByUid.get(ownerUid)?.allowed === true,
-            requireActiveBoost: mode === 'BOOSTED',
           }
         );
 
