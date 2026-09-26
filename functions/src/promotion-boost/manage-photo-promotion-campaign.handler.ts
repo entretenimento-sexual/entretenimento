@@ -14,6 +14,9 @@ import {
   buildPromotionBoostCampaign,
   normalizePromotionBoostCampaign,
 } from './promotion-boost.policy';
+import {
+  isPhotoPromotionTargetEligible,
+} from './photo-promotion-target.policy';
 
 type Action = 'create' | 'pause' | 'resume' | 'cancel';
 
@@ -67,21 +70,17 @@ function assertPhotoEligible(
   ownerUid: string,
   photoId: string,
   publication: Record<string, unknown> | null,
-  publicPhoto: Record<string, unknown> | null
+  publicPhoto: Record<string, unknown> | null,
+  now: number
 ): void {
   if (
-    !publication
-    || !publicPhoto
-    || publication['ownerUid'] !== ownerUid
-    || publication['photoId'] !== photoId
-    || publication['isPublished'] !== true
-    || String(publication['visibility'] ?? '').toUpperCase() !== 'PUBLIC'
-    || publication['moderationStatus'] !== 'APPROVED'
-    || publicPhoto['ownerUid'] !== ownerUid
-    || publicPhoto['id'] !== photoId
-    || String(publicPhoto['visibility'] ?? '').toUpperCase() !== 'PUBLIC'
-    || publicPhoto['moderationStatus'] !== 'APPROVED'
-    || publicPhoto['ageEligibilityVerifiedAdult'] !== true
+    !isPhotoPromotionTargetEligible({
+      ownerUid,
+      photoId,
+      publication,
+      publicPhoto,
+      nowMs: now,
+    })
   ) {
     throw new HttpsError(
       'failed-precondition',
@@ -172,7 +171,8 @@ export const managePhotoPromotionCampaign = onCall<Request>(
           ownerUid,
           photoId,
           publicationSnapshot.exists ? publicationSnapshot.data() ?? {} : null,
-          publicPhotoSnapshot.exists ? publicPhotoSnapshot.data() ?? {} : null
+          publicPhotoSnapshot.exists ? publicPhotoSnapshot.data() ?? {} : null,
+          now
         );
 
         if (activeSlotSnapshot.exists) {
@@ -338,7 +338,8 @@ export const managePhotoPromotionCampaign = onCall<Request>(
           campaign.targetOwnerUid,
           campaign.targetId,
           publicationSnapshot.exists ? publicationSnapshot.data() ?? {} : null,
-          publicPhotoSnapshot.exists ? publicPhotoSnapshot.data() ?? {} : null
+          publicPhotoSnapshot.exists ? publicPhotoSnapshot.data() ?? {} : null,
+          now
         );
         if (!normalizeCommunityBoostAdvertiserAccount(
           advertiserSnapshot.exists ? advertiserSnapshot.data() : null,
