@@ -57,7 +57,6 @@ export interface IExploreVideoHighlightsState {
 }
 
 export interface IExploreFeedVm {
-  readonly boostedPhotos: readonly IPublicPhotoItem[];
   readonly mostViewedPhotos: readonly IPublicPhotoItem[];
   readonly topPhotos: readonly IPublicPhotoItem[];
   readonly latestPhotos: readonly IPublicPhotoItem[];
@@ -76,12 +75,6 @@ export class ExploreFeedService {
   private readonly discoveryQuery = inject(UserDiscoveryQueryService);
   private readonly compatibleCandidates = inject(CompatibleProfileCandidatesService);
   private readonly videoHighlightsRefreshSubject = new BehaviorSubject<number>(0);
-
-  readonly boostedPhotos$: Observable<IPublicPhotoItem[]> =
-    this.loadPhotoRankingItems$('boosted', 8).pipe(
-      switchMap((photos) => this.enrichPublicPhotos$(photos)),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
 
   readonly topPhotos$: Observable<IPublicPhotoItem[]> =
     this.loadPhotoRankingItems$('top', 12).pipe(
@@ -138,14 +131,12 @@ export class ExploreFeedService {
     );
 
   readonly vm$: Observable<IExploreFeedVm> = combineLatest([
-    this.boostedPhotos$,
     this.topPhotos$,
     this.publicPool$,
     this.videoHighlightsState$,
     this.compatibleProfiles$,
   ]).pipe(
     map(([
-      boostedPhotos,
       topPhotos,
       publicPool,
       videoHighlightsState,
@@ -161,16 +152,6 @@ export class ExploreFeedService {
       const mostViewedPhotos = this.rankByViews(publicPool).slice(0, 12);
 
       const sections: IExploreSection<IPublicPhotoItem>[] = [
-        {
-          id: 'boosted',
-          kind: 'photos',
-          eyebrow: 'Turbo',
-          title: 'Fotos turbinadas',
-          description: 'Publicações impulsionadas por destaque pago.',
-          note: 'Impulsionadas',
-          items: boostedPhotos,
-          routeCommands: ['/media', 'fotos-turbinadas'],
-        },
         {
           id: 'mostViewed',
           kind: 'photos',
@@ -218,7 +199,6 @@ export class ExploreFeedService {
         );
 
       return {
-        boostedPhotos,
         mostViewedPhotos,
         topPhotos: safeTopPhotos,
         latestPhotos,
