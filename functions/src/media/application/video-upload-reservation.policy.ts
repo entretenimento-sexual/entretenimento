@@ -10,7 +10,7 @@ export const VIDEO_UPLOAD_QUOTA_WINDOW_MS = 60 * 60 * 1000;
  * alterar o contrato da reserva.
  */
 export const VIDEO_UPLOAD_MAX_RESERVATIONS_PER_WINDOW = 12;
-export const VIDEO_UPLOAD_MAX_BYTES_PER_WINDOW = 2 * 1024 * 1024 * 1024;
+export const VIDEO_UPLOAD_MAX_BYTES_PER_WINDOW = 750 * 1024 * 1024;
 
 export interface VideoUploadQuotaState {
   windowStartedAtMs: number;
