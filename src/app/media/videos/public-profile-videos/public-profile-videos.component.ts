@@ -586,14 +586,6 @@ export class PublicProfileVideosComponent implements OnInit {
     });
   }
 
-  private reportViewerError(error: unknown, item: IPublicVideoItem): void {
-    this.reportSilent(error, {
-      op: 'openPublicVideoViewer',
-      hasOwnerUid: !!item.ownerUid,
-      hasVideoId: !!item.id,
-    });
-  }
-
   private reportSilent(
     error: unknown,
     context: Record<string, unknown>
