@@ -17,8 +17,13 @@ test('documenta os gates mínimos antes de futura calibração', () => {
     rankingV3ObservedCycles: 7,
     rankingV3ConsecutivePassingCycles: 3,
     operationalCostBaselineMinimumDays: 14,
+    minimumRuntimeSamplesPerMetric: 100,
+    minimumObservedDaysPerRuntimeMetric: 7,
     requiresProductionScheduledRankingEvidence: true,
     requiresProductionOperationalCostBaseline: true,
     requiresFinancialActualsForCommercialCalibration: true,
+    requiresObservedCommercialUtilization: true,
+    requiresObservedDerivedFanout: true,
+    requiresObservedNotificationGrouping: true,
   });
 });
