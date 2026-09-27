@@ -112,10 +112,9 @@ describe('CommunityPreviewPageComponent / navegação e retry', () => {
     );
   }
 
-  it('redireciona a seção legada de tópicos para o Mural e preserva retorno', () => {
+  it('preserva retorno e navega entre as seções canônicas', () => {
     queryParamMap$.next(
       convertToParamMap({
-        secao: 'topicos',
         retorno: '/dashboard/comunidades?interesse=practice:bdsm',
       })
     );
@@ -126,14 +125,7 @@ describe('CommunityPreviewPageComponent / navegação e retry', () => {
     expect(component.returnTarget()).toBe(
       '/dashboard/comunidades?interesse=practice:bdsm'
     );
-    expect(navigate).toHaveBeenCalledWith([], {
-      relativeTo: expect.anything(),
-      queryParams: { secao: null },
-      queryParamsHandling: 'merge',
-      replaceUrl: true,
-    });
 
-    navigate.mockClear();
     component.selectSection('photos');
 
     expect(component.activeSection()).toBe('photos');

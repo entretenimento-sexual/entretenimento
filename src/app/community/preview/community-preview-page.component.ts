@@ -578,8 +578,6 @@ export class CommunityPreviewPageComponent {
 
   private sectionFromQuery(value: unknown): CommunityPreviewSection {
     switch (String(value ?? '').trim().toLowerCase()) {
-      case 'topicos':
-        return 'feed';
       case 'fotos':
         return 'photos';
       case 'membros':

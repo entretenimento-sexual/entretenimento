@@ -15,8 +15,6 @@ import {
   COMMUNITY_MEMBERSHIP_REVIEW_REASON_MESSAGES,
   COMMUNITY_OWNERSHIP_REASON_MESSAGES,
   COMMUNITY_SETTINGS_REASON_MESSAGES,
-  COMMUNITY_TOPIC_MODERATION_REASON_MESSAGES,
-  COMMUNITY_TOPIC_REASON_MESSAGES,
 } from './community-error.messages';
 import { COMMUNITY_HIGHLIGHT_REASON_MESSAGES } from './community-highlight-error.messages';
 import { COMMUNITY_MEMBER_ROSTER_REASON_MESSAGES } from './community-member-roster-error.messages';
@@ -40,8 +38,6 @@ export const COMMUNITY_PUBLIC_REASON_MESSAGES = Object.freeze({
   ...COMMUNITY_INVITE_MANAGEMENT_REASON_MESSAGES,
   ...COMMUNITY_MEMBERSHIP_REVIEW_REASON_MESSAGES,
   ...COMMUNITY_SETTINGS_REASON_MESSAGES,
-  ...COMMUNITY_TOPIC_REASON_MESSAGES,
-  ...COMMUNITY_TOPIC_MODERATION_REASON_MESSAGES,
   ...COMMUNITY_MEMBER_MANAGEMENT_REASON_MESSAGES,
   ...COMMUNITY_OWNERSHIP_REASON_MESSAGES,
   ...COMMUNITY_FEED_POST_REASON_MESSAGES,
@@ -108,7 +104,6 @@ const BLOCKING_PRESENTATIONS: Readonly<
   community_membership_profile_visibility_invalid: { surface: 'modal', severity: 'warning', title: 'Preferência de visibilidade inconsistente' },
   moderation_record_inconsistent: { surface: 'modal', severity: 'warning', title: 'Registro de moderação inconsistente' },
   post_projection_inconsistent: { surface: 'modal', severity: 'warning', title: 'Publicação inconsistente' },
-  topic_projection_inconsistent: { surface: 'modal', severity: 'warning', title: 'Discussão inconsistente' },
   highlight_record_inconsistent: { surface: 'modal', severity: 'warning', title: 'Destaque inconsistente' },
 });
 
