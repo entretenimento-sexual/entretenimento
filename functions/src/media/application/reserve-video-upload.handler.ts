@@ -475,6 +475,8 @@ export async function assertVideoUploadReservation(input: {
   videoSizeBytes: number;
   videoContentType: string;
   posterStoragePath: string | null;
+  posterSizeBytes: number;
+  posterContentType: string | null;
 }): Promise<void> {
   const snapshot = await db
     .collection(RESERVATION_COLLECTION)
@@ -497,7 +499,9 @@ export async function assertVideoUploadReservation(input: {
     reservation.videoStoragePath !== input.videoStoragePath ||
     reservation.videoSizeBytes !== input.videoSizeBytes ||
     reservation.videoContentType !== input.videoContentType ||
-    reservation.posterStoragePath !== input.posterStoragePath
+    reservation.posterStoragePath !== input.posterStoragePath ||
+    reservation.posterSizeBytes !== input.posterSizeBytes ||
+    reservation.posterContentType !== input.posterContentType
   ) {
     throw new HttpsError(
       'failed-precondition',
