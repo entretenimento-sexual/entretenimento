@@ -11,10 +11,12 @@
 // -----------------------------------------------------------------------------
 
 import { Timestamp } from 'firebase-admin/firestore';
+import { logger } from 'firebase-functions';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
+import { buildProductCalibrationRuntimeObservation } from '../shared/observability/product-calibration-observation.policy';
 import {
   buildCommunityNotificationSummaryItem,
   normalizeCommunityNotificationSummaryItem,
@@ -119,7 +121,7 @@ export const syncCommunityNotificationSummary = onDocumentWritten(
       .collection('community_notification_projection_state')
       .doc(notificationId);
 
-    await db.runTransaction(async (transaction) => {
+    const derivedWrites = await db.runTransaction(async (transaction) => {
       const [notificationSnapshot, stateSnapshot] = await Promise.all([
         transaction.get(notificationRef),
         transaction.get(stateRef),
@@ -158,7 +160,7 @@ export const syncCommunityNotificationSummary = onDocumentWritten(
       }
 
       if (sameCommunityNotificationSummaryContribution(applied, desired)) {
-        return;
+        return 0;
       }
 
       const deltas = buildDeltas(applied, desired);
@@ -259,6 +261,17 @@ export const syncCommunityNotificationSummary = onDocumentWritten(
       } else {
         transaction.delete(stateRef);
       }
+
+      return mutations.length + globalWrites.length + 1;
+    });
+
+    logger.debug('community_notification_summary_fanout_observed', {
+      notificationId,
+      calibrationObservation: buildProductCalibrationRuntimeObservation({
+        metric: 'community.projection.derived_writes_per_source_event',
+        value: derivedWrites,
+        source: 'community_notification_summary',
+      }),
     });
   }
 );
