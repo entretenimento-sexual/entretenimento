@@ -7,7 +7,6 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue, storage } from '../../firebaseApp';
 import {
-  IMAGE_INPUT_MIME_TYPES,
   VIDEO_INPUT_MIME_TYPES,
   VIDEO_MAX_BYTES,
   VIDEO_POSTER_IMAGE_MAX_BYTES,
@@ -81,7 +80,6 @@ const CLEANUP_COLLECTION = 'media_private_video_upload_cleanup_jobs';
 const CLEANUP_BATCH_SIZE = 50;
 const ALLOWED_VIDEO_TYPES = new Set<string>(VIDEO_INPUT_MIME_TYPES);
 const PUBLIC_PLAYBACK_TYPES = new Set<string>(VIDEO_PUBLIC_PLAYBACK_MIME_TYPES);
-const ALLOWED_POSTER_TYPES = new Set<string>(IMAGE_INPUT_MIME_TYPES);
 
 function containsControlCharacter(value: string): boolean {
   for (let index = 0; index < value.length; index += 1) {
@@ -273,7 +271,7 @@ async function validateOptionalPoster(
     );
   }
 
-  if (!ALLOWED_POSTER_TYPES.has(mimeType)) {
+  if (mimeType !== 'image/jpeg') {
     throw new HttpsError(
       'failed-precondition',
       'A imagem de capa possui formato inválido.'
