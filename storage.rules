@@ -65,8 +65,7 @@ service firebase.storage {
           || request.resource.contentType == 'application/mxf'
           || request.resource.contentType == 'video/mxf'
         )
-        && request.resource.size > 0
-        && request.resource.size <= 500 * 1024 * 1024;
+        && request.resource.size > 0;
     }
 
     function hasVideoUploadReservationId() {
