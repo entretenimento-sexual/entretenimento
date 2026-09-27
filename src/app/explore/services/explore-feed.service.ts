@@ -11,7 +11,7 @@
 // -----------------------------------------------------------------------------
 
 import { Injectable, inject } from '@angular/core';
-import { BehaviorSubject, combineLatest, Observable, of } from 'rxjs';
+import { BehaviorSubject, combineLatest, defer, Observable, of } from 'rxjs';
 import {
   catchError,
   map,
@@ -223,11 +223,13 @@ export class ExploreFeedService {
       safeLimit
     );
 
-    return this.publicPhotoRanking.loadPage$({
-      mode,
-      pageSize: firstPageSize,
-      propagateErrors: true,
-    }).pipe(
+    return defer(() =>
+      this.publicPhotoRanking.loadPage$({
+        mode,
+        pageSize: firstPageSize,
+        propagateErrors: true,
+      })
+    ).pipe(
       switchMap((firstPage) => {
         const firstItems = [...firstPage.items];
 
