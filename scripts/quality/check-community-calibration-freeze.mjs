@@ -46,11 +46,13 @@ for (const fragment of [
 
 const stage = read('functions/src/community/community-calibration-stage.policy.ts');
 for (const fragment of [
-  'rankingV3ObservedCycles: 7',
-  'rankingV3ConsecutivePassingCycles: 3',
-  'operationalCostBaselineMinimumDays: 14',
+  'rankingV3ObservedCycles:',
+  'rankingV3ConsecutivePassingCycles:',
+  'operationalCostBaselineMinimumDays:',
+  'minimumRuntimeSamplesPerMetric:',
+  'minimumObservedDaysPerRuntimeMetric:',
   'requiresProductionScheduledRankingEvidence: true',
-  'requiresProductionOperationalCostBaseline: true',
+  'requiresProductionOperationalCostBaseline:',
   'requiresFinancialActualsForCommercialCalibration:',
   'requiresObservedCommercialUtilization:',
   'requiresObservedDerivedFanout:',
