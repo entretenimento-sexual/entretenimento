@@ -70,6 +70,12 @@ export const MEDIA_ERROR_MESSAGES: Readonly<Record<string, string>> =
       'Não foi possível abrir esta área agora.',
     video_library_load_failed:
       'Não foi possível carregar seus vídeos agora.',
+    video_editor_open_failed:
+      'Não foi possível abrir o editor de vídeo agora.',
+    video_publication_settings_failed:
+      'Não foi possível salvar as informações do vídeo.',
+    video_delete_failed:
+      'Não foi possível excluir o vídeo agora.',
     video_failed_upload_cleanup_pending:
       'Alguns uploads com falha ainda aguardam limpeza automática.',
     media_upload_failed:
@@ -291,6 +297,18 @@ export const MEDIA_ERROR_PRESENTATIONS: ApplicationErrorPresentationMap =
       severity: 'error',
     },
     video_library_load_failed: {
+      surface: 'snackbar',
+      severity: 'error',
+    },
+    video_editor_open_failed: {
+      surface: 'snackbar',
+      severity: 'error',
+    },
+    video_publication_settings_failed: {
+      surface: 'snackbar',
+      severity: 'error',
+    },
+    video_delete_failed: {
       surface: 'snackbar',
       severity: 'error',
     },
