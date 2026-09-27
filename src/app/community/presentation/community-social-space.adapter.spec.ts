@@ -13,7 +13,7 @@ describe('Community social-space adapter', () => {
 
     expect(community.definition.kind).toBe('community');
     expect(community.capabilities).toMatchObject({
-      topics: true,
+      topics: false,
       memberDirectory: true,
       rules: true,
       managedLifecycle: true,
