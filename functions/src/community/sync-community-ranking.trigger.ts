@@ -17,6 +17,7 @@ import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
+import { buildProductCalibrationRuntimeObservation } from '../shared/observability/product-calibration-observation.policy';
 import {
   buildCommunityRankingProjectionPatch,
   haveCommunityRankingCommunityInputsChanged,
@@ -33,7 +34,7 @@ function isCommunityRankingTerminal(rawCommunity: unknown): boolean {
 
 async function persistCommunityRanking(
   communityId: string
-): Promise<void> {
+): Promise<number> {
   const communityRef = db.collection('communities').doc(communityId);
   const discoveryRef = db
     .collection('community_discovery_index')
@@ -45,18 +46,18 @@ async function persistCommunityRanking(
 
   if (!communitySnapshot.exists) {
     await discoveryRef.delete();
-    return;
+    return 1;
   }
 
   const community = communitySnapshot.data() ?? {};
 
   if (isCommunityRankingTerminal(community)) {
     await discoveryRef.delete();
-    return;
+    return 1;
   }
 
-  if (!isCommunityRankingSupportedDocument(community)) return;
-  if (!discoverySnapshot.exists) return;
+  if (!isCommunityRankingSupportedDocument(community)) return 0;
+  if (!discoverySnapshot.exists) return 0;
 
   const discovery = discoverySnapshot.data() ?? {};
   const expected = buildCommunityRankingProjectionPatch(
@@ -65,7 +66,7 @@ async function persistCommunityRanking(
     Date.now()
   );
 
-  if (isCommunityRankingProjectionCurrent(discovery, expected)) return;
+  if (isCommunityRankingProjectionCurrent(discovery, expected)) return 0;
 
   await discoveryRef.set(expected, { merge: true });
 
@@ -80,6 +81,7 @@ async function persistCommunityRanking(
     candidateActivityScore: expected.rankingCandidate.activityScore,
     candidateActivityDelta: expected.rankingCandidate.activityDelta,
   });
+  return 1;
 }
 
 export const syncCommunityRankingFromCommunity = onDocumentWritten(
@@ -98,7 +100,15 @@ export const syncCommunityRankingFromCommunity = onDocumentWritten(
 
     if (!haveCommunityRankingCommunityInputsChanged(before, after)) return;
 
-    await persistCommunityRanking(communityId);
+    const derivedWrites = await persistCommunityRanking(communityId);
+    logger.debug('community_ranking_fanout_observed', {
+      communityId,
+      calibrationObservation: buildProductCalibrationRuntimeObservation({
+        metric: 'community.projection.derived_writes_per_source_event',
+        value: derivedWrites,
+        source: 'community_ranking_from_community',
+      }),
+    });
   }
 );
 
@@ -118,6 +128,14 @@ export const syncCommunityRankingFromDiscovery = onDocumentWritten(
 
     if (!haveCommunityRankingVisualInputsChanged(before, after)) return;
 
-    await persistCommunityRanking(communityId);
+    const derivedWrites = await persistCommunityRanking(communityId);
+    logger.debug('community_ranking_fanout_observed', {
+      communityId,
+      calibrationObservation: buildProductCalibrationRuntimeObservation({
+        metric: 'community.projection.derived_writes_per_source_event',
+        value: derivedWrites,
+        source: 'community_ranking_from_discovery',
+      }),
+    });
   }
 );
