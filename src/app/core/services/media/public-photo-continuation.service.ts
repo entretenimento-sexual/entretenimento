@@ -23,7 +23,7 @@ export interface IPublicPhotoContinuationExistingItem {
 
 export interface PublicPhotoContinuationRequest {
   readonly existingItems: readonly IPublicPhotoContinuationExistingItem[];
-  readonly source?: 'discover' | 'profile' | 'latest' | 'top' | 'boosted' | 'unknown';
+  readonly source?: 'discover' | 'profile' | 'latest' | 'top' | 'sponsored' | 'unknown';
   readonly excludeOwnerUid?: string | null;
   readonly limit?: number;
   readonly continuationContext?: IPublicMediaContinuationContext;
@@ -481,10 +481,6 @@ export class PublicPhotoContinuationService {
   ): [TPublicPhotoRankingMode, TPublicPhotoRankingMode] {
     if (source === 'latest') {
       return ['latest', 'top'];
-    }
-
-    if (source === 'boosted') {
-      return ['boosted', 'top'];
     }
 
     return ['top', 'latest'];
