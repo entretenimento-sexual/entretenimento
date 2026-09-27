@@ -12,7 +12,6 @@ const ACTION_COVERAGE = {
   official_community_create: true,
   feed_post: true,
   feed_conversation: true,
-  topic_conversation: true,
   feed_reaction: true,
   feed_report_post: true,
   feed_report_comment: true,
@@ -101,19 +100,6 @@ test('preserva identificadores e limites já usados por conversa e reação', ()
   });
 });
 
-test('tópicos e respostas compartilham orçamento operacional sem substituir a quota de 24h', () => {
-  assert.deepEqual(getCommunityRateLimitPolicy('topic_conversation'), {
-    backendAction: 'communityTopicConversation',
-    config: {
-      burstWindowMs: 60_000,
-      burstMax: 12,
-      sustainedWindowMs: 600_000,
-      sustainedMax: 60,
-    },
-    reason: 'community_topic_rate_limited',
-    message: 'Muitas interações em Tópicos foram realizadas em pouco tempo.',
-  });
-});
 
 test('convites e entrada limitam abuso global por ator em janela horária', () => {
   const invite = getCommunityRateLimitPolicy('invite_send');

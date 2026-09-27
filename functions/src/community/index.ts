@@ -76,16 +76,6 @@ export {
 export {
   reviewCommunityFeedCommentReplyReport,
 } from './review-community-feed-comment-reply-report.handler';
-export { getCommunityTopicsPage } from './get-community-topics-page.handler';
-export {
-  getCommunityTopicDetail,
-  getCommunityTopicRepliesPage,
-} from './get-community-topic-detail.handler';
-export {
-  createCommunityTopic,
-  createCommunityTopicReply,
-} from './community-topic-write.handler';
-export { moderateCommunityTopic } from './community-topic-moderation.handler';
 export { getCommunityInvites } from './get-community-invites.handler';
 export {
   findCommunityInviteCandidate,

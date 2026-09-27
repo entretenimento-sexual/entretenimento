@@ -5,7 +5,7 @@
 // Política única de antiabuso operacional das mutações de Comunidades.
 //
 // Importante: estes limites burst/sustained NÃO substituem quotas de produto
-// existentes (ex.: quantidade máxima de posts/tópicos em 24h). Quotas de produto
+// existentes (ex.: quantidade máxima de posts em 24h). Quotas de produto
 // continuam no domínio que as define; esta política limita automação/spam em
 // janelas curtas antes das operações transacionais mais caras.
 // -----------------------------------------------------------------------------
@@ -20,7 +20,6 @@ export type CommunityRateLimitAction =
   | 'official_community_create'
   | 'feed_post'
   | 'feed_conversation'
-  | 'topic_conversation'
   | 'feed_reaction'
   | 'feed_report_post'
   | 'feed_report_comment'
@@ -110,19 +109,6 @@ const POLICY_BY_ACTION: Readonly<Record<
     }),
     reason: 'community_feed_conversation_rate_limited',
     message: 'Muitas mensagens foram enviadas em pouco tempo.',
-  }),
-  topic_conversation: Object.freeze({
-    // Tópicos e respostas compartilham o orçamento operacional. As quotas
-    // funcionais de 24h continuam independentes em community-topic-write.policy.
-    backendAction: 'communityTopicConversation',
-    config: Object.freeze({
-      burstWindowMs: MINUTE_MS,
-      burstMax: 12,
-      sustainedWindowMs: 10 * MINUTE_MS,
-      sustainedMax: 60,
-    }),
-    reason: 'community_topic_rate_limited',
-    message: 'Muitas interações em Tópicos foram realizadas em pouco tempo.',
   }),
   feed_reaction: Object.freeze({
     // Preserva o identificador já utilizado em produção para não zerar quota.

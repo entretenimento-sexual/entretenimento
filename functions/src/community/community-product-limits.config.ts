@@ -87,17 +87,5 @@ export const COMMUNITY_PRODUCT_LIMITS = Object.freeze({
       minLimit: 1,
       maxLimit: 200,
     }),
-    topicCreations: Object.freeze({
-      windowMs: CONTENT_QUOTA_WINDOW_MS,
-      defaultLimit: 12,
-      minLimit: 1,
-      maxLimit: 100,
-    }),
-    topicReplies: Object.freeze({
-      windowMs: CONTENT_QUOTA_WINDOW_MS,
-      defaultLimit: 120,
-      minLimit: 1,
-      maxLimit: 1_000,
-    }),
   }),
 } as const);
