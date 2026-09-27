@@ -361,12 +361,12 @@ export function resolveMediaErrorMessage(
   reason: string | null | undefined
 ): string | null {
   if (!reason) return null;
-  return MEDIA_ERROR_MESSAGES[reason] ?? null;
+  return MEDIA_ERROR_MESSAGES[reason as MediaErrorReason] ?? null;
 }
 
 export function resolveMediaErrorPresentation(
   reason: string | null | undefined
 ): ApplicationErrorPresentation | null {
   if (!reason) return null;
-  return MEDIA_ERROR_PRESENTATIONS[reason] ?? null;
+  return MEDIA_ERROR_PRESENTATIONS[reason as MediaErrorReason] ?? null;
 }
