@@ -27,6 +27,7 @@ import { catchError, map, shareReplay } from 'rxjs/operators';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { MediaApplicationErrorService } from './media-application-error.service';
+import type { TPhotoViewSource } from './photo-view-tracking.service';
 import { IPhotoItem } from 'src/app/core/interfaces/media/i-photo-item';
 import {
   IPhotoPublicationConfig,
@@ -47,14 +48,6 @@ export interface IPublishPhotoCommand {
   commentsPolicy?: TPhotoPublishableCommentsPolicy;
   reactionsEnabled?: boolean;
 }
-
-type TRecordPhotoViewSource =
-  | 'discover'
-  | 'profile'
-  | 'latest'
-  | 'top'
-  | 'boosted'
-  | 'unknown';
 
 interface PublishPhotoCallableRequest {
   ownerUid: string;
@@ -81,7 +74,7 @@ interface PhotoIdCallableRequest {
 interface RecordPhotoViewCallableRequest {
   ownerUid: string;
   photoId: string;
-  source: TRecordPhotoViewSource;
+  source: TPhotoViewSource;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -293,7 +286,7 @@ export class MediaPublicationService {
   recordPhotoView$(
     ownerUid: string,
     photoId: string,
-    source: TRecordPhotoViewSource = 'profile'
+    source: TPhotoViewSource = 'profile'
   ): Observable<void> {
     const safeOwnerUid = (ownerUid ?? '').trim();
     const safePhotoId = (photoId ?? '').trim();
