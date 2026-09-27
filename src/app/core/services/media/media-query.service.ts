@@ -11,18 +11,18 @@ import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { catchError, distinctUntilChanged, map, shareReplay } from 'rxjs/operators';
 
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import {
   Photo,
   PhotoFirestoreService,
 } from 'src/app/core/services/image-handling/photo-firestore.service';
 import type { IPhotoItem } from 'src/app/core/interfaces/media/i-photo-item';
+import { MediaApplicationErrorService } from './media-application-error.service';
 
 @Injectable({ providedIn: 'root' })
 export class MediaQueryService {
   constructor(
-    private readonly errorNotifier: ErrorNotificationService,
-    private readonly photoFirestoreService: PhotoFirestoreService
+    private readonly photoFirestoreService: PhotoFirestoreService,
+    private readonly mediaError: MediaApplicationErrorService
   ) {}
 
   getProfilePhotos$(ownerUid: string): Observable<IPhotoItem[]> {
@@ -38,8 +38,12 @@ export class MediaQueryService {
     return this.photoFirestoreService.getPhotosByUser(safeOwnerUid).pipe(
       map((items) => items.map((photo) => this.mapPhotoToMediaItem(safeOwnerUid, photo))),
       distinctUntilChanged((a, b) => this.sameItems(a, b)),
-      catchError(() => {
-        this.errorNotifier.showError('Erro ao carregar fotos do perfil.');
+      catchError((error) => {
+        this.mediaError.report(error, {
+          operation: 'mediaQuery.watchProfilePhotos',
+          reasonHint: 'photo_discovery_load_failed',
+          metadata: { hasOwnerUid: true },
+        });
         return of([] as IPhotoItem[]);
       }),
       shareReplay({ bufferSize: 1, refCount: true })
