@@ -3,8 +3,9 @@
 // PROMOTION / BOOST CORE POLICY
 // -----------------------------------------------------------------------------
 // Núcleo patrocinado reutilizável. Pagamento compra placement identificado;
-// nunca score orgânico. Billing config e advertiser account permanecem nas
-// fontes canônicas já existentes do Community Boost durante a migração.
+// nunca score orgânico. Configuração comercial e elegibilidade do anunciante
+// entram somente pela fronteira canônica de Promotion/Boost; compatibilidade
+// com storage legado fica isolada fora desta policy.
 // -----------------------------------------------------------------------------
 
 export const PROMOTION_BOOST_POLICY_VERSION = 1 as const;
