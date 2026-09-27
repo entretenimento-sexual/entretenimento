@@ -184,6 +184,60 @@
       "denominatorPath": "jsonPayload.placementServed",
       "dashboardAggregation": "mean_per_request",
       "resourceType": "cloud_run_revision"
+    },
+    {
+      "key": "community.projection.derived_writes_per_source_event",
+      "metricName": "community_projection_derived_writes_per_source_event",
+      "sampleMetricName": "community_projection_derived_writes_per_source_event_samples",
+      "description": "Fan-out real de documentos derivados por evento-fonte processado.",
+      "filter": "resource.type=\"cloud_run_revision\" AND jsonPayload.calibrationObservation.metric=\"community.projection.derived_writes_per_source_event\"",
+      "valueExtractor": "EXTRACT(jsonPayload.calibrationObservation.value)",
+      "unit": "1",
+      "aggregation": "mean",
+      "aligner": "ALIGN_SUM",
+      "reducer": "REDUCE_MEAN",
+      "windowSeconds": 3600,
+      "minimumSamples": 100,
+      "minimumObservedDays": 7,
+      "budgeted": false,
+      "bucketOptions": {
+        "exponentialBuckets": {
+          "numFiniteBuckets": 12,
+          "growthFactor": 2,
+          "scale": 0.25
+        }
+      },
+      "chartPlotType": "LINE",
+      "alertStrategy": "baseline_only",
+      "valuePath": "jsonPayload.calibrationObservation.value",
+      "resourceType": "cloud_run_revision"
+    },
+    {
+      "key": "community.notification.grouped_activities_per_push",
+      "metricName": "community_notification_grouped_activities_per_push",
+      "sampleMetricName": "community_notification_grouped_activities_per_push_samples",
+      "description": "Quantidade real de atividades agrupadas em cada push de Comunidades efetivamente processado.",
+      "filter": "resource.type=\"cloud_run_revision\" AND jsonPayload.calibrationObservation.metric=\"community.notification.grouped_activities_per_push\"",
+      "valueExtractor": "EXTRACT(jsonPayload.calibrationObservation.value)",
+      "unit": "1",
+      "aggregation": "p95",
+      "aligner": "ALIGN_PERCENTILE_95",
+      "reducer": "REDUCE_PERCENTILE_95",
+      "windowSeconds": 3600,
+      "minimumSamples": 100,
+      "minimumObservedDays": 7,
+      "budgeted": false,
+      "bucketOptions": {
+        "exponentialBuckets": {
+          "numFiniteBuckets": 12,
+          "growthFactor": 2,
+          "scale": 1
+        }
+      },
+      "chartPlotType": "LINE",
+      "alertStrategy": "baseline_only",
+      "valuePath": "jsonPayload.calibrationObservation.value",
+      "resourceType": "cloud_run_revision"
     }
   ]
 }
