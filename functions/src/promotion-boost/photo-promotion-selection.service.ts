@@ -3,7 +3,6 @@ import { createHash } from 'node:crypto';
 
 import { FieldValue } from 'firebase-admin/firestore';
 
-import { normalizeCommunityBoostAdvertiserAccount } from '../community-boost/community-boost.policy';
 import { db } from '../firebaseApp';
 import {
   resolveSocialConnectionAccess,
@@ -14,6 +13,10 @@ import {
 import {
   isPromotionBoostAdvertiserInteractionEligible,
 } from './promotion-boost-advertiser-eligibility';
+import {
+  normalizePromotionBoostAdvertiserAccount,
+  promotionBoostAdvertiserAccountRef,
+} from './promotion-boost-commercial-authority';
 import {
   isPhotoPromotionTargetEligible,
 } from './photo-promotion-target.policy';
@@ -166,7 +169,7 @@ async function claimPlacement(input: {
   const capRef = db.collection('promotion_boost_frequency_caps').doc(
     capId(input.campaign.campaignId, input.viewerUid, day)
   );
-  const advertiserRef = db.collection('community_boost_advertiser_accounts').doc(
+  const advertiserRef = promotionBoostAdvertiserAccountRef(
     input.campaign.advertiserUid
   );
   const advertiserUserRef = db
@@ -214,7 +217,7 @@ async function claimPlacement(input: {
     if (!campaign || campaign.targetType !== 'photo') return null;
     if (!promotionBoostCampaignEligible(campaign, input.now)) return null;
 
-    const advertiser = normalizeCommunityBoostAdvertiserAccount(
+    const advertiser = normalizePromotionBoostAdvertiserAccount(
       advertiserSnapshot.exists ? advertiserSnapshot.data() : null,
       campaign.advertiserUid
     );
