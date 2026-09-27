@@ -280,6 +280,9 @@ export const reviewVideoContentReport = onCall<
         const targetId = cleanId(report.targetId);
         const status = String(report.status ?? '').trim().toLowerCase();
         const reason = cleanReason(report.reason);
+        const isPreventiveReview =
+          String(report.reason ?? '').trim().toLowerCase() ===
+          'preventive_media_review';
 
         if (
           !targetType ||
@@ -346,6 +349,7 @@ export const reviewVideoContentReport = onCall<
                 ? {
                   moderationStatus: 'APPROVED',
                   moderationReason: null,
+                  preventiveReviewReportId: FieldValue.delete(),
                 }
                 : {}),
               updatedAt: now,
@@ -358,9 +362,12 @@ export const reviewVideoContentReport = onCall<
               {
                 isPublished: true,
                 publishWhenReady: false,
-                visibility: 'PUBLIC',
                 moderationStatus: 'APPROVED',
                 moderationReason: null,
+                preventiveReviewReportId: FieldValue.delete(),
+                ...(isPreventiveReview
+                  ? { reviewEvidenceRetention: 'RELEASED_AFTER_REVIEW' }
+                  : {}),
                 lastModeratedAt: FieldValue.serverTimestamp(),
                 moderatedBy: adminUid,
                 updatedAt: FieldValue.serverTimestamp(),
