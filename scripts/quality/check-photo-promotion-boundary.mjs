@@ -192,6 +192,28 @@ for (const fragment of [
   );
 }
 
+const firestoreIndexes = JSON.parse(read('firestore.indexes.json'));
+const promotionTtlCollections = new Set(
+  (firestoreIndexes.fieldOverrides ?? [])
+    .filter((entry) =>
+      entry?.fieldPath === 'expiresAt' && entry?.ttl === true
+    )
+    .map((entry) => entry.collectionGroup)
+);
+for (const collectionGroup of [
+  'promotion_boost_placements',
+  'promotion_boost_frequency_caps',
+  'promotion_boost_requests',
+  'promotion_boost_active_slots',
+]) {
+  if (!promotionTtlCollections.has(collectionGroup)) {
+    throw new Error(
+      '[photo-promotion-boundary] ephemeral promotion TTL missing: '
+        + collectionGroup
+    );
+  }
+}
+
 const officialProjection = read(
   'functions/src/media/application/sync-official-photo-projection.trigger.ts'
 );
