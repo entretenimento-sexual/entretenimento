@@ -61,8 +61,8 @@ Os preços canônicos permanecem em
 `functions/src/payments/application/billing-plan-catalog.service.ts`.
 
 A policy
-`functions/src/payments/application/platform-pricing-calibration.policy.ts`
-aceita apenas:
+`scripts/quality/platform-pricing-calibration.mjs`
+é executada na camada operacional/quality e aceita apenas:
 
 - conversões pagas reais;
 - renovações liquidadas reais;
