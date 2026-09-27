@@ -25,6 +25,11 @@ import {
 import { db } from '../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import {
+  buildMediaEngagementScore,
+  normalizeMediaCount,
+  type MediaScoreBreakdown,
+} from './media-engagement-score';
+import {
   REQUIRE_PUBLIC_MEDIA_APP_CHECK,
   assertPublicMediaCallableAppCheck,
 } from './public-media-callable-security';
@@ -43,13 +48,6 @@ interface TogglePhotoReactionRequest {
   photoId?: string;
 }
 
-type ScoreBreakdown = {
-  rankingScore: number;
-  qualityScore: number;
-  engagementScore: number;
-  safetyScore: number;
-};
-
 type PublicPhotoDoc = {
   ownerUid?: string;
   visibility?: string;
@@ -60,88 +58,22 @@ type PublicPhotoDoc = {
   commentsCount?: number;
   score?: number;
   engagementScore?: number;
-  scoreBreakdown?: Partial<ScoreBreakdown>;
+  scoreBreakdown?: Partial<MediaScoreBreakdown>;
 };
 
 function cleanId(value: unknown): string {
   return String(value ?? '').trim();
 }
 
-function normalizeCount(value: unknown): number {
-  const count = Number(value ?? 0);
-
-  if (!Number.isFinite(count) || count < 0) {
-    return 0;
-  }
-
-  return Math.floor(count);
-}
-
-function normalizeScore(value: unknown): number {
-  const score = Number(value ?? 0);
-
-  if (!Number.isFinite(score)) {
-    return 0;
-  }
-
-  return Math.max(0, Math.min(100, Math.round(score)));
-}
-
-function calculateEngagementScore(input: {
-  reactionsCount: number;
-  commentsCount: number;
-}): number {
-  const weightedEngagement =
-    input.reactionsCount * 2 +
-    input.commentsCount * 4;
-
-  return normalizeScore(Math.round(Math.log1p(weightedEngagement) * 18));
-}
-
-function calculateRankingScore(score: ScoreBreakdown): number {
-  const quality = normalizeScore(score.qualityScore);
-  const engagement = normalizeScore(score.engagementScore);
-  const safety = normalizeScore(score.safetyScore);
-
-  return normalizeScore(
-    Math.round(
-      quality * 0.25 +
-      engagement * 0.45 +
-      safety * 0.30
-    )
-  );
-}
-
 function buildNextScore(
   photo: PublicPhotoDoc,
   nextReactionsCount: number
-): {
-  score: number;
-  engagementScore: number;
-  scoreBreakdown: ScoreBreakdown;
-} {
-  const currentBreakdown = photo.scoreBreakdown ?? {};
-  const commentsCount = normalizeCount(photo.commentsCount ?? 0);
-
-  const engagementScore = calculateEngagementScore({
+) {
+  return buildMediaEngagementScore({
     reactionsCount: nextReactionsCount,
-    commentsCount,
+    commentsCount: normalizeMediaCount(photo.commentsCount),
+    currentBreakdown: photo.scoreBreakdown,
   });
-
-  const scoreBreakdown: ScoreBreakdown = {
-    qualityScore: normalizeScore(currentBreakdown.qualityScore ?? 0),
-    safetyScore: normalizeScore(currentBreakdown.safetyScore ?? 100),
-    engagementScore,
-    rankingScore: 0,
-  };
-
-  scoreBreakdown.rankingScore = calculateRankingScore(scoreBreakdown);
-
-  return {
-    score: scoreBreakdown.rankingScore,
-    engagementScore,
-    scoreBreakdown,
-  };
 }
 
 export const togglePhotoReaction = onCall<TogglePhotoReactionRequest>(
@@ -230,7 +162,7 @@ export const togglePhotoReaction = onCall<TogglePhotoReactionRequest>(
       }
 
       const likeSnap = await transaction.get(likeRef);
-      const currentCount = normalizeCount(
+      const currentCount = normalizeMediaCount(
         photo.reactionsCount ?? photo.likesCount ?? 0
       );
 
