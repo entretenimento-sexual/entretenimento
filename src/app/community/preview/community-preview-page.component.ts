@@ -53,7 +53,6 @@ import {
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
 import { CommunityMembersPageComponent } from '../members/community-members-page.component';
 import { CommunityFeedComponent } from '../feed/community-feed.component';
-import { CommunityTopicsComponent } from '../topics/community-topics.component';
 import { CommunityInviteManagementComponent } from '../invite-management/community-invite-management.component';
 import { CommunityMembershipManagementComponent } from '../membership-management/community-membership-management.component';
 import { OfficialEntityCommunitySectionComponent } from '../official-entity-community-section/official-entity-community-section.component';
@@ -79,7 +78,6 @@ import { CommunityMembershipProfileVisibilityComponent } from './community-membe
 
 export type CommunityPreviewSection =
   | 'feed'
-  | 'topics'
   | 'photos'
   | 'members'
   | 'about'
@@ -166,7 +164,6 @@ function normalizeCommunityFeedTargetId(value: unknown): string | null {
 const SECTION_QUERY_VALUES: Readonly<Record<CommunityPreviewSection, string | null>> =
   Object.freeze({
     feed: null,
-    topics: 'topicos',
     photos: 'fotos',
     members: 'membros',
     about: 'sobre',
@@ -182,7 +179,6 @@ const SECTION_QUERY_VALUES: Readonly<Record<CommunityPreviewSection, string | nu
     RouterLink,
     ImageFallbackDirective,
     CommunityFeedComponent,
-    CommunityTopicsComponent,
     CommunityMembersPageComponent,
     CommunityInviteManagementComponent,
     CommunityMembershipManagementComponent,
@@ -585,7 +581,7 @@ export class CommunityPreviewPageComponent {
   private sectionFromQuery(value: unknown): CommunityPreviewSection {
     switch (String(value ?? '').trim().toLowerCase()) {
       case 'topicos':
-        return 'topics';
+        return 'feed';
       case 'fotos':
         return 'photos';
       case 'membros':
