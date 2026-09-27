@@ -57,6 +57,7 @@ function buildService(input: {
   personalizedError?: Error | null;
   recentViewedKeys?: readonly string[];
   recentViewsError?: Error | null;
+  snapshots?: Partial<Record<TPublicVideoRankingMode, IPublicVideoItem[]>>;
 }): PublicVideoContinuationService {
   const mediaQuery = {
     getRecentPublicVideoPreviewsByOwners$: vi.fn(() =>
@@ -72,11 +73,21 @@ function buildService(input: {
         : of(input.recentViewedKeys ?? [])
     ),
   };
+  const snapshots = {
+    read$: vi.fn((kind: 'latest-videos' | 'top-videos') =>
+      of(
+        input.snapshots?.[
+          kind === 'latest-videos' ? 'latest' : 'top'
+        ] ?? []
+      )
+    ),
+  };
 
   return new PublicVideoContinuationService(
     input.ranking as never,
     mediaQuery as never,
-    recentViews as never
+    recentViews as never,
+    snapshots as never
   );
 }
 
@@ -273,6 +284,71 @@ describe('PublicVideoContinuationService', () => {
     expect(result.failed).toBe(false);
     expect(result.degraded).toBe(true);
     expect(result.exhausted).toBe(false);
+  });
+
+  it('entrega snapshot stale e revalida o ranking online em seguida', async () => {
+    const ranking = {
+      loadPage$: vi.fn(({ mode }: { mode: TPublicVideoRankingMode }) =>
+        of(page(mode, [video(`${mode}-fresh`, `${mode}-fresh-owner`)]))
+      ),
+    };
+    const service = buildService({
+      ranking,
+      snapshots: {
+        top: [video('top-cached', 'owner-cached')],
+        latest: [video('latest-cached', 'owner-cached-2')],
+      },
+    });
+    const emissions: string[][] = [];
+
+    const subscription = service.loadContinuation$({
+      existingItems: [],
+      source: 'top',
+      limit: 4,
+    }).subscribe((result) => {
+      emissions.push(result.items.map((item) => item.id));
+    });
+
+    await Promise.resolve();
+    subscription.unsubscribe();
+
+    expect(emissions[0]).toEqual(['top-cached', 'latest-cached']);
+    expect(emissions.at(-1)).toEqual(['top-fresh', 'latest-fresh']);
+    expect(ranking.loadPage$).toHaveBeenCalledTimes(2);
+  });
+
+  it('mantém snapshot quando a revalidação falha e marca degradação', async () => {
+    const ranking = {
+      loadPage$: vi.fn(() => throwError(() => new Error('offline'))),
+    };
+    const service = buildService({
+      ranking,
+      snapshots: {
+        top: [video('top-cached', 'owner-a')],
+        latest: [video('latest-cached', 'owner-b')],
+      },
+    });
+    const emissions: Array<{ ids: string[]; degraded?: boolean }> = [];
+
+    const subscription = service.loadContinuation$({
+      existingItems: [],
+      source: 'top',
+      limit: 4,
+    }).subscribe((result) => {
+      emissions.push({
+        ids: result.items.map((item) => item.id),
+        degraded: result.degraded,
+      });
+    });
+
+    await Promise.resolve();
+    subscription.unsubscribe();
+
+    expect(emissions[0]?.ids).toEqual(['top-cached', 'latest-cached']);
+    expect(emissions.at(-1)).toMatchObject({
+      ids: ['top-cached', 'latest-cached'],
+      degraded: true,
+    });
   });
 
   it('distingue esgotamento real de falha de fontes quando não há candidato', async () => {
