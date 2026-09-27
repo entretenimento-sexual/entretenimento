@@ -64,6 +64,8 @@ export const COMMUNITY_PRODUCT_LIMITS = Object.freeze({
       'conversions',
       'communities_created',
       'actual_cost_cents',
+      'member_capacity_utilization_p95',
+      'owned_community_utilization_p95',
     ] as const),
     actualCostSource: 'billing_or_finance_actuals',
     operationalCostProxyAllowedAsActualCost: false,
