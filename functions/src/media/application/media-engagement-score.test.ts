@@ -78,6 +78,29 @@ describe('media-engagement-score', () => {
     assert.ok(withRatings.engagementScore > withoutRatings.engagementScore);
   });
 
+  it('preserva segurança não avaliada sem criar score otimista', () => {
+    const missingSafety = buildMediaEngagementScore({
+      reactionsCount: 0,
+      commentsCount: 0,
+      currentBreakdown: {
+        qualityScore: 0,
+      },
+    });
+    const explicitUnassessed = buildMediaEngagementScore({
+      reactionsCount: 0,
+      commentsCount: 0,
+      currentBreakdown: {
+        qualityScore: 0,
+        safetyScore: null,
+      },
+    });
+
+    assert.equal(missingSafety.scoreBreakdown.safetyScore, null);
+    assert.equal(explicitUnassessed.scoreBreakdown.safetyScore, null);
+    assert.equal(missingSafety.score, 0);
+    assert.equal(explicitUnassessed.score, 0);
+  });
+
   it('preserva qualidade e segurança do breakdown atual', () => {
     const result = buildMediaEngagementScore({
       reactionsCount: 1,
