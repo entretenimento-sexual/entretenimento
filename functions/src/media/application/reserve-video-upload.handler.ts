@@ -467,7 +467,7 @@ export const cleanupExpiredVideoUploadReservations = onSchedule(
   }
 );
 
-export async function assertAndConsumeVideoUploadReservation(input: {
+export async function assertVideoUploadReservation(input: {
   reservationId: string;
   ownerUid: string;
   videoId: string;
@@ -476,38 +476,45 @@ export async function assertAndConsumeVideoUploadReservation(input: {
   videoContentType: string;
   posterStoragePath: string | null;
 }): Promise<void> {
-  const reservationRef = db
+  const snapshot = await db
     .collection(RESERVATION_COLLECTION)
-    .doc(input.reservationId);
+    .doc(input.reservationId)
+    .get();
 
-  await db.runTransaction(async (transaction) => {
-    const snapshot = await transaction.get(reservationRef);
+  if (!snapshot.exists) {
+    throw new HttpsError(
+      'failed-precondition',
+      'A reserva deste upload expirou. Inicie o envio novamente.'
+    );
+  }
 
-    if (!snapshot.exists) {
-      throw new HttpsError(
-        'failed-precondition',
-        'A reserva deste upload expirou. Inicie o envio novamente.'
-      );
-    }
+  const reservation = snapshot.data() as VideoUploadReservationDocument;
 
-    const reservation = snapshot.data() as VideoUploadReservationDocument;
-    const nowMs = Date.now();
+  if (
+    reservationExpiryMs(reservation.expiresAt) <= Date.now() ||
+    reservation.ownerUid !== input.ownerUid ||
+    reservation.videoId !== input.videoId ||
+    reservation.videoStoragePath !== input.videoStoragePath ||
+    reservation.videoSizeBytes !== input.videoSizeBytes ||
+    reservation.videoContentType !== input.videoContentType ||
+    reservation.posterStoragePath !== input.posterStoragePath
+  ) {
+    throw new HttpsError(
+      'failed-precondition',
+      'A reserva não corresponde ao vídeo armazenado.'
+    );
+  }
+}
 
-    if (
-      reservationExpiryMs(reservation.expiresAt) <= nowMs ||
-      reservation.ownerUid !== input.ownerUid ||
-      reservation.videoId !== input.videoId ||
-      reservation.videoStoragePath !== input.videoStoragePath ||
-      reservation.videoSizeBytes !== input.videoSizeBytes ||
-      reservation.videoContentType !== input.videoContentType ||
-      reservation.posterStoragePath !== input.posterStoragePath
-    ) {
-      throw new HttpsError(
-        'failed-precondition',
-        'A reserva não corresponde ao vídeo armazenado.'
-      );
-    }
-
-    transaction.delete(reservationRef);
-  });
+export async function consumeVideoUploadReservationBestEffort(
+  reservationId: string
+): Promise<void> {
+  try {
+    await db.collection(RESERVATION_COLLECTION).doc(reservationId).delete();
+  } catch (error) {
+    logger.warn('[videoUploadReservation] Reserva registrada aguarda limpeza.', {
+      reservationId,
+      error: normalizeErrorMessage(error),
+    });
+  }
 }
