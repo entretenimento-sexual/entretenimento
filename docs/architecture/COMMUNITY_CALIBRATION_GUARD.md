@@ -94,6 +94,29 @@ Antes de discutir saída do estágio:
 Cumprir os requisitos não autoriza mudança automática. Apenas habilita revisão
 humana explícita e versionada.
 
+## Readiness transversal por dimensão
+
+A consolidação canônica de prontidão para revisão vive em:
+
+`functions/src/shared/calibration/product-calibration-readiness.policy.ts`
+
+Ela avalia separadamente:
+
+- `hot_score`;
+- `commercial_limits`;
+- `derived_fanout`;
+- `notification_frequency`;
+- `pricing`.
+
+Cada dimensão expõe apenas `reviewEligible`, `canChange` e as evidências
+faltantes. As fontes aceitas são restritas às origens reais correspondentes
+(runtime agendado de produção, agregados de estado de produção, Cloud Logging,
+Cloud Billing/finanças e settlements financeiros).
+
+Durante `OBSERVE_ONLY`, uma dimensão pode se tornar elegível para revisão, mas
+`canChange` continua obrigatoriamente `false`. A policy não calcula valor
+recomendado e não escreve configuração.
+
 ## Proteção de CI
 
 `npm run community:calibration-freeze:check` falha durante
