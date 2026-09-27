@@ -67,8 +67,25 @@ interface UploadedBinary {
   path: string;
 }
 
+interface ReserveVideoUploadRequest {
+  ownerUid: string;
+  videoId: string;
+  videoStoragePath: string;
+  videoSizeBytes: number;
+  videoContentType: string;
+  posterStoragePath: string | null;
+  posterSizeBytes: number;
+  posterContentType: string | null;
+}
+
+interface ReserveVideoUploadResponse {
+  reservationId: string;
+  expiresAt: number;
+}
+
 interface RegisterPrivateVideoUploadRequest
   extends IVideoPublicationSettingsInput {
+  reservationId: string;
   ownerUid: string;
   videoId: string;
   videoStoragePath: string;
@@ -113,6 +130,10 @@ export class VideoUploadFlowService {
   private readonly metadataPreparation = inject(VideoMetadataPreparationService);
   private readonly errorHandler = inject(MediaApplicationErrorService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
+  private readonly reserveVideoUploadCallable = httpsCallable<
+    ReserveVideoUploadRequest,
+    ReserveVideoUploadResponse
+  >(this.functions, 'reserveVideoUpload');
   private readonly registerPrivateVideoUploadCallable = httpsCallable<
     RegisterPrivateVideoUploadRequest,
     RegisterPrivateVideoUploadResponse
@@ -200,6 +221,21 @@ export class VideoUploadFlowService {
             })
           );
           const posterBlob = selectedPosterBlob ?? metadata.posterBlob;
+          posterPath = posterBlob
+            ? this.buildPosterPath(ownerUid, videoId)
+            : null;
+          assertNotCancelled();
+
+          const reservation = await this.reserveVideoUpload({
+            ownerUid,
+            videoId,
+            videoStoragePath: videoPath,
+            videoSizeBytes: file.size,
+            videoContentType: sourceFormat.mimeType,
+            posterStoragePath: posterPath,
+            posterSizeBytes: posterBlob?.size ?? 0,
+            posterContentType: posterBlob ? 'image/jpeg' : null,
+          });
           assertNotCancelled();
 
           observer.next({ type: 'progress', phase: 'preparing', progress: 6 });
@@ -209,6 +245,7 @@ export class VideoUploadFlowService {
             videoPath,
             file,
             sourceFormat.mimeType,
+            reservation.reservationId,
             (task) => {
               activeTask = task;
             },
@@ -225,13 +262,13 @@ export class VideoUploadFlowService {
 
           let posterBinary: UploadedBinary | null = null;
 
-          if (posterBlob) {
-            posterPath = this.buildPosterPath(ownerUid, videoId);
+          if (posterBlob && posterPath) {
             posterUploadStarted = true;
             posterBinary = await this.uploadBinary(
               posterPath,
               posterBlob,
               'image/jpeg',
+              reservation.reservationId,
               (task) => {
                 activeTask = task;
               },
@@ -254,6 +291,7 @@ export class VideoUploadFlowService {
           const fileName = this.normalizeDisplayFileName(file.name);
           const publication = this.normalizePublication(command.publication);
           const registration = await this.registerUploadedVideo({
+            reservationId: reservation.reservationId,
             ownerUid,
             videoId,
             videoStoragePath: videoBinary.path,
@@ -346,6 +384,13 @@ export class VideoUploadFlowService {
     });
   }
 
+  private async reserveVideoUpload(
+    payload: ReserveVideoUploadRequest
+  ): Promise<ReserveVideoUploadResponse> {
+    const response = await this.reserveVideoUploadCallable(payload);
+    return response.data;
+  }
+
   private async registerUploadedVideo(
     payload: RegisterPrivateVideoUploadRequest
   ): Promise<RegisterPrivateVideoUploadResponse> {
@@ -388,6 +433,7 @@ export class VideoUploadFlowService {
     storagePath: string,
     data: Blob,
     contentType: string,
+    reservationId: string,
     registerTask: (task: UploadTask) => void,
     onProgress: (progress: number) => void
   ): Promise<UploadedBinary> {
@@ -396,6 +442,9 @@ export class VideoUploadFlowService {
       const task = uploadBytesResumable(storageRef, data, {
         contentType,
         cacheControl: 'private, max-age=0, no-store, no-transform',
+        customMetadata: {
+          mediaVideoReservationId: reservationId,
+        },
       });
 
       registerTask(task);
