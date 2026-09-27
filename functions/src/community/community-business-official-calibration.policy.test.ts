@@ -47,6 +47,12 @@ test('mede observação completa sem liberar calibração durante OBSERVE_ONLY',
       communitiesCreated: 52,
       actualCostCents: 26_000,
       actualCostSource: 'cloud_billing_export',
+      commercialUtilizationSource: 'production_state_aggregate',
+      commercialUtilizationObservedDays: 14,
+      memberCapacityUtilizationSamples: 150,
+      memberCapacityUtilizationP95: 0.82,
+      ownedCommunityUtilizationSamples: 150,
+      ownedCommunityUtilizationP95: 0.67,
       operationalBaseline: operationalBaseline(),
     }),
     {
@@ -57,6 +63,11 @@ test('mede observação completa sem liberar calibração durante OBSERVE_ONLY',
       conversionRate: 0.2,
       communitiesPerConversion: 1.3,
       actualCostPerCreatedCommunityCents: 500,
+      commercialUtilizationObservedDays: 14,
+      memberCapacityUtilizationSamples: 150,
+      memberCapacityUtilizationP95: 0.82,
+      ownedCommunityUtilizationSamples: 150,
+      ownedCommunityUtilizationP95: 0.67,
       status: 'observed',
       canCalibrateCommercialOffer: false,
     }
@@ -107,6 +118,44 @@ test('exige quantidade criada e custo financeiro realizado', () => {
   );
 });
 
+test('exige utilização comercial real antes de revisar limites', () => {
+  assert.equal(
+    evaluateCommunityBusinessOfficialCalibration({
+      offersPresented: 100,
+      conversions: 10,
+      communitiesCreated: 12,
+      actualCostCents: 5_000,
+      actualCostSource: 'cloud_billing_export',
+      commercialUtilizationSource: 'production_state_aggregate',
+      commercialUtilizationObservedDays: 14,
+      memberCapacityUtilizationSamples: 10,
+      memberCapacityUtilizationP95: 0.8,
+      ownedCommunityUtilizationSamples: 10,
+      ownedCommunityUtilizationP95: 0.6,
+      operationalBaseline: operationalBaseline(),
+    }).status,
+    'commercial_utilization_missing'
+  );
+
+  assert.equal(
+    evaluateCommunityBusinessOfficialCalibration({
+      offersPresented: 100,
+      conversions: 10,
+      communitiesCreated: 12,
+      actualCostCents: 5_000,
+      actualCostSource: 'cloud_billing_export',
+      commercialUtilizationSource: 'manual_guess',
+      commercialUtilizationObservedDays: 14,
+      memberCapacityUtilizationSamples: 150,
+      memberCapacityUtilizationP95: 0.8,
+      ownedCommunityUtilizationSamples: 150,
+      ownedCommunityUtilizationP95: 0.6,
+      operationalBaseline: operationalBaseline(),
+    }).status,
+    'commercial_utilization_source_invalid'
+  );
+});
+
 test('falha fechado para observações inválidas ou funil inconsistente', () => {
   for (const input of [
     {
@@ -143,6 +192,12 @@ test('não calibra sem fonte financeira real e baseline operacional pronto', () 
       communitiesCreated: 12,
       actualCostCents: 5_000,
       actualCostSource: 'operational_proxy',
+      commercialUtilizationSource: 'production_state_aggregate',
+      commercialUtilizationObservedDays: 14,
+      memberCapacityUtilizationSamples: 150,
+      memberCapacityUtilizationP95: 0.82,
+      ownedCommunityUtilizationSamples: 150,
+      ownedCommunityUtilizationP95: 0.67,
       operationalBaseline: operationalBaseline(),
     }).status,
     'actual_cost_source_invalid'
@@ -155,6 +210,12 @@ test('não calibra sem fonte financeira real e baseline operacional pronto', () 
       communitiesCreated: 12,
       actualCostCents: 5_000,
       actualCostSource: 'cloud_billing_export',
+      commercialUtilizationSource: 'production_state_aggregate',
+      commercialUtilizationObservedDays: 14,
+      memberCapacityUtilizationSamples: 150,
+      memberCapacityUtilizationP95: 0.82,
+      ownedCommunityUtilizationSamples: 150,
+      ownedCommunityUtilizationP95: 0.67,
       operationalBaseline: {
         ...operationalBaseline(),
         environment: 'staging',
