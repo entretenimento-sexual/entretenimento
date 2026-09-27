@@ -895,16 +895,6 @@ export class ProfileVideosComponent {
     this.uploadStepSubject.next('Registrando vídeo.');
   }
 
-  private describeEditorLaunchFailure(error: unknown): string {
-    const message = error instanceof Error ? error.message.trim() : '';
-
-    if (message === 'Usuário não autenticado para abrir o editor de vídeo.') {
-      return 'Entre novamente na conta antes de editar e enviar vídeos.';
-    }
-
-    return message || 'Não foi possível abrir o editor de vídeo.';
-  }
-
   private describeUploadFailure(error: unknown): VideoUploadFailureFeedback {
     const code = this.uploadErrorCode(error);
 
@@ -973,34 +963,6 @@ export class ProfileVideosComponent {
       recovery: 'Revise o arquivo e tente novamente. A preparação local foi mantida.',
       retryable: true,
     };
-  }
-
-  private describeDeleteFailure(error: unknown): string {
-    const code = this.uploadErrorCode(error);
-
-    if (
-      code === 'functions/unauthenticated' ||
-      code === 'unauthenticated'
-    ) {
-      return 'Sua sessão expirou. Entre novamente antes de excluir o vídeo.';
-    }
-
-    if (
-      code === 'functions/permission-denied' ||
-      code === 'permission-denied'
-    ) {
-      return 'A exclusão foi bloqueada porque a conta atual não é proprietária deste vídeo.';
-    }
-
-    if (
-      code === 'functions/unavailable' ||
-      code === 'unavailable' ||
-      code === 'network-request-failed'
-    ) {
-      return 'A exclusão não foi confirmada por falha de conexão. Tente novamente quando a rede estabilizar.';
-    }
-
-    return 'Não foi possível confirmar a exclusão total. O erro foi registrado para diagnóstico; tente novamente.';
   }
 
   private uploadErrorCode(error: unknown): string {
