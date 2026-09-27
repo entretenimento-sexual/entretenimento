@@ -112,22 +112,17 @@ describe('PublicPhotoCardComponent', () => {
     expect(fallback.textContent?.trim()).toBe('P');
   });
 
-  it('mantém o impulso junto dos metadados da publicação', () => {
-    fixture.componentRef.setInput('photo', {
-      ...photo,
-      boostActive: true,
-    });
+  it('identifica placement patrocinado somente na variante sponsored', () => {
+    fixture.componentRef.setInput('variant', 'sponsored');
     fixture.detectChanges();
 
-    const metadata = fixture.debugElement.query(
-      By.css('.feed-card-owner__meta')
-    ).nativeElement as HTMLElement;
-    const boost = fixture.debugElement.query(
-      By.css('.feed-card-boosted')
+    const sponsored = fixture.debugElement.query(
+      By.css('.meta-sponsored')
     ).nativeElement as HTMLElement;
 
-    expect(metadata.contains(boost)).toBe(true);
-    expect(boost.textContent).toContain('Impulsionada');
+    expect(sponsored.textContent).toContain('Patrocinado');
+    expect(sponsored.getAttribute('aria-label')).toBe('Conteúdo patrocinado');
+    expect(fixture.debugElement.query(By.css('.feed-card-header'))).toBeNull();
   });
 
   it('não usa overlay nem rodapé duplicado da variante latest', () => {
@@ -141,7 +136,6 @@ describe('PublicPhotoCardComponent', () => {
       ...photo,
       reactionsCount: 0,
       commentsCount: 0,
-      boostActive: true,
     });
     fixture.detectChanges();
 
@@ -154,7 +148,7 @@ describe('PublicPhotoCardComponent', () => {
     expect(actions).toHaveLength(2);
     expect(actions[0].nativeElement.textContent).toContain('0');
     expect(actions[1].nativeElement.textContent).toContain('0');
-    expect(fixture.debugElement.query(By.css('.feed-card-boosted'))).toBeTruthy();
+    expect(fixture.debugElement.query(By.css('.meta-sponsored'))).toBeNull();
   });
 
   it('preserva o comportamento legado quando ações não são habilitadas', () => {
