@@ -6,6 +6,13 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { assertInteractionAccessData } from '../../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { auth, db, storage } from '../../firebaseApp';
+import {
+  assertCallableAppCheck,
+  REQUIRE_CALLABLE_APP_CHECK,
+} from '../../shared/security/callable-app-check';
+import {
+  consumeBackendRateLimitQuota,
+} from '../../shared/security/backend-rate-limit.service';
 import { ensurePrivateVideoProcessingQueued } from './queue-video-processing.handler';
 import {
   registerPrivateVideoUpload as registerPrivateVideoUploadCore,
@@ -60,6 +67,12 @@ interface PrivateUploadAsset {
 }
 
 const CLEANUP_COLLECTION = 'media_private_video_upload_cleanup_jobs';
+const VIDEO_UPLOAD_REGISTER_RATE_LIMIT = Object.freeze({
+  burstWindowMs: 60_000,
+  burstMax: 12,
+  sustainedWindowMs: 10 * 60_000,
+  sustainedMax: 40,
+});
 
 function containsControlCharacter(value: string): boolean {
   for (let index = 0; index < value.length; index += 1) {
@@ -348,14 +361,28 @@ function resolveOwnedUploadAssets(
 export const registerPrivateVideoUpload = onCall<
   RegisterPrivateVideoUploadRequest
 >(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_CALLABLE_APP_CHECK,
+  },
   async (request) => {
+    assertCallableAppCheck(request.app);
+
     const requesterUid = cleanId(request.auth?.uid);
     const ownerUid = cleanId(request.data?.ownerUid);
     const videoId = cleanId(request.data?.videoId);
     const assets = ownerUid && videoId
       ? resolveOwnedUploadAssets(ownerUid, videoId, request.data)
       : null;
+
+    if (requesterUid) {
+      await consumeBackendRateLimitQuota({
+        action: 'video-upload-register',
+        subject: requesterUid,
+        config: VIDEO_UPLOAD_REGISTER_RATE_LIMIT,
+        message: 'Muitas tentativas de registro de vídeo foram feitas em pouco tempo.',
+      });
+    }
 
     if (requesterUid && requesterUid === ownerUid && assets) {
       try {
