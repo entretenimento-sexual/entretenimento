@@ -2,7 +2,7 @@
 // Source of truth: config/media-formats.json
 // Do not edit manually.
 
-export const MEDIA_FORMAT_POLICY_VERSION = 3 as const;
+export const MEDIA_FORMAT_POLICY_VERSION = 4 as const;
 
 export const IMAGE_INPUT_FORMATS = [
   {
@@ -222,7 +222,7 @@ export const VIDEO_PUBLIC_PLAYBACK_MIME_TYPES = [
   "video/mp4",
   "video/webm"
 ] as const;
-export const VIDEO_MAX_BYTES = 524288000 as const;
+export const VIDEO_MAX_BYTES = 157286400 as const;
 export const VIDEO_FORMAT_LABEL = "MP4, M4V, MOV, WebM, MKV, AVI, WMV, TS, MTS, M2TS ou MXF" as const;
 export const VIDEO_INPUT_ACCEPT = [...VIDEO_INPUT_MIME_TYPES, ...VIDEO_INPUT_EXTENSIONS.map((extension) => `.${extension}`)].join(',');
 
