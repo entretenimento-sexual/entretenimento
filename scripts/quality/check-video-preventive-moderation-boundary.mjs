@@ -59,6 +59,20 @@ forbidIncludes(
   'new videos must never be implicitly approved'
 );
 
+const registration = read(
+  'functions/src/media/application/register-private-video-upload.handler.ts'
+);
+requireIncludes(
+  registration,
+  "moderationStatus: 'PENDING_REVIEW'",
+  'video registration moderation drift'
+);
+forbidIncludes(
+  registration,
+  "moderationStatus: 'APPROVED'",
+  'video registration must not seed approval'
+);
+
 const publication = read(
   'functions/src/media/application/manage-video-publication.handler.ts'
 );
