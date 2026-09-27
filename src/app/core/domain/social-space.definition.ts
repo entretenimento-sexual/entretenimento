@@ -66,7 +66,7 @@ export interface SocialSpaceDefinition {
 
 const COMMUNITY_CAPABILITIES: Readonly<SocialSpaceCapabilities> = Object.freeze({
   publicLocation: false,
-  topics: true,
+  topics: false,
   memberDirectory: true,
   memberSearch: true,
   rules: true,
