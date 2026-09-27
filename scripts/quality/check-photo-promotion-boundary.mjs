@@ -68,7 +68,9 @@ const organicClientPaths = [
   'src/app/explore/models/explore-personal-feed.ts',
   'src/app/explore/pages/social-explore-page/social-explore-page.component.ts',
   'src/app/core/services/media/public-photo-continuation.service.ts',
+  'src/app/core/services/media/public-mixed-media-continuation.service.ts',
   'src/app/core/interfaces/media/i-public-media-viewer-session.ts',
+  'src/app/media/photos/photo-viewer/photo-viewer.component.ts',
 ];
 
 for (const relativePath of organicClientPaths) {
