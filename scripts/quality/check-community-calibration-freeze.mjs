@@ -6,6 +6,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import {
+  evaluatePlatformPricingCalibration,
+} from './platform-pricing-calibration.mjs';
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 function read(relativePath) {
@@ -226,13 +230,14 @@ for (const fragment of [
 }
 
 const pricingCalibration = read(
-  'functions/src/payments/application/platform-pricing-calibration.policy.ts'
+  'scripts/quality/platform-pricing-calibration.mjs'
 );
 for (const fragment of [
   "'payment_settlement_actuals'",
   "'finance_actual_allocation'",
-  'evaluateCommunityOperationalCostBaseline',
-  'isProductCalibrationChangeAllowed',
+  "'payment_settlement_actuals'",
+  "'finance_actual_allocation'",
+  'operationalBaselineReady',
   'reviewEligible',
   'canChangePrice',
 ]) {
@@ -240,6 +245,28 @@ for (const fragment of [
     pricingCalibration,
     fragment,
     'pricing real-data calibration gate missing: ' + fragment
+  );
+}
+
+const pricingReadiness = evaluatePlatformPricingCalibration({
+  calibrationStage: 'OBSERVE_ONLY',
+  observedDays: 30,
+  offersPresented: 1_000,
+  paidConversions: 120,
+  renewalSettlements: 80,
+  cancellations: 10,
+  realizedRevenueCents: 300_000,
+  actualAttributedCostCents: 90_000,
+  financialActualsSource: 'payment_settlement_actuals',
+  operationalBaselineReady: true,
+});
+if (
+  pricingReadiness.status !== 'observed'
+  || pricingReadiness.reviewEligible !== true
+  || pricingReadiness.canChangePrice !== false
+) {
+  throw new Error(
+    '[community-calibration-freeze] pricing readiness must remain review-only during OBSERVE_ONLY'
   );
 }
 
