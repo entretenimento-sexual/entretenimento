@@ -57,6 +57,7 @@ import {
   IPublicMediaRecentViewCandidate,
   PublicMediaRecentViewService,
 } from 'src/app/core/services/media/public-media-recent-view.service';
+import { PublicPhotoRankingQueryService } from 'src/app/core/services/media/public-photo-ranking-query.service';
 import { PublicVideoRankingQueryService } from 'src/app/core/services/media/public-video-ranking-query.service';
 import { CompatibleProfileCandidatesService } from 'src/app/dashboard/discovery/application/compatible-profile-candidates.service';
 import {
@@ -140,6 +141,7 @@ const EMPTY_PERSONALIZED_MEDIA: PersonalizedMediaResult = Object.freeze({
 export class PrincipalFeedService {
   private readonly mediaQuery = inject(MediaPublicQueryService);
   private readonly recentViews = inject(PublicMediaRecentViewService);
+  private readonly photoRanking = inject(PublicPhotoRankingQueryService);
   private readonly videoRanking = inject(PublicVideoRankingQueryService);
   private readonly communityRepository = inject(CommunityPreviewRepository);
   private readonly communityFeedRepository = inject(CommunityFeedRepository);
@@ -353,8 +355,17 @@ export class PrincipalFeedService {
   private loadPhotos$(): Observable<
     FeedSourceResult<readonly IPublicPhotoItem[]>
   > {
-    return this.mediaQuery.getLatestPublicPhotos$(PHOTO_LIMIT).pipe(
-      map((value) => ({ value: value ?? [], failed: false })),
+    return this.photoRanking.loadPage$({
+      mode: 'latest',
+      pageSize: PHOTO_LIMIT,
+      cursor: null,
+      propagateErrors: true,
+      notifyOnError: false,
+    }).pipe(
+      map((page) => ({
+        value: [...(page.items ?? [])],
+        failed: false,
+      })),
       catchError((error: unknown) => {
         this.reportSourceError('photos', error);
         return of({ value: [], failed: true });
