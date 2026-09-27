@@ -27,8 +27,8 @@ import {
   PhotoPromotionPlacement,
   PhotoPromotionPlacementService,
 } from './photo-promotion-placement.service';
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalActivityService } from 'src/app/core/services/network/global-activity.service';
+import { MediaApplicationErrorService } from './media-application-error.service';
 import { NetworkStatusService } from 'src/app/core/services/network/network-status.service';
 import { retryIdempotentRead } from 'src/app/core/services/network/network-retry.policy';
 import {
@@ -69,7 +69,7 @@ export class PublicPhotoDiscoveryFeedService {
     private readonly snapshots: PublicMediaSnapshotService,
     private readonly network: NetworkStatusService,
     private readonly activity: GlobalActivityService,
-    private readonly errorNotifier: ErrorNotificationService,
+    private readonly mediaError: MediaApplicationErrorService,
     private readonly promotion: PhotoPromotionPlacementService
   ) {}
 
@@ -132,12 +132,17 @@ export class PublicPhotoDiscoveryFeedService {
           });
         }),
         map(() => true),
-        catchError(() => {
+        catchError((error) => {
           const latest = this.stateSubject.value;
 
-          this.errorNotifier.showWarning(
-            'Não foi possível carregar mais fotos agora. Tente novamente.'
-          );
+          this.mediaError.report(error, {
+            operation: 'publicPhotoDiscovery.loadMore',
+            reasonHint: 'photo_discovery_page_failed',
+            metadata: {
+              mode,
+              hasCursor: true,
+            },
+          });
           this.stateSubject.next({
             ...latest,
             loading: false,
@@ -239,10 +244,14 @@ export class PublicPhotoDiscoveryFeedService {
           });
         }),
         map(() => true),
-        catchError(() => {
+        catchError((error) => {
           const latest = this.stateSubject.value;
 
-          this.errorNotifier.showError(this.failureMessage(mode));
+          this.mediaError.report(error, {
+            operation: 'publicPhotoDiscovery.revalidate',
+            reasonHint: 'photo_discovery_load_failed',
+            metadata: { mode },
+          });
           this.stateSubject.next({
             ...latest,
             loading: false,
@@ -314,14 +323,6 @@ export class PublicPhotoDiscoveryFeedService {
     }
 
     return [...unique.values()];
-  }
-
-  private failureMessage(mode: TPublicPhotoRankingMode): string {
-    if (mode === 'latest') {
-      return 'Erro ao carregar últimas fotos públicas.';
-    }
-
-    return 'Erro ao carregar fotos em destaque.';
   }
 
   private emptyState(): PublicPhotoDiscoveryFeedState {
