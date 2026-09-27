@@ -16,7 +16,6 @@ import { PrincipalFeedService } from './principal-feed.service';
 
 describe('PrincipalFeedService / refresh personalizado', () => {
   const mediaQuery = {
-    getLatestPublicPhotos$: vi.fn(() => of([])),
     getRecentPublicPhotosByOwners$: vi.fn(() => of([])),
     getRecentPublicVideoPreviewsByOwners$: vi.fn(() => of([])),
   };
