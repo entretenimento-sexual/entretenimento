@@ -22,6 +22,7 @@ import {
   tap,
 } from 'rxjs/operators';
 
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
 import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
@@ -46,6 +47,7 @@ export class PublicProfilePhotosComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly mediaPublicQuery = inject(MediaPublicQueryService);
   private readonly photoViewerLauncher = inject(PublicPhotoViewerLauncherService);
+  private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly errorHandler = inject(MediaApplicationErrorService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
 
