@@ -1,14 +1,15 @@
 // functions/src/promotion-boost/sync-photo-promotion-lifecycle.trigger.ts
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 
-import {
-  normalizeCommunityBoostAdvertiserAccount,
-} from '../community-boost/community-boost.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import {
   isPromotionBoostAdvertiserInteractionEligible,
 } from './promotion-boost-advertiser-eligibility';
+import {
+  PROMOTION_BOOST_ADVERTISER_ACCOUNT_DOCUMENT,
+  normalizePromotionBoostAdvertiserAccount,
+} from './promotion-boost-commercial-authority';
 import {
   advertiserInteractionFieldsChanged,
   isPhotoPromotionPublicationEligible,
@@ -205,7 +206,7 @@ export const syncPhotoPromotionFromPublication = onDocumentWritten(
 
 export const syncPhotoPromotionFromAdvertiserAccount = onDocumentWritten(
   {
-    document: 'community_boost_advertiser_accounts/{advertiserUid}',
+    document: PROMOTION_BOOST_ADVERTISER_ACCOUNT_DOCUMENT,
     region: FUNCTIONS_REGION,
     retry: true,
   },
@@ -218,7 +219,7 @@ export const syncPhotoPromotionFromAdvertiserAccount = onDocumentWritten(
     const after = event.data?.after.exists
       ? event.data.after.data() ?? null
       : null;
-    const advertiser = normalizeCommunityBoostAdvertiserAccount(
+    const advertiser = normalizePromotionBoostAdvertiserAccount(
       after,
       advertiserUid
     );
