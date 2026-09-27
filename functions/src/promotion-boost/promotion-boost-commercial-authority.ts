@@ -8,13 +8,13 @@
 // esse detalhe legado fica confinado a este adapter.
 // -----------------------------------------------------------------------------
 
-import {
-  normalizeCommunityBoostAdvertiserAccount,
-  normalizeCommunityBoostBillingConfig,
-  type CommunityBoostAdvertiserAccount,
-  type CommunityBoostBillingConfig,
-} from '../community-boost/community-boost.policy';
 import { db } from '../firebaseApp';
+import {
+  normalizePromotionBoostAdvertiserAccount as normalizeCanonicalPromotionBoostAdvertiserAccount,
+  normalizePromotionBoostBillingConfig as normalizeCanonicalPromotionBoostBillingConfig,
+  type PromotionBoostAdvertiserAccount,
+  type PromotionBoostBillingConfig,
+} from './promotion-boost.policy';
 
 const LEGACY_BILLING_CONFIG_COLLECTION =
   'community_boost_billing_config' as const;
@@ -23,11 +23,6 @@ const LEGACY_ADVERTISER_ACCOUNTS_COLLECTION =
 
 export const PROMOTION_BOOST_ADVERTISER_ACCOUNT_DOCUMENT =
   `${LEGACY_ADVERTISER_ACCOUNTS_COLLECTION}/{advertiserUid}`;
-
-export type PromotionBoostAdvertiserAccount =
-  Readonly<CommunityBoostAdvertiserAccount>;
-export type PromotionBoostBillingConfig =
-  Readonly<CommunityBoostBillingConfig>;
 
 export function promotionBoostBillingConfigRef() {
   return db.collection(LEGACY_BILLING_CONFIG_COLLECTION).doc('current');
@@ -40,14 +35,14 @@ export function promotionBoostAdvertiserAccountRef(advertiserUid: string) {
 export function normalizePromotionBoostBillingConfig(
   raw: unknown
 ): PromotionBoostBillingConfig | null {
-  return normalizeCommunityBoostBillingConfig(raw);
+  return normalizeCanonicalPromotionBoostBillingConfig(raw);
 }
 
 export function normalizePromotionBoostAdvertiserAccount(
   raw: unknown,
   expectedAdvertiserUid?: string
 ): PromotionBoostAdvertiserAccount | null {
-  return normalizeCommunityBoostAdvertiserAccount(
+  return normalizeCanonicalPromotionBoostAdvertiserAccount(
     raw,
     expectedAdvertiserUid
   );
