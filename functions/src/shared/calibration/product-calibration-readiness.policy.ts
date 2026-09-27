@@ -91,10 +91,14 @@ function nonNegativeInteger(value: unknown): number {
     : 0;
 }
 
-function isFinancialActualSource(value: unknown): boolean {
+function isCommercialActualCostSource(value: unknown): boolean {
   return value === 'cloud_billing_export'
-    || value === 'finance_actual_allocation'
-    || value === 'payment_settlement_actuals';
+    || value === 'finance_actual_allocation';
+}
+
+function isPricingFinancialActualSource(value: unknown): boolean {
+  return value === 'payment_settlement_actuals'
+    || value === 'finance_actual_allocation';
 }
 
 function readiness(
@@ -177,7 +181,7 @@ export function evaluateProductCalibrationReviewReadiness(
   ) {
     commercialMissing.push('owned_community_samples');
   }
-  if (!isFinancialActualSource(input.commercialLimits.actualCostSource)) {
+  if (!isCommercialActualCostSource(input.commercialLimits.actualCostSource)) {
     commercialMissing.push('commercial_actual_cost_source');
   }
   if (input.commercialLimits.operationalBaselineReady !== true) {
@@ -258,7 +262,7 @@ export function evaluateProductCalibrationReviewReadiness(
   if (renewalSettlements <= 0) {
     pricingMissing.push('pricing_renewal_settlements');
   }
-  if (!isFinancialActualSource(input.pricing.financialActualsSource)) {
+  if (!isPricingFinancialActualSource(input.pricing.financialActualsSource)) {
     pricingMissing.push('pricing_financial_actuals_source');
   }
   if (realizedRevenueCents <= 0) {
