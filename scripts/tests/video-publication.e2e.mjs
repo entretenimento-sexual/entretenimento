@@ -111,6 +111,7 @@ async function downloadTemporaryUrl(url) {
 
 async function registerVideo({
   registerCallable,
+  reservationId,
   ownerUid,
   videoId,
   sourcePath,
@@ -120,6 +121,7 @@ async function registerVideo({
   description,
 }) {
   return registerCallable({
+    reservationId,
     ownerUid,
     videoId,
     videoStoragePath: sourcePath,
@@ -277,13 +279,34 @@ async function run() {
     const sourceStorageRef = ref(clientStorage, sourcePath);
     const posterStorageRef = ref(clientStorage, posterPath);
 
+    const reserveVideoUpload = httpsCallable(
+      clientFunctions,
+      'reserveVideoUpload'
+    );
+    const firstReservation = await reserveVideoUpload({
+      ownerUid,
+      videoId,
+      videoStoragePath: sourcePath,
+      videoSizeBytes: sourceBytes.byteLength,
+      videoContentType: 'video/mp4',
+      posterStoragePath: posterPath,
+      posterSizeBytes: posterBytes.byteLength,
+      posterContentType: 'image/jpeg',
+    });
+
     await uploadBytes(sourceStorageRef, sourceBytes, {
       contentType: 'video/mp4',
       cacheControl: 'private, max-age=0, no-store, no-transform',
+      customMetadata: {
+        mediaVideoReservationId: firstReservation.data.reservationId,
+      },
     });
     await uploadBytes(posterStorageRef, posterBytes, {
       contentType: 'image/jpeg',
       cacheControl: 'private, max-age=0, no-store, no-transform',
+      customMetadata: {
+        mediaVideoReservationId: firstReservation.data.reservationId,
+      },
     });
 
     const registerPrivateVideoUpload = httpsCallable(
@@ -292,6 +315,7 @@ async function run() {
     );
     const registrationResponse = await registerVideo({
       registerCallable: registerPrivateVideoUpload,
+      reservationId: firstReservation.data.reservationId,
       ownerUid,
       videoId,
       sourcePath,
@@ -627,17 +651,35 @@ async function run() {
     const failedPosterPath =
       `users/${ownerUid}/uploads/video-posters/${failedVideoId}/poster-${runId}.jpg`;
 
+    const failedReservation = await reserveVideoUpload({
+      ownerUid,
+      videoId: failedVideoId,
+      videoStoragePath: failedSourcePath,
+      videoSizeBytes: failedSourceBytes.byteLength,
+      videoContentType: 'video/mp4',
+      posterStoragePath: failedPosterPath,
+      posterSizeBytes: failedPosterBytes.byteLength,
+      posterContentType: 'image/jpeg',
+    });
+
     await uploadBytes(ref(clientStorage, failedSourcePath), failedSourceBytes, {
       contentType: 'video/mp4',
       cacheControl: 'private, max-age=0, no-store, no-transform',
+      customMetadata: {
+        mediaVideoReservationId: failedReservation.data.reservationId,
+      },
     });
     await uploadBytes(ref(clientStorage, failedPosterPath), failedPosterBytes, {
       contentType: 'image/jpeg',
       cacheControl: 'private, max-age=0, no-store, no-transform',
+      customMetadata: {
+        mediaVideoReservationId: failedReservation.data.reservationId,
+      },
     });
 
     await registerVideo({
       registerCallable: registerPrivateVideoUpload,
+      reservationId: failedReservation.data.reservationId,
       ownerUid,
       videoId: failedVideoId,
       sourcePath: failedSourcePath,
