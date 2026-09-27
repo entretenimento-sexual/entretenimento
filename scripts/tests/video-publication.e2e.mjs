@@ -279,6 +279,18 @@ async function run() {
     const sourceStorageRef = ref(clientStorage, sourcePath);
     const posterStorageRef = ref(clientStorage, posterPath);
 
+    await assert.rejects(
+      () => uploadBytes(sourceStorageRef, sourceBytes, {
+        contentType: 'video/mp4',
+        cacheControl: 'private, max-age=0, no-store, no-transform',
+      }),
+      (error) => {
+        assert.match(String(error?.code ?? ''), /storage\/unauthorized/);
+        return true;
+      },
+      'Storage deve recusar vídeo sem reserva ativa.'
+    );
+
     const reserveVideoUpload = httpsCallable(
       clientFunctions,
       'reserveVideoUpload'
