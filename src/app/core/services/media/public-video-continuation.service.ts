@@ -37,11 +37,6 @@ interface CandidateSourceResult {
   readonly failed: boolean;
 }
 
-interface ModeCandidateResult {
-  readonly items: readonly IPublicVideoItem[];
-  readonly failed: boolean;
-}
-
 interface ContinuationCandidateContext {
   readonly globalItems: readonly IPublicVideoItem[];
   readonly personalizedItems: readonly IPublicVideoItem[];
@@ -146,27 +141,71 @@ export class PublicVideoContinuationService {
     excludedKeys: ReadonlySet<string>,
     excludeOwnerUid: string
   ): Observable<CandidateSourceResult> {
+    const primaryKind =
+      primaryMode === 'latest' ? 'latest-videos' : 'top-videos';
+    const secondaryKind =
+      secondaryMode === 'latest' ? 'latest-videos' : 'top-videos';
+
     return combineLatest([
-      this.loadModeCandidates$(
-        primaryMode,
-        excludedKeys,
-        excludeOwnerUid
+      this.snapshots.read$(primaryKind).pipe(
+        catchError(() => of([] as IPublicVideoItem[]))
       ),
-      this.loadModeCandidates$(
-        secondaryMode,
-        excludedKeys,
-        excludeOwnerUid
+      this.snapshots.read$(secondaryKind).pipe(
+        catchError(() => of([] as IPublicVideoItem[]))
       ),
     ]).pipe(
-      map(([primaryResult, secondaryResult]) => ({
-        items: this.mergeCandidates(
-          primaryResult.items,
-          secondaryResult.items,
+      switchMap(([primaryCachedItems, secondaryCachedItems]) => {
+        const primaryCached = this.filterModeItems(
+          primaryCachedItems,
           excludedKeys,
-          MAX_CONTINUATION_LIMIT * 2
-        ),
-        failed: primaryResult.failed || secondaryResult.failed,
-      }))
+          excludeOwnerUid
+        );
+        const secondaryCached = this.filterModeItems(
+          secondaryCachedItems,
+          excludedKeys,
+          excludeOwnerUid
+        );
+        const cachedResult: CandidateSourceResult = {
+          items: this.mergeCandidates(
+            primaryCached,
+            secondaryCached,
+            excludedKeys,
+            MAX_CONTINUATION_LIMIT * 2
+          ),
+          failed: false,
+        };
+
+        const fresh$ = combineLatest([
+          this.loadFreshModePage$(
+            primaryMode,
+            excludedKeys,
+            excludeOwnerUid,
+            null,
+            MAX_PAGES_PER_MODE
+          ),
+          this.loadFreshModePage$(
+            secondaryMode,
+            excludedKeys,
+            excludeOwnerUid,
+            null,
+            MAX_PAGES_PER_MODE
+          ),
+        ]).pipe(
+          map(([primaryFresh, secondaryFresh]): CandidateSourceResult => ({
+            items: this.mergeCandidates(
+              primaryFresh ?? primaryCached,
+              secondaryFresh ?? secondaryCached,
+              excludedKeys,
+              MAX_CONTINUATION_LIMIT * 2
+            ),
+            failed: primaryFresh === null || secondaryFresh === null,
+          }))
+        );
+
+        return cachedResult.items.length
+          ? concat(of(cachedResult), fresh$)
+          : fresh$;
+      })
     );
   }
 
@@ -200,68 +239,6 @@ export class PublicVideoContinuationService {
       })),
       catchError(() => of({ items: [], failed: true }))
     );
-  }
-
-  private loadModeCandidates$(
-    mode: TPublicVideoRankingMode,
-    excludedKeys: ReadonlySet<string>,
-    excludeOwnerUid: string
-  ): Observable<ModeCandidateResult> {
-    const kind = mode === 'latest' ? 'latest-videos' : 'top-videos';
-
-    return this.snapshots.read$(kind).pipe(
-      catchError(() => of([] as IPublicVideoItem[])),
-      switchMap((cachedItems) => {
-        const cached = this.filterModeItems(
-          cachedItems,
-          excludedKeys,
-          excludeOwnerUid
-        );
-
-        const fresh$ = this.loadFreshModePage$(
-          mode,
-          excludedKeys,
-          excludeOwnerUid,
-          null,
-          MAX_PAGES_PER_MODE
-        ).pipe(
-          map((fresh): ModeCandidateResult =>
-            fresh === null
-              ? {
-                items: cached,
-                failed: true,
-              }
-              : {
-                items: fresh,
-                failed: false,
-              }
-          )
-        );
-
-        return cached.length
-          ? concat(
-            of({
-              items: cached,
-              failed: false,
-            } as ModeCandidateResult),
-            fresh$
-          )
-          : fresh$;
-      })
-    );
-  }
-
-  private filterModeItems(
-    items: readonly IPublicVideoItem[],
-    excludedKeys: ReadonlySet<string>,
-    excludeOwnerUid: string
-  ): IPublicVideoItem[] {
-    return items.filter((item) => {
-      const key = this.videoKey(item);
-      return !!key &&
-        !excludedKeys.has(key) &&
-        (!excludeOwnerUid || item.ownerUid !== excludeOwnerUid);
-    });
   }
 
   private loadFreshModePage$(
