@@ -14,6 +14,7 @@ import {
 
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 import {
   PublicPhotoDiscoveryFeedService,
   PublicPhotoDiscoveryFeedState,
@@ -54,6 +55,7 @@ interface LatestPhotosViewModel extends PublicPhotoDiscoveryFeedState {
 export class LatestPublicPhotosComponent {
   private readonly discovery = inject(PublicPhotoDiscoveryFeedService);
   private readonly errorNotifier = inject(ErrorNotificationService);
+  private readonly mediaError = inject(MediaApplicationErrorService);
   private readonly network = inject(NetworkStatusService);
   private readonly photoViewer = inject(PublicPhotoViewerLauncherService);
   private readonly promotion = inject(PhotoPromotionPlacementService);
@@ -139,10 +141,11 @@ export class LatestPublicPhotosComponent {
             source: 'latest',
           });
         }),
-        catchError(() => {
-          this.errorNotifier.showError(
-            'Não foi possível abrir esta foto recente agora.'
-          );
+        catchError((error) => {
+          this.mediaError.report(error, {
+            operation: 'latestPublicPhotos.openPhoto',
+            reasonHint: 'photo_discovery_load_failed',
+          });
           return EMPTY;
         })
       )
