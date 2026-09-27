@@ -235,7 +235,7 @@
         }
       },
       "chartPlotType": "LINE",
-      "alertStrategy": "baseline_only",
+      "alertStrategy": "distribution_percentile_95",
       "valuePath": "jsonPayload.calibrationObservation.value",
       "resourceType": "cloud_run_revision"
     }
