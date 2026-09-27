@@ -32,6 +32,12 @@ if (storageRules.includes("contentType.matches('video/.*')")) {
     '[video-upload-reservation-boundary] Storage voltou a aceitar MIME genérico de vídeo.'
   );
 }
+if (storageRules.includes('500 * 1024 * 1024') || storageRules.includes('150 * 1024 * 1024')) {
+  throw new Error(
+    '[video-upload-reservation-boundary] Storage não deve duplicar o limite canônico de bytes.'
+  );
+}
+
 for (const fragment of [
   'mediaVideoReservationId',
   'media_video_upload_reservations',
@@ -39,6 +45,7 @@ for (const fragment of [
   'hasActiveVideoPosterReservation',
   "request.resource.contentType == 'video/mp4'",
   "request.resource.contentType == 'video/mxf'",
+  'videoUploadReservation().videoSizeBytes == request.resource.size',
 ]) {
   requireIncludes(storageRules, fragment, 'storage reservation drift');
 }
