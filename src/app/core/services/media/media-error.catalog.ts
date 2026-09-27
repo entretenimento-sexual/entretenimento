@@ -3,8 +3,7 @@ import type {
   ApplicationErrorPresentationMap,
 } from 'src/app/core/services/error-handler/application-error-presentation.model';
 
-export const MEDIA_ERROR_MESSAGES: Readonly<Record<string, string>> =
-  Object.freeze({
+export const MEDIA_ERROR_MESSAGES = Object.freeze({
     ACCOUNT_UNAVAILABLE:
       'Esta conta não pode acessar conteúdo de mídia no momento.',
     TERMS_REQUIRED:
@@ -94,9 +93,12 @@ export const MEDIA_ERROR_MESSAGES: Readonly<Record<string, string>> =
       'Não foi possível concluir a publicação da mídia.',
     media_access_temporarily_unavailable:
       'A mídia foi carregada, mas o acesso está temporariamente indisponível.',
-  });
+  } as const);
 
-export const MEDIA_ERROR_PRESENTATIONS: ApplicationErrorPresentationMap =
+export type MediaErrorReason = keyof typeof MEDIA_ERROR_MESSAGES;
+
+export const MEDIA_ERROR_PRESENTATIONS:
+  Readonly<Record<MediaErrorReason, ApplicationErrorPresentation>> =
   Object.freeze({
     ACCOUNT_UNAVAILABLE: {
       surface: 'modal',
@@ -355,8 +357,6 @@ export const MEDIA_ERROR_PRESENTATIONS: ApplicationErrorPresentationMap =
       severity: 'warning',
     },
   });
-
-export type MediaErrorReason = keyof typeof MEDIA_ERROR_MESSAGES;
 
 export function resolveMediaErrorMessage(
   reason: string | null | undefined
