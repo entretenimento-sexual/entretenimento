@@ -224,9 +224,6 @@ export class CommunityAdminTimelineComponent {
     if (item.eventType === 'content_removed') {
       return `${actor} removeu ${this.targetLabel(item.details.target)}.`;
     }
-    if (item.eventType === 'topic_moderated') {
-      return `${actor} ${this.topicActionLabel(item.details.action)} um tópico.`;
-    }
     if (item.eventType === 'official_status_changed') {
       return `O vínculo oficial foi atualizado para ${this.statusLabel(
         item.details.nextStatus
@@ -274,17 +271,9 @@ export class CommunityAdminTimelineComponent {
   ): string {
     if (target === 'comment') return 'um comentário';
     if (target === 'reply') return 'uma resposta';
-    if (target === 'topic') return 'um tópico';
     return 'uma publicação';
   }
 
-  private topicActionLabel(
-    action: CommunityAdminTimelineItem['details']['action']
-  ): string {
-    if (action === 'locked') return 'bloqueou';
-    if (action === 'unlocked') return 'desbloqueou';
-    return 'removeu';
-  }
 
   private statusLabel(status: string | null | undefined): string {
     const labels: Readonly<Record<string, string>> = {

@@ -13,7 +13,6 @@ export type CommunityAdminTimelineSource =
   | 'settings'
   | 'highlight'
   | 'feed'
-  | 'topic'
   | 'official'
   | 'official_association'
   | 'lifecycle';
@@ -38,7 +37,6 @@ export type CommunityAdminTimelineEventType =
   | 'settings_changed'
   | 'highlight_changed'
   | 'content_removed'
-  | 'topic_moderated'
   | 'official_status_changed'
   | 'lifecycle_changed';
 
@@ -52,7 +50,7 @@ export interface CommunityAdminTimelineDetails {
   previousRole?: CommunityAdminTimelineRole | null;
   nextRole?: CommunityAdminTimelineRole | null;
   changedFields?: readonly string[];
-  target?: 'post' | 'comment' | 'reply' | 'topic';
+  target?: 'post' | 'comment' | 'reply';
   action?: 'locked' | 'unlocked' | 'removed' | 'pinned' | 'unpinned';
   previousStatus?: string | null;
   nextStatus?: string | null;
@@ -362,36 +360,6 @@ function feedProjection(
   };
 }
 
-function topicProjection(
-  auditId: string,
-  raw: Record<string, unknown>
-): CommunityAdminTimelineProjection | null {
-  const base = baseProjection('topic', auditId, raw);
-  const actorData = actor(raw);
-  const rawAction = String(raw['action'] ?? '');
-
-  if (!base || !actorData.actorUid) return null;
-
-  const action =
-    rawAction === 'community-topic-locked'
-      ? 'locked'
-      : rawAction === 'community-topic-unlocked'
-        ? 'unlocked'
-        : rawAction === 'community-topic-removed'
-          ? 'removed'
-          : null;
-
-  if (!action) return null;
-
-  return {
-    ...base,
-    ...actorData,
-    category: 'moderation',
-    eventType: 'topic_moderated',
-    subjectUid: null,
-    details: { target: 'topic', action },
-  };
-}
 
 function officialProjection(
   source: 'official' | 'official_association',
@@ -468,9 +436,6 @@ export function buildCommunityAdminTimelineProjection(input: {
   }
   if (input.source === 'feed') {
     return feedProjection(input.auditId, raw);
-  }
-  if (input.source === 'topic') {
-    return topicProjection(input.auditId, raw);
   }
   if (
     input.source === 'official'

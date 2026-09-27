@@ -149,7 +149,6 @@ export {
   syncCommunityAdminTimelineSettingsAudit,
   syncCommunityAdminTimelineHighlightAudit,
   syncCommunityAdminTimelineFeedAudit,
-  syncCommunityAdminTimelineTopicAudit,
   syncCommunityAdminTimelineOfficialClaimAudit,
   syncCommunityAdminTimelineOfficialAssociationAudit,
   syncCommunityAdminTimelineLifecycleAudit,
