@@ -6,10 +6,15 @@ import {
   IPublicPhotoItem,
   IPublicPhotoProjection,
 } from 'src/app/core/interfaces/media/i-public-photo-item';
+import {
+  IPublicVideoItem,
+  IPublicVideoProjection,
+} from 'src/app/core/interfaces/media/i-public-video-item';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CacheService } from 'src/app/core/services/general/cache/cache.service';
 import { PublicPhotoAccessService } from './public-photo-access.service';
 import { PublicMediaSnapshotService } from './public-media-snapshot.service';
+import { PublicVideoAccessService } from './public-video-access.service';
 
 describe('PublicMediaSnapshotService', () => {
   function setup(
@@ -29,6 +34,20 @@ describe('PublicMediaSnapshotService', () => {
                 ...projection,
                 url: `https://signed.example.test/${projection.id}`,
               }) as IPublicPhotoItem
+          )
+        )
+    );
+    const hydratePublicVideoPreviews$ = vi.fn(
+      (projections: readonly IPublicVideoProjection[]) =>
+        of(
+          projections.map(
+            (projection) =>
+              ({
+                ...projection,
+                url: null,
+                posterUrl: `https://signed.example.test/${projection.id}.webp`,
+                accessExpiresAt: 999_999,
+              }) as IPublicVideoItem
           )
         )
     );
@@ -57,6 +76,12 @@ describe('PublicMediaSnapshotService', () => {
             hydratePublicPhotoUrls$,
           },
         },
+        {
+          provide: PublicVideoAccessService,
+          useValue: {
+            hydratePublicVideoPreviews$,
+          },
+        },
       ],
     });
 
@@ -70,6 +95,7 @@ describe('PublicMediaSnapshotService', () => {
       set,
       deleteCache,
       hydratePublicPhotoUrls$,
+      hydratePublicVideoPreviews$,
     };
   }
 
@@ -109,6 +135,45 @@ describe('PublicMediaSnapshotService', () => {
     expect(options).toEqual({ persist: true });
   });
 
+  it('rehidrata preview de vídeo sem restaurar playback persistido', async () => {
+    const cached = [videoProjection('video-1', 'owner-1')];
+    const { service, get, hydratePublicVideoPreviews$ } = setup(cached);
+
+    const items = await firstValueFrom(service.read$('top-videos'));
+
+    expect(get).toHaveBeenCalledWith(
+      'media:public:snapshot:uid:viewer-1:top-videos'
+    );
+    expect(hydratePublicVideoPreviews$).toHaveBeenCalledWith(cached);
+    expect(items).toHaveLength(1);
+    expect(items[0]?.url).toBeNull();
+    expect(items[0]?.posterUrl).toContain('video-1.webp');
+  });
+
+  it('remove poster, playback e tokens temporários antes de persistir vídeo', () => {
+    const { service, set } = setup();
+    const source = {
+      ...videoProjection('video-1', 'owner-1'),
+      url: 'https://signed.example.test/playback-token',
+      posterUrl: 'https://signed.example.test/poster-token',
+      accessExpiresAt: 123,
+      playbackToken: 'secret',
+      retentionToken: 'secret-retention',
+    } as unknown as IPublicVideoItem;
+
+    service.write('latest-videos', [source]);
+
+    expect(set).toHaveBeenCalledTimes(1);
+    const [, persisted] = set.mock.calls[0];
+    const item = (persisted as any[])[0];
+
+    expect(item).not.toHaveProperty('url');
+    expect(item).not.toHaveProperty('posterUrl');
+    expect(item).not.toHaveProperty('accessExpiresAt');
+    expect(item).not.toHaveProperty('playbackToken');
+    expect(item).not.toHaveProperty('retentionToken');
+  });
+
   it('separa snapshots orgânicos persistentes por UID e limpa a sessão anterior', async () => {
     const { service, uid$, get, deleteCache } = setup([]);
 
@@ -124,6 +189,12 @@ describe('PublicMediaSnapshotService', () => {
     );
     expect(deleteCache).toHaveBeenCalledWith(
       'media:public:snapshot:uid:viewer-1:top-photos'
+    );
+    expect(deleteCache).toHaveBeenCalledWith(
+      'media:public:snapshot:uid:viewer-1:latest-videos'
+    );
+    expect(deleteCache).toHaveBeenCalledWith(
+      'media:public:snapshot:uid:viewer-1:top-videos'
     );
 
     await firstValueFrom(service.read$('top-photos'));
@@ -187,5 +258,55 @@ function projection(
     visibility: 'PUBLIC',
     orderIndex: 0,
     moderationStatus: 'APPROVED',
+  };
+}
+
+
+function videoProjection(
+  id: string,
+  ownerUid: string
+): IPublicVideoProjection {
+  return {
+    id,
+    ownerUid,
+    mediaType: 'VIDEO',
+    assetAccess: 'SIGNED_URL',
+    posterAccess: 'SIGNED_URL',
+    title: 'Vídeo público',
+    description: null,
+    alt: 'Vídeo público',
+    mimeType: 'video/mp4',
+    sizeBytes: 1024,
+    durationMs: 10000,
+    createdAt: 1,
+    publishedAt: 1,
+    updatedAt: 1,
+    lastViewedAt: null,
+    visibility: 'PUBLIC',
+    orderIndex: 0,
+    moderationStatus: 'APPROVED',
+    moderationReason: null,
+    reactionsEnabled: true,
+    commentsEnabled: true,
+    ratingsEnabled: true,
+    viewsCount: 0,
+    uniqueViewersCount: 0,
+    reactionsCount: 0,
+    commentsCount: 0,
+    ratingsCount: 0,
+    ratingAverage: 0,
+    reportsCount: 0,
+    openReportsCount: 0,
+    confirmedReportsCount: 0,
+    viewScore: 0,
+    engagementScore: 0,
+    score: 0,
+    scoreBreakdown: {
+      rankingScore: 0,
+      qualityScore: 0,
+      engagementScore: 0,
+      safetyScore: 100,
+    },
+    owner: null,
   };
 }
