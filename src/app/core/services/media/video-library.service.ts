@@ -35,7 +35,6 @@ import {
   VideoProcessingStatus,
 } from 'src/app/core/interfaces/media/i-video-item';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { MediaApplicationErrorService } from './media-application-error.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
@@ -94,7 +93,6 @@ export class VideoLibraryService {
   private readonly firestore = inject(Firestore);
   private readonly functions = inject(Functions);
   private readonly firestoreCtx = inject(FirestoreContextService);
-  private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly globalErrorHandler = inject(MediaApplicationErrorService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
   private readonly accessWarningOwners = new Set<string>();
@@ -437,10 +435,16 @@ export class VideoLibraryService {
     }
 
     this.accessWarningOwners.add(ownerUid);
-    this.errorNotifier.showWarning(
-      unavailableCount === 1
-        ? 'O vídeo foi carregado, mas a reprodução está temporariamente indisponível.'
-        : 'Seus vídeos foram carregados, mas algumas reproduções estão temporariamente indisponíveis.'
+    this.globalErrorHandler.report(
+      new Error('Acesso temporário de vídeo indisponível.'),
+      {
+        operation: 'videoLibrary.temporaryAccess',
+        reasonHint: 'media_access_temporarily_unavailable',
+        metadata: {
+          hasOwnerUid: !!ownerUid,
+          unavailableCount,
+        },
+      }
     );
   }
 
