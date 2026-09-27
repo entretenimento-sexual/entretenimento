@@ -7,6 +7,8 @@
 // - organic ranking contracts do not carry billing/boost fields;
 // - sponsored photo state is not persisted in SWR snapshots;
 // - official verification and paid promotion remain independent;
+// - Promotion/Boost owns the canonical commercial contract shared by Community
+//   Boost and Photo Promotion;
 // - legacy Community Boost storage naming is quarantined behind one adapter.
 // -----------------------------------------------------------------------------
 
@@ -183,11 +185,55 @@ for (const fragment of [
   'normalizePromotionBoostBillingConfig',
   'normalizePromotionBoostAdvertiserAccount',
   'PROMOTION_BOOST_ADVERTISER_ACCOUNT_DOCUMENT',
+  "from './promotion-boost.policy'",
 ]) {
   requireIncludes(
     commercialAuthority,
     fragment,
     'canonical Promotion/Boost commercial authority drift'
+  );
+}
+forbidIncludes(
+  commercialAuthority,
+  '../community-boost/',
+  'generic Promotion/Boost authority must not depend on Community Boost policy'
+);
+
+const promotionPolicy = read(
+  'functions/src/promotion-boost/promotion-boost.policy.ts'
+);
+for (const fragment of [
+  'export interface PromotionBoostBillingConfig',
+  'export interface PromotionBoostAdvertiserAccount',
+  'normalizePromotionBoostBillingConfig',
+  'normalizePromotionBoostAdvertiserAccount',
+  'PROMOTION_BOOST_BILLING_BASIS',
+  'PROMOTION_BOOST_MAX_FREQUENCY_CAP_PER_DAY',
+]) {
+  requireIncludes(
+    promotionPolicy,
+    fragment,
+    'canonical Promotion/Boost commercial policy drift'
+  );
+}
+
+const communityBoostPolicy = read(
+  'functions/src/community-boost/community-boost.policy.ts'
+);
+for (const fragment of [
+  "from '../promotion-boost/promotion-boost.policy'",
+  'PROMOTION_BOOST_DISCLOSURE',
+  'PROMOTION_BOOST_CURRENCY',
+  'PROMOTION_BOOST_BILLING_BASIS',
+  'PROMOTION_BOOST_MAX_FREQUENCY_CAP_PER_DAY',
+  'normalizePromotionBoostBillingConfig',
+  'normalizePromotionBoostAdvertiserAccount',
+  'resolvePromotionBoostDay',
+]) {
+  requireIncludes(
+    communityBoostPolicy,
+    fragment,
+    'Community Boost must consume canonical Promotion/Boost invariants'
   );
 }
 
@@ -196,12 +242,7 @@ const promotionBackendDir = path.join(
   'functions/src/promotion-boost'
 );
 for (const fileName of fs.readdirSync(promotionBackendDir)) {
-  if (
-    !fileName.endsWith('.ts')
-    || fileName === 'promotion-boost-commercial-authority.ts'
-  ) {
-    continue;
-  }
+  if (!fileName.endsWith('.ts')) continue;
 
   const relativePath =
     'functions/src/promotion-boost/' + fileName;
@@ -211,11 +252,14 @@ for (const fileName of fs.readdirSync(promotionBackendDir)) {
     '../community-boost/',
     relativePath + ' must not import Community Boost directly'
   );
-  forbidIncludes(
-    source,
-    'community_boost_',
-    relativePath + ' must not know legacy Community Boost storage names'
-  );
+
+  if (fileName !== 'promotion-boost-commercial-authority.ts') {
+    forbidIncludes(
+      source,
+      'community_boost_',
+      relativePath + ' must not know legacy Community Boost storage names'
+    );
+  }
 }
 
 const promotionSelection = read(
@@ -234,6 +278,39 @@ for (const fragment of [
     promotionSelection,
     fragment,
     'photo promotion billing/frequency/ledger invariant drift'
+  );
+}
+
+const communityBoostSelection = read(
+  'functions/src/community-boost/community-boost-selection.service.ts'
+);
+for (const fragment of [
+  "billingReason: 'served_placement'",
+  'community_boost_frequency_caps',
+  "collection('billing_ledger')",
+  'ledgerOwnershipTransferred: false',
+  'rateCpmCentsSnapshot',
+]) {
+  requireIncludes(
+    communityBoostSelection,
+    fragment,
+    'Community Boost billing/frequency/ledger invariant drift'
+  );
+}
+
+const photoPromotionEvent = read(
+  'functions/src/promotion-boost/record-photo-promotion-event.handler.ts'
+);
+for (const forbidden of [
+  "collection('billing_ledger')",
+  'spentMilliCents',
+  'dailySpentMilliCents',
+  'rateCpmCentsSnapshot',
+]) {
+  forbidIncludes(
+    photoPromotionEvent,
+    forbidden,
+    'client photo promotion events must remain financially neutral'
   );
 }
 
@@ -293,5 +370,5 @@ for (const forbidden of [
 }
 
 console.log(
-  '[photo-promotion-boundary] OK: paid placement is backend-only, capped, ledgered, lifecycle-aware, commercially decoupled and isolated from organic score/ranking/snapshots.'
+  '[photo-promotion-boundary] OK: Promotion/Boost is canonical across Community and Photo, paid placement is backend-only, capped, ledgered, lifecycle-aware and isolated from organic score/ranking/snapshots.'
 );
