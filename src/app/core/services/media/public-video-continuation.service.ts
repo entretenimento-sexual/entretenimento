@@ -218,31 +218,35 @@ export class PublicVideoContinuationService {
           excludeOwnerUid
         );
 
-        return concat(
-          of({
-            items: cached,
-            failed: false,
-          } as ModeCandidateResult),
-          this.loadFreshModePage$(
-            mode,
-            excludedKeys,
-            excludeOwnerUid,
-            null,
-            MAX_PAGES_PER_MODE
-          ).pipe(
-            map((fresh): ModeCandidateResult =>
-              fresh === null
-                ? {
-                  items: cached,
-                  failed: true,
-                }
-                : {
-                  items: fresh,
-                  failed: false,
-                }
-            )
+        const fresh$ = this.loadFreshModePage$(
+          mode,
+          excludedKeys,
+          excludeOwnerUid,
+          null,
+          MAX_PAGES_PER_MODE
+        ).pipe(
+          map((fresh): ModeCandidateResult =>
+            fresh === null
+              ? {
+                items: cached,
+                failed: true,
+              }
+              : {
+                items: fresh,
+                failed: false,
+              }
           )
         );
+
+        return cached.length
+          ? concat(
+            of({
+              items: cached,
+              failed: false,
+            } as ModeCandidateResult),
+            fresh$
+          )
+          : fresh$;
       })
     );
   }
