@@ -76,7 +76,6 @@ const unseenVideo = {
 
 describe('PrincipalFeedService / novidade por view recente', () => {
   const mediaQuery = {
-    getLatestPublicPhotos$: vi.fn(() => of([recentPhoto])),
     getRecentPublicPhotosByOwners$: vi.fn(() => of([])),
     getRecentPublicVideoPreviewsByOwners$: vi.fn(() => of([])),
   };
