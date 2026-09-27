@@ -14,6 +14,8 @@ import {
   DestroyRef,
   ElementRef,
   HostListener,
+  OnChanges,
+  SimpleChanges,
   effect,
   inject,
   input,
@@ -114,7 +116,7 @@ const MAX_UNSEEN_NEW_POSTS = 99;
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class CommunityFeedComponent {
+export class CommunityFeedComponent implements OnChanges {
   private readonly timeTicker = inject(CommunityFeedTimeTickerService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly composer = inject(CommunityFeedComposerFacade);
@@ -385,6 +387,18 @@ export class CommunityFeedComponent {
         element.focus({ preventScroll: true });
         this.postHighlightRequests$.next(navigation.postId);
       });
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (!changes['communityId'] && !changes['view']) return;
+
+    // Input scope changes must reset the bounded DOM window synchronously.
+    // The Observable scope reset remains as a defensive boundary, but relying
+    // on it alone permits one intermediate render with the previous offset.
+    this.renderWindow.reset();
+    this.pendingRealtimeFollowIntent = null;
+    this.lastObservedLatestPostId = null;
+    this.clearUnseenNewPosts();
   }
 
   canCreatePost(): boolean {
