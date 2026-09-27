@@ -162,9 +162,9 @@ export function evaluateCommunityBusinessOfficialCalibration(
       < COMMUNITY_CALIBRATION_REQUIRED_EVIDENCE
         .operationalCostBaselineMinimumDays
     || memberCapacityUtilizationSamples
-      < 100
+      < COMMUNITY_CALIBRATION_REQUIRED_EVIDENCE.minimumRuntimeSamplesPerMetric
     || ownedCommunityUtilizationSamples
-      < 100
+      < COMMUNITY_CALIBRATION_REQUIRED_EVIDENCE.minimumRuntimeSamplesPerMetric
     || memberCapacityUtilizationP95 === null
     || ownedCommunityUtilizationP95 === null
   ) {
