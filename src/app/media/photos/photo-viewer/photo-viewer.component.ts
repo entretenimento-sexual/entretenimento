@@ -57,6 +57,7 @@ import {
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
+import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 import { MediaPhotoCommentsService } from 'src/app/core/services/media/media-photo-comments.service';
 import { MediaPublicationService } from 'src/app/core/services/media/media-publication.service';
 import { MediaReactionsService } from 'src/app/core/services/media/media-reactions.service';
@@ -141,6 +142,7 @@ const CONTINUATION_BATCH_SIZE = 8;
 export class PhotoViewerComponent {
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly mediaPublication = inject(MediaPublicationService);
+  private readonly mediaError = inject(MediaApplicationErrorService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
   private readonly publicPhotoContinuation = inject(PublicPhotoContinuationService);
   private readonly destroyRef = inject(DestroyRef);
@@ -306,8 +308,11 @@ export class PhotoViewerComponent {
         photoId
       );
     }),
-    catchError(() => {
-      this.errorNotifier.showError('Erro ao carregar os comentários.');
+    catchError((error) => {
+      this.mediaError.report(error, {
+        operation: 'photoViewer.comments',
+        reasonHint: 'photo_comments_load_failed',
+      });
       return of([] as IPhotoComment[]);
     }),
     shareReplay({ bufferSize: 1, refCount: true })
@@ -453,8 +458,11 @@ export class PhotoViewerComponent {
             viewerUid
           );
         }),
-        catchError(() => {
-          this.errorNotifier.showError('Erro ao atualizar reação.');
+        catchError((error) => {
+          this.mediaError.report(error, {
+            operation: 'photoViewer.toggleLike',
+            reasonHint: 'photo_reaction_failed',
+          });
           return EMPTY;
         }),
         finalize(() => this.togglingLikeSubject.next(false))
@@ -522,8 +530,11 @@ export class PhotoViewerComponent {
             content: safeComment,
           });
         }),
-        catchError(() => {
-          this.errorNotifier.showError('Erro ao adicionar comentário.');
+        catchError((error) => {
+          this.mediaError.report(error, {
+            operation: 'photoViewer.submitComment',
+            reasonHint: 'photo_comment_failed',
+          });
           return of(null);
         }),
         finalize(() => this.submittingCommentSubject.next(false))
@@ -610,8 +621,11 @@ export class PhotoViewerComponent {
             content: safeReply,
           });
         }),
-        catchError(() => {
-          this.errorNotifier.showError('Erro ao adicionar resposta.');
+        catchError((error) => {
+          this.mediaError.report(error, {
+            operation: 'photoViewer.submitReply',
+            reasonHint: 'photo_reply_failed',
+          });
           return of(null);
         }),
         finalize(() => this.submittingReplySubject.next(false))
@@ -864,8 +878,11 @@ export class PhotoViewerComponent {
             comment.id
           );
         }),
-        catchError(() => {
-          this.errorNotifier.showError('Erro ao moderar comentário.');
+        catchError((error) => {
+          this.mediaError.report(error, {
+            operation: 'photoViewer.moderateComment',
+            reasonHint: 'photo_comment_moderation_failed',
+          });
           return of(null);
         }),
         finalize(() => this.moderatingCommentIdSubject.next(null))
