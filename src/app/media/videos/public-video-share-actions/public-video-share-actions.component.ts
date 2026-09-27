@@ -10,6 +10,7 @@ import { MatDialog } from '@angular/material/dialog';
 
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 import { PublicVideoShareService } from 'src/app/core/services/media/public-video-share.service';
 
 @Component({
@@ -25,6 +26,7 @@ export class PublicVideoShareActionsComponent {
   private readonly dialog = inject(MatDialog);
   private readonly publicVideoShare = inject(PublicVideoShareService);
   private readonly errorNotification = inject(ErrorNotificationService);
+  private readonly mediaError = inject(MediaApplicationErrorService);
 
   readonly menuOpen = signal(false);
   readonly sharingExternally = signal(false);
@@ -103,10 +105,12 @@ export class PublicVideoShareActionsComponent {
         maxHeight: '90dvh',
         panelClass: 'public-video-chat-share-dialog',
       });
-    } catch {
-      this.errorNotification.showError(
-        'Não foi possível abrir suas conversas agora.'
-      );
+    } catch (error) {
+      this.mediaError.report(error, {
+        operation: 'publicVideoShareActions.openConversationPicker',
+        reasonHint: 'media_share_dialog_failed',
+        metadata: { scope: 'PublicVideoShareActionsComponent' },
+      });
     } finally {
       this.openingConversationPicker.set(false);
     }
