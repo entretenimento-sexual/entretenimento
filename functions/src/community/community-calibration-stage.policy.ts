@@ -2,35 +2,45 @@
 // -----------------------------------------------------------------------------
 // COMMUNITY CALIBRATION STAGE
 // -----------------------------------------------------------------------------
-// Gate transversal para impedir calibração por intuição.
+// Compatibilidade do domínio Community com o estágio canônico transversal.
 //
-// OBSERVE_ONLY:
-// - v3 continua shadow-only;
-// - Business/Official e Boost podem calcular snapshots observacionais;
-// - snapshots NÃO autorizam alteração de preço, capacidade ou monetização;
-// - thresholds operacionais permanecem congelados.
-//
-// A saída deste estágio exige decisão explícita após:
-// 1. janela v3 de produção cumprir os ciclos mínimos;
-// 2. baseline operacional real de produção estar qualificado;
-// 3. custos financeiros realizados estarem disponíveis quando aplicável.
+// A fonte de verdade agora vive em shared/calibration para que ranking/hot score,
+// limites comerciais, fan-out de derivados, cadência de notificações e pricing
+// obedeçam à mesma regra: observar dados reais primeiro; calibrar somente após
+// revisão explícita.
 // -----------------------------------------------------------------------------
 
-export const COMMUNITY_CALIBRATION_STAGE = 'OBSERVE_ONLY' as const;
+import {
+  PRODUCT_CALIBRATION_REQUIRED_EVIDENCE,
+  PRODUCT_CALIBRATION_STAGE,
+  isProductCalibrationChangeAllowed,
+  type ProductCalibrationStage,
+} from '../shared/calibration/product-calibration-stage.policy';
 
-export type CommunityCalibrationStage =
-  | 'OBSERVE_ONLY'
-  | 'CALIBRATION_ALLOWED';
+export const COMMUNITY_CALIBRATION_STAGE = PRODUCT_CALIBRATION_STAGE;
+
+export type CommunityCalibrationStage = ProductCalibrationStage;
 
 export const COMMUNITY_CALIBRATION_REQUIRED_EVIDENCE = Object.freeze({
-  rankingV3ObservedCycles: 7,
-  rankingV3ConsecutivePassingCycles: 3,
-  operationalCostBaselineMinimumDays: 14,
+  rankingV3ObservedCycles:
+    PRODUCT_CALIBRATION_REQUIRED_EVIDENCE.rankingObservedCycles,
+  rankingV3ConsecutivePassingCycles:
+    PRODUCT_CALIBRATION_REQUIRED_EVIDENCE.rankingConsecutivePassingCycles,
+  operationalCostBaselineMinimumDays:
+    PRODUCT_CALIBRATION_REQUIRED_EVIDENCE.minimumProductionWindowDays,
   requiresProductionScheduledRankingEvidence: true,
-  requiresProductionOperationalCostBaseline: true,
-  requiresFinancialActualsForCommercialCalibration: true,
+  requiresProductionOperationalCostBaseline:
+    PRODUCT_CALIBRATION_REQUIRED_EVIDENCE.requiresProductionRuntimeEvidence,
+  requiresFinancialActualsForCommercialCalibration:
+    PRODUCT_CALIBRATION_REQUIRED_EVIDENCE.requiresFinancialActualsForPricing,
+  requiresObservedCommercialUtilization:
+    PRODUCT_CALIBRATION_REQUIRED_EVIDENCE.requiresObservedCommercialUtilization,
+  requiresObservedDerivedFanout:
+    PRODUCT_CALIBRATION_REQUIRED_EVIDENCE.requiresObservedDerivedFanout,
+  requiresObservedNotificationGrouping:
+    PRODUCT_CALIBRATION_REQUIRED_EVIDENCE.requiresObservedNotificationGrouping,
 } as const);
 
 export function isCommunityCalibrationChangeAllowed(): boolean {
-  return String(COMMUNITY_CALIBRATION_STAGE) === 'CALIBRATION_ALLOWED';
+  return isProductCalibrationChangeAllowed();
 }
