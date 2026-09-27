@@ -11,6 +11,7 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
 import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
 import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
 import { PublicMediaRecentViewService } from 'src/app/core/services/media/public-media-recent-view.service';
+import { PublicPhotoRankingQueryService } from 'src/app/core/services/media/public-photo-ranking-query.service';
 import { PublicVideoRankingQueryService } from 'src/app/core/services/media/public-video-ranking-query.service';
 import { CompatibleProfileCandidatesService } from 'src/app/dashboard/discovery/application/compatible-profile-candidates.service';
 import { PrincipalFeedService } from './principal-feed.service';
@@ -81,6 +82,9 @@ describe('PrincipalFeedService', () => {
   const recentViews = {
     resolveRecentViewedKeys$: vi.fn(() => of([])),
   };
+  const photoRanking = {
+    loadPage$: vi.fn(),
+  };
   const videoRanking = {
     loadPage$: vi.fn(),
   };
@@ -102,7 +106,14 @@ describe('PrincipalFeedService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mediaQuery.getLatestPublicPhotos$.mockReturnValue(of([photo]));
+    photoRanking.loadPage$.mockReturnValue(of({
+      mode: 'latest',
+      source: 'latest',
+      items: [photo],
+      nextCursor: null,
+      hasMore: false,
+      loadedAt: Date.now(),
+    }));
     mediaQuery.getRecentPublicPhotosByOwners$.mockReturnValue(of([]));
     mediaQuery.getRecentPublicVideoPreviewsByOwners$.mockReturnValue(of([]));
     recentViews.resolveRecentViewedKeys$.mockReturnValue(of([]));
@@ -137,6 +148,7 @@ describe('PrincipalFeedService', () => {
         },
         { provide: PublicMediaRecentViewService, useValue: recentViews },
         { provide: MediaPublicQueryService, useValue: mediaQuery },
+        { provide: PublicPhotoRankingQueryService, useValue: photoRanking },
         { provide: PublicVideoRankingQueryService, useValue: videoRanking },
         { provide: CommunityPreviewRepository, useValue: communityRepository },
         { provide: CommunityFeedRepository, useValue: communityFeedRepository },
@@ -245,7 +257,7 @@ describe('PrincipalFeedService', () => {
   });
 
   it('mantém vídeos disponíveis quando a fonte de fotos falha', async () => {
-    mediaQuery.getLatestPublicPhotos$.mockReturnValue(
+    photoRanking.loadPage$.mockReturnValue(
       throwError(() => new Error('photo query failed'))
     );
     const service = TestBed.inject(PrincipalFeedService);
@@ -263,7 +275,7 @@ describe('PrincipalFeedService', () => {
   });
 
   it('entra em erro apenas quando todas as fontes-base habilitadas falham', async () => {
-    mediaQuery.getLatestPublicPhotos$.mockReturnValue(
+    photoRanking.loadPage$.mockReturnValue(
       throwError(() => new Error('photo query failed'))
     );
     videoRanking.loadPage$.mockReturnValue(
