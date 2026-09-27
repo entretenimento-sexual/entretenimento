@@ -121,7 +121,6 @@ describe('buildExplorePersonalFeed', () => {
 
     const result = buildExplorePersonalFeed({
       personalPhotos: [repeated],
-      boostedPhotos: [repeated],
       mostViewedPhotos: [repeated],
       topPhotos: [repeated],
       latestPhotos: [repeated],
@@ -136,13 +135,10 @@ describe('buildExplorePersonalFeed', () => {
     const friend = photo('friend', 'friend-1', { publishedAt: 1 });
     const compatible = photo('compatible', 'compatible-1', {
       publishedAt: 10_000,
-      boostActive: true,
-      boostPriority: 999,
     });
 
     const result = buildExplorePersonalFeed({
       personalPhotos: [compatible, friend],
-      boostedPhotos: [compatible],
       mostViewedPhotos: [],
       topPhotos: [],
       latestPhotos: [],
@@ -161,7 +157,6 @@ describe('buildExplorePersonalFeed', () => {
 
     const result = buildExplorePersonalFeed({
       personalPhotos: [compatible],
-      boostedPhotos: [],
       mostViewedPhotos: [],
       topPhotos: [common],
       latestPhotos: [compatible],
@@ -179,7 +174,6 @@ describe('buildExplorePersonalFeed', () => {
 
     const result = buildExplorePersonalFeed({
       personalPhotos: [friend, compatible],
-      boostedPhotos: [unrelated],
       mostViewedPhotos: [],
       topPhotos: [],
       latestPhotos: [unrelated],
@@ -192,18 +186,15 @@ describe('buildExplorePersonalFeed', () => {
     expect(result.map((item) => item.id)).toEqual(['friend', 'compatible']);
   });
 
-  it('usa recência dentro do mesmo grupo antes de impulso e engajamento', () => {
+  it('usa recência dentro do mesmo grupo antes de engajamento', () => {
     const recent = photo('recent', 'friend-1', { publishedAt: 100 });
-    const oldBoosted = photo('old-boosted', 'friend-2', {
+    const olderEngaged = photo('older-engaged', 'friend-2', {
       publishedAt: 1,
-      boostActive: true,
-      boostPriority: 500,
       reactionsCount: 10_000,
     });
 
     const result = buildExplorePersonalFeed({
-      personalPhotos: [oldBoosted, recent],
-      boostedPhotos: [oldBoosted],
+      personalPhotos: [olderEngaged, recent],
       mostViewedPhotos: [],
       topPhotos: [],
       latestPhotos: [],
@@ -211,14 +202,13 @@ describe('buildExplorePersonalFeed', () => {
       friendUids: ['friend-1', 'friend-2'],
     });
 
-    expect(result.map((item) => item.id)).toEqual(['recent', 'old-boosted']);
+    expect(result.map((item) => item.id)).toEqual(['recent', 'older-engaged']);
   });
 
   it('prioriza diversidade antes de liberar a rodada seguinte do mesmo autor', () => {
     const result = buildExplorePersonalFeed(
       {
         personalPhotos: [],
-        boostedPhotos: [],
         mostViewedPhotos: [],
         topPhotos: [],
         latestPhotos: [
@@ -240,7 +230,6 @@ describe('buildExplorePersonalFeed', () => {
     const result = buildExplorePersonalFeed(
       {
         personalPhotos: [],
-        boostedPhotos: [],
         mostViewedPhotos: [],
         topPhotos: [],
         latestPhotos: [
