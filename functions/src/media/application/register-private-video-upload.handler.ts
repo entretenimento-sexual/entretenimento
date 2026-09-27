@@ -14,6 +14,10 @@ import {
   VIDEO_PUBLIC_PLAYBACK_MIME_TYPES,
 } from '../media-format.generated';
 import {
+  assertVideoUploadReservation,
+  consumeVideoUploadReservationBestEffort,
+} from './reserve-video-upload.handler';
+import {
   normalizeVideoPublicationSettings,
   type VideoPublicationSettingsInput,
 } from './video-publication-settings';
@@ -27,6 +31,7 @@ type PrivateUploadAssetKind = 'video' | 'poster';
 
 interface RegisterPrivateVideoUploadRequest
   extends VideoPublicationSettingsInput {
+  reservationId?: string;
   ownerUid?: string;
   videoId?: string;
   videoStoragePath?: string;
@@ -188,7 +193,10 @@ function validateCleanupPath(
     );
 }
 
-async function readRequiredVideoMetadata(storagePath: string): Promise<{
+async function readRequiredVideoMetadata(
+  storagePath: string,
+  expectedReservationId: string
+): Promise<{
   mimeType: string;
   sizeBytes: number;
 }> {
@@ -205,6 +213,16 @@ async function readRequiredVideoMetadata(storagePath: string): Promise<{
   const [metadata] = await file.getMetadata();
   const mimeType = normalizeMimeType(metadata.contentType);
   const sizeBytes = normalizePositiveInteger(metadata.size);
+  const reservationId = String(
+    metadata.metadata?.['mediaVideoReservationId'] ?? ''
+  ).trim();
+
+  if (reservationId !== expectedReservationId) {
+    throw new HttpsError(
+      'failed-precondition',
+      'O arquivo armazenado não corresponde à reserva deste upload.'
+    );
+  }
 
   if (!ALLOWED_VIDEO_TYPES.has(mimeType)) {
     throw new HttpsError(
@@ -223,7 +241,10 @@ async function readRequiredVideoMetadata(storagePath: string): Promise<{
   return { mimeType, sizeBytes };
 }
 
-async function validateOptionalPoster(storagePath: string | null): Promise<void> {
+async function validateOptionalPoster(
+  storagePath: string | null,
+  expectedReservationId: string
+): Promise<void> {
   if (!storagePath) {
     return;
   }
@@ -241,6 +262,16 @@ async function validateOptionalPoster(storagePath: string | null): Promise<void>
   const [metadata] = await file.getMetadata();
   const mimeType = normalizeMimeType(metadata.contentType);
   const sizeBytes = normalizePositiveInteger(metadata.size);
+  const reservationId = String(
+    metadata.metadata?.['mediaVideoReservationId'] ?? ''
+  ).trim();
+
+  if (reservationId !== expectedReservationId) {
+    throw new HttpsError(
+      'failed-precondition',
+      'A capa armazenada não corresponde à reserva deste upload.'
+    );
+  }
 
   if (!ALLOWED_POSTER_TYPES.has(mimeType)) {
     throw new HttpsError(
@@ -451,11 +482,12 @@ export const registerPrivateVideoUpload = onCall<
   { region: FUNCTIONS_REGION },
   async (request): Promise<RegisterPrivateVideoUploadResponse> => {
     const requesterUid = request.auth?.uid ?? null;
+    const reservationId = cleanId(request.data?.reservationId);
     const ownerUid = cleanId(request.data?.ownerUid);
     const videoId = cleanId(request.data?.videoId);
 
-    if (!ownerUid || !videoId) {
-      throw new HttpsError('invalid-argument', 'Vídeo inválido.');
+    if (!reservationId || !ownerUid || !videoId) {
+      throw new HttpsError('invalid-argument', 'Vídeo ou reserva inválidos.');
     }
 
     assertOwner(requesterUid, ownerUid);
@@ -519,13 +551,23 @@ export const registerPrivateVideoUpload = onCall<
 
     try {
       const [videoMetadata] = await Promise.all([
-        readRequiredVideoMetadata(videoStoragePath),
-        validateOptionalPoster(posterStoragePath),
+        readRequiredVideoMetadata(videoStoragePath, reservationId),
+        validateOptionalPoster(posterStoragePath, reservationId),
       ]);
       const requestedMimeType = normalizeMimeType(request.data?.mimeType);
       const requestedSizeBytes = normalizePositiveInteger(
         request.data?.sizeBytes
       );
+
+      await assertVideoUploadReservation({
+        reservationId,
+        ownerUid,
+        videoId,
+        videoStoragePath,
+        videoSizeBytes: videoMetadata.sizeBytes,
+        videoContentType: videoMetadata.mimeType,
+        posterStoragePath,
+      });
 
       if (
         requestedMimeType &&
@@ -625,6 +667,7 @@ export const registerPrivateVideoUpload = onCall<
       await clearCleanupJobsBestEffort(
         rollbackAssets.map((asset) => asset.storagePath)
       );
+      await consumeVideoUploadReservationBestEffort(reservationId);
 
       return {
         videoId,
