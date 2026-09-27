@@ -118,7 +118,7 @@ describe('Community × Local social-space boundary', () => {
 
   it('mantém capacidades no kernel comum sem reativar Room', () => {
     expect(getSocialSpaceDefinition('community').capabilities).toMatchObject({
-      topics: true,
+      topics: false,
       memberDirectory: true,
       memberSearch: true,
       managedLifecycle: true,
