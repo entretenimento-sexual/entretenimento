@@ -7,7 +7,10 @@ import {
   buildPromotionBoostCampaign,
   normalizePromotionBoostAdvertiserAccount,
   normalizePromotionBoostBillingConfig,
+  normalizePromotionBoostCampaign,
+  normalizePromotionBoostTargetType,
   promotionBoostCampaignEligible,
+  promotionBoostTargetAvailability,
 } from './promotion-boost.policy';
 
 const NOW = Date.UTC(2026, 8, 27, 12, 0, 0);
@@ -101,4 +104,72 @@ test('campanha de foto mantém billing, budget e frequency cap no domínio patro
     }),
     null
   );
+});
+
+
+test('vídeo pertence ao contrato Promotion/Boost, mas permanece indisponível comercialmente', () => {
+  assert.equal(normalizePromotionBoostTargetType('video'), 'video');
+  assert.deepEqual(
+    promotionBoostTargetAvailability('video'),
+    {
+      targetType: 'video',
+      contractSupported: true,
+      campaignCreationEnabled: false,
+      placementEnabled: false,
+      reason: 'observe_only_not_calibrated',
+    }
+  );
+
+  const videoCampaign = buildPromotionBoostCampaign({
+    campaignId: 'campaign_video_1',
+    targetType: 'video',
+    targetId: 'video_1',
+    targetOwnerUid: 'owner_1',
+    advertiserUid: 'advertiser_1',
+    budgetCents: 10_000,
+    dailyBudgetCents: 2_000,
+    startsAt: NOW,
+    endsAt: NOW + 7 * 24 * 60 * 60 * 1_000,
+    frequencyCapPerViewerPerDay: 3,
+    billingConfig: billingConfig(),
+    now: NOW,
+  });
+
+  assert.equal(videoCampaign, null);
+});
+
+test('campanha legada/futura de vídeo pode ser normalizada, mas nunca servida enquanto indisponível', () => {
+  const raw = {
+    policyVersion: 1,
+    campaignId: 'campaign_video_stored',
+    targetType: 'video',
+    targetId: 'video_1',
+    targetOwnerUid: 'owner_1',
+    advertiserUid: 'advertiser_1',
+    status: 'active',
+    budgetCents: 10_000,
+    dailyBudgetCents: null,
+    spentMilliCents: 0,
+    dailySpendDay: null,
+    dailySpentMilliCents: 0,
+    currency: PROMOTION_BOOST_CURRENCY,
+    billingBasis: PROMOTION_BOOST_BILLING_BASIS,
+    rateCpmCentsSnapshot: 250,
+    billingConfigVersion: 3,
+    startsAt: NOW,
+    endsAt: NOW + 7 * 24 * 60 * 60 * 1_000,
+    frequencyCapPerViewerPerDay: 3,
+    deliveredCount: 0,
+    qualifiedExposureCount: 0,
+    clickCount: 0,
+    createdAt: NOW,
+    updatedAt: NOW,
+    stoppedAt: null,
+    stoppedReason: null,
+  };
+
+  const normalized = normalizePromotionBoostCampaign(raw);
+  assert.ok(normalized);
+  assert.equal(normalized.targetType, 'video');
+  assert.equal(promotionBoostCampaignEligible(normalized, NOW), false);
 });
