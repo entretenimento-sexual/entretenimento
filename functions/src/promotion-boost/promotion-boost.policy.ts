@@ -28,12 +28,34 @@ export type PromotionBoostCampaignStatus =
   | 'completed'
   | 'canceled';
 
-export interface PromotionBoostBillingConfigSnapshot {
+export interface PromotionBoostBillingConfig {
+  readonly active: boolean;
   readonly version: number;
   readonly currency: typeof PROMOTION_BOOST_CURRENCY;
   readonly rateCpmCents: number;
   readonly minBudgetCents: number;
   readonly maxBudgetCents: number;
+  readonly updatedAt: number;
+  readonly updatedBy: string;
+}
+
+export type PromotionBoostBillingConfigSnapshot = Readonly<
+  Pick<
+    PromotionBoostBillingConfig,
+    'version' | 'currency' | 'rateCpmCents' | 'minBudgetCents' | 'maxBudgetCents'
+  >
+>;
+
+export interface PromotionBoostAdvertiserAccount {
+  readonly policyVersion: typeof PROMOTION_BOOST_POLICY_VERSION;
+  readonly advertiserUid: string;
+  readonly active: boolean;
+  readonly billingMode: 'postpaid';
+  readonly currency: typeof PROMOTION_BOOST_CURRENCY;
+  readonly maxCampaignBudgetCents: number;
+  readonly createdAt: number;
+  readonly updatedAt: number;
+  readonly updatedBy: string;
 }
 
 export interface PromotionBoostCampaign {
@@ -86,6 +108,95 @@ function nonNegativeInteger(value: unknown): number {
 function finiteEpoch(value: unknown): number | null {
   const parsed = Math.trunc(Number(value));
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+export function normalizePromotionBoostBillingConfig(
+  raw: unknown
+): Readonly<PromotionBoostBillingConfig> | null {
+  const source =
+    raw && typeof raw === 'object' && !Array.isArray(raw)
+      ? (raw as Record<string, unknown>)
+      : {};
+  const version = positiveInteger(source['version']);
+  const rateCpmCents = positiveInteger(source['rateCpmCents']);
+  const minBudgetCents = positiveInteger(source['minBudgetCents']);
+  const maxBudgetCents = positiveInteger(source['maxBudgetCents']);
+  const updatedAt = finiteEpoch(source['updatedAt']);
+  const updatedBy = cleanId(source['updatedBy']);
+
+  if (
+    source['active'] !== true
+    || source['currency'] !== PROMOTION_BOOST_CURRENCY
+    || !version
+    || !rateCpmCents
+    || !minBudgetCents
+    || !maxBudgetCents
+    || minBudgetCents > maxBudgetCents
+    || !updatedAt
+    || !updatedBy
+  ) {
+    return null;
+  }
+
+  return Object.freeze({
+    active: true,
+    version,
+    currency: PROMOTION_BOOST_CURRENCY,
+    rateCpmCents,
+    minBudgetCents,
+    maxBudgetCents,
+    updatedAt,
+    updatedBy,
+  });
+}
+
+export function normalizePromotionBoostAdvertiserAccount(
+  raw: unknown,
+  expectedAdvertiserUid?: string
+): Readonly<PromotionBoostAdvertiserAccount> | null {
+  const source =
+    raw && typeof raw === 'object' && !Array.isArray(raw)
+      ? (raw as Record<string, unknown>)
+      : {};
+  const advertiserUid = cleanId(source['advertiserUid']);
+  const expectedUid =
+    expectedAdvertiserUid === undefined
+      ? null
+      : cleanId(expectedAdvertiserUid);
+  const maxCampaignBudgetCents = positiveInteger(
+    source['maxCampaignBudgetCents']
+  );
+  const createdAt = finiteEpoch(source['createdAt']);
+  const updatedAt = finiteEpoch(source['updatedAt']);
+  const updatedBy = cleanId(source['updatedBy']);
+
+  if (
+    source['policyVersion'] !== PROMOTION_BOOST_POLICY_VERSION
+    || !advertiserUid
+    || (expectedAdvertiserUid !== undefined && advertiserUid !== expectedUid)
+    || source['active'] !== true
+    || source['billingMode'] !== 'postpaid'
+    || source['currency'] !== PROMOTION_BOOST_CURRENCY
+    || !maxCampaignBudgetCents
+    || !createdAt
+    || !updatedAt
+    || updatedAt < createdAt
+    || !updatedBy
+  ) {
+    return null;
+  }
+
+  return Object.freeze({
+    policyVersion: PROMOTION_BOOST_POLICY_VERSION,
+    advertiserUid,
+    active: true,
+    billingMode: 'postpaid',
+    currency: PROMOTION_BOOST_CURRENCY,
+    maxCampaignBudgetCents,
+    createdAt,
+    updatedAt,
+    updatedBy,
+  });
 }
 
 export function buildPromotionBoostCampaign(input: {
