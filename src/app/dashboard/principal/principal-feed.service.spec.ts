@@ -75,7 +75,6 @@ const video = {
 
 describe('PrincipalFeedService', () => {
   const mediaQuery = {
-    getLatestPublicPhotos$: vi.fn(),
     getRecentPublicPhotosByOwners$: vi.fn(),
     getRecentPublicVideoPreviewsByOwners$: vi.fn(),
   };
