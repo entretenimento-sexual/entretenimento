@@ -19,7 +19,6 @@ test('mapeia somente referências operacionais explicitamente autorizadas', () =
   assert.deepEqual(Object.keys(COMMUNITY_PURGE_REFERENCE_COLLECTIONS), [
     'creation_requests',
     'feed_requests',
-    'topic_requests',
     'lifecycle_requests',
     'invites',
     'notifications',
@@ -44,12 +43,10 @@ test('separa projeções transitórias das raízes canônicas finais', () => {
     'community_discovery_index',
     'community_highlights',
     'community_public_feed',
-    'community_public_topics',
     'community_feed_realtime',
   ]);
   assert.deepEqual(COMMUNITY_PURGE_FINAL_ROOT_COLLECTIONS, [
     'community_feed_posts',
-    'community_topics',
     'communities',
   ]);
 });

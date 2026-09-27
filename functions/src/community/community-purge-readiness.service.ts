@@ -25,7 +25,6 @@ import type { CommunityPurgeEvidenceProbe } from './community-purge.policy';
 export type CommunityPurgeProbeName =
   | 'memberships'
   | 'feed_posts'
-  | 'topics'
   | 'moderation_parent'
   | 'moderation_container';
 
@@ -75,7 +74,6 @@ export async function readCommunityPurgeEvidence(
       failedProbes: [
         'memberships',
         'feed_posts',
-        'topics',
         'moderation_parent',
         'moderation_container',
       ],
@@ -99,11 +97,6 @@ export async function readCommunityPurgeEvidence(
     .doc(communityId)
     .collection('items')
     .limit(1);
-  const topicQuery = db
-    .collection('community_topics')
-    .doc(communityId)
-    .collection('items')
-    .limit(1);
   const moderationParentQuery = db
     .collection('moderation_reports')
     .where('parentTargetId', '==', communityId);
@@ -116,7 +109,6 @@ export async function readCommunityPurgeEvidence(
     membershipActive,
     membershipKnown,
     feedPosts,
-    topics,
     moderationParentTotal,
     moderationParentResolved,
     moderationParentRejected,
@@ -128,7 +120,6 @@ export async function readCommunityPurgeEvidence(
     countMatching(activeMembershipQuery),
     countMatching(knownMembershipQuery),
     feedPostQuery.get(),
-    topicQuery.get(),
     countMatching(moderationParentQuery),
     countMatching(moderationParentQuery.where('status', '==', 'resolved')),
     countMatching(moderationParentQuery.where('status', '==', 'rejected')),
@@ -144,7 +135,6 @@ export async function readCommunityPurgeEvidence(
     || isRejected(membershipKnown);
   if (membershipReadFailed) failedProbes.push('memberships');
   if (isRejected(feedPosts)) failedProbes.push('feed_posts');
-  if (isRejected(topics)) failedProbes.push('topics');
 
   const moderationParentReadFailed =
     isRejected(moderationParentTotal)
@@ -188,9 +178,9 @@ export async function readCommunityPurgeEvidence(
   if (hasLiveMemberships === null && !failedProbes.includes('memberships')) {
     failedProbes.push('memberships');
   }
-  const hasRetainedContent = isRejected(feedPosts) || isRejected(topics)
+  const hasRetainedContent = isRejected(feedPosts)
     ? null
-    : !feedPosts.value.empty || !topics.value.empty;
+    : !feedPosts.value.empty;
   const hasModerationEvidence =
     moderationParentEvidence === null || moderationContainerEvidence === null
       ? null

@@ -23,7 +23,7 @@ export type CommunityOperationalRequestKind =
   | 'lifecycle'
   | 'highlight'
   | 'feed'
-  | 'topic';
+;
 
 export const COMMUNITY_OPERATIONAL_REQUEST_RETENTION_DAYS = Object.freeze({
   high_volume_idempotency: 7,
@@ -39,7 +39,6 @@ export const COMMUNITY_OPERATIONAL_REQUEST_COLLECTIONS = Object.freeze({
   community_lifecycle_requests: 'administrative_idempotency',
   community_highlight_requests: 'administrative_idempotency',
   community_feed_requests: 'high_volume_idempotency',
-  community_topic_requests: 'high_volume_idempotency',
 } satisfies Readonly<Record<string, CommunityOperationalRetentionClass>>);
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
@@ -47,7 +46,7 @@ const DAY_MS = 24 * 60 * 60 * 1_000;
 function retentionClassForKind(
   kind: CommunityOperationalRequestKind
 ): CommunityOperationalRetentionClass {
-  return kind === 'feed' || kind === 'topic'
+  return kind === 'feed'
     ? 'high_volume_idempotency'
     : 'administrative_idempotency';
 }

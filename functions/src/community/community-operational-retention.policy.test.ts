@@ -21,12 +21,11 @@ test('classifica todos os receipts idempotentes conhecidos por retenção finita
     community_lifecycle_requests: 'administrative_idempotency',
     community_highlight_requests: 'administrative_idempotency',
     community_feed_requests: 'high_volume_idempotency',
-    community_topic_requests: 'high_volume_idempotency',
   });
 });
 
 test('mantém conteúdo de alto volume por 7 dias e operações administrativas por 30', () => {
-  for (const kind of ['feed', 'topic'] as const) {
+  for (const kind of ['feed'] as const) {
     const retention = buildCommunityOperationalRequestRetention(kind, NOW);
     assert.equal(
       retention.retentionPolicyVersion,

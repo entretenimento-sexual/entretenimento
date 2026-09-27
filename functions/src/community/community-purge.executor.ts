@@ -18,7 +18,6 @@
 export type CommunityPurgeReferenceKind =
   | 'creation_requests'
   | 'feed_requests'
-  | 'topic_requests'
   | 'lifecycle_requests'
   | 'invites'
   | 'notifications'
@@ -78,7 +77,6 @@ export const COMMUNITY_PURGE_REFERENCE_KINDS:
   readonly CommunityPurgeReferenceKind[] = Object.freeze([
     'creation_requests',
     'feed_requests',
-    'topic_requests',
     'lifecycle_requests',
     'invites',
     'notifications',
