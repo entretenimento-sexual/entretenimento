@@ -95,19 +95,21 @@ export function buildMediaEngagementScore(
     ...(retentionScore === undefined ? {} : { retentionScore }),
   };
 
-  scoreBreakdown.rankingScore = normalizeMediaScore(
-    Math.round(
-      hasVideoSignals
-        ? scoreBreakdown.qualityScore * 0.20 +
-          scoreBreakdown.engagementScore * 0.30 +
-          (audienceScore ?? 0) * 0.10 +
-          (retentionScore ?? 0) * 0.10 +
-          (scoreBreakdown.safetyScore ?? 0) * 0.30
-        : scoreBreakdown.qualityScore * 0.25 +
-          scoreBreakdown.engagementScore * 0.45 +
-          (scoreBreakdown.safetyScore ?? 0) * 0.30
-    )
-  );
+  scoreBreakdown.rankingScore = scoreBreakdown.safetyScore === null
+    ? 0
+    : normalizeMediaScore(
+      Math.round(
+        hasVideoSignals
+          ? scoreBreakdown.qualityScore * 0.20 +
+            scoreBreakdown.engagementScore * 0.30 +
+            (audienceScore ?? 0) * 0.10 +
+            (retentionScore ?? 0) * 0.10 +
+            scoreBreakdown.safetyScore * 0.30
+          : scoreBreakdown.qualityScore * 0.25 +
+            scoreBreakdown.engagementScore * 0.45 +
+            scoreBreakdown.safetyScore * 0.30
+      )
+    );
 
   return {
     score: scoreBreakdown.rankingScore,
