@@ -64,10 +64,12 @@ const videoContinuation = read(
 );
 for (const fragment of [
   'PublicMediaSnapshotService',
-  'this.snapshots.read$(kind)',
-  "kind = mode === 'latest' ? 'latest-videos' : 'top-videos'",
-  'return cached.length',
-  'failed: true',
+  'this.snapshots.read$(primaryKind)',
+  'this.snapshots.read$(secondaryKind)',
+  "primaryMode === 'latest' ? 'latest-videos' : 'top-videos'",
+  "secondaryMode === 'latest' ? 'latest-videos' : 'top-videos'",
+  'return cachedResult.items.length',
+  'failed: primaryFresh === null || secondaryFresh === null',
 ]) {
   requireIncludes(videoContinuation, fragment, 'video SWR read drift');
 }
