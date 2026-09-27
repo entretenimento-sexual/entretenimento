@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import * as logger from 'firebase-functions/logger';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
