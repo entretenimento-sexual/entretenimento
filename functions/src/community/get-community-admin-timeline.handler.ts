@@ -73,7 +73,6 @@ const EVENT_TYPES = new Set<CommunityAdminTimelineEventType>([
   'settings_changed',
   'highlight_changed',
   'content_removed',
-  'topic_moderated',
   'official_status_changed',
   'lifecycle_changed',
 ]);
@@ -184,7 +183,6 @@ function safeDetails(value: unknown): CommunityAdminTimelineDetails {
     raw['target'] === 'post'
     || raw['target'] === 'comment'
     || raw['target'] === 'reply'
-    || raw['target'] === 'topic'
   ) {
     details.target = raw['target'];
   }
