@@ -10,7 +10,7 @@ import {
   tap,
 } from 'rxjs/operators';
 
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 import { VideoLibraryService } from 'src/app/core/services/media/video-library.service';
 import { VideoPublicationService } from 'src/app/core/services/media/video-publication.service';
 import { ProfileVideoLibraryActions } from './profile-video-library.actions';
@@ -21,7 +21,7 @@ export class ProfileVideoLibraryEffects {
   private readonly actions$ = inject(Actions);
   private readonly videoLibrary = inject(VideoLibraryService);
   private readonly videoPublication = inject(VideoPublicationService);
-  private readonly errorNotification = inject(ErrorNotificationService);
+  private readonly mediaError = inject(MediaApplicationErrorService);
   private readonly failedCleanupRequested = new Set<string>();
   private readonly legacyModerationNormalizationRequested = new Set<string>();
 
@@ -94,11 +94,17 @@ export class ProfileVideoLibraryEffects {
 
             return from(nextActions);
           }),
-          catchError(() => {
-            const message = 'Não foi possível carregar seus vídeos agora.';
-            this.errorNotification.showError(message);
+          catchError((error) => {
+            const descriptor = this.mediaError.report(error, {
+              operation: 'profileVideoLibrary.watch',
+              reasonHint: 'video_library_load_failed',
+              metadata: { hasOwnerUid: true },
+            });
             return of(
-              ProfileVideoLibraryActions.watchFailed({ ownerUid, message })
+              ProfileVideoLibraryActions.watchFailed({
+                ownerUid,
+                message: descriptor.userMessage,
+              })
             );
           })
         );
@@ -133,10 +139,20 @@ export class ProfileVideoLibraryEffects {
               this.videoPublication
                 .deleteProfileVideo$(ownerUid, videoId)
                 .pipe(
-                  catchError(() => {
+                  catchError((error) => {
                     failedDeletions += 1;
                     this.failedCleanupRequested.delete(
                       this.videoKey(ownerUid, videoId)
+                    );
+                    this.mediaError.reportSilently(
+                      error,
+                      'profileVideoLibrary.cleanupFailedUpload',
+                      undefined,
+                      {
+                        hasOwnerUid: true,
+                        hasVideoId: true,
+                      },
+                      'video_failed_upload_cleanup_pending'
                     );
                     return of(null);
                   })
@@ -145,11 +161,16 @@ export class ProfileVideoLibraryEffects {
           ).pipe(
             tap(() => {
               if (failedDeletions > 0) {
-                this.errorNotification.showWarning(
-                  failedDeletions === 1
-                    ? 'Um upload com falha ainda aguarda limpeza automática.'
-                    : `${failedDeletions} uploads com falha ainda aguardam ` +
-                      'limpeza automática.'
+                this.mediaError.report(
+                  new Error('Falha agregada na limpeza automática de uploads.'),
+                  {
+                    operation: 'profileVideoLibrary.cleanupFailedUploads',
+                    reasonHint: 'video_failed_upload_cleanup_pending',
+                    metadata: {
+                      hasOwnerUid: true,
+                      failedDeletions,
+                    },
+                  }
                 );
               }
             }),
