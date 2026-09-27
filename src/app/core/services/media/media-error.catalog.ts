@@ -1,6 +1,5 @@
 import type {
   ApplicationErrorPresentation,
-  ApplicationErrorPresentationMap,
 } from 'src/app/core/services/error-handler/application-error-presentation.model';
 
 export const MEDIA_ERROR_MESSAGES = Object.freeze({
