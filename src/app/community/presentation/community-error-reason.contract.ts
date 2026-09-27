@@ -30,7 +30,6 @@ export const COMMUNITY_PUBLIC_ERROR_REASONS = Object.freeze([
   'community_feed_reply_not_found',
   'community_feed_unavailable',
   'community_highlight_unavailable',
-  'community_interaction_forbidden',
   'community_invite_rate_limited',
   'community_invites_unavailable',
   'community_lifecycle_hold',
