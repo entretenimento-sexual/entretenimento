@@ -75,6 +75,28 @@ A policy
 Ela calcula diagnóstico para revisão, nunca preço recomendado e nunca altera o
 catálogo automaticamente.
 
+## Promotion/Boost de vídeo
+
+O contrato genérico de Promotion/Boost reconhece `video` como tipo de target,
+mas essa capacidade permanece **deliberadamente indisponível para criação de
+campanha e placement** enquanto a plataforma estiver em `OBSERVE_ONLY`.
+
+A fonte canônica dessa disponibilidade é
+`functions/src/promotion-boost/promotion-boost.policy.ts`.
+
+Isso significa:
+
+- `PromotionBoostTargetType` inclui `community | photo | video`;
+- documentos de campanha de vídeo podem ser reconhecidos/normalizados pelo
+  contrato genérico;
+- novas campanhas de vídeo não podem ser criadas;
+- campanhas de vídeo eventualmente existentes não são elegíveis para serving;
+- não existe seleção, placement, billing ou ledger ativo de vídeo;
+- vídeo patrocinado nunca entra no score/ranking orgânico;
+- futura habilitação exige evidência real, baseline de custo e decisão humana
+  explícita/versionada. Não há promoção automática ao sair de um contador ou
+  atingir um threshold.
+
 ## Evidência mínima transversal
 
 Antes de discutir saída do estágio:
