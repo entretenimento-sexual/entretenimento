@@ -2,13 +2,15 @@
 // -----------------------------------------------------------------------------
 // PUBLIC MEDIA SNAPSHOT SERVICE
 // -----------------------------------------------------------------------------
-// Cache curto e defensivo somente para projeções públicas de fotos.
+// Cache curto e defensivo somente para projeções públicas de mídia.
 //
 // Fronteira:
-// - persiste somente projeções, nunca URLs temporárias de acesso;
+// - persiste somente projeções, nunca URLs/tokens temporários de acesso;
 // - cada snapshot persistido pertence ao UID autenticado que o gerou;
 // - troca/logout de sessão invalida os snapshots conhecidos da sessão anterior;
-// - a reidratação de URL volta a passar pela fronteira canônica de acesso.
+// - fotos reidratam URL pela fronteira canônica de foto;
+// - vídeos reidratam somente preview/poster pela fronteira canônica de vídeo;
+// - playback de vídeo nunca nasce do snapshot persistido.
 // -----------------------------------------------------------------------------
 import { DestroyRef, Injectable, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -27,17 +29,31 @@ import {
   IPublicPhotoItem,
   IPublicPhotoProjection,
 } from 'src/app/core/interfaces/media/i-public-photo-item';
+import {
+  IPublicVideoItem,
+  IPublicVideoProjection,
+} from 'src/app/core/interfaces/media/i-public-video-item';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CacheService } from 'src/app/core/services/general/cache/cache.service';
 import { PublicPhotoAccessService } from './public-photo-access.service';
+import { PublicVideoAccessService } from './public-video-access.service';
+import { mapPublicVideoProjection } from './public-video-item.mapper';
 
-export type PublicMediaSnapshotKind =
+export type PublicPhotoSnapshotKind =
   | 'latest-photos'
   | 'top-photos';
 
+export type PublicVideoSnapshotKind =
+  | 'latest-videos'
+  | 'top-videos';
+
+export type PublicMediaSnapshotKind =
+  | PublicPhotoSnapshotKind
+  | PublicVideoSnapshotKind;
+
 const PUBLIC_MEDIA_SNAPSHOT_TTL_MS = 5 * 60 * 1000;
 const MAX_PUBLIC_MEDIA_SNAPSHOT_ITEMS = 48;
-const LEGACY_PUBLIC_MEDIA_SNAPSHOT_PREFIX = 'media:public:snapshot:';
+const PUBLIC_MEDIA_SNAPSHOT_PREFIX = 'media:public:snapshot:';
 
 @Injectable({ providedIn: 'root' })
 export class PublicMediaSnapshotService {
@@ -45,6 +61,7 @@ export class PublicMediaSnapshotService {
   private readonly cache = inject(CacheService);
   private readonly authSession = inject(AuthSessionService);
   private readonly publicPhotoAccess = inject(PublicPhotoAccessService);
+  private readonly publicVideoAccess = inject(PublicVideoAccessService);
 
   private readonly sessionUid$ = combineLatest([
     this.authSession.ready$,
@@ -59,7 +76,7 @@ export class PublicMediaSnapshotService {
   private lastSessionUid: string | null | undefined = undefined;
 
   constructor() {
-    // Remove o formato legado que podia conter IPublicPhotoItem com URL assinada.
+    // Remove o formato legado sem escopo de UID que podia conter acesso efêmero.
     this.clearLegacySnapshotKeys();
 
     this.sessionUid$
@@ -77,27 +94,41 @@ export class PublicMediaSnapshotService {
       });
   }
 
-  read$(kind: PublicMediaSnapshotKind): Observable<IPublicPhotoItem[]> {
+  read$(kind: PublicPhotoSnapshotKind): Observable<IPublicPhotoItem[]>;
+  read$(kind: PublicVideoSnapshotKind): Observable<IPublicVideoItem[]>;
+  read$(
+    kind: PublicMediaSnapshotKind
+  ): Observable<IPublicPhotoItem[] | IPublicVideoItem[]> {
     return this.sessionUid$.pipe(
       take(1),
       switchMap((uid) => {
         if (!uid) {
-          return of([] as IPublicPhotoItem[]);
+          return of([]);
         }
 
         return this.cache.get<unknown>(this.cacheKey(kind, uid)).pipe(
           take(1),
-          map((value) => this.normalizeProjections(value)),
+          map((value) => this.normalizeProjections(kind, value)),
           switchMap((projections) => {
             if (!projections.length) {
-              return of([] as IPublicPhotoItem[]);
+              return of([]);
+            }
+
+            if (this.isVideoKind(kind)) {
+              return this.publicVideoAccess
+                .hydratePublicVideoPreviews$(
+                  projections as readonly IPublicVideoProjection[]
+                )
+                .pipe(
+                  catchError(() => of([] as IPublicVideoItem[]))
+                );
             }
 
             return this.publicPhotoAccess
-              .hydratePublicPhotoUrls$(projections)
+              .hydratePublicPhotoUrls$(
+                projections as readonly IPublicPhotoProjection[]
+              )
               .pipe(
-                // Snapshot é best-effort. A carga online seguinte continua
-                // responsável pelo feedback de indisponibilidade ao usuário.
                 catchError(() => of([] as IPublicPhotoItem[]))
               );
           })
@@ -108,10 +139,18 @@ export class PublicMediaSnapshotService {
   }
 
   write(
-    kind: PublicMediaSnapshotKind,
+    kind: PublicPhotoSnapshotKind,
     items: readonly IPublicPhotoProjection[]
+  ): void;
+  write(
+    kind: PublicVideoSnapshotKind,
+    items: readonly IPublicVideoProjection[]
+  ): void;
+  write(
+    kind: PublicMediaSnapshotKind,
+    items: readonly (IPublicPhotoProjection | IPublicVideoProjection)[]
   ): void {
-    const normalized = this.normalizeProjections(items);
+    const normalized = this.normalizeProjections(kind, items);
 
     this.sessionUid$
       .pipe(take(1))
@@ -130,7 +169,7 @@ export class PublicMediaSnapshotService {
   }
 
   private cacheKey(kind: PublicMediaSnapshotKind, uid: string): string {
-    return `${LEGACY_PUBLIC_MEDIA_SNAPSHOT_PREFIX}uid:${uid}:${kind}`;
+    return `${PUBLIC_MEDIA_SNAPSHOT_PREFIX}uid:${uid}:${kind}`;
   }
 
   private clearSessionSnapshots(uid: string): void {
@@ -141,27 +180,46 @@ export class PublicMediaSnapshotService {
 
   private clearLegacySnapshotKeys(): void {
     for (const kind of this.snapshotKinds()) {
-      this.cache.delete(`${LEGACY_PUBLIC_MEDIA_SNAPSHOT_PREFIX}${kind}`);
+      this.cache.delete(`${PUBLIC_MEDIA_SNAPSHOT_PREFIX}${kind}`);
     }
   }
 
   private snapshotKinds(): readonly PublicMediaSnapshotKind[] {
-    return ['latest-photos', 'top-photos'];
+    return [
+      'latest-photos',
+      'top-photos',
+      'latest-videos',
+      'top-videos',
+    ];
   }
 
-  private normalizeProjections(value: unknown): IPublicPhotoProjection[] {
+  private isVideoKind(
+    kind: PublicMediaSnapshotKind
+  ): kind is PublicVideoSnapshotKind {
+    return kind === 'latest-videos' || kind === 'top-videos';
+  }
+
+  private normalizeProjections(
+    kind: PublicMediaSnapshotKind,
+    value: unknown
+  ): Array<IPublicPhotoProjection | IPublicVideoProjection> {
     if (!Array.isArray(value)) return [];
 
-    const unique = new Map<string, IPublicPhotoProjection>();
+    const unique = new Map<
+      string,
+      IPublicPhotoProjection | IPublicVideoProjection
+    >();
 
     for (const item of value.slice(0, MAX_PUBLIC_MEDIA_SNAPSHOT_ITEMS)) {
       if (!item || typeof item !== 'object' || Array.isArray(item)) {
         continue;
       }
 
-      const candidate = item as IPublicPhotoProjection;
-      const id = String(candidate.id ?? '').trim();
-      const ownerUid = String(candidate.ownerUid ?? '').trim();
+      const sanitized = this.stripEphemeralAccess(
+        item as Record<string, unknown>
+      );
+      const id = String(sanitized['id'] ?? '').trim();
+      const ownerUid = String(sanitized['ownerUid'] ?? '').trim();
 
       if (
         !id ||
@@ -172,25 +230,53 @@ export class PublicMediaSnapshotService {
         continue;
       }
 
-      const projection: Record<string, unknown> = {
-        ...(candidate as unknown as Record<string, unknown>),
-        id,
-        ownerUid,
-      };
+      if (this.isVideoKind(kind)) {
+        const projection = mapPublicVideoProjection({
+          documentId: id,
+          expectedOwnerUid: ownerUid,
+          data: sanitized,
+        });
 
-      // Campos de acesso são efêmeros e nunca atravessam a persistência.
-      delete projection['url'];
-      delete projection['signedUrl'];
-      delete projection['accessUrl'];
-      delete projection['expiresAt'];
-      delete projection['accessExpiresAt'];
+        if (!projection) {
+          continue;
+        }
+
+        unique.set(`${ownerUid}:${id}`, projection);
+        continue;
+      }
 
       unique.set(
         `${ownerUid}:${id}`,
-        projection as unknown as IPublicPhotoProjection
+        {
+          ...(sanitized as unknown as IPublicPhotoProjection),
+          id,
+          ownerUid,
+        }
       );
     }
 
     return [...unique.values()];
+  }
+
+  private stripEphemeralAccess(
+    candidate: Record<string, unknown>
+  ): Record<string, unknown> {
+    const projection = { ...candidate };
+
+    for (const key of [
+      'url',
+      'posterUrl',
+      'signedUrl',
+      'accessUrl',
+      'expiresAt',
+      'accessExpiresAt',
+      'playbackToken',
+      'retentionToken',
+      'retentionTokenExpiresAt',
+    ]) {
+      delete projection[key];
+    }
+
+    return projection;
   }
 }
