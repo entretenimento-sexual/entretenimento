@@ -17,6 +17,7 @@ import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
+import { buildProductCalibrationRuntimeObservation } from '../shared/observability/product-calibration-observation.policy';
 import { shouldDeleteCommunityFeedRealtimeProjection } from './community-feed-realtime-cleanup.policy';
 import { buildCommunityFeedRealtimeProjection } from './community-feed-realtime.projection';
 
@@ -59,6 +60,11 @@ export const syncCommunityFeedRealtime = onDocumentWritten(
       logger.debug('community_feed_realtime_deleted_for_terminal_state', {
         communityId,
         postId,
+        calibrationObservation: buildProductCalibrationRuntimeObservation({
+          metric: 'community.projection.derived_writes_per_source_event',
+          value: 1,
+          source: 'community_feed_realtime',
+        }),
       });
       return;
     }
@@ -70,7 +76,18 @@ export const syncCommunityFeedRealtime = onDocumentWritten(
       Date.now()
     );
 
-    if (!projection) return;
+    if (!projection) {
+      logger.debug('community_feed_realtime_no_projection', {
+        communityId,
+        postId,
+        calibrationObservation: buildProductCalibrationRuntimeObservation({
+          metric: 'community.projection.derived_writes_per_source_event',
+          value: 0,
+          source: 'community_feed_realtime',
+        }),
+      });
+      return;
+    }
 
     await realtimeRef.set(projection);
 
@@ -78,6 +95,11 @@ export const syncCommunityFeedRealtime = onDocumentWritten(
       communityId,
       postId,
       state: projection.state,
+      calibrationObservation: buildProductCalibrationRuntimeObservation({
+        metric: 'community.projection.derived_writes_per_source_event',
+        value: 1,
+        source: 'community_feed_realtime',
+      }),
     });
   }
 );
