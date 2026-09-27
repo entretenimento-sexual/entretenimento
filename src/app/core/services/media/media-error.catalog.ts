@@ -54,6 +54,20 @@ export const MEDIA_ERROR_MESSAGES: Readonly<Record<string, string>> =
       'Não foi possível carregar as fotos agora. Tente novamente.',
     photo_discovery_page_failed:
       'Não foi possível carregar mais fotos agora. Tente novamente.',
+    photo_comments_load_failed:
+      'Não foi possível carregar os comentários da foto.',
+    photo_reaction_failed:
+      'Não foi possível atualizar sua reação agora.',
+    photo_comment_failed:
+      'Não foi possível publicar o comentário agora.',
+    photo_reply_failed:
+      'Não foi possível publicar a resposta agora.',
+    photo_comment_moderation_failed:
+      'Não foi possível moderar o comentário agora.',
+    profile_photos_load_failed:
+      'Não foi possível carregar as fotos do perfil agora.',
+    media_navigation_failed:
+      'Não foi possível abrir esta área agora.',
     video_library_load_failed:
       'Não foi possível carregar seus vídeos agora.',
     video_failed_upload_cleanup_pending:
@@ -247,6 +261,34 @@ export const MEDIA_ERROR_PRESENTATIONS: ApplicationErrorPresentationMap =
     photo_discovery_page_failed: {
       surface: 'snackbar',
       severity: 'warning',
+    },
+    photo_comments_load_failed: {
+      surface: 'snackbar',
+      severity: 'error',
+    },
+    photo_reaction_failed: {
+      surface: 'snackbar',
+      severity: 'error',
+    },
+    photo_comment_failed: {
+      surface: 'snackbar',
+      severity: 'error',
+    },
+    photo_reply_failed: {
+      surface: 'snackbar',
+      severity: 'error',
+    },
+    photo_comment_moderation_failed: {
+      surface: 'snackbar',
+      severity: 'error',
+    },
+    profile_photos_load_failed: {
+      surface: 'snackbar',
+      severity: 'error',
+    },
+    media_navigation_failed: {
+      surface: 'snackbar',
+      severity: 'error',
     },
     video_library_load_failed: {
       surface: 'snackbar',
