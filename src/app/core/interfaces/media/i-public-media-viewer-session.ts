@@ -6,7 +6,6 @@ export type TPublicMediaViewSource =
   | 'profile'
   | 'latest'
   | 'top'
-  | 'sponsored'
   | 'unknown';
 
 export type TPublicMediaViewerDirection = 'previous' | 'next';
