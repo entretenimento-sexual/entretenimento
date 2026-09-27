@@ -56,5 +56,5 @@ Seções incompletas ou dúvidas? Peça exemplos de padrões ou fluxos específi
 - Não criar branches, worktrees remotos ou Pull Requests sem solicitação explícita e nominal do proprietário.
 - Alterações autorizadas devem ser aplicadas diretamente na `main`, em commits pequenos e verificáveis.
 - Não reativar funcionalidades removidas/congeladas a partir de branches antigas, PRs fechadas ou código preservado por compatibilidade.
-- Em especial, Tópicos/Discussões não fazem parte da superfície de Comunidades; o Mural é a superfície canônica de conversa.
+- Não criar superfícies paralelas de conversa em Comunidades sem solicitação explícita do proprietário; o Mural é a superfície canônica de conversa.
 - Nenhum deploy de produção é autorizado apenas por uma alteração de código; produção exige autorização explícita separada.

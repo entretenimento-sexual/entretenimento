@@ -11,7 +11,7 @@
 // - listagem global direta fica bloqueada até existir projeção/callable paginada;
 // - criação, adesão, moderação e mutações são exclusivas do backend;
 // - o cliente só pode ler o próprio documento de membership;
-// - conteúdo integral do mural/tópicos, índices, idempotência e auditoria são backend-only;
+// - conteúdo integral do mural, índices, idempotência e auditoria são backend-only;
 // - realtime do Mural expõe apenas metadados mínimos sem conteúdo ou identidade.
 // =============================================================================
 
@@ -126,20 +126,6 @@ match /community_feed_realtime/{communityId}/items/{postId} {
   allow create, update, delete: if false;
 }
 
-// Tópicos/Discussões estão congelados como domínio de produto. Dados legados
-// permanecem preservados, mas nenhuma projeção é acessível diretamente pelo
-// navegador; as callables também são bloqueadas pelo gate backend canônico.
-match /community_public_topics/{communityId} {
-  allow read, write: if false;
-}
-
-match /community_public_topics/{communityId}/items/{topicId} {
-  allow read, write: if false;
-}
-
-match /community_public_topics/{communityId}/items/{topicId}/replies/{replyId} {
-  allow read, write: if false;
-}
 
 // Escrita operacional, idempotência, rate limit e auditoria do Mural são
 // exclusivamente backend. A projeção pública também é servida por callable.
@@ -213,32 +199,6 @@ match /community_feed_audit/{auditId} {
   allow read, write: if false;
 }
 
-// Estado operacional dos Tópicos contém UID, texto integral, moderação e trilha
-// de escrita. Somente Functions/Admin SDK podem acessá-lo.
-match /community_topics/{communityId} {
-  allow read, write: if false;
-}
-
-match /community_topics/{communityId}/items/{topicId} {
-  allow read, write: if false;
-}
-
-match /community_topics/{communityId}/items/{topicId}/replies/{replyId} {
-  allow read, write: if false;
-}
-
-// Idempotência, rate limit e auditoria de Tópicos também são backend-only.
-match /community_topic_requests/{requestId} {
-  allow read, write: if false;
-}
-
-match /community_topic_user_state/{userId} {
-  allow read, write: if false;
-}
-
-match /community_topic_audit/{auditId} {
-  allow read, write: if false;
-}
 
 // Auditoria de solicitações, entradas e criação comunitária.
 match /community_membership_audit/{auditId} {
