@@ -11,7 +11,9 @@ import {
   isBilateralBlockActive,
 } from '../friendship/application/bilateral-block-access.policy';
 import {evaluateOperationalCostBudget} from '../shared/observability/operational-cost-budget.policy';
-import {buildProductCalibrationRuntimeObservation} from '../shared/observability/product-calibration-observation.policy';
+import {
+  buildProductCalibrationRuntimeObservation,
+} from '../shared/observability/product-calibration-observation.policy';
 import {
   isCommunityPushMuted,
   isPushNotificationEnabledByPreference,
