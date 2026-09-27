@@ -62,7 +62,7 @@ describe('ExploreFeedService', () => {
     vi.clearAllMocks();
     publicPhotoRankingMock.loadPage$.mockImplementation(
       (rankingRequest: {
-        mode: 'top' | 'latest' | 'boosted';
+        mode: 'top' | 'latest';
         pageSize: number;
         cursor?: unknown;
       }) =>
@@ -130,15 +130,9 @@ describe('ExploreFeedService', () => {
     expect(discoveryQueryMock.getProfilesByUids$).not.toHaveBeenCalled();
   });
 
-  it('usa ranking cursorizado para fotos do Explore', async () => {
-    await firstValueFrom(service.boostedPhotos$);
+  it('usa ranking orgânico cursorizado para fotos do Explore', async () => {
     await firstValueFrom(service.topPhotos$);
 
-    expect(publicPhotoRankingMock.loadPage$).toHaveBeenCalledWith({
-      mode: 'boosted',
-      pageSize: 8,
-      propagateErrors: true,
-    });
     expect(publicPhotoRankingMock.loadPage$).toHaveBeenCalledWith({
       mode: 'top',
       pageSize: 12,
@@ -156,7 +150,7 @@ describe('ExploreFeedService', () => {
 
     publicPhotoRankingMock.loadPage$.mockImplementation(
       (rankingRequest: {
-        mode: 'top' | 'latest' | 'boosted';
+        mode: 'top' | 'latest';
         pageSize: number;
         cursor?: unknown;
       }) => {
