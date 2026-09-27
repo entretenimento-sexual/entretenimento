@@ -44,6 +44,7 @@ import {
 import { IVideoComment } from 'src/app/core/interfaces/media/i-video-comment';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 import { MediaReactionsService } from 'src/app/core/services/media/media-reactions.service';
 import { MediaVideoCommentsService } from 'src/app/core/services/media/media-video-comments.service';
 import {
@@ -152,6 +153,7 @@ export class PublicVideoViewerComponent {
   private readonly comments = inject(MediaVideoCommentsService);
   private readonly ratings = inject(MediaVideoRatingsService);
   private readonly errorNotification = inject(ErrorNotificationService);
+  private readonly mediaError = inject(MediaApplicationErrorService);
   private readonly recordedViewKeys = new Set<string>();
   private readonly automaticRefreshKeys = new Set<string>();
   private readonly items = [...(this.data.items ?? [])];
@@ -1278,8 +1280,16 @@ export class PublicVideoViewerComponent {
     this.playbackFeedback?.markError(
       'O acesso ao vídeo não pôde ser atualizado. Verifique sua conexão.'
     );
-    this.errorNotification.showError(
-      'Não foi possível carregar o vídeo. Tente novamente.'
+    this.mediaError.report(
+      new Error('Falha ao atualizar acesso de reprodução do vídeo.'),
+      {
+        operation: 'publicVideoViewer.refreshAccess',
+        reasonHint: 'video_playback_access_failed',
+        metadata: {
+          scope: 'PublicVideoViewerComponent',
+          reason,
+        },
+      }
     );
   }
 
