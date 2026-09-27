@@ -34,7 +34,7 @@ import {
 interface RecordVideoViewRequest {
   ownerUid?: string;
   videoId?: string;
-  source?: 'discover' | 'profile' | 'latest' | 'top' | 'sponsored' | 'unknown';
+  source?: 'discover' | 'profile' | 'latest' | 'top' | 'unknown';
   playbackToken?: string;
   evidence?: VideoViewPlaybackEvidenceInput;
 }
@@ -70,8 +70,7 @@ function cleanSource(
     source === 'discover' ||
     source === 'profile' ||
     source === 'latest' ||
-    source === 'top' ||
-    source === 'sponsored'
+    source === 'top'
   ) {
     return source;
   }
