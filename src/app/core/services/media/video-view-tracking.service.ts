@@ -20,7 +20,7 @@ export type TVideoViewSource =
   | 'profile'
   | 'latest'
   | 'top'
-  | 'boosted'
+  | 'sponsored'
   | 'unknown';
 
 export interface VideoViewPlaybackEvidence {
