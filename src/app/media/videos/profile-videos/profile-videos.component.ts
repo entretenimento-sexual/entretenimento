@@ -41,6 +41,7 @@ import { IVideoItem } from 'src/app/core/interfaces/media/i-video-item';
 import { IVideoPublicationSettingsInput } from 'src/app/core/interfaces/media/i-video-publication-config';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 import { MEDIA_VIDEO_MAX_BYTES } from 'src/app/core/services/media/media-format.policy';
 import {
   IMediaPolicyResult,
@@ -117,6 +118,7 @@ export class ProfileVideosComponent {
   private readonly videoEditor = inject(VideoEditorLauncherService);
   private readonly mediaPolicy = inject(MediaPolicyService);
   private readonly errorNotification = inject(ErrorNotificationService);
+  private readonly mediaError = inject(MediaApplicationErrorService);
   private readonly dialog = inject(MatDialog);
 
   private readonly uploadDialogRef =
@@ -348,9 +350,11 @@ export class ProfileVideosComponent {
         }
 
         input.value = '';
-        this.errorNotification.showError(
-          this.describeEditorLaunchFailure(error)
-        );
+        this.mediaError.report(error, {
+          operation: 'profileVideos.editorLaunch',
+          reasonHint: 'video_editor_open_failed',
+          metadata: { scope: 'ProfileVideosComponent' },
+        });
       },
     });
 
@@ -415,7 +419,7 @@ export class ProfileVideosComponent {
         }
 
         if (policyResult.decision !== 'ALLOW') {
-          this.errorNotification.showError(
+          this.errorNotification.showWarning(
             this.getPolicyDeniedMessage(policyResult.reason)
           );
           return EMPTY;
@@ -545,8 +549,13 @@ export class ProfileVideosComponent {
     if (!dialog) {
       this.editingVideoIdSubject.next(null);
       this.publicationSettingsForm.reset();
-      this.errorNotification.showError(
-        'Não foi possível abrir a edição do vídeo.'
+      this.mediaError.report(
+        new Error('Dialog de edição de publicação indisponível.'),
+        {
+          operation: 'profileVideos.openPublicationSettings',
+          reasonHint: 'video_editor_open_failed',
+          metadata: { scope: 'ProfileVideosComponent' },
+        }
       );
       return;
     }
@@ -624,10 +633,15 @@ export class ProfileVideosComponent {
         this.closePublicationSettingsDialog();
         this.errorNotification.showSuccess('Informações salvas.');
       },
-      error: () => {
-        this.errorNotification.showError(
-          'Não foi possível salvar as informações do vídeo.'
-        );
+      error: (error: unknown) => {
+        this.mediaError.report(error, {
+          operation: 'profileVideos.savePublicationSettings',
+          reasonHint: 'video_publication_settings_failed',
+          metadata: {
+            scope: 'ProfileVideosComponent',
+            hasVideoId: !!videoId,
+          },
+        });
       },
     });
   }
@@ -696,7 +710,14 @@ export class ProfileVideosComponent {
         );
       },
       error: (error: unknown) => {
-        this.errorNotification.showError(this.describeDeleteFailure(error));
+        this.mediaError.report(error, {
+          operation: 'profileVideos.delete',
+          reasonHint: 'video_delete_failed',
+          metadata: {
+            scope: 'ProfileVideosComponent',
+            hasVideoId: !!videoId,
+          },
+        });
       },
     });
   }
