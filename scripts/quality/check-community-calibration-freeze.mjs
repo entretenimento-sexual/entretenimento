@@ -48,6 +48,35 @@ for (const fragment of [
   );
 }
 
+const readiness = read(
+  'functions/src/shared/calibration/product-calibration-readiness.policy.ts'
+);
+for (const fragment of [
+  "'production_scheduled_runtime'",
+  "'production_state_aggregate'",
+  "'cloud_logging_runtime_events'",
+  "'cloud_billing_export'",
+  "'payment_settlement_actuals'",
+  "'finance_actual_allocation'",
+  "'hot_score'",
+  "'commercial_limits'",
+  "'derived_fanout'",
+  "'notification_frequency'",
+  "'pricing'",
+  'minimumProductionWindowDays',
+  'minimumObservedDaysPerRuntimeMetric',
+  'minimumRuntimeSamplesPerMetric',
+  'rankingObservedCycles',
+  'rankingConsecutivePassingCycles',
+  'reviewEligible && isProductCalibrationChangeAllowed()',
+]) {
+  requireIncludes(
+    readiness,
+    fragment,
+    'product calibration readiness drift: ' + fragment
+  );
+}
+
 const stage = read('functions/src/community/community-calibration-stage.policy.ts');
 for (const fragment of [
   'rankingV3ObservedCycles:',
