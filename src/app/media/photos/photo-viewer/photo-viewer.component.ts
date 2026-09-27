@@ -61,6 +61,9 @@ import { MediaPhotoCommentsService } from 'src/app/core/services/media/media-pho
 import { MediaPublicationService } from 'src/app/core/services/media/media-publication.service';
 import { MediaReactionsService } from 'src/app/core/services/media/media-reactions.service';
 import { PublicPhotoContinuationService } from 'src/app/core/services/media/public-photo-continuation.service';
+import type { TPhotoViewSource } from 'src/app/core/services/media/photo-view-tracking.service';
+
+export type { TPhotoViewSource } from 'src/app/core/services/media/photo-view-tracking.service';
 
 import { IPhotoComment } from 'src/app/core/interfaces/media/i-photo-comment';
 import {
@@ -89,14 +92,6 @@ export interface IProfilePhotoItem {
 
   publication?: IPhotoPublicationConfig;
 }
-
-export type TPhotoViewSource =
-  | 'discover'
-  | 'profile'
-  | 'latest'
-  | 'top'
-  | 'boosted'
-  | 'unknown';
 
 export interface IPhotoViewerData {
   /**
