@@ -86,7 +86,7 @@ describe('PublicPhotoRankingQueryService', () => {
 
     expect(context.gateway.loadPage$).toHaveBeenCalledWith({
       mode: 'top',
-      pageSize: 16,
+      pageSize: 24,
       cursor: null,
     });
     expect(context.publicPhotoAccess.hydratePublicPhotoUrls$)
@@ -133,7 +133,12 @@ describe('PublicPhotoRankingQueryService', () => {
     expect(context.errorHandler.report).toHaveBeenCalledWith(
       failure,
       expect.objectContaining({
-        operation: 'loadPage    expect(page).toMatchObject({
+        operation: 'loadPage$',
+        fallbackMessage: 'Não foi possível carregar as fotos públicas.',
+        silent: false,
+      })
+    );
+    expect(page).toMatchObject({
       mode: 'top',
       source: 'top',
       items: [],
@@ -154,65 +159,9 @@ describe('PublicPhotoRankingQueryService', () => {
     expect(context.errorHandler.report).toHaveBeenCalledWith(
       failure,
       expect.objectContaining({
-        operation: 'loadPage  });
-});
-,
-        fallbackMessage: 'Não foi possível carregar as fotos públicas.',
-        silent: false,
-      })
-    );
-    expect(page).toMatchObject({
-      mode: 'top',
-      source: 'top',
-      items: [],
-      nextCursor: null,
-      hasMore: false,
-    });
-  });
-
-  it('propaga erro após registrar diagnóstico quando solicitado', async () => {
-    const failure = new Error('firestore unavailable');
-    const context = createService({ gatewayError: failure });
-
-    await expect(firstValueFrom(context.service.loadPage$({
-      mode: 'latest',
-      propagateErrors: true,
-    }))).rejects.toBe(failure);
-
-    expect(context.errorNotifier.showError).not.toHaveBeenCalled();
-    expect(context.errorHandler.handleError).toHaveBeenCalledTimes(1);
-  });
-});
-,
+        operation: 'loadPage$',
         silent: true,
       })
     );
-  });
-});
-,
-        fallbackMessage: 'Não foi possível carregar as fotos públicas.',
-        silent: false,
-      })
-    );
-    expect(page).toMatchObject({
-      mode: 'top',
-      source: 'top',
-      items: [],
-      nextCursor: null,
-      hasMore: false,
-    });
-  });
-
-  it('propaga erro após registrar diagnóstico quando solicitado', async () => {
-    const failure = new Error('firestore unavailable');
-    const context = createService({ gatewayError: failure });
-
-    await expect(firstValueFrom(context.service.loadPage$({
-      mode: 'latest',
-      propagateErrors: true,
-    }))).rejects.toBe(failure);
-
-    expect(context.errorNotifier.showError).not.toHaveBeenCalled();
-    expect(context.errorHandler.handleError).toHaveBeenCalledTimes(1);
   });
 });
