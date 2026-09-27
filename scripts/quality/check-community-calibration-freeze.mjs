@@ -18,19 +18,43 @@ function requireIncludes(source, fragment, label) {
   }
 }
 
-const stage = read('functions/src/community/community-calibration-stage.policy.ts');
-requireIncludes(
-  stage,
-  "export const COMMUNITY_CALIBRATION_STAGE = 'OBSERVE_ONLY' as const;",
-  'calibration stage must remain OBSERVE_ONLY'
+const productStage = read(
+  'functions/src/shared/calibration/product-calibration-stage.policy.ts'
 );
+requireIncludes(
+  productStage,
+  "export const PRODUCT_CALIBRATION_STAGE = 'OBSERVE_ONLY' as const;",
+  'canonical product calibration stage must remain OBSERVE_ONLY'
+);
+for (const fragment of [
+  'minimumProductionWindowDays: 14',
+  'minimumObservedDaysPerRuntimeMetric: 7',
+  'minimumRuntimeSamplesPerMetric: 100',
+  'rankingObservedCycles: 7',
+  'rankingConsecutivePassingCycles: 3',
+  'requiresFinancialActualsForPricing: true',
+  'requiresObservedCommercialUtilization: true',
+  'requiresObservedDerivedFanout: true',
+  'requiresObservedNotificationGrouping: true',
+]) {
+  requireIncludes(
+    productStage,
+    fragment,
+    'canonical product evidence changed: ' + fragment
+  );
+}
+
+const stage = read('functions/src/community/community-calibration-stage.policy.ts');
 for (const fragment of [
   'rankingV3ObservedCycles: 7',
   'rankingV3ConsecutivePassingCycles: 3',
   'operationalCostBaselineMinimumDays: 14',
   'requiresProductionScheduledRankingEvidence: true',
   'requiresProductionOperationalCostBaseline: true',
-  'requiresFinancialActualsForCommercialCalibration: true',
+  'requiresFinancialActualsForCommercialCalibration:',
+  'requiresObservedCommercialUtilization:',
+  'requiresObservedDerivedFanout:',
+  'requiresObservedNotificationGrouping:',
 ]) {
   requireIncludes(stage, fragment, 'required evidence changed: ' + fragment);
 }
@@ -87,7 +111,15 @@ const productLimits = read(
 for (const fragment of [
   'maxMemberLimit: 1_000,',
   'maxCommunitiesPerGrant: 20,',
+  'basic: 100,',
+  'premium: 250,',
+  'vip: 500,',
+  'basic: 1,',
+  'premium: 2,',
+  'vip: 3,',
   "mode: 'observed_data_only'",
+  "'member_capacity_utilization_p95'",
+  "'owned_community_utilization_p95'",
   'operationalCostProxyAllowedAsActualCost: false',
 ]) {
   requireIncludes(
@@ -105,6 +137,9 @@ for (const fragment of [
   'isCommunityCalibrationChangeAllowed',
   "input.actualCostSource !== 'cloud_billing_export'",
   "input.actualCostSource !== 'finance_actual_allocation'",
+  "input.commercialUtilizationSource !== 'production_state_aggregate'",
+  'memberCapacityUtilizationSamples',
+  'ownedCommunityUtilizationSamples',
 ]) {
   requireIncludes(
     businessCalibration,
@@ -157,13 +192,121 @@ for (const fragment of [
   'export const COMMUNITY_OPERATIONAL_COST_BASELINE_MIN_DAYS = 14;',
   'minimumSamples: 100,',
   'minimumObservedDays: 7,',
+  "'community.projection.derived_writes_per_source_event'",
+  "'community.notification.grouped_activities_per_push'",
 ]) {
   requireIncludes(baseline, fragment, 'operational baseline changed: ' + fragment);
+}
+
+const notificationPolicy = read(
+  'functions/src/community/community-notification.policy.ts'
+);
+requireIncludes(
+  notificationPolicy,
+  'const COMMENT_GROUP_WINDOW_MS = 24 * 60 * 60 * 1_000;',
+  'notification grouping window changed without real-data calibration'
+);
+
+const pricingCatalog = read(
+  'functions/src/payments/application/billing-plan-catalog.service.ts'
+);
+for (const fragment of [
+  'export const PLATFORM_BILLING_CATALOG_VERSION = 1;',
+  'amountCents: 1999,',
+  'amountCents: 2999,',
+  'amountCents: 3999,',
+]) {
+  requireIncludes(
+    pricingCatalog,
+    fragment,
+    'platform pricing changed during OBSERVE_ONLY: ' + fragment
+  );
+}
+
+const pricingCalibration = read(
+  'functions/src/payments/application/platform-pricing-calibration.policy.ts'
+);
+for (const fragment of [
+  "'payment_settlement_actuals'",
+  "'finance_actual_allocation'",
+  'evaluateCommunityOperationalCostBaseline',
+  'isProductCalibrationChangeAllowed',
+  'reviewEligible',
+  'canChangePrice',
+]) {
+  requireIncludes(
+    pricingCalibration,
+    fragment,
+    'pricing real-data calibration gate missing: ' + fragment
+  );
+}
+
+const runtimeObservation = read(
+  'functions/src/shared/observability/product-calibration-observation.policy.ts'
+);
+for (const fragment of [
+  "'community.projection.derived_writes_per_source_event'",
+  "'community.notification.grouped_activities_per_push'",
+  "'production_runtime_observation'",
+]) {
+  requireIncludes(
+    runtimeObservation,
+    fragment,
+    'runtime calibration observation missing: ' + fragment
+  );
+}
+
+for (const [file, fragment] of [
+  [
+    'functions/src/notifications/sendNotification.ts',
+    "'community.notification.grouped_activities_per_push'",
+  ],
+  [
+    'functions/src/community/sync-community-feed-realtime.trigger.ts',
+    "'community.projection.derived_writes_per_source_event'",
+  ],
+  [
+    'functions/src/community/sync-community-profile-membership-index.trigger.ts',
+    "'community.projection.derived_writes_per_source_event'",
+  ],
+  [
+    'functions/src/community/sync-community-ranking.trigger.ts',
+    "'community.projection.derived_writes_per_source_event'",
+  ],
+  [
+    'functions/src/community/sync-community-notification-summary.trigger.ts',
+    "'community.projection.derived_writes_per_source_event'",
+  ],
+]) {
+  requireIncludes(
+    read(file),
+    fragment,
+    'runtime calibration wiring missing: ' + file
+  );
 }
 
 const contract = JSON.parse(
   read('ops/monitoring/community-cost/contract.json')
 );
+for (const key of [
+  'community.projection.derived_writes_per_source_event',
+  'community.notification.grouped_activities_per_push',
+]) {
+  const metric = contract.metrics.find((item) => item.key === key);
+  if (!metric) {
+    throw new Error('[community-calibration-freeze] missing real-data metric: ' + key);
+  }
+  if (
+    metric.minimumSamples !== 100
+    || metric.minimumObservedDays !== 7
+    || metric.budgeted !== false
+  ) {
+    throw new Error(
+      '[community-calibration-freeze] real-data metric gate changed: ' + key
+    );
+  }
+}
+
 const expectedBudgeted = {
   'community.discovery.reads_per_card': {
     warningAbove: 3.5,
@@ -228,5 +371,5 @@ for (const fragment of [
 }
 
 console.log(
-  '[community-calibration-freeze] OK: OBSERVE_ONLY preserves v3 tuning, Official capacity, commercial gates and cost thresholds.'
+  '[community-calibration-freeze] OK: OBSERVE_ONLY preserves hot score, commercial limits, derivative fanout, notification cadence, pricing and cost thresholds until real evidence is reviewable.'
 );
