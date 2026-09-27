@@ -10,6 +10,7 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
 import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
 import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
 import { PublicMediaRecentViewService } from 'src/app/core/services/media/public-media-recent-view.service';
+import { PublicPhotoRankingQueryService } from 'src/app/core/services/media/public-photo-ranking-query.service';
 import { PublicVideoRankingQueryService } from 'src/app/core/services/media/public-video-ranking-query.service';
 import { buildPublicMediaIdentity } from 'src/app/core/utils/media/public-media-identity';
 import { CompatibleProfileCandidatesService } from 'src/app/dashboard/discovery/application/compatible-profile-candidates.service';
@@ -82,6 +83,16 @@ describe('PrincipalFeedService / novidade por view recente', () => {
   const recentViews = {
     resolveRecentViewedKeys$: vi.fn(),
   };
+  const photoRanking = {
+    loadPage$: vi.fn(() => of({
+      mode: 'latest',
+      source: 'latest',
+      items: [recentPhoto],
+      nextCursor: null,
+      hasMore: false,
+      loadedAt: Date.now(),
+    })),
+  };
   const videoRanking = {
     loadPage$: vi.fn(() => of({
       mode: 'latest',
@@ -130,6 +141,7 @@ describe('PrincipalFeedService / novidade por view recente', () => {
         },
         { provide: PublicMediaRecentViewService, useValue: recentViews },
         { provide: MediaPublicQueryService, useValue: mediaQuery },
+        { provide: PublicPhotoRankingQueryService, useValue: photoRanking },
         { provide: PublicVideoRankingQueryService, useValue: videoRanking },
         { provide: CommunityPreviewRepository, useValue: communityRepository },
         { provide: CommunityFeedRepository, useValue: communityFeedRepository },
