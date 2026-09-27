@@ -21,7 +21,53 @@ export const PROMOTION_BOOST_PLACEMENT_TTL_MS = 15 * 60 * 1_000;
 export const PROMOTION_BOOST_FREQUENCY_CAP_TTL_MS =
   3 * 24 * 60 * 60 * 1_000;
 
-export type PromotionBoostTargetType = 'community' | 'photo';
+export type PromotionBoostTargetType = 'community' | 'photo' | 'video';
+
+export interface PromotionBoostTargetAvailability {
+  readonly targetType: PromotionBoostTargetType;
+  readonly contractSupported: true;
+  readonly campaignCreationEnabled: boolean;
+  readonly placementEnabled: boolean;
+  readonly reason:
+    | 'enabled'
+    | 'observe_only_not_calibrated';
+}
+
+export function normalizePromotionBoostTargetType(
+  value: unknown
+): PromotionBoostTargetType | null {
+  return value === 'community' || value === 'photo' || value === 'video'
+    ? value
+    : null;
+}
+
+/**
+ * Vídeo já pertence ao contrato genérico de Promotion/Boost, mas monetização
+ * paga de vídeo permanece deliberadamente indisponível. A liberação futura
+ * exige evidência real + decisão explícita/versionada; nunca acontece só porque
+ * o target passou a existir no type union.
+ */
+export function promotionBoostTargetAvailability(
+  targetType: PromotionBoostTargetType
+): Readonly<PromotionBoostTargetAvailability> {
+  if (targetType === 'video') {
+    return Object.freeze({
+      targetType,
+      contractSupported: true,
+      campaignCreationEnabled: false,
+      placementEnabled: false,
+      reason: 'observe_only_not_calibrated',
+    });
+  }
+
+  return Object.freeze({
+    targetType,
+    contractSupported: true,
+    campaignCreationEnabled: true,
+    placementEnabled: true,
+    reason: 'enabled',
+  });
+}
 export type PromotionBoostCampaignStatus =
   | 'active'
   | 'paused'
@@ -214,10 +260,7 @@ export function buildPromotionBoostCampaign(input: {
   readonly now: number;
 }): Readonly<PromotionBoostCampaign> | null {
   const campaignId = cleanId(input.campaignId);
-  const targetType =
-    input.targetType === 'community' || input.targetType === 'photo'
-      ? input.targetType
-      : null;
+  const targetType = normalizePromotionBoostTargetType(input.targetType);
   const targetId = cleanId(input.targetId);
   const targetOwnerUid = cleanId(input.targetOwnerUid);
   const advertiserUid = cleanId(input.advertiserUid);
@@ -234,6 +277,7 @@ export function buildPromotionBoostCampaign(input: {
   if (
     !campaignId
     || !targetType
+    || !promotionBoostTargetAvailability(targetType).campaignCreationEnabled
     || !targetId
     || !targetOwnerUid
     || !advertiserUid
@@ -291,10 +335,7 @@ export function normalizePromotionBoostCampaign(
     raw && typeof raw === 'object' && !Array.isArray(raw)
       ? (raw as Record<string, unknown>)
       : {};
-  const targetType =
-    source['targetType'] === 'community' || source['targetType'] === 'photo'
-      ? source['targetType']
-      : null;
+  const targetType = normalizePromotionBoostTargetType(source['targetType']);
   const status = source['status'];
   const campaignId = cleanId(source['campaignId']);
   const targetId = cleanId(source['targetId']);
@@ -404,6 +445,9 @@ export function promotionBoostCampaignEligible(
   campaign: Readonly<PromotionBoostCampaign>,
   now: number
 ): boolean {
+  if (!promotionBoostTargetAvailability(campaign.targetType).placementEnabled) {
+    return false;
+  }
   if (campaign.status !== 'active') return false;
   if (now < campaign.startsAt || now >= campaign.endsAt) return false;
 
