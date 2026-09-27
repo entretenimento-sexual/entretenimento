@@ -3,13 +3,15 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { assertRecentAuthentication } from '../account_lifecycle/_shared';
 import { assertInteractionAccessData } from '../account_lifecycle/interaction-access.policy';
-import {
-  normalizeCommunityBoostAdvertiserAccount,
-  normalizeCommunityBoostBillingConfig,
-} from '../community-boost/community-boost.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import { REQUIRE_CALLABLE_APP_CHECK, assertCallableAppCheck } from '../shared/security/callable-app-check';
+import {
+  normalizePromotionBoostAdvertiserAccount,
+  normalizePromotionBoostBillingConfig,
+  promotionBoostAdvertiserAccountRef,
+  promotionBoostBillingConfigRef,
+} from './promotion-boost-commercial-authority';
 import {
   buildPromotionBoostCampaign,
   normalizePromotionBoostCampaign,
@@ -119,8 +121,8 @@ export const managePhotoPromotionCampaign = onCall<Request>(
       const campaignRef = db.collection('promotion_boost_campaigns').doc();
       const publicationRef = db.doc(`users/${ownerUid}/photo_publications/${photoId}`);
       const publicPhotoRef = db.doc(`public_profiles/${ownerUid}/public_photos/${photoId}`);
-      const billingRef = db.collection('community_boost_billing_config').doc('current');
-      const advertiserRef = db.collection('community_boost_advertiser_accounts').doc(actor.uid);
+      const billingRef = promotionBoostBillingConfigRef();
+      const advertiserRef = promotionBoostAdvertiserAccountRef(actor.uid);
       const actorUserRef = db.collection('users').doc(actor.uid);
       const actorAgeRef = db.collection('age_eligibility_records').doc(actor.uid);
       const activeSlotRef = db.collection('promotion_boost_active_slots').doc(`photo:${ownerUid}:${photoId}`);
@@ -191,10 +193,10 @@ export const managePhotoPromotionCampaign = onCall<Request>(
           }
         }
 
-        const billing = normalizeCommunityBoostBillingConfig(
+        const billing = normalizePromotionBoostBillingConfig(
           billingSnapshot.exists ? billingSnapshot.data() : null
         );
-        const advertiser = normalizeCommunityBoostAdvertiserAccount(
+        const advertiser = normalizePromotionBoostAdvertiserAccount(
           advertiserSnapshot.exists ? advertiserSnapshot.data() : null,
           actor.uid
         );
@@ -347,8 +349,7 @@ export const managePhotoPromotionCampaign = onCall<Request>(
             )
           ),
           transaction.get(
-            db.collection('community_boost_advertiser_accounts')
-              .doc(campaign.advertiserUid)
+            promotionBoostAdvertiserAccountRef(campaign.advertiserUid)
           ),
           transaction.get(
             db.collection('users').doc(campaign.advertiserUid)
@@ -375,7 +376,7 @@ export const managePhotoPromotionCampaign = onCall<Request>(
           publicPhotoSnapshot.exists ? publicPhotoSnapshot.data() ?? {} : null,
           now
         );
-        if (!normalizeCommunityBoostAdvertiserAccount(
+        if (!normalizePromotionBoostAdvertiserAccount(
           advertiserSnapshot.exists ? advertiserSnapshot.data() : null,
           campaign.advertiserUid
         )) {
