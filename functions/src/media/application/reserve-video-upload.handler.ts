@@ -5,7 +5,6 @@ import * as logger from 'firebase-functions/logger';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 
-import { assertInteractionAccess } from '../../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
 import {
@@ -20,6 +19,7 @@ import {
 import {
   consumeBackendRateLimitQuota,
 } from '../../shared/security/backend-rate-limit.service';
+import { assertPrivateVideoUploadEligibility } from './private-video-upload-eligibility.service';
 import {
   VIDEO_UPLOAD_RESERVATION_TTL_MS,
   evaluateVideoUploadQuota,
@@ -336,7 +336,7 @@ export const reserveVideoUpload = onCall<ReserveVideoUploadRequest>(
       );
     }
 
-    await assertInteractionAccess(ownerUid);
+    await assertPrivateVideoUploadEligibility(ownerUid);
 
     const nowMs = Date.now();
     await consumeBackendRateLimitQuota({
