@@ -52,10 +52,54 @@ service firebase.storage {
     function isVideoCreateOrUpdate() {
       return request.resource != null
         && (
-          request.resource.contentType.matches('video/.*')
+          request.resource.contentType == 'video/mp4'
+          || request.resource.contentType == 'video/x-m4v'
+          || request.resource.contentType == 'video/quicktime'
+          || request.resource.contentType == 'video/webm'
+          || request.resource.contentType == 'video/x-matroska'
+          || request.resource.contentType == 'video/x-msvideo'
+          || request.resource.contentType == 'video/avi'
+          || request.resource.contentType == 'video/msvideo'
+          || request.resource.contentType == 'video/x-ms-wmv'
+          || request.resource.contentType == 'video/mp2t'
           || request.resource.contentType == 'application/mxf'
+          || request.resource.contentType == 'video/mxf'
         )
+        && request.resource.size > 0
         && request.resource.size <= 500 * 1024 * 1024;
+    }
+
+    function hasVideoUploadReservationId() {
+      return request.resource != null
+        && request.resource.metadata != null
+        && request.resource.metadata.mediaVideoReservationId is string
+        && request.resource.metadata.mediaVideoReservationId.size() > 0
+        && request.resource.metadata.mediaVideoReservationId.size() <= 128;
+    }
+
+    function videoUploadReservation() {
+      return firestore.get(
+        /databases/(default)/documents/media_video_upload_reservations/$(request.resource.metadata.mediaVideoReservationId)
+      ).data;
+    }
+
+    function hasActiveVideoUploadReservation(uid, objectPath) {
+      return hasVideoUploadReservationId()
+        && videoUploadReservation().ownerUid == uid
+        && videoUploadReservation().videoStoragePath == objectPath
+        && videoUploadReservation().videoSizeBytes == request.resource.size
+        && videoUploadReservation().videoContentType == request.resource.contentType
+        && videoUploadReservation().expiresAt > request.time;
+    }
+
+    function hasActiveVideoPosterReservation(uid, videoId, objectPath) {
+      return hasVideoUploadReservationId()
+        && videoUploadReservation().ownerUid == uid
+        && videoUploadReservation().videoId == videoId
+        && videoUploadReservation().posterStoragePath == objectPath
+        && videoUploadReservation().posterSizeBytes == request.resource.size
+        && videoUploadReservation().posterContentType == request.resource.contentType
+        && videoUploadReservation().expiresAt > request.time;
     }
 
     // ============================================================
@@ -77,7 +121,12 @@ service firebase.storage {
 
     match /users/{uid}/uploads/videos/{fileName} {
       allow read: if false;
-      allow create, update: if isSelf(uid) && isVideoCreateOrUpdate();
+      allow create, update: if isSelf(uid)
+        && isVideoCreateOrUpdate()
+        && hasActiveVideoUploadReservation(
+          uid,
+          'users/' + uid + '/uploads/videos/' + fileName
+        );
       allow delete: if isSelf(uid);
     }
 
@@ -85,7 +134,15 @@ service firebase.storage {
     // O namespace separado permite limpeza segura junto do vídeo sem afetar fotos.
     match /users/{uid}/uploads/video-posters/{videoId}/{fileName} {
       allow read: if false;
-      allow create, update: if isSelf(uid) && isImageCreateOrUpdate();
+      allow create, update: if isSelf(uid)
+        && request.resource.contentType == 'image/jpeg'
+        && request.resource.size > 0
+        && request.resource.size <= 10 * 1024 * 1024
+        && hasActiveVideoPosterReservation(
+          uid,
+          videoId,
+          'users/' + uid + '/uploads/video-posters/' + videoId + '/' + fileName
+        );
       allow delete: if isSelf(uid);
     }
 
