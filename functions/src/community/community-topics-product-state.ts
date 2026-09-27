@@ -2,18 +2,25 @@
 // -----------------------------------------------------------------------------
 // COMMUNITY TOPICS PRODUCT STATE
 // -----------------------------------------------------------------------------
-// Discussões fazem parte da navegação canônica de Comunidades como uma superfície
-// persistente complementar ao Mural. O Mural continua orientado a fluxo/tempo;
-// Discussões organiza conversas por assunto para consulta e continuidade.
+// Tópicos/Discussões não fazem parte da navegação canônica de Comunidades.
+// O Mural + comentários/respostas é a superfície canônica de conversa.
 //
-// As callables continuam obrigadas a passar por este contrato antes de qualquer
-// acesso a dados. Assim uma eventual suspensão futura permanece centralizada sem
-// espalhar feature flags ou condicionais pelo domínio.
+// Código e dados legados permanecem preservados apenas para compatibilidade e
+// eventual saneamento. Nenhuma callable de Tópicos pode servir leitura, escrita
+// ou moderação enquanto este domínio estiver congelado.
 // -----------------------------------------------------------------------------
 
-export const COMMUNITY_TOPICS_PRODUCT_STATE = 'active' as const;
+import { HttpsError } from 'firebase-functions/v2/https';
+
+export const COMMUNITY_TOPICS_PRODUCT_STATE = 'frozen' as const;
 
 export function assertCommunityTopicsProductAvailable(): void {
-  // Contrato intencionalmente explícito: o produto está ativo. A função permanece
-  // como ponto canônico para uma eventual suspensão emergencial sem duplicar gates.
+  throw new HttpsError(
+    'failed-precondition',
+    'Discussões estão desativadas. Use o Mural da Comunidade.',
+    {
+      reason: 'community_topics_product_frozen',
+      productState: COMMUNITY_TOPICS_PRODUCT_STATE,
+    }
+  );
 }
