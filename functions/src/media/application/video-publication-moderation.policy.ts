@@ -1,3 +1,10 @@
+import { createHash } from 'node:crypto';
+
+export const VIDEO_PREVENTIVE_REVIEW_REASON =
+  'preventive_media_review' as const;
+export const VIDEO_PREVENTIVE_REVIEW_MESSAGE =
+  'Conteúdo aguardando avaliação preventiva antes da distribuição.';
+
 export type VideoPublicationModerationStatus =
   | 'APPROVED'
   | 'PENDING_REVIEW'
@@ -11,6 +18,15 @@ export type RestrictedVideoModerationStatus =
   | 'FLAGGED'
   | 'HIDDEN'
   | 'REJECTED';
+
+export interface UnassessedVideoScoreBreakdown {
+  rankingScore: number;
+  qualityScore: number;
+  engagementScore: number;
+  safetyScore: null;
+  audienceScore: number;
+  retentionScore: number;
+}
 
 export function normalizeVideoPublicationModerationStatus(
   value: unknown
@@ -40,28 +56,58 @@ export function isRestrictedVideoModerationStatus(
 }
 
 /**
- * Publicação comum não depende de aprovação humana. APPROVED aqui significa
- * somente "sem restrição de moderação". A fila administrativa é acionada por
- * denúncias, e quarentenas usam FLAGGED/HIDDEN.
+ * Toda nova publicação nasce não avaliada. PENDING_REVIEW não significa
+ * reprovação: significa apenas que a mídia ainda não recebeu uma decisão
+ * explícita de segurança e, portanto, fica fora da distribuição pública.
  */
-export function defaultVideoPublicationModerationStatus(): 'APPROVED' {
-  return 'APPROVED';
+export function defaultVideoPublicationModerationStatus(): 'PENDING_REVIEW' {
+  return 'PENDING_REVIEW';
+}
+
+export function buildUnassessedVideoScoreBreakdown():
+UnassessedVideoScoreBreakdown {
+  return {
+    rankingScore: 0,
+    qualityScore: 0,
+    engagementScore: 0,
+    safetyScore: null,
+    audienceScore: 0,
+    retentionScore: 0,
+  };
+}
+
+export function buildPreventiveVideoReviewId(
+  ownerUid: string,
+  videoId: string,
+  assetVersion: number
+): string {
+  return createHash('sha256')
+    .update([
+      'system',
+      VIDEO_PREVENTIVE_REVIEW_REASON,
+      ownerUid,
+      videoId,
+      String(assetVersion),
+    ].join('|'))
+    .digest('hex')
+    .slice(0, 48);
 }
 
 /**
- * Edição feita pelo proprietário não abre uma nova revisão e jamais remove uma
- * restrição já aplicada pela moderação.
+ * Edição do proprietário nunca concede aprovação. APPROVED permanece aprovado;
+ * estados restritos continuam restritos; conteúdo ainda não avaliado permanece
+ * em revisão preventiva.
  */
 export function resolveVideoModerationAfterOwnerEdit(
   currentStatus: unknown
-): 'APPROVED' | RestrictedVideoModerationStatus {
+): 'APPROVED' | 'PENDING_REVIEW' | RestrictedVideoModerationStatus {
   const normalized = normalizeVideoPublicationModerationStatus(currentStatus);
 
   if (isRestrictedVideoModerationStatus(normalized)) {
     return normalized;
   }
 
-  return 'APPROVED';
+  return normalized === 'APPROVED' ? 'APPROVED' : 'PENDING_REVIEW';
 }
 
 export function isLegacyPendingVideoModeration(value: unknown): boolean {
