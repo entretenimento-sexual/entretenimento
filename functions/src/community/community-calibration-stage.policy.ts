@@ -28,6 +28,10 @@ export const COMMUNITY_CALIBRATION_REQUIRED_EVIDENCE = Object.freeze({
     PRODUCT_CALIBRATION_REQUIRED_EVIDENCE.rankingConsecutivePassingCycles,
   operationalCostBaselineMinimumDays:
     PRODUCT_CALIBRATION_REQUIRED_EVIDENCE.minimumProductionWindowDays,
+  minimumRuntimeSamplesPerMetric:
+    PRODUCT_CALIBRATION_REQUIRED_EVIDENCE.minimumRuntimeSamplesPerMetric,
+  minimumObservedDaysPerRuntimeMetric:
+    PRODUCT_CALIBRATION_REQUIRED_EVIDENCE.minimumObservedDaysPerRuntimeMetric,
   requiresProductionScheduledRankingEvidence: true,
   requiresProductionOperationalCostBaseline:
     PRODUCT_CALIBRATION_REQUIRED_EVIDENCE.requiresProductionRuntimeEvidence,
