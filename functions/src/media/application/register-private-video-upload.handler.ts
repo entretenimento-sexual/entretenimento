@@ -242,9 +242,9 @@ async function readRequiredVideoMetadata(
 async function validateOptionalPoster(
   storagePath: string | null,
   expectedReservationId: string
-): Promise<void> {
+): Promise<{ mimeType: string; sizeBytes: number } | null> {
   if (!storagePath) {
-    return;
+    return null;
   }
 
   const file = storage.bucket().file(storagePath);
@@ -284,6 +284,8 @@ async function validateOptionalPoster(
       'A imagem de capa excede o limite permitido ou está vazia.'
     );
   }
+
+  return { mimeType, sizeBytes };
 }
 
 async function enqueueCleanup(
@@ -548,7 +550,7 @@ export const registerPrivateVideoUpload = onCall<
     ];
 
     try {
-      const [videoMetadata] = await Promise.all([
+      const [videoMetadata, posterMetadata] = await Promise.all([
         readRequiredVideoMetadata(videoStoragePath, reservationId),
         validateOptionalPoster(posterStoragePath, reservationId),
       ]);
@@ -565,6 +567,8 @@ export const registerPrivateVideoUpload = onCall<
         videoSizeBytes: videoMetadata.sizeBytes,
         videoContentType: videoMetadata.mimeType,
         posterStoragePath,
+        posterSizeBytes: posterMetadata?.sizeBytes ?? 0,
+        posterContentType: posterMetadata?.mimeType ?? null,
       });
 
       if (
