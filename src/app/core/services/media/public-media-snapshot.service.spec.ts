@@ -109,12 +109,12 @@ describe('PublicMediaSnapshotService', () => {
     expect(options).toEqual({ persist: true });
   });
 
-  it('separa o snapshot persistente por UID e limpa a sessão anterior', async () => {
+  it('separa snapshots orgânicos persistentes por UID e limpa a sessão anterior', async () => {
     const { service, uid$, get, deleteCache } = setup([]);
 
-    await firstValueFrom(service.read$('boosted-photos'));
+    await firstValueFrom(service.read$('latest-photos'));
     expect(get).toHaveBeenLastCalledWith(
-      'media:public:snapshot:uid:viewer-1:boosted-photos'
+      'media:public:snapshot:uid:viewer-1:latest-photos'
     );
 
     uid$.next('viewer-2');
@@ -125,13 +125,10 @@ describe('PublicMediaSnapshotService', () => {
     expect(deleteCache).toHaveBeenCalledWith(
       'media:public:snapshot:uid:viewer-1:top-photos'
     );
-    expect(deleteCache).toHaveBeenCalledWith(
-      'media:public:snapshot:uid:viewer-1:boosted-photos'
-    );
 
-    await firstValueFrom(service.read$('boosted-photos'));
+    await firstValueFrom(service.read$('top-photos'));
     expect(get).toHaveBeenLastCalledWith(
-      'media:public:snapshot:uid:viewer-2:boosted-photos'
+      'media:public:snapshot:uid:viewer-2:top-photos'
     );
   });
 
