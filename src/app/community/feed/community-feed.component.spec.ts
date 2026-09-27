@@ -50,7 +50,11 @@ function page(nextCursor: string | null = null): CommunityFeedPage {
   };
 }
 
-function textItem(postId: string, text: string) {
+function textItem(
+  postId: string,
+  text: string,
+  publishedAt = Date.now()
+) {
   return {
     postId,
     kind: 'text' as const,
@@ -68,7 +72,7 @@ function textItem(postId: string, text: string) {
       canViewComments: true,
       canComment: false,
     },
-    publishedAt: Date.now(),
+    publishedAt,
   };
 }
 
@@ -176,14 +180,22 @@ describe('CommunityFeedComponent', () => {
   it('reinicia a janela de DOM ao trocar de comunidade no mesmo componente', () => {
     const firstPage: CommunityFeedPage = {
       items: Array.from({ length: 70 }, (_, index) =>
-        textItem(`old-${index + 1}`, `Antiga ${index + 1}`)
+        textItem(
+          `old-${index + 1}`,
+          `Antiga ${index + 1}`,
+          10_000 - index
+        )
       ),
       nextCursor: null,
       generatedAt: Date.now(),
     };
     const secondPage: CommunityFeedPage = {
       items: Array.from({ length: 70 }, (_, index) =>
-        textItem(`new-${index + 1}`, `Nova ${index + 1}`)
+        textItem(
+          `new-${index + 1}`,
+          `Nova ${index + 1}`,
+          20_000 - index
+        )
       ),
       nextCursor: null,
       generatedAt: Date.now() + 1,
