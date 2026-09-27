@@ -112,9 +112,12 @@ function assertOwner(requesterUid: string | null, ownerUid: string): void {
 function isQuarantinedPublication(
   publication: VideoPublicationDoc | null
 ): boolean {
-  return String(publication?.moderationStatus ?? '')
+  const moderationStatus = String(publication?.moderationStatus ?? '')
     .trim()
-    .toUpperCase() === 'FLAGGED';
+    .toUpperCase();
+
+  return moderationStatus === 'FLAGGED' ||
+    moderationStatus === 'PENDING_REVIEW';
 }
 
 function buildDeletionJobId(ownerUid: string, videoId: string): string {
