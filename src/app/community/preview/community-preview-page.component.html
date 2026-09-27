@@ -299,21 +299,6 @@
               <i class="fas {{ sectionIcons.feed }}" aria-hidden="true"></i>
               <span>{{ feedSectionLabel(preview.community) }}</span>
             </button>
-
-            @if (spaceCapabilities(preview.community).topics) {
-              <button
-                id="community-tab-topics"
-                type="button"
-                aria-controls="community-panel-topics"
-                [attr.aria-pressed]="activeSection() === 'topics'"
-                [class.is-active]="activeSection() === 'topics'"
-                (click)="selectSection('topics')"
-              >
-                <i class="fas {{ sectionIcons.topics }}" aria-hidden="true"></i>
-                <span>Discussões</span>
-              </button>
-            }
-
             <button
               id="community-tab-photos"
               type="button"
@@ -419,19 +404,7 @@
                     [focusCommentId]="focusedCommentId()"
                     view="feed"
                   />
-                </section>
-              } @else if (
-                activeSection() === 'topics'
-                && spaceCapabilities(preview.community).topics
-              ) {
-                <section id="community-panel-topics" aria-labelledby="community-tab-topics">
-                  <app-community-topics
-                    [communityId]="preview.community.communityId"
-                    [canInteract]="preview.canInteract"
-                    [viewerRole]="preview.viewerRole"
-                  />
-                </section>
-              } @else if (activeSection() === 'photos') {
+                </section> } } @else if (activeSection() === 'photos') {
                 <section id="community-panel-photos" aria-labelledby="community-tab-photos">
                   <app-community-feed
                     [communityId]="preview.community.communityId"
