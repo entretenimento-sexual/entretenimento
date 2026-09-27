@@ -19,7 +19,6 @@ import {
   IPublicVideoItem,
 } from 'src/app/core/interfaces/media/i-public-video-item';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { MediaApplicationErrorService } from './media-application-error.service';
 import { PublicPhotoAccessService } from './public-photo-access.service';
 import { PublicMediaReadBoundaryService } from './public-media-read-boundary.service';
@@ -77,7 +76,6 @@ export class PublicMediaOwnerPageQueryService {
   private readonly publicMediaRead = inject(PublicMediaReadBoundaryService);
   private readonly photoAccess = inject(PublicPhotoAccessService);
   private readonly videoAccess = inject(PublicVideoAccessService);
-  private readonly errorNotification = inject(ErrorNotificationService);
   private readonly globalError = inject(MediaApplicationErrorService);
 
   loadPhotoPage$(
@@ -251,24 +249,147 @@ export class PublicMediaOwnerPageQueryService {
     const ownerCount = this.normalizeOwnerUids(request.ownerUids).length;
     const pageSize = this.normalizePageSize(request.pageSize);
 
-    if (request.notifyOnError === true) {
-      this.errorNotification.showWarning(
-        'Não foi possível carregar mais publicações agora.'
-      );
+    const errorOptions = {
+      operation: kind === 'PHOTO' ? 'loadPhotoPage
+
+    return of({
+      items: [],
+      nextCursor: this.normalizeCursor(kind, request.cursor),
+      hasMore: ownerCount > 0,
+      failed: true,
+      loadedAt: Date.now(),
+    });
+  }
+
+  private normalizeCursor(
+    kind: TPublicMediaOwnerPageKind,
+    value: IPublicMediaOwnerCursor | null | undefined
+  ): IPublicMediaOwnerCursor | null {
+    if (!value || value.kind !== kind) {
+      return null;
     }
 
-    this.globalError.reportSilently(
-      error,
-      kind === 'PHOTO' ? 'loadPhotoPage$' : 'loadVideoPage$',
-      'Falha ao paginar mídia pública por autores.',
-      {
+    const expectedSegment =
+      kind === 'PHOTO' ? '/public_photos/' : '/public_videos/';
+    const documentPath = String(value.documentPath ?? '').trim();
+    const publishedAt = this.safeNumber(value.publishedAt);
+
+    if (!documentPath.includes(expectedSegment)) {
+      return null;
+    }
+
+    return { kind, publishedAt, documentPath };
+  }
+
+  private normalizeOwnerUids(values: readonly string[]): string[] {
+    const unique = new Set<string>();
+
+    for (const value of values ?? []) {
+      const uid = String(value ?? '').trim();
+      if (!SAFE_PUBLIC_MEDIA_ID_PATTERN.test(uid)) continue;
+      unique.add(uid);
+      if (unique.size >= MAX_OWNER_UIDS) break;
+    }
+
+    return [...unique];
+  }
+
+  private normalizePageSize(value: unknown): number {
+    const parsed = Number(value ?? DEFAULT_PAGE_SIZE);
+
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return DEFAULT_PAGE_SIZE;
+    }
+
+    return Math.min(MAX_PAGE_SIZE, Math.max(1, Math.floor(parsed)));
+  }
+
+  private safeNumber(value: unknown): number {
+    const parsed = Number(value ?? 0);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+  }
+}
+ : 'loadVideoPage
+
+    return of({
+      items: [],
+      nextCursor: this.normalizeCursor(kind, request.cursor),
+      hasMore: ownerCount > 0,
+      failed: true,
+      loadedAt: Date.now(),
+    });
+  }
+
+  private normalizeCursor(
+    kind: TPublicMediaOwnerPageKind,
+    value: IPublicMediaOwnerCursor | null | undefined
+  ): IPublicMediaOwnerCursor | null {
+    if (!value || value.kind !== kind) {
+      return null;
+    }
+
+    const expectedSegment =
+      kind === 'PHOTO' ? '/public_photos/' : '/public_videos/';
+    const documentPath = String(value.documentPath ?? '').trim();
+    const publishedAt = this.safeNumber(value.publishedAt);
+
+    if (!documentPath.includes(expectedSegment)) {
+      return null;
+    }
+
+    return { kind, publishedAt, documentPath };
+  }
+
+  private normalizeOwnerUids(values: readonly string[]): string[] {
+    const unique = new Set<string>();
+
+    for (const value of values ?? []) {
+      const uid = String(value ?? '').trim();
+      if (!SAFE_PUBLIC_MEDIA_ID_PATTERN.test(uid)) continue;
+      unique.add(uid);
+      if (unique.size >= MAX_OWNER_UIDS) break;
+    }
+
+    return [...unique];
+  }
+
+  private normalizePageSize(value: unknown): number {
+    const parsed = Number(value ?? DEFAULT_PAGE_SIZE);
+
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return DEFAULT_PAGE_SIZE;
+    }
+
+    return Math.min(MAX_PAGE_SIZE, Math.max(1, Math.floor(parsed)));
+  }
+
+  private safeNumber(value: unknown): number {
+    const parsed = Number(value ?? 0);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+  }
+}
+,
+      reasonHint: 'media_discovery_page_failed' as const,
+      metadata: {
         scope: 'PublicMediaOwnerPageQueryService',
         kind,
         ownerCount,
         pageSize,
         hasCursor: !!request.cursor,
-      }
-    );
+      },
+    };
+
+    if (request.notifyOnError === true) {
+      this.globalError.report(error, errorOptions);
+    } else {
+      this.globalError.reportSilently(
+        error,
+        errorOptions.operation,
+        undefined,
+        errorOptions.metadata,
+        errorOptions.reasonHint
+      );
+    }
 
     return of({
       items: [],
