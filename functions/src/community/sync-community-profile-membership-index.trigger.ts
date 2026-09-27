@@ -9,10 +9,12 @@
 // arquivada, scheduled_for_deletion ou inexistente.
 // -----------------------------------------------------------------------------
 
+import { logger } from 'firebase-functions';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
+import { buildProductCalibrationRuntimeObservation } from '../shared/observability/product-calibration-observation.policy';
 import {
   buildCommunityProfileMembershipIndexProjection,
 } from './community-profile-membership-index.projection';
@@ -21,6 +23,18 @@ function isCommunityProfileIndexTerminal(rawCommunity: unknown): boolean {
   const community = (rawCommunity ?? {}) as Record<string, unknown>;
   return community['status'] === 'archived'
     || community['status'] === 'scheduled_for_deletion';
+}
+
+function logDerivedWrite(communityId: string, memberId: string, value: number): void {
+  logger.debug('community_profile_membership_index_fanout', {
+    communityId,
+    memberId,
+    calibrationObservation: buildProductCalibrationRuntimeObservation({
+      metric: 'community.projection.derived_writes_per_source_event',
+      value,
+      source: 'community_profile_membership_index',
+    }),
+  });
 }
 
 export const syncCommunityProfileMembershipIndex = onDocumentWritten(
@@ -43,6 +57,7 @@ export const syncCommunityProfileMembershipIndex = onDocumentWritten(
 
     if (!membershipSnapshot?.exists) {
       await indexRef.delete();
+      logDerivedWrite(communityId, memberId, 1);
       return;
     }
 
@@ -56,6 +71,7 @@ export const syncCommunityProfileMembershipIndex = onDocumentWritten(
 
     if (!community || isCommunityProfileIndexTerminal(community)) {
       await indexRef.delete();
+      logDerivedWrite(communityId, memberId, 1);
       return;
     }
 
@@ -66,6 +82,7 @@ export const syncCommunityProfileMembershipIndex = onDocumentWritten(
 
     if (!projection) {
       await indexRef.delete();
+      logDerivedWrite(communityId, memberId, 1);
       return;
     }
 
@@ -73,5 +90,6 @@ export const syncCommunityProfileMembershipIndex = onDocumentWritten(
       ...projection,
       updatedAt: FieldValue.serverTimestamp(),
     });
+    logDerivedWrite(communityId, memberId, 1);
   }
 );
