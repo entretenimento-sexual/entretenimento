@@ -17,7 +17,9 @@ import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
-import { buildProductCalibrationRuntimeObservation } from '../shared/observability/product-calibration-observation.policy';
+import {
+  buildProductCalibrationRuntimeObservation,
+} from '../shared/observability/product-calibration-observation.policy';
 import {
   buildCommunityRankingProjectionPatch,
   haveCommunityRankingCommunityInputsChanged,
