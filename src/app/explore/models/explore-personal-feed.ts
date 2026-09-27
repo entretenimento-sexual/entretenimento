@@ -17,7 +17,6 @@ export interface ExplorePersonalFeedWindow {
 
 export type ExplorePersonalFeedInput = Pick<
   IExploreFeedVm,
-  | 'boostedPhotos'
   | 'mostViewedPhotos'
   | 'topPhotos'
   | 'latestPhotos'
@@ -40,7 +39,7 @@ const DEFAULT_VISIBLE_LIMIT = 6;
  * 2. publicações recentes de perfis compatíveis;
  * 3. fallback público somente quando nenhuma relação pessoal foi resolvida.
  *
- * Conteúdo impulsionado e engajamento nunca ultrapassam o vínculo pessoal.
+ * Engajamento nunca ultrapassa o vínculo pessoal e não recebe sinal pago.
  * `maxItemsPerOwner` controla a diversidade de cada rodada; mídias excedentes
  * entram nas rodadas seguintes em vez de serem descartadas definitivamente.
  */
@@ -70,7 +69,6 @@ export function buildExplorePersonalFeed(
   for (const item of [
     ...(vm.personalPhotos ?? []),
     ...(vm.latestPhotos ?? []),
-    ...(vm.boostedPhotos ?? []),
     ...(vm.topPhotos ?? []),
     ...(vm.mostViewedPhotos ?? []),
   ]) {
@@ -190,16 +188,13 @@ function relationshipPriority(
 }
 
 function calculateSecondaryScore(item: IPublicPhotoItem): number {
-  const paidBoost = item.boostActive === true
-    ? 1_000_000 + toFiniteNumber(item.boostPriority) * 1_000
-    : 0;
   const engagement =
     toFiniteNumber(item.engagementScore ?? item.score) * 10_000 +
     toFiniteNumber(item.reactionsCount ?? item.likesCount) * 300 +
     toFiniteNumber(item.commentsCount) * 500 +
     toFiniteNumber(item.viewsCount) * 10;
 
-  return paidBoost + engagement;
+  return engagement;
 }
 
 function normalizeUidSet(values: readonly unknown[]): Set<string> {
