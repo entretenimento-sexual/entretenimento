@@ -191,7 +191,7 @@ export class PhotoUploadComponent {
 
     const validation = validateImageMediaFile(file, 'default');
     if (!validation.valid) {
-      this.errorNotifier.showError(
+      this.errorNotifier.showWarning(
         validation.userMessage ?? 'A imagem selecionada não é válida.'
       );
       return;
@@ -206,7 +206,7 @@ export class PhotoUploadComponent {
           }
 
           if (policyResult.decision !== 'ALLOW') {
-            this.errorNotifier.showError(
+            this.errorNotifier.showWarning(
               this.getPolicyDeniedMessage(policyResult.reason, 'adicionar fotos')
             );
             return EMPTY;
@@ -243,7 +243,7 @@ export class PhotoUploadComponent {
                   'default'
                 );
                 if (!processedValidation.valid) {
-                  this.errorNotifier.showError(
+                  this.errorNotifier.showWarning(
                     processedValidation.userMessage ?? 'A imagem editada não é válida.'
                   );
                   return;
@@ -293,7 +293,7 @@ export class PhotoUploadComponent {
           }
 
           if (policyResult.decision !== 'ALLOW') {
-            this.errorNotifier.showError(
+            this.errorNotifier.showWarning(
               this.getPolicyDeniedMessage(policyResult.reason, 'enviar fotos')
             );
             return EMPTY;
@@ -309,12 +309,12 @@ export class PhotoUploadComponent {
           }
 
           if (!file) {
-            this.errorNotifier.showError('Selecione uma imagem antes de enviar.');
+            this.errorNotifier.showWarning('Selecione uma imagem antes de enviar.');
             return EMPTY;
           }
 
           if (!imageStateStr) {
-            this.errorNotifier.showError(
+            this.errorNotifier.showWarning(
               'Confirme a foto no editor antes de enviar.'
             );
             return EMPTY;
@@ -345,7 +345,7 @@ export class PhotoUploadComponent {
           }
 
           if (policyResult.decision !== 'ALLOW') {
-            this.errorNotifier.showError(
+            this.errorNotifier.showWarning(
               this.getPolicyDeniedMessage(policyResult.reason, 'editar fotos')
             );
             return EMPTY;
@@ -361,7 +361,7 @@ export class PhotoUploadComponent {
           }
 
           if (!file) {
-            this.errorNotifier.showError('Selecione uma imagem antes de editar.');
+            this.errorNotifier.showWarning('Selecione uma imagem antes de editar.');
             return EMPTY;
           }
 
@@ -381,7 +381,7 @@ export class PhotoUploadComponent {
 
                 const validation = validateImageMediaFile(result.file, 'default');
                 if (!validation.valid) {
-                  this.errorNotifier.showError(
+                  this.errorNotifier.showWarning(
                     validation.userMessage ?? 'A imagem editada não é válida.'
                   );
                   return;
