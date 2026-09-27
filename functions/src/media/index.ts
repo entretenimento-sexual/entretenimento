@@ -130,6 +130,11 @@ export {
 } from './application/reserve-photo-upload.handler';
 
 export {
+  cleanupExpiredVideoUploadReservations,
+  reserveVideoUpload,
+} from './application/reserve-video-upload.handler';
+
+export {
   cleanupPendingPublishedVideoAssets,
 } from './application/cleanup-published-video-assets.handler';
 
