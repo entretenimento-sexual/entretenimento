@@ -13,6 +13,8 @@ const DIRECT_GLOBAL_ERROR_IMPORT =
   /import\s*\{[^}]*\bGlobalErrorHandlerService\b[^}]*\}\s*from\s*['"][^'"]*global-error-handler\.service['"]/m;
 
 const LEGACY_MEDIA_HANDLE_ERROR_CALL = /\.handleError\s*\(/m;
+const DIRECT_ERROR_NOTIFICATION_CALL =
+  /\.(?:showError|showGenericError)\s*\(/m;
 
 const SCANNED_DIRECTORIES = [
   resolve(APP_ROOT, 'core/services/media'),
@@ -98,6 +100,61 @@ describe('Media application error boundary', () => {
       'utf8'
     );
     expect(mediaBoundary).not.toMatch(/\bhandleError\s*\(/);
+  });
+
+  it('impede apresentação direta de erro técnico em Media', () => {
+    const files = [
+      ...SCANNED_DIRECTORIES.flatMap(collectRuntimeTypeScriptFiles),
+      ...SCANNED_FILES,
+    ];
+
+    const violations = files
+      .filter((filePath) => {
+        const source = readFileSync(filePath, 'utf8');
+
+        if (
+          filePath.endsWith(
+            'core/services/media/media-application-error.service.ts'
+          )
+        ) {
+          return false;
+        }
+
+        return DIRECT_ERROR_NOTIFICATION_CALL.test(source);
+      })
+      .map((filePath) =>
+        relative(APP_ROOT, filePath).replaceAll('\\', '/')
+      )
+      .sort();
+
+    expect(
+      violations,
+      [
+        'Erros técnicos de Media não devem usar showError/showGenericError',
+        'diretamente. Use MediaApplicationErrorService; mantenha',
+        'ErrorNotificationService apenas para sucesso, informação e avisos',
+        'esperados de validação/estado.',
+      ].join(' ')
+    ).toEqual([]);
+  });
+
+  it('mantém catálogo reason -> mensagem -> presentation completo', () => {
+    const catalog = readFileSync(
+      resolve(APP_ROOT, 'core/services/media/media-error.catalog.ts'),
+      'utf8'
+    );
+    const boundary = readFileSync(
+      resolve(APP_ROOT, 'core/services/media/media-application-error.service.ts'),
+      'utf8'
+    );
+
+    expect(catalog).toContain('MEDIA_ERROR_MESSAGES');
+    expect(catalog).toContain('MEDIA_ERROR_PRESENTATIONS');
+    expect(catalog).toContain('resolveMediaErrorMessage');
+    expect(catalog).toContain('resolveMediaErrorPresentation');
+    expect(boundary).toContain('reasonMessages: MEDIA_ERROR_MESSAGES');
+    expect(boundary).toContain('reasonPresentations: MEDIA_ERROR_PRESENTATIONS');
+    expect(boundary).toContain('reasonHint');
   });
 
   it('mantém a topologia ApplicationError -> notifier + diagnóstico global', () => {
