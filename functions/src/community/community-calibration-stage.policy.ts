@@ -16,6 +16,13 @@ import {
   isProductCalibrationChangeAllowed,
   type ProductCalibrationStage,
 } from '../shared/calibration/product-calibration-stage.policy';
+export {
+  evaluateProductCalibrationReviewReadiness,
+  type ProductCalibrationDimension,
+  type ProductCalibrationDimensionReadiness,
+  type ProductCalibrationReviewReadiness,
+  type ProductCalibrationReviewReadinessInput,
+} from '../shared/calibration/product-calibration-readiness.policy';
 
 export const COMMUNITY_CALIBRATION_STAGE = PRODUCT_CALIBRATION_STAGE;
 
