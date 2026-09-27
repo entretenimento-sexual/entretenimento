@@ -8,6 +8,10 @@
 // com storage legado fica isolada fora desta policy.
 // -----------------------------------------------------------------------------
 
+import {
+  PRODUCT_CALIBRATION_STAGE,
+} from '../shared/calibration/product-calibration-stage.policy';
+
 export const PROMOTION_BOOST_POLICY_VERSION = 1 as const;
 export const PROMOTION_BOOST_DISCLOSURE = 'Patrocinado' as const;
 export const PROMOTION_BOOST_CURRENCY = 'BRL' as const;
@@ -30,7 +34,8 @@ export interface PromotionBoostTargetAvailability {
   readonly placementEnabled: boolean;
   readonly reason:
     | 'enabled'
-    | 'observe_only_not_calibrated';
+    | 'observe_only_not_calibrated'
+    | 'explicit_enablement_required';
 }
 
 export function normalizePromotionBoostTargetType(
@@ -56,7 +61,10 @@ export function promotionBoostTargetAvailability(
       contractSupported: true,
       campaignCreationEnabled: false,
       placementEnabled: false,
-      reason: 'observe_only_not_calibrated',
+      reason:
+        String(PRODUCT_CALIBRATION_STAGE) === 'OBSERVE_ONLY'
+          ? 'observe_only_not_calibrated'
+          : 'explicit_enablement_required',
     });
   }
 
