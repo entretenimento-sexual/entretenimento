@@ -3,6 +3,7 @@ import { Observable, combineLatest, of } from 'rxjs';
 import { catchError, map, switchMap, take } from 'rxjs/operators';
 
 import type { IPublicMediaContinuationContext } from 'src/app/core/interfaces/media/i-public-media-continuation-context';
+import type { TPublicMediaViewSource } from 'src/app/core/interfaces/media/i-public-media-viewer-session';
 import {
   IPublicProfileMediaItem,
   isPublicPhotoItem,
@@ -20,7 +21,7 @@ import { PublicVideoContinuationService } from './public-video-continuation.serv
 
 export interface PublicMixedMediaContinuationRequest {
   readonly existingItems: readonly IPublicProfileMediaItem[];
-  readonly source?: 'discover' | 'profile' | 'latest' | 'top' | 'boosted' | 'unknown';
+  readonly source?: TPublicMediaViewSource;
   readonly limit?: number;
   readonly continuationContext?: IPublicMediaContinuationContext;
 }
