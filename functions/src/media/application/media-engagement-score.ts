@@ -2,7 +2,8 @@ export interface MediaScoreBreakdown {
   rankingScore: number;
   qualityScore: number;
   engagementScore: number;
-  safetyScore: number;
+  /** null significa conteúdo ainda não avaliado; nunca equivale a segurança máxima. */
+  safetyScore: number | null;
   /** Sinal opcional de audiência qualificada usado por vídeos. */
   audienceScore?: number;
   /** Retenção confiável agregada por viewer, usada somente por vídeos. */
@@ -80,9 +81,14 @@ export function buildMediaEngagementScore(
     ? normalizeMediaScore(currentBreakdown.retentionScore)
     : undefined;
   const hasVideoSignals = audienceScore !== undefined || retentionScore !== undefined;
+  const safetyScore =
+    currentBreakdown.safetyScore === undefined ||
+    currentBreakdown.safetyScore === null
+      ? null
+      : normalizeMediaScore(currentBreakdown.safetyScore);
   const scoreBreakdown: MediaScoreBreakdown = {
     qualityScore: normalizeMediaScore(currentBreakdown.qualityScore ?? 0),
-    safetyScore: normalizeMediaScore(currentBreakdown.safetyScore ?? 100),
+    safetyScore,
     engagementScore,
     rankingScore: 0,
     ...(audienceScore === undefined ? {} : { audienceScore }),
@@ -96,10 +102,10 @@ export function buildMediaEngagementScore(
           scoreBreakdown.engagementScore * 0.30 +
           (audienceScore ?? 0) * 0.10 +
           (retentionScore ?? 0) * 0.10 +
-          scoreBreakdown.safetyScore * 0.30
+          (scoreBreakdown.safetyScore ?? 0) * 0.30
         : scoreBreakdown.qualityScore * 0.25 +
           scoreBreakdown.engagementScore * 0.45 +
-          scoreBreakdown.safetyScore * 0.30
+          (scoreBreakdown.safetyScore ?? 0) * 0.30
     )
   );
 
