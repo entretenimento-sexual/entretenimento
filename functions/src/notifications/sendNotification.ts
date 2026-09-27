@@ -11,6 +11,7 @@ import {
   isBilateralBlockActive,
 } from '../friendship/application/bilateral-block-access.policy';
 import {evaluateOperationalCostBudget} from '../shared/observability/operational-cost-budget.policy';
+import {buildProductCalibrationRuntimeObservation} from '../shared/observability/product-calibration-observation.policy';
 import {
   isCommunityPushMuted,
   isPushNotificationEnabledByPreference,
@@ -340,11 +341,23 @@ export const sendNotification = onDocumentCreated(
         targets.length
       )
       : null;
+    const calibrationObservation =
+      isCommunityMuralActivityNotificationType(notificationType)
+        ? buildProductCalibrationRuntimeObservation({
+          metric: 'community.notification.grouped_activities_per_push',
+          value: Math.max(
+            1,
+            Math.trunc(Number(notification?.activityCount ?? 1)) || 1
+          ),
+          source: notificationType,
+        })
+        : null;
 
     logger.info('[sendNotification] push processado', {
       notificationId,
       notificationType,
       operationalCostBudget,
+      calibrationObservation,
       hasNavigationRoute: Boolean(navigationData),
       usesNeutralExternalContent: true,
       targetsFreshRegistryOnly: true,
