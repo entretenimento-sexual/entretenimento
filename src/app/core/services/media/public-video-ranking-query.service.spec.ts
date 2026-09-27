@@ -90,10 +90,14 @@ function createService(options?: {
   const errorHandler = {
     report: vi.fn(),
   };
+  const snapshots = {
+    write: vi.fn(),
+  };
   const service = new PublicVideoRankingQueryService(
     gateway as never,
     publicVideoAccess as never,
-    errorHandler as never
+    errorHandler as never,
+    snapshots as never
   );
 
   return {
@@ -101,6 +105,7 @@ function createService(options?: {
     gateway,
     publicVideoAccess,
     errorHandler,
+    snapshots,
     item,
     nextCursor,
   };
@@ -131,6 +136,10 @@ describe('PublicVideoRankingQueryService', () => {
     });
     expect(page.items[0]?.url).toBeNull();
     expect(page.items[0]?.posterUrl).toContain('poster.webp');
+    expect(context.snapshots.write).toHaveBeenCalledWith(
+      'top-videos',
+      [context.item]
+    );
   });
 
   it('ignora cursor de outro modo e descarta projeção inválida', async () => {
