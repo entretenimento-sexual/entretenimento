@@ -4,12 +4,20 @@ import {
   ApplicationErrorDescriptor,
   ApplicationErrorService,
 } from 'src/app/core/services/error-handler/application-error.service';
+import {
+  MEDIA_ERROR_MESSAGES,
+  MEDIA_ERROR_PRESENTATIONS,
+  type MediaErrorReason,
+  resolveMediaErrorMessage,
+  resolveMediaErrorPresentation,
+} from './media-error.catalog';
 
 type UnknownRecord = Record<string, unknown>;
 
 export interface MediaApplicationErrorOptions {
   readonly operation: string;
-  readonly fallbackMessage: string;
+  readonly fallbackMessage?: string;
+  readonly reasonHint?: MediaErrorReason;
   readonly metadata?: Readonly<Record<string, unknown>>;
   readonly silent?: boolean;
 }
@@ -33,11 +41,16 @@ export class MediaApplicationErrorService {
     error: unknown,
     options: MediaApplicationErrorOptions
   ): ApplicationErrorDescriptor {
-    const fallbackMessage = this.safeText(
-      options.fallbackMessage,
-      'Não foi possível concluir a operação de mídia.'
-    );
-    const override = this.messageOverride(error, fallbackMessage);
+    const actualReason = this.extractReason(error);
+    const catalogReason = actualReason && resolveMediaErrorMessage(actualReason)
+      ? actualReason
+      : options.reasonHint ?? null;
+    const fallbackMessage = resolveMediaErrorMessage(catalogReason)
+      ?? this.safeText(
+        options.fallbackMessage,
+        'Não foi possível concluir a operação de mídia.'
+      );
+    const catalogPresentation = resolveMediaErrorPresentation(catalogReason);
 
     return this.applicationError.report(error, {
       feature: 'media',
@@ -45,61 +58,39 @@ export class MediaApplicationErrorService {
       fallbackMessage,
       presentation: options.silent
         ? { surface: 'none', severity: 'error' }
-        : undefined,
-      codeMessages: override.codeMessages,
-      reasonMessages: override.reasonMessages,
-      recommendedActionMessages: override.recommendedActionMessages,
-      metadata: options.metadata,
+        : catalogPresentation ?? undefined,
+      reasonMessages: MEDIA_ERROR_MESSAGES,
+      reasonPresentations: MEDIA_ERROR_PRESENTATIONS,
+      metadata: {
+        ...(options.metadata ?? {}),
+        ...(catalogReason ? { mediaErrorReason: catalogReason } : {}),
+      },
     });
   }
 
   reportSilently(
     error: unknown,
     operation: string,
-    fallbackMessage: string,
-    metadata?: Readonly<Record<string, unknown>>
+    fallbackMessage?: string,
+    metadata?: Readonly<Record<string, unknown>>,
+    reasonHint?: MediaErrorReason
   ): ApplicationErrorDescriptor {
     return this.report(error, {
       operation,
       fallbackMessage,
+      reasonHint,
       metadata,
       silent: true,
     });
   }
 
-  private messageOverride(
-    error: unknown,
-    message: string
-  ): {
-    codeMessages?: Readonly<Record<string, string>>;
-    reasonMessages?: Readonly<Record<string, string>>;
-    recommendedActionMessages?: Readonly<Record<string, string>>;
-  } {
+  private extractReason(error: unknown): string | null {
     const source = this.asRecord(error);
     const details = this.asRecord(source?.['details']);
-    const code = this.normalizeCode(source?.['code']);
-    const reason = this.safeOptionalText(
+
+    return this.safeOptionalText(
       details?.['reason'] ?? source?.['reason']
     );
-    const recommendedAction = this.safeOptionalText(
-      details?.['recommendedAction'] ?? source?.['recommendedAction']
-    );
-
-    return {
-      codeMessages: code ? { [code]: message } : undefined,
-      reasonMessages: reason ? { [reason]: message } : undefined,
-      recommendedActionMessages: recommendedAction
-        ? { [recommendedAction]: message }
-        : undefined,
-    };
-  }
-
-  private normalizeCode(value: unknown): string | null {
-    const code = this.safeOptionalText(value);
-
-    return code
-      ?.replace(/^functions\//, '')
-      .replace(/^firestore\//, '') ?? null;
   }
 
   private asRecord(value: unknown): UnknownRecord | null {
