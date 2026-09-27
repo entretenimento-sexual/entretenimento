@@ -87,16 +87,12 @@ function createService(options?: {
   const publicVideoAccess = {
     hydratePublicVideoPreviews$: vi.fn(() => of([item])),
   };
-  const errorNotifier = {
-    showError: vi.fn(),
-  };
   const errorHandler = {
-    handleError: vi.fn(),
+    report: vi.fn(),
   };
   const service = new PublicVideoRankingQueryService(
     gateway as never,
     publicVideoAccess as never,
-    errorNotifier as never,
     errorHandler as never
   );
 
@@ -104,7 +100,6 @@ function createService(options?: {
     service,
     gateway,
     publicVideoAccess,
-    errorNotifier,
     errorHandler,
     item,
     nextCursor,
@@ -174,10 +169,14 @@ describe('PublicVideoRankingQueryService', () => {
       notifyOnError: true,
     }));
 
-    expect(context.errorNotifier.showError).toHaveBeenCalledWith(
-      'Não foi possível carregar os vídeos públicos.'
+    expect(context.errorHandler.report).toHaveBeenCalledWith(
+      failure,
+      expect.objectContaining({
+        operation: 'loadPage$',
+        fallbackMessage: 'Não foi possível carregar os vídeos públicos.',
+        silent: false,
+      })
     );
-    expect(context.errorHandler.handleError).toHaveBeenCalledTimes(1);
     expect(page).toMatchObject({
       mode: 'top',
       source: 'top',
@@ -198,7 +197,12 @@ describe('PublicVideoRankingQueryService', () => {
       }))
     ).rejects.toBe(failure);
 
-    expect(context.errorNotifier.showError).not.toHaveBeenCalled();
-    expect(context.errorHandler.handleError).toHaveBeenCalledTimes(1);
+    expect(context.errorHandler.report).toHaveBeenCalledWith(
+      failure,
+      expect.objectContaining({
+        operation: 'loadPage$',
+        silent: true,
+      })
+    );
   });
 });
