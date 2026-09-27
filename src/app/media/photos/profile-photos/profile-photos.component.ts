@@ -172,8 +172,12 @@ export class ProfilePhotosComponent {
       return this.mediaQuery.watchProfilePhotos$(ownerUid);
     }),
     tap((items) => this.debug('photos$', { count: items.length })),
-    catchError((err) => {
-      this.errorNotifier.showError(err);
+    catchError((error) => {
+      this.errorHandler.report(error, {
+        operation: 'profilePhotos.load',
+        reasonHint: 'profile_photos_load_failed',
+        metadata: { scope: 'ProfilePhotosComponent' },
+      });
       return of([] as IManageablePhotoItem[]);
     }),
     shareReplay({ bufferSize: 1, refCount: true })
@@ -293,7 +297,7 @@ export class ProfilePhotosComponent {
         take(1),
         switchMap(([isOwner, ownerUid, savingDisplayDateId]) => {
           if (!isOwner || !ownerUid?.trim()) {
-            this.errorNotifier.showError('Você não tem permissão para organizar esta foto.');
+            this.errorNotifier.showWarning('Você não tem permissão para organizar esta foto.');
             return EMPTY;
           }
 
@@ -421,8 +425,15 @@ export class ProfilePhotosComponent {
   }
 
   openUpload(ownerUid: string): void {
-    this.router.navigate(['/media', 'perfil', ownerUid, 'fotos', 'upload']).catch(() => {
-      this.errorNotifier.showError('Falha ao navegar para upload.');
+    this.router.navigate(['/media', 'perfil', ownerUid, 'fotos', 'upload']).catch((error) => {
+      this.errorHandler.report(error, {
+        operation: 'profilePhotos.openUpload',
+        reasonHint: 'media_navigation_failed',
+        metadata: {
+          scope: 'ProfilePhotosComponent',
+          hasOwnerUid: !!ownerUid,
+        },
+      });
     });
   }
 
@@ -432,7 +443,7 @@ export class ProfilePhotosComponent {
         take(1),
         switchMap(([canView, ownerUid, items]) => {
           if (!canView) {
-            this.errorNotifier.showError('Você não tem permissão para ver essas fotos.');
+            this.errorNotifier.showWarning('Você não tem permissão para ver essas fotos.');
             return EMPTY;
           }
 
@@ -456,8 +467,12 @@ export class ProfilePhotosComponent {
 
           return EMPTY;
         }),
-        catchError((err) => {
-          this.errorNotifier.showError(err);
+        catchError((error) => {
+          this.errorHandler.report(error, {
+            operation: 'profilePhotos.openPhoto',
+            reasonHint: 'profile_photos_load_failed',
+            metadata: { scope: 'ProfilePhotosComponent' },
+          });
           return EMPTY;
         })
       )
@@ -472,7 +487,7 @@ export class ProfilePhotosComponent {
         take(1),
         switchMap(([isOwner, ownerUid]) => {
           if (!isOwner) {
-            this.errorNotifier.showError('Você não tem permissão para editar esta foto.');
+            this.errorNotifier.showWarning('Você não tem permissão para editar esta foto.');
             return EMPTY;
           }
 
@@ -481,7 +496,7 @@ export class ProfilePhotosComponent {
           const storedImageUrl = String(item.url ?? '').trim();
 
           if (!photoId || !currentStoragePath || !storedImageUrl) {
-            this.errorNotifier.showError('Metadados insuficientes para editar esta foto.');
+            this.errorNotifier.showWarning('Metadados insuficientes para editar esta foto.');
             return EMPTY;
           }
 
@@ -543,7 +558,7 @@ export class ProfilePhotosComponent {
       .pipe(take(1))
       .subscribe(([isOwner, ownerUid, deletingPhotoId]) => {
         if (!isOwner) {
-          this.errorNotifier.showError('Você não tem permissão para excluir esta foto.');
+          this.errorNotifier.showWarning('Você não tem permissão para excluir esta foto.');
           return;
         }
 
@@ -604,7 +619,7 @@ export class ProfilePhotosComponent {
       .pipe(
         switchMap(({ canManage, ownerUid }) => {
           if (!canManage) {
-            this.errorNotifier.showError('Você não tem permissão para publicar esta foto.');
+            this.errorNotifier.showWarning('Você não tem permissão para publicar esta foto.');
             return EMPTY;
           }
 
@@ -664,7 +679,7 @@ export class ProfilePhotosComponent {
       .pipe(
         switchMap(({ canManage, ownerUid }) => {
           if (!canManage) {
-            this.errorNotifier.showError('Você não tem permissão para definir capa.');
+            this.errorNotifier.showWarning('Você não tem permissão para definir capa.');
             return EMPTY;
           }
 
