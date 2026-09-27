@@ -10,6 +10,7 @@ import {
 } from 'src/app/core/interfaces/media/i-public-video-ranking';
 import { IPublicVideoProjection } from 'src/app/core/interfaces/media/i-public-video-item';
 import { MediaApplicationErrorService } from './media-application-error.service';
+import { PublicMediaSnapshotService } from './public-media-snapshot.service';
 import { PublicVideoAccessService } from './public-video-access.service';
 import {
   IPublicVideoRankingRawDocument,
@@ -25,7 +26,8 @@ export class PublicVideoRankingQueryService {
   constructor(
     private readonly gateway: PublicVideoRankingFirestoreGateway,
     private readonly publicVideoAccess: PublicVideoAccessService,
-    private readonly errorHandler: MediaApplicationErrorService
+    private readonly errorHandler: MediaApplicationErrorService,
+    private readonly snapshots: PublicMediaSnapshotService
   ) {}
 
   loadPage$(
@@ -45,14 +47,25 @@ export class PublicVideoRankingQueryService {
       })),
       switchMap(({ rawPage, projections }) =>
         this.publicVideoAccess.hydratePublicVideoPreviews$(projections).pipe(
-          map((items): IPublicVideoRankingPage => ({
-            mode,
-            source: mode === 'top' ? 'top' : 'latest',
-            items,
-            nextCursor: rawPage.nextCursor,
-            hasMore: rawPage.hasMore,
-            loadedAt: Date.now(),
-          }))
+          map((items): IPublicVideoRankingPage => {
+            const page: IPublicVideoRankingPage = {
+              mode,
+              source: mode === 'top' ? 'top' : 'latest',
+              items,
+              nextCursor: rawPage.nextCursor,
+              hasMore: rawPage.hasMore,
+              loadedAt: Date.now(),
+            };
+
+            if (!cursor) {
+              this.snapshots.write(
+                mode === 'latest' ? 'latest-videos' : 'top-videos',
+                items
+              );
+            }
+
+            return page;
+          })
         )
       ),
       catchError((error: unknown) => {
