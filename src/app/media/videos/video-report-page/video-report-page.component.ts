@@ -27,6 +27,7 @@ import {
   ModerationReportTargetType,
 } from 'src/app/core/interfaces/moderation/moderation-report.interface';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 import { ModerationReportService } from 'src/app/core/services/moderation/moderation-report.service';
 
 type MediaReportTarget =
@@ -63,6 +64,7 @@ export class VideoReportPageComponent {
   private readonly router = inject(Router);
   private readonly reports = inject(ModerationReportService);
   private readonly notification = inject(ErrorNotificationService);
+  private readonly mediaError = inject(MediaApplicationErrorService);
 
   readonly submitting = signal(false);
   readonly submitted = signal(false);
@@ -146,7 +148,7 @@ export class VideoReportPageComponent {
 
     this.target$.pipe(take(1)).subscribe((target) => {
       if (!target) {
-        this.notification.showError('O conteúdo denunciado não foi identificado.');
+        this.notification.showWarning('O conteúdo denunciado não foi identificado.');
         return;
       }
 
@@ -168,10 +170,14 @@ export class VideoReportPageComponent {
       }).pipe(
         finalize(() => this.submitting.set(false)),
         catchError((error) => {
-          this.notification.showError(
-            'Não foi possível enviar a denúncia.',
-            error instanceof Error ? error.message : undefined
-          );
+          this.mediaError.report(error, {
+            operation: 'videoReport.submit',
+            reasonHint: 'media_report_failed',
+            metadata: {
+              scope: 'VideoReportPageComponent',
+              targetType: target.targetType,
+            },
+          });
           return of(null);
         })
       ).subscribe((reportId) => {
