@@ -71,6 +71,7 @@ const organicClientPaths = [
   'src/app/core/services/media/public-mixed-media-continuation.service.ts',
   'src/app/core/interfaces/media/i-public-media-viewer-session.ts',
   'src/app/media/photos/photo-viewer/photo-viewer.component.ts',
+  'src/app/core/services/media/media-publication.service.ts',
 ];
 
 for (const relativePath of organicClientPaths) {
