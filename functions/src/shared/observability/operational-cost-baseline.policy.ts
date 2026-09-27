@@ -21,7 +21,9 @@ const DAY_MS = 24 * 60 * 60 * 1_000;
 
 export type CommunityOperationalCostBaselineOnlyMetric =
   | 'community.boost.reads_proxy_per_served_placement'
-  | 'community.boost.writes_proxy_per_served_placement';
+  | 'community.boost.writes_proxy_per_served_placement'
+  | 'community.projection.derived_writes_per_source_event'
+  | 'community.notification.grouped_activities_per_push';
 
 export type CommunityOperationalCostObservedMetric =
   | OperationalCostBudgetMetric
@@ -74,6 +76,14 @@ const BASELINE_ONLY_MINIMUMS: Readonly<
     minimumSamples: 100,
     minimumObservedDays: 7,
   }),
+  'community.projection.derived_writes_per_source_event': Object.freeze({
+    minimumSamples: 100,
+    minimumObservedDays: 7,
+  }),
+  'community.notification.grouped_activities_per_push': Object.freeze({
+    minimumSamples: 100,
+    minimumObservedDays: 7,
+  }),
 });
 
 export const COMMUNITY_OPERATIONAL_COST_REAL_BASELINE_METRICS:
@@ -84,6 +94,8 @@ export const COMMUNITY_OPERATIONAL_COST_REAL_BASELINE_METRICS:
     'community.storage.upper_bound_bytes_per_community',
     'community.boost.reads_proxy_per_served_placement',
     'community.boost.writes_proxy_per_served_placement',
+    'community.projection.derived_writes_per_source_event',
+    'community.notification.grouped_activities_per_push',
   ]);
 
 function asRecord(value: unknown): Record<string, unknown> {
