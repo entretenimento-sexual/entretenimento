@@ -173,7 +173,6 @@ export class SocialExplorePageComponent {
         const candidateCount =
           vm.personalPhotos.length +
           vm.latestPhotos.length +
-          vm.boostedPhotos.length +
           vm.topPhotos.length +
           vm.mostViewedPhotos.length;
 
