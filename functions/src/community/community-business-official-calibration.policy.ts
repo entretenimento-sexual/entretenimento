@@ -16,6 +16,7 @@
 // -----------------------------------------------------------------------------
 
 import {
+  COMMUNITY_CALIBRATION_REQUIRED_EVIDENCE,
   isCommunityCalibrationChangeAllowed,
 } from './community-calibration-stage.policy';
 import {
@@ -30,6 +31,8 @@ export type CommunityBusinessOfficialCalibrationStatus =
   | 'no_creation_observation'
   | 'actual_cost_missing'
   | 'actual_cost_source_invalid'
+  | 'commercial_utilization_missing'
+  | 'commercial_utilization_source_invalid'
   | 'operational_baseline_not_ready'
   | 'observed';
 
@@ -39,6 +42,12 @@ export interface CommunityBusinessOfficialCalibrationInput {
   readonly communitiesCreated: unknown;
   readonly actualCostCents: unknown;
   readonly actualCostSource?: unknown;
+  readonly commercialUtilizationSource?: unknown;
+  readonly commercialUtilizationObservedDays?: unknown;
+  readonly memberCapacityUtilizationSamples?: unknown;
+  readonly memberCapacityUtilizationP95?: unknown;
+  readonly ownedCommunityUtilizationSamples?: unknown;
+  readonly ownedCommunityUtilizationP95?: unknown;
   readonly operationalBaseline?: CommunityOperationalCostBaselineInput;
 }
 
@@ -50,6 +59,11 @@ export interface CommunityBusinessOfficialCalibrationSnapshot {
   readonly conversionRate: number | null;
   readonly communitiesPerConversion: number | null;
   readonly actualCostPerCreatedCommunityCents: number | null;
+  readonly commercialUtilizationObservedDays: number;
+  readonly memberCapacityUtilizationSamples: number;
+  readonly memberCapacityUtilizationP95: number | null;
+  readonly ownedCommunityUtilizationSamples: number;
+  readonly ownedCommunityUtilizationP95: number | null;
   readonly status: CommunityBusinessOfficialCalibrationStatus;
   readonly canCalibrateCommercialOffer: boolean;
 }
@@ -77,6 +91,15 @@ function ratio(numerator: number, denominator: number): number | null {
   return Math.round((numerator / denominator) * 10_000) / 10_000;
 }
 
+function normalizeObservedRatio(value: unknown): number | null {
+  return typeof value === 'number'
+    && Number.isFinite(value)
+    && value >= 0
+    && value <= 1
+    ? Math.round(value * 10_000) / 10_000
+    : null;
+}
+
 export function evaluateCommunityBusinessOfficialCalibration(
   input: CommunityBusinessOfficialCalibrationInput
 ): Readonly<CommunityBusinessOfficialCalibrationSnapshot> {
@@ -84,6 +107,16 @@ export function evaluateCommunityBusinessOfficialCalibration(
   const conversions = normalizeObservedCount(input.conversions);
   const communitiesCreated = normalizeObservedCount(input.communitiesCreated);
   const actualCostCents = normalizeActualCostCents(input.actualCostCents);
+  const commercialUtilizationObservedDays =
+    normalizeObservedCount(input.commercialUtilizationObservedDays) ?? 0;
+  const memberCapacityUtilizationSamples =
+    normalizeObservedCount(input.memberCapacityUtilizationSamples) ?? 0;
+  const memberCapacityUtilizationP95 =
+    normalizeObservedRatio(input.memberCapacityUtilizationP95);
+  const ownedCommunityUtilizationSamples =
+    normalizeObservedCount(input.ownedCommunityUtilizationSamples) ?? 0;
+  const ownedCommunityUtilizationP95 =
+    normalizeObservedRatio(input.ownedCommunityUtilizationP95);
 
   if (
     offersPresented === null
@@ -99,6 +132,11 @@ export function evaluateCommunityBusinessOfficialCalibration(
       conversionRate: null,
       communitiesPerConversion: null,
       actualCostPerCreatedCommunityCents: null,
+      commercialUtilizationObservedDays,
+      memberCapacityUtilizationSamples,
+      memberCapacityUtilizationP95,
+      ownedCommunityUtilizationSamples,
+      ownedCommunityUtilizationP95,
       status: 'invalid_observation',
       canCalibrateCommercialOffer: false,
     });
@@ -119,6 +157,22 @@ export function evaluateCommunityBusinessOfficialCalibration(
     && input.actualCostSource !== 'finance_actual_allocation'
   ) {
     status = 'actual_cost_source_invalid';
+  } else if (
+    commercialUtilizationObservedDays
+      < COMMUNITY_CALIBRATION_REQUIRED_EVIDENCE
+        .operationalCostBaselineMinimumDays
+    || memberCapacityUtilizationSamples
+      < 100
+    || ownedCommunityUtilizationSamples
+      < 100
+    || memberCapacityUtilizationP95 === null
+    || ownedCommunityUtilizationP95 === null
+  ) {
+    status = 'commercial_utilization_missing';
+  } else if (
+    input.commercialUtilizationSource !== 'production_state_aggregate'
+  ) {
+    status = 'commercial_utilization_source_invalid';
   } else if (
     !input.operationalBaseline
     || !evaluateCommunityOperationalCostBaseline(
@@ -141,6 +195,11 @@ export function evaluateCommunityBusinessOfficialCalibration(
       actualCostCents === null || communitiesCreated <= 0
         ? null
         : Math.round((actualCostCents / communitiesCreated) * 100) / 100,
+    commercialUtilizationObservedDays,
+    memberCapacityUtilizationSamples,
+    memberCapacityUtilizationP95,
+    ownedCommunityUtilizationSamples,
+    ownedCommunityUtilizationP95,
     status,
     canCalibrateCommercialOffer:
       status === 'observed' && isCommunityCalibrationChangeAllowed(),
