@@ -118,7 +118,14 @@ requireIncludes(
 );
 forbidIncludes(
   principalFeed,
-  'getLatestPublicPhotosfor (const forbidden of ['boostActive', 'boostPriority', 'boostedUntil']) {
+  'getLatestPublicPhotos$',
+  'retired global photo read must not return'
+);
+
+const publicPhotoContract = read(
+  'src/app/core/interfaces/media/i-public-photo-item.ts'
+);
+for (const forbidden of ['boostActive', 'boostPriority', 'boostedUntil']) {
   forbidIncludes(
     publicPhotoContract,
     forbidden,
