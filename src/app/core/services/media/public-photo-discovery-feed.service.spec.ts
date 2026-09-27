@@ -27,14 +27,12 @@ function photo(index: number): IPublicPhotoItem {
 
 function cursor(
   mode: TPublicPhotoRankingMode,
-  id: string,
-  boostedUntil = 0
+  id: string
 ): IPublicPhotoRankingCursor {
   return {
     mode,
     score: 10,
     publishedAt: 10,
-    boostedUntil,
     documentPath: 'public_profiles/owner/public_photos/' + id,
   };
 }
@@ -91,13 +89,17 @@ function setup(options: {
     showError: vi.fn(),
     showWarning: vi.fn(),
   };
+  const promotion = {
+    loadPlacement$: vi.fn(() => of(null)),
+  };
 
   const service = new PublicPhotoDiscoveryFeedService(
     ranking as never,
     snapshots as never,
     network as never,
     activity as never,
-    errorNotifier as never
+    errorNotifier as never,
+    promotion as never
   );
 
   return {
@@ -105,6 +107,7 @@ function setup(options: {
     ranking,
     snapshots,
     errorNotifier,
+    promotion,
   };
 }
 
@@ -156,6 +159,7 @@ describe('PublicPhotoDiscoveryFeedService', () => {
       'top-photos',
       fresh
     );
+    expect(context.promotion.loadPlacement$).toHaveBeenCalledWith(fresh);
   });
 
   it('pagina por cursor além de 60 itens sem reler o conjunto integral', async () => {
@@ -207,14 +211,11 @@ describe('PublicPhotoDiscoveryFeedService', () => {
       .toEqual(firstCursor);
     expect(context.ranking.loadPage$.mock.calls[2]?.[0]?.cursor)
       .toEqual(secondCursor);
+    expect(context.promotion.loadPlacement$).toHaveBeenCalledTimes(1);
   });
 
-  it('usa cursor BOOSTED e preserva itens quando a continuação falha', async () => {
-    const boostedCursor = cursor(
-      'boosted',
-      'boosted-cursor',
-      Date.now() + 60_000
-    );
+  it('preserva itens orgânicos quando a continuação falha', async () => {
+    const latestCursor = cursor('latest', 'latest-cursor');
     let calls = 0;
     const context = setup({
       loadPage: ({ mode }) => {
@@ -224,11 +225,11 @@ describe('PublicPhotoDiscoveryFeedService', () => {
           throw new Error('temporary failure');
         }
 
-        return page(mode, [photo(1)], boostedCursor, true);
+        return page(mode, [photo(1)], latestCursor, true);
       },
     });
 
-    const subscription = context.service.connect$('boosted').subscribe();
+    const subscription = context.service.connect$('latest').subscribe();
     const loaded = await firstValueFrom(context.service.loadMore$());
     const finalState = await firstValueFrom(
       context.service.state$.pipe(take(1))
@@ -240,6 +241,6 @@ describe('PublicPhotoDiscoveryFeedService', () => {
     expect(finalState.stale).toBe(true);
     expect(context.errorNotifier.showWarning).toHaveBeenCalledTimes(1);
     expect(context.ranking.loadPage$.mock.calls[1]?.[0]?.cursor)
-      .toEqual(boostedCursor);
+      .toEqual(latestCursor);
   });
 });
