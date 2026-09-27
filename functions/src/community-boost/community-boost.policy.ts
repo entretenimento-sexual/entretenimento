@@ -13,22 +13,42 @@
 // -----------------------------------------------------------------------------
 
 import {
+  PROMOTION_BOOST_BILLING_BASIS,
+  PROMOTION_BOOST_CANDIDATE_SCAN_LIMIT,
+  PROMOTION_BOOST_CURRENCY,
+  PROMOTION_BOOST_DISCLOSURE,
+  PROMOTION_BOOST_FREQUENCY_CAP_TTL_MS,
+  PROMOTION_BOOST_MAX_CAMPAIGN_DAYS,
+  PROMOTION_BOOST_MAX_FREQUENCY_CAP_PER_DAY,
+  PROMOTION_BOOST_MAX_SELECTION_ATTEMPTS,
+  PROMOTION_BOOST_PLACEMENT_TTL_MS,
+  PROMOTION_BOOST_POLICY_VERSION,
+  normalizePromotionBoostAdvertiserAccount,
+  normalizePromotionBoostBillingConfig,
+  resolvePromotionBoostDay,
+} from '../promotion-boost/promotion-boost.policy';
+import {
   COMMUNITY_BOOST_AUTHORITY_SNAPSHOT_VERSION,
   type CommunityBoostAuthorityRole,
 } from './community-boost-authority.policy';
 
-export const COMMUNITY_BOOST_POLICY_VERSION = 1;
-export const COMMUNITY_BOOST_DISCLOSURE = 'Patrocinado' as const;
-export const COMMUNITY_BOOST_CURRENCY = 'BRL' as const;
-export const COMMUNITY_BOOST_BILLING_BASIS =
-  'served_placement_cpm' as const;
-export const COMMUNITY_BOOST_MAX_CAMPAIGN_DAYS = 90;
-export const COMMUNITY_BOOST_MAX_FREQUENCY_CAP_PER_DAY = 10;
-export const COMMUNITY_BOOST_CANDIDATE_SCAN_LIMIT = 24;
-export const COMMUNITY_BOOST_MAX_SELECTION_ATTEMPTS = 6;
+export const COMMUNITY_BOOST_POLICY_VERSION = PROMOTION_BOOST_POLICY_VERSION;
+export const COMMUNITY_BOOST_DISCLOSURE = PROMOTION_BOOST_DISCLOSURE;
+export const COMMUNITY_BOOST_CURRENCY = PROMOTION_BOOST_CURRENCY;
+export const COMMUNITY_BOOST_BILLING_BASIS = PROMOTION_BOOST_BILLING_BASIS;
+export const COMMUNITY_BOOST_MAX_CAMPAIGN_DAYS =
+  PROMOTION_BOOST_MAX_CAMPAIGN_DAYS;
+export const COMMUNITY_BOOST_MAX_FREQUENCY_CAP_PER_DAY =
+  PROMOTION_BOOST_MAX_FREQUENCY_CAP_PER_DAY;
+export const COMMUNITY_BOOST_CANDIDATE_SCAN_LIMIT =
+  PROMOTION_BOOST_CANDIDATE_SCAN_LIMIT;
+export const COMMUNITY_BOOST_MAX_SELECTION_ATTEMPTS =
+  PROMOTION_BOOST_MAX_SELECTION_ATTEMPTS;
 export const COMMUNITY_BOOST_MIN_ORGANIC_CARDS_FOR_PLACEMENT = 4;
-export const COMMUNITY_BOOST_PLACEMENT_TTL_MS = 15 * 60 * 1_000;
-export const COMMUNITY_BOOST_FREQUENCY_CAP_TTL_MS = 3 * 24 * 60 * 60 * 1_000;
+export const COMMUNITY_BOOST_PLACEMENT_TTL_MS =
+  PROMOTION_BOOST_PLACEMENT_TTL_MS;
+export const COMMUNITY_BOOST_FREQUENCY_CAP_TTL_MS =
+  PROMOTION_BOOST_FREQUENCY_CAP_TTL_MS;
 
 export type CommunityBoostSourceType = 'community' | 'venue';
 export type CommunityBoostCampaignStatus =
@@ -146,87 +166,17 @@ function finiteEpoch(value: unknown): number | null {
 export function normalizeCommunityBoostBillingConfig(
   raw: unknown
 ): Readonly<CommunityBoostBillingConfig> | null {
-  const source = raw && typeof raw === 'object' && !Array.isArray(raw)
-    ? raw as Record<string, unknown>
-    : {};
-  const version = positiveInteger(source['version']);
-  const rateCpmCents = positiveInteger(source['rateCpmCents']);
-  const minBudgetCents = positiveInteger(source['minBudgetCents']);
-  const maxBudgetCents = positiveInteger(source['maxBudgetCents']);
-  const updatedAt = finiteEpoch(source['updatedAt']);
-  const updatedBy = cleanId(source['updatedBy']);
-
-  if (
-    source['active'] !== true
-    || source['currency'] !== COMMUNITY_BOOST_CURRENCY
-    || !version
-    || !rateCpmCents
-    || !minBudgetCents
-    || !maxBudgetCents
-    || minBudgetCents > maxBudgetCents
-    || !updatedAt
-    || !updatedBy
-  ) {
-    return null;
-  }
-
-  return Object.freeze({
-    active: true,
-    version,
-    currency: COMMUNITY_BOOST_CURRENCY,
-    rateCpmCents,
-    minBudgetCents,
-    maxBudgetCents,
-    updatedAt,
-    updatedBy,
-  });
+  return normalizePromotionBoostBillingConfig(raw);
 }
 
 export function normalizeCommunityBoostAdvertiserAccount(
   raw: unknown,
   expectedAdvertiserUid?: string
 ): Readonly<CommunityBoostAdvertiserAccount> | null {
-  const source = raw && typeof raw === 'object' && !Array.isArray(raw)
-    ? raw as Record<string, unknown>
-    : {};
-  const advertiserUid = cleanId(source['advertiserUid']);
-  const expectedUid = expectedAdvertiserUid === undefined
-    ? null
-    : cleanId(expectedAdvertiserUid);
-  const maxCampaignBudgetCents = positiveInteger(
-    source['maxCampaignBudgetCents']
+  return normalizePromotionBoostAdvertiserAccount(
+    raw,
+    expectedAdvertiserUid
   );
-  const createdAt = finiteEpoch(source['createdAt']);
-  const updatedAt = finiteEpoch(source['updatedAt']);
-  const updatedBy = cleanId(source['updatedBy']);
-
-  if (
-    source['policyVersion'] !== COMMUNITY_BOOST_POLICY_VERSION
-    || !advertiserUid
-    || (expectedAdvertiserUid !== undefined && advertiserUid !== expectedUid)
-    || source['active'] !== true
-    || source['billingMode'] !== 'postpaid'
-    || source['currency'] !== COMMUNITY_BOOST_CURRENCY
-    || !maxCampaignBudgetCents
-    || !createdAt
-    || !updatedAt
-    || updatedAt < createdAt
-    || !updatedBy
-  ) {
-    return null;
-  }
-
-  return Object.freeze({
-    policyVersion: COMMUNITY_BOOST_POLICY_VERSION,
-    advertiserUid,
-    active: true,
-    billingMode: 'postpaid',
-    currency: COMMUNITY_BOOST_CURRENCY,
-    maxCampaignBudgetCents,
-    createdAt,
-    updatedAt,
-    updatedBy,
-  });
 }
 
 export function normalizeCommunityBoostSourceType(
@@ -529,17 +479,7 @@ export function normalizeCommunityBoostCampaign(
 }
 
 export function resolveCommunityBoostDay(now: number): string {
-  const safeNow = finiteEpoch(now) ?? Date.now();
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Sao_Paulo',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date(safeNow));
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((item) => item.type === type)?.value ?? '';
-
-  return `${part('year')}-${part('month')}-${part('day')}`;
+  return resolvePromotionBoostDay(now);
 }
 
 export function evaluateCommunityBoostPacing(input: {
