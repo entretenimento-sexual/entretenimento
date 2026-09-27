@@ -342,8 +342,8 @@ function resolveOwnedUploadAssets(
 /**
  * Registra o arquivo-fonte protegido e só responde depois que a intenção de
  * publicação e a fila idempotente foram persistidas. Não há segundo write de
- * publicação aqui: o core cria PUBLIC + APPROVED atomicamente com o
- * documento do vídeo.
+ * publicação aqui: o core cria a intenção PUBLIC + PENDING_REVIEW atomicamente
+ * com o documento do vídeo. Aprovação só ocorre após decisão de moderação.
  */
 export const registerPrivateVideoUpload = onCall<
   RegisterPrivateVideoUploadRequest
