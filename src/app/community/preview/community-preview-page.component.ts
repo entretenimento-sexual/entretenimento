@@ -569,8 +569,6 @@ export class CommunityPreviewPageComponent {
         ? preview.canInviteCommunityMembers
         : section === 'members'
           ? capabilities.memberDirectory
-          : section === 'topics'
-            ? capabilities.topics
             : true;
 
     if (!allowed) {
