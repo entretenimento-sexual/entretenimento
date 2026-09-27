@@ -94,11 +94,25 @@ describe('media-engagement-score', () => {
         safetyScore: null,
       },
     });
+    const engagedButUnassessed = buildMediaEngagementScore({
+      reactionsCount: 50,
+      commentsCount: 20,
+      ratingsCount: 15,
+      ratingAverage: 5,
+      currentBreakdown: {
+        qualityScore: 100,
+        safetyScore: null,
+        audienceScore: 100,
+        retentionScore: 100,
+      },
+    });
 
     assert.equal(missingSafety.scoreBreakdown.safetyScore, null);
     assert.equal(explicitUnassessed.scoreBreakdown.safetyScore, null);
+    assert.equal(engagedButUnassessed.scoreBreakdown.safetyScore, null);
     assert.equal(missingSafety.score, 0);
     assert.equal(explicitUnassessed.score, 0);
+    assert.equal(engagedButUnassessed.score, 0);
   });
 
   it('preserva qualidade e segurança do breakdown atual', () => {
