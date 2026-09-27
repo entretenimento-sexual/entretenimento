@@ -68,6 +68,12 @@ export const MEDIA_ERROR_MESSAGES: Readonly<Record<string, string>> =
       'Não foi possível carregar as fotos do perfil agora.',
     media_navigation_failed:
       'Não foi possível abrir esta área agora.',
+    media_share_dialog_failed:
+      'Não foi possível abrir suas conversas agora.',
+    video_playback_access_failed:
+      'Não foi possível carregar o vídeo. Tente novamente.',
+    media_report_failed:
+      'Não foi possível enviar a denúncia agora.',
     video_library_load_failed:
       'Não foi possível carregar seus vídeos agora.',
     video_editor_open_failed:
@@ -293,6 +299,18 @@ export const MEDIA_ERROR_PRESENTATIONS: ApplicationErrorPresentationMap =
       severity: 'error',
     },
     media_navigation_failed: {
+      surface: 'snackbar',
+      severity: 'error',
+    },
+    media_share_dialog_failed: {
+      surface: 'snackbar',
+      severity: 'error',
+    },
+    video_playback_access_failed: {
+      surface: 'snackbar',
+      severity: 'error',
+    },
+    media_report_failed: {
       surface: 'snackbar',
       severity: 'error',
     },
