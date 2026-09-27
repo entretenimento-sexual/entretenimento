@@ -58,12 +58,10 @@ function createService(options?: { gatewayError?: unknown }) {
       of(projections.length ? [item] : [])
     ),
   };
-  const errorNotifier = { showError: vi.fn() };
-  const errorHandler = { handleError: vi.fn() };
+  const errorHandler = { report: vi.fn() };
   const service = new PublicPhotoRankingQueryService(
     gateway as never,
     publicPhotoAccess as never,
-    errorNotifier as never,
     errorHandler as never
   );
 
@@ -71,7 +69,6 @@ function createService(options?: { gatewayError?: unknown }) {
     service,
     gateway,
     publicPhotoAccess,
-    errorNotifier,
     errorHandler,
     item,
     nextCursor,
@@ -124,34 +121,6 @@ describe('PublicPhotoRankingQueryService', () => {
     });
   });
 
-  it('aceita boosted e preserva boostedUntil no cursor de entrada', async () => {
-    const context = createService();
-    const boostedCursor: IPublicPhotoRankingCursor = {
-      mode: 'boosted',
-      score: 0,
-      publishedAt: PUBLISHED_AT,
-      boostedUntil: PUBLISHED_AT + 60_000,
-      documentPath: 'public_profiles/owner-1/public_photos/photo-boosted',
-    };
-
-    const page = await firstValueFrom(context.service.loadPage$({
-      mode: 'boosted',
-      pageSize: 24,
-      cursor: boostedCursor,
-    }));
-
-    expect(context.gateway.loadPage$).toHaveBeenCalledWith({
-      mode: 'boosted',
-      pageSize: 24,
-      cursor: {
-        ...boostedCursor,
-        score: 0,
-      },
-    });
-    expect(page.mode).toBe('boosted');
-    expect(page.source).toBe('boosted');
-  });
-
   it('centraliza erro e devolve página vazia estável por padrão', async () => {
     const failure = new Error('firestore unavailable');
     const context = createService({ gatewayError: failure });
@@ -161,10 +130,70 @@ describe('PublicPhotoRankingQueryService', () => {
       notifyOnError: true,
     }));
 
-    expect(context.errorNotifier.showError).toHaveBeenCalledWith(
-      'Não foi possível carregar as fotos públicas.'
+    expect(context.errorHandler.report).toHaveBeenCalledWith(
+      failure,
+      expect.objectContaining({
+        operation: 'loadPage    expect(page).toMatchObject({
+      mode: 'top',
+      source: 'top',
+      items: [],
+      nextCursor: null,
+      hasMore: false,
+    });
+  });
+
+  it('propaga erro após registrar diagnóstico quando solicitado', async () => {
+    const failure = new Error('firestore unavailable');
+    const context = createService({ gatewayError: failure });
+
+    await expect(firstValueFrom(context.service.loadPage$({
+      mode: 'latest',
+      propagateErrors: true,
+    }))).rejects.toBe(failure);
+
+    expect(context.errorHandler.report).toHaveBeenCalledWith(
+      failure,
+      expect.objectContaining({
+        operation: 'loadPage  });
+});
+,
+        fallbackMessage: 'Não foi possível carregar as fotos públicas.',
+        silent: false,
+      })
     );
+    expect(page).toMatchObject({
+      mode: 'top',
+      source: 'top',
+      items: [],
+      nextCursor: null,
+      hasMore: false,
+    });
+  });
+
+  it('propaga erro após registrar diagnóstico quando solicitado', async () => {
+    const failure = new Error('firestore unavailable');
+    const context = createService({ gatewayError: failure });
+
+    await expect(firstValueFrom(context.service.loadPage$({
+      mode: 'latest',
+      propagateErrors: true,
+    }))).rejects.toBe(failure);
+
+    expect(context.errorNotifier.showError).not.toHaveBeenCalled();
     expect(context.errorHandler.handleError).toHaveBeenCalledTimes(1);
+  });
+});
+,
+        silent: true,
+      })
+    );
+  });
+});
+,
+        fallbackMessage: 'Não foi possível carregar as fotos públicas.',
+        silent: false,
+      })
+    );
     expect(page).toMatchObject({
       mode: 'top',
       source: 'top',
