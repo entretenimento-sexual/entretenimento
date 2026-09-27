@@ -76,7 +76,6 @@ describe('compatíveis paginados no Explore', () => {
 
     const result = buildExplorePersonalFeed({
       personalPhotos: [remotePhoto, unrelated],
-      boostedPhotos: [],
       mostViewedPhotos: [],
       topPhotos: [],
       latestPhotos: [],
