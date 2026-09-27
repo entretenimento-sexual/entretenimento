@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "image": {
     "inputFormats": [
       {
@@ -136,7 +136,7 @@
     ],
     "publicPlaybackMimeTypes": ["video/mp4", "video/webm"],
     "limits": {
-      "defaultBytes": 524288000
+      "defaultBytes": 157286400
     },
     "output": {
       "container": "mp4",
