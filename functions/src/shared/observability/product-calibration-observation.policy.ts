@@ -9,7 +9,8 @@
 
 export type ProductCalibrationRuntimeMetric =
   | 'community.projection.derived_writes_per_source_event'
-  | 'community.notification.grouped_activities_per_push';
+  | 'community.notification.grouped_activities_per_push'
+  | 'media.trend_score_shadow';
 
 export interface ProductCalibrationRuntimeObservation {
   readonly metric: ProductCalibrationRuntimeMetric;
