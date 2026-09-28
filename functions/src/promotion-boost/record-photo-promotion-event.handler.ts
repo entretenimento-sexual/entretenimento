@@ -10,13 +10,10 @@ import { REQUIRE_CALLABLE_APP_CHECK, assertCallableAppCheck } from '../shared/se
 import { consumeBackendRateLimitQuota } from '../shared/security/backend-rate-limit.service';
 import {
   PROMOTION_BOOST_EVENT_RATE_LIMIT,
+  PROMOTION_BOOST_FRAUD_SIGNAL_TTL_MS,
   isPromotionBoostEventTimingPlausible,
   isPromotionBoostSelfInteraction,
 } from './promotion-boost-abuse.policy';
-import {
-  incrementPromotionBoostFraudCounter,
-  recordPromotionBoostFraudSignal,
-} from './promotion-boost-fraud.service';
 import { normalizePromotionBoostCampaign, resolvePromotionBoostDay } from './promotion-boost.policy';
 
 type EventType = 'qualified_exposure' | 'click';
@@ -61,19 +58,28 @@ export const recordPhotoPromotionEvent = onCall<Request>(
         message: 'Muitos eventos patrocinados foram recebidos em pouco tempo.',
       });
     } catch (error) {
-      const day = resolvePromotionBoostDay(Date.now());
+      const fraudNow = Date.now();
+      const day = resolvePromotionBoostDay(fraudNow);
+      const hash = viewerHash(uid);
       await Promise.allSettled([
-        recordPromotionBoostFraudSignal({
-          viewerUid: uid,
+        db.collection('promotion_boost_fraud_signals').add({
+          viewerHash: hash,
           campaignId: null,
           placementId,
           reason: 'event_velocity_exceeded',
+          createdAt: fraudNow,
+          expiresAt: fraudNow + PROMOTION_BOOST_FRAUD_SIGNAL_TTL_MS,
         }),
-        incrementPromotionBoostFraudCounter({
-          viewerUid: uid,
-          day,
-          reason: 'event_velocity_exceeded',
-        }),
+        db.collection('promotion_boost_fraud_counters')
+          .doc(`${hash}:${day}`)
+          .set({
+            viewerHash: hash,
+            day,
+            totalSignals: FieldValue.increment(1),
+            'reasonCounts.event_velocity_exceeded': FieldValue.increment(1),
+            updatedAt: fraudNow,
+            expiresAt: fraudNow + PROMOTION_BOOST_FRAUD_SIGNAL_TTL_MS,
+          }, { merge: true }),
       ]);
       throw error;
     }
@@ -82,6 +88,38 @@ export const recordPhotoPromotionEvent = onCall<Request>(
     const now = Date.now();
 
     return db.runTransaction(async (transaction) => {
+      const fraudSignalRef = db.collection('promotion_boost_fraud_signals').doc();
+      const fraudCounterRef = db.collection('promotion_boost_fraud_counters').doc(
+        `${viewerHash(uid)}:${resolvePromotionBoostDay(now)}`
+      );
+      const writeFraudSignal = (
+        reason:
+          | 'self_interaction'
+          | 'event_too_fast'
+          | 'placement_identity_mismatch',
+        campaignId: string | null,
+        metadata: Readonly<Record<string, unknown>> = {}
+      ) => {
+        transaction.create(fraudSignalRef, {
+          signalId: fraudSignalRef.id,
+          viewerHash: viewerHash(uid),
+          campaignId,
+          placementId,
+          reason,
+          metadata,
+          createdAt: now,
+          expiresAt: now + PROMOTION_BOOST_FRAUD_SIGNAL_TTL_MS,
+        });
+        transaction.set(fraudCounterRef, {
+          viewerHash: viewerHash(uid),
+          day: resolvePromotionBoostDay(now),
+          totalSignals: FieldValue.increment(1),
+          [`reasonCounts.${reason}`]: FieldValue.increment(1),
+          updatedAt: now,
+          expiresAt: now + PROMOTION_BOOST_FRAUD_SIGNAL_TTL_MS,
+        }, { merge: true });
+      };
+
       const placementSnapshot = await transaction.get(placementRef);
       if (!placementSnapshot.exists) {
         throw new HttpsError('not-found', 'Placement patrocinado expirado.');
@@ -102,19 +140,10 @@ export const recordPhotoPromotionEvent = onCall<Request>(
         || placement['status'] !== 'delivered'
         || Number(placement['expiresAt']) < now
       ) {
-        await Promise.allSettled([
-          recordPromotionBoostFraudSignal({
-            viewerUid: uid,
-            campaignId,
-            placementId,
-            reason: 'placement_identity_mismatch',
-          }),
-          incrementPromotionBoostFraudCounter({
-            viewerUid: uid,
-            day: resolvePromotionBoostDay(now),
-            reason: 'placement_identity_mismatch',
-          }),
-        ]);
+        writeFraudSignal(
+          'placement_identity_mismatch',
+          campaignId
+        );
         throw new HttpsError('permission-denied', 'Placement patrocinado indisponível.');
       }
 
@@ -125,19 +154,10 @@ export const recordPhotoPromotionEvent = onCall<Request>(
           targetOwnerUid,
         })
       ) {
-        await Promise.allSettled([
-          recordPromotionBoostFraudSignal({
-            viewerUid: uid,
-            campaignId,
-            placementId,
-            reason: 'self_interaction',
-          }),
-          incrementPromotionBoostFraudCounter({
-            viewerUid: uid,
-            day: resolvePromotionBoostDay(now),
-            reason: 'self_interaction',
-          }),
-        ]);
+        writeFraudSignal(
+          'self_interaction',
+          campaignId
+        );
         throw new HttpsError(
           'permission-denied',
           'Auto-interação patrocinada não é contabilizada.'
@@ -151,23 +171,14 @@ export const recordPhotoPromotionEvent = onCall<Request>(
           now,
         })
       ) {
-        await Promise.allSettled([
-          recordPromotionBoostFraudSignal({
-            viewerUid: uid,
-            campaignId,
-            placementId,
-            reason: 'event_too_fast',
-            metadata: {
-              event,
-              elapsedMs: now - deliveredAt,
-            },
-          }),
-          incrementPromotionBoostFraudCounter({
-            viewerUid: uid,
-            day: resolvePromotionBoostDay(now),
-            reason: 'event_too_fast',
-          }),
-        ]);
+        writeFraudSignal(
+          'event_too_fast',
+          campaignId,
+          {
+            event,
+            elapsedMs: now - deliveredAt,
+          }
+        );
         throw new HttpsError(
           'failed-precondition',
           'Evento patrocinado não qualificado.'
