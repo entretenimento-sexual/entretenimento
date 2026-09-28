@@ -45,67 +45,23 @@
             <strong>{{ photo.ownerNickname || 'Perfil' }}</strong>
 
             @if ((photo.officialMediaContext?.contexts?.length ?? 0) > 0) {
-              <span
+              <app-public-media-badge
                 class="viewer-official-badge"
-                aria-label="Perfil oficial verificado"
-              >
-                <span aria-hidden="true">✓</span>
-                Oficial
-              </span>
+                kind="official"
+                label="Oficial"
+                ariaLabel="Perfil oficial verificado"
+                iconClass="fas fa-badge-check"
+              />
             }
           </span>
 
           <span class="viewer-owner-context">
-            @if (data.source === 'profile') {
-              <span
-                class="viewer-discovery-reason"
-                aria-label="Motivo desta mídia no seu fluxo: Do perfil."
-              >
-                Do perfil
-              </span>
-            } @else if (data.continuationContext?.connectionOwnerUids?.includes(currentOwnerUid)) {
-              <span
-                class="viewer-discovery-reason"
-                aria-label="Motivo desta mídia no seu fluxo: Da sua rede."
-              >
-                Da sua rede
-              </span>
-            } @else if (data.continuationContext?.compatibleOwnerUids?.includes(currentOwnerUid)) {
-              <span
-                class="viewer-discovery-reason"
-                aria-label="Motivo desta mídia no seu fluxo: Sugestão para você."
-              >
-                Sugestão para você
-              </span>
-            } @else if (data.source === 'latest') {
-              <span
-                class="viewer-discovery-reason"
-                aria-label="Motivo desta mídia no seu fluxo: Recente."
-              >
-                Recente
-              </span>
-            } @else if (data.source === 'top') {
-              <span
-                class="viewer-discovery-reason"
-                aria-label="Motivo desta mídia no seu fluxo: Em alta."
-              >
-                Em alta
-              </span>
-            } @else if (data.source === 'sponsored') {
-              <span
-                class="viewer-discovery-reason"
-                aria-label="Motivo desta mídia no seu fluxo: Patrocinado."
-              >
-                Patrocinado
-              </span>
-            } @else if (data.source === 'discover') {
-              <span
-                class="viewer-discovery-reason"
-                aria-label="Motivo desta mídia no seu fluxo: Descoberta."
-              >
-                Descoberta
-              </span>
-            }
+            <app-public-media-recommendation-badge
+              class="viewer-discovery-reason"
+              [source]="data.source"
+              [ownerUid]="currentOwnerUid"
+              [continuationContext]="data.continuationContext || null"
+            />
 
             <span class="viewer-owner-cta">
               {{ viewerIsOwner ? 'Seu perfil' : 'Ver perfil' }}
