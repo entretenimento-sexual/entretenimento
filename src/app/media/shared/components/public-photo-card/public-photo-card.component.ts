@@ -13,6 +13,9 @@ import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-i
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import { PublicMediaEngagementActionsComponent } from '../public-media-engagement-actions/public-media-engagement-actions.component';
 import { PublicMediaBadgeComponent } from '../public-media-badge/public-media-badge.component';
+import { PublicMediaRecommendationBadgeComponent } from '../public-media-recommendation-badge/public-media-recommendation-badge.component';
+import type { PublicMediaRecommendationSource } from '../../presentation/public-media-presentation.policy';
+import type { IPublicMediaContinuationContext } from 'src/app/core/interfaces/media/i-public-media-continuation-context';
 
 export type TPublicPhotoCardVariant =
   | 'profile'
@@ -30,6 +33,7 @@ export type TPublicPhotoCardVariant =
     ImageFallbackDirective,
     PublicMediaEngagementActionsComponent,
     PublicMediaBadgeComponent,
+    PublicMediaRecommendationBadgeComponent,
   ],
   templateUrl: './public-photo-card.component.html',
   styleUrls: [
@@ -43,6 +47,9 @@ export class PublicPhotoCardComponent {
   readonly variant = input<TPublicPhotoCardVariant>('profile');
   readonly viewerUid = input<string | null>(null);
   readonly engagementActions = input(false);
+  readonly recommendationSource = input<PublicMediaRecommendationSource>(null);
+  readonly continuationContext =
+    input<IPublicMediaContinuationContext | null>(null);
 
   readonly preview = output<void>();
   readonly commentsRequested = output<void>();
@@ -51,6 +58,26 @@ export class PublicPhotoCardComponent {
     '/outro-perfil',
     this.photo().ownerUid,
   ]);
+
+  readonly resolvedRecommendationSource = computed<PublicMediaRecommendationSource>(
+    () => {
+      const explicit = this.recommendationSource();
+      if (explicit) return explicit;
+
+      switch (this.variant()) {
+        case 'profile':
+          return 'profile';
+        case 'latest':
+          return 'latest';
+        case 'top':
+          return 'top';
+        case 'sponsored':
+          return 'sponsored';
+        default:
+          return 'unknown';
+      }
+    }
+  );
 
   onPreview(): void {
     this.preview.emit();
