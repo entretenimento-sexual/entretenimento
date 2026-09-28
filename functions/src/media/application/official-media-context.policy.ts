@@ -10,8 +10,11 @@
 // -----------------------------------------------------------------------------
 
 import {
+  isCanonicalResourceAuthorityRoleForTarget,
   normalizeCanonicalAuthorityResourceId,
+  normalizeCanonicalResourceAuthorityRole,
   type CanonicalAuthorityTargetType,
+  type CanonicalResourceAuthorityRole,
 } from '../../authority/canonical-resource-authority.model';
 import {
   resolveCanonicalResourceAuthority,
@@ -55,7 +58,7 @@ function activeAssociation(
 ): {
   target: { type: CanonicalAuthorityTargetType; id: string };
   holderUid: string;
-  role: string;
+  role: CanonicalResourceAuthorityRole;
   verificationSource: string;
   verificationPolicyVersion: number;
 } | null {
@@ -71,7 +74,7 @@ function activeAssociation(
   const holderUid = normalizeCanonicalAuthorityResourceId(
     authority?.['holderUid']
   );
-  const role = String(authority?.['role'] ?? '').trim();
+  const role = normalizeCanonicalResourceAuthorityRole(authority?.['role']);
   const verificationSource = String(verification?.['source'] ?? '').trim();
   const verificationPolicyVersion = Math.trunc(
     Number(verification?.['policyVersion'])
@@ -91,6 +94,7 @@ function activeAssociation(
   if (
     !holderUid
     || !role
+    || !isCanonicalResourceAuthorityRoleForTarget(projection.target.type, role)
     || !verificationSource
     || !Number.isInteger(verificationPolicyVersion)
     || verificationPolicyVersion <= 0
@@ -164,6 +168,7 @@ export function deriveOfficialMediaContextEntry(input: {
       !canonicalAuthority.allowed
       || canonicalAuthority.authorityUid !== ownerUid
       || canonicalAuthority.authorityRole !== 'self'
+      || association.role !== 'self'
       || !profileKyc.allowed
       || !profileKyc.verificationPolicyVersion
     ) {
