@@ -63,6 +63,8 @@ import { MediaPublicationService } from 'src/app/core/services/media/media-publi
 import { MediaReactionsService } from 'src/app/core/services/media/media-reactions.service';
 import { PublicPhotoContinuationService } from 'src/app/core/services/media/public-photo-continuation.service';
 import type { TPhotoViewSource } from 'src/app/core/services/media/photo-view-tracking.service';
+import { PublicMediaBadgeComponent } from '../../shared/components/public-media-badge/public-media-badge.component';
+import { PublicMediaRecommendationBadgeComponent } from '../../shared/components/public-media-recommendation-badge/public-media-recommendation-badge.component';
 
 export type { TPhotoViewSource } from 'src/app/core/services/media/photo-view-tracking.service';
 
@@ -134,7 +136,14 @@ const CONTINUATION_BATCH_SIZE = 8;
 @Component({
   selector: 'app-photo-viewer',
   standalone: true,
-  imports: [CommonModule, RouterModule, MatDialogModule, ReactiveFormsModule],
+  imports: [
+    CommonModule,
+    RouterModule,
+    MatDialogModule,
+    ReactiveFormsModule,
+    PublicMediaBadgeComponent,
+    PublicMediaRecommendationBadgeComponent,
+  ],
   templateUrl: './photo-viewer.component.html',
   styleUrls: ['./photo-viewer.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
