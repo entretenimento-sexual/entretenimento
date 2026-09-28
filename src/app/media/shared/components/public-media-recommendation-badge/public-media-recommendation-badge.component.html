@@ -1,0 +1,8 @@
+@if (context(); as item) {
+  <app-public-media-badge
+    kind="context"
+    [label]="item.label"
+    [ariaLabel]="item.ariaLabel"
+    [iconClass]="item.iconClass"
+  />
+}
