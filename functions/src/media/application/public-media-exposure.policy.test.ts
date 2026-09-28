@@ -34,9 +34,20 @@ function publication(overrides: Record<string, unknown> = {}) {
 }
 
 describe('public media exposure policy', () => {
-  it('bloqueia lifecycle sem projeção pública e bloqueio bilateral', () => {
+  it('bloqueia lifecycle canônico, ausência de projeção pública e bloqueio bilateral', () => {
     assert.equal(
       evaluatePublicMediaOwnerExposure({
+        canonicalOwnerLifecycleAllowed: false,
+        publicProfile: publicProjection(),
+        viewerBlocked: false,
+        nowMs: NOW,
+      }).denialReason,
+      'OWNER_LIFECYCLE_NOT_CANONICAL'
+    );
+
+    assert.equal(
+      evaluatePublicMediaOwnerExposure({
+        canonicalOwnerLifecycleAllowed: true,
         publicProfile: null,
         viewerBlocked: false,
         nowMs: NOW,
@@ -46,6 +57,7 @@ describe('public media exposure policy', () => {
 
     assert.equal(
       evaluatePublicMediaOwnerExposure({
+        canonicalOwnerLifecycleAllowed: true,
         publicProfile: publicProjection(),
         viewerBlocked: true,
         nowMs: NOW,
@@ -57,6 +69,7 @@ describe('public media exposure policy', () => {
   it('expira owner pela projeção e pela autoridade etária canônica', () => {
     assert.equal(
       evaluatePublicMediaOwnerExposure({
+        canonicalOwnerLifecycleAllowed: true,
         publicProfile: publicProjection({
           ageEligibilityValidUntil: { toMillis: () => NOW },
         }),
@@ -68,6 +81,7 @@ describe('public media exposure policy', () => {
 
     assert.equal(
       evaluatePublicMediaSignedOwnerExposure({
+        canonicalOwnerLifecycleAllowed: true,
         publicProfile: publicProjection(),
         viewerBlocked: false,
         canonicalAgeAllowed: false,
@@ -78,7 +92,8 @@ describe('public media exposure policy', () => {
     );
 
     const allowed = evaluatePublicMediaSignedOwnerExposure({
-      publicProfile: publicProjection({
+      canonicalOwnerLifecycleAllowed: true,
+        publicProfile: publicProjection({
         ageEligibilityValidUntil: { toMillis: () => NOW + 60_000 },
       }),
       viewerBlocked: false,
