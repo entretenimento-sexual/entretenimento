@@ -23,6 +23,7 @@ import { consumeBackendRateLimitQuota } from './backend-rate-limit.service';
 import {
   buildMediaReportSafetyState,
   isCriticalMinorMediaSafetyReason,
+  mediaSafetySeverity,
   shouldPreserveMediaEvidence,
   shouldQuarantineMediaAfterReport,
   type MediaReportSafetyReason,
@@ -397,6 +398,9 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
           status: 'open',
           moderationAction: null,
           contentQuarantined: quarantine,
+          safetySeverity: mediaSafetySeverity(reason),
+          criticalMinorSafety:
+            isCriticalMinorMediaSafetyReason(reason),
           evidencePreservationStatus: binaryEvidenceRequired
             ? 'PENDING'
             : textEvidenceRequired
