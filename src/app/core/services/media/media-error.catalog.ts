@@ -44,6 +44,15 @@ export const MEDIA_ERROR_MESSAGES = Object.freeze({
     reserved_bytes_exceeded:
       'O limite temporário de uploads foi atingido. Tente novamente mais tarde.',
 
+    photo_editor_auth_required:
+      'Sua sessão não está disponível para editar fotos. Entre novamente e tente de novo.',
+    photo_editor_owner_mismatch:
+      'Esta foto só pode ser editada pelo perfil que a publicou.',
+    photo_editor_source_unavailable:
+      'A imagem original não está disponível para edição.',
+    photo_editor_failed:
+      'Não foi possível abrir ou concluir a edição da foto agora. Tente novamente.',
+
     media_discovery_load_failed:
       'Não foi possível carregar as mídias agora. Tente novamente.',
     media_discovery_page_failed:
@@ -95,6 +104,132 @@ export const MEDIA_ERROR_MESSAGES = Object.freeze({
   } as const);
 
 export type MediaErrorReason = keyof typeof MEDIA_ERROR_MESSAGES;
+
+export const MEDIA_ERROR_CODE_MESSAGES: Readonly<Record<string, string>> =
+  Object.freeze({
+    unauthenticated:
+      'Sua sessão expirou. Entre novamente para continuar com esta mídia.',
+    'auth/user-token-expired':
+      'Sua sessão expirou. Entre novamente para continuar com esta mídia.',
+    'auth/requires-recent-login':
+      'Confirme sua identidade novamente antes de alterar esta mídia.',
+    'permission-denied':
+      'Você não tem permissão para acessar ou alterar esta mídia.',
+    'not-found':
+      'Esta mídia não está mais disponível.',
+    'already-exists':
+      'Esta alteração de mídia já foi concluída.',
+    'resource-exhausted':
+      'Muitas ações de mídia foram feitas em pouco tempo. Aguarde e tente novamente.',
+    'failed-precondition':
+      'Esta mídia não pode ser alterada no estado atual.',
+    'invalid-argument':
+      'Algum dado da mídia não é válido. Revise as informações e tente novamente.',
+    'deadline-exceeded':
+      'A operação de mídia demorou mais que o esperado. Tente novamente.',
+    unavailable:
+      'O serviço de mídia está temporariamente indisponível. Tente novamente em instantes.',
+    aborted:
+      'A operação de mídia encontrou um conflito temporário. Tente novamente.',
+    cancelled:
+      'A operação de mídia foi interrompida antes de ser concluída.',
+    'out-of-range':
+      'Um valor informado para a mídia está fora do limite permitido.',
+    unimplemented:
+      'Esta operação de mídia ainda não está disponível.',
+    'data-loss':
+      'Não foi possível validar a integridade dos dados da mídia.',
+    internal:
+      'O serviço de mídia encontrou uma falha interna. Tente novamente mais tarde.',
+    unknown:
+      'Não foi possível concluir a operação de mídia agora. Tente novamente.',
+  });
+
+export const MEDIA_ERROR_CODE_PRESENTATIONS:
+  Readonly<Record<string, ApplicationErrorPresentation>> = Object.freeze({
+    unauthenticated: {
+      surface: 'modal',
+      severity: 'warning',
+      title: 'Sessão necessária',
+      dismissLabel: 'Fechar',
+    },
+    'auth/user-token-expired': {
+      surface: 'modal',
+      severity: 'warning',
+      title: 'Sessão expirada',
+      dismissLabel: 'Fechar',
+    },
+    'auth/requires-recent-login': {
+      surface: 'modal',
+      severity: 'warning',
+      title: 'Confirme sua identidade',
+      dismissLabel: 'Fechar',
+    },
+    'permission-denied': {
+      surface: 'modal',
+      severity: 'warning',
+      title: 'Ação não permitida',
+      dismissLabel: 'Fechar',
+    },
+    'not-found': {
+      surface: 'snackbar',
+      severity: 'info',
+    },
+    'already-exists': {
+      surface: 'snackbar',
+      severity: 'info',
+    },
+    'resource-exhausted': {
+      surface: 'snackbar',
+      severity: 'warning',
+    },
+    'failed-precondition': {
+      surface: 'snackbar',
+      severity: 'warning',
+    },
+    'invalid-argument': {
+      surface: 'snackbar',
+      severity: 'warning',
+    },
+    'deadline-exceeded': {
+      surface: 'snackbar',
+      severity: 'warning',
+    },
+    unavailable: {
+      surface: 'snackbar',
+      severity: 'warning',
+    },
+    aborted: {
+      surface: 'snackbar',
+      severity: 'warning',
+    },
+    cancelled: {
+      surface: 'snackbar',
+      severity: 'info',
+    },
+    'out-of-range': {
+      surface: 'snackbar',
+      severity: 'warning',
+    },
+    unimplemented: {
+      surface: 'snackbar',
+      severity: 'info',
+    },
+    'data-loss': {
+      surface: 'modal',
+      severity: 'error',
+      title: 'Não foi possível validar a mídia',
+      dismissLabel: 'Fechar',
+    },
+    internal: {
+      surface: 'snackbar',
+      severity: 'error',
+    },
+    unknown: {
+      surface: 'snackbar',
+      severity: 'error',
+    },
+  });
 
 export const MEDIA_ERROR_PRESENTATIONS:
   Readonly<Record<MediaErrorReason, ApplicationErrorPresentation>> =
@@ -254,6 +389,27 @@ export const MEDIA_ERROR_PRESENTATIONS:
     reservation_count_exceeded: {
       surface: 'snackbar',
       severity: 'warning',
+    },
+    photo_editor_auth_required: {
+      surface: 'modal',
+      severity: 'warning',
+      title: 'Sessão necessária para editar',
+      dismissLabel: 'Fechar',
+    },
+    photo_editor_owner_mismatch: {
+      surface: 'modal',
+      severity: 'warning',
+      title: 'Edição não permitida',
+      detail: 'Abra a foto pelo perfil proprietário para editá-la.',
+      dismissLabel: 'Fechar',
+    },
+    photo_editor_source_unavailable: {
+      surface: 'snackbar',
+      severity: 'warning',
+    },
+    photo_editor_failed: {
+      surface: 'snackbar',
+      severity: 'error',
     },
     reserved_bytes_exceeded: {
       surface: 'snackbar',
