@@ -25,6 +25,9 @@ import {
   buildEventAuthorityRecordId,
 } from '../../authority/event-authority.policy';
 import {
+  readEventAuthorityRecord,
+} from '../../authority/event-authority-record.service';
+import {
   normalizeCanonicalAuthorityResourceId,
   type CanonicalAuthorityTargetType,
 } from '../../authority/canonical-resource-authority.model';
@@ -144,17 +147,15 @@ async function resolveAssociationEntry(
   const authorityRecordId = buildEventAuthorityRecordId(target.id, ownerUid);
   if (!authorityRecordId) return null;
 
-  const authoritySnapshot = await db
-    .collection('event_authority_records')
-    .doc(authorityRecordId)
-    .get();
+  const rawEventAuthority = await readEventAuthorityRecord(
+    target.id,
+    ownerUid
+  );
 
   return deriveOfficialMediaContextEntry({
     ownerUid,
     rawAssociation,
-    rawEventAuthority: authoritySnapshot.exists
-      ? authoritySnapshot.data()
-      : null,
+    rawEventAuthority,
   });
 }
 
