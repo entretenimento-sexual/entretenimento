@@ -126,6 +126,67 @@ for (const forbidden of [
   );
 }
 
+const communityManager = read(
+  'functions/src/community-boost/manage-community-boost-campaign.handler.ts'
+);
+for (const fragment of [
+  'PROMOTION_BOOST_CAMPAIGN_MUTATION_RATE_LIMIT',
+  'consumeBackendRateLimitQuota',
+]) {
+  requireIncludes(
+    communityManager,
+    fragment,
+    'Community Boost campaign velocity drift'
+  );
+}
+
+const communitySelection = read(
+  'functions/src/community-boost/community-boost-selection.service.ts'
+);
+for (const fragment of [
+  'campaign.advertiserUid !== viewerUid',
+  'campaign.communityOwnerUidSnapshot !== viewerUid',
+  "collection('promotion_boost_billing_events')",
+  "targetType: 'community'",
+  "reason: 'served_placement'",
+]) {
+  requireIncludes(
+    communitySelection,
+    fragment,
+    'Community Boost commercial abuse drift'
+  );
+}
+
+const communityEvent = read(
+  'functions/src/community-boost/record-community-boost-event.handler.ts'
+);
+for (const fragment of [
+  'PROMOTION_BOOST_EVENT_RATE_LIMIT',
+  'isPromotionBoostSelfInteraction',
+  'isPromotionBoostEventTimingPlausible',
+  'recordPromotionBoostFraudSignal',
+  "'self_interaction'",
+  "'event_too_fast'",
+]) {
+  requireIncludes(
+    communityEvent,
+    fragment,
+    'Community Boost event antifraud drift'
+  );
+}
+for (const forbidden of [
+  "collection('billing_ledger')",
+  "collection('promotion_boost_billing_events')",
+  'spentMilliCents',
+  'dailySpentMilliCents',
+]) {
+  forbidIncludes(
+    communityEvent,
+    forbidden,
+    'Community Boost client events must remain financially neutral'
+  );
+}
+
 const rules = read('firestore-rules/promotion_boost.rules');
 for (const collection of [
   'promotion_boost_campaigns',
@@ -168,7 +229,10 @@ for (const collection of [
   }
 }
 
-const promotionDir = path.join(root, 'functions', 'src', 'promotion-boost');
+const promotionDirs = [
+  path.join(root, 'functions', 'src', 'promotion-boost'),
+  path.join(root, 'functions', 'src', 'community-boost'),
+];
 const forbiddenMoneyPrimitives = [
   'promotion_boost_wallet',
   'walletBalance',
@@ -180,16 +244,21 @@ const forbiddenMoneyPrimitives = [
   'transferFunds',
 ];
 
-for (const fileName of fs.readdirSync(promotionDir)) {
-  if (!fileName.endsWith('.ts')) continue;
-  const source = read('functions/src/promotion-boost/' + fileName);
+for (const directory of promotionDirs) {
+  const relativeDirectory = path.relative(root, directory).replaceAll('\\', '/');
 
-  for (const forbidden of forbiddenMoneyPrimitives) {
-    forbidIncludes(
-      source,
-      forbidden,
-      fileName + ' must not implement wallet/transfer/payout primitives'
-    );
+  for (const fileName of fs.readdirSync(directory)) {
+    if (!fileName.endsWith('.ts')) continue;
+    const source = read(relativeDirectory + '/' + fileName);
+
+    for (const forbidden of forbiddenMoneyPrimitives) {
+      forbidIncludes(
+        source,
+        forbidden,
+        relativeDirectory + '/' + fileName +
+          ' must not implement wallet/transfer/payout primitives'
+      );
+    }
   }
 }
 
