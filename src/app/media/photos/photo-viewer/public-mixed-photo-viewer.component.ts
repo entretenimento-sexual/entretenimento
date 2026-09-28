@@ -10,6 +10,8 @@ import type {
   IPublicMediaViewerMixedNavigation,
 } from 'src/app/core/interfaces/media/i-public-media-viewer-session';
 import { PublicPhotoContinuationService } from 'src/app/core/services/media/public-photo-continuation.service';
+import { PublicMediaBadgeComponent } from '../../shared/components/public-media-badge/public-media-badge.component';
+import { PublicMediaRecommendationBadgeComponent } from '../../shared/components/public-media-recommendation-badge/public-media-recommendation-badge.component';
 import {
   IPhotoViewerData,
   PhotoViewerComponent,
@@ -38,7 +40,14 @@ type MixedPhotoViewerData = IPhotoViewerData & {
 @Component({
   selector: 'app-public-mixed-photo-viewer',
   standalone: true,
-  imports: [CommonModule, RouterModule, MatDialogModule, ReactiveFormsModule],
+  imports: [
+    CommonModule,
+    RouterModule,
+    MatDialogModule,
+    ReactiveFormsModule,
+    PublicMediaBadgeComponent,
+    PublicMediaRecommendationBadgeComponent,
+  ],
   templateUrl: './photo-viewer.component.html',
   styleUrls: ['./photo-viewer.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
