@@ -102,11 +102,7 @@ export interface IPublicVideoProjection {
    */
   readonly officialMediaContext?: IOfficialMediaContextProjection | null;
 
-  /**
-   * Contexto oficial derivado. Não é autoridade, estado editável, promoção
-   * paga, entitlement nem sinal orgânico de ranking.
-   */
-  readonly officialMediaContext?: IOfficialMediaContextProjection | null;
+
 }
 
 /**
