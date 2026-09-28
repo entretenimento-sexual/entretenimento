@@ -5,7 +5,7 @@ Este documento descreve a arquitetura operacional da plataforma para denúncias 
 ## Princípios
 
 1. **Denúncia de usuário não é conclusão de crime.** O envio de uma denúncia cria um caso de moderação e pode acionar contenção técnica, mas não autoriza comunicação automática a autoridades.
-2. **Proteção de menores em Media é fail-closed.** `minor_exposure_safety` e `minor_content_safety` colocam foto/vídeo em quarentena na primeira denúncia válida. `minor_exposure_safety` cobre qualquer indício de criança ou adolescente exposto em mídia da plataforma adulta, mesmo sem nudez ou ato sexual; `minor_content_safety` cobre possível contexto sexual, íntimo ou exploratório envolvendo menor. Ambos são críticos e preservam evidência para revisão. `minor_safety` fica reservado ao domínio de perfil/revalidação etária e não é motivo aceito pelos callables de Media. `illegal_content` e `sexual_boundary` mantêm o tratamento grave já existente; denúncias gerais exigem limiar antifraude antes da quarentena automática.
+2. **Proteção de menores em Media é fail-closed.** `minor_exposure_safety` e `minor_content_safety` têm severidade interna `MAXIMUM_MINOR` e colocam foto/vídeo em quarentena na primeira denúncia válida. `minor_exposure_safety` cobre qualquer indício de criança ou adolescente exposto em mídia da plataforma adulta, mesmo sem nudez ou ato sexual; `minor_content_safety` cobre possível contexto sexual, íntimo ou exploratório envolvendo menor. Ambos preservam evidência para revisão. `minor_safety` fica reservado ao domínio de perfil/revalidação etária e não é motivo aceito pelos callables de Media. `non_consensual_sexual_content` e `illegal_content` também têm quarentena imediata. `sexual_boundary` permanece apenas como compatibilidade para denúncias genéricas antigas e não dispara quarentena imediata pelo simples fato de haver conteúdo sexual. Nudez ou sexo consensual entre adultos, por si só, não constitui violação de Media. Denúncias gerais exigem três denunciantes distintos sobre o mesmo ativo antes da quarentena automática.
 3. **Preservar é diferente de manter publicado.** A mídia pode ser removida da experiência pública e, ao mesmo tempo, ter uma cópia isolada para auditoria, revisão jurídica ou atendimento posterior a uma solicitação legal válida.
 4. **Preservação não amplia acesso interno.** Evidência e jobs são backend-only. A sessão administrativa comum não recebe path de Storage, URL ou conteúdo preservado.
 5. **Exclusão do produto não destrói evidência em retenção.** A exclusão canônica de foto/vídeo não alcança `system/moderation-evidence/...`.
@@ -24,7 +24,7 @@ moderation_reports/{reportId}
 ┌───────────────────────────────────────────────┐
 │ risco grave?                                  │
 │ minor_exposure_safety / minor_content_safety  │
-│ illegal_content / sexual_boundary              │
+│ illegal_content / non_consensual_sexual_content│
 └───────────────────────────────────────────────┘
       ↓ sim
 quarentena imediata
@@ -47,6 +47,14 @@ revisão humana de moderação
                     ↓
               eventual atendimento legal auditado
 ```
+
+## Contestação do proprietário
+
+Foto ou vídeo em quarentena pode receber uma contestação do proprietário pelo callable `submitMediaModerationContest`. A contestação é vinculada ao `reportId`, armazenada em `moderation_content_contests/{reportId}` e permanece backend-only.
+
+A contestação **não** restaura conteúdo automaticamente, **não** altera `moderationStatus`, **não** libera evidência preservada e **não** encerra revisão legal. Seu papel é acrescentar manifestação do proprietário ao caso para revisão humana/auditável.
+
+As notificações de quarentena e remoção carregam `caseId = reportId`, permitindo vincular a manifestação ao caso sem revelar a identidade do denunciante.
 
 ## Menoridade de perfil x conteúdo envolvendo menor
 
