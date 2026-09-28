@@ -30,6 +30,7 @@ import {
   assertPublicMediaCallableAppCheck,
   REQUIRE_PUBLIC_MEDIA_APP_CHECK,
 } from './public-media-callable-security';
+import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
 import {
   buildVideoRatingAggregateAfterRemoval,
   normalizeVideoRating,
@@ -592,6 +593,22 @@ export const reviewVideoContentReport = onCall<
     });
 
     await safeNotifyModerationReportReviewed(reportId);
+
+    if (
+      result.targetType === 'video'
+      && result.contentAvailableAtReview
+    ) {
+      await refreshPublicProfileMediaMetrics(result.ownerUid).catch((error) => {
+        logger.warn('[reviewVideoContentReport] Reconciliação de métricas pendente.', {
+          reportId,
+          ownerUid: result.ownerUid,
+          videoId: result.videoId,
+          error: error instanceof Error
+            ? error.message.slice(0, 500)
+            : String(error ?? '').slice(0, 500),
+        });
+      });
+    }
 
     let cleanupPending = false;
     let evidenceReleasePending = false;
