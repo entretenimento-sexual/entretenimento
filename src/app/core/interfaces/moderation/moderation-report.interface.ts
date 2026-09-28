@@ -31,6 +31,10 @@ export type ModerationReportTargetType =
   | 'community_feed_comment_reply'
   | 'other';
 
+export type MinorMediaSafetyReason =
+  | 'minor_exposure_safety'
+  | 'minor_content_safety';
+
 export type ModerationReportReason =
   | 'spam'
   | 'fake_profile'
@@ -40,8 +44,7 @@ export type ModerationReportReason =
   | 'illegal_content'
   | 'privacy'
   | 'minor_safety'
-  | 'minor_exposure_safety'
-  | 'minor_content_safety'
+  | MinorMediaSafetyReason
   | 'age_verification_request'
   | 'preventive_media_review'
   | 'other';
@@ -102,6 +105,7 @@ export interface IModerationReportDocument {
   route?: string | null;
   status: ModerationReportStatus;
   moderationAction?: ModerationReportAction | null;
+  reviewSafetyReason?: MinorMediaSafetyReason | null;
   contentQuarantined?: boolean;
   evidencePreservationStatus?: ModerationEvidencePreservationStatus | null;
   legalReviewStatus?: ModerationLegalReviewStatus | null;
