@@ -139,8 +139,8 @@ for (const forbidden of ['boostActive', 'boostPriority', 'boostedUntil']) {
 }
 requireIncludes(
   publicPhotoContract,
-  'officialPhoto?: IOfficialPhotoProjection | null;',
-  'official photo identity projection must remain explicit'
+  'officialMediaContext?: IOfficialMediaContextProjection | null;',
+  'official media context projection must remain explicit'
 );
 forbidIncludes(
   publicPhotoContract,
@@ -270,6 +270,7 @@ for (const fragment of [
   "billingReason: 'served_placement'",
   'promotion_boost_frequency_caps',
   "collection('billing_ledger')",
+  "collection('promotion_boost_billing_events')",
   'ledgerOwnershipTransferred: false',
   'rateCpmCentsSnapshot',
   'isPromotionBoostAdvertiserInteractionEligible',
@@ -344,6 +345,8 @@ for (const collectionGroup of [
   'promotion_boost_frequency_caps',
   'promotion_boost_requests',
   'promotion_boost_active_slots',
+  'promotion_boost_fraud_signals',
+  'promotion_boost_fraud_counters',
 ]) {
   if (!promotionTtlCollections.has(collectionGroup)) {
     throw new Error(
@@ -354,7 +357,7 @@ for (const collectionGroup of [
 }
 
 const officialProjection = read(
-  'functions/src/media/application/sync-official-photo-projection.trigger.ts'
+  'functions/src/media/application/sync-official-media-context.trigger.ts'
 );
 for (const forbidden of [
   'promotion_boost',
@@ -365,7 +368,7 @@ for (const forbidden of [
   forbidIncludes(
     officialProjection,
     forbidden,
-    'official photo projection must remain independent from promotion'
+    'official media context projection must remain independent from promotion'
   );
 }
 
