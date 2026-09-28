@@ -20,14 +20,15 @@ import {
   PublicPhotoDiscoveryFeedState,
 } from 'src/app/core/services/media/public-photo-discovery-feed.service';
 
-const PHOTO_RENDER_WINDOW_MAX_ITEMS = 72;
-const PHOTO_RENDER_WINDOW_STEP = 24;
 import { NetworkStatusService } from 'src/app/core/services/network/network-status.service';
 import { ContentStateComponent } from 'src/app/shared/content-state/content-state.component';
 import { PublicPhotoCardComponent } from '../../shared/components/public-photo-card/public-photo-card.component';
 import { PhotoPromotionExposureDirective } from '../../shared/directives/photo-promotion-exposure.directive';
 import { PhotoPromotionPlacementService } from 'src/app/core/services/media/photo-promotion-placement.service';
 import { PublicPhotoViewerLauncherService } from '../photo-viewer/public-photo-viewer-launcher.service';
+
+const PHOTO_RENDER_WINDOW_MAX_ITEMS = 72;
+const PHOTO_RENDER_WINDOW_STEP = 24;
 
 interface LatestPhotosViewModel extends PublicPhotoDiscoveryFeedState {
   renderItems: IPublicPhotoItem[];
