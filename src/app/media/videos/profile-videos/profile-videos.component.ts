@@ -271,11 +271,26 @@ export class ProfileVideosComponent {
       takeUntilDestroyed(this.destroyRef)
     ).subscribe((ownerUid) => this.profileVideoLibrary.watchOwner(ownerUid));
 
+    this.videoEditor.draftForSource$('profile-videos').pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe((draft) => {
+      if (draft) {
+        return;
+      }
+
+      const reason = this.videoEditor.lastTeardownReason;
+      if (reason === 'expired' || reason === 'auth-changed') {
+        this.releaseEditorSelection();
+      }
+    });
+
     this.destroyRef.onDestroy(() => {
       this.profileVideoLibrary.stop();
       this.editorLaunchSubscription?.unsubscribe();
       this.uploadSubscription?.unsubscribe();
       this.revokePreviewUrl();
+      this.selectedFileSubject.next(null);
+      this.previewUrlSubject.next(null);
       this.videoEditor.cancel('profile-videos');
     });
   }
@@ -1000,6 +1015,34 @@ export class ProfileVideosComponent {
     if (currentUrl) {
       URL.revokeObjectURL(currentUrl);
       this.previewUrlSubject.next(null);
+    }
+  }
+
+  private releaseEditorSelection(): void {
+    if (this.isUploadActive()) {
+      return;
+    }
+
+    this.editorLaunchSubscription?.unsubscribe();
+    this.editorLaunchSubscription = null;
+    this.uploadFailureSubject.next(null);
+    this.revokePreviewUrl();
+    this.selectedFileSubject.next(null);
+    this.previewUrlSubject.next(null);
+    this.uploadPublicationForm.reset({
+      title: '',
+      description: '',
+      reactionsEnabled: true,
+      commentsEnabled: true,
+      ratingsEnabled: true,
+    });
+    this.uploadPhaseSubject.next('IDLE');
+    this.uploadProgressSubject.next(0);
+    this.uploadStepSubject.next('');
+
+    const input = this.videoInputRef()?.nativeElement;
+    if (input) {
+      input.value = '';
     }
   }
 
