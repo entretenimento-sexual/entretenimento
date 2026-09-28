@@ -383,6 +383,7 @@ async function claimPlacement(input: {
       campaignId: campaign.campaignId,
       communityId: campaign.communityId,
       advertiserUid: campaign.advertiserUid,
+      targetOwnerUid: campaign.communityOwnerUidSnapshot,
       viewerHash: viewerHash(input.viewerUid),
       sourceType: campaign.targetSourceType,
       disclosure: COMMUNITY_BOOST_DISCLOSURE,
@@ -429,6 +430,29 @@ async function claimPlacement(input: {
       amountMilliCents: FieldValue.increment(chargeMilliCents),
       updatedAt: input.now,
     }, { merge: true });
+
+    transaction.create(
+      db.collection('promotion_boost_billing_events').doc(
+        `community:${placementRef.id}`
+      ),
+      {
+        billingEventId: `community:${placementRef.id}`,
+        placementId: placementRef.id,
+        campaignId: campaign.campaignId,
+        targetType: 'community',
+        targetId: campaign.communityId,
+        targetOwnerUid: campaign.communityOwnerUidSnapshot,
+        advertiserUid: campaign.advertiserUid,
+        ledgerOwnershipTransferred: false,
+        currency: campaign.currency,
+        billingBasis: campaign.billingBasis,
+        billingConfigVersion: campaign.billingConfigVersion,
+        rateCpmCentsSnapshot: campaign.rateCpmCentsSnapshot,
+        amountMilliCents: chargeMilliCents,
+        reason: 'served_placement',
+        createdAt: input.now,
+      }
+    );
 
     return Object.freeze({
       placementId: placementRef.id,
@@ -480,6 +504,9 @@ export async function selectCommunityBoostSponsoredPlacementWithDiagnostics(inpu
       tagId: input.tagId,
       excludedCommunityIds: new Set(input.excludedCommunityIds),
     }
+  ).filter(({ campaign }) =>
+    campaign.advertiserUid !== viewerUid
+    && campaign.communityOwnerUidSnapshot !== viewerUid
   );
 
   const rotatedCandidates = await rotateCandidatesForViewer({
