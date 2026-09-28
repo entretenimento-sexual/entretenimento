@@ -16,6 +16,8 @@ import {
 import { consumeBackendRateLimitQuota } from './backend-rate-limit.service';
 import {
   buildMediaReportSafetyState,
+  isCriticalMinorMediaSafetyReason,
+  isCriticalMinorMediaSafetyReason,
   shouldPreserveMediaEvidence,
   shouldQuarantineMediaAfterReport,
   type MediaReportSafetyReason,
@@ -106,7 +108,7 @@ const ALLOWED_REASONS = new Set<VideoReportReason>([
   'sexual_boundary',
   'illegal_content',
   'privacy',
-  'minor_safety',
+  'minor_exposure_safety',
   'minor_content_safety',
   'other',
 ]);
@@ -182,6 +184,16 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
     const videoId = cleanId(request.data?.videoId);
     const requestedTargetId = cleanId(request.data?.targetId);
     const reason = cleanReason(request.data?.reason);
+
+    if (
+      reason === 'minor_exposure_safety' &&
+      cleanTargetType(request.data?.targetType) !== 'video'
+    ) {
+      throw new HttpsError(
+        'invalid-argument',
+        'Exposição de menor deve apontar para o vídeo denunciado.'
+      );
+    }
     const details = cleanText(request.data?.details, 1200);
     const route = cleanText(request.data?.route, 300);
 
@@ -333,7 +345,7 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
           shouldQuarantineMediaAfterReport(reason, safetyState.openReportsCount);
         const commentQuarantine =
           targetType === 'video_comment' &&
-          reason === 'minor_content_safety';
+          isCriticalMinorMediaSafetyReason(reason);
         const quarantine = videoQuarantine || commentQuarantine;
         const binaryEvidenceRequired = targetType === 'video' &&
           shouldPreserveMediaEvidence(reason);
@@ -382,7 +394,7 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
             : textEvidenceRequired
               ? 'PRESERVED'
               : 'NOT_REQUIRED',
-          legalReviewStatus: reason === 'minor_content_safety'
+          legalReviewStatus: isCriticalMinorMediaSafetyReason(reason)
             ? 'PENDING_LEGAL_REVIEW'
             : null,
           source: 'web',
@@ -480,7 +492,7 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
       targetUid: result.targetAuthorUid,
       reporterUid,
       targetKey: `${targetType}:${ownerUid}:${videoId}:${targetId}`,
-      critical: reason === 'minor_content_safety',
+      critical: isCriticalMinorMediaSafetyReason(reason),
       quarantined: result.quarantine,
     });
 
