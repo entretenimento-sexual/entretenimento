@@ -408,9 +408,11 @@ async function claimPlacement(input: {
     }, { merge: true });
 
     transaction.create(
-      db.collection('promotion_boost_billing_events').doc(placementRef.id),
+      db.collection('promotion_boost_billing_events').doc(
+        `photo:${placementRef.id}`
+      ),
       {
-        billingEventId: placementRef.id,
+        billingEventId: `photo:${placementRef.id}`,
         placementId: placementRef.id,
         campaignId: campaign.campaignId,
         targetType: 'photo',
