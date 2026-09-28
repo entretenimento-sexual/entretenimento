@@ -38,7 +38,7 @@
           <span class="public-video-card__identity-line">
             <strong>{{ getOwnerName(item) }}</strong>
 
-            @if (item.officialMediaContext?.association?.verified) {
+            @if ((item.officialMediaContext?.contexts?.length ?? 0) > 0) {
               <span
                 class="public-video-card__official"
                 aria-label="Perfil oficial verificado"
@@ -108,7 +108,7 @@
     @if (mode === 'highlight') {
       <span class="public-video-card__highlight-owner">
         {{ getOwnerName(item) }}
-        @if (item.officialMediaContext?.association?.verified) {
+        @if ((item.officialMediaContext?.contexts?.length ?? 0) > 0) {
           <span
             class="public-video-card__official"
             aria-label="Perfil oficial verificado"
