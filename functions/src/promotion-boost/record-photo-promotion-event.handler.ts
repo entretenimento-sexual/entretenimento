@@ -10,7 +10,6 @@ import { REQUIRE_CALLABLE_APP_CHECK, assertCallableAppCheck } from '../shared/se
 import { consumeBackendRateLimitQuota } from '../shared/security/backend-rate-limit.service';
 import {
   PROMOTION_BOOST_EVENT_RATE_LIMIT,
-  PROMOTION_BOOST_FRAUD_SIGNAL_TTL_MS,
   isPromotionBoostEventTimingPlausible,
   isPromotionBoostSelfInteraction,
 } from './promotion-boost-abuse.policy';
