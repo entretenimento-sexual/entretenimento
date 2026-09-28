@@ -125,6 +125,30 @@ describe('PublicPhotoCardComponent', () => {
     expect(fixture.debugElement.query(By.css('.feed-card-header'))).toBeNull();
   });
 
+  it('mantém Oficial e Patrocinado ortogonais na mesma publicação', () => {
+    fixture.componentRef.setInput('photo', {
+      ...photo,
+      officialMediaContext: {
+        contexts: [{
+          identity: { verified: true, type: 'organization' },
+          association: { verified: true },
+          target: { type: 'organization', id: 'organization-1' },
+        }],
+      },
+    });
+    fixture.componentRef.setInput('variant', 'sponsored');
+    fixture.detectChanges();
+
+    expect(
+      fixture.debugElement.query(By.css('.photo-official-badge'))
+        .nativeElement.textContent
+    ).toContain('Oficial');
+    expect(
+      fixture.debugElement.query(By.css('.meta-sponsored'))
+        .nativeElement.textContent
+    ).toContain('Patrocinado');
+  });
+
   it('não usa overlay nem rodapé duplicado da variante latest', () => {
     expect(fixture.debugElement.query(By.css('.photo-overlay'))).toBeNull();
     expect(fixture.debugElement.query(By.css('.photo-meta'))).toBeNull();
