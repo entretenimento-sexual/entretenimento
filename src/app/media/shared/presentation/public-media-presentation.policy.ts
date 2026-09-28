@@ -1,4 +1,5 @@
 import type { IPublicMediaContinuationContext } from 'src/app/core/interfaces/media/i-public-media-continuation-context';
+import { normalizeOfficialMediaContextProjection } from 'src/app/core/services/media/official-media-context.projection';
 
 export type PublicMediaRecommendationSource =
   | 'discover'
@@ -114,9 +115,11 @@ export function resolvePublicMediaRecommendationContext(input: {
 }
 
 export function hasOfficialMediaContext(value: {
-  readonly officialMediaContext?: {
-    readonly contexts?: readonly unknown[] | null;
-  } | null;
+  readonly officialMediaContext?: unknown;
 } | null | undefined): boolean {
-  return (value?.officialMediaContext?.contexts?.length ?? 0) > 0;
+  // Apresentação somente. A projeção nunca concede autoridade, e até o badge
+  // falha fechado se o payload não respeitar o contrato canônico derivado.
+  return normalizeOfficialMediaContextProjection(
+    value?.officialMediaContext
+  ) !== null;
 }
