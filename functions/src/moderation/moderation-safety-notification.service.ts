@@ -196,9 +196,11 @@ export async function notifyModerationReportOpened(
         `Um conteúdo do tipo ${label} foi temporariamente retirado`,
         'da distribuição enquanto passa por análise de segurança.',
         'A medida é preventiva e não representa conclusão da revisão.',
+        'Você pode registrar uma contestação sem restaurar o conteúdo automaticamente.',
       ].join(' '),
       route: '/notificacoes',
-      actionRequired: false,
+      actionRequired: true,
+      caseId: reportId,
     });
   }
 }
@@ -271,10 +273,11 @@ export async function notifyModerationReportReviewed(
         `O conteúdo denunciado (${targetLabel(targetType)}) foi removido`,
         'após revisão de moderação.',
         'Consulte a Central de Notificações para acompanhar medidas',
-        'aplicadas à conta.',
+        'aplicadas à conta e registrar contestação, quando cabível.',
       ].join(' '),
       route: '/notificacoes',
-      actionRequired: false,
+      actionRequired: true,
+      caseId: reportId,
     });
   }
 }
