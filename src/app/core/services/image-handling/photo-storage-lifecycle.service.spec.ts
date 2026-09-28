@@ -3,7 +3,7 @@ import { Auth } from '@angular/fire/auth';
 import { Storage } from '@angular/fire/storage';
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 
-import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from '../media/media-application-error.service';
 import { PhotoStorageLifecycleService } from './photo-storage-lifecycle.service';
 
 describe('PhotoStorageLifecycleService', () => {
@@ -24,9 +24,9 @@ describe('PhotoStorageLifecycleService', () => {
           },
         },
         {
-          provide: GlobalErrorHandlerService,
+          provide: MediaApplicationErrorService,
           useValue: {
-            handleError: vi.fn(),
+            reportSilently: vi.fn(),
           },
         },
       ],
