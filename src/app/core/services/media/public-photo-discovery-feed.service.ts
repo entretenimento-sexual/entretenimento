@@ -32,8 +32,8 @@ import { MediaApplicationErrorService } from './media-application-error.service'
 import { NetworkStatusService } from 'src/app/core/services/network/network-status.service';
 import { retryIdempotentRead } from 'src/app/core/services/network/network-retry.policy';
 import {
-  PublicMediaSnapshotKind,
   PublicMediaSnapshotService,
+  PublicPhotoSnapshotKind,
 } from './public-media-snapshot.service';
 import { PublicPhotoRankingQueryService } from './public-photo-ranking-query.service';
 
@@ -297,7 +297,7 @@ export class PublicPhotoDiscoveryFeedService {
 
   private snapshotKind(
     mode: TPublicPhotoRankingMode
-  ): PublicMediaSnapshotKind {
+  ): PublicPhotoSnapshotKind {
     if (mode === 'latest') {
       return 'latest-photos';
     }
