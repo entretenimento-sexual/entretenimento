@@ -60,6 +60,7 @@ import {
   normalizePhotoEditorOverlays,
   privacyRegionFromDraft,
 } from './photo-editor-overlay.model';
+import { PHOTO_EDITOR_LOCAL_TOOL_REGISTRY } from './photo-editor-local-tool.registry';
 
 export type PhotoEditorAspectRatio =
   | 'original'
@@ -183,18 +184,7 @@ export class PhotoEditorComponent implements AfterViewInit {
     { value: 'today', label: 'HOJE • 15:42' },
   ];
 
-  readonly toolOptions: ReadonlyArray<{
-    value: PhotoEditorTool;
-    label: string;
-    shortLabel: string;
-  }> = [
-    { value: 'move', label: 'Mover e selecionar', shortLabel: 'Mover' },
-    { value: 'blur', label: 'Borrar área', shortLabel: 'Borrar' },
-    { value: 'pixelate', label: 'Pixelar área', shortLabel: 'Pixelar' },
-    { value: 'emoji', label: 'Inserir emoji', shortLabel: 'Emoji' },
-    { value: 'text', label: 'Inserir texto', shortLabel: 'Texto' },
-    { value: 'datetime', label: 'Inserir data e hora', shortLabel: 'Data/hora' },
-  ];
+  readonly toolOptions = PHOTO_EDITOR_LOCAL_TOOL_REGISTRY;
 
   userId = '';
   rotation = 0;
