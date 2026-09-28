@@ -272,7 +272,7 @@ export class PublicProfileVideosComponent implements OnInit {
         ) {
           this.mediaError.report(error, {
             operation: 'loadMorePublicProfileVideos',
-            fallbackMessage: 'Não foi possível carregar mais vídeos agora.',
+            reasonHint: 'media_discovery_page_failed',
             metadata: {
               scope: 'PublicProfileVideosComponent',
               hasOwnerUid: true,
@@ -331,7 +331,7 @@ export class PublicProfileVideosComponent implements OnInit {
           catchError((error: unknown) => {
             this.mediaError.report(error, {
               operation: 'openPublicVideoViewer',
-              fallbackMessage: 'Não foi possível abrir o vídeo neste momento.',
+              reasonHint: 'video_playback_access_failed',
               metadata: {
                 scope: 'PublicProfileVideosComponent',
                 hasOwnerUid: !!selected.ownerUid,
@@ -363,7 +363,7 @@ export class PublicProfileVideosComponent implements OnInit {
       catchError((error: unknown) => {
         this.mediaError.report(error, {
           operation: 'sharePublicVideo',
-          fallbackMessage: 'Não foi possível compartilhar este vídeo agora.',
+          reasonHint: 'media_share_dialog_failed',
           metadata: {
             scope: 'PublicProfileVideosComponent',
             hasOwnerUid: !!item.ownerUid,
@@ -620,9 +620,9 @@ export class PublicProfileVideosComponent implements OnInit {
       operation: requestedVideoId
         ? 'loadPublicVideoDeepLink'
         : 'loadPublicProfileVideos',
-      fallbackMessage: requestedVideoId
-        ? 'Não foi possível carregar este vídeo público.'
-        : 'Não foi possível carregar os vídeos públicos deste perfil.',
+      reasonHint: requestedVideoId
+        ? 'video_playback_access_failed'
+        : 'media_discovery_load_failed',
       metadata: {
         scope: 'PublicProfileVideosComponent',
         hasOwnerUid: !!ownerUid,
@@ -638,11 +638,12 @@ export class PublicProfileVideosComponent implements OnInit {
     this.mediaError.reportSilently(
       error,
       String(context['op'] ?? 'unknown'),
-      'Falha na galeria pública de vídeos.',
+      undefined,
       {
         scope: 'PublicProfileVideosComponent',
         ...context,
-      }
+      },
+      'media_discovery_load_failed'
     );
   }
 
