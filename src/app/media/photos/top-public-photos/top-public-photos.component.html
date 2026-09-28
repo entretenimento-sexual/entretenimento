@@ -56,11 +56,11 @@
 
     @if (vm.hasItems) {
       <div class="photos-grid" role="list" aria-label="Fotos públicas em destaque">
-        @for (item of vm.items; track trackByPhotoId($index, item); let i = $index) {
+        @for (item of vm.renderItems; track trackByPhotoId($index, item); let i = $index) {
           <app-public-photo-card
             [photo]="item"
             variant="top"
-            (preview)="openPhoto(i)" />
+            (preview)="openPhoto(item)" />
 
           @if (i === 3 && vm.sponsoredPlacement; as sponsored) {
             <app-public-photo-card
@@ -71,6 +71,25 @@
           }
         }
       </div>
+
+      @if (vm.hasEarlierRenderWindow || vm.hasLaterRenderWindow) {
+        <div class="feed-actions" aria-label="Navegação pelas fotos carregadas">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            (click)="showEarlierWindow()"
+            [disabled]="!vm.hasEarlierRenderWindow">
+            Mostrar anteriores
+          </button>
+          <button
+            type="button"
+            class="btn btn-secondary"
+            (click)="showLaterWindow()"
+            [disabled]="!vm.hasLaterRenderWindow">
+            Mostrar mais recentes
+          </button>
+        </div>
+      }
 
       @if (vm.canLoadMore) {
         <div class="feed-actions">
