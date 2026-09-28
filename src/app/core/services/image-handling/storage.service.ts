@@ -39,7 +39,8 @@ import {
   uploadSuccess,
 } from '../../../store/actions/actions.user/file.actions';
 
-import { ApplicationErrorService } from '../error-handler/application-error.service';
+import { MediaApplicationErrorService } from '../media/media-application-error.service';
+import type { MediaErrorReason } from '../media/media-error.catalog';
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
 import {
   resolveImageInputFormat,
@@ -74,7 +75,7 @@ export class StorageService {
 
   constructor(
     private readonly errorNotifier: ErrorNotificationService,
-    private readonly applicationError: ApplicationErrorService,
+    private readonly mediaError: MediaApplicationErrorService,
     private readonly store: Store<AppState>,
     private readonly privacyDebug: PrivacyDebugLoggerService
   ) {}
@@ -102,16 +103,15 @@ export class StorageService {
     options: {
       notifyUser?: boolean;
       fallbackMessage?: string;
+      reasonHint?: MediaErrorReason;
     } = {}
   ): void {
-    this.applicationError.report(original, {
-      feature: 'storage',
+    this.mediaError.report(original, {
       operation,
       fallbackMessage:
         options.fallbackMessage ?? 'Não foi possível concluir a operação de armazenamento.',
-      presentation: options.notifyUser === true
-        ? undefined
-        : { surface: 'none', severity: 'error' },
+      reasonHint: options.reasonHint,
+      silent: options.notifyUser !== true,
       metadata: {
         scope: 'StorageService',
         ...(meta ?? {}),
@@ -522,8 +522,12 @@ export class StorageService {
             notifyUser: true,
             fallbackMessage:
               kind === 'video'
-                ? 'Erro no upload do vídeo.'
-                : 'Erro no upload da foto.',
+                ? 'Não foi possível concluir o upload do vídeo.'
+                : 'Não foi possível concluir o upload da foto.',
+            reasonHint:
+              kind === 'video'
+                ? 'video_upload_failed'
+                : 'photo_upload_failed',
           }
         );
         return throwError(() => error);
@@ -585,7 +589,8 @@ export class StorageService {
           }),
           {
             notifyUser: true,
-            fallbackMessage: 'Erro no upload do avatar.',
+            fallbackMessage: 'Não foi possível atualizar a foto do perfil.',
+            reasonHint: 'profile_avatar_upload_failed',
           }
         );
         return throwError(() => error);
@@ -632,6 +637,9 @@ export class StorageService {
             hasPath: !!cleanPath,
             isPublishedPath: this.isPublishedReadablePath(cleanPath),
             isOwnUploadPath: !!uid && this.isOwnUploadPath(cleanPath, uid),
+          },
+          {
+            reasonHint: 'media_access_temporarily_unavailable',
           }
         );
         return of('');
@@ -702,8 +710,9 @@ export class StorageService {
             notifyUser: true,
             fallbackMessage:
               kind === 'video'
-                ? 'Erro ao substituir o vídeo.'
-                : 'Erro ao substituir a foto.',
+                ? 'Não foi possível substituir o vídeo.'
+                : 'Não foi possível substituir a foto.',
+            reasonHint: 'media_replace_failed',
           }
         );
         return of('');
@@ -738,7 +747,8 @@ export class StorageService {
           { hasPath: !!String(path ?? '').trim() },
           {
             notifyUser: true,
-            fallbackMessage: 'Erro ao deletar o arquivo.',
+            fallbackMessage: 'Não foi possível excluir a mídia.',
+            reasonHint: 'media_delete_failed',
           }
         );
         return of(void 0);
