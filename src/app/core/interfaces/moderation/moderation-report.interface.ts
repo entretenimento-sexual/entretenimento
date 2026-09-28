@@ -40,6 +40,7 @@ export type ModerationReportReason =
   | 'illegal_content'
   | 'privacy'
   | 'minor_safety'
+  | 'minor_exposure_safety'
   | 'minor_content_safety'
   | 'age_verification_request'
   | 'preventive_media_review'
