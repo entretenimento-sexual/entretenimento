@@ -85,6 +85,27 @@
   font-weight: 790;
 }
 
+.public-video-card__identity-line,
+.public-video-card__highlight-owner,
+.public-video-card__official {
+  display: inline-flex;
+  align-items: center;
+}
+
+.public-video-card__identity-line,
+.public-video-card__highlight-owner {
+  min-width: 0;
+  gap: 0.32rem;
+}
+
+.public-video-card__official {
+  flex: 0 0 auto;
+  gap: 0.18rem;
+  font-size: 0.62rem;
+  font-weight: 760;
+  line-height: 1;
+}
+
 .public-video-card__identity time {
   color: color-mix(in oklab, var(--text-color, #f5f7fb) 56%, transparent);
   font-size: 0.68rem;
