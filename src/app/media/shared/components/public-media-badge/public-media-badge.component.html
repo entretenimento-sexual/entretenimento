@@ -1,0 +1,14 @@
+<span
+  class="public-media-badge"
+  [class.public-media-badge--official]="kind() === 'official'"
+  [class.public-media-badge--sponsored]="kind() === 'sponsored'"
+  [class.public-media-badge--cover]="kind() === 'cover'"
+  [class.public-media-badge--context]="kind() === 'context'"
+  [class.public-media-badge--muted]="kind() === 'muted'"
+  [attr.aria-label]="ariaLabel()"
+>
+  @if (iconClass()) {
+    <i [class]="iconClass()" aria-hidden="true"></i>
+  }
+  <span>{{ label() }}</span>
+</span>
