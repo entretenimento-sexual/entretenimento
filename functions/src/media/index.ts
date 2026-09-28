@@ -182,5 +182,11 @@ export {
   syncOfficialMediaContextFromAssociation,
   syncOfficialMediaContextFromProfileKyc,
   syncOfficialMediaContextFromIdentity,
+  syncOfficialMediaContextFromCommercialAuthority,
+  syncOfficialMediaContextFromVenue,
+  syncOfficialMediaContextFromOrganization,
+  syncOfficialMediaContextFromOrganizationKyb,
+  syncOfficialMediaContextFromOrganizationRepresentation,
+  syncOfficialMediaContextFromEventAuthority,
   backfillExistingOfficialMediaContexts,
 } from './application/sync-official-media-context.trigger';
