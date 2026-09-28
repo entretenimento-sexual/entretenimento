@@ -10,6 +10,7 @@ import {
   normalizeMediaCount,
   type MediaScoreBreakdown,
 } from './media-engagement-score';
+import { observeMediaTrendScoreShadow } from './media-trend-score-shadow-observation.service';
 import {
   REQUIRE_PUBLIC_MEDIA_APP_CHECK,
   assertPublicMediaCallableAppCheck,
@@ -28,6 +29,8 @@ interface PublicVideoDoc {
   commentsCount?: number;
   ratingsCount?: number;
   ratingAverage?: number;
+  publishedAt?: number;
+  createdAt?: number;
   scoreBreakdown?: Partial<MediaScoreBreakdown>;
 }
 
@@ -154,7 +157,7 @@ export const createVideoComment = onCall<CreateVideoCommentRequest>(
     const commentsCollection = videoRef.collection('comments');
     const newCommentRef = commentsCollection.doc();
 
-    return db.runTransaction(async (transaction) => {
+    const outcome = await db.runTransaction(async (transaction) => {
       await assertNoActiveBilateralBlockInTransaction(
         transaction,
         authorUid,
@@ -264,8 +267,23 @@ export const createVideoComment = onCall<CreateVideoCommentRequest>(
         updatedAt: now,
       });
 
-      return { commentId: newCommentRef.id };
+      return {
+        commentId: newCommentRef.id,
+        trendEngagementScore: nextScore.engagementScore,
+        trendPublishedAt: video.publishedAt ?? video.createdAt ?? 0,
+        trendObservedAt: now,
+      };
     });
+
+    observeMediaTrendScoreShadow({
+      mediaType: 'video',
+      event: 'comment',
+      engagementScore: outcome.trendEngagementScore,
+      publishedAt: outcome.trendPublishedAt,
+      now: outcome.trendObservedAt,
+    });
+
+    return { commentId: outcome.commentId };
   }
 );
 
@@ -304,7 +322,7 @@ export const moderateVideoComment = onCall<ModerateVideoCommentRequest>(
     );
     const commentRef = videoRef.collection('comments').doc(commentId);
 
-    return db.runTransaction(async (transaction) => {
+    const outcome = await db.runTransaction(async (transaction) => {
       const [videoSnap, commentSnap] = await Promise.all([
         transaction.get(videoRef),
         transaction.get(commentRef),
@@ -414,7 +432,24 @@ export const moderateVideoComment = onCall<ModerateVideoCommentRequest>(
         status: nextStatus,
         commentsCount: nextCommentsCount,
         score: nextScore.score,
+        trendEngagementScore: nextScore.engagementScore,
+        trendPublishedAt: video.publishedAt ?? video.createdAt ?? 0,
+        trendObservedAt: now,
       };
     });
+
+    observeMediaTrendScoreShadow({
+      mediaType: 'video',
+      event: 'comment',
+      engagementScore: outcome.trendEngagementScore,
+      publishedAt: outcome.trendPublishedAt,
+      now: outcome.trendObservedAt,
+    });
+
+    return {
+      status: outcome.status,
+      commentsCount: outcome.commentsCount,
+      score: outcome.score,
+    };
   }
 );
