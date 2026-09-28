@@ -1,5 +1,6 @@
 @let ownerUid = (ownerUid$ | async);
-@let items = (publicPhotos$ | async);
+@let state = (state$ | async);
+@let items = state?.items || [];
 
 <section class="public-photos-page" aria-labelledby="public-profile-media-title">
   <header class="public-photos-header">
@@ -24,59 +25,83 @@
     </div>
 
     <div class="gallery-summary" aria-live="polite" aria-atomic="true">
-      <strong>{{ items?.length || 0 }}</strong>
-      <span>{{ (items?.length || 0) === 1 ? 'foto' : 'fotos' }}</span>
+      @if (state?.status === 'loading') {
+        <span>Carregando</span>
+      } @else {
+        <strong>{{ items.length }}</strong>
+        <span>{{ items.length === 1 ? 'foto' : 'fotos' }}</span>
+      }
     </div>
   </header>
 
-  @if (isEmpty$ | async) {
-    <div class="empty-state" role="status" aria-live="polite">
-      <div class="empty-state__icon" aria-hidden="true">
-        <i class="fas fa-images"></i>
-      </div>
+  @if (state) {
+    @switch (state.status) {
+      @case ('loading') {
+        <app-content-state
+          state="loading"
+          message="Carregando fotos públicas."
+          skeletonVariant="media-grid"
+          [skeletonRows]="4"
+        />
+      }
 
-      <div>
-        <h2>Nenhuma foto pública disponível</h2>
-        <p>Este perfil ainda não publicou fotos aprovadas para visitantes.</p>
-      </div>
-    </div>
-  } @else {
-    <div class="gallery-strip" aria-label="Recursos da galeria">
-      <span class="gallery-pill">
-        <i class="fas fa-shield-halved" aria-hidden="true"></i>
-        Conteúdo aprovado
-      </span>
-      <span class="gallery-pill">
-        <i class="fas fa-expand" aria-hidden="true"></i>
-        Visualização imersiva
-      </span>
-      <span class="gallery-pill">
-        <i class="fas fa-hand-pointer" aria-hidden="true"></i>
-        Toque ou use o teclado
-      </span>
-    </div>
+      @case ('error') {
+        <app-content-state
+          state="error"
+          title="Não foi possível carregar as fotos"
+          message="Tente atualizar a galeria pública."
+          actionLabel="Tentar novamente"
+          (action)="retry()"
+        />
+      }
 
-    <div class="photos-grid" role="list" aria-label="Fotos públicas do perfil">
-      @for (item of (items || []); track trackByPhotoId($index, item); let i = $index) {
-        <div
-          class="photo-grid-item"
-          [class.photo-grid-item--featured]="i === 0"
-          [class.photo-grid-item--cover]="item.isCover === true"
-        >
-          @if (i === 0) {
-            <span class="featured-label">
-              <i class="fas fa-sparkles" aria-hidden="true"></i>
-              Destaque do perfil
-            </span>
+      @case ('empty') {
+        <app-content-state
+          state="empty"
+          title="Nenhuma foto pública disponível"
+          message="Este perfil ainda não publicou fotos aprovadas para visitantes."
+        />
+      }
+
+      @case ('ready') {
+        <div class="gallery-strip" aria-label="Recursos da galeria">
+          <span class="gallery-pill">
+            <i class="fas fa-shield-halved" aria-hidden="true"></i>
+            Conteúdo aprovado
+          </span>
+          <span class="gallery-pill">
+            <i class="fas fa-expand" aria-hidden="true"></i>
+            Visualização imersiva
+          </span>
+          <span class="gallery-pill">
+            <i class="fas fa-hand-pointer" aria-hidden="true"></i>
+            Toque ou use o teclado
+          </span>
+        </div>
+
+        <div class="photos-grid" role="list" aria-label="Fotos públicas do perfil">
+          @for (item of items; track trackByPhotoId($index, item); let i = $index) {
+            <div
+              class="photo-grid-item"
+              [class.photo-grid-item--featured]="i === 0"
+              [class.photo-grid-item--cover]="item.isCover === true"
+            >
+              @if (i === 0) {
+                <span class="featured-label">
+                  <i class="fas fa-sparkles" aria-hidden="true"></i>
+                  Destaque do perfil
+                </span>
+              }
+
+              <app-public-photo-card
+                [photo]="item"
+                variant="profile"
+                (preview)="openPhoto(i)"
+              />
+            </div>
           }
-
-          <app-public-photo-card
-            [photo]="item"
-            variant="profile"
-            (preview)="openPhoto(i)"
-          />
         </div>
       }
-    </div>
+    }
   }
 </section>
