@@ -13,8 +13,11 @@ import { PublicVideoMetadataPreloadDirective } from 'src/app/media/videos/public
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import { PublicMediaEngagementActionsComponent } from '../public-media-engagement-actions/public-media-engagement-actions.component';
 import { PublicMediaBadgeComponent } from '../public-media-badge/public-media-badge.component';
+import { PublicMediaRecommendationBadgeComponent } from '../public-media-recommendation-badge/public-media-recommendation-badge.component';
+import type { PublicMediaRecommendationSource } from '../../presentation/public-media-presentation.policy';
+import type { IPublicMediaContinuationContext } from 'src/app/core/interfaces/media/i-public-media-continuation-context';
 
-export type TPublicVideoCardVariant = 'feed' | 'highlight';
+export type TPublicVideoCardVariant = 'feed' | 'highlight' | 'profile';
 
 @Component({
   selector: 'app-public-video-card',
@@ -26,6 +29,7 @@ export type TPublicVideoCardVariant = 'feed' | 'highlight';
     ImageFallbackDirective,
     PublicMediaEngagementActionsComponent,
     PublicMediaBadgeComponent,
+    PublicMediaRecommendationBadgeComponent,
   ],
   templateUrl: './public-video-card.component.html',
   styleUrl: './public-video-card.component.css',
@@ -38,6 +42,9 @@ export class PublicVideoCardComponent {
   readonly posterAvailable = input(true);
   readonly viewerUid = input<string | null>(null);
   readonly engagementActions = input(false);
+  readonly recommendationSource = input<PublicMediaRecommendationSource>(null);
+  readonly continuationContext =
+    input<IPublicMediaContinuationContext | null>(null);
 
   readonly preview = output<void>();
   readonly posterError = output<void>();
@@ -47,6 +54,17 @@ export class PublicVideoCardComponent {
     '/outro-perfil',
     this.video().ownerUid,
   ]);
+
+  readonly resolvedRecommendationSource = computed<PublicMediaRecommendationSource>(
+    () => {
+      const explicit = this.recommendationSource();
+      if (explicit) return explicit;
+
+      return this.variant() === 'profile'
+        ? 'profile'
+        : 'unknown';
+    }
+  );
 
   onPreview(): void {
     if (!this.opening()) {
