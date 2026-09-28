@@ -637,11 +637,12 @@ export class VideoUploadFlowService {
     this.errorHandler.reportSilently(
       error,
       String(context['op'] ?? 'videoUpload'),
-      'Falha no fluxo de upload de vídeo.',
+      undefined,
       {
         scope: 'VideoUploadFlowService',
         ...context,
-      }
+      },
+      'video_upload_failed'
     );
   }
 
