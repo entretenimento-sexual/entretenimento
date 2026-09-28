@@ -291,7 +291,11 @@ describe('PublicMixedMediaViewerLauncherService', () => {
     expect(mediaError.report).toHaveBeenCalledWith(
       failure,
       expect.objectContaining({
-        operation: 'open
+        operation: 'open$',
+        fallbackMessage: 'Não foi possível abrir esta publicação neste momento.',
+        reasonHint: 'media_navigation_failed',
+        silent: false,
+      })
     );
   });
 
@@ -325,49 +329,6 @@ describe('PublicMixedMediaViewerLauncherService', () => {
         operation: 'loadContinuation$.degraded',
         reasonHint: 'media_discovery_page_failed',
         silent: true,
-      })
-    );
-    expect(errorNotification.showInfo).not.toHaveBeenCalled();
-  });
-});
-,
-        fallbackMessage: 'Não foi possível abrir esta publicação neste momento.',
-        reasonHint: 'media_navigation_failed',
-        silent: false,
-      })
-    );
-  });
-
-  it('avisa o usuário e registra diagnóstico quando a continuação falha', async () => {
-    const service = TestBed.inject(PublicMixedMediaViewerLauncherService);
-    const selected = photo('owner-a', 'photo-a');
-
-    photoViewer.openWithResult$.mockReturnValueOnce(of({
-      kind: 'mixed-handoff',
-      direction: 'next',
-    }));
-    mixedContinuation.loadContinuation$.mockReturnValueOnce(of({
-      items: [],
-      exhausted: false,
-      failed: true,
-      degraded: true,
-    }));
-
-    await firstValueFrom(service.open$({
-      items: [selected],
-      selected,
-      source: 'latest',
-    }));
-
-    expect(errorNotification.showWarning).toHaveBeenCalledWith(
-      'Não foi possível carregar mais mídias agora. Tente novamente mais tarde.'
-    );
-    expect(applicationError.report).toHaveBeenCalledWith(
-      expect.any(Error),
-      expect.objectContaining({
-        feature: 'public-mixed-media-viewer',
-        operation: 'loadContinuation$.degraded',
-        notification: 'none',
       })
     );
     expect(errorNotification.showInfo).not.toHaveBeenCalled();
