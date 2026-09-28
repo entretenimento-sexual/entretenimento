@@ -21,6 +21,11 @@ export type ContentStateKind =
   | 'offline'
   | 'stale';
 
+export type ContentStateSkeletonVariant =
+  | 'list'
+  | 'media-grid'
+  | 'viewer';
+
 @Component({
   selector: 'app-content-state',
   standalone: true,
@@ -36,6 +41,7 @@ export class ContentStateComponent {
   @Input() actionLabel = '';
   @Input() compact = false;
   @Input() skeletonRows = 3;
+  @Input() skeletonVariant: ContentStateSkeletonVariant = 'list';
 
   @Output() action = new EventEmitter<void>();
 
