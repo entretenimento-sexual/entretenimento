@@ -89,7 +89,10 @@ match /moderation_reports/{reportId} {
   }
 
   function validReason() {
-    return request.resource.data.reason in [
+    let reason = request.resource.data.reason;
+    let targetType = request.resource.data.targetType;
+
+    return reason in [
       "spam",
       "fake_profile",
       "harassment",
@@ -103,7 +106,11 @@ match /moderation_reports/{reportId} {
       "age_verification_request",
       "preventive_media_review",
       "other"
-    ];
+    ]
+      && (
+        reason != "minor_exposure_safety"
+        || targetType in ["photo", "video"]
+      );
   }
 
   function validStatus() {
