@@ -20,14 +20,9 @@ const appRoot = path.join(root, 'src', 'app');
 
 const roots = [
   path.join(appRoot, 'core', 'services', 'media'),
+  path.join(appRoot, 'core', 'services', 'image-handling'),
   path.join(appRoot, 'media'),
   path.join(appRoot, 'photo-editor', 'photo-editor'),
-];
-
-const extraFiles = [
-  path.join(appRoot, 'core', 'services', 'image-handling', 'storage.service.ts'),
-  path.join(appRoot, 'core', 'services', 'image-handling', 'photo-firestore.service.ts'),
-  path.join(appRoot, 'core', 'services', 'image-handling', 'photo-upload-flow.service.ts'),
 ];
 
 function runtimeTypeScriptFiles(directory) {
@@ -50,16 +45,17 @@ function runtimeTypeScriptFiles(directory) {
   });
 }
 
-const files = [
-  ...roots.flatMap(runtimeTypeScriptFiles),
-  ...extraFiles.filter((file) => fs.existsSync(file)),
-];
+const files = roots.flatMap(runtimeTypeScriptFiles);
 
 const violations = [];
 
 for (const file of files) {
   const relative = path.relative(root, file).replaceAll('\\', '/');
   const source = fs.readFileSync(file, 'utf8');
+
+  const isMediaBoundary = relative.endsWith(
+    'src/app/core/services/media/media-application-error.service.ts'
+  );
 
   if (
     /import\s*\{[^}]*\bGlobalErrorHandlerService\b[^}]*\}/m.test(source)
@@ -68,10 +64,15 @@ for (const file of files) {
   }
 
   if (
+    /import\s*\{[^}]*\bApplicationErrorService\b[^}]*\}/m.test(source) &&
+    !isMediaBoundary
+  ) {
+    violations.push(`${relative}: ApplicationErrorService fora da fronteira de Media`);
+  }
+
+  if (
     /\.(?:showError|showGenericError)\s*\(/m.test(source) &&
-    !relative.endsWith(
-      'src/app/core/services/media/media-application-error.service.ts'
-    )
+    !isMediaBoundary
   ) {
     violations.push(`${relative}: showError/showGenericError direto`);
   }
@@ -99,6 +100,8 @@ const catalog = fs.readFileSync(catalogPath, 'utf8');
 const boundary = fs.readFileSync(boundaryPath, 'utf8');
 
 for (const fragment of [
+  'MEDIA_ERROR_CODE_MESSAGES',
+  'MEDIA_ERROR_CODE_PRESENTATIONS',
   'MEDIA_ERROR_MESSAGES',
   'MEDIA_ERROR_PRESENTATIONS',
   'resolveMediaErrorMessage',
@@ -110,6 +113,8 @@ for (const fragment of [
 }
 
 for (const fragment of [
+  'codeMessages: MEDIA_ERROR_CODE_MESSAGES',
+  'codePresentations: MEDIA_ERROR_CODE_PRESENTATIONS',
   'reasonMessages: MEDIA_ERROR_MESSAGES',
   'reasonPresentations: MEDIA_ERROR_PRESENTATIONS',
   'reasonHint',
