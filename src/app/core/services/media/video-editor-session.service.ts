@@ -264,7 +264,7 @@ export class VideoEditorSessionService {
     this.cancelExpiryTimer();
 
     const delayMs = Math.max(0, expiresAt - Date.now());
-    this.expiryTimer = setTimeout(() => {
+    const timer = setTimeout(() => {
       const draft = this.draftSubject.value;
       if (!draft || draft.expiresAt !== expiresAt) {
         return;
@@ -274,6 +274,10 @@ export class VideoEditorSessionService {
         this.clearDraft(undefined, 'expired');
       }
     }, delayMs);
+
+    // Em Node/Vitest, um TTL longo não deve manter o processo vivo.
+    (timer as ReturnType<typeof setTimeout> & { unref?: () => void }).unref?.();
+    this.expiryTimer = timer;
   }
 
   private cancelExpiryTimer(): void {
