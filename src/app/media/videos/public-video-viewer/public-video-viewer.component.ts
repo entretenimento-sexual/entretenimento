@@ -102,6 +102,8 @@ const ACCESS_REFRESH_RETRY_MS = 15_000;
 const MAX_TIMER_DELAY_MS = 2_147_000_000;
 const CONTINUATION_PREFETCH_REMAINING_ITEMS = 2;
 const CONTINUATION_BATCH_SIZE = 8;
+const VIEWER_ITEM_WINDOW_MAX = 48;
+const VIEWER_ITEM_RETAIN_BEHIND = 12;
 const SWIPE_MIN_DISTANCE_PX = 64;
 const SWIPE_INTENT_DISTANCE_PX = 18;
 const SWIPE_AXIS_DOMINANCE = 1.2;
@@ -930,6 +932,7 @@ export class PublicVideoViewerComponent {
         }
 
         const appendedCount = this.appendContinuationItems(result.items);
+        this.trimViewerItemWindow();
         this.changeDetector.markForCheck();
 
         if (
@@ -981,6 +984,25 @@ export class PublicVideoViewerComponent {
     }
 
     return appendedCount;
+  }
+
+  private trimViewerItemWindow(): void {
+    const overflow = this.items.length - VIEWER_ITEM_WINDOW_MAX;
+    if (overflow <= 0) return;
+
+    const removableFromStart = Math.min(
+      overflow,
+      Math.max(0, this.index - VIEWER_ITEM_RETAIN_BEHIND)
+    );
+    if (removableFromStart <= 0) return;
+
+    const removed = this.items.splice(0, removableFromStart);
+    this.index -= removableFromStart;
+
+    for (const item of removed) {
+      this.publicVideoAccess.invalidatePublicVideoAccess(item);
+      this.recordedViewKeys.delete(this.videoKey(item));
+    }
   }
 
   private syncCurrentVideoId(): void {
