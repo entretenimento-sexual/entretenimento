@@ -223,9 +223,11 @@
               @if (isCriticalSafetyReport(report)) {
                 <mat-chip-set class="report-card__priority" aria-label="Prioridade crítica de segurança">
                   <mat-chip color="warn" highlighted>
-                    {{ report.reason === 'minor_content_safety'
-                      ? 'CRÍTICO · possível menor em conteúdo'
-                      : 'CRÍTICO · possível perfil menor' }}
+                    {{ report.reason === 'minor_safety'
+                      ? 'CRÍTICO · possível perfil menor'
+                      : report.reason === 'minor_exposure_safety'
+                        ? 'CRÍTICO · criança/adolescente exposto em mídia'
+                        : 'CRÍTICO · possível menor em conteúdo sexual ou íntimo' }}
                   </mat-chip>
                 </mat-chip-set>
               }
