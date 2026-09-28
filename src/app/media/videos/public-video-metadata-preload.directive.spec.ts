@@ -46,17 +46,19 @@ function pointerEvent(
 describe('PublicVideoMetadataPreloadDirective', () => {
   let fixture: ComponentFixture<HostComponent>;
   let preloadMetadata: ReturnType<typeof vi.fn>;
+  let cancelMetadataPreload: ReturnType<typeof vi.fn>;
   let button: HTMLButtonElement;
 
   beforeEach(() => {
     preloadMetadata = vi.fn(() => true);
+    cancelMetadataPreload = vi.fn();
 
     TestBed.configureTestingModule({
       imports: [HostComponent],
       providers: [
         {
           provide: PublicVideoMetadataPreloadService,
-          useValue: { preloadMetadata },
+          useValue: { preloadMetadata, cancelMetadataPreload },
         },
       ],
     });
@@ -70,6 +72,12 @@ describe('PublicVideoMetadataPreloadDirective', () => {
     button.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
 
     expect(preloadMetadata).toHaveBeenCalledWith(VIDEO);
+  });
+
+  it('cancela preload quando a intenção de hover termina', () => {
+    button.dispatchEvent(new Event('pointerleave', { bubbles: true }));
+
+    expect(cancelMetadataPreload).toHaveBeenCalledWith(VIDEO);
   });
 
   it('prepara em hover de mouse', () => {
