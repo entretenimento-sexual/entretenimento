@@ -97,6 +97,31 @@ export class MediaApplicationErrorService {
     });
   }
 
+  reportReason(
+    reason: MediaErrorReason,
+    options: Omit<MediaApplicationErrorOptions, 'reasonHint' | 'fallbackMessage'>
+  ): ApplicationErrorDescriptor {
+    return this.report(
+      { reason },
+      {
+        ...options,
+        reasonHint: reason,
+      }
+    );
+  }
+
+  reportReasonSilently(
+    reason: MediaErrorReason,
+    operation: string,
+    metadata?: Readonly<Record<string, unknown>>
+  ): ApplicationErrorDescriptor {
+    return this.reportReason(reason, {
+      operation,
+      metadata,
+      silent: true,
+    });
+  }
+
   private extractReason(error: unknown): string | null {
     const source = this.asRecord(error);
     const details = this.asRecord(source?.['details']);
