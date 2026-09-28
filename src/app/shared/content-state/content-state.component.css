@@ -142,6 +142,70 @@
   inline-size: min(360px, 92%);
 }
 
+.content-state__skeleton--media-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+}
+
+.content-state__media-card {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.content-state__media-frame,
+.content-state__viewer-media,
+.content-state__viewer-copy span {
+  display: block;
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklab, var(--surface-color, #fff) 82%, #64748b 18%) 25%,
+    color-mix(in oklab, var(--surface-color, #fff) 92%, #64748b 8%) 50%,
+    color-mix(in oklab, var(--surface-color, #fff) 82%, #64748b 18%) 75%
+  );
+  background-size: 220% 100%;
+  animation: content-state-shimmer 1.4s ease-in-out infinite;
+}
+
+.content-state__media-frame {
+  aspect-ratio: 4 / 5;
+  border-radius: 16px;
+}
+
+.content-state__viewer-skeleton {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 32%);
+  gap: 18px;
+  min-height: min(62vh, 620px);
+}
+
+.content-state__viewer-media {
+  min-height: 320px;
+  border-radius: 18px;
+}
+
+.content-state__viewer-copy {
+  display: grid;
+  align-content: end;
+  gap: 10px;
+}
+
+.content-state__viewer-copy span {
+  min-height: 14px;
+  border-radius: 999px;
+}
+
+.content-state__viewer-copy span:nth-child(1) {
+  inline-size: 72%;
+}
+
+.content-state__viewer-copy span:nth-child(2) {
+  inline-size: 94%;
+}
+
+.content-state__viewer-copy span:nth-child(3) {
+  inline-size: 58%;
+}
+
 .visually-hidden {
   position: absolute;
   inline-size: 1px;
