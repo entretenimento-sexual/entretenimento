@@ -1316,11 +1316,10 @@ export class PublicVideoViewerComponent {
     this.playbackFeedback?.markError(
       'O acesso ao vídeo não pôde ser atualizado. Verifique sua conexão.'
     );
-    this.mediaError.report(
-      new Error('Falha ao atualizar acesso de reprodução do vídeo.'),
+    this.mediaError.reportReason(
+      'video_playback_access_failed',
       {
         operation: 'publicVideoViewer.refreshAccess',
-        reasonHint: 'video_playback_access_failed',
         metadata: {
           scope: 'PublicVideoViewerComponent',
           reason,
