@@ -12,6 +12,7 @@ import {
 import { deleteProfileVideoResources } from './delete-profile-video.handler';
 import {
   isCriticalMinorMediaSafetyReason,
+  normalizeMinorMediaSafetyReason,
   shouldPreserveMediaEvidence,
   type MediaReportSafetyReason,
   type MinorMediaSafetyReason,
@@ -139,17 +140,6 @@ function cleanResolution(value: unknown): string {
   return String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, 900);
 }
 
-function cleanMinorMediaSafetyReason(
-  value: unknown
-): MinorMediaSafetyReason | null {
-  const normalized = String(value ?? '').trim().toLowerCase();
-
-  return normalized === 'minor_exposure_safety' ||
-    normalized === 'minor_content_safety'
-    ? normalized
-    : null;
-}
-
 function cleanReason(value: unknown): MediaReportSafetyReason | null {
   const normalized = String(value ?? '').trim().toLowerCase();
 
@@ -263,7 +253,7 @@ export const reviewVideoContentReport = onCall<
     const reportId = cleanId(request.data?.reportId);
     const decision = cleanDecision(request.data?.decision);
     const resolution = cleanResolution(request.data?.resolution);
-    const reviewSafetyReason = cleanMinorMediaSafetyReason(
+    const reviewSafetyReason = normalizeMinorMediaSafetyReason(
       request.data?.safetyReason
     );
 
