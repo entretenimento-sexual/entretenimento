@@ -37,6 +37,7 @@ import { IPhotoPublicationConfig } from 'src/app/core/interfaces/media/i-photo-p
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
+import type { MediaErrorReason } from 'src/app/core/services/media/media-error.catalog';
 import { PhotoEditorLauncherService } from 'src/app/core/services/image-handling/photo-editor-launcher.service';
 import { PhotoFirestoreService } from 'src/app/core/services/image-handling/photo-firestore.service';
 import { PhotoUploadFlowService } from 'src/app/core/services/image-handling/photo-upload-flow.service';
@@ -325,7 +326,7 @@ export class ProfilePhotosComponent {
                 input.value = this.getDisplayDateInputValue(item);
               }
               this.reportError(
-                'Erro ao atualizar a data da foto.',
+                'media_publication_failed',
                 error,
                 {
                   op: 'updatePhotoDisplayDate',
@@ -524,7 +525,7 @@ export class ProfilePhotosComponent {
             tap(() => this.errorNotifier.showSuccess('Foto atualizada com sucesso.')),
             catchError((error) => {
               this.reportError(
-                'Erro ao atualizar a foto.',
+                'media_replace_failed',
                 error,
                 {
                   op: 'editPhoto',
@@ -581,7 +582,7 @@ export class ProfilePhotosComponent {
             }),
             catchError((error) => {
               this.reportError(
-                'Erro ao excluir a foto.',
+                'photo_delete_failed',
                 error,
                 {
                   op: 'confirmDelete',
@@ -655,7 +656,7 @@ export class ProfilePhotosComponent {
             }),
             catchError((error) => {
               this.reportError(
-                'Erro ao publicar a foto.',
+                'media_publication_failed',
                 error,
                 {
                   op: 'publishPhoto',
@@ -696,7 +697,7 @@ export class ProfilePhotosComponent {
             }),
             catchError((error) => {
               this.reportError(
-                'Erro ao definir foto de capa.',
+                'media_publication_failed',
                 error,
                 {
                   op: 'setCoverPhoto',
@@ -714,13 +715,13 @@ export class ProfilePhotosComponent {
   }
 
   private reportError(
-    userMessage: string,
+    reasonHint: MediaErrorReason,
     error: unknown,
     context?: Record<string, unknown>
   ): void {
     this.errorHandler.report(error, {
       operation: String(context?.['op'] ?? 'unknown'),
-      fallbackMessage: userMessage,
+      reasonHint,
       metadata: {
         scope: 'ProfilePhotosComponent',
         ...(context ?? {}),
@@ -728,7 +729,7 @@ export class ProfilePhotosComponent {
     });
 
     this.debug('reportError', {
-      userMessage,
+      reasonHint,
       op: context?.['op'] ?? 'unknown',
       hasContext: !!context,
       errorMessage: error instanceof Error ? error.message : String(error ?? ''),
