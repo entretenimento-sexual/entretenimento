@@ -168,6 +168,9 @@ for (const required of [
   'OWNER_LIFECYCLE_NOT_CANONICAL',
   'OWNER_AGE_PROJECTION_EXPIRED',
   'OWNER_AGE_CANONICAL_EXPIRED',
+  'assertPublicMediaConsumptionAccessData',
+  "'EXPIRED'",
+  "'REQUIRED'",
 ]) {
   if (!matrixTest.includes(required)) {
     throw new Error(
