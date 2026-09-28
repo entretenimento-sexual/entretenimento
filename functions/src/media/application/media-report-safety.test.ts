@@ -4,11 +4,25 @@ import { describe, it } from 'node:test';
 import {
   buildMediaReportSafetyState,
   isCriticalMinorMediaSafetyReason,
+  normalizeMinorMediaSafetyReason,
   shouldPreserveMediaEvidence,
   shouldQuarantineMediaAfterReport,
 } from './media-report-safety';
 
 describe('media-report-safety', () => {
+  it('normaliza somente motivos de proteção de menores próprios de Media', () => {
+    assert.equal(
+      normalizeMinorMediaSafetyReason('minor_exposure_safety'),
+      'minor_exposure_safety'
+    );
+    assert.equal(
+      normalizeMinorMediaSafetyReason('minor_content_safety'),
+      'minor_content_safety'
+    );
+    assert.equal(normalizeMinorMediaSafetyReason('minor_safety'), null);
+    assert.equal(normalizeMinorMediaSafetyReason('nudity'), null);
+  });
+
   it('trata exposição de criança/adolescente em mídia adulta como crítica', () => {
     assert.equal(isCriticalMinorMediaSafetyReason('minor_exposure_safety'), true);
     assert.equal(
