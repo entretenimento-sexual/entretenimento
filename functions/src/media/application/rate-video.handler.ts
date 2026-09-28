@@ -13,6 +13,7 @@ import {
   normalizeMediaCount,
   type MediaScoreBreakdown,
 } from './media-engagement-score';
+import { observeMediaTrendScoreShadow } from './media-trend-score-shadow-observation.service';
 import {
   REQUIRE_PUBLIC_MEDIA_APP_CHECK,
   assertPublicMediaCallableAppCheck,
@@ -45,6 +46,8 @@ interface PublicVideoDoc {
   ratingsCount?: number;
   ratingTotal?: number;
   ratingAverage?: number;
+  publishedAt?: number;
+  createdAt?: number;
   scoreBreakdown?: Partial<MediaScoreBreakdown>;
 }
 
@@ -119,7 +122,7 @@ export const rateVideo = onCall<RateVideoRequest>(
     );
     const ratingRef = videoRef.collection('ratings').doc(viewerUid);
 
-    return db.runTransaction(async (transaction) => {
+    const outcome = await db.runTransaction(async (transaction) => {
       await assertInteractionAccessInTransaction(transaction, viewerUid);
       await assertNoActiveBilateralBlockInTransaction(
         transaction,
@@ -184,7 +187,25 @@ export const rateVideo = onCall<RateVideoRequest>(
         ratingsCount: nextAggregate.ratingsCount,
         ratingAverage: nextAggregate.ratingAverage,
         score: nextScore.score,
+        trendEngagementScore: nextScore.engagementScore,
+        trendPublishedAt: video.publishedAt ?? video.createdAt ?? 0,
+        trendObservedAt: now,
       };
     });
+
+    observeMediaTrendScoreShadow({
+      mediaType: 'video',
+      event: 'rating',
+      engagementScore: outcome.trendEngagementScore,
+      publishedAt: outcome.trendPublishedAt,
+      now: outcome.trendObservedAt,
+    });
+
+    return {
+      rating: outcome.rating,
+      ratingsCount: outcome.ratingsCount,
+      ratingAverage: outcome.ratingAverage,
+      score: outcome.score,
+    };
   }
 );
