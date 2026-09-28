@@ -125,6 +125,36 @@ export const MEDIA_ERROR_CODE_MESSAGES: Readonly<Record<string, string>> =
       'Sua sessão expirou. Entre novamente para continuar com esta mídia.',
     'auth/requires-recent-login':
       'Confirme sua identidade novamente antes de alterar esta mídia.',
+    'storage/unauthenticated':
+      'Sua sessão expirou. Entre novamente para acessar esta mídia.',
+    'storage/unauthorized':
+      'Você não tem permissão para acessar ou alterar este arquivo de mídia.',
+    'storage/object-not-found':
+      'O arquivo desta mídia não está mais disponível.',
+    'storage/bucket-not-found':
+      'O armazenamento de mídia está temporariamente indisponível.',
+    'storage/project-not-found':
+      'O serviço de armazenamento de mídia está temporariamente indisponível.',
+    'storage/quota-exceeded':
+      'O armazenamento de mídia atingiu um limite temporário. Tente novamente mais tarde.',
+    'storage/retry-limit-exceeded':
+      'Não foi possível concluir a transferência da mídia a tempo. Verifique sua conexão e tente novamente.',
+    'storage/invalid-checksum':
+      'O arquivo enviado não pôde ser validado. Selecione o arquivo novamente e repita o envio.',
+    'storage/canceled':
+      'A operação com a mídia foi cancelada antes de terminar.',
+    'storage/invalid-url':
+      'O endereço do arquivo de mídia não é válido ou não está mais disponível.',
+    'storage/invalid-argument':
+      'Os dados enviados para o armazenamento da mídia não são válidos.',
+    'storage/no-default-bucket':
+      'O armazenamento de mídia está temporariamente indisponível.',
+    'storage/cannot-slice-blob':
+      'Não foi possível ler o arquivo selecionado. Selecione o arquivo novamente.',
+    'storage/server-file-wrong-size':
+      'O arquivo enviado não pôde ser validado. Tente enviar novamente.',
+    'storage/unknown':
+      'O armazenamento de mídia encontrou uma falha inesperada. Tente novamente.',
     'permission-denied':
       'Você não tem permissão para acessar ou alterar esta mídia.',
     'not-found':
@@ -176,6 +206,70 @@ export const MEDIA_ERROR_CODE_PRESENTATIONS:
       severity: 'warning',
       title: 'Confirme sua identidade',
       dismissLabel: 'Fechar',
+    },
+    'storage/unauthenticated': {
+      surface: 'modal',
+      severity: 'warning',
+      title: 'Sessão necessária',
+      dismissLabel: 'Fechar',
+    },
+    'storage/unauthorized': {
+      surface: 'modal',
+      severity: 'warning',
+      title: 'Ação não permitida',
+      dismissLabel: 'Fechar',
+    },
+    'storage/object-not-found': {
+      surface: 'snackbar',
+      severity: 'info',
+    },
+    'storage/bucket-not-found': {
+      surface: 'snackbar',
+      severity: 'error',
+    },
+    'storage/project-not-found': {
+      surface: 'snackbar',
+      severity: 'error',
+    },
+    'storage/quota-exceeded': {
+      surface: 'snackbar',
+      severity: 'warning',
+    },
+    'storage/retry-limit-exceeded': {
+      surface: 'snackbar',
+      severity: 'warning',
+    },
+    'storage/invalid-checksum': {
+      surface: 'snackbar',
+      severity: 'error',
+    },
+    'storage/canceled': {
+      surface: 'snackbar',
+      severity: 'info',
+    },
+    'storage/invalid-url': {
+      surface: 'snackbar',
+      severity: 'warning',
+    },
+    'storage/invalid-argument': {
+      surface: 'snackbar',
+      severity: 'warning',
+    },
+    'storage/no-default-bucket': {
+      surface: 'snackbar',
+      severity: 'error',
+    },
+    'storage/cannot-slice-blob': {
+      surface: 'snackbar',
+      severity: 'warning',
+    },
+    'storage/server-file-wrong-size': {
+      surface: 'snackbar',
+      severity: 'error',
+    },
+    'storage/unknown': {
+      surface: 'snackbar',
+      severity: 'error',
     },
     'permission-denied': {
       surface: 'modal',
