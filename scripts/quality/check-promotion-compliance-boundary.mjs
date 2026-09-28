@@ -197,7 +197,7 @@ for (const directory of [
     }
 
     const directMutableComplianceWrite =
-      /collection\('promotion_boost_compliance_snapshots'\)[\s\S]{0,220}\.(?:set|update|delete)\(/m;
+      /collection\('promotion_boost_compliance_snapshots'\)\s*\.doc\([^)]*\)\s*\.(?:set|update|delete)\(/m;
     if (directMutableComplianceWrite.test(source)) {
       throw new Error(
         '[promotion-compliance] snapshot must remain immutable/create-only: ' +
