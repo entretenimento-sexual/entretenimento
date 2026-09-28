@@ -8,6 +8,15 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import { REQUIRE_CALLABLE_APP_CHECK, assertCallableAppCheck } from '../shared/security/callable-app-check';
 import { consumeBackendRateLimitQuota } from '../shared/security/backend-rate-limit.service';
+import {
+  PROMOTION_BOOST_EVENT_RATE_LIMIT,
+  isPromotionBoostEventTimingPlausible,
+  isPromotionBoostSelfInteraction,
+} from './promotion-boost-abuse.policy';
+import {
+  incrementPromotionBoostFraudCounter,
+  recordPromotionBoostFraudSignal,
+} from './promotion-boost-fraud.service';
 import { normalizePromotionBoostCampaign, resolvePromotionBoostDay } from './promotion-boost.policy';
 
 type EventType = 'qualified_exposure' | 'click';
@@ -44,17 +53,30 @@ export const recordPhotoPromotionEvent = onCall<Request>(
       throw new HttpsError('invalid-argument', 'Evento de Promotion/Boost inválido.');
     }
 
-    await consumeBackendRateLimitQuota({
-      action: 'photo_promotion_event',
-      subject: uid,
-      config: {
-        burstWindowMs: 5 * 60 * 1_000,
-        burstMax: 60,
-        sustainedWindowMs: 60 * 60 * 1_000,
-        sustainedMax: 300,
-      },
-      message: 'Muitos eventos patrocinados foram recebidos em pouco tempo.',
-    });
+    try {
+      await consumeBackendRateLimitQuota({
+        action: 'photo_promotion_event',
+        subject: uid,
+        config: PROMOTION_BOOST_EVENT_RATE_LIMIT,
+        message: 'Muitos eventos patrocinados foram recebidos em pouco tempo.',
+      });
+    } catch (error) {
+      const day = resolvePromotionBoostDay(Date.now());
+      await Promise.allSettled([
+        recordPromotionBoostFraudSignal({
+          viewerUid: uid,
+          campaignId: null,
+          placementId,
+          reason: 'event_velocity_exceeded',
+        }),
+        incrementPromotionBoostFraudCounter({
+          viewerUid: uid,
+          day,
+          reason: 'event_velocity_exceeded',
+        }),
+      ]);
+      throw error;
+    }
 
     const placementRef = db.collection('promotion_boost_placements').doc(placementId);
     const now = Date.now();
@@ -67,14 +89,89 @@ export const recordPhotoPromotionEvent = onCall<Request>(
 
       const placement = placementSnapshot.data() ?? {};
       const campaignId = cleanId(placement['campaignId']);
+      const advertiserUid = cleanId(placement['advertiserUid']);
+      const targetOwnerUid = cleanId(placement['ownerUid']);
+      const deliveredAt = Math.trunc(Number(placement['deliveredAt']));
+
       if (
         !campaignId
+        || !advertiserUid
+        || !targetOwnerUid
         || placement['targetType'] !== 'photo'
         || placement['viewerHash'] !== viewerHash(uid)
         || placement['status'] !== 'delivered'
         || Number(placement['expiresAt']) < now
       ) {
+        await Promise.allSettled([
+          recordPromotionBoostFraudSignal({
+            viewerUid: uid,
+            campaignId,
+            placementId,
+            reason: 'placement_identity_mismatch',
+          }),
+          incrementPromotionBoostFraudCounter({
+            viewerUid: uid,
+            day: resolvePromotionBoostDay(now),
+            reason: 'placement_identity_mismatch',
+          }),
+        ]);
         throw new HttpsError('permission-denied', 'Placement patrocinado indisponível.');
+      }
+
+      if (
+        isPromotionBoostSelfInteraction({
+          viewerUid: uid,
+          advertiserUid,
+          targetOwnerUid,
+        })
+      ) {
+        await Promise.allSettled([
+          recordPromotionBoostFraudSignal({
+            viewerUid: uid,
+            campaignId,
+            placementId,
+            reason: 'self_interaction',
+          }),
+          incrementPromotionBoostFraudCounter({
+            viewerUid: uid,
+            day: resolvePromotionBoostDay(now),
+            reason: 'self_interaction',
+          }),
+        ]);
+        throw new HttpsError(
+          'permission-denied',
+          'Auto-interação patrocinada não é contabilizada.'
+        );
+      }
+
+      if (
+        !isPromotionBoostEventTimingPlausible({
+          event,
+          deliveredAt,
+          now,
+        })
+      ) {
+        await Promise.allSettled([
+          recordPromotionBoostFraudSignal({
+            viewerUid: uid,
+            campaignId,
+            placementId,
+            reason: 'event_too_fast',
+            metadata: {
+              event,
+              elapsedMs: now - deliveredAt,
+            },
+          }),
+          incrementPromotionBoostFraudCounter({
+            viewerUid: uid,
+            day: resolvePromotionBoostDay(now),
+            reason: 'event_too_fast',
+          }),
+        ]);
+        throw new HttpsError(
+          'failed-precondition',
+          'Evento patrocinado não qualificado.'
+        );
       }
 
       const field =
