@@ -40,6 +40,7 @@ import { FirestoreContextService } from 'src/app/core/services/data-handling/fir
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import {
   IModerationReportVm,
+  MinorMediaSafetyReason,
   ModerationAgeReverificationStatus,
   ModerationReportAction,
   ModerationReportReason,
@@ -60,6 +61,7 @@ export interface ModerationReportReviewPatch {
   targetUserUid?: string | null;
   reportReason?: ModerationReportReason | null;
   reportTargetType?: ModerationReportTargetType | null;
+  mediaSafetyReason?: MinorMediaSafetyReason | null;
 }
 
 interface NormalizedModerationReportReviewPatch {
@@ -68,6 +70,7 @@ interface NormalizedModerationReportReviewPatch {
   targetUserUid: string;
   reportReason: ModerationReportReason | null;
   reportTargetType: ModerationReportTargetType | null;
+  mediaSafetyReason: MinorMediaSafetyReason | null;
   resolution: string | null;
 }
 
@@ -75,6 +78,7 @@ interface ReviewPhotoContentReportRequest {
   reportId: string;
   decision: ModerationReportAction;
   resolution: string;
+  safetyReason?: MinorMediaSafetyReason | null;
 }
 
 interface ReviewPhotoContentReportResponse {
@@ -90,6 +94,7 @@ interface ReviewVideoContentReportRequest {
   reportId: string;
   decision: ModerationReportAction;
   resolution: string;
+  safetyReason?: MinorMediaSafetyReason | null;
 }
 
 interface ReviewVideoContentReportResponse {
@@ -277,7 +282,8 @@ export class AdminModerationReportService {
       return this.reviewPhotoContentReport$(
         safeReportId,
         decision,
-        resolution
+        resolution,
+        normalized.mediaSafetyReason
       );
     }
 
@@ -296,7 +302,8 @@ export class AdminModerationReportService {
       return this.reviewVideoContentReport$(
         safeReportId,
         decision,
-        resolution
+        resolution,
+        normalized.mediaSafetyReason
       );
     }
 
@@ -416,7 +423,8 @@ export class AdminModerationReportService {
   reviewPhotoContentReport$(
     reportId: string,
     decision: ModerationReportAction,
-    resolution: string
+    resolution: string,
+    safetyReason: MinorMediaSafetyReason | null = null
   ): Observable<void> {
     const safeReportId = String(reportId ?? '').trim();
     const safeResolution = this.normalizeResolution(resolution);
@@ -436,6 +444,7 @@ export class AdminModerationReportService {
         reportId: safeReportId,
         decision,
         resolution: safeResolution,
+        safetyReason,
       })
     ).pipe(
       map(() => void 0),
@@ -452,7 +461,8 @@ export class AdminModerationReportService {
   reviewVideoContentReport$(
     reportId: string,
     decision: ModerationReportAction,
-    resolution: string
+    resolution: string,
+    safetyReason: MinorMediaSafetyReason | null = null
   ): Observable<void> {
     const safeReportId = String(reportId ?? '').trim();
     const safeResolution = this.normalizeResolution(resolution);
@@ -472,6 +482,7 @@ export class AdminModerationReportService {
         reportId: safeReportId,
         decision,
         resolution: safeResolution,
+        safetyReason,
       })
     ).pipe(
       map(() => void 0),
@@ -906,6 +917,9 @@ export class AdminModerationReportService {
     const reportTargetType = String(
       patch?.reportTargetType ?? ''
     ).trim() as ModerationReportTargetType;
+    const mediaSafetyReason = this.normalizeMinorMediaSafetyReason(
+      patch?.mediaSafetyReason
+    );
     const resolution = this.normalizeResolution(patch?.resolution);
 
     if (!['reviewing', 'resolved', 'rejected'].includes(status)) {
@@ -926,8 +940,20 @@ export class AdminModerationReportService {
       targetUserUid,
       reportReason: reportReason || null,
       reportTargetType: reportTargetType || null,
+      mediaSafetyReason,
       resolution: resolution || null,
     };
+  }
+
+  private normalizeMinorMediaSafetyReason(
+    value: unknown
+  ): MinorMediaSafetyReason | null {
+    const normalized = String(value ?? '').trim();
+
+    return normalized === 'minor_exposure_safety' ||
+      normalized === 'minor_content_safety'
+      ? normalized
+      : null;
   }
 
   private normalizeResolution(value: unknown): string {
