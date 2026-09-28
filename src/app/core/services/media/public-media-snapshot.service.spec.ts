@@ -144,7 +144,20 @@ describe('PublicMediaSnapshotService', () => {
     expect(get).toHaveBeenCalledWith(
       'media:public:snapshot:uid:viewer-1:top-videos'
     );
-    expect(hydratePublicVideoPreviews$).toHaveBeenCalledWith(cached);
+    expect(hydratePublicVideoPreviews$).toHaveBeenCalledTimes(1);
+    const hydratedInput =
+      hydratePublicVideoPreviews$.mock.calls[0]?.[0] ?? [];
+    expect(hydratedInput).toHaveLength(1);
+    expect(hydratedInput[0]).toMatchObject({
+      id: 'video-1',
+      ownerUid: 'owner-1',
+      mediaType: 'VIDEO',
+      visibility: 'PUBLIC',
+      moderationStatus: 'APPROVED',
+    });
+    expect(hydratedInput[0]).not.toHaveProperty('url');
+    expect(hydratedInput[0]).not.toHaveProperty('posterUrl');
+    expect(hydratedInput[0]).not.toHaveProperty('accessExpiresAt');
     expect(items).toHaveLength(1);
     expect(items[0]?.url).toBeNull();
     expect(items[0]?.posterUrl).toContain('video-1.webp');
