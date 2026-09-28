@@ -2,7 +2,7 @@
 // Source of truth: config/media-formats.json
 // Do not edit manually.
 
-export const MEDIA_FORMAT_POLICY_VERSION = 4 as const;
+export const MEDIA_FORMAT_POLICY_VERSION = 5 as const;
 
 export const IMAGE_INPUT_FORMATS = [
   {
@@ -63,6 +63,7 @@ export const IMAGE_OUTPUT_MIME_TYPES = [
 export const IMAGE_MAX_BYTES = 10485760 as const;
 export const AVATAR_IMAGE_MAX_BYTES = 8388608 as const;
 export const VIDEO_POSTER_IMAGE_MAX_BYTES = 10485760 as const;
+export const IMAGE_EDITOR_MAX_INTERACTIVE_PIXELS = 16000000 as const;
 export const IMAGE_EDITOR_PRESETS = {
   "free": {
     "aspectRatio": "original",
