@@ -59,9 +59,52 @@ export function deriveOfficialMediaContext(input: {
     return null;
   }
 
+  const rawAssociation = input.rawAssociation &&
+    typeof input.rawAssociation === 'object' &&
+    !Array.isArray(input.rawAssociation)
+    ? input.rawAssociation as Record<string, unknown>
+    : null;
+  const nowMs = Math.trunc(input.nowMs ?? Date.now());
+  const activeRevalidationDueAt = rawAssociation?.['activeRevalidationDueAt'];
+  const activeVerificationExpiresAt =
+    rawAssociation?.['activeVerificationExpiresAt'];
+  const normalizedRevalidationDueAt =
+    activeRevalidationDueAt === null ||
+    activeRevalidationDueAt === undefined
+      ? null
+      : Math.trunc(Number(activeRevalidationDueAt));
+  const normalizedVerificationExpiresAt =
+    activeVerificationExpiresAt === null ||
+    activeVerificationExpiresAt === undefined
+      ? null
+      : Math.trunc(Number(activeVerificationExpiresAt));
+
+  if (
+    !Number.isFinite(nowMs) ||
+    nowMs <= 0 ||
+    (
+      activeRevalidationDueAt !== null &&
+      activeRevalidationDueAt !== undefined &&
+      (
+        !Number.isFinite(normalizedRevalidationDueAt) ||
+        normalizedRevalidationDueAt <= nowMs
+      )
+    ) ||
+    (
+      activeVerificationExpiresAt !== null &&
+      activeVerificationExpiresAt !== undefined &&
+      (
+        !Number.isFinite(normalizedVerificationExpiresAt) ||
+        normalizedVerificationExpiresAt <= nowMs
+      )
+    )
+  ) {
+    return null;
+  }
+
   const association =
     sanitizeCommunityOfficialAssociationPublicProjection(
-      input.rawAssociation
+      rawAssociation
     );
 
   if (
