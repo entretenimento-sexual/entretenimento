@@ -5,6 +5,8 @@ import {
   ApplicationErrorService,
 } from 'src/app/core/services/error-handler/application-error.service';
 import {
+  MEDIA_ERROR_CODE_MESSAGES,
+  MEDIA_ERROR_CODE_PRESENTATIONS,
   MEDIA_ERROR_MESSAGES,
   MEDIA_ERROR_PRESENTATIONS,
   type MediaErrorReason,
@@ -59,6 +61,8 @@ export class MediaApplicationErrorService {
       presentation: options.silent
         ? { surface: 'none', severity: 'error' }
         : catalogPresentation ?? undefined,
+      codeMessages: MEDIA_ERROR_CODE_MESSAGES,
+      codePresentations: MEDIA_ERROR_CODE_PRESENTATIONS,
       reasonMessages: MEDIA_ERROR_MESSAGES,
       reasonPresentations: MEDIA_ERROR_PRESENTATIONS,
       metadata: {
