@@ -152,6 +152,68 @@ for (const [relativePath, label] of [
   }
 }
 
+const complianceCollectionWriters = [
+  'functions/src/promotion-boost/manage-photo-promotion-campaign.handler.ts',
+  'functions/src/community-boost/manage-community-boost-campaign.handler.ts',
+];
+
+for (const relativePath of complianceCollectionWriters) {
+  const source = read(relativePath);
+  requireIncludes(
+    source,
+    "collection('promotion_boost_compliance_snapshots')",
+    relativePath + ' must write canonical compliance snapshot'
+  );
+  requireIncludes(
+    source,
+    'transaction.create(',
+    relativePath + ' compliance snapshot must be create-only'
+  );
+}
+
+for (const directory of [
+  path.join(root, 'functions', 'src', 'promotion-boost'),
+  path.join(root, 'functions', 'src', 'community-boost'),
+]) {
+  for (const entry of fs.readdirSync(directory)) {
+    if (
+      !entry.endsWith('.ts')
+      || entry.endsWith('.spec.ts')
+      || entry.endsWith('.test.ts')
+    ) {
+      continue;
+    }
+
+    const absolute = path.join(directory, entry);
+    const relative = path.relative(root, absolute).replaceAll('\\', '/');
+    const source = fs.readFileSync(absolute, 'utf8');
+
+    if (!source.includes('promotion_boost_compliance_snapshots')) continue;
+    if (!complianceCollectionWriters.includes(relative)) {
+      throw new Error(
+        '[promotion-compliance] unexpected compliance snapshot writer/reader: ' +
+          relative
+      );
+    }
+
+    for (const forbiddenMutation of [
+      '.update(',
+      '.delete(',
+      'transaction.set(',
+    ]) {
+      if (
+        source.includes("collection('promotion_boost_compliance_snapshots')")
+        && source.includes(forbiddenMutation)
+      ) {
+        throw new Error(
+          '[promotion-compliance] snapshot must remain immutable/create-only: ' +
+            relative + ' -> ' + forbiddenMutation
+        );
+      }
+    }
+  }
+}
+
 const rules = read('firestore-rules/promotion_boost.rules');
 requireIncludes(
   rules,
