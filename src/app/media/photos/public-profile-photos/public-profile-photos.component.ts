@@ -32,6 +32,7 @@ import {
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
 import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
+import type { MediaErrorReason } from 'src/app/core/services/media/media-error.catalog';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
 import { ContentStateComponent } from 'src/app/shared/content-state/content-state.component';
@@ -103,7 +104,7 @@ export class PublicProfilePhotosComponent {
         }),
         catchError((error: unknown) => {
           this.reportError(
-            'Erro ao carregar a galeria pública do perfil.',
+            'media_discovery_load_failed',
             error,
             { op: 'publicPhotos$' }
           );
@@ -153,7 +154,7 @@ export class PublicProfilePhotosComponent {
         }),
         catchError((error: unknown) => {
           this.reportError(
-            'Não foi possível abrir esta foto agora.',
+            'media_navigation_failed',
             error,
             { op: 'openPhoto' }
           );
@@ -168,13 +169,13 @@ export class PublicProfilePhotosComponent {
   }
 
   private reportError(
-    userMessage: string,
+    reasonHint: MediaErrorReason,
     error: unknown,
     context?: Record<string, unknown>
   ): void {
     this.errorHandler.report(error, {
       operation: String(context?.['op'] ?? 'unknown'),
-      fallbackMessage: userMessage,
+      reasonHint,
       metadata: {
         scope: 'PublicProfilePhotosComponent',
         ...(context ?? {}),
@@ -182,7 +183,7 @@ export class PublicProfilePhotosComponent {
     });
 
     this.debug('reportError', {
-      userMessage,
+      reasonHint,
       op: context?.['op'] ?? 'unknown',
       hasContext: !!context,
       errorMessage: error instanceof Error ? error.message : String(error ?? ''),
