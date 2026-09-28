@@ -270,16 +270,25 @@ export async function synchronizePublishedPhotoUpdate(
     });
   }
 
-  await dependencies.refreshMetrics(input.ownerUid).catch((error) => {
-    dependencies.logError(
-      '[syncPublishedPhotoOnPrivateUpdate] Falha ao atualizar métricas.',
-      {
-        ownerUid: input.ownerUid,
-        photoId: input.photoId,
-        error: error instanceof Error ? error.message : String(error ?? ''),
-      }
-    );
-  });
+  /**
+   * Reconciliação completa é deliberadamente cold-path. Alterações somente de
+   * alt/fileName não mudam contadores, score de audiência ou elegibilidade da
+   * mídia e portanto não justificam varrer todas as mídias públicas do perfil.
+   * Troca real do binário volta a mídia para revisão preventiva e altera a
+   * elegibilidade agregada, então reconciliamos nesse caso.
+   */
+  if (shouldCopyAsset) {
+    await dependencies.refreshMetrics(input.ownerUid).catch((error) => {
+      dependencies.logError(
+        '[syncPublishedPhotoOnPrivateUpdate] Falha ao reconciliar métricas.',
+        {
+          ownerUid: input.ownerUid,
+          photoId: input.photoId,
+          error: error instanceof Error ? error.message : String(error ?? ''),
+        }
+      );
+    });
+  }
 
   return {
     status: 'synchronized',
