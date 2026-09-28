@@ -251,6 +251,19 @@ export class VideoSimpleEditorControlsComponent {
     ]).pipe(
       takeUntilDestroyed(this.destroyRef)
     ).subscribe(() => this.emitEditorState());
+
+    this.destroyRef.onDestroy(() => {
+      // Teardown explícito: BehaviorSubject conserva o último valor mesmo após
+      // complete(), então anulamos primeiro File/Blob/metadados pesados.
+      this.fileSubject.next(null);
+      this.metadataSubject.next(null);
+      this.loadingSubject.next(false);
+      this.capturingPosterSubject.next(false);
+      this.fileSubject.complete();
+      this.metadataSubject.complete();
+      this.loadingSubject.complete();
+      this.capturingPosterSubject.complete();
+    });
   }
 
   buildRecipe(): IVideoEditRecipeInput {
