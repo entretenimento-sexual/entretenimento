@@ -11,6 +11,12 @@ import {
   safeRecordModerationOpenSignal,
 } from '../../moderation/moderation-automation.service';
 import {
+  getModerationReporterAbuseRisk,
+} from '../../moderation/moderation-reporter-abuse.service';
+import {
+  moderationReportRateLimitCost,
+} from '../../moderation/moderation-reporter-abuse.policy';
+import {
   safeNotifyModerationReportOpened,
 } from '../../moderation/moderation-safety-notification.service';
 import { consumeBackendRateLimitQuota } from './backend-rate-limit.service';
@@ -105,6 +111,7 @@ const ALLOWED_REASONS = new Set<VideoReportReason>([
   'harassment',
   'hate_or_abuse',
   'sexual_boundary',
+  'non_consensual_sexual_content',
   'illegal_content',
   'privacy',
   'minor_exposure_safety',
@@ -210,10 +217,12 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
       throw new HttpsError('invalid-argument', 'Alvo da denúncia inválido.');
     }
 
+    const reporterAbuseRisk = await getModerationReporterAbuseRisk(reporterUid);
+
     await consumeBackendRateLimitQuota({
       action: 'reportVideoContent',
       subject: reporterUid,
-      cost: 1,
+      cost: moderationReportRateLimitCost(reporterAbuseRisk),
       config: {
         burstWindowMs: REPORT_BURST_WINDOW_MS,
         burstMax: REPORT_BURST_MAX,
