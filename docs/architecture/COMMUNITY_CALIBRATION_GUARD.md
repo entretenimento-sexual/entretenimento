@@ -21,6 +21,32 @@ O candidato v3 continua shadow-only. Pesos, half-lives, confiança, thresholds d
 aceitação e cutover permanecem congelados enquanto não houver ciclos reais de
 produção suficientes e baseline operacional qualificado.
 
+### Media trendScore
+
+Mídia possui um candidato temporal separado chamado `trendScore`, também
+**shadow-only**. Ele não substitui `engagementScore`, `rankingScore` nem o
+campo produtivo `score`.
+
+A versão inicial:
+
+- reutiliza o `engagementScore` já calculado pela policy produtiva;
+- aplica somente um fator temporal independente baseado na idade da publicação;
+- é observada exclusivamente via Cloud Logging como
+  `media.trend_score_shadow`;
+- não cria documento adicional no Firestore;
+- não aparece em discovery, perfil, feed, notificações ou Promotion/Boost;
+- não pode alterar preço, frequência de notificação ou limites comerciais;
+- permanece com `eligibleForRanking=false`,
+  `eligibleForNotifications=false` e
+  `eligibleForCommercialUse=false`.
+
+Mesmo quando a amostra real atingir a janela, quantidade de dias e número mínimo
+de observações definidos pela calibração transversal, isso apenas torna o modelo
+**elegível para revisão**. Enquanto
+`PRODUCT_CALIBRATION_STAGE='OBSERVE_ONLY'`, `canActivate` continua falso.
+A ativação futura exige decisão explícita/versionada e uma alteração separada de
+arquitetura.
+
 ### Limites comerciais
 
 Capacidade de membros e quantidade de Comunidades por plano/grant continuam
