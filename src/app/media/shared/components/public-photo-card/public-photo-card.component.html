@@ -46,13 +46,13 @@
             </time>
 
             @if ((item.officialMediaContext?.contexts?.length ?? 0) > 0) {
-              <span
+              <app-public-media-badge
                 class="feed-card-official"
-                aria-label="Publicação de perfil oficial verificado"
-              >
-                <span aria-hidden="true">✓</span>
-                Oficial
-              </span>
+                kind="official"
+                label="Oficial"
+                ariaLabel="Publicação de perfil oficial verificado"
+                iconClass="fas fa-badge-check"
+              />
             }
 
           </span>
@@ -100,13 +100,13 @@
             <strong>{{ getOwnerName(item) }}</strong>
 
             @if ((item.officialMediaContext?.contexts?.length ?? 0) > 0) {
-              <span
+              <app-public-media-badge
                 class="photo-official-badge"
-                aria-label="Perfil oficial verificado"
-              >
-                <span aria-hidden="true">✓</span>
-                Oficial
-              </span>
+                kind="official"
+                label="Oficial"
+                ariaLabel="Perfil oficial verificado"
+                iconClass="fas fa-badge-check"
+              />
             }
           </span>
 
@@ -148,9 +148,13 @@
       </span>
 
       @if (item.isCover) {
-        <span class="cover-chip app-chip app-chip--overlay app-chip--success">
-          Capa
-        </span>
+        <app-public-media-badge
+          class="cover-chip"
+          kind="cover"
+          label="Capa"
+          ariaLabel="Foto de capa do perfil"
+          iconClass="fas fa-image"
+        />
       }
     </div>
   }
@@ -204,12 +208,13 @@
         }
 
         @case ('sponsored') {
-          <span
-            class="meta-chip meta-sponsored app-chip app-chip--primary"
-            aria-label="Conteúdo patrocinado"
-          >
-            Patrocinado
-          </span>
+          <app-public-media-badge
+            class="meta-chip meta-sponsored"
+            kind="sponsored"
+            label="Patrocinado"
+            ariaLabel="Conteúdo patrocinado"
+            iconClass="fas fa-bullhorn"
+          />
         }
       }
     </div>
