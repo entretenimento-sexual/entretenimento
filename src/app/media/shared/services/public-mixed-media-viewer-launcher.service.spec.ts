@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
 import type { IPublicProfileMediaItem } from 'src/app/core/interfaces/media/i-public-profile-media-item';
 import type { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
-import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { PublicMixedMediaContinuationService } from 'src/app/core/services/media/public-mixed-media-continuation.service';
 import { PublicPhotoViewerLauncherService } from 'src/app/media/photos/photo-viewer/public-photo-viewer-launcher.service';
@@ -53,7 +53,7 @@ describe('PublicMixedMediaViewerLauncherService', () => {
     showInfo: vi.fn(),
     showWarning: vi.fn(),
   };
-  const applicationError = {
+  const mediaError = {
     report: vi.fn(),
   };
 
@@ -73,7 +73,7 @@ describe('PublicMixedMediaViewerLauncherService', () => {
         { provide: PublicVideoViewerLauncherService, useValue: videoViewer },
         { provide: PublicMixedMediaContinuationService, useValue: mixedContinuation },
         { provide: ErrorNotificationService, useValue: errorNotification },
-        { provide: ApplicationErrorService, useValue: applicationError },
+        { provide: MediaApplicationErrorService, useValue: mediaError },
       ],
     });
   });
@@ -288,13 +288,52 @@ describe('PublicMixedMediaViewerLauncherService', () => {
       source: 'discover',
     }))).rejects.toThrow('viewer indisponível');
 
-    expect(applicationError.report).toHaveBeenCalledWith(
+    expect(mediaError.report).toHaveBeenCalledWith(
       failure,
       expect.objectContaining({
-        feature: 'public-mixed-media-viewer',
-        operation: 'open$',
+        operation: 'open
+    );
+  });
+
+  it('avisa o usuário e registra diagnóstico quando a continuação falha', async () => {
+    const service = TestBed.inject(PublicMixedMediaViewerLauncherService);
+    const selected = photo('owner-a', 'photo-a');
+
+    photoViewer.openWithResult$.mockReturnValueOnce(of({
+      kind: 'mixed-handoff',
+      direction: 'next',
+    }));
+    mixedContinuation.loadContinuation$.mockReturnValueOnce(of({
+      items: [],
+      exhausted: false,
+      failed: true,
+      degraded: true,
+    }));
+
+    await firstValueFrom(service.open$({
+      items: [selected],
+      selected,
+      source: 'latest',
+    }));
+
+    expect(errorNotification.showWarning).toHaveBeenCalledWith(
+      'Não foi possível carregar mais mídias agora. Tente novamente mais tarde.'
+    );
+    expect(mediaError.report).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        operation: 'loadContinuation$.degraded',
+        reasonHint: 'media_discovery_page_failed',
+        silent: true,
+      })
+    );
+    expect(errorNotification.showInfo).not.toHaveBeenCalled();
+  });
+});
+,
         fallbackMessage: 'Não foi possível abrir esta publicação neste momento.',
-        notification: 'error',
+        reasonHint: 'media_navigation_failed',
+        silent: false,
       })
     );
   });
