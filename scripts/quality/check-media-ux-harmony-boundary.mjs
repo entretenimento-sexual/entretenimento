@@ -84,10 +84,19 @@ for (const relativePath of [
 
 for (const relativePath of [
   'src/app/media/photos/photo-viewer/photo-viewer.component.ts',
+  'src/app/media/photos/photo-viewer/public-mixed-photo-viewer.component.ts',
   'src/app/media/videos/public-video-viewer/public-video-viewer.component.ts',
+  'src/app/media/videos/public-video-viewer/public-mixed-video-viewer.component.ts',
 ]) {
+  const source = read(relativePath);
+
   requireIncludes(
-    read(relativePath),
+    source,
+    'PublicMediaBadgeComponent',
+    relativePath + ' must import shared badges for its viewer template'
+  );
+  requireIncludes(
+    source,
     'PublicMediaRecommendationBadgeComponent',
     relativePath + ' must use shared recommendation context'
   );
