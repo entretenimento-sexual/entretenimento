@@ -33,6 +33,7 @@ interface NavigatorWithConnection extends Navigator {
 
 const ACCESS_EXPIRY_SAFETY_MS = 30_000;
 const METADATA_PRELOAD_TIMEOUT_MS = 8_000;
+const MAX_ACTIVE_METADATA_PRELOADS = 2;
 const MIN_DOWNLINK_MBPS = 1.5;
 const BLOCKED_EFFECTIVE_TYPES = new Set(['slow-2g', '2g']);
 
@@ -140,10 +141,16 @@ export class PublicVideoMetadataPreloadService {
 
     this.attemptedKeys.add(key);
 
+    while (this.activeCleanups.size >= MAX_ACTIVE_METADATA_PRELOADS) {
+      const oldest = this.activeCleanups.values().next().value as (() => void) | undefined;
+      if (!oldest) break;
+      oldest();
+    }
+
     let settled = false;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
-    const cleanup = (): void => {
+    const cleanup = (allowRetry = false): void => {
       if (settled) return;
       settled = true;
 
@@ -155,6 +162,9 @@ export class PublicVideoMetadataPreloadService {
       video.removeEventListener('loadedmetadata', onLoadedMetadata);
       video.removeEventListener('error', onError);
       this.activeCleanups.delete(key);
+      if (allowRetry) {
+        this.attemptedKeys.delete(key);
+      }
 
       try {
         video.pause();
@@ -167,15 +177,15 @@ export class PublicVideoMetadataPreloadService {
 
     const onLoadedMetadata = (): void => {
       this.debug('metadata-ready', item);
-      cleanup();
+      cleanup(false);
     };
 
     const onError = (event: Event): void => {
       this.debug('metadata-error', item, event.type);
-      cleanup();
+      cleanup(true);
     };
 
-    this.activeCleanups.set(key, cleanup);
+    this.activeCleanups.set(key, () => cleanup(true));
     video.preload = 'metadata';
     video.muted = true;
     video.playsInline = true;
@@ -184,7 +194,7 @@ export class PublicVideoMetadataPreloadService {
 
     timeoutId = setTimeout(() => {
       this.debug('metadata-timeout', item);
-      cleanup();
+      cleanup(true);
     }, METADATA_PRELOAD_TIMEOUT_MS);
 
     try {
@@ -193,7 +203,7 @@ export class PublicVideoMetadataPreloadService {
       return true;
     } catch (error) {
       this.debug('metadata-start-failed', item, error);
-      cleanup();
+      cleanup(true);
       return false;
     }
   }
