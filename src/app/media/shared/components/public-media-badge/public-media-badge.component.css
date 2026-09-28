@@ -1,0 +1,72 @@
+:host {
+  display: inline-flex;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.public-media-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 100%;
+  min-height: 24px;
+  padding: 3px 8px;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 999px;
+  background: rgb(0 0 0 / 38%);
+  color: rgb(255 255 255 / 90%);
+  font-size: 0.7rem;
+  font-weight: 820;
+  line-height: 1;
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+}
+
+.public-media-badge > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.public-media-badge--official {
+  border-color: color-mix(in oklab, var(--success-color, #5ed39a) 46%, rgb(255 255 255 / 18%));
+  color: color-mix(in oklab, var(--success-color, #5ed39a) 78%, white 22%);
+}
+
+.public-media-badge--sponsored {
+  border-color: color-mix(in oklab, var(--primary-color, #ff7070) 44%, rgb(255 255 255 / 18%));
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 18%, rgb(0 0 0 / 38%));
+  color: color-mix(in oklab, var(--primary-color, #ff7070) 72%, white 28%);
+}
+
+.public-media-badge--cover {
+  border-color: color-mix(in oklab, var(--success-color, #5ed39a) 42%, rgb(255 255 255 / 18%));
+  background: color-mix(in oklab, var(--success-color, #5ed39a) 28%, rgb(0 0 0 / 38%));
+}
+
+.public-media-badge--context {
+  border-color: rgb(255 255 255 / 22%);
+  background: rgb(10 12 18 / 54%);
+}
+
+.public-media-badge--muted {
+  color: rgb(255 255 255 / 74%);
+}
+
+@media (max-width: 520px) {
+  .public-media-badge {
+    min-height: 22px;
+    padding: 2px 7px;
+    font-size: 0.66rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .public-media-badge {
+    backdrop-filter: none;
+  }
+}
+
+:host-context(html.high-contrast) .public-media-badge {
+  border-color: currentColor !important;
+  background: transparent !important;
+}
