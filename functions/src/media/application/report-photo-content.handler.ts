@@ -16,6 +16,8 @@ import {
 import { consumeBackendRateLimitQuota } from './backend-rate-limit.service';
 import {
   buildMediaReportSafetyState,
+  isCriticalMinorMediaSafetyReason,
+  isCriticalMinorMediaSafetyReason,
   shouldPreserveMediaEvidence,
   shouldQuarantineMediaAfterReport,
   type MediaReportSafetyReason,
@@ -72,7 +74,7 @@ const ALLOWED_REASONS = new Set<PhotoReportReason>([
   'sexual_boundary',
   'illegal_content',
   'privacy',
-  'minor_safety',
+  'minor_exposure_safety',
   'minor_content_safety',
   'other',
 ]);
@@ -241,7 +243,7 @@ export const reportPhotoContent = onCall<ReportPhotoContentRequest>(
           evidencePreservationStatus: evidenceRequired
             ? 'PENDING'
             : 'NOT_REQUIRED',
-          legalReviewStatus: reason === 'minor_content_safety'
+          legalReviewStatus: isCriticalMinorMediaSafetyReason(reason)
             ? 'PENDING_LEGAL_REVIEW'
             : null,
           source: 'web',
@@ -302,7 +304,7 @@ export const reportPhotoContent = onCall<ReportPhotoContentRequest>(
       targetUid: ownerUid,
       reporterUid,
       targetKey: `photo:${ownerUid}:${photoId}`,
-      critical: reason === 'minor_content_safety',
+      critical: isCriticalMinorMediaSafetyReason(reason),
       quarantined: result.quarantine,
     });
 
