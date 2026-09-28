@@ -26,6 +26,7 @@ import {
   normalizeMediaCount,
   type MediaScoreBreakdown,
 } from './media-engagement-score';
+import { observeMediaTrendScoreShadow } from './media-trend-score-shadow-observation.service';
 import {
   assertPhotoCommentAccessInTransaction,
 } from './photo-audience-access.policy';
@@ -44,6 +45,8 @@ type PublicPhotoDoc = {
   commentsCount?: number;
   score?: number;
   engagementScore?: number;
+  publishedAt?: number;
+  createdAt?: number;
   scoreBreakdown?: Partial<MediaScoreBreakdown>;
 };
 
@@ -178,7 +181,7 @@ export const createPhotoComment = onCall<CreatePhotoCommentRequest>(
     const commentsCollection = photoRef.collection('comments');
     const newCommentRef = commentsCollection.doc();
 
-    return db.runTransaction(async (transaction) => {
+    const outcome = await db.runTransaction(async (transaction) => {
       const [photoSnap, authorProfileSnap] = await Promise.all([
         transaction.get(photoRef),
         transaction.get(authorProfileRef),
@@ -298,8 +301,21 @@ export const createPhotoComment = onCall<CreatePhotoCommentRequest>(
 
       return {
         commentId: newCommentRef.id,
+        trendEngagementScore: nextScore.engagementScore,
+        trendPublishedAt: photo.publishedAt ?? photo.createdAt ?? 0,
+        trendObservedAt: now,
       };
     });
+
+    observeMediaTrendScoreShadow({
+      mediaType: 'photo',
+      event: 'comment',
+      engagementScore: outcome.trendEngagementScore,
+      publishedAt: outcome.trendPublishedAt,
+      now: outcome.trendObservedAt,
+    });
+
+    return { commentId: outcome.commentId };
   }
 );
 
@@ -328,7 +344,7 @@ export const moderatePhotoComment = onCall<ModeratePhotoCommentRequest>(
     const photoRef = db.doc(`public_profiles/${ownerUid}/public_photos/${photoId}`);
     const commentRef = photoRef.collection('comments').doc(commentId);
 
-    return db.runTransaction(async (transaction) => {
+    const outcome = await db.runTransaction(async (transaction) => {
       const [photoSnap, commentSnap] = await Promise.all([
         transaction.get(photoRef),
         transaction.get(commentRef),
@@ -443,7 +459,24 @@ export const moderatePhotoComment = onCall<ModeratePhotoCommentRequest>(
         status: nextStatus,
         commentsCount: nextCommentsCount,
         score: nextScore.score,
+        trendEngagementScore: nextScore.engagementScore,
+        trendPublishedAt: photo.publishedAt ?? photo.createdAt ?? 0,
+        trendObservedAt: now,
       };
     });
+
+    observeMediaTrendScoreShadow({
+      mediaType: 'photo',
+      event: 'comment',
+      engagementScore: outcome.trendEngagementScore,
+      publishedAt: outcome.trendPublishedAt,
+      now: outcome.trendObservedAt,
+    });
+
+    return {
+      status: outcome.status,
+      commentsCount: outcome.commentsCount,
+      score: outcome.score,
+    };
   }
 );
