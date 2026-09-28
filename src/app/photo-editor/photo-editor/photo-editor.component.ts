@@ -60,7 +60,10 @@ import {
   normalizePhotoEditorOverlays,
   privacyRegionFromDraft,
 } from './photo-editor-overlay.model';
-import { PHOTO_EDITOR_LOCAL_TOOL_REGISTRY } from './photo-editor-local-tool.registry';
+import {
+  PHOTO_EDITOR_LOCAL_TOOL_REGISTRY,
+  isLocalPhotoEditorTool,
+} from './photo-editor-local-tool.registry';
 
 export type PhotoEditorAspectRatio =
   | 'original'
@@ -363,7 +366,7 @@ export class PhotoEditorComponent implements AfterViewInit {
   }
 
   selectTool(tool: PhotoEditorTool): void {
-    if (this.isBusy()) return;
+    if (this.isBusy() || !isLocalPhotoEditorTool(tool)) return;
     this.activeTool = tool;
     this.selectedOverlayId = null;
     this.cancelPointerInteraction(false);
