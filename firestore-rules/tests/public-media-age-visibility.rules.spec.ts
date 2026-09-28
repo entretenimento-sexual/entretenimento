@@ -93,6 +93,13 @@ async function seedPublicMedia(): Promise<void> {
         verifiedAt: new Date(Date.now() - 1_000),
         expiresAt: null,
       }),
+      setDoc(doc(db, 'users', OWNER_UID), {
+        uid: OWNER_UID,
+        accountStatus: 'active',
+        suspended: false,
+        publicVisibility: 'visible',
+        loginAllowed: true,
+      }),
       setDoc(doc(db, 'age_eligibility_records', OWNER_UID), {
         uid: OWNER_UID,
         status: 'VERIFIED_ADULT',
@@ -269,6 +276,46 @@ async function setMediaVisibility(visibility: 'PUBLIC' | 'PRIVATE') {
   });
 }
 
+async function setOwnerLifecycle(
+  overrides: Record<string, unknown>
+): Promise<void> {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(
+      doc(context.firestore(), 'users', OWNER_UID),
+      overrides
+    );
+  });
+}
+
+async function setMediaModerationStatus(
+  moderationStatus: 'APPROVED' | 'PENDING_REVIEW' | 'FLAGGED' | 'HIDDEN'
+): Promise<void> {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+
+    await Promise.all([
+      updateDoc(
+        doc(db, 'public_profiles', OWNER_UID, 'public_videos', VIDEO_ID),
+        { moderationStatus }
+      ),
+      updateDoc(
+        doc(db, 'public_profiles', OWNER_UID, 'public_photos', PHOTO_ID),
+        { moderationStatus }
+      ),
+    ]);
+  });
+}
+
+function dbRefVideo(db: ReturnType<typeof viewerDb>) {
+  return doc(
+    db,
+    'public_profiles',
+    OWNER_UID,
+    'public_videos',
+    VIDEO_ID
+  );
+}
+
 describe('Firestore Rules / public media age visibility', () => {
   beforeAll(async () => {
     const rules = readFileSync(
@@ -397,6 +444,52 @@ describe('Firestore Rules / public media age visibility', () => {
         )
       )
     );
+  });
+
+  it('revoga deep link de foto e vídeo imediatamente quando o proprietário é suspenso', async () => {
+    const db = viewerDb();
+
+    await assertSucceeds(
+      getDoc(doc(db, 'public_profiles', OWNER_UID, 'public_photos', PHOTO_ID))
+    );
+    await assertSucceeds(
+      getDoc(doc(db, 'public_profiles', OWNER_UID, 'public_videos', VIDEO_ID))
+    );
+
+    await setOwnerLifecycle({
+      accountStatus: 'moderation_suspended',
+      suspended: true,
+      publicVisibility: 'hidden',
+      loginAllowed: false,
+    });
+
+    await assertFails(
+      getDoc(doc(db, 'public_profiles', OWNER_UID, 'public_photos', PHOTO_ID))
+    );
+    await assertFails(
+      getDoc(doc(db, 'public_profiles', OWNER_UID, 'public_videos', VIDEO_ID))
+    );
+  });
+
+  it('mantém mídia em quarentena fora de deep link para foto e vídeo', async () => {
+    const db = viewerDb();
+
+    for (const moderationStatus of [
+      'PENDING_REVIEW',
+      'FLAGGED',
+      'HIDDEN',
+    ] as const) {
+      await setMediaModerationStatus(moderationStatus);
+
+      await assertFails(
+        getDoc(doc(db, 'public_profiles', OWNER_UID, 'public_photos', PHOTO_ID))
+      );
+      await assertFails(
+        getDoc(dbRefVideo(db))
+      );
+
+      await setMediaModerationStatus('APPROVED');
+    }
   });
 
   it('bloqueia acesso direto quando o perfil pai foi ocultado', async () => {
