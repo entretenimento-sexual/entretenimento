@@ -58,6 +58,8 @@ import {
   VideoViewTrackingService,
 } from 'src/app/core/services/media/video-view-tracking.service';
 import { PublicVideoShareActionsComponent } from '../public-video-share-actions/public-video-share-actions.component';
+import { PublicMediaBadgeComponent } from '../../shared/components/public-media-badge/public-media-badge.component';
+import { PublicMediaRecommendationBadgeComponent } from '../../shared/components/public-media-recommendation-badge/public-media-recommendation-badge.component';
 import { PublicVideoPlaybackFeedbackDirective } from './public-video-playback-feedback.directive';
 import {
   PublicVideoQualifiedViewDetail,
@@ -134,6 +136,8 @@ const SWIPE_BLOCKED_TARGET_SELECTOR = [
     PublicVideoPlaybackFeedbackDirective,
     PublicVideoViewQualificationDirective,
     PublicVideoShareActionsComponent,
+    PublicMediaBadgeComponent,
+    PublicMediaRecommendationBadgeComponent,
   ],
   templateUrl: './public-video-viewer.component.html',
   styleUrls: ['./public-video-viewer.component.css'],
