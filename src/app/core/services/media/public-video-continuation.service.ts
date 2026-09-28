@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Observable, combineLatest, concat, of } from 'rxjs';
-import { catchError, map, switchMap } from 'rxjs/operators';
+import { catchError, map, startWith, switchMap } from 'rxjs/operators';
 
 import type { IPublicMediaContinuationContext } from 'src/app/core/interfaces/media/i-public-media-continuation-context';
 import {
@@ -79,20 +79,24 @@ export class PublicVideoContinuationService {
       excludeOwnerUid
     );
 
+    const personalized$ = this.loadPersonalizedCandidates$(
+      continuationContext,
+      excludedKeys,
+      excludeOwnerUid
+    ).pipe(
+      startWith({ items: [], failed: false } as CandidateSourceResult)
+    );
+
     return combineLatest([
+      personalized$,
       this.loadGlobalCandidates$(
         primaryMode,
         secondaryMode,
         excludedKeys,
         excludeOwnerUid
       ),
-      this.loadPersonalizedCandidates$(
-        continuationContext,
-        excludedKeys,
-        excludeOwnerUid
-      ),
     ]).pipe(
-      switchMap(([globalResult, personalizedResult]) => {
+      switchMap(([personalizedResult, globalResult]) => {
         const context: ContinuationCandidateContext = {
           globalItems: globalResult.items,
           personalizedItems: personalizedResult.items,
