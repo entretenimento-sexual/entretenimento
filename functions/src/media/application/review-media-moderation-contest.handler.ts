@@ -161,12 +161,14 @@ onCall<ReviewMediaModerationContestRequest>(
             ? {
               effectiveModerationAction: 'KEEP',
               confirmedViolationEffective: false,
+              accountRemediationReviewRequired: true,
             }
             : {
               effectiveModerationAction:
                 String(report['moderationAction'] ?? '').trim().toUpperCase() || null,
               confirmedViolationEffective:
                 String(report['moderationAction'] ?? '').trim().toUpperCase() === 'REMOVE',
+              accountRemediationReviewRequired: false,
             }),
         },
         { merge: true }
