@@ -82,6 +82,11 @@ for (const fragment of [
   'syncOfficialMediaContextFromOrganizationKyb',
   'syncOfficialMediaContextFromOrganizationRepresentation',
   'syncOfficialMediaContextFromEventAuthority',
+  'targetCounts',
+  "profile: 0",
+  "organization: 0",
+  "venue: 0",
+  "event: 0",
 ]) {
   requireIncludes(sync, fragment, 'projection reconciliation drift');
 }
@@ -217,5 +222,5 @@ if (legacyViolations.length) {
 }
 
 console.log(
-  '[official-media-context-boundary] OK: Profile/Venue/Organization/Event usam autoridades canônicas; Official e Patrocinado permanecem ortogonais.'
+  '[official-media-context-boundary] OK: Profile/Venue/Organization/Event usam autoridades canônicas; backfill é tipado por target; Official e Patrocinado permanecem ortogonais em todo o runtime Promotion/Boost.'
 );
