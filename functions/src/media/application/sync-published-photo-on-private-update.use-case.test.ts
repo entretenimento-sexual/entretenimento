@@ -211,7 +211,7 @@ describe('synchronizePublishedPhotoUpdate', () => {
         },
       },
     ]);
-    assert.deepEqual(harness.metricCalls, [OWNER_UID]);
+    assert.equal(harness.metricCalls.length, 0);
   });
 
   it('trata retry já sincronizado como operação idempotente', async () => {
