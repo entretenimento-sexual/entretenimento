@@ -355,7 +355,10 @@ export class PublicVideoViewerComponent {
       this.prefetchContinuationIfNeeded();
     });
 
-    this.destroyRef.onDestroy(() => this.clearAccessRefreshTimer());
+    this.destroyRef.onDestroy(() => {
+      this.clearAccessRefreshTimer();
+      this.releaseCurrentPlayerSource();
+    });
   }
 
   get current(): IPublicVideoItem | null {
@@ -522,7 +525,7 @@ export class PublicVideoViewerComponent {
 
   close(): void {
     this.cancelSwipeNavigation();
-    this.pauseCurrentVideo();
+    this.releaseCurrentPlayerSource();
     this.dialogRef.close();
   }
 
@@ -853,7 +856,7 @@ export class PublicVideoViewerComponent {
 
   private changeIndex(nextIndex: number): void {
     this.cancelSwipeNavigation();
-    this.pauseCurrentVideo();
+    this.releaseCurrentPlayerSource();
     this.clearAccessRefreshTimer();
     this.accessRevision += 1;
     this.refreshingAccess = false;
@@ -1450,6 +1453,19 @@ export class PublicVideoViewerComponent {
       player.pause();
     } catch {
       // noop
+    }
+  }
+
+  private releaseCurrentPlayerSource(): void {
+    const player = this.videoPlayer?.nativeElement;
+    if (!player) return;
+
+    try {
+      player.pause();
+      player.removeAttribute('src');
+      player.load();
+    } catch {
+      // Limpeza best-effort; nunca bloqueia fechamento/navegação.
     }
   }
 }
