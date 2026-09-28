@@ -76,7 +76,7 @@ export class PhotoEditorLauncherService {
         }
       );
 
-      return this.openEditorModal$(options.source);
+      return this.openEditorModal$();
     });
   }
 
@@ -107,7 +107,7 @@ export class PhotoEditorLauncherService {
         fileName: command.fileName ?? null,
       });
 
-      return this.openEditorModal$('profile-photos');
+      return this.openEditorModal$();
     });
   }
 
@@ -135,9 +135,7 @@ export class PhotoEditorLauncherService {
     );
   }
 
-  private openEditorModal$(
-    source: PhotoEditorSource
-  ): Observable<PhotoEditorProcessedResult | null> {
+  private openEditorModal$(): Observable<PhotoEditorProcessedResult | null> {
     return from(import(
       'src/app/photo-editor/photo-editor/photo-editor.component'
     )).pipe(
@@ -252,4 +250,5 @@ export class PhotoEditorLauncherService {
     error.name = 'MediaError';
     error.reason = reason;
     return error;
-  }}
+  }
+}
