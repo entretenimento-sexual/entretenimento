@@ -15,6 +15,7 @@ import {
   isCriticalMinorMediaSafetyReason,
   shouldPreserveMediaEvidence,
   type MediaReportSafetyReason,
+  type MinorMediaSafetyReason,
 } from './media-report-safety';
 import {
   queueModerationEvidencePreservation,
@@ -32,6 +33,7 @@ interface ReviewPhotoContentReportRequest {
   reportId?: string;
   decision?: PhotoContentReportDecision;
   resolution?: string | null;
+  safetyReason?: MinorMediaSafetyReason | null;
 }
 
 interface ModerationReportDocument {
@@ -94,6 +96,17 @@ function cleanDecision(value: unknown): PhotoContentReportDecision | null {
 
 function cleanResolution(value: unknown): string {
   return String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, 900);
+}
+
+function cleanMinorMediaSafetyReason(
+  value: unknown
+): MinorMediaSafetyReason | null {
+  const normalized = String(value ?? '').trim().toLowerCase();
+
+  return normalized === 'minor_exposure_safety' ||
+    normalized === 'minor_content_safety'
+    ? normalized
+    : null;
 }
 
 function cleanReason(value: unknown): MediaReportSafetyReason | null {
@@ -221,6 +234,9 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
     const reportId = cleanId(request.data?.reportId);
     const decision = cleanDecision(request.data?.decision);
     const resolution = cleanResolution(request.data?.resolution);
+    const reviewSafetyReason = cleanMinorMediaSafetyReason(
+      request.data?.safetyReason
+    );
 
     if (!reportId || !decision) {
       throw new HttpsError('invalid-argument', 'Decisão de denúncia inválida.');
@@ -230,6 +246,13 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
       throw new HttpsError(
         'invalid-argument',
         'Registre uma justificativa objetiva para a decisão.'
+      );
+    }
+
+    if (reviewSafetyReason && decision !== 'REMOVE') {
+      throw new HttpsError(
+        'invalid-argument',
+        'Classificação crítica de menor exige remoção do conteúdo.'
       );
     }
 
@@ -250,6 +273,7 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
         const photoId = cleanId(report.targetId);
         const status = String(report.status ?? '').trim().toLowerCase();
         const reason = cleanReason(report.reason);
+        const effectiveReason = reviewSafetyReason ?? reason;
         const isPreventiveReview =
           String(report.reason ?? '').trim().toLowerCase() ===
           'preventive_media_review';
@@ -437,7 +461,8 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
 
         const timestamp = FieldValue.serverTimestamp();
         const reportStatus = decision === 'KEEP' ? 'rejected' : 'resolved';
-        const evidenceRequired = !!reason && shouldPreserveMediaEvidence(reason);
+        const evidenceRequired =
+          !!effectiveReason && shouldPreserveMediaEvidence(effectiveReason);
         const evidencePreservationStatus = String(
           report.evidencePreservationStatus ??
           (evidenceRequired ? 'PENDING' : 'NOT_REQUIRED')
@@ -447,6 +472,12 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
           status: reportStatus,
           moderationAction: decision,
           resolution,
+          ...(reviewSafetyReason
+            ? {
+              reviewSafetyReason,
+              legalReviewStatus: 'PENDING_LEGAL_REVIEW',
+            }
+            : {}),
           reviewedBy: adminUid,
           reviewedAt: timestamp,
           updatedAt: timestamp,
@@ -460,6 +491,8 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
             previousStatus: status,
             nextStatus: reportStatus,
             reason: report.reason ?? null,
+            reviewSafetyReason,
+            effectiveSafetyReason: effectiveReason,
             targetType: 'photo',
             moderationAction: decision,
             resolution,
@@ -475,7 +508,7 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
           ownerUid,
           photoId,
           contentAvailableAtReview,
-          reason,
+          reason: effectiveReason,
           evidenceRequired,
           evidencePreservationStatus,
           publishedStoragePath:
