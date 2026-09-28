@@ -20,6 +20,9 @@ import {
   type CommunityPreviewCard,
 } from '../community/community-preview.model';
 import {
+  buildPromotionComplianceDeliveryEvidence,
+} from '../promotion-boost/promotion-boost-compliance-snapshot.policy';
+import {
   evaluateCommunityBoostCampaignAuthorityInTransaction,
   stopCommunityBoostForAuthorityLossInTransaction,
 } from './community-boost-authority.service';
@@ -71,6 +74,11 @@ interface RankedCampaignCandidate {
 
 function viewerHash(uid: string): string {
   return createHash('sha256').update(uid).digest('hex').slice(0, 40);
+}
+
+function complianceSnapshotId(raw: unknown): string | null {
+  const value = String(raw ?? '').trim().toLowerCase();
+  return /^[a-f0-9]{64}$/.test(value) ? value : null;
 }
 
 function buildFrequencyCapId(
@@ -264,6 +272,9 @@ async function claimPlacement(input: {
     .doc(input.campaign.advertiserUid);
   const metricsRef = campaignRef.collection('metrics_daily').doc(day);
   const billingLedgerRef = campaignRef.collection('billing_ledger').doc(day);
+  const activeSlotRef = db
+    .collection('community_boost_active_slots')
+    .doc(input.campaign.communityId);
 
   return db.runTransaction(async (transaction) => {
     const [
@@ -275,11 +286,40 @@ async function claimPlacement(input: {
       transaction.get(capRef),
       transaction.get(advertiserAccountRef),
     ]);
+    const rawCampaign = campaignSnapshot.exists
+      ? campaignSnapshot.data() ?? {}
+      : {};
     const campaign = campaignSnapshot.exists
-      ? normalizeCommunityBoostCampaign(campaignSnapshot.data())
+      ? normalizeCommunityBoostCampaign(rawCampaign)
       : null;
 
     if (!campaign) return null;
+
+    const complianceId = complianceSnapshotId(
+      rawCampaign['complianceSnapshotId']
+    );
+    if (!complianceId) {
+      transaction.update(campaignRef, {
+        status: 'canceled',
+        stoppedAt: input.now,
+        stoppedReason: 'compliance_snapshot_required',
+        updatedAt: input.now,
+      });
+      transaction.delete(activeSlotRef);
+      transaction.create(db.collection('community_boost_audit').doc(), {
+        action: 'community_boost_campaign_stopped',
+        campaignId: campaign.campaignId,
+        communityId: campaign.communityId,
+        advertiserUid: campaign.advertiserUid,
+        actorUid: 'system',
+        previousStatus: campaign.status,
+        nextStatus: 'canceled',
+        reason: 'compliance_snapshot_required',
+        ledgerOwnershipTransferred: false,
+        createdAt: input.now,
+      });
+      return null;
+    }
 
     const advertiserAccount = normalizeCommunityBoostAdvertiserAccount(
       advertiserAccountSnapshot.exists
@@ -368,10 +408,46 @@ async function claimPlacement(input: {
     );
     const completesCampaign =
       remainingAfterChargeMilliCents < chargeMilliCents;
+    const targetOwnerUid = campaign.communityOwnerUidSnapshot;
+    const hashedViewer = viewerHash(input.viewerUid);
+
+    if (!targetOwnerUid) {
+      return null;
+    }
+
+    const deliveryCompliance = buildPromotionComplianceDeliveryEvidence({
+      snapshotId: complianceId,
+      campaign: {
+        campaignId: campaign.campaignId,
+        targetType: 'community',
+        targetId: campaign.communityId,
+        targetOwnerUid,
+        advertiserUid: campaign.advertiserUid,
+        budgetCents: campaign.budgetCents,
+        dailyBudgetCents: campaign.dailyBudgetCents,
+        currency: campaign.currency,
+        billingBasis: campaign.billingBasis,
+        rateCpmCentsSnapshot: campaign.rateCpmCentsSnapshot,
+        billingConfigVersion: campaign.billingConfigVersion,
+        endsAt: campaign.endsAt,
+        frequencyCapPerViewerPerDay:
+          campaign.frequencyCapPerViewerPerDay,
+      },
+      placementId: placementRef.id,
+      deliveredAt: input.now,
+      viewerHash: hashedViewer,
+      frequencyCapDay: day,
+      frequencyCapDeliveredCount: deliveredToday + 1,
+      billedMilliCents: chargeMilliCents,
+    });
+
+    if (!deliveryCompliance) {
+      return null;
+    }
 
     transaction.set(capRef, {
       campaignId: campaign.campaignId,
-      viewerHash: viewerHash(input.viewerUid),
+      viewerHash: hashedViewer,
       day,
       deliveredCount: deliveredToday + 1,
       expiresAt: input.now + COMMUNITY_BOOST_FREQUENCY_CAP_TTL_MS,
@@ -394,6 +470,8 @@ async function claimPlacement(input: {
       clickRecordedAt: null,
       billedMilliCents: chargeMilliCents,
       billingReason: 'served_placement',
+      complianceSnapshotId: complianceId,
+      compliance: deliveryCompliance,
       createdAt: input.now,
       updatedAt: input.now,
     });
@@ -426,6 +504,9 @@ async function claimPlacement(input: {
       billingBasis: campaign.billingBasis,
       billingConfigVersion: campaign.billingConfigVersion,
       rateCpmCentsSnapshot: campaign.rateCpmCentsSnapshot,
+      complianceSnapshotId: complianceId,
+      compliancePolicyVersion: deliveryCompliance.policyVersion,
+      complianceRetentionReviewAt: deliveryCompliance.retainUntil,
       billablePlacements: FieldValue.increment(1),
       amountMilliCents: FieldValue.increment(chargeMilliCents),
       updatedAt: input.now,
@@ -450,6 +531,9 @@ async function claimPlacement(input: {
         rateCpmCentsSnapshot: campaign.rateCpmCentsSnapshot,
         amountMilliCents: chargeMilliCents,
         reason: 'served_placement',
+        complianceSnapshotId: complianceId,
+        compliance: deliveryCompliance,
+        complianceRetentionReviewAt: deliveryCompliance.retainUntil,
         createdAt: input.now,
       }
     );
