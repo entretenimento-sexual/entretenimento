@@ -71,7 +71,7 @@ export const queueHighRiskModerationLegalReview = onDocumentUpdated(
       .trim()
       .toUpperCase();
     const targetType = String(after.targetType ?? '').trim().toLowerCase();
-    const reason = cleanReason(after.reason);
+    const reason = cleanReason(after.reviewSafetyReason ?? after.reason);
 
     if (
       status !== 'resolved' ||
