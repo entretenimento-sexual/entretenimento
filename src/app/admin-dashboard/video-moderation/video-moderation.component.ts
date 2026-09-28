@@ -331,9 +331,8 @@ export class VideoModerationComponent {
         this.retry();
       },
       error: () => {
-        this.notification.showError(
-          'Não foi possível concluir a recuperação deste processamento.'
-        );
+        // A apresentação técnica é centralizada no MediaApplicationErrorService
+        // pelo serviço de recovery. Evita mensagem manual e toast duplicado.
       },
     });
   }
