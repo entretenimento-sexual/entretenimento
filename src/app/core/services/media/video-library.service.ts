@@ -435,11 +435,10 @@ export class VideoLibraryService {
     }
 
     this.accessWarningOwners.add(ownerUid);
-    this.globalErrorHandler.report(
-      new Error('Acesso temporário de vídeo indisponível.'),
+    this.globalErrorHandler.reportReason(
+      'media_access_temporarily_unavailable',
       {
         operation: 'videoLibrary.temporaryAccess',
-        reasonHint: 'media_access_temporarily_unavailable',
         metadata: {
           hasOwnerUid: !!ownerUid,
           unavailableCount,
@@ -454,8 +453,27 @@ export class VideoLibraryService {
     });
 
     this.globalErrorHandler.report(error, {
-      operation: 'watchOwnedVideoMetadata$',
-      fallbackMessage: 'Erro ao carregar vídeos.',
+      operation: 'watchOwnedVideoMetadata
+  }
+
+  private reportSilent(
+    error: unknown,
+    context: Record<string, unknown>
+  ): void {
+    this.globalErrorHandler.reportSilently(
+      error,
+      String(context['op'] ?? 'unknown'),
+      undefined,
+      {
+        scope: 'VideoLibraryService',
+        ...context,
+      },
+      'video_library_load_failed'
+    );
+  }
+}
+,
+      reasonHint: 'video_library_load_failed',
       metadata: {
         scope: 'VideoLibraryService',
         hasOwnerUid: !!ownerUid,
