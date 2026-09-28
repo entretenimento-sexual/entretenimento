@@ -188,13 +188,13 @@ describe('PublicVideoViewerComponent discovery context', () => {
     let ownerLink = fixture.nativeElement.querySelector(
       '.public-video-viewer__owner'
     ) as HTMLAnchorElement | null;
-    let metadata = fixture.nativeElement.querySelector(
-      '.public-video-viewer__metadata-stats'
+    let recommendationContext = fixture.nativeElement.querySelector(
+      '.public-video-viewer__owner-context'
     ) as HTMLElement | null;
 
     expect(ownerLink?.getAttribute('href')).toBe('/outro-perfil/friend-1');
     expect(ownerLink?.textContent).toContain('Perfil friend-1');
-    expect(metadata?.textContent).toContain('Da sua rede');
+    expect(recommendationContext?.textContent).toContain('Da sua rede');
 
     component.next();
     fixture.detectChanges();
@@ -202,12 +202,12 @@ describe('PublicVideoViewerComponent discovery context', () => {
     ownerLink = fixture.nativeElement.querySelector(
       '.public-video-viewer__owner'
     ) as HTMLAnchorElement | null;
-    metadata = fixture.nativeElement.querySelector(
-      '.public-video-viewer__metadata-stats'
+    recommendationContext = fixture.nativeElement.querySelector(
+      '.public-video-viewer__owner-context'
     ) as HTMLElement | null;
 
     expect(ownerLink?.getAttribute('href')).toBe('/outro-perfil/compatible-1');
     expect(ownerLink?.textContent).toContain('Perfil compatible-1');
-    expect(metadata?.textContent).toContain('Sugestão para você');
+    expect(recommendationContext?.textContent).toContain('Sugestão para você');
   });
 });
