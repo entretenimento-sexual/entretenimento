@@ -220,15 +220,13 @@ export class VideoEditorLauncherService {
     error: unknown,
     source: VideoEditorSource
   ): void {
-    this.mediaError.reportSilently(
-      error,
-      'launchVideoEditor',
-      'Falha no editor de vídeo.',
-      {
+    this.mediaError.report(error, {
+      operation: 'launchVideoEditor',
+      reasonHint: 'video_editor_open_failed',
+      metadata: {
         scope: 'VideoEditorLauncherService',
         source,
       },
-      'video_editor_open_failed'
-    );
+    });
   }
 }
