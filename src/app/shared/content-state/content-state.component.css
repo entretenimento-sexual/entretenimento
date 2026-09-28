@@ -239,11 +239,23 @@
     grid-column: 1 / -1;
     width: 100%;
   }
+
+  .content-state__viewer-skeleton {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  .content-state__viewer-media {
+    min-height: 52vh;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .content-state__skeleton-avatar,
-  .content-state__skeleton-copy span {
+  .content-state__skeleton-copy span,
+  .content-state__media-frame,
+  .content-state__viewer-media,
+  .content-state__viewer-copy span {
     animation: none;
   }
 }
