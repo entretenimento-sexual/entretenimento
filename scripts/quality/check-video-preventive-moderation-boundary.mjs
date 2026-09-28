@@ -7,7 +7,8 @@
 // - safetyScore permanece desconhecido até decisão explícita;
 // - publicação cria revisão preventiva de sistema e mantém o ativo retido;
 // - edição do proprietário não promove conteúdo pendente;
-// - exclusão do proprietário fica bloqueada durante a revisão;
+// - ativo PENDING_REVIEW já publicado fica bloqueado durante a revisão;
+// - upload ainda não publicado que falhou continua elegível à limpeza técnica;
 // - discovery público continua aceitando apenas APPROVED.
 // -----------------------------------------------------------------------------
 
@@ -108,11 +109,17 @@ for (const fragment of [
 const deletion = read(
   'functions/src/media/application/delete-profile-video.handler.ts'
 );
-requireIncludes(
-  deletion,
-  "moderationStatus === 'PENDING_REVIEW'",
-  'pending review asset must remain protected from owner deletion'
-);
+for (const fragment of [
+  "moderationStatus !== 'PENDING_REVIEW'",
+  "publication?.isPublished === true",
+  "evidenceRetention === 'PUBLISHED_ASSET_LOCKED'",
+]) {
+  requireIncludes(
+    deletion,
+    fragment,
+    'published pending review asset must remain protected while failed unpublished uploads stay cleanable'
+  );
+}
 
 const review = read(
   'functions/src/media/application/review-video-content-report.handler.ts'
@@ -136,5 +143,5 @@ requireIncludes(
 );
 
 console.log(
-  '[video-preventive-moderation] OK: videos remain quarantined until explicit moderation approval.'
+  '[video-preventive-moderation] OK: published videos remain quarantined until explicit moderation approval; failed unpublished uploads remain cleanable.'
 );
