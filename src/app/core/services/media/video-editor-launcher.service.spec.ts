@@ -208,6 +208,7 @@ describe('VideoEditorLauncherService', () => {
     const result: VideoEditorProcessedResult = launcher.complete('profile-videos');
     expect(result.file).toBe(file);
     expect(result.context).toBe('profile-video');
+    expect(session.peekDraft()).toBeNull();
   });
 
   it('cancela apenas a origem solicitada', () => {
