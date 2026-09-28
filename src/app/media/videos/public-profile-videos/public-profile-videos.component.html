@@ -36,50 +36,30 @@
 
     @switch (state.status) {
       @case ('loading') {
-        <div class="videos-skeleton" role="status" aria-live="polite">
-          <span class="visually-hidden">Carregando vídeos.</span>
-          @for (placeholder of [1, 2, 3, 4]; track placeholder) {
-            <article class="video-skeleton-card" aria-hidden="true">
-              <span class="video-skeleton-card__poster"></span>
-              <span class="video-skeleton-card__line"></span>
-              <span class="video-skeleton-card__line video-skeleton-card__line--short"></span>
-            </article>
-          }
-        </div>
+        <app-content-state
+          state="loading"
+          message="Carregando vídeos públicos."
+          skeletonVariant="media-grid"
+          [skeletonRows]="4"
+        />
       }
 
       @case ('error') {
-        <div class="state-card" role="alert">
-          <div class="state-card__icon" aria-hidden="true">
-            <i class="fas fa-triangle-exclamation"></i>
-          </div>
-
-          <div>
-            <h2>Não foi possível carregar os vídeos</h2>
-            <p>Tente novamente.</p>
-          </div>
-
-          <button
-            type="button"
-            class="app-action app-action--primary"
-            (click)="retry()"
-          >
-            Tentar novamente
-          </button>
-        </div>
+        <app-content-state
+          state="error"
+          title="Não foi possível carregar os vídeos"
+          message="Tente atualizar a galeria pública."
+          actionLabel="Tentar novamente"
+          (action)="retry()"
+        />
       }
 
       @case ('empty') {
-        <div class="state-card" role="status" aria-live="polite">
-          <div class="state-card__icon" aria-hidden="true">
-            <i class="fas fa-film"></i>
-          </div>
-
-          <div>
-            <h2>Nenhum vídeo disponível</h2>
-            <p>Este perfil ainda não publicou vídeos.</p>
-          </div>
-        </div>
+        <app-content-state
+          state="empty"
+          title="Nenhum vídeo público disponível"
+          message="Este perfil ainda não publicou vídeos aprovados para visitantes."
+        />
       }
 
       @case ('ready') {
