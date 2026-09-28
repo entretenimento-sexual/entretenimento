@@ -7,6 +7,9 @@ import {
   isCurrentPublicMediaAssetExposure,
   isCurrentPublicPhotoAssetExposure,
 } from './public-media-exposure.policy';
+import {
+  assertPublicMediaConsumptionAccessData,
+} from './public-media-consumption-access.policy';
 
 const NOW = 1_800_000_000_000;
 
@@ -130,6 +133,61 @@ describe('public media exposure matrix contract', () => {
         );
       }
     }
+  });
+
+  it('idade/reverificação inválida do viewer bloqueia consumo antes de qualquer superfície', () => {
+    const user = {
+      accountStatus: 'active',
+      suspended: false,
+      interactionBlocked: false,
+      acceptedTerms: {
+        accepted: true,
+        version: 'v3',
+        acknowledgedPrivacyNotice: true,
+      },
+      initialAdultConsentRequired: false,
+      adultConsent: { accepted: true, version: 'v1' },
+      ageReverification: { status: 'NONE' },
+    };
+
+    assert.throws(() =>
+      assertPublicMediaConsumptionAccessData(
+        user,
+        {
+          uid: 'viewer-1',
+          status: 'EXPIRED',
+          policyVersion: 1,
+          source: 'AGE_REVERIFICATION',
+          method: 'MANUAL_REVIEW',
+          verifiedAtMs: NOW - 60_000,
+          decidedAtMs: NOW - 60_000,
+          expiresAtMs: NOW - 1,
+          updatedAtMs: NOW - 1,
+        },
+        'viewer-1'
+      )
+    );
+
+    assert.throws(() =>
+      assertPublicMediaConsumptionAccessData(
+        {
+          ...user,
+          ageReverification: { status: 'REQUIRED' },
+        },
+        {
+          uid: 'viewer-1',
+          status: 'VERIFIED_ADULT',
+          policyVersion: 1,
+          source: 'AGE_REVERIFICATION',
+          method: 'MANUAL_REVIEW',
+          verifiedAtMs: NOW - 60_000,
+          decidedAtMs: NOW - 60_000,
+          expiresAtMs: NOW + 60_000,
+          updatedAtMs: NOW - 1,
+        },
+        'viewer-1'
+      )
+    );
   });
 
   it('idade expirada do proprietário derruba projeção, viewer e share', () => {
