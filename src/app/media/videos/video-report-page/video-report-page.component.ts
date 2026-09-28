@@ -76,12 +76,19 @@ export class VideoReportPageComponent {
     { value: 'spam', label: 'Spam ou golpe' },
     { value: 'harassment', label: 'Assédio ou ameaça' },
     { value: 'hate_or_abuse', label: 'Ódio ou abuso' },
-    { value: 'sexual_boundary', label: 'Limite sexual violado' },
+    {
+      value: 'non_consensual_sexual_content',
+      label: 'Conteúdo sexual sem consentimento ou com coerção',
+    },
     { value: 'illegal_content', label: 'Conteúdo ilegal' },
     { value: 'privacy', label: 'Violação de privacidade' },
     {
+      value: 'minor_exposure_safety',
+      label: 'Criança ou adolescente aparece no conteúdo',
+    },
+    {
       value: 'minor_content_safety',
-      label: 'Possível menor em conteúdo sexual ou íntimo',
+      label: 'Possível menor em conteúdo sexual, íntimo ou exploratório',
     },
     { value: 'other', label: 'Outro motivo' },
   ];
