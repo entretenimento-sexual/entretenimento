@@ -129,7 +129,9 @@ export class VideoEditorLauncherService {
 
   complete(source?: VideoEditorSource): VideoEditorProcessedResult {
     this.assertSourceOwnership(source);
-    return this.session.buildResult();
+    const result = this.session.buildResult();
+    this.session.clearDraft(source);
+    return result;
   }
 
   cancel(source?: VideoEditorSource): void {
