@@ -241,6 +241,19 @@ export class PublicVideoContinuationService {
     );
   }
 
+  private filterModeItems(
+    items: readonly IPublicVideoItem[],
+    excludedKeys: ReadonlySet<string>,
+    excludeOwnerUid: string
+  ): IPublicVideoItem[] {
+    return items.filter((item) => {
+      const key = this.videoKey(item);
+      return !!key &&
+        !excludedKeys.has(key) &&
+        (!excludeOwnerUid || item.ownerUid !== excludeOwnerUid);
+    });
+  }
+
   private loadFreshModePage$(
     mode: TPublicVideoRankingMode,
     excludedKeys: ReadonlySet<string>,
