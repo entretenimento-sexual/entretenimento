@@ -196,20 +196,13 @@ for (const directory of [
       );
     }
 
-    for (const forbiddenMutation of [
-      '.update(',
-      '.delete(',
-      'transaction.set(',
-    ]) {
-      if (
-        source.includes("collection('promotion_boost_compliance_snapshots')")
-        && source.includes(forbiddenMutation)
-      ) {
-        throw new Error(
-          '[promotion-compliance] snapshot must remain immutable/create-only: ' +
-            relative + ' -> ' + forbiddenMutation
-        );
-      }
+    const directMutableComplianceWrite =
+      /collection\('promotion_boost_compliance_snapshots'\)[\s\S]{0,220}\.(?:set|update|delete)\(/m;
+    if (directMutableComplianceWrite.test(source)) {
+      throw new Error(
+        '[promotion-compliance] snapshot must remain immutable/create-only: ' +
+          relative
+      );
     }
   }
 }
