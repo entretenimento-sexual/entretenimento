@@ -87,6 +87,11 @@ describe('get-public-media-discovery backend-time boundary', () => {
       'media-1',
       'public_profiles/owner-1/public_photos/media-1',
       media(),
+      {
+        isPublished: true,
+        visibility: 'PUBLIC',
+        moderationStatus: 'APPROVED',
+      },
       NOW,
       { ownerAllowed: true }
     );
@@ -100,6 +105,39 @@ describe('get-public-media-discovery backend-time boundary', () => {
     assert.equal(serialized['createdAt'], NOW - 20_000);
   });
 
+  it('não deixa projeção stale conceder distribuição sem publicação autoritativa', () => {
+    for (const publication of [
+      null,
+      {
+        isPublished: false,
+        visibility: 'PUBLIC',
+        moderationStatus: 'APPROVED',
+      },
+      {
+        isPublished: true,
+        visibility: 'FRIENDS',
+        moderationStatus: 'APPROVED',
+      },
+      {
+        isPublished: true,
+        visibility: 'PUBLIC',
+        moderationStatus: 'PENDING_REVIEW',
+      },
+    ]) {
+      assert.equal(
+        serializePublicMediaForDiscovery(
+          'media-stale',
+          'public_profiles/owner-1/public_photos/media-stale',
+          media(),
+          publication,
+          NOW,
+          { ownerAllowed: true }
+        ),
+        null
+      );
+    }
+  });
+
   it('não serializa mídia cuja elegibilidade etária venceu sem nova escrita', () => {
     const serialized = serializePublicMediaForDiscovery(
       'media-expired',
@@ -107,6 +145,11 @@ describe('get-public-media-discovery backend-time boundary', () => {
       media({
         ageEligibilityValidUntil: { toMillis: () => NOW - 1 },
       }),
+      {
+        isPublished: true,
+        visibility: 'PUBLIC',
+        moderationStatus: 'APPROVED',
+      },
       NOW,
       { ownerAllowed: true }
     );
@@ -120,6 +163,11 @@ describe('get-public-media-discovery backend-time boundary', () => {
         'media-blocked',
         'public_profiles/owner-1/public_photos/media-blocked',
         media(),
+        {
+          isPublished: true,
+          visibility: 'PUBLIC',
+          moderationStatus: 'APPROVED',
+        },
         NOW,
         { ownerAllowed: false }
       ),
@@ -135,6 +183,11 @@ describe('get-public-media-discovery backend-time boundary', () => {
         legacyPromotionFlag: true,
         legacyPromotionUntil: NOW + 60_000,
       }),
+      {
+        isPublished: true,
+        visibility: 'PUBLIC',
+        moderationStatus: 'APPROVED',
+      },
       NOW,
       { ownerAllowed: true }
     );
