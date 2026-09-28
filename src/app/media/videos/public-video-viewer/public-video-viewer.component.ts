@@ -1002,6 +1002,13 @@ export class PublicVideoViewerComponent {
     for (const item of removed) {
       this.publicVideoAccess.invalidatePublicVideoAccess(item);
       this.recordedViewKeys.delete(this.videoKey(item));
+
+      const refreshPrefix = `${item.ownerUid}:${item.id}:`;
+      for (const key of this.automaticRefreshKeys) {
+        if (key.startsWith(refreshPrefix)) {
+          this.automaticRefreshKeys.delete(key);
+        }
+      }
     }
   }
 
