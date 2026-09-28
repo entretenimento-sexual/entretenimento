@@ -2,15 +2,17 @@
 // -----------------------------------------------------------------------------
 // OFFICIAL MEDIA CONTEXT PROJECTION
 // -----------------------------------------------------------------------------
-// Materializa em mídia pública apenas um contexto derivado para UI.
+// Materializa em mídia pública somente uma projeção derivada para UI.
 //
-// Autoridades:
-// - users/{uid}.profileId: identidade pública canônica do perfil;
-// - profile_kyc_records/{uid}: identidade verificada vigente;
-// - community_official_associations/{profile:profileId}: associação oficial.
+// Autoridades reutilizadas:
+// - Profile: users + profile_kyc_records;
+// - Venue: official_space_creation_grants + venues;
+// - Organization: organizations + KYB + representation;
+// - Event: event_authority_records;
+// - vínculo oficial: community_official_associations.
 //
-// A projeção abaixo nunca concede autoridade, não é editável pelo proprietário,
-// não altera score/ranking e é totalmente independente de Promotion/Boost.
+// A projeção nunca concede autoridade, não é editável pelo proprietário, não
+// altera score/ranking e não participa de Promotion/Boost.
 // -----------------------------------------------------------------------------
 
 import { FieldPath } from 'firebase-admin/firestore';
@@ -20,94 +22,162 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { assertRecentAuthentication } from '../../account_lifecycle/_shared';
 import {
+  buildEventAuthorityRecordId,
+} from '../../authority/event-authority.policy';
+import {
   normalizeCanonicalAuthorityResourceId,
+  type CanonicalAuthorityTargetType,
 } from '../../authority/canonical-resource-authority.model';
 import {
   buildCommunityOfficialAssociationKey,
+  sanitizeCommunityOfficialAssociationPublicProjection,
 } from '../../community/community-official-association.model';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue } from '../../firebaseApp';
+import {
+  buildOrganizationRepresentationId,
+} from '../../organization/organization-representation.policy';
 import {
   REQUIRE_CALLABLE_APP_CHECK,
   assertCallableAppCheck,
 } from '../../shared/security/callable-app-check';
 import {
-  deriveOfficialMediaContext,
+  buildOfficialMediaContextProjection,
+  deriveOfficialMediaContextEntry,
   officialMediaContextMatches,
+  type OfficialMediaContextEntry,
   type OfficialMediaContextProjection,
 } from './official-media-context.policy';
 
 const MEDIA_BATCH_SIZE = 400;
 const BACKFILL_PAGE_SIZE = 50;
 const BACKFILL_STATE_PATH =
-  'media_projection_maintenance/official_media_context_backfill';
+  'media_projection_maintenance/official_media_context_backfill_v2';
 
-function normalizeProfileId(value: unknown): string | null {
+function safeId(value: unknown): string | null {
   return normalizeCanonicalAuthorityResourceId(value);
 }
 
-function profileIdFromAssociation(raw: unknown): string | null {
-  const source = (raw ?? {}) as Record<string, unknown>;
-  const target = (source['target'] ?? {}) as Record<string, unknown>;
-
-  if (target['type'] !== 'profile') return null;
-  return normalizeProfileId(target['id']);
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
 }
 
-async function resolveOwnerUidByProfileId(
-  profileId: string
-): Promise<string | null> {
-  const snapshot = await db
-    .collection('users')
-    .where('profileId', '==', profileId)
-    .limit(2)
-    .get();
+function holderUidFromAssociation(raw: unknown): string | null {
+  const source = asRecord(raw);
+  const authority = asRecord(source['authority']);
+  return safeId(authority['holderUid']);
+}
 
-  if (snapshot.size > 1) {
-    logger.error('official_media_profile_identity_duplicate', {
-      profileId,
-      matches: snapshot.size,
-    });
+function targetFromAssociation(raw: unknown): {
+  type: CanonicalAuthorityTargetType;
+  id: string;
+} | null {
+  return sanitizeCommunityOfficialAssociationPublicProjection(raw)?.target ?? null;
+}
+
+async function resolveAssociationEntry(
+  ownerUid: string,
+  rawAssociation: unknown
+): Promise<OfficialMediaContextEntry | null> {
+  const target = targetFromAssociation(rawAssociation);
+  if (!target || holderUidFromAssociation(rawAssociation) !== ownerUid) {
     return null;
   }
 
-  const ownerUid = snapshot.docs[0]?.id?.trim() ?? '';
-  return ownerUid || null;
+  if (target.type === 'profile') {
+    const [userSnapshot, kycSnapshot] = await Promise.all([
+      db.collection('users').doc(ownerUid).get(),
+      db.collection('profile_kyc_records').doc(ownerUid).get(),
+    ]);
+
+    return deriveOfficialMediaContextEntry({
+      ownerUid,
+      rawAssociation,
+      rawUser: userSnapshot.exists ? userSnapshot.data() : null,
+      rawProfileKyc: kycSnapshot.exists ? kycSnapshot.data() : null,
+    });
+  }
+
+  if (target.type === 'venue') {
+    const [venueSnapshot, grantSnapshot] = await Promise.all([
+      db.collection('venues').doc(target.id).get(),
+      db.collection('official_space_creation_grants').doc(ownerUid).get(),
+    ]);
+
+    return deriveOfficialMediaContextEntry({
+      ownerUid,
+      rawAssociation,
+      rawTarget: venueSnapshot.exists ? venueSnapshot.data() : null,
+      rawCommercialGrant: grantSnapshot.exists ? grantSnapshot.data() : null,
+    });
+  }
+
+  if (target.type === 'organization') {
+    const representationId = buildOrganizationRepresentationId(
+      target.id,
+      ownerUid
+    );
+    if (!representationId) return null;
+
+    const [organizationSnapshot, kybSnapshot, representationSnapshot] =
+      await Promise.all([
+        db.collection('organizations').doc(target.id).get(),
+        db.collection('organization_kyb_records').doc(target.id).get(),
+        db.collection('organization_representations').doc(representationId).get(),
+      ]);
+
+    return deriveOfficialMediaContextEntry({
+      ownerUid,
+      rawAssociation,
+      rawTarget: organizationSnapshot.exists
+        ? organizationSnapshot.data()
+        : null,
+      rawOrganizationKyb: kybSnapshot.exists ? kybSnapshot.data() : null,
+      rawOrganizationRepresentation: representationSnapshot.exists
+        ? representationSnapshot.data()
+        : null,
+    });
+  }
+
+  const authorityRecordId = buildEventAuthorityRecordId(target.id, ownerUid);
+  if (!authorityRecordId) return null;
+
+  const authoritySnapshot = await db
+    .collection('event_authority_records')
+    .doc(authorityRecordId)
+    .get();
+
+  return deriveOfficialMediaContextEntry({
+    ownerUid,
+    rawAssociation,
+    rawEventAuthority: authoritySnapshot.exists
+      ? authoritySnapshot.data()
+      : null,
+  });
 }
 
 async function resolveOfficialMediaContextForOwner(
   ownerUid: string
 ): Promise<OfficialMediaContextProjection | null> {
-  const [userSnapshot, kycSnapshot] = await Promise.all([
-    db.collection('users').doc(ownerUid).get(),
-    db.collection('profile_kyc_records').doc(ownerUid).get(),
-  ]);
+  const normalizedOwnerUid = safeId(ownerUid);
+  if (!normalizedOwnerUid) return null;
 
-  if (!userSnapshot.exists) return null;
-
-  const user = userSnapshot.data() ?? {};
-  const profileId = normalizeProfileId(user['profileId']);
-  if (!profileId) return null;
-
-  const associationKey = buildCommunityOfficialAssociationKey({
-    type: 'profile',
-    id: profileId,
-  });
-  if (!associationKey) return null;
-
-  const associationSnapshot = await db
+  const associationsSnapshot = await db
     .collection('community_official_associations')
-    .doc(associationKey)
+    .where('authority.holderUid', '==', normalizedOwnerUid)
     .get();
 
-  return deriveOfficialMediaContext({
-    ownerUid,
-    rawUser: user,
-    rawProfileKyc: kycSnapshot.exists ? kycSnapshot.data() : null,
-    rawAssociation: associationSnapshot.exists
-      ? associationSnapshot.data()
-      : null,
-  });
+  const entries = await Promise.all(
+    associationsSnapshot.docs
+      .filter((document) => document.data()?.['status'] === 'verified')
+      .map((document) =>
+        resolveAssociationEntry(normalizedOwnerUid, document.data() ?? {})
+      )
+  );
+
+  return buildOfficialMediaContextProjection(entries);
 }
 
 async function syncCollection(
@@ -134,7 +204,6 @@ async function syncCollection(
           document.ref,
           {
             officialMediaContext: expected ?? FieldValue.delete(),
-            // Migração: o campo antigo não pode coexistir como estado paralelo.
             officialPhoto: FieldValue.delete(),
           },
           { merge: true }
@@ -154,24 +223,28 @@ async function syncOwnerPublicMedia(
   ownerUid: string,
   expected?: OfficialMediaContextProjection | null
 ): Promise<void> {
+  const normalizedOwnerUid = safeId(ownerUid);
+  if (!normalizedOwnerUid) return;
+
   const resolved = expected === undefined
-    ? await resolveOfficialMediaContextForOwner(ownerUid)
+    ? await resolveOfficialMediaContextForOwner(normalizedOwnerUid)
     : expected;
 
   const [photos, videos] = await Promise.all([
     syncCollection(
-      `public_profiles/${ownerUid}/public_photos`,
+      `public_profiles/${normalizedOwnerUid}/public_photos`,
       resolved
     ),
     syncCollection(
-      `public_profiles/${ownerUid}/public_videos`,
+      `public_profiles/${normalizedOwnerUid}/public_videos`,
       resolved
     ),
   ]);
 
   logger.info('official_media_context_owner_synced', {
-    ownerUid,
+    ownerUid: normalizedOwnerUid,
     active: resolved !== null,
+    contextCount: resolved?.contexts.length ?? 0,
     photoScanned: photos.scanned,
     photoChanged: photos.changed,
     videoScanned: videos.scanned,
@@ -202,6 +275,28 @@ async function reconcileMediaDocument(
   );
 }
 
+async function syncOwnersForAssociationTarget(
+  type: CanonicalAuthorityTargetType,
+  targetId: string
+): Promise<void> {
+  const associationKey = buildCommunityOfficialAssociationKey({
+    type,
+    id: targetId,
+  });
+  if (!associationKey) return;
+
+  const snapshot = await db
+    .collection('community_official_associations')
+    .doc(associationKey)
+    .get();
+  if (!snapshot.exists) return;
+
+  const holderUid = holderUidFromAssociation(snapshot.data());
+  if (holderUid) {
+    await syncOwnerPublicMedia(holderUid);
+  }
+}
+
 export const syncOfficialMediaContextFromPhoto = onDocumentWritten(
   {
     document: 'public_profiles/{ownerUid}/public_photos/{photoId}',
@@ -210,8 +305,7 @@ export const syncOfficialMediaContextFromPhoto = onDocumentWritten(
   },
   async (event) => {
     if (!event.data?.after.exists) return;
-
-    const ownerUid = String(event.params.ownerUid ?? '').trim();
+    const ownerUid = safeId(event.params.ownerUid);
     if (!ownerUid) return;
 
     await reconcileMediaDocument(
@@ -230,8 +324,7 @@ export const syncOfficialMediaContextFromVideo = onDocumentWritten(
   },
   async (event) => {
     if (!event.data?.after.exists) return;
-
-    const ownerUid = String(event.params.ownerUid ?? '').trim();
+    const ownerUid = safeId(event.params.ownerUid);
     if (!ownerUid) return;
 
     await reconcileMediaDocument(
@@ -249,23 +342,18 @@ export const syncOfficialMediaContextFromAssociation = onDocumentWritten(
     retry: true,
   },
   async (event) => {
-    const before = event.data?.before.exists
-      ? event.data.before.data() ?? null
-      : null;
-    const after = event.data?.after.exists
-      ? event.data.after.data() ?? null
-      : null;
-
-    const profileIds = new Set(
+    const owners = new Set(
       [
-        profileIdFromAssociation(before),
-        profileIdFromAssociation(after),
+        holderUidFromAssociation(
+          event.data?.before.exists ? event.data.before.data() : null
+        ),
+        holderUidFromAssociation(
+          event.data?.after.exists ? event.data.after.data() : null
+        ),
       ].filter((value): value is string => !!value)
     );
 
-    for (const profileId of profileIds) {
-      const ownerUid = await resolveOwnerUidByProfileId(profileId);
-      if (!ownerUid) continue;
+    for (const ownerUid of owners) {
       await syncOwnerPublicMedia(ownerUid);
     }
   }
@@ -278,10 +366,8 @@ export const syncOfficialMediaContextFromProfileKyc = onDocumentWritten(
     retry: true,
   },
   async (event) => {
-    const ownerUid = String(event.params.ownerUid ?? '').trim();
-    if (!ownerUid) return;
-
-    await syncOwnerPublicMedia(ownerUid);
+    const ownerUid = safeId(event.params.ownerUid);
+    if (ownerUid) await syncOwnerPublicMedia(ownerUid);
   }
 );
 
@@ -292,23 +378,118 @@ export const syncOfficialMediaContextFromIdentity = onDocumentWritten(
     retry: true,
   },
   async (event) => {
-    const beforeProfileId = normalizeProfileId(
-      event.data?.before.exists
-        ? event.data.before.data()?.['profileId']
-        : null
+    const ownerUid = safeId(event.params.ownerUid);
+    if (ownerUid) await syncOwnerPublicMedia(ownerUid);
+  }
+);
+
+export const syncOfficialMediaContextFromCommercialAuthority =
+  onDocumentWritten(
+    {
+      document: 'official_space_creation_grants/{ownerUid}',
+      region: FUNCTIONS_REGION,
+      retry: true,
+    },
+    async (event) => {
+      const ownerUid = safeId(event.params.ownerUid);
+      if (ownerUid) await syncOwnerPublicMedia(ownerUid);
+    }
+  );
+
+export const syncOfficialMediaContextFromVenue = onDocumentWritten(
+  {
+    document: 'venues/{venueId}',
+    region: FUNCTIONS_REGION,
+    retry: true,
+  },
+  async (event) => {
+    const venueId = safeId(event.params.venueId);
+    if (venueId) await syncOwnersForAssociationTarget('venue', venueId);
+  }
+);
+
+export const syncOfficialMediaContextFromOrganization = onDocumentWritten(
+  {
+    document: 'organizations/{organizationId}',
+    region: FUNCTIONS_REGION,
+    retry: true,
+  },
+  async (event) => {
+    const organizationId = safeId(event.params.organizationId);
+    if (organizationId) {
+      await syncOwnersForAssociationTarget('organization', organizationId);
+    }
+  }
+);
+
+export const syncOfficialMediaContextFromOrganizationKyb = onDocumentWritten(
+  {
+    document: 'organization_kyb_records/{organizationId}',
+    region: FUNCTIONS_REGION,
+    retry: true,
+  },
+  async (event) => {
+    const organizationId = safeId(event.params.organizationId);
+    if (organizationId) {
+      await syncOwnersForAssociationTarget('organization', organizationId);
+    }
+  }
+);
+
+export const syncOfficialMediaContextFromOrganizationRepresentation =
+  onDocumentWritten(
+    {
+      document: 'organization_representations/{representationId}',
+      region: FUNCTIONS_REGION,
+      retry: true,
+    },
+    async (event) => {
+      const owners = new Set(
+        [
+          safeId(
+            event.data?.before.exists
+              ? event.data.before.data()?.['holderUid']
+              : null
+          ),
+          safeId(
+            event.data?.after.exists
+              ? event.data.after.data()?.['holderUid']
+              : null
+          ),
+        ].filter((value): value is string => !!value)
+      );
+
+      for (const ownerUid of owners) {
+        await syncOwnerPublicMedia(ownerUid);
+      }
+    }
+  );
+
+export const syncOfficialMediaContextFromEventAuthority = onDocumentWritten(
+  {
+    document: 'event_authority_records/{recordId}',
+    region: FUNCTIONS_REGION,
+    retry: true,
+  },
+  async (event) => {
+    const owners = new Set(
+      [
+        safeId(
+          event.data?.before.exists
+            ? event.data.before.data()?.['holderUid']
+            : null
+        ),
+        safeId(
+          event.data?.after.exists
+            ? event.data.after.data()?.['holderUid']
+            : null
+        ),
+      ].filter((value): value is string => !!value)
     );
-    const afterProfileId = normalizeProfileId(
-      event.data?.after.exists
-        ? event.data.after.data()?.['profileId']
-        : null
-    );
 
-    if (beforeProfileId === afterProfileId) return;
-
-    const ownerUid = String(event.params.ownerUid ?? '').trim();
-    if (!ownerUid) return;
-
-    await syncOwnerPublicMedia(ownerUid);
+    for (const ownerUid of owners) {
+      await syncOwnerPublicMedia(ownerUid);
+    }
   }
 );
 
@@ -320,6 +501,7 @@ export const backfillExistingOfficialMediaContexts = onCall(
   async (request): Promise<{
     completed: boolean;
     scanned: number;
+    officialAssociations: number;
     profileAssociations: number;
     synchronizedOwners: number;
   }> => {
@@ -356,6 +538,7 @@ export const backfillExistingOfficialMediaContexts = onCall(
       return {
         completed: true,
         scanned: 0,
+        officialAssociations: 0,
         profileAssociations: 0,
         synchronizedOwners: 0,
       };
@@ -376,20 +559,23 @@ export const backfillExistingOfficialMediaContexts = onCall(
     }
 
     const snapshot = await query.get();
+    const ownerUids = new Set<string>();
+    let officialAssociations = 0;
     let profileAssociations = 0;
-    let synchronizedOwners = 0;
 
     for (const document of snapshot.docs) {
-      const profileId = profileIdFromAssociation(document.data() ?? {});
-      if (!profileId) continue;
+      const rawAssociation = document.data() ?? {};
+      const target = targetFromAssociation(rawAssociation);
+      const ownerUid = holderUidFromAssociation(rawAssociation);
+      if (!target || !ownerUid) continue;
 
-      profileAssociations += 1;
+      officialAssociations += 1;
+      if (target.type === 'profile') profileAssociations += 1;
+      ownerUids.add(ownerUid);
+    }
 
-      const ownerUid = await resolveOwnerUidByProfileId(profileId);
-      if (!ownerUid) continue;
-
+    for (const ownerUid of ownerUids) {
       await syncOwnerPublicMedia(ownerUid);
-      synchronizedOwners += 1;
     }
 
     const lastDocument = snapshot.docs.at(-1);
@@ -402,8 +588,9 @@ export const backfillExistingOfficialMediaContexts = onCall(
           ? null
           : lastDocument?.id ?? cursorAssociationKey,
         scanned: snapshot.size,
+        officialAssociations,
         profileAssociations,
-        synchronizedOwners,
+        synchronizedOwners: ownerUids.size,
         updatedAt: Date.now(),
         updatedBy: adminUid,
         ...(completed ? { completedAt: Date.now() } : {}),
@@ -413,16 +600,18 @@ export const backfillExistingOfficialMediaContexts = onCall(
 
     logger.info('official_media_context_backfill_page_completed', {
       scanned: snapshot.size,
+      officialAssociations,
       profileAssociations,
-      synchronizedOwners,
+      synchronizedOwners: ownerUids.size,
       completed,
     });
 
     return {
       completed,
       scanned: snapshot.size,
+      officialAssociations,
       profileAssociations,
-      synchronizedOwners,
+      synchronizedOwners: ownerUids.size,
     };
   }
 );
