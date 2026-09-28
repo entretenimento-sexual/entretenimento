@@ -11,7 +11,6 @@ import {
   PROMOTION_BOOST_CAMPAIGN_MUTATION_RATE_LIMIT,
 } from './promotion-boost-abuse.policy';
 import {
-  normalizePromotionBoostAdvertiserAccount,
   normalizePromotionBoostBillingConfig,
   resolvePhotoPromotionAdvertiserAuthority,
   promotionBoostAdvertiserAccountRef,
