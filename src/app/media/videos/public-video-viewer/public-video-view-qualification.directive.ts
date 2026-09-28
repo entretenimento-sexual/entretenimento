@@ -9,6 +9,8 @@ import {
   inject,
 } from '@angular/core';
 
+import { take } from 'rxjs/operators';
+
 import { VideoViewTrackingService } from 'src/app/core/services/media/video-view-tracking.service';
 
 export const PUBLIC_VIDEO_VIEW_MIN_PLAYBACK_MS = 3_000;
@@ -263,6 +265,7 @@ export class PublicVideoViewQualificationDirective
     this.serverSessionPrepared = true;
     this.videoViewTracking
       .prepareVideoViewSession$(identity.ownerUid, identity.videoId)
+      .pipe(take(1))
       .subscribe();
   }
 
@@ -348,7 +351,7 @@ export class PublicVideoViewQualificationDirective
       identity.ownerUid,
       identity.videoId,
       progress
-    ).subscribe();
+    ).pipe(take(1)).subscribe();
   }
 
   private currentQualifiedProgress(): PublicVideoQualifiedViewDetail | null {
