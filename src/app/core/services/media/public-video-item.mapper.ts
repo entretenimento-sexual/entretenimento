@@ -7,6 +7,9 @@ import type {
   IPublicVideoScoreBreakdown,
   TPublicVideoPosterAccess,
 } from 'src/app/core/interfaces/media/i-public-video-item';
+import {
+  normalizeOfficialMediaContextProjection,
+} from './official-media-context.projection';
 
 interface PublicVideoMapperInput {
   readonly documentId: unknown;
@@ -317,6 +320,9 @@ export function mapPublicVideoProjection(
       engagementScore
     ),
     owner: normalizeOwnerSummary(data),
+    officialMediaContext: normalizeOfficialMediaContextProjection(
+      data['officialMediaContext']
+    ),
   };
 }
 
