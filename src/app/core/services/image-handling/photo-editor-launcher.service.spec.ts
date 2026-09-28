@@ -4,7 +4,7 @@ import { firstValueFrom, of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AuthSessionService } from '../autentication/auth/auth-session.service';
-import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from '../media/media-application-error.service';
 import { PhotoEditorLauncherService } from './photo-editor-launcher.service';
 import { PhotoEditorSessionService } from './photo-editor-session.service';
 
@@ -15,7 +15,7 @@ describe('PhotoEditorLauncherService', () => {
       setEditDraft: vi.fn(),
       clearDraft: vi.fn(),
     };
-    const globalErrorMock = { handleError: vi.fn() };
+    const mediaErrorMock = { report: vi.fn() };
     const modalMock = {
       open: vi.fn(() => ({
         result: Promise.resolve(resultPayload),
@@ -28,14 +28,14 @@ describe('PhotoEditorLauncherService', () => {
         { provide: NgbModal, useValue: modalMock },
         { provide: AuthSessionService, useValue: { uid$: of('u1') } },
         { provide: PhotoEditorSessionService, useValue: sessionMock },
-        { provide: GlobalErrorHandlerService, useValue: globalErrorMock },
+        { provide: MediaApplicationErrorService, useValue: mediaErrorMock },
       ],
     });
 
     return {
       service: TestBed.inject(PhotoEditorLauncherService),
       sessionMock,
-      globalErrorMock,
+      mediaErrorMock,
       modalMock,
     };
   }
@@ -43,7 +43,7 @@ describe('PhotoEditorLauncherService', () => {
   it('usa o editor canônico como processador e devolve File sem persistir mídia', async () => {
     const source = new File(['original'], 'camera.jpg', { type: 'image/jpeg' });
     const edited = new File(['editada'], 'camera-editada.jpg', { type: 'image/jpeg' });
-    const { service, sessionMock, globalErrorMock } = configure({
+    const { service, sessionMock, mediaErrorMock } = configure({
       reason: 'processSuccess',
       result: {
         kind: 'image',
@@ -80,7 +80,7 @@ describe('PhotoEditorLauncherService', () => {
       metadataStripped: true,
     }));
     expect(sessionMock.clearDraft).toHaveBeenCalled();
-    expect(globalErrorMock.handleError).not.toHaveBeenCalled();
+    expect(mediaErrorMock.report).not.toHaveBeenCalled();
   });
 
   it('edita foto armazenada sem entregar photoId ou storagePath ao editor', async () => {
@@ -116,5 +116,47 @@ describe('PhotoEditorLauncherService', () => {
     });
     expect(result?.file).toBe(edited);
     expect(sessionMock.setCreateDraft).not.toHaveBeenCalled();
+  });
+
+
+  it('reporta ownership inválido pela fronteira canônica de Media', async () => {
+    const { service, mediaErrorMock } = configure(null);
+
+    await expect(firstValueFrom(
+      service.editStoredPhoto$({
+        ownerUid: 'outro-usuario',
+        storedImageUrl: 'https://example.test/foto.webp',
+      })
+    )).rejects.toMatchObject({
+      name: 'MediaError',
+      reason: 'photo_editor_owner_mismatch',
+    });
+
+    expect(mediaErrorMock.report).toHaveBeenCalledTimes(1);
+    expect(mediaErrorMock.report).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reason: 'photo_editor_owner_mismatch',
+      }),
+      expect.objectContaining({
+        operation: 'photoEditor.launch',
+        reasonHint: 'photo_editor_failed',
+      })
+    );
+  });
+
+  it('reporta origem ausente pela fronteira canônica de Media', async () => {
+    const { service, mediaErrorMock } = configure(null);
+
+    await expect(firstValueFrom(
+      service.editStoredPhoto$({
+        ownerUid: 'u1',
+        storedImageUrl: '   ',
+      })
+    )).rejects.toMatchObject({
+      name: 'MediaError',
+      reason: 'photo_editor_source_unavailable',
+    });
+
+    expect(mediaErrorMock.report).toHaveBeenCalledTimes(1);
   });
 });
