@@ -13,6 +13,7 @@ import {
 import {
   normalizePromotionBoostAdvertiserAccount,
   normalizePromotionBoostBillingConfig,
+  resolvePhotoPromotionAdvertiserAuthority,
   promotionBoostAdvertiserAccountRef,
   promotionBoostBillingConfigRef,
 } from './promotion-boost-commercial-authority';
@@ -211,10 +212,12 @@ export const managePhotoPromotionCampaign = onCall<Request>(
         const billing = normalizePromotionBoostBillingConfig(
           billingSnapshot.exists ? billingSnapshot.data() : null
         );
-        const advertiser = normalizePromotionBoostAdvertiserAccount(
-          advertiserSnapshot.exists ? advertiserSnapshot.data() : null,
-          actor.uid
-        );
+        const advertiser = resolvePhotoPromotionAdvertiserAuthority({
+          advertiserUid: actor.uid,
+          targetOwnerUid: ownerUid,
+          rawAdvertiserAccount:
+            advertiserSnapshot.exists ? advertiserSnapshot.data() : null,
+        });
         if (!billing) {
           throw new HttpsError(
             'failed-precondition',
@@ -391,11 +394,17 @@ export const managePhotoPromotionCampaign = onCall<Request>(
           publicPhotoSnapshot.exists ? publicPhotoSnapshot.data() ?? {} : null,
           now
         );
-        if (!normalizePromotionBoostAdvertiserAccount(
-          advertiserSnapshot.exists ? advertiserSnapshot.data() : null,
-          campaign.advertiserUid
-        )) {
-          throw new HttpsError('failed-precondition', 'A conta anunciante não está mais elegível.');
+        if (!resolvePhotoPromotionAdvertiserAuthority({
+          advertiserUid: campaign.advertiserUid,
+          targetOwnerUid: campaign.targetOwnerUid,
+          rawAdvertiserAccount:
+            advertiserSnapshot.exists ? advertiserSnapshot.data() : null,
+        })) {
+          throw new HttpsError(
+            'failed-precondition',
+            'A autoridade da conta anunciante não está mais válida.',
+            { reason: 'promotion_boost_advertiser_target_authority_required' }
+          );
         }
       }
 
