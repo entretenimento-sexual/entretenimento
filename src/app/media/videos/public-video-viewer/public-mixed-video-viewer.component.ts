@@ -16,6 +16,8 @@ import type {
 } from 'src/app/core/interfaces/media/i-public-media-viewer-session';
 import { PublicVideoContinuationService } from 'src/app/core/services/media/public-video-continuation.service';
 import { PublicVideoShareActionsComponent } from '../public-video-share-actions/public-video-share-actions.component';
+import { PublicMediaBadgeComponent } from '../../shared/components/public-media-badge/public-media-badge.component';
+import { PublicMediaRecommendationBadgeComponent } from '../../shared/components/public-media-recommendation-badge/public-media-recommendation-badge.component';
 import {
   IPublicVideoViewerData,
   PublicVideoViewerComponent,
@@ -55,6 +57,8 @@ type MixedVideoViewerData = IPublicVideoViewerData & {
     PublicVideoPlaybackFeedbackDirective,
     PublicVideoViewQualificationDirective,
     PublicVideoShareActionsComponent,
+    PublicMediaBadgeComponent,
+    PublicMediaRecommendationBadgeComponent,
   ],
   templateUrl: './public-video-viewer.component.html',
   styleUrls: ['./public-video-viewer.component.css'],
