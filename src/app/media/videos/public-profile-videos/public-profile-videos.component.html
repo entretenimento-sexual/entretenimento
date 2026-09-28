@@ -85,7 +85,7 @@
       @case ('ready') {
         <div class="videos-grid" role="list" aria-label="Vídeos do perfil">
           @for (
-            item of state.items;
+            item of state.renderItems;
             track trackByVideoId($index, item);
             let index = $index
           ) {
@@ -94,10 +94,10 @@
                 type="button"
                 class="video-card__preview"
                 [appPublicVideoMetadataPreload]="item"
-                (click)="openVideo(index)"
+                (click)="openVideo(state.items.indexOf(item))"
                 [disabled]="viewerOpening()"
                 [attr.aria-busy]="isVideoOpening(item) ? 'true' : null"
-                [attr.aria-label]="getVideoAriaLabel(item, index, state.items.length)"
+                [attr.aria-label]="getVideoAriaLabel(item, state.items.indexOf(item), state.items.length)"
               >
                 @if (hasUsablePoster(item)) {
                   <img
@@ -183,6 +183,25 @@
             </article>
           }
         </div>
+
+        @if (state.hasEarlierRenderWindow || state.hasLaterRenderWindow) {
+          <div class="gallery-pagination" aria-label="Navegação pelos vídeos carregados">
+            <button
+              type="button"
+              class="app-action app-action--ghost"
+              (click)="showEarlierWindow()"
+              [disabled]="!state.hasEarlierRenderWindow">
+              Mostrar anteriores
+            </button>
+            <button
+              type="button"
+              class="app-action app-action--ghost"
+              (click)="showLaterWindow()"
+              [disabled]="!state.hasLaterRenderWindow">
+              Mostrar mais recentes
+            </button>
+          </div>
+        }
 
         @if (state.hasMore) {
           <div class="gallery-pagination">
