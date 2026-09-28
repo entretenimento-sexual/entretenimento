@@ -66,15 +66,21 @@ for (const fragment of [
   requireIncludes(discovery, fragment, 'discovery projection drift');
 }
 
-const officialPhoto = read(
-  'functions/src/media/application/sync-official-photo-projection.trigger.ts'
+const officialMediaContext = read(
+  'functions/src/media/application/sync-official-media-context.trigger.ts'
 );
 for (const fragment of [
   'community_official_associations',
-  'sanitizeCommunityOfficialAssociationPublicProjection',
-  'officialPhoto',
+  'profile_kyc_records',
+  'users',
+  'officialMediaContext',
+  'deriveOfficialMediaContext',
 ]) {
-  requireIncludes(officialPhoto, fragment, 'official projection drift');
+  requireIncludes(
+    officialMediaContext,
+    fragment,
+    'official media context projection drift'
+  );
 }
 
 const authorityResolver = read(
