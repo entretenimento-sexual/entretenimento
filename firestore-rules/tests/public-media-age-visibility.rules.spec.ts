@@ -151,6 +151,53 @@ async function seedPublicMedia(): Promise<void> {
   });
 }
 
+async function setActiveBlock(
+  blockerUid: string,
+  targetUid: string
+): Promise<void> {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await setDoc(
+      doc(context.firestore(), 'users', blockerUid, 'blocks', targetUid),
+      {
+        uid: targetUid,
+        isBlocked: true,
+        actorUid: blockerUid,
+        updatedAt: new Date(),
+      }
+    );
+  });
+}
+
+async function assertPublicSurfaceDeepLinksFail(): Promise<void> {
+  const db = viewerDb();
+
+  await assertFails(
+    getDoc(doc(db, 'public_profiles', OWNER_UID))
+  );
+  await assertFails(
+    getDoc(
+      doc(
+        db,
+        'public_profiles',
+        OWNER_UID,
+        'public_photos',
+        PHOTO_ID
+      )
+    )
+  );
+  await assertFails(
+    getDoc(
+      doc(
+        db,
+        'public_profiles',
+        OWNER_UID,
+        'public_videos',
+        VIDEO_ID
+      )
+    )
+  );
+}
+
 async function setOwnerCanonicalAgeExpiry(expiresAt: Date | null) {
   await testEnv.withSecurityRulesDisabled(async (context) => {
     await updateDoc(
@@ -273,6 +320,38 @@ describe('Firestore Rules / public media age visibility', () => {
         )
       )
     );
+  });
+
+  it('nega deep link de perfil, foto e vídeo quando o viewer bloqueia o proprietário', async () => {
+    const db = viewerDb();
+
+    await assertSucceeds(getDoc(doc(db, 'public_profiles', OWNER_UID)));
+    await assertSucceeds(
+      getDoc(doc(db, 'public_profiles', OWNER_UID, 'public_photos', PHOTO_ID))
+    );
+    await assertSucceeds(
+      getDoc(doc(db, 'public_profiles', OWNER_UID, 'public_videos', VIDEO_ID))
+    );
+
+    await setActiveBlock(VIEWER_UID, OWNER_UID);
+
+    await assertPublicSurfaceDeepLinksFail();
+  });
+
+  it('nega deep link de perfil, foto e vídeo quando o proprietário bloqueia o viewer', async () => {
+    const db = viewerDb();
+
+    await assertSucceeds(getDoc(doc(db, 'public_profiles', OWNER_UID)));
+    await assertSucceeds(
+      getDoc(doc(db, 'public_profiles', OWNER_UID, 'public_photos', PHOTO_ID))
+    );
+    await assertSucceeds(
+      getDoc(doc(db, 'public_profiles', OWNER_UID, 'public_videos', VIDEO_ID))
+    );
+
+    await setActiveBlock(OWNER_UID, VIEWER_UID);
+
+    await assertPublicSurfaceDeepLinksFail();
   });
 
   it('permite deep link público e bloqueia quando o vídeo deixa de ser público', async () => {
