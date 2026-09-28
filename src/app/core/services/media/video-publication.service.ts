@@ -412,11 +412,12 @@ export class VideoPublicationService {
     this.errorHandler.reportSilently(
       error,
       String(context['op'] ?? 'videoPublication'),
-      'Erro no fluxo de publicação do vídeo.',
+      undefined,
       {
         scope: 'VideoPublicationService',
         ...context,
-      }
+      },
+      'media_publication_failed'
     );
   }
 
