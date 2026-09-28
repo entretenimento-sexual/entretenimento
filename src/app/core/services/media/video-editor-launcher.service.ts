@@ -43,6 +43,10 @@ export class VideoEditorLauncherService {
   readonly state$ = this.session.state$;
   readonly posterBlob$ = this.session.posterBlob$;
 
+  get lastTeardownReason() {
+    return this.session.lastTeardownReason;
+  }
+
   constructor() {
     this.authSession.uid$.pipe(
       distinctUntilChanged(),
