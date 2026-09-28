@@ -410,6 +410,37 @@
               </section>
             }
 
+            @if (report.targetType === 'photo' || report.targetType === 'video') {
+              <section
+                class="report-card__decision"
+                aria-label="Classificação de proteção de menores"
+              >
+                <mat-form-field appearance="outline">
+                  <mat-label>Proteção de menores (opcional)</mat-label>
+                  <mat-select
+                    [ngModel]="mediaSafetyReasonDraft(report)"
+                    (ngModelChange)="setMediaSafetyReasonDraft(report, $event)"
+                    [disabled]="isBusy(report) || report.status === 'resolved' || report.status === 'rejected'"
+                    aria-label="Classificação crítica de proteção de menores"
+                  >
+                    <mat-option [value]="null">
+                      Sem classificação crítica adicional
+                    </mat-option>
+                    <mat-option value="minor_exposure_safety">
+                      Criança ou adolescente exposto na mídia
+                    </mat-option>
+                    <mat-option value="minor_content_safety">
+                      Possível conteúdo sexual ou íntimo envolvendo menor
+                    </mat-option>
+                  </mat-select>
+                  <mat-hint>
+                    Use ao remover uma foto ou vídeo quando houver indício de menor.
+                    A classificação aciona preservação e revisão crítica.
+                  </mat-hint>
+                </mat-form-field>
+              </section>
+            }
+
             <section class="report-card__decision" aria-label="Nota da moderação">
               <mat-form-field appearance="outline">
                 <mat-label>Nota da moderação</mat-label>
