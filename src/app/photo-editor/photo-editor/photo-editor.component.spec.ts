@@ -100,6 +100,22 @@ describe('PhotoEditorComponent', () => {
     await expect(firstValueFrom(component.isLoading$)).resolves.toBe(true);
   });
 
+  it('rejeita imagem acima do orçamento interativo de pixels', () => {
+    expect(() =>
+      (component as any).assertInteractivePixelBudget({
+        naturalWidth: 5000,
+        naturalHeight: 4000,
+      })
+    ).toThrow('limite de pixels seguro');
+
+    expect(() =>
+      (component as any).assertInteractivePixelBudget({
+        naturalWidth: 4000,
+        naturalHeight: 4000,
+      })
+    ).not.toThrow();
+  });
+
   it('deve iniciar com o estado nativo padrão do editor', () => {
     expect(component.rotation).toBe(0);
     expect(component.zoom).toBe(1);
