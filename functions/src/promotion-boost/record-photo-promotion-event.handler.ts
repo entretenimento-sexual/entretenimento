@@ -62,23 +62,28 @@ export const recordPhotoPromotionEvent = onCall<Request>(
         message: 'Muitos eventos patrocinados foram recebidos em pouco tempo.',
       });
     } catch (error) {
-      const fraudNow = Date.now();
-      const day = resolvePromotionBoostDay(fraudNow);
-      await Promise.allSettled([
-        recordPromotionBoostFraudSignal({
-          viewerUid: uid,
-          campaignId: null,
-          placementId,
-          reason: 'event_velocity_exceeded',
-          now: fraudNow,
-        }),
-        incrementPromotionBoostFraudCounter({
-          viewerUid: uid,
-          day,
-          reason: 'event_velocity_exceeded',
-          now: fraudNow,
-        }),
-      ]);
+      if (
+        error instanceof HttpsError
+        && error.code === 'resource-exhausted'
+      ) {
+        const fraudNow = Date.now();
+        const day = resolvePromotionBoostDay(fraudNow);
+        await Promise.allSettled([
+          recordPromotionBoostFraudSignal({
+            viewerUid: uid,
+            campaignId: null,
+            placementId,
+            reason: 'event_velocity_exceeded',
+            now: fraudNow,
+          }),
+          incrementPromotionBoostFraudCounter({
+            viewerUid: uid,
+            day,
+            reason: 'event_velocity_exceeded',
+            now: fraudNow,
+          }),
+        ]);
+      }
       throw error;
     }
 
