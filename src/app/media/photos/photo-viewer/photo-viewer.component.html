@@ -44,7 +44,7 @@
           <span class="viewer-owner-title">
             <strong>{{ photo.ownerNickname || 'Perfil' }}</strong>
 
-            @if (photo.officialMediaContext?.association?.verified) {
+            @if ((photo.officialMediaContext?.contexts?.length ?? 0) > 0) {
               <span
                 class="viewer-official-badge"
                 aria-label="Perfil oficial verificado"
