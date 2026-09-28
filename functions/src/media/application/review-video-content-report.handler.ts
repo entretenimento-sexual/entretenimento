@@ -7,6 +7,9 @@ import {
   safeRecordModerationReviewSignal,
 } from '../../moderation/moderation-automation.service';
 import {
+  safeRecordModerationReporterOutcome,
+} from '../../moderation/moderation-reporter-abuse.service';
+import {
   safeNotifyModerationReportReviewed,
 } from '../../moderation/moderation-safety-notification.service';
 import { deleteProfileVideoResources } from './delete-profile-video.handler';
@@ -103,6 +106,7 @@ interface VideoRatingDocument {
 }
 
 interface TransactionResult {
+  reporterUid: string;
   ownerUid: string;
   targetAuthorUid: string;
   videoId: string;
@@ -571,6 +575,7 @@ export const reviewVideoContentReport = onCall<
         });
 
         return {
+          reporterUid: cleanId(report.reporterUid),
           ownerUid,
           targetAuthorUid,
           videoId,
@@ -592,6 +597,14 @@ export const reviewVideoContentReport = onCall<
       critical: !!result.reason && isCriticalMinorMediaSafetyReason(result.reason),
       confirmed: decision === 'REMOVE',
     });
+
+    if (result.reporterUid) {
+      await safeRecordModerationReporterOutcome({
+        reporterUid: result.reporterUid,
+        reportId,
+        confirmed: decision === 'REMOVE',
+      });
+    }
 
     await safeNotifyModerationReportReviewed(reportId);
 
