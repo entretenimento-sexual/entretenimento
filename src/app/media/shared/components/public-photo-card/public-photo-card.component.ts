@@ -12,6 +12,7 @@ import { RouterModule } from '@angular/router';
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import { PublicMediaEngagementActionsComponent } from '../public-media-engagement-actions/public-media-engagement-actions.component';
+import { PublicMediaBadgeComponent } from '../public-media-badge/public-media-badge.component';
 
 export type TPublicPhotoCardVariant =
   | 'profile'
@@ -28,6 +29,7 @@ export type TPublicPhotoCardVariant =
     RouterModule,
     ImageFallbackDirective,
     PublicMediaEngagementActionsComponent,
+    PublicMediaBadgeComponent,
   ],
   templateUrl: './public-photo-card.component.html',
   styleUrls: [
