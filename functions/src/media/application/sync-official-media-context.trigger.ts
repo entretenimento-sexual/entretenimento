@@ -504,6 +504,7 @@ export const backfillExistingOfficialMediaContexts = onCall(
     scanned: number;
     officialAssociations: number;
     profileAssociations: number;
+    targetCounts: Readonly<Record<CanonicalAuthorityTargetType, number>>;
     synchronizedOwners: number;
   }> => {
     assertCallableAppCheck(request.app);
@@ -541,6 +542,12 @@ export const backfillExistingOfficialMediaContexts = onCall(
         scanned: 0,
         officialAssociations: 0,
         profileAssociations: 0,
+        targetCounts: {
+          profile: 0,
+          organization: 0,
+          venue: 0,
+          event: 0,
+        },
         synchronizedOwners: 0,
       };
     }
@@ -562,7 +569,12 @@ export const backfillExistingOfficialMediaContexts = onCall(
     const snapshot = await query.get();
     const ownerUids = new Set<string>();
     let officialAssociations = 0;
-    let profileAssociations = 0;
+    const targetCounts: Record<CanonicalAuthorityTargetType, number> = {
+      profile: 0,
+      organization: 0,
+      venue: 0,
+      event: 0,
+    };
 
     for (const document of snapshot.docs) {
       const rawAssociation = document.data() ?? {};
@@ -571,7 +583,7 @@ export const backfillExistingOfficialMediaContexts = onCall(
       if (!target || !ownerUid) continue;
 
       officialAssociations += 1;
-      if (target.type === 'profile') profileAssociations += 1;
+      targetCounts[target.type] += 1;
       ownerUids.add(ownerUid);
     }
 
@@ -590,7 +602,8 @@ export const backfillExistingOfficialMediaContexts = onCall(
           : lastDocument?.id ?? cursorAssociationKey,
         scanned: snapshot.size,
         officialAssociations,
-        profileAssociations,
+        profileAssociations: targetCounts.profile,
+        targetCounts,
         synchronizedOwners: ownerUids.size,
         updatedAt: Date.now(),
         updatedBy: adminUid,
@@ -602,7 +615,8 @@ export const backfillExistingOfficialMediaContexts = onCall(
     logger.info('official_media_context_backfill_page_completed', {
       scanned: snapshot.size,
       officialAssociations,
-      profileAssociations,
+      profileAssociations: targetCounts.profile,
+      targetCounts,
       synchronizedOwners: ownerUids.size,
       completed,
     });
@@ -611,7 +625,8 @@ export const backfillExistingOfficialMediaContexts = onCall(
       completed,
       scanned: snapshot.size,
       officialAssociations,
-      profileAssociations,
+      profileAssociations: targetCounts.profile,
+      targetCounts,
       synchronizedOwners: ownerUids.size,
     };
   }
