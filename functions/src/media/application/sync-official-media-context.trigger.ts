@@ -292,15 +292,15 @@ export const syncOfficialMediaContextFromIdentity = onDocumentWritten(
     retry: true,
   },
   async (event) => {
-    if (!event.data?.after.exists) return;
-
     const beforeProfileId = normalizeProfileId(
-      event.data.before.exists
+      event.data?.before.exists
         ? event.data.before.data()?.['profileId']
         : null
     );
     const afterProfileId = normalizeProfileId(
-      event.data.after.data()?.['profileId']
+      event.data?.after.exists
+        ? event.data.after.data()?.['profileId']
+        : null
     );
 
     if (beforeProfileId === afterProfileId) return;
