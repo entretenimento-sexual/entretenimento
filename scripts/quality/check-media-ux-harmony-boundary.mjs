@@ -1,0 +1,206 @@
+// scripts/quality/check-media-ux-harmony-boundary.mjs
+// -----------------------------------------------------------------------------
+// MEDIA UX HARMONY BOUNDARY
+// -----------------------------------------------------------------------------
+// Mantém Foto e Vídeo alinhados em apresentação sem fundir seus runtimes:
+// - badges canônicos;
+// - contexto de recomendação canônico;
+// - estados/skeletons compartilhados;
+// - shell/tokens comuns de viewer;
+// - editor de Fotos local/Canvas, extensível por registry e sem SaaS pago.
+// -----------------------------------------------------------------------------
+
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const root = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..'
+);
+
+function read(relativePath) {
+  return fs.readFileSync(path.join(root, relativePath), 'utf8');
+}
+
+function requireIncludes(source, fragment, label) {
+  if (!source.includes(fragment)) {
+    throw new Error('[media-ux-harmony] ' + label + ': ' + fragment);
+  }
+}
+
+function forbidIncludes(source, fragment, label) {
+  if (source.includes(fragment)) {
+    throw new Error('[media-ux-harmony] ' + label + ': ' + fragment);
+  }
+}
+
+const presentation = read(
+  'src/app/media/shared/presentation/public-media-presentation.policy.ts'
+);
+
+for (const fragment of [
+  "'Do perfil'",
+  "'Da sua rede'",
+  "'Sugestão para você'",
+  "'Recente'",
+  "'Em alta'",
+  "'Patrocinado'",
+  "'Descoberta'",
+  "source === 'sponsored' || source === 'boosted'",
+]) {
+  requireIncludes(
+    presentation,
+    fragment,
+    'recommendation context drift'
+  );
+}
+
+const badge = read(
+  'src/app/media/shared/components/public-media-badge/public-media-badge.component.ts'
+);
+for (const fragment of [
+  "'official'",
+  "'sponsored'",
+  "'cover'",
+  "'context'",
+]) {
+  requireIncludes(badge, fragment, 'shared badge contract drift');
+}
+
+for (const relativePath of [
+  'src/app/media/shared/components/public-photo-card/public-photo-card.component.ts',
+  'src/app/media/shared/components/public-video-card/public-video-card.component.ts',
+  'src/app/media/photos/photo-viewer/photo-viewer.component.ts',
+  'src/app/media/videos/public-video-viewer/public-video-viewer.component.ts',
+]) {
+  requireIncludes(
+    read(relativePath),
+    'PublicMediaBadgeComponent',
+    relativePath + ' must use shared badges'
+  );
+}
+
+for (const relativePath of [
+  'src/app/media/photos/photo-viewer/photo-viewer.component.ts',
+  'src/app/media/videos/public-video-viewer/public-video-viewer.component.ts',
+]) {
+  requireIncludes(
+    read(relativePath),
+    'PublicMediaRecommendationBadgeComponent',
+    relativePath + ' must use shared recommendation context'
+  );
+}
+
+for (const relativePath of [
+  'src/app/media/photos/photo-viewer/photo-viewer.component.html',
+  'src/app/media/videos/public-video-viewer/public-video-viewer.component.html',
+]) {
+  const source = read(relativePath);
+  requireIncludes(
+    source,
+    'app-public-media-viewer',
+    relativePath + ' must consume shared viewer shell tokens'
+  );
+  requireIncludes(
+    source,
+    'app-public-media-recommendation-badge',
+    relativePath + ' recommendation badge missing'
+  );
+}
+
+const contentState = read('src/app/shared/content-state/content-state.component.ts');
+for (const fragment of [
+  "'media-grid'",
+  "'viewer'",
+  'skeletonVariant',
+]) {
+  requireIncludes(contentState, fragment, 'content state skeleton contract drift');
+}
+
+for (const relativePath of [
+  'src/app/media/photos/public-profile-photos/public-profile-photos.component.html',
+  'src/app/media/videos/public-profile-videos/public-profile-videos.component.html',
+  'src/app/media/photos/latest-public-photos/latest-public-photos.component.html',
+  'src/app/media/photos/top-public-photos/top-public-photos.component.html',
+]) {
+  const source = read(relativePath);
+  requireIncludes(
+    source,
+    'app-content-state',
+    relativePath + ' must use shared content state'
+  );
+  requireIncludes(
+    source,
+    'skeletonVariant="media-grid"',
+    relativePath + ' must use media-grid skeleton'
+  );
+}
+
+const viewerTokens = read(
+  'src/app/media/shared/styles/public-media-viewer.tokens.css'
+);
+for (const fragment of [
+  '--public-media-viewer-bg',
+  '--public-media-viewer-control-bg',
+  '--public-media-viewer-control-border',
+  '--public-media-viewer-focus',
+]) {
+  requireIncludes(viewerTokens, fragment, 'viewer token drift');
+}
+
+const toolRegistry = read(
+  'src/app/photo-editor/photo-editor/photo-editor-local-tool.registry.ts'
+);
+for (const fragment of [
+  'PHOTO_EDITOR_LOCAL_TOOL_REGISTRY',
+  "execution: 'local-canvas'",
+  'requiresNetwork: false',
+  'requiresPaidService: false',
+]) {
+  requireIncludes(toolRegistry, fragment, 'photo editor local registry drift');
+}
+
+const photoEditor = read(
+  'src/app/photo-editor/photo-editor/photo-editor.component.ts'
+);
+requireIncludes(
+  photoEditor,
+  'PHOTO_EDITOR_LOCAL_TOOL_REGISTRY',
+  'photo editor must consume local tool registry'
+);
+requireIncludes(
+  photoEditor,
+  "editor: 'native-canvas'",
+  'photo editor must remain native Canvas'
+);
+
+const photoEditorRuntime = [
+  'src/app/photo-editor/photo-editor/photo-editor.component.ts',
+  'src/app/photo-editor/photo-editor/photo-editor-overlay.model.ts',
+  'src/app/photo-editor/photo-editor/photo-editor-local-tool.registry.ts',
+].map(read).join('\n');
+
+for (const forbidden of [
+  'HttpClient',
+  'httpsCallable',
+  'XMLHttpRequest',
+  'cloudinary',
+  'imgix',
+  'photopea',
+  'remove.bg',
+  'replicate.com',
+  'adobe.com',
+  'canva.com',
+]) {
+  forbidIncludes(
+    photoEditorRuntime.toLowerCase(),
+    forbidden.toLowerCase(),
+    'photo editor must not depend on remote/paid editing service'
+  );
+}
+
+console.log(
+  '[media-ux-harmony] OK: Foto/Vídeo share badges, recommendation context, states, skeletons and viewer tokens; Photo Editor remains local Canvas and registry-extensible.'
+);
