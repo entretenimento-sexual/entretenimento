@@ -35,6 +35,9 @@ import {
 } from 'src/app/core/interfaces/media/i-public-video-item';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CacheService } from 'src/app/core/services/general/cache/cache.service';
+import {
+  normalizeOfficialMediaContextProjection,
+} from './official-media-context.projection';
 import { PublicPhotoAccessService } from './public-photo-access.service';
 import { PublicVideoAccessService } from './public-video-access.service';
 import { mapPublicVideoProjection } from './public-video-item.mapper';
@@ -218,6 +221,17 @@ export class PublicMediaSnapshotService {
       const sanitized = this.stripEphemeralAccess(
         item as Record<string, unknown>
       );
+      const officialMediaContext =
+        normalizeOfficialMediaContextProjection(
+          sanitized['officialMediaContext']
+        );
+
+      if (officialMediaContext) {
+        sanitized['officialMediaContext'] = officialMediaContext;
+      } else {
+        delete sanitized['officialMediaContext'];
+      }
+      delete sanitized['officialPhoto'];
       const id = String(sanitized['id'] ?? '').trim();
       const ownerUid = String(sanitized['ownerUid'] ?? '').trim();
 
