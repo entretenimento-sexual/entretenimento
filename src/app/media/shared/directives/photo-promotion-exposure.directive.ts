@@ -7,6 +7,8 @@ import {
   inject,
 } from '@angular/core';
 
+import { take } from 'rxjs/operators';
+
 import { PhotoPromotionPlacementService } from 'src/app/core/services/media/photo-promotion-placement.service';
 
 @Directive({
@@ -68,6 +70,7 @@ export class PhotoPromotionExposureDirective
           this.appPhotoPromotionExposure,
           'qualified_exposure'
         )
+        .pipe(take(1))
         .subscribe();
     }, 1_000);
   }
