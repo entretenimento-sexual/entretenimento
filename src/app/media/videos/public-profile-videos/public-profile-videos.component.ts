@@ -53,6 +53,10 @@ import { PublicVideoMetadataPreloadDirective } from '../public-video-metadata-pr
 interface PublicProfileVideosState {
   status: 'loading' | 'ready' | 'empty' | 'error';
   items: IPublicVideoItem[];
+  renderItems: IPublicVideoItem[];
+  renderStart: number;
+  hasEarlierRenderWindow: boolean;
+  hasLaterRenderWindow: boolean;
   hasMore: boolean;
   loadingMore: boolean;
 }
@@ -62,6 +66,8 @@ interface ViewerUserLike {
 }
 
 const PUBLIC_VIDEO_GALLERY_PAGE_SIZE = 12;
+const PUBLIC_VIDEO_RENDER_WINDOW_MAX_ITEMS = 36;
+const PUBLIC_VIDEO_RENDER_WINDOW_STEP = 12;
 
 @Component({
   selector: 'app-public-profile-videos',
@@ -93,6 +99,7 @@ export class PublicProfileVideosComponent implements OnInit {
     readonly (readonly IPublicVideoItem[])[]
   >([]);
   private readonly galleryLoadingMoreSubject = new BehaviorSubject<boolean>(false);
+  private readonly galleryRenderStartSubject = new BehaviorSubject<number>(0);
   private readonly autoOpenedVideoKeys = new Set<string>();
   private galleryOwnerUid = '';
   private galleryCursor: IPublicProfileVideoCursor | null = null;
@@ -177,15 +184,17 @@ export class PublicProfileVideosComponent implements OnInit {
           return combineLatest([
             this.galleryPagesSubject,
             this.galleryLoadingMoreSubject,
+            this.galleryRenderStartSubject,
           ]).pipe(
-            map(([pages, loadingMore]) => {
+            map(([pages, loadingMore, requestedRenderStart]) => {
               const items = this.mergeGalleryPages(pages);
 
               return this.buildState(
                 items.length > 0 ? 'ready' : 'empty',
                 items,
                 this.galleryHasMore,
-                loadingMore
+                loadingMore,
+                requestedRenderStart
               );
             })
           );
@@ -245,10 +254,15 @@ export class PublicProfileVideosComponent implements OnInit {
 
         this.galleryCursor = page.nextCursor;
         this.galleryHasMore = page.hasMore;
-        this.galleryPagesSubject.next([
+        const nextPages = [
           ...this.galleryPagesSubject.value,
           page.items,
-        ]);
+        ];
+        this.galleryPagesSubject.next(nextPages);
+        const totalItems = this.mergeGalleryPages(nextPages).length;
+        this.galleryRenderStartSubject.next(
+          Math.max(0, totalItems - PUBLIC_VIDEO_RENDER_WINDOW_MAX_ITEMS)
+        );
       }),
       catchError((error: unknown) => {
         if (
@@ -531,6 +545,7 @@ export class PublicProfileVideosComponent implements OnInit {
     this.galleryHasMore = false;
     this.galleryPagesSubject.next([]);
     this.galleryLoadingMoreSubject.next(false);
+    this.galleryRenderStartSubject.next(0);
   }
 
   private mergeGalleryPages(
@@ -557,13 +572,61 @@ export class PublicProfileVideosComponent implements OnInit {
     return ownerUid && videoId ? `${ownerUid}:${videoId}` : '';
   }
 
+  showEarlierWindow(): void {
+    this.galleryRenderStartSubject.next(
+      Math.max(
+        0,
+        this.galleryRenderStartSubject.value - PUBLIC_VIDEO_RENDER_WINDOW_STEP
+      )
+    );
+  }
+
+  showLaterWindow(): void {
+    const totalItems = this.mergeGalleryPages(
+      this.galleryPagesSubject.value
+    ).length;
+    const maxStart = Math.max(
+      0,
+      totalItems - PUBLIC_VIDEO_RENDER_WINDOW_MAX_ITEMS
+    );
+    this.galleryRenderStartSubject.next(
+      Math.min(
+        maxStart,
+        this.galleryRenderStartSubject.value + PUBLIC_VIDEO_RENDER_WINDOW_STEP
+      )
+    );
+  }
+
   private buildState(
     status: PublicProfileVideosState['status'],
     items: IPublicVideoItem[],
     hasMore = false,
-    loadingMore = false
+    loadingMore = false,
+    requestedRenderStart = 0
   ): PublicProfileVideosState {
-    return { status, items, hasMore, loadingMore };
+    const maxStart = Math.max(
+      0,
+      items.length - PUBLIC_VIDEO_RENDER_WINDOW_MAX_ITEMS
+    );
+    const renderStart = Math.max(
+      0,
+      Math.min(requestedRenderStart, maxStart)
+    );
+    const renderItems = items.slice(
+      renderStart,
+      renderStart + PUBLIC_VIDEO_RENDER_WINDOW_MAX_ITEMS
+    );
+
+    return {
+      status,
+      items,
+      renderItems,
+      renderStart,
+      hasEarlierRenderWindow: renderStart > 0,
+      hasLaterRenderWindow: renderStart + renderItems.length < items.length,
+      hasMore,
+      loadingMore,
+    };
   }
 
   private reportError(
