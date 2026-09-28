@@ -161,6 +161,7 @@ export async function notifyModerationReportOpened(
   const targetType = String(report.targetType ?? '').trim();
   const critical =
     report.reason === 'minor_safety' ||
+    report.reason === 'minor_exposure_safety' ||
     report.reason === 'minor_content_safety';
   const quarantined = report.contentQuarantined === true;
 
