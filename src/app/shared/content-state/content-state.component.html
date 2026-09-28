@@ -9,17 +9,44 @@
   >
     <span class="visually-hidden">{{ message || 'Carregando conteúdo.' }}</span>
 
-    <div class="content-state__skeleton" aria-hidden="true">
-      @for (row of rows; track row) {
-        <div class="content-state__skeleton-row">
-          <span class="content-state__skeleton-avatar"></span>
-          <span class="content-state__skeleton-copy">
+    @switch (skeletonVariant) {
+      @case ('media-grid') {
+        <div class="content-state__skeleton content-state__skeleton--media-grid" aria-hidden="true">
+          @for (row of rows; track row) {
+            <article class="content-state__media-card">
+              <span class="content-state__media-frame"></span>
+              <span class="content-state__skeleton-copy">
+                <span></span>
+                <span></span>
+              </span>
+            </article>
+          }
+        </div>
+      }
+      @case ('viewer') {
+        <div class="content-state__viewer-skeleton" aria-hidden="true">
+          <span class="content-state__viewer-media"></span>
+          <span class="content-state__viewer-copy">
+            <span></span>
             <span></span>
             <span></span>
           </span>
         </div>
       }
-    </div>
+      @default {
+        <div class="content-state__skeleton" aria-hidden="true">
+          @for (row of rows; track row) {
+            <div class="content-state__skeleton-row">
+              <span class="content-state__skeleton-avatar"></span>
+              <span class="content-state__skeleton-copy">
+                <span></span>
+                <span></span>
+              </span>
+            </div>
+          }
+        </div>
+      }
+    }
   </section>
 } @else {
   <section
