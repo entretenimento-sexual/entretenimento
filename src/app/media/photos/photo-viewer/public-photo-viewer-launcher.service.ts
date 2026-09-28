@@ -140,7 +140,7 @@ export class PublicPhotoViewerLauncherService {
       createdAt: item.createdAt,
       ownerNickname: item.ownerNickname ?? null,
       ownerPhotoURL: item.ownerPhotoURL ?? null,
-      officialPhoto: item.officialPhoto ?? null,
+      officialMediaContext: item.officialMediaContext ?? null,
       commentsEnabled: item.commentsEnabled ?? false,
       commentsPolicy: item.commentsPolicy ?? 'OFF',
       reactionsEnabled: item.reactionsEnabled ?? false,
