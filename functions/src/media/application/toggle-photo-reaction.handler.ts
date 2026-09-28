@@ -29,6 +29,7 @@ import {
   normalizeMediaCount,
   type MediaScoreBreakdown,
 } from './media-engagement-score';
+import { observeMediaTrendScoreShadow } from './media-trend-score-shadow-observation.service';
 import {
   REQUIRE_PUBLIC_MEDIA_APP_CHECK,
   assertPublicMediaCallableAppCheck,
@@ -58,6 +59,8 @@ type PublicPhotoDoc = {
   commentsCount?: number;
   score?: number;
   engagementScore?: number;
+  publishedAt?: number;
+  createdAt?: number;
   scoreBreakdown?: Partial<MediaScoreBreakdown>;
 };
 
@@ -118,7 +121,7 @@ export const togglePhotoReaction = onCall<TogglePhotoReactionRequest>(
     );
     const likeRef = photoRef.collection('likes').doc(viewerUid);
 
-    return db.runTransaction(async (transaction) => {
+    const outcome = await db.runTransaction(async (transaction) => {
       await assertInteractionAccessInTransaction(transaction, viewerUid);
 
       const photoSnap = await transaction.get(photoRef);
@@ -187,6 +190,9 @@ export const togglePhotoReaction = onCall<TogglePhotoReactionRequest>(
           liked: false,
           reactionsCount: nextCount,
           score: nextScore.score,
+          trendEngagementScore: nextScore.engagementScore,
+          trendPublishedAt: photo.publishedAt ?? photo.createdAt ?? 0,
+          trendObservedAt: now,
         };
       }
 
@@ -214,7 +220,24 @@ export const togglePhotoReaction = onCall<TogglePhotoReactionRequest>(
         liked: true,
         reactionsCount: nextCount,
         score: nextScore.score,
+        trendEngagementScore: nextScore.engagementScore,
+        trendPublishedAt: photo.publishedAt ?? photo.createdAt ?? 0,
+        trendObservedAt: now,
       };
     });
+
+    observeMediaTrendScoreShadow({
+      mediaType: 'photo',
+      event: 'reaction',
+      engagementScore: outcome.trendEngagementScore,
+      publishedAt: outcome.trendPublishedAt,
+      now: outcome.trendObservedAt,
+    });
+
+    return {
+      liked: outcome.liked,
+      reactionsCount: outcome.reactionsCount,
+      score: outcome.score,
+    };
   }
 );
