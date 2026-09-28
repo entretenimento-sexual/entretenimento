@@ -145,7 +145,7 @@ describe('PublicVideoMetadataPreloadService', () => {
     expect(fakeVideo.load).toHaveBeenCalledTimes(2);
   });
 
-  it('cancela preload ativo sem remover a deduplicação da URL', () => {
+  it('cancela preload ativo e permite nova tentativa ao voltar à viewport', () => {
     const service = TestBed.inject(PublicVideoMetadataPreloadService);
 
     expect(service.preloadMetadata(VIDEO)).toBe(true);
@@ -153,7 +153,7 @@ describe('PublicVideoMetadataPreloadService', () => {
 
     expect(fakeVideo.pause).toHaveBeenCalledTimes(1);
     expect(fakeVideo.removeAttribute).toHaveBeenCalledWith('src');
-    expect(service.preloadMetadata(VIDEO)).toBe(false);
+    expect(service.preloadMetadata(VIDEO)).toBe(true);
   });
 
   it('não cria elemento quando a política de rede bloqueia', () => {
