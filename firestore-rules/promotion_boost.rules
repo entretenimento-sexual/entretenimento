@@ -39,6 +39,10 @@ match /promotion_boost_audit/{auditId} {
   allow read, write: if false;
 }
 
+match /promotion_boost_compliance_snapshots/{campaignId} {
+  allow read, write: if false;
+}
+
 match /promotion_boost_billing_events/{billingEventId} {
   allow read, write: if false;
 }
