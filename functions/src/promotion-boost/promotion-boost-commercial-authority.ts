@@ -47,3 +47,21 @@ export function normalizePromotionBoostAdvertiserAccount(
     expectedAdvertiserUid
   );
 }
+
+
+export function resolvePhotoPromotionAdvertiserAuthority(input: {
+  readonly advertiserUid: string;
+  readonly targetOwnerUid: string;
+  readonly rawAdvertiserAccount: unknown;
+}): Readonly<PromotionBoostAdvertiserAccount> | null {
+  const advertiser = normalizePromotionBoostAdvertiserAccount(
+    input.rawAdvertiserAccount,
+    input.advertiserUid
+  );
+
+  if (!advertiser || input.advertiserUid !== input.targetOwnerUid) {
+    return null;
+  }
+
+  return advertiser;
+}
