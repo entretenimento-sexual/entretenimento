@@ -1,5 +1,4 @@
 import { TestBed } from '@angular/core/testing';
-import { MatDialog } from '@angular/material/dialog';
 import {
   ActivatedRoute,
   ParamMap,
@@ -18,6 +17,7 @@ import {
   PublicProfileVideoPaginationService,
 } from 'src/app/core/services/media/public-profile-video-pagination.service';
 import { PublicVideoShareService } from 'src/app/core/services/media/public-video-share.service';
+import { PublicVideoViewerLauncherService } from '../public-video-viewer/public-video-viewer-launcher.service';
 import { PublicProfileVideosComponent } from './public-profile-videos.component';
 
 const VIDEO: IPublicVideoItem = {
@@ -100,6 +100,9 @@ describe('PublicProfileVideosComponent', () => {
   let publicVideoShare: {
     sharePublicVideo: ReturnType<typeof vi.fn>;
   };
+  let videoViewerLauncher: {
+    open$: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     routeParamMapSubject = new BehaviorSubject<ParamMap>(
@@ -138,6 +141,9 @@ describe('PublicProfileVideosComponent', () => {
     publicVideoShare = {
       sharePublicVideo: vi.fn().mockResolvedValue('copied'),
     };
+    videoViewerLauncher = {
+      open$: vi.fn(() => of(void 0)),
+    };
 
     TestBed.configureTestingModule({
       providers: [
@@ -146,10 +152,6 @@ describe('PublicProfileVideosComponent', () => {
           useValue: {
             paramMap: routeParamMapSubject.asObservable(),
           },
-        },
-        {
-          provide: MatDialog,
-          useValue: { open: vi.fn() },
         },
         {
           provide: CurrentUserStoreService,
@@ -166,6 +168,10 @@ describe('PublicProfileVideosComponent', () => {
         {
           provide: PublicVideoShareService,
           useValue: publicVideoShare,
+        },
+        {
+          provide: PublicVideoViewerLauncherService,
+          useValue: videoViewerLauncher,
         },
         {
           provide: ErrorNotificationService,
@@ -212,6 +218,21 @@ describe('PublicProfileVideosComponent', () => {
     expect(component.getVideoAriaLabel(VIDEO, 0, 1)).toBe(
       'Abrindo Vídeo de apresentação.'
     );
+  });
+
+  it('abre o viewer pelo launcher canônico com contexto de perfil', async () => {
+    const subscription = component.state$.subscribe();
+
+    component.openVideo(0);
+
+    expect(videoViewerLauncher.open$).toHaveBeenCalledWith({
+      items: [VIDEO],
+      startIndex: 0,
+      source: 'profile',
+    });
+
+    await Promise.resolve();
+    subscription.unsubscribe();
   });
 
   it('mantém feedback ocupado enquanto compartilha o vídeo', async () => {
