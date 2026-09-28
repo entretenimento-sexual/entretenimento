@@ -14,8 +14,8 @@ import {
   isPromotionBoostAdvertiserInteractionEligible,
 } from './promotion-boost-advertiser-eligibility';
 import {
-  normalizePromotionBoostAdvertiserAccount,
   promotionBoostAdvertiserAccountRef,
+  resolvePhotoPromotionAdvertiserAuthority,
 } from './promotion-boost-commercial-authority';
 import {
   isPhotoPromotionTargetEligible,
@@ -217,14 +217,15 @@ async function claimPlacement(input: {
     if (!campaign || campaign.targetType !== 'photo') return null;
     if (!promotionBoostCampaignEligible(campaign, input.now)) return null;
 
-    const advertiser = normalizePromotionBoostAdvertiserAccount(
-      advertiserSnapshot.exists ? advertiserSnapshot.data() : null,
-      campaign.advertiserUid
-    );
+    const advertiser = resolvePhotoPromotionAdvertiserAuthority({
+      advertiserUid: campaign.advertiserUid,
+      targetOwnerUid: campaign.targetOwnerUid,
+      rawAdvertiserAccount:
+        advertiserSnapshot.exists ? advertiserSnapshot.data() : null,
+    });
     if (
       !advertiser
       || campaign.budgetCents > advertiser.maxCampaignBudgetCents
-      || campaign.advertiserUid !== campaign.targetOwnerUid
     ) {
       transaction.update(campaignRef, {
         status: 'canceled',
