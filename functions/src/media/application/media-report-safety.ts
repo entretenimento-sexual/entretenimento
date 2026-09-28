@@ -15,10 +15,16 @@ export type MediaReportSafetyReason =
   | 'harassment'
   | 'hate_or_abuse'
   | 'sexual_boundary'
+  | 'non_consensual_sexual_content'
   | 'illegal_content'
   | 'privacy'
   | MinorMediaSafetyReason
   | 'other';
+
+export type MediaSafetySeverity =
+  | 'STANDARD'
+  | 'HIGH'
+  | 'MAXIMUM_MINOR';
 
 export interface MediaReportSafetyState {
   reportsCount: number;
@@ -35,14 +41,25 @@ const CRITICAL_MINOR_MEDIA_REASONS = new Set<MinorMediaSafetyReason>([
 const IMMEDIATE_QUARANTINE_REASONS = new Set<MediaReportSafetyReason>([
   ...CRITICAL_MINOR_MEDIA_REASONS,
   'illegal_content',
-  'sexual_boundary',
+  'non_consensual_sexual_content',
 ]);
+
+const HIGH_SEVERITY_REASONS = new Set<MediaReportSafetyReason>([
+  'illegal_content',
+  'non_consensual_sexual_content',
+]);
+
+export const MEDIA_REPORT_QUARANTINE_THRESHOLDS = Object.freeze({
+  maximumMinorReports: 1,
+  highSeverityReports: 1,
+  generalOpenReports: 3,
+});
 const EVIDENCE_PRESERVATION_REASONS = new Set<MediaReportSafetyReason>([
   ...CRITICAL_MINOR_MEDIA_REASONS,
   'illegal_content',
   'sexual_boundary',
 ]);
-const GENERAL_QUARANTINE_OPEN_REPORTS = 3;
+
 
 function normalizeCount(value: unknown): number {
   const count = Number(value ?? 0);
@@ -115,12 +132,46 @@ export function isCriticalMinorMediaSafetyReason(
   return CRITICAL_MINOR_MEDIA_REASONS.has(reason as MinorMediaSafetyReason);
 }
 
+export function mediaSafetySeverity(
+  reason: MediaReportSafetyReason
+): MediaSafetySeverity {
+  if (isCriticalMinorMediaSafetyReason(reason)) {
+    return 'MAXIMUM_MINOR';
+  }
+
+  if (HIGH_SEVERITY_REASONS.has(reason)) {
+    return 'HIGH';
+  }
+
+  return 'STANDARD';
+}
+
+/**
+ * Nudez ou sexo consensual entre adultos, por si só, não é violação nesta
+ * plataforma. "sexual_boundary" permanece como categoria de denúncia genérica
+ * e nunca recebe quarentena imediata somente pelo rótulo; para suspeita de
+ * coerção/não consentimento use non_consensual_sexual_content.
+ */
+export function isAdultConsensualSexualContentViolation(): false {
+  return false;
+}
+
 export function shouldQuarantineMediaAfterReport(
   reason: MediaReportSafetyReason,
   openReportsCount: number
 ): boolean {
-  return IMMEDIATE_QUARANTINE_REASONS.has(reason) ||
-    normalizeCount(openReportsCount) >= GENERAL_QUARANTINE_OPEN_REPORTS;
+  const count = normalizeCount(openReportsCount);
+  const severity = mediaSafetySeverity(reason);
+
+  if (severity === 'MAXIMUM_MINOR') {
+    return count >= MEDIA_REPORT_QUARANTINE_THRESHOLDS.maximumMinorReports;
+  }
+
+  if (severity === 'HIGH') {
+    return count >= MEDIA_REPORT_QUARANTINE_THRESHOLDS.highSeverityReports;
+  }
+
+  return count >= MEDIA_REPORT_QUARANTINE_THRESHOLDS.generalOpenReports;
 }
 
 /**
