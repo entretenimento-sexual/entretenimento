@@ -590,6 +590,7 @@ export class ModerationReportService {
       'harassment',
       'hate_or_abuse',
       'sexual_boundary',
+      'non_consensual_sexual_content',
       'illegal_content',
       'privacy',
       'minor_safety',
