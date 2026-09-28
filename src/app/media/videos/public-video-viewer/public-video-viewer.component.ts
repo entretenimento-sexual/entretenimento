@@ -1471,20 +1471,6 @@ export class PublicVideoViewerComponent {
     return ownerUid && videoId ? `${ownerUid}:${videoId}` : '';
   }
 
-  private pauseCurrentVideo(): void {
-    const player = this.videoPlayer?.nativeElement;
-
-    if (!player || player.readyState === HTMLMediaElement.HAVE_NOTHING) {
-      return;
-    }
-
-    try {
-      player.pause();
-    } catch {
-      // noop
-    }
-  }
-
   private releaseCurrentPlayerSource(): void {
     const player = this.videoPlayer?.nativeElement;
     if (!player) return;
