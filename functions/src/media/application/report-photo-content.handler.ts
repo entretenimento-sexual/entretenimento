@@ -17,7 +17,6 @@ import { consumeBackendRateLimitQuota } from './backend-rate-limit.service';
 import {
   buildMediaReportSafetyState,
   isCriticalMinorMediaSafetyReason,
-  isCriticalMinorMediaSafetyReason,
   shouldPreserveMediaEvidence,
   shouldQuarantineMediaAfterReport,
   type MediaReportSafetyReason,
