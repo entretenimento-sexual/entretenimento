@@ -91,7 +91,10 @@ describe('PublicVideoCardComponent', () => {
       providers: [
         {
           provide: PublicVideoMetadataPreloadService,
-          useValue: { preloadMetadata: vi.fn(() => false) },
+          useValue: {
+            preloadMetadata: vi.fn(() => false),
+            cancelMetadataPreload: vi.fn(),
+          },
         },
         { provide: MediaReactionsService, useValue: reactions },
         { provide: ErrorNotificationService, useValue: notifications },
