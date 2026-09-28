@@ -14,6 +14,12 @@ import {
   assertCallableAppCheck,
 } from '../shared/security/callable-app-check';
 import {
+  consumeBackendRateLimitQuota,
+} from '../shared/security/backend-rate-limit.service';
+import {
+  PROMOTION_BOOST_CAMPAIGN_MUTATION_RATE_LIMIT,
+} from '../promotion-boost/promotion-boost-abuse.policy';
+import {
   evaluateCommunityBoostCampaignAuthorityInTransaction,
   stopCommunityBoostForAuthorityLossInTransaction,
 } from './community-boost-authority.service';
@@ -203,6 +209,13 @@ export const manageCommunityBoostCampaign =
       assertCallableAppCheck(request.app);
       const actor = assertActor(request.auth);
       assertRecentAuthentication(request.auth?.token);
+
+      await consumeBackendRateLimitQuota({
+        action: 'community_boost_campaign_mutation',
+        subject: actor.uid,
+        config: PROMOTION_BOOST_CAMPAIGN_MUTATION_RATE_LIMIT,
+        message: 'Muitas operações comerciais foram solicitadas em pouco tempo.',
+      });
 
       const requestId = cleanRequestId(request.data?.requestId);
       const action = normalizeAction(request.data?.action);
