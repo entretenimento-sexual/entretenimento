@@ -26,6 +26,7 @@ import {
   assertPublicMediaCallableAppCheck,
   REQUIRE_PUBLIC_MEDIA_APP_CHECK,
 } from './public-media-callable-security';
+import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
 
 export type PhotoContentReportDecision = 'KEEP' | 'REMOVE';
 type ModeratedPhotoVisibility = 'PUBLIC' | 'FRIENDS';
@@ -515,6 +516,19 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
     });
 
     await safeNotifyModerationReportReviewed(reportId);
+
+    if (result.contentAvailableAtReview) {
+      await refreshPublicProfileMediaMetrics(result.ownerUid).catch((error) => {
+        logger.warn('[reviewPhotoContentReport] Reconciliação de métricas pendente.', {
+          reportId,
+          ownerUid: result.ownerUid,
+          photoId: result.photoId,
+          error: error instanceof Error
+            ? error.message.slice(0, 500)
+            : String(error ?? '').slice(0, 500),
+        });
+      });
+    }
 
     let cleanupPending = false;
     let evidenceReleasePending = false;
