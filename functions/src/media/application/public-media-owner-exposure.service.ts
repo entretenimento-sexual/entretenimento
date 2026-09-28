@@ -45,25 +45,40 @@ export async function resolvePublicMediaOwnerExposure(
   const refs = owners.flatMap((ownerUid) => [
     db.doc(`users/${ownerUid}`),
     db.doc(`public_profiles/${ownerUid}`),
+    db.doc(`age_eligibility_records/${ownerUid}`),
   ]);
   const snapshots = await db.getAll(...refs);
   const result = new Map<string, PublicMediaOwnerExposureContext>();
 
   owners.forEach((ownerUid, index) => {
-    const userSnapshot = snapshots[index * 2];
-    const profileSnapshot = snapshots[index * 2 + 1];
+    const userSnapshot = snapshots[index * 3];
+    const profileSnapshot = snapshots[index * 3 + 1];
+    const ageEligibilitySnapshot = snapshots[index * 3 + 2];
     const lifecycle = evaluateCanonicalOwnerLifecycle(
       userSnapshot?.exists === true
         ? userSnapshot.data()
         : null
     );
-    const decision = evaluatePublicMediaOwnerExposure({
+    const ownerAgeDecision = evaluateCanonicalAgeEligibility({
+      uid: ownerUid,
+      rawRecord:
+        ageEligibilitySnapshot?.exists === true
+          ? ageEligibilitySnapshot.data()
+          : null,
+      nowMs,
+    });
+    const decision = evaluatePublicMediaSignedOwnerExposure({
       publicProfile:
         profileSnapshot?.exists === true
           ? profileSnapshot.data() as Record<string, unknown>
           : null,
       canonicalOwnerLifecycleAllowed: lifecycle.allowed,
       viewerBlocked: blockedTargetUids.has(ownerUid),
+      canonicalAgeAllowed: ownerAgeDecision.allowed,
+      canonicalAgeExpiresAtMs:
+        ownerAgeDecision.allowed
+          ? ownerAgeDecision.expiresAtMs ?? null
+          : null,
       nowMs,
     });
 
