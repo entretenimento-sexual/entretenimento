@@ -38,3 +38,15 @@ match /promotion_boost_requests/{requestId} {
 match /promotion_boost_audit/{auditId} {
   allow read, write: if false;
 }
+
+match /promotion_boost_billing_events/{billingEventId} {
+  allow read, write: if false;
+}
+
+match /promotion_boost_fraud_signals/{signalId} {
+  allow read, write: if false;
+}
+
+match /promotion_boost_fraud_counters/{counterId} {
+  allow read, write: if false;
+}
