@@ -2,8 +2,8 @@
 // -----------------------------------------------------------------------------
 // OFFICIAL MEDIA CONTEXT BOUNDARY
 // -----------------------------------------------------------------------------
-// Official é contexto derivado, nunca estado editável da mídia.
-// Promotion/Boost permanece independente e só usa disclosure patrocinado.
+// Official é projeção derivada de autoridades canônicas e associação vigente.
+// Promotion/Boost é um eixo comercial independente.
 // -----------------------------------------------------------------------------
 
 import fs from 'node:fs';
@@ -26,15 +26,34 @@ function requireIncludes(source, fragment, label) {
   }
 }
 
+const contract = read(
+  'src/app/core/interfaces/media/i-official-media-context.ts'
+);
+for (const fragment of [
+  "'profile'",
+  "'organization'",
+  "'venue'",
+  "'event'",
+  'readonly contexts:',
+]) {
+  requireIncludes(contract, fragment, 'target contract drift');
+}
+
 const policy = read(
   'functions/src/media/application/official-media-context.policy.ts'
 );
 for (const fragment of [
+  'resolveCanonicalResourceAuthority',
   'evaluateProfileKyc',
+  'evaluateOfficialSpaceCreationGrant',
   'sanitizeCommunityOfficialAssociationPublicProjection',
-  "association.target.type !== 'profile'",
+  "target.type === 'profile'",
+  "target.type === 'organization'",
+  "target.type === 'venue'",
+  "targetType: 'event'",
   'activeRevalidationDueAt',
   'activeVerificationExpiresAt',
+  'buildOfficialMediaContextProjection',
 ]) {
   requireIncludes(policy, fragment, 'derived context authority drift');
 }
@@ -44,14 +63,48 @@ const sync = read(
 );
 for (const fragment of [
   'profile_kyc_records',
+  'official_space_creation_grants',
+  'venues',
+  'organizations',
+  'organization_kyb_records',
+  'organization_representations',
+  'event_authority_records',
   'community_official_associations',
   'officialMediaContext',
   'syncOfficialMediaContextFromPhoto',
   'syncOfficialMediaContextFromVideo',
+  'syncOfficialMediaContextFromAssociation',
   'syncOfficialMediaContextFromProfileKyc',
   'syncOfficialMediaContextFromIdentity',
+  'syncOfficialMediaContextFromCommercialAuthority',
+  'syncOfficialMediaContextFromVenue',
+  'syncOfficialMediaContextFromOrganization',
+  'syncOfficialMediaContextFromOrganizationKyb',
+  'syncOfficialMediaContextFromOrganizationRepresentation',
+  'syncOfficialMediaContextFromEventAuthority',
 ]) {
   requireIncludes(sync, fragment, 'projection reconciliation drift');
+}
+
+for (const officialPath of [
+  'functions/src/media/application/official-media-context.policy.ts',
+  'functions/src/media/application/sync-official-media-context.trigger.ts',
+]) {
+  const source = read(officialPath);
+  for (const forbidden of [
+    "from '../../promotion-boost",
+    'photoPromotion',
+    'promotionCampaign',
+    'boostCampaign',
+    'sponsoredPlacement',
+  ]) {
+    if (source.includes(forbidden)) {
+      throw new Error(
+        '[official-media-context-boundary] Official não pode depender de Promotion/Boost: ' +
+        officialPath + ' -> ' + forbidden
+      );
+    }
+  }
 }
 
 const photoContract = read(
@@ -76,7 +129,7 @@ const photoCard = read(
 );
 requireIncludes(
   photoCard,
-  'item.officialMediaContext?.association?.verified',
+  'item.officialMediaContext?.contexts?.length',
   'official badge drift'
 );
 requireIncludes(
@@ -111,8 +164,6 @@ for (const promotionPath of [
 
 const legacyAllowedPaths = new Set([
   'functions/src/media/application/sync-official-media-context.trigger.ts',
-  // Snapshot persistedido pode conter a chave antiga de versões anteriores.
-  // A única operação permitida fora do migrador é removê-la antes da reidratação.
   'src/app/core/services/media/public-media-snapshot.service.ts',
 ]);
 
@@ -134,19 +185,8 @@ function runtimeFiles(directory) {
 
     if (stat.isDirectory()) return runtimeFiles(absolute);
 
-    if (
-      !entry.endsWith('.ts') &&
-      !entry.endsWith('.html')
-    ) {
-      return [];
-    }
-
-    if (
-      entry.endsWith('.spec.ts') ||
-      entry.endsWith('.test.ts')
-    ) {
-      return [];
-    }
+    if (!entry.endsWith('.ts') && !entry.endsWith('.html')) return [];
+    if (entry.endsWith('.spec.ts') || entry.endsWith('.test.ts')) return [];
 
     return [absolute];
   });
@@ -177,5 +217,5 @@ if (legacyViolations.length) {
 }
 
 console.log(
-  '[official-media-context-boundary] OK: Official é projeção derivada; Patrocinado permanece independente.'
+  '[official-media-context-boundary] OK: Profile/Venue/Organization/Event usam autoridades canônicas; Official e Patrocinado permanecem ortogonais.'
 );
