@@ -510,7 +510,8 @@ export class ModerationReportService {
     if (
       !this.isAllowedTargetType(targetType) ||
       !targetId ||
-      !this.isAllowedReason(reason)
+      !this.isAllowedReason(reason) ||
+      !this.isReasonAllowedForTarget(targetType, reason)
     ) {
       return null;
     }
@@ -565,6 +566,21 @@ export class ModerationReportService {
       'community_feed_comment_reply',
       'other',
     ].includes(value);
+  }
+
+  private isReasonAllowedForTarget(
+    targetType: ModerationReportTargetType,
+    reason: ModerationReportReason
+  ): boolean {
+    if (reason === 'minor_safety') {
+      return targetType === 'profile';
+    }
+
+    if (reason === 'minor_exposure_safety') {
+      return targetType === 'photo' || targetType === 'video';
+    }
+
+    return true;
   }
 
   private isAllowedReason(value: string): value is ModerationReportReason {
