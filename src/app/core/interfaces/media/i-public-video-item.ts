@@ -10,6 +10,8 @@
 // - métricas legadas são normalizadas antes de chegar ao cache/NgRx.
 // -----------------------------------------------------------------------------
 
+import type { IOfficialMediaContextProjection } from './i-official-media-context';
+
 export type TPublicVideoVisibility = 'PUBLIC';
 export type TPublicVideoModerationStatus = 'APPROVED';
 export type TPublicVideoAssetAccess = 'SIGNED_URL';
@@ -93,6 +95,12 @@ export interface IPublicVideoProjection {
 
   /** Enriquecimento público opcional; não participa da identidade do vídeo. */
   readonly owner: IPublicVideoOwnerSummary | null;
+
+  /**
+   * Contexto oficial derivado. Não é autoridade, estado editável, promoção
+   * paga, entitlement nem sinal orgânico de ranking.
+   */
+  readonly officialMediaContext?: IOfficialMediaContextProjection | null;
 }
 
 /**
