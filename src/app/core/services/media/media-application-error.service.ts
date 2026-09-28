@@ -44,9 +44,16 @@ export class MediaApplicationErrorService {
     options: MediaApplicationErrorOptions
   ): ApplicationErrorDescriptor {
     const actualReason = this.extractReason(error);
-    const catalogReason = actualReason && resolveMediaErrorMessage(actualReason)
+    const transportCode = this.extractTransportCode(error);
+    const hasKnownReason = !!(
+      actualReason && resolveMediaErrorMessage(actualReason)
+    );
+    const catalogReason = hasKnownReason
       ? actualReason
       : options.reasonHint ?? null;
+    const hasKnownCodePresentation = !!(
+      transportCode && MEDIA_ERROR_CODE_PRESENTATIONS[transportCode]
+    );
     const fallbackMessage = resolveMediaErrorMessage(catalogReason)
       ?? this.safeText(
         options.fallbackMessage,
@@ -60,7 +67,9 @@ export class MediaApplicationErrorService {
       fallbackMessage,
       presentation: options.silent
         ? { surface: 'none', severity: 'error' }
-        : catalogPresentation ?? undefined,
+        : hasKnownReason || hasKnownCodePresentation
+          ? undefined
+          : catalogPresentation ?? undefined,
       codeMessages: MEDIA_ERROR_CODE_MESSAGES,
       codePresentations: MEDIA_ERROR_CODE_PRESENTATIONS,
       reasonMessages: MEDIA_ERROR_MESSAGES,
@@ -95,6 +104,16 @@ export class MediaApplicationErrorService {
     return this.safeOptionalText(
       details?.['reason'] ?? source?.['reason']
     );
+  }
+
+  private extractTransportCode(error: unknown): string | null {
+    const source = this.asRecord(error);
+    const code = this.safeOptionalText(source?.['code']);
+    if (!code) return null;
+
+    return code
+      .replace(/^functions\//, '')
+      .replace(/^firestore\//, '');
   }
 
   private asRecord(value: unknown): UnknownRecord | null {
