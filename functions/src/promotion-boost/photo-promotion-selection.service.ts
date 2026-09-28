@@ -18,6 +18,9 @@ import {
   resolvePhotoPromotionAdvertiserAuthority,
 } from './promotion-boost-commercial-authority';
 import {
+  buildPromotionComplianceDeliveryEvidence,
+} from './promotion-boost-compliance-snapshot.policy';
+import {
   isPhotoPromotionTargetEligible,
 } from './photo-promotion-target.policy';
 import {
@@ -79,6 +82,11 @@ function publicPhotoProjection(
 
 function viewerHash(uid: string): string {
   return createHash('sha256').update(uid).digest('hex').slice(0, 40);
+}
+
+function complianceSnapshotId(raw: unknown): string | null {
+  const value = String(raw ?? '').trim().toLowerCase();
+  return /^[a-f0-9]{64}$/.test(value) ? value : null;
 }
 
 function capId(campaignId: string, uid: string, day: string): string {
@@ -211,11 +219,42 @@ async function claimPlacement(input: {
       ),
     ]);
 
+    const rawCampaign = campaignSnapshot.exists
+      ? campaignSnapshot.data() ?? {}
+      : {};
     const campaign = campaignSnapshot.exists
-      ? normalizePromotionBoostCampaign(campaignSnapshot.data())
+      ? normalizePromotionBoostCampaign(rawCampaign)
       : null;
     if (!campaign || campaign.targetType !== 'photo') return null;
     if (!promotionBoostCampaignEligible(campaign, input.now)) return null;
+
+    const complianceId = complianceSnapshotId(
+      rawCampaign['complianceSnapshotId']
+    );
+    if (!complianceId) {
+      transaction.update(campaignRef, {
+        status: 'canceled',
+        stoppedAt: input.now,
+        stoppedReason: 'compliance_snapshot_required',
+        updatedAt: input.now,
+      });
+      transaction.delete(activeSlotRef);
+      transaction.create(db.collection('promotion_boost_audit').doc(), {
+        action: 'photo_promotion_campaign_stopped',
+        campaignId: campaign.campaignId,
+        targetType: 'photo',
+        ownerUid: campaign.targetOwnerUid,
+        photoId: campaign.targetId,
+        advertiserUid: campaign.advertiserUid,
+        actorUid: 'system',
+        previousStatus: campaign.status,
+        nextStatus: 'canceled',
+        reason: 'compliance_snapshot_required',
+        ledgerOwnershipTransferred: false,
+        createdAt: input.now,
+      });
+      return null;
+    }
 
     const advertiser = resolvePhotoPromotionAdvertiserAuthority({
       advertiserUid: campaign.advertiserUid,
@@ -339,11 +378,26 @@ async function claimPlacement(input: {
     const nextDailySpentMilliCents = dailySpentMilliCents + chargeMilliCents;
     const completesCampaign =
       totalBudgetMilliCents - nextSpentMilliCents < chargeMilliCents;
+    const hashedViewer = viewerHash(input.viewerUid);
+    const deliveryCompliance = buildPromotionComplianceDeliveryEvidence({
+      snapshotId: complianceId,
+      campaign,
+      placementId: placementRef.id,
+      deliveredAt: input.now,
+      viewerHash: hashedViewer,
+      frequencyCapDay: day,
+      frequencyCapDeliveredCount: deliveredToday + 1,
+      billedMilliCents: chargeMilliCents,
+    });
+
+    if (!deliveryCompliance) {
+      return null;
+    }
 
     transaction.set(capRef, {
       campaignId: campaign.campaignId,
       targetType: 'photo',
-      viewerHash: viewerHash(input.viewerUid),
+      viewerHash: hashedViewer,
       day,
       deliveredCount: deliveredToday + 1,
       expiresAt: input.now + PROMOTION_BOOST_FREQUENCY_CAP_TTL_MS,
@@ -366,6 +420,8 @@ async function claimPlacement(input: {
       clickRecordedAt: null,
       billedMilliCents: chargeMilliCents,
       billingReason: 'served_placement',
+      complianceSnapshotId: complianceId,
+      compliance: deliveryCompliance,
       createdAt: input.now,
       updatedAt: input.now,
     });
@@ -402,6 +458,9 @@ async function claimPlacement(input: {
       billingBasis: campaign.billingBasis,
       billingConfigVersion: campaign.billingConfigVersion,
       rateCpmCentsSnapshot: campaign.rateCpmCentsSnapshot,
+      complianceSnapshotId: complianceId,
+      compliancePolicyVersion: deliveryCompliance.policyVersion,
+      complianceRetentionReviewAt: deliveryCompliance.retainUntil,
       billablePlacements: FieldValue.increment(1),
       amountMilliCents: FieldValue.increment(chargeMilliCents),
       updatedAt: input.now,
@@ -426,6 +485,9 @@ async function claimPlacement(input: {
         rateCpmCentsSnapshot: campaign.rateCpmCentsSnapshot,
         amountMilliCents: chargeMilliCents,
         reason: 'served_placement',
+        complianceSnapshotId: complianceId,
+        compliance: deliveryCompliance,
+        complianceRetentionReviewAt: deliveryCompliance.retainUntil,
         createdAt: input.now,
       }
     );
