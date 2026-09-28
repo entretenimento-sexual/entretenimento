@@ -86,6 +86,18 @@ for (const handler of [
   ], handler);
 }
 
+for (const reviewHandler of [
+  'functions/src/media/application/review-photo-content-report.handler.ts',
+  'functions/src/media/application/review-video-content-report.handler.ts',
+]) {
+  const source = read(reviewHandler);
+  requireIncludes(source, [
+    'safeRecordModerationReviewSignal',
+    'safeRecordModerationReporterOutcome',
+    "confirmed: decision === 'REMOVE'",
+  ], reviewHandler + ' deve alimentar automação e risco do denunciante');
+}
+
 const evidence = read(
   'functions/src/media/application/moderation-evidence-preservation.service.ts'
 );
@@ -145,6 +157,30 @@ forbid(
   'contestação não pode liberar evidência automaticamente'
 );
 
+const contestReview = read(
+  'functions/src/media/application/review-media-moderation-contest.handler.ts'
+);
+requireIncludes(contestReview, [
+  "'UPHOLD'",
+  "'OVERTURN'",
+  "effectiveModerationAction: 'KEEP'",
+  'confirmedViolationEffective: false',
+  'safeRecordModerationReviewSignal',
+  'safeRecordModerationReporterOutcome',
+  'contentRestored: false',
+  'evidenceReleased: false',
+], 'revisão de contestação');
+forbid(
+  contestReview,
+  /moderationStatus\s*:\s*['"]APPROVED['"]/,
+  'revisão de contestação não pode republicar conteúdo automaticamente'
+);
+forbid(
+  contestReview,
+  /releaseModerationEvidence/,
+  'revisão de contestação não pode liberar evidência automaticamente'
+);
+
 const notifications = read(
   'functions/src/moderation/moderation-safety-notification.service.ts'
 );
@@ -184,7 +220,8 @@ requireIncludes(reportService, [
 const mediaIndex = read('functions/src/media/index.ts');
 requireIncludes(mediaIndex, [
   'submitMediaModerationContest',
-], 'export da contestação');
+  'reviewMediaModerationContest',
+], 'exports de contestação');
 
 console.log(
   '[media-minor-safety] OK: menoridade tem severidade máxima por conteúdo, evidência/contestação seguras e nudez adulta consensual não é tratada como violação.'
