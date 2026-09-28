@@ -232,6 +232,7 @@ async function run() {
         profileCompleted: true,
         accountStatus: 'active',
         suspended: false,
+        publicVisibility: 'visible',
         interactionBlocked: false,
         accountLocked: false,
         loginAllowed: true,
