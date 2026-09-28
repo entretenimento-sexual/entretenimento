@@ -62,7 +62,7 @@
             variant="top"
             (preview)="openPhoto(item)" />
 
-          @if (i === 3 && vm.sponsoredPlacement; as sponsored) {
+          @if (vm.renderStart === 0 && i === 3 && vm.sponsoredPlacement; as sponsored) {
             <app-public-photo-card
               [appPhotoPromotionExposure]="sponsored.placementId"
               [photo]="sponsored.photo"
