@@ -93,7 +93,7 @@ describe('public media exposure policy', () => {
 
     const allowed = evaluatePublicMediaSignedOwnerExposure({
       canonicalOwnerLifecycleAllowed: true,
-        publicProfile: publicProjection({
+      publicProfile: publicProjection({
         ageEligibilityValidUntil: { toMillis: () => NOW + 60_000 },
       }),
       viewerBlocked: false,
