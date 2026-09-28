@@ -63,6 +63,26 @@ export interface EventAuthorityLifecycleResult {
   readonly changed: boolean;
 }
 
+export async function readEventAuthorityRecord(
+  eventIdValue: unknown,
+  holderUidValue: unknown
+): Promise<Record<string, unknown> | null> {
+  const recordId = buildEventAuthorityRecordId(
+    eventIdValue,
+    holderUidValue
+  );
+  if (!recordId) return null;
+
+  const snapshot = await db
+    .collection(EVENT_AUTHORITY_RECORDS_COLLECTION)
+    .doc(recordId)
+    .get();
+
+  return snapshot.exists
+    ? snapshot.data() as Record<string, unknown>
+    : null;
+}
+
 function cleanId(value: unknown): string | null {
   return normalizeCanonicalAuthorityResourceId(value);
 }
