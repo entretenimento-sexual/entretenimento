@@ -883,6 +883,9 @@ export class AdminModerationReportService {
       route: String(report.route ?? '').trim() || null,
       status: report.status,
       moderationAction: report.moderationAction ?? null,
+      reviewSafetyReason: this.normalizeMinorMediaSafetyReason(
+        report.reviewSafetyReason
+      ),
       ageReverificationCaseId:
         String(report.ageReverificationCaseId ?? '').trim() || null,
       ageReverificationStatus: [
