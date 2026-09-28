@@ -54,9 +54,11 @@ interface PrivateVideoDoc {
 }
 
 interface VideoPublicationDoc {
+  isPublished?: boolean;
   publishedStoragePath?: string;
   publishedPosterStoragePath?: string;
   moderationStatus?: string;
+  reviewEvidenceRetention?: string;
 }
 
 interface VideoProcessingJobDoc {
@@ -116,8 +118,20 @@ function isQuarantinedPublication(
     .trim()
     .toUpperCase();
 
-  return moderationStatus === 'FLAGGED' ||
-    moderationStatus === 'PENDING_REVIEW';
+  if (moderationStatus === 'FLAGGED') {
+    return true;
+  }
+
+  if (moderationStatus !== 'PENDING_REVIEW') {
+    return false;
+  }
+
+  const evidenceRetention = String(
+    publication?.reviewEvidenceRetention ?? ''
+  ).trim().toUpperCase();
+
+  return publication?.isPublished === true ||
+    evidenceRetention === 'PUBLISHED_ASSET_LOCKED';
 }
 
 function buildDeletionJobId(ownerUid: string, videoId: string): string {
