@@ -125,8 +125,12 @@ export const managePhotoPromotionCampaign = onCall<Request>(
       if (!ownerUid || !photoId) {
         throw new HttpsError('invalid-argument', 'Foto inválida para promoção.');
       }
-      if (!actor.admin && ownerUid !== actor.uid) {
-        throw new HttpsError('permission-denied', 'Você só pode promover suas próprias fotos.');
+      if (ownerUid !== actor.uid) {
+        throw new HttpsError(
+          'permission-denied',
+          'A conta anunciante precisa ser a proprietária da foto promovida.',
+          { reason: 'promotion_boost_advertiser_target_authority_required' }
+        );
       }
 
       const campaignRef = db.collection('promotion_boost_campaigns').doc();
