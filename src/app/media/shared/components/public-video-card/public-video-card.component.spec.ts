@@ -185,6 +185,20 @@ describe('PublicVideoCardComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('3');
   });
 
+  it('harmoniza variante profile com contexto canônico de recomendação', () => {
+    fixture.componentRef.setInput('variant', 'profile');
+    fixture.detectChanges();
+
+    expect(
+      fixture.debugElement.query(By.css('.public-video-card--profile'))
+    ).toBeTruthy();
+    const context = fixture.debugElement.query(
+      By.css('app-public-media-recommendation-badge')
+    );
+    expect(context).toBeTruthy();
+    expect(fixture.nativeElement.textContent).toContain('Do perfil');
+  });
+
   it('renderiza highlight como preview vertical sem ações de feed', () => {
     fixture.componentRef.setInput('variant', 'highlight');
     fixture.detectChanges();
