@@ -109,8 +109,21 @@ for (const promotionPath of [
   }
 }
 
-const legacyAllowedPath =
-  'functions/src/media/application/sync-official-media-context.trigger.ts';
+const legacyAllowedPaths = new Set([
+  'functions/src/media/application/sync-official-media-context.trigger.ts',
+  // Snapshot persistedido pode conter a chave antiga de versões anteriores.
+  // A única operação permitida fora do migrador é removê-la antes da reidratação.
+  'src/app/core/services/media/public-media-snapshot.service.ts',
+]);
+
+const snapshotSanitizer = read(
+  'src/app/core/services/media/public-media-snapshot.service.ts'
+);
+requireIncludes(
+  snapshotSanitizer,
+  "delete sanitized['officialPhoto'];",
+  'snapshot must strip legacy officialPhoto state'
+);
 
 function runtimeFiles(directory) {
   if (!fs.existsSync(directory)) return [];
@@ -150,7 +163,7 @@ const legacyViolations = scanRoots
   .flatMap(runtimeFiles)
   .filter((file) => {
     const relative = path.relative(root, file).replaceAll('\\', '/');
-    return relative !== legacyAllowedPath
+    return !legacyAllowedPaths.has(relative)
       && fs.readFileSync(file, 'utf8').includes('officialPhoto');
   })
   .map((file) => path.relative(root, file).replaceAll('\\', '/'))
