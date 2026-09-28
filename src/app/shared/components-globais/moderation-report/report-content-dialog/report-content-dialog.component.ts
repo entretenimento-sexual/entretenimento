@@ -79,8 +79,15 @@ const GENERAL_REPORT_REASONS: readonly ReportReasonOption[] = [
   },
   {
     value: 'sexual_boundary',
-    label: 'Limite sexual violado',
-    helper: 'Conteúdo ou abordagem sexual fora do consentimento ou das regras.',
+    label: 'Conduta sexual abusiva',
+    helper:
+      'Use para abordagem ou comportamento sexual abusivo. Nudez ou sexo consensual entre adultos não é violação por si só.',
+  },
+  {
+    value: 'non_consensual_sexual_content',
+    label: 'Conteúdo sexual sem consentimento',
+    helper:
+      'Imagem, vídeo ou ato sexual possivelmente compartilhado sem consentimento, com coerção ou exploração. Nudez/sexo consensual entre adultos não entra nesta categoria.',
   },
   {
     value: 'minor_content_safety',
@@ -146,11 +153,15 @@ export class ReportContentDialogComponent {
       this.data.targetType === 'photo' ||
       this.data.targetType === 'video'
     ) {
-      return GENERAL_REPORT_REASONS.flatMap((reason) =>
-        reason.value === 'minor_content_safety'
+      return GENERAL_REPORT_REASONS.flatMap((reason) => {
+        if (reason.value === 'sexual_boundary') {
+          return [];
+        }
+
+        return reason.value === 'minor_content_safety'
           ? [MINOR_MEDIA_EXPOSURE_REASON, reason]
-          : [reason]
-      );
+          : [reason];
+      });
     }
 
     if (this.data.targetType !== 'profile') {
