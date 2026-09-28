@@ -2,113 +2,259 @@
 // -----------------------------------------------------------------------------
 // OFFICIAL MEDIA CONTEXT
 // -----------------------------------------------------------------------------
-// Projeção derivada para UI. Nunca é autoridade e nunca é editável pelo dono da
-// mídia. Só existe quando identidade do perfil + associação oficial + target
-// continuam válidos nas respectivas fontes canônicas.
+// Projeção derivada para UI. Nunca é autoridade, nunca é editável pelo dono da
+// mídia e nunca depende de Promotion/Boost. Cada entrada só existe enquanto:
+// - a associação oficial estiver vigente;
+// - o titular continuar sendo o holder canônico;
+// - a autoridade real do target continuar válida em sua fonte própria.
 // -----------------------------------------------------------------------------
 
 import {
   normalizeCanonicalAuthorityResourceId,
+  type CanonicalAuthorityTargetType,
 } from '../../authority/canonical-resource-authority.model';
+import {
+  resolveCanonicalResourceAuthority,
+} from '../../authority/canonical-resource-authority.resolver';
 import {
   sanitizeCommunityOfficialAssociationPublicProjection,
 } from '../../community/community-official-association.model';
+import {
+  OFFICIAL_SPACE_CREATION_POLICY_VERSION,
+  evaluateOfficialSpaceCreationGrant,
+} from '../../community/community-official-space.policy';
 import { evaluateProfileKyc } from '../../identity/profile-kyc.policy';
 
-export interface OfficialMediaContextProjection {
+export interface OfficialMediaContextEntry {
   readonly identity: {
     readonly verified: true;
-    readonly type: 'profile';
+    readonly type: CanonicalAuthorityTargetType;
   };
   readonly association: {
     readonly verified: true;
   };
   readonly target: {
-    readonly type: 'profile';
+    readonly type: CanonicalAuthorityTargetType;
     readonly id: string;
   };
 }
 
-type CanonicalUserLike = {
-  profileId?: unknown;
-};
+export interface OfficialMediaContextProjection {
+  readonly contexts: readonly OfficialMediaContextEntry[];
+}
 
-export function deriveOfficialMediaContext(input: {
-  readonly ownerUid: string;
-  readonly rawUser: unknown;
-  readonly rawProfileKyc: unknown;
-  readonly rawAssociation: unknown;
-  readonly nowMs?: number;
-}): OfficialMediaContextProjection | null {
-  const ownerUid = normalizeCanonicalAuthorityResourceId(input.ownerUid);
-  if (!ownerUid || !input.rawUser || typeof input.rawUser !== 'object') {
-    return null;
-  }
-
-  const user = input.rawUser as CanonicalUserLike;
-  const profileId = normalizeCanonicalAuthorityResourceId(user.profileId);
-  if (!profileId) return null;
-
-  const identity = evaluateProfileKyc({
-    actorUid: ownerUid,
-    profileId,
-    rawKyc: input.rawProfileKyc,
-    now: input.nowMs,
-  });
-  if (!identity.allowed || identity.profileId !== profileId) {
-    return null;
-  }
-
-  const rawAssociation = input.rawAssociation &&
-    typeof input.rawAssociation === 'object' &&
-    !Array.isArray(input.rawAssociation)
-    ? input.rawAssociation as Record<string, unknown>
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
     : null;
-  const nowMs = Math.trunc(input.nowMs ?? Date.now());
-  const activeRevalidationDueAt = rawAssociation?.['activeRevalidationDueAt'];
-  const activeVerificationExpiresAt =
-    rawAssociation?.['activeVerificationExpiresAt'];
+}
+
+function activeAssociation(
+  rawAssociation: unknown,
+  nowMs: number
+): {
+  target: { type: CanonicalAuthorityTargetType; id: string };
+  holderUid: string;
+  role: string;
+  verificationSource: string;
+  verificationPolicyVersion: number;
+} | null {
+  const source = asRecord(rawAssociation);
+  if (!source || !Number.isFinite(nowMs) || nowMs <= 0) return null;
+
+  const projection =
+    sanitizeCommunityOfficialAssociationPublicProjection(rawAssociation);
+  if (!projection) return null;
+
+  const authority = asRecord(source['authority']);
+  const verification = asRecord(source['verification']);
+  const holderUid = normalizeCanonicalAuthorityResourceId(
+    authority?.['holderUid']
+  );
+  const role = String(authority?.['role'] ?? '').trim();
+  const verificationSource = String(verification?.['source'] ?? '').trim();
+  const verificationPolicyVersion = Math.trunc(
+    Number(verification?.['policyVersion'])
+  );
+
+  const revalidationDueAt = source['activeRevalidationDueAt'];
+  const verificationExpiresAt = source['activeVerificationExpiresAt'];
   const normalizedRevalidationDueAt =
-    activeRevalidationDueAt === null ||
-    activeRevalidationDueAt === undefined
+    revalidationDueAt === null || revalidationDueAt === undefined
       ? null
-      : Math.trunc(Number(activeRevalidationDueAt));
+      : Math.trunc(Number(revalidationDueAt));
   const normalizedVerificationExpiresAt =
-    activeVerificationExpiresAt === null ||
-    activeVerificationExpiresAt === undefined
+    verificationExpiresAt === null || verificationExpiresAt === undefined
       ? null
-      : Math.trunc(Number(activeVerificationExpiresAt));
+      : Math.trunc(Number(verificationExpiresAt));
 
   if (
-    !Number.isFinite(nowMs) ||
-    nowMs <= 0 ||
-    (
-      normalizedRevalidationDueAt !== null &&
-      (
-        !Number.isFinite(normalizedRevalidationDueAt) ||
-        normalizedRevalidationDueAt <= nowMs
+    !holderUid
+    || !role
+    || !verificationSource
+    || !Number.isInteger(verificationPolicyVersion)
+    || verificationPolicyVersion <= 0
+    || (
+      normalizedRevalidationDueAt !== null
+      && (
+        !Number.isFinite(normalizedRevalidationDueAt)
+        || normalizedRevalidationDueAt <= nowMs
       )
-    ) ||
-    (
-      normalizedVerificationExpiresAt !== null &&
-      (
-        !Number.isFinite(normalizedVerificationExpiresAt) ||
-        normalizedVerificationExpiresAt <= nowMs
+    )
+    || (
+      normalizedVerificationExpiresAt !== null
+      && (
+        !Number.isFinite(normalizedVerificationExpiresAt)
+        || normalizedVerificationExpiresAt <= nowMs
       )
     )
   ) {
     return null;
   }
 
-  const association =
-    sanitizeCommunityOfficialAssociationPublicProjection(
-      rawAssociation
-    );
+  return {
+    target: projection.target,
+    holderUid,
+    role,
+    verificationSource,
+    verificationPolicyVersion,
+  };
+}
+
+export function deriveOfficialMediaContextEntry(input: {
+  readonly ownerUid: string;
+  readonly rawAssociation: unknown;
+  readonly rawUser?: unknown;
+  readonly rawProfileKyc?: unknown;
+  readonly rawTarget?: unknown;
+  readonly rawCommercialGrant?: unknown;
+  readonly rawOrganizationKyb?: unknown;
+  readonly rawOrganizationRepresentation?: unknown;
+  readonly rawEventAuthority?: unknown;
+  readonly nowMs?: number;
+}): OfficialMediaContextEntry | null {
+  const ownerUid = normalizeCanonicalAuthorityResourceId(input.ownerUid);
+  const nowMs = Math.trunc(input.nowMs ?? Date.now());
+  const association = activeAssociation(input.rawAssociation, nowMs);
+
+  if (!ownerUid || !association || association.holderUid !== ownerUid) {
+    return null;
+  }
+
+  const { target } = association;
+  let expectedVerificationSource: string;
+  let expectedPolicyVersion: number | null = null;
+
+  if (target.type === 'profile') {
+    const canonicalAuthority = resolveCanonicalResourceAuthority({
+      actorUid: ownerUid,
+      targetType: 'profile',
+      targetId: target.id,
+      rawTarget: input.rawUser,
+      now: nowMs,
+    });
+    const profileKyc = evaluateProfileKyc({
+      actorUid: ownerUid,
+      profileId: target.id,
+      rawKyc: input.rawProfileKyc,
+      now: nowMs,
+    });
+
+    if (
+      !canonicalAuthority.allowed
+      || canonicalAuthority.authorityUid !== ownerUid
+      || canonicalAuthority.authorityRole !== 'self'
+      || !profileKyc.allowed
+      || !profileKyc.verificationPolicyVersion
+    ) {
+      return null;
+    }
+
+    expectedVerificationSource = 'profile_verification';
+    expectedPolicyVersion = profileKyc.verificationPolicyVersion;
+  } else if (target.type === 'organization') {
+    const canonicalAuthority = resolveCanonicalResourceAuthority({
+      actorUid: ownerUid,
+      targetType: 'organization',
+      targetId: target.id,
+      rawTarget: input.rawTarget,
+      rawOrganizationKyb: input.rawOrganizationKyb,
+      rawOrganizationRepresentation: input.rawOrganizationRepresentation,
+      requiredOrganizationScope: 'community_official_claim',
+      now: nowMs,
+    });
+
+    if (
+      !canonicalAuthority.allowed
+      || canonicalAuthority.authorityUid !== ownerUid
+      || !canonicalAuthority.authorityRole
+      || !canonicalAuthority.verificationPolicyVersion
+    ) {
+      return null;
+    }
+
+    if (canonicalAuthority.authorityRole !== association.role) return null;
+    expectedVerificationSource = 'organization_verification';
+    expectedPolicyVersion = canonicalAuthority.verificationPolicyVersion;
+  } else if (target.type === 'venue') {
+    const grant = evaluateOfficialSpaceCreationGrant({
+      actorUid: ownerUid,
+      actorUserRole: null,
+      rawGrant: input.rawCommercialGrant,
+      now: nowMs,
+    });
+    const canonicalAuthority = resolveCanonicalResourceAuthority({
+      actorUid: ownerUid,
+      targetType: 'venue',
+      targetId: target.id,
+      rawTarget: input.rawTarget,
+      rawCommercialGrant: input.rawCommercialGrant,
+      now: nowMs,
+    });
+
+    if (
+      !grant.allowed
+      || !grant.organizationId
+      || !canonicalAuthority.allowed
+      || canonicalAuthority.authorityUid !== ownerUid
+      || !canonicalAuthority.authorityRole
+      || canonicalAuthority.organizationId !== grant.organizationId
+    ) {
+      return null;
+    }
+
+    // A associação criada para Venue pode registrar representante autorizado
+    // enquanto a autoridade canônica atual é owner/manager; ambos provêm das
+    // mesmas fontes backend-only e não de role comunitária.
+    expectedVerificationSource = 'official_space_creation_grant';
+    expectedPolicyVersion = OFFICIAL_SPACE_CREATION_POLICY_VERSION;
+  } else {
+    const canonicalAuthority = resolveCanonicalResourceAuthority({
+      actorUid: ownerUid,
+      targetType: 'event',
+      targetId: target.id,
+      rawTarget: null,
+      rawEventAuthority: input.rawEventAuthority,
+      now: nowMs,
+    });
+
+    if (
+      !canonicalAuthority.allowed
+      || canonicalAuthority.authorityUid !== ownerUid
+      || !canonicalAuthority.authorityRole
+      || !canonicalAuthority.verificationPolicyVersion
+      || canonicalAuthority.authorityRole !== association.role
+    ) {
+      return null;
+    }
+
+    expectedVerificationSource = 'event_authorization';
+    expectedPolicyVersion = canonicalAuthority.verificationPolicyVersion;
+  }
 
   if (
-    !association
-    || association.target.type !== 'profile'
-    || association.target.id !== profileId
+    association.verificationSource !== expectedVerificationSource
+    || association.verificationPolicyVersion !== expectedPolicyVersion
   ) {
     return null;
   }
@@ -116,16 +262,44 @@ export function deriveOfficialMediaContext(input: {
   return Object.freeze({
     identity: Object.freeze({
       verified: true as const,
-      type: 'profile' as const,
+      type: target.type,
     }),
     association: Object.freeze({
       verified: true as const,
     }),
     target: Object.freeze({
-      type: 'profile' as const,
-      id: profileId,
+      type: target.type,
+      id: target.id,
     }),
   });
+}
+
+const TARGET_ORDER: Readonly<Record<CanonicalAuthorityTargetType, number>> =
+  Object.freeze({
+    profile: 0,
+    organization: 1,
+    venue: 2,
+    event: 3,
+  });
+
+export function buildOfficialMediaContextProjection(
+  entries: readonly (OfficialMediaContextEntry | null)[]
+): OfficialMediaContextProjection | null {
+  const unique = new Map<string, OfficialMediaContextEntry>();
+
+  for (const entry of entries) {
+    if (!entry) continue;
+    unique.set(`${entry.target.type}:${entry.target.id}`, entry);
+  }
+
+  const contexts = [...unique.values()].sort((left, right) =>
+    TARGET_ORDER[left.target.type] - TARGET_ORDER[right.target.type]
+    || left.target.id.localeCompare(right.target.id)
+  );
+
+  return contexts.length > 0
+    ? Object.freeze({ contexts: Object.freeze(contexts) })
+    : null;
 }
 
 export function officialMediaContextMatches(
@@ -136,18 +310,23 @@ export function officialMediaContextMatches(
     return raw === null || raw === undefined;
   }
 
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    return false;
-  }
+  const source = asRecord(raw);
+  const contexts = Array.isArray(source?.['contexts'])
+    ? source?.['contexts'] as unknown[]
+    : null;
+  if (!contexts || contexts.length !== expected.contexts.length) return false;
 
-  const source = raw as Record<string, unknown>;
-  const identity = (source['identity'] ?? {}) as Record<string, unknown>;
-  const association = (source['association'] ?? {}) as Record<string, unknown>;
-  const target = (source['target'] ?? {}) as Record<string, unknown>;
+  return contexts.every((rawEntry, index) => {
+    const expectedEntry = expected.contexts[index];
+    const entry = asRecord(rawEntry);
+    const identity = asRecord(entry?.['identity']);
+    const association = asRecord(entry?.['association']);
+    const target = asRecord(entry?.['target']);
 
-  return identity['verified'] === true
-    && identity['type'] === 'profile'
-    && association['verified'] === true
-    && target['type'] === 'profile'
-    && target['id'] === expected.target.id;
+    return identity?.['verified'] === true
+      && identity?.['type'] === expectedEntry.identity.type
+      && association?.['verified'] === true
+      && target?.['type'] === expectedEntry.target.type
+      && target?.['id'] === expectedEntry.target.id;
+  });
 }
