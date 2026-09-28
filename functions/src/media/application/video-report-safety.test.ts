@@ -54,7 +54,7 @@ describe('video-report-safety', () => {
 
   it('quarentena risco grave na primeira denúncia', () => {
     assert.equal(
-      shouldQuarantineVideoAfterReport('minor_safety', 1),
+      shouldQuarantineVideoAfterReport('minor_exposure_safety', 1),
       true
     );
     assert.equal(
@@ -82,7 +82,7 @@ describe('video-report-safety', () => {
   });
 
   it('preserva evidência somente para categorias de risco grave', () => {
-    assert.equal(shouldPreserveMediaEvidence('minor_safety'), true);
+    assert.equal(shouldPreserveMediaEvidence('minor_exposure_safety'), true);
     assert.equal(shouldPreserveMediaEvidence('minor_content_safety'), true);
     assert.equal(shouldPreserveMediaEvidence('illegal_content'), true);
     assert.equal(shouldPreserveMediaEvidence('sexual_boundary'), true);
