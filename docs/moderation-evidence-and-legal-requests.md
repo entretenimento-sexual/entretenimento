@@ -5,7 +5,7 @@ Este documento descreve a arquitetura operacional da plataforma para denúncias 
 ## Princípios
 
 1. **Denúncia de usuário não é conclusão de crime.** O envio de uma denúncia cria um caso de moderação e pode acionar contenção técnica, mas não autoriza comunicação automática a autoridades.
-2. **Conteúdo grave sai da distribuição rapidamente.** `minor_content_safety`, `illegal_content` e `sexual_boundary` colocam foto/vídeo em quarentena na primeira denúncia válida. Denúncias gerais exigem limiar antifraude antes da quarentena automática. `minor_safety` é reservado à suspeita de menoridade do responsável por um perfil e não equivale a conteúdo sexual envolvendo criança ou adolescente.
+2. **Proteção de menores em Media é fail-closed.** `minor_exposure_safety` e `minor_content_safety` colocam foto/vídeo em quarentena na primeira denúncia válida. `minor_exposure_safety` cobre qualquer indício de criança ou adolescente exposto em mídia da plataforma adulta, mesmo sem nudez ou ato sexual; `minor_content_safety` cobre possível contexto sexual, íntimo ou exploratório envolvendo menor. Ambos são críticos e preservam evidência para revisão. `minor_safety` fica reservado ao domínio de perfil/revalidação etária e não é motivo aceito pelos callables de Media. `illegal_content` e `sexual_boundary` mantêm o tratamento grave já existente; denúncias gerais exigem limiar antifraude antes da quarentena automática.
 3. **Preservar é diferente de manter publicado.** A mídia pode ser removida da experiência pública e, ao mesmo tempo, ter uma cópia isolada para auditoria, revisão jurídica ou atendimento posterior a uma solicitação legal válida.
 4. **Preservação não amplia acesso interno.** Evidência e jobs são backend-only. A sessão administrativa comum não recebe path de Storage, URL ou conteúdo preservado.
 5. **Exclusão do produto não destrói evidência em retenção.** A exclusão canônica de foto/vídeo não alcança `system/moderation-evidence/...`.
@@ -23,8 +23,8 @@ moderation_reports/{reportId}
       ↓
 ┌───────────────────────────────────────────────┐
 │ risco grave?                                  │
-│ minor_content_safety / illegal_content /      │
-│ sexual_boundary                               │
+│ minor_exposure_safety / minor_content_safety  │
+│ illegal_content / sexual_boundary              │
 └───────────────────────────────────────────────┘
       ↓ sim
 quarentena imediata
@@ -52,8 +52,9 @@ revisão humana de moderação
 
 Os dois fluxos são deliberadamente distintos:
 
-- `minor_safety` em `profile` significa **possível pessoa menor de 18 anos operando o perfil**. A denúncia é um sinal de segurança, não prova de idade, não conclui infração penal e não gera comunicação automática a autoridades. Ela entra na fila crítica; uma pessoa moderadora decide se há indícios suficientes para iniciar revalidação.
-- `minor_content_safety` significa **possível criança ou adolescente em conteúdo sexual, íntimo ou exploratório**. Nas superfícies com backend especializado, a primeira denúncia válida provoca quarentena reversível e preservação técnica, sem aguardar volume de denúncias.
+- `minor_safety` em `profile` significa **possível pessoa menor de 18 anos operando o perfil**. A denúncia é um sinal de segurança, não prova de idade, não conclui infração penal e não gera comunicação automática a autoridades. Ela entra na fila crítica; uma pessoa moderadora decide se há indícios suficientes para iniciar revalidação. Esse motivo não pertence à policy de Media.
+- `minor_exposure_safety` significa **possível criança ou adolescente aparecendo em foto ou vídeo da plataforma adulta**, ainda que o conteúdo não seja sexual. A primeira denúncia válida provoca quarentena reversível, preservação técnica e prioridade crítica. Media não usa esse sinal para alterar a idade do perfil.
+- `minor_content_safety` significa **possível criança ou adolescente em conteúdo sexual, íntimo ou exploratório**. A primeira denúncia válida também provoca quarentena reversível, preservação técnica e revisão crítica, sem aguardar volume de denúncias.
 - A revalidação etária aceita mais de um caminho confiável de evidência. Data de nascimento informada pelo usuário serve apenas para triagem e não libera acesso adulto. Revisão documental, escalonamento de provedor e KYC de perfil podem ser usados conforme o caso, sem armazenar no caso a referência bruta do documento/provedor.
 - O prazo de sete dias usado na revalidação de perfil é **meta operacional da plataforma**, não prazo legal de comprovação e não presunção de menoridade. Envio posterior continua aceito e fica auditado como fora da meta operacional.
 
