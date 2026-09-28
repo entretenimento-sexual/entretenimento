@@ -11,6 +11,9 @@ export {
   reviewVideoContentReport,
 } from './application/review-video-content-report.handler';
 export {
+  submitMediaModerationContest,
+} from './application/submit-media-moderation-contest.handler';
+export {
   retryPendingModerationEvidencePreservation,
 } from './application/moderation-evidence-preservation.handler';
 export {
