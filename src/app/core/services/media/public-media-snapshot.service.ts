@@ -101,6 +101,9 @@ export class PublicMediaSnapshotService {
   read$(kind: PublicVideoSnapshotKind): Observable<IPublicVideoItem[]>;
   read$(
     kind: PublicMediaSnapshotKind
+  ): Observable<IPublicPhotoItem[] | IPublicVideoItem[]>;
+  read$(
+    kind: PublicMediaSnapshotKind
   ): Observable<IPublicPhotoItem[] | IPublicVideoItem[]> {
     return this.sessionUid$.pipe(
       take(1),
@@ -148,6 +151,10 @@ export class PublicMediaSnapshotService {
   write(
     kind: PublicVideoSnapshotKind,
     items: readonly IPublicVideoProjection[]
+  ): void;
+  write(
+    kind: PublicMediaSnapshotKind,
+    items: readonly (IPublicPhotoProjection | IPublicVideoProjection)[]
   ): void;
   write(
     kind: PublicMediaSnapshotKind,
