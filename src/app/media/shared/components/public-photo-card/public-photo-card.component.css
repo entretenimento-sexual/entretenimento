@@ -168,6 +168,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
+    "context context"
     "owner owner"
     "stats cover";
   gap: 6px 8px;
@@ -182,6 +183,19 @@
       rgb(0 0 0 / 78%) 100%
     );
   pointer-events: none;
+}
+
+.photo-context-badge {
+  grid-area: context;
+  justify-self: start;
+  max-width: min(100%, 220px);
+  pointer-events: none;
+}
+
+.feed-card-context {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 160px;
 }
 
 .photo-owner-link {
@@ -434,6 +448,7 @@
   .photo-overlay {
     grid-template-columns: 1fr;
     grid-template-areas:
+      "context"
       "owner"
       "stats"
       "cover";
