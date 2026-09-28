@@ -15,6 +15,10 @@ test('faturamento patrocinado nasce no placement server-side', () => {
 
   assert.equal(selection.includes("billingReason: 'served_placement'"), true);
   assert.equal(selection.includes("collection('billing_ledger')"), true);
+  assert.equal(
+    selection.includes("collection('promotion_boost_billing_events')"),
+    true
+  );
   assert.equal(selection.includes('spentMilliCents: nextSpentMilliCents'), true);
   assert.equal(selection.includes('rateCpmCentsSnapshot'), true);
 });
@@ -24,6 +28,7 @@ test('evento cliente não altera budget, rate ou ledger financeiro', () => {
 
   for (const forbidden of [
     "collection('billing_ledger')",
+    "collection('promotion_boost_billing_events')",
     'spentMilliCents',
     'dailySpentMilliCents',
     'rateCpmCentsSnapshot',
