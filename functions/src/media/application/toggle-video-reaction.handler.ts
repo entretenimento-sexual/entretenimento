@@ -13,6 +13,7 @@ import {
   normalizeMediaCount,
   type MediaScoreBreakdown,
 } from './media-engagement-score';
+import { observeMediaTrendScoreShadow } from './media-trend-score-shadow-observation.service';
 import {
   REQUIRE_PUBLIC_MEDIA_APP_CHECK,
   assertPublicMediaCallableAppCheck,
@@ -39,6 +40,8 @@ interface PublicVideoDoc {
   commentsCount?: number;
   ratingsCount?: number;
   ratingAverage?: number;
+  publishedAt?: number;
+  createdAt?: number;
   scoreBreakdown?: Partial<MediaScoreBreakdown>;
 }
 
@@ -82,7 +85,7 @@ export const toggleVideoReaction = onCall<ToggleVideoReactionRequest>(
     );
     const likeRef = videoRef.collection('likes').doc(viewerUid);
 
-    return db.runTransaction(async (transaction) => {
+    const outcome = await db.runTransaction(async (transaction) => {
       await assertInteractionAccessInTransaction(transaction, viewerUid);
       await assertNoActiveBilateralBlockInTransaction(
         transaction,
@@ -161,7 +164,24 @@ export const toggleVideoReaction = onCall<ToggleVideoReactionRequest>(
         liked: !likeSnap.exists,
         reactionsCount: nextCount,
         score: nextScore.score,
+        trendEngagementScore: nextScore.engagementScore,
+        trendPublishedAt: video.publishedAt ?? video.createdAt ?? 0,
+        trendObservedAt: now,
       };
     });
+
+    observeMediaTrendScoreShadow({
+      mediaType: 'video',
+      event: 'reaction',
+      engagementScore: outcome.trendEngagementScore,
+      publishedAt: outcome.trendPublishedAt,
+      now: outcome.trendObservedAt,
+    });
+
+    return {
+      liked: outcome.liked,
+      reactionsCount: outcome.reactionsCount,
+      score: outcome.score,
+    };
   }
 );
