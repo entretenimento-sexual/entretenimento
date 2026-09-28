@@ -16,6 +16,7 @@ import {
   ModerationReportReviewPatch,
 } from 'src/app/core/services/moderation/admin-moderation-report.service';
 import {
+  MinorMediaSafetyReason,
   ModerationReportReason,
   ModerationReportStatus,
   ModerationReportTargetType,
@@ -27,6 +28,7 @@ import {
 
 type AdminReportFilter = ModerationReportStatus | 'all' | 'aged_open';
 type ResolutionDrafts = Record<string, string>;
+type MediaSafetyReasonDrafts = Record<string, MinorMediaSafetyReason | null>;
 
 interface ModerationReviewHistoryItem {
   id: string;
@@ -79,6 +81,7 @@ export class ModerationReportsComponent {
   readonly searchTerm = signal<string>('');
   readonly busyReportId = signal<string | null>(null);
   readonly resolutionDrafts = signal<ResolutionDrafts>({});
+  readonly mediaSafetyReasonDrafts = signal<MediaSafetyReasonDrafts>({});
 
   private readonly selectedFilter$ = toObservable(this.selectedFilter);
   private readonly searchTerm$ = toObservable(this.searchTerm);
@@ -162,6 +165,46 @@ export class ModerationReportsComponent {
 
   resolutionDraftLength(report: AdminModerationReportVm): number {
     return this.resolutionDraft(report).length;
+  }
+
+  setMediaSafetyReasonDraft(
+    report: AdminModerationReportVm,
+    value: MinorMediaSafetyReason | null
+  ): void {
+    const reportId = this.safeReportId(report);
+
+    if (!reportId) {
+      return;
+    }
+
+    const normalized: MinorMediaSafetyReason | null =
+      value === 'minor_exposure_safety' ||
+      value === 'minor_content_safety'
+        ? value
+        : null;
+
+    this.mediaSafetyReasonDrafts.update((drafts) => ({
+      ...drafts,
+      [reportId]: normalized,
+    }));
+  }
+
+  mediaSafetyReasonDraft(
+    report: AdminModerationReportVm
+  ): MinorMediaSafetyReason | null {
+    if (report.targetType !== 'photo' && report.targetType !== 'video') {
+      return null;
+    }
+
+    const reportId = this.safeReportId(report);
+
+    if (!reportId) {
+      return null;
+    }
+
+    return this.mediaSafetyReasonDrafts()[reportId] ??
+      report.reviewSafetyReason ??
+      null;
   }
 
   targetRoute(report: AdminModerationReportVm): string[] | null {
@@ -398,6 +441,9 @@ export class ModerationReportsComponent {
       targetUserUid: this.reviewTargetUserUid(report),
       reportReason: report.reason,
       reportTargetType: report.targetType,
+      mediaSafetyReason: status === 'resolved'
+        ? this.mediaSafetyReasonDraft(report)
+        : null,
       resolution: this.resolveModerationNote(report, fallback),
     };
   }
