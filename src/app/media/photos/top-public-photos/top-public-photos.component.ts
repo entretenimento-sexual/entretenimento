@@ -2,7 +2,7 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterModule } from '@angular/router';
-import { EMPTY, Observable, combineLatest } from 'rxjs';
+import { BehaviorSubject, EMPTY, Observable, combineLatest } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -19,6 +19,9 @@ import {
   PublicPhotoDiscoveryFeedService,
   PublicPhotoDiscoveryFeedState,
 } from 'src/app/core/services/media/public-photo-discovery-feed.service';
+
+const PHOTO_RENDER_WINDOW_MAX_ITEMS = 72;
+const PHOTO_RENDER_WINDOW_STEP = 24;
 import { NetworkStatusService } from 'src/app/core/services/network/network-status.service';
 import { ContentStateComponent } from 'src/app/shared/content-state/content-state.component';
 import { PublicPhotoCardComponent } from '../../shared/components/public-photo-card/public-photo-card.component';
@@ -27,6 +30,10 @@ import { PhotoPromotionPlacementService } from 'src/app/core/services/media/phot
 import { PublicPhotoViewerLauncherService } from '../photo-viewer/public-photo-viewer-launcher.service';
 
 interface TopPhotosViewModel extends PublicPhotoDiscoveryFeedState {
+  renderItems: IPublicPhotoItem[];
+  renderStart: number;
+  hasEarlierRenderWindow: boolean;
+  hasLaterRenderWindow: boolean;
   offline: boolean;
   hasItems: boolean;
   showInitialLoading: boolean;
@@ -59,6 +66,7 @@ export class TopPublicPhotosComponent {
   private readonly network = inject(NetworkStatusService);
   private readonly photoViewer = inject(PublicPhotoViewerLauncherService);
   private readonly promotion = inject(PhotoPromotionPlacementService);
+  private readonly renderStartSubject = new BehaviorSubject<number>(0);
 
   private readonly loadState$: Observable<PublicPhotoDiscoveryFeedState> =
     this.discovery.connect$('top').pipe(
@@ -73,12 +81,30 @@ export class TopPublicPhotosComponent {
   readonly vm$: Observable<TopPhotosViewModel> = combineLatest([
     this.loadState$,
     this.network.isOffline$,
+    this.renderStartSubject,
   ]).pipe(
-    map(([state, offline]) => {
+    map(([state, offline, requestedRenderStart]) => {
       const hasItems = state.items.length > 0;
+      const maxRenderStart = Math.max(
+        0,
+        state.items.length - PHOTO_RENDER_WINDOW_MAX_ITEMS
+      );
+      const renderStart = Math.max(
+        0,
+        Math.min(requestedRenderStart, maxRenderStart)
+      );
+      const renderItems = state.items.slice(
+        renderStart,
+        renderStart + PHOTO_RENDER_WINDOW_MAX_ITEMS
+      );
 
       return {
         ...state,
+        renderItems,
+        renderStart,
+        hasEarlierRenderWindow: renderStart > 0,
+        hasLaterRenderWindow:
+          renderStart + renderItems.length < state.items.length,
         offline,
         hasItems,
         showInitialLoading: state.loading && !hasItems,
@@ -114,21 +140,47 @@ export class TopPublicPhotosComponent {
       return;
     }
 
-    this.discovery.loadMore$().pipe(take(1)).subscribe();
+    this.discovery.loadMore$().pipe(take(1)).subscribe((loaded) => {
+      if (!loaded) return;
+      this.loadState$.pipe(take(1)).subscribe((state) => {
+        this.renderStartSubject.next(
+          Math.max(0, state.items.length - PHOTO_RENDER_WINDOW_MAX_ITEMS)
+        );
+      });
+    });
   }
 
   retry(): void {
+    this.renderStartSubject.next(0);
     this.discovery.refresh$().pipe(take(1)).subscribe();
   }
 
-  openPhoto(index: number): void {
+  showEarlierWindow(): void {
+    this.renderStartSubject.next(
+      Math.max(0, this.renderStartSubject.value - PHOTO_RENDER_WINDOW_STEP)
+    );
+  }
+
+  showLaterWindow(): void {
+    this.loadState$.pipe(take(1)).subscribe((state) => {
+      const maxStart = Math.max(
+        0,
+        state.items.length - PHOTO_RENDER_WINDOW_MAX_ITEMS
+      );
+      this.renderStartSubject.next(
+        Math.min(maxStart, this.renderStartSubject.value + PHOTO_RENDER_WINDOW_STEP)
+      );
+    });
+  }
+
+  openPhoto(selected: IPublicPhotoItem): void {
     this.vm$
       .pipe(
         take(1),
         switchMap((vm) => {
-          const selected = vm.items[index];
-
-          if (!selected) {
+          if (!vm.items.some((item) =>
+            item.id === selected.id && item.ownerUid === selected.ownerUid
+          )) {
             this.errorNotifier.showWarning(
               'Esta foto não está mais disponível.'
             );
