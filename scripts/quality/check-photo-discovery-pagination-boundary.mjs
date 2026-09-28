@@ -169,13 +169,34 @@ const snapshots = read(
 for (const fragment of [
   "'latest-photos'",
   "'top-photos'",
-  "delete projection['url'];",
+  "'latest-videos'",
+  "'top-videos'",
+  'stripEphemeralAccess(',
+  'delete projection[key];',
   'PUBLIC_MEDIA_SNAPSHOT_TTL_MS',
 ]) {
   requireIncludes(
     snapshots,
     fragment,
     'SWR snapshot boundary drift'
+  );
+}
+
+for (const ephemeralField of [
+  "'url'",
+  "'posterUrl'",
+  "'signedUrl'",
+  "'accessUrl'",
+  "'expiresAt'",
+  "'accessExpiresAt'",
+  "'playbackToken'",
+  "'retentionToken'",
+  "'retentionTokenExpiresAt'",
+]) {
+  requireIncludes(
+    snapshots,
+    ephemeralField,
+    'generic SWR snapshot access stripping drift'
   );
 }
 
