@@ -1,3 +1,4 @@
+@import '../../shared/styles/public-media-viewer.tokens.css';
 @import './public-video-viewer-social.component.css';
 @import './public-video-viewer-ratings.component.css';
 @import './public-video-viewer-reports.component.css';
@@ -15,7 +16,7 @@
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  background: #05070c;
+  background: var(--public-media-viewer-bg);
   color: #fff;
   container-type: inline-size;
 }
@@ -190,8 +191,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgb(255 255 255 / 20%);
-  background: rgb(10 12 18 / 64%);
+  border: 1px solid var(--public-media-viewer-control-border);
+  background: var(--public-media-viewer-control-bg);
   color: #fff;
   backdrop-filter: blur(14px);
   -webkit-tap-highlight-color: transparent;
@@ -207,8 +208,8 @@
 
 .public-video-viewer__close,
 .public-video-viewer__panel-close {
-  width: 44px;
-  height: 44px;
+  width: var(--public-media-viewer-control-size);
+  height: var(--public-media-viewer-control-size);
   padding: 0;
   border-radius: 50%;
   cursor: pointer;
