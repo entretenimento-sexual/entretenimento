@@ -1,4 +1,5 @@
-import { Injectable, inject } from '@angular/core';
+import { DestroyRef, Injectable, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   Observable,
   defer,
@@ -32,13 +33,31 @@ export interface VideoEditorLaunchOptions {
 
 @Injectable({ providedIn: 'root' })
 export class VideoEditorLauncherService {
+  private readonly destroyRef = inject(DestroyRef);
   private readonly authSession = inject(AuthSessionService);
   private readonly session = inject(VideoEditorSessionService);
-  private readonly globalError = inject(MediaApplicationErrorService);
+  private readonly mediaError = inject(MediaApplicationErrorService);
+  private authenticatedUid: string | null = null;
 
   readonly draft$ = this.session.draft$;
   readonly state$ = this.session.state$;
   readonly posterBlob$ = this.session.posterBlob$;
+
+  constructor() {
+    this.authSession.uid$.pipe(
+      distinctUntilChanged(),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe((uid) => {
+      const normalizedUid = String(uid ?? '').trim() || null;
+      this.authenticatedUid = normalizedUid;
+      this.session.clearIfOwnerMismatch(normalizedUid);
+    });
+
+    this.destroyRef.onDestroy(() => {
+      this.authenticatedUid = null;
+      this.session.clearDraft(undefined, 'destroyed');
+    });
+  }
 
   draftForSource$(source: VideoEditorSource): Observable<IVideoEditorDraft | null> {
     return this.draft$.pipe(
@@ -80,11 +99,13 @@ export class VideoEditorLauncherService {
         switchMap((uid) => {
           const ownerUid = String(uid ?? '').trim();
           if (!ownerUid) {
+            this.session.clearIfOwnerMismatch(null);
             return throwError(() => new Error(
               'Usuário não autenticado para abrir o editor de vídeo.'
             ));
           }
 
+          this.authenticatedUid = ownerUid;
           this.session.setDraft(
             file,
             ownerUid,
@@ -92,7 +113,7 @@ export class VideoEditorLauncherService {
             options.context
           );
 
-          const draft = this.session.peekDraft();
+          const draft = this.session.peekDraft(ownerUid);
           return draft
             ? of(draft)
             : throwError(() => new Error(
@@ -112,34 +133,59 @@ export class VideoEditorLauncherService {
     state: IVideoEditorState,
     source?: VideoEditorSource
   ): void {
-    if (!this.hasMatchingDraft(source)) {
+    const ownerUid = this.currentOwnerUid();
+    if (!ownerUid || !this.hasMatchingDraft(ownerUid, source)) {
       return;
     }
 
-    this.session.updateState(state);
+    this.session.updateState(state, ownerUid);
   }
 
   updatePoster(blob: Blob | null, source?: VideoEditorSource): void {
-    if (!this.hasMatchingDraft(source)) {
+    const ownerUid = this.currentOwnerUid();
+    if (!ownerUid || !this.hasMatchingDraft(ownerUid, source)) {
       return;
     }
 
-    this.session.updatePoster(blob);
+    this.session.updatePoster(blob, ownerUid);
   }
 
   complete(source?: VideoEditorSource): VideoEditorProcessedResult {
-    this.assertSourceOwnership(source);
-    const result = this.session.buildResult();
-    this.session.clearDraft(source);
-    return result;
+    const ownerUid = this.requireAuthenticatedOwnerUid();
+    this.assertSourceOwnership(ownerUid, source);
+    return this.session.takeResult(ownerUid, source);
   }
 
   cancel(source?: VideoEditorSource): void {
-    this.session.clearDraft(source);
+    this.session.clearDraft(source, 'cancelled');
   }
 
-  private hasMatchingDraft(source?: VideoEditorSource): boolean {
-    const draft = this.session.peekDraft();
+  private currentOwnerUid(): string | null {
+    if (this.authSession.isTerminatingSnapshot) {
+      this.authenticatedUid = null;
+      this.session.clearIfOwnerMismatch(null);
+      return null;
+    }
+
+    return this.authenticatedUid;
+  }
+
+  private requireAuthenticatedOwnerUid(): string {
+    const ownerUid = this.currentOwnerUid();
+    if (!ownerUid) {
+      throw new Error(
+        'Sua sessão de usuário mudou. Selecione o vídeo novamente para continuar.'
+      );
+    }
+
+    return ownerUid;
+  }
+
+  private hasMatchingDraft(
+    ownerUid: string,
+    source?: VideoEditorSource
+  ): boolean {
+    const draft = this.session.peekDraft(ownerUid);
     if (!draft) {
       return false;
     }
@@ -151,9 +197,17 @@ export class VideoEditorLauncherService {
     return true;
   }
 
-  private assertSourceOwnership(source?: VideoEditorSource): void {
-    const draft = this.session.peekDraft();
-    if (source && draft && draft.source !== source) {
+  private assertSourceOwnership(
+    ownerUid: string,
+    source?: VideoEditorSource
+  ): void {
+    const draft = this.session.peekDraft(ownerUid);
+
+    if (!draft) {
+      return;
+    }
+
+    if (source && draft.source !== source) {
       throw new Error('A sessão ativa pertence a outra origem de edição.');
     }
   }
@@ -162,15 +216,15 @@ export class VideoEditorLauncherService {
     error: unknown,
     source: VideoEditorSource
   ): void {
-    this.globalError.reportSilently(
+    this.mediaError.reportSilently(
       error,
       'launchVideoEditor',
       'Falha no editor de vídeo.',
       {
         scope: 'VideoEditorLauncherService',
         source,
-      }
+      },
+      'video_editor_open_failed'
     );
   }
-
 }
