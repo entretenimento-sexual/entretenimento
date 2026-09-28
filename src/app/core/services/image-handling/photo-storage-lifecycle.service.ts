@@ -5,16 +5,15 @@ import { deleteObject, ref } from 'firebase/storage';
 import { Observable, defer, from, throwError } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 
-import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from '../media/media-application-error.service';
+import type { MediaErrorReason } from '../media/media-error.catalog';
 
 @Injectable({ providedIn: 'root' })
 export class PhotoStorageLifecycleService {
   private readonly storage = inject(Storage);
   private readonly auth = inject(Auth);
 
-  constructor(
-    private readonly globalErrorHandler: GlobalErrorHandlerService
-  ) {}
+  private readonly mediaError = inject(MediaApplicationErrorService);
 
   extractOwnedPrivatePhotoPath(
     ownerUid: string,
@@ -77,14 +76,14 @@ export class PhotoStorageLifecycleService {
 
       if (!safeOwnerUid || currentUid !== safeOwnerUid) {
         throw this.createError(
-          'media/storage-owner-mismatch',
+          'photo_storage_owner_mismatch',
           'A foto só pode ser manipulada pelo perfil autenticado.'
         );
       }
 
       if (!safePath) {
         throw this.createError(
-          'media/invalid-storage-path',
+          'photo_storage_path_invalid',
           'A foto não possui um caminho privado válido.'
         );
       }
@@ -118,9 +117,12 @@ export class PhotoStorageLifecycleService {
     return expectedPath.test(safePath) ? safePath : null;
   }
 
-  private createError(code: string, message: string): Error {
-    const error = new Error(message);
-    (error as any).code = code;
+  private createError(reason: MediaErrorReason, message: string): Error {
+    const error = new Error(message) as Error & {
+      reason?: MediaErrorReason;
+    };
+    error.name = 'MediaError';
+    error.reason = reason;
     return error;
   }
 
@@ -129,23 +131,16 @@ export class PhotoStorageLifecycleService {
     ownerUid: string,
     storagePath: string
   ): void {
-    try {
-      const reportable = error instanceof Error
-        ? error
-        : new Error('[PhotoStorageLifecycleService] Falha no ciclo da foto.');
-
-      (reportable as any).context = 'PhotoStorageLifecycleService';
-      (reportable as any).operation = 'deleteOwnedPrivatePhoto';
-      (reportable as any).extra = {
+    this.mediaError.reportSilently(
+      error,
+      'photoStorage.deleteOwnedPrivatePhoto',
+      'Não foi possível excluir a foto agora.',
+      {
+        scope: 'PhotoStorageLifecycleService',
         hasOwnerUid: !!String(ownerUid ?? '').trim(),
         hasStoragePath: !!String(storagePath ?? '').trim(),
-      };
-      (reportable as any).original = error;
-      (reportable as any).skipUserNotification = true;
-
-      this.globalErrorHandler.handleError(reportable);
-    } catch {
-      // noop
-    }
+      },
+      'photo_delete_failed'
+    );
   }
 }
