@@ -20,7 +20,8 @@ match /public_profiles/{userId}/public_photos/{photoId} {
   }
 
   function publicProfileAllowsAdultExposure() {
-    return publicProfileProjectionAllowsAdultExposure()
+    return canonicalOwnerLifecycleAllowsPublicMediaExposure(userId)
+      && publicProfileProjectionAllowsAdultExposure()
       && canonicalAgeEligibilityAllowsAdultAccess(userId);
   }
 
