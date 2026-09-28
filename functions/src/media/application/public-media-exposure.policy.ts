@@ -6,6 +6,7 @@ import {
 } from './public-media-age-expiry.policy';
 
 export type PublicMediaOwnerExposureDenialReason =
+  | 'OWNER_LIFECYCLE_NOT_CANONICAL'
   | 'OWNER_NOT_PUBLIC'
   | 'OWNER_AGE_PROJECTION_UNAVAILABLE'
   | 'OWNER_AGE_PROJECTION_EXPIRED'
@@ -21,6 +22,7 @@ export interface PublicMediaOwnerExposureDecision {
 
 interface PublicMediaOwnerExposureInput {
   readonly publicProfile: Record<string, unknown> | null | undefined;
+  readonly canonicalOwnerLifecycleAllowed: boolean;
   readonly viewerBlocked: boolean;
   readonly nowMs: number;
 }
@@ -60,6 +62,14 @@ function normalizedUpper(value: unknown): string {
 export function evaluatePublicMediaOwnerExposure(
   input: PublicMediaOwnerExposureInput
 ): PublicMediaOwnerExposureDecision {
+  if (!input.canonicalOwnerLifecycleAllowed) {
+    return {
+      allowed: false,
+      validUntilMs: null,
+      denialReason: 'OWNER_LIFECYCLE_NOT_CANONICAL',
+    };
+  }
+
   if (input.viewerBlocked) {
     return {
       allowed: false,
