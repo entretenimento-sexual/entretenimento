@@ -45,7 +45,7 @@
               {{ getPublishedLabel(item) }}
             </time>
 
-            @if (item.officialMediaContext?.association?.verified) {
+            @if ((item.officialMediaContext?.contexts?.length ?? 0) > 0) {
               <span
                 class="feed-card-official"
                 aria-label="Publicação de perfil oficial verificado"
@@ -99,7 +99,7 @@
           <span class="photo-owner-heading">
             <strong>{{ getOwnerName(item) }}</strong>
 
-            @if (item.officialMediaContext?.association?.verified) {
+            @if ((item.officialMediaContext?.contexts?.length ?? 0) > 0) {
               <span
                 class="photo-official-badge"
                 aria-label="Perfil oficial verificado"
