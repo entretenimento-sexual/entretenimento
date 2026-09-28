@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolvePublicMediaRecommendationContext } from './public-media-presentation.policy';
+import {
+  hasOfficialMediaContext,
+  resolvePublicMediaRecommendationContext,
+} from './public-media-presentation.policy';
 
 describe('resolvePublicMediaRecommendationContext', () => {
   it('prioriza contexto explícito de perfil', () => {
@@ -53,6 +56,40 @@ describe('resolvePublicMediaRecommendationContext', () => {
       key: 'sponsored',
       commercial: true,
     });
+  });
+
+  it('só apresenta Oficial quando a projeção derivada é estruturalmente válida', () => {
+    expect(
+      hasOfficialMediaContext({
+        officialMediaContext: {
+          contexts: [{
+            identity: { verified: true, type: 'profile' },
+            association: { verified: true },
+            target: { type: 'profile', id: 'owner-1' },
+          }],
+        },
+      })
+    ).toBe(true);
+
+    expect(
+      hasOfficialMediaContext({
+        officialMediaContext: {
+          contexts: [{
+            identity: { verified: true, type: 'profile' },
+            association: { verified: false },
+            target: { type: 'profile', id: 'owner-1' },
+          }],
+        },
+      })
+    ).toBe(false);
+
+    expect(
+      hasOfficialMediaContext({
+        officialMediaContext: {
+          contexts: [{ arbitrary: true }],
+        },
+      })
+    ).toBe(false);
   });
 
   it('não inventa contexto quando a origem é desconhecida', () => {
