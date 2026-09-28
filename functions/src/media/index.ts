@@ -14,6 +14,9 @@ export {
   submitMediaModerationContest,
 } from './application/submit-media-moderation-contest.handler';
 export {
+  reviewMediaModerationContest,
+} from './application/review-media-moderation-contest.handler';
+export {
   retryPendingModerationEvidencePreservation,
 } from './application/moderation-evidence-preservation.handler';
 export {
