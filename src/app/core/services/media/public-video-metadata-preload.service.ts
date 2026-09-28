@@ -34,6 +34,7 @@ interface NavigatorWithConnection extends Navigator {
 const ACCESS_EXPIRY_SAFETY_MS = 30_000;
 const METADATA_PRELOAD_TIMEOUT_MS = 8_000;
 const MAX_ACTIVE_METADATA_PRELOADS = 2;
+const MAX_ATTEMPTED_METADATA_KEYS = 256;
 const MIN_DOWNLINK_MBPS = 1.5;
 const BLOCKED_EFFECTIVE_TYPES = new Set(['slow-2g', '2g']);
 
@@ -140,6 +141,11 @@ export class PublicVideoMetadataPreloadService {
     }
 
     this.attemptedKeys.add(key);
+    while (this.attemptedKeys.size > MAX_ATTEMPTED_METADATA_KEYS) {
+      const oldestKey = this.attemptedKeys.values().next().value as string | undefined;
+      if (!oldestKey || oldestKey === key) break;
+      this.attemptedKeys.delete(oldestKey);
+    }
 
     while (this.activeCleanups.size >= MAX_ACTIVE_METADATA_PRELOADS) {
       const oldest = this.activeCleanups.values().next().value as (() => void) | undefined;
