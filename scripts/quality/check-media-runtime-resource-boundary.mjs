@@ -100,6 +100,7 @@ const preload = read(
 );
 for (const fragment of [
   'MAX_ACTIVE_METADATA_PRELOADS = 2',
+  'MAX_ATTEMPTED_METADATA_KEYS = 256',
   'cancelMetadataPreload',
   "video.removeAttribute('src')",
   'video.load()',
