@@ -16,8 +16,6 @@
 import { createHash } from 'node:crypto';
 
 import type {
-  PromotionBoostBillingConfig,
-  PromotionBoostCampaign,
   PromotionBoostTargetType,
 } from './promotion-boost.policy';
 
@@ -40,6 +38,22 @@ export type PromotionComplianceTargetingMode =
   | 'contextual_tag'
   | 'contextual_community'
   | 'contextual_venue';
+
+export interface PromotionComplianceCampaignSnapshotInput {
+  readonly campaignId: string;
+  readonly targetType: PromotionBoostTargetType;
+  readonly targetId: string;
+  readonly targetOwnerUid: string;
+  readonly advertiserUid: string;
+  readonly budgetCents: number;
+  readonly dailyBudgetCents: number | null;
+  readonly currency: 'BRL';
+  readonly billingBasis: 'served_placement_cpm';
+  readonly rateCpmCentsSnapshot: number;
+  readonly billingConfigVersion: number;
+  readonly endsAt: number;
+  readonly frequencyCapPerViewerPerDay: number;
+}
 
 export interface PromotionComplianceAdvertiserSnapshot {
   readonly advertiserUid: string;
@@ -267,7 +281,7 @@ export function buildPromotionComplianceCreativeSnapshot(input: {
 }
 
 export function buildPromotionComplianceSnapshot(input: {
-  readonly campaign: Readonly<PromotionBoostCampaign>;
+  readonly campaign: Readonly<PromotionComplianceCampaignSnapshotInput>;
   readonly advertiserAccount: {
     readonly policyVersion: number;
     readonly updatedAt: number;
@@ -373,7 +387,7 @@ export function buildPromotionComplianceSnapshot(input: {
 
 export function buildPromotionComplianceDeliveryEvidence(input: {
   readonly snapshotId: string;
-  readonly campaign: Readonly<PromotionBoostCampaign>;
+  readonly campaign: Readonly<PromotionComplianceCampaignSnapshotInput>;
   readonly placementId: string;
   readonly deliveredAt: number;
   readonly viewerHash: string;
