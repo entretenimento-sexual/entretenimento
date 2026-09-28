@@ -24,7 +24,8 @@ import {
 } from 'rxjs';
 
 import { AuthSessionService } from '../autentication/auth/auth-session.service';
-import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from '../media/media-application-error.service';
+import type { MediaErrorReason } from '../media/media-error.catalog';
 import {
   PhotoEditorContext,
   PhotoEditorModalProcessSuccess,
@@ -56,7 +57,7 @@ export class PhotoEditorLauncherService {
   private readonly document = inject(DOCUMENT);
   private readonly authSession = inject(AuthSessionService);
   private readonly session = inject(PhotoEditorSessionService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly mediaError = inject(MediaApplicationErrorService);
 
   editFile$(
     file: File,
@@ -85,14 +86,16 @@ export class PhotoEditorLauncherService {
     return this.withAuthenticatedUid$('profile-photos', (authenticatedUid) => {
       const ownerUid = String(command.ownerUid ?? '').trim();
       if (!ownerUid || ownerUid !== authenticatedUid) {
-        return throwError(() => new Error(
+        return throwError(() => this.createMediaError(
+          'photo_editor_owner_mismatch',
           'A foto só pode ser editada pelo proprietário autenticado.'
         ));
       }
 
       const storedImageUrl = String(command.storedImageUrl ?? '').trim();
       if (!storedImageUrl) {
-        return throwError(() => new Error(
+        return throwError(() => this.createMediaError(
+          'photo_editor_source_unavailable',
           'A imagem armazenada não possui uma URL válida para edição.'
         ));
       }
@@ -117,7 +120,8 @@ export class PhotoEditorLauncherService {
       switchMap((uid) => {
         const ownerUid = String(uid ?? '').trim();
         if (!ownerUid) {
-          return throwError(() => new Error(
+          return throwError(() => this.createMediaError(
+            'photo_editor_auth_required',
             'Usuário não autenticado para abrir o editor de fotos.'
           ));
         }
@@ -125,7 +129,7 @@ export class PhotoEditorLauncherService {
         return factory(ownerUid);
       }),
       catchError((error: unknown) => {
-        this.reportTechnicalError(error, source);
+        this.reportMediaError(error, source);
         return throwError(() => error);
       })
     );
@@ -171,7 +175,6 @@ export class PhotoEditorLauncherService {
       })),
       catchError((error: unknown) => {
         this.session.clearDraft();
-        this.reportTechnicalError(error, source);
         return throwError(() => error);
       })
     );
@@ -225,27 +228,28 @@ export class PhotoEditorLauncherService {
       || reason === 1;
   }
 
-  private reportTechnicalError(
+  private reportMediaError(
     error: unknown,
     source: PhotoEditorSource
   ): void {
-    try {
-      const normalized = error instanceof Error
-        ? error
-        : new Error(String(error ?? 'Falha no editor de fotos.'));
-      const contextual = normalized as Error & {
-        context?: unknown;
-        skipUserNotification?: boolean;
-      };
-      contextual.context = {
+    this.mediaError.report(error, {
+      operation: 'photoEditor.launch',
+      reasonHint: 'photo_editor_failed',
+      metadata: {
         scope: 'PhotoEditorLauncherService',
-        op: 'editImage',
         source,
-      };
-      contextual.skipUserNotification = true;
-      this.globalError.handleError(contextual);
-    } catch {
-      // Diagnóstico secundário não altera o resultado do editor.
-    }
+      },
+    });
   }
-}
+
+  private createMediaError(
+    reason: MediaErrorReason,
+    message: string
+  ): Error {
+    const error = new Error(message) as Error & {
+      reason?: MediaErrorReason;
+    };
+    error.name = 'MediaError';
+    error.reason = reason;
+    return error;
+  }}
