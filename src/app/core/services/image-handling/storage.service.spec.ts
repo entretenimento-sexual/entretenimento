@@ -5,7 +5,7 @@ import { Functions } from '@angular/fire/functions';
 
 import { StorageService } from './storage.service';
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from '../media/media-application-error.service';
 import { PrivacyDebugLoggerService } from '../privacy/privacy-debug-logger.service';
 import {
   createStoreTestingMock,
@@ -47,9 +47,9 @@ describe('StorageService', () => {
           },
         },
         {
-          provide: GlobalErrorHandlerService,
+          provide: MediaApplicationErrorService,
           useValue: {
-            handleError: () => undefined,
+            report: () => undefined,
           },
         },
         {
