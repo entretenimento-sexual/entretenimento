@@ -6,6 +6,10 @@ import { assertInteractionAccessData } from '../account_lifecycle/interaction-ac
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import { REQUIRE_CALLABLE_APP_CHECK, assertCallableAppCheck } from '../shared/security/callable-app-check';
+import { consumeBackendRateLimitQuota } from '../shared/security/backend-rate-limit.service';
+import {
+  PROMOTION_BOOST_CAMPAIGN_MUTATION_RATE_LIMIT,
+} from './promotion-boost-abuse.policy';
 import {
   normalizePromotionBoostAdvertiserAccount,
   normalizePromotionBoostBillingConfig,
@@ -98,6 +102,13 @@ export const managePhotoPromotionCampaign = onCall<Request>(
     assertCallableAppCheck(request.app);
     const actor = actorFromAuth(request.auth);
     assertRecentAuthentication(request.auth?.token);
+
+    await consumeBackendRateLimitQuota({
+      action: 'promotion_boost_campaign_mutation',
+      subject: actor.uid,
+      config: PROMOTION_BOOST_CAMPAIGN_MUTATION_RATE_LIMIT,
+      message: 'Muitas operações comerciais foram solicitadas em pouco tempo.',
+    });
 
     const requestId = cleanRequestId(request.data?.requestId);
     const action = normalizeAction(request.data?.action);
