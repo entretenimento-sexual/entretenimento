@@ -14,6 +14,10 @@ import {
   isPromotionBoostEventTimingPlausible,
   isPromotionBoostSelfInteraction,
 } from './promotion-boost-abuse.policy';
+import {
+  incrementPromotionBoostFraudCounter,
+  recordPromotionBoostFraudSignal,
+} from './promotion-boost-fraud.service';
 import { normalizePromotionBoostCampaign, resolvePromotionBoostDay } from './promotion-boost.policy';
 
 type EventType = 'qualified_exposure' | 'click';
@@ -60,26 +64,20 @@ export const recordPhotoPromotionEvent = onCall<Request>(
     } catch (error) {
       const fraudNow = Date.now();
       const day = resolvePromotionBoostDay(fraudNow);
-      const hash = viewerHash(uid);
       await Promise.allSettled([
-        db.collection('promotion_boost_fraud_signals').add({
-          viewerHash: hash,
+        recordPromotionBoostFraudSignal({
+          viewerUid: uid,
           campaignId: null,
           placementId,
           reason: 'event_velocity_exceeded',
-          createdAt: fraudNow,
-          expiresAt: fraudNow + PROMOTION_BOOST_FRAUD_SIGNAL_TTL_MS,
+          now: fraudNow,
         }),
-        db.collection('promotion_boost_fraud_counters')
-          .doc(`${hash}:${day}`)
-          .set({
-            viewerHash: hash,
-            day,
-            totalSignals: FieldValue.increment(1),
-            'reasonCounts.event_velocity_exceeded': FieldValue.increment(1),
-            updatedAt: fraudNow,
-            expiresAt: fraudNow + PROMOTION_BOOST_FRAUD_SIGNAL_TTL_MS,
-          }, { merge: true }),
+        incrementPromotionBoostFraudCounter({
+          viewerUid: uid,
+          day,
+          reason: 'event_velocity_exceeded',
+          now: fraudNow,
+        }),
       ]);
       throw error;
     }
@@ -87,39 +85,7 @@ export const recordPhotoPromotionEvent = onCall<Request>(
     const placementRef = db.collection('promotion_boost_placements').doc(placementId);
     const now = Date.now();
 
-    return db.runTransaction(async (transaction) => {
-      const fraudSignalRef = db.collection('promotion_boost_fraud_signals').doc();
-      const fraudCounterRef = db.collection('promotion_boost_fraud_counters').doc(
-        `${viewerHash(uid)}:${resolvePromotionBoostDay(now)}`
-      );
-      const writeFraudSignal = (
-        reason:
-          | 'self_interaction'
-          | 'event_too_fast'
-          | 'placement_identity_mismatch',
-        campaignId: string | null,
-        metadata: Readonly<Record<string, unknown>> = {}
-      ) => {
-        transaction.create(fraudSignalRef, {
-          signalId: fraudSignalRef.id,
-          viewerHash: viewerHash(uid),
-          campaignId,
-          placementId,
-          reason,
-          metadata,
-          createdAt: now,
-          expiresAt: now + PROMOTION_BOOST_FRAUD_SIGNAL_TTL_MS,
-        });
-        transaction.set(fraudCounterRef, {
-          viewerHash: viewerHash(uid),
-          day: resolvePromotionBoostDay(now),
-          totalSignals: FieldValue.increment(1),
-          [`reasonCounts.${reason}`]: FieldValue.increment(1),
-          updatedAt: now,
-          expiresAt: now + PROMOTION_BOOST_FRAUD_SIGNAL_TTL_MS,
-        }, { merge: true });
-      };
-
+    const result = await db.runTransaction(async (transaction) => {
       const placementSnapshot = await transaction.get(placementRef);
       if (!placementSnapshot.exists) {
         throw new HttpsError('not-found', 'Placement patrocinado expirado.');
@@ -140,11 +106,14 @@ export const recordPhotoPromotionEvent = onCall<Request>(
         || placement['status'] !== 'delivered'
         || Number(placement['expiresAt']) < now
       ) {
-        writeFraudSignal(
-          'placement_identity_mismatch',
-          campaignId
-        );
-        throw new HttpsError('permission-denied', 'Placement patrocinado indisponível.');
+        return {
+          accepted: false,
+          idempotent: false,
+          billable: false,
+          fraudReason: 'placement_identity_mismatch' as const,
+          campaignId,
+          fraudMetadata: {},
+        };
       }
 
       if (
@@ -154,14 +123,14 @@ export const recordPhotoPromotionEvent = onCall<Request>(
           targetOwnerUid,
         })
       ) {
-        writeFraudSignal(
-          'self_interaction',
-          campaignId
-        );
-        throw new HttpsError(
-          'permission-denied',
-          'Auto-interação patrocinada não é contabilizada.'
-        );
+        return {
+          accepted: false,
+          idempotent: false,
+          billable: false,
+          fraudReason: 'self_interaction' as const,
+          campaignId,
+          fraudMetadata: {},
+        };
       }
 
       if (
@@ -171,18 +140,17 @@ export const recordPhotoPromotionEvent = onCall<Request>(
           now,
         })
       ) {
-        writeFraudSignal(
-          'event_too_fast',
+        return {
+          accepted: false,
+          idempotent: false,
+          billable: false,
+          fraudReason: 'event_too_fast' as const,
           campaignId,
-          {
+          fraudMetadata: {
             event,
             elapsedMs: now - deliveredAt,
-          }
-        );
-        throw new HttpsError(
-          'failed-precondition',
-          'Evento patrocinado não qualificado.'
-        );
+          },
+        };
       }
 
       const field =
@@ -229,5 +197,35 @@ export const recordPhotoPromotionEvent = onCall<Request>(
         billable: Number(placement['billedMilliCents']) > 0,
       };
     });
+
+    if ('fraudReason' in result && result.fraudReason) {
+      await Promise.allSettled([
+        recordPromotionBoostFraudSignal({
+          viewerUid: uid,
+          campaignId: result.campaignId,
+          placementId,
+          reason: result.fraudReason,
+          metadata: result.fraudMetadata,
+          now,
+        }),
+        incrementPromotionBoostFraudCounter({
+          viewerUid: uid,
+          day: resolvePromotionBoostDay(now),
+          reason: result.fraudReason,
+          now,
+        }),
+      ]);
+
+      throw new HttpsError(
+        result.fraudReason === 'self_interaction'
+          ? 'permission-denied'
+          : 'failed-precondition',
+        result.fraudReason === 'self_interaction'
+          ? 'Auto-interação patrocinada não é contabilizada.'
+          : 'Evento patrocinado não qualificado.'
+      );
+    }
+
+    return result;
   }
 );
