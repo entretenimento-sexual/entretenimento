@@ -14,6 +14,7 @@ import {
   isCriticalMinorMediaSafetyReason,
   shouldPreserveMediaEvidence,
   type MediaReportSafetyReason,
+  type MinorMediaSafetyReason,
 } from './media-report-safety';
 import {
   buildMediaEngagementScore,
@@ -44,6 +45,7 @@ interface ReviewVideoContentReportRequest {
   reportId?: string;
   decision?: VideoContentReportDecision;
   resolution?: string | null;
+  safetyReason?: MinorMediaSafetyReason | null;
 }
 
 interface ModerationReportDocument {
@@ -135,6 +137,17 @@ function cleanDecision(value: unknown): VideoContentReportDecision | null {
 
 function cleanResolution(value: unknown): string {
   return String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, 900);
+}
+
+function cleanMinorMediaSafetyReason(
+  value: unknown
+): MinorMediaSafetyReason | null {
+  const normalized = String(value ?? '').trim().toLowerCase();
+
+  return normalized === 'minor_exposure_safety' ||
+    normalized === 'minor_content_safety'
+    ? normalized
+    : null;
 }
 
 function cleanReason(value: unknown): MediaReportSafetyReason | null {
@@ -250,6 +263,9 @@ export const reviewVideoContentReport = onCall<
     const reportId = cleanId(request.data?.reportId);
     const decision = cleanDecision(request.data?.decision);
     const resolution = cleanResolution(request.data?.resolution);
+    const reviewSafetyReason = cleanMinorMediaSafetyReason(
+      request.data?.safetyReason
+    );
 
     if (!reportId || !decision) {
       throw new HttpsError('invalid-argument', 'Decisão de denúncia inválida.');
@@ -259,6 +275,13 @@ export const reviewVideoContentReport = onCall<
       throw new HttpsError(
         'invalid-argument',
         'Registre uma justificativa objetiva para a decisão.'
+      );
+    }
+
+    if (reviewSafetyReason && decision !== 'REMOVE') {
+      throw new HttpsError(
+        'invalid-argument',
+        'Classificação crítica de menor exige remoção do conteúdo.'
       );
     }
 
@@ -281,6 +304,7 @@ export const reviewVideoContentReport = onCall<
         const targetId = cleanId(report.targetId);
         const status = String(report.status ?? '').trim().toLowerCase();
         const reason = cleanReason(report.reason);
+        const effectiveReason = reviewSafetyReason ?? reason;
         const isPreventiveReview =
           String(report.reason ?? '').trim().toLowerCase() ===
           'preventive_media_review';
@@ -295,6 +319,13 @@ export const reviewVideoContentReport = onCall<
           throw new HttpsError(
             'failed-precondition',
             'A denúncia não possui referências válidas.'
+          );
+        }
+
+        if (reviewSafetyReason && targetType !== 'video') {
+          throw new HttpsError(
+            'failed-precondition',
+            'Classificação de exposição de menor só é válida para o vídeo.'
           );
         }
 
@@ -505,8 +536,8 @@ export const reviewVideoContentReport = onCall<
           report.evidencePreservationStatus ?? 'NOT_REQUIRED'
         ).trim().toUpperCase();
         const binaryEvidenceRequired = targetType === 'video' &&
-          !!reason &&
-          shouldPreserveMediaEvidence(reason);
+          !!effectiveReason &&
+          shouldPreserveMediaEvidence(effectiveReason);
         const evidenceRequired = binaryEvidenceRequired ||
           evidencePreservationStatus === 'PENDING' ||
           evidencePreservationStatus === 'PRESERVED';
@@ -515,6 +546,12 @@ export const reviewVideoContentReport = onCall<
           status: reportStatus,
           moderationAction: decision,
           resolution,
+          ...(reviewSafetyReason
+            ? {
+              reviewSafetyReason,
+              legalReviewStatus: 'PENDING_LEGAL_REVIEW',
+            }
+            : {}),
           reviewedBy: adminUid,
           reviewedAt: timestamp,
           updatedAt: timestamp,
@@ -528,6 +565,8 @@ export const reviewVideoContentReport = onCall<
             previousStatus: status,
             nextStatus: reportStatus,
             reason: report.reason ?? null,
+            reviewSafetyReason,
+            effectiveSafetyReason: effectiveReason,
             targetType,
             moderationAction: decision,
             resolution,
@@ -545,7 +584,7 @@ export const reviewVideoContentReport = onCall<
           videoId,
           targetType,
           contentAvailableAtReview,
-          reason,
+          reason: effectiveReason,
           evidenceRequired,
           binaryEvidenceRequired,
           evidencePreservationStatus,
