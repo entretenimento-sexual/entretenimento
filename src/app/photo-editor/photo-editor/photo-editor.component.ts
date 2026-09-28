@@ -36,7 +36,10 @@ import {
   IPhotoEditorDraft,
   PhotoEditorSessionService,
 } from 'src/app/core/services/image-handling/photo-editor-session.service';
-import { resolveImageEditorPreset } from 'src/app/core/services/media/media-format.policy';
+import {
+  MEDIA_IMAGE_EDITOR_MAX_INTERACTIVE_PIXELS,
+  resolveImageEditorPreset,
+} from 'src/app/core/services/media/media-format.policy';
 import {
   PhotoEditorCaptionStyle,
   PhotoEditorDateTimeFormat,
@@ -995,6 +998,7 @@ export class PhotoEditorComponent implements AfterViewInit {
     this.isEditorReadySubject.next(false);
     try {
       const image = await this.createImage(source);
+      this.assertInteractivePixelBudget(image);
       this.sourceImage = image;
       this.applyStoredEditorState(this.effectiveStoredImageState);
       this.isEditorReadySubject.next(true);
@@ -1024,6 +1028,20 @@ export class PhotoEditorComponent implements AfterViewInit {
     this.revokeSourceObjectUrl();
     this.sourceObjectUrl = URL.createObjectURL(this.sourceFile);
     return this.sourceObjectUrl;
+  }
+
+  private assertInteractivePixelBudget(image: HTMLImageElement): void {
+    const pixels = image.naturalWidth * image.naturalHeight;
+
+    if (
+      !Number.isSafeInteger(pixels)
+      || pixels <= 0
+      || pixels > MEDIA_IMAGE_EDITOR_MAX_INTERACTIVE_PIXELS
+    ) {
+      throw new Error(
+        'A imagem excede o limite de pixels seguro para edição neste dispositivo.'
+      );
+    }
   }
 
   private createImage(src: string): Promise<HTMLImageElement> {
