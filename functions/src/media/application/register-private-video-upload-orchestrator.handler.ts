@@ -83,6 +83,10 @@ function cleanId(value: unknown): string {
   return normalized;
 }
 
+function cleanupJobId(storagePath: string): string {
+  return createHash('sha256').update(storagePath).digest('hex');
+}
+
 function normalizeErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) {
     return error.message.slice(0, 500);
