@@ -17,6 +17,9 @@ import {
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { MediaApplicationErrorService } from './media-application-error.service';
+import {
+  normalizeOfficialMediaContextProjection,
+} from './official-media-context.projection';
 import { buildPublicMediaAccessCacheKey } from './public-media-access-cache-key';
 import { PublicPhotoOwnerEnrichmentService } from './public-photo-owner-enrichment.service';
 
@@ -89,7 +92,14 @@ export class PublicPhotoAccessService {
   hydratePublicPhotoUrls$(
     projections: readonly IPublicPhotoProjection[]
   ): Observable<IPublicPhotoItem[]> {
-    return this.ownerEnrichment.enrich$(projections).pipe(
+    const normalized = projections.map((projection) => ({
+      ...projection,
+      officialMediaContext: normalizeOfficialMediaContextProjection(
+        projection.officialMediaContext
+      ),
+    }));
+
+    return this.ownerEnrichment.enrich$(normalized).pipe(
       switchMap((enriched) => this.hydrateAccess$(enriched))
     );
   }
