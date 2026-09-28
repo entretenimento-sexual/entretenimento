@@ -177,7 +177,10 @@ export {
 } from './application/get-public-media-discovery.handler';
 
 export {
-  syncOfficialPhotoProjectionFromPhoto,
-  syncOfficialPhotoProjectionFromAssociation,
-  backfillExistingOfficialPhotoProjections,
-} from './application/sync-official-photo-projection.trigger';
+  syncOfficialMediaContextFromPhoto,
+  syncOfficialMediaContextFromVideo,
+  syncOfficialMediaContextFromAssociation,
+  syncOfficialMediaContextFromProfileKyc,
+  syncOfficialMediaContextFromIdentity,
+  backfillExistingOfficialMediaContexts,
+} from './application/sync-official-media-context.trigger';
