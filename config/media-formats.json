@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "image": {
     "inputFormats": [
       {
@@ -36,6 +36,9 @@
       "defaultBytes": 10485760,
       "avatarBytes": 8388608,
       "posterBytes": 10485760
+    },
+    "editorLimits": {
+      "maxInteractivePixels": 16000000
     },
     "editorPresets": {
       "free": {
