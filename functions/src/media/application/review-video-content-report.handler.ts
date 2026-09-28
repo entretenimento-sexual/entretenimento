@@ -11,6 +11,7 @@ import {
 } from '../../moderation/moderation-safety-notification.service';
 import { deleteProfileVideoResources } from './delete-profile-video.handler';
 import {
+  isCriticalMinorMediaSafetyReason,
   shouldPreserveMediaEvidence,
   type MediaReportSafetyReason,
 } from './media-report-safety';
@@ -147,7 +148,7 @@ function cleanReason(value: unknown): MediaReportSafetyReason | null {
     'sexual_boundary',
     'illegal_content',
     'privacy',
-    'minor_safety',
+    'minor_exposure_safety',
     'minor_content_safety',
     'other',
   ].includes(normalized)
@@ -557,7 +558,7 @@ export const reviewVideoContentReport = onCall<
     await safeRecordModerationReviewSignal({
       reportId,
       targetUid: result.targetAuthorUid,
-      critical: result.reason === 'minor_content_safety',
+      critical: !!result.reason && isCriticalMinorMediaSafetyReason(result.reason),
       confirmed: decision === 'REMOVE',
     });
 
