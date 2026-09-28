@@ -39,13 +39,13 @@
             <strong>{{ getOwnerName(item) }}</strong>
 
             @if ((item.officialMediaContext?.contexts?.length ?? 0) > 0) {
-              <span
+              <app-public-media-badge
                 class="public-video-card__official"
-                aria-label="Perfil oficial verificado"
-              >
-                <span aria-hidden="true">✓</span>
-                Oficial
-              </span>
+                kind="official"
+                label="Oficial"
+                ariaLabel="Perfil oficial verificado"
+                iconClass="fas fa-badge-check"
+              />
             }
           </span>
 
