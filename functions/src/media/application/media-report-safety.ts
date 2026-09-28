@@ -5,6 +5,10 @@ export interface MediaReportCounterInput {
 }
 
 export type MediaReportCounterEvent = 'OPEN' | 'KEEP' | 'REMOVE';
+export type MinorMediaSafetyReason =
+  | 'minor_exposure_safety'
+  | 'minor_content_safety';
+
 export type MediaReportSafetyReason =
   | 'spam'
   | 'fake_profile'
@@ -13,8 +17,7 @@ export type MediaReportSafetyReason =
   | 'sexual_boundary'
   | 'illegal_content'
   | 'privacy'
-  | 'minor_safety'
-  | 'minor_content_safety'
+  | MinorMediaSafetyReason
   | 'other';
 
 export interface MediaReportSafetyState {
@@ -24,15 +27,18 @@ export interface MediaReportSafetyState {
   safetyScore: number;
 }
 
-const IMMEDIATE_QUARANTINE_REASONS = new Set<MediaReportSafetyReason>([
-  'minor_safety',
+const CRITICAL_MINOR_MEDIA_REASONS = new Set<MinorMediaSafetyReason>([
+  'minor_exposure_safety',
   'minor_content_safety',
+]);
+
+const IMMEDIATE_QUARANTINE_REASONS = new Set<MediaReportSafetyReason>([
+  ...CRITICAL_MINOR_MEDIA_REASONS,
   'illegal_content',
   'sexual_boundary',
 ]);
 const EVIDENCE_PRESERVATION_REASONS = new Set<MediaReportSafetyReason>([
-  'minor_safety',
-  'minor_content_safety',
+  ...CRITICAL_MINOR_MEDIA_REASONS,
   'illegal_content',
   'sexual_boundary',
 ]);
@@ -86,6 +92,18 @@ export function buildMediaReportSafetyState(
  * Denúncias comuns exigem três casos ainda abertos para reduzir abuso do
  * mecanismo de denúncia como forma de derrubar conteúdo legítimo.
  */
+/**
+ * Media não decide a maioridade do perfil. Estes motivos descrevem apenas
+ * risco observado no conteúdo publicado. Em uma plataforma adulta, a mera
+ * exposição aparente de criança/adolescente em foto ou vídeo é tratada como
+ * crítica, mesmo sem nudez ou ato sexual.
+ */
+export function isCriticalMinorMediaSafetyReason(
+  reason: MediaReportSafetyReason
+): reason is MinorMediaSafetyReason {
+  return CRITICAL_MINOR_MEDIA_REASONS.has(reason as MinorMediaSafetyReason);
+}
+
 export function shouldQuarantineMediaAfterReport(
   reason: MediaReportSafetyReason,
   openReportsCount: number
