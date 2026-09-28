@@ -183,11 +183,6 @@ export class PublicMixedMediaViewerLauncherService {
           error,
           request,
           'loadContinuation
-        this.errorNotification.showWarning(
-          'Não foi possível carregar mais mídias agora. Tente novamente mais tarde.'
-        );
-        return of(void 0);
-      })
     );
   }
 
@@ -482,7 +477,10 @@ export class PublicMixedMediaViewerLauncherService {
       new Error('Continuação mista sem candidatos após falha de fonte.'),
       request,
       'loadContinuation$.degraded',
-      itemCount
+      itemCount,
+      'none',
+      'Não foi possível carregar mais mídias agora.',
+      'media_discovery_page_failed'
     );
   }
 
@@ -493,13 +491,14 @@ export class PublicMixedMediaViewerLauncherService {
     itemCount = request.items?.length ?? 0,
     notification: 'error' | 'none' = 'none',
     fallbackMessage =
-      'Não foi possível atualizar a sequência pública de mídias agora.'
+      'Não foi possível atualizar a sequência pública de mídias agora.',
+    reasonHint: MediaErrorReason = 'media_discovery_page_failed'
   ): void {
-    this.applicationError.report(error, {
-      feature: 'public-mixed-media-viewer',
+    this.mediaError.report(error, {
       operation,
       fallbackMessage,
-      notification,
+      reasonHint,
+      silent: notification === 'none',
       metadata: {
         scope: 'PublicMixedMediaViewerLauncherService',
         source: request.source,
