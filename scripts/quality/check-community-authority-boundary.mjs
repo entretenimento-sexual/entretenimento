@@ -112,6 +112,9 @@ const EVENT_AUTHORITY_SERVICE = path.normalize(
 const EVENT_AUTHORITY_HANDLER = path.normalize(
   'functions/src/authority/event-authority.handler.ts'
 );
+const OFFICIAL_MEDIA_CONTEXT_SYNC = path.normalize(
+  'functions/src/media/application/sync-official-media-context.trigger.ts'
+);
 const FUNCTIONS_ROOT_INDEX = path.normalize('functions/src/index.ts');
 const COMMUNITY_RANKING_ROLLOUT_POLICY = path.normalize(
   'functions/src/community/community-ranking-rollout.policy.ts'
@@ -1499,7 +1502,31 @@ function validateEventAuthorityLifecycleBoundary(architectureViolations) {
     path.normalize(
       'functions/src/community/get-community-official-claim-capability.handler.ts'
     ),
+    // Consumer somente reativo: usa o reader canônico para materializar uma
+    // projeção de UI e nunca decide/escreve autoridade de Evento.
+    OFFICIAL_MEDIA_CONTEXT_SYNC,
   ]);
+
+  const officialMediaContextSyncSource = readRequiredSource(
+    OFFICIAL_MEDIA_CONTEXT_SYNC,
+    architectureViolations
+  );
+  if (officialMediaContextSyncSource) {
+    if (!officialMediaContextSyncSource.includes('readEventAuthorityRecord')) {
+      architectureViolations.push(
+        `${OFFICIAL_MEDIA_CONTEXT_SYNC} (projeção de Media deve usar reader canônico de Evento)`
+      );
+    }
+    if (
+      officialMediaContextSyncSource.includes(
+        "db.collection('event_authority_records')"
+      )
+    ) {
+      architectureViolations.push(
+        `${OFFICIAL_MEDIA_CONTEXT_SYNC} (projeção de Media não pode ler o ledger de Evento diretamente)`
+      );
+    }
+  }
 
   const functionsRoot = path.join(root, 'functions', 'src');
   for (const absolutePath of walkTypeScriptFiles(functionsRoot)) {
