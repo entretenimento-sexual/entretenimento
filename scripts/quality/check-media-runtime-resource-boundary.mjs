@@ -121,10 +121,24 @@ for (const fragment of [
   requireIncludes(preloadDirective, fragment, 'video preload viewport drift');
 }
 
+const videoAccess = read(
+  'src/app/core/services/media/public-video-access.service.ts'
+);
+for (const fragment of [
+  'MAX_ACCESS_CACHE_ENTRIES = 128',
+  'setAccessCache(',
+  'touchAccessCache(',
+]) {
+  requireIncludes(videoAccess, fragment, 'public video access LRU drift');
+}
+
 const viewer = read(
   'src/app/media/videos/public-video-viewer/public-video-viewer.component.ts'
 );
 for (const fragment of [
+  'VIEWER_ITEM_WINDOW_MAX = 48',
+  'VIEWER_ITEM_RETAIN_BEHIND = 12',
+  'trimViewerItemWindow()',
   'releaseCurrentPlayerSource()',
   "player.removeAttribute('src')",
   'player.load()',
