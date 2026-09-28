@@ -21,6 +21,15 @@ import {
 import {
   consumeBackendRateLimitQuota,
 } from '../shared/security/backend-rate-limit.service';
+import {
+  PROMOTION_BOOST_EVENT_RATE_LIMIT,
+  isPromotionBoostEventTimingPlausible,
+  isPromotionBoostSelfInteraction,
+} from '../promotion-boost/promotion-boost-abuse.policy';
+import {
+  incrementPromotionBoostFraudCounter,
+  recordPromotionBoostFraudSignal,
+} from '../promotion-boost/promotion-boost-fraud.service';
 import { assertCommunitySocialAccessForUid } from '../community/community-social-access.service';
 import {
   normalizeCommunityBoostCampaign,
@@ -80,24 +89,44 @@ export const recordCommunityBoostEvent =
       }
 
       await assertCommunitySocialAccessForUid(uid);
-      await consumeBackendRateLimitQuota({
-        action: 'community_boost_event',
-        subject: uid,
-        config: {
-          burstWindowMs: 5 * 60 * 1_000,
-          burstMax: 60,
-          sustainedWindowMs: 60 * 60 * 1_000,
-          sustainedMax: 300,
-        },
-        message: 'Muitos eventos patrocinados foram recebidos em pouco tempo.',
-      });
+      try {
+        await consumeBackendRateLimitQuota({
+          action: 'community_boost_event',
+          subject: uid,
+          config: PROMOTION_BOOST_EVENT_RATE_LIMIT,
+          message: 'Muitos eventos patrocinados foram recebidos em pouco tempo.',
+        });
+      } catch (error) {
+        if (
+          error instanceof HttpsError
+          && error.code === 'resource-exhausted'
+        ) {
+          const fraudNow = Date.now();
+          await Promise.allSettled([
+            recordPromotionBoostFraudSignal({
+              viewerUid: uid,
+              campaignId: null,
+              placementId,
+              reason: 'event_velocity_exceeded',
+              now: fraudNow,
+            }),
+            incrementPromotionBoostFraudCounter({
+              viewerUid: uid,
+              day: resolveCommunityBoostDay(fraudNow),
+              reason: 'event_velocity_exceeded',
+              now: fraudNow,
+            }),
+          ]);
+        }
+        throw error;
+      }
 
       const placementRef = db
         .collection('community_boost_placements')
         .doc(placementId);
       const now = Date.now();
 
-      return db.runTransaction(async (transaction) => {
+      const result = await db.runTransaction(async (transaction) => {
         const placementSnapshot = await transaction.get(placementRef);
         if (!placementSnapshot.exists) {
           throw new HttpsError('not-found', 'Placement patrocinado expirado.');
@@ -106,20 +135,66 @@ export const recordCommunityBoostEvent =
         const placement = placementSnapshot.data() ?? {};
         const campaignId = cleanId(placement['campaignId']);
         const communityId = cleanId(placement['communityId']);
+        const advertiserUid = cleanId(placement['advertiserUid']);
+        const targetOwnerUid = cleanId(placement['targetOwnerUid']);
+        const deliveredAt = Math.trunc(Number(placement['deliveredAt']));
         const expectedViewerHash = hashViewer(uid);
 
         if (
           !campaignId
           || !communityId
+          || !advertiserUid
+          || !targetOwnerUid
           || placement['viewerHash'] !== expectedViewerHash
           || placement['status'] !== 'delivered'
           || !Number.isFinite(Number(placement['expiresAt']))
           || Number(placement['expiresAt']) < now
         ) {
-          throw new HttpsError(
-            'permission-denied',
-            'Placement patrocinado indisponível.'
-          );
+          return {
+            accepted: false,
+            idempotent: false,
+            billable: false,
+            fraudReason: 'placement_identity_mismatch' as const,
+            campaignId,
+            fraudMetadata: {},
+          };
+        }
+
+        if (
+          isPromotionBoostSelfInteraction({
+            viewerUid: uid,
+            advertiserUid,
+            targetOwnerUid,
+          })
+        ) {
+          return {
+            accepted: false,
+            idempotent: false,
+            billable: false,
+            fraudReason: 'self_interaction' as const,
+            campaignId,
+            fraudMetadata: {},
+          };
+        }
+
+        if (
+          !isPromotionBoostEventTimingPlausible({
+            event,
+            deliveredAt,
+            now,
+          })
+        ) {
+          return {
+            accepted: false,
+            idempotent: false,
+            billable: false,
+            fraudReason: 'event_too_fast' as const,
+            campaignId,
+            fraudMetadata: {
+              event,
+              elapsedMs: now - deliveredAt,
+            },
+          };
         }
 
         const alreadyRecorded = event === 'qualified_exposure'
@@ -204,5 +279,35 @@ export const recordCommunityBoostEvent =
           billable: Number(placement['billedMilliCents']) > 0,
         };
       });
+
+      if ('fraudReason' in result && result.fraudReason) {
+        await Promise.allSettled([
+          recordPromotionBoostFraudSignal({
+            viewerUid: uid,
+            campaignId: result.campaignId,
+            placementId,
+            reason: result.fraudReason,
+            metadata: result.fraudMetadata,
+            now,
+          }),
+          incrementPromotionBoostFraudCounter({
+            viewerUid: uid,
+            day: resolveCommunityBoostDay(now),
+            reason: result.fraudReason,
+            now,
+          }),
+        ]);
+
+        throw new HttpsError(
+          result.fraudReason === 'self_interaction'
+            ? 'permission-denied'
+            : 'failed-precondition',
+          result.fraudReason === 'self_interaction'
+            ? 'Auto-interação patrocinada não é contabilizada.'
+            : 'Evento patrocinado não qualificado.'
+        );
+      }
+
+      return result;
     }
   );
