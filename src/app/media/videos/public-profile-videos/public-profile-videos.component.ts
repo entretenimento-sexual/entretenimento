@@ -14,7 +14,6 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterModule } from '@angular/router';
-import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import {
   BehaviorSubject,
   EMPTY,
@@ -49,7 +48,8 @@ import {
 import { PublicVideoShareService } from 'src/app/core/services/media/public-video-share.service';
 import { ReportContentButtonComponent } from 'src/app/shared/components-globais/moderation-report/report-content-button/report-content-button.component';
 import { ContentStateComponent } from 'src/app/shared/content-state/content-state.component';
-import { PublicVideoMetadataPreloadDirective } from '../public-video-metadata-preload.directive';
+import { PublicVideoCardComponent } from '../../shared/components/public-video-card/public-video-card.component';
+import { PublicVideoViewerLauncherService } from '../public-video-viewer/public-video-viewer-launcher.service';
 
 interface PublicProfileVideosState {
   status: 'loading' | 'ready' | 'empty' | 'error';
@@ -76,10 +76,9 @@ const PUBLIC_VIDEO_RENDER_WINDOW_STEP = 12;
   imports: [
     CommonModule,
     RouterModule,
-    MatDialogModule,
-    PublicVideoMetadataPreloadDirective,
     ReportContentButtonComponent,
     ContentStateComponent,
+    PublicVideoCardComponent,
   ],
   templateUrl: './public-profile-videos.component.html',
   styleUrls: ['./public-profile-videos.component.css'],
@@ -87,12 +86,12 @@ const PUBLIC_VIDEO_RENDER_WINDOW_STEP = 12;
 })
 export class PublicProfileVideosComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
-  private readonly dialog = inject(MatDialog);
   private readonly destroyRef = inject(DestroyRef);
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly mediaPublicQuery = inject(MediaPublicQueryService);
   private readonly videoPagination = inject(PublicProfileVideoPaginationService);
   private readonly publicVideoShare = inject(PublicVideoShareService);
+  private readonly videoViewerLauncher = inject(PublicVideoViewerLauncherService);
   private readonly errorNotification = inject(ErrorNotificationService);
   private readonly mediaError = inject(MediaApplicationErrorService);
 
@@ -324,30 +323,11 @@ export class PublicProfileVideosComponent implements OnInit {
         this.viewerOpening.set(true);
         this.openingVideoId.set(selected.id);
 
-        return from(
-          import('../public-video-viewer/public-video-viewer.component')
-        ).pipe(
-          tap(({ PublicVideoViewerComponent }) => {
-            this.dialog.open(PublicVideoViewerComponent, {
-              data: {
-                ownerUid: selected.ownerUid,
-                items: state.items,
-                startIndex: safeIndex,
-                source: 'profile',
-              },
-              autoFocus: false,
-              restoreFocus: true,
-              width: '100vw',
-              height: '100vh',
-              maxWidth: '100vw',
-              maxHeight: '100vh',
-              panelClass: [
-                'photo-viewer-dialog--immersive',
-                'public-video-viewer-dialog',
-              ],
-              backdropClass: 'photo-viewer-backdrop',
-            });
-          }),
+        return this.videoViewerLauncher.open$({
+          items: state.items,
+          startIndex: safeIndex,
+          source: 'profile',
+        }).pipe(
           catchError((error: unknown) => {
             this.mediaError.report(error, {
               operation: 'openPublicVideoViewer',
