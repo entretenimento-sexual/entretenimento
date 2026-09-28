@@ -35,7 +35,20 @@
         }
 
         <span class="public-video-card__identity">
-          <strong>{{ getOwnerName(item) }}</strong>
+          <span class="public-video-card__identity-line">
+            <strong>{{ getOwnerName(item) }}</strong>
+
+            @if (item.officialMediaContext?.association?.verified) {
+              <span
+                class="public-video-card__official"
+                aria-label="Perfil oficial verificado"
+              >
+                <span aria-hidden="true">✓</span>
+                Oficial
+              </span>
+            }
+          </span>
+
           <time [attr.aria-label]="'Publicado ' + getPublishedLabel(item)">
             {{ getPublishedLabel(item) }}
           </time>
@@ -93,7 +106,18 @@
     <strong>{{ getTitle(item) }}</strong>
 
     @if (mode === 'highlight') {
-      <span>{{ getOwnerName(item) }}</span>
+      <span class="public-video-card__highlight-owner">
+        {{ getOwnerName(item) }}
+        @if (item.officialMediaContext?.association?.verified) {
+          <span
+            class="public-video-card__official"
+            aria-label="Perfil oficial verificado"
+          >
+            <span aria-hidden="true">✓</span>
+            Oficial
+          </span>
+        }
+      </span>
     } @else {
       @if (item.description) {
         <p>{{ item.description }}</p>
