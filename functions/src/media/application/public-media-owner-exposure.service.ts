@@ -51,9 +51,9 @@ async function resolveCanonicalOwnerExposure(
 
     return requireCanonicalAge
       ? [
-          ...baseRefs,
-          db.doc(`age_eligibility_records/${ownerUid}`),
-        ]
+        ...baseRefs,
+        db.doc(`age_eligibility_records/${ownerUid}`),
+      ]
       : baseRefs;
   });
   const snapshots = await db.getAll(...refs);
@@ -78,25 +78,25 @@ async function resolveCanonicalOwnerExposure(
     };
     const decision = requireCanonicalAge
       ? (() => {
-          const ageEligibilitySnapshot = snapshots[offset + 2];
-          const ownerAgeDecision = evaluateCanonicalAgeEligibility({
-            uid: ownerUid,
-            rawRecord:
-              ageEligibilitySnapshot?.exists === true
-                ? ageEligibilitySnapshot.data()
-                : null,
-            nowMs,
-          });
+        const ageEligibilitySnapshot = snapshots[offset + 2];
+        const ownerAgeDecision = evaluateCanonicalAgeEligibility({
+          uid: ownerUid,
+          rawRecord:
+            ageEligibilitySnapshot?.exists === true
+              ? ageEligibilitySnapshot.data()
+              : null,
+          nowMs,
+        });
 
-          return evaluatePublicMediaSignedOwnerExposure({
-            ...baseInput,
-            canonicalAgeAllowed: ownerAgeDecision.allowed,
-            canonicalAgeExpiresAtMs:
-              ownerAgeDecision.allowed
-                ? ownerAgeDecision.expiresAtMs ?? null
-                : null,
-          });
-        })()
+        return evaluatePublicMediaSignedOwnerExposure({
+          ...baseInput,
+          canonicalAgeAllowed: ownerAgeDecision.allowed,
+          canonicalAgeExpiresAtMs:
+            ownerAgeDecision.allowed
+              ? ownerAgeDecision.expiresAtMs ?? null
+              : null,
+        });
+      })()
       : evaluatePublicMediaOwnerExposure(baseInput);
 
     result.set(ownerUid, { ownerUid, ...decision });
