@@ -1,5 +1,8 @@
 import {
+  AfterViewInit,
+  DestroyRef,
   Directive,
+  ElementRef,
   HostListener,
   inject,
   input,
@@ -20,13 +23,38 @@ const TOUCH_MOVE_TOLERANCE_PX = 12;
   selector: '[appPublicVideoMetadataPreload]',
   standalone: true,
 })
-export class PublicVideoMetadataPreloadDirective {
+export class PublicVideoMetadataPreloadDirective implements AfterViewInit {
   readonly item = input.required<IPublicVideoItem>({
     alias: 'appPublicVideoMetadataPreload',
   });
 
   private readonly preload = inject(PublicVideoMetadataPreloadService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly destroyRef = inject(DestroyRef);
   private touchIntent: TouchIntent | null = null;
+  private observer: IntersectionObserver | null = null;
+  private inViewport = true;
+
+  ngAfterViewInit(): void {
+    if (typeof IntersectionObserver === 'undefined') return;
+
+    this.observer = new IntersectionObserver(
+      ([entry]) => {
+        this.inViewport = entry?.isIntersecting === true;
+        if (!this.inViewport) {
+          this.cancelCurrentPreload();
+        }
+      },
+      { rootMargin: '160px 0px', threshold: 0 }
+    );
+    this.observer.observe(this.host.nativeElement);
+
+    this.destroyRef.onDestroy(() => {
+      this.observer?.disconnect();
+      this.observer = null;
+      this.cancelCurrentPreload();
+    });
+  }
 
   @HostListener('pointerenter', ['$event'])
   onPointerEnter(event: PointerEvent): void {
@@ -40,6 +68,12 @@ export class PublicVideoMetadataPreloadDirective {
   @HostListener('focusin')
   onFocusIn(): void {
     this.preloadCurrent();
+  }
+
+  @HostListener('pointerleave')
+  @HostListener('focusout')
+  cancelPointerOrFocusIntent(): void {
+    this.cancelCurrentPreload();
   }
 
   @HostListener('pointerdown', ['$event'])
@@ -103,6 +137,11 @@ export class PublicVideoMetadataPreloadDirective {
   }
 
   private preloadCurrent(): void {
+    if (!this.inViewport) return;
     this.preload.preloadMetadata(this.item());
+  }
+
+  private cancelCurrentPreload(): void {
+    this.preload.cancelMetadataPreload(this.item());
   }
 }
