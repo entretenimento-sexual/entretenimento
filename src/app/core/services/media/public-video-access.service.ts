@@ -47,6 +47,7 @@ interface PublicVideoAccessResponse {
 }
 
 const MAX_ITEMS_PER_REQUEST = 16;
+const MAX_ACCESS_CACHE_ENTRIES = 128;
 const CACHE_EXPIRY_SAFETY_MS = 30_000;
 
 @Injectable({ providedIn: 'root' })
@@ -143,7 +144,7 @@ export class PublicVideoAccessService {
           return null;
         }
 
-        this.accessCache.set(this.buildCacheKey(projection), access);
+        this.setAccessCache(projection, access);
         return hydratePublicVideoItem(projection, access, now);
       }),
       finalize(() => this.inFlightRefreshes.delete(identityKey)),
@@ -193,6 +194,7 @@ export class PublicVideoAccessService {
         cached.expiresAt > now + CACHE_EXPIRY_SAFETY_MS &&
         usable
       ) {
+        this.touchAccessCache(cacheKey, cached);
         resolved.set(
           buildPublicVideoKey(projection.ownerUid, projection.id),
           cached
@@ -240,7 +242,7 @@ export class PublicVideoAccessService {
             }
 
             resolved.set(identityKey, access);
-            this.accessCache.set(this.buildCacheKey(projection), access);
+            this.setAccessCache(projection, access);
           }
         }
 
@@ -324,6 +326,30 @@ export class PublicVideoAccessService {
       projection.visibility === 'PUBLIC' &&
       projection.moderationStatus === 'APPROVED' &&
       projection.assetAccess === 'SIGNED_URL';
+  }
+
+  private setAccessCache(
+    projection: IPublicVideoProjection,
+    access: IPublicVideoAccess
+  ): void {
+    const key = this.buildCacheKey(projection);
+    this.touchAccessCache(key, access);
+
+    while (this.accessCache.size > MAX_ACCESS_CACHE_ENTRIES) {
+      const oldestKey = this.accessCache.keys().next().value as
+        | string
+        | undefined;
+      if (!oldestKey) break;
+      this.accessCache.delete(oldestKey);
+    }
+  }
+
+  private touchAccessCache(
+    key: string,
+    access: IPublicVideoAccess
+  ): void {
+    this.accessCache.delete(key);
+    this.accessCache.set(key, access);
   }
 
   private buildCacheKey(projection: IPublicVideoProjection): string {
