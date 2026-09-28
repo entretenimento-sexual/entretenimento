@@ -204,7 +204,12 @@ export class ModerationReportsComponent {
 
     return this.mediaSafetyReasonDrafts()[reportId] ??
       report.reviewSafetyReason ??
-      null;
+      (
+        report.reason === 'minor_exposure_safety' ||
+        report.reason === 'minor_content_safety'
+          ? report.reason
+          : null
+      );
   }
 
   targetRoute(report: AdminModerationReportVm): string[] | null {
