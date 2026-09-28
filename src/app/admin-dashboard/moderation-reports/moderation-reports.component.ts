@@ -234,6 +234,7 @@ export class ModerationReportsComponent {
 
   isCriticalSafetyReport(report: AdminModerationReportVm): boolean {
     return report.reason === 'minor_safety' ||
+      report.reason === 'minor_exposure_safety' ||
       report.reason === 'minor_content_safety';
   }
 
@@ -255,8 +256,10 @@ export class ModerationReportsComponent {
         return 'Privacidade';
       case 'minor_safety':
         return 'Possível perfil menor';
+      case 'minor_exposure_safety':
+        return 'Possível criança/adolescente exposto em mídia';
       case 'minor_content_safety':
-        return 'Possível menor em conteúdo';
+        return 'Possível menor em conteúdo sexual ou íntimo';
       case 'age_verification_request':
         return 'Verificação de maioridade';
       case 'preventive_media_review':
@@ -488,6 +491,7 @@ export class ModerationReportsComponent {
 
   private reportPriority(report: AdminModerationReportVm): number {
     if (
+      report.reason === 'minor_exposure_safety' ||
       report.reason === 'minor_content_safety' ||
       report.automationPriority === 'CRITICAL'
     ) {
@@ -517,6 +521,7 @@ export class ModerationReportsComponent {
       'illegal_content',
       'privacy',
       'minor_safety',
+      'minor_exposure_safety',
       'minor_content_safety',
       'age_verification_request',
       'preventive_media_review',
