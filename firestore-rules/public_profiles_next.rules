@@ -19,6 +19,7 @@ match /public_profiles/{userId} {
   }
 
   allow get: if currentUserCanUseAdultSocialPlatform()
+    && bilateralExposureAllows(userId)
     && targetAgeProjectionAllowsAdultExposure()
     && targetCanonicalAgeEligibilityAllowsAdultExposure();
 
