@@ -105,6 +105,13 @@ const GENERAL_REPORT_REASONS: readonly ReportReasonOption[] = [
   },
 ];
 
+const MINOR_MEDIA_EXPOSURE_REASON: ReportReasonOption = {
+  value: 'minor_exposure_safety',
+  label: 'Criança ou adolescente aparece no conteúdo',
+  helper:
+    'Use quando houver qualquer indício de criança ou adolescente na foto ou no vídeo, mesmo sem nudez ou ato sexual. Em uma plataforma adulta, essa exposição é tratada como risco crítico.',
+};
+
 const MINOR_PROFILE_REASON: ReportReasonOption = {
   value: 'minor_safety',
   label: 'Possível pessoa menor de 18 anos',
@@ -135,6 +142,17 @@ export class ReportContentDialogComponent {
   );
 
   readonly reasons = computed<readonly ReportReasonOption[]>(() => {
+    if (
+      this.data.targetType === 'photo' ||
+      this.data.targetType === 'video'
+    ) {
+      return GENERAL_REPORT_REASONS.flatMap((reason) =>
+        reason.value === 'minor_content_safety'
+          ? [MINOR_MEDIA_EXPOSURE_REASON, reason]
+          : [reason]
+      );
+    }
+
     if (this.data.targetType !== 'profile') {
       return GENERAL_REPORT_REASONS;
     }
