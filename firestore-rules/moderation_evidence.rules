@@ -18,3 +18,8 @@ match /moderation_evidence_preservation_jobs/{jobId} {
 match /moderation_legal_review_cases/{caseId} {
   allow read, write: if false;
 }
+
+
+match /moderation_content_contests/{contestId} {
+  allow read, write: if false;
+}
