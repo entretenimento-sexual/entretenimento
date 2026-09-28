@@ -42,6 +42,7 @@ match /public_profiles/{userId}/public_videos/{videoId} {
 
   function isPublicReadableVideo() {
     return publicProfileAllowsAdultExposure()
+      && bilateralExposureAllows(userId)
       && resource.data.ageEligibilityVerifiedAdult == true
       && resource.data.visibility == "PUBLIC"
       && resource.data.moderationStatus == "APPROVED";
@@ -71,6 +72,7 @@ match /public_profiles/{userId}/public_videos/{videoId} {
 
   match /likes/{viewerUid} {
     allow get: if canConsumeAdultPublicMedia()
+      && bilateralExposureAllows(userId)
       && request.auth.uid == viewerUid;
     allow list: if false;
     allow create, update, delete: if false;
@@ -78,6 +80,7 @@ match /public_profiles/{userId}/public_videos/{videoId} {
 
   match /ratings/{viewerUid} {
     allow get: if canConsumeAdultPublicMedia()
+      && bilateralExposureAllows(userId)
       && request.auth.uid == viewerUid;
     allow list: if false;
     allow create, update, delete: if false;
@@ -89,6 +92,7 @@ match /public_profiles/{userId}/public_videos/{videoId} {
         isSelf(userId)
         || (
           publicProfileAllowsAdultExposure()
+          && bilateralExposureAllows(userId)
           && resource.data.status == "VISIBLE"
           && videoExists()
           && isApprovedPublicVideoData(videoData())
@@ -100,6 +104,7 @@ match /public_profiles/{userId}/public_videos/{videoId} {
         isSelf(userId)
         || (
           publicProfileAllowsAdultExposure()
+          && bilateralExposureAllows(userId)
           && resource.data.status == "VISIBLE"
           && videoExists()
           && isApprovedPublicVideoData(videoData())
