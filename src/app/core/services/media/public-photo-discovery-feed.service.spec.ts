@@ -85,9 +85,8 @@ function setup(options: {
   const activity = {
     track$: vi.fn((source: unknown) => source),
   };
-  const errorNotifier = {
-    showError: vi.fn(),
-    showWarning: vi.fn(),
+  const mediaError = {
+    report: vi.fn(),
   };
   const promotion = {
     loadPlacement$: vi.fn(() => of(null)),
@@ -98,7 +97,7 @@ function setup(options: {
     snapshots as never,
     network as never,
     activity as never,
-    errorNotifier as never,
+    mediaError as never,
     promotion as never
   );
 
@@ -106,7 +105,7 @@ function setup(options: {
     service,
     ranking,
     snapshots,
-    errorNotifier,
+    mediaError,
     promotion,
   };
 }
@@ -239,7 +238,7 @@ describe('PublicPhotoDiscoveryFeedService', () => {
     expect(loaded).toBe(false);
     expect(finalState.items.map((item) => item.id)).toEqual(['photo-1']);
     expect(finalState.stale).toBe(true);
-    expect(context.errorNotifier.showWarning).toHaveBeenCalledTimes(1);
+    expect(context.mediaError.report).toHaveBeenCalledTimes(1);
     expect(context.ranking.loadPage$.mock.calls[1]?.[0]?.cursor)
       .toEqual(latestCursor);
   });
