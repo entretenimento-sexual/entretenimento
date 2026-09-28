@@ -10,6 +10,7 @@ import {
 } from 'src/app/core/interfaces/media/i-public-photo-ranking';
 import { IPublicPhotoProjection } from 'src/app/core/interfaces/media/i-public-photo-item';
 import { MediaApplicationErrorService } from './media-application-error.service';
+import { normalizeOfficialMediaContextProjection } from './official-media-context.projection';
 import { PublicPhotoAccessService } from './public-photo-access.service';
 import {
   IPublicPhotoRankingRawDocument,
@@ -66,9 +67,14 @@ export class PublicPhotoRankingQueryService {
   private mapDocument(
     document: IPublicPhotoRankingRawDocument
   ): IPublicPhotoProjection {
+    const data = document.data as Record<string, unknown>;
+
     return {
-      ...(document.data as unknown as IPublicPhotoProjection),
+      ...(data as unknown as IPublicPhotoProjection),
       id: document.id,
+      officialMediaContext: normalizeOfficialMediaContextProjection(
+        data['officialMediaContext']
+      ),
     };
   }
 
