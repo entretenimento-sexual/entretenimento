@@ -187,6 +187,41 @@ service cloud.firestore {
     }
 
     // ===============================================================
+    // Bloqueio bilateral canônico
+    // ===============================================================
+    // Bloqueio é uma fronteira de exposição, não apenas de interação.
+    // Se qualquer ponta bloqueou a outra, deep links documentais e superfícies
+    // públicas relacionadas devem falhar fechado. O próprio usuário continua
+    // autorizado a consultar suas projeções quando as demais políticas permitem.
+    function userBlockPath(blockerUid, targetUid) {
+      return /databases/$(database)/documents/users/$(blockerUid)/blocks/$(targetUid);
+    }
+
+    function hasActiveUserBlock(blockerUid, targetUid) {
+      let blockPath = userBlockPath(blockerUid, targetUid);
+      return blockerUid != targetUid
+        && exists(blockPath)
+        && get(blockPath).data.isBlocked == true;
+    }
+
+    function hasActiveBilateralBlockWith(targetUid) {
+      return signedIn()
+        && uid() != targetUid
+        && (
+          hasActiveUserBlock(uid(), targetUid)
+          || hasActiveUserBlock(targetUid, uid())
+        );
+    }
+
+    function bilateralExposureAllows(targetUid) {
+      return signedIn()
+        && (
+          uid() == targetUid
+          || !hasActiveBilateralBlockWith(targetUid)
+        );
+    }
+
+    // ===============================================================
     // Assinatura
     // ===============================================================
     // Entitlements são a verdade financeira e permanecem fechados ao cliente.
