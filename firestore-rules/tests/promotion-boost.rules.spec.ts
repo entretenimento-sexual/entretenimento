@@ -64,6 +64,9 @@ describe('Firestore Rules / Promotion Boost backend-only', () => {
       ['promotion_boost_frequency_caps', 'cap-1'],
       ['promotion_boost_requests', 'request-1'],
       ['promotion_boost_audit', 'audit-1'],
+      ['promotion_boost_billing_events', 'billing-event-1'],
+      ['promotion_boost_fraud_signals', 'fraud-signal-1'],
+      ['promotion_boost_fraud_counters', 'fraud-counter-1'],
     ] as const) {
       const reference = doc(db, collectionName, documentId);
       await assertFails(getDoc(reference));
