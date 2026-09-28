@@ -116,8 +116,11 @@ describe('PublicPhotoCardComponent', () => {
     fixture.componentRef.setInput('variant', 'sponsored');
     fixture.detectChanges();
 
-    const sponsored = fixture.debugElement.query(
+    const sponsoredHost = fixture.debugElement.query(
       By.css('.meta-sponsored')
+    );
+    const sponsored = sponsoredHost.query(
+      By.css('.public-media-badge')
     ).nativeElement as HTMLElement;
 
     expect(sponsored.textContent).toContain('Patrocinado');
