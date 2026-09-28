@@ -83,16 +83,14 @@ export function deriveOfficialMediaContext(input: {
     !Number.isFinite(nowMs) ||
     nowMs <= 0 ||
     (
-      activeRevalidationDueAt !== null &&
-      activeRevalidationDueAt !== undefined &&
+      normalizedRevalidationDueAt !== null &&
       (
         !Number.isFinite(normalizedRevalidationDueAt) ||
         normalizedRevalidationDueAt <= nowMs
       )
     ) ||
     (
-      activeVerificationExpiresAt !== null &&
-      activeVerificationExpiresAt !== undefined &&
+      normalizedVerificationExpiresAt !== null &&
       (
         !Number.isFinite(normalizedVerificationExpiresAt) ||
         normalizedVerificationExpiresAt <= nowMs
