@@ -11,7 +11,8 @@ import {
   isPublicPhotoItem,
   isPublicVideoItem,
 } from 'src/app/core/interfaces/media/i-public-profile-media-item';
-import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
+import type { MediaErrorReason } from 'src/app/core/services/media/media-error.catalog';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { PublicMixedMediaContinuationService } from 'src/app/core/services/media/public-mixed-media-continuation.service';
 import { buildPublicMediaIdentity } from 'src/app/core/utils/media/public-media-identity';
@@ -46,7 +47,7 @@ export class PublicMixedMediaViewerLauncherService {
   private readonly videoViewer = inject(PublicVideoViewerLauncherService);
   private readonly mixedContinuation = inject(PublicMixedMediaContinuationService);
   private readonly errorNotification = inject(ErrorNotificationService);
-  private readonly applicationError = inject(ApplicationErrorService);
+  private readonly mediaError = inject(MediaApplicationErrorService);
 
   open$(request: OpenPublicMixedMediaViewerRequest): Observable<void> {
     return defer(() => {
@@ -74,7 +75,8 @@ export class PublicMixedMediaViewerLauncherService {
           'open$',
           request.items?.length ?? 0,
           'error',
-          'Não foi possível abrir esta publicação neste momento.'
+          'Não foi possível abrir esta publicação neste momento.',
+          'media_navigation_failed'
         );
         return throwError(() => error);
       })
@@ -177,7 +179,178 @@ export class PublicMixedMediaViewerLauncherService {
         return of(void 0);
       }),
       catchError((error: unknown) => {
-        this.reportError(error, request, 'loadContinuation$');
+        this.reportError(
+          error,
+          request,
+          'loadContinuation
+        this.errorNotification.showWarning(
+          'Não foi possível carregar mais mídias agora. Tente novamente mais tarde.'
+        );
+        return of(void 0);
+      })
+    );
+  }
+
+  private resolveRun(
+    session: MixedMediaSession,
+    selectedIndex: number
+  ): MixedMediaRun {
+    const items = session.items;
+    const selected = items[selectedIndex];
+    const selectedIsVideo = isPublicVideoItem(selected);
+    let startIndex = selectedIndex;
+    let endIndex = selectedIndex;
+
+    while (
+      startIndex > 0 &&
+      isPublicVideoItem(items[startIndex - 1]) === selectedIsVideo
+    ) {
+      startIndex -= 1;
+    }
+
+    while (
+      endIndex < items.length - 1 &&
+      isPublicVideoItem(items[endIndex + 1]) === selectedIsVideo
+    ) {
+      endIndex += 1;
+    }
+
+    return {
+      startIndex,
+      endIndex,
+      items: items.slice(startIndex, endIndex + 1),
+      navigation: {
+        hasPrevious: startIndex > 0,
+        hasNext:
+          endIndex < items.length - 1 || !session.continuationExhausted,
+      },
+    };
+  }
+
+  private appendContinuationItems(
+    session: MixedMediaSession,
+    candidates: readonly IPublicProfileMediaItem[]
+  ): number {
+    const seen = new Set(
+      session.items.map((item) => this.mediaKey(item)).filter(Boolean)
+    );
+    let appendedCount = 0;
+
+    for (const item of candidates ?? []) {
+      if (!this.isOpenable(item)) {
+        continue;
+      }
+
+      const key = this.mediaKey(item);
+      if (!key || seen.has(key)) {
+        continue;
+      }
+
+      seen.add(key);
+      session.items.push(item);
+      appendedCount += 1;
+    }
+
+    return appendedCount;
+  }
+
+  private normalizeItems(
+    input: readonly IPublicProfileMediaItem[]
+  ): IPublicProfileMediaItem[] {
+    const unique = new Map<string, IPublicProfileMediaItem>();
+
+    for (const item of input ?? []) {
+      if (!this.isOpenable(item)) {
+        continue;
+      }
+
+      const key = this.mediaKey(item);
+      if (!key || unique.has(key)) {
+        continue;
+      }
+
+      unique.set(key, item);
+    }
+
+    return [...unique.values()];
+  }
+
+  private isOpenable(item: IPublicProfileMediaItem | null | undefined): boolean {
+    if (!item?.id?.trim() || !item.ownerUid?.trim()) {
+      return false;
+    }
+
+    if (
+      item.visibility !== 'PUBLIC' ||
+      item.moderationStatus !== 'APPROVED'
+    ) {
+      return false;
+    }
+
+    if (isPublicVideoItem(item)) {
+      return true;
+    }
+
+    return !!String(item.url ?? '').trim();
+  }
+
+  private mediaKey(item: IPublicProfileMediaItem | null | undefined): string {
+    if (!item) {
+      return '';
+    }
+
+    return buildPublicMediaIdentity(
+      isPublicVideoItem(item) ? 'VIDEO' : 'PHOTO',
+      item.ownerUid,
+      item.id
+    );
+  }
+
+  private reportHandledContinuationFailure(
+    request: OpenPublicMixedMediaViewerRequest,
+    itemCount: number
+  ): void {
+    this.reportError(
+      new Error('Continuação mista sem candidatos após falha de fonte.'),
+      request,
+      'loadContinuation$.degraded',
+      itemCount,
+      'none',
+      'Não foi possível carregar mais mídias agora.',
+      'media_discovery_page_failed'
+    );
+  }
+
+  private reportError(
+    error: unknown,
+    request: OpenPublicMixedMediaViewerRequest,
+    operation: string,
+    itemCount = request.items?.length ?? 0,
+    notification: 'error' | 'none' = 'none',
+    fallbackMessage =
+      'Não foi possível atualizar a sequência pública de mídias agora.',
+    reasonHint: MediaErrorReason = 'media_discovery_page_failed'
+  ): void {
+    this.mediaError.report(error, {
+      operation,
+      fallbackMessage,
+      reasonHint,
+      silent: notification === 'none',
+      metadata: {
+        scope: 'PublicMixedMediaViewerLauncherService',
+        source: request.source,
+        requestedItems: itemCount,
+        selectedType: isPublicVideoItem(request.selected) ? 'VIDEO' : 'PHOTO',
+      },
+    });
+  }
+}
+,
+          session.items.length,
+          'none',
+          'Não foi possível carregar mais mídias agora.',
+          'media_discovery_page_failed'
+        );
         this.errorNotification.showWarning(
           'Não foi possível carregar mais mídias agora. Tente novamente mais tarde.'
         );
