@@ -73,7 +73,7 @@ function publicPhotoProjection(
     uniqueViewersCount: Number(raw['uniqueViewersCount'] ?? 0),
     lastViewedAt: raw['lastViewedAt'] ?? null,
     viewScore: Number(raw['viewScore'] ?? 0),
-    officialPhoto: raw['officialPhoto'] ?? null,
+    officialMediaContext: raw['officialMediaContext'] ?? null,
   };
 }
 
@@ -221,7 +221,32 @@ async function claimPlacement(input: {
       advertiserSnapshot.exists ? advertiserSnapshot.data() : null,
       campaign.advertiserUid
     );
-    if (!advertiser || campaign.budgetCents > advertiser.maxCampaignBudgetCents) {
+    if (
+      !advertiser
+      || campaign.budgetCents > advertiser.maxCampaignBudgetCents
+      || campaign.advertiserUid !== campaign.targetOwnerUid
+    ) {
+      transaction.update(campaignRef, {
+        status: 'canceled',
+        stoppedAt: input.now,
+        stoppedReason: 'advertiser_target_authority_invalid',
+        updatedAt: input.now,
+      });
+      transaction.delete(activeSlotRef);
+      transaction.create(db.collection('promotion_boost_audit').doc(), {
+        action: 'photo_promotion_campaign_stopped',
+        campaignId: campaign.campaignId,
+        targetType: 'photo',
+        ownerUid: campaign.targetOwnerUid,
+        photoId: campaign.targetId,
+        advertiserUid: campaign.advertiserUid,
+        actorUid: 'system',
+        previousStatus: campaign.status,
+        nextStatus: 'canceled',
+        reason: 'advertiser_target_authority_invalid',
+        ledgerOwnershipTransferred: false,
+        createdAt: input.now,
+      });
       return null;
     }
 
@@ -380,6 +405,27 @@ async function claimPlacement(input: {
       amountMilliCents: FieldValue.increment(chargeMilliCents),
       updatedAt: input.now,
     }, { merge: true });
+
+    transaction.create(
+      db.collection('promotion_boost_billing_events').doc(placementRef.id),
+      {
+        billingEventId: placementRef.id,
+        placementId: placementRef.id,
+        campaignId: campaign.campaignId,
+        targetType: 'photo',
+        targetId: campaign.targetId,
+        targetOwnerUid: campaign.targetOwnerUid,
+        advertiserUid: campaign.advertiserUid,
+        ledgerOwnershipTransferred: false,
+        currency: campaign.currency,
+        billingBasis: campaign.billingBasis,
+        billingConfigVersion: campaign.billingConfigVersion,
+        rateCpmCentsSnapshot: campaign.rateCpmCentsSnapshot,
+        amountMilliCents: chargeMilliCents,
+        reason: 'served_placement',
+        createdAt: input.now,
+      }
+    );
 
     return Object.freeze({
       placementId: placementRef.id,
