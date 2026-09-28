@@ -17,6 +17,10 @@ import {
   promotionBoostBillingConfigRef,
 } from './promotion-boost-commercial-authority';
 import {
+  buildPromotionComplianceCreativeSnapshot,
+  buildPromotionComplianceSnapshot,
+} from './promotion-boost-compliance-snapshot.policy';
+import {
   buildPromotionBoostCampaign,
   normalizePromotionBoostCampaign,
 } from './promotion-boost.policy';
@@ -263,7 +267,43 @@ export const managePhotoPromotionCampaign = onCall<Request>(
           throw new HttpsError('invalid-argument', 'Revise orçamento, período e frequency cap da campanha.');
         }
 
-        transaction.create(campaignRef, campaign);
+        const creativeSnapshot = buildPromotionComplianceCreativeSnapshot({
+          targetType: 'photo',
+          targetId: photoId,
+          targetOwnerUid: ownerUid,
+          rawCreative: publicPhotoSnapshot.exists
+            ? publicPhotoSnapshot.data() ?? {}
+            : {},
+        });
+        const complianceSnapshot = creativeSnapshot
+          ? buildPromotionComplianceSnapshot({
+            campaign,
+            advertiserAccount: advertiser,
+            advertiserAuthorityRole: 'owner',
+            creative: creativeSnapshot,
+            targetingMode: 'contextual_feed',
+            capturedAt: now,
+          })
+          : null;
+
+        if (!complianceSnapshot) {
+          throw new HttpsError(
+            'data-loss',
+            'Não foi possível registrar o snapshot de compliance da campanha.',
+            { reason: 'promotion_compliance_snapshot_required' }
+          );
+        }
+
+        transaction.create(campaignRef, {
+          ...campaign,
+          complianceSnapshotId: complianceSnapshot.snapshotId,
+          compliancePolicyVersion: complianceSnapshot.policyVersion,
+        });
+        transaction.create(
+          db.collection('promotion_boost_compliance_snapshots')
+            .doc(campaign.campaignId),
+          complianceSnapshot
+        );
         transaction.set(activeSlotRef, {
           targetType: 'photo',
           ownerUid,
@@ -304,6 +344,10 @@ export const managePhotoPromotionCampaign = onCall<Request>(
           startsAt: campaign.startsAt,
           endsAt: campaign.endsAt,
           frequencyCapPerViewerPerDay: campaign.frequencyCapPerViewerPerDay,
+          complianceSnapshotId: complianceSnapshot.snapshotId,
+          compliancePolicyVersion: complianceSnapshot.policyVersion,
+          complianceRetentionReviewAt:
+            complianceSnapshot.retention.retainUntil,
           createdAt: now,
         });
 
