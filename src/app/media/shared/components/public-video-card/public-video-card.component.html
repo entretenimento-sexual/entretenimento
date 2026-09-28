@@ -5,6 +5,7 @@
   class="public-video-card app-card app-card--media"
   [class.public-video-card--feed]="mode === 'feed'"
   [class.public-video-card--highlight]="mode === 'highlight'"
+  [class.public-video-card--profile]="mode === 'profile'"
 >
   @if (mode === 'feed') {
     <header class="public-video-card__header">
@@ -52,6 +53,13 @@
           <time [attr.aria-label]="'Publicado ' + getPublishedLabel(item)">
             {{ getPublishedLabel(item) }}
           </time>
+
+          <app-public-media-recommendation-badge
+            class="public-video-card__context"
+            [source]="resolvedRecommendationSource()"
+            [ownerUid]="item.ownerUid"
+            [continuationContext]="continuationContext()"
+          />
         </span>
       </a>
     </header>
@@ -103,6 +111,15 @@
   </button>
 
   <div class="public-video-card__copy">
+    @if (mode === 'profile') {
+      <app-public-media-recommendation-badge
+        class="public-video-card__context"
+        [source]="resolvedRecommendationSource()"
+        [ownerUid]="item.ownerUid"
+        [continuationContext]="continuationContext()"
+      />
+    }
+
     <strong>{{ getTitle(item) }}</strong>
 
     @if (mode === 'highlight') {
