@@ -3,7 +3,7 @@ import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable, defer, from, throwError } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 
 export type AdminVideoProcessingOperationalState =
   | 'READY'
@@ -76,7 +76,7 @@ const PROCESSING_JOB_STATES: AdminVideoProcessingJobState[] = [
 @Injectable({ providedIn: 'root' })
 export class AdminVideoModerationService {
   private readonly functions = inject(Functions);
-  private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
+  private readonly mediaError = inject(MediaApplicationErrorService);
 
   getProcessingStatus$(): Observable<IAdminVideoProcessingStatus> {
     return defer(() => {
@@ -89,7 +89,15 @@ export class AdminVideoModerationService {
     }).pipe(
       map((response) => this.normalizeProcessingStatus(response.data)),
       catchError((error) => {
-        this.reportError(error, 'getProcessingStatus$', {});
+        this.mediaError.reportSilently(
+          error,
+          'adminVideoProcessing.getStatus',
+          undefined,
+          {
+            scope: 'AdminVideoModerationService',
+          },
+          'video_library_load_failed'
+        );
         return throwError(() => error);
       })
     );
@@ -191,27 +199,5 @@ export class AdminVideoModerationService {
       : null;
   }
 
-  private reportError(
-    error: unknown,
-    operation: string,
-    context: Record<string, unknown>
-  ): void {
-    try {
-      const normalized = error instanceof Error
-        ? error
-        : new Error('Falha no diagnóstico administrativo de vídeos.');
 
-      (normalized as any).original = error;
-      (normalized as any).context = {
-        scope: 'AdminVideoModerationService',
-        operation,
-        ...context,
-      };
-      (normalized as any).skipUserNotification = true;
-
-      this.globalErrorHandler.handleError(normalized);
-    } catch {
-      // noop
-    }
-  }
 }
