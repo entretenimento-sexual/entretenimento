@@ -39,7 +39,7 @@ export type TPhotoViewSource =
   | 'profile'
   | 'latest'
   | 'top'
-  | 'boosted'
+  | 'sponsored'
   | 'unknown';
 
 type VisualState = 'feed' | 'empty' | 'video-error';
@@ -182,6 +182,15 @@ export class AuthSessionService {
   readonly isAuthenticated$: Observable<boolean> = of(true);
   readonly readyAuthUser$: Observable<User | null> = of(this.visualAuthUser);
   readonly readyUid$: Observable<string | null> = of(VISUAL_USER.uid);
+  readonly isTerminating$: Observable<boolean> = of(false);
+
+  beginTermination(): void {}
+
+  endTermination(): void {}
+
+  get isTerminatingSnapshot(): boolean {
+    return false;
+  }
 
   whenReady(): Promise<void> {
     return Promise.resolve();
