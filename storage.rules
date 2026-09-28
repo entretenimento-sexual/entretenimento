@@ -29,6 +29,7 @@ service firebase.storage {
     function hasPhotoUploadReservationId() {
       return request.resource != null
         && request.resource.metadata != null
+        && request.resource.metadata.keys().hasAny(['mediaPhotoReservationId'])
         && request.resource.metadata.mediaPhotoReservationId is string
         && request.resource.metadata.mediaPhotoReservationId.size() > 0
         && request.resource.metadata.mediaPhotoReservationId.size() <= 128;
@@ -71,6 +72,7 @@ service firebase.storage {
     function hasVideoUploadReservationId() {
       return request.resource != null
         && request.resource.metadata != null
+        && request.resource.metadata.keys().hasAny(['mediaVideoReservationId'])
         && request.resource.metadata.mediaVideoReservationId is string
         && request.resource.metadata.mediaVideoReservationId.size() > 0
         && request.resource.metadata.mediaVideoReservationId.size() <= 128;
