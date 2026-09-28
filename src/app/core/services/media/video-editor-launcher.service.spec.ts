@@ -1,9 +1,9 @@
 import { TestBed } from '@angular/core/testing';
-import { firstValueFrom, of } from 'rxjs';
+import { BehaviorSubject, Observable, firstValueFrom, of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AuthSessionService } from '../autentication/auth/auth-session.service';
-import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from './media-application-error.service';
 import {
   EMPTY_VIDEO_EDITOR_STATE,
   VideoEditorProcessedResult,
@@ -15,21 +15,36 @@ function makeVideo(name = 'video.mp4'): File {
   return new File(['video'], name, { type: 'video/mp4' });
 }
 
+function configure(uid$: Observable<string | null>) {
+  const session = new VideoEditorSessionService();
+  const mediaError = {
+    reportSilently: vi.fn(),
+  };
+  const authSession = {
+    uid$,
+    isTerminatingSnapshot: false,
+  };
+
+  TestBed.configureTestingModule({
+    providers: [
+      VideoEditorLauncherService,
+      { provide: VideoEditorSessionService, useValue: session },
+      { provide: AuthSessionService, useValue: authSession },
+      { provide: MediaApplicationErrorService, useValue: mediaError },
+    ],
+  });
+
+  return {
+    launcher: TestBed.inject(VideoEditorLauncherService),
+    session,
+    mediaError,
+    authSession,
+  };
+}
+
 describe('VideoEditorLauncherService', () => {
   it('abre sessão autenticada usando a origem canônica', async () => {
-    const session = new VideoEditorSessionService();
-    const globalError = { handleError: vi.fn() };
-
-    TestBed.configureTestingModule({
-      providers: [
-        VideoEditorLauncherService,
-        { provide: VideoEditorSessionService, useValue: session },
-        { provide: AuthSessionService, useValue: { uid$: of(' owner-1 ') } },
-        { provide: GlobalErrorHandlerService, useValue: globalError },
-      ],
-    });
-
-    const launcher = TestBed.inject(VideoEditorLauncherService);
+    const { launcher, session, mediaError } = configure(of(' owner-1 '));
     const file = makeVideo();
     const draft = await firstValueFrom(launcher.launchFile$(file, {
       source: 'profile-videos',
@@ -43,67 +58,33 @@ describe('VideoEditorLauncherService', () => {
       state: EMPTY_VIDEO_EDITOR_STATE,
       posterBlob: null,
     }));
-    expect(globalError.handleError).not.toHaveBeenCalled();
+    expect(session.peekDraft('owner-1')?.file).toBe(file);
+    expect(mediaError.reportSilently).not.toHaveBeenCalled();
   });
 
   it('rejeita arquivo inválido antes de abrir sessão', async () => {
-    const session = new VideoEditorSessionService();
-    const globalError = { handleError: vi.fn() };
-
-    TestBed.configureTestingModule({
-      providers: [
-        VideoEditorLauncherService,
-        { provide: VideoEditorSessionService, useValue: session },
-        { provide: AuthSessionService, useValue: { uid$: of('owner-2') } },
-        { provide: GlobalErrorHandlerService, useValue: globalError },
-      ],
-    });
-
-    const launcher = TestBed.inject(VideoEditorLauncherService);
+    const { launcher, session, mediaError } = configure(of('owner-2'));
     const invalid = new File(['text'], 'arquivo.txt', { type: 'text/plain' });
 
     await expect(firstValueFrom(launcher.launchFile$(invalid))).rejects.toThrow(
       'Formato inválido.'
     );
     expect(session.peekDraft()).toBeNull();
-    expect(globalError.handleError).toHaveBeenCalledOnce();
+    expect(mediaError.reportSilently).toHaveBeenCalledOnce();
   });
 
   it('não abre sessão sem usuário autenticado', async () => {
-    const session = new VideoEditorSessionService();
-    const globalError = { handleError: vi.fn() };
-
-    TestBed.configureTestingModule({
-      providers: [
-        VideoEditorLauncherService,
-        { provide: VideoEditorSessionService, useValue: session },
-        { provide: AuthSessionService, useValue: { uid$: of(null) } },
-        { provide: GlobalErrorHandlerService, useValue: globalError },
-      ],
-    });
-
-    const launcher = TestBed.inject(VideoEditorLauncherService);
+    const { launcher, session, mediaError } = configure(of(null));
 
     await expect(firstValueFrom(launcher.launchFile$(makeVideo()))).rejects.toThrow(
       'Usuário não autenticado para abrir o editor de vídeo.'
     );
     expect(session.peekDraft()).toBeNull();
-    expect(globalError.handleError).toHaveBeenCalledOnce();
+    expect(mediaError.reportSilently).toHaveBeenCalledOnce();
   });
 
-  it('expõe estado e capa pela porta canônica respeitando a origem', async () => {
-    const session = new VideoEditorSessionService();
-
-    TestBed.configureTestingModule({
-      providers: [
-        VideoEditorLauncherService,
-        { provide: VideoEditorSessionService, useValue: session },
-        { provide: AuthSessionService, useValue: { uid$: of('owner-feed') } },
-        { provide: GlobalErrorHandlerService, useValue: { handleError: vi.fn() } },
-      ],
-    });
-
-    const launcher = TestBed.inject(VideoEditorLauncherService);
+  it('expõe estado e capa pela porta canônica respeitando origem e owner', async () => {
+    const { launcher, session } = configure(of('owner-feed'));
     const poster = new Blob(['poster'], { type: 'image/jpeg' });
     const state = {
       ...EMPTY_VIDEO_EDITOR_STATE,
@@ -122,18 +103,7 @@ describe('VideoEditorLauncherService', () => {
   });
 
   it('isola draft, estado e capa por origem para consumidores concorrentes', async () => {
-    const session = new VideoEditorSessionService();
-
-    TestBed.configureTestingModule({
-      providers: [
-        VideoEditorLauncherService,
-        { provide: VideoEditorSessionService, useValue: session },
-        { provide: AuthSessionService, useValue: { uid$: of('owner-profile') } },
-        { provide: GlobalErrorHandlerService, useValue: { handleError: vi.fn() } },
-      ],
-    });
-
-    const launcher = TestBed.inject(VideoEditorLauncherService);
+    const { launcher, session } = configure(of('owner-profile'));
     const poster = new Blob(['poster'], { type: 'image/jpeg' });
     const state = { ...EMPTY_VIDEO_EDITOR_STATE, valid: true };
 
@@ -153,19 +123,49 @@ describe('VideoEditorLauncherService', () => {
     expect(await firstValueFrom(launcher.posterBlobForSource$('social-feed'))).toBeNull();
   });
 
+  it('derruba File/Blob imediatamente em logout ou troca de usuário', async () => {
+    const uidSubject = new BehaviorSubject<string | null>('owner-a');
+    const { launcher, session } = configure(uidSubject.asObservable());
+    const file = makeVideo('auth-boundary.mp4');
+    const poster = new Blob(['poster'], { type: 'image/jpeg' });
+
+    await firstValueFrom(launcher.launchFile$(file, {
+      source: 'profile-videos',
+    }));
+    launcher.updatePoster(poster, 'profile-videos');
+
+    expect(session.peekDraft('owner-a')).toEqual(expect.objectContaining({
+      file,
+      posterBlob: poster,
+    }));
+
+    uidSubject.next('owner-b');
+
+    expect(session.peekDraft()).toBeNull();
+    expect(session.lastTeardownReason).toBe('auth-changed');
+    expect(() => launcher.complete('profile-videos')).toThrow(
+      'Sua sessão de usuário mudou.'
+    );
+  });
+
+  it('trata início de termination como auth-boundary mesmo antes do signOut técnico', async () => {
+    const { launcher, session, authSession } = configure(of('owner-term'));
+    await firstValueFrom(launcher.launchFile$(makeVideo('term.mp4'), {
+      source: 'profile-videos',
+    }));
+
+    authSession.isTerminatingSnapshot = true;
+
+    expect(() => launcher.complete('profile-videos')).toThrow(
+      'Sua sessão de usuário mudou.'
+    );
+    expect(session.peekDraft()).toBeNull();
+    expect(session.lastTeardownReason).toBe('auth-changed');
+  });
+
   it('ignora atualizações tardias quando a sessão já foi encerrada', () => {
-    const session = new VideoEditorSessionService();
+    const { launcher, session } = configure(of('owner-stale'));
 
-    TestBed.configureTestingModule({
-      providers: [
-        VideoEditorLauncherService,
-        { provide: VideoEditorSessionService, useValue: session },
-        { provide: AuthSessionService, useValue: { uid$: of('owner-stale') } },
-        { provide: GlobalErrorHandlerService, useValue: { handleError: vi.fn() } },
-      ],
-    });
-
-    const launcher = TestBed.inject(VideoEditorLauncherService);
     session.setDraft(makeVideo('stale.mp4'), 'owner-stale', 'profile-videos');
     launcher.cancel('profile-videos');
 
@@ -180,26 +180,14 @@ describe('VideoEditorLauncherService', () => {
     expect(session.peekDraft()).toBeNull();
   });
 
-  it('conclui somente a sessão da origem solicitada', () => {
-    const session = new VideoEditorSessionService();
-    const globalError = { handleError: vi.fn() };
-
-    TestBed.configureTestingModule({
-      providers: [
-        VideoEditorLauncherService,
-        { provide: VideoEditorSessionService, useValue: session },
-        { provide: AuthSessionService, useValue: { uid$: of('owner-3') } },
-        { provide: GlobalErrorHandlerService, useValue: globalError },
-      ],
-    });
-
-    const launcher = TestBed.inject(VideoEditorLauncherService);
+  it('conclui somente a sessão da origem solicitada e transfere refs uma única vez', () => {
+    const { launcher, session } = configure(of('owner-3'));
     const file = makeVideo('ready.mp4');
     session.setDraft(file, 'owner-3', 'profile-videos');
     session.updateState({
       ...EMPTY_VIDEO_EDITOR_STATE,
       valid: true,
-    });
+    }, 'owner-3');
 
     expect(() => launcher.complete('social-feed')).toThrow(
       'A sessão ativa pertence a outra origem de edição.'
@@ -209,27 +197,18 @@ describe('VideoEditorLauncherService', () => {
     expect(result.file).toBe(file);
     expect(result.context).toBe('profile-video');
     expect(session.peekDraft()).toBeNull();
+    expect(session.lastTeardownReason).toBe('completed');
   });
 
   it('cancela apenas a origem solicitada', () => {
-    const session = new VideoEditorSessionService();
-
-    TestBed.configureTestingModule({
-      providers: [
-        VideoEditorLauncherService,
-        { provide: VideoEditorSessionService, useValue: session },
-        { provide: AuthSessionService, useValue: { uid$: of('owner-4') } },
-        { provide: GlobalErrorHandlerService, useValue: { handleError: vi.fn() } },
-      ],
-    });
-
-    const launcher = TestBed.inject(VideoEditorLauncherService);
+    const { launcher, session } = configure(of('owner-4'));
     session.setDraft(makeVideo(), 'owner-4', 'community-feed');
 
     launcher.cancel('profile-videos');
-    expect(session.peekDraft()?.source).toBe('community-feed');
+    expect(session.peekDraft('owner-4')?.source).toBe('community-feed');
 
     launcher.cancel('community-feed');
     expect(session.peekDraft()).toBeNull();
+    expect(session.lastTeardownReason).toBe('cancelled');
   });
 });
