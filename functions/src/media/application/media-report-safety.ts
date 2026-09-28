@@ -98,6 +98,17 @@ export function buildMediaReportSafetyState(
  * exposição aparente de criança/adolescente em foto ou vídeo é tratada como
  * crítica, mesmo sem nudez ou ato sexual.
  */
+export function normalizeMinorMediaSafetyReason(
+  value: unknown
+): MinorMediaSafetyReason | null {
+  const normalized = String(value ?? '').trim().toLowerCase();
+
+  return normalized === 'minor_exposure_safety' ||
+    normalized === 'minor_content_safety'
+    ? normalized
+    : null;
+}
+
 export function isCriticalMinorMediaSafetyReason(
   reason: MediaReportSafetyReason
 ): reason is MinorMediaSafetyReason {
