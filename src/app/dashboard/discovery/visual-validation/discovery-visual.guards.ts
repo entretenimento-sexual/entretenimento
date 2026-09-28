@@ -9,6 +9,7 @@ import type { CanActivateFn } from '@angular/router';
 export const authGuard: CanActivateFn = () => true;
 export const accountLifecycleGuard: CanActivateFn = () => true;
 export const adultContentConsentGuard: CanActivateFn = () => true;
+export const ageEligibilityGuard: CanActivateFn = () => true;
 export const ageReverificationGuard: CanActivateFn = () => true;
 export const emailVerifiedGuard: CanActivateFn = () => true;
 export const profileCompletedGuard: CanActivateFn = () => true;
