@@ -71,10 +71,19 @@ for (const file of files) {
   }
 
   if (
-    /\.(?:showError|showGenericError)\s*\(/m.test(source) &&
+    /\.(?:showError|showGenericError|showApplicationError)\s*\(/m.test(source) &&
     !isMediaBoundary
   ) {
-    violations.push(`${relative}: showError/showGenericError direto`);
+    violations.push(
+      `${relative}: showError/showGenericError/showApplicationError direto`
+    );
+  }
+
+  if (
+    /\.showNotification\s*\(\s*['"]error['"]/m.test(source) &&
+    !isMediaBoundary
+  ) {
+    violations.push(`${relative}: showNotification('error') direto`);
   }
 
   if (/\.handleError\s*\(/m.test(source)) {
