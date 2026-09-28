@@ -3,7 +3,7 @@ import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable, defer, from, throwError } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 import { AdminVideoProcessingJobState } from './admin-video-moderation.service';
 
 export type AdminVideoProcessingRecoveryAction =
@@ -80,7 +80,7 @@ const RECOVERY_ACTIONS: AdminVideoProcessingRecoveryAction[] = [
 @Injectable({ providedIn: 'root' })
 export class AdminVideoProcessingRecoveryService {
   private readonly functions = inject(Functions);
-  private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
+  private readonly mediaError = inject(MediaApplicationErrorService);
 
   listRecoveryJobs$(limit = 30): Observable<IAdminVideoProcessingRecoveryQueue> {
     const safeLimit = Math.max(1, Math.min(60, Math.trunc(limit)));
@@ -105,7 +105,15 @@ export class AdminVideoProcessingRecoveryService {
         checkedAt: this.normalizeNonNegativeInteger(response.data?.checkedAt),
       })),
       catchError((error) => {
-        this.reportError(error, 'listRecoveryJobs$', {});
+        this.mediaError.reportSilently(
+          error,
+          'adminVideoProcessing.listRecoveryJobs',
+          undefined,
+          {
+            scope: 'AdminVideoProcessingRecoveryService',
+          },
+          'video_library_load_failed'
+        );
         return throwError(() => error);
       })
     );
@@ -153,10 +161,15 @@ export class AdminVideoProcessingRecoveryService {
     }).pipe(
       map((response) => this.normalizeResult(response.data)),
       catchError((error) => {
-        this.reportError(error, 'recoverJob$', {
-          action: payload.action,
-          hasOwnerUid: true,
-          hasVideoId: true,
+        this.mediaError.report(error, {
+          operation: 'adminVideoProcessing.recoverJob',
+          reasonHint: 'video_upload_failed',
+          metadata: {
+            scope: 'AdminVideoProcessingRecoveryService',
+            action: payload.action,
+            hasOwnerUid: true,
+            hasVideoId: true,
+          },
         });
         return throwError(() => error);
       })
@@ -244,27 +257,5 @@ export class AdminVideoProcessingRecoveryService {
       : 0;
   }
 
-  private reportError(
-    error: unknown,
-    operation: string,
-    context: Record<string, unknown>
-  ): void {
-    try {
-      const normalized = error instanceof Error
-        ? error
-        : new Error('Falha na recuperação administrativa de vídeos.');
 
-      (normalized as any).original = error;
-      (normalized as any).context = {
-        scope: 'AdminVideoProcessingRecoveryService',
-        operation,
-        ...context,
-      };
-      (normalized as any).skipUserNotification = true;
-
-      this.globalErrorHandler.handleError(normalized);
-    } catch {
-      // noop
-    }
-  }
 }
