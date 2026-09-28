@@ -83,6 +83,17 @@ for (const relativePath of [
 }
 
 for (const relativePath of [
+  'src/app/media/shared/components/public-photo-card/public-photo-card.component.ts',
+  'src/app/media/shared/components/public-video-card/public-video-card.component.ts',
+]) {
+  requireIncludes(
+    read(relativePath),
+    'PublicMediaRecommendationBadgeComponent',
+    relativePath + ' must use shared recommendation badges'
+  );
+}
+
+for (const relativePath of [
   'src/app/media/photos/photo-viewer/photo-viewer.component.ts',
   'src/app/media/photos/photo-viewer/public-mixed-photo-viewer.component.ts',
   'src/app/media/videos/public-video-viewer/public-video-viewer.component.ts',
@@ -147,6 +158,60 @@ for (const relativePath of [
   );
 }
 
+const photoProfileGallery = read(
+  'src/app/media/photos/public-profile-photos/public-profile-photos.component.html'
+);
+for (const fragment of [
+  'app-public-photo-card',
+  'variant="profile"',
+]) {
+  requireIncludes(
+    photoProfileGallery,
+    fragment,
+    'photo profile gallery shared-card drift'
+  );
+}
+
+const videoProfileGallery = read(
+  'src/app/media/videos/public-profile-videos/public-profile-videos.component.html'
+);
+for (const fragment of [
+  'app-public-video-card',
+  'variant="profile"',
+  'recommendationSource="profile"',
+]) {
+  requireIncludes(
+    videoProfileGallery,
+    fragment,
+    'video profile gallery shared-card drift'
+  );
+}
+for (const forbidden of [
+  'class="video-card"',
+  'class="video-card__preview"',
+  '[appPublicVideoMetadataPreload]',
+]) {
+  forbidIncludes(
+    videoProfileGallery,
+    forbidden,
+    'profile video gallery must not reimplement shared video card'
+  );
+}
+
+const videoProfileController = read(
+  'src/app/media/videos/public-profile-videos/public-profile-videos.component.ts'
+);
+requireIncludes(
+  videoProfileController,
+  'PublicVideoViewerLauncherService',
+  'profile video gallery must use canonical viewer launcher'
+);
+forbidIncludes(
+  videoProfileController,
+  'MatDialog',
+  'profile video gallery must not bypass canonical viewer launcher'
+);
+
 const viewerTokens = read(
   'src/app/media/shared/styles/public-media-viewer.tokens.css'
 );
@@ -189,12 +254,17 @@ const photoEditorRuntime = [
   'src/app/photo-editor/photo-editor/photo-editor.component.ts',
   'src/app/photo-editor/photo-editor/photo-editor-overlay.model.ts',
   'src/app/photo-editor/photo-editor/photo-editor-local-tool.registry.ts',
+  'src/app/core/services/image-handling/photo-editor-launcher.service.ts',
+  'src/app/core/services/image-handling/photo-editor-session.service.ts',
+  'src/app/core/services/image-handling/photo-editor-history.service.ts',
+  'src/app/core/services/image-handling/photo-editor-result.model.ts',
 ].map(read).join('\n');
 
 for (const forbidden of [
   'HttpClient',
   'httpsCallable',
   'XMLHttpRequest',
+  'fetch(',
   'cloudinary',
   'imgix',
   'photopea',
