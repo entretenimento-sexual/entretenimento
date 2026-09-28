@@ -52,6 +52,18 @@ export const MEDIA_ERROR_MESSAGES = Object.freeze({
       'A imagem original não está disponível para edição.',
     photo_editor_failed:
       'Não foi possível abrir ou concluir a edição da foto agora. Tente novamente.',
+    photo_storage_owner_mismatch:
+      'Esta foto só pode ser alterada pelo perfil proprietário.',
+    photo_storage_path_invalid:
+      'Esta foto não possui uma origem válida para a operação solicitada.',
+    photo_delete_failed:
+      'Não foi possível excluir a foto agora. Tente novamente.',
+    profile_avatar_upload_failed:
+      'Não foi possível atualizar a foto do perfil agora. Tente novamente.',
+    media_replace_failed:
+      'Não foi possível substituir a mídia agora. Tente novamente.',
+    media_delete_failed:
+      'Não foi possível excluir a mídia agora. Tente novamente.',
 
     media_discovery_load_failed:
       'Não foi possível carregar as mídias agora. Tente novamente.',
@@ -408,6 +420,32 @@ export const MEDIA_ERROR_PRESENTATIONS:
       severity: 'warning',
     },
     photo_editor_failed: {
+      surface: 'snackbar',
+      severity: 'error',
+    },
+    photo_storage_owner_mismatch: {
+      surface: 'modal',
+      severity: 'warning',
+      title: 'Alteração não permitida',
+      dismissLabel: 'Fechar',
+    },
+    photo_storage_path_invalid: {
+      surface: 'snackbar',
+      severity: 'warning',
+    },
+    photo_delete_failed: {
+      surface: 'snackbar',
+      severity: 'error',
+    },
+    profile_avatar_upload_failed: {
+      surface: 'snackbar',
+      severity: 'error',
+    },
+    media_replace_failed: {
+      surface: 'snackbar',
+      severity: 'error',
+    },
+    media_delete_failed: {
       surface: 'snackbar',
       severity: 'error',
     },
