@@ -6,6 +6,7 @@
 // - o item exibido recebe URL temporária emitida pelo backend;
 // - nenhum contrato público contém caminho do upload privado.
 
+import type { IOfficialMediaContextProjection } from './i-official-media-context';
 import type {
   IPhotoPublicationScore,
   TPhotoCommentsPolicy,
@@ -15,14 +16,6 @@ import type {
 
 export type TPublicMediaType = 'PHOTO' | 'VIDEO';
 export type TPublicAssetAccess = 'SIGNED_URL';
-
-export interface IOfficialPhotoProjection {
-  verified: true;
-  target: {
-    type: 'profile';
-    id: string;
-  };
-}
 
 export interface IPublicPhotoBase {
   id: string;
@@ -68,10 +61,10 @@ export interface IPublicPhotoBase {
   viewScore?: number;
 
   /**
-   * Selo oficial derivado exclusivamente da associação oficial canônica do
-   * perfil proprietário. Não representa boost, patrocínio, plano ou ranking.
+   * Contexto oficial derivado. Nunca é autoridade nem estado editável da Foto.
+   * Não representa boost, patrocínio, plano, entitlement ou ranking.
    */
-  officialPhoto?: IOfficialPhotoProjection | null;
+  officialMediaContext?: IOfficialMediaContextProjection | null;
 
   ownerNickname?: string | null;
   ownerPhotoURL?: string | null;
