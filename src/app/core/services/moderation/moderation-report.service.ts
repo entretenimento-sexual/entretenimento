@@ -81,6 +81,19 @@ interface ReportProfileMinorSafetyResponse {
   reportId: string;
 }
 
+interface SubmitMediaModerationContestRequest {
+  reportId: string;
+  statement: string;
+}
+
+interface SubmitMediaModerationContestResponse {
+  reportId: string;
+  contestStatus: 'SUBMITTED';
+  reviewStatus: 'PENDING';
+  contentRestored: false;
+  evidenceReleased: false;
+}
+
 interface ReportCommunityFeedPostRequest {
   communityId: string;
   postId: string;
@@ -122,6 +135,38 @@ export class ModerationReportService {
   private readonly authSession = inject(AuthSessionService);
   private readonly firestoreContext = inject(FirestoreContextService);
   private readonly globalError = inject(GlobalErrorHandlerService);
+
+  submitMediaModerationContest$(
+    reportIdValue: string,
+    statementValue: string
+  ): Observable<SubmitMediaModerationContestResponse> {
+    const reportId = String(reportIdValue ?? '').trim();
+    const statement = String(statementValue ?? '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 2000);
+
+    if (!reportId || !statement) {
+      return throwError(() => new Error('Contestação inválida.'));
+    }
+
+    const callable = runInInjectionContext(this.environmentInjector, () =>
+      httpsCallable<
+        SubmitMediaModerationContestRequest,
+        SubmitMediaModerationContestResponse
+      >(inject(Functions), 'submitMediaModerationContest')
+    );
+
+    return from(callable({ reportId, statement })).pipe(
+      map((response) => response.data),
+      catchError((error) => {
+        this.reportWriteError(error, 'submitMediaModerationContest', {
+          reportId,
+        });
+        return throwError(() => error);
+      })
+    );
+  }
 
   createReport$(input: IModerationReportCreateInput): Observable<string> {
     const normalized = this.normalizeInput(input);
