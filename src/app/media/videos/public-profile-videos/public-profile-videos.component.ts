@@ -48,6 +48,7 @@ import {
 } from 'src/app/core/services/media/public-profile-video-pagination.service';
 import { PublicVideoShareService } from 'src/app/core/services/media/public-video-share.service';
 import { ReportContentButtonComponent } from 'src/app/shared/components-globais/moderation-report/report-content-button/report-content-button.component';
+import { ContentStateComponent } from 'src/app/shared/content-state/content-state.component';
 import { PublicVideoMetadataPreloadDirective } from '../public-video-metadata-preload.directive';
 
 interface PublicProfileVideosState {
@@ -78,6 +79,7 @@ const PUBLIC_VIDEO_RENDER_WINDOW_STEP = 12;
     MatDialogModule,
     PublicVideoMetadataPreloadDirective,
     ReportContentButtonComponent,
+    ContentStateComponent,
   ],
   templateUrl: './public-profile-videos.component.html',
   styleUrls: ['./public-profile-videos.component.css'],
