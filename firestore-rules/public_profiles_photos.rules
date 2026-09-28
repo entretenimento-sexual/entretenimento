@@ -44,26 +44,8 @@ match /public_profiles/{userId}/public_photos/{photoId} {
     return /databases/$(database)/documents/users/$(userId)/friends/$(request.auth.uid);
   }
 
-  function viewerBlockPath() {
-    return /databases/$(database)/documents/users/$(request.auth.uid)/blocks/$(userId);
-  }
-
-  function ownerBlockPath() {
-    return /databases/$(database)/documents/users/$(userId)/blocks/$(request.auth.uid);
-  }
-
   function hasMutualFriendship() {
     return exists(viewerFriendPath()) && exists(ownerFriendPath());
-  }
-
-  function hasActiveBilateralBlock() {
-    return (
-      exists(viewerBlockPath())
-      && get(viewerBlockPath()).data.isBlocked == true
-    ) || (
-      exists(ownerBlockPath())
-      && get(ownerBlockPath()).data.isBlocked == true
-    );
   }
 
   function isApprovedPublicPhotoData(data) {
@@ -75,7 +57,7 @@ match /public_profiles/{userId}/public_photos/{photoId} {
   function isApprovedCommentReadablePhotoData(data) {
     return data.ageEligibilityVerifiedAdult == true
       && data.moderationStatus == "APPROVED"
-      && !hasActiveBilateralBlock()
+      && !hasActiveBilateralBlockWith(userId)
       && (
         data.visibility == "PUBLIC"
         || (data.visibility == "FRIENDS" && hasMutualFriendship())
@@ -84,6 +66,7 @@ match /public_profiles/{userId}/public_photos/{photoId} {
 
   function isPublicReadable() {
     return publicProfileAllowsAdultExposure()
+      && bilateralExposureAllows(userId)
       && resource.data.ageEligibilityVerifiedAdult == true
       && resource.data.visibility == "PUBLIC"
       && resource.data.moderationStatus == "APPROVED";
@@ -106,6 +89,7 @@ match /public_profiles/{userId}/public_photos/{photoId} {
 
   match /likes/{viewerUid} {
     allow get: if currentUserCanUseAdultSocialPlatform()
+      && bilateralExposureAllows(userId)
       && request.auth.uid == viewerUid;
     allow list: if false;
     allow create, update, delete: if false;
