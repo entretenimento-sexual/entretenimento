@@ -12,6 +12,7 @@ import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-i
 import { PublicVideoMetadataPreloadDirective } from 'src/app/media/videos/public-video-metadata-preload.directive';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import { PublicMediaEngagementActionsComponent } from '../public-media-engagement-actions/public-media-engagement-actions.component';
+import { PublicMediaBadgeComponent } from '../public-media-badge/public-media-badge.component';
 
 export type TPublicVideoCardVariant = 'feed' | 'highlight';
 
@@ -24,6 +25,7 @@ export type TPublicVideoCardVariant = 'feed' | 'highlight';
     PublicVideoMetadataPreloadDirective,
     ImageFallbackDirective,
     PublicMediaEngagementActionsComponent,
+    PublicMediaBadgeComponent,
   ],
   templateUrl: './public-video-card.component.html',
   styleUrl: './public-video-card.component.css',
