@@ -42,6 +42,31 @@ service cloud.firestore {
       return data.keys().hasAny([field]) ? data[field] : null;
     }
 
+    function canonicalOwnerLifecycleAllowsPublicMediaExposure(userId) {
+      let ownerPath = /databases/$(database)/documents/users/$(userId);
+      let owner = signedIn() && exists(ownerPath)
+        ? get(ownerPath).data
+        : null;
+      let accountStatus = owner is map
+        ? mapFieldOrNull(owner, "accountStatus")
+        : null;
+      let suspended = owner is map
+        ? mapFieldOrNull(owner, "suspended")
+        : null;
+      let publicVisibility = owner is map
+        ? mapFieldOrNull(owner, "publicVisibility")
+        : null;
+      let loginAllowed = owner is map
+        ? mapFieldOrNull(owner, "loginAllowed")
+        : null;
+
+      return owner is map
+        && (accountStatus == null || accountStatus == "active")
+        && suspended != true
+        && (publicVisibility == null || publicVisibility == "visible")
+        && loginAllowed != false;
+    }
+
     function adultMediaLifecycleAllowsAccess(user) {
       let accountStatus = mapFieldOrNull(user, "accountStatus");
       let suspended = mapFieldOrNull(user, "suspended");
