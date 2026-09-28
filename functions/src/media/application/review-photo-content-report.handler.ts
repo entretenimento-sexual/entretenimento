@@ -7,6 +7,9 @@ import {
   safeRecordModerationReviewSignal,
 } from '../../moderation/moderation-automation.service';
 import {
+  safeRecordModerationReporterOutcome,
+} from '../../moderation/moderation-reporter-abuse.service';
+import {
   safeNotifyModerationReportReviewed,
 } from '../../moderation/moderation-safety-notification.service';
 import { deleteProfilePhotoResources } from './delete-profile-photo.handler';
@@ -39,6 +42,7 @@ interface ReviewPhotoContentReportRequest {
 }
 
 interface ModerationReportDocument {
+  reporterUid?: string;
   targetType?: string;
   targetId?: string;
   targetOwnerUid?: string;
@@ -75,6 +79,7 @@ interface PhotoPublicationDocument {
 }
 
 interface TransactionResult {
+  reporterUid: string;
   ownerUid: string;
   photoId: string;
   contentAvailableAtReview: boolean;
@@ -497,6 +502,7 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
         });
 
         return {
+          reporterUid: cleanId(report.reporterUid),
           ownerUid,
           photoId,
           contentAvailableAtReview,
@@ -515,6 +521,14 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
       critical: !!result.reason && isCriticalMinorMediaSafetyReason(result.reason),
       confirmed: decision === 'REMOVE',
     });
+
+    if (result.reporterUid) {
+      await safeRecordModerationReporterOutcome({
+        reporterUid: result.reporterUid,
+        reportId,
+        confirmed: decision === 'REMOVE',
+      });
+    }
 
     await safeNotifyModerationReportReviewed(reportId);
 
