@@ -79,6 +79,14 @@ describe('official-media-context.policy', () => {
           associationKey: 'profile:profile-2',
         },
       },
+      {
+        rawUser: { profileId: 'profile-1' },
+        rawProfileKyc: verifiedKyc(),
+        rawAssociation: {
+          ...verifiedAssociation(),
+          activeRevalidationDueAt: NOW,
+        },
+      },
     ];
 
     for (const candidate of cases) {
