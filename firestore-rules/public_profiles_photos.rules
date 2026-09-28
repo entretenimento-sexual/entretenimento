@@ -57,7 +57,7 @@ match /public_profiles/{userId}/public_photos/{photoId} {
   function isApprovedCommentReadablePhotoData(data) {
     return data.ageEligibilityVerifiedAdult == true
       && data.moderationStatus == "APPROVED"
-      && !hasActiveBilateralBlockWith(userId)
+      && bilateralExposureAllows(userId)
       && (
         data.visibility == "PUBLIC"
         || (data.visibility == "FRIENDS" && hasMutualFriendship())
