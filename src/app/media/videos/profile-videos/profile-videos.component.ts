@@ -359,17 +359,13 @@ export class ProfileVideosComponent {
         this.uploadProgressSubject.next(0);
         this.uploadStepSubject.next('');
       },
-      error: (error: unknown) => {
+      error: () => {
         if (this.editorLaunchSubscription === subscription) {
           this.editorLaunchSubscription = null;
         }
 
         input.value = '';
-        this.mediaError.report(error, {
-          operation: 'profileVideos.editorLaunch',
-          reasonHint: 'video_editor_open_failed',
-          metadata: { scope: 'ProfileVideosComponent' },
-        });
+        // VideoEditorLauncherService já apresentou e diagnosticou a falha.
       },
     });
 
