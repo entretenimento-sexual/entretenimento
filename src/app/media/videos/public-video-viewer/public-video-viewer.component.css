@@ -138,6 +138,26 @@
   min-width: 0;
 }
 
+.public-video-viewer__owner-title,
+.public-video-viewer__owner-context {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.public-video-viewer__owner-context {
+  overflow: hidden;
+}
+
+.public-video-viewer__owner-cta {
+  flex: 0 0 auto;
+  color: color-mix(in oklab, var(--primary-color, #ff7070) 72%, white 28%);
+  font-size: 0.7rem;
+  font-weight: 780;
+  white-space: nowrap;
+}
+
 .public-video-viewer__owner-copy strong,
 .public-video-viewer__owner-copy small {
   overflow: hidden;
