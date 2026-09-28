@@ -51,7 +51,9 @@ export async function incrementPromotionBoostFraudCounter(input: {
     viewerHash: viewerHash(input.viewerUid),
     day: input.day,
     totalSignals: FieldValue.increment(1),
-    [`reasonCounts.${input.reason}`]: FieldValue.increment(1),
+    reasonCounts: {
+      [input.reason]: FieldValue.increment(1),
+    },
     updatedAt: now,
     expiresAt: now + PROMOTION_BOOST_FRAUD_SIGNAL_TTL_MS,
   }, { merge: true });
