@@ -13,6 +13,7 @@ import { deleteProfilePhotoResources } from './delete-profile-photo.handler';
 import {
   buildMediaReportSafetyState,
   isCriticalMinorMediaSafetyReason,
+  normalizeMinorMediaSafetyReason,
   shouldPreserveMediaEvidence,
   type MediaReportSafetyReason,
   type MinorMediaSafetyReason,
@@ -96,17 +97,6 @@ function cleanDecision(value: unknown): PhotoContentReportDecision | null {
 
 function cleanResolution(value: unknown): string {
   return String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, 900);
-}
-
-function cleanMinorMediaSafetyReason(
-  value: unknown
-): MinorMediaSafetyReason | null {
-  const normalized = String(value ?? '').trim().toLowerCase();
-
-  return normalized === 'minor_exposure_safety' ||
-    normalized === 'minor_content_safety'
-    ? normalized
-    : null;
 }
 
 function cleanReason(value: unknown): MediaReportSafetyReason | null {
@@ -234,7 +224,7 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
     const reportId = cleanId(request.data?.reportId);
     const decision = cleanDecision(request.data?.decision);
     const resolution = cleanResolution(request.data?.resolution);
-    const reviewSafetyReason = cleanMinorMediaSafetyReason(
+    const reviewSafetyReason = normalizeMinorMediaSafetyReason(
       request.data?.safetyReason
     );
 
