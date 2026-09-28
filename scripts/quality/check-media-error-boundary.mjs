@@ -45,7 +45,50 @@ function runtimeTypeScriptFiles(directory) {
   });
 }
 
-const files = roots.flatMap(runtimeTypeScriptFiles);
+const supplementalFiles = [
+  path.join(
+    appRoot,
+    'admin-dashboard',
+    'video-moderation',
+    'video-moderation.component.ts'
+  ),
+  path.join(
+    appRoot,
+    'core',
+    'services',
+    'moderation',
+    'admin-video-processing-recovery.service.ts'
+  ),
+  path.join(
+    appRoot,
+    'core',
+    'services',
+    'moderation',
+    'admin-video-moderation.service.ts'
+  ),
+].filter((file) => fs.existsSync(file));
+
+const files = [
+  ...new Set([
+    ...roots.flatMap(runtimeTypeScriptFiles),
+    ...supplementalFiles,
+  ]),
+];
+
+const catalogOnlyPresentationFiles = new Set([
+  ...runtimeTypeScriptFiles(path.join(appRoot, 'media')),
+  ...supplementalFiles,
+  path.join(appRoot, 'core', 'services', 'media', 'video-library.service.ts'),
+  path.join(appRoot, 'core', 'services', 'media', 'video-upload-flow.service.ts'),
+  path.join(appRoot, 'core', 'services', 'media', 'video-publication.service.ts'),
+  path.join(
+    appRoot,
+    'core',
+    'services',
+    'media',
+    'public-media-owner-page-query.service.ts'
+  ),
+]);
 
 const violations = [];
 
@@ -87,7 +130,26 @@ for (const file of files) {
   }
 
   if (/\.handleError\s*\(/m.test(source)) {
-    violations.push(`${relative}: handleError legado`);
+    violations.push(relative + ': handleError legado');
+  }
+
+  if (
+    catalogOnlyPresentationFiles.has(file) &&
+    /\bfallbackMessage\s*:/m.test(source) &&
+    !isMediaBoundary
+  ) {
+    violations.push(
+      relative + ': fallbackMessage local; use reasonHint do catálogo'
+    );
+  }
+
+  if (
+    catalogOnlyPresentationFiles.has(file) &&
+    /\.(?:report|reportSilently)\s*\(\s*new\s+Error\s*\(/m.test(source)
+  ) {
+    violations.push(
+      relative + ': erro sintético com texto local; use reportReason/reportReasonSilently'
+    );
   }
 }
 
@@ -127,6 +189,8 @@ for (const fragment of [
   'reasonMessages: MEDIA_ERROR_MESSAGES',
   'reasonPresentations: MEDIA_ERROR_PRESENTATIONS',
   'reasonHint',
+  'reportReason(',
+  'reportReasonSilently(',
 ]) {
   if (!boundary.includes(fragment)) {
     violations.push(
