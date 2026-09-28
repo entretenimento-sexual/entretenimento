@@ -105,7 +105,27 @@ export class PublicProfilePhotosComponent {
           this.reportError(
             'Erro ao carregar a galeria pública do perfil.',
             error,
-            { op: 'publicPhotos
+            { op: 'publicPhotos$' }
+          );
+
+          return of<PublicProfilePhotosState>({
+            status: 'error',
+            items: [],
+          });
+        })
+      );
+    }),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  readonly publicPhotos$: Observable<IPublicPhotoItem[]> = this.state$.pipe(
+    map((state) => [...state.items]),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  retry(): void {
+    this.refreshSubject.next(this.refreshSubject.value + 1);
+  }
 
   openPhoto(index: number): void {
     this.publicPhotos$
