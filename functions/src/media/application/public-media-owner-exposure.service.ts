@@ -1,6 +1,9 @@
 import {
   evaluateCanonicalAgeEligibility,
 } from '../../compliance/age-eligibility.policy';
+import {
+  evaluateCanonicalOwnerLifecycle,
+} from './owner-lifecycle-exposure.policy';
 import { db } from '../../firebaseApp';
 import {
   evaluatePublicMediaOwnerExposure,
@@ -39,18 +42,27 @@ export async function resolvePublicMediaOwnerExposure(
     return new Map<string, PublicMediaOwnerExposureContext>();
   }
 
-  const snapshots = await db.getAll(
-    ...owners.map((ownerUid) => db.doc(`public_profiles/${ownerUid}`))
-  );
+  const refs = owners.flatMap((ownerUid) => [
+    db.doc(`users/${ownerUid}`),
+    db.doc(`public_profiles/${ownerUid}`),
+  ]);
+  const snapshots = await db.getAll(...refs);
   const result = new Map<string, PublicMediaOwnerExposureContext>();
 
   owners.forEach((ownerUid, index) => {
-    const snapshot = snapshots[index];
+    const userSnapshot = snapshots[index * 2];
+    const profileSnapshot = snapshots[index * 2 + 1];
+    const lifecycle = evaluateCanonicalOwnerLifecycle(
+      userSnapshot?.exists === true
+        ? userSnapshot.data()
+        : null
+    );
     const decision = evaluatePublicMediaOwnerExposure({
       publicProfile:
-        snapshot?.exists === true
-          ? snapshot.data() as Record<string, unknown>
+        profileSnapshot?.exists === true
+          ? profileSnapshot.data() as Record<string, unknown>
           : null,
+      canonicalOwnerLifecycleAllowed: lifecycle.allowed,
       viewerBlocked: blockedTargetUids.has(ownerUid),
       nowMs,
     });
@@ -73,6 +85,7 @@ export async function resolvePublicMediaSignedOwnerExposure(
   }
 
   const refs = owners.flatMap((ownerUid) => [
+    db.doc(`users/${ownerUid}`),
     db.doc(`public_profiles/${ownerUid}`),
     db.doc(`age_eligibility_records/${ownerUid}`),
   ]);
@@ -80,8 +93,14 @@ export async function resolvePublicMediaSignedOwnerExposure(
   const result = new Map<string, PublicMediaOwnerExposureContext>();
 
   owners.forEach((ownerUid, index) => {
-    const profileSnapshot = snapshots[index * 2];
-    const ageEligibilitySnapshot = snapshots[index * 2 + 1];
+    const userSnapshot = snapshots[index * 3];
+    const profileSnapshot = snapshots[index * 3 + 1];
+    const ageEligibilitySnapshot = snapshots[index * 3 + 2];
+    const lifecycle = evaluateCanonicalOwnerLifecycle(
+      userSnapshot?.exists === true
+        ? userSnapshot.data()
+        : null
+    );
     const ownerAgeDecision = evaluateCanonicalAgeEligibility({
       uid: ownerUid,
       rawRecord:
@@ -95,6 +114,7 @@ export async function resolvePublicMediaSignedOwnerExposure(
         profileSnapshot?.exists === true
           ? profileSnapshot.data() as Record<string, unknown>
           : null,
+      canonicalOwnerLifecycleAllowed: lifecycle.allowed,
       viewerBlocked: blockedTargetUids.has(ownerUid),
       canonicalAgeAllowed: ownerAgeDecision.allowed,
       canonicalAgeExpiresAtMs:
