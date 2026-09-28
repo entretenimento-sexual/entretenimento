@@ -31,3 +31,20 @@ test('falha para zero seguro quando valor não é observável', () => {
     0
   );
 });
+
+
+test('aceita trendScore somente como observação runtime shadow', () => {
+  assert.deepEqual(
+    buildProductCalibrationRuntimeObservation({
+      metric: 'media.trend_score_shadow',
+      value: 42.12345,
+      source: 'media.photo.reaction',
+    }),
+    {
+      metric: 'media.trend_score_shadow',
+      value: 42.1235,
+      source: 'media.photo.reaction',
+      semantics: 'production_runtime_observation',
+    }
+  );
+});
