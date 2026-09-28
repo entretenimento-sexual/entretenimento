@@ -20,6 +20,10 @@ import {
   PROMOTION_BOOST_CAMPAIGN_MUTATION_RATE_LIMIT,
 } from '../promotion-boost/promotion-boost-abuse.policy';
 import {
+  buildPromotionComplianceCreativeSnapshot,
+  buildPromotionComplianceSnapshot,
+} from '../promotion-boost/promotion-boost-compliance-snapshot.policy';
+import {
   evaluateCommunityBoostCampaignAuthorityInTransaction,
   stopCommunityBoostForAuthorityLossInTransaction,
 } from './community-boost-authority.service';
@@ -441,7 +445,62 @@ export const manageCommunityBoostCampaign =
             );
           }
 
-          transaction.create(campaignRef, campaign);
+          const creativeSnapshot = buildPromotionComplianceCreativeSnapshot({
+            targetType: 'community',
+            targetId: communityId,
+            targetOwnerUid: target.communityOwnerUid,
+            rawCreative: discoverySnapshot.data() ?? {},
+          });
+          const complianceSnapshot = creativeSnapshot
+            ? buildPromotionComplianceSnapshot({
+              campaign: {
+                campaignId: campaign.campaignId,
+                targetType: 'community',
+                targetId: campaign.communityId,
+                targetOwnerUid: campaign.communityOwnerUidSnapshot
+                  ?? target.communityOwnerUid,
+                advertiserUid: campaign.advertiserUid,
+                budgetCents: campaign.budgetCents,
+                dailyBudgetCents: campaign.dailyBudgetCents,
+                currency: campaign.currency,
+                billingBasis: campaign.billingBasis,
+                rateCpmCentsSnapshot: campaign.rateCpmCentsSnapshot,
+                billingConfigVersion: campaign.billingConfigVersion,
+                endsAt: campaign.endsAt,
+                frequencyCapPerViewerPerDay:
+                  campaign.frequencyCapPerViewerPerDay,
+              },
+              advertiserAccount,
+              advertiserAuthorityRole: target.authorityRole,
+              creative: creativeSnapshot,
+              targetingMode: target.sourceType === 'venue'
+                ? 'contextual_venue'
+                : targetTagId
+                  ? 'contextual_tag'
+                  : 'contextual_community',
+              contextTagId: targetTagId,
+              capturedAt: now,
+            })
+            : null;
+
+          if (!complianceSnapshot) {
+            throw new HttpsError(
+              'data-loss',
+              'Não foi possível registrar o snapshot de compliance da campanha.',
+              { reason: 'promotion_compliance_snapshot_required' }
+            );
+          }
+
+          transaction.create(campaignRef, {
+            ...campaign,
+            complianceSnapshotId: complianceSnapshot.snapshotId,
+            compliancePolicyVersion: complianceSnapshot.policyVersion,
+          });
+          transaction.create(
+            db.collection('promotion_boost_compliance_snapshots')
+              .doc(campaign.campaignId),
+            complianceSnapshot
+          );
           transaction.set(activeSlotRef, {
             campaignId: campaignRef.id,
             communityId,
@@ -487,6 +546,10 @@ export const manageCommunityBoostCampaign =
               endsAt: campaign.endsAt,
               frequencyCapPerViewerPerDay:
                 campaign.frequencyCapPerViewerPerDay,
+              complianceSnapshotId: complianceSnapshot.snapshotId,
+              compliancePolicyVersion: complianceSnapshot.policyVersion,
+              complianceRetentionReviewAt:
+                complianceSnapshot.retention.retainUntil,
               createdAt: now,
             }
           );
