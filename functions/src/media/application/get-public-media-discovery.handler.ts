@@ -26,6 +26,7 @@ import {
   assertPublicMediaConsumptionAccess,
 } from './public-media-consumption-access.policy';
 import {
+  isCurrentPublicMediaAssetExposure,
   isCurrentPublicMediaProjectionExposure,
 } from './public-media-exposure.policy';
 import {
@@ -239,15 +240,21 @@ export function serializePublicMediaForDiscovery(
   documentId: string,
   documentPath: string,
   data: Record<string, unknown>,
+  publication: Record<string, unknown> | null,
   nowMs: number,
   exposure: {
     readonly ownerAllowed: boolean;
   }
 ): Record<string, unknown> | null {
-  const mediaAllowed = isCurrentPublicMediaExposure(data, nowMs);
+  const mediaAllowed = isCurrentPublicMediaAssetExposure({
+    publicMedia: data,
+    publication,
+    ownerExposureAllowed: exposure.ownerAllowed,
+    nowMs,
+    allowedVisibilities: ['PUBLIC'],
+  });
 
   if (
-    !exposure.ownerAllowed ||
     !cleanId(documentId) ||
     !cleanId(data['ownerUid']) ||
     !mediaAllowed
@@ -498,6 +505,38 @@ export const getPublicMediaDiscovery = onCall<PublicMediaDiscoveryRequest>(
         });
       }
 
+      const candidateDocuments = batchDocuments.filter((document) => {
+        const data = document.data() as Record<string, unknown>;
+        const ownerUid = cleanId(data['ownerUid']);
+
+        return ownerExposureByUid.get(ownerUid)?.allowed === true
+          && isCurrentPublicMediaExposure(data, nowMs);
+      });
+      const publicationCollection =
+        mediaType === 'PHOTO' ? 'photo_publications' : 'video_publications';
+      const publicationSnapshots = candidateDocuments.length
+        ? await db.getAll(
+          ...candidateDocuments.map((document) => {
+            const data = document.data() as Record<string, unknown>;
+            const ownerUid = cleanId(data['ownerUid']);
+            return db.doc(
+              `users/${ownerUid}/${publicationCollection}/${document.id}`
+            );
+          })
+        )
+        : [];
+      const publicationByDocumentPath = new Map<string, Record<string, unknown>>();
+
+      candidateDocuments.forEach((document, index) => {
+        const publicationSnapshot = publicationSnapshots[index];
+        if (publicationSnapshot?.exists === true) {
+          publicationByDocumentPath.set(
+            document.ref.path,
+            publicationSnapshot.data() as Record<string, unknown>
+          );
+        }
+      });
+
       for (const document of batchDocuments) {
         cursorDocument = document;
         const data = document.data() as Record<string, unknown>;
@@ -506,6 +545,7 @@ export const getPublicMediaDiscovery = onCall<PublicMediaDiscoveryRequest>(
           document.id,
           document.ref.path,
           data,
+          publicationByDocumentPath.get(document.ref.path) ?? null,
           nowMs,
           {
             ownerAllowed:
