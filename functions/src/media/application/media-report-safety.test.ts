@@ -3,7 +3,9 @@ import { describe, it } from 'node:test';
 
 import {
   buildMediaReportSafetyState,
+  isAdultConsensualSexualContentViolation,
   isCriticalMinorMediaSafetyReason,
+  mediaSafetySeverity,
   normalizeMinorMediaSafetyReason,
   shouldPreserveMediaEvidence,
   shouldQuarantineMediaAfterReport,
@@ -39,6 +41,28 @@ describe('media-report-safety', () => {
       true
     );
     assert.equal(shouldPreserveMediaEvidence('minor_content_safety'), true);
+  });
+
+  it('classifica menoridade como severidade máxima e não confunde sexo adulto consensual', () => {
+    assert.equal(mediaSafetySeverity('minor_exposure_safety'), 'MAXIMUM_MINOR');
+    assert.equal(mediaSafetySeverity('minor_content_safety'), 'MAXIMUM_MINOR');
+    assert.equal(
+      mediaSafetySeverity('non_consensual_sexual_content'),
+      'HIGH'
+    );
+    assert.equal(mediaSafetySeverity('sexual_boundary'), 'STANDARD');
+    assert.equal(isAdultConsensualSexualContentViolation(), false);
+  });
+
+  it('quarentena imediata usa motivo explícito de não consentimento, não nudez adulta genérica', () => {
+    assert.equal(
+      shouldQuarantineMediaAfterReport('non_consensual_sexual_content', 1),
+      true
+    );
+    assert.equal(
+      shouldQuarantineMediaAfterReport('sexual_boundary', 1),
+      false
+    );
   });
 
   it('não transforma conteúdo adulto comum em risco por ausência de sinal de menor', () => {
