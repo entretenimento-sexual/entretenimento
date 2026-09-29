@@ -1157,8 +1157,11 @@ export class PhotoViewerComponent {
   }
 
   private isSwipeNavigationTargetBlocked(target: EventTarget | null): boolean {
-    return target instanceof Element &&
-      !!target.closest(PHOTO_SWIPE_BLOCKED_TARGET_SELECTOR);
+    if (!(target instanceof Element)) {
+      return true;
+    }
+
+    return !!target.closest(PHOTO_SWIPE_BLOCKED_TARGET_SELECTOR);
   }
 
   private canUseGalleryKeyboardNavigation(event: KeyboardEvent): boolean {
