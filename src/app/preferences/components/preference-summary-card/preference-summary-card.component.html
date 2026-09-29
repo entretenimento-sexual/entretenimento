@@ -1,17 +1,17 @@
 <!-- src\app\preferences\components\preference-summary-card\preference-summary-card.component.html -->
-<section class="preferences-summary-card" aria-label="Resumo das preferências">
+<section class="preferences-summary-card app-card app-card--flat" aria-label="Resumo das preferências">
   @if (vm(); as data) {
-    <header class="summary-header">
+    <header class="summary-header app-card__header">
       <div>
-        <h2 class="summary-title">Resumo das preferências</h2>
-        <p class="summary-subtitle">
+        <h2 class="summary-title app-card__title">Resumo das preferências</h2>
+        <p class="summary-subtitle app-card__subtitle">
           Visão rápida do perfil de descoberta e intenção atual.
         </p>
       </div>
 
       <div class="summary-badges" aria-label="Indicadores do perfil">
-        <span class="summary-badge">{{ discoveryModeLabel() }}</span>
-        <span class="summary-badge">{{ currentModeLabel() }}</span>
+        <span class="summary-badge app-chip app-chip--muted">{{ discoveryModeLabel() }}</span>
+        <span class="summary-badge app-chip app-chip--muted">{{ currentModeLabel() }}</span>
       </div>
     </header>
 
@@ -37,7 +37,7 @@
       </article>
     </div>
 
-    <footer class="summary-footer">
+    <footer class="summary-footer app-card__footer">
       <p class="summary-footnote">
         Atualizado em:
         <span>{{ data.profile.updatedAt | date: 'short' }}</span>
