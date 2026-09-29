@@ -50,6 +50,7 @@ import {
 } from 'src/app/core/utils/discovery/profile-type-preference-filter.util';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
+import { UserIntentStatusService } from 'src/app/core/services/discovery/user-intent-status.service';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { DirectChatService } from 'src/app/messaging/direct-chat/services/direct-chat.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -59,6 +60,11 @@ import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy
 import { ProfileMediaShowcaseComponent } from 'src/app/media/shared/components/profile-media-showcase/profile-media-showcase.component';
 import { SocialLinksAccordionComponent } from 'src/app/user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component';
 import { SharedModule } from '../../shared/shared.module';
+
+interface PublicIntentContextVm {
+  title: string;
+  detail: string;
+}
 
 interface FriendshipInteractionState {
   isFriend: boolean;
@@ -92,6 +98,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
   private readonly viewedProfileUid$ = new BehaviorSubject<string | null>(null);
 
   readonly friendshipInteractionState$: Observable<FriendshipInteractionState>;
+  readonly publicIntentContext$: Observable<PublicIntentContextVm | null>;
 
   uid: string | null = null;
   userProfile: IUserDados | null = null;
@@ -107,6 +114,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     private readonly firestoreUserQuery: FirestoreUserQueryService,
     private readonly authSession: AuthSessionService,
     private readonly currentUserStore: CurrentUserStoreService,
+    private readonly userIntentStatus: UserIntentStatusService,
     private readonly friendshipService: FriendshipService,
     private readonly directChatService: DirectChatService,
     private readonly cdr: ChangeDetectorRef,
@@ -114,6 +122,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     private readonly errorNotification: ErrorNotificationService
   ) {
     this.friendshipInteractionState$ = this.buildFriendshipInteractionStateStream();
+    this.publicIntentContext$ = this.buildPublicIntentContextStream();
   }
 
   ngOnInit(): void {
@@ -478,6 +487,76 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
             );
           });
       });
+  }
+
+  private buildPublicIntentContextStream(): Observable<PublicIntentContextVm | null> {
+    return combineLatest([
+      this.authSession.uid$.pipe(
+        map((uid) => (uid ?? '').trim()),
+        distinctUntilChanged()
+      ),
+      this.viewedProfileUid$.pipe(
+        map((uid) => (uid ?? '').trim()),
+        distinctUntilChanged()
+      ),
+    ]).pipe(
+      switchMap(([viewerUid, targetUid]) => {
+        if (!viewerUid || !targetUid || viewerUid === targetUid) {
+          return of(null);
+        }
+
+        return combineLatest([
+          this.userIntentStatus.watchActiveStatusesForUserRegion$(
+            viewerUid,
+            {
+              limit: 1,
+              ownerUids: [targetUid],
+            }
+          ),
+          this.userIntentStatus.watchCurrentStatus$(viewerUid),
+        ]).pipe(
+          map(([targetStatuses, viewerStatus]) => {
+            const targetStatus = targetStatuses[0] ?? null;
+
+            if (!targetStatus?.isActive) {
+              return null;
+            }
+
+            if (
+              targetStatus.availability === 'available_now' &&
+              viewerStatus?.isActive === true &&
+              viewerStatus.availability === 'available_now'
+            ) {
+              return {
+                title: 'Vocês estão disponíveis agora',
+                detail: 'Status temporário em comum',
+              };
+            }
+
+            switch (targetStatus.availability) {
+              case 'available_now':
+                return {
+                  title: 'Disponível agora',
+                  detail: 'Status temporário',
+                };
+              case 'available_today':
+                return {
+                  title: 'Disponível hoje',
+                  detail: 'Status temporário',
+                };
+              case 'planning_later':
+                return {
+                  title: 'Planejando mais tarde',
+                  detail: 'Status temporário',
+                };
+              default:
+                return null;
+            }
+          })
+        );
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
   }
 
   private buildFriendshipInteractionStateStream(): Observable<FriendshipInteractionState> {
