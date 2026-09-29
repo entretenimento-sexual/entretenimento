@@ -89,18 +89,12 @@ export const selectCurrentUser = createSelector(
   }
 );
 
-export const selectAllUsers = createSelector(
-  selectUsersMap,
-  (map) => Object.values(map ?? {})
-);
 
 /** Fonte oficial do online: state.onlineUsers */
 export const selectOnlineUsers = createSelector(
   selectUserState,
   (state) => state.onlineUsers ?? []
 );
-
-export const selectAllOnlineUsers = selectOnlineUsers;
 
 export const selectUserByIdOrNull = (uid: string) =>
   createSelector(selectUsersMap, (map) => {
@@ -150,17 +144,5 @@ export const selectCurrentUserStatus = createSelector(
   }
 );
 
-export const selectUserLoading = createSelector(
-  selectUserState,
-  (state) => state.loading
-);
 
-export const selectUserError = createSelector(
-  selectUserState,
-  (state) => state.error
-);
 
-export const selectHasRequiredFields = createSelector(
-  selectCurrentUser,
-  (user) => !!user?.municipio && !!user?.gender
-);
