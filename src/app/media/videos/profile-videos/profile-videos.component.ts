@@ -560,11 +560,10 @@ export class ProfileVideosComponent {
     if (!dialog) {
       this.editingVideoIdSubject.next(null);
       this.publicationSettingsForm.reset();
-      this.mediaError.report(
-        new Error('Dialog de edição de publicação indisponível.'),
+      this.mediaError.reportReason(
+        'video_editor_open_failed',
         {
           operation: 'profileVideos.openPublicationSettings',
-          reasonHint: 'video_editor_open_failed',
           metadata: { scope: 'ProfileVideosComponent' },
         }
       );
