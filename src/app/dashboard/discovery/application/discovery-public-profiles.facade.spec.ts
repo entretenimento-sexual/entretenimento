@@ -8,6 +8,7 @@ import { CurrentUserStoreService } from 'src/app/core/services/autentication/aut
 import { UserPresenceQueryService } from 'src/app/core/services/data-handling/queries/user-presence.query.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { GeolocationTrackingService } from 'src/app/core/services/geolocation/geolocation-tracking.service';
+import { UserIntentStatusService } from 'src/app/core/services/discovery/user-intent-status.service';
 import { emptyDiscoveryFeedSlice } from 'src/app/store/states/states.discovery/discovery-feed.state';
 
 import {
@@ -63,10 +64,17 @@ describe('DiscoveryPublicProfilesFacade', () => {
     ),
   };
 
+  const intentStatusMock = {
+    watchActiveStatusesForUserRegion$: vi.fn(() => of([])),
+    watchCurrentStatus$: vi.fn(() => of(null)),
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     storeMock.select.mockReturnValue(of(emptyDiscoveryFeedSlice));
     visibleLocationRepositoryMock.watchByUids$.mockReturnValue(of([]));
+    intentStatusMock.watchActiveStatusesForUserRegion$.mockReturnValue(of([]));
+    intentStatusMock.watchCurrentStatus$.mockReturnValue(of(null));
     cardEnrichmentMock.buildCardsResult.mockReturnValue({
       profiles: [],
       rejected: [],
@@ -100,6 +108,10 @@ describe('DiscoveryPublicProfilesFacade', () => {
         {
           provide: GeolocationTrackingService,
           useValue: geolocationTrackingMock,
+        },
+        {
+          provide: UserIntentStatusService,
+          useValue: intentStatusMock,
         },
         {
           provide: DiscoveryVisibleProfileLocationRepository,
@@ -157,6 +169,91 @@ describe('DiscoveryPublicProfilesFacade', () => {
     expect(
       visibleLocationRepositoryMock.watchByUids$
     ).not.toHaveBeenCalledWith(['profile-expired']);
+  });
+
+  it('sobrepõe disponibilidade temporária sem alterar o ranking do card', async () => {
+    storeMock.select.mockReturnValue(
+      of({
+        ...emptyDiscoveryFeedSlice,
+        items: [
+          {
+            uid: 'profile-1',
+            nickname: 'Profile 1',
+            ageEligibilityValidUntil: Date.now() + 60_000,
+          },
+        ],
+        reachedEnd: true,
+      } as any)
+    );
+
+    cardEnrichmentMock.buildCardsResult.mockReturnValue({
+      profiles: [{ uid: 'profile-1', nickname: 'Profile 1' }],
+      rejected: [],
+      scores: [],
+      debugSummary: {},
+    });
+
+    intentStatusMock.watchActiveStatusesForUserRegion$.mockReturnValue(
+      of([
+        {
+          id: 'current_profile-1',
+          uid: 'profile-1',
+          profile: { uid: 'profile-1', nickname: 'Profile 1' },
+          availability: 'available_now',
+          visibility: 'public_discovery',
+          destination: {
+            kind: 'region',
+            label: 'Rio de Janeiro',
+            region: { uf: 'RJ', city: 'rio de janeiro' },
+          },
+          moderation: { state: 'active' },
+          startsAt: Date.now() - 1_000,
+          expiresAt: Date.now() + 60_000,
+          ageEligibilityValidUntil: Date.now() + 60_000,
+          destinationLabel: 'Rio de Janeiro',
+          availabilityLabel: 'Disponível agora',
+          expiresInLabel: 'Expira em até 1h',
+          isActive: true,
+        },
+      ] as any)
+    );
+    intentStatusMock.watchCurrentStatus$.mockReturnValue(
+      of({
+        id: 'current_viewer',
+        uid: 'viewer',
+        profile: { uid: 'viewer', nickname: 'viewer' },
+        availability: 'available_now',
+        visibility: 'public_discovery',
+        destination: {
+          kind: 'region',
+          label: 'Rio de Janeiro',
+          region: { uf: 'RJ', city: 'rio de janeiro' },
+        },
+        moderation: { state: 'active' },
+        startsAt: Date.now() - 1_000,
+        expiresAt: Date.now() + 60_000,
+        ageEligibilityValidUntil: Date.now() + 60_000,
+        destinationLabel: 'Rio de Janeiro',
+        availabilityLabel: 'Disponível agora',
+        expiresInLabel: 'Expira em até 1h',
+        isActive: true,
+      } as any)
+    );
+
+    const facade = TestBed.inject(DiscoveryPublicProfilesFacade);
+    const state = await firstValueFrom(facade.state$);
+
+    expect(intentStatusMock.watchActiveStatusesForUserRegion$).toHaveBeenCalledWith(
+      'viewer',
+      expect.objectContaining({
+        ownerUids: ['profile-1'],
+      })
+    );
+    expect(state.profiles[0]).toMatchObject({
+      uid: 'profile-1',
+      intentAvailability: 'available_now',
+      mutualAvailableNow: true,
+    });
   });
 
   it('sobrepõe somente a localização pública dos perfis visíveis em tempo real', async () => {
