@@ -44,7 +44,7 @@ service cloud.firestore {
 
     function canonicalOwnerLifecycleAllowsPublicMediaExposure(userId) {
       let ownerPath = /databases/$(database)/documents/users/$(userId);
-      let owner = signedIn() && exists(ownerPath)
+      let owner = signedIn()
         ? get(ownerPath).data
         : null;
       let accountStatus = owner is map
@@ -224,9 +224,12 @@ service cloud.firestore {
 
     function hasActiveUserBlock(blockerUid, targetUid) {
       let blockPath = userBlockPath(blockerUid, targetUid);
-      return blockerUid != targetUid
-        && exists(blockPath)
-        && get(blockPath).data.isBlocked == true;
+      let block = blockerUid != targetUid
+        ? get(blockPath).data
+        : null;
+
+      return block is map
+        && mapFieldOrNull(block, "isBlocked") == true;
     }
 
     function hasActiveBilateralBlockWith(targetUid) {
