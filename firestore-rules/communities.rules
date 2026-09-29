@@ -100,17 +100,47 @@ match /community_feed_realtime/{communityId}/items/{postId} {
   }
 
   function realtimeMembershipHasStatus(status) {
-    return signedIn()
-      && exists(realtimeMembershipPath())
-      && get(realtimeMembershipPath()).data.status == status;
+    let membershipPath = realtimeMembershipPath();
+    let membership = signedIn() && exists(membershipPath)
+      ? get(membershipPath).data
+      : null;
+    let membershipStatus = membership is map
+      ? mapFieldOrNull(membership, "status")
+      : null;
+
+    return membership is map
+      && membershipStatus == status;
   }
 
   function realtimeCommunityAllowsPreview() {
-    return exists(realtimeCommunityPath())
-      && get(realtimeCommunityPath()).data.status == "active"
-      && get(realtimeCommunityPath()).data.moderation.state == "active"
-      && get(realtimeCommunityPath()).data.visibility == "public_preview"
-      && get(realtimeCommunityPath()).data.access.preview == "authenticated";
+    let communityPath = realtimeCommunityPath();
+    let community = exists(communityPath)
+      ? get(communityPath).data
+      : null;
+    let communityStatus = community is map
+      ? mapFieldOrNull(community, "status")
+      : null;
+    let moderation = community is map
+      ? mapFieldOrNull(community, "moderation")
+      : null;
+    let moderationState = moderation is map
+      ? mapFieldOrNull(moderation, "state")
+      : null;
+    let visibility = community is map
+      ? mapFieldOrNull(community, "visibility")
+      : null;
+    let access = community is map
+      ? mapFieldOrNull(community, "access")
+      : null;
+    let previewAccess = access is map
+      ? mapFieldOrNull(access, "preview")
+      : null;
+
+    return community is map
+      && communityStatus == "active"
+      && moderationState == "active"
+      && visibility == "public_preview"
+      && previewAccess == "authenticated";
   }
 
   function canReadRealtimeCommunityFeed() {
