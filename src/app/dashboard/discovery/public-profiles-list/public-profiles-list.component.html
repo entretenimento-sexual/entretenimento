@@ -70,6 +70,8 @@
           [distanciaKm]="getDistance(profile)"
           [preferenceMatchScore]="profile.preferenceMatchScore ?? null"
           [preferenceMatchReasons]="profile.preferenceMatchReasons ?? null"
+          [intentAvailability]="profile.intentAvailability ?? null"
+          [mutualAvailableNow]="profile.mutualAvailableNow === true"
         />
       }
     </div>
