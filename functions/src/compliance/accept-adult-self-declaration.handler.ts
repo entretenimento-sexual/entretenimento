@@ -20,6 +20,7 @@ import {
   evaluateCanonicalAgeEligibility,
 } from './age-eligibility.policy';
 import {
+  projectionFromCanonicalAgeDecision,
   writeCanonicalAgeEligibilityInTransaction,
 } from './age-eligibility.service';
 import {
@@ -140,6 +141,22 @@ export const acceptAdultSelfDeclaration =
         });
 
         if (current.status === 'VERIFIED_ADULT' && current.allowed) {
+          const projection = projectionFromCanonicalAgeDecision(
+            current,
+            nowMs
+          );
+
+          if (projection) {
+            transaction.set(
+              userRef,
+              {
+                ageEligibility: projection,
+                updatedAt: FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
+          }
+
           return {
             status: 'VERIFIED_ADULT' as const,
             declaredAtMs: null,
@@ -169,6 +186,22 @@ export const acceptAdultSelfDeclaration =
         }
 
         if (current.status === 'SELF_DECLARED_ADULT' && current.allowed) {
+          const projection = projectionFromCanonicalAgeDecision(
+            current,
+            nowMs
+          );
+
+          if (projection) {
+            transaction.set(
+              userRef,
+              {
+                ageEligibility: projection,
+                updatedAt: FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
+          }
+
           return {
             status: 'SELF_DECLARED_ADULT' as const,
             declaredAtMs: nowMs,
