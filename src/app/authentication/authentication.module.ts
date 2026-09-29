@@ -11,6 +11,7 @@ import { AuthenticationRoutingModule } from './authentication-routing.module';
 import { MatCardModule } from '@angular/material/card';
 import { EmailInputModalComponent } from './email-input-modal/email-input-modal.component';
 import { PageHeaderComponent } from '../shared/page-header/page-header.component';
+import { ContentStateComponent } from '../shared/content-state/content-state.component';
 
 @NgModule({
   declarations: [
@@ -27,6 +28,7 @@ import { PageHeaderComponent } from '../shared/page-header/page-header.component
     MatCardModule,
     EmailInputModalComponent,
     PageHeaderComponent,
+    ContentStateComponent,
 
   ],
 
