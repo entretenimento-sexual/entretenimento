@@ -202,6 +202,16 @@
           </section>
         }
 
+        @if (publicIntentContext$ | async; as intentContext) {
+          <section
+            class="other-profile-page__panel other-profile-page__intent-context"
+            aria-labelledby="profile-intent-context-heading"
+          >
+            <h2 id="profile-intent-context-heading">{{ intentContext.title }}</h2>
+            <p>{{ intentContext.detail }}</p>
+          </section>
+        }
+
         @if (desireMatch; as match) {
           <section
             class="other-profile-page__panel other-profile-page__desire-match"
