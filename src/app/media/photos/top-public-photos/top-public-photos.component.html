@@ -1,9 +1,7 @@
-<section class="top-photos-page" aria-labelledby="top-photos-title">
+<section class="top-photos-page container-wide" aria-label="Fotos em destaque">
   @let vm = (vm$ | async);
 
-  <header class="top-photos-header gallery-header-clean">
-    <h1 id="top-photos-title">Fotos em destaque</h1>
-  </header>
+  <app-page-header title="Fotos em destaque"></app-page-header>
 
   @if (vm) {
     @if (vm.showStaleNotice) {
@@ -77,14 +75,14 @@
         <div class="feed-actions" aria-label="Navegação pelas fotos carregadas">
           <button
             type="button"
-            class="btn btn-secondary"
+            class="app-action app-action--ghost"
             (click)="showEarlierWindow()"
             [disabled]="!vm.hasEarlierRenderWindow">
             Mostrar anteriores
           </button>
           <button
             type="button"
-            class="btn btn-secondary"
+            class="app-action app-action--ghost"
             (click)="showLaterWindow()"
             [disabled]="!vm.hasLaterRenderWindow">
             Mostrar mais recentes
@@ -96,7 +94,7 @@
         <div class="feed-actions">
           <button
             type="button"
-            class="btn btn-secondary"
+            class="app-action app-action--ghost"
             (click)="loadMore()">
             Carregar mais
           </button>
