@@ -333,7 +333,7 @@
   backdrop-filter: blur(10px);
 }
 
-.form-actions .btn {
+.form-actions .app-action {
   min-height: 44px;
 }
 
@@ -371,7 +371,7 @@
 
   .matching-mode__compact,
   .preference-upgrade__action,
-  .form-actions .btn {
+  .form-actions .app-action {
     width: 100%;
   }
 
