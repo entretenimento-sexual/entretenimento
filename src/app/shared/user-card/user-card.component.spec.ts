@@ -118,11 +118,7 @@ describe('UserCardComponent', () => {
     expect(
       fixture.componentInstance.publicPreview()?.highlights
     ).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ label: 'Sério' }),
-        expect.objectContaining({ label: 'Tatuagens' }),
-        expect.objectContaining({ label: 'BDSM' }),
-      ])
+      expect.arrayContaining(['Sério', 'Tatuagens', 'BDSM'])
     );
 
     const desireMatch = fixture.debugElement.query(
