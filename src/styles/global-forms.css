@@ -376,3 +376,70 @@ html.high-contrast .app-control,
 html.high-contrast .app-choice {
   border-color: currentColor;
 }
+
+
+/* Toggle binário canônico */
+.app-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.app-toggle input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.app-toggle__track {
+  width: 48px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--text-color) 18%, transparent);
+  transition: background-color 160ms ease;
+}
+
+.app-toggle__thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--text-color);
+  box-shadow: 0 3px 10px rgb(0 0 0 / 24%);
+  transform: translateX(0);
+  transition: transform 160ms ease;
+}
+
+.app-toggle input:checked + .app-toggle__track {
+  background: var(--primary-color);
+}
+
+.app-toggle input:checked + .app-toggle__track .app-toggle__thumb {
+  transform: translateX(20px);
+}
+
+.app-toggle input:focus-visible + .app-toggle__track {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.app-toggle input:disabled + .app-toggle__track {
+  opacity: 0.64;
+  cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-toggle__track,
+  .app-toggle__thumb {
+    transition: none;
+  }
+}
+
+html.high-contrast .app-toggle__track {
+  border: 2px solid currentColor;
+}
