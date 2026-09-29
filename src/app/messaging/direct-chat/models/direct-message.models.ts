@@ -12,8 +12,6 @@
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
 import { DirectChatBlockedReason } from './direct-chat.models';
 
-export type DirectMessageId = string;
-
 export interface DirectThreadState {
   chatId: string | null;
   messages: Message[];
@@ -38,7 +36,3 @@ export interface SendDirectMessagePayload {
   content: string;
 }
 
-export interface MarkDirectMessagesReadPayload {
-  chatId: string;
-  messageIds: string[];
-}
