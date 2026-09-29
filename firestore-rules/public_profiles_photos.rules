@@ -22,7 +22,7 @@ match /public_profiles/{userId}/public_photos/{photoId} {
   function publicProfileAllowsAdultExposure() {
     return canonicalOwnerLifecycleAllowsPublicMediaExposure(userId)
       && publicProfileProjectionAllowsAdultExposure()
-      && canonicalAgeEligibilityAllowsAdultAccess(userId);
+      && canonicalAgeEligibilityIsVerifiedAdult(userId);
   }
 
   function photoPath() {
@@ -57,7 +57,7 @@ match /public_profiles/{userId}/public_photos/{photoId} {
 
   function commentPhotoAllowsAdultExposure(data) {
     return canonicalOwnerLifecycleAllowsPublicMediaExposure(userId)
-      && canonicalAgeEligibilityAllowsAdultAccess(userId)
+      && canonicalAgeEligibilityIsVerifiedAdult(userId)
       && publicAgeProjectionAllowsAdultExposure(data);
   }
 
@@ -85,7 +85,7 @@ match /public_profiles/{userId}/public_photos/{photoId} {
       && resource.data.moderationStatus == "APPROVED";
   }
 
-  allow get: if currentUserCanUseAdultSocialPlatform()
+  allow get: if canConsumeAdultPublicMedia()
     && (isSelf(userId) || isPublicReadable());
 
   // Galerias owner-scoped também atravessam a Callable backend-time.
@@ -95,7 +95,7 @@ match /public_profiles/{userId}/public_photos/{photoId} {
   allow create, update, delete: if false;
 
   match /likes/{viewerUid} {
-    allow get: if currentUserCanUseAdultSocialPlatform()
+    allow get: if canConsumeAdultPublicMedia()
       && bilateralExposureAllows(userId)
       && request.auth.uid == viewerUid;
     allow list: if false;
@@ -103,7 +103,7 @@ match /public_profiles/{userId}/public_photos/{photoId} {
   }
 
   match /comments/{commentId} {
-    allow get: if currentUserCanUseAdultSocialPlatform()
+    allow get: if canConsumeAdultPublicMedia()
       && (
         isSelf(userId)
         || (
@@ -112,7 +112,7 @@ match /public_profiles/{userId}/public_photos/{photoId} {
         )
       );
 
-    allow list: if currentUserCanUseAdultSocialPlatform()
+    allow list: if canConsumeAdultPublicMedia()
       && (
         isSelf(userId)
         || (
