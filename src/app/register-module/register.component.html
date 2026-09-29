@@ -72,7 +72,7 @@
 
         <div class="field-row">
           <div class="input-wrapper">
-            <input id="apelidoPrincipal" formControlName="apelidoPrincipal" type="text" class="input-field app-control app-control"
+            <input id="apelidoPrincipal" formControlName="apelidoPrincipal" type="text" class="input-field app-control"
               name="nickname" autocomplete="nickname" placeholder="Ex: casadinho" spellcheck="false"
               autocapitalize="none" inputmode="text" maxlength="12" aria-label="Apelido"
               aria-describedby="apelidoTooltip" (input)="onNicknameTyping()" (blur)="onNicknameBlur()"
@@ -162,7 +162,7 @@
       <div class="form-field app-field">
         <label for="complementoApelido">Complemento</label>
 
-        <input id="complementoApelido" formControlName="complementoApelido" type="text" class="input-field app-control app-control"
+        <input id="complementoApelido" formControlName="complementoApelido" type="text" class="input-field app-control"
           name="nicknameSuffix" autocomplete="off" placeholder="Opcional" autocapitalize="none" inputmode="text"
           maxlength="12" aria-label="Complemento do apelido" aria-describedby="complementoTooltip"
           (input)="onNicknameTyping()" (blur)="onComplementoBlur()" [attr.aria-invalid]="
@@ -185,7 +185,7 @@
       <div class="form-field app-field">
         <label for="email">E-mail *</label>
 
-        <input id="email" formControlName="email" type="email" class="input-field app-control app-control" name="email" autocomplete="email"
+        <input id="email" formControlName="email" type="email" class="input-field app-control" name="email" autocomplete="email"
           placeholder="email@exemplo.com" autocapitalize="none" inputmode="email" aria-label="E-mail"
           aria-describedby="emailTooltip" [attr.aria-invalid]="
             (submitted() || form.get('email')?.touched)
@@ -209,7 +209,7 @@
 
         <div class="input-wrapper password-field">
           <input id="password" [type]="showPassword() ? 'text' : 'password'" formControlName="password"
-            class="input-field app-control app-control" name="password" autocomplete="new-password" placeholder="Crie uma senha segura"
+            class="input-field app-control" name="password" autocomplete="new-password" placeholder="Crie uma senha segura"
             spellcheck="false" autocapitalize="none" maxlength="128" aria-label="Senha"
             aria-describedby="passwordHint passwordTooltip" [attr.aria-invalid]="
               (submitted() || form.get('password')?.touched)
@@ -256,7 +256,7 @@
 
         <div class="input-wrapper password-field">
           <input id="confirmPassword" [type]="showConfirmPassword() ? 'text' : 'password'"
-            formControlName="confirmPassword" class="input-field app-control app-control" name="confirmPassword"
+            formControlName="confirmPassword" class="input-field app-control" name="confirmPassword"
             autocomplete="new-password" placeholder="Digite a mesma senha novamente" spellcheck="false"
             autocapitalize="none" maxlength="128" aria-label="Confirmar senha"
             aria-describedby="confirmPasswordTooltip" [attr.aria-invalid]="
