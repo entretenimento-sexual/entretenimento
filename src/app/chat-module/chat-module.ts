@@ -14,7 +14,6 @@ import { PublicUserPreviewTriggerDirective } from '../core/components/public-use
 import { DirectChatPublicIdentityComponent } from '../messaging/direct-chat/presentation/direct-chat-public-identity.component';
 
 import { ChatListComponent } from './chat-list/chat-list.component';
-import { ChatWindowComponent } from './chat-window/chat-window.component';
 import { ChatMessageComponent } from './chat-message/chat-message.component';
 import { ChatModuleLayoutComponent } from './chat-module-layout/chat-module-layout.component';
 import { ChatMessagesListComponent } from './chat-messages-list/chat-messages-list.component';
@@ -40,7 +39,6 @@ import { ChatReplyQuotePipe } from './pipes/chat-reply-quote.pipe';
 @NgModule({
   declarations: [
     ChatListComponent,
-    ChatWindowComponent,
     ChatMessageComponent,
     ChatModuleLayoutComponent,
     ChatRoomsComponent,
