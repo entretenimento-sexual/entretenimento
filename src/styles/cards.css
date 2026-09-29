@@ -85,7 +85,7 @@
 .app-card__title {
   margin: 0;
   color: var(--text-color);
-  font-size: clamp(1rem, 0.94rem + 0.3vw, 1.2rem);
+  font-size: var(--font-size-card-title, clamp(1rem, 0.94rem + 0.3vw, 1.2rem));
   font-weight: 850;
   line-height: 1.2;
   letter-spacing: -0.015em;
@@ -135,7 +135,7 @@
 .app-page-title {
   margin: 0;
   color: var(--text-color);
-  font-size: clamp(1.3rem, 1.18rem + 0.5vw, 1.65rem);
+  font-size: var(--font-size-page-title, clamp(1.3rem, 1.18rem + 0.5vw, 1.65rem));
   font-weight: 850;
   line-height: 1.1;
   letter-spacing: -0.025em;
@@ -174,7 +174,7 @@
 .app-section-title {
   margin: 0;
   color: var(--text-color);
-  font-size: clamp(1rem, 0.94rem + 0.3vw, 1.2rem);
+  font-size: var(--font-size-section-title, clamp(1rem, 0.94rem + 0.3vw, 1.2rem));
   font-weight: 850;
   line-height: 1.2;
   letter-spacing: -0.015em;
@@ -205,7 +205,7 @@
   min-width: 0;
   overflow: clip;
   border: 1px solid var(--surface-border);
-  border-radius: 14px;
+  border-radius: var(--app-card-radius-compact, 14px);
   background: var(--surface-color);
 }
 
@@ -450,14 +450,14 @@
 }
 
 .app-action {
-  min-height: var(--tap-target-sm, 40px);
+  min-height: var(--control-height-sm, var(--tap-target-sm, 40px));
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   padding: 8px 14px;
   border: 1px solid var(--surface-border);
-  border-radius: 12px;
+  border-radius: var(--control-radius, 12px);
   background: color-mix(in oklab, var(--surface-color) 92%, black 8%);
   color: color-mix(in oklab, var(--text-color) 86%, transparent);
   font: inherit;
