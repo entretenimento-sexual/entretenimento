@@ -228,6 +228,41 @@ export class PreferenceProfileFormComponent {
     return `${count} selecionadas`;
   }
 
+  reachSummary(): string {
+    const minAge = Number(this.form.controls['minAge']?.value ?? 18);
+    const maxAge = Number(this.form.controls['maxAge']?.value ?? 100);
+    const maxDistanceKm = Number(this.form.controls['maxDistanceKm']?.value ?? 0);
+
+    if (!Number.isFinite(maxDistanceKm) || maxDistanceKm <= 0) {
+      return `${minAge}–${maxAge} anos`;
+    }
+
+    return `${minAge}–${maxAge} anos · até ${maxDistanceKm} km`;
+  }
+
+  visibilitySummary(): string {
+    const mode = String(this.form.controls['discoveryMode']?.value ?? 'standard');
+    const label = this.discoveryModeOptions.find((option) => option.key === mode)?.label;
+
+    return label || 'Padrão';
+  }
+
+  selfDescriptionSummary(): string {
+    return this.selectionLabel(
+      this.selectedCount('st', this.bodyPreferenceOptions)
+    );
+  }
+
+  advancedSummary(): string {
+    if (!this.canEditAdvanced()) return 'Opcional';
+
+    const count =
+      this.selectedCount('sp', this.sexualPracticeOptions) +
+      this.selectedCount('bp', this.bodyPreferenceOptions);
+
+    return this.selectionLabel(count);
+  }
+
   numericFieldError(controlName: NumericPreferenceControl): string | null {
     const control = this.form.get(controlName);
     if (!control?.touched || !control.invalid) return null;
