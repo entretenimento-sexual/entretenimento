@@ -1,6 +1,6 @@
 <!-- src/app/preferences/pages/preferences-editor/preferences-editor.component.html -->
 <main class="preferences-editor-page app-page" aria-label="Editor de preferências">
-  <section class="preferences-editor-shell">
+  <section class="preferences-editor-shell stack container">
     <app-page-header title="Preferências">
       <a
         page-actions
@@ -12,7 +12,7 @@
     </app-page-header>
 
     @if (state$ | async; as state) {
-      <section class="plan-strip" aria-label="Plano atual">
+      <section class="plan-strip app-card app-card--flat" aria-label="Plano atual">
         <div class="plan-strip__copy">
           <strong>Plano {{ state.capabilities.currentPlanLabel }}</strong>
         </div>
@@ -30,19 +30,8 @@
 
       <section
         class="editor-section"
-        aria-labelledby="preferencesProfileTitle"
+        aria-label="Preferências pessoais"
       >
-        <header class="app-section-header">
-          <div class="app-section-heading">
-            <h2
-              id="preferencesProfileTitle"
-              class="app-section-title"
-            >
-              O que você procura
-            </h2>
-          </div>
-        </header>
-
         <app-preference-profile-form
           [profile]="state.profile"
           [capabilities]="state.capabilities"
@@ -71,15 +60,11 @@
         </div>
       </details>
     } @else {
-      <section
-        class="editor-loading"
-        role="status"
-        aria-live="polite"
-        aria-label="Carregando preferências"
-      >
-        <span class="editor-loading__spinner" aria-hidden="true"></span>
-        <span>Carregando suas preferências…</span>
-      </section>
+      <app-content-state
+        state="loading"
+        message="Carregando suas preferências."
+        [compact]="true">
+      </app-content-state>
     }
   </section>
 </main>
