@@ -6,13 +6,11 @@
 // enquanto toda resposta normalizada já usa PublicUserIdentity.
 // -----------------------------------------------------------------------------
 
-import type { ProfileIdentityDiscoveryGroup } from '../../core/domain/profile-identity/profile-identity.catalog';
 import {
   PublicUserIdentity,
   normalizePublicUserIdentity,
 } from '../../core/domain/public-user-identity/public-user-identity.model';
 
-export type CommunityPublicProfileType = ProfileIdentityDiscoveryGroup;
 export type CommunityPublicAuthor = Pick<PublicUserIdentity, 'label' | 'avatarUrl'>
   & Partial<Omit<PublicUserIdentity, 'label' | 'avatarUrl'>>;
 
