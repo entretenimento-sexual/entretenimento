@@ -23,11 +23,6 @@ export class PreferencesDomainNavComponent {
       exact: true,
     },
     {
-      label: 'Visão geral',
-      route: '/preferencias/overview',
-      exact: true,
-    },
-    {
       label: 'Notificações',
       route: '/preferencias/notificacoes',
       exact: true,
