@@ -2,7 +2,6 @@
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 
-import { FeaturedProfilesComponent } from './featured-profiles/featured-profiles.component';
 import { PrincipalComponent } from './principal/principal.component';
 import { DashboardLayoutComponent } from './dashboard-layout/dashboard-layout.component';
 import { OnlineUsersComponent } from './online/online-users/online-users.component';
@@ -183,12 +182,8 @@ export const DASHBOARD_ROUTES: Routes = [
 
       {
         path: 'featured-profiles',
-        component: FeaturedProfilesComponent,
-        canActivate: [authGuard, emailVerifiedGuard, profileCompletedGuard],
-        data: {
-          requireVerified: true,
-          requireProfileCompleted: true,
-        },
+        redirectTo: 'explorar',
+        pathMatch: 'full',
       },
 
       /**
