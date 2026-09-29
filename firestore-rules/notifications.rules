@@ -46,3 +46,7 @@ match /community_notification_preferences/{userId}/items/{communityId} {
 match /community_notification_projection_state/{notificationId} {
   allow read, write: if false;
 }
+
+match /media_notification_delivery_state/{userId} {
+  allow read, write: if false;
+}
