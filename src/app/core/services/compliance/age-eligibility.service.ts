@@ -120,6 +120,41 @@ export class AgeEligibilityService {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
+  /**
+   * Gate de entrada idempotente.
+   *
+   * Se a projeção local ainda vier UNVERIFIED para uma conta já resolvida,
+   * consulta primeiro as fontes backend e restaura eventual declaração
+   * histórica antes de decidir navegação.
+   */
+  readonly reconciledAdultAccess$: Observable<boolean> = combineLatest([
+    this.currentUser.user$,
+    this.current$,
+  ]).pipe(
+    switchMap(([user, state]) => {
+      const uid = String(user?.uid ?? '').trim();
+
+      if (!uid) {
+        return of(false);
+      }
+
+      if (state.status !== 'UNVERIFIED') {
+        return this.observeAdultAccessWindow$(state);
+      }
+
+      return this.refreshTrustedSources$().pipe(
+        map(
+          (status) =>
+            status === 'SELF_DECLARED_ADULT' ||
+            status === 'VERIFIED_ADULT'
+        ),
+        catchError(() => of(false))
+      );
+    }),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
   readonly verifiedAdult$: Observable<boolean> = this.current$.pipe(
     switchMap((state) => this.observeVerifiedWindow$(state)),
     distinctUntilChanged(),
