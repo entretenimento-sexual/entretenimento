@@ -70,6 +70,14 @@ function firstNumber(
   return Number.isFinite(parsed) ? Math.max(0, parsed) : null;
 }
 
+function publicProfileAge(value: unknown): number | null {
+  const parsed = typeof value === 'number' ? value : Number(value);
+
+  return Number.isInteger(parsed) && parsed >= 18 && parsed <= 100
+    ? parsed
+    : null;
+}
+
 function firstCoordinate(
   source: PublicProfileSource,
   keys: readonly string[],
@@ -259,9 +267,7 @@ export function mapPublicProfileCard(
       'orientacao',
       'orientacaoSexual',
     ]),
-    // Idade exata não pertence à projeção pública. Mesmo documentos legados
-    // ainda contendo `age`/`idade` não podem reintroduzi-la no card.
-    age: null,
+    age: publicProfileAge(firstValue(source, ['age', 'idade'])),
     ageEligibilityValidUntil,
 
     normalizedGender: firstText(source, ['normalizedGender']),
