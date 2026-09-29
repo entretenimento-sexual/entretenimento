@@ -245,20 +245,20 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
       return null;
     }
 
-    const labels = result.matchedSignals
-      .map((signal) => {
-        switch (signal) {
-          case 'relationship_intent':
-            return 'Intenção';
-          case 'sexual_practice':
-            return 'Práticas';
-          case 'body_trait':
-            return 'Características';
-          default:
-            return null;
-        }
-      })
-      .filter((label): label is string => !!label);
+    const labels: string[] = [];
+    for (const signal of result.matchedSignals) {
+      switch (signal) {
+        case 'relationship_intent':
+          labels.push('Intenção');
+          break;
+        case 'sexual_practice':
+          labels.push('Práticas');
+          break;
+        case 'body_trait':
+          labels.push('Características');
+          break;
+      }
+    }
 
     if (!labels.length) {
       return null;
