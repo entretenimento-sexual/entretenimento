@@ -12,74 +12,24 @@
 
 .preference-group {
   min-width: 0;
-  overflow: clip;
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
-  border-radius: 14px;
-  background: var(--surface-color, #101923);
-}
-
-.preference-group__summary {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto 20px;
-  align-items: center;
-  gap: 12px;
-  min-height: 66px;
-  padding: 12px 14px;
-  cursor: pointer;
-  list-style: none;
-  user-select: none;
-}
-
-.preference-group__summary::-webkit-details-marker {
-  display: none;
-}
-
-.preference-group__summary::after {
-  content: '+';
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 62%, transparent);
-  font-size: 1.15rem;
-  font-weight: 700;
-  line-height: 1;
-  text-align: center;
-}
-
-.preference-group[open] > .preference-group__summary::after {
-  content: '−';
-}
-
-.preference-group__summary:focus-visible {
-  outline: var(--focus-ring, 3px solid #7dd3fc);
-  outline-offset: -3px;
 }
 
 .preference-group__title {
-  display: grid;
-  gap: 3px;
   min-width: 0;
 }
 
-.preference-group__title strong,
 .preference-subgroup__title {
   color: var(--text-color, #f5f7fb);
   font-weight: 900;
   line-height: 1.2;
 }
 
-.preference-group__title small,
 .field-help,
 .preference-note,
 .form-actions__status {
   color: color-mix(in oklab, var(--text-color, #f5f7fb) 64%, transparent);
   font-size: 0.82rem;
   line-height: 1.35;
-}
-
-.preference-group__count,
-.preference-group__plan {
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
-  font-size: 0.78rem;
-  font-weight: 800;
-  white-space: nowrap;
 }
 
 .preference-group__plan {
@@ -92,13 +42,6 @@
 .preference-group__content {
   display: grid;
   gap: 14px;
-  min-width: 0;
-  padding: 4px 14px 14px;
-  border-top: 1px solid color-mix(
-    in oklab,
-    var(--surface-border, rgba(255, 255, 255, 0.12)) 72%,
-    transparent
-  );
 }
 
 .checkbox-grid {
@@ -395,7 +338,6 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .preference-group__summary:hover,
   .checkbox-item:hover,
   .preference-upgrade__action:hover {
     border-color: color-mix(
@@ -413,29 +355,6 @@
 }
 
 @media (max-width: 640px) {
-  .preference-group__summary {
-    grid-template-columns: minmax(0, 1fr) 18px;
-    gap: 9px;
-    min-height: 62px;
-    padding: 11px 12px;
-  }
-
-  .preference-group__count,
-  .preference-group__plan {
-    grid-column: 1;
-    justify-self: start;
-    white-space: normal;
-  }
-
-  .preference-group__summary::after {
-    grid-column: 2;
-    grid-row: 1 / span 2;
-  }
-
-  .preference-group__content {
-    padding: 4px 12px 12px;
-  }
-
   .checkbox-grid,
   .form-grid,
   .inline-options,
@@ -471,7 +390,6 @@
   }
 }
 
-html.high-contrast .preference-group,
 html.high-contrast .checkbox-item,
 html.high-contrast .matching-mode select,
 html.high-contrast .matching-mode__compact,
