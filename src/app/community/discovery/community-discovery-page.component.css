@@ -19,7 +19,10 @@
   scrollbar-width: none;
 }
 
-.community-discovery__scope-nav.app-segmented::-webkit-scrollbar,
+.community-discovery__scope-nav.app-segmented::-webkit-scrollbar {
+  display: none;
+}
+
 .community-discovery__definition {
   margin: 0.25rem 0 0.9rem;
   color: var(--text-color, #222);
