@@ -42,6 +42,26 @@ describe('PublicProfilesListComponent', () => {
     expect(adapted.idade).toBe(34);
   });
 
+  it('preserva sinais públicos sanitizados ao adaptar o card compartilhado', () => {
+    const adapted = component.toUserCardProfile({
+      uid: 'profile-signals',
+      nickname: 'Pessoa',
+      publicRelationshipIntents: ['serious'],
+      publicSexualPractices: ['bdsm'],
+      publicBodyTraits: ['tattoos'],
+      preferenceBadgesVisible: true,
+      publicPreferencesUpdatedAt: 123,
+    });
+
+    expect(adapted).toMatchObject({
+      publicRelationshipIntents: ['serious'],
+      publicSexualPractices: ['bdsm'],
+      publicBodyTraits: ['tattoos'],
+      preferenceBadgesVisible: true,
+      publicPreferencesUpdatedAt: 123,
+    });
+  });
+
   it('mantém o estado vazio curto e sem painel duplicado', () => {
     const empty = fixture.debugElement.query(
       By.css('.public-profiles__empty')
