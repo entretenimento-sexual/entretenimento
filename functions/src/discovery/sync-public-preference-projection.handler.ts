@@ -66,47 +66,6 @@ export const syncPublicPreferenceProjection = onDocumentWritten(
       }
 
       const user = userSnapshot.data() ?? {};
-
-      const ageDecision = evaluateCanonicalAgeEligibility({
-        uid,
-        rawRecord: ageEligibilitySnapshot.exists
-          ? ageEligibilitySnapshot.data()
-          : null,
-      });
-
-      if (isPublicProfileProjectionBlocked(user)) {
-        if (publicSnapshot.exists) {
-          transaction.delete(publicRef);
-        }
-        return;
-      }
-
-      if (!ageDecision.allowed) {
-        const current = publicSnapshot.data() ?? {};
-        if (
-          publicSnapshot.exists &&
-          (
-            current['ageEligibilityVerifiedAdult'] !== false ||
-            publicAgeValidUntilMs(current) !== 0
-          )
-        ) {
-          transaction.set(
-            publicRef,
-            {
-              ageEligibilityVerifiedAdult: false,
-              ageEligibilityValidUntil: Timestamp.fromMillis(0),
-            },
-            { merge: true }
-          );
-        }
-        return;
-      }
-
-      if (!publicSnapshot.exists) {
-        return;
-      }
-
-      const verifiedAdult = isVerifiedAdultAgeDecision(ageDecision);
       const profile = preferenceSnapshot.exists
         ? (preferenceSnapshot.data() ?? {})
         : null;
@@ -150,6 +109,46 @@ export const syncPublicPreferenceProjection = onDocumentWritten(
         }
       }
 
+      const ageDecision = evaluateCanonicalAgeEligibility({
+        uid,
+        rawRecord: ageEligibilitySnapshot.exists
+          ? ageEligibilitySnapshot.data()
+          : null,
+      });
+
+      if (isPublicProfileProjectionBlocked(user)) {
+        if (publicSnapshot.exists) {
+          transaction.delete(publicRef);
+        }
+        return;
+      }
+
+      if (!ageDecision.allowed) {
+        const current = publicSnapshot.data() ?? {};
+        if (
+          publicSnapshot.exists &&
+          (
+            current['ageEligibilityVerifiedAdult'] !== false ||
+            publicAgeValidUntilMs(current) !== 0
+          )
+        ) {
+          transaction.set(
+            publicRef,
+            {
+              ageEligibilityVerifiedAdult: false,
+              ageEligibilityValidUntil: Timestamp.fromMillis(0),
+            },
+            { merge: true }
+          );
+        }
+        return;
+      }
+
+      if (!publicSnapshot.exists) {
+        return;
+      }
+
+      const verifiedAdult = isVerifiedAdultAgeDecision(ageDecision);
       const expected = buildPublicPreferenceProjection(profile, {
         canPublishAdvanced: hasMinimumActiveDiscoveryPlan(user, 'basic'),
       });
