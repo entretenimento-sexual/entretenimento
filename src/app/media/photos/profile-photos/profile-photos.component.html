@@ -23,22 +23,15 @@
 @let publishingPhotoId = (publishingPhotoId$ | async);
 @let savingDisplayDateId = (savingDisplayDateId$ | async);
 
-<section class="photos-page" aria-label="Fotos do perfil">
-  <header class="photos-header">
-    <div class="photos-title">
-      <span class="eyebrow">Vitrine do perfil</span>
-
-      <h2>Fotos do perfil</h2>
-
-      <p class="subtitle">
-        Revise as fotos adicionadas, publique quando estiverem prontas e escolha a capa da sua presença pública.
-      </p>
-    </div>
-
+<section class="photos-page container-wide" aria-label="Fotos do perfil">
+  <app-page-header
+    title="Fotos do perfil"
+    subtitle="Revise as fotos adicionadas, publique quando estiverem prontas e escolha a capa da sua presença pública."
+  >
     @if (ownerUid && isOwner) {
-      <div class="actions">
+      <div page-actions class="actions">
         <a
-          class="gallery-action gallery-action--ghost app-action app-action--ghost"
+          class="app-action app-action--ghost"
           [routerLink]="['/perfil']"
           aria-label="Voltar ao meu perfil"
         >
@@ -47,7 +40,7 @@
 
         <button
           type="button"
-          class="gallery-action gallery-action--primary app-action app-action--primary"
+          class="app-action app-action--primary"
           (click)="openUpload(ownerUid)"
           aria-label="Adicionar nova foto"
         >
@@ -55,7 +48,7 @@
         </button>
       </div>
     }
-  </header>
+  </app-page-header>
 
   @if (!canView) {
     <div class="blocked app-card" role="status" aria-live="polite">
@@ -89,7 +82,7 @@
         @if (ownerUid && isOwner) {
           <button
             type="button"
-            class="btn btn-secondary app-action"
+            class="app-action app-action--ghost"
             (click)="openUpload(ownerUid)"
           >
             Adicionar foto
