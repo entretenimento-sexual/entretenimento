@@ -18,12 +18,14 @@ export interface PublicVideoMetadataPreloadCapability {
   readonly saveData: boolean;
   readonly effectiveType: string | null;
   readonly downlinkMbps: number | null;
+  readonly deviceMemoryGb: number | null;
 }
 
 export type PublicVideoMetadataPreloadCapabilityReader =
   () => PublicVideoMetadataPreloadCapability;
 
 interface NavigatorWithConnection extends Navigator {
+  readonly deviceMemory?: number;
   readonly connection?: {
     readonly saveData?: boolean;
     readonly effectiveType?: string;
@@ -37,6 +39,8 @@ const MAX_ACTIVE_METADATA_PRELOADS = 2;
 const MAX_ATTEMPTED_METADATA_KEYS = 256;
 const MIN_DOWNLINK_MBPS = 1.5;
 const BLOCKED_EFFECTIVE_TYPES = new Set(['slow-2g', '2g']);
+const LOW_MEMORY_BLOCK_THRESHOLD_GB = 2;
+const LOW_MEMORY_SINGLE_PRELOAD_THRESHOLD_GB = 4;
 
 export function canPreloadPublicVideoMetadata(
   capability: PublicVideoMetadataPreloadCapability
@@ -50,11 +54,34 @@ export function canPreloadPublicVideoMetadata(
     downlinkMbps > 0 &&
     downlinkMbps < MIN_DOWNLINK_MBPS;
 
+  const deviceMemoryGb = Number(capability.deviceMemoryGb);
+  const hasSeverelyConstrainedMemory =
+    Number.isFinite(deviceMemoryGb) &&
+    deviceMemoryGb > 0 &&
+    deviceMemoryGb <= LOW_MEMORY_BLOCK_THRESHOLD_GB;
+
   return capability.documentVisible &&
     capability.online &&
     !capability.saveData &&
     !BLOCKED_EFFECTIVE_TYPES.has(effectiveType) &&
-    !hasInsufficientMeasuredDownlink;
+    !hasInsufficientMeasuredDownlink &&
+    !hasSeverelyConstrainedMemory;
+}
+
+export function resolveMaxActiveMetadataPreloads(
+  capability: PublicVideoMetadataPreloadCapability
+): number {
+  const deviceMemoryGb = Number(capability.deviceMemoryGb);
+
+  if (
+    Number.isFinite(deviceMemoryGb) &&
+    deviceMemoryGb > 0 &&
+    deviceMemoryGb <= LOW_MEMORY_SINGLE_PRELOAD_THRESHOLD_GB
+  ) {
+    return 1;
+  }
+
+  return MAX_ACTIVE_METADATA_PRELOADS;
 }
 
 export const PUBLIC_VIDEO_METADATA_PRELOAD_CAPABILITY_READER =
@@ -68,6 +95,7 @@ export const PUBLIC_VIDEO_METADATA_PRELOAD_CAPABILITY_READER =
           const navigatorLike = globalThis.navigator as
             NavigatorWithConnection | undefined;
           const downlink = Number(navigatorLike?.connection?.downlink);
+          const deviceMemory = Number(navigatorLike?.deviceMemory);
 
           return {
             documentVisible: document.visibilityState !== 'hidden',
@@ -80,6 +108,10 @@ export const PUBLIC_VIDEO_METADATA_PRELOAD_CAPABILITY_READER =
             downlinkMbps:
               Number.isFinite(downlink) && downlink > 0
                 ? downlink
+                : null,
+            deviceMemoryGb:
+              Number.isFinite(deviceMemory) && deviceMemory > 0
+                ? deviceMemory
                 : null,
           };
         };
@@ -122,10 +154,12 @@ export class PublicVideoMetadataPreloadService {
   preloadMetadata(item: IPublicVideoItem | null | undefined): boolean {
     const key = this.buildKey(item);
 
+    const capability = this.readCapability();
+
     if (
       !key ||
       this.attemptedKeys.has(key) ||
-      !canPreloadPublicVideoMetadata(this.readCapability()) ||
+      !canPreloadPublicVideoMetadata(capability) ||
       !this.hasUsableAccess(item)
     ) {
       return false;
@@ -147,7 +181,9 @@ export class PublicVideoMetadataPreloadService {
       this.attemptedKeys.delete(oldestKey);
     }
 
-    while (this.activeCleanups.size >= MAX_ACTIVE_METADATA_PRELOADS) {
+    const maxActivePreloads = resolveMaxActiveMetadataPreloads(capability);
+
+    while (this.activeCleanups.size >= maxActivePreloads) {
       const oldest = this.activeCleanups.values().next().value as (() => void) | undefined;
       if (!oldest) break;
       oldest();
