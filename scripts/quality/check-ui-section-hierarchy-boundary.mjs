@@ -117,13 +117,59 @@ const boundaries = [
   {
     path: 'src/app/preferences/pages/notification-settings/notification-settings.component.html',
     required: [
+      '<app-preferences-page-header title="Notificações">',
       'Notificações neste navegador',
       'app-action app-action--ghost',
+      'app-action app-action--primary',
     ],
     forbidden: [
+      'subtitle="Escolha quais alertas',
       'push-device-card__eyebrow',
       'Notificações no navegador',
       'btn btn-secondary',
+    ],
+  },
+  {
+    path: 'src/app/preferences/components/intent-state-form/intent-state-form.component.html',
+    required: [
+      'intent-context app-disclosure',
+      'app-disclosure__summary',
+      'app-disclosure__title',
+      'app-disclosure__content',
+      'app-action app-action--primary',
+    ],
+    forbidden: [
+      'Mostra atividade imediata.',
+      'Mantém o sinal durante o dia.',
+      'Cidade, expiração e tags temporárias.',
+      '>Disponível<',
+      'Disponibilidade salva.',
+      'btn btn-primary',
+    ],
+  },
+  {
+    path: 'src/app/community/community-settings/community-settings.component.html',
+    required: [
+      'app-section-header',
+      'app-section-title',
+      'app-action app-action--primary',
+    ],
+    forbidden: [
+      'Configuração editorial',
+      'fa-sliders',
+    ],
+  },
+  {
+    path: 'src/app/layout/friend-management/friend-settings/friend-settings.component.html',
+    required: [
+      'app-section-header',
+      'app-section-title',
+      'app-action app-action--primary',
+    ],
+    forbidden: [
+      'Configurações de Amizade',
+      'Salvar Configurações',
+      'mat-button',
     ],
   },
   {
@@ -216,6 +262,36 @@ for (const boundary of boundaries) {
     if (source.includes(forbidden)) {
       violations.push(`${boundary.path} reintroduced redundant copy: ${forbidden}`);
     }
+  }
+}
+
+
+const intentCss = read(
+  'src/app/preferences/components/intent-state-form/intent-state-form.component.css'
+);
+for (const forbidden of [
+  "content: '+'",
+  "content: '−'",
+  '.form-actions .btn',
+]) {
+  if (intentCss.includes(forbidden)) {
+    violations.push(
+      'intent-state-form.component.css contains obsolete local UI chrome ' + forbidden
+    );
+  }
+}
+
+const notificationCss = read(
+  'src/app/preferences/pages/notification-settings/notification-settings.component.css'
+);
+for (const forbidden of [
+  '.push-device-card__action--secondary',
+  '.notification-settings-state__retry {',
+]) {
+  if (notificationCss.includes(forbidden)) {
+    violations.push(
+      'notification-settings.component.css contains duplicate global action chrome ' + forbidden
+    );
   }
 }
 
