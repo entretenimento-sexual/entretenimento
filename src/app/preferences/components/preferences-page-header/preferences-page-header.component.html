@@ -1,16 +1,16 @@
 <!-- src\app\preferences\components\preferences-page-header\preferences-page-header.component.html -->
- <header class="preferences-page-header">
-  <div class="preferences-page-header__text">
-    <h1 class="preferences-page-header__title">{{ title() }}</h1>
+ <header class="preferences-page-header app-page-header">
+  <div class="preferences-page-header__text app-page-heading">
+    <h1 class="preferences-page-header__title app-page-title">{{ title() }}</h1>
 
     @if (subtitle()) {
-      <p class="preferences-page-header__subtitle">
+      <p class="preferences-page-header__subtitle app-page-lead">
         {{ subtitle() }}
       </p>
     }
   </div>
 
-  <div class="preferences-page-header__actions">
+  <div class="preferences-page-header__actions app-page-actions">
     <ng-content select="[page-actions]"></ng-content>
   </div>
 </header>
