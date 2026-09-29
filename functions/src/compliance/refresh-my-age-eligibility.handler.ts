@@ -2,8 +2,14 @@
 // -----------------------------------------------------------------------------
 // REFRESH MY AGE ELIGIBILITY
 // -----------------------------------------------------------------------------
-// Reconcilia somente fontes backend já confiáveis. Nunca promove idade, data de
-// nascimento client-side, adultConsent ou ageVerification legado.
+// Reconcilia apenas fontes backend confiáveis.
+// - nunca promove idade social, data de nascimento client-side, adultConsent
+//   ou ageVerification legado;
+// - repara users/{uid}.ageEligibility a partir da autoridade canônica;
+// - se a autoridade canônica estiver ausente/inválida, pode restaurar a
+//   autodeclaração provisória a partir da evidência histórica imutável
+//   adult_self_declarations/{uid}, sem pedir nova declaração ao usuário;
+// - decisões fortes/restrições nunca são rebaixadas por autodeclaração.
 // -----------------------------------------------------------------------------
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
@@ -16,7 +22,11 @@ import {
 import {
   projectionFromCanonicalAgeDecision,
   writeCanonicalAgeEligibilityInTransaction,
+  type AgeEligibilityProjection,
 } from './age-eligibility.service';
+import {
+  isAgeReverificationAccessRestricted,
+} from './profile-age-reverification.policy';
 
 interface RefreshMyAgeEligibilityResponse {
   status:
@@ -27,6 +37,8 @@ interface RefreshMyAgeEligibilityResponse {
     | 'REVIEW_REQUIRED'
     | 'EXPIRED';
   migrated: boolean;
+  restoredFromDeclarationEvidence: boolean;
+  ageEligibility: AgeEligibilityProjection | null;
 }
 
 function cleanUid(value: unknown): string {
@@ -35,8 +47,45 @@ function cleanUid(value: unknown): string {
 }
 
 function positiveTime(value: unknown): number | null {
+  if (
+    value &&
+    typeof value === 'object' &&
+    typeof (value as { toMillis?: unknown }).toMillis === 'function'
+  ) {
+    const millis = (value as { toMillis: () => number }).toMillis();
+    return Number.isFinite(millis) && millis > 0
+      ? Math.trunc(millis)
+      : null;
+  }
+
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
+}
+
+function trustedSelfDeclarationAtMs(
+  value: unknown,
+  expectedUid: string
+): number | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  const declaration = value as Record<string, unknown>;
+
+  if (
+    String(declaration['uid'] ?? '').trim() !== expectedUid ||
+    Number(declaration['schemaVersion']) !== 1 ||
+    declaration['type'] !== 'adult_self_declaration' ||
+    declaration['declaration'] !== '18_PLUS' ||
+    declaration['voluntary'] !== true ||
+    declaration['explicitConfirmation'] !== true ||
+    declaration['immutable'] !== true
+  ) {
+    return null;
+  }
+
+  return positiveTime(declaration['declaredAtMs'])
+    ?? positiveTime(declaration['declaredAt']);
 }
 
 export const refreshMyAgeEligibility = onCall(
@@ -51,9 +100,18 @@ export const refreshMyAgeEligibility = onCall(
     return db.runTransaction(async (transaction) => {
       const userRef = db.collection('users').doc(uid);
       const recordRef = db.collection('age_eligibility_records').doc(uid);
-      const [userSnapshot, recordSnapshot] = await Promise.all([
+      const declarationRef = db
+        .collection('adult_self_declarations')
+        .doc(uid);
+
+      const [
+        userSnapshot,
+        recordSnapshot,
+        declarationSnapshot,
+      ] = await Promise.all([
         transaction.get(userRef),
         transaction.get(recordRef),
+        transaction.get(declarationRef),
       ]);
 
       if (!userSnapshot.exists) {
@@ -63,21 +121,34 @@ export const refreshMyAgeEligibility = onCall(
         );
       }
 
+      const nowMs = Date.now();
       const currentDecision = evaluateCanonicalAgeEligibility({
         uid,
         rawRecord: recordSnapshot.exists ? recordSnapshot.data() : null,
+        nowMs,
       });
 
-      if (
-        currentDecision.status === 'SELF_DECLARED_ADULT' ||
-        currentDecision.status === 'VERIFIED_ADULT' ||
-        currentDecision.status === 'DENIED_UNDERAGE' ||
-        currentDecision.status === 'REVIEW_REQUIRED' ||
-        currentDecision.status === 'EXPIRED'
-      ) {
+      /**
+       * Estados canônicos válidos são simplesmente reprojetados.
+       * SELF_DECLARED_ADULT só entra aqui quando allowed=true; registros
+       * desatualizados/inconsistentes não podem manter autorização por nome.
+       */
+      const currentIsUsable =
+        (
+          currentDecision.status === 'SELF_DECLARED_ADULT' ||
+          currentDecision.status === 'VERIFIED_ADULT'
+        )
+          ? currentDecision.allowed === true
+          : (
+            currentDecision.status === 'DENIED_UNDERAGE' ||
+            currentDecision.status === 'REVIEW_REQUIRED' ||
+            currentDecision.status === 'EXPIRED'
+          );
+
+      if (currentIsUsable) {
         const projection = projectionFromCanonicalAgeDecision(
           currentDecision,
-          Date.now()
+          nowMs
         );
 
         if (projection) {
@@ -94,6 +165,8 @@ export const refreshMyAgeEligibility = onCall(
         return {
           status: currentDecision.status,
           migrated: false,
+          restoredFromDeclarationEvidence: false,
+          ageEligibility: projection,
         };
       }
 
@@ -124,52 +197,126 @@ export const refreshMyAgeEligibility = onCall(
         reverificationResult === 'UNDERAGE' &&
         reviewedAt !== null;
 
-      if (!trustedAdult && !trustedUnderage) {
+      /**
+       * Decisão forte sempre vence a evidência histórica de autodeclaração.
+       */
+      if (trustedAdult || trustedUnderage) {
+        const projection = writeCanonicalAgeEligibilityInTransaction(
+          transaction,
+          {
+            uid,
+            status: trustedAdult
+              ? 'VERIFIED_ADULT'
+              : 'DENIED_UNDERAGE',
+            source: 'MIGRATION',
+            method: 'MIGRATED_REVIEW',
+            caseId,
+            verifiedAtMs: trustedAdult ? reviewedAt : null,
+            decidedAtMs: reviewedAt!,
+            expiresAtMs: null,
+          }
+        );
+
+        transaction.set(
+          userRef,
+          {
+            ageEligibility: projection,
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+
+        transaction.create(db.collection('compliance_audit').doc(), {
+          uid,
+          type: trustedAdult
+            ? 'age_eligibility.migrated_adult_review'
+            : 'age_eligibility.migrated_underage_review',
+          source: 'system',
+          caseId,
+          createdAt: FieldValue.serverTimestamp(),
+          createdAtMs: nowMs,
+        });
+
         return {
-          status: 'UNVERIFIED',
-          migrated: false,
+          status: projection.status,
+          migrated: true,
+          restoredFromDeclarationEvidence: false,
+          ageEligibility: projection,
         };
       }
 
-      const projection = writeCanonicalAgeEligibilityInTransaction(
-        transaction,
-        {
+      /**
+       * Uma reverificação/restrição em andamento também vence a autodeclaração.
+       * Não reconstruímos SELF_DECLARED_ADULT enquanto existir fato novo de
+       * segurança que exija revisão.
+       */
+      if (isAgeReverificationAccessRestricted(reverificationStatus)) {
+        return {
+          status: 'REVIEW_REQUIRED',
+          migrated: false,
+          restoredFromDeclarationEvidence: false,
+          ageEligibility: null,
+        };
+      }
+
+      /**
+       * Se o usuário já declarou 18+ em uma evidência backend-only válida,
+       * restauramos o estado provisório sem pedir a mesma declaração novamente.
+       */
+      const declaredAtMs = declarationSnapshot.exists
+        ? trustedSelfDeclarationAtMs(
+            declarationSnapshot.data(),
+            uid
+          )
+        : null;
+
+      if (declaredAtMs !== null) {
+        const projection = writeCanonicalAgeEligibilityInTransaction(
+          transaction,
+          {
+            uid,
+            status: 'SELF_DECLARED_ADULT',
+            source: 'SELF_DECLARATION',
+            method: 'SELF_DECLARATION',
+            caseId: null,
+            verifiedAtMs: null,
+            decidedAtMs: declaredAtMs,
+            expiresAtMs: null,
+          }
+        );
+
+        transaction.set(
+          userRef,
+          {
+            ageEligibility: projection,
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+
+        transaction.create(db.collection('compliance_audit').doc(), {
           uid,
-          status: trustedAdult
-            ? 'VERIFIED_ADULT'
-            : 'DENIED_UNDERAGE',
-          source: 'MIGRATION',
-          method: 'MIGRATED_REVIEW',
-          caseId,
-          verifiedAtMs: trustedAdult ? reviewedAt : null,
-          decidedAtMs: reviewedAt!,
-          expiresAtMs: null,
-        }
-      );
+          type: 'age_eligibility.self_declaration_restored',
+          source: 'system',
+          declarationEvidencePath: declarationRef.path,
+          declaredAtMs,
+          createdAt: FieldValue.serverTimestamp(),
+          createdAtMs: nowMs,
+        });
 
-      transaction.set(
-        userRef,
-        {
+        return {
+          status: 'SELF_DECLARED_ADULT',
+          migrated: true,
+          restoredFromDeclarationEvidence: true,
           ageEligibility: projection,
-          updatedAt: FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      );
-
-      transaction.create(db.collection('compliance_audit').doc(), {
-        uid,
-        type: trustedAdult
-          ? 'age_eligibility.migrated_adult_review'
-          : 'age_eligibility.migrated_underage_review',
-        source: 'system',
-        caseId,
-        createdAt: FieldValue.serverTimestamp(),
-        createdAtMs: Date.now(),
-      });
+        };
+      }
 
       return {
-        status: projection.status,
-        migrated: true,
+        status: 'UNVERIFIED',
+        migrated: false,
+        restoredFromDeclarationEvidence: false,
+        ageEligibility: null,
       };
     });
   }
