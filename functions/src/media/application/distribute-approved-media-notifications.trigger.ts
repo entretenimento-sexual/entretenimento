@@ -3,7 +3,7 @@
 // APPROVED MEDIA NOTIFICATION DISTRIBUTION
 // -----------------------------------------------------------------------------
 // Fan-out defensivo para conexões bilaterais quando Foto/Vídeo entra em estado
-// público aprovado. Não usa trendScore, score orgânico ou Promotion/Boost.
+// público aprovado. Não usa trendSignal, score orgânico ou Promotion/Boost.
 // -----------------------------------------------------------------------------
 
 import { logger } from 'firebase-functions';
@@ -280,24 +280,24 @@ export const distributeApprovedMediaNotifications = onDocumentWritten(
       });
 
       switch (result) {
-        case 'DELIVERED':
-          delivered += 1;
-          break;
-        case 'DEDUPED':
-          deduped += 1;
-          break;
-        case 'PREFERENCE':
-          preferenceSuppressed += 1;
-          break;
-        case 'LIFECYCLE':
-          lifecycleSuppressed += 1;
-          break;
-        case 'RELATIONSHIP':
-          relationshipSuppressed += 1;
-          break;
-        case 'CAP':
-          capSuppressed += 1;
-          break;
+      case 'DELIVERED':
+        delivered += 1;
+        break;
+      case 'DEDUPED':
+        deduped += 1;
+        break;
+      case 'PREFERENCE':
+        preferenceSuppressed += 1;
+        break;
+      case 'LIFECYCLE':
+        lifecycleSuppressed += 1;
+        break;
+      case 'RELATIONSHIP':
+        relationshipSuppressed += 1;
+        break;
+      case 'CAP':
+        capSuppressed += 1;
+        break;
       }
     }
 
@@ -314,7 +314,7 @@ export const distributeApprovedMediaNotifications = onDocumentWritten(
       relationshipSuppressed,
       capSuppressed,
       fanoutCap: MEDIA_NOTIFICATION_MAX_RECIPIENTS_PER_PUBLICATION,
-      trendScoreUsed: false,
+      trendSignalUsed: false,
       rankingScoreUsed: false,
       promotionUsed: false,
     });
