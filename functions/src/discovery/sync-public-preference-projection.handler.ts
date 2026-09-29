@@ -2,6 +2,7 @@
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import {
   evaluateCanonicalAgeEligibility,
+  isVerifiedAdultAgeDecision,
 } from '../compliance/age-eligibility.policy';
 import { db, FieldValue, Timestamp } from '../firebaseApp';
 import { hasMinimumActiveDiscoveryPlan } from './discovery-subscription-access';
@@ -100,6 +101,7 @@ export const syncPublicPreferenceProjection = onDocumentWritten(
         return;
       }
 
+      const verifiedAdult = isVerifiedAdultAgeDecision(ageDecision);
       const profile = preferenceSnapshot.exists
         ? (preferenceSnapshot.data() ?? {})
         : null;
@@ -113,7 +115,7 @@ export const syncPublicPreferenceProjection = onDocumentWritten(
         Timestamp.fromMillis(ageEligibilityValidUntilMs);
 
       if (
-        current['ageEligibilityVerifiedAdult'] === true &&
+        current['ageEligibilityVerifiedAdult'] === verifiedAdult &&
         publicAgeValidUntilMs(current) === ageEligibilityValidUntilMs &&
         publicPreferenceProjectionMatches(current, expected)
       ) {
@@ -123,7 +125,7 @@ export const syncPublicPreferenceProjection = onDocumentWritten(
       transaction.set(
         publicRef,
         {
-          ageEligibilityVerifiedAdult: true,
+          ageEligibilityVerifiedAdult: verifiedAdult,
           ageEligibilityValidUntil,
           ...expected,
           publicPreferencesUpdatedAt: FieldValue.serverTimestamp(),
