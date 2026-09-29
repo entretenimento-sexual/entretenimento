@@ -1,5 +1,13 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import {
+  existsSync,
+  readFileSync,
+  readdirSync,
+} from 'node:fs';
+import {
+  join,
+  relative,
+  resolve,
+} from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
@@ -17,6 +25,28 @@ function hasClassToken(value: string, token: string): boolean {
   }
 
   return false;
+}
+
+function productionHtmlFiles(root: string): readonly string[] {
+  const files: string[] = [];
+
+  const visit = (directory: string): void => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const absolute = join(directory, entry.name);
+
+      if (entry.isDirectory()) {
+        visit(absolute);
+        continue;
+      }
+
+      if (entry.isFile() && entry.name.endsWith('.html')) {
+        files.push(absolute);
+      }
+    }
+  };
+
+  visit(root);
+  return files;
 }
 
 const CANONICAL_ACTION_TEMPLATES = [
@@ -76,28 +106,6 @@ const CANONICALIZED_STYLES = [
   'src/app/media/photos/top-public-photos/top-public-photos.component.css',
 ] as const;
 
-function productionHtmlFiles(root: string): readonly string[] {
-  const files: string[] = [];
-
-  const visit = (directory: string): void => {
-    for (const entry of readdirSync(directory, { withFileTypes: true })) {
-      const absolute = join(directory, entry.name);
-
-      if (entry.isDirectory()) {
-        visit(absolute);
-        continue;
-      }
-
-      if (entry.isFile() && entry.name.endsWith('.html')) {
-        files.push(absolute);
-      }
-    }
-  };
-
-  visit(root);
-  return files;
-}
-
 describe('Canonical UI boundary', () => {
   it('não reintroduz a classe genérica legada btn nas superfícies migradas', () => {
     const violations = CANONICAL_ACTION_TEMPLATES.filter((path) =>
@@ -106,11 +114,11 @@ describe('Canonical UI boundary', () => {
 
     expect(
       violations,
-      'Ações genéricas devem usar app-action; botões especializados podem manter classes próprias.'
+      'Ações genéricas devem usar app-action.'
     ).toEqual([]);
   });
 
-  it('mantém PageHeader como autoridade das páginas já migradas', () => {
+  it('mantém PageHeader como autoridade das páginas migradas', () => {
     const violations = CANONICAL_HEADER_TEMPLATES.flatMap((path) => {
       const value = source(path);
       const issues: string[] = [];
@@ -161,13 +169,13 @@ describe('Canonical UI boundary', () => {
       'src/app/dashboard/featured-profiles/featured-profiles.component.ts',
       'src/app/dashboard/featured-profiles/featured-profiles.component.html',
       'src/app/dashboard/featured-profiles/featured-profiles.component.spec.ts',
+      'src/app/chat-module/chat-window/chat-window.component.ts',
+      'src/app/chat-module/chat-window/chat-window.component.html',
       'src/app/chat-module/chat-window/chat-window.component.css',
+      'src/app/chat-module/chat-window/chat-window.component.spec.ts',
       'src/app/footer/contact-footer/contact-footer.component.css',
       'src/app/footer/footer/footer.component.css',
       'src/app/footer/navigation-footer/navigation-footer.component.css',
-      'src/app/chat-module/chat-window/chat-window.component.ts',
-      'src/app/chat-module/chat-window/chat-window.component.html',
-      'src/app/chat-module/chat-window/chat-window.component.spec.ts',
       'src/app/authentication/progressive-signup/progressive-signup.component.ts',
       'src/app/authentication/progressive-signup/progressive-signup.component.html',
       'src/app/authentication/progressive-signup/progressive-signup.component.css',
@@ -175,11 +183,10 @@ describe('Canonical UI boundary', () => {
     ];
 
     expect(
-      removedPaths.filter((path) => existsSync(resolve(ROOT, path))),
-      'Componentes consolidados não devem reaparecer como implementações paralelas.'
+      removedPaths.filter((item) => existsSync(resolve(ROOT, item))),
+      'Componentes consolidados não devem reaparecer.'
     ).toEqual([]);
   });
-
 
   it('não permite novos placeholders works! em templates de produção', () => {
     const appRoot = resolve(ROOT, 'src/app');
@@ -190,54 +197,35 @@ describe('Canonical UI boundary', () => {
 
     expect(
       violations,
-      'Templates placeholder devem ser removidos ou substituídos por uma rota/implementação real.'
+      'Templates placeholder devem ser removidos ou substituídos.'
     ).toEqual([]);
   });
 
-
-  it('mantém o onboarding progressivo ligado ao domínio canônico de preferências', () => {
-    const signup = source(
-      'src/app/authentication/progressive-signup/progressive-signup.component.ts'
+  it('mantém Preferências dentro do RegisterFlow canônico sem fluxo paralelo', () => {
+    const navigation = source(
+      'src/app/register-module/data-access/register-navigation.service.ts'
+    );
+    const postAuth = source(
+      'src/app/register-module/data-access/post-auth-navigation.service.ts'
+    );
+    const authRoutes = source(
+      'src/app/authentication/authentication-routing.module.ts'
     );
 
-    expect(signup).toContain('PreferenceProfilePersistenceService');
-    expect(signup).toContain('saveProfileWithProjection
-    const forms = source('src/styles/global-forms.css');
-    const cards = source('src/styles/cards.css');
-
-    for (const selector of [
-      '.app-field {',
-      '.app-control {',
-      '.app-choice {',
-      '.app-toggle {',
-      '.app-form-actions {',
-    ]) {
-      expect(forms).toContain(selector);
-    }
-
-    for (const selector of [
-      '.app-action {',
-      '.app-card {',
-      '.app-disclosure {',
-      '.app-page-header {',
-    ]) {
-      expect(cards).toContain(selector);
-    }
-  });
-});
-);
-    expect(signup).toContain('/dashboard/perfis-sugeridos');
-    expect(signup).not.toContain('userPreferences: any');
-    expect(signup).not.toContain("navigate(['/suggested-profiles'])");
+    expect(navigation).toContain("currentStep: 'preferences'");
+    expect(navigation).toContain('/preferencias/editar/');
+    expect(postAuth).toContain("case 'preferences':");
+    expect(authRoutes).not.toContain('progressive-signup');
   });
 
   it('não reintroduz o composer legado ChatWindowComponent', () => {
     const chatModule = source('src/app/chat-module/chat-module.ts');
 
     expect(chatModule).not.toContain('ChatWindowComponent');
-    expect(chatModule).not.toContain('./chat-window/chat-window.component');
+    expect(chatModule).not.toContain(
+      './chat-window/chat-window.component'
+    );
   });
-
 
   it('mantém a política de cookies ligada à fonte legal canônica', () => {
     const component = source(
