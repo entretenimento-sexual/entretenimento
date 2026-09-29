@@ -41,6 +41,76 @@ describe('Adult declaration persistence boundary', () => {
     expect(service).toContain('getLoggedUserUIDSnapshot');
   });
 
+  it('reconcilia antes de decidir guard e etapa de onboarding', () => {
+    const guard = source(
+      'src/app/core/guards/compliance/age-eligibility.guard.ts'
+    );
+    const registerFlow = source(
+      'src/app/register-module/data-access/register-flow.facade.ts'
+    );
+    const service = source(
+      'src/app/core/services/compliance/age-eligibility.service.ts'
+    );
+
+    expect(service).toContain('reconciledAdultAccess
+    const component = source(
+      'src/app/compliance/age-verification-page/age-verification-page.component.ts'
+    );
+    const template = source(
+      'src/app/compliance/age-verification-page/age-verification-page.component.html'
+    );
+
+    expect(component).toContain('reconciling = signal(true)');
+    expect(component).toContain('refreshTrustedSources$()');
+    expect(component).toContain(
+      'finalize(() => this.reconciling.set(false))'
+    );
+    expect(template).toContain('Verificando sua confirmação já registrada');
+    expect(template).toContain('Você não precisa');
+    expect(template).toContain('Essa declaração não equivale à');
+  });
+});
+);
+    expect(guard).toContain('reconciledAdultAccess
+    const component = source(
+      'src/app/compliance/age-verification-page/age-verification-page.component.ts'
+    );
+    const template = source(
+      'src/app/compliance/age-verification-page/age-verification-page.component.html'
+    );
+
+    expect(component).toContain('reconciling = signal(true)');
+    expect(component).toContain('refreshTrustedSources$()');
+    expect(component).toContain(
+      'finalize(() => this.reconciling.set(false))'
+    );
+    expect(template).toContain('Verificando sua confirmação já registrada');
+    expect(template).toContain('Você não precisa');
+    expect(template).toContain('Essa declaração não equivale à');
+  });
+});
+);
+    expect(registerFlow).toContain('reconciledAdultAccess
+    const component = source(
+      'src/app/compliance/age-verification-page/age-verification-page.component.ts'
+    );
+    const template = source(
+      'src/app/compliance/age-verification-page/age-verification-page.component.html'
+    );
+
+    expect(component).toContain('reconciling = signal(true)');
+    expect(component).toContain('refreshTrustedSources$()');
+    expect(component).toContain(
+      'finalize(() => this.reconciling.set(false))'
+    );
+    expect(template).toContain('Verificando sua confirmação já registrada');
+    expect(template).toContain('Você não precisa');
+    expect(template).toContain('Essa declaração não equivale à');
+  });
+});
+);
+  });
+
   it('não mostra nova confirmação enquanto reconcilia o estado já salvo', () => {
     const component = source(
       'src/app/compliance/age-verification-page/age-verification-page.component.ts'
