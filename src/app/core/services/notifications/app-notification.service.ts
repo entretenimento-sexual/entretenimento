@@ -404,6 +404,11 @@ export class AppNotificationService {
       roomId: this.toText(raw.roomId) || null,
       messageId: this.toText(raw.messageId) || null,
       activityCount: this.toPositiveInteger(raw.activityCount),
+      mediaType:
+        raw.mediaType === 'photo' || raw.mediaType === 'video'
+          ? raw.mediaType
+          : null,
+      mediaId: this.toText(raw.mediaId) || null,
       moderationTarget:
         raw.moderationTarget === 'comment'
         || raw.moderationTarget === 'reply'
@@ -441,6 +446,8 @@ export class AppNotificationService {
       case 'community.invite.accepted':
       case 'community.invite.declined':
       case 'community.content.moderated':
+      case 'media.photo.published':
+      case 'media.video.published':
       case 'system':
       case 'social':
       case 'chat':
