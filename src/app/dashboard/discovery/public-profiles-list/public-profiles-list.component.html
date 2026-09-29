@@ -68,6 +68,8 @@
           class="public-profiles__item"
           [user]="toUserCardProfile(profile)"
           [distanciaKm]="getDistance(profile)"
+          [preferenceMatchScore]="profile.preferenceMatchScore ?? null"
+          [preferenceMatchReasons]="profile.preferenceMatchReasons ?? null"
         />
       }
     </div>
