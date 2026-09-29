@@ -4,7 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 import { PublicPhotoViewerLauncherService } from './public-photo-viewer-launcher.service';
 
 function photo(ownerUid: string, id: string): IPublicPhotoItem {
@@ -27,8 +27,8 @@ describe('PublicPhotoViewerLauncherService', () => {
   const dialog = {
     open: vi.fn(),
   };
-  const globalError = {
-    handleError: vi.fn(),
+  const mediaError = {
+    reportSilently: vi.fn(),
   };
 
   beforeEach(() => {
@@ -38,7 +38,7 @@ describe('PublicPhotoViewerLauncherService', () => {
       providers: [
         PublicPhotoViewerLauncherService,
         { provide: MatDialog, useValue: dialog },
-        { provide: GlobalErrorHandlerService, useValue: globalError },
+        { provide: MediaApplicationErrorService, useValue: mediaError },
       ],
     });
   });
@@ -69,6 +69,10 @@ describe('PublicPhotoViewerLauncherService', () => {
     expect(config?.data.continuationContext).toEqual(continuationContext);
     expect(config?.data.items.map((item: { ownerUid?: string }) => item.ownerUid))
       .toEqual(['owner-a', 'owner-b', 'owner-b']);
+    expect(config?.autoFocus).toBe('first-tabbable');
+    expect(config?.restoreFocus).toBe(true);
+    expect(config?.height).toBe('100dvh');
+    expect(config?.maxHeight).toBe('100dvh');
   });
 
   it('recusa foto que não esteja pública e aprovada na fila', async () => {
