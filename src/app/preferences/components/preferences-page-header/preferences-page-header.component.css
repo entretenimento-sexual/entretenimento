@@ -1,44 +1,11 @@
-/* Cabeçalho compacto das páginas de preferências. */
-.preferences-page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  min-height: 3rem;
-  padding-bottom: 0.55rem;
-  border-bottom: 1px solid var(--surface-border);
-}
-
-.preferences-page-header__text {
-  display: grid;
-  gap: 0.15rem;
+/* Cabeçalho de Preferências: a hierarquia visual é global em cards.css. */
+:host {
+  display: block;
   min-width: 0;
 }
 
-.preferences-page-header__title {
-  margin: 0;
-  font-size: clamp(1.3rem, 1.18rem + 0.5vw, 1.65rem);
-  line-height: 1.1;
-  letter-spacing: -0.025em;
-}
-
-.preferences-page-header__subtitle {
-  max-width: 62ch;
-  margin: 0;
-  color: color-mix(in oklab, var(--text-color) 62%, transparent);
-  font-size: 0.8rem;
-  line-height: 1.35;
-}
-
+.preferences-page-header,
+.preferences-page-header__text,
 .preferences-page-header__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
-@media (max-width: 560px) {
-  .preferences-page-header {
-    align-items: flex-start;
-    flex-direction: column;
-  }
+  min-width: 0;
 }
