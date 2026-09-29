@@ -1,16 +1,15 @@
 <!-- src/app/subscriptions/checkout/checkout.component.html -->
-<section class="checkout-page ui-container">
+<section class="checkout-page container-reading">
   @if (vm$ | async; as vm) {
     @if (vm.plan; as plan) {
-      <header class="checkout-header">
-        <p class="checkout-kicker">Resumo da contratação</p>
-        <h1>{{ plan.title }}</h1>
-        <p class="checkout-description">{{ plan.description }}</p>
-      </header>
+      <app-page-header
+        [title]="plan.title"
+        [subtitle]="plan.description"
+      ></app-page-header>
 
       @if (vm.communityCreationFlow) {
         <section
-          class="checkout-community-context"
+          class="checkout-community-context app-card app-card--flat"
           aria-labelledby="checkout-community-context-title"
           aria-describedby="checkout-community-context-description"
         >
@@ -29,7 +28,7 @@
 
       @if (vm.shouldShowCheckoutWarning) {
         <section
-          class="alert alert-warning checkout-warning-card"
+          class="alert alert-warning checkout-warning-card app-card app-card--flat"
           aria-labelledby="checkout-warning-title"
           aria-describedby="checkout-warning-description"
         >
@@ -45,7 +44,7 @@
             </li>
           </ul>
 
-          <label class="checkout-warning-card__ack" for="checkout-acknowledgement">
+          <label class="checkout-warning-card__ack app-choice app-choice--roomy" for="checkout-acknowledgement">
             <input
               id="checkout-acknowledgement"
               type="checkbox"
@@ -59,7 +58,7 @@
         </section>
       }
 
-      <article class="checkout-card">
+      <article class="checkout-card app-card app-card--flat">
         <div class="checkout-price-block">
           <span class="checkout-price-label">Valor</span>
           <strong class="checkout-price">
@@ -77,14 +76,14 @@
           <p><strong>Ativação:</strong> após confirmação segura do pagamento</p>
         </div>
 
-        <div class="checkout-actions">
-          <button type="button" class="btn btn-secondary" (click)="back()">
+        <div class="checkout-actions app-form-actions">
+          <button type="button" class="app-action app-action--ghost" (click)="back()">
             Voltar aos planos
           </button>
 
           <button
             type="button"
-            class="btn btn-primary"
+            class="app-action app-action--primary"
             [disabled]="isStartingCheckout"
             [attr.aria-busy]="isStartingCheckout ? 'true' : null"
             (click)="continue(vm.shouldShowCheckoutWarning)"
@@ -101,7 +100,7 @@
         </p>
 
         <div class="checkout-actions">
-          <button type="button" class="btn btn-primary" (click)="back()">
+          <button type="button" class="app-action app-action--primary" (click)="back()">
             Voltar aos planos
           </button>
         </div>
@@ -112,7 +111,7 @@
         <p>O plano informado não existe ou não está disponível.</p>
 
         <div class="checkout-actions">
-          <button type="button" class="btn btn-primary" (click)="back()">
+          <button type="button" class="app-action app-action--primary" (click)="back()">
             Voltar aos planos
           </button>
         </div>
