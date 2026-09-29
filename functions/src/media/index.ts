@@ -188,6 +188,10 @@ export {
 } from './application/get-public-media-discovery.handler';
 
 export {
+  distributeApprovedMediaNotifications,
+} from './application/distribute-approved-media-notifications.trigger';
+
+export {
   syncOfficialMediaContextFromPhoto,
   syncOfficialMediaContextFromVideo,
   syncOfficialMediaContextFromAssociation,
