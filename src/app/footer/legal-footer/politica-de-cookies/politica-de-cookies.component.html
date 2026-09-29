@@ -1,1 +1,255 @@
-<p>politica-de-cookies works!</p>
+<main class="cookie-document" role="document" aria-labelledby="cookie-policy-title">
+  <header class="cookie-document__header">
+    <p class="cookie-document__eyebrow">Privacidade e armazenamento no navegador</p>
+    <h1 id="cookie-policy-title">Política de Cookies e Tecnologias Similares</h1>
+    <p class="cookie-document__version">
+      <strong>Versão {{ legalManifest.cookieNoticeVersion }}</strong>
+      · vigente desde {{ legalManifest.cookieNoticeEffectiveDateLabel }}
+    </p>
+    <p>
+      Esta Política explica como a plataforma SEXO É O LIMITE utiliza cookies,
+      armazenamento local, IndexedDB, mecanismos de sessão e tecnologias
+      semelhantes para autenticação, segurança, funcionamento, cache,
+      notificações e continuidade da experiência.
+    </p>
+  </header>
+
+  <section class="cookie-document__summary">
+    <h2>Resumo essencial</h2>
+    <ul>
+      <li>não há Google Analytics, Sentry ou cookies de publicidade ativados na configuração atual da aplicação;</li>
+      <li>tecnologias necessárias são usadas para sessão, segurança, preferências técnicas, cache e funcionamento do serviço;</li>
+      <li>Web Push só é ativado após ação expressa da pessoa usuária e permissão do navegador;</li>
+      <li>o App Check utiliza reCAPTCHA v3 em produção para proteção contra abuso e automação;</li>
+      <li>dados locais vinculados à sessão são limpos ou invalidados quando aplicável no logout ou troca de conta;</li>
+      <li>esta Política deve ser lida junto com a Política de Privacidade.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>1. O que são cookies e tecnologias similares</h2>
+    <p>
+      Cookies são pequenos arquivos ou identificadores que podem ser armazenados
+      no dispositivo durante o uso de um serviço online. A aplicação também usa
+      tecnologias com função semelhante, como localStorage, sessionStorage,
+      IndexedDB, armazenamento interno de autenticação, service workers e cache
+      temporário.
+    </p>
+    <p>
+      Algumas dessas tecnologias são necessárias para que a plataforma funcione
+      corretamente; outras somente são utilizadas quando a pessoa usuária ativa
+      voluntariamente uma funcionalidade, como notificações Web Push.
+    </p>
+  </section>
+
+  <section>
+    <h2>2. Tecnologias necessárias para autenticação e sessão</h2>
+    <p>
+      A autenticação é fornecida pela infraestrutura Firebase. Para manter a
+      sessão iniciada e restaurá-la com segurança, o SDK pode utilizar IndexedDB,
+      armazenamento local ou armazenamento de sessão do navegador, conforme a
+      disponibilidade e a política técnica do ambiente.
+    </p>
+    <p>
+      Esses mecanismos são usados para autenticar a conta, preservar o estado da
+      sessão, detectar alterações do token e encerrar ou invalidar sessões quando
+      necessário. Eles não são utilizados pela plataforma para publicidade
+      comportamental.
+    </p>
+  </section>
+
+  <section>
+    <h2>3. Segurança, App Check e reCAPTCHA v3</h2>
+    <p>
+      Em produção, a plataforma utiliza Firebase App Check com reCAPTCHA v3 para
+      ajudar a distinguir acessos legítimos de automação abusiva, proteger
+      endpoints e reduzir fraude, abuso e consumo indevido de infraestrutura.
+    </p>
+    <p>
+      O reCAPTCHA é fornecido pelo Google e pode utilizar cookies ou tecnologias
+      próprias de segurança segundo os termos e políticas aplicáveis ao serviço.
+      Seu uso nesta plataforma tem finalidade de proteção técnica e prevenção de
+      abuso, e não de publicidade.
+    </p>
+  </section>
+
+  <section>
+    <h2>4. Armazenamento local utilizado pela aplicação</h2>
+
+    <div class="cookie-table-wrap" role="region" aria-label="Tecnologias locais utilizadas" tabindex="0">
+      <table class="cookie-table">
+        <thead>
+          <tr>
+            <th scope="col">Tecnologia</th>
+            <th scope="col">Finalidade</th>
+            <th scope="col">Persistência</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Firebase Auth / IndexedDB / storage de sessão</td>
+            <td>Autenticação, restauração e continuidade da sessão.</td>
+            <td>Enquanto necessário à sessão ou até logout/invalidação.</td>
+          </tr>
+          <tr>
+            <td>localStorage de consentimento adulto</td>
+            <td>Cache versionado da confirmação de acesso a conteúdo adulto para a conta autenticada.</td>
+            <td>Até alteração, remoção da conta local ou limpeza do navegador; a fonte de verdade permanece no backend.</td>
+          </tr>
+          <tr>
+            <td>Rascunhos locais</td>
+            <td>Evitar perda acidental de dados de formulários ainda não enviados.</td>
+            <td>Por padrão 24 horas, com limite técnico máximo de 7 dias.</td>
+          </tr>
+          <tr>
+            <td>Cache persistente em IndexedDB</td>
+            <td>Desempenho, reidratação de projeções e redução de leituras repetidas.</td>
+            <td>Temporário, com TTL definido pela política de cache; dados sensíveis de sessão são limpos no ciclo de logout/troca de conta.</td>
+          </tr>
+          <tr>
+            <td>Identificador de instalação Web Push</td>
+            <td>Associar de forma técnica e aleatória o navegador que optou por receber notificações.</td>
+            <td>Persistente até desativação, limpeza do navegador ou remoção técnica.</td>
+          </tr>
+          <tr>
+            <td>Registro local de opt-in Web Push</td>
+            <td>Evitar solicitar novamente permissão já concedida e sincronizar o dispositivo autorizado.</td>
+            <td>Até desativação da funcionalidade ou limpeza local.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>5. Notificações Web Push</h2>
+    <p>
+      A plataforma não solicita permissão de notificações automaticamente.
+      O pedido só ocorre depois de ação explícita da pessoa usuária.
+    </p>
+    <p>
+      Quando o Web Push é ativado, é criado um identificador aleatório de
+      instalação e o Firebase Cloud Messaging fornece um token de entrega. O
+      token é enviado ao backend para permitir notificações naquele navegador.
+      O identificador não é derivado de fingerprint de hardware.
+    </p>
+    <p>
+      A pessoa usuária pode desativar o recurso nas configurações da plataforma
+      e também nas configurações de notificações do navegador.
+    </p>
+  </section>
+
+  <section>
+    <h2>6. Cache, desempenho e continuidade da experiência</h2>
+    <p>
+      A plataforma utiliza cache em memória e IndexedDB para reduzir leituras
+      repetidas, melhorar tempo de resposta e reidratar determinadas projeções
+      temporárias. Esses caches não substituem as fontes canônicas de dados.
+    </p>
+    <p>
+      Projeções públicas de mídia podem ser mantidas por curto período, com
+      expiração e escopo de conta. URLs assinadas, tokens temporários de acesso e
+      credenciais de reprodução não são persistidos nesse snapshot.
+    </p>
+  </section>
+
+  <section>
+    <h2>7. Telemetria operacional e comportamento de sessão</h2>
+    <p>
+      Algumas funcionalidades mantêm sinais técnicos e comportamentais limitados
+      durante a sessão, como abertura qualificada de comunidades, estado de
+      associação e eventos de distribuição. Esses sinais são usados para
+      funcionamento, qualidade, prevenção de abuso e avaliação interna da
+      distribuição do serviço.
+    </p>
+    <p>
+      Estados exclusivamente de sessão são reiniciados quando há logout ou troca
+      de conta. O uso desses sinais não autoriza transformar comportamento em
+      declaração de identidade, orientação sexual ou prática sexual da pessoa
+      usuária.
+    </p>
+  </section>
+
+  <section>
+    <h2>8. Serviços de terceiros</h2>
+    <ul>
+      <li><strong>Google/Firebase:</strong> autenticação, banco de dados, armazenamento, Functions, App Check, reCAPTCHA v3 e Firebase Cloud Messaging.</li>
+      <li><strong>Asaas:</strong> infraestrutura prevista para processamento de checkout e cobrança quando a recorrência estiver operacionalmente habilitada.</li>
+    </ul>
+    <p>
+      Sentry e VirusTotal permanecem desativados na configuração atual de
+      produção. O projeto possui um <em>measurementId</em> Firebase configurado,
+      mas não inicializa Google Analytics na aplicação atual; portanto esta
+      Política não o apresenta como tecnologia ativa de coleta.
+    </p>
+  </section>
+
+  <section>
+    <h2>9. Cookies de publicidade e personalização comercial</h2>
+    <p>
+      Na implementação atual não são ativados cookies de publicidade,
+      remarketing ou segmentação comportamental de terceiros. Caso a plataforma
+      venha a habilitar tecnologias opcionais desse tipo, esta Política deverá
+      ser atualizada e os controles de escolha aplicáveis deverão ser
+      apresentados antes da utilização quando exigido.
+    </p>
+  </section>
+
+  <section>
+    <h2>10. Como controlar ou apagar dados locais</h2>
+    <p>
+      A pessoa usuária pode encerrar a sessão, desativar Web Push e utilizar as
+      ferramentas do navegador para apagar cookies, dados de site, IndexedDB e
+      armazenamento local. A exclusão desses dados pode encerrar sessões,
+      remover rascunhos, apagar preferências técnicas locais ou exigir nova
+      autenticação.
+    </p>
+    <p>
+      A remoção de dados do navegador não elimina automaticamente registros que
+      precisem permanecer no backend por fundamento jurídico, segurança,
+      exercício de direitos, prevenção a fraude ou outra finalidade descrita na
+      Política de Privacidade.
+    </p>
+  </section>
+
+  <section>
+    <h2>11. Bases legais e princípios</h2>
+    <p>
+      O uso de cookies e tecnologias similares observa as bases legais
+      aplicáveis a cada finalidade e os princípios de finalidade, adequação,
+      necessidade, transparência, segurança, prevenção e responsabilização.
+      Tecnologias estritamente necessárias podem operar sem consentimento quando
+      houver outra base legal adequada; funcionalidades opcionais dependem da
+      escolha da pessoa usuária quando essa escolha for juridicamente exigida.
+    </p>
+  </section>
+
+  <section>
+    <h2>12. Alterações desta Política</h2>
+    <p>
+      Mudanças relevantes nas tecnologias utilizadas, finalidades, terceiros ou
+      formas de controle devem resultar em atualização desta Política. Quando a
+      alteração exigir nova escolha ou consentimento, a plataforma deverá
+      apresentar o controle correspondente antes da ativação da nova finalidade.
+    </p>
+  </section>
+
+  <section>
+    <h2>13. Relação com a Política de Privacidade</h2>
+    <p>
+      Esta Política trata especificamente de cookies, armazenamento local e
+      tecnologias semelhantes. Informações sobre categorias de dados, bases
+      legais, compartilhamentos, retenção, direitos dos titulares e canais de
+      atendimento estão descritas na
+      <a href="/politica-de-privacidade">Política de Privacidade</a>.
+    </p>
+  </section>
+
+  <footer class="cookie-document__footer">
+    <p>
+      Em caso de divergência entre uma descrição técnica desta página e o
+      comportamento efetivo da aplicação, a implementação deve ser corrigida ou
+      esta Política atualizada para restabelecer a transparência.
+    </p>
+  </footer>
+</main>
