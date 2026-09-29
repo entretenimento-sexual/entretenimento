@@ -6,7 +6,7 @@ import { TermosECondicoesComponent } from '../legal-footer/termos-e-condicoes/te
 @Component({
     selector: 'app-navigation-footer',
     templateUrl: './navigation-footer.component.html',
-    styleUrls: ['./navigation-footer.component.css', '../footer-shared.css'],
+    styleUrl: '../footer-shared.css',
     standalone: false
 })
 export class NavigationFooterComponent {
