@@ -2,16 +2,15 @@
 <div class="auth-container">
   <section class="auth-intro" aria-labelledby="auth-intro-title">
     <h1 id="auth-intro-title">
-      Entre. Continue de onde parou.
+      Entrar
     </h1>
 
     <p>
-      Acesse sua conta para seguir com perfil, preferências e conversas.
+      Continue de onde parou com seu perfil, preferências e conversas.
     </p>
   </section>
 
   <div class="form-container">
-    <h2 class="form-header">Entre na sua conta</h2>
 
     <form
       [formGroup]="loginForm"
@@ -30,7 +29,7 @@
       <input
         formControlName="email"
         id="email"
-        class="input-field"
+        class="input-field app-control"
         type="email"
         name="email"
         placeholder="seu@email.com"
@@ -41,7 +40,7 @@
         (focus)="clearError()"
       />
       @if (loginForm.controls['email'].touched && loginForm.controls['email'].invalid) {
-        <small id="email-error" class="field-error">Informe um e-mail válido.</small>
+        <small id="email-error" class="field-error app-field-error">Informe um e-mail válido.</small>
       }
 
       <label class="field-label" for="password">Senha</label>
@@ -49,7 +48,7 @@
         <input
           formControlName="password"
           id="password"
-          class="input-field"
+          class="input-field app-control"
           [type]="passwordInputType"
           name="password"
           placeholder="Sua senha"
@@ -84,7 +83,7 @@
         </button>
       </div>
       @if (loginForm.controls['password'].touched && loginForm.controls['password'].invalid) {
-        <small id="password-error" class="field-error">Informe sua senha.</small>
+        <small id="password-error" class="field-error app-field-error">Informe sua senha.</small>
       }
 
       <input
@@ -116,7 +115,7 @@
 
       <div class="button-container">
         <button
-          class="btn btn-primary"
+          class="app-action app-action--primary"
           type="submit"
           [disabled]="isLoading || !(hasRequiredFields$ | async)"
           [attr.aria-disabled]="(isLoading || !(hasRequiredFields$ | async)) ? 'true' : 'false'"
@@ -183,7 +182,7 @@
 
         <div class="modal-actions">
           <button
-            class="btn btn-primary"
+            class="app-action app-action--primary"
             type="button"
             (click)="resendVerificationEmail()"
             [disabled]="isLoading"
@@ -193,7 +192,7 @@
           </button>
 
           <button
-            class="btn btn-primary"
+            class="app-action app-action--primary"
             type="button"
             [routerLink]="['/register/welcome']"
             [queryParams]="{ autocheck: '1' }"
@@ -203,7 +202,7 @@
           </button>
 
           <button
-            class="btn btn-danger"
+            class="app-action app-action--danger"
             type="button"
             (click)="logout()"
             [disabled]="isLoading"
