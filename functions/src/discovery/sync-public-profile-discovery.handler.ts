@@ -37,6 +37,7 @@ import {
   publicAvatarProjectionMatches,
   publicLocationProjectionMatches,
   publicProfileDiscoveryProjectionMatches,
+  resolvePublicProfileAge,
 } from './public-profile-discovery-projection';
 
 interface PublicIdentityProjection {
@@ -161,7 +162,7 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
         }
         : user;
       const canonical = normalizeProfileDiscoveryFields(discoverySource);
-      const age = null;
+      const age = resolvePublicProfileAge(user['idade']);
       const publicPreferences = buildPublicPreferenceProjection(
         preferenceSnapshot.exists ? (preferenceSnapshot.data() ?? {}) : null,
         { canPublishAdvanced: hasMinimumActiveDiscoveryPlan(user, 'basic') }
