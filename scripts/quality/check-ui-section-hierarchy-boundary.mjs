@@ -52,9 +52,7 @@ const boundaries = [
   {
     path: 'src/app/preferences/pages/preferences-editor/preferences-editor.component.html',
     required: [
-      '<app-preferences-page-header title="Preferências">',
-      'app-section-header',
-      'app-section-title',
+      '<app-page-header title="Preferências">',
       'app-disclosure',
       'app-disclosure__state',
       'app-action app-action--ghost',
@@ -74,7 +72,7 @@ const boundaries = [
       'app-disclosure__summary',
       'app-disclosure__title',
       'app-disclosure__content',
-      'Modo do filtro',
+      'Como considerar',
       'app-action app-action--primary',
     ],
     forbidden: [
@@ -93,7 +91,7 @@ const boundaries = [
   {
     path: 'src/app/preferences/pages/preferences-hub/preferences-hub.component.html',
     required: [
-      '<app-preferences-page-header title="Preferências">',
+      '<app-page-header title="Preferências">',
       'app-action app-action--ghost',
     ],
     forbidden: [
@@ -117,7 +115,7 @@ const boundaries = [
   {
     path: 'src/app/preferences/pages/notification-settings/notification-settings.component.html',
     required: [
-      '<app-preferences-page-header title="Notificações">',
+      '<app-page-header title="Notificações">',
       'Notificações neste navegador',
       'app-action app-action--ghost',
       'app-action app-action--primary',
@@ -196,7 +194,7 @@ const boundaries = [
   {
     path: 'src/app/user-profile/user-profile-view/user-profile-view.component.html',
     required: [
-      'class="profile-card profile-media-entry"',
+      'class="profile-card app-card profile-media-entry"',
       'class="app-section-header"',
       'class="app-section-title"',
       'Meus vídeos',
