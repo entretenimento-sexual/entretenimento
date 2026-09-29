@@ -23,7 +23,7 @@ export class RegisterFlowFacade {
     this.session.ready$,
     this.session.authUser$,
     this.currentUser.user$,
-    this.ageEligibility.adultAccessAllowed$,
+    this.ageEligibility.reconciledAdultAccess$,
     this.adultConsent.currentConsentAccepted$,
   ]).pipe(
     map(([
