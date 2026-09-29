@@ -20,6 +20,8 @@ export type AppNotificationType =
   | 'community.invite.accepted'
   | 'community.invite.declined'
   | 'community.content.moderated'
+  | 'media.photo.published'
+  | 'media.video.published'
   | 'system'
   | 'social'
   | 'chat'
@@ -49,6 +51,8 @@ export interface IAppNotification {
   roomId?: string | null;
   messageId?: string | null;
   activityCount?: number | null;
+  mediaType?: 'photo' | 'video' | null;
+  mediaId?: string | null;
   moderationTarget?: AppNotificationModerationTarget | null;
   readAt: number | null;
   createdAt: number | null;
