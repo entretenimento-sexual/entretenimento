@@ -5,12 +5,6 @@ import { selectFriendsStateSafe } from './feature';
 export const selectBlockedFriends = createSelector(
   selectFriendsStateSafe, s => s.blocked
 );
-export const selectBlockedFriendsCount = createSelector(
-  selectBlockedFriends, b => b?.length ?? 0
-);
 export const selectBlockedLoading = createSelector(
   selectFriendsStateSafe, s => s.loadingBlocked
-);
-export const selectBlockError = createSelector(
-  selectFriendsStateSafe, s => s.blockError
 );
