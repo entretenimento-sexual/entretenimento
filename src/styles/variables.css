@@ -39,6 +39,7 @@
       /* primitives semânticos globais de UI */
       --content-form-narrow: 450px;
       --content-form: 800px;
+      --content-reading: 960px;
 
       --control-height: 44px;
       --control-height-sm: 40px;
