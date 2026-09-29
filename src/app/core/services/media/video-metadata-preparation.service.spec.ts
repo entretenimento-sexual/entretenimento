@@ -60,6 +60,15 @@ describe('VideoMetadataPreparationService', () => {
         video.dispatchEvent(new Event('loadedmetadata'));
       });
     });
+    Object.defineProperty(video, 'currentTime', {
+      configurable: true,
+      get: () => 0,
+      set: () => {
+        queueMicrotask(() => {
+          video.dispatchEvent(new Event('seeked'));
+        });
+      },
+    });
 
     const createObjectURL = vi.fn(() => 'blob:video-memory-test');
     const revokeObjectURL = vi.fn();

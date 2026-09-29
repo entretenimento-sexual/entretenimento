@@ -87,15 +87,15 @@ describe('public-profile-card.mapper', () => {
     });
   });
 
-  it('deve ignorar alias legado de idade mesmo em projeção adulta ativa', () => {
+  it('aceita alias legado de idade social durante a migração sem torná-lo autoridade adulta', () => {
     const card = mapPublicProfileCard({
       ...ACTIVE_AGE_PROJECTION,
       uid: 'profile-age-alias',
-      nickname: 'Sem idade pública',
+      nickname: 'Idade social migrada',
       idade: '29',
     });
 
-    expect(card?.age).toBeNull();
+    expect(card?.age).toBe(29);
   });
 
   it('deve priorizar o contador único do perfil sobre o alias legado', () => {

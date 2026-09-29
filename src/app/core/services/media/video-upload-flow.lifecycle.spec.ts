@@ -16,7 +16,7 @@ import {
 import { VideoUploadFlowService } from './video-upload-flow.service';
 
 vi.mock('@angular/fire/functions', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@angular/fire/functions')>();
+  const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
     httpsCallable: vi.fn(() => vi.fn()),
@@ -24,7 +24,7 @@ vi.mock('@angular/fire/functions', async (importOriginal) => {
 });
 
 vi.mock('@angular/fire/firestore', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@angular/fire/firestore')>();
+  const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
     collection: vi.fn(() => ({ path: 'users/owner-a/videos' })),

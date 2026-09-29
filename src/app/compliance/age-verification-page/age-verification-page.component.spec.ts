@@ -89,6 +89,7 @@ describe('AgeVerificationPageComponent', () => {
   });
 
   it('reconcilia confirmação canônica ausente da projeção antes de pedir novamente', async () => {
+    ageEligibilityMock.refreshTrustedSources$.mockClear();
     ageEligibilityMock.refreshTrustedSources$.mockReturnValueOnce(
       of('SELF_DECLARED_ADULT')
     );
