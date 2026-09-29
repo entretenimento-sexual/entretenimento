@@ -8,19 +8,6 @@
   background: var(--surface-color, rgba(255, 255, 255, 0.02));
 }
 
-.panel-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  align-items: flex-start;
-  flex-wrap: wrap;
-}
-
-.panel-subtitle {
-  margin: 0.35rem 0 0;
-  opacity: 0.8;
-}
-
 .panel-badges {
   display: flex;
   gap: 0.5rem;
