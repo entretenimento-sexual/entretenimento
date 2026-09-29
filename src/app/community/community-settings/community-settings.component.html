@@ -105,7 +105,7 @@
                   regularizar o plano.
                 </p>
                 <div class="community-settings__regularization-actions">
-                  <a routerLink="/subscription-plan">Ver planos</a>
+                  <a class="app-action app-action--ghost" routerLink="/subscription-plan">Ver planos</a>
                   <span>
                     Você também pode ajustar a capacidade abaixo ou usar a gestão de
                     propriedade para transferir ou arquivar a Comunidade.
@@ -168,7 +168,7 @@
           } @else if (catalog.status === 'error') {
             <div class="community-settings__state" role="alert">
               <span>Não foi possível carregar os interesses.</span>
-              <button type="button" (click)="retryTagCatalog()">Tentar novamente</button>
+              <button type="button" class="app-action app-action--ghost" (click)="retryTagCatalog()">Tentar novamente</button>
             </div>
           } @else {
             @for (category of tagCategories; track category) {
@@ -211,7 +211,7 @@
         <span aria-live="polite">
           @if (action.status === 'loading') { Salvando configurações… }
         </span>
-        <button type="submit" [disabled]="action.status === 'loading'">
+        <button type="submit" class="app-action app-action--primary" [disabled]="action.status === 'loading'">
           @if (action.status === 'loading') {
             <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
           } @else {
