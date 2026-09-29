@@ -1,6 +1,9 @@
 export const TERMS_ACCEPTANCE_VERSION = 'v3';
 export const TERMS_DOCUMENT_VERSION = '2026-07-29.1';
 export const PRIVACY_NOTICE_VERSION = '2026-07-29.1';
+export const COOKIE_NOTICE_VERSION = '2026-09-29.1';
+export const COOKIE_NOTICE_EFFECTIVE_DATE_ISO = '2026-09-29';
+export const COOKIE_NOTICE_EFFECTIVE_DATE_LABEL = '29 de setembro de 2026';
 export const PLATFORM_LEGAL_EFFECTIVE_DATE_ISO = '2026-07-29';
 export const PLATFORM_LEGAL_EFFECTIVE_DATE_LABEL = '29 de julho de 2026';
 export const PLATFORM_LEGAL_REACCEPT_REQUIRED = true;
@@ -17,6 +20,9 @@ export const PLATFORM_LEGAL_MANIFEST = Object.freeze({
   termsAcceptanceVersion: TERMS_ACCEPTANCE_VERSION,
   termsDocumentVersion: TERMS_DOCUMENT_VERSION,
   privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
+  cookieNoticeVersion: COOKIE_NOTICE_VERSION,
+  cookieNoticeEffectiveDateIso: COOKIE_NOTICE_EFFECTIVE_DATE_ISO,
+  cookieNoticeEffectiveDateLabel: COOKIE_NOTICE_EFFECTIVE_DATE_LABEL,
   effectiveDateIso: PLATFORM_LEGAL_EFFECTIVE_DATE_ISO,
   effectiveDateLabel: PLATFORM_LEGAL_EFFECTIVE_DATE_LABEL,
   reacceptRequired: PLATFORM_LEGAL_REACCEPT_REQUIRED,
