@@ -43,6 +43,7 @@ import { AuthSessionService } from 'src/app/core/services/autentication/auth/aut
 import { UserIntentStatusService } from 'src/app/core/services/discovery/user-intent-status.service';
 import { VenueService } from 'src/app/core/services/venues/venue.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { ProfilePreferencesService } from 'src/app/preferences/services/profile-preferences.service';
 
 type IntentStatusForm = FormGroup<{
   availability: FormControl<UserIntentAvailability>;
@@ -67,6 +68,7 @@ export class UserIntentStatusComposerComponent implements OnChanges {
   publishing = false;
   hiding = false;
   isComposerExpanded = false;
+  publicIntentAllowed = false;
 
   activeStatus$: Observable<IUserIntentStatusCardVm | null> = of(null);
   venues$: Observable<IVenueCardVm[]> = of([]);
@@ -117,6 +119,7 @@ export class UserIntentStatusComposerComponent implements OnChanges {
 
   private readonly authSession = inject(AuthSessionService);
   private readonly statusService = inject(UserIntentStatusService);
+  private readonly profilePreferences = inject(ProfilePreferencesService);
   private readonly venueService = inject(VenueService);
   private readonly notifications = inject(ErrorNotificationService);
   private readonly activeStatusRefreshSubject = new BehaviorSubject<void>(undefined);
@@ -135,12 +138,25 @@ export class UserIntentStatusComposerComponent implements OnChanges {
     const user = changes['user'].currentValue as IUserDados | null;
 
     if (!user) {
+      this.publicIntentAllowed = false;
       this.activeStatus$ = of(null);
       this.venues$ = of([]);
       this.selectedVenue$ = of(null);
       this.isComposerExpanded = false;
       return;
     }
+
+    this.profilePreferences.getProfile$(user.uid).pipe(take(1)).subscribe((profile) => {
+      this.publicIntentAllowed =
+        profile.visibility.showIntentPublicly === true;
+
+      if (
+        !this.publicIntentAllowed &&
+        this.form.controls.visibility.value === 'public_discovery'
+      ) {
+        this.form.controls.visibility.setValue('members_only');
+      }
+    });
 
     const uf = String(user.estado ?? '').trim().toUpperCase();
     const city = String(user.municipio ?? '').trim().toLowerCase();
