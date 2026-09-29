@@ -20,7 +20,10 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import {
   assertInteractionAccessData,
 } from '../account_lifecycle/interaction-access.policy';
-import { evaluateCanonicalAgeEligibility } from '../compliance/age-eligibility.policy';
+import {
+  evaluateCanonicalAgeEligibility,
+  isVerifiedAdultAgeDecision,
+} from '../compliance/age-eligibility.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue, Timestamp } from '../firebaseApp';
 import {
@@ -470,7 +473,7 @@ export const publishUserIntentStatus = onCall<PublishUserIntentStatusRequest>(
       nowMs: now,
     });
 
-    if (!ageDecision.allowed) {
+    if (!isVerifiedAdultAgeDecision(ageDecision)) {
       throw new HttpsError(
         'failed-precondition',
         'Conclua a verificação de maioridade para publicar o status.'
