@@ -42,6 +42,20 @@ class FakeVideoElement {
   }
 }
 
+function videoWithId(id: string): IPublicVideoItem {
+  return {
+    id,
+    ownerUid: 'owner_1',
+    mediaType: 'VIDEO',
+    assetAccess: 'SIGNED_URL',
+    posterAccess: 'NONE',
+    visibility: 'PUBLIC',
+    moderationStatus: 'APPROVED',
+    url: `https://example.test/${id}.mp4?token=temporary`,
+    accessExpiresAt: Date.now() + 300_000,
+  } as IPublicVideoItem;
+}
+
 const VIDEO = {
   id: 'video_1',
   ownerUid: 'owner_1',
@@ -154,6 +168,111 @@ describe('PublicVideoMetadataPreloadService', () => {
     expect(fakeVideo.pause).toHaveBeenCalledTimes(1);
     expect(fakeVideo.removeAttribute).toHaveBeenCalledWith('src');
     expect(service.preloadMetadata(VIDEO)).toBe(true);
+  });
+
+  it('mantém cleanup independente para múltiplos vídeos', () => {
+    const videos = [
+      new FakeVideoElement(),
+      new FakeVideoElement(),
+      new FakeVideoElement(),
+    ];
+    TestBed.resetTestingModule();
+    const localCreateElement = vi.fn(() =>
+      videos.shift() as unknown as HTMLVideoElement
+    );
+    TestBed.configureTestingModule({
+      providers: [
+        PublicVideoMetadataPreloadService,
+        {
+          provide: DOCUMENT,
+          useValue: { createElement: localCreateElement },
+        },
+        {
+          provide: PUBLIC_VIDEO_METADATA_PRELOAD_CAPABILITY_READER,
+          useValue: () => ({
+            documentVisible: true,
+            online: true,
+            saveData: false,
+            effectiveType: '4g',
+            downlinkMbps: 10,
+          }),
+        },
+        {
+          provide: PrivacyDebugLoggerService,
+          useValue: { log: vi.fn() },
+        },
+      ],
+    });
+
+    const service = TestBed.inject(PublicVideoMetadataPreloadService);
+    const first = videoWithId('video-a');
+    const second = videoWithId('video-b');
+
+    expect(service.preloadMetadata(first)).toBe(true);
+    expect(service.preloadMetadata(second)).toBe(true);
+    expect(localCreateElement).toHaveBeenCalledTimes(2);
+
+    const firstElement = localCreateElement.mock.results[0]?.value as unknown as FakeVideoElement;
+    const secondElement = localCreateElement.mock.results[1]?.value as unknown as FakeVideoElement;
+
+    service.cancelMetadataPreload(first);
+
+    expect(firstElement.pause).toHaveBeenCalledTimes(1);
+    expect(firstElement.removeAttribute).toHaveBeenCalledWith('src');
+    expect(secondElement.pause).not.toHaveBeenCalled();
+
+    secondElement.emit('loadedmetadata');
+    expect(secondElement.pause).toHaveBeenCalledTimes(1);
+    expect(secondElement.removeAttribute).toHaveBeenCalledWith('src');
+  });
+
+  it('destruir o serviço limpa todos os preloads ativos sem reter src', () => {
+    const elements = [
+      new FakeVideoElement(),
+      new FakeVideoElement(),
+    ];
+    TestBed.resetTestingModule();
+    const localCreateElement = vi.fn(() =>
+      elements.shift() as unknown as HTMLVideoElement
+    );
+    TestBed.configureTestingModule({
+      providers: [
+        PublicVideoMetadataPreloadService,
+        {
+          provide: DOCUMENT,
+          useValue: { createElement: localCreateElement },
+        },
+        {
+          provide: PUBLIC_VIDEO_METADATA_PRELOAD_CAPABILITY_READER,
+          useValue: () => ({
+            documentVisible: true,
+            online: true,
+            saveData: false,
+            effectiveType: '4g',
+            downlinkMbps: 10,
+          }),
+        },
+        {
+          provide: PrivacyDebugLoggerService,
+          useValue: { log: vi.fn() },
+        },
+      ],
+    });
+
+    const service = TestBed.inject(PublicVideoMetadataPreloadService);
+    expect(service.preloadMetadata(videoWithId('video-a'))).toBe(true);
+    expect(service.preloadMetadata(videoWithId('video-b'))).toBe(true);
+
+    const firstElement = localCreateElement.mock.results[0]?.value as unknown as FakeVideoElement;
+    const secondElement = localCreateElement.mock.results[1]?.value as unknown as FakeVideoElement;
+
+    TestBed.resetTestingModule();
+
+    for (const element of [firstElement, secondElement]) {
+      expect(element.pause).toHaveBeenCalledTimes(1);
+      expect(element.removeAttribute).toHaveBeenCalledWith('src');
+      expect(element.src).toBe('');
+    }
   });
 
   it('não cria elemento quando a política de rede bloqueia', () => {
