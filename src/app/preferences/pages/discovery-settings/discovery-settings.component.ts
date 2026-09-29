@@ -17,7 +17,7 @@ import { DiscoverySettingsFacade } from '../../application/discovery-settings.fa
 import { DiscoveryVisibilityPanelComponent } from '../../components/discovery-visibility-panel/discovery-visibility-panel.component';
 import { DiscoveryVisibilityFormComponent } from '../../components/discovery-visibility-form/discovery-visibility-form.component';
 import { DiscoveryUpgradeHintsComponent } from '../../components/discovery-upgrade-hints/discovery-upgrade-hints.component';
-import { PreferencesPageHeaderComponent } from '../../components/preferences-page-header/preferences-page-header.component';
+import { PageHeaderComponent } from '../../../shared/page-header/page-header.component';
 import { PreferencesDomainNavComponent } from '../../components/preferences-domain-nav/preferences-domain-nav.component';
 import { PreferencesUiService } from '../../state/preferences-ui.service';
 
@@ -30,7 +30,7 @@ import { PreferencesUiService } from '../../state/preferences-ui.service';
     DiscoveryVisibilityPanelComponent,
     DiscoveryVisibilityFormComponent,
     DiscoveryUpgradeHintsComponent,
-    PreferencesPageHeaderComponent,
+    PageHeaderComponent,
     PreferencesDomainNavComponent,
   ],
   templateUrl: './discovery-settings.component.html',
