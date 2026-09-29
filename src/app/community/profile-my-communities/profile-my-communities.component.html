@@ -5,18 +5,16 @@
     aria-labelledby="profile-my-communities-title"
     [attr.aria-busy]="vm.status === 'loading' || vm.stale ? 'true' : 'false'"
   >
-    <header class="profile-my-communities__header">
-      <div>
-        <p class="profile-my-communities__eyebrow">
-          <i class="fas fa-users" aria-hidden="true"></i>
-          Sua participação
-        </p>
-        <h2 id="profile-my-communities-title">Minhas comunidades</h2>
+    <header class="profile-my-communities__header app-section-header">
+      <div class="app-section-heading">
+        <h2 id="profile-my-communities-title" class="app-section-title">
+          Minhas comunidades
+        </h2>
       </div>
 
       @if (vm.status === 'ready') {
         <a
-          class="profile-my-communities__all"
+          class="profile-my-communities__all app-action app-action--ghost"
           [routerLink]="['/dashboard/comunidades/minhas']"
           aria-label="Ver todas as minhas comunidades"
         >
