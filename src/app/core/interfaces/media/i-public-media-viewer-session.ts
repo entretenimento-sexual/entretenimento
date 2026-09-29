@@ -27,14 +27,3 @@ export interface OpenPublicMixedMediaViewerRequest {
   readonly continuationContext?: IPublicMediaContinuationContext;
 }
 
-export function isPublicMediaViewerHandoffResult(
-  value: unknown
-): value is IPublicMediaViewerHandoffResult {
-  if (!value || typeof value !== 'object') {
-    return false;
-  }
-
-  const candidate = value as Partial<IPublicMediaViewerHandoffResult>;
-  return candidate.kind === 'mixed-handoff' &&
-    (candidate.direction === 'previous' || candidate.direction === 'next');
-}
