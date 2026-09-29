@@ -33,8 +33,8 @@ describe('ProfileCompletionService', () => {
     const ageItem = checklist.items.find((item) => item.id === 'age');
 
     expect(ageItem?.completed).toBe(true);
-    expect(ageItem?.title).toBe('Idade');
-    expect(ageItem?.actionLabel).toBe('Informar idade');
+    expect(ageItem?.title).toBe('Idade no perfil');
+    expect(ageItem?.actionLabel).toBe('Informar idade no perfil');
     expect(ageItem?.routerLink).toEqual([
       '/perfil',
       'user-1',
