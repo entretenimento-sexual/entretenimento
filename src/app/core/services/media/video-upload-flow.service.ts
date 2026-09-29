@@ -14,7 +14,7 @@ import {
   type UploadTask,
   uploadBytesResumable,
 } from 'firebase/storage';
-import { Observable, firstValueFrom } from 'rxjs';
+import { Observable, Subscription, firstValueFrom } from 'rxjs';
 
 import {
   DEFAULT_VIDEO_EDIT_RECIPE_INPUT,
@@ -22,6 +22,7 @@ import {
 } from 'src/app/core/interfaces/media/i-video-edit-recipe';
 import { IVideoItem } from 'src/app/core/interfaces/media/i-video-item';
 import { IVideoPublicationSettingsInput } from 'src/app/core/interfaces/media/i-video-publication-config';
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { MediaApplicationErrorService } from './media-application-error.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import {
@@ -128,6 +129,7 @@ export class VideoUploadFlowService {
   private readonly storage = inject(Storage);
   private readonly injector = inject(Injector);
   private readonly metadataPreparation = inject(VideoMetadataPreparationService);
+  private readonly authSession = inject(AuthSessionService);
   private readonly errorHandler = inject(MediaApplicationErrorService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
   private readonly reserveVideoUploadCallable = httpsCallable<
@@ -177,6 +179,7 @@ export class VideoUploadFlowService {
       let cleanupChain = Promise.resolve();
       let videoUploadStarted = false;
       let posterUploadStarted = false;
+      let authBoundarySubscription: Subscription | null = null;
 
       const scheduleCleanup = (): Promise<void> => {
         cleanupChain = cleanupChain.then(async () => {
@@ -207,6 +210,23 @@ export class VideoUploadFlowService {
           throw new VideoUploadCancelledError();
         }
       };
+
+      authBoundarySubscription = this.authSession.uid$.subscribe((uid) => {
+        const activeUid = String(uid ?? '').trim();
+
+        if (activeUid === ownerUid) {
+          return;
+        }
+
+        cancelRequested = true;
+        activeTask?.cancel();
+
+        if (!registrationStarted) {
+          void scheduleCleanup();
+        }
+
+        observer.complete();
+      });
 
       const run = async (): Promise<void> => {
         try {
@@ -304,6 +324,7 @@ export class VideoUploadFlowService {
             publishWhenReady: true,
             ...publication,
           });
+          assertNotCancelled();
 
           completed = true;
           observer.next({ type: 'progress', phase: 'saving', progress: 100 });
@@ -373,6 +394,9 @@ export class VideoUploadFlowService {
       void run();
 
       return () => {
+        authBoundarySubscription?.unsubscribe();
+        authBoundarySubscription = null;
+
         if (completed || registrationStarted) {
           return;
         }
