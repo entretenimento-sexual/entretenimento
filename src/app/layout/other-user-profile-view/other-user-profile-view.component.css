@@ -269,6 +269,23 @@
   line-height: 1.2;
 }
 
+.other-profile-page__desire-match {
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color, #ff4d57) 28%,
+    var(--surface-border, #e5e7eb)
+  );
+  background: color-mix(
+    in oklab,
+    var(--primary-color, #ff4d57) 5%,
+    var(--surface-color, #ffffff)
+  );
+}
+
+.other-profile-page__desire-match h2 {
+  color: var(--primary-color, #ff4d57);
+}
+
 .other-profile-page__preference-cloud {
   display: flex;
   flex-wrap: wrap;
