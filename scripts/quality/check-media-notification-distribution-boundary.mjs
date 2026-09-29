@@ -43,10 +43,10 @@ for (const fragment of [
   'users/${recipientUid}/friends/${ownerUid}',
   'users/${ownerUid}/blocks/${recipientUid}',
   'users/${recipientUid}/blocks/${ownerUid}',
-  'trendScoreUsed: false',
+  'trendSignalUsed: false',
 ]) requireIncludes(trigger, fragment, 'distribution trigger drift');
 
-forbidIncludes(trigger, "after?.['trendScore']", 'distribution runtime must not read trendScore');
+forbidIncludes(trigger, "after?.['trendSignal']", 'distribution runtime must not read trendScore');
 forbidIncludes(trigger, "after?.['engagementScore']", 'distribution runtime must not read engagementScore');
 forbidIncludes(trigger, "after?.['rankingScore']", 'distribution runtime must not read rankingScore');
 
