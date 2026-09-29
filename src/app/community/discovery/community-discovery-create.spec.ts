@@ -139,7 +139,7 @@ describe('CommunityDiscoveryPageComponent / criação direta', () => {
     fixture.detectChanges();
 
     const createLink = fixture.nativeElement.querySelector(
-      '.community-discovery__create'
+      'app-page-header a[href="/dashboard/comunidades/nova"]'
     ) as HTMLAnchorElement | null;
     const heading = fixture.nativeElement.querySelector('h1') as HTMLElement | null;
 
