@@ -10,6 +10,7 @@ import { ProgressiveSignupComponent } from './progressive-signup/progressive-sig
 import { AuthenticationRoutingModule } from './authentication-routing.module';
 import { MatCardModule } from '@angular/material/card';
 import { EmailInputModalComponent } from './email-input-modal/email-input-modal.component';
+import { PageHeaderComponent } from '../shared/page-header/page-header.component';
 
 @NgModule({
   declarations: [
@@ -25,6 +26,7 @@ import { EmailInputModalComponent } from './email-input-modal/email-input-modal.
     AuthenticationRoutingModule, // Se este módulo tiver rotas
     MatCardModule,
     EmailInputModalComponent,
+    PageHeaderComponent,
 
   ],
 
