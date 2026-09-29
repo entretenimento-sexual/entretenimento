@@ -66,8 +66,12 @@ describe('video-report-safety', () => {
       true
     );
     assert.equal(
-      shouldQuarantineVideoAfterReport('sexual_boundary', 1),
+      shouldQuarantineVideoAfterReport('non_consensual_sexual_content', 1),
       true
+    );
+    assert.equal(
+      shouldQuarantineVideoAfterReport('sexual_boundary', 1),
+      false
     );
   });
 
