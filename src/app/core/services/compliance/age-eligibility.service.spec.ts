@@ -46,6 +46,66 @@ describe('AgeEligibilityService', () => {
       .resolves.toBe(false);
   });
 
+
+  it('usa a resposta canônica da callable como ponte até a projeção realtime chegar', async () => {
+    const user$ = new BehaviorSubject<IUserDados | null | undefined>({
+      uid: 'user-1',
+    } as IUserDados);
+    const service = new AgeEligibilityService(
+      {} as any,
+      { user$: user$.asObservable() } as any,
+      { handleError: () => undefined } as any
+    );
+
+    (service as any).trustedSessionProjection.next({
+      uid: 'user-1',
+      state: {
+        status: 'SELF_DECLARED_ADULT',
+        policyVersion: 1,
+        source: 'SELF_DECLARATION',
+        method: 'SELF_DECLARATION',
+        caseId: null,
+        verifiedAtMs: null,
+        expiresAtMs: null,
+        updatedAtMs: Date.now(),
+      },
+    });
+
+    await expect(firstValueFrom(service.adultAccessAllowed$))
+      .resolves.toBe(true);
+  });
+
+  it('não reutiliza a ponte de maioridade depois que a sessão é encerrada', async () => {
+    const user$ = new BehaviorSubject<IUserDados | null | undefined>({
+      uid: 'user-1',
+    } as IUserDados);
+    const service = new AgeEligibilityService(
+      {} as any,
+      { user$: user$.asObservable() } as any,
+      { handleError: () => undefined } as any
+    );
+
+    (service as any).trustedSessionProjection.next({
+      uid: 'user-1',
+      state: {
+        status: 'SELF_DECLARED_ADULT',
+        policyVersion: 1,
+        source: 'SELF_DECLARATION',
+        method: 'SELF_DECLARATION',
+        caseId: null,
+        verifiedAtMs: null,
+        expiresAtMs: null,
+        updatedAtMs: Date.now(),
+      },
+    });
+
+    user$.next(null);
+    user$.next({ uid: 'user-1' } as IUserDados);
+
+    await expect(firstValueFrom(service.adultAccessAllowed$))
+      .resolves.toBe(false);
+  });
+
   it('expõe adulto verificado somente a partir da projeção backend', async () => {
     const user$ = new BehaviorSubject<IUserDados | null | undefined>({
       uid: 'user-1',
