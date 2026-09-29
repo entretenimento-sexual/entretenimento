@@ -250,3 +250,19 @@ export function evaluateCanonicalAgeEligibility(input: {
     caseId,
   });
 }
+
+
+/**
+ * Garantia forte para superfícies que manipulam ou expõem mídia adulta.
+ * SELF_DECLARED_ADULT pode continuar sendo um estado provisório de acesso
+ * social, mas nunca satisfaz esta fronteira.
+ */
+export function isVerifiedAdultAgeDecision(
+  decision: Readonly<AgeEligibilityDecision>
+): boolean {
+  return (
+    decision.allowed === true &&
+    decision.status === 'VERIFIED_ADULT' &&
+    decision.verifiedAtMs !== null
+  );
+}
