@@ -1,7 +1,12 @@
 import { logger } from 'firebase-functions';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import { getCanonicalAgeEligibilityForUid } from '../../compliance/age-eligibility.service';
+import {
+  isVerifiedAdultAgeDecision,
+} from '../../compliance/age-eligibility.policy';
+import {
+  getCanonicalAgeEligibilityForUid,
+} from '../../compliance/age-eligibility.service';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue, Timestamp } from '../../firebaseApp';
 import {
@@ -299,7 +304,7 @@ export const publishVideo = onCall<PublishVideoRequest>(
     assertOwner(requesterUid, ownerUid);
 
     const ageDecision = await getCanonicalAgeEligibilityForUid(ownerUid);
-    if (!ageDecision.allowed) {
+    if (!isVerifiedAdultAgeDecision(ageDecision)) {
       throw new HttpsError(
         'failed-precondition',
         'Conclua a verificação de maioridade antes de publicar mídia.'
