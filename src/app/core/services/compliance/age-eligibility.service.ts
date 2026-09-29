@@ -32,7 +32,6 @@ import {
   shareReplay,
   switchMap,
   take,
-  tap,
 } from 'rxjs/operators';
 
 import {
@@ -67,18 +66,18 @@ export class AgeEligibilityService {
     private readonly environmentInjector: EnvironmentInjector,
     private readonly currentUser: CurrentUserStoreService,
     private readonly globalError: GlobalErrorHandlerService,
-  ) {}
-
-  private readonly sessionUser$ = this.currentUser.user$.pipe(
-    tap((user) => {
+  ) {
+    this.currentUser.user$.subscribe((user) => {
       if (
         user === null &&
         this.trustedSessionProjection.value !== null
       ) {
         this.trustedSessionProjection.next(null);
       }
-    })
-  );
+    });
+  }
+
+  private readonly sessionUser$ = this.currentUser.user$;
 
   readonly current$: Observable<IUserAgeEligibility> =
     combineLatest([
