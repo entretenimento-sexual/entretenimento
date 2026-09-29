@@ -32,6 +32,8 @@
 }
 
 .public-video-viewer__stage {
+  touch-action: pan-x pinch-zoom;
+  overscroll-behavior: contain;
   position: relative;
   display: grid;
   place-items: center;
