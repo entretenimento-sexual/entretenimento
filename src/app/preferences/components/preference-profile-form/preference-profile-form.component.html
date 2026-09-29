@@ -100,7 +100,7 @@
       } @else {
         <div class="preference-upgrade" role="note">
           <span>Seu plano {{ currentPlanLabel() }} mantém as preferências essenciais. O plano Básico libera práticas e características procuradas.</span>
-          <a class="preference-upgrade__action" routerLink="/subscription-plan" [queryParams]="{ minimumRole: 'basic' }">Ver plano Básico</a>
+          <a class="preference-upgrade__action app-action app-action--ghost" routerLink="/subscription-plan" [queryParams]="{ minimumRole: 'basic' }">Ver plano Básico</a>
         </div>
       }
     </div>
