@@ -19,7 +19,7 @@ vi.mock('@angular/fire/functions', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
-    httpsCallable: vi.fn(() => vi.fn()),
+    httpsCallable: () => () => undefined,
   };
 });
 
@@ -27,8 +27,8 @@ vi.mock('@angular/fire/firestore', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
-    collection: vi.fn(() => ({ path: 'users/owner-a/videos' })),
-    doc: vi.fn(() => ({ id: 'video-1' })),
+    collection: () => ({ path: 'users/owner-a/videos' }),
+    doc: () => ({ id: 'video-1' }),
   };
 });
 
