@@ -183,14 +183,9 @@ describe('Canonical UI boundary', () => {
 
   it('não permite novos placeholders works! em templates de produção', () => {
     const appRoot = resolve(ROOT, 'src/app');
-    const allowed = new Set([
-      'src/app/footer/legal-footer/politica-de-cookies/politica-de-cookies.component.html',
-    ]);
-
     const violations = productionHtmlFiles(appRoot)
       .filter((file) => /\bworks!\b/iu.test(readFileSync(file, 'utf8')))
       .map((file) => relative(ROOT, file).replaceAll('\\', '/'))
-      .filter((file) => !allowed.has(file))
       .sort();
 
     expect(
@@ -241,6 +236,25 @@ describe('Canonical UI boundary', () => {
 
     expect(chatModule).not.toContain('ChatWindowComponent');
     expect(chatModule).not.toContain('./chat-window/chat-window.component');
+  });
+
+
+  it('mantém a política de cookies ligada à fonte legal canônica', () => {
+    const component = source(
+      'src/app/footer/legal-footer/politica-de-cookies/politica-de-cookies.component.ts'
+    );
+    const template = source(
+      'src/app/footer/legal-footer/politica-de-cookies/politica-de-cookies.component.html'
+    );
+    const legalConstants = source(
+      'src/app/core/services/compliance/platform-legal.constants.ts'
+    );
+
+    expect(component).toContain('PLATFORM_LEGAL_MANIFEST');
+    expect(template).toContain('cookieNoticeVersion');
+    expect(template).toContain('cookieNoticeEffectiveDateLabel');
+    expect(legalConstants).toContain('COOKIE_NOTICE_VERSION');
+    expect(template).not.toContain('works!');
   });
 
   it('mantém as primitives globais que sustentam a canonização', () => {
