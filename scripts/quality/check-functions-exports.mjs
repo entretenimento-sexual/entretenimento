@@ -19,11 +19,13 @@ const temporaryCompatibilityExports = [
   // release pós-estabilização, após telemetria confirmar ausência de chamadas.
   'getCommunityOwnershipCandidates',
 
-  // Clientes antigos de mídia ainda podem chamar estes nomes. Os endpoints de
-  // unpublish são fail-closed e a normalização é migração idempotente. Manter
-  // explicitamente até a janela de compatibilidade ser encerrada por telemetria.
+  // APIs TOMBSTONE de mídia. São fail-closed, instrumentadas e sem consumidor
+  // interno. Data-alvo de retirada: 2026-12-31. Remover quando a telemetria
+  // confirmar zero chamadas na janela operacional.
   'unpublishPhoto',
   'unpublishVideo',
+
+  // Migração idempotente temporária de moderação legada.
   'normalizeLegacyVideoModeration',
 ];
 
@@ -497,6 +499,9 @@ console.log(
 );
 console.log(
   `[functions:exports] Compatibilidade temporária preservada: ${temporaryCompatibilityExports.join(', ')}`
+);
+console.log(
+  '[functions:exports] Tombstones unpublishPhoto/unpublishVideo: alvo de retirada 2026-12-31, condicionado a zero chamadas observadas.'
 );
 
 console.log(
