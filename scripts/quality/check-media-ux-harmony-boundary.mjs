@@ -260,6 +260,8 @@ const photoEditorRuntime = [
   'src/app/core/services/image-handling/photo-editor-result.model.ts',
 ].map(read).join('\n');
 
+const rootPackage = read('package.json');
+
 for (const forbidden of [
   'HttpClient',
   'httpsCallable',
@@ -272,11 +274,32 @@ for (const forbidden of [
   'replicate.com',
   'adobe.com',
   'canva.com',
+  'pintura',
+  '@pqina',
+  'doka',
+  'cropperjs',
+  'fabric',
+  'konva',
 ]) {
   forbidIncludes(
     photoEditorRuntime.toLowerCase(),
     forbidden.toLowerCase(),
     'photo editor must not depend on remote/paid editing service'
+  );
+}
+
+for (const forbiddenPackage of [
+  '"@pqina/',
+  '"pintura',
+  '"doka',
+  '"cropperjs"',
+  '"fabric"',
+  '"konva"',
+]) {
+  forbidIncludes(
+    rootPackage.toLowerCase(),
+    forbiddenPackage.toLowerCase(),
+    'photo editor must not depend on third-party editing runtime'
   );
 }
 
