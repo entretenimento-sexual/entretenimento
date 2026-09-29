@@ -277,12 +277,12 @@
             }
           </span>
           @if (canCreateVenue) {
-            <a class="community-discovery__empty-create" routerLink="/dashboard/locais/novo">
+            <a class="community-discovery__empty-create app-action app-action--primary" routerLink="/dashboard/locais/novo">
               Cadastrar Espaço Oficial
             </a>
           } @else if (canCreateCommunity && !hiddenCommunityFeedback()) {
             <a
-              class="community-discovery__empty-create"
+              class="community-discovery__empty-create app-action app-action--primary"
               href="/dashboard/comunidades/nova"
               [attr.aria-busy]="creationGateBusy()"
               [attr.aria-disabled]="creationGateBusy()"
@@ -307,6 +307,7 @@
         <p>Ajuste a busca ou os filtros para ver outras participações.</p>
         <button
           type="button"
+          class="app-action app-action--ghost"
           (click)="mineFacade.clearControls()"
         >Limpar filtros</button>
 
