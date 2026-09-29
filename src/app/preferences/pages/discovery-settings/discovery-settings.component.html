@@ -2,12 +2,13 @@
  <!-- simplicidade e idioma português -->
 <main class="discovery-settings-page app-page" aria-label="Configurações de descoberta">
   <section class="discovery-settings-shell stack">
-    <app-preferences-page-header
-      title="Discovery settings"
-      subtitle="Controle do modo de descoberta, privacidade e elegibilidade de exposição."
-    >
-      <a page-actions class="btn btn-secondary" routerLink="/preferencias">
-        Voltar para preferências
+    <app-preferences-page-header title="Descoberta e privacidade">
+      <a
+        page-actions
+        class="app-action app-action--ghost"
+        routerLink="/preferencias"
+      >
+        Voltar
       </a>
     </app-preferences-page-header>
 
@@ -20,9 +21,7 @@
           [capabilities]="vm.capabilities">
         </app-discovery-visibility-panel>
 
-        <section class="discovery-settings-section" aria-label="Formulário de descoberta">
-          <h2 class="section-title">Editar descoberta e visibilidade</h2>
-
+        <section class="discovery-settings-section" aria-label="Editar descoberta e privacidade">
           <app-discovery-visibility-form
             [visibility]="vm.visibility"
             [capabilities]="vm.capabilities"
