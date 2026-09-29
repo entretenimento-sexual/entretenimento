@@ -161,11 +161,10 @@ export class ProfileVideoLibraryEffects {
           ).pipe(
             tap(() => {
               if (failedDeletions > 0) {
-                this.mediaError.report(
-                  new Error('Falha agregada na limpeza automática de uploads.'),
+                this.mediaError.reportReason(
+                  'video_failed_upload_cleanup_pending',
                   {
                     operation: 'profileVideoLibrary.cleanupFailedUploads',
-                    reasonHint: 'video_failed_upload_cleanup_pending',
                     metadata: {
                       hasOwnerUid: true,
                       failedDeletions,
