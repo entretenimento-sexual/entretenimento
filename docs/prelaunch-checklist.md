@@ -52,6 +52,10 @@ working tree clean
 - [ ] Conta bancaria empresarial.
 - [ ] Processador de pagamento aprovado para o modelo de negocio.
 - [ ] Contrato com empresa de pagamento revisado.
+- [ ] Auditoria externa de seguranca aprovada para o SHA de release.
+- [ ] Auditoria externa de privacidade/moderacao aprovada para o SHA de release.
+- [ ] Parecer juridico externo especifico para modelo adulto e publicidade aprovado para o SHA de release.
+- [ ] Registro `docs/compliance/external-audit/approvals.json` completo e `npm run external-audit:check` verde.
 - [ ] Politica de privacidade publicada.
 - [ ] Termos de uso publicados.
 - [ ] Politica de conteudo proibido publicada.
