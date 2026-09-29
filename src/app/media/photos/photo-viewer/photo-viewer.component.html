@@ -85,6 +85,7 @@
       <button
         type="button"
         class="viewer-close-btn"
+        cdkFocusInitial
         (click)="close()"
         aria-label="Fechar visualizador"
         aria-keyshortcuts="Escape"
@@ -94,12 +95,23 @@
     </div>
   </header>
 
+  <span class="visually-hidden" role="status" aria-live="polite" aria-atomic="true">
+    {{ navigationAnnouncement() }}
+  </span>
+
   <span class="visually-hidden" role="status" aria-live="polite">
     {{ continuationAnnouncement() }}
   </span>
 
   <div class="viewer-shell">
-    <section class="viewer-media-panel" aria-label="Foto selecionada">
+    <section
+      class="viewer-media-panel"
+      aria-label="Foto selecionada"
+      (pointerdown)="onSwipePointerDown($event)"
+      (pointermove)="onSwipePointerMove($event)"
+      (pointerup)="onSwipePointerUp($event)"
+      (pointercancel)="cancelSwipeNavigation()"
+    >
       <div class="viewer-media-frame">
         @if (current) {
           <img
@@ -121,7 +133,7 @@
           (click)="prev()"
           [disabled]="!hasPrev"
           aria-label="Foto anterior"
-          aria-keyshortcuts="ArrowLeft"
+          aria-keyshortcuts="ArrowLeft ArrowUp"
         >
           ‹
         </button>
@@ -133,7 +145,7 @@
           [disabled]="!hasNext || waitingForContinuation"
           [attr.aria-busy]="waitingForContinuation ? 'true' : null"
           [attr.aria-label]="waitingForContinuation ? 'Carregando próxima foto' : 'Próxima foto'"
-          aria-keyshortcuts="ArrowRight"
+          aria-keyshortcuts="ArrowRight ArrowDown"
         >
           ›
         </button>
