@@ -10,6 +10,8 @@ import { ErrorNotificationService } from '../../../core/services/error-handler/e
 import { ApplicationErrorService } from '../../../core/services/error-handler/application-error.service';
 import { PlatformSubscriptionAccessService } from '../../../core/services/subscriptions/platform-subscription-access.service';
 import { UserSocialLinksService } from '../../../core/services/user-profile/user-social-links.service';
+import { PageHeaderComponent } from '../../../shared/page-header/page-header.component';
+import { ContentStateComponent } from '../../../shared/content-state/content-state.component';
 
 describe('EditProfileSocialLinksComponent', () => {
   let component: EditProfileSocialLinksComponent;
@@ -42,7 +44,7 @@ describe('EditProfileSocialLinksComponent', () => {
 
     TestBed.configureTestingModule({
       declarations: [EditProfileSocialLinksComponent],
-      imports: [FormsModule],
+      imports: [FormsModule, PageHeaderComponent, ContentStateComponent],
       providers: [
         {
           provide: ActivatedRoute,
