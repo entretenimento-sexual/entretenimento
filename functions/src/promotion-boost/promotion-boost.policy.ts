@@ -10,7 +10,6 @@
 
 import {
   VIDEO_PROMOTION_CALIBRATION_STAGE,
-  VIDEO_PROMOTION_RUNTIME_ENABLEMENT,
 } from './video-promotion-calibration.policy';
 
 export const PROMOTION_BOOST_POLICY_VERSION = 1 as const;
@@ -64,7 +63,6 @@ export function promotionBoostTargetAvailability(
       placementEnabled: false,
       reason:
         String(VIDEO_PROMOTION_CALIBRATION_STAGE) === 'OBSERVE_ONLY'
-          || VIDEO_PROMOTION_RUNTIME_ENABLEMENT !== true
           ? 'observe_only_not_calibrated'
           : 'explicit_enablement_required',
     });
