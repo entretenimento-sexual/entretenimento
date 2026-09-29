@@ -368,6 +368,33 @@ if (fs.existsSync(helperPath)) {
 
 
 
+
+const publicAgeProjectionPath = path.join(
+  root,
+  'functions/src/discovery/public-age-eligibility-projection.handler.ts'
+);
+if (fs.existsSync(publicAgeProjectionPath)) {
+  const source = codeOnly(fs.readFileSync(publicAgeProjectionPath, 'utf8'));
+
+  for (const required of [
+    '[PUBLIC_AGE_ACCESS_FIELD]: eligible',
+    '[PUBLIC_AGE_LEGACY_ACCESS_FIELD]: verified',
+    "verified ? 'VERIFIED' : eligible ? 'SELF_DECLARED' : null",
+  ]) {
+    if (!source.includes(required)) {
+      violations.push(
+        `functions/src/discovery/public-age-eligibility-projection.handler.ts (projeção pública deve separar acesso provisório de verificação forte: ${required})`
+      );
+    }
+  }
+
+  if (source.includes('[PUBLIC_AGE_LEGACY_ACCESS_FIELD]: eligible')) {
+    violations.push(
+      'functions/src/discovery/public-age-eligibility-projection.handler.ts (ageEligibilityVerifiedAdult nunca pode receber elegibilidade provisória)'
+    );
+  }
+}
+
 const selfDeclarationHandlerPath = path.join(
   root,
   'functions/src/compliance/accept-adult-self-declaration.handler.ts'
