@@ -22,6 +22,7 @@ import {
 import {
   projectionFromCanonicalAgeDecision,
   writeCanonicalAgeEligibilityInTransaction,
+  type AgeEligibilityProjection,
 } from './age-eligibility.service';
 import {
   isAgeReverificationAccessRestricted,
@@ -62,8 +63,10 @@ export const acceptAdultSelfDeclaration =
       enforceAppCheck: ENFORCE_APP_CHECK,
     },
     async (request): Promise<{
+      uid: string;
       status: 'SELF_DECLARED_ADULT' | 'VERIFIED_ADULT';
       declaredAtMs: number | null;
+      ageEligibility: AgeEligibilityProjection;
     }> => {
       const uid = String(request.auth?.uid ?? '').trim();
 
@@ -157,9 +160,18 @@ export const acceptAdultSelfDeclaration =
             );
           }
 
+          if (!projection) {
+            throw new HttpsError(
+              'internal',
+              'A projeção canônica de maioridade não pôde ser reconstruída.'
+            );
+          }
+
           return {
+            uid,
             status: 'VERIFIED_ADULT' as const,
             declaredAtMs: null,
+            ageEligibility: projection,
           };
         }
 
@@ -202,9 +214,18 @@ export const acceptAdultSelfDeclaration =
             );
           }
 
+          if (!projection) {
+            throw new HttpsError(
+              'internal',
+              'A projeção canônica de maioridade não pôde ser reconstruída.'
+            );
+          }
+
           return {
+            uid,
             status: 'SELF_DECLARED_ADULT' as const,
-            declaredAtMs: nowMs,
+            declaredAtMs: current.verifiedAtMs ?? current.expiresAtMs ?? null,
+            ageEligibility: projection,
           };
         }
 
@@ -262,8 +283,10 @@ export const acceptAdultSelfDeclaration =
         });
 
         return {
+          uid,
           status: 'SELF_DECLARED_ADULT' as const,
           declaredAtMs: nowMs,
+          ageEligibility: projection,
         };
       });
     }
