@@ -12,9 +12,11 @@
 import { CommonModule } from '@angular/common';
 import {
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
   computed,
   effect,
+  inject,
   input,
   output,
 } from '@angular/core';
@@ -58,6 +60,7 @@ export class IntentStateFormComponent {
   ];
 
   private readonly fb = new FormBuilder();
+  private readonly cdr = inject(ChangeDetectorRef);
 
   readonly form = this.fb.nonNullable.group({
     mode: this.fb.nonNullable.control<IntentMode>('inactive'),
@@ -139,6 +142,7 @@ export class IntentStateFormComponent {
   markSaved(): void {
     this.form.markAsPristine();
     this.form.markAsUntouched();
+    this.cdr.markForCheck();
   }
 
   private patchForm(intent: IntentState): void {
