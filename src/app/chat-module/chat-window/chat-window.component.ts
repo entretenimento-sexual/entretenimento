@@ -18,7 +18,7 @@ import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interfa
 @Component({
   selector: 'app-chat-window',
   templateUrl: './chat-window.component.html',
-  styleUrls: ['./chat-window.component.css'],
+  
   standalone: false
 })
 export class ChatWindowComponent {
