@@ -34,7 +34,6 @@ const CANONICAL_ACTION_TEMPLATES = [
   'src/app/explore/pages/social-explore-page/social-explore-page.component.html',
   'src/app/user-profile/user-profile-view/user-profile-view.component.html',
   'src/app/notifications/notifications-page/notifications-page.component.html',
-  'src/app/authentication/progressive-signup/progressive-signup.component.html',
   'src/app/user-profile/user-profile-edit/edit-profile-social-links/edit-profile-social-links.component.html',
   'src/app/subscriptions/checkout/checkout.component.html',
   'src/app/media/photos/profile-photos/profile-photos.component.html',
@@ -52,7 +51,6 @@ const CANONICAL_HEADER_TEMPLATES = [
   'src/app/community/discovery/community-discovery-page.component.html',
   'src/app/subscriptions/subscription-plan/subscription-plan.component.html',
   'src/app/notifications/notifications-page/notifications-page.component.html',
-  'src/app/authentication/progressive-signup/progressive-signup.component.html',
   'src/app/user-profile/user-profile-edit/edit-profile-social-links/edit-profile-social-links.component.html',
   'src/app/subscriptions/checkout/checkout.component.html',
   'src/app/media/photos/profile-photos/profile-photos.component.html',
@@ -71,7 +69,6 @@ const CANONICALIZED_STYLES = [
   'src/app/explore/pages/social-explore-page/social-explore-page.component.css',
   'src/app/user-profile/user-profile-view/user-profile-view.component.css',
   'src/app/notifications/notifications-page/notifications-page.component.css',
-  'src/app/authentication/progressive-signup/progressive-signup.component.css',
   'src/app/user-profile/user-profile-edit/edit-profile-social-links/edit-profile-social-links.component.css',
   'src/app/subscriptions/checkout/checkout.component.css',
   'src/app/media/photos/profile-photos/profile-photos.component.css',
@@ -171,6 +168,10 @@ describe('Canonical UI boundary', () => {
       'src/app/chat-module/chat-window/chat-window.component.ts',
       'src/app/chat-module/chat-window/chat-window.component.html',
       'src/app/chat-module/chat-window/chat-window.component.spec.ts',
+      'src/app/authentication/progressive-signup/progressive-signup.component.ts',
+      'src/app/authentication/progressive-signup/progressive-signup.component.html',
+      'src/app/authentication/progressive-signup/progressive-signup.component.css',
+      'src/app/authentication/progressive-signup/progressive-signup.component.spec.ts',
     ];
 
     expect(
