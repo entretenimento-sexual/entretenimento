@@ -55,6 +55,10 @@ A janela permanece **NO-GO** enquanto qualquer item abaixo estiver pendente.
     existentes permanecem sem ativação de webhook recorrente de produção.
 16. Não há PR crítica pendente que altere contratos de dados, Rules, Functions
     ou frontend do mesmo domínio.
+17. `npm run external-audit:check` confirma aprovação externa de segurança,
+    privacidade/moderação e jurídico adulto/publicidade para o mesmo SHA de release.
+18. Qualquer mudança posterior com impacto nos escopos auditados invalida a aprovação
+    até reavaliação externa ou manifestação formal de não impacto.
 
 ## 3. Preparação da release
 
@@ -778,6 +782,10 @@ Não iniciar uma nova onda enquanto a anterior não estiver explicitamente verde
 - [ ] critérios de abortar e responsáveis conhecidos;
 - [ ] rollback SHA buildável e procedimentos revisados;
 - [ ] nenhuma mudança de ranking/preço/custo não relacionada misturada na release.
+- [ ] auditoria externa de segurança APPROVED para o RELEASE_SHA;
+- [ ] auditoria externa de privacidade/moderação APPROVED para o RELEASE_SHA;
+- [ ] parecer jurídico adulto/publicidade APPROVED para o RELEASE_SHA;
+- [ ] `npm run external-audit:check` verde;
 
 ## 14.1. Compatibilidade temporária a retirar em release posterior
 
