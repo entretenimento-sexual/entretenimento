@@ -8,9 +8,9 @@
   @let communityDistribution = (communityDistribution$ | async);
   @let communityContent = (communityDistribution?.content || []);
 
-  <section class="social-feed-page" aria-label="Atualizações">
+  <section class="social-feed-page container-feed" aria-label="Atualizações">
     @if (currentUser?.uid) {
-      <section class="feed-composer" aria-label="Criar publicação">
+      <section class="feed-composer app-card app-card--flat" aria-label="Criar publicação">
         <a
           class="feed-composer__avatar"
           routerLink="/perfil"
@@ -93,6 +93,7 @@
 
               <button
                 type="button"
+                class="app-action app-action--ghost"
                 (click)="retryVideoHighlights()"
               >
                 Tentar novamente
