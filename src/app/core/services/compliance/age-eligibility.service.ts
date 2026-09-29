@@ -138,6 +138,8 @@ export class AgeEligibilityService {
         {
           status: IUserAgeEligibility['status'];
           migrated: boolean;
+          restoredFromDeclarationEvidence: boolean;
+          ageEligibility: IUserAgeEligibility | null;
         }
       >(
         inject(Functions),
@@ -146,7 +148,24 @@ export class AgeEligibilityService {
     );
 
     return from(callable({})).pipe(
-      map((response) => response.data.status),
+      map((response) => {
+        const uid = String(
+          this.currentUser.getLoggedUserUIDSnapshot() ?? ''
+        ).trim();
+        const state = response.data.ageEligibility
+          ? this.normalize(response.data.ageEligibility)
+          : null;
+
+        if (
+          uid &&
+          state &&
+          state.status !== 'UNVERIFIED'
+        ) {
+          this.trustedSessionProjection.next({ uid, state });
+        }
+
+        return response.data.status;
+      }),
       catchError((error) => {
         try {
           this.globalError.handleError(
