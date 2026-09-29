@@ -108,18 +108,3 @@ export const authSessionChanged = createAction(
   props<{ uid: string | null; emailVerified: boolean }>()
 );
 
-// ============================================================================
-// Legado de presença — não usar em novos fluxos
-// ============================================================================
-
-/** @deprecated Presença pertence ao PresenceService. */
-export const updateUserOnlineStatusSuccess = createAction(
-  '[Auth] (LEGACY) Update User Online Status Success',
-  props<{ uid: string; isOnline: boolean }>()
-);
-
-/** @deprecated Presença pertence ao PresenceService. */
-export const updateUserOnlineStatusFailure = createAction(
-  '[Auth] (LEGACY) Update User Online Status Failure',
-  props<{ error: string }>()
-);
