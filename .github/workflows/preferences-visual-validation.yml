@@ -297,7 +297,7 @@ jobs:
               submitDisabled: document.querySelector('.preference-profile-form button[type=submit]')?.disabled ?? false,
             }));
             console.log(JSON.stringify(metrics));
-            if (!metrics.statusText.includes('Preferências salvas') || !metrics.submitDisabled) throw new Error('Visual harness could not clear the dirty profile state');
+            if (metrics.statusText !== '' || !metrics.submitDisabled) throw new Error('Visual harness kept stale save feedback or failed to clear the dirty profile state');
             return metrics;
           }"
 
