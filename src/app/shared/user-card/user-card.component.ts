@@ -91,6 +91,10 @@ export class UserCardComponent {
   readonly showDistance = input<boolean>(true);
   readonly preferenceMatchScore = input<number | null>(null);
   readonly preferenceMatchReasons = input<readonly string[] | null>(null);
+  readonly intentAvailability = input<
+    'available_now' | 'available_today' | 'planning_later' | null
+  >(null);
+  readonly mutualAvailableNow = input<boolean>(false);
 
   private readonly dialog = inject(MatDialog);
   private readonly store = inject(Store) as Store<AppState>;
@@ -213,6 +217,39 @@ export class UserCardComponent {
       approximateDistanceKm: this.showDistance() ? this.distanciaKm() : null,
     })
   );
+
+  readonly intentContextVm = computed(() => {
+    if (this.mutualAvailableNow()) {
+      return {
+        title: 'Vocês estão disponíveis agora',
+        detail: 'Momento em comum',
+        icon: 'fa-bolt',
+      };
+    }
+
+    switch (this.intentAvailability()) {
+      case 'available_now':
+        return {
+          title: 'Disponível agora',
+          detail: 'Status temporário',
+          icon: 'fa-bolt',
+        };
+      case 'available_today':
+        return {
+          title: 'Disponível hoje',
+          detail: 'Status temporário',
+          icon: 'fa-calendar-day',
+        };
+      case 'planning_later':
+        return {
+          title: 'Planejando mais tarde',
+          detail: 'Status temporário',
+          icon: 'fa-clock',
+        };
+      default:
+        return null;
+    }
+  });
 
   readonly desireMatchVm = computed(() => {
     const reasons = Array.from(
