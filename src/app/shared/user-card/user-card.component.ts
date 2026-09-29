@@ -228,20 +228,20 @@ export class UserCardComponent {
       return null;
     }
 
-    const labels = reasons
-      .map((reason) => {
-        switch (reason) {
-          case 'relationship_intent':
-            return 'intenção';
-          case 'sexual_practice':
-            return 'práticas';
-          case 'body_trait':
-            return 'características';
-          default:
-            return null;
-        }
-      })
-      .filter((label): label is string => !!label);
+    const labels: string[] = [];
+    for (const reason of reasons) {
+      switch (reason) {
+        case 'relationship_intent':
+          labels.push('intenção');
+          break;
+        case 'sexual_practice':
+          labels.push('práticas');
+          break;
+        case 'body_trait':
+          labels.push('características');
+          break;
+      }
+    }
 
     if (!labels.length) {
       return null;
