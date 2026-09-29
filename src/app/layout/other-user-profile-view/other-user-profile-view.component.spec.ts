@@ -25,6 +25,7 @@ import { PrivacyDebugLoggerService } from '../../core/services/privacy/privacy-d
 import { UserSocialLinksService } from '../../core/services/user-profile/user-social-links.service';
 import { PublicMixedMediaViewerLauncherService } from '../../media/shared/services/public-mixed-media-viewer-launcher.service';
 import { DirectChatService } from '../../messaging/direct-chat/services/direct-chat.service';
+import { UserIntentStatusService } from '../../core/services/discovery/user-intent-status.service';
 import { SocialLinksAccordionComponent } from '../../user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component';
 
 describe('OtherUserProfileViewComponent', () => {
@@ -154,6 +155,57 @@ describe('OtherUserProfileViewComponent', () => {
           provide: DirectChatService,
           useValue: {
             ensureDirectChatIdWithUser$: vi.fn(() => of('chat-id')),
+          },
+        },
+        {
+          provide: UserIntentStatusService,
+          useValue: {
+            watchActiveStatusesForUserRegion$: vi.fn(() =>
+              of([
+                {
+                  id: 'current_target-uid',
+                  uid: targetUid,
+                  profile: { uid: targetUid, nickname: 'Pessoa alvo' },
+                  availability: 'available_now',
+                  visibility: 'public_discovery',
+                  destination: {
+                    kind: 'region',
+                    label: 'Rio de Janeiro',
+                    region: { uf: 'RJ', city: 'rio de janeiro' },
+                  },
+                  moderation: { state: 'active' },
+                  startsAt: Date.now() - 1_000,
+                  expiresAt: Date.now() + 60_000,
+                  ageEligibilityValidUntil: Date.now() + 60_000,
+                  destinationLabel: 'Rio de Janeiro',
+                  availabilityLabel: 'Disponível agora',
+                  expiresInLabel: 'Expira em até 1h',
+                  isActive: true,
+                },
+              ])
+            ),
+            watchCurrentStatus$: vi.fn(() =>
+              of({
+                id: 'current_viewer-uid',
+                uid: viewerUid,
+                profile: { uid: viewerUid, nickname: 'Viewer' },
+                availability: 'available_now',
+                visibility: 'public_discovery',
+                destination: {
+                  kind: 'region',
+                  label: 'Rio de Janeiro',
+                  region: { uf: 'RJ', city: 'rio de janeiro' },
+                },
+                moderation: { state: 'active' },
+                startsAt: Date.now() - 1_000,
+                expiresAt: Date.now() + 60_000,
+                ageEligibilityValidUntil: Date.now() + 60_000,
+                destinationLabel: 'Rio de Janeiro',
+                availabilityLabel: 'Disponível agora',
+                expiresInLabel: 'Expira em até 1h',
+                isActive: true,
+              })
+            ),
           },
         },
         {
@@ -355,6 +407,21 @@ describe('OtherUserProfileViewComponent', () => {
     expect(affinityText).toContain('BDSM');
     expect(affinityText).toContain('Tatuagens');
     expect(affinityText).not.toContain('preferences');
+  });
+
+  it('mostra disponibilidade temporária em comum sem contaminar afinidades estáveis', () => {
+    fixture.detectChanges();
+
+    const intentContext = fixture.debugElement.query(
+      By.css('.other-profile-page__intent-context')
+    ).nativeElement as HTMLElement;
+
+    expect(intentContext.textContent).toContain(
+      'Vocês estão disponíveis agora'
+    );
+    expect(intentContext.textContent).toContain(
+      'Status temporário em comum'
+    );
   });
 
   it('mostra o encaixe de desejos sem expor score bruto', () => {
