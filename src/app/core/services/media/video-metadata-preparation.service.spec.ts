@@ -30,7 +30,85 @@ describe('VideoMetadataPreparationService', () => {
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
+  });
+
+  it('revoga ObjectURL ao concluir preparação de vídeo', async () => {
+    const originalCreateElement = document.createElement.bind(document);
+    const video = originalCreateElement('video');
+
+    Object.defineProperties(video, {
+      duration: { configurable: true, value: 10 },
+      videoWidth: { configurable: true, value: 1280 },
+      videoHeight: { configurable: true, value: 720 },
+      readyState: {
+        configurable: true,
+        value: HTMLMediaElement.HAVE_CURRENT_DATA,
+      },
+    });
+
+    vi.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
+      if (tagName.toLowerCase() === 'video') {
+        return video;
+      }
+      return originalCreateElement(tagName);
+    });
+
+    vi.spyOn(video, 'load').mockImplementation(() => {
+      queueMicrotask(() => {
+        video.dispatchEvent(new Event('loadedmetadata'));
+      });
+    });
+
+    const createObjectURL = vi.fn(() => 'blob:video-memory-test');
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', {
+      ...URL,
+      createObjectURL,
+      revokeObjectURL,
+    });
+
+    const file = new File(['video'], 'memory.mp4', { type: 'video/mp4' });
+    const result = await firstValueFrom(service.prepare$(file));
+
+    expect(result.durationMs).toBe(10_000);
+    expect(createObjectURL).toHaveBeenCalledWith(file);
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:video-memory-test');
+    expect(video.getAttribute('src')).toBeNull();
+  });
+
+  it('revoga ObjectURL também quando leitura de metadados falha', async () => {
+    const originalCreateElement = document.createElement.bind(document);
+    const video = originalCreateElement('video');
+
+    vi.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
+      if (tagName.toLowerCase() === 'video') {
+        return video;
+      }
+      return originalCreateElement(tagName);
+    });
+
+    vi.spyOn(video, 'load').mockImplementation(() => {
+      queueMicrotask(() => {
+        video.dispatchEvent(new Event('error'));
+      });
+    });
+
+    const createObjectURL = vi.fn(() => 'blob:video-memory-error');
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', {
+      ...URL,
+      createObjectURL,
+      revokeObjectURL,
+    });
+
+    const file = new File(['video'], 'broken.mp4', { type: 'video/mp4' });
+    const result = await firstValueFrom(service.prepare$(file));
+
+    expect(result.playbackReady).toBe(false);
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:video-memory-error');
+    expect(video.getAttribute('src')).toBeNull();
   });
 
   it('gera JPEG a partir do quadro atualmente exibido', async () => {
