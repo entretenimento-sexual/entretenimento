@@ -60,7 +60,7 @@ describe('public-profile-card.mapper', () => {
     });
   });
 
-  it('não deve reprojetar idade exata legada e deve preservar sinais públicos de matching', () => {
+  it('deve projetar idade social válida e preservar sinais públicos de matching', () => {
     const card = mapPublicProfileCard({
       ...ACTIVE_AGE_PROJECTION,
       uid: 'profile-matching',
@@ -78,7 +78,7 @@ describe('public-profile-card.mapper', () => {
     });
 
     expect(card).toMatchObject({
-      age: null,
+      age: 34,
       publicRelationshipIntents: ['dating', 'serious'],
       publicSexualPractices: ['bdsm', 'tantra'],
       publicBodyTraits: ['athletic', 'tattoos'],
@@ -109,6 +109,17 @@ describe('public-profile-card.mapper', () => {
 
     expect(card?.profileUniqueViewersCount).toBe(3);
     expect(card?.uniqueViewersCount).toBe(3);
+  });
+
+  it('deve descartar idade social inválida sem rejeitar o perfil adulto', () => {
+    const card = mapPublicProfileCard({
+      ...ACTIVE_AGE_PROJECTION,
+      uid: 'profile-invalid-age',
+      nickname: 'Adulto',
+      age: 17,
+    });
+
+    expect(card?.age).toBeNull();
   });
 
   it('deve remover duplicidades das preferências públicas', () => {
