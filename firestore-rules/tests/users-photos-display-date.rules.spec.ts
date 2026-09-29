@@ -9,6 +9,7 @@ import {
 } from '@firebase/rules-unit-testing';
 import {
   Timestamp,
+  deleteDoc,
   doc,
   setDoc,
   updateDoc,
@@ -89,6 +90,15 @@ async function seedUser(options: {
   });
 }
 
+async function seedPhoto(displayDate?: number | null) {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await setDoc(
+      doc(context.firestore(), 'users', UID, 'photos', PHOTO_ID),
+      photoPayload(displayDate)
+    );
+  });
+}
+
 function photoPayload(displayDate?: number | null) {
   return {
     id: PHOTO_ID,
@@ -118,11 +128,18 @@ describe('Firestore Rules / users photos displayDate', () => {
 
   afterAll(async () => testEnv.cleanup());
 
-  it('permite displayDate ao próprio usuário sem depender de assinatura', async () => {
+  it('mantém create da foto privada backend-only', async () => {
     await seedUser();
     const ref = doc(authenticatedDb(), 'users', UID, 'photos', PHOTO_ID);
 
-    await assertSucceeds(setDoc(ref, photoPayload(Date.now())));
+    await assertFails(setDoc(ref, photoPayload(Date.now())));
+  });
+
+  it('permite somente displayDate ao próprio usuário sem depender de assinatura', async () => {
+    await seedUser();
+    await seedPhoto(Date.now());
+    const ref = doc(authenticatedDb(), 'users', UID, 'photos', PHOTO_ID);
+
     await assertSucceeds(updateDoc(ref, {
       displayDate: Date.now() - 86_400_000,
       updatedAt: Timestamp.now(),
@@ -131,22 +148,43 @@ describe('Firestore Rules / users photos displayDate', () => {
 
   it('mantém displayDate independente de aliases ou projeções comerciais', async () => {
     await seedUser({ canonicalSubscriber: true, legacyAliases: true });
+    await seedPhoto(Date.now());
     const ref = doc(authenticatedDb(), 'users', UID, 'photos', PHOTO_ID);
 
-    await assertSucceeds(setDoc(ref, photoPayload(Date.now())));
     await assertSucceeds(updateDoc(ref, {
       displayDate: null,
       updatedAt: Timestamp.now(),
     }));
   });
 
-  it('continua rejeitando displayDate inválido por contrato de dados', async () => {
+  it('rejeita mutação direta de metadados críticos mesmo pelo dono', async () => {
     await seedUser();
+    await seedPhoto();
     const ref = doc(authenticatedDb(), 'users', UID, 'photos', PHOTO_ID);
 
-    await assertFails(setDoc(ref, {
-      ...photoPayload(),
+    await assertFails(updateDoc(ref, {
+      path: `users/${UID}/uploads/images/other.png`,
+      fileName: 'other.png',
+      updatedAt: Timestamp.now(),
+    }));
+  });
+
+  it('rejeita exclusão direta da foto privada mesmo pelo dono', async () => {
+    await seedUser();
+    await seedPhoto();
+    const ref = doc(authenticatedDb(), 'users', UID, 'photos', PHOTO_ID);
+
+    await assertFails(deleteDoc(ref));
+  });
+
+  it('continua rejeitando displayDate inválido por contrato de dados', async () => {
+    await seedUser();
+    await seedPhoto();
+    const ref = doc(authenticatedDb(), 'users', UID, 'photos', PHOTO_ID);
+
+    await assertFails(updateDoc(ref, {
       displayDate: '2026-09-26',
+      updatedAt: Timestamp.now(),
     }));
   });
 });
