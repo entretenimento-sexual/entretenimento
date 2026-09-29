@@ -124,6 +124,19 @@
         }
       </div>
 
+      @if (desireMatchVm(); as desireMatch) {
+        <div
+          class="user-card__desire-match"
+          aria-label="Encaixe entre suas preferências e este perfil"
+        >
+          <i class="fas fa-sparkles" aria-hidden="true"></i>
+          <span>
+            <strong>{{ desireMatch.title }}</strong>
+            <small>{{ desireMatch.detail }}</small>
+          </span>
+        </div>
+      }
+
       @if (profile.descricao) {
         <p
           class="user-card__description"
