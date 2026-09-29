@@ -183,6 +183,7 @@ const videoViewerHtml = read(
 requireIncludes(videoViewerHtml, [
   'cdkFocusInitial',
   'aria-live="polite"',
+  'aria-keyshortcuts="Escape"',
   'aria-keyshortcuts="ArrowUp ArrowLeft"',
   'aria-keyshortcuts="ArrowDown ArrowRight"',
 ], 'video viewer template a11y');
@@ -327,6 +328,11 @@ for (const launcherPath of [
     "maxHeight: '100dvh'",
   ], launcherPath + ' focus/viewport contract');
 }
+requireIncludes(
+  read('src/app/media/videos/public-video-viewer/public-video-viewer-launcher.service.ts'),
+  "ariaLabel: 'Visualizador de vídeo'",
+  'video launcher screen reader label'
+);
 
 const profileVideos = read(
   'src/app/media/videos/profile-videos/profile-videos.component.ts'
