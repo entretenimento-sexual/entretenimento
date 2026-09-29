@@ -98,7 +98,8 @@
       @let readState = ((readState$ | async) || 'loading');
       @let busyKeys = ((busyKeys$ | async) || null);
 
-      <section class="notification-settings-panel app-card app-card--flat" aria-labelledby="notification-types-title">\n        <h2 id="notification-types-title" class="sr-only">Tipos de notificação</h2>
+      <section class="notification-settings-panel app-card app-card--flat" aria-labelledby="notification-types-title">
+        <h2 id="notification-types-title" class="sr-only">Tipos de notificação</h2>
         @if (vm.loading || readState === 'loading') {
           <div class="notification-settings-state" role="status" aria-live="polite">
             Carregando preferências...
