@@ -17,6 +17,8 @@ import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { SharedModule } from '../shared/shared.module';
 import { UserProfileRoutingModule } from './user-profile-routing.module';
 import { LayoutModule } from '../layout/layout.module';
+import { PageHeaderComponent } from '../shared/page-header/page-header.component';
+import { ContentStateComponent } from '../shared/content-state/content-state.component';
 
 import { EditProfileSocialLinksComponent } from './user-profile-edit/edit-profile-social-links/edit-profile-social-links.component';
 import { EditUserProfileComponent } from './user-profile-edit/edit-user-profile/edit-user-profile.component';
@@ -37,6 +39,8 @@ import { MatCardModule } from '@angular/material/card';
     NgOptimizedImage,
     UserProfileRoutingModule,
     LayoutModule,
+    PageHeaderComponent,
+    ContentStateComponent,
     MatCardModule,
     MatButtonModule,
   ],
