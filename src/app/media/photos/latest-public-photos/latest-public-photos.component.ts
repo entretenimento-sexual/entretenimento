@@ -22,6 +22,7 @@ import {
 
 import { NetworkStatusService } from 'src/app/core/services/network/network-status.service';
 import { ContentStateComponent } from 'src/app/shared/content-state/content-state.component';
+import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.component';
 import { PublicPhotoCardComponent } from '../../shared/components/public-photo-card/public-photo-card.component';
 import { PhotoPromotionExposureDirective } from '../../shared/directives/photo-promotion-exposure.directive';
 import { PhotoPromotionPlacementService } from 'src/app/core/services/media/photo-promotion-placement.service';
@@ -52,6 +53,7 @@ interface LatestPhotosViewModel extends PublicPhotoDiscoveryFeedState {
     CommonModule,
     RouterModule,
     ContentStateComponent,
+    PageHeaderComponent,
     PublicPhotoCardComponent,
     PhotoPromotionExposureDirective,
   ],
