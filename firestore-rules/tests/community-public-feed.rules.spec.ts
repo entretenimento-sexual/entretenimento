@@ -153,6 +153,45 @@ describe('Firestore Rules / community_public_feed + realtime', () => {
     );
   });
 
+  it('nega realtime sem evaluation error quando documento legado não possui mapas exigidos', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, 'communities', COMMUNITY_ID), {
+        status: 'active',
+        visibility: 'public_preview',
+      });
+    });
+
+    const db = authenticatedDb();
+
+    await assertFails(
+      getDoc(doc(db, 'community_feed_realtime', COMMUNITY_ID, 'items', POST_ID))
+    );
+    await assertFails(
+      getDocs(collection(db, 'community_feed_realtime', COMMUNITY_ID, 'items'))
+    );
+  });
+
+  it('nega realtime quando membership legado não possui status', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, 'communities', COMMUNITY_ID), communityData('members_only'));
+      await setDoc(
+        doc(db, 'communities', COMMUNITY_ID, 'members', 'member'),
+        { role: 'member' }
+      );
+    });
+
+    await assertFails(
+      getDocs(collection(
+        authenticatedDb('member'),
+        'community_feed_realtime',
+        COMMUNITY_ID,
+        'items'
+      ))
+    );
+  });
+
   it('Comunidade restrita exige membership ativa para o stream realtime', async () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {
       const db = context.firestore();
