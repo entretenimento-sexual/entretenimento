@@ -6,7 +6,7 @@
 // - profileId público canônico, opaco e separado do Firebase Auth UID;
 // - identidade normalizada e reciprocidade;
 // - avatar público canônico;
-// - elegibilidade adulta pública sanitizada (sem idade exata);
+// - idade social declarada, sanitizada e separada da elegibilidade adulta;
 // - intenções, práticas e características autorizadas pelo proprietário;
 // - localização pública derivada da posição privada com redução de precisão.
 //
@@ -31,6 +31,7 @@ import { buildPublicPreferenceProjection } from './public-preference-projection'
 import {
   buildPublicAvatarProjection,
   buildPublicLocationProjection,
+  resolvePublicProfileAge,
 } from './public-profile-discovery-projection';
 
 interface BackfillPublicProfileDiscoveryRequest {
@@ -238,7 +239,7 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
             interestedInGenders: canonical.interestedInGenders,
             interestedInOrientations: canonical.interestedInOrientations,
             compatibilityReady: canonical.compatibilityReady,
-            age: null,
+            age: resolvePublicProfileAge(user['idade']),
             ageEligibilityAdultAccessAllowed: ageDecision.allowed,
             // Alias indexado legado até migração completa.
             ageEligibilityVerifiedAdult: ageDecision.allowed,
