@@ -47,6 +47,7 @@ import { MediaQueryService } from 'src/app/core/services/media/media-query.servi
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
 import { PhotoViewerComponent, IProfilePhotoItem } from '../photo-viewer/photo-viewer.component';
+import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.component';
 
 type IManageablePhotoItem = IProfilePhotoItem & {
   path?: string;
@@ -67,7 +68,7 @@ const DENY_UNKNOWN: IMediaPolicyResult = { decision: 'DENY', reason: 'UNKNOWN' }
 @Component({
   selector: 'app-profile-photos',
   standalone: true,
-  imports: [CommonModule, RouterModule, MatDialogModule],
+  imports: [CommonModule, RouterModule, MatDialogModule, PageHeaderComponent],
   templateUrl: './profile-photos.component.html',
   styleUrls: ['./profile-photos.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
