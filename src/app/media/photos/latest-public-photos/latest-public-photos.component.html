@@ -1,9 +1,7 @@
-<section class="latest-photos-page" aria-labelledby="latest-photos-title">
+<section class="latest-photos-page container-wide" aria-label="Fotos recentes">
   @let vm = (vm$ | async);
 
-  <header class="latest-photos-header gallery-header-clean">
-    <h1 id="latest-photos-title">Fotos recentes</h1>
-  </header>
+  <app-page-header title="Fotos recentes"></app-page-header>
 
   @if (vm) {
     @if (vm.showStaleNotice) {
@@ -51,7 +49,7 @@
     }
 
     @if (vm.hasItems) {
-      <div class="photos-grid" role="list" aria-label="Fotos públicas recentes">
+      <div class="photos-grid app-card-grid app-card-grid--media" role="list" aria-label="Fotos públicas recentes">
         @for (item of vm.renderItems; track trackByPhotoId($index, item); let i = $index) {
           <app-public-photo-card
             [photo]="item"
@@ -72,14 +70,14 @@
         <div class="feed-actions" aria-label="Navegação pelas fotos carregadas">
           <button
             type="button"
-            class="btn btn-secondary"
+            class="app-action app-action--ghost"
             (click)="showEarlierWindow()"
             [disabled]="!vm.hasEarlierRenderWindow">
             Mostrar anteriores
           </button>
           <button
             type="button"
-            class="btn btn-secondary"
+            class="app-action app-action--ghost"
             (click)="showLaterWindow()"
             [disabled]="!vm.hasLaterRenderWindow">
             Mostrar mais recentes
@@ -91,7 +89,7 @@
         <div class="feed-actions">
           <button
             type="button"
-            class="btn btn-secondary"
+            class="app-action app-action--ghost"
             (click)="loadMore()">
             Carregar mais
           </button>
