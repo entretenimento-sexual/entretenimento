@@ -121,18 +121,18 @@ describe('NotificationsPageComponent', () => {
     fixture.detectChanges();
 
     const errorState = fixture.nativeElement.querySelector(
-      '.notifications-state--error'
+      '.content-state--error'
     ) as HTMLElement | null;
     const retryButton = fixture.nativeElement.querySelector(
-      '.notifications-state__retry'
+      '.content-state__action'
     ) as HTMLButtonElement | null;
 
     expect(errorState).not.toBeNull();
     expect(errorState?.getAttribute('role')).toBe('alert');
     expect(errorState?.textContent).toContain(
-      'Não foi possível carregar as notificações.'
+      'Não foi possível carregar as notificações'
     );
-    expect(errorState?.textContent).not.toContain('Nenhuma notificação.');
+    expect(errorState?.textContent).not.toContain('Nenhuma notificação');
     expect(retryButton).not.toBeNull();
 
     retryButton?.click();
@@ -148,13 +148,13 @@ describe('NotificationsPageComponent', () => {
     fixture.detectChanges();
 
     const emptyState = fixture.nativeElement.querySelector(
-      '.notifications-state--empty'
+      '.content-state--empty'
     ) as HTMLElement | null;
 
     expect(emptyState).not.toBeNull();
-    expect(emptyState?.textContent).toContain('Nenhuma notificação.');
+    expect(emptyState?.textContent).toContain('Nenhuma notificação');
     expect(
-      fixture.nativeElement.querySelector('.notifications-state--error')
+      fixture.nativeElement.querySelector('.content-state--error')
     ).toBeNull();
   });
 
@@ -434,7 +434,7 @@ describe('NotificationsPageComponent', () => {
       fixture.nativeElement.querySelector('.community-activity__item')
     ).toBeNull();
     expect(
-      fixture.nativeElement.querySelector('.notifications-state--empty')
+      fixture.nativeElement.querySelector('.content-state--empty')
     ).toBeNull();
     expect(
       fixture.nativeElement.querySelector('.notifications-list')
