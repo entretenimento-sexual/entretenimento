@@ -81,7 +81,10 @@ describe('OtherUserProfileViewComponent', () => {
                 estado: 'RJ',
                 municipio: 'Rio de Janeiro',
                 distanciaKm: 8,
-                preferences: ['Encontros', 'Casais'],
+                preferenceBadgesVisible: true,
+                publicRelationshipIntents: ['serious'],
+                publicSexualPractices: ['bdsm'],
+                publicBodyTraits: ['tattoos'],
               })
             ),
           },
@@ -176,7 +179,58 @@ describe('OtherUserProfileViewComponent', () => {
         {
           provide: CurrentUserStoreService,
           useValue: {
-            user$: of({ uid: viewerUid }),
+            user$: of({
+              uid: viewerUid,
+              role: 'basic',
+              isSubscriber: true,
+              billingProjectionVersion: 1,
+              subscriptionStatus: 'active',
+              subscriptionScope: 'platform_subscription',
+              subscriptionStartedAt: Date.now() - 60_000,
+              subscriptionEndsAt: Date.now() + 60_000,
+              discoveryPreferences: {
+                genderInterests: [],
+                relationshipIntents: ['serious'],
+                acceptsCouples: true,
+                acceptsSingles: true,
+                acceptsTransProfiles: null,
+                ageRange: null,
+                maxDistanceKm: null,
+                locationRequired: false,
+                relationshipIntentMode: 'prefer',
+                sexualPractices: ['bdsm'],
+                sexualPracticeMode: 'prefer',
+                bodyPreferences: ['tattoos'],
+                bodyPreferenceMode: 'prefer',
+                updatedAt: 1,
+              },
+            }),
+            getSnapshot: () => ({
+              uid: viewerUid,
+              role: 'basic',
+              isSubscriber: true,
+              billingProjectionVersion: 1,
+              subscriptionStatus: 'active',
+              subscriptionScope: 'platform_subscription',
+              subscriptionStartedAt: Date.now() - 60_000,
+              subscriptionEndsAt: Date.now() + 60_000,
+              discoveryPreferences: {
+                genderInterests: [],
+                relationshipIntents: ['serious'],
+                acceptsCouples: true,
+                acceptsSingles: true,
+                acceptsTransProfiles: null,
+                ageRange: null,
+                maxDistanceKm: null,
+                locationRequired: false,
+                relationshipIntentMode: 'prefer',
+                sexualPractices: ['bdsm'],
+                sexualPracticeMode: 'prefer',
+                bodyPreferences: ['tattoos'],
+                bodyPreferenceMode: 'prefer',
+                updatedAt: 1,
+              },
+            }),
           },
         },
       ],
@@ -292,20 +346,27 @@ describe('OtherUserProfileViewComponent', () => {
     expect(about.textContent).toContain('8 km');
   });
 
-  it('mantém afinidades declaradas na coluna lateral sem cartões de sinais', () => {
-    const sidebar = fixture.debugElement.query(
-      By.css('.other-profile-page__sidebar')
-    ).nativeElement as HTMLElement;
+  it('exibe apenas afinidades públicas sanitizadas autorizadas pelo perfil', () => {
     const affinityText = fixture.debugElement.query(
       By.css('.other-profile-page__affinities')
     ).nativeElement.textContent as string;
 
-    expect(sidebar.textContent).toContain('Afinidades');
-    expect(affinityText).toContain('Encontros');
-    expect(affinityText).toContain('Casais');
-    expect(
-      fixture.debugElement.query(By.css('.other-profile-page__signal'))
-    ).toBeNull();
+    expect(affinityText).toContain('Sério');
+    expect(affinityText).toContain('BDSM');
+    expect(affinityText).toContain('Tatuagens');
+    expect(affinityText).not.toContain('preferences');
+  });
+
+  it('mostra o encaixe de desejos sem expor score bruto', () => {
+    const desireMatch = fixture.debugElement.query(
+      By.css('.other-profile-page__desire-match')
+    ).nativeElement as HTMLElement;
+
+    expect(desireMatch.textContent).toContain('Desejos');
+    expect(desireMatch.textContent).toContain('Intenção');
+    expect(desireMatch.textContent).toContain('Práticas');
+    expect(desireMatch.textContent).toContain('Características');
+    expect(desireMatch.textContent).not.toMatch(/\d+%/u);
   });
 
   it('configura redes como superfície compacta e ocultável', () => {
