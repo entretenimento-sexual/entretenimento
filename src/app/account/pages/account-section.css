@@ -326,9 +326,9 @@
     display: grid;
   }
 
-  .account-section-actions .btn,
-  .account-context-panel__actions .btn,
-  .account-plan-hero .btn {
+  .account-section-actions .app-action,
+  .account-context-panel__actions .app-action,
+  .account-plan-hero .app-action {
     width: 100%;
   }
 }
@@ -344,7 +344,7 @@
     flex-direction: column;
   }
 
-  .account-surface__head > .btn {
+  .account-surface__head > .app-action {
     width: 100%;
   }
 }
