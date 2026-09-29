@@ -1,4 +1,3 @@
-/* src/app/preferences/components/preference-profile-form/preference-profile-form.component.css */
 :host {
   display: block;
   min-width: 0;
@@ -10,16 +9,13 @@
   min-width: 0;
 }
 
-.preference-group {
-  min-width: 0;
-}
-
+.preference-group,
 .preference-group__title {
   min-width: 0;
 }
 
 .preference-subgroup__title {
-  color: var(--text-color, #f5f7fb);
+  color: var(--text-color);
   font-weight: 900;
   line-height: 1.2;
 }
@@ -27,8 +23,8 @@
 .field-help,
 .preference-note,
 .form-actions__status {
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 64%, transparent);
-  font-size: 0.82rem;
+  color: color-mix(in oklab, var(--text-color) 64%, transparent);
+  font-size: var(--font-size-help, 0.82rem);
   line-height: 1.35;
 }
 
@@ -36,101 +32,41 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: var(--primary-color, #ff7070);
+  color: var(--primary-color);
 }
 
 .preference-group__content {
   display: grid;
-  gap: 14px;
+  gap: var(--space-3, 16px);
 }
 
 .checkbox-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  padding-top: 14px;
+  gap: var(--space-1, 8px);
+  padding-top: var(--space-3, 16px);
 }
 
 .checkbox-grid--nested {
   padding-top: 0;
 }
 
-.checkbox-item {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-width: 0;
-  min-height: 44px;
-  padding: 8px 9px;
-  border: 1px solid color-mix(
-    in oklab,
-    var(--surface-border, rgba(255, 255, 255, 0.12)) 76%,
-    transparent
-  );
-  border-radius: 10px;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 86%, transparent);
-  cursor: pointer;
-  font-size: 0.88rem;
-  line-height: 1.3;
-}
-
-.checkbox-item:has(input:checked) {
-  border-color: color-mix(
-    in oklab,
-    var(--primary-color, #ff7070) 46%,
-    var(--surface-border, rgba(255, 255, 255, 0.12))
-  );
-  background: color-mix(
-    in oklab,
-    var(--primary-color, #ff7070) 7%,
-    transparent
-  );
-}
-
-.checkbox-item input {
-  flex: 0 0 auto;
-  width: 17px;
-  height: 17px;
-  margin: 0;
-  accent-color: var(--primary-color, #ff7070);
-}
-
-.checkbox-item input:focus-visible {
-  outline: var(--focus-ring, 3px solid #7dd3fc);
-  outline-offset: 2px;
-}
-
 .matching-mode {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(190px, 260px);
   align-items: center;
-  gap: 6px 14px;
-  padding-top: 14px;
+  gap: 6px var(--space-3, 16px);
+  padding-top: var(--space-3, 16px);
 }
 
 .matching-mode__label {
-  color: var(--text-color, #f5f7fb);
-  font-size: 0.86rem;
+  color: var(--text-color);
+  font-size: var(--font-size-label, 0.875rem);
   font-weight: 850;
-}
-
-.matching-mode select,
-.matching-mode__compact {
-  min-height: 44px;
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
-  border-radius: 10px;
-  background: color-mix(
-    in oklab,
-    var(--surface-color, #101923) 92%,
-    var(--text-color, #f5f7fb) 5%
-  );
-  color: var(--text-color, #f5f7fb);
-  font: inherit;
 }
 
 .matching-mode select {
   width: 100%;
-  padding: 0 36px 0 11px;
 }
 
 .matching-mode .field-help {
@@ -139,152 +75,61 @@
 
 .matching-mode__compact {
   min-width: 132px;
-  padding: 0 32px 0 10px;
-  font-size: 0.82rem;
+  font-size: var(--font-size-help, 0.82rem);
   font-weight: 750;
-}
-
-.matching-mode select:focus-visible,
-.matching-mode__compact:focus-visible {
-  outline: var(--focus-ring, 3px solid #7dd3fc);
-  outline-offset: 2px;
 }
 
 .preference-subgroup {
   display: grid;
-  gap: 9px;
-  padding-top: 14px;
+  gap: var(--space-2, 12px);
+  padding-top: var(--space-3, 16px);
 }
 
 .preference-subgroup__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-2, 12px);
 }
 
 .preference-subgroup + .preference-subgroup {
-  padding-top: 14px;
-  border-top: 1px solid color-mix(
-    in oklab,
-    var(--surface-border, rgba(255, 255, 255, 0.12)) 64%,
-    transparent
-  );
+  border-top: 1px solid color-mix(in oklab, var(--surface-border) 64%, transparent);
 }
 
 .preference-note {
   margin: 0;
-  padding: 10px 0 0;
-  border-top: 1px solid color-mix(
-    in oklab,
-    var(--surface-border, rgba(255, 255, 255, 0.12)) 58%,
-    transparent
-  );
+  padding-top: var(--space-2, 12px);
+  border-top: 1px solid color-mix(in oklab, var(--surface-border) 58%, transparent);
 }
 
 .preference-upgrade {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  margin-top: 14px;
-  padding: 12px;
-  border: 1px solid color-mix(
-    in oklab,
-    var(--primary-color, #ff7070) 28%,
-    var(--surface-border, rgba(255, 255, 255, 0.12))
-  );
-  border-radius: 11px;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
+  gap: var(--space-3, 16px);
+  margin-top: var(--space-3, 16px);
+  padding: var(--space-2, 12px);
+  border: 1px solid color-mix(in oklab, var(--primary-color) 28%, var(--surface-border));
+  border-radius: var(--surface-radius-sm, 12px);
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
   font-size: 0.86rem;
   line-height: 1.4;
 }
 
 .preference-upgrade__action {
   flex: 0 0 auto;
-  min-height: 40px;
-  padding: 0 12px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid color-mix(
-    in oklab,
-    var(--primary-color, #ff7070) 46%,
-    transparent
-  );
-  border-radius: 10px;
-  color: var(--primary-color, #ff7070);
-  font-weight: 850;
-  text-decoration: none;
-}
-
-.preference-upgrade__action:focus-visible {
-  outline: var(--focus-ring, 3px solid #7dd3fc);
-  outline-offset: 2px;
 }
 
 .form-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  padding-top: 14px;
-}
-
-.form-field {
   display: grid;
-  align-content: start;
-  gap: 6px;
-  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3, 16px);
+  padding-top: var(--space-3, 16px);
 }
 
 .form-field--wide,
 .inline-options {
   grid-column: 1 / -1;
-}
-
-.form-field label {
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 82%, transparent);
-  font-size: 0.82rem;
-  font-weight: 800;
-}
-
-.form-field input,
-.form-field select {
-  width: 100%;
-  min-height: 44px;
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
-  border-radius: 10px;
-  background: color-mix(
-    in oklab,
-    var(--surface-color, #101923) 92%,
-    var(--text-color, #f5f7fb) 5%
-  );
-  color: var(--text-color, #f5f7fb);
-  font: inherit;
-}
-
-.form-field input {
-  padding: 0 11px;
-}
-
-.form-field select {
-  padding: 0 36px 0 11px;
-}
-
-.form-field input:focus-visible,
-.form-field select:focus-visible {
-  outline: var(--focus-ring, 3px solid #7dd3fc);
-  outline-offset: 2px;
-}
-
-.form-field input[aria-invalid='true'] {
-  border-color: var(--danger-color, #ff8b8b);
-}
-
-.field-error {
-  margin: -4px 0 0;
-  color: var(--danger-color, #ff8b8b);
-  font-size: 0.82rem;
-  font-weight: 750;
-  line-height: 1.35;
 }
 
 .input-with-suffix {
@@ -303,8 +148,8 @@
 .input-with-suffix span {
   grid-column: 2;
   grid-row: 1;
-  padding-right: 11px;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 58%, transparent);
+  padding-right: var(--control-padding-inline, 12px);
+  color: color-mix(in oklab, var(--text-color) 58%, transparent);
   font-size: 0.8rem;
   pointer-events: none;
 }
@@ -312,40 +157,21 @@
 .inline-options {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: var(--space-1, 8px);
 }
 
 .form-actions {
   position: sticky;
   z-index: 3;
   bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 14px;
   min-height: 66px;
   padding: 10px 0;
-  background: color-mix(
-    in oklab,
-    var(--background-color, #080d13) 92%,
-    transparent
-  );
+  background: color-mix(in oklab, var(--background-color) 92%, transparent);
   backdrop-filter: blur(10px);
 }
 
 .form-actions .app-action {
-  min-height: 44px;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .checkbox-item:hover,
-  .preference-upgrade__action:hover {
-    border-color: color-mix(
-      in oklab,
-      var(--primary-color, #ff7070) 34%,
-      var(--surface-border, rgba(255, 255, 255, 0.12))
-    );
-  }
+  min-height: var(--control-height, 44px);
 }
 
 @media (max-width: 900px) {
@@ -363,20 +189,14 @@
   }
 
   .preference-subgroup__header,
-  .preference-upgrade,
-  .form-actions {
+  .preference-upgrade {
     align-items: stretch;
     flex-direction: column;
   }
 
   .matching-mode__compact,
-  .preference-upgrade__action,
-  .form-actions .app-action {
+  .preference-upgrade__action {
     width: 100%;
-  }
-
-  .form-actions {
-    gap: 8px;
   }
 
   .form-actions__status {
@@ -390,12 +210,6 @@
   }
 }
 
-html.high-contrast .checkbox-item,
-html.high-contrast .matching-mode select,
-html.high-contrast .matching-mode__compact,
-html.high-contrast .preference-upgrade,
-html.high-contrast .preference-upgrade__action,
-html.high-contrast .form-field input,
-html.high-contrast .form-field select {
+html.high-contrast .preference-upgrade {
   border-color: currentColor;
 }
