@@ -2,6 +2,7 @@
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import {
   evaluateCanonicalAgeEligibility,
+  isVerifiedAdultAgeDecision,
 } from '../compliance/age-eligibility.policy';
 import { db, FieldValue, Timestamp } from '../firebaseApp';
 import {
@@ -145,10 +146,10 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
       const ageEligibilityValidUntil =
         Timestamp.fromMillis(ageEligibilityValidUntilMs);
 
-      const ageEligibilityAssurance =
-        ageDecision.status === 'VERIFIED_ADULT'
-          ? 'VERIFIED'
-          : 'SELF_DECLARED';
+      const verifiedAdult = isVerifiedAdultAgeDecision(ageDecision);
+      const ageEligibilityAssurance = verifiedAdult
+        ? 'VERIFIED'
+        : 'SELF_DECLARED';
 
       const publicIdentity = buildPublicIdentityProjection(user);
       const discoverySource = publicIdentity.identityDiscoveryGroup
@@ -177,7 +178,7 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
         publicIdentityProjectionMatches(currentPublic, publicIdentity) &&
         (currentPublic['age'] ?? null) === age &&
         currentPublic['ageEligibilityAdultAccessAllowed'] === true &&
-        currentPublic['ageEligibilityVerifiedAdult'] === true &&
+        currentPublic['ageEligibilityVerifiedAdult'] === verifiedAdult &&
         String(currentPublic['ageEligibilityAssurance'] ?? '') ===
           ageEligibilityAssurance &&
         publicAgeValidUntilMs(currentPublic) === ageEligibilityValidUntilMs &&
@@ -202,8 +203,7 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
           compatibilityReady: canonical.compatibilityReady,
           age,
           ageEligibilityAdultAccessAllowed: true,
-          // Compatibilidade com queries/indexes existentes.
-          ageEligibilityVerifiedAdult: true,
+          ageEligibilityVerifiedAdult: verifiedAdult,
           ageEligibilityAssurance,
           ageEligibilityValidUntil,
           ...publicPreferences,
