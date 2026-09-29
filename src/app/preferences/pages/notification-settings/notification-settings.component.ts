@@ -22,7 +22,7 @@ import {
   PushNotificationDeviceService,
   PushNotificationDeviceState,
 } from 'src/app/core/services/notifications/push-notification-device.service';
-import { PreferencesPageHeaderComponent } from '../../components/preferences-page-header/preferences-page-header.component';
+import { PageHeaderComponent } from '../../../shared/page-header/page-header.component';
 import { PreferencesDomainNavComponent } from '../../components/preferences-domain-nav/preferences-domain-nav.component';
 
 interface NotificationSettingOption {
@@ -38,7 +38,7 @@ interface NotificationSettingOption {
   imports: [
     CommonModule,
     RouterModule,
-    PreferencesPageHeaderComponent,
+    PageHeaderComponent,
     PreferencesDomainNavComponent,
   ],
   templateUrl: './notification-settings.component.html',
