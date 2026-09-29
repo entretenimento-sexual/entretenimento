@@ -202,6 +202,26 @@
           </section>
         }
 
+        @if (desireMatch; as match) {
+          <section
+            class="other-profile-page__panel other-profile-page__desire-match"
+            aria-labelledby="profile-desire-match-heading"
+          >
+            <h2 id="profile-desire-match-heading">{{ match.title }}</h2>
+
+            <div
+              class="other-profile-page__preference-cloud"
+              aria-label="Áreas em que os desejos se encaixam"
+            >
+              @for (label of match.labels; track label) {
+                <span class="other-profile-page__preference-chip">
+                  {{ label }}
+                </span>
+              }
+            </div>
+          </section>
+        }
+
         @if (hasPreferenceChips) {
           <section
             class="other-profile-page__panel other-profile-page__affinities"
