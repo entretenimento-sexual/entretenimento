@@ -177,9 +177,11 @@ export class DiscoveryPublicProfilesFacade {
   private readonly visibleIntentStatusesByUid$ = combineLatest([
     this.request$,
     this.currentFeedSlice$,
+    this.currentViewerIntentStatus$,
   ]).pipe(
-    map(([request, slice]) => ({
+    map(([request, slice, viewerStatus]) => ({
       request,
+      viewerStatus,
       uids: Array.from(
         new Set(
           (slice.items ?? [])
@@ -190,19 +192,30 @@ export class DiscoveryPublicProfilesFacade {
     })),
     distinctUntilChanged((a, b) =>
       this.requestKey(a.request) === this.requestKey(b.request) &&
+      a.viewerStatus?.id === b.viewerStatus?.id &&
+      a.viewerStatus?.updatedAt === b.viewerStatus?.updatedAt &&
       this.sameStringArray(a.uids, b.uids)
     ),
-    switchMap(({ request, uids }) =>
-      request && uids.length
-        ? this.intentStatus.watchActiveStatusesForUserRegion$(
-            request.viewerUid,
-            {
-              limit: Math.min(60, Math.max(1, uids.length)),
-              ownerUids: uids,
-            }
+    switchMap(({ request, viewerStatus, uids }) => {
+      if (!request || !uids.length) {
+        return of([] as readonly IUserIntentStatusCardVm[]);
+      }
+
+      const options = {
+        limit: Math.min(60, Math.max(1, uids.length)),
+        ownerUids: uids,
+      };
+
+      return viewerStatus?.isActive
+        ? this.intentStatus.watchActiveStatusesForRegion$(
+            viewerStatus.destination.region,
+            options
           )
-        : of([] as readonly IUserIntentStatusCardVm[])
-    ),
+        : this.intentStatus.watchActiveStatusesForUserRegion$(
+            request.viewerUid,
+            options
+          );
+    }),
     map(
       (items) =>
         new Map<string, IUserIntentStatusCardVm>(
