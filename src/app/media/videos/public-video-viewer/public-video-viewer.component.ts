@@ -1504,7 +1504,7 @@ export class PublicVideoViewerComponent {
     const projectionOnly: IPublicVideoItem = {
       ...current,
       url: null,
-      accessExpiresAt: null,
+      accessExpiresAt: 0,
     };
 
     this.items[this.index] = projectionOnly;
