@@ -34,11 +34,13 @@ import { ErrorNotificationService } from '@core/services/error-handler/error-not
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 import { IncompleteProfileSubscriptionNoticeService } from '../application/incomplete-profile-subscription-notice.service';
 import { isCommunityCreationSubscriptionFlow } from '../domain/subscription-flow-context.model';
+import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.component';
+import { ContentStateComponent } from 'src/app/shared/content-state/content-state.component';
 
 @Component({
   selector: 'app-checkout',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, PageHeaderComponent, ContentStateComponent],
   providers: [CheckoutFacade],
   templateUrl: './checkout.component.html',
   styleUrls: ['./checkout.component.css'],
