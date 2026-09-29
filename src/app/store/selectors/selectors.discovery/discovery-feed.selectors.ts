@@ -17,27 +17,3 @@ export const selectDiscoveryFeedSlice = (queryKey: string) =>
     (state): DiscoveryFeedSlice =>
       state.byQuery[queryKey] ?? emptyDiscoveryFeedSlice
   );
-
-export const selectDiscoveryFeedItems = (queryKey: string) =>
-  createSelector(
-    selectDiscoveryFeedSlice(queryKey),
-    (slice) => slice.items
-  );
-
-export const selectDiscoveryFeedNextCursor = (queryKey: string) =>
-  createSelector(
-    selectDiscoveryFeedSlice(queryKey),
-    (slice) => slice.nextCursor
-  );
-
-export const selectDiscoveryFeedReachedEnd = (queryKey: string) =>
-  createSelector(
-    selectDiscoveryFeedSlice(queryKey),
-    (slice) => slice.reachedEnd
-  );
-
-export const selectDiscoveryFeedLoadingMore = (queryKey: string) =>
-  createSelector(
-    selectDiscoveryFeedSlice(queryKey),
-    (slice) => slice.loadingMore
-  );
