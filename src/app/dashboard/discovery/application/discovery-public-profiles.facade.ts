@@ -18,6 +18,10 @@ import type { DiscoveryPreferenceRejectionReason } from 'src/app/core/utils/disc
 import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { UserPresenceQueryService } from 'src/app/core/services/data-handling/queries/user-presence.query.service';
+import {
+  type IUserIntentStatusCardVm,
+} from 'src/app/core/interfaces/discovery/user-intent-status.interface';
+import { UserIntentStatusService } from 'src/app/core/services/discovery/user-intent-status.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { GeolocationTrackingService } from 'src/app/core/services/geolocation/geolocation-tracking.service';
 import * as DiscoveryActions from 'src/app/store/actions/actions.discovery/discovery-feed.actions';
@@ -98,6 +102,7 @@ export class DiscoveryPublicProfilesFacade {
   private readonly accessControl = inject(AccessControlService);
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly presenceQuery = inject(UserPresenceQueryService);
+  private readonly intentStatus = inject(UserIntentStatusService);
   private readonly cardEnrichment = inject(DiscoveryCardEnrichmentService);
   private readonly geolocationTracking = inject(GeolocationTrackingService);
   private readonly visibleLocationRepository = inject(
@@ -160,6 +165,53 @@ export class DiscoveryPublicProfilesFacade {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
+  private readonly currentViewerIntentStatus$ = this.request$.pipe(
+    switchMap((request) =>
+      request
+        ? this.intentStatus.watchCurrentStatus$(request.viewerUid)
+        : of(null)
+    ),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  private readonly visibleIntentStatusesByUid$ = combineLatest([
+    this.request$,
+    this.currentFeedSlice$,
+  ]).pipe(
+    map(([request, slice]) => ({
+      request,
+      uids: Array.from(
+        new Set(
+          (slice.items ?? [])
+            .map((item) => this.toNullableText(item?.uid))
+            .filter((uid): uid is string => !!uid)
+        )
+      ).sort(),
+    })),
+    distinctUntilChanged((a, b) =>
+      this.requestKey(a.request) === this.requestKey(b.request) &&
+      this.sameStringArray(a.uids, b.uids)
+    ),
+    switchMap(({ request, uids }) =>
+      request && uids.length
+        ? this.intentStatus.watchActiveStatusesForUserRegion$(
+            request.viewerUid,
+            {
+              limit: Math.min(60, Math.max(1, uids.length)),
+              ownerUids: uids,
+            }
+          )
+        : of([] as readonly IUserIntentStatusCardVm[])
+    ),
+    map(
+      (items) =>
+        new Map<string, IUserIntentStatusCardVm>(
+          items.map((item) => [item.uid, item])
+        )
+    ),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
   /**
    * Overlay realtime somente dos UIDs já carregados.
    *
@@ -198,6 +250,8 @@ export class DiscoveryPublicProfilesFacade {
     this.onlinePresenceByUid$,
     this.viewerLocation$,
     this.liveLocationsByUid$,
+    this.visibleIntentStatusesByUid$,
+    this.currentViewerIntentStatus$,
   ]).pipe(
     map(([
       request,
@@ -206,6 +260,8 @@ export class DiscoveryPublicProfilesFacade {
       onlinePresenceByUid,
       viewerLocation,
       liveLocationsByUid,
+      intentStatusesByUid,
+      currentViewerIntentStatus,
     ]) => {
       if (!request) return EMPTY_STATE;
 
@@ -232,9 +288,16 @@ export class DiscoveryPublicProfilesFacade {
         applyVisibility: true,
       });
       const filteredByPreferences = this.wasFilteredByPreferences(result);
+      const profiles = result.profiles.map((profile) =>
+        this.overlayIntentContext(
+          profile,
+          intentStatusesByUid.get(profile.uid) ?? null,
+          currentViewerIntentStatus
+        )
+      );
 
       return {
-        profiles: result.profiles,
+        profiles,
         loading: slice.loadingInitial && slice.items.length === 0,
         loadingMore: slice.loadingMore,
         refreshing: slice.refreshing,
@@ -369,6 +432,31 @@ export class DiscoveryPublicProfilesFacade {
       longitude: liveLocation.longitude,
       geohash: liveLocation.geohash,
     } as IUserDados;
+  }
+
+  private overlayIntentContext(
+    profile: PublicProfileCard,
+    targetStatus: IUserIntentStatusCardVm | null,
+    viewerStatus: IUserIntentStatusCardVm | null
+  ): PublicProfileCard {
+    if (!targetStatus?.isActive) {
+      return {
+        ...profile,
+        intentAvailability: null,
+        intentExpiresAt: null,
+        mutualAvailableNow: false,
+      };
+    }
+
+    return {
+      ...profile,
+      intentAvailability: targetStatus.availability,
+      intentExpiresAt: targetStatus.expiresAt,
+      mutualAvailableNow:
+        targetStatus.availability === 'available_now' &&
+        viewerStatus?.isActive === true &&
+        viewerStatus.availability === 'available_now',
+    };
   }
 
   private wasFilteredByPreferences(
