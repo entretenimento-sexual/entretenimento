@@ -14,6 +14,7 @@ import {
   evaluateCanonicalAgeEligibility,
 } from './age-eligibility.policy';
 import {
+  projectionFromCanonicalAgeDecision,
   writeCanonicalAgeEligibilityInTransaction,
 } from './age-eligibility.service';
 
@@ -74,6 +75,22 @@ export const refreshMyAgeEligibility = onCall(
         currentDecision.status === 'REVIEW_REQUIRED' ||
         currentDecision.status === 'EXPIRED'
       ) {
+        const projection = projectionFromCanonicalAgeDecision(
+          currentDecision,
+          Date.now()
+        );
+
+        if (projection) {
+          transaction.set(
+            userRef,
+            {
+              ageEligibility: projection,
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+        }
+
         return {
           status: currentDecision.status,
           migrated: false,
