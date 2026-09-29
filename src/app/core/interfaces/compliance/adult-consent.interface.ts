@@ -10,13 +10,3 @@ export interface AdultConsentRecord {
   source?: 'web' | 'mobile' | 'admin' | string;
 }
 
-export interface AdultConsentDocumentPatch {
-  adultConsent: {
-    accepted: boolean;
-    version: string;
-    acceptedAt: unknown;
-    updatedAt: unknown;
-    source: 'web';
-  };
-  uid: string;
-}
