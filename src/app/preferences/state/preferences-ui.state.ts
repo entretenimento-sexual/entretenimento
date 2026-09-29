@@ -7,7 +7,6 @@
 // - servir como contrato claro para a camada local em signal state
 export type PreferencesDomainView =
   | 'hub'
-  | 'overview'
   | 'editor'
   | 'discovery_settings'
   | 'match_profile_lab'
