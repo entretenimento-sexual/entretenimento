@@ -36,6 +36,7 @@ import { ApplicationErrorService } from 'src/app/core/services/error-handler/app
 import type { PreferenceProfile } from 'src/app/preferences/models/preference-profile.model';
 import { ProfilePreferencesService } from 'src/app/preferences/services/profile-preferences.service';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
+import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.component';
 import { CommunityCreationGateService } from '../community-create/community-creation-gate.service';
 import type {
   CommunitySponsoredPlacement,
@@ -127,6 +128,7 @@ const COMMUNITY_QUICK_FILTER_TAG_ID_SET = new Set<string>(
     RouterLink,
     RouterLinkActive,
     ImageFallbackDirective,
+    PageHeaderComponent,
     CommunityOfficialBadgeComponent,
     CommunityDiscoveryVisibilityDirective,
   ],
