@@ -148,8 +148,8 @@ letter-spacing: 0.04em;
 }
 
 .viewer-close-btn {
-width: 32px;
-height: 32px;
+width: var(--public-media-viewer-control-size);
+height: var(--public-media-viewer-control-size);
 border: 1px solid var(--public-media-viewer-control-border);
 border-radius: 999px;
 background: var(--public-media-viewer-control-bg);
@@ -676,8 +676,8 @@ padding: 8px 12px;
 }
 
 .viewer-nav-btn {
-width: 40px;
-height: 40px;
+width: var(--public-media-viewer-control-size);
+height: var(--public-media-viewer-control-size);
 font-size: 1.65rem;
 }
 
@@ -733,5 +733,28 @@ border-color: currentColor !important;
 
   .comments-list {
     max-height: calc(100dvh - 210px);
+  }
+}
+
+
+@media (pointer: coarse) {
+  .comment-action,
+  .btn-send-comment,
+  .btn-cancel-reply,
+  .reaction-button,
+  .viewer-nav-btn,
+  .viewer-close-btn {
+    min-height: var(--public-media-viewer-control-size);
+  }
+
+  .comment-action,
+  .btn-send-comment,
+  .btn-cancel-reply,
+  .reaction-button {
+    padding-inline: 10px;
+  }
+
+  .comment-actions {
+    max-height: none;
   }
 }
