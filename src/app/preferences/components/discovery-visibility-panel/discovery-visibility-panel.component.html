@@ -1,12 +1,12 @@
 <!-- src\app\preferences\components\discovery-visibility-panel\discovery-visibility-panel.component.html -->
 <section
-  class="discovery-visibility-panel"
+  class="discovery-visibility-panel app-card app-card--flat"
   aria-label="Estado atual da descoberta e privacidade"
 >
   <div class="panel-badges" aria-label="Estado atual de descoberta">
-      <span class="panel-badge">{{ discoveryModeLabel() }}</span>
-      <span class="panel-badge">Badges: {{ showBadgesLabel() }}</span>
-      <span class="panel-badge">Intenção: {{ showIntentPubliclyLabel() }}</span>
+      <span class="panel-badge app-chip app-chip--muted">{{ discoveryModeLabel() }}</span>
+      <span class="panel-badge app-chip app-chip--muted">Badges: {{ showBadgesLabel() }}</span>
+      <span class="panel-badge app-chip app-chip--muted">Intenção: {{ showIntentPubliclyLabel() }}</span>
   </div>
 
   <div class="panel-grid" role="list">
@@ -26,7 +26,7 @@
     }
   </div>
 
-  <footer class="panel-footer">
+  <footer class="panel-footer app-card__footer">
     <p class="panel-footnote">
       {{ monetizationHint() }}
     </p>
