@@ -31,7 +31,7 @@ match /user_intent_statuses/{statusId} {
 
   function targetCanonicalAgeEligibilityAllowsAdultExposure() {
     return resource.data.uid is string
-      && canonicalAgeEligibilityAllowsAdultAccess(resource.data.uid);
+      && canonicalAgeEligibilityIsVerifiedAdult(resource.data.uid);
   }
 
   allow get: if isCurrentStatusPath()
