@@ -87,6 +87,8 @@ interface AppNotificationFirestoreDocument {
   roomId?: unknown;
   messageId?: unknown;
   activityCount?: unknown;
+  mediaType?: unknown;
+  mediaId?: unknown;
   moderationTarget?: unknown;
   readAt?: unknown;
   createdAt?: unknown;
