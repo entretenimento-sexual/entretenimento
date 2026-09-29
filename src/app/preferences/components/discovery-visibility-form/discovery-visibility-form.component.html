@@ -7,9 +7,9 @@
 >
   <section class="form-section" aria-label="Configurações de descoberta">
     <div class="form-grid">
-      <div class="form-field">
-        <label for="discoveryMode">Modo de descoberta</label>
-        <select id="discoveryMode" formControlName="discoveryMode">
+      <div class="form-field app-field">
+        <label for="discoveryMode">Como você quer aparecer</label>
+        <select class="app-control" id="discoveryMode" formControlName="discoveryMode">
           @for (option of discoveryModeOptions; track option.key) {
             <option
               [value]="option.key"
@@ -21,19 +21,19 @@
         </select>
       </div>
 
-      <label class="checkbox-item inline-item">
+      <label class="checkbox-item inline-item app-choice">
         <input type="checkbox" formControlName="showPreferenceBadges" />
         <span>Exibir sinais de preferências</span>
       </label>
 
-      <label class="checkbox-item inline-item">
+      <label class="checkbox-item inline-item app-choice">
         <input type="checkbox" formControlName="showIntentPublicly" />
         <span>Exibir disponibilidade publicamente</span>
       </label>
     </div>
   </section>
 
-  <footer class="form-actions">
+  <footer class="form-actions app-form-actions">
     <button
       type="submit"
       class="app-action app-action--primary"
