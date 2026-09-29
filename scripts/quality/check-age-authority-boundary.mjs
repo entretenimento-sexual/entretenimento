@@ -8,6 +8,7 @@
 // - adultConsent é consentimento e nunca prova de idade;
 // - ageReverification é processo/caso e não substitui a autoridade canônica;
 // - users/{uid}.ageVerification é legado e não pode voltar a conceder acesso.
+// - users/{uid}.idade é dado social de perfil e nunca prova de maioridade.
 //
 // O identificador legado só pode existir:
 // - no serviço Angular de compatibilidade fail-closed;
@@ -129,6 +130,27 @@ for (const absolutePath of walk(functionsRoot, ['.ts'])) {
     /\bageVerification\b/g,
     'Functions não podem ler/escrever o legado ageVerification'
   );
+}
+
+const socialAgeMustNotAuthorize = Object.freeze([
+  'functions/src/compliance/age-eligibility.policy.ts',
+  'functions/src/compliance/age-eligibility.service.ts',
+  'functions/src/compliance/accept-adult-self-declaration.handler.ts',
+  'functions/src/compliance/refresh-my-age-eligibility.handler.ts',
+  'src/app/core/services/compliance/age-eligibility.service.ts',
+  'src/app/core/guards/compliance/age-eligibility.guard.ts',
+]);
+
+for (const relativePath of socialAgeMustNotAuthorize) {
+  const absolutePath = path.join(root, relativePath);
+  if (!fs.existsSync(absolutePath)) continue;
+
+  const scanned = codeOnly(fs.readFileSync(absolutePath, 'utf8'));
+  if (/\bidade\b/.test(scanned)) {
+    violations.push(
+      `${relativePath} (idade social não pode participar da autoridade etária)`
+    );
+  }
 }
 
 const angularRoot = path.join(root, 'src', 'app');
