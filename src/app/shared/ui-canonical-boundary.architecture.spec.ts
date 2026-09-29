@@ -31,6 +31,8 @@ const CANONICAL_ACTION_TEMPLATES = [
   'src/app/media/photos/photo-upload/photo-upload.component.html',
   'src/app/community/discovery/community-discovery-page.component.html',
   'src/app/subscriptions/subscription-plan/subscription-plan.component.html',
+  'src/app/explore/pages/social-explore-page/social-explore-page.component.html',
+  'src/app/user-profile/user-profile-view/user-profile-view.component.html',
 ] as const;
 
 const CANONICAL_HEADER_TEMPLATES = [
@@ -52,6 +54,8 @@ const CANONICALIZED_STYLES = [
   'src/app/media/photos/photo-upload/photo-upload.component.css',
   'src/app/community/discovery/community-discovery-page.component.css',
   'src/app/subscriptions/subscription-plan/subscription-plan.component.css',
+  'src/app/explore/pages/social-explore-page/social-explore-page.component.css',
+  'src/app/user-profile/user-profile-view/user-profile-view.component.css',
 ] as const;
 
 describe('Canonical UI boundary', () => {
