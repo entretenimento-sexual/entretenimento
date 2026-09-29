@@ -5,11 +5,9 @@
 }
 
 .social-feed-page {
-  width: min(100%, 44rem);
-  margin: 0 auto;
-  padding:
+  min-width: 0;
+  padding-block:
     clamp(0.65rem, 1.8vw, 1rem)
-    clamp(0.55rem, 2vw, 0.85rem)
     clamp(2.5rem, 5vw, 4rem);
 }
 
@@ -19,9 +17,6 @@
   align-items: center;
   gap: 0.65rem;
   padding: 0.55rem 0.65rem;
-  border: 1px solid var(--surface-border, rgb(255 255 255 / 10%));
-  border-radius: 1rem;
-  background: var(--surface-color, #101925);
 }
 
 .feed-composer__avatar {
