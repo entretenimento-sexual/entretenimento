@@ -188,11 +188,7 @@ service cloud.firestore {
         && request.time < validUntil;
     }
 
-    function canonicalAgeEligibilityIsVerifiedAdult(userId) {
-      let eligibilityPath = canonicalAgeEligibilityPath(userId);
-      let eligibility = signedIn()
-        ? get(eligibilityPath).data
-        : null;
+    function canonicalAgeEligibilityRecordIsVerifiedAdult(userId, eligibility) {
       let verifiedAt = eligibility is map
         ? mapFieldOrNull(eligibility, "verifiedAt")
         : null;
@@ -210,6 +206,18 @@ service cloud.firestore {
           expiresAt == null
           || (expiresAt is timestamp && request.time < expiresAt)
         );
+    }
+
+    function canonicalAgeEligibilityIsVerifiedAdult(userId) {
+      let eligibilityPath = canonicalAgeEligibilityPath(userId);
+      let eligibility = signedIn()
+        ? get(eligibilityPath).data
+        : null;
+
+      return canonicalAgeEligibilityRecordIsVerifiedAdult(
+        userId,
+        eligibility
+      );
     }
 
     function currentUserHasAdultAgeAccess() {
@@ -237,8 +245,24 @@ service cloud.firestore {
     }
 
     function canConsumeAdultPublicMedia() {
-      return currentUserCanUseAdultSocialPlatform()
-        && currentUserHasVerifiedAdultAge();
+      let userPath = currentPrivateUserPath();
+      let agePath = canonicalAgeEligibilityPath(uid());
+      let user = signedIn()
+        ? get(userPath).data
+        : null;
+      let eligibility = signedIn()
+        ? get(agePath).data
+        : null;
+
+      return user is map
+        && adultMediaLifecycleAllowsAccess(user)
+        && adultMediaHasCurrentTerms(user)
+        && adultMediaHasRequiredConsent(user)
+        && adultMediaAgeReverificationAllowsAccess(user)
+        && canonicalAgeEligibilityRecordIsVerifiedAdult(
+          uid(),
+          eligibility
+        );
     }
 
     // ===============================================================
