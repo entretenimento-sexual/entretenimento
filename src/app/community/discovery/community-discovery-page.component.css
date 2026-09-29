@@ -8,6 +8,10 @@
   min-width: 0;
 }
 
+.community-discovery app-page-header .app-action {
+  min-height: var(--tap-target, 2.75rem);
+}
+
 .community-discovery__filter-strip::-webkit-scrollbar {
   display: none;
 }
