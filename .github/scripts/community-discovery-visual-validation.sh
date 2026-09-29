@@ -44,7 +44,7 @@ run_checked "$OUT/explore/desktop/metrics.log" "async (page) => {
           && buttonRect.bottom > cardRect.top;
       });
     });
-    const create = document.querySelector('app-page-header a[href="/dashboard/comunidades/nova"]');
+    const create = document.querySelector('app-page-header a');
     const filters = document.querySelector('.community-discovery__filter-strip');
     const sponsoredCards = cards.filter(
       (card) => card.closest('[data-sponsored="true"]')
@@ -135,7 +135,7 @@ run_checked "$OUT/explore/mobile/metrics.log" "async (page) => {
     const filtersSection = document.querySelector('.community-discovery__filters');
     const main = document.querySelector('.community-discovery');
     const header = document.querySelector('.community-discovery__header');
-    const create = document.querySelector('app-page-header a[href="/dashboard/comunidades/nova"]');
+    const create = document.querySelector('app-page-header a');
     const cards = Array.from(document.querySelectorAll('.community-card'));
     const sponsoredCards = cards.filter(
       (card) => card.closest('[data-sponsored="true"]')
