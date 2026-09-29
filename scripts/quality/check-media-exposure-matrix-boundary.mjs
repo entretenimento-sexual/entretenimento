@@ -42,7 +42,8 @@ requireIncludes(helpers, [
   'suspended != true',
   'publicVisibility == null || publicVisibility == "visible"',
   'loginAllowed != false',
-  'canonicalAgeEligibilityAllowsAdultAccess',
+  'canonicalAgeEligibilityIsVerifiedAdult',
+  'canConsumeAdultPublicMedia',
   'bilateralExposureAllows',
 ], 'helpers canônicos');
 
@@ -53,7 +54,7 @@ for (const rulePath of [
   const source = read(rulePath);
   requireIncludes(source, [
     'canonicalOwnerLifecycleAllowsPublicMediaExposure(userId)',
-    'canonicalAgeEligibilityAllowsAdultAccess(userId)',
+    'canonicalAgeEligibilityIsVerifiedAdult(userId)',
     'bilateralExposureAllows(userId)',
     'moderationStatus == "APPROVED"',
     'allow list: if false;',
