@@ -6,7 +6,7 @@
 //
 // Invariantes:
 // - somente transição para APPROVED + PUBLIC/FRIENDS pode distribuir;
-// - trendScore não participa de elegibilidade, cadence ou caps;
+// - temporal trend signal não participa de elegibilidade, cadence ou caps;
 // - caps abaixo são limites defensivos de custo/ruído, não calibração de produto;
 // - dedupe é estável por recipient + owner + mediaType + mediaId;
 // - preferência `media=false` suprime criação in-app e push;
