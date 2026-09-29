@@ -38,114 +38,18 @@
   gap: 10px;
 }
 
-/* Cabeçalho ---------------------------------------------------------------- */
+/* Cabeçalho e ações --------------------------------------------------------- */
 
-.photo-manager__summary,
-.photo-manager__summary.app-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3, 16px);
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-}
-
-.photo-manager__copy,
-.photo-manager__copy.app-toolbar__summary {
-  display: grid;
-  gap: 4px;
+.photo-manager__summary {
   min-width: 0;
 }
 
-.photo-manager__eyebrow {
-  color: color-mix(in oklab, var(--primary-color, #ff7070) 74%, var(--text-color, #f5f7fb));
-  font-size: 0.72rem;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  line-height: 1.1;
-  text-transform: uppercase;
-}
-
-.photo-manager__copy h3 {
-  margin: 0;
-  color: var(--text-color, #f5f7fb);
-  font-size: clamp(1rem, 2vw, 1.18rem);
-  font-weight: 900;
-  line-height: 1.15;
-}
-
-.photo-manager__summary p {
-  margin: 0;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
-  font-size: 0.9rem;
-  line-height: 1.35;
-}
-
-.photo-manager__summary strong {
-  color: var(--text-color, #f5f7fb);
-  font-weight: 850;
-}
-
-.photo-manager__copy span:not(.photo-manager__eyebrow) {
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 58%, transparent);
-  font-size: 0.78rem;
-  line-height: 1.3;
-}
-
-/* Toolbar ------------------------------------------------------------------ */
-
-.photo-manager__toolbar,
-.photo-manager__toolbar.app-toolbar__controls {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  flex-wrap: wrap;
+.photo-manager__copy {
   min-width: 0;
 }
 
-.photo-manager__link,
-.photo-manager__link.app-action {
-  min-height: 34px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 7px 12px;
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--surface-color, #101923) 92%, black 8%);
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 82%, transparent);
-  cursor: pointer;
-  font-size: 0.78rem;
-  font-weight: 850;
-  line-height: 1;
-  text-decoration: none;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.photo-manager__link:hover,
-.photo-manager__link:focus-visible {
-  color: var(--text-color, #f5f7fb);
-  border-color: color-mix(
-    in oklab,
-    var(--primary-color, #ff7070) 34%,
-    var(--surface-border, rgba(255, 255, 255, 0.12))
-  );
-  background: color-mix(in oklab, var(--primary-color, #ff7070) 14%, transparent);
-}
-
-.photo-manager__link:focus-visible {
-  outline: var(--focus-ring, 2px solid rgba(255, 112, 112, 0.9));
-  outline-offset: var(--focus-offset, 2px);
-}
-
-.photo-manager__link--primary,
-.photo-manager__link--primary.app-action {
-  border-color: color-mix(in oklab, var(--primary-color, #ff7070) 48%, transparent);
-  background: color-mix(in oklab, var(--primary-color, #ff7070) 22%, transparent);
-  color: var(--text-color, #f5f7fb);
+.photo-manager__toolbar {
+  min-width: 0;
 }
 
 .photo-manager__toggle {
@@ -193,13 +97,6 @@
 }
 
 /* Estados ------------------------------------------------------------------ */
-
-.photo-manager__collapsed-text {
-  margin: 0;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 68%, transparent);
-  font-size: 0.9rem;
-  line-height: 1.4;
-}
 
 .empty-state,
 .empty-state.app-empty-card {
@@ -376,23 +273,6 @@
     gap: 12px;
   }
 
-  .photo-manager__summary,
-  .photo-manager__summary.app-toolbar {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .photo-manager__toolbar,
-  .photo-manager__toolbar.app-toolbar__controls {
-    width: 100%;
-    justify-content: stretch;
-  }
-
-  .photo-manager__link,
-  .photo-manager__link.app-action {
-    flex: 1 1 auto;
-  }
-
   .photo-sort,
   .photo-sort.app-segmented {
     width: 100%;
@@ -401,10 +281,6 @@
   .photo-sort__button,
   .photo-sort__button.app-segmented__button {
     flex: 1 1 0;
-  }
-
-  .photo-manager__summary p {
-    font-size: 0.84rem;
   }
 
   .photo-grid,
@@ -477,8 +353,7 @@
 html.high-contrast .photo-item,
 html.high-contrast .photo-date,
 html.high-contrast .delete-button,
-html.high-contrast .photo-sort,
-html.high-contrast .photo-manager__link {
+html.high-contrast .photo-sort {
   border-color: currentColor !important;
   box-shadow: none !important;
 }
