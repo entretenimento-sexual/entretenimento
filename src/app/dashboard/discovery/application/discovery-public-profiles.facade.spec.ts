@@ -66,6 +66,7 @@ describe('DiscoveryPublicProfilesFacade', () => {
 
   const intentStatusMock = {
     watchActiveStatusesForUserRegion$: vi.fn(() => of([])),
+    watchActiveStatusesForRegion$: vi.fn(() => of([])),
     watchCurrentStatus$: vi.fn(() => of(null)),
   };
 
@@ -74,6 +75,7 @@ describe('DiscoveryPublicProfilesFacade', () => {
     storeMock.select.mockReturnValue(of(emptyDiscoveryFeedSlice));
     visibleLocationRepositoryMock.watchByUids$.mockReturnValue(of([]));
     intentStatusMock.watchActiveStatusesForUserRegion$.mockReturnValue(of([]));
+    intentStatusMock.watchActiveStatusesForRegion$.mockReturnValue(of([]));
     intentStatusMock.watchCurrentStatus$.mockReturnValue(of(null));
     cardEnrichmentMock.buildCardsResult.mockReturnValue({
       profiles: [],
@@ -193,7 +195,7 @@ describe('DiscoveryPublicProfilesFacade', () => {
       debugSummary: {},
     });
 
-    intentStatusMock.watchActiveStatusesForUserRegion$.mockReturnValue(
+    intentStatusMock.watchActiveStatusesForRegion$.mockReturnValue(
       of([
         {
           id: 'current_profile-1',
@@ -243,8 +245,8 @@ describe('DiscoveryPublicProfilesFacade', () => {
     const facade = TestBed.inject(DiscoveryPublicProfilesFacade);
     const state = await firstValueFrom(facade.state$);
 
-    expect(intentStatusMock.watchActiveStatusesForUserRegion$).toHaveBeenCalledWith(
-      'viewer',
+    expect(intentStatusMock.watchActiveStatusesForRegion$).toHaveBeenCalledWith(
+      { uf: 'RJ', city: 'rio de janeiro' },
       expect.objectContaining({
         ownerUids: ['profile-1'],
       })
