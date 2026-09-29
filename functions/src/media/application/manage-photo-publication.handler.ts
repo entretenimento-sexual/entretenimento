@@ -79,11 +79,6 @@ interface PublishPhotoResponse {
   moderationStatus: ModerationStatus;
 }
 
-interface UnpublishPhotoRequest {
-  ownerUid?: string;
-  photoId?: string;
-}
-
 interface SetCoverPhotoRequest {
   ownerUid?: string;
   photoId?: string;
@@ -455,80 +450,6 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
       photoId,
       moderationStatus,
     };
-  }
-);
-
-/**
- * Implementação histórica mantida somente dentro deste módulo por
- * compatibilidade interna durante a migração. O export público `unpublishPhoto`
- * é redirecionado pelo media/index.ts para um handler fail-closed.
- */
-export const unpublishPhoto = onCall<UnpublishPhotoRequest>(
-  { region: FUNCTIONS_REGION },
-  async (request): Promise<{ photoId: string }> => {
-    const requesterUid = request.auth?.uid ?? null;
-    const ownerUid = cleanId(request.data?.ownerUid);
-    const photoId = cleanId(request.data?.photoId);
-
-    if (!ownerUid || !photoId) {
-      throw new HttpsError('invalid-argument', 'Foto inválida.');
-    }
-
-    assertOwner(requesterUid, ownerUid);
-
-    const now = Date.now();
-    const batch = db.batch();
-    const publicationRef = db.doc(
-      `users/${ownerUid}/photo_publications/${photoId}`
-    );
-    const publicPhotoRef = db.doc(
-      `public_profiles/${ownerUid}/public_photos/${photoId}`
-    );
-    const publicationSnap = await publicationRef.get();
-    const publication = publicationSnap.exists
-      ? (publicationSnap.data() as PhotoPublicationDoc)
-      : null;
-
-    if (isModerationLockedPublication(publication)) {
-      throw new HttpsError(
-        'failed-precondition',
-        'Esta foto está temporariamente preservada durante uma análise de segurança.'
-      );
-    }
-
-    batch.set(
-      publicationRef,
-      {
-        ownerUid,
-        photoId,
-        isPublished: false,
-        visibility: 'PRIVATE',
-        caption: FieldValue.delete(),
-        isCover: false,
-        commentsEnabled: false,
-        commentsPolicy: 'OFF',
-        reactionsEnabled: false,
-        moderationStatus: 'PRIVATE',
-        updatedAt: now,
-        publishedStoragePath: FieldValue.delete(),
-        sourceStoragePath: FieldValue.delete(),
-        assetVersion: FieldValue.delete(),
-      },
-      { merge: true }
-    );
-
-    batch.delete(publicPhotoRef);
-    await batch.commit();
-
-    await deletePublishedPhotoAssetOrQueue({
-      ownerUid,
-      photoId,
-      storagePath: publication?.publishedStoragePath,
-      reason: 'unpublish-photo',
-    });
-    await refreshPublicProfileMediaMetrics(ownerUid);
-
-    return { photoId };
   }
 );
 
