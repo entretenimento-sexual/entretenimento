@@ -71,11 +71,11 @@ export class ProfileCompletionService {
       },
       {
         id: 'age',
-        title: 'Idade',
-        description: 'Ajuda outras pessoas a saber a idade de quem está interagindo com elas.',
+        title: 'Idade no perfil',
+        description: 'Idade exibida socialmente no perfil. Isso não repete nem substitui sua confirmação de maioridade 18+.',
         completed: this.hasProfileAge(user.idade),
         required: true,
-        actionLabel: 'Informar idade',
+        actionLabel: 'Informar idade no perfil',
         routerLink: ['/perfil', uid, 'editar-dados-pessoais'],
       },
       {
