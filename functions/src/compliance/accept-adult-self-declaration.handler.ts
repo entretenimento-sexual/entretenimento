@@ -217,38 +217,6 @@ export const acceptAdultSelfDeclaration =
           nowMs,
         });
 
-        if (current.status === 'VERIFIED_ADULT' && current.allowed) {
-          const projection = projectionFromCanonicalAgeDecision(
-            current,
-            nowMs
-          );
-
-          if (projection) {
-            transaction.set(
-              userRef,
-              {
-                ageEligibility: projection,
-                updatedAt: FieldValue.serverTimestamp(),
-              },
-              { merge: true }
-            );
-          }
-
-          if (!projection) {
-            throw new HttpsError(
-              'internal',
-              'A projeção canônica de maioridade não pôde ser reconstruída.'
-            );
-          }
-
-          return {
-            uid,
-            status: 'VERIFIED_ADULT' as const,
-            declaredAtMs: null,
-            ageEligibility: projection,
-          };
-        }
-
         if (current.status === 'DENIED_UNDERAGE') {
           throw new HttpsError(
             'permission-denied',
@@ -339,6 +307,36 @@ export const acceptAdultSelfDeclaration =
             privacyNoticeVersion: legal.privacyNoticeVersion,
             recordedAt: FieldValue.serverTimestamp(),
           });
+        }
+
+        if (current.status === 'VERIFIED_ADULT' && current.allowed) {
+          const projection = projectionFromCanonicalAgeDecision(
+            current,
+            nowMs
+          );
+
+          if (!projection) {
+            throw new HttpsError(
+              'internal',
+              'A projeção canônica de maioridade não pôde ser reconstruída.'
+            );
+          }
+
+          transaction.set(
+            userRef,
+            {
+              ageEligibility: projection,
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+
+          return {
+            uid,
+            status: 'VERIFIED_ADULT' as const,
+            declaredAtMs,
+            ageEligibility: projection,
+          };
         }
 
         if (current.status === 'SELF_DECLARED_ADULT' && current.allowed) {
