@@ -1,7 +1,7 @@
 <!-- src/app/preferences/pages/notification-settings/notification-settings.component.html -->
 
 <main class="notification-settings-page app-page" aria-label="Preferências de notificação">
-  <section class="notification-settings-shell stack">
+  <section class="notification-settings-shell stack container">
     <app-page-header title="Notificações">
       <a
         page-actions
@@ -16,7 +16,7 @@
 
     @if (pushDeviceVm$ | async; as pushVm) {
       <section
-        class="push-device-card"
+        class="push-device-card app-card app-card--flat"
         aria-labelledby="push-device-title"
         [attr.aria-busy]="pushVm.busy || null"
       >
@@ -24,7 +24,7 @@
           <div class="push-device-card__heading">
             <h2 id="push-device-title">Notificações neste navegador</h2>
             <span
-              class="push-device-card__status"
+              class="push-device-card__status app-chip app-chip--muted"
               [attr.data-state]="pushVm.state"
             >
               {{ pushStateLabel(pushVm.state) }}
@@ -98,7 +98,7 @@
       @let readState = ((readState$ | async) || 'loading');
       @let busyKeys = ((busyKeys$ | async) || null);
 
-      <section class="notification-settings-panel" aria-label="Tipos de notificação">
+      <section class="notification-settings-panel app-card app-card--flat" aria-labelledby="notification-types-title">\n        <h2 id="notification-types-title" class="sr-only">Tipos de notificação</h2>
         @if (vm.loading || readState === 'loading') {
           <div class="notification-settings-state" role="status" aria-live="polite">
             Carregando preferências...
@@ -119,15 +119,15 @@
           @for (option of options; track trackOption($index, option)) {
             <article class="notification-option">
               <div class="notification-option__copy">
-                <h2>{{ option.title }}</h2>
+                <strong class="notification-option__title">{{ option.title }}</strong>
                 <p>{{ option.description }}</p>
 
                 @if (option.locked) {
-                  <span class="notification-option__locked">Sempre ativo</span>
+                  <span class="notification-option__locked app-chip app-chip--muted">Sempre ativo</span>
                 }
               </div>
 
-              <label class="notification-toggle">
+              <label class="notification-toggle app-toggle">
                 <input
                   type="checkbox"
                   [checked]="isEnabled(vm.preferences, option.key)"
@@ -135,8 +135,8 @@
                   [attr.aria-busy]="busyKeys?.has(option.key) || null"
                   (change)="onToggle(option.key, $any($event.target).checked)"
                 />
-                <span class="notification-toggle__track" aria-hidden="true">
-                  <span class="notification-toggle__thumb"></span>
+                <span class="notification-toggle__track app-toggle__track" aria-hidden="true">
+                  <span class="notification-toggle__thumb app-toggle__thumb"></span>
                 </span>
                 <span class="sr-only">
                   {{ isEnabled(vm.preferences, option.key) ? 'Desativar' : 'Ativar' }} {{ option.title }}
