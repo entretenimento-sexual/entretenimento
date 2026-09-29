@@ -1,9 +1,9 @@
 <!-- src/app/register-module/register.component.html -->
 <div class="auth-container">
   <section class="auth-intro" aria-labelledby="register-intro-title">
-    <h1 id="register-intro-title">Conta simples. Perfil depois.</h1>
+    <h1 id="register-intro-title">Criar conta</h1>
     <p>
-      Crie seu acesso e avance para configurar sua presença na plataforma.
+      Comece pelo acesso. Seu perfil pode ser completado depois.
     </p>
   </section>
 
@@ -29,31 +29,31 @@
       </span>
 
       <div *ngIf="b.variant === 'info'" class="actions">
-        <a class="btn btn-ghost" routerLink="/login">Entrar ou recuperar acesso</a>
+        <a class="app-action app-action--ghost" routerLink="/login">Entrar ou recuperar acesso</a>
       </div>
 
       <div *ngIf="debugEnabled()" class="actions">
-        <button class="btn btn-secondary" type="button" (click)="onSubmit()" [disabled]="isLoading() || creating()">
+        <button class="app-action app-action--ghost" type="button" (click)="onSubmit()" [disabled]="isLoading() || creating()">
           Tentar novamente
         </button>
 
-        <button class="btn" type="button" (click)="syncSessionNow()" [disabled]="syncing()">
+        <button class="app-action app-action--ghost" type="button" (click)="syncSessionNow()" [disabled]="syncing()">
           Sincronizar sessão
         </button>
 
-        <button class="btn" type="button" (click)="resetForm()" [disabled]="isLoading() || creating()">
+        <button class="app-action app-action--ghost" type="button" (click)="resetForm()" [disabled]="isLoading() || creating()">
           Refazer cadastro
         </button>
 
-        <button class="btn" type="button" (click)="toggleTech()">
+        <button class="app-action app-action--ghost" type="button" (click)="toggleTech()">
           {{ showTech() ? 'Ocultar detalhes' : 'Mostrar detalhes técnicos' }}
         </button>
 
-        <button *ngIf="b.details" class="btn" type="button" (click)="copyDetails()">
+        <button *ngIf="b.details" class="app-action app-action--ghost" type="button" (click)="copyDetails()">
           Copiar detalhes
         </button>
 
-        <button class="btn" type="button" (click)="reloadPage()">
+        <button class="app-action app-action--ghost" type="button" (click)="reloadPage()">
           Recarregar
         </button>
       </div>
@@ -61,11 +61,10 @@
       <pre *ngIf="debugEnabled() && showTech() && b.details">{{ b.details }}</pre>
     </div>
 
-    <form [formGroup]="form" (ngSubmit)="onSubmit()" aria-labelledby="form-title" autocomplete="on" novalidate
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" aria-label="Dados de acesso" autocomplete="on" novalidate
       formInvalidMessage="Revise os dados do cadastro antes de continuar."
       [attr.aria-busy]="(isLoading() || creating()) ? 'true' : null">
 
-      <h2 id="form-title" class="form-header">Crie seu cadastro</h2>
 
       <!-- Apelido principal -->
       <div class="form-field nickname-field">
@@ -323,7 +322,7 @@
         </div>
       </div>
 
-      <button class="btn btn-primary" type="submit"
+      <button class="app-action app-action--primary" type="submit"
         [appActionState]="isLoading() || creating()"
         [actionDisabled]="nicknameChecking()">
         {{ isLoading() || creating() ? 'Criando conta…' : nicknameChecking() ? 'Validando apelido…' : 'Cadastrar' }}
