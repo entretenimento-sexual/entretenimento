@@ -1,6 +1,6 @@
 <!-- src\app\preferences\pages\preferences-hub\preferences-hub.component.html -->
 <main class="preferences-hub-page app-page" aria-label="Preferências da conta">
-  <section class="preferences-hub-shell stack">
+  <section class="preferences-hub-shell stack container-wide">
     <app-preferences-page-header title="Preferências">
       <a
         page-actions
@@ -66,12 +66,12 @@
           }
         </section>
       } @else {
-        <section class="hub-empty section" aria-label="Sem sessão ativa">
+        <section class="hub-empty section app-card app-card--flat" aria-label="Sem sessão ativa">
           <p>Você precisa estar autenticado para acessar suas preferências.</p>
         </section>
       }
     } @else {
-      <section class="hub-empty section" aria-label="Carregando preferências">
+      <section class="hub-empty section app-card app-card--flat" aria-label="Carregando preferências">
         <p>Carregando suas preferências...</p>
       </section>
     }
