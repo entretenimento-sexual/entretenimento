@@ -6,29 +6,27 @@
   @let communityUnreadCount = ((communityUnreadCount$ | async) || 0);
   @let notificationItems = ((notificationTimelineItems$ | async) || []);
 
-  <section class="notifications-page" aria-labelledby="notifications-title">
-    <header class="notifications-hero notifications-hero--compact">
-      <h1 id="notifications-title">Notificações</h1>
-
+  <section class="notifications-page container-feed" aria-label="Notificações">
+    <app-page-header title="Notificações">
       @if (!vm.loading && readState !== 'error') {
-        <div class="notifications-hero__actions">
+        <div page-actions class="notifications-page__actions">
           @if (vm.unreadCount > 0) {
             <span
-              class="notifications-hero__count"
+              class="app-chip app-chip--muted"
               [attr.aria-label]="vm.unreadCount + (vm.unreadCount === 1 ? ' notificação não lida' : ' notificações não lidas')"
             >
               {{ vm.unreadCount }} nova{{ vm.unreadCount === 1 ? '' : 's' }}
             </span>
           }
 
-          <a class="notifications-hero__button" routerLink="/preferencias/notificacoes">
+          <a class="app-action app-action--ghost" routerLink="/preferencias/notificacoes">
             Preferências
           </a>
 
           @if (vm.unreadCount > 0) {
             <button
               type="button"
-              class="notifications-hero__button"
+              class="app-action app-action--ghost"
               (click)="markAllAsRead()"
               [disabled]="markAllBusy"
               [attr.aria-busy]="markAllBusy"
@@ -38,14 +36,14 @@
           }
         </div>
       }
-    </header>
+    </app-page-header>
 
     @if (
       !vm.loading
       && readState !== 'error'
       && (communitySummaries.length > 0 || communityUnreadCount > 0)
     ) {
-      <section class="community-activity" aria-labelledby="community-activity-title">
+      <section class="community-activity app-card app-card--flat" aria-labelledby="community-activity-title">
         <div class="community-activity__header">
           <div>
             <h2 id="community-activity-title">Comunidades</h2>
@@ -58,7 +56,7 @@
 
           @if (communityUnreadCount > 0) {
             <span
-              class="community-activity__total"
+              class="community-activity__total app-chip app-chip--muted"
               [attr.aria-label]="communityUnreadCount + (communityUnreadCount === 1 ? ' atividade de comunidade não lida' : ' atividades de comunidades não lidas')"
             >
               {{ communityUnreadCount }} pendente{{ communityUnreadCount === 1 ? '' : 's' }}
@@ -84,7 +82,7 @@
                   <div class="community-activity__meta">
                     <strong>{{ activity.title }}</strong>
                     <span
-                      class="community-activity__status"
+                      class="community-activity__status app-chip app-chip--muted"
                       [class.community-activity__status--priority]="summary.hasPriorityUnread"
                     >
                       {{ communitySummaryLabel(summary) }}
@@ -98,7 +96,7 @@
                 @if (notificationRoute(activity)) {
                   <button
                     type="button"
-                    class="community-activity__open"
+                    class="community-activity__open app-action app-action--ghost"
                     (click)="openCommunitySummary(summary)"
                     [disabled]="isBusy(activity.id)"
                     [attr.aria-busy]="isBusy(activity.id)"
@@ -116,7 +114,7 @@
               Acesse Minhas comunidades para revisar as pendências. Abrir a lista não altera o estado de leitura das atividades.
             </p>
             <a
-              class="community-activity__fallback-link"
+              class="community-activity__fallback-link app-action app-action--ghost"
               routerLink="/dashboard/comunidades/minhas"
             >
               Ver minhas Comunidades
@@ -127,26 +125,25 @@
     }
 
     @if (vm.loading || readState === 'loading') {
-      <div class="notifications-state" role="status" aria-live="polite">
-        Carregando notificações...
-      </div>
+      <app-content-state
+        state="loading"
+        message="Carregando notificações."
+        [compact]="true"
+      />
     } @else if (readState === 'error') {
-      <div class="notifications-state notifications-state--error" role="alert">
-        <strong>Não foi possível carregar as notificações.</strong>
-        <span>Tente novamente. Se o problema continuar, volte em alguns instantes.</span>
-        <button
-          type="button"
-          class="notifications-state__retry"
-          (click)="retryNotifications()"
-        >
-          Tentar novamente
-        </button>
-      </div>
+      <app-content-state
+        state="error"
+        title="Não foi possível carregar as notificações"
+        message="Tente novamente. Se o problema continuar, volte em alguns instantes."
+        actionLabel="Tentar novamente"
+        (action)="retryNotifications()"
+      />
     } @else if (vm.items.length === 0 && communityUnreadCount === 0) {
-      <div class="notifications-state notifications-state--empty" role="status">
-        <strong>Nenhuma notificação.</strong>
-        <span>Atualizações importantes aparecerão aqui.</span>
-      </div>
+      <app-content-state
+        state="empty"
+        title="Nenhuma notificação"
+        message="Atualizações importantes aparecerão aqui."
+      />
     } @else if (notificationItems.length > 0) {
       <div
         class="notifications-list"
@@ -176,7 +173,7 @@
                   @if (notificationRoute(item)) {
                     <button
                       type="button"
-                      class="notification-card__link notification-card__link--button"
+                      class="notification-card__link notification-card__link--button app-action app-action--ghost"
                       (click)="openNotification(item)"
                       [disabled]="isBusy(item.id)"
                       [attr.aria-busy]="isBusy(item.id)"
@@ -188,7 +185,7 @@
                   @if (item.readAt === null) {
                     <button
                       type="button"
-                      class="notification-card__link notification-card__link--button"
+                      class="notification-card__link notification-card__link--button app-action app-action--ghost"
                       (click)="markAsRead(item)"
                       [disabled]="isBusy(item.id)"
                       [attr.aria-busy]="isBusy(item.id)"
