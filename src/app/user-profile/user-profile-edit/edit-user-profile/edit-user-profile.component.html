@@ -82,6 +82,30 @@
       </div>
 
       <div class="form-field">
+        <label class="form-label" for="idade">Idade</label>
+        <input
+          id="idade"
+          type="number"
+          class="input-field"
+          formControlName="idade"
+          name="idade"
+          min="18"
+          max="100"
+          inputmode="numeric"
+          autocomplete="off"
+          aria-describedby="idade-help"
+        />
+        <p id="idade-help" class="help-text">
+          Esta idade aparece no seu perfil para dar contexto a quem interage com você. Ela não substitui a confirmação de maioridade da conta.
+        </p>
+        @if (editForm.get('idade')?.invalid && editForm.get('idade')?.touched) {
+          <div class="field-error" role="alert">
+            Informe uma idade entre 18 e 100 anos.
+          </div>
+        }
+      </div>
+
+      <div class="form-field">
         <label class="form-label" for="estado">Estado</label>
         <select
           id="estado"
