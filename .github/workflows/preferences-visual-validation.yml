@@ -291,7 +291,11 @@ jobs:
             const submit = page.locator('.preference-profile-form button[type=submit]');
             if (await submit.isDisabled()) throw new Error('Corrected form cannot be saved before navigation');
             await submit.click();
-            await page.waitForTimeout(150);
+            await page.waitForFunction(() => {
+              const button = document.querySelector('.preference-profile-form button[type=submit]');
+              const status = document.querySelector('.form-actions__status')?.textContent?.trim() ?? '';
+              return !!button && button.disabled && status === '';
+            });
             const metrics = await page.evaluate(() => ({
               statusText: document.querySelector('.form-actions__status')?.textContent?.trim() ?? '',
               submitDisabled: document.querySelector('.preference-profile-form button[type=submit]')?.disabled ?? false,
@@ -308,7 +312,7 @@ jobs:
           run_checked "$OUT/vip/desktop.metrics.log" "async (page) => {
             await page.waitForSelector('.preferences-editor-page', { state: 'visible' });
             await page.locator('.preference-group__summary').filter({ hasText: 'Preferências avançadas' }).click();
-            await page.locator('.availability-section__summary').click();
+            await page.locator('.availability-section .app-disclosure__summary').click();
             await page.locator('.intent-context__summary').click();
             const metrics = await page.evaluate(() => {
               const advancedGroup = Array.from(document.querySelectorAll('.preference-group')).find((group) =>
@@ -348,7 +352,7 @@ jobs:
           run_checked "$OUT/vip/mobile.metrics.log" "async (page) => {
             await page.waitForSelector('.preferences-editor-page', { state: 'visible' });
             await page.locator('.preference-group__summary').filter({ hasText: 'Preferências avançadas' }).click();
-            await page.locator('.availability-section__summary').click();
+            await page.locator('.availability-section .app-disclosure__summary').click();
             await page.locator('.intent-context__summary').click();
             const metrics = await page.evaluate(() => {
               const shellRect = document.querySelector('.preferences-editor-shell')?.getBoundingClientRect();
