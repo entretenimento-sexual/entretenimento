@@ -24,7 +24,7 @@
 
         @if (usuario$ | async; as usuario) {
           @if (usuario && isOnOwnProfile()) {
-            <section class="profile-card profile-card--hero" aria-label="Dados do perfil">
+            <section class="profile-card app-card profile-card--hero" aria-label="Dados do perfil">
               <header class="profile-header">
                 <div class="profile-identity">
                   <img
@@ -115,7 +115,7 @@
               />
             }
 
-            <section class="profile-card" aria-label="Fotos do perfil">
+            <section class="profile-card app-card" aria-label="Fotos do perfil">
               @if (uid; as currentUid) {
                 <app-user-photo-manager
                   title="Minhas fotos"
@@ -132,7 +132,7 @@
 
             @if (uid; as currentUid) {
               <section
-                class="profile-card profile-media-entry"
+                class="profile-card app-card profile-media-entry"
                 aria-labelledby="profile-video-entry-title"
               >
                 <header class="app-section-header">
