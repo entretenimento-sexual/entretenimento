@@ -332,6 +332,23 @@ if (fs.existsSync(ageRecordRulesPath)) {
   }
 }
 
+const adultDeclarationRulesPath = path.join(
+  root,
+  'firestore-rules',
+  'age_eligibility_records.rules'
+);
+if (fs.existsSync(adultDeclarationRulesPath)) {
+  const source = fs.readFileSync(adultDeclarationRulesPath, 'utf8');
+  if (
+    !source.includes('match /adult_self_declarations/{userId}') ||
+    !/match\s+\/adult_self_declarations\/\{userId\}[\s\S]*?allow\s+read\s*,\s*write\s*:\s*if\s+false\s*;/.test(source)
+  ) {
+    violations.push(
+      'firestore-rules/age_eligibility_records.rules (evidência histórica da autodeclaração deve permanecer backend-only)'
+    );
+  }
+}
+
 const helperPath = path.join(root, 'firestore-rules', '_helpers.rules');
 if (fs.existsSync(helperPath)) {
   const source = fs.readFileSync(helperPath, 'utf8');
@@ -368,6 +385,19 @@ if (fs.existsSync(selfDeclarationHandlerPath)) {
     'projectionFromCanonicalAgeDecision',
     'ageEligibility: projection',
     'compliance_audit',
+    'adult_self_declarations',
+    'transaction.create(declarationRef',
+    'voluntary: true',
+    'explicitConfirmation: true',
+    'immutable: true',
+    'declaredAtMs',
+    'declarationTextVersion',
+    'exactDeclarationTextCaptured',
+    'termsAcceptanceVersion',
+    'termsDocumentVersion',
+    'privacyNoticeVersion',
+    'declarationEvidencePath',
+    'findFirstLegacySelfDeclarationAtMs',
     'enforceAppCheck',
     "'VERIFIED_REQUIRED'",
   ]) {
@@ -381,6 +411,15 @@ if (fs.existsSync(selfDeclarationHandlerPath)) {
   if (/status:\s*['"]VERIFIED_ADULT['"][\s\S]{0,220}confirmsAdult/.test(source)) {
     violations.push(
       'functions/src/compliance/accept-adult-self-declaration.handler.ts (autodeclaração não pode promover diretamente VERIFIED_ADULT)'
+    );
+  }
+
+  if (
+    source.includes('transaction.set(declarationRef') ||
+    source.includes('transaction.update(declarationRef')
+  ) {
+    violations.push(
+      'functions/src/compliance/accept-adult-self-declaration.handler.ts (evidência histórica da primeira declaração deve ser create-once e imutável)'
     );
   }
 }
