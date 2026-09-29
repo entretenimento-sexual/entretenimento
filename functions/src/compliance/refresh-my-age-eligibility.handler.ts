@@ -265,9 +265,9 @@ export const refreshMyAgeEligibility = onCall(
        */
       const declaredAtMs = declarationSnapshot.exists
         ? trustedSelfDeclarationAtMs(
-            declarationSnapshot.data(),
-            uid
-          )
+          declarationSnapshot.data(),
+          uid
+        )
         : null;
 
       if (declaredAtMs !== null) {
