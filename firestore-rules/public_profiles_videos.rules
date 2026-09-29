@@ -20,7 +20,7 @@ match /public_profiles/{userId}/public_videos/{videoId} {
   function publicProfileAllowsAdultExposure() {
     return canonicalOwnerLifecycleAllowsPublicMediaExposure(userId)
       && publicProfileProjectionAllowsAdultExposure()
-      && canonicalAgeEligibilityAllowsAdultAccess(userId);
+      && canonicalAgeEligibilityIsVerifiedAdult(userId);
   }
 
   function videoPath() {
