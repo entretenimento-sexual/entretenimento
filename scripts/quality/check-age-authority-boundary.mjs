@@ -671,6 +671,73 @@ if (fs.existsSync(adultConsentPath)) {
   }
 }
 
+
+const mediaVerifiedBoundaryFiles = Object.freeze([
+  {
+    path: 'functions/src/media/application/public-media-consumption-access.policy.ts',
+    required: [
+      'isVerifiedAdultAgeDecision',
+      "'AGE_VERIFICATION_REQUIRED'",
+    ],
+  },
+  {
+    path: 'functions/src/media/application/manage-photo-publication.handler.ts',
+    required: ['isVerifiedAdultAgeDecision'],
+  },
+  {
+    path: 'functions/src/media/application/manage-video-publication.handler.ts',
+    required: ['isVerifiedAdultAgeDecision'],
+  },
+  {
+    path: 'functions/src/media/application/private-video-upload-eligibility.service.ts',
+    required: ['isVerifiedAdultAgeDecision'],
+  },
+  {
+    path: 'functions/src/media/application/reserve-photo-upload.handler.ts',
+    required: ['assertPublicMediaConsumptionAccess'],
+  },
+  {
+    path: 'firestore-rules/_helpers.rules',
+    required: [
+      'canonicalAgeEligibilityIsVerifiedAdult',
+      'currentUserHasVerifiedAdultAge',
+      'canConsumeAdultPublicMedia',
+    ],
+  },
+  {
+    path: 'firestore-rules/public_profiles_photos.rules',
+    required: [
+      'canConsumeAdultPublicMedia()',
+      'canonicalAgeEligibilityIsVerifiedAdult(userId)',
+    ],
+  },
+  {
+    path: 'firestore-rules/public_profiles_videos.rules',
+    required: [
+      'canConsumeAdultPublicMedia()',
+      'canonicalAgeEligibilityIsVerifiedAdult(userId)',
+    ],
+  },
+]);
+
+for (const boundary of mediaVerifiedBoundaryFiles) {
+  const absolutePath = path.join(root, boundary.path);
+  if (!fs.existsSync(absolutePath)) {
+    violations.push(`${boundary.path} (fronteira forte de Media ausente)`);
+    continue;
+  }
+
+  const source = fs.readFileSync(absolutePath, 'utf8');
+
+  for (const required of boundary.required) {
+    if (!source.includes(required)) {
+      violations.push(
+        `${boundary.path} (Media deve exigir maioridade verificada: ${required})`
+      );
+    }
+  }
+}
+
 const angularAdultSocialBoundaryFiles = Object.freeze([
   {
     path: 'src/app/core/services/autentication/auth/access-control.service.ts',
