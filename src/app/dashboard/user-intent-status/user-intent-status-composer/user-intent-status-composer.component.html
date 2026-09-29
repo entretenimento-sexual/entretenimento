@@ -78,11 +78,6 @@
           <option value="available_today">Disponível hoje</option>
           <option value="planning_later">Planejando ir depois</option>
         </select>
-        @if (!publicIntentAllowed) {
-          <small class="intent-composer__visibility-hint">
-            Para aparecer publicamente em Descobertas, ative a exibição da sua intenção em Preferências.
-          </small>
-        }
       </label>
 
       <label class="intent-composer__field">
@@ -206,6 +201,11 @@
           <option value="members_only">Somente membros</option>
           <option value="friends_only">Somente amigos</option>
         </select>
+        @if (!publicIntentAllowed) {
+          <small class="intent-composer__visibility-hint">
+            Para aparecer publicamente em Descobertas, ative a exibição da sua intenção em Preferências.
+          </small>
+        }
       </label>
 
       <footer class="intent-composer__footer">
