@@ -58,6 +58,7 @@ svg {
 */
 .container,
 .container-reading,
+.container-feed,
 .container-wide,
 .container-ultrawide {
   width: 100%;
@@ -71,6 +72,10 @@ svg {
 
 .container-reading {
   max-width: var(--content-reading, 960px);
+}
+
+.container-feed {
+  max-width: var(--content-feed, 704px);
 }
 
 .container-wide {
