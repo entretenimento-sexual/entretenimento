@@ -66,7 +66,7 @@ describe('get-public-profiles-page temporal boundary', () => {
     );
   });
 
-  it('serializa somente perfil vigente e não reprojeta idade exata legada', () => {
+  it('serializa idade social válida sem usá-la como autoridade etária', () => {
     const serialized = serializePublicProfileForDiscovery(
       'profile-1',
       profile({ age: 41, idade: 42 }),
@@ -75,9 +75,21 @@ describe('get-public-profiles-page temporal boundary', () => {
 
     assert.ok(serialized);
     assert.equal(serialized['uid'], 'profile-1');
-    assert.equal(serialized['age'], null);
+    assert.equal(serialized['age'], 41);
     assert.equal(serialized['ageEligibilityVerifiedAdult'], true);
     assert.equal(serialized['ageEligibilityValidUntil'], NOW + 60_000);
+  });
+
+  it('descarta idade social fora da faixa sem afetar a elegibilidade adulta', () => {
+    const serialized = serializePublicProfileForDiscovery(
+      'profile-invalid-social-age',
+      profile({ age: 17 }),
+      NOW
+    );
+
+    assert.ok(serialized);
+    assert.equal(serialized['age'], null);
+    assert.equal(serialized['ageEligibilityVerifiedAdult'], true);
   });
 
   it('não serializa perfil temporalmente expirado', () => {
