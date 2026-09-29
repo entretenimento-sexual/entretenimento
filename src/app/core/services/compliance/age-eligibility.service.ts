@@ -15,7 +15,16 @@ import {
   runInInjectionContext,
 } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable, concat, from, of, throwError, timer } from 'rxjs';
+import {
+  BehaviorSubject,
+  Observable,
+  combineLatest,
+  concat,
+  from,
+  of,
+  throwError,
+  timer,
+} from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -44,7 +53,15 @@ const UNVERIFIED: IUserAgeEligibility = Object.freeze({
 });
 
 @Injectable({ providedIn: 'root' })
+interface TrustedSessionAgeProjection {
+  uid: string;
+  state: IUserAgeEligibility;
+}
+
 export class AgeEligibilityService {
+  private readonly trustedSessionProjection =
+    new BehaviorSubject<TrustedSessionAgeProjection | null>(null);
+
   constructor(
     private readonly environmentInjector: EnvironmentInjector,
     private readonly currentUser: CurrentUserStoreService,
@@ -52,8 +69,24 @@ export class AgeEligibilityService {
   ) {}
 
   readonly current$: Observable<IUserAgeEligibility> =
-    this.currentUser.user$.pipe(
-      map((user) => this.normalize(user?.ageEligibility)),
+    combineLatest([
+      this.currentUser.user$,
+      this.trustedSessionProjection,
+    ]).pipe(
+      map(([user, trusted]) => {
+        const persisted = this.normalize(user?.ageEligibility);
+        const uid = String(user?.uid ?? '').trim();
+
+        if (
+          persisted.status === 'UNVERIFIED' &&
+          uid &&
+          trusted?.uid === uid
+        ) {
+          return trusted.state;
+        }
+
+        return persisted;
+      }),
       distinctUntilChanged(
         (left, right) =>
           left.status === right.status &&
@@ -137,8 +170,10 @@ export class AgeEligibilityService {
       () => httpsCallable<
         { confirmsAdult: true },
         {
+          uid: string;
           status: 'SELF_DECLARED_ADULT' | 'VERIFIED_ADULT';
           declaredAtMs: number | null;
+          ageEligibility: IUserAgeEligibility;
         }
       >(
         inject(Functions),
@@ -147,7 +182,22 @@ export class AgeEligibilityService {
     );
 
     return from(callable({ confirmsAdult: true })).pipe(
-      map((response) => response.data.status),
+      map((response) => {
+        const uid = String(response.data.uid ?? '').trim();
+        const state = this.normalize(response.data.ageEligibility);
+
+        if (
+          uid &&
+          (
+            state.status === 'SELF_DECLARED_ADULT' ||
+            state.status === 'VERIFIED_ADULT'
+          )
+        ) {
+          this.trustedSessionProjection.next({ uid, state });
+        }
+
+        return response.data.status;
+      }),
       catchError((error) => {
         try {
           this.globalError.handleError(
