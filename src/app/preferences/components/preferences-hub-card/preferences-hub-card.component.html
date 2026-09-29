@@ -1,18 +1,18 @@
 <!-- src\app\preferences\components\preferences-hub-card\preferences-hub-card.component.html -->
- <article class="hub-card">
-  <header class="hub-card-header">
+ <article class="hub-card app-card app-card--flat">
+  <header class="hub-card-header app-card__header">
     <div>
-      <h2 class="hub-card-title">{{ title() }}</h2>
-      <p class="hub-card-description">{{ description() }}</p>
+      <h2 class="hub-card-title app-card__title">{{ title() }}</h2>
+      <p class="hub-card-description app-card__subtitle">{{ description() }}</p>
     </div>
 
     @if (badge()) {
-      <span class="hub-card-badge">{{ badge() }}</span>
+      <span class="hub-card-badge app-chip app-chip--muted">{{ badge() }}</span>
     }
   </header>
 
-  <footer class="hub-card-footer">
-    <a class="btn btn-primary" [routerLink]="route()">
+  <footer class="hub-card-footer app-card__footer">
+    <a class="app-action app-action--primary" [routerLink]="route()">
       Abrir
     </a>
   </footer>
