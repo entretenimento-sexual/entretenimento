@@ -242,6 +242,43 @@
   text-align: center;
 }
 
+.user-card__desire-match {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  padding: 0.5rem 0.56rem;
+  border: 1px solid color-mix(in oklab, var(--uc-accent) 22%, var(--uc-border));
+  border-radius: 0.72rem;
+  background: color-mix(in oklab, var(--uc-accent) 6%, var(--uc-bg));
+  color: var(--uc-text);
+}
+
+.user-card__desire-match > i {
+  flex: 0 0 auto;
+  color: var(--uc-accent);
+}
+
+.user-card__desire-match > span {
+  display: grid;
+  gap: 0.08rem;
+  min-width: 0;
+}
+
+.user-card__desire-match strong {
+  font-size: 0.76rem;
+  line-height: 1.2;
+}
+
+.user-card__desire-match small {
+  overflow: hidden;
+  color: var(--uc-muted);
+  font-size: 0.69rem;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .user-card__description {
   display: -webkit-box;
   overflow: hidden;
