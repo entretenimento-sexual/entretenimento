@@ -36,6 +36,29 @@
       --font-size-base: clamp(15px, 0.35vw + 14px, 16px);
       --line-height-base: 1.5;
 
+      /* primitives semânticos globais de UI */
+      --content-form: 800px;
+
+      --control-height: 44px;
+      --control-height-sm: 40px;
+      --control-radius: 12px;
+      --control-padding-inline: 12px;
+
+      --surface-radius-sm: 12px;
+      --surface-radius-md: 16px;
+      --surface-radius-lg: 22px;
+
+      --app-card-radius: 18px;
+      --app-card-radius-compact: 14px;
+      --app-card-shadow: 0 10px 28px rgb(0 0 0 / 18%);
+      --app-card-shadow-hover: 0 14px 34px rgb(0 0 0 / 24%);
+
+      --font-size-page-title: clamp(1.3rem, 1.18rem + 0.5vw, 1.65rem);
+      --font-size-section-title: clamp(1rem, 0.94rem + 0.3vw, 1.2rem);
+      --font-size-card-title: clamp(1rem, 0.94rem + 0.3vw, 1.2rem);
+      --font-size-label: 0.875rem;
+      --font-size-help: 0.82rem;
+
       /* safe-area (iOS/app webview) */
       --safe-top: env(safe-area-inset-top, 0px);
       --safe-bottom: env(safe-area-inset-bottom, 0px);
