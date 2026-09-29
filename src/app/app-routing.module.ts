@@ -146,7 +146,7 @@ const routes: Routes = [
         canActivate: [guestOnlyCanActivate],
         data: {
           allowUnverified: true,
-          guestAllowAuthenticatedPaths: ['progressive-signup', 'suggested-profiles'],
+          guestAllowAuthenticatedPaths: [],
         },
       },
 
