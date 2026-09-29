@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { provideRouter } from '@angular/router';
-import { Observable, Subject, of } from 'rxjs';
+import { BehaviorSubject, Observable, Subject, of } from 'rxjs';
 import {
   afterEach,
   beforeEach,
@@ -119,8 +119,14 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
   }): Promise<{
     component: PublicVideoViewerComponent;
     hydratePublicVideoUrls$: ReturnType<typeof vi.fn>;
+    invalidatePublicVideoAccess: ReturnType<typeof vi.fn>;
+    viewer$: BehaviorSubject<{ uid: string } | null>;
   }> {
     const hydratePublicVideoUrls$ = vi.fn(input.hydrate);
+    const invalidatePublicVideoAccess = vi.fn();
+    const viewer$ = new BehaviorSubject<{ uid: string } | null>({
+      uid: 'viewer-1',
+    });
     const data: IPublicVideoViewerData = {
       ownerUid: 'owner-1',
       items: input.items,
@@ -136,7 +142,7 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
         { provide: MatDialogRef, useValue: { close: vi.fn() } },
         {
           provide: CurrentUserStoreService,
-          useValue: { user$: of({ uid: 'viewer-1' }) },
+          useValue: { user$: viewer$.asObservable() },
         },
         {
           provide: VideoViewTrackingService,
@@ -149,7 +155,7 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
             refreshPublicVideoUrl$: vi.fn((video: IPublicVideoItem) =>
               of(playbackVersion(video))
             ),
-            invalidatePublicVideoAccess: vi.fn(),
+            invalidatePublicVideoAccess,
           },
         },
         {
@@ -209,6 +215,8 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
     return {
       component: fixture.componentInstance,
       hydratePublicVideoUrls$,
+      invalidatePublicVideoAccess,
+      viewer$,
     };
   }
 
@@ -228,6 +236,65 @@ describe('PublicVideoViewerComponent / lazy playback', () => {
       'video'
     ) as HTMLVideoElement;
     expect(player.getAttribute('src')).toBe(playback.url);
+  });
+
+  it('troca de conta solta a URL anterior e reautoriza o vídeo atual', async () => {
+    const preview = createVideo('video-1', null);
+    const firstPlayback = {
+      ...playbackVersion(preview),
+      url: 'https://example.test/video-1.mp4?token=viewer-a',
+    };
+    const secondPlayback = {
+      ...playbackVersion(preview),
+      url: 'https://example.test/video-1.mp4?token=viewer-b',
+    };
+    let hydration = 0;
+    const context = await createFixture({
+      items: [preview],
+      hydrate: () => of(hydration++ === 0 ? [firstPlayback] : [secondPlayback]),
+    });
+
+    const player = fixture!.nativeElement.querySelector(
+      'video'
+    ) as HTMLVideoElement;
+    expect(player.getAttribute('src')).toBe(firstPlayback.url);
+
+    context.viewer$.next({ uid: 'viewer-2' });
+    fixture!.detectChanges();
+
+    expect(context.invalidatePublicVideoAccess).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'video-1', url: firstPlayback.url })
+    );
+    expect(player.getAttribute('src')).toBeNull();
+    expect(context.component.current?.url).toBeNull();
+
+    await flushMicrotasks();
+    fixture!.detectChanges();
+
+    expect(context.hydratePublicVideoUrls$).toHaveBeenCalledTimes(2);
+    expect(context.component.current?.url).toBe(secondPlayback.url);
+    expect(player.getAttribute('src')).toBe(secondPlayback.url);
+  });
+
+  it('destruir o viewer durante hidratação tardia não reaplica playback nem mantém source', async () => {
+    const preview = createVideo('video-1', null);
+    const response = new Subject<IPublicVideoItem[]>();
+    const context = await createFixture({
+      items: [preview],
+      hydrate: () => response.asObservable(),
+    });
+
+    expect(context.hydratePublicVideoUrls$).toHaveBeenCalledTimes(1);
+
+    fixture!.destroy();
+    fixture = null;
+
+    response.next([playbackVersion(preview)]);
+    response.complete();
+    await flushMicrotasks();
+
+    expect(HTMLMediaElement.prototype.pause).toHaveBeenCalled();
+    expect(HTMLMediaElement.prototype.load).toHaveBeenCalled();
   });
 
   it('descarta playback atrasado do índice anterior após navegação rápida', async () => {
