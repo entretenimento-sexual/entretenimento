@@ -17,6 +17,14 @@ export interface PublicLocationProjection {
   geohash: string | null;
 }
 
+export function resolvePublicProfileAge(value: unknown): number | null {
+  const parsed = typeof value === 'number' ? value : Number(value);
+
+  return Number.isInteger(parsed) && parsed >= 18 && parsed <= 100
+    ? parsed
+    : null;
+}
+
 export interface PublicAvatarProjection {
   /** Campo canônico consumido pelas superfícies sociais. */
   avatarUrl: string | null;
