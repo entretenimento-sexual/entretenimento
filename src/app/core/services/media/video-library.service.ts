@@ -453,26 +453,7 @@ export class VideoLibraryService {
     });
 
     this.globalErrorHandler.report(error, {
-      operation: 'watchOwnedVideoMetadata
-  }
-
-  private reportSilent(
-    error: unknown,
-    context: Record<string, unknown>
-  ): void {
-    this.globalErrorHandler.reportSilently(
-      error,
-      String(context['op'] ?? 'unknown'),
-      undefined,
-      {
-        scope: 'VideoLibraryService',
-        ...context,
-      },
-      'video_library_load_failed'
-    );
-  }
-}
-,
+      operation: 'watchOwnedVideoMetadata$',
       reasonHint: 'video_library_load_failed',
       metadata: {
         scope: 'VideoLibraryService',
@@ -488,11 +469,12 @@ export class VideoLibraryService {
     this.globalErrorHandler.reportSilently(
       error,
       String(context['op'] ?? 'unknown'),
-      'Erro ao carregar vídeo.',
+      undefined,
       {
         scope: 'VideoLibraryService',
         ...context,
-      }
+      },
+      'video_library_load_failed'
     );
   }
 }
