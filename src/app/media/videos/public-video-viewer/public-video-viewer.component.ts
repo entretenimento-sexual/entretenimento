@@ -1,4 +1,5 @@
 import { CommonModule } from '@angular/common';
+import { A11yModule } from '@angular/cdk/a11y';
 import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
@@ -131,6 +132,7 @@ const SWIPE_BLOCKED_TARGET_SELECTOR = [
   standalone: true,
   imports: [
     CommonModule,
+    A11yModule,
     RouterModule,
     ReactiveFormsModule,
     MatDialogModule,
@@ -399,6 +401,7 @@ export class PublicVideoViewerComponent {
   }
 
   @HostListener('document:keydown.arrowup', ['$event'])
+  @HostListener('document:keydown.arrowleft', ['$event'])
   onArrowUp(event: Event): void {
     const keyboardEvent = event as KeyboardEvent;
 
@@ -414,6 +417,7 @@ export class PublicVideoViewerComponent {
   }
 
   @HostListener('document:keydown.arrowdown', ['$event'])
+  @HostListener('document:keydown.arrowright', ['$event'])
   onArrowDown(event: Event): void {
     const keyboardEvent = event as KeyboardEvent;
 
@@ -1396,7 +1400,6 @@ export class PublicVideoViewerComponent {
 
       this.syncViewQualification();
       player.load();
-      player.focus({ preventScroll: true });
     });
   }
 
