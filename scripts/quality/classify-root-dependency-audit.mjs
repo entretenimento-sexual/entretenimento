@@ -25,6 +25,7 @@ function arg(name, fallback = null) {
 
 const auditPath = arg('--audit');
 const lockPath = arg('--lock', 'package-lock.json');
+const failOn = arg('--fail-on');
 
 if (!auditPath) {
   throw new Error('Informe --audit <arquivo.json>.');
@@ -158,4 +159,31 @@ console.log('[dependency-audit] summary ' + JSON.stringify(summary));
 
 for (const row of rows) {
   console.log('[dependency-audit] finding ' + JSON.stringify(row));
+}
+
+if (failOn) {
+  const severityOrder = {
+    info: 1,
+    low: 2,
+    moderate: 3,
+    high: 4,
+    critical: 5,
+  };
+  const threshold = severityOrder[String(failOn).toLowerCase()] ?? 0;
+
+  if (!threshold) {
+    throw new Error('Severidade inválida em --fail-on: ' + failOn);
+  }
+
+  const blocking = rows.filter(
+    (row) => (severityOrder[row.severity] ?? 0) >= threshold
+  );
+
+  if (blocking.length > 0) {
+    console.error(
+      '[dependency-audit] blocking findings at ' + failOn + '+: '
+      + blocking.length
+    );
+    process.exit(1);
+  }
 }
