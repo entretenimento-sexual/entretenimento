@@ -5,7 +5,7 @@
   (ngSubmit)="submit()"
   aria-label="Formulário de disponibilidade atual"
 >
-  <div class="intent-basic" role="group" aria-label="Disponibilidade básica">
+  <div class="intent-basic app-card app-card--flat" role="group" aria-label="Disponibilidade básica">
     <div class="form-field app-field">
       <label for="intentMode">O que você busca agora</label>
       <select class="app-control" id="intentMode" formControlName="mode">
@@ -77,7 +77,7 @@
               formControlName="tagsText"
               placeholder="Ex.: viagem, fim de semana, discreto"
             />
-            <small>Separe as tags por vírgulas.</small>
+            <small class="app-field-help">Separe as tags por vírgulas.</small>
           </div>
         </div>
       } @else {
@@ -87,6 +87,7 @@
             O Básico adiciona cidade temporária, expiração e tags de contexto.
           </span>
           <a
+            class="app-action app-action--ghost"
             routerLink="/subscription-plan"
             [queryParams]="{ minimumRole: 'basic' }"
           >
