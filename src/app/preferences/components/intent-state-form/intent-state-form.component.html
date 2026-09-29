@@ -6,9 +6,9 @@
   aria-label="Formulário de disponibilidade atual"
 >
   <div class="intent-basic" role="group" aria-label="Disponibilidade básica">
-    <div class="form-field">
+    <div class="form-field app-field">
       <label for="intentMode">O que você busca agora</label>
-      <select id="intentMode" formControlName="mode">
+      <select class="app-control" id="intentMode" formControlName="mode">
         @for (option of intentOptions; track option.key) {
           <option [value]="option.key">{{ option.label }}</option>
         }
@@ -16,12 +16,12 @@
     </div>
 
     <div class="intent-toggles">
-      <label class="checkbox-item">
+      <label class="checkbox-item app-choice app-choice--roomy">
         <input type="checkbox" formControlName="availableNow" />
         <span>Disponível agora</span>
       </label>
 
-      <label class="checkbox-item">
+      <label class="checkbox-item app-choice app-choice--roomy">
         <input type="checkbox" formControlName="availableToday" />
         <span>Disponível hoje</span>
       </label>
@@ -46,9 +46,10 @@
     <div class="intent-context__content app-disclosure__content">
       @if (canUseContextualIntent()) {
         <div class="context-grid">
-          <div class="form-field">
+          <div class="form-field app-field">
             <label for="cityOverride">Cidade contextual</label>
             <input
+              class="app-control"
               id="cityOverride"
               type="text"
               formControlName="cityOverride"
@@ -57,18 +58,20 @@
             />
           </div>
 
-          <div class="form-field">
+          <div class="form-field app-field">
             <label for="expiresAt">Expira em</label>
             <input
+              class="app-control"
               id="expiresAt"
               type="datetime-local"
               formControlName="expiresAt"
             />
           </div>
 
-          <div class="form-field form-field--wide">
+          <div class="form-field form-field--wide app-field">
             <label for="tagsText">Tags contextuais</label>
             <input
+              class="app-control"
               id="tagsText"
               type="text"
               formControlName="tagsText"
@@ -94,7 +97,7 @@
     </div>
   </details>
 
-  <footer class="form-actions">
+  <footer class="form-actions app-form-actions">
     @if (saving() || form.dirty) {
       <span class="form-actions__status" aria-live="polite">
         {{ saving() ? 'Salvando…' : 'Alterações não salvas.' }}
