@@ -1,10 +1,7 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
-import {
-  LEGACY_MEDIA_TOMBSTONE_TARGET_REMOVAL_DATE,
-  logLegacyMediaTombstoneUse,
-} from './legacy-media-tombstone.telemetry';
+import { logLegacyMediaTombstoneUse } from './legacy-media-tombstone.telemetry';
 
 interface LegacyUnpublishVideoRequest {
   ownerUid?: string;
@@ -24,7 +21,7 @@ function cleanId(value: unknown): string {
  * vídeo público em rascunho privado. A remoção suportada é deleteProfileVideo,
  * que exige uma ação explícita de exclusão total no cliente atual.
  *
- * Data-alvo de retirada: ${LEGACY_MEDIA_TOMBSTONE_TARGET_REMOVAL_DATE}.
+ * Data-alvo de retirada: 2026-12-31.
  * Remover somente após zero consumidor conhecido e zero chamadas observadas.
  */
 export const unpublishVideo = onCall<LegacyUnpublishVideoRequest>(
