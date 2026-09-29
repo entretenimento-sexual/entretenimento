@@ -62,6 +62,7 @@ const PROFILE_DRAFT_FIELDS = [
   'municipio',
   'gender',
   'orientation',
+  'idade',
   'partner1Orientation',
   'partner2Orientation',
   'descricao',
@@ -119,6 +120,7 @@ export class EditUserProfileComponent
       municipio: [{ value: '', disabled: true }],
       gender: [''],
       orientation: [''],
+      idade: [null, [Validators.min(18), Validators.max(100)]],
       partner1Orientation: [''],
       partner2Orientation: [''],
       descricao: ['', [Validators.maxLength(2000)]],
@@ -351,6 +353,7 @@ export class EditUserProfileComponent
       orientation: this.isCouple()
         ? ''
         : String(value.orientation ?? '').trim(),
+      idade: this.normalizeProfileAge(value.idade),
       partner1Orientation: this.isCouple()
         ? String(value.partner1Orientation ?? '').trim()
         : undefined,
@@ -461,6 +464,7 @@ export class EditUserProfileComponent
         municipio: user.municipio ?? '',
         gender: user.gender ?? '',
         orientation: user.orientation ?? '',
+        idade: user.idade ?? null,
         partner1Orientation: user.partner1Orientation ?? '',
         partner2Orientation: user.partner2Orientation ?? '',
         descricao: user.descricao ?? '',
@@ -492,6 +496,18 @@ export class EditUserProfileComponent
     partner1.updateValueAndValidity({ emitEvent: false });
     partner2.updateValueAndValidity({ emitEvent: false });
     orientation.updateValueAndValidity({ emitEvent: false });
+  }
+
+  private normalizeProfileAge(value: unknown): number | undefined {
+    if (value === null || value === undefined || value === '') {
+      return undefined;
+    }
+
+    const age = Number(value);
+
+    return Number.isInteger(age) && age >= 18 && age <= 100
+      ? age
+      : undefined;
   }
 
   private loadEstados$(): Observable<IbgeEstado[]> {
