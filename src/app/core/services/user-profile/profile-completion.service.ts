@@ -71,12 +71,12 @@ export class ProfileCompletionService {
       },
       {
         id: 'age',
-        title: 'Idade',
-        description: 'Confirme sua idade no perfil para manter a experiência adulta consistente.',
-        completed: this.hasAdultAge(user.idade),
+        title: 'Maioridade',
+        description: 'A confirmação 18+ é mantida pela autoridade etária da plataforma.',
+        completed: this.hasCurrentAdultAgeEligibility(user),
         required: true,
-        actionLabel: 'Informar idade',
-        routerLink: ['/perfil', uid, 'editar-dados-pessoais'],
+        actionLabel: 'Confirmar maioridade',
+        routerLink: ['/adulto', 'verificar-idade'],
       },
       {
         id: 'region',
@@ -146,7 +146,33 @@ export class ProfileCompletionService {
     return String(value ?? '').trim().length >= minLength;
   }
 
-  private hasAdultAge(value: unknown): boolean {
-    return typeof value === 'number' && Number.isFinite(value) && value >= 18;
+  private hasCurrentAdultAgeEligibility(user: IUserDados): boolean {
+    const state = user.ageEligibility;
+
+    if (
+      !state ||
+      state.policyVersion !== 1 ||
+      (
+        state.status !== 'SELF_DECLARED_ADULT' &&
+        state.status !== 'VERIFIED_ADULT'
+      )
+    ) {
+      return false;
+    }
+
+    const now = Date.now();
+
+    if (
+      state.status === 'VERIFIED_ADULT' &&
+      state.verifiedAtMs != null &&
+      state.verifiedAtMs > now
+    ) {
+      return false;
+    }
+
+    return (
+      state.expiresAtMs == null ||
+      now < state.expiresAtMs
+    );
   }
 }
