@@ -57,6 +57,7 @@ svg {
   - .container-ultrawide: telas gigantes (quando fizer sentido)
 */
 .container,
+.container-reading,
 .container-wide,
 .container-ultrawide {
   width: 100%;
@@ -66,6 +67,10 @@ svg {
 
 .container {
   max-width: var(--content-max, 1120px);
+}
+
+.container-reading {
+  max-width: var(--content-reading, 960px);
 }
 
 .container-wide {
