@@ -21,11 +21,6 @@ export interface SubscriptionFlowContext {
   returnUrl: SubscriptionReturnUrl | null;
 }
 
-export const EMPTY_SUBSCRIPTION_FLOW_CONTEXT: Readonly<SubscriptionFlowContext> =
-  Object.freeze({
-    minimumRole: null,
-    returnUrl: null,
-  });
 
 export function normalizeSubscriptionMinimumRole(
   value: unknown
@@ -60,18 +55,6 @@ export function subscriptionFlowQueryParams(
   };
 }
 
-/**
- * URL interna canônica para iniciar o fluxo de assinatura preservando somente
- * parâmetros previamente normalizados pelo contrato desta camada.
- */
-export function subscriptionFlowUrl(
-  context: SubscriptionFlowContext
-): string {
-  const query = new URLSearchParams(subscriptionFlowQueryParams(context))
-    .toString();
-
-  return query ? `${SUBSCRIPTION_PLAN_ROUTE}?${query}` : SUBSCRIPTION_PLAN_ROUTE;
-}
 
 export function isCommunityCreationSubscriptionFlow(
   context: SubscriptionFlowContext
