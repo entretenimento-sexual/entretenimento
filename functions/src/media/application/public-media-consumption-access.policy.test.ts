@@ -128,6 +128,24 @@ describe('public media consumption access policy', () => {
     );
   });
 
+  it('não aceita autodeclaração como verificação suficiente para Media', () => {
+    assertBlockedWithReason(
+      eligibleUser,
+      {
+        uid: 'user-1',
+        status: 'SELF_DECLARED_ADULT',
+        policyVersion: 1,
+        source: 'SELF_DECLARATION',
+        method: 'SELF_DECLARATION',
+        caseId: null,
+        verifiedAtMs: null,
+        decidedAtMs: Date.now() - 1_000,
+        expiresAtMs: null,
+      },
+      'AGE_VERIFICATION_REQUIRED'
+    );
+  });
+
   it('bloqueia decisão canônica de menoridade', () => {
     assertBlockedWithReason(
       eligibleUser,
