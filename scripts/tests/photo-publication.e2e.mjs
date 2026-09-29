@@ -262,15 +262,18 @@ async function run() {
       clientDb,
       `users/${ownerUid}/photos/${photoId}`
     );
-    const now = Timestamp.now();
+    const registerPrivatePhotoUpload = httpsCallable(
+      clientFunctions,
+      'registerPrivatePhotoUpload'
+    );
 
-    await setDoc(privatePhotoRef, {
-      id: photoId,
+    await registerPrivatePhotoUpload({
+      ownerUid,
+      photoId,
+      storagePath: resolvedOriginalPath,
       url: originalDownloadUrl,
-      path: resolvedOriginalPath,
       fileName: 'original.png',
-      createdAt: now,
-      updatedAt: now,
+      mode: 'create',
     });
 
     const publishPhoto = httpsCallable(clientFunctions, 'publishPhoto');
@@ -411,11 +414,13 @@ async function run() {
     });
     const editedDownloadUrl = await getDownloadURL(editedStorageRef);
 
-    await updateDoc(privatePhotoRef, {
+    await registerPrivatePhotoUpload({
+      ownerUid,
+      photoId,
+      storagePath: resolvedEditedPath,
       url: editedDownloadUrl,
-      path: resolvedEditedPath,
       fileName: 'edited.png',
-      updatedAt: Timestamp.now(),
+      mode: 'replace',
     });
 
     const synchronizedPublication = await waitFor(
