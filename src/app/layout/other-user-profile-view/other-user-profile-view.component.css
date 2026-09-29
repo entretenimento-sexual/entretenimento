@@ -269,6 +269,30 @@
   line-height: 1.2;
 }
 
+.other-profile-page__intent-context {
+  border-color: color-mix(
+    in oklab,
+    #22c55e 30%,
+    var(--surface-border, #e5e7eb)
+  );
+  background: color-mix(
+    in oklab,
+    #22c55e 6%,
+    var(--surface-color, #ffffff)
+  );
+}
+
+.other-profile-page__intent-context h2 {
+  color: color-mix(in oklab, #16a34a 84%, var(--text-color, #111827));
+}
+
+.other-profile-page__intent-context p {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color, #111827) 66%, transparent);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
 .other-profile-page__desire-match {
   border-color: color-mix(
     in oklab,
