@@ -8,35 +8,14 @@ export const selectFriends = createSelector(
 export const selectAllFriends = createSelector(
   selectFriends, f => Array.isArray(f) ? f : []
 );
-export const selectFriendsCount = createSelector(
-  selectAllFriends, f => f.length
-);
 
 export const selectFriendsLoading = createSelector(
   selectFriendsStateSafe, s => s.loading
 );
-export const selectFriendsError = createSelector(
-  selectFriendsStateSafe, s => s.error ?? null
-);
-export const selectAnyFriendsError = createSelector(
-  selectFriendsStateSafe, s => s.error ?? s.sendFriendRequestError ?? s.blockError ?? null
-);
-export const selectSendFriendRequestError = createSelector(
-  selectFriendsStateSafe,
-  s => s.sendFriendRequestError ?? null
-);
 
-export const selectSendFriendRequestSuccess = createSelector(
-  selectFriendsStateSafe,
-  s => !!s.sendFriendRequestSuccess
-);
 
 export const selectEndingFriendshipUid = createSelector(
   selectFriendsStateSafe,
   s => s.endingFriendshipUid ?? null
 );
 
-export const selectEndingFriendshipError = createSelector(
-  selectFriendsStateSafe,
-  s => s.endingFriendshipError ?? null
-);
