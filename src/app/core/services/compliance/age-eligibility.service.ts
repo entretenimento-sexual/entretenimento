@@ -53,12 +53,12 @@ const UNVERIFIED: IUserAgeEligibility = Object.freeze({
   updatedAtMs: null,
 });
 
-@Injectable({ providedIn: 'root' })
 interface TrustedSessionAgeProjection {
   uid: string;
   state: IUserAgeEligibility;
 }
 
+@Injectable({ providedIn: 'root' })
 export class AgeEligibilityService {
   private readonly trustedSessionProjection =
     new BehaviorSubject<TrustedSessionAgeProjection | null>(null);
