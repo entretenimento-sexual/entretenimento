@@ -385,6 +385,41 @@ if (fs.existsSync(selfDeclarationHandlerPath)) {
   }
 }
 
+const clientAgeEligibilityPath = path.join(
+  root,
+  'src/app/core/services/compliance/age-eligibility.service.ts'
+);
+if (fs.existsSync(clientAgeEligibilityPath)) {
+  const source = codeOnly(fs.readFileSync(clientAgeEligibilityPath, 'utf8'));
+
+  for (const required of [
+    'trustedSessionProjection',
+    'response.data.ageEligibility',
+    "state.status === 'SELF_DECLARED_ADULT'",
+    "state.status === 'VERIFIED_ADULT'",
+  ]) {
+    if (!source.includes(required)) {
+      violations.push(
+        `src/app/core/services/compliance/age-eligibility.service.ts (confirmação backend deve atravessar a janela realtime sem nova pergunta: ${required})`
+      );
+    }
+  }
+}
+
+const currentUserStorePath = path.join(
+  root,
+  'src/app/core/services/autentication/auth/current-user-store.service.ts'
+);
+if (fs.existsSync(currentUserStorePath)) {
+  const source = codeOnly(fs.readFileSync(currentUserStorePath, 'utf8'));
+
+  if (!source.includes("'ageEligibility'")) {
+    violations.push(
+      'src/app/core/services/autentication/auth/current-user-store.service.ts (ageEligibility deve permanecer protegido contra patch genérico client-authoritative)'
+    );
+  }
+}
+
 const refreshAgeEligibilityPath = path.join(
   root,
   'functions/src/compliance/refresh-my-age-eligibility.handler.ts'
