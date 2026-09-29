@@ -2,7 +2,7 @@
 import { createSelector } from '@ngrx/store';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
-import { selectCurrentUser, selectUsersMap } from '../selectors.user/user.selectors';
+import { selectUsersMap } from '../selectors.user/user.selectors';
 
 /**
  * Busca perfil por UID no mapa de usuários.
