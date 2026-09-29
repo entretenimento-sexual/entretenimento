@@ -88,6 +88,16 @@ describe('AgeVerificationPageComponent', () => {
     vi.restoreAllMocks();
   });
 
+  it('não exibe a confirmação enquanto reconcilia o estado já salvo', () => {
+    component.reconciling.set(true);
+    fixture.detectChanges();
+
+    const text = String(fixture.nativeElement.textContent ?? '');
+
+    expect(text).toContain('Verificando sua confirmação já registrada');
+    expect(text).not.toContain('Confirmo que tenho 18 anos ou mais');
+  });
+
   it('reconcilia confirmação canônica ausente da projeção antes de pedir novamente', async () => {
     ageEligibilityMock.refreshTrustedSources$.mockClear();
     ageEligibilityMock.refreshTrustedSources$.mockReturnValueOnce(
@@ -103,6 +113,34 @@ describe('AgeVerificationPageComponent', () => {
     expect(ageEligibilityMock.getCurrentOnce$).toHaveBeenCalled();
     expect(ageEligibilityMock.refreshTrustedSources$).toHaveBeenCalledTimes(1);
     expect(ageEligibilityMock.acceptSelfDeclaration$).not.toHaveBeenCalled();
+  });
+
+  it('não pede nova autodeclaração quando o estado já está salvo', async () => {
+    fixture.destroy();
+
+    current$.next({
+      ...UNVERIFIED,
+      status: 'SELF_DECLARED_ADULT',
+      source: 'SELF_DECLARATION',
+      method: 'SELF_DECLARATION',
+      updatedAtMs: Date.now(),
+    });
+    adultAccessAllowed$.next(true);
+
+    fixture = TestBed.createComponent(AgeVerificationPageComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    expect(ageEligibilityMock.acceptSelfDeclaration$).not.toHaveBeenCalled();
+
+    await vi.waitFor(() => {
+      expect(router.navigate).toHaveBeenCalledWith(
+        ['/adulto/confirmar'],
+        expect.objectContaining({
+          replaceUrl: true,
+        })
+      );
+    });
   });
 
   it('registra a autodeclaração e deixa a projeção backend autorizar o avanço', async () => {
