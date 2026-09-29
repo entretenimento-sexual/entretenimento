@@ -107,7 +107,7 @@ export class ProfileMediaShowcaseComponent {
         catchError((error: unknown) => {
           this.mediaError.report(error, {
             operation: 'loadProfileMediaPreview',
-            fallbackMessage: 'Não foi possível carregar as mídias deste perfil agora.',
+            reasonHint: 'media_discovery_load_failed',
             metadata: {
               scope: 'ProfileMediaShowcaseComponent',
               hasOwnerUid: !!ownerUid,
@@ -151,7 +151,7 @@ export class ProfileMediaShowcaseComponent {
     } catch (error) {
       this.mediaError.report(error, {
         operation: 'refreshProfileMediaPreview',
-        fallbackMessage: 'Não foi possível atualizar o acesso às mídias deste perfil.',
+        reasonHint: 'media_access_temporarily_unavailable',
         metadata: {
           scope: 'ProfileMediaShowcaseComponent',
           hasOwnerUid: !!ownerUid,
@@ -194,7 +194,7 @@ export class ProfileMediaShowcaseComponent {
     } catch (error) {
       this.mediaError.report(error, {
         operation: 'openMedia.viewer',
-        fallbackMessage: 'Não foi possível abrir a visualização imersiva.',
+        reasonHint: 'media_navigation_failed',
         metadata: {
           scope: 'ProfileMediaShowcaseComponent',
           mediaType: this.isVideo(refreshedItem) ? 'VIDEO' : 'PHOTO',
