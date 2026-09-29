@@ -79,6 +79,7 @@ const expectedDeploymentExports = [
   'deleteDirectMessage',
   'deleteProfilePhoto',
   'deleteProfileVideo',
+  'distributeApprovedMediaNotifications',
   'discardFailedVideoUpload',
   'endFriendship',
   'ensureCurrentLegalNotice',
