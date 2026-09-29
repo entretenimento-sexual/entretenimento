@@ -99,6 +99,56 @@ describe('UserCardComponent', () => {
     ).toBeTruthy();
   });
 
+  it('mostra sinais públicos autorizados e encaixe de desejos sem score bruto', () => {
+    fixture.componentRef.setInput('user', {
+      ...baseProfile,
+      preferenceBadgesVisible: true,
+      publicRelationshipIntents: ['serious'],
+      publicBodyTraits: ['tattoos'],
+      publicSexualPractices: ['bdsm'],
+    });
+    fixture.componentRef.setInput('preferenceMatchScore', 1);
+    fixture.componentRef.setInput('preferenceMatchReasons', [
+      'relationship_intent',
+      'sexual_practice',
+      'body_trait',
+    ]);
+    fixture.detectChanges();
+
+    expect(
+      fixture.componentInstance.publicPreview()?.highlights
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: 'Sério' }),
+        expect.objectContaining({ label: 'Tatuagens' }),
+        expect.objectContaining({ label: 'BDSM' }),
+      ])
+    );
+
+    const desireMatch = fixture.debugElement.query(
+      By.css('.user-card__desire-match')
+    ).nativeElement as HTMLElement;
+
+    expect(desireMatch.textContent).toContain('Desejos bem alinhados');
+    expect(desireMatch.textContent).toContain('intenção');
+    expect(desireMatch.textContent).toContain('práticas');
+    expect(desireMatch.textContent).toContain('características');
+    expect(desireMatch.textContent).not.toMatch(/\d+%/u);
+  });
+
+  it('não mostra sinais públicos quando o perfil não autorizou badges', () => {
+    fixture.componentRef.setInput('user', {
+      ...baseProfile,
+      preferenceBadgesVisible: false,
+      publicRelationshipIntents: ['serious'],
+      publicBodyTraits: ['tattoos'],
+      publicSexualPractices: ['bdsm'],
+    });
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.publicPreview()?.highlights).toEqual([]);
+  });
+
   it('usa a imagem padrão quando a URL do perfil falha ao carregar', () => {
     const image = fixture.debugElement.query(
       By.css('.user-card__photo')
