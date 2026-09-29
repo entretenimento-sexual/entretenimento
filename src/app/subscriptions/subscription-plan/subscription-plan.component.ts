@@ -39,6 +39,9 @@ import {
   ConfirmationDialogComponent,
 } from 'src/app/shared/components-globais/confirmation-dialog/confirmation-dialog.component';
 import {
+  PageHeaderComponent,
+} from 'src/app/shared/page-header/page-header.component';
+import {
   isCommunityCreationSubscriptionFlow,
   normalizeSubscriptionFlowContext,
   SubscriptionFlowContext,
