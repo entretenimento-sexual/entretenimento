@@ -23,6 +23,9 @@ import {
   isCommunityMuralActivityNotificationType,
 } from '../../community/community-notification.policy';
 import {
+  isMediaDistributionNotificationType,
+} from '../../media/application/media-notification-distribution.policy';
+import {
   resolveUserBlockTransition,
   type UserBlockAction,
 } from './user-block-transition';
@@ -122,7 +125,7 @@ function buildBlockEventId(
   return `${action}_${actorUid}_${targetUid}_${nowMs}`;
 }
 
-async function removeCommunityMuralNotificationsBetweenUsers(
+async function removeSocialNotificationsBetweenUsers(
   leftUid: string,
   rightUid: string
 ): Promise<number> {
@@ -139,9 +142,11 @@ async function removeCommunityMuralNotificationsBetweenUsers(
   ]);
 
   const documents = [...leftSnapshot.docs, ...rightSnapshot.docs].filter(
-    (document) => isCommunityMuralActivityNotificationType(
-      document.data()?.['type']
-    )
+    (document) => {
+      const type = document.data()?.['type'];
+      return isCommunityMuralActivityNotificationType(type)
+        || isMediaDistributionNotificationType(type);
+    }
   );
 
   let deleted = 0;
@@ -270,12 +275,12 @@ async function manageUserBlock(input: {
 
   if (input.action === 'block') {
     try {
-      await removeCommunityMuralNotificationsBetweenUsers(
+      await removeSocialNotificationsBetweenUsers(
         input.actorUid,
         input.targetUid
       );
     } catch (error) {
-      console.warn('[manageUserBlock] Falha ao limpar notificações do Mural após bloqueio.', {
+      console.warn('[manageUserBlock] Falha ao limpar notificações sociais após bloqueio.', {
         actorUid: input.actorUid,
         targetUid: input.targetUid,
         error: error instanceof Error ? error.message.slice(0, 300) : String(error),
