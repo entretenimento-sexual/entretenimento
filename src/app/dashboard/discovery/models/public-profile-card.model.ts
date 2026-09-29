@@ -75,6 +75,14 @@ export interface PublicProfileCard {
   preferenceMatchReasons?: readonly string[] | null;
 
   /**
+   * Contexto temporário derivado de user_intent_statuses.
+   * Nunca participa do score orgânico nem é persistido no feed.
+   */
+  intentAvailability?: 'available_now' | 'available_today' | 'planning_later' | null;
+  intentExpiresAt?: number | null;
+  mutualAvailableNow?: boolean | null;
+
+  /**
    * Métricas públicas agregadas por refreshPublicProfileMediaMetrics().
    * Não devem ser recalculadas em componente visual.
    */
