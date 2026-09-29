@@ -9,6 +9,7 @@ import {
   publicLocationProjectionMatches,
   publicProfileDiscoveryProjectionMatches,
   publicProfileIdProjectionMatches,
+  resolvePublicProfileAge,
 } from './public-profile-discovery-projection';
 import {
   buildPublicPreferenceProjection,
@@ -246,4 +247,13 @@ test('compara a projeção pública sem considerar campos não relacionados', ()
     ...expected,
     mediaCount: 12,
   }, expected), true);
+});
+
+
+test('projeta idade social somente na faixa pública adulta', () => {
+  assert.equal(resolvePublicProfileAge(35), 35);
+  assert.equal(resolvePublicProfileAge('42'), 42);
+  assert.equal(resolvePublicProfileAge(17), null);
+  assert.equal(resolvePublicProfileAge(101), null);
+  assert.equal(resolvePublicProfileAge('abc'), null);
 });
