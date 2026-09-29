@@ -15,17 +15,6 @@ import {
 } from './video-metadata-preparation.service';
 import { VideoUploadFlowService } from './video-upload-flow.service';
 
-vi.mock('@angular/fire/functions', () => ({
-  Functions: class FunctionsMock {},
-  httpsCallable: () => () => undefined,
-}));
-
-vi.mock('@angular/fire/firestore', () => ({
-  Firestore: class FirestoreMock {},
-  collection: () => ({ path: 'users/owner-a/videos' }),
-  doc: () => ({ id: 'video-1' }),
-}));
-
 describe('VideoUploadFlowService / lifecycle', () => {
   it('encerra upload quando a sessão muda de A para B durante preparação', () => {
     const uid$ = new BehaviorSubject<string | null>('owner-a');
