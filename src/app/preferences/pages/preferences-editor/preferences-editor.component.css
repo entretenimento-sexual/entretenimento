@@ -1,37 +1,21 @@
-/* src/app/preferences/pages/preferences-editor/preferences-editor.component.css */
 :host {
   display: block;
   min-width: 0;
 }
 
-.preferences-editor-page {
+.preferences-editor-page,
+.preferences-editor-shell {
   width: 100%;
   min-width: 0;
-}
-
-.preferences-editor-shell {
-  display: grid;
-  gap: clamp(12px, 1.6vw, 18px);
-  width: min(100%, 940px);
-  min-width: 0;
-  margin-inline: auto;
-  padding: clamp(10px, 1.6vw, 16px);
 }
 
 .plan-strip {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
+  gap: var(--space-2, 12px);
   min-width: 0;
-  padding: 11px 13px;
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
-  border-radius: 13px;
-  background: color-mix(
-    in oklab,
-    var(--surface-color, #101923) 96%,
-    var(--text-color, #f5f7fb) 2%
-  );
+  padding: 11px var(--space-2, 12px);
 }
 
 .plan-strip__copy {
@@ -42,59 +26,16 @@
   min-width: 0;
 }
 
-.editor-loading {
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 66%, transparent);
-  font-size: 0.84rem;
-  line-height: 1.4;
-}
-
 .plan-strip__copy strong {
-  color: var(--text-color, #f5f7fb);
+  color: var(--text-color);
   font-weight: 900;
 }
 
 .editor-section {
-  display: grid;
-  gap: 10px;
   min-width: 0;
 }
 
-.editor-loading {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 58px;
-  padding: 12px 14px;
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
-  border-radius: 13px;
-  background: var(--surface-color, #101923);
-}
-
-.editor-loading__spinner {
-  width: 26px;
-  height: 26px;
-  flex: 0 0 auto;
-  border: 3px solid color-mix(
-    in oklab,
-    var(--primary-color, #ff7070) 22%,
-    transparent
-  );
-  border-top-color: var(--primary-color, #ff7070);
-  border-radius: 50%;
-  animation: preferences-editor-spin 800ms linear infinite;
-}
-
-@keyframes preferences-editor-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 @media (max-width: 640px) {
-  .preferences-editor-shell {
-    padding-inline: 10px;
-  }
-
   .plan-strip {
     align-items: stretch;
     flex-direction: column;
@@ -104,17 +45,9 @@
     display: grid;
     gap: 3px;
   }
-
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .editor-loading__spinner {
-    animation: none;
-  }
 }
 
 html.high-contrast .plan-strip,
-html.high-contrast .availability-section,
-html.high-contrast .editor-loading {
+html.high-contrast .availability-section {
   border-color: currentColor;
 }
