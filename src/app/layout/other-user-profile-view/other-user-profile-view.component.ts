@@ -42,7 +42,14 @@ import { ProfileOfficialCommunitiesComponent } from 'src/app/community/profile-o
 import { Friend } from 'src/app/core/interfaces/friendship/friend.interface';
 import { FriendRequest } from 'src/app/core/interfaces/friendship/friend-request.interface';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import {
+  resolvePublicPreferenceLabel,
+} from 'src/app/core/catalogs/public-preference-options.catalog';
+import {
+  evaluateDiscoveryCandidatePreference,
+} from 'src/app/core/utils/discovery/profile-type-preference-filter.util';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
+import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { DirectChatService } from 'src/app/messaging/direct-chat/services/direct-chat.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -99,6 +106,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     private readonly router: Router,
     private readonly firestoreUserQuery: FirestoreUserQueryService,
     private readonly authSession: AuthSessionService,
+    private readonly currentUserStore: CurrentUserStoreService,
     private readonly friendshipService: FriendshipService,
     private readonly directChatService: DirectChatService,
     private readonly cdr: ChangeDetectorRef,
@@ -192,10 +200,77 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
   }
 
   get preferenceChips(): string[] {
-    return (this.userProfile?.preferences ?? [])
-      .map((item) => String(item ?? '').trim())
-      .filter(Boolean)
-      .slice(0, 8);
+    const profile = this.userProfile;
+    if (!profile || profile.preferenceBadgesVisible !== true) {
+      return [];
+    }
+
+    const labels: string[] = [];
+    const append = (
+      kind: 'relationship' | 'body_trait' | 'sexual_practice',
+      values: readonly string[] | null | undefined
+    ): void => {
+      for (const value of values ?? []) {
+        const label = resolvePublicPreferenceLabel(kind, value);
+        if (!label || labels.includes(label)) continue;
+        labels.push(label);
+        if (labels.length >= 8) return;
+      }
+    };
+
+    append('relationship', profile.publicRelationshipIntents);
+    if (labels.length < 8) {
+      append('body_trait', profile.publicBodyTraits);
+    }
+    if (labels.length < 8) {
+      append('sexual_practice', profile.publicSexualPractices);
+    }
+
+    return labels.slice(0, 8);
+  }
+
+  get desireMatch(): {
+    title: string;
+    labels: readonly string[];
+  } | null {
+    const viewer = this.currentUserStore.getSnapshot();
+    const target = this.userProfile;
+
+    if (!viewer?.uid || !target?.uid || viewer.uid === target.uid) {
+      return null;
+    }
+
+    const result = evaluateDiscoveryCandidatePreference(viewer, target);
+    if (!result.accepted || result.matchedSignals.length === 0) {
+      return null;
+    }
+
+    const labels = result.matchedSignals
+      .map((signal) => {
+        switch (signal) {
+          case 'relationship_intent':
+            return 'Intenção';
+          case 'sexual_practice':
+            return 'Práticas';
+          case 'body_trait':
+            return 'Características';
+          default:
+            return null;
+        }
+      })
+      .filter((label): label is string => !!label);
+
+    if (!labels.length) {
+      return null;
+    }
+
+    return {
+      title:
+        result.preferenceScore >= 0.75
+          ? 'Desejos bem alinhados'
+          : 'Desejos em comum',
+      labels,
+    };
   }
 
   onProfilePhotoError(): void {
@@ -266,12 +341,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
         }
 
         this.profilePhotoFailed = false;
-        this.userProfile = {
-          ...profile,
-          preferences: Array.isArray(profile.preferences)
-            ? profile.preferences
-            : [],
-        };
+        this.userProfile = { ...profile };
 
         this.debug('loadUserProfile success', {
           hasProfile: true,
