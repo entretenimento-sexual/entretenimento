@@ -134,6 +134,7 @@
             <button
               type="button"
               class="public-video-viewer__close"
+              cdkFocusInitial
               (click)="close()"
               aria-label="Fechar visualizador de vídeo"
             >
@@ -149,7 +150,7 @@
             (click)="previous()"
             [disabled]="!hasPrevious"
             aria-label="Abrir vídeo anterior"
-            aria-keyshortcuts="ArrowUp"
+            aria-keyshortcuts="ArrowUp ArrowLeft"
           >
             <i class="fas fa-chevron-up" aria-hidden="true"></i>
           </button>
@@ -161,7 +162,7 @@
             [disabled]="!hasNext || waitingForContinuation"
             [attr.aria-label]="waitingForContinuation ? 'Carregando próximo vídeo' : 'Abrir próximo vídeo'"
             [attr.aria-busy]="waitingForContinuation ? 'true' : null"
-            aria-keyshortcuts="ArrowDown"
+            aria-keyshortcuts="ArrowDown ArrowRight"
           >
             <i class="fas fa-chevron-down" aria-hidden="true"></i>
           </button>
