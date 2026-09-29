@@ -21,17 +21,7 @@ export const selectMaxDistanceKm = createSelector(
   (params) => params.maxDistanceKm
 );
 
-// QoL / debug
-export const selectHasLocation = createSelector(
-  selectCurrentLocation,
-  (loc) => !!loc && typeof loc.latitude === 'number' && typeof loc.longitude === 'number'
-);
 
-// (Opcional) selector “raw” para debug rápido:
-export const selectLocationRaw = createSelector(
-  selectLocationState,
-  (state) => state
-);
 
 /* **********************************************************************
  * VM SELECTOR – combina Location + NearbyProfiles (cache/TTL/list/loading)
