@@ -18,6 +18,7 @@
 
 .community-discovery__scope-nav.app-segmented {
   max-width: 100%;
+  min-height: var(--tap-target, 2.75rem);
   overflow-x: auto;
   margin-bottom: 0.65rem;
   scrollbar-width: none;
