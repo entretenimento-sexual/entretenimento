@@ -41,7 +41,7 @@ for (const fragment of [
   "PromotionBoostTargetType = 'community' | 'photo' | 'video'",
   'normalizePromotionBoostTargetType',
   'promotionBoostTargetAvailability',
-  'PRODUCT_CALIBRATION_STAGE',
+  'VIDEO_PROMOTION_CALIBRATION_STAGE',
   "targetType === 'video'",
   'campaignCreationEnabled: false',
   'placementEnabled: false',
@@ -97,15 +97,47 @@ for (const forbidden of [
   );
 }
 
-const calibration = read(
-  'functions/src/shared/calibration/product-calibration-stage.policy.ts'
+const videoCalibration = read(
+  'functions/src/promotion-boost/video-promotion-calibration.policy.ts'
 );
-requireIncludes(
-  calibration,
-  "PRODUCT_CALIBRATION_STAGE = 'OBSERVE_ONLY'",
-  'current calibration stage must remain observation-only'
+for (const fragment of [
+  "VIDEO_PROMOTION_CALIBRATION_STAGE:",
+  "= 'OBSERVE_ONLY'",
+  'VIDEO_PROMOTION_RUNTIME_ENABLEMENT = false',
+  'VIDEO_PROMOTION_OBSERVATION_SOURCE',
+  'isVideoPromotionExitEvidenceReady',
+  'isVideoPromotionCalibrationChangeReviewable',
+  "evidence['cost']",
+  "evidence['consumption']",
+  "evidence['abuse']",
+  "cost['financialActualsComplete'] === true",
+  "consumption['commercialUtilizationObserved'] === true",
+  "abuse['abuseSignalsObserved'] === true",
+  "abuse['reviewComplete'] === true",
+]) {
+  requireIncludes(
+    videoCalibration,
+    fragment,
+    'video promotion calibration/evidence drift'
+  );
+}
+
+const videoCalibrationTests = read(
+  'functions/src/promotion-boost/video-promotion-calibration.policy.test.ts'
 );
+for (const fragment of [
+  'custo incompleto impede saída',
+  'consumo insuficiente impede saída',
+  'abuso sem sinais observados ou revisão concluída impede saída',
+  'staging, amostra curta ou janela curta não qualificam evidência real',
+]) {
+  requireIncludes(
+    videoCalibrationTests,
+    fragment,
+    'video promotion evidence coverage drift'
+  );
+}
 
 console.log(
-  '[promotion-target-boundary] OK: video is contract-supported but paid campaign/placement remains explicitly disabled.'
+  '[promotion-target-boundary] OK: Photo may evolve independently; Video remains contract-only, OBSERVE_ONLY and runtime-disabled until production cost/consumption/abuse evidence is sufficient and enablement is explicit.'
 );
