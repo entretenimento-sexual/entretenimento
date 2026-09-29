@@ -71,24 +71,6 @@
   line-height: 1.45;
 }
 
-.content-state__action {
-  min-height: var(--tap-target, 2.75rem);
-  padding: 0 16px;
-  border: 1px solid color-mix(in oklab, var(--primary-color, #d64d4d) 58%, transparent);
-  border-radius: 999px;
-  background: var(--primary-color, #d64d4d);
-  color: #fff;
-  font: inherit;
-  font-size: 0.88rem;
-  font-weight: 850;
-  cursor: pointer;
-}
-
-.content-state__action:focus-visible {
-  outline: 3px solid color-mix(in oklab, var(--primary-color, #d64d4d) 34%, transparent);
-  outline-offset: 3px;
-}
-
 .content-state--loading {
   display: block;
 }
