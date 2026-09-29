@@ -351,10 +351,17 @@ jobs:
           npm audit --omit=dev --json > logs/app-audit-prod.json 2> logs/app-audit-prod.err || true
 
           echo '=== All dependencies ==='
-          node scripts/quality/classify-root-dependency-audit.mjs             --audit logs/app-audit-all.json             --lock package-lock.json             2>&1 | tee logs/app-audit-all-classified.log
+          node scripts/quality/classify-root-dependency-audit.mjs \
+            --audit logs/app-audit-all.json \
+            --lock package-lock.json \
+            2>&1 | tee logs/app-audit-all-classified.log
 
           echo '=== Production dependencies ==='
-          node scripts/quality/classify-root-dependency-audit.mjs             --audit logs/app-audit-prod.json             --lock package-lock.json             2>&1 | tee logs/app-audit-prod-classified.log
+          node scripts/quality/classify-root-dependency-audit.mjs \
+            --audit logs/app-audit-prod.json \
+            --lock package-lock.json \
+            --fail-on moderate \
+            2>&1 | tee logs/app-audit-prod-classified.log
 
       - name: Run safe build
         shell: bash
