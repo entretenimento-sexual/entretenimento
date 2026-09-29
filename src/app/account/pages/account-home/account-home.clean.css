@@ -25,9 +25,9 @@
   gap: 0.4rem;
 }
 
-.account-hero--compact .btn,
-.account-section-head .btn,
-.account-context-panel--compact .btn {
+.account-hero--compact .app-action,
+.account-section-head .app-action,
+.account-context-panel--compact .app-action {
   min-height: 38px;
   padding-inline: 0.8rem;
   font-size: 0.8rem;
