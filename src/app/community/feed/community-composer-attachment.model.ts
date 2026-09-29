@@ -9,7 +9,6 @@
 // -----------------------------------------------------------------------------
 
 import {
-  MEDIA_IMAGE_ACCEPT,
   validateImageMediaFile,
 } from 'src/app/core/services/media/media-format.policy';
 import { IMAGE_MAX_BYTES } from 'src/app/core/services/media/media-format.generated';
@@ -69,7 +68,6 @@ export function createCommunityComposerLocationAttachment(
   };
 }
 
-export const COMMUNITY_COMPOSER_IMAGE_ACCEPT = MEDIA_IMAGE_ACCEPT;
 export const MAX_COMMUNITY_COMPOSER_IMAGE_BYTES = IMAGE_MAX_BYTES;
 
 export type CommunityComposerImageValidation =
