@@ -52,6 +52,7 @@ const SERVER_MANAGED_RUNTIME_PATCH_KEYS = new Set<string>([
   'singleRoomCreationRightExpires',
   'roomCreationSubscriptionExpires',
   'initialAdultConsentRequired',
+  'ageEligibility',
   'ageReverification',
   'ageReverificationRestrictedAt',
   'identityCode',
