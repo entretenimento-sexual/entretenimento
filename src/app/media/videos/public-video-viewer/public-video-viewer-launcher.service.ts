@@ -76,6 +76,7 @@ export class PublicVideoViewerLauncherService {
           },
           autoFocus: 'first-tabbable',
           restoreFocus: true,
+          ariaLabel: 'Visualizador de vídeo',
           width: '100vw',
           height: '100dvh',
           maxWidth: '100vw',
