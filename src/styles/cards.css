@@ -221,6 +221,10 @@
   user-select: none;
 }
 
+.app-disclosure__summary:not(:has(.app-disclosure__state)) {
+  grid-template-columns: minmax(0, 1fr) 18px;
+}
+
 .app-disclosure__summary::-webkit-details-marker {
   display: none;
 }
