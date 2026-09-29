@@ -21,30 +21,3 @@ import type {
   Friend,
 } from 'src/app/core/interfaces/friendship/friend.interface';
 
-/**
- * Converte FriendDoc, vindo do Firestore, para Friend serializável.
- *
- * Por que isso existe:
- * - Firestore Timestamp não é ideal para Store/cache;
- * - a Store deve receber dados simples e serializáveis;
- * - since e lastInteractionAt viram epoch number | null.
- */
-export function sanitizeFriendForStore(d: FriendDoc): Friend {
-  return {
-    ...d,
-    since: toEpoch(d.since),
-    lastInteractionAt: toEpoch(d.lastInteractionAt),
-  };
-}
-
-/**
- * Converte lista de FriendDoc para lista segura para Store/UI.
- *
- * Mantém tolerância para null/undefined porque alguns fluxos reativos
- * podem emitir vazio durante bootstrap, logout ou bloqueio de realtime.
- */
-export function sanitizeFriendsForStore(
-  list: FriendDoc[] | null | undefined
-): Friend[] {
-  return (list ?? []).map(sanitizeFriendForStore);
-}
