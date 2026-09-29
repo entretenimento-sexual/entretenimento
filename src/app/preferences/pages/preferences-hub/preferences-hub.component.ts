@@ -14,7 +14,7 @@ import { RouterModule } from '@angular/router';
 import { PreferencesFacade } from '../../application/preferences.facade';
 import { PreferenceSummaryCardComponent } from '../../components/preference-summary-card/preference-summary-card.component';
 import { PreferencesHubCardComponent } from '../../components/preferences-hub-card/preferences-hub-card.component';
-import { PreferencesPageHeaderComponent } from '../../components/preferences-page-header/preferences-page-header.component';
+import { PageHeaderComponent } from '../../../shared/page-header/page-header.component';
 import { PreferencesDomainNavComponent } from '../../components/preferences-domain-nav/preferences-domain-nav.component';
 import { PreferencesUiService } from '../../state/preferences-ui.service';
 
@@ -26,7 +26,7 @@ import { PreferencesUiService } from '../../state/preferences-ui.service';
     RouterModule,
     PreferenceSummaryCardComponent,
     PreferencesHubCardComponent,
-    PreferencesPageHeaderComponent,
+    PageHeaderComponent,
     PreferencesDomainNavComponent,
   ],
   templateUrl: './preferences-hub.component.html',
