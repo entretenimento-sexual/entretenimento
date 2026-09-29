@@ -107,8 +107,7 @@ export class PublicProfileDiscoveryService {
       identityShortLabel: this.text(raw['identityShortLabel']),
       identityDiscoveryGroup,
       orientation: this.text(raw['orientation']) ?? undefined,
-      // Idade exata deixou de integrar a projeção pública.
-      age: null,
+      idade: this.profileAge(raw['age'] ?? raw['idade']) ?? undefined,
       normalizedGender,
       normalizedOrientation: this.text(raw['normalizedOrientation']),
       compatibilityReady: this.boolean(raw['compatibilityReady']),
@@ -180,6 +179,14 @@ export class PublicProfileDiscoveryService {
   private text(value: unknown): string | null {
     return typeof value === 'string' && value.trim()
       ? value.trim()
+      : null;
+  }
+
+  private profileAge(value: unknown): number | null {
+    const parsed = typeof value === 'number' ? value : Number(value);
+
+    return Number.isInteger(parsed) && parsed >= 18 && parsed <= 100
+      ? parsed
       : null;
   }
 
