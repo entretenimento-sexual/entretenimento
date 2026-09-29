@@ -4,11 +4,11 @@
       <span class="age-verification__mark" aria-hidden="true">18+</span>
       <div>
         <p class="age-verification__eyebrow">Acesso adulto</p>
-        <h1 id="age-verification-title">Confirme que você tem 18 anos ou mais</h1>
+        <h1 id="age-verification-title">Confirmação de acesso 18+</h1>
         <p class="age-verification__intro">
-          A plataforma é exclusiva para adultos. Para continuar, confirme sua
-          maioridade. Se houver um sinal relevante de segurança, poderemos pedir
-          uma verificação adicional.
+          A plataforma é exclusiva para adultos. Se você ainda não registrou sua
+          declaração 18+, poderá fazê-lo aqui. Essa declaração não equivale à
+          verificação forte exigida para Media adulto.
         </p>
       </div>
     </header>
@@ -26,7 +26,21 @@
       </section>
     }
 
-    @if (vm$ | async; as vm) {
+    @if (reconciling()) {
+      <section
+        class="age-verification__status"
+        role="status"
+        aria-live="polite"
+      >
+        <div>
+          <strong>Verificando sua confirmação já registrada</strong>
+          <p>
+            Estamos consultando o estado já salvo da sua conta. Você não precisa
+            confirmar novamente enquanto essa verificação termina.
+          </p>
+        </div>
+      </section>
+    } @else if (vm$ | async; as vm) {
       @if (vm.accessAllowed) {
         <section class="age-verification__status age-verification__status--success" role="status">
           <span class="age-verification__status-icon" aria-hidden="true">✓</span>
