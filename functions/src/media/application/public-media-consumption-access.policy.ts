@@ -34,6 +34,23 @@ PublicMediaConsumptionAccessReason {
     (error.details as { reason?: unknown } | undefined)?.reason ?? ''
   ).trim();
 
+  const canonicalReasons = new Set<PublicMediaConsumptionAccessReason>([
+    'ACCOUNT_UNAVAILABLE',
+    'TERMS_REQUIRED',
+    'ADULT_CONSENT_REQUIRED',
+    'AGE_VERIFICATION_REQUIRED',
+    'AGE_ACCESS_DENIED',
+    'AGE_REVERIFICATION_REQUIRED',
+  ]);
+
+  if (
+    canonicalReasons.has(
+      reason as PublicMediaConsumptionAccessReason
+    )
+  ) {
+    return reason as PublicMediaConsumptionAccessReason;
+  }
+
   if (reason === 'terms_required') {
     return 'TERMS_REQUIRED';
   }
