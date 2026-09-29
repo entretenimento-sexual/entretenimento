@@ -24,9 +24,9 @@ import { db, Timestamp } from '../firebaseApp';
 export const PUBLIC_AGE_ACCESS_FIELD =
   'ageEligibilityAdultAccessAllowed' as const;
 /**
- * Compatibilidade temporária: este nome histórico é usado por queries/indexes.
- * Enquanto a migração não for concluída, ele representa elegibilidade de acesso,
- * não nível de garantia. Consumidores novos devem usar ACCESS + ASSURANCE.
+ * Compatibilidade temporária: este nome histórico continua em queries/indexes,
+ * mas preserva sua semântica literal de maioridade VERIFICADA.
+ * Acesso social provisório usa exclusivamente ACCESS + ASSURANCE.
  */
 export const PUBLIC_AGE_LEGACY_ACCESS_FIELD =
   'ageEligibilityVerifiedAdult' as const;
@@ -98,7 +98,7 @@ async function setDocumentsEligibility(
 
       if (
         currentEligible === eligible &&
-        currentLegacyAccess === eligible &&
+        currentLegacyAccess === verified &&
         currentAssurance === assurance &&
         currentValidUntilMs === validUntilMs
       ) {
@@ -109,7 +109,7 @@ async function setDocumentsEligibility(
         document.ref,
         {
           [PUBLIC_AGE_ACCESS_FIELD]: eligible,
-          [PUBLIC_AGE_LEGACY_ACCESS_FIELD]: eligible,
+          [PUBLIC_AGE_LEGACY_ACCESS_FIELD]: verified,
           [PUBLIC_AGE_ASSURANCE_FIELD]: assurance,
           [PUBLIC_AGE_ELIGIBILITY_VALID_UNTIL_FIELD]:
             Timestamp.fromMillis(validUntilMs),
@@ -196,14 +196,14 @@ export async function reconcilePublicAgeEligibilityProjection(
   if (
     profileSnapshot.exists &&
     (currentProfileEligibility !== eligible ||
-      currentProfileLegacyAccess !== eligible ||
+      currentProfileLegacyAccess !== verified ||
       currentProfileAssurance !== assurance ||
       currentProfileValidUntilMs !== validUntilMs)
   ) {
     await profileRef.set(
       {
         [PUBLIC_AGE_ACCESS_FIELD]: eligible,
-        [PUBLIC_AGE_LEGACY_ACCESS_FIELD]: eligible,
+        [PUBLIC_AGE_LEGACY_ACCESS_FIELD]: verified,
         [PUBLIC_AGE_ASSURANCE_FIELD]: assurance,
         [PUBLIC_AGE_ELIGIBILITY_VALID_UNTIL_FIELD]:
           Timestamp.fromMillis(validUntilMs),
@@ -216,7 +216,7 @@ export async function reconcilePublicAgeEligibilityProjection(
   const shouldSyncChildren =
     options.forceChildren === true ||
     currentProfileEligibility !== eligible ||
-    currentProfileLegacyAccess !== eligible ||
+    currentProfileLegacyAccess !== verified ||
     currentProfileAssurance !== assurance ||
     currentProfileValidUntilMs !== validUntilMs;
 
@@ -254,7 +254,7 @@ export async function reconcilePublicAgeEligibilityProjection(
 
       if (
         status[PUBLIC_AGE_ACCESS_FIELD] !== statusEligibility ||
-        status[PUBLIC_AGE_LEGACY_ACCESS_FIELD] !== statusEligibility ||
+        status[PUBLIC_AGE_LEGACY_ACCESS_FIELD] !== statusVerified ||
         (String(status[PUBLIC_AGE_ASSURANCE_FIELD] ?? '') || null) !==
           statusAssurance ||
         currentStatusValidUntilMs !== statusValidUntilMs
@@ -262,7 +262,7 @@ export async function reconcilePublicAgeEligibilityProjection(
         await statusRef.set(
           {
             [PUBLIC_AGE_ACCESS_FIELD]: statusEligibility,
-            [PUBLIC_AGE_LEGACY_ACCESS_FIELD]: statusEligibility,
+            [PUBLIC_AGE_LEGACY_ACCESS_FIELD]: statusVerified,
             [PUBLIC_AGE_ASSURANCE_FIELD]: statusAssurance,
             [PUBLIC_AGE_ELIGIBILITY_VALID_UNTIL_FIELD]:
               Timestamp.fromMillis(statusValidUntilMs),
