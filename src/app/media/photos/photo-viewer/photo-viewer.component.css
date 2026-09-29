@@ -19,7 +19,9 @@ display: block;
 .viewer {
 width: 100vw;
 height: 100vh;
+height: 100dvh;
 max-height: 100vh;
+max-height: 100dvh;
 display: grid;
 grid-template-rows: 44px minmax(0, 1fr);
 overflow: hidden;
@@ -170,6 +172,8 @@ grid-template-columns: minmax(0, 1fr) minmax(330px, 390px);
 }
 
 .viewer-media-panel {
+touch-action: pan-y pinch-zoom;
+overscroll-behavior: contain;
 position: relative;
 min-width: 0;
 min-height: 0;
@@ -193,7 +197,7 @@ display: block;
 width: auto;
 height: auto;
 max-width: min(100%, 1180px);
-max-height: calc(100vh - 68px);
+max-height: calc(100dvh - 68px);
 object-fit: contain;
 background: #000;
 }
@@ -616,7 +620,7 @@ grid-template-columns: 1fr;
 }
 
 .viewer-img {
-max-height: 58vh;
+max-height: 58dvh;
 }
 
 .viewer-social-panel {
@@ -656,7 +660,7 @@ font-size: 0.61rem;
 }
 
 .viewer-img {
-max-height: 52vh;
+max-height: 52dvh;
 }
 
 .viewer-media-frame {
@@ -710,4 +714,24 @@ transition: none;
 :host-context(html.high-contrast) .viewer-official-badge {
 color: currentColor !important;
 border-color: currentColor !important;
+}
+
+
+@media (max-height: 620px) and (orientation: landscape) {
+  .viewer-shell {
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 34vw);
+  }
+
+  .viewer-img {
+    max-height: calc(100dvh - 56px);
+  }
+
+  .viewer-owner-context,
+  .comment-date {
+    display: none;
+  }
+
+  .comments-list {
+    max-height: calc(100dvh - 210px);
+  }
 }
