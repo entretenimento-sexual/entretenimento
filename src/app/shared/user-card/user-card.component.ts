@@ -89,6 +89,8 @@ export class UserCardComponent {
   readonly user = input.required<IUserDados | null>();
   readonly distanciaKm = input<number | null>(null);
   readonly showDistance = input<boolean>(true);
+  readonly preferenceMatchScore = input<number | null>(null);
+  readonly preferenceMatchReasons = input<readonly string[] | null>(null);
 
   private readonly dialog = inject(MatDialog);
   private readonly store = inject(Store) as Store<AppState>;
@@ -211,6 +213,45 @@ export class UserCardComponent {
       approximateDistanceKm: this.showDistance() ? this.distanciaKm() : null,
     })
   );
+
+  readonly desireMatchVm = computed(() => {
+    const reasons = Array.from(
+      new Set(
+        (this.preferenceMatchReasons() ?? [])
+          .map((reason) => String(reason ?? '').trim())
+          .filter(Boolean)
+      )
+    );
+    const score = this.preferenceMatchScore();
+
+    if (!reasons.length || typeof score !== 'number' || score <= 0) {
+      return null;
+    }
+
+    const labels = reasons
+      .map((reason) => {
+        switch (reason) {
+          case 'relationship_intent':
+            return 'intenção';
+          case 'sexual_practice':
+            return 'práticas';
+          case 'body_trait':
+            return 'características';
+          default:
+            return null;
+        }
+      })
+      .filter((label): label is string => !!label);
+
+    if (!labels.length) {
+      return null;
+    }
+
+    return {
+      title: score >= 0.75 ? 'Desejos bem alinhados' : 'Desejos em comum',
+      detail: labels.join(' · '),
+    };
+  });
 
   readonly previewRelationshipLabel = computed(() => {
     switch (this.relationshipVm().state) {
