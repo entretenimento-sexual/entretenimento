@@ -55,8 +55,14 @@ match /public_profiles/{userId}/public_photos/{photoId} {
       && data.moderationStatus == "APPROVED";
   }
 
+  function commentPhotoAllowsAdultExposure(data) {
+    return canonicalOwnerLifecycleAllowsPublicMediaExposure(userId)
+      && canonicalAgeEligibilityAllowsAdultAccess(userId)
+      && publicAgeProjectionAllowsAdultExposure(data);
+  }
+
   function isApprovedCommentReadablePhotoData(data) {
-    return data.ageEligibilityVerifiedAdult == true
+    return commentPhotoAllowsAdultExposure(data)
       && data.moderationStatus == "APPROVED"
       && bilateralExposureAllows(userId)
       && (
@@ -101,8 +107,7 @@ match /public_profiles/{userId}/public_photos/{photoId} {
       && (
         isSelf(userId)
         || (
-          publicProfileAllowsAdultExposure()
-          && resource.data.status == "VISIBLE"
+          resource.data.status == "VISIBLE"
           && isApprovedCommentReadablePhotoData(photoData())
         )
       );
