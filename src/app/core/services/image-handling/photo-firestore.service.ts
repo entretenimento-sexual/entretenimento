@@ -40,6 +40,23 @@ export type PhotoUpdateData =
   Partial<Pick<Photo, 'url' | 'fileName' | 'createdAt' | 'displayDate' | 'path'>> &
   Record<string, unknown>;
 
+interface RegisterPrivatePhotoUploadCallableRequest {
+  ownerUid: string;
+  photoId: string;
+  storagePath: string;
+  url: string;
+  fileName: string;
+  mode: 'create' | 'replace';
+}
+
+interface RegisterPrivatePhotoUploadCallableResponse {
+  ownerUid: string;
+  photoId: string;
+  storagePath: string;
+  mode: 'create' | 'replace';
+  createdAt: number;
+}
+
 interface DeleteProfilePhotoCallableRequest {
   ownerUid: string;
   photoId: string;
@@ -155,22 +172,15 @@ export class PhotoFirestoreService {
   ): Promise<void> {
     const safeUserId = this.requireUserId(userId);
 
-    await this.executeWrite(
-      async () => {
-        await this.firestoreCtx.run(async () => {
-          const photoRef = doc(
-            this.firestore,
-            `users/${safeUserId}/photos/${photo.id}`
-          );
-          await setDoc(photoRef, photo);
-        });
-      },
-      'Erro ao salvar os metadados da foto.',
+    await this.commitCriticalPhotoMetadata(
+      safeUserId,
+      photo.id,
       {
-        op: 'savePhotoMetadata',
-        userId: safeUserId,
-        photoId: photo.id,
-      }
+        url: photo.url,
+        path: photo.path,
+        fileName: photo.fileName,
+      },
+      'create'
     );
   }
 
@@ -181,22 +191,15 @@ export class PhotoFirestoreService {
   ): Promise<void> {
     const safeUserId = this.requireUserId(userId);
 
-    await this.executeWrite(
-      async () => {
-        await this.firestoreCtx.run(async () => {
-          const photoRef = doc(
-            this.firestore,
-            `users/${safeUserId}/photos/${photoId}`
-          );
-          await updateDoc(photoRef, updatedData);
-        });
-      },
-      'Erro ao atualizar os metadados da foto.',
+    await this.commitCriticalPhotoMetadata(
+      safeUserId,
+      photoId,
       {
-        op: 'updatePhotoMetadata',
-        userId: safeUserId,
-        photoId,
-      }
+        url: String(updatedData['url'] ?? ''),
+        path: String(updatedData['path'] ?? ''),
+        fileName: String(updatedData['fileName'] ?? ''),
+      },
+      'replace'
     );
   }
 
@@ -218,10 +221,26 @@ export class PhotoFirestoreService {
 
     const normalizedDisplayDate = this.normalizeDisplayDate(displayDate);
 
-    await this.updatePhotoMetadata(safeUserId, safePhotoId, {
-      displayDate: normalizedDisplayDate,
-      updatedAt: new Date(),
-    });
+    await this.executeWrite(
+      async () => {
+        await this.firestoreCtx.run(async () => {
+          const photoRef = doc(
+            this.firestore,
+            `users/${safeUserId}/photos/${safePhotoId}`
+          );
+          await updateDoc(photoRef, {
+            displayDate: normalizedDisplayDate,
+            updatedAt: new Date(),
+          });
+        });
+      },
+      'Erro ao atualizar a data de exibição da foto.',
+      {
+        op: 'updatePhotoDisplayDate',
+        userId: safeUserId,
+        photoId: safePhotoId,
+      }
+    );
   }
 
   async addComment(
@@ -319,6 +338,64 @@ export class PhotoFirestoreService {
         op: 'deletePhoto',
         userId: safeUserId,
         photoId: safePhotoId,
+      }
+    );
+  }
+
+  private async commitCriticalPhotoMetadata(
+    userId: string,
+    photoId: string,
+    data: {
+      url?: string;
+      path?: string;
+      fileName?: string;
+    },
+    mode: 'create' | 'replace'
+  ): Promise<void> {
+    const safePhotoId = String(photoId ?? '').trim();
+    const storagePath = String(data.path ?? '').trim();
+    const url = String(data.url ?? '').trim();
+    const fileName = String(data.fileName ?? '').trim();
+
+    if (!safePhotoId || !storagePath || !url || !fileName) {
+      throw this.normalizeHandledError(
+        new Error('Metadados críticos da foto inválidos.'),
+        'Metadados críticos da foto inválidos.',
+        {
+          op: 'commitCriticalPhotoMetadata',
+          userId,
+          photoId: safePhotoId,
+          mode,
+        }
+      );
+    }
+
+    await this.executeWrite(
+      async () => {
+        await this.firestoreCtx.run(() => {
+          const callable = httpsCallable<
+            RegisterPrivatePhotoUploadCallableRequest,
+            RegisterPrivatePhotoUploadCallableResponse
+          >(this.functions, 'registerPrivatePhotoUpload');
+
+          return callable({
+            ownerUid: userId,
+            photoId: safePhotoId,
+            storagePath,
+            url,
+            fileName,
+            mode,
+          }).then(() => undefined);
+        });
+      },
+      mode === 'create'
+        ? 'Erro ao registrar os metadados da foto.'
+        : 'Erro ao atualizar os metadados críticos da foto.',
+      {
+        op: 'commitCriticalPhotoMetadata',
+        userId,
+        photoId: safePhotoId,
+        mode,
       }
     );
   }
