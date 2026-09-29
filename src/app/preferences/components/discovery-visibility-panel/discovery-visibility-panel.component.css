@@ -16,11 +16,6 @@
   flex-wrap: wrap;
 }
 
-.panel-title {
-  margin: 0;
-  font-size: 1.1rem;
-}
-
 .panel-subtitle {
   margin: 0.35rem 0 0;
   opacity: 0.8;
