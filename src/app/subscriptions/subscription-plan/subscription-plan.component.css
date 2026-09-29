@@ -11,27 +11,6 @@
   padding-block: 1.25rem 3rem;
 }
 
-.subscription-plan-header {
-  display: grid;
-  gap: 1rem;
-  padding: 1.4rem;
-  border: 1px solid var(--surface-border);
-  border-radius: 28px;
-  background:
-    radial-gradient(
-      circle at top right,
-      color-mix(in oklab, var(--primary-color) 10%, transparent),
-      transparent 36%
-    ),
-    linear-gradient(
-      180deg,
-      color-mix(in oklab, var(--surface-color) 96%, transparent),
-      var(--surface-color)
-    );
-  box-shadow: var(--box-shadow);
-}
-
-.subscription-plan-kicker,
 .subscription-plan-status-card__eyebrow,
 .plan-price-label {
   font-size: 0.78rem;
@@ -40,27 +19,10 @@
   color: color-mix(in oklab, var(--text-color) 62%, transparent);
 }
 
-.subscription-plan-header h1 {
-  margin: 0;
-  font-size: clamp(2rem, 2.6vw, 3rem);
-  line-height: 1.05;
-  color: var(--text-color);
-}
-
-.subscription-plan-description {
-  margin: 0;
-  max-width: 64ch;
-  line-height: 1.55;
-  color: color-mix(in oklab, var(--text-color) 80%, transparent);
-}
-
 .subscription-plan-status-card {
   display: grid;
   gap: 0.45rem;
   padding: 1rem 1.1rem;
-  border: 1px solid var(--surface-border);
-  border-radius: 20px;
-  background: color-mix(in oklab, var(--surface-color) 98%, transparent);
 }
 
 .subscription-plan-status-card__title {
@@ -82,18 +44,18 @@
   gap: 0.75rem;
 }
 
-.subscription-plan-header__actions .btn {
+.subscription-plan-header__actions .app-action {
   min-height: var(--tap-target);
   padding: 0.85rem 1rem;
 }
 
-.subscription-plan-header__actions .btn-secondary {
+.subscription-plan-header__actions .app-action-secondary {
   background: transparent;
   color: var(--text-color);
   border: 1px solid var(--surface-border);
 }
 
-.subscription-plan-header__actions .btn-secondary:hover {
+.subscription-plan-header__actions .app-action-secondary:hover {
   background: var(--header-hover-bg);
 }
 
@@ -203,63 +165,26 @@
   gap: 0.75rem;
 }
 
-.subscription-plan-accordion {
-  border: 1px solid var(--surface-border);
-  border-radius: 18px;
-  background: color-mix(in oklab, var(--surface-color) 98%, transparent);
-  box-shadow: var(--box-shadow);
-  overflow: hidden;
-}
-
-.subscription-plan-accordion summary {
-  list-style: none;
-  cursor: pointer;
-  padding: 1rem 1.1rem;
-  min-height: var(--tap-target);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  color: var(--text-color);
-  font-weight: 700;
-}
-
-.subscription-plan-accordion summary::-webkit-details-marker {
-  display: none;
-}
-
-.subscription-plan-accordion summary::after {
-  content: '+';
-  font-size: 1.2rem;
-  line-height: 1;
-  color: color-mix(in oklab, var(--text-color) 70%, transparent);
-}
-
-.subscription-plan-accordion[open] summary::after {
-  content: '–';
-}
-
 .subscription-plan-accordion__content {
   display: grid;
   gap: 0.85rem;
-  padding: 0 1.1rem 1rem;
   color: color-mix(in oklab, var(--text-color) 78%, transparent);
   line-height: 1.5;
 }
 
-.subscription-plan-accordion__content .btn {
+.subscription-plan-accordion__content .app-action {
   min-height: var(--tap-target);
   justify-self: start;
   padding: 0.8rem 1rem;
 }
 
-.subscription-plan-accordion__content .btn-secondary {
+.subscription-plan-accordion__content .app-action-secondary {
   background: transparent;
   color: var(--text-color);
   border: 1px solid var(--surface-border);
 }
 
-.subscription-plan-accordion__content .btn-secondary:hover {
+.subscription-plan-accordion__content .app-action-secondary:hover {
   background: var(--header-hover-bg);
 }
 
@@ -275,10 +200,6 @@
   gap: 1rem;
   min-height: 100%;
   padding: 1.15rem;
-  border: 1px solid var(--surface-border);
-  border-radius: 24px;
-  background: var(--surface-color);
-  box-shadow: var(--box-shadow);
   transition:
     border-color 0.25s ease,
     transform 0.25s ease,
@@ -324,18 +245,7 @@
 }
 
 .plan-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   width: fit-content;
-  min-height: 30px;
-  padding: 0.35rem 0.72rem;
-  border-radius: 999px;
-  font-size: 0.8rem;
-  font-weight: 700;
-  background: color-mix(in oklab, var(--primary-color) 14%, transparent);
-  border: 1px solid color-mix(in oklab, var(--primary-color) 24%, var(--surface-border));
-  color: var(--text-color);
 }
 
 .plan[data-current='true'] .plan-badge {
@@ -344,16 +254,8 @@
 }
 
 .plan-recommendation {
-  display: inline-flex;
-  align-items: center;
-  min-height: 30px;
-  padding: 0.35rem 0.72rem;
-  border-radius: 999px;
-  color: var(--text-color);
+  border-color: color-mix(in oklab, var(--primary-color) 40%, var(--surface-border));
   background: color-mix(in oklab, var(--primary-color) 20%, transparent);
-  border: 1px solid color-mix(in oklab, var(--primary-color) 40%, var(--surface-border));
-  font-size: 0.78rem;
-  font-weight: 800;
 }
 
 .plan h2 {
@@ -423,21 +325,21 @@
   color: var(--text-color);
 }
 
-.plan .btn {
+.plan .app-action {
   width: 100%;
   min-height: var(--tap-target);
   padding: 0.9rem 1rem;
   margin-top: auto;
 }
 
-.plan .btn[disabled] {
+.plan .app-action[disabled] {
   opacity: 0.82;
   cursor: not-allowed;
   transform: none !important;
   background: color-mix(in oklab, var(--success-color) 78%, black 8%);
 }
 
-.plan .btn[disabled]:hover {
+.plan .app-action[disabled]:hover {
   transform: none !important;
 }
 
@@ -453,22 +355,13 @@
     padding-block: 1rem 2rem;
   }
 
-  .subscription-plan-header,
-  .subscription-plan-context,
-  .subscription-plan-warning,
-  .subscription-plan-accordion,
-  .plan,
-  .subscription-plan-status-card {
-    border-radius: 18px;
-  }
-
   .subscription-plan-header__actions {
     display: grid;
     grid-template-columns: 1fr;
   }
 
-  .subscription-plan-header__actions .btn,
-  .subscription-plan-accordion__content .btn {
+  .subscription-plan-header__actions .app-action,
+  .subscription-plan-accordion__content .app-action {
     width: 100%;
   }
 
@@ -478,14 +371,9 @@
 }
 
 @media (max-width: 380px) {
-  .subscription-plan-header,
   .subscription-plan-warning,
   .plan {
     padding: 0.95rem;
-  }
-
-  .subscription-plan-header h1 {
-    font-size: 1.7rem;
   }
 
   .price {
