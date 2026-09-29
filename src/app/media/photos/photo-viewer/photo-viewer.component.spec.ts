@@ -36,6 +36,22 @@ function photo(ownerUid: string, id: string): IProfilePhotoItem {
   };
 }
 
+function pointerEvent(
+  type: string,
+  values: Partial<PointerEvent>
+): PointerEvent {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+
+  for (const [key, value] of Object.entries(values)) {
+    Object.defineProperty(event, key, {
+      configurable: true,
+      value,
+    });
+  }
+
+  return event as PointerEvent;
+}
+
 function publicPhoto(ownerUid: string, id: string): IPublicPhotoItem {
   return {
     ...photo(ownerUid, id),
@@ -224,6 +240,110 @@ describe('PhotoViewerComponent mixed-owner safety', () => {
     expect(comments.watchVisibleComments$).toHaveBeenCalledWith(
       'owner-b',
       'a-1'
+    );
+  });
+
+  it('aceita setas horizontais e verticais sem capturar campos editáveis', () => {
+    const component = fixture.componentInstance;
+
+    component.onArrowRight(new KeyboardEvent('keydown', {
+      key: 'ArrowRight',
+      cancelable: true,
+    }));
+    expect(component.current?.id).toBe('b-1');
+
+    component.onArrowLeft(new KeyboardEvent('keydown', {
+      key: 'ArrowUp',
+      cancelable: true,
+    }));
+    expect(component.current?.id).toBe('a-1');
+
+    const textarea = document.createElement('textarea');
+    const event = new KeyboardEvent('keydown', {
+      key: 'ArrowRight',
+      cancelable: true,
+    });
+    Object.defineProperty(event, 'target', {
+      configurable: true,
+      value: textarea,
+    });
+
+    component.onArrowRight(event);
+    expect(component.current?.id).toBe('a-1');
+  });
+
+  it('navega por swipe horizontal sem converter gesto vertical em troca de foto', () => {
+    const component = fixture.componentInstance;
+    const target = fixture.nativeElement.querySelector(
+      '.viewer-media-frame'
+    ) as HTMLElement;
+
+    component.onSwipePointerDown(pointerEvent('pointerdown', {
+      pointerType: 'touch',
+      pointerId: 1,
+      isPrimary: true,
+      button: 0,
+      clientX: 240,
+      clientY: 120,
+      target,
+    }));
+    component.onSwipePointerUp(pointerEvent('pointerup', {
+      pointerType: 'touch',
+      pointerId: 1,
+      isPrimary: true,
+      button: 0,
+      clientX: 120,
+      clientY: 124,
+      target,
+    }));
+
+    expect(component.current?.id).toBe('b-1');
+
+    component.prev();
+    expect(component.current?.id).toBe('a-1');
+
+    component.onSwipePointerDown(pointerEvent('pointerdown', {
+      pointerType: 'touch',
+      pointerId: 2,
+      isPrimary: true,
+      button: 0,
+      clientX: 120,
+      clientY: 80,
+      target,
+    }));
+    component.onSwipePointerUp(pointerEvent('pointerup', {
+      pointerType: 'touch',
+      pointerId: 2,
+      isPrimary: true,
+      button: 0,
+      clientX: 126,
+      clientY: 180,
+      target,
+    }));
+
+    expect(component.current?.id).toBe('a-1');
+  });
+
+  it('expõe anúncio de navegação e atalhos equivalentes para leitor de tela', () => {
+    const component = fixture.componentInstance;
+    component.next();
+    fixture.detectChanges();
+
+    expect(component.navigationAnnouncement()).toContain('2 de 2');
+    expect(component.navigationAnnouncement()).toContain('Foto b-1');
+
+    const previous = fixture.nativeElement.querySelector(
+      '.viewer-nav-btn--prev'
+    ) as HTMLButtonElement;
+    const next = fixture.nativeElement.querySelector(
+      '.viewer-nav-btn--next'
+    ) as HTMLButtonElement;
+
+    expect(previous.getAttribute('aria-keyshortcuts')).toBe(
+      'ArrowLeft ArrowUp'
+    );
+    expect(next.getAttribute('aria-keyshortcuts')).toBe(
+      'ArrowRight ArrowDown'
     );
   });
 
