@@ -279,9 +279,13 @@ describe('PublicVideoViewerComponent', () => {
 
     expect(closeButton).not.toBeNull();
     expect(previousButton?.disabled).toBe(true);
-    expect(previousButton?.getAttribute('aria-keyshortcuts')).toBe('ArrowUp');
+    expect(previousButton?.getAttribute('aria-keyshortcuts')).toBe(
+      'ArrowUp ArrowLeft'
+    );
     expect(nextButton?.disabled).toBe(false);
-    expect(nextButton?.getAttribute('aria-keyshortcuts')).toBe('ArrowDown');
+    expect(nextButton?.getAttribute('aria-keyshortcuts')).toBe(
+      'ArrowDown ArrowRight'
+    );
     expect(videoViewTracking.recordVideoView$).not.toHaveBeenCalled();
   });
 
@@ -293,12 +297,12 @@ describe('PublicVideoViewerComponent', () => {
     expect(fixture.componentInstance.current?.id).toBe('video-2');
   });
 
-  it('preserva as setas laterais para os controles nativos do vídeo', () => {
+  it('aceita seta lateral como atalho equivalente fora dos controles', () => {
     const event = dispatchKey(document, 'ArrowRight');
     fixture.detectChanges();
 
-    expect(event.defaultPrevented).toBe(false);
-    expect(fixture.componentInstance.current?.id).toBe('video-1');
+    expect(event.defaultPrevented).toBe(true);
+    expect(fixture.componentInstance.current?.id).toBe('video-2');
   });
 
   it('não troca de vídeo quando a seta parte do elemento de mídia', () => {
@@ -478,6 +482,16 @@ describe('PublicVideoViewerComponent', () => {
     expect(video.load).toHaveBeenCalled();
   });
 
+  it('não rouba foco para o elemento de vídeo ao carregar playback', async () => {
+    const focusSpy = vi.spyOn(HTMLMediaElement.prototype, 'focus');
+
+    fixture.componentInstance.next();
+    await Promise.resolve();
+    fixture.detectChanges();
+
+    expect(focusSpy).not.toHaveBeenCalled();
+  });
+
   it('remove o estado ocupado quando o navegador sinaliza que pode reproduzir', () => {
     const video = fixture.nativeElement.querySelector('video') as HTMLVideoElement;
 
@@ -511,7 +525,7 @@ describe('PublicVideoViewerComponent', () => {
     expect(component.waitingForContinuation).toBe(true);
 
     const nextButton = fixture.nativeElement.querySelector(
-      '[aria-keyshortcuts="ArrowDown"]'
+      '[aria-keyshortcuts="ArrowDown ArrowRight"]'
     ) as HTMLButtonElement | null;
     expect(nextButton).not.toBeNull();
     expect(nextButton?.disabled).toBe(true);
