@@ -14,11 +14,11 @@ export const PREFERENCES_ROUTES: Routes = [
       ),
   },
   {
+    // Compatibilidade com links antigos. A visão geral foi consolidada no hub
+    // canônico para evitar duas páginas descrevendo o mesmo estado.
     path: 'overview',
-    loadComponent: () =>
-      import('./pages/preferences-home/preferences-home.component').then(
-        (m) => m.PreferencesHomeComponent
-      ),
+    redirectTo: '',
+    pathMatch: 'full',
   },
   {
     // O editor é exclusivamente da conta autenticada. O UID não faz parte da
