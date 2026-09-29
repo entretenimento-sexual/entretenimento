@@ -18,6 +18,7 @@ function makeVideo(name = 'video.mp4'): File {
 function configure(uid$: Observable<string | null>) {
   const session = new VideoEditorSessionService();
   const mediaError = {
+    report: vi.fn(),
     reportSilently: vi.fn(),
   };
   const authSession = {
@@ -59,7 +60,7 @@ describe('VideoEditorLauncherService', () => {
       posterBlob: null,
     }));
     expect(session.peekDraft('owner-1')?.file).toBe(file);
-    expect(mediaError.reportSilently).not.toHaveBeenCalled();
+    expect(mediaError.report).not.toHaveBeenCalled();
   });
 
   it('rejeita arquivo inválido antes de abrir sessão', async () => {
@@ -70,7 +71,7 @@ describe('VideoEditorLauncherService', () => {
       'Formato inválido.'
     );
     expect(session.peekDraft()).toBeNull();
-    expect(mediaError.reportSilently).toHaveBeenCalledOnce();
+    expect(mediaError.report).toHaveBeenCalledOnce();
   });
 
   it('não abre sessão sem usuário autenticado', async () => {
@@ -80,7 +81,7 @@ describe('VideoEditorLauncherService', () => {
       'Usuário não autenticado para abrir o editor de vídeo.'
     );
     expect(session.peekDraft()).toBeNull();
-    expect(mediaError.reportSilently).toHaveBeenCalledOnce();
+    expect(mediaError.report).toHaveBeenCalledOnce();
   });
 
   it('expõe estado e capa pela porta canônica respeitando origem e owner', async () => {
@@ -121,6 +122,26 @@ describe('VideoEditorLauncherService', () => {
     expect(await firstValueFrom(launcher.draftForSource$('social-feed'))).toBeNull();
     expect(await firstValueFrom(launcher.stateForSource$('social-feed'))).toBeNull();
     expect(await firstValueFrom(launcher.posterBlobForSource$('social-feed'))).toBeNull();
+  });
+
+  it('troca rápida A→B→A não ressuscita File/Blob da sessão antiga', async () => {
+    const uidSubject = new BehaviorSubject<string | null>('owner-a');
+    const { launcher, session } = configure(uidSubject.asObservable());
+    const file = makeVideo('rapid-auth.mp4');
+    const poster = new Blob(['poster'], { type: 'image/jpeg' });
+
+    await firstValueFrom(launcher.launchFile$(file, {
+      source: 'profile-videos',
+    }));
+    launcher.updatePoster(poster, 'profile-videos');
+
+    uidSubject.next('owner-b');
+    uidSubject.next('owner-a');
+
+    expect(session.peekDraft()).toBeNull();
+    expect(session.lastTeardownReason).toBe('auth-changed');
+    expect(await firstValueFrom(launcher.draft$)).toBeNull();
+    expect(await firstValueFrom(launcher.posterBlob$)).toBeNull();
   });
 
   it('derruba File/Blob imediatamente em logout ou troca de usuário', async () => {
