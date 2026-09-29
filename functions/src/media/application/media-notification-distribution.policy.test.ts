@@ -1,3 +1,6 @@
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
+
 import {
   buildMediaDistributionNotificationId,
   buildMediaNotificationCopy,
@@ -14,23 +17,23 @@ import {
 
 describe('media notification distribution policy', () => {
   it('distributes only on transition into approved public/friends state', () => {
-    expect(shouldDistributeApprovedMedia({
+    assert.equal(shouldDistributeApprovedMedia({
       before: {moderationStatus: 'PENDING_REVIEW', visibility: 'PUBLIC'},
       after: {moderationStatus: 'APPROVED', visibility: 'PUBLIC', mediaType: 'PHOTO'},
       mediaCollection: 'public_photos',
-    })).toBe(true);
+    }), true);
 
-    expect(shouldDistributeApprovedMedia({
+    assert.equal(shouldDistributeApprovedMedia({
       before: {moderationStatus: 'APPROVED', visibility: 'PUBLIC'},
       after: {moderationStatus: 'APPROVED', visibility: 'PUBLIC', mediaType: 'PHOTO'},
       mediaCollection: 'public_photos',
-    })).toBe(false);
+    }), false);
 
-    expect(shouldDistributeApprovedMedia({
+    assert.equal(shouldDistributeApprovedMedia({
       before: {moderationStatus: 'PENDING_REVIEW', visibility: 'PUBLIC'},
       after: {moderationStatus: 'FLAGGED', visibility: 'PUBLIC', mediaType: 'PHOTO'},
       mediaCollection: 'public_photos',
-    })).toBe(false);
+    }), false);
   });
 
   it('keeps notification ids stable for dedupe', () => {
@@ -47,8 +50,8 @@ describe('media notification distribution policy', () => {
       mediaId: 'photo-1',
     });
 
-    expect(first).toBe(second);
-    expect(first).toMatch(/^media_distribution_/);
+    assert.equal(first, second);
+    assert.match(first, /^media_distribution_/);
   });
 
   it('enforces defensive recipient and owner-recipient caps', () => {
@@ -65,8 +68,8 @@ describe('media notification distribution policy', () => {
         },
       },
     });
-    expect(ownerCapped.allowed).toBe(false);
-    expect(ownerCapped.reason).toBe('OWNER_RECIPIENT_CAP');
+    assert.equal(ownerCapped.allowed, false);
+    assert.equal(ownerCapped.reason, 'OWNER_RECIPIENT_CAP');
 
     const recipientCapped = evaluateMediaNotificationCaps({
       ownerUid: 'owner-b',
@@ -77,8 +80,8 @@ describe('media notification distribution policy', () => {
         ownerCounts: {},
       },
     });
-    expect(recipientCapped.allowed).toBe(false);
-    expect(recipientCapped.reason).toBe('RECIPIENT_CAP');
+    assert.equal(recipientCapped.allowed, false);
+    assert.equal(recipientCapped.reason, 'RECIPIENT_CAP');
 
     const reset = evaluateMediaNotificationCaps({
       ownerUid: 'owner',
@@ -90,9 +93,9 @@ describe('media notification distribution policy', () => {
         ownerCounts: {owner: 99},
       },
     });
-    expect(reset.allowed).toBe(true);
-    expect(reset.nextCount).toBe(1);
-    expect(reset.nextOwnerCounts['owner']).toBe(1);
+    assert.equal(reset.allowed, true);
+    assert.equal(reset.nextCount, 1);
+    assert.equal(reset.nextOwnerCounts['owner'], 1);
   });
 
   it('requires active recipient lifecycle', () => {
@@ -103,32 +106,31 @@ describe('media notification distribution policy', () => {
       loginAllowed: true,
     };
 
-    expect(canReceiveMediaDistributionNotification(
+    assert.equal(canReceiveMediaDistributionNotification(
       active,
       'recipient',
       'owner'
-    )).toBe(true);
+    ), true);
 
-    expect(canReceiveMediaDistributionNotification(
+    assert.equal(canReceiveMediaDistributionNotification(
       {...active, suspended: true},
       'recipient',
       'owner'
-    )).toBe(false);
+    ), false);
 
-    expect(canReceiveMediaDistributionNotification(
+    assert.equal(canReceiveMediaDistributionNotification(
       {...active, interactionBlocked: true},
       'recipient',
       'owner'
-    )).toBe(false);
+    ), false);
   });
 
   it('keeps supported media types and defensive fanout explicit', () => {
-    expect(resolveMediaDistributionType('PHOTO', 'public_photos')).toBe('photo');
-    expect(resolveMediaDistributionType('VIDEO', 'public_videos')).toBe('video');
-    expect(resolveMediaDistributionNotificationType('photo')).toBe(
-      'media.photo.published'
-    );
-    expect(MEDIA_NOTIFICATION_MAX_RECIPIENTS_PER_PUBLICATION).toBeGreaterThan(0);
-    expect(buildMediaNotificationCopy('video').title).toContain('vídeo');
+    assert.equal(resolveMediaDistributionType('PHOTO', 'public_photos'), 'photo');
+    assert.equal(resolveMediaDistributionType('VIDEO', 'public_videos'), 'video');
+    assert.equal(resolveMediaDistributionNotificationType('photo'),
+      'media.photo.published');
+    assert.ok(MEDIA_NOTIFICATION_MAX_RECIPIENTS_PER_PUBLICATION > 0);
+    assert.match(buildMediaNotificationCopy('video').title, /vídeo/i);
   });
 });
