@@ -1,5 +1,5 @@
 // src/app/core/interfaces/friendship/friend.interface.ts
-import type { Timestamp, WithFieldValue } from 'firebase/firestore';
+import type { Timestamp } from 'firebase/firestore';
 
 export interface FriendDoc {
   friendUid: string;
@@ -18,8 +18,6 @@ export interface Friend {
   distanceKm?: number;
 }
 
-/** ✅ Para writes no Firestore (aceita serverTimestamp()) */
-export type FriendDocWrite = WithFieldValue<FriendDoc>;
 
 /*
 
