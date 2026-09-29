@@ -16,24 +16,16 @@
   aria-label="Fotos do perfil"
 >
   @if ((userPhotos$ | async); as photos) {
-    <header class="photo-manager__summary app-toolbar">
-      <div class="photo-manager__copy app-toolbar__summary">
-        <span class="photo-manager__eyebrow">Vitrine do perfil</span>
-        <h3>{{ title() }}</h3>
-
-        <p>
-          <strong>{{ photos.length }}</strong>
-          {{ photos.length === 1 ? 'foto publicada' : 'fotos publicadas' }} no perfil
+    <header class="photo-manager__summary app-section-header">
+      <div class="photo-manager__copy app-section-heading">
+        <h3 class="app-section-title">{{ title() }}</h3>
+        <p class="app-section-meta">
+          {{ photos.length }}
+          {{ photos.length === 1 ? 'foto' : 'fotos' }}
         </p>
-
-        @if (!isCollapsed() && isSummaryMode() && photos.length > getVisiblePhotos(photos).length) {
-          <span>
-            Exibindo {{ getVisiblePhotos(photos).length }} de {{ photos.length }} fotos.
-          </span>
-        }
       </div>
 
-      <div class="photo-manager__toolbar app-toolbar__controls">
+      <div class="photo-manager__toolbar app-section-actions">
         @if (shouldShowSort(photos) && !isCollapsed()) {
           <div class="photo-sort app-segmented" aria-label="Ordenar fotos">
             <button
@@ -83,11 +75,7 @@
       </div>
     </header>
 
-    @if (isCollapsed()) {
-      <p class="photo-manager__collapsed-text app-empty-card__text">
-        Expanda para ver uma prévia das fotos publicadas no seu perfil.
-      </p>
-    } @else {
+    @if (!isCollapsed()) {
       @if (photos.length) {
         <div
           class="photo-grid app-card-grid app-card-grid--compact app-card-grid--media"
