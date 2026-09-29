@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
 import { BehaviorSubject, of, throwError } from 'rxjs';
+import { take } from 'rxjs/operators';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { IUserAgeEligibility } from 'src/app/core/interfaces/iuser-dados';
@@ -32,6 +33,8 @@ describe('AgeVerificationPageComponent', () => {
     current$: unknown;
     adultAccessAllowed$: unknown;
     acceptSelfDeclaration$: MockFn;
+    getCurrentOnce$: MockFn;
+    refreshTrustedSources$: MockFn;
   };
 
   beforeEach(async () => {
@@ -42,6 +45,8 @@ describe('AgeVerificationPageComponent', () => {
       current$: current$.asObservable(),
       adultAccessAllowed$: adultAccessAllowed$.asObservable(),
       acceptSelfDeclaration$: vi.fn(() => of('SELF_DECLARED_ADULT')),
+      getCurrentOnce$: vi.fn(() => current$.pipe(take(1))),
+      refreshTrustedSources$: vi.fn(() => of('UNVERIFIED')),
     };
 
     await TestBed.configureTestingModule({
@@ -81,6 +86,22 @@ describe('AgeVerificationPageComponent', () => {
   afterEach(() => {
     TestBed.resetTestingModule();
     vi.restoreAllMocks();
+  });
+
+  it('reconcilia confirmação canônica ausente da projeção antes de pedir novamente', async () => {
+    ageEligibilityMock.refreshTrustedSources$.mockReturnValueOnce(
+      of('SELF_DECLARED_ADULT')
+    );
+
+    fixture.destroy();
+
+    fixture = TestBed.createComponent(AgeVerificationPageComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    expect(ageEligibilityMock.getCurrentOnce$).toHaveBeenCalled();
+    expect(ageEligibilityMock.refreshTrustedSources$).toHaveBeenCalledTimes(1);
+    expect(ageEligibilityMock.acceptSelfDeclaration$).not.toHaveBeenCalled();
   });
 
   it('registra a autodeclaração e deixa a projeção backend autorizar o avanço', async () => {
