@@ -9,11 +9,12 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { EMPTY, Observable } from 'rxjs';
+import { EMPTY, Observable, of } from 'rxjs';
 import {
   catchError,
   finalize,
   map,
+  switchMap,
   take,
 } from 'rxjs/operators';
 
@@ -78,6 +79,22 @@ export class AgeVerificationPageComponent implements OnInit {
     );
 
   ngOnInit(): void {
+    this.ageEligibility.getCurrentOnce$()
+      .pipe(
+        take(1),
+        switchMap((state) => {
+          if (state.status !== 'UNVERIFIED') {
+            return of(state.status);
+          }
+
+          return this.ageEligibility.refreshTrustedSources$().pipe(
+            catchError(() => of('UNVERIFIED' as const))
+          );
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
+
     this.ageEligibility.adultAccessAllowed$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((allowed) => {
