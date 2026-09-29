@@ -20,7 +20,6 @@ import { ChatModuleLayoutComponent } from './chat-module-layout/chat-module-layo
 import { ChatMessagesListComponent } from './chat-messages-list/chat-messages-list.component';
 import { ChatRoomsComponent } from './chat-rooms/chat-rooms.component';
 
-import { CommunitiesModule } from './communities/communities.module';
 import { BaseModalComponent } from './modals/base-modal/base-modal.component';
 import { DeleteMessageConfirmDialogComponent } from './modals/delete-message-confirm-dialog/delete-message-confirm-dialog.component';
 import { ActionStateDirective } from '../shared/action-state/action-state.directive';
@@ -69,7 +68,6 @@ import { ChatReplyQuotePipe } from './pipes/chat-reply-quote.pipe';
     RouterModule,
     ReactiveFormsModule,
     SharedModule,
-    CommunitiesModule,
     NgOptimizedImage,
     BaseModalComponent,
     ActionStateDirective,
