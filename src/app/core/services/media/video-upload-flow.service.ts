@@ -166,11 +166,8 @@ export class VideoUploadFlowService {
         return undefined;
       }
 
-      const videoRef = runInInjectionContext(this.injector, () =>
-        doc(collection(this.firestore, `users/${ownerUid}/videos`))
-      );
-      const videoId = videoRef.id;
-      const videoPath = this.buildVideoPath(ownerUid, videoId, sourceFormat);
+      let videoId = '';
+      let videoPath = '';
       let posterPath: string | null = null;
       let activeTask: UploadTask | null = null;
       let cancelRequested = false;
@@ -241,10 +238,16 @@ export class VideoUploadFlowService {
             })
           );
           const posterBlob = selectedPosterBlob ?? metadata.posterBlob;
+          assertNotCancelled();
+
+          const videoRef = runInInjectionContext(this.injector, () =>
+            doc(collection(this.firestore, `users/${ownerUid}/videos`))
+          );
+          videoId = videoRef.id;
+          videoPath = this.buildVideoPath(ownerUid, videoId, sourceFormat);
           posterPath = posterBlob
             ? this.buildPosterPath(ownerUid, videoId)
             : null;
-          assertNotCancelled();
 
           const reservation = await this.reserveVideoUpload({
             ownerUid,
