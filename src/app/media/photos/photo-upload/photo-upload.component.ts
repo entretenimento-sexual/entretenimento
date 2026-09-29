@@ -26,6 +26,7 @@ import {
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
+import type { MediaErrorReason } from 'src/app/core/services/media/media-error.catalog';
 import { PhotoEditorLauncherService } from 'src/app/core/services/image-handling/photo-editor-launcher.service';
 import {
   IPhotoUploadFlowEvent,
@@ -213,9 +214,8 @@ export class PhotoUploadComponent {
           }
 
           if (!ownerUid?.trim()) {
-            this.reportError(
-              'Não foi possível identificar o perfil de destino.',
-              new Error('ownerUid ausente na rota.'),
+            this.reportReason(
+              'photo_upload_failed',
               { op: 'onFileSelected.ownerUid' }
             );
             return EMPTY;
@@ -258,7 +258,7 @@ export class PhotoUploadComponent {
                 });
               }),
               catchError((error) => {
-                this.reportError('Erro ao editar a imagem.', error, {
+                this.reportError('photo_editor_failed', error, {
                   op: 'onFileSelected.editor',
                   ownerUid,
                   fileName: file.name,
@@ -300,9 +300,8 @@ export class PhotoUploadComponent {
           }
 
           if (!ownerUid?.trim()) {
-            this.reportError(
-              'Não foi possível identificar o perfil de destino.',
-              new Error('ownerUid ausente na rota.'),
+            this.reportReason(
+              'photo_upload_failed',
               { op: 'startUpload.ownerUid' }
             );
             return EMPTY;
@@ -352,9 +351,8 @@ export class PhotoUploadComponent {
           }
 
           if (!ownerUid?.trim()) {
-            this.reportError(
-              'Não foi possível identificar o perfil de destino.',
-              new Error('ownerUid ausente na rota.'),
+            this.reportReason(
+              'photo_upload_failed',
               { op: 'editBeforeUpload.ownerUid' }
             );
             return EMPTY;
@@ -390,7 +388,7 @@ export class PhotoUploadComponent {
                 this.applySelectedFile(result.file, result.imageStateStr);
               }),
               catchError((error) => {
-                this.reportError('Erro ao editar a imagem.', error, {
+                this.reportError('photo_editor_failed', error, {
                   op: 'editBeforeUpload.editor',
                   ownerUid,
                   fileName: file.name,
@@ -434,7 +432,7 @@ export class PhotoUploadComponent {
   backToPhotos(ownerUid: string): void {
     this.router.navigate(['/media', 'perfil', ownerUid, 'fotos']).catch((error) => {
       this.reportError(
-        'Falha ao navegar.',
+        'media_navigation_failed',
         error,
         { op: 'backToPhotos', ownerUid }
       );
@@ -478,7 +476,7 @@ export class PhotoUploadComponent {
         this.phaseSubject.next('READY');
         this.uploadPercentSubject.next(0);
         this.reportError(
-          'Erro ao enviar a imagem.',
+          'photo_upload_failed',
           error,
           {
             op: 'uploadSelectedFile',
@@ -558,20 +556,35 @@ export class PhotoUploadComponent {
   }
 
   private reportError(
-    userMessage: string,
+    reasonHint: MediaErrorReason,
     error: unknown,
     context?: Record<string, unknown>
   ): void {
     this.errorHandler.report(error, {
       operation: String(context?.['op'] ?? 'unknown'),
-      fallbackMessage: userMessage,
+      reasonHint,
       metadata: {
         scope: 'PhotoUploadComponent',
         ...(context ?? {}),
       },
     });
 
-    this.debug('reportError', { userMessage, context, error });
+    this.debug('reportError', { reasonHint, context, error });
+  }
+
+  private reportReason(
+    reasonHint: MediaErrorReason,
+    context?: Record<string, unknown>
+  ): void {
+    this.errorHandler.reportReason(reasonHint, {
+      operation: String(context?.['op'] ?? 'unknown'),
+      metadata: {
+        scope: 'PhotoUploadComponent',
+        ...(context ?? {}),
+      },
+    });
+
+    this.debug('reportReason', { reasonHint, context });
   }
 
   private debug(msg: string, data?: unknown): void {
