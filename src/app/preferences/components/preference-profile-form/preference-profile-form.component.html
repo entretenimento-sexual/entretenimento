@@ -3,8 +3,8 @@
   class="preference-profile-form"
   [formGroup]="form"
   (ngSubmit)="submit()"
-  aria-label="Formulário de preferências"
-  formInvalidMessage="Revise os filtros destacados antes de salvar suas preferências."
+  aria-label="Preferências pessoais"
+  formInvalidMessage="Revise as escolhas destacadas antes de salvar."
 >
   <details class="preference-group app-disclosure" open>
     <summary class="preference-group__summary app-disclosure__summary">
@@ -43,7 +43,7 @@
   <details class="preference-group app-disclosure">
     <summary class="preference-group__summary app-disclosure__summary">
       <strong class="preference-group__title app-disclosure__title">Como você se descreve</strong>
-      <span class="preference-group__count app-disclosure__state">{{ selectionLabel(selectedCount('st', bodyPreferenceOptions)) }}</span>
+      <span class="preference-group__count app-disclosure__state">{{ selfDescriptionSummary() }}</span>
     </summary>
     <div class="preference-group__content app-disclosure__content">
       <p class="preference-note" role="note">Essas informações só aparecem na descoberta quando “Exibir sinais de preferências” estiver ativo.</p>
@@ -59,9 +59,9 @@
     <summary class="preference-group__summary app-disclosure__summary">
       <strong class="preference-group__title app-disclosure__title">Refinar combinações</strong>
       @if (canEditAdvanced()) {
-        <span class="preference-group__count app-disclosure__state">{{ selectionLabel(selectedCount('sp', sexualPracticeOptions) + selectedCount('bp', bodyPreferenceOptions)) }}</span>
+        <span class="preference-group__count app-disclosure__state">{{ advancedSummary() }}</span>
       } @else {
-        <span class="preference-group__plan app-disclosure__state"><i class="fas fa-lock" aria-hidden="true"></i>Básico</span>
+        <span class="preference-group__plan app-disclosure__state"><i class="fas fa-lock" aria-hidden="true"></i>Opcional · Básico</span>
       }
     </summary>
     <div class="preference-group__content app-disclosure__content">
@@ -109,6 +109,7 @@
   <details class="preference-group app-disclosure">
     <summary class="preference-group__summary app-disclosure__summary">
       <strong class="preference-group__title app-disclosure__title">Ajustar alcance</strong>
+      <span class="preference-group__count app-disclosure__state">{{ reachSummary() }}</span>
     </summary>
     <div class="preference-group__content app-disclosure__content form-grid">
       <div class="form-field app-field">
@@ -191,10 +192,11 @@
   <details class="preference-group app-disclosure">
     <summary class="preference-group__summary app-disclosure__summary">
       <strong class="preference-group__title app-disclosure__title">Sua visibilidade</strong>
+      <span class="preference-group__count app-disclosure__state">{{ visibilitySummary() }}</span>
     </summary>
     <div class="preference-group__content app-disclosure__content form-grid">
       <div class="form-field form-field--wide app-field">
-        <label for="discoveryMode">Modo de descoberta</label>
+        <label for="discoveryMode">Como você quer aparecer</label>
         <select class="app-control" id="discoveryMode" formControlName="discoveryMode">
           @for (option of discoveryModeOptions; track option.key) { <option [value]="option.key" [disabled]="!isModeAvailable(option.key)">{{ option.label }}{{ modeRequirement(option.key) }}</option> }
         </select>
