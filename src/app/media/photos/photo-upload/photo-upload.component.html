@@ -9,22 +9,21 @@
 @let selectedFileSizeLabel = (selectedFileSizeLabel$ | async);
 @let uploadPercent = (uploadPercent$ | async);
 
-<section class="upload-page" aria-labelledby="photo-upload-title">
-  <header class="upload-header app-card">
+<section class="upload-page container-wide" aria-label="Adicionar foto">
+  <app-page-header
+    title="Adicionar foto"
+    subtitle="Escolha, ajuste e confirme antes de enviar."
+  >
     <a
-      class="upload-header__back-link"
+      page-actions
+      class="app-action app-action--ghost"
       [routerLink]="['/media', 'perfil', ownerUid || '', 'fotos']"
       aria-label="Voltar para minhas fotos"
     >
       <i class="fas fa-arrow-left" aria-hidden="true"></i>
       Minhas fotos
     </a>
-
-    <div class="upload-header__copy">
-      <h1 id="photo-upload-title">Adicionar foto</h1>
-      <p>Escolha, ajuste e confirme antes de enviar.</p>
-    </div>
-  </header>
+  </app-page-header>
 
   @if (!canUpload) {
     <article class="upload-blocked app-card" role="status" aria-live="polite">
@@ -115,7 +114,7 @@
             <div class="upload-actions">
               <button
                 type="button"
-                class="btn btn-primary"
+                class="app-action app-action--primary"
                 (click)="startUpload()"
                 [disabled]="phase !== 'READY'"
               >
@@ -128,7 +127,7 @@
 
               <button
                 type="button"
-                class="btn btn-secondary"
+                class="app-action app-action--ghost"
                 (click)="editBeforeUpload()"
                 [disabled]="phase !== 'READY'"
               >
@@ -138,7 +137,7 @@
 
               <button
                 type="button"
-                class="btn btn-ghost"
+                class="app-action app-action--ghost"
                 (click)="resetSelection(fileInput)"
                 [disabled]="phase === 'EDITING' || phase === 'UPLOADING' || phase === 'IDLE'"
               >
@@ -197,7 +196,7 @@
             <div class="upload-actions upload-actions--done">
               <button
                 type="button"
-                class="btn btn-primary"
+                class="app-action app-action--primary"
                 (click)="backToPhotos(ownerUid || '')"
               >
                 Ver minhas fotos
@@ -205,7 +204,7 @@
 
               <button
                 type="button"
-                class="btn btn-secondary"
+                class="app-action app-action--ghost"
                 (click)="sendAnotherPhoto()"
               >
                 Adicionar outra
