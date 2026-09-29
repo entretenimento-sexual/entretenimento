@@ -20,12 +20,8 @@ import {
   getAuth,
 } from 'firebase/auth';
 import {
-  Timestamp,
   connectFirestoreEmulator,
-  doc,
   getFirestore as getClientFirestore,
-  setDoc,
-  updateDoc,
 } from 'firebase/firestore';
 import {
   connectFunctionsEmulator,
@@ -258,10 +254,6 @@ async function run() {
     });
     const originalDownloadUrl = await getDownloadURL(originalStorageRef);
 
-    const privatePhotoRef = doc(
-      clientDb,
-      `users/${ownerUid}/photos/${photoId}`
-    );
     const registerPrivatePhotoUpload = httpsCallable(
       clientFunctions,
       'registerPrivatePhotoUpload'
