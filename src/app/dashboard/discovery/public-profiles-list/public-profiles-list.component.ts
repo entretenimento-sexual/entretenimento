@@ -123,6 +123,17 @@ export class PublicProfilesListComponent {
 
       descricao: this.toOptionalText(view.descricao),
       idade: this.toOptionalNumber(profile.age ?? view.idade),
+
+      publicRelationshipIntents:
+        profile.publicRelationshipIntents ?? null,
+      publicSexualPractices:
+        profile.publicSexualPractices ?? null,
+      publicBodyTraits:
+        profile.publicBodyTraits ?? null,
+      preferenceBadgesVisible:
+        profile.preferenceBadgesVisible ?? null,
+      publicPreferencesUpdatedAt:
+        profile.publicPreferencesUpdatedAt ?? null,
     };
 
     return userCardProfile as IUserDados;
