@@ -12,7 +12,7 @@
     </app-preferences-page-header>
 
     @if (state$ | async; as state) {
-      <section class="plan-strip" aria-label="Plano e recursos disponíveis">
+      <section class="plan-strip" aria-label="Plano atual">
         <div class="plan-strip__copy">
           <strong>Plano {{ state.capabilities.currentPlanLabel }}</strong>
         </div>
