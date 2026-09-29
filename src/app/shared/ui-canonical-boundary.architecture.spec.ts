@@ -34,6 +34,12 @@ const CANONICAL_ACTION_TEMPLATES = [
   'src/app/explore/pages/social-explore-page/social-explore-page.component.html',
   'src/app/user-profile/user-profile-view/user-profile-view.component.html',
   'src/app/notifications/notifications-page/notifications-page.component.html',
+  'src/app/authentication/progressive-signup/progressive-signup.component.html',
+  'src/app/user-profile/user-profile-edit/edit-profile-social-links/edit-profile-social-links.component.html',
+  'src/app/subscriptions/checkout/checkout.component.html',
+  'src/app/media/photos/profile-photos/profile-photos.component.html',
+  'src/app/media/photos/public-profile-photos/public-profile-photos.component.html',
+  'src/app/media/photos/top-public-photos/top-public-photos.component.html',
 ] as const;
 
 const CANONICAL_HEADER_TEMPLATES = [
@@ -59,6 +65,12 @@ const CANONICALIZED_STYLES = [
   'src/app/explore/pages/social-explore-page/social-explore-page.component.css',
   'src/app/user-profile/user-profile-view/user-profile-view.component.css',
   'src/app/notifications/notifications-page/notifications-page.component.css',
+  'src/app/authentication/progressive-signup/progressive-signup.component.css',
+  'src/app/user-profile/user-profile-edit/edit-profile-social-links/edit-profile-social-links.component.css',
+  'src/app/subscriptions/checkout/checkout.component.css',
+  'src/app/media/photos/profile-photos/profile-photos.component.css',
+  'src/app/media/photos/public-profile-photos/public-profile-photos.component.css',
+  'src/app/media/photos/top-public-photos/top-public-photos.component.css',
 ] as const;
 
 describe('Canonical UI boundary', () => {
@@ -115,6 +127,10 @@ describe('Canonical UI boundary', () => {
       'src/app/preferences/components/preferences-page-header/preferences-page-header.component.html',
       'src/app/preferences/components/preferences-page-header/preferences-page-header.component.css',
       'src/app/notifications/notifications-page/notifications-page.clean.css',
+      'src/app/user-profile/user-profile-edit/edit-region/edit-profile-region.component.ts',
+      'src/app/user-profile/user-profile-edit/edit-region/edit-profile-region.component.html',
+      'src/app/user-profile/user-profile-edit/edit-region/edit-profile-region.component.css',
+      'src/app/user-profile/user-profile-edit/edit-region/edit-profile-region.component.spec.ts',
     ];
 
     expect(
