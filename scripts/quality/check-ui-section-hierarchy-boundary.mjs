@@ -27,11 +27,21 @@ const violations = [];
 
 const cards = read('src/styles/cards.css');
 for (const required of [
+  '.app-page-header',
+  '.app-page-heading',
+  '.app-page-title',
+  '.app-page-lead',
+  '.app-page-actions',
   '.app-section-header',
   '.app-section-heading',
   '.app-section-title',
   '.app-section-meta',
   '.app-section-actions',
+  '.app-disclosure',
+  '.app-disclosure__summary',
+  '.app-disclosure__title',
+  '.app-disclosure__state',
+  '.app-disclosure__content',
 ]) {
   if (!cards.includes(required)) {
     violations.push(`src/styles/cards.css missing ${required}`);
@@ -39,6 +49,104 @@ for (const required of [
 }
 
 const boundaries = [
+  {
+    path: 'src/app/preferences/pages/preferences-editor/preferences-editor.component.html',
+    required: [
+      '<app-preferences-page-header title="Preferências">',
+      'app-section-header',
+      'app-section-title',
+      'app-disclosure',
+      'app-disclosure__state',
+      'app-action app-action--ghost',
+    ],
+    forbidden: [
+      'Defina quem você quer encontrar e como deseja aparecer.',
+      'Preferências essenciais disponíveis sem assinatura.',
+      'Abra apenas a categoria que deseja alterar.',
+      'availability-section__action',
+      'btn btn-secondary',
+    ],
+  },
+  {
+    path: 'src/app/preferences/components/preference-profile-form/preference-profile-form.component.html',
+    required: [
+      'app-disclosure',
+      'app-disclosure__summary',
+      'app-disclosure__title',
+      'app-disclosure__content',
+      'Modo do filtro',
+      'app-action app-action--primary',
+    ],
+    forbidden: [
+      'O tipo de conexão que você procura.',
+      'Quem pode aparecer nas suas combinações.',
+      'Características que você escolhe declarar sobre si.',
+      'Práticas desejadas e características físicas procuradas.',
+      'Idade, distância e tipos de perfil aceitos.',
+      'Privacidade e visibilidade do seu perfil.',
+      '>Configurar<',
+      'Como usar estas escolhas',
+      'Preferências salvas.',
+      'btn btn-primary',
+    ],
+  },
+  {
+    path: 'src/app/preferences/pages/preferences-hub/preferences-hub.component.html',
+    required: [
+      '<app-preferences-page-header title="Preferências">',
+      'app-action app-action--ghost',
+    ],
+    forbidden: [
+      'Ajuste como seu perfil aparece, como você recebe notificações',
+      'btn btn-secondary',
+    ],
+  },
+  {
+    path: 'src/app/preferences/pages/discovery-settings/discovery-settings.component.html',
+    required: [
+      'title="Descoberta e privacidade"',
+      'app-action app-action--ghost',
+    ],
+    forbidden: [
+      'Discovery settings',
+      'Controle do modo de descoberta, privacidade',
+      'Editar descoberta e visibilidade',
+      'btn btn-secondary',
+    ],
+  },
+  {
+    path: 'src/app/preferences/pages/notification-settings/notification-settings.component.html',
+    required: [
+      'Notificações neste navegador',
+      'app-action app-action--ghost',
+    ],
+    forbidden: [
+      'push-device-card__eyebrow',
+      'Notificações no navegador',
+      'btn btn-secondary',
+    ],
+  },
+  {
+    path: 'src/app/preferences/components/discovery-visibility-form/discovery-visibility-form.component.html',
+    required: [
+      'app-action app-action--primary',
+    ],
+    forbidden: [
+      '<h2 id="visibility-settings-title"',
+      'btn btn-primary',
+    ],
+  },
+  {
+    path: 'src/app/preferences/components/discovery-visibility-panel/discovery-visibility-panel.component.html',
+    required: [
+      'aria-label="Estado atual da descoberta e privacidade"',
+    ],
+    forbidden: [
+      'panel-title',
+      'panel-subtitle',
+      'Descoberta e visibilidade</h2>',
+    ],
+  },
   {
     path: 'src/app/user-profile/user-profile-view/user-profile-view.component.html',
     required: [
@@ -135,5 +243,5 @@ if (violations.length > 0) {
 }
 
 console.log(
-  '[ui-section-hierarchy] OK: canonical title/meta/action hierarchy is preserved without redundant profile/media/community kickers.'
+  '[ui-section-hierarchy] OK: canonical page/section/disclosure hierarchy is preserved without redundant profile, media, community or preference copy.'
 );
