@@ -116,9 +116,7 @@ match /public_profiles/{userId}/public_photos/{photoId} {
       && (
         isSelf(userId)
         || (
-          publicProfileAllowsAdultExposure()
-          && resource.data.status == "VISIBLE"
-          && photoExists()
+          resource.data.status == "VISIBLE"
           && isApprovedCommentReadablePhotoData(photoData())
         )
       );
