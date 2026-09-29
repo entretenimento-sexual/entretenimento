@@ -53,11 +53,6 @@
   font-weight: 900;
 }
 
-.availability-section__summary:focus-visible {
-  outline: var(--focus-ring, 3px solid #7dd3fc);
-  outline-offset: 2px;
-}
-
 .editor-section {
   display: grid;
   gap: 10px;
