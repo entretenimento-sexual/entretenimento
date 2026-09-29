@@ -11,6 +11,7 @@ import { HttpsError } from 'firebase-functions/v2/https';
 import { db, FieldValue, Timestamp } from '../firebaseApp';
 import {
   AGE_ELIGIBILITY_POLICY_VERSION,
+  type AgeEligibilityDecision,
   type AgeEligibilityMethod,
   type AgeEligibilitySource,
   type AgeEligibilityStatus,
@@ -54,6 +55,30 @@ function nullablePositiveTime(value: unknown): number | null {
   if (value === null || value === undefined) return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
+}
+
+export function projectionFromCanonicalAgeDecision(
+  decision: Readonly<AgeEligibilityDecision>,
+  updatedAtMs: number
+): AgeEligibilityProjection | null {
+  if (
+    decision.policyVersion === null ||
+    decision.source === null ||
+    decision.method === null
+  ) {
+    return null;
+  }
+
+  return {
+    status: decision.status,
+    policyVersion: decision.policyVersion,
+    source: decision.source,
+    method: decision.method,
+    caseId: decision.caseId,
+    verifiedAtMs: decision.verifiedAtMs,
+    expiresAtMs: decision.expiresAtMs,
+    updatedAtMs,
+  };
 }
 
 export function buildCanonicalAgeEligibility(
