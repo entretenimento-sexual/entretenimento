@@ -41,7 +41,7 @@
       A plataforma e seus conteúdos adultos são impróprios e proibidos para crianças e adolescentes. É vedada a criação, manutenção ou utilização de conta por pessoa menor de 18 anos, ainda que com autorização de responsável.
     </p>
     <p>
-      A autodeclaração de idade, isoladamente, não é suficiente para liberar conteúdo adulto. A plataforma poderá exigir mecanismos de aferição ou verificação de idade adequados, proporcionais, auditáveis e tecnicamente seguros, inclusive a cada acesso quando exigido pela legislação ou pelo nível de risco do recurso.
+      A autodeclaração de idade, isoladamente, não constitui verificação forte de maioridade. Ela pode ser registrada como declaração provisória para etapas sociais de baixo risco, mas não é suficiente, por si só, para autorizar upload, publicação, reprodução ou consumo de mídia adulta. Essas superfícies exigem estado de maioridade verificada por fonte confiável e vigente.
     </p>
     <p>
       Dados coletados especificamente para verificação de idade serão limitados ao necessário para essa finalidade, protegidos por medidas de segurança e não poderão ser reutilizados para publicidade comportamental ou finalidade incompatível.
@@ -150,7 +150,10 @@
   <section>
     <h2>11. Assinaturas, renovação, cancelamento e arrependimento</h2>
     <p>
-      Preço, duração, recursos, limites, tributos, forma de pagamento, eventual renovação automática e restrições serão apresentados antes da contratação. A renovação automática somente ocorrerá quando informada de forma clara e autorizada no fluxo de compra.
+      Preço, duração, recursos, limites, tributos, forma de pagamento, eventual renovação automática e restrições serão apresentados antes da contratação. A renovação automática somente ocorrerá quando informada de forma clara, tecnicamente habilitada e autorizada no fluxo de compra.
+    </p>
+    <p>
+      Na configuração atual, a cobrança recorrente real em produção permanece desabilitada e o backend falha de forma fechada enquanto essa capacidade não for habilitada operacionalmente. Fluxos de emulador ou sandbox não representam cobrança real nem concedem, por si só, assinatura em produção.
     </p>
     <p>
       O cancelamento impede cobranças futuras, preservando os benefícios até o fim do período já pago, salvo regra mais favorável apresentada na oferta. Permanecem assegurados o direito de arrependimento aplicável às contratações eletrônicas, a restituição por cobrança indevida, falha atribuível à plataforma e demais direitos obrigatórios do consumidor.
@@ -160,7 +163,7 @@
   <section>
     <h2>12. Pagamentos, verificação de identidade e prevenção a ilícitos</h2>
     <p>
-      Recursos financeiros, pagamentos, gorjetas, assinaturas, repasses ou saques podem ser processados por parceiros regulados e depender de verificação de identidade, titularidade, capacidade, origem de recursos e análise de risco. A plataforma e os parceiros poderão bloquear temporariamente operações suspeitas, solicitar documentos, preservar registros e comunicar fatos às autoridades quando houver obrigação ou fundamento legal.
+      Quando a cobrança real estiver operacionalmente habilitada, assinaturas poderão ser processadas por parceiro de pagamento externo. O frontend não define preço confiável, benefício, role ou confirmação financeira: esses elementos são validados pelo backend e a confirmação depende de evento autorizado do provedor. Dados completos de cartão são capturados na superfície hospedada pelo parceiro de pagamento, e não pela aplicação.
     </p>
     <p>
       É proibido utilizar a plataforma para dissimular origem, destino, natureza ou titularidade de valores, realizar autofinanciamento fictício, fraude de pagamento, chargeback abusivo ou intermediação financeira não autorizada.
