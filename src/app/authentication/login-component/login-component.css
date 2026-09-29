@@ -118,15 +118,6 @@
   margin: 0 0 1rem;
 }
 
-.form-header {
-  margin: 0;
-  font-size: clamp(1.75rem, 4vw, 2.5rem);
-  line-height: 1.05;
-  font-weight: 850;
-  letter-spacing: -0.04em;
-  color: var(--text-color);
-}
-
 .form-subtitle {
   margin: 0.65rem 0 1.5rem;
   color: color-mix(in oklab, var(--text-color) 74%, transparent);
@@ -159,19 +150,7 @@
 }
 
 .input-field {
-  width: 100%;
   min-height: 48px;
-  padding: 0.85rem 1rem;
-  border: 1px solid var(--surface-border, color-mix(in oklab, var(--text-color) 16%, transparent));
-  border-radius: 14px;
-  background: color-mix(in oklab, var(--background-color) 96%, white 4%);
-  color: var(--text-color);
-  font: inherit;
-  outline: none;
-  transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease,
-    background-color 0.2s ease;
 }
 
 .input-field::placeholder {
@@ -180,7 +159,6 @@
 
 .input-field:focus-visible {
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary-color) 18%, transparent);
 }
 
 .input-field[aria-invalid="true"] {
@@ -295,7 +273,7 @@
   margin-top: 0.2rem;
 }
 
-.button-container .btn {
+.button-container .app-action {
   width: 100%;
   min-height: 48px;
   border-radius: 14px;
@@ -468,12 +446,12 @@
   margin-top: 1rem;
 }
 
-.modal-actions .btn {
+.modal-actions .app-action {
   min-height: 44px;
   border-radius: 12px;
 }
 
-.modal-actions .btn:disabled {
+.modal-actions .app-action:disabled {
   opacity: 0.62;
   cursor: not-allowed;
 }
