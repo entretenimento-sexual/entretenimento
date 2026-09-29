@@ -47,7 +47,7 @@
 
                 <div class="profile-actions" role="group" aria-label="Ações do perfil">
                   <a
-                    class="btn btn-secondary"
+                    class="app-action app-action--ghost"
                     [routerLink]="['/perfil', uid, 'editar-dados-pessoais']"
                     aria-label="Editar dados pessoais"
                   >
@@ -55,7 +55,7 @@
                   </a>
 
                   <a
-                    class="btn btn-secondary"
+                    class="app-action app-action--ghost"
                     [routerLink]="['/preferencias', 'editar', uid]"
                     aria-label="Editar preferências"
                   >
@@ -124,9 +124,7 @@
                   [showSort]="false"
                   [showActions]="false"
                   [showDate]="true"
-                  [collapsible]="true"
-                  [startCollapsed]="false"
-                  [galleryLink]="['/media', 'perfil', currentUid, 'fotos']"
+                                    [galleryLink]="['/media', 'perfil', currentUid, 'fotos']"
                   [uploadLink]="['/media', 'perfil', currentUid, 'fotos', 'upload']"
                 />
               }
