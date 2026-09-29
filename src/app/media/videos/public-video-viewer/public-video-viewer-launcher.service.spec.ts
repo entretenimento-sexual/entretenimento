@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { MatDialog } from '@angular/material/dialog';
+import { MatDialog, MatDialogConfig } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -58,7 +58,7 @@ function video(id: string): IPublicVideoItem {
 
 describe('PublicVideoViewerLauncherService', () => {
   const dialog = {
-    open: vi.fn(() => ({})),
+    open: vi.fn((_component: unknown, _config: MatDialogConfig) => ({})),
   };
   const mediaError = {
     reportSilently: vi.fn(),
