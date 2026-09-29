@@ -52,6 +52,12 @@ const CANONICAL_HEADER_TEMPLATES = [
   'src/app/community/discovery/community-discovery-page.component.html',
   'src/app/subscriptions/subscription-plan/subscription-plan.component.html',
   'src/app/notifications/notifications-page/notifications-page.component.html',
+  'src/app/authentication/progressive-signup/progressive-signup.component.html',
+  'src/app/user-profile/user-profile-edit/edit-profile-social-links/edit-profile-social-links.component.html',
+  'src/app/subscriptions/checkout/checkout.component.html',
+  'src/app/media/photos/profile-photos/profile-photos.component.html',
+  'src/app/media/photos/public-profile-photos/public-profile-photos.component.html',
+  'src/app/media/photos/top-public-photos/top-public-photos.component.html',
 ] as const;
 
 const CANONICALIZED_STYLES = [
