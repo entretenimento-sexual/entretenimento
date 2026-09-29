@@ -106,6 +106,54 @@
   flex-wrap: wrap;
 }
 
+/*
+ * Hierarquia canônica de seções.
+ *
+ * Regra de conteúdo:
+ * - um título útil por bloco;
+ * - meta só quando acrescenta informação (contagem, estado, contexto);
+ * - ações ficam no mesmo cabeçalho;
+ * - kicker/eyebrow decorativo não faz parte do contrato global porque tende
+ *   a repetir o próprio título.
+ */
+.app-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3, 16px);
+  min-width: 0;
+}
+
+.app-section-heading {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.app-section-title {
+  margin: 0;
+  color: var(--text-color);
+  font-size: clamp(1rem, 0.94rem + 0.3vw, 1.2rem);
+  font-weight: 850;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+}
+
+.app-section-meta {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color) 66%, transparent);
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+
+.app-section-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .app-card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
