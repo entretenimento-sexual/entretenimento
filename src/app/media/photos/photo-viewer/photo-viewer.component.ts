@@ -33,6 +33,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
+import { A11yModule } from '@angular/cdk/a11y';
 import { RouterModule } from '@angular/router';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -130,14 +131,41 @@ type TPhotoCommentThread = {
   replies: IPhotoComment[];
 };
 
+interface PhotoSwipeGesture {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  lastX: number;
+  lastY: number;
+  startedAt: number;
+}
+
 const CONTINUATION_PREFETCH_REMAINING_ITEMS = 2;
 const CONTINUATION_BATCH_SIZE = 8;
+const PHOTO_SWIPE_MIN_DISTANCE_PX = 64;
+const PHOTO_SWIPE_INTENT_DISTANCE_PX = 18;
+const PHOTO_SWIPE_AXIS_DOMINANCE = 1.2;
+const PHOTO_SWIPE_MAX_DURATION_MS = 800;
+const PHOTO_SWIPE_BLOCKED_TARGET_SELECTOR = [
+  'button',
+  'a',
+  'input',
+  'textarea',
+  'select',
+  'option',
+  'label',
+  '[contenteditable="true"]',
+  '[role="button"]',
+  '[role="link"]',
+  '[role="slider"]',
+].join(',');
 
 @Component({
   selector: 'app-photo-viewer',
   standalone: true,
   imports: [
     CommonModule,
+    A11yModule,
     RouterModule,
     MatDialogModule,
     ReactiveFormsModule,
@@ -165,6 +193,8 @@ export class PhotoViewerComponent {
 
   readonly loadingContinuation = signal(false);
   readonly continuationAnnouncement = signal('');
+  readonly navigationAnnouncement = signal('');
+  private photoSwipeGesture: PhotoSwipeGesture | null = null;
 
   readonly commentControl = new FormControl('', {
     nonNullable: true,
@@ -350,6 +380,7 @@ export class PhotoViewerComponent {
 
     this.syncCurrentPhotoIdentity();
     this.recordCurrentPhotoView();
+    this.announceCurrentPhoto();
     queueMicrotask(() => this.prefetchContinuationIfNeeded());
 
     this.debug('init', {
@@ -389,23 +420,100 @@ export class PhotoViewerComponent {
   }
 
   @HostListener('document:keydown.arrowleft', ['$event'])
+  @HostListener('document:keydown.arrowup', ['$event'])
   onArrowLeft(event: Event): void {
-    if (this.isTypingTarget(event.target)) {
+    const keyboardEvent = event as KeyboardEvent;
+
+    if (!this.canUseGalleryKeyboardNavigation(keyboardEvent) || !this.hasPrev) {
       return;
     }
 
-    event.preventDefault();
+    keyboardEvent.preventDefault();
     this.prev();
   }
 
   @HostListener('document:keydown.arrowright', ['$event'])
+  @HostListener('document:keydown.arrowdown', ['$event'])
   onArrowRight(event: Event): void {
-    if (this.isTypingTarget(event.target)) {
+    const keyboardEvent = event as KeyboardEvent;
+
+    if (!this.canUseGalleryKeyboardNavigation(keyboardEvent) || !this.hasNext) {
       return;
     }
 
-    event.preventDefault();
+    keyboardEvent.preventDefault();
     this.next();
+  }
+
+  onSwipePointerDown(event: PointerEvent): void {
+    if (!this.canStartSwipeNavigation(event)) {
+      this.cancelSwipeNavigation();
+      return;
+    }
+
+    this.photoSwipeGesture = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      lastX: event.clientX,
+      lastY: event.clientY,
+      startedAt: Date.now(),
+    };
+  }
+
+  onSwipePointerMove(event: PointerEvent): void {
+    const gesture = this.photoSwipeGesture;
+
+    if (!gesture || gesture.pointerId !== event.pointerId) {
+      return;
+    }
+
+    gesture.lastX = event.clientX;
+    gesture.lastY = event.clientY;
+
+    const horizontalDistance = Math.abs(gesture.lastX - gesture.startX);
+    const verticalDistance = Math.abs(gesture.lastY - gesture.startY);
+
+    if (
+      horizontalDistance >= PHOTO_SWIPE_INTENT_DISTANCE_PX &&
+      horizontalDistance > verticalDistance * PHOTO_SWIPE_AXIS_DOMINANCE &&
+      event.cancelable
+    ) {
+      event.preventDefault();
+    }
+  }
+
+  onSwipePointerUp(event: PointerEvent): void {
+    const gesture = this.photoSwipeGesture;
+    this.photoSwipeGesture = null;
+
+    if (!gesture || gesture.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const deltaX = event.clientX - gesture.startX;
+    const deltaY = event.clientY - gesture.startY;
+    const horizontalDistance = Math.abs(deltaX);
+    const verticalDistance = Math.abs(deltaY);
+    const durationMs = Date.now() - gesture.startedAt;
+
+    if (
+      durationMs > PHOTO_SWIPE_MAX_DURATION_MS ||
+      horizontalDistance < PHOTO_SWIPE_MIN_DISTANCE_PX ||
+      horizontalDistance <= verticalDistance * PHOTO_SWIPE_AXIS_DOMINANCE
+    ) {
+      return;
+    }
+
+    if (deltaX > 0) {
+      this.prev();
+    } else {
+      this.next();
+    }
+  }
+
+  cancelSwipeNavigation(): void {
+    this.photoSwipeGesture = null;
   }
 
   close(): void {
@@ -681,11 +789,13 @@ export class PhotoViewerComponent {
   }
 
   private changeIndex(nextIndex: number): void {
+    this.cancelSwipeNavigation();
     this.index = nextIndex;
     this.commentControl.setValue('');
     this.cancelReply();
     this.syncCurrentPhotoIdentity();
     this.recordCurrentPhotoView();
+    this.announceCurrentPhoto();
     this.continuationAnnouncement.set('');
     queueMicrotask(() => this.prefetchContinuationIfNeeded());
   }
@@ -1017,20 +1127,49 @@ export class PhotoViewerComponent {
     return safeNickname ? safeNickname.slice(0, 40) : 'Usuário';
   }
 
-  private isTypingTarget(target: EventTarget | null): boolean {
-    const element = target as HTMLElement | null;
+  private announceCurrentPhoto(): void {
+    const current = this.current;
 
-    if (!element) {
+    if (!current) {
+      this.navigationAnnouncement.set('');
+      return;
+    }
+
+    const label = String(current.alt ?? '').trim() || 'Foto do perfil';
+    this.navigationAnnouncement.set(
+      `${this.index + 1} de ${this.data.items.length}. ${label}.`
+    );
+  }
+
+  private canStartSwipeNavigation(event: PointerEvent): boolean {
+    const pointerType = String(event.pointerType ?? '').trim().toLowerCase();
+
+    if (
+      pointerType === 'mouse' ||
+      event.isPrimary === false ||
+      event.button !== 0 ||
+      (!this.hasPrev && !this.hasNext)
+    ) {
       return false;
     }
 
-    const tagName = element.tagName.toLowerCase();
+    return !this.isSwipeNavigationTargetBlocked(event.target);
+  }
 
-    return (
-      tagName === 'input' ||
-      tagName === 'textarea' ||
-      element.isContentEditable === true
-    );
+  private isSwipeNavigationTargetBlocked(target: EventTarget | null): boolean {
+    return target instanceof Element &&
+      !!target.closest(PHOTO_SWIPE_BLOCKED_TARGET_SELECTOR);
+  }
+
+  private canUseGalleryKeyboardNavigation(event: KeyboardEvent): boolean {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+      return false;
+    }
+
+    const target = event.target;
+
+    return !(target instanceof Element) ||
+      !target.closest(PHOTO_SWIPE_BLOCKED_TARGET_SELECTOR);
   }
 
   private debug(message: string, extra?: unknown): void {
