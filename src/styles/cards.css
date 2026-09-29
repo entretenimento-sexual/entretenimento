@@ -419,6 +419,20 @@
 }
 
 @media (max-width: 720px) {
+  .app-section-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .app-section-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .app-section-actions .app-action {
+    min-height: var(--tap-target, 44px);
+  }
+
   .app-card__header,
   .app-card__footer,
   .app-toolbar,
