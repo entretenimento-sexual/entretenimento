@@ -21,24 +21,6 @@
   justify-content: space-between;
 }
 
-.profile-my-communities__header h2 {
-  margin: 0.15rem 0 0;
-  font-size: clamp(1rem, 2.8vw, 1.2rem);
-}
-
-.profile-my-communities__eyebrow {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin: 0;
-  font-size: 0.76rem;
-  font-weight: 700;
-  letter-spacing: 0.035em;
-  text-transform: uppercase;
-  opacity: 0.78;
-}
-
-.profile-my-communities__all,
 .profile-my-communities__explore {
   display: inline-flex;
   align-items: center;
@@ -52,14 +34,11 @@
   text-decoration: none;
 }
 
-.profile-my-communities__all:hover,
-.profile-my-communities__all:focus-visible,
 .profile-my-communities__explore:hover,
 .profile-my-communities__explore:focus-visible {
   background: rgba(127, 127, 127, 0.11);
 }
 
-.profile-my-communities__all:focus-visible,
 .profile-my-communities__explore:focus-visible,
 .profile-my-communities__attention-action:focus-visible,
 .profile-my-communities__state button:focus-visible,
