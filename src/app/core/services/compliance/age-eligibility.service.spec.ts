@@ -106,6 +106,111 @@ describe('AgeEligibilityService', () => {
       .resolves.toBe(false);
   });
 
+  it('reconcilia estado UNVERIFIED antes de negar acesso', async () => {
+    const user$ = new BehaviorSubject<IUserDados | null | undefined>({
+      uid: 'user-1',
+    } as IUserDados);
+    const service = new AgeEligibilityService(
+      {} as any,
+      {
+        user$: user$.asObservable(),
+        getLoggedUserUIDSnapshot: () => 'user-1',
+      } as any,
+      { handleError: () => undefined } as any
+    );
+
+    vi.spyOn(service, 'refreshTrustedSources
+    const user$ = new BehaviorSubject<IUserDados | null | undefined>({
+      uid: 'user-1',
+      ageEligibility: {
+        status: 'VERIFIED_ADULT',
+        policyVersion: 1,
+        source: 'AGE_REVERIFICATION',
+        method: 'MANUAL_REVIEW',
+        caseId: 'case-1',
+        verifiedAtMs: Date.now() - 1_000,
+        expiresAtMs: null,
+        updatedAtMs: Date.now(),
+      },
+    } as unknown as IUserDados);
+    const service = new AgeEligibilityService(
+      {} as any,
+      { user$: user$.asObservable() } as any,
+      { handleError: () => undefined } as any
+    );
+
+    await expect(firstValueFrom(service.verifiedAdult$))
+      .resolves.toBe(true);
+  });
+
+  it('não aceita projeção estruturalmente inválida', async () => {
+    const user$ = new BehaviorSubject<IUserDados | null | undefined>({
+      uid: 'user-1',
+      ageEligibility: {
+        status: 'VERIFIED_ADULT',
+        policyVersion: 0,
+        source: 'AGE_REVERIFICATION',
+        method: 'MANUAL_REVIEW',
+      },
+    } as unknown as IUserDados);
+    const service = new AgeEligibilityService(
+      {} as any,
+      { user$: user$.asObservable() } as any,
+      { handleError: () => undefined } as any
+    );
+
+    const state = await firstValueFrom(service.getCurrentOnce$());
+
+    expect(state.status).toBe('UNVERIFIED');
+    expect(state.policyVersion).toBe(0);
+  });
+
+  it('expira o gate local no instante da projeção sem esperar nova escrita', async () => {
+    vi.useFakeTimers();
+    const now = 1_800_000_000_000;
+    vi.setSystemTime(now);
+
+    const user$ = new BehaviorSubject<IUserDados | null | undefined>({
+      uid: 'user-1',
+      ageEligibility: {
+        status: 'VERIFIED_ADULT',
+        policyVersion: 1,
+        source: 'AGE_REVERIFICATION',
+        method: 'MANUAL_REVIEW',
+        caseId: 'case-1',
+        verifiedAtMs: now - 1_000,
+        expiresAtMs: now + 100,
+        updatedAtMs: now,
+      },
+    } as unknown as IUserDados);
+    const service = new AgeEligibilityService(
+      {} as any,
+      { user$: user$.asObservable() } as any,
+      { handleError: () => undefined } as any
+    );
+    const states: boolean[] = [];
+    const subscription = service.adultAccessAllowed$.subscribe((value) =>
+      states.push(value)
+    );
+
+    expect(states).toEqual([true]);
+
+    await vi.advanceTimersByTimeAsync(101);
+
+    expect(states).toEqual([true, false]);
+    subscription.unsubscribe();
+  });
+});
+).mockReturnValueOnce(
+      of('SELF_DECLARED_ADULT')
+    );
+
+    await expect(firstValueFrom(service.reconciledAdultAccess$))
+      .resolves.toBe(true);
+
+    expect(service.refreshTrustedSources$).toHaveBeenCalledTimes(1);
+  });
+
   it('expõe adulto verificado somente a partir da projeção backend', async () => {
     const user$ = new BehaviorSubject<IUserDados | null | undefined>({
       uid: 'user-1',
