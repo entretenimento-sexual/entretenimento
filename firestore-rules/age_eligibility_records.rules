@@ -12,3 +12,10 @@
 match /age_eligibility_records/{userId} {
   allow read, write: if false;
 }
+
+
+// Registro histórico imutável da primeira autodeclaração 18+.
+// É evidência de auditoria/termo, não autoridade dinâmica de acesso.
+match /adult_self_declarations/{userId} {
+  allow read, write: if false;
+}
