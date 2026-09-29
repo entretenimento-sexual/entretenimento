@@ -14,7 +14,7 @@ import { ErrorNotificationService } from '@core/services/error-handler/error-not
 
 import { MatchProfileFacade } from '../../application/match-profile.facade';
 import { MatchProfilePreviewCardComponent } from '../../components/match-profile-preview-card/match-profile-preview-card.component';
-import { PreferencesPageHeaderComponent } from '../../components/preferences-page-header/preferences-page-header.component';
+import { PageHeaderComponent } from '../../../shared/page-header/page-header.component';
 import { PreferencesDomainNavComponent } from '../../components/preferences-domain-nav/preferences-domain-nav.component';
 import { PreferencesUiService } from '../../state/preferences-ui.service';
 
@@ -25,7 +25,7 @@ import { PreferencesUiService } from '../../state/preferences-ui.service';
     CommonModule,
     RouterModule,
     MatchProfilePreviewCardComponent,
-    PreferencesPageHeaderComponent,
+    PageHeaderComponent,
     PreferencesDomainNavComponent,
   ],
   templateUrl: './match-profile-lab.component.html',
