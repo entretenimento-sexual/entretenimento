@@ -432,6 +432,21 @@ export class UserDiscoveryQueryService {
         'preferredOrientations',
         'orientacoesDeInteresse',
       ]),
+      publicRelationshipIntents: this.firstStringArray(raw, [
+        'publicRelationshipIntents',
+      ]),
+      publicSexualPractices: this.firstStringArray(raw, [
+        'publicSexualPractices',
+      ]),
+      publicBodyTraits: this.firstStringArray(raw, [
+        'publicBodyTraits',
+      ]),
+      preferenceBadgesVisible:
+        typeof raw['preferenceBadgesVisible'] === 'boolean'
+          ? raw['preferenceBadgesVisible']
+          : null,
+      publicPreferencesUpdatedAt:
+        this.firstNumber(raw, ['publicPreferencesUpdatedAt']),
       municipio: this.firstText(raw, [
         'municipio',
         'cidade',
