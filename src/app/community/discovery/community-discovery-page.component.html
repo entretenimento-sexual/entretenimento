@@ -1,12 +1,11 @@
 <!-- src/app/community/discovery/community-discovery-page.component.html -->
 @if (viewState$ | async; as state) {
-  <main class="community-discovery" aria-labelledby="community-discovery-title">
-    <header class="community-discovery__header">
-      <h1 id="community-discovery-title">{{ hubTitle }}</h1>
-
+  <main class="community-discovery container" aria-label="Comunidades">
+    <app-page-header [title]="hubTitle">
       @if (canCreateVenue) {
         <a
-          class="community-discovery__create"
+          page-actions
+          class="app-action app-action--primary"
           routerLink="/dashboard/locais/novo"
           aria-label="Cadastrar um novo Espaço Oficial"
         >
@@ -15,7 +14,8 @@
         </a>
       } @else if (canCreateCommunity) {
         <a
-          class="community-discovery__create"
+          page-actions
+          class="app-action app-action--primary"
           href="/dashboard/comunidades/nova"
           [attr.aria-busy]="creationGateBusy()"
           [attr.aria-disabled]="creationGateBusy()"
@@ -29,28 +29,31 @@
           <span>Criar Comunidade</span>
         </a>
       }
-    </header>
+    </app-page-header>
 
     @if (showCommunityNavigation) {
       <nav
-        class="community-discovery__scope-nav"
+        class="community-discovery__scope-nav app-segmented"
         aria-label="Navegação de Comunidades"
       >
         <a
+          class="app-segmented__button"
           routerLink="/dashboard/comunidades"
-          routerLinkActive="is-active"
+          routerLinkActive="is-active app-segmented__button--active"
           ariaCurrentWhenActive="page"
           [routerLinkActiveOptions]="{ exact: true }"
         >Explorar</a>
         <a
+          class="app-segmented__button"
           routerLink="/dashboard/comunidades/minhas"
-          routerLinkActive="is-active"
+          routerLinkActive="is-active app-segmented__button--active"
           ariaCurrentWhenActive="page"
           [routerLinkActiveOptions]="{ exact: true }"
         >Minhas</a>
         <a
+          class="app-segmented__button"
           routerLink="/dashboard/comunidades/convites"
-          routerLinkActive="is-active"
+          routerLinkActive="is-active app-segmented__button--active"
           ariaCurrentWhenActive="page"
         >Convites</a>
       </nav>
