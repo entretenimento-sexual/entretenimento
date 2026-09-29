@@ -168,6 +168,9 @@ describe('Canonical UI boundary', () => {
       'src/app/footer/contact-footer/contact-footer.component.css',
       'src/app/footer/footer/footer.component.css',
       'src/app/footer/navigation-footer/navigation-footer.component.css',
+      'src/app/chat-module/chat-window/chat-window.component.ts',
+      'src/app/chat-module/chat-window/chat-window.component.html',
+      'src/app/chat-module/chat-window/chat-window.component.spec.ts',
     ];
 
     expect(
@@ -193,6 +196,50 @@ describe('Canonical UI boundary', () => {
       violations,
       'Templates placeholder devem ser removidos ou substituídos por uma rota/implementação real.'
     ).toEqual([]);
+  });
+
+
+  it('mantém o onboarding progressivo ligado ao domínio canônico de preferências', () => {
+    const signup = source(
+      'src/app/authentication/progressive-signup/progressive-signup.component.ts'
+    );
+
+    expect(signup).toContain('PreferenceProfilePersistenceService');
+    expect(signup).toContain('saveProfileWithProjection
+    const forms = source('src/styles/global-forms.css');
+    const cards = source('src/styles/cards.css');
+
+    for (const selector of [
+      '.app-field {',
+      '.app-control {',
+      '.app-choice {',
+      '.app-toggle {',
+      '.app-form-actions {',
+    ]) {
+      expect(forms).toContain(selector);
+    }
+
+    for (const selector of [
+      '.app-action {',
+      '.app-card {',
+      '.app-disclosure {',
+      '.app-page-header {',
+    ]) {
+      expect(cards).toContain(selector);
+    }
+  });
+});
+);
+    expect(signup).toContain('/dashboard/perfis-sugeridos');
+    expect(signup).not.toContain('userPreferences: any');
+    expect(signup).not.toContain("navigate(['/suggested-profiles'])");
+  });
+
+  it('não reintroduz o composer legado ChatWindowComponent', () => {
+    const chatModule = source('src/app/chat-module/chat-module.ts');
+
+    expect(chatModule).not.toContain('ChatWindowComponent');
+    expect(chatModule).not.toContain('./chat-window/chat-window.component');
   });
 
   it('mantém as primitives globais que sustentam a canonização', () => {
