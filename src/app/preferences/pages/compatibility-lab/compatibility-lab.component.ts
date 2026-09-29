@@ -11,7 +11,7 @@ import { distinctUntilChanged, map, switchMap, tap } from 'rxjs/operators';
 import { CompatibilityPreviewFacade } from '../../application/compatibility-preview.facade';
 import { CompatibilityPreviewCardComponent } from '../../components/compatibility-preview-card/compatibility-preview-card.component';
 import { MatchProfilePreviewCardComponent } from '../../components/match-profile-preview-card/match-profile-preview-card.component';
-import { PreferencesPageHeaderComponent } from '../../components/preferences-page-header/preferences-page-header.component';
+import { PageHeaderComponent } from '../../../shared/page-header/page-header.component';
 import { PreferencesDomainNavComponent } from '../../components/preferences-domain-nav/preferences-domain-nav.component';
 import { PreferencesUiService } from '../../state/preferences-ui.service';
 
@@ -23,7 +23,7 @@ import { PreferencesUiService } from '../../state/preferences-ui.service';
     RouterModule,
     CompatibilityPreviewCardComponent,
     MatchProfilePreviewCardComponent,
-    PreferencesPageHeaderComponent,
+    PageHeaderComponent,
     PreferencesDomainNavComponent,
   ],
   templateUrl: './compatibility-lab.component.html',
