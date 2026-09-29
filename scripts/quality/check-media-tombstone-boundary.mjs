@@ -33,6 +33,7 @@ const tombstones = [
 
 const allowedReferences = new Set([
   'functions/src/media/index.ts',
+  'functions/src/media/application/legacy-media-tombstone.telemetry.ts',
   ...tombstones.map((entry) => entry.handler),
 ]);
 
