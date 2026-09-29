@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "releaseSha": null,
+  "security": {
+    "status": "PENDING",
+    "reviewer": null,
+    "organization": null,
+    "reviewedAt": null,
+    "reportReference": null
+  },
+  "privacyModeration": {
+    "status": "PENDING",
+    "reviewer": null,
+    "organization": null,
+    "reviewedAt": null,
+    "reportReference": null
+  },
+  "legalAdultAdvertising": {
+    "status": "PENDING",
+    "reviewer": null,
+    "organization": null,
+    "reviewedAt": null,
+    "reportReference": null
+  }
+}
