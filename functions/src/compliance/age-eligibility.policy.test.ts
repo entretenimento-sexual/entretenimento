@@ -69,6 +69,27 @@ describe('age-eligibility.policy', () => {
     assert.equal(mismatched.denialReason, 'record_mismatch');
   });
 
+  it('não permite TTL na autodeclaração 18+', () => {
+    const decision = evaluateCanonicalAgeEligibility({
+      uid: 'user-1',
+      nowMs: NOW,
+      rawRecord: {
+        uid: 'user-1',
+        status: 'SELF_DECLARED_ADULT',
+        policyVersion: AGE_ELIGIBILITY_POLICY_VERSION,
+        source: 'SELF_DECLARATION',
+        method: 'SELF_DECLARATION',
+        caseId: null,
+        verifiedAtMs: null,
+        decidedAtMs: NOW - 1_000,
+        expiresAtMs: NOW + 86_400_000,
+      },
+    });
+
+    assert.equal(decision.allowed, false);
+    assert.equal(decision.denialReason, 'record_mismatch');
+  });
+
   it('falha fechado quando o registro não existe', () => {
     const decision = evaluateCanonicalAgeEligibility({
       uid: 'user-1',
