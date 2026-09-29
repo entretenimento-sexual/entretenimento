@@ -14,7 +14,6 @@ import type {
   TPhotoVisibility,
 } from './i-photo-publication-config';
 
-export type TPublicMediaType = 'PHOTO' | 'VIDEO';
 export type TPublicAssetAccess = 'SIGNED_URL';
 
 export interface IPublicPhotoBase {
