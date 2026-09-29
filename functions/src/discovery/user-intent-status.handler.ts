@@ -303,6 +303,19 @@ function isSameRegion(
     userRegion.city === destination.region.city;
 }
 
+export function preferenceAllowsPublicIntent(raw: unknown): boolean {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return false;
+  }
+
+  const visibility = (raw as Record<string, unknown>)['visibility'];
+
+  return !!visibility &&
+    typeof visibility === 'object' &&
+    !Array.isArray(visibility) &&
+    (visibility as Record<string, unknown>)['showIntentPublicly'] === true;
+}
+
 function shouldNotifyCompatibleStatus(visibility: string): boolean {
   return visibility === 'public_discovery';
 }
@@ -448,10 +461,12 @@ export const publishUserIntentStatus = onCall<PublishUserIntentStatusRequest>(
       throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
     }
 
-    const [userSnapshot, ageEligibilitySnapshot] = await Promise.all([
-      db.collection('users').doc(uid).get(),
-      db.collection('age_eligibility_records').doc(uid).get(),
-    ]);
+    const [userSnapshot, ageEligibilitySnapshot, preferenceSnapshot] =
+      await Promise.all([
+        db.collection('users').doc(uid).get(),
+        db.collection('age_eligibility_records').doc(uid).get(),
+        db.collection('users').doc(uid).collection('preferences').doc('profile').get(),
+      ]);
     const user = userSnapshot.data() as MessagingUserDoc | undefined;
 
     assertMessagingAccountOperational(user, {
@@ -502,6 +517,19 @@ export const publishUserIntentStatus = onCall<PublishUserIntentStatusRequest>(
       ALLOWED_VISIBILITY,
       'public_discovery'
     );
+
+    if (
+      visibility === 'public_discovery' &&
+      !preferenceAllowsPublicIntent(
+        preferenceSnapshot.exists ? preferenceSnapshot.data() : null
+      )
+    ) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Ative a exibição pública da sua intenção nas Preferências antes de publicar em Descobertas.'
+      );
+    }
+
     const destination = await resolveVenueDestination(
       normalizeDestination(request.data?.destination, user!)
     );
