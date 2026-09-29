@@ -128,6 +128,239 @@ for (const fragment of [
   'MAX_ACCESS_CACHE_ENTRIES = 128',
   'setAccessCache(',
   'touchAccessCache(',
+  'this.accessCache.clear()',
+  'this.inFlightRefreshes.clear()',
+  'this.authSession.uid
+  requireIncludes(videoAccess, fragment, 'public video access LRU drift');
+}
+
+const viewer = read(
+  'src/app/media/videos/public-video-viewer/public-video-viewer.component.ts'
+);
+for (const fragment of [
+  'VIEWER_ITEM_WINDOW_MAX = 48',
+  'VIEWER_ITEM_RETAIN_BEHIND = 12',
+  'trimViewerItemWindow()',
+  'releaseCurrentPlayerSource()',
+  "player.removeAttribute('src')",
+  'player.load()',
+  'pairwise()',
+  'handleViewerSessionChanged()',
+  'this.publicVideoAccess.invalidatePublicVideoAccess(current)',
+  'this.automaticRefreshKeys.clear()',
+  'this.recordedViewKeys.clear()',
+]) {
+  requireIncludes(viewer, fragment, 'video decoder release drift');
+}
+
+const videoEditorSession = read(
+  'src/app/core/services/media/video-editor-session.service.ts'
+);
+for (const fragment of [
+  'VIDEO_EDITOR_DRAFT_IDLE_TTL_MS = 15 * 60 * 1000',
+  'readonly expiresAt: number',
+  'this.scheduleExpiry(expiresAt)',
+  "this.clearDraft(undefined, 'expired')",
+  "this.clearDraft(undefined, 'auth-changed')",
+  'this.draftSubject.next(null)',
+  'takeResult(',
+]) {
+  requireIncludes(
+    videoEditorSession,
+    fragment,
+    'video editor session TTL/auth/teardown drift'
+  );
+}
+
+const videoEditorLauncher = read(
+  'src/app/core/services/media/video-editor-launcher.service.ts'
+);
+for (const fragment of [
+  'this.authSession.uid$.pipe(',
+  'takeUntilDestroyed(this.destroyRef)',
+  'this.session.clearIfOwnerMismatch(normalizedUid)',
+  "this.session.clearDraft(undefined, 'destroyed')",
+  'return this.session.takeResult(ownerUid, source);',
+]) {
+  requireIncludes(
+    videoEditorLauncher,
+    fragment,
+    'video editor auth boundary drift'
+  );
+}
+
+const videoEditorControls = read(
+  'src/app/media/videos/video-editor/video-simple-editor-controls.component.ts'
+);
+for (const fragment of [
+  'this.fileSubject.next(null)',
+  'this.metadataSubject.next(null)',
+  'this.fileSubject.complete()',
+  'this.metadataSubject.complete()',
+]) {
+  requireIncludes(
+    videoEditorControls,
+    fragment,
+    'video editor component File/Blob teardown drift'
+  );
+}
+
+const profileVideos = read(
+  'src/app/media/videos/profile-videos/profile-videos.component.ts'
+);
+for (const fragment of [
+  "reason === 'expired' || reason === 'auth-changed'",
+  'this.releaseEditorSelection()',
+  'this.revokePreviewUrl()',
+  'this.selectedFileSubject.next(null)',
+]) {
+  requireIncludes(
+    profileVideos,
+    fragment,
+    'profile video editor host teardown drift'
+  );
+}
+
+const videoUploadFlow = read(
+  'src/app/core/services/media/video-upload-flow.service.ts'
+);
+for (const fragment of [
+  'private readonly authSession = inject(AuthSessionService)',
+  'authBoundarySubscription = this.authSession.uid$.subscribe',
+  'activeTask?.cancel()',
+  'observer.complete()',
+  'authBoundarySubscription?.unsubscribe()',
+  'assertNotCancelled();',
+]) {
+  requireIncludes(
+    videoUploadFlow,
+    fragment,
+    'video upload auth-boundary/teardown drift'
+  );
+}
+
+const videoMetadataPreparation = read(
+  'src/app/core/services/media/video-metadata-preparation.service.ts'
+);
+for (const fragment of [
+  'URL.createObjectURL(file)',
+  'URL.revokeObjectURL(objectUrl)',
+  "video.removeAttribute('src')",
+  'video.load()',
+]) {
+  requireIncludes(
+    videoMetadataPreparation,
+    fragment,
+    'video metadata ObjectURL teardown drift'
+  );
+}
+
+for (const testPath of [
+  'src/app/core/services/media/video-editor-launcher.service.spec.ts',
+  'src/app/core/services/media/video-upload-flow.lifecycle.spec.ts',
+  'src/app/core/services/media/public-video-access.session.spec.ts',
+  'src/app/core/services/media/public-video-metadata-preload.service.spec.ts',
+  'src/app/media/videos/public-video-metadata-preload.directive.spec.ts',
+  'src/app/media/videos/public-video-viewer/public-video-viewer-lazy-playback.spec.ts',
+  'src/app/core/services/media/video-metadata-preparation.service.spec.ts',
+]) {
+  const testSource = read(testPath);
+  requireIncludes(
+    testSource,
+    'it(',
+    testPath + ' lifecycle test missing'
+  );
+}
+
+function runtimeFiles(directory) {
+  if (!fs.existsSync(directory)) return [];
+
+  return fs.readdirSync(directory).flatMap((entry) => {
+    const absolute = path.join(directory, entry);
+    const stat = fs.statSync(absolute);
+
+    if (stat.isDirectory()) return runtimeFiles(absolute);
+    if (
+      !entry.endsWith('.ts')
+      || entry.endsWith('.spec.ts')
+      || entry.endsWith('.test.ts')
+    ) {
+      return [];
+    }
+    return [absolute];
+  });
+}
+
+const scanRoots = [
+  path.join(root, 'src', 'app', 'core', 'services', 'media'),
+  path.join(root, 'src', 'app', 'core', 'services', 'image-handling'),
+  path.join(root, 'src', 'app', 'media'),
+  path.join(root, 'src', 'app', 'photo-editor'),
+  path.join(root, 'src', 'app', 'community', 'feed'),
+];
+
+const violations = [];
+
+for (const file of scanRoots.flatMap(runtimeFiles)) {
+  const source = fs.readFileSync(file, 'utf8');
+  const relative = path.relative(root, file).replaceAll('\\', '/');
+
+  if (
+    source.includes('URL.createObjectURL')
+    && !source.includes('URL.revokeObjectURL')
+  ) {
+    violations.push(relative + ': createObjectURL sem revokeObjectURL');
+  }
+
+  if (
+    source.includes('new IntersectionObserver')
+    && !source.includes('.disconnect()')
+  ) {
+    violations.push(relative + ': IntersectionObserver sem disconnect');
+  }
+
+  if (
+    source.includes('new ResizeObserver')
+    && !source.includes('.disconnect()')
+  ) {
+    violations.push(relative + ': ResizeObserver sem disconnect');
+  }
+
+  if (
+    source.includes('.subscribe(')
+    && !source.includes('takeUntilDestroyed(')
+    && !source.includes('take(1)')
+    && !source.includes('.unsubscribe()')
+    && !source.includes('Subscription')
+  ) {
+    violations.push(relative + ': subscribe imperativo sem teardown reconhecível');
+  }
+
+  if (
+    source.includes('VideoEditorSessionService')
+    && !relative.endsWith(
+      'src/app/core/services/media/video-editor-session.service.ts'
+    )
+    && !relative.endsWith(
+      'src/app/core/services/media/video-editor-launcher.service.ts'
+    )
+  ) {
+    violations.push(
+      relative + ': VideoEditorSessionService fora do auth-boundary do launcher'
+    );
+  }
+}
+
+if (violations.length) {
+  throw new Error(
+    '[media-runtime-resource] Violações:\n - ' + violations.join('\n - ')
+  );
+}
+
+console.log(
+  '[media-runtime-resource] OK: editor, feeds, preload, player e recursos transitórios possuem limites/teardown defensivos.'
+);
+,
 ]) {
   requireIncludes(videoAccess, fragment, 'public video access LRU drift');
 }
