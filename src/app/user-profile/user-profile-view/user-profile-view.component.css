@@ -30,17 +30,13 @@
 }
 
 .profile-card {
-  background: color-mix(in oklab, var(--background-color) 94%, white 6%);
-  border: 1px solid var(--surface-border, color-mix(in oklab, var(--text-color) 12%, transparent));
-  border-radius: 22px;
-  box-shadow: 0 14px 38px color-mix(in oklab, black 9%, transparent);
   padding: clamp(1rem, 2.5vw, 1.45rem);
 }
 
 .profile-card--hero {
   background:
     linear-gradient(135deg, color-mix(in oklab, var(--primary-color) 7%, transparent), transparent 42%),
-    color-mix(in oklab, var(--background-color) 94%, white 6%);
+    var(--surface-color);
 }
 
 .profile-header {
@@ -90,16 +86,6 @@
   display: grid;
   grid-template-columns: 1fr;
   gap: 0.55rem;
-}
-
-.profile-actions .btn {
-  min-height: var(--tap-target, 44px);
-  padding: 10px 14px;
-  border-radius: 14px;
-  line-height: 1.1;
-  font-weight: 800;
-  justify-content: center;
-  width: 100%;
 }
 
 .profile-grid {
