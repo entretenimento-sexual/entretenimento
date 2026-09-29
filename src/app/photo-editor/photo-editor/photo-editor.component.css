@@ -725,3 +725,27 @@ html.high-contrast .editor-emoji-palette button {
   color: var(--text-color) !important;
   box-shadow: none !important;
 }
+
+
+@media (pointer: coarse) {
+  .editor-tool-button,
+  .editor-selection-actions .btn,
+  .editor-tool-panel .btn,
+  .editor-segmented button,
+  .editor-inline-actions .btn,
+  .editor-footer .btn,
+  .close-btn,
+  .editor-emoji-palette button,
+  .editor-tool-field input[type='text'],
+  .editor-tool-field input[type='date'],
+  .editor-tool-field input[type='time'],
+  .editor-tool-field select,
+  .editor-check-field {
+    min-height: var(--tap-target, 44px);
+  }
+
+  .editor-emoji-palette button {
+    width: var(--tap-target, 44px);
+    flex-basis: var(--tap-target, 44px);
+  }
+}
