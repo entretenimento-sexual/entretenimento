@@ -12,6 +12,13 @@ import {
 } from '../friendship/application/bilateral-block-access.policy';
 import {evaluateOperationalCostBudget} from '../shared/observability/operational-cost-budget.policy';
 import {
+  canReceiveMediaDistributionNotification,
+  isMediaDistributionNotificationType,
+} from '../media/application/media-notification-distribution.policy';
+import {
+  evaluateCanonicalOwnerLifecycle,
+} from '../media/application/owner-lifecycle-exposure.policy';
+import {
   buildProductCalibrationRuntimeObservation,
 } from '../shared/observability/product-calibration-observation.policy';
 import {
@@ -68,6 +75,10 @@ export const sendNotification = onDocumentCreated(
       }
     );
     const db = getFirestore();
+    const isMediaDistributionPush =
+      isMediaDistributionNotificationType(notificationType);
+    let mediaActorUid = '';
+    let mediaActorUser: FirebaseFirestore.DocumentData | null = null;
 
     if (isCommunityMuralActivityNotificationType(notificationType)) {
       const actorUid = String(notification?.actorUid ?? '').trim();
@@ -108,6 +119,73 @@ export const sendNotification = onDocumentCreated(
         }
       } catch (error) {
         console.error('[sendNotification] falha ao revalidar bloqueio do Mural', {
+          notificationId,
+          notificationType,
+          errorCode: toSafeErrorCode(error),
+        });
+        return;
+      }
+    }
+
+    if (isMediaDistributionPush) {
+      mediaActorUid = String(notification?.actorUid ?? '').trim();
+
+      if (!mediaActorUid || mediaActorUid === recipientId) {
+        console.warn('[sendNotification] push de Media sem ator válido', {
+          notificationId,
+          notificationType,
+        });
+        return;
+      }
+
+      try {
+        const [actorBlockPath, recipientBlockPath] = buildBilateralBlockPaths(
+          mediaActorUid,
+          recipientId
+        );
+        const [
+          actorBlockSnapshot,
+          recipientBlockSnapshot,
+          actorUserSnapshot,
+        ] = await db.getAll(
+          db.doc(actorBlockPath),
+          db.doc(recipientBlockPath),
+          db.collection('users').doc(mediaActorUid)
+        );
+
+        if (
+          isBilateralBlockActive({
+            actorBlock: actorBlockSnapshot.exists
+              ? actorBlockSnapshot.data()
+              : null,
+            targetBlock: recipientBlockSnapshot.exists
+              ? recipientBlockSnapshot.data()
+              : null,
+          })
+        ) {
+          console.info('[sendNotification] push de Media suprimido por bloqueio bilateral', {
+            notificationId,
+            notificationType,
+          });
+          return;
+        }
+
+        mediaActorUser = actorUserSnapshot.exists
+          ? actorUserSnapshot.data() ?? null
+          : null;
+        const ownerLifecycle =
+          evaluateCanonicalOwnerLifecycle(mediaActorUser);
+
+        if (!ownerLifecycle.allowed) {
+          console.info('[sendNotification] push de Media suprimido por lifecycle do autor', {
+            notificationId,
+            notificationType,
+            reason: ownerLifecycle.denialReason,
+          });
+          return;
+        }
+      } catch (error) {
+        console.error('[sendNotification] falha ao revalidar Media antes do push', {
           notificationId,
           notificationType,
           errorCode: toSafeErrorCode(error),
@@ -181,6 +259,21 @@ export const sendNotification = onDocumentCreated(
     const userRef = db.collection('users').doc(recipientId);
     const userDoc = await userRef.get();
     if (!userDoc.exists) return;
+
+    if (
+      isMediaDistributionPush
+      && !canReceiveMediaDistributionNotification(
+        userDoc.data(),
+        recipientId,
+        mediaActorUid
+      )
+    ) {
+      console.info('[sendNotification] push de Media suprimido por lifecycle do destinatário', {
+        notificationId,
+        notificationType,
+      });
+      return;
+    }
 
     const devicesRef = userRef.collection('push_devices');
     const freshnessCutoff = Timestamp.fromMillis(resolvePushDeviceFreshnessCutoffMs());
