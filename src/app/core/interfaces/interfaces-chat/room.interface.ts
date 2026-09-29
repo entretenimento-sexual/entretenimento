@@ -61,11 +61,4 @@ export interface IRoom {
   isRoom?: true;
 }
 
-// Dados apenas de confirmação de modal (não fazem parte de IRoom)
-export interface RoomCreationConfirmation {
-  exceededLimit: boolean;
-  roomCount: number;
-  action: 'created' | 'updated';
-  room: IRoom;
-}
 // lembrar sempre da padronização em uid para usuários, o identificador canônico.
