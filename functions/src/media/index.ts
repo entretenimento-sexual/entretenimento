@@ -136,6 +136,9 @@ export {
   cleanupExpiredPhotoUploadReservations,
   reservePhotoUpload,
 } from './application/reserve-photo-upload.handler';
+export {
+  registerPrivatePhotoUpload,
+} from './application/register-private-photo-upload.handler';
 
 export {
   cleanupExpiredVideoUploadReservations,
