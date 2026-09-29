@@ -207,8 +207,7 @@ export function evaluateCanonicalAgeEligibility(input: {
       method !== 'SELF_DECLARATION' ||
       decidedAtMs === null ||
       decidedAtMs > nowMs ||
-      (record['expiresAtMs'] !== null && expiresAtMs === null) ||
-      (expiresAtMs !== null && expiresAtMs <= nowMs)
+      record['expiresAtMs'] !== null
     ) {
       return denied('UNVERIFIED', 'record_mismatch', common);
     }
