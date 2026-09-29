@@ -4,6 +4,7 @@ export type PushNotificationPreferenceKey =
   | 'rooms'
   | 'communities'
   | 'places'
+  | 'media'
   | 'compatibleStatus';
 
 const OPTIONAL_PUSH_PREFERENCE_BY_TYPE = new Map<
@@ -14,6 +15,8 @@ const OPTIONAL_PUSH_PREFERENCE_BY_TYPE = new Map<
   ['social', 'connections'],
   ['community.comment.received', 'communities'],
   ['community.comment.reply.received', 'communities'],
+  ['media.photo.published', 'media'],
+  ['media.video.published', 'media'],
   ['user_intent_status.compatible', 'compatibleStatus'],
 ]);
 
