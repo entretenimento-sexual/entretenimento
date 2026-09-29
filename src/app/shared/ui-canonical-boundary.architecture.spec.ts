@@ -9,6 +9,16 @@ function source(path: string): string {
   return readFileSync(resolve(ROOT, path), 'utf8');
 }
 
+function hasClassToken(value: string, token: string): boolean {
+  for (const match of value.matchAll(/class=["']([^"']*)["']/gu)) {
+    if ((match[1] ?? '').split(/\s+/u).includes(token)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 const CANONICAL_ACTION_TEMPLATES = [
   'src/app/account/pages/account-home/account-home.component.html',
   'src/app/authentication/login-component/login-component.html',
@@ -47,7 +57,7 @@ const CANONICALIZED_STYLES = [
 describe('Canonical UI boundary', () => {
   it('não reintroduz a classe genérica legada btn nas superfícies migradas', () => {
     const violations = CANONICAL_ACTION_TEMPLATES.filter((path) =>
-      /class=["'][^"']*(?:^|\s)btn(?:\s|$)[^"']*["']/mu.test(source(path))
+      hasClassToken(source(path), 'btn')
     );
 
     expect(
