@@ -110,6 +110,40 @@ describe('UserDiscoveryQueryService', () => {
     expect(profiles[0]?.age).toBeNull();
   });
 
+  it('preserva somente os sinais públicos de preferências durante hidratação', async () => {
+    publicProfileReadMock.readByUids$.mockReturnValue(
+      of({
+        items: [
+          {
+            uid: 'profile-public-signals',
+            nickname: 'Profile',
+            publicRelationshipIntents: ['serious'],
+            publicSexualPractices: ['bdsm'],
+            publicBodyTraits: ['tattoos'],
+            preferenceBadgesVisible: true,
+            publicPreferencesUpdatedAt: 1_720_000_000_000,
+          },
+        ],
+        nextCursor: null,
+        reachedEnd: true,
+        fetchedAt: Date.now(),
+        scanned: 1,
+      })
+    );
+
+    const profiles = await firstValueFrom(
+      service.getProfilesByUids$(['profile-public-signals'])
+    );
+
+    expect(profiles[0]).toMatchObject({
+      publicRelationshipIntents: ['serious'],
+      publicSexualPractices: ['bdsm'],
+      publicBodyTraits: ['tattoos'],
+      preferenceBadgesVisible: true,
+      publicPreferencesUpdatedAt: 1_720_000_000_000,
+    });
+  });
+
   it('deve separar cache conhecido pela consulta e pela sessão', async () => {
     publicProfileReadMock.read$.mockReturnValue(
       of({
