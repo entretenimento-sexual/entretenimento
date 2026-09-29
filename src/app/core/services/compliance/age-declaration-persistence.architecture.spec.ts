@@ -27,7 +27,9 @@ describe('Adult declaration persistence boundary', () => {
       'functions/src/compliance/refresh-my-age-eligibility.handler.ts'
     );
 
-    expect(refresh).toContain("currentDecision.status === 'SELF_DECLARED_ADULT'");
+    expect(refresh).toContain(
+      "currentDecision.status === 'SELF_DECLARED_ADULT'"
+    );
     expect(refresh).toContain('currentDecision.allowed === true');
   });
 
@@ -42,73 +44,19 @@ describe('Adult declaration persistence boundary', () => {
   });
 
   it('reconcilia antes de decidir guard e etapa de onboarding', () => {
+    const service = source(
+      'src/app/core/services/compliance/age-eligibility.service.ts'
+    );
     const guard = source(
       'src/app/core/guards/compliance/age-eligibility.guard.ts'
     );
     const registerFlow = source(
       'src/app/register-module/data-access/register-flow.facade.ts'
     );
-    const service = source(
-      'src/app/core/services/compliance/age-eligibility.service.ts'
-    );
 
-    expect(service).toContain('reconciledAdultAccess
-    const component = source(
-      'src/app/compliance/age-verification-page/age-verification-page.component.ts'
-    );
-    const template = source(
-      'src/app/compliance/age-verification-page/age-verification-page.component.html'
-    );
-
-    expect(component).toContain('reconciling = signal(true)');
-    expect(component).toContain('refreshTrustedSources$()');
-    expect(component).toContain(
-      'finalize(() => this.reconciling.set(false))'
-    );
-    expect(template).toContain('Verificando sua confirmação já registrada');
-    expect(template).toContain('Você não precisa');
-    expect(template).toContain('Essa declaração não equivale à');
-  });
-});
-);
-    expect(guard).toContain('reconciledAdultAccess
-    const component = source(
-      'src/app/compliance/age-verification-page/age-verification-page.component.ts'
-    );
-    const template = source(
-      'src/app/compliance/age-verification-page/age-verification-page.component.html'
-    );
-
-    expect(component).toContain('reconciling = signal(true)');
-    expect(component).toContain('refreshTrustedSources$()');
-    expect(component).toContain(
-      'finalize(() => this.reconciling.set(false))'
-    );
-    expect(template).toContain('Verificando sua confirmação já registrada');
-    expect(template).toContain('Você não precisa');
-    expect(template).toContain('Essa declaração não equivale à');
-  });
-});
-);
-    expect(registerFlow).toContain('reconciledAdultAccess
-    const component = source(
-      'src/app/compliance/age-verification-page/age-verification-page.component.ts'
-    );
-    const template = source(
-      'src/app/compliance/age-verification-page/age-verification-page.component.html'
-    );
-
-    expect(component).toContain('reconciling = signal(true)');
-    expect(component).toContain('refreshTrustedSources$()');
-    expect(component).toContain(
-      'finalize(() => this.reconciling.set(false))'
-    );
-    expect(template).toContain('Verificando sua confirmação já registrada');
-    expect(template).toContain('Você não precisa');
-    expect(template).toContain('Essa declaração não equivale à');
-  });
-});
-);
+    expect(service).toContain('reconciledAdultAccess$');
+    expect(guard).toContain('reconciledAdultAccess$');
+    expect(registerFlow).toContain('reconciledAdultAccess$');
   });
 
   it('não mostra nova confirmação enquanto reconcilia o estado já salvo', () => {
@@ -124,7 +72,9 @@ describe('Adult declaration persistence boundary', () => {
     expect(component).toContain(
       'finalize(() => this.reconciling.set(false))'
     );
-    expect(template).toContain('Verificando sua confirmação já registrada');
+    expect(template).toContain(
+      'Verificando sua confirmação já registrada'
+    );
     expect(template).toContain('Você não precisa');
     expect(template).toContain('Essa declaração não equivale à');
   });
