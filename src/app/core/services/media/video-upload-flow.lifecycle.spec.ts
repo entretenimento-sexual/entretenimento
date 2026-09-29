@@ -9,7 +9,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { MediaApplicationErrorService } from './media-application-error.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
-import { VideoMetadataPreparationService } from './video-metadata-preparation.service';
+import {
+  IPreparedVideoMetadata,
+  VideoMetadataPreparationService,
+} from './video-metadata-preparation.service';
 import { VideoUploadFlowService } from './video-upload-flow.service';
 
 vi.mock('@angular/fire/functions', async (importOriginal) => {
@@ -32,7 +35,7 @@ vi.mock('@angular/fire/firestore', async (importOriginal) => {
 describe('VideoUploadFlowService / lifecycle', () => {
   it('encerra upload quando a sessão muda de A para B durante preparação', () => {
     const uid$ = new BehaviorSubject<string | null>('owner-a');
-    const metadata$ = new Subject<any>();
+    const metadata$ = new Subject<IPreparedVideoMetadata>();
     const mediaError = {
       reportSilently: vi.fn(),
     };
@@ -113,7 +116,11 @@ describe('VideoUploadFlowService / lifecycle', () => {
 
     metadata$.next({
       durationMs: 10_000,
+      widthPixels: 1280,
+      heightPixels: 720,
       posterBlob: null,
+      posterMimeType: null,
+      playbackReady: true,
     });
     metadata$.complete();
 
