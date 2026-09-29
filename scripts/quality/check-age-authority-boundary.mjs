@@ -146,7 +146,9 @@ for (const relativePath of socialAgeMustNotAuthorize) {
   if (!fs.existsSync(absolutePath)) continue;
 
   const scanned = codeOnly(fs.readFileSync(absolutePath, 'utf8'));
-  if (/\bidade\b/.test(scanned)) {
+  if (
+    /(?:\[['"]idade['"]\]|\.\s*idade\b|\bidade\s*:)/.test(scanned)
+  ) {
     violations.push(
       `${relativePath} (idade social não pode participar da autoridade etária)`
     );
@@ -211,22 +213,70 @@ for (const absolutePath of walk(rulesRoot, ['.rules'])) {
   }
 }
 
-const legacyDerivedProjectionPaths = Object.freeze([
-  'functions/src/discovery/sync-public-profile-discovery.handler.ts',
-  'functions/src/discovery/backfill-public-profile-discovery.handler.ts',
+const legacyDerivedAuthorityPaths = Object.freeze([
   'functions/src/discovery/user-intent-status.handler.ts',
   'functions/src/community/community-social-access.service.ts',
 ]);
 
-for (const relativePath of legacyDerivedProjectionPaths) {
+for (const relativePath of legacyDerivedAuthorityPaths) {
   const absolutePath = path.join(root, relativePath);
   if (!fs.existsSync(absolutePath)) continue;
 
   const source = codeOnly(fs.readFileSync(absolutePath, 'utf8'));
 
   for (const [pattern, reason] of [
-    [/\[['"]idade['"]\]|\.idade\b/g, 'idade legada não pode alimentar autorização/projeção adulta'],
+    [/\[['"]idade['"]\]|\.idade\b/g, 'idade legada não pode alimentar autorização adulta'],
     [/declaredAdult/g, 'autodeclaração adulta não pode alimentar autoridade etária'],
+  ]) {
+    addMatchViolations(
+      violations,
+      absolutePath,
+      source,
+      pattern,
+      reason
+    );
+  }
+}
+
+// Discovery pode projetar a idade social declarada para apresentação, mas
+// essa projeção nunca pode substituir nem alimentar a decisão 18+ canônica.
+const socialAgeProjectionPaths = Object.freeze([
+  'functions/src/discovery/sync-public-profile-discovery.handler.ts',
+  'functions/src/discovery/backfill-public-profile-discovery.handler.ts',
+]);
+
+for (const relativePath of socialAgeProjectionPaths) {
+  const absolutePath = path.join(root, relativePath);
+  if (!fs.existsSync(absolutePath)) continue;
+
+  const source = codeOnly(fs.readFileSync(absolutePath, 'utf8'));
+
+  for (const required of [
+    'evaluateCanonicalAgeEligibility',
+    'resolvePublicProfileAge',
+    'ageEligibilityAdultAccessAllowed',
+    'ageEligibilityVerifiedAdult',
+  ]) {
+    if (!source.includes(required)) {
+      violations.push(
+        `${relativePath} (projeção de idade social deve permanecer separada da autoridade canônica: ${required})`
+      );
+    }
+  }
+
+  for (const [pattern, reason] of [
+    [
+      /ageEligibility(?:AdultAccessAllowed|VerifiedAdult)\s*:\s*resolvePublicProfileAge\s*\(/g,
+      'idade social não pode preencher elegibilidade adulta',
+    ],
+    [
+      /\b(?:allowed|adultAccessAllowed|verifiedAdult)\s*[:=]\s*resolvePublicProfileAge\s*\(/g,
+      'idade social não pode conceder acesso adulto',
+    ],
+    [
+      /declaredAdult/g,
+      'autodeclaração adulta não pode alimentar autoridade etária',
+    ],
   ]) {
     addMatchViolations(
       violations,
