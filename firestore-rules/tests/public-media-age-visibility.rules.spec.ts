@@ -214,6 +214,24 @@ async function setOwnerCanonicalAgeExpiry(expiresAt: Date | null) {
   });
 }
 
+async function setViewerSelfDeclaredAdult(): Promise<void> {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await setDoc(
+      doc(context.firestore(), 'age_eligibility_records', VIEWER_UID),
+      {
+        uid: VIEWER_UID,
+        status: 'SELF_DECLARED_ADULT',
+        policyVersion: 1,
+        source: 'SELF_DECLARATION',
+        method: 'SELF_DECLARATION',
+        decidedAt: new Date(Date.now() - 1_000),
+        verifiedAt: null,
+        expiresAt: null,
+      }
+    );
+  });
+}
+
 async function setOwnerAgeProjection(eligible: boolean) {
   await testEnv.withSecurityRulesDisabled(async (context) => {
     const db = context.firestore();
@@ -364,6 +382,37 @@ describe('Firestore Rules / public media age visibility', () => {
           OWNER_UID,
           'public_photos',
           PHOTO_ID
+        )
+      )
+    );
+  });
+
+  it('mantém acesso social provisório, mas bloqueia Media para viewer apenas autodeclarado', async () => {
+    await setViewerSelfDeclaredAdult();
+    const db = viewerDb();
+
+    await assertSucceeds(
+      getDoc(doc(db, 'public_profiles', OWNER_UID))
+    );
+    await assertFails(
+      getDoc(
+        doc(
+          db,
+          'public_profiles',
+          OWNER_UID,
+          'public_photos',
+          PHOTO_ID
+        )
+      )
+    );
+    await assertFails(
+      getDoc(
+        doc(
+          db,
+          'public_profiles',
+          OWNER_UID,
+          'public_videos',
+          VIDEO_ID
         )
       )
     );
