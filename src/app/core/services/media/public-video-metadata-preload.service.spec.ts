@@ -8,6 +8,7 @@ import {
   PUBLIC_VIDEO_METADATA_PRELOAD_CAPABILITY_READER,
   PublicVideoMetadataPreloadService,
   canPreloadPublicVideoMetadata,
+  resolveMaxActiveMetadataPreloads,
 } from './public-video-metadata-preload.service';
 
 class FakeVideoElement {
@@ -94,6 +95,37 @@ describe('canPreloadPublicVideoMetadata', () => {
       downlinkMbps: 10,
       ...override,
     })).toBe(false);
+  });
+
+  it('bloqueia preload especulativo em dispositivo com até 2 GB de RAM', () => {
+    expect(canPreloadPublicVideoMetadata({
+      documentVisible: true,
+      online: true,
+      saveData: false,
+      effectiveType: '4g',
+      downlinkMbps: 10,
+      deviceMemoryGb: 2,
+    })).toBe(false);
+  });
+
+  it('reduz concorrência para um preload em dispositivo com até 4 GB de RAM', () => {
+    expect(resolveMaxActiveMetadataPreloads({
+      documentVisible: true,
+      online: true,
+      saveData: false,
+      effectiveType: '4g',
+      downlinkMbps: 10,
+      deviceMemoryGb: 4,
+    })).toBe(1);
+
+    expect(resolveMaxActiveMetadataPreloads({
+      documentVisible: true,
+      online: true,
+      saveData: false,
+      effectiveType: '4g',
+      downlinkMbps: 10,
+      deviceMemoryGb: 8,
+    })).toBe(2);
   });
 
   it('mantém compatibilidade quando o navegador não informa a banda', () => {
