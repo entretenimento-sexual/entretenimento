@@ -1,0 +1,13 @@
+<header class="app-page-header">
+  <div class="app-page-heading">
+    <h1 class="app-page-title">{{ title() }}</h1>
+
+    @if (subtitle()) {
+      <p class="app-page-lead">{{ subtitle() }}</p>
+    }
+  </div>
+
+  <div class="app-page-actions">
+    <ng-content select="[page-actions]"></ng-content>
+  </div>
+</header>
