@@ -39,6 +39,9 @@ export const syncPublicPreferenceProjection = onDocumentWritten(
     const ageEligibilityRef = db
       .collection('age_eligibility_records')
       .doc(uid);
+    const intentStatusRef = db
+      .collection('user_intent_statuses')
+      .doc(`current_${uid}`);
 
     await db.runTransaction(async (transaction) => {
       const [
@@ -46,11 +49,13 @@ export const syncPublicPreferenceProjection = onDocumentWritten(
         userSnapshot,
         preferenceSnapshot,
         ageEligibilitySnapshot,
+        intentStatusSnapshot,
       ] = await Promise.all([
         transaction.get(publicRef),
         transaction.get(userRef),
         transaction.get(preferenceRef),
         transaction.get(ageEligibilityRef),
+        transaction.get(intentStatusRef),
       ]);
 
       if (!userSnapshot.exists) {
@@ -105,6 +110,46 @@ export const syncPublicPreferenceProjection = onDocumentWritten(
       const profile = preferenceSnapshot.exists
         ? (preferenceSnapshot.data() ?? {})
         : null;
+      const profileVisibility =
+        profile &&
+        typeof profile === 'object' &&
+        !Array.isArray(profile) &&
+        (profile as Record<string, unknown>)['visibility'] &&
+        typeof (profile as Record<string, unknown>)['visibility'] === 'object'
+          ? (profile as Record<string, unknown>)['visibility'] as Record<string, unknown>
+          : {};
+      const showIntentPublicly =
+        profileVisibility['showIntentPublicly'] === true;
+
+      if (intentStatusSnapshot.exists && !showIntentPublicly) {
+        const status = intentStatusSnapshot.data() ?? {};
+        const moderation =
+          status['moderation'] &&
+          typeof status['moderation'] === 'object' &&
+          !Array.isArray(status['moderation'])
+            ? status['moderation'] as Record<string, unknown>
+            : {};
+
+        if (
+          status['visibility'] === 'public_discovery' &&
+          moderation['state'] === 'active'
+        ) {
+          transaction.set(
+            intentStatusRef,
+            {
+              moderation: {
+                state: 'hidden',
+                reviewedAt: null,
+                reviewedBy: null,
+                reason: 'public_intent_visibility_disabled',
+              },
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+        }
+      }
+
       const expected = buildPublicPreferenceProjection(profile, {
         canPublishAdvanced: hasMinimumActiveDiscoveryPlan(user, 'basic'),
       });
