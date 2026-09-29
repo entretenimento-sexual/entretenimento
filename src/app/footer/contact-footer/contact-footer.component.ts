@@ -4,7 +4,7 @@ import { Component } from '@angular/core';
 @Component({
     selector: 'app-contact-footer',
     templateUrl: './contact-footer.component.html',
-    styleUrls: ['./contact-footer.component.css', '../footer-shared.css'],
+    styleUrl: '../footer-shared.css',
     standalone: false
 })
 export class ContactFooterComponent {
