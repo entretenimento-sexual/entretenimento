@@ -1,11 +1,11 @@
 @if (action$ | async; as action) {
   <section class="community-settings" aria-labelledby="community-settings-title">
-    <header class="community-settings__header">
-      <div>
-        <span>Configuração editorial</span>
-        <h2 id="community-settings-title">Dados e acesso</h2>
+    <header class="community-settings__header app-section-header">
+      <div class="app-section-heading">
+        <h2 id="community-settings-title" class="app-section-title">
+          Dados e acesso
+        </h2>
       </div>
-      <i class="fas fa-sliders" aria-hidden="true"></i>
     </header>
 
     @if (viewerRole() === 'owner') {
