@@ -30,6 +30,7 @@ import {
   distinctUntilChanged,
   finalize,
   map,
+  pairwise,
   shareReplay,
   startWith,
   switchMap,
@@ -359,6 +360,15 @@ export class PublicVideoViewerComponent {
     queueMicrotask(() => {
       this.ensureCurrentPlaybackAccess();
       this.prefetchContinuationIfNeeded();
+    });
+
+    this.viewerUid$.pipe(
+      pairwise(),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(([previousUid, currentUid]) => {
+      if (previousUid !== currentUid) {
+        this.handleViewerSessionChanged();
+      }
     });
 
     this.destroyRef.onDestroy(() => {
@@ -1472,6 +1482,38 @@ export class PublicVideoViewerComponent {
     const ownerUid = String(item?.ownerUid ?? '').trim();
     const videoId = String(item?.id ?? '').trim();
     return ownerUid && videoId ? `${ownerUid}:${videoId}` : '';
+  }
+
+  private handleViewerSessionChanged(): void {
+    const current = this.current;
+
+    this.releaseCurrentPlayerSource();
+    this.clearAccessRefreshTimer();
+    this.accessRevision += 1;
+    this.refreshingAccess = false;
+    this.pendingPlaybackResume = null;
+    this.automaticRefreshKeys.clear();
+    this.recordedViewKeys.clear();
+
+    if (!current) {
+      return;
+    }
+
+    this.publicVideoAccess.invalidatePublicVideoAccess(current);
+
+    const projectionOnly: IPublicVideoItem = {
+      ...current,
+      url: null,
+      accessExpiresAt: null,
+    };
+
+    this.items[this.index] = projectionOnly;
+    this.currentVideoSubject.next(projectionOnly);
+    this.changeDetector.markForCheck();
+
+    queueMicrotask(() => {
+      this.ensureCurrentPlaybackAccess();
+    });
   }
 
   private releaseCurrentPlayerSource(): void {
