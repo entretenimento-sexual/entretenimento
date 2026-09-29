@@ -1,12 +1,14 @@
 /* src/styles/global-forms.css */
 .input-field {
   width: 100%;
-  padding: 7px;
+  min-height: var(--control-height, 44px);
+  padding: 7px var(--control-padding-inline, 12px);
   margin-bottom: 15px;
-  border: 1px solid #cccccc;
-  border-radius: 8px;
+  border: 1px solid var(--surface-border, #cccccc);
+  border-radius: var(--control-radius, 12px);
   font-size: 1rem;
   background-color: var(--input-background);
+  color: var(--text-color);
   transition: border-color 0.3s ease, box-shadow 0.2s ease;
 }
 
@@ -21,7 +23,7 @@
 }
 
 .form-label {
-  font-size: 1rem;
+  font-size: var(--font-size-label, 0.875rem);
   color: var(--text-color);
   margin-bottom: 8px;
   display: block;
@@ -33,12 +35,12 @@
 
 .form-wrapper {
   width: 100%;
-  max-width: 450px;
+  max-width: var(--content-form, 800px);
   padding: 25px;
   margin: auto;
   background-color: var(--background-color);
   color: var(--text-color);
-  border-radius: 12px;
+  border-radius: var(--surface-radius-md, 16px);
   box-shadow: var(--box-shadow);
   text-align: center;
   transition: background-color 0.3s ease, color 0.3s ease;
