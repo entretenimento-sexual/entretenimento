@@ -48,7 +48,7 @@ import { PreferencesUiService } from '../../state/preferences-ui.service';
 
 import { IntentStateFormComponent } from '../../components/intent-state-form/intent-state-form.component';
 import { PreferenceProfileFormComponent } from '../../components/preference-profile-form/preference-profile-form.component';
-import { PreferencesPageHeaderComponent } from '../../components/preferences-page-header/preferences-page-header.component';
+import { PageHeaderComponent } from '../../../shared/page-header/page-header.component';
 import type { PreferencesUnsavedChangesAware } from '../../guards/preferences-unsaved-changes.guard';
 
 @Component({
@@ -59,7 +59,7 @@ import type { PreferencesUnsavedChangesAware } from '../../guards/preferences-un
     RouterModule,
     PreferenceProfileFormComponent,
     IntentStateFormComponent,
-    PreferencesPageHeaderComponent,
+    PageHeaderComponent,
   ],
   templateUrl: './preferences-editor.component.html',
   styleUrl: './preferences-editor.component.css',
