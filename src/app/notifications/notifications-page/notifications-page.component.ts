@@ -13,6 +13,8 @@ import { ApplicationErrorService } from 'src/app/core/services/error-handler/app
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { CommunityNotificationUnreadSummaryService } from 'src/app/core/services/notifications/community-notification-unread-summary.service';
 import { resolveNotificationRoute } from 'src/app/core/services/notifications/notification-navigation.policy';
+import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.component';
+import { ContentStateComponent } from 'src/app/shared/content-state/content-state.component';
 
 function summaryAttentionNotification(
   summary: ICommunityNotificationSummary
@@ -23,12 +25,9 @@ function summaryAttentionNotification(
 @Component({
   selector: 'app-notifications-page',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, PageHeaderComponent, ContentStateComponent],
   templateUrl: './notifications-page.component.html',
-  styleUrls: [
-    './notifications-page.component.css',
-    './notifications-page.clean.css',
-  ],
+  styleUrl: './notifications-page.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class NotificationsPageComponent {
