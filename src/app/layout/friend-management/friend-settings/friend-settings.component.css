@@ -10,6 +10,6 @@ mat-slide-toggle {
   margin: 10px 0;
 }
 
-button {
+.friend-settings form > .app-action {
   margin-top: 20px;
 }
