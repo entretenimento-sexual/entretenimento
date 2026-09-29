@@ -38,12 +38,6 @@ const CRITICAL_MINOR_MEDIA_REASONS = new Set<MinorMediaSafetyReason>([
   'minor_content_safety',
 ]);
 
-const IMMEDIATE_QUARANTINE_REASONS = new Set<MediaReportSafetyReason>([
-  ...CRITICAL_MINOR_MEDIA_REASONS,
-  'illegal_content',
-  'non_consensual_sexual_content',
-]);
-
 const HIGH_SEVERITY_REASONS = new Set<MediaReportSafetyReason>([
   'illegal_content',
   'non_consensual_sexual_content',
