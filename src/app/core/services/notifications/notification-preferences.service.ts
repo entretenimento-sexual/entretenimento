@@ -179,6 +179,7 @@ export class NotificationPreferencesService {
       'rooms',
       'communities',
       'places',
+      'media',
       'compatibleStatus',
     ];
 
@@ -203,6 +204,7 @@ export class NotificationPreferencesService {
         DEFAULT_NOTIFICATION_PREFERENCES.communities
       ),
       places: this.toBool(source?.places, DEFAULT_NOTIFICATION_PREFERENCES.places),
+      media: this.toBool(source?.media, DEFAULT_NOTIFICATION_PREFERENCES.media),
       compatibleStatus: this.toBool(
         source?.compatibleStatus,
         DEFAULT_NOTIFICATION_PREFERENCES.compatibleStatus
