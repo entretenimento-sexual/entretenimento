@@ -18,7 +18,7 @@ export interface PublicVideoMetadataPreloadCapability {
   readonly saveData: boolean;
   readonly effectiveType: string | null;
   readonly downlinkMbps: number | null;
-  readonly deviceMemoryGb: number | null;
+  readonly deviceMemoryGb?: number | null;
 }
 
 export type PublicVideoMetadataPreloadCapabilityReader =
