@@ -36,6 +36,18 @@ export class UsuarioService {
    * Atualiza APENAS campos “editáveis pelo usuário” no doc users/{uid}.
    * Evita permission-denied por rules (role/isSubscriber/tier/moderação etc).
    */
+  private normalizeProfileAge(value: unknown): number | undefined {
+    if (value === null || value === undefined || value === '') {
+      return undefined;
+    }
+
+    const age = Number(value);
+
+    return Number.isInteger(age) && age >= 18 && age <= 100
+      ? age
+      : undefined;
+  }
+
   atualizarUsuario(uid: string, dados: Partial<IUserDados>): Observable<void> {
     const safeUid = (uid ?? '').trim();
     if (!safeUid) {
@@ -65,6 +77,7 @@ export class UsuarioService {
         ? undefined
         : PROFILE_IDENTITY_CATALOG_VERSION,
       orientation: dados.orientation ?? undefined,
+      idade: this.normalizeProfileAge(dados.idade),
       partner1Orientation: dados.partner1Orientation ?? undefined,
       partner2Orientation: dados.partner2Orientation ?? undefined,
       descricao: dados.descricao ?? undefined,
