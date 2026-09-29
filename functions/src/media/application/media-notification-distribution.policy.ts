@@ -40,6 +40,16 @@ export interface MediaNotificationDeliveryState {
   ownerCounts?: unknown;
 }
 
+export interface MediaNotificationRecipientUser {
+  uid?: unknown;
+  accountStatus?: unknown;
+  suspended?: unknown;
+  interactionBlocked?: unknown;
+  accountLocked?: unknown;
+  loginAllowed?: unknown;
+  profileCompleted?: unknown;
+}
+
 export interface MediaNotificationCapDecision {
   readonly allowed: boolean;
   readonly reason:
@@ -203,6 +213,26 @@ export function evaluateMediaNotificationCaps(input: {
       [input.ownerUid]: ownerCount + 1,
     }),
   };
+}
+
+export function canReceiveMediaDistributionNotification(
+  user: MediaNotificationRecipientUser | null | undefined,
+  recipientUid: string,
+  ownerUid: string
+): boolean {
+  if (!user || !recipientUid || recipientUid === ownerUid) return false;
+  if (String(user.uid ?? '').trim() !== recipientUid) return false;
+
+  const accountStatus = String(user.accountStatus ?? 'active')
+    .trim()
+    .toLowerCase();
+
+  return accountStatus === 'active'
+    && user.suspended !== true
+    && user.interactionBlocked !== true
+    && user.accountLocked !== true
+    && user.loginAllowed !== false
+    && user.profileCompleted === true;
 }
 
 export function buildMediaNotificationCopy(
