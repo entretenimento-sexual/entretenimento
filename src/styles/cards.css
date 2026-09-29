@@ -116,6 +116,47 @@
  * - kicker/eyebrow decorativo não faz parte do contrato global porque tende
  *   a repetir o próprio título.
  */
+.app-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3, 16px);
+  min-width: 0;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.app-page-heading {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.app-page-title {
+  margin: 0;
+  color: var(--text-color);
+  font-size: clamp(1.3rem, 1.18rem + 0.5vw, 1.65rem);
+  font-weight: 850;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+}
+
+.app-page-lead {
+  max-width: 62ch;
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color) 64%, transparent);
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
+.app-page-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .app-section-header {
   display: flex;
   align-items: center;
@@ -493,6 +534,16 @@
 }
 
 @media (max-width: 720px) {
+  .app-page-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .app-page-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
   .app-disclosure__summary {
     grid-template-columns: minmax(0, 1fr) 18px;
     gap: 8px;
