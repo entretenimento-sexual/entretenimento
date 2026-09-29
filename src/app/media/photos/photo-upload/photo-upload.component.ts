@@ -45,6 +45,7 @@ import {
   MediaPolicyService,
 } from 'src/app/core/services/media/media-policy.service';
 import { environment } from 'src/environments/environment';
+import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.component';
 
 const DENY_UNKNOWN: IMediaPolicyResult = { decision: 'DENY', reason: 'UNKNOWN' };
 
@@ -53,7 +54,7 @@ type UploadPhase = 'IDLE' | 'EDITING' | 'READY' | 'UPLOADING' | 'DONE';
 @Component({
   selector: 'app-photo-upload',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, PageHeaderComponent],
   templateUrl: './photo-upload.component.html',
   styleUrls: ['./photo-upload.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
