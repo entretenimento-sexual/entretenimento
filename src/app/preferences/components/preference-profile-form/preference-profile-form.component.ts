@@ -14,9 +14,11 @@
 import { CommonModule } from '@angular/common';
 import {
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
   computed,
   effect,
+  inject,
   input,
   output,
 } from '@angular/core';
@@ -67,6 +69,7 @@ export class PreferenceProfileFormComponent {
   readonly discoveryModeOptions = DISCOVERY_MODE_OPTIONS;
 
   private readonly fb = new FormBuilder();
+  private readonly cdr = inject(ChangeDetectorRef);
 
   readonly form = buildPreferenceProfileForm(this.fb);
 
@@ -178,6 +181,7 @@ export class PreferenceProfileFormComponent {
   markSaved(): void {
     this.form.markAsPristine();
     this.form.markAsUntouched();
+    this.cdr.markForCheck();
   }
 
   isModeAvailable(mode: string): boolean {
