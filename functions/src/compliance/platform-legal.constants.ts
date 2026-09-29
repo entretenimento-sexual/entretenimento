@@ -12,3 +12,7 @@ export const PLATFORM_LEGAL_CHANGE_SUMMARY = [
   'regras sobre conteúdo consentido, segurança, assinaturas, pagamentos e prevenção a fraudes',
   'transparência sobre privacidade, bases legais e direitos dos titulares',
 ] as const;
+
+export const ADULT_SELF_DECLARATION_VERSION = 'v1';
+export const ADULT_SELF_DECLARATION_TEXT_PT_BR =
+  'Declaro voluntariamente que tenho 18 anos ou mais.';
