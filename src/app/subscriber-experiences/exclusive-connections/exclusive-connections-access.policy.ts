@@ -10,7 +10,6 @@
 
 import {
   ContentAccessPolicy,
-  createSubscriberContentAccessPolicy,
 } from 'src/app/core/access/content-access-policy.model';
 
 export const EXCLUSIVE_CONNECTIONS_MINIMUM_ROLE = 'premium' as const;
@@ -30,12 +29,3 @@ export const EXCLUSIVE_CONNECTIONS_PROFILE_ACCESS_POLICY:
     requiredProfileFields: EXCLUSIVE_CONNECTIONS_REQUIRED_PROFILE_FIELDS,
   });
 
-/**
- * Contrato completo para documentação e consumidores que precisem inspecionar
- * todos os requisitos declarativos da experiência.
- */
-export const EXCLUSIVE_CONNECTIONS_ACCESS_POLICY =
-  createSubscriberContentAccessPolicy(
-    EXCLUSIVE_CONNECTIONS_MINIMUM_ROLE,
-    EXCLUSIVE_CONNECTIONS_REQUIRED_PROFILE_FIELDS
-  );
