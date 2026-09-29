@@ -16,7 +16,6 @@ import {
   type RuntimeAccountLifecycleStatus,
 } from '@core/services/autentication/auth/account-lifecycle.policy';
 
-export type LifecycleAccountStatus = RuntimeAccountLifecycleStatus;
 export type LifecycleAccountStatusResolution = RuntimeAccountLifecycleStatus;
 
 /**
