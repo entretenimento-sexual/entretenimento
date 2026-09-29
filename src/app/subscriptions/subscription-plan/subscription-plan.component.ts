@@ -106,7 +106,7 @@ function communityPlanFeatures(plan: PaidPlanKey): string[] {
 @Component({
   selector: 'app-subscription-plan',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, PageHeaderComponent],
   templateUrl: './subscription-plan.component.html',
   styleUrls: ['./subscription-plan.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
