@@ -497,7 +497,9 @@ describe('CommunityDiscoveryPageComponent / Minhas comunidades', () => {
       fixture.nativeElement.querySelector('.community-discovery__empty-create')
     ).toBeNull();
     expect(
-      fixture.nativeElement.querySelectorAll('.community-discovery__create')
+      fixture.nativeElement.querySelectorAll(
+        'app-page-header a[href="/dashboard/comunidades/nova"]'
+      )
     ).toHaveLength(1);
   });
 
