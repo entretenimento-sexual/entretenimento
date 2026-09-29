@@ -150,21 +150,6 @@ export class PreferencesEditorComponent
     event.returnValue = '';
   }
 
-  planMessage(capabilities: PreferencesCapabilitySnapshot): string {
-    switch (capabilities.currentPlan) {
-      case 'basic':
-        return 'Preferências detalhadas e contexto de disponibilidade liberados.';
-      case 'premium':
-        return 'Descoberta avançada, modo discreto e compatibilidade liberados.';
-      case 'vip':
-      case 'admin':
-        return 'Todos os recursos de preferências e visibilidade estão liberados.';
-      case 'free':
-      default:
-        return 'Preferências essenciais disponíveis sem assinatura.';
-    }
-  }
-
   nextPlan(capabilities: PreferencesCapabilitySnapshot): PreferencesPlanRole | null {
     switch (capabilities.currentPlan) {
       case 'free':
