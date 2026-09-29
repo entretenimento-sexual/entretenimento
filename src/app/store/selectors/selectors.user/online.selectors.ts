@@ -185,7 +185,3 @@ export const selectGlobalOnlineUsers = createSelector(
     materialize(onlineArr, usersMap, meUid).profiles
 );
 
-export const selectGlobalOnlineCount = createSelector(
-  selectGlobalOnlineUsers,
-  (list) => list.length
-);
