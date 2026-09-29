@@ -1,11 +1,12 @@
 <!-- src/app/preferences/pages/preferences-editor/preferences-editor.component.html -->
 <main class="preferences-editor-page app-page" aria-label="Editor de preferências">
   <section class="preferences-editor-shell">
-    <app-preferences-page-header
-      title="Preferências"
-      subtitle="Defina quem você quer encontrar e como deseja aparecer."
-    >
-      <a page-actions class="btn btn-secondary" routerLink="/preferencias">
+    <app-preferences-page-header title="Preferências">
+      <a
+        page-actions
+        class="app-action app-action--ghost"
+        routerLink="/preferencias"
+      >
         Voltar
       </a>
     </app-preferences-page-header>
@@ -13,14 +14,12 @@
     @if (state$ | async; as state) {
       <section class="plan-strip" aria-label="Plano e recursos disponíveis">
         <div class="plan-strip__copy">
-          <span class="plan-strip__label">Seu plano</span>
-          <strong>{{ state.capabilities.currentPlanLabel }}</strong>
-          <span>{{ planMessage(state.capabilities) }}</span>
+          <strong>Plano {{ state.capabilities.currentPlanLabel }}</strong>
         </div>
 
         @if (nextPlan(state.capabilities); as minimumPlan) {
           <a
-            class="plan-strip__action"
+            class="app-action app-action--ghost"
             routerLink="/subscription-plan"
             [queryParams]="{ minimumRole: minimumPlan }"
           >
@@ -33,13 +32,14 @@
         class="editor-section"
         aria-labelledby="preferencesProfileTitle"
       >
-        <header class="editor-section__header">
-          <div>
-            <h2 id="preferencesProfileTitle">O que você procura</h2>
-            <span>
-              Abra apenas a categoria que deseja alterar. Preferências de segurança
-              continuam disponíveis em todos os planos.
-            </span>
+        <header class="app-section-header">
+          <div class="app-section-heading">
+            <h2
+              id="preferencesProfileTitle"
+              class="app-section-title"
+            >
+              O que você procura
+            </h2>
           </div>
         </header>
 
@@ -52,16 +52,15 @@
         </app-preference-profile-form>
       </section>
 
-      <details class="availability-section">
-        <summary class="availability-section__summary">
-          <span class="availability-section__copy">
-            <strong>Disponibilidade atual</strong>
-            <span>{{ intentSummary(state.intent) }}</span>
+      <details class="availability-section app-disclosure">
+        <summary class="app-disclosure__summary">
+          <strong class="app-disclosure__title">Disponibilidade atual</strong>
+          <span class="app-disclosure__state">
+            {{ intentSummary(state.intent) }}
           </span>
-          <span class="availability-section__action">Alterar</span>
         </summary>
 
-        <div class="availability-section__content">
+        <div class="availability-section__content app-disclosure__content">
           <app-intent-state-form
             [intent]="state.intent"
             [capabilities]="state.capabilities"
