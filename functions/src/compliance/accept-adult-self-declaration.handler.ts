@@ -12,6 +12,7 @@
 //   changing the canonical age domain.
 // -----------------------------------------------------------------------------
 
+import { FieldPath, Timestamp } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
@@ -28,7 +29,11 @@ import {
   isAgeReverificationAccessRestricted,
 } from './profile-age-reverification.policy';
 import {
+  ADULT_SELF_DECLARATION_TEXT_PT_BR,
+  ADULT_SELF_DECLARATION_VERSION,
+  PRIVACY_NOTICE_VERSION,
   TERMS_ACCEPTANCE_VERSION,
+  TERMS_DOCUMENT_VERSION,
 } from './platform-legal.constants';
 
 const ENFORCE_APP_CHECK = process.env.FUNCTIONS_EMULATOR !== 'true';
@@ -54,6 +59,65 @@ function hasAcceptedCurrentTerms(value: unknown): boolean {
     String(record['version'] ?? '').trim() === TERMS_ACCEPTANCE_VERSION &&
     record['acknowledgedPrivacyNotice'] === true
   );
+}
+
+function positiveEpochMs(value: unknown): number | null {
+  if (
+    value &&
+    typeof value === 'object' &&
+    typeof (value as {toMillis?: unknown}).toMillis === 'function'
+  ) {
+    const millis = (value as {toMillis: () => number}).toMillis();
+    return Number.isFinite(millis) && millis > 0
+      ? Math.trunc(millis)
+      : null;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0
+    ? Math.trunc(parsed)
+    : null;
+}
+
+function legalSnapshot(value: unknown) {
+  const record = value && typeof value === 'object'
+    ? value as Record<string, unknown>
+    : {};
+
+  return {
+    termsAcceptanceVersion:
+      String(record['version'] ?? '').trim() || TERMS_ACCEPTANCE_VERSION,
+    termsDocumentVersion:
+      String(record['termsDocumentVersion'] ?? '').trim()
+      || TERMS_DOCUMENT_VERSION,
+    privacyNoticeVersion:
+      String(record['privacyNoticeVersion'] ?? '').trim()
+      || PRIVACY_NOTICE_VERSION,
+    termsAcceptedAtMs:
+      positiveEpochMs(record['acceptedAt'])
+      ?? positiveEpochMs(record['date']),
+    termsAcceptanceContext:
+      String(record['acceptanceContext'] ?? '').trim() || null,
+  };
+}
+
+async function findFirstLegacySelfDeclarationAtMs(
+  uid: string
+): Promise<number | null> {
+  const prefix = `age_self_declaration_${uid}_`;
+  const snapshot = await db
+    .collection('compliance_audit')
+    .orderBy(FieldPath.documentId())
+    .startAt(prefix)
+    .endAt(`${prefix}\uf8ff`)
+    .limit(1)
+    .get();
+
+  if (snapshot.empty) return null;
+
+  const data = snapshot.docs[0]?.data() ?? {};
+  return positiveEpochMs(data['createdAtMs'])
+    ?? positiveEpochMs(data['createdAt']);
 }
 
 export const acceptAdultSelfDeclaration =
@@ -101,14 +165,24 @@ export const acceptAdultSelfDeclaration =
       const nowMs = Date.now();
       const userRef = db.collection('users').doc(uid);
       const recordRef = db.collection('age_eligibility_records').doc(uid);
+      const declarationRef = db
+        .collection('adult_self_declarations')
+        .doc(uid);
       const auditRef = db
         .collection('compliance_audit')
-        .doc(`age_self_declaration_${uid}_${nowMs}`);
+        .doc(`age_self_declaration_${uid}`);
+      const legacyDeclaredAtMs =
+        await findFirstLegacySelfDeclarationAtMs(uid);
 
       return db.runTransaction(async (transaction) => {
-        const [userSnapshot, recordSnapshot] = await Promise.all([
+        const [
+          userSnapshot,
+          recordSnapshot,
+          declarationSnapshot,
+        ] = await Promise.all([
           transaction.get(userRef),
           transaction.get(recordRef),
+          transaction.get(declarationRef),
         ]);
 
         if (!userSnapshot.exists) {
@@ -197,6 +271,76 @@ export const acceptAdultSelfDeclaration =
           );
         }
 
+        const existingDeclaration = declarationSnapshot.exists
+          ? declarationSnapshot.data() ?? {}
+          : null;
+        const existingDeclaredAtMs = existingDeclaration
+          ? positiveEpochMs(existingDeclaration['declaredAtMs'])
+            ?? positiveEpochMs(existingDeclaration['declaredAt'])
+          : null;
+
+        if (existingDeclaration && existingDeclaredAtMs === null) {
+          throw new HttpsError(
+            'internal',
+            'O registro histórico de maioridade está inconsistente.'
+          );
+        }
+
+        const declaredAtMs =
+          existingDeclaredAtMs
+          ?? legacyDeclaredAtMs
+          ?? nowMs;
+        const migratedFromLegacyAudit =
+          !existingDeclaration && legacyDeclaredAtMs !== null;
+        const legal = legalSnapshot(user['acceptedTerms']);
+
+        if (!existingDeclaration) {
+          const declarationEvidence = {
+            schemaVersion: 1,
+            uid,
+            type: 'adult_self_declaration',
+            declaration: '18_PLUS',
+            voluntary: true,
+            explicitConfirmation: true,
+            immutable: true,
+            declaredAtMs,
+            declaredAt: Timestamp.fromMillis(declaredAtMs),
+            recordedAt: FieldValue.serverTimestamp(),
+            source: 'web',
+            evidenceOrigin: migratedFromLegacyAudit
+              ? 'MIGRATED_EXISTING_AUDIT'
+              : 'LIVE_DECLARATION',
+            declarationTextVersion: migratedFromLegacyAudit
+              ? 'legacy-audit'
+              : ADULT_SELF_DECLARATION_VERSION,
+            declarationText: migratedFromLegacyAudit
+              ? null
+              : ADULT_SELF_DECLARATION_TEXT_PT_BR,
+            exactDeclarationTextCaptured: !migratedFromLegacyAudit,
+            legalSnapshotCapturedAtDeclaration: !migratedFromLegacyAudit,
+            ...legal,
+          };
+
+          transaction.create(declarationRef, declarationEvidence);
+          transaction.create(auditRef, {
+            uid,
+            type: 'age_eligibility.self_declared_adult_evidence_created',
+            declaration: '18_PLUS',
+            voluntary: true,
+            explicitConfirmation: true,
+            eventAtMs: declaredAtMs,
+            declarationEvidencePath: declarationRef.path,
+            declarationEvidenceSchemaVersion: 1,
+            evidenceOrigin: declarationEvidence.evidenceOrigin,
+            declarationTextVersion:
+              declarationEvidence.declarationTextVersion,
+            termsAcceptanceVersion: legal.termsAcceptanceVersion,
+            termsDocumentVersion: legal.termsDocumentVersion,
+            privacyNoticeVersion: legal.privacyNoticeVersion,
+            recordedAt: FieldValue.serverTimestamp(),
+          });
+        }
+
         if (current.status === 'SELF_DECLARED_ADULT' && current.allowed) {
           const projection = projectionFromCanonicalAgeDecision(
             current,
@@ -224,7 +368,7 @@ export const acceptAdultSelfDeclaration =
           return {
             uid,
             status: 'SELF_DECLARED_ADULT' as const,
-            declaredAtMs: current.verifiedAtMs ?? current.expiresAtMs ?? null,
+            declaredAtMs,
             ageEligibility: projection,
           };
         }
@@ -270,22 +414,10 @@ export const acceptAdultSelfDeclaration =
           );
         }
 
-        transaction.create(auditRef, {
-          uid,
-          type: 'age_eligibility.self_declared_adult',
-          policyVersion: projection.policyVersion,
-          source: 'web',
-          declaration: '18_PLUS',
-          supersededInitialReviewCaseId:
-            obsoleteInitialReview ? current.caseId : null,
-          createdAt: timestamp,
-          createdAtMs: nowMs,
-        });
-
         return {
           uid,
           status: 'SELF_DECLARED_ADULT' as const,
-          declaredAtMs: nowMs,
+          declaredAtMs,
           ageEligibility: projection,
         };
       });
