@@ -1,14 +1,15 @@
 // scripts/quality/check-media-runtime-resource-boundary.mjs
 // -----------------------------------------------------------------------------
-// MEDIA RUNTIME RESOURCE BOUNDARY
+// MEDIA RUNTIME / ACCESSIBILITY / RESPONSIVENESS BOUNDARY
 // -----------------------------------------------------------------------------
-// Protege memória/CPU em dispositivos fracos:
-// - pixel budget canônico no editor;
-// - render windows em feeds longos;
-// - preload de vídeo limitado e cancelável;
+// Protege a experiência única Foto/Vídeo:
+// - memória/CPU em dispositivos fracos;
+// - editor local com pixel budget e teardown;
+// - render windows e preload limitado/cancelável;
 // - players liberam decoder/source;
-// - ObjectURL e observers possuem teardown;
-// - subscriptions imperativas precisam de teardown explícito.
+// - troca de sessão limpa recursos temporários;
+// - keyboard/focus sem roubo de foco;
+// - touch, orientation, reduced motion e alvos mínimos.
 // -----------------------------------------------------------------------------
 
 import fs from 'node:fs';
@@ -22,12 +23,27 @@ const root = path.resolve(
 );
 
 function read(relativePath) {
-  return fs.readFileSync(path.join(root, relativePath), 'utf8');
+  const absolute = path.join(root, relativePath);
+  if (!fs.existsSync(absolute)) {
+    throw new Error('[media-runtime-resource] arquivo ausente: ' + relativePath);
+  }
+  return fs.readFileSync(absolute, 'utf8');
 }
 
-function requireIncludes(source, fragment, label) {
-  if (!source.includes(fragment)) {
-    throw new Error('[media-runtime-resource] ' + label + ': ' + fragment);
+function requireIncludes(source, fragments, label) {
+  const values = Array.isArray(fragments) ? fragments : [fragments];
+  for (const fragment of values) {
+    if (!source.includes(fragment)) {
+      throw new Error(
+        '[media-runtime-resource] ' + label + ': ausente ' + fragment
+      );
+    }
+  }
+}
+
+function forbid(source, pattern, label) {
+  if (pattern.test(source)) {
+    throw new Error('[media-runtime-resource] ' + label);
   }
 }
 
@@ -36,27 +52,35 @@ const maxInteractivePixels = Number(
   manifest?.image?.editorLimits?.maxInteractivePixels
 );
 if (
-  !Number.isSafeInteger(maxInteractivePixels)
-  || maxInteractivePixels <= 0
-  || maxInteractivePixels > 16_000_000
+  !Number.isSafeInteger(maxInteractivePixels) ||
+  maxInteractivePixels <= 0 ||
+  maxInteractivePixels > 16_000_000
 ) {
   throw new Error(
     '[media-runtime-resource] image.editorLimits.maxInteractivePixels inválido.'
   );
 }
 
-const editor = read(
+const photoEditor = read(
   'src/app/photo-editor/photo-editor/photo-editor.component.ts'
 );
-for (const fragment of [
+requireIncludes(photoEditor, [
   'MEDIA_IMAGE_EDITOR_MAX_INTERACTIVE_PIXELS',
   'assertInteractivePixelBudget(image)',
   'this.revokeSourceObjectUrl()',
   'this.resizeObserver?.disconnect()',
   'this.cancelScheduledRender()',
-]) {
-  requireIncludes(editor, fragment, 'photo editor resource drift');
-}
+  'focus({ preventScroll: true })',
+], 'photo editor');
+
+const photoEditorCss = read(
+  'src/app/photo-editor/photo-editor/photo-editor.component.css'
+);
+requireIncludes(photoEditorCss, [
+  '100dvh',
+  '@media (prefers-reduced-motion: reduce)',
+  'touch-action: none',
+], 'photo editor responsive');
 
 const communityWindow = read(
   'src/app/community/feed/community-feed-render-window.facade.ts'
@@ -64,7 +88,7 @@ const communityWindow = read(
 requireIncludes(
   communityWindow,
   'COMMUNITY_FEED_RENDER_WINDOW_PAGES = 6',
-  'community feed window drift'
+  'community feed render window'
 );
 
 for (const pathName of [
@@ -72,72 +96,63 @@ for (const pathName of [
   'src/app/media/photos/top-public-photos/top-public-photos.component.ts',
 ]) {
   const source = read(pathName);
-  requireIncludes(
-    source,
+  requireIncludes(source, [
     'PHOTO_RENDER_WINDOW_MAX_ITEMS = 72',
-    pathName + ' render window drift'
-  );
-  requireIncludes(
-    source,
     'renderItems',
-    pathName + ' must render bounded items'
-  );
+  ], pathName + ' bounded render');
 }
 
 const publicVideos = read(
   'src/app/media/videos/public-profile-videos/public-profile-videos.component.ts'
 );
-for (const fragment of [
+requireIncludes(publicVideos, [
   'PUBLIC_VIDEO_RENDER_WINDOW_MAX_ITEMS = 36',
   'renderItems',
   'galleryRenderStartSubject',
-]) {
-  requireIncludes(publicVideos, fragment, 'public video render window drift');
-}
+], 'public video bounded render');
 
 const preload = read(
   'src/app/core/services/media/public-video-metadata-preload.service.ts'
 );
-for (const fragment of [
+requireIncludes(preload, [
   'MAX_ACTIVE_METADATA_PRELOADS = 2',
   'MAX_ATTEMPTED_METADATA_KEYS = 256',
+  'LOW_MEMORY_BLOCK_THRESHOLD_GB = 2',
+  'LOW_MEMORY_SINGLE_PRELOAD_THRESHOLD_GB = 4',
+  'deviceMemoryGb',
+  'resolveMaxActiveMetadataPreloads',
   'cancelMetadataPreload',
   "video.removeAttribute('src')",
   'video.load()',
   'this.activeCleanups',
-]) {
-  requireIncludes(preload, fragment, 'video metadata preload drift');
-}
+], 'video metadata preload');
 
 const preloadDirective = read(
   'src/app/media/videos/public-video-metadata-preload.directive.ts'
 );
-for (const fragment of [
+requireIncludes(preloadDirective, [
   'new IntersectionObserver',
   'this.cancelCurrentPreload()',
   'this.observer?.disconnect()',
   "rootMargin: '160px 0px'",
-]) {
-  requireIncludes(preloadDirective, fragment, 'video preload viewport drift');
-}
+], 'video preload viewport');
 
 const videoAccess = read(
   'src/app/core/services/media/public-video-access.service.ts'
 );
-for (const fragment of [
+requireIncludes(videoAccess, [
   'MAX_ACCESS_CACHE_ENTRIES = 128',
   'setAccessCache(',
   'touchAccessCache(',
   'this.accessCache.clear()',
   'this.inFlightRefreshes.clear()',
-  'this.authSession.uid
-  requireIncludes(videoAccess, fragment, 'public video access LRU drift');
-}
+  'this.authSession.uid$',
+], 'public video access session/LRU');
 
-const viewer = read(
+const videoViewer = read(
   'src/app/media/videos/public-video-viewer/public-video-viewer.component.ts'
 );
-for (const fragment of [
+requireIncludes(videoViewer, [
   'VIEWER_ITEM_WINDOW_MAX = 48',
   'VIEWER_ITEM_RETAIN_BEHIND = 12',
   'trimViewerItemWindow()',
@@ -149,14 +164,113 @@ for (const fragment of [
   'this.publicVideoAccess.invalidatePublicVideoAccess(current)',
   'this.automaticRefreshKeys.clear()',
   'this.recordedViewKeys.clear()',
+  "@HostListener('document:keydown.arrowleft'",
+  "@HostListener('document:keydown.arrowright'",
+  "@HostListener('document:keydown.arrowup'",
+  "@HostListener('document:keydown.arrowdown'",
+], 'video viewer runtime/a11y');
+forbid(
+  videoViewer,
+  /player\.focus\s*\(/,
+  'video viewer não pode roubar foco ao hidratar playback'
+);
+
+const videoViewerHtml = read(
+  'src/app/media/videos/public-video-viewer/public-video-viewer.component.html'
+);
+requireIncludes(videoViewerHtml, [
+  'cdkFocusInitial',
+  'aria-live="polite"',
+  'aria-keyshortcuts="ArrowUp ArrowLeft"',
+  'aria-keyshortcuts="ArrowDown ArrowRight"',
+], 'video viewer template a11y');
+
+const videoViewerCss = read(
+  'src/app/media/videos/public-video-viewer/public-video-viewer.component.css'
+);
+requireIncludes(videoViewerCss, [
+  '100dvh',
+  'touch-action: pan-x pinch-zoom',
+  '@media (max-height: 620px) and (orientation: landscape)',
+  '@media (prefers-reduced-motion: reduce)',
+], 'video viewer responsive');
+
+const photoViewer = read(
+  'src/app/media/photos/photo-viewer/photo-viewer.component.ts'
+);
+requireIncludes(photoViewer, [
+  'PHOTO_SWIPE_MIN_DISTANCE_PX = 64',
+  'onSwipePointerDown(',
+  'onSwipePointerMove(',
+  'onSwipePointerUp(',
+  'cancelSwipeNavigation()',
+  'navigationAnnouncement',
+  "@HostListener('document:keydown.arrowleft'",
+  "@HostListener('document:keydown.arrowright'",
+  "@HostListener('document:keydown.arrowup'",
+  "@HostListener('document:keydown.arrowdown'",
+], 'photo viewer runtime/a11y');
+
+const photoViewerHtml = read(
+  'src/app/media/photos/photo-viewer/photo-viewer.component.html'
+);
+requireIncludes(photoViewerHtml, [
+  'cdkFocusInitial',
+  'navigationAnnouncement()',
+  '(pointerdown)="onSwipePointerDown($event)"',
+  'aria-keyshortcuts="ArrowLeft ArrowUp"',
+  'aria-keyshortcuts="ArrowRight ArrowDown"',
+], 'photo viewer template a11y');
+
+const photoViewerCss = read(
+  'src/app/media/photos/photo-viewer/photo-viewer.component.css'
+);
+requireIncludes(photoViewerCss, [
+  '100dvh',
+  'touch-action: pan-y pinch-zoom',
+  '@media (max-height: 620px) and (orientation: landscape)',
+  '@media (prefers-reduced-motion: reduce)',
+], 'photo viewer responsive');
+
+const photoCard = read(
+  'src/app/media/shared/components/public-photo-card/public-photo-card.component.html'
+);
+const videoCard = read(
+  'src/app/media/shared/components/public-video-card/public-video-card.component.html'
+);
+requireIncludes(photoCard, 'role="listitem"', 'photo card semantics');
+requireIncludes(videoCard, 'role="listitem"', 'video card semantics');
+
+const photoCardCss = read(
+  'src/app/media/shared/components/public-photo-card/public-photo-card.component.css'
+);
+const videoCardCss = read(
+  'src/app/media/shared/components/public-video-card/public-video-card.component.css'
+);
+for (const [source, label] of [
+  [photoCardCss, 'photo card'],
+  [videoCardCss, 'video card'],
 ]) {
-  requireIncludes(viewer, fragment, 'video decoder release drift');
+  requireIncludes(source, [
+    'focus-visible',
+    '@media (prefers-reduced-motion: reduce)',
+  ], label + ' focus/reduced-motion');
 }
+requireIncludes(photoCardCss, 'var(--tap-target, 44px)', 'photo card touch');
+requireIncludes(videoCardCss, 'var(--tap-target, 44px)', 'video card touch');
+
+const viewerTokens = read(
+  'src/app/media/shared/styles/public-media-viewer.tokens.css'
+);
+requireIncludes(viewerTokens, [
+  '--public-media-viewer-control-size: 44px',
+  '--public-media-viewer-focus:',
+], 'shared viewer tokens');
 
 const videoEditorSession = read(
   'src/app/core/services/media/video-editor-session.service.ts'
 );
-for (const fragment of [
+requireIncludes(videoEditorSession, [
   'VIDEO_EDITOR_DRAFT_IDLE_TTL_MS = 15 * 60 * 1000',
   'readonly expiresAt: number',
   'this.scheduleExpiry(expiresAt)',
@@ -164,96 +278,69 @@ for (const fragment of [
   "this.clearDraft(undefined, 'auth-changed')",
   'this.draftSubject.next(null)',
   'takeResult(',
-]) {
-  requireIncludes(
-    videoEditorSession,
-    fragment,
-    'video editor session TTL/auth/teardown drift'
-  );
-}
+], 'video editor session teardown');
 
 const videoEditorLauncher = read(
   'src/app/core/services/media/video-editor-launcher.service.ts'
 );
-for (const fragment of [
+requireIncludes(videoEditorLauncher, [
   'this.authSession.uid$.pipe(',
   'takeUntilDestroyed(this.destroyRef)',
   'this.session.clearIfOwnerMismatch(normalizedUid)',
   "this.session.clearDraft(undefined, 'destroyed')",
   'return this.session.takeResult(ownerUid, source);',
-]) {
-  requireIncludes(
-    videoEditorLauncher,
-    fragment,
-    'video editor auth boundary drift'
-  );
-}
+], 'video editor auth boundary');
 
 const videoEditorControls = read(
   'src/app/media/videos/video-editor/video-simple-editor-controls.component.ts'
 );
-for (const fragment of [
+requireIncludes(videoEditorControls, [
   'this.fileSubject.next(null)',
   'this.metadataSubject.next(null)',
   'this.fileSubject.complete()',
   'this.metadataSubject.complete()',
-]) {
-  requireIncludes(
-    videoEditorControls,
-    fragment,
-    'video editor component File/Blob teardown drift'
-  );
-}
+], 'video editor refs teardown');
+
+const videoEditorCss = read(
+  'src/app/media/videos/video-editor/video-simple-editor-controls.component.css'
+);
+requireIncludes(videoEditorCss, [
+  'var(--tap-target, 44px)',
+  '@media (max-height: 620px) and (orientation: landscape)',
+  '@media (prefers-reduced-motion: reduce)',
+], 'local video editor responsive');
 
 const profileVideos = read(
   'src/app/media/videos/profile-videos/profile-videos.component.ts'
 );
-for (const fragment of [
+requireIncludes(profileVideos, [
   "reason === 'expired' || reason === 'auth-changed'",
   'this.releaseEditorSelection()',
   'this.revokePreviewUrl()',
   'this.selectedFileSubject.next(null)',
-]) {
-  requireIncludes(
-    profileVideos,
-    fragment,
-    'profile video editor host teardown drift'
-  );
-}
+], 'profile video editor host teardown');
 
 const videoUploadFlow = read(
   'src/app/core/services/media/video-upload-flow.service.ts'
 );
-for (const fragment of [
+requireIncludes(videoUploadFlow, [
   'private readonly authSession = inject(AuthSessionService)',
   'authBoundarySubscription = this.authSession.uid$.subscribe',
   'activeTask?.cancel()',
   'observer.complete()',
   'authBoundarySubscription?.unsubscribe()',
   'assertNotCancelled();',
-]) {
-  requireIncludes(
-    videoUploadFlow,
-    fragment,
-    'video upload auth-boundary/teardown drift'
-  );
-}
+], 'video upload auth boundary');
 
 const videoMetadataPreparation = read(
   'src/app/core/services/media/video-metadata-preparation.service.ts'
 );
-for (const fragment of [
+requireIncludes(videoMetadataPreparation, [
   'URL.createObjectURL(file)',
   'URL.revokeObjectURL(objectUrl)',
   "video.removeAttribute('src')",
   'video.load()',
-]) {
-  requireIncludes(
-    videoMetadataPreparation,
-    fragment,
-    'video metadata ObjectURL teardown drift'
-  );
-}
+], 'video metadata ObjectURL teardown');
 
 for (const testPath of [
   'src/app/core/services/media/video-editor-launcher.service.spec.ts',
@@ -262,14 +349,10 @@ for (const testPath of [
   'src/app/core/services/media/public-video-metadata-preload.service.spec.ts',
   'src/app/media/videos/public-video-metadata-preload.directive.spec.ts',
   'src/app/media/videos/public-video-viewer/public-video-viewer-lazy-playback.spec.ts',
+  'src/app/media/photos/photo-viewer/photo-viewer.component.spec.ts',
   'src/app/core/services/media/video-metadata-preparation.service.spec.ts',
 ]) {
-  const testSource = read(testPath);
-  requireIncludes(
-    testSource,
-    'it(',
-    testPath + ' lifecycle test missing'
-  );
+  requireIncludes(read(testPath), 'it(', testPath + ' coverage');
 }
 
 function runtimeFiles(directory) {
@@ -281,12 +364,13 @@ function runtimeFiles(directory) {
 
     if (stat.isDirectory()) return runtimeFiles(absolute);
     if (
-      !entry.endsWith('.ts')
-      || entry.endsWith('.spec.ts')
-      || entry.endsWith('.test.ts')
+      !entry.endsWith('.ts') ||
+      entry.endsWith('.spec.ts') ||
+      entry.endsWith('.test.ts')
     ) {
       return [];
     }
+
     return [absolute];
   });
 }
@@ -306,42 +390,42 @@ for (const file of scanRoots.flatMap(runtimeFiles)) {
   const relative = path.relative(root, file).replaceAll('\\', '/');
 
   if (
-    source.includes('URL.createObjectURL')
-    && !source.includes('URL.revokeObjectURL')
+    source.includes('URL.createObjectURL') &&
+    !source.includes('URL.revokeObjectURL')
   ) {
     violations.push(relative + ': createObjectURL sem revokeObjectURL');
   }
 
   if (
-    source.includes('new IntersectionObserver')
-    && !source.includes('.disconnect()')
+    source.includes('new IntersectionObserver') &&
+    !source.includes('.disconnect()')
   ) {
     violations.push(relative + ': IntersectionObserver sem disconnect');
   }
 
   if (
-    source.includes('new ResizeObserver')
-    && !source.includes('.disconnect()')
+    source.includes('new ResizeObserver') &&
+    !source.includes('.disconnect()')
   ) {
     violations.push(relative + ': ResizeObserver sem disconnect');
   }
 
   if (
-    source.includes('.subscribe(')
-    && !source.includes('takeUntilDestroyed(')
-    && !source.includes('take(1)')
-    && !source.includes('.unsubscribe()')
-    && !source.includes('Subscription')
+    source.includes('.subscribe(') &&
+    !source.includes('takeUntilDestroyed(') &&
+    !source.includes('take(1)') &&
+    !source.includes('.unsubscribe()') &&
+    !source.includes('Subscription')
   ) {
     violations.push(relative + ': subscribe imperativo sem teardown reconhecível');
   }
 
   if (
-    source.includes('VideoEditorSessionService')
-    && !relative.endsWith(
+    source.includes('VideoEditorSessionService') &&
+    !relative.endsWith(
       'src/app/core/services/media/video-editor-session.service.ts'
-    )
-    && !relative.endsWith(
+    ) &&
+    !relative.endsWith(
       'src/app/core/services/media/video-editor-launcher.service.ts'
     )
   ) {
@@ -358,180 +442,5 @@ if (violations.length) {
 }
 
 console.log(
-  '[media-runtime-resource] OK: editor, feeds, preload, player e recursos transitórios possuem limites/teardown defensivos.'
-);
-,
-]) {
-  requireIncludes(videoAccess, fragment, 'public video access LRU drift');
-}
-
-const viewer = read(
-  'src/app/media/videos/public-video-viewer/public-video-viewer.component.ts'
-);
-for (const fragment of [
-  'VIEWER_ITEM_WINDOW_MAX = 48',
-  'VIEWER_ITEM_RETAIN_BEHIND = 12',
-  'trimViewerItemWindow()',
-  'releaseCurrentPlayerSource()',
-  "player.removeAttribute('src')",
-  'player.load()',
-]) {
-  requireIncludes(viewer, fragment, 'video decoder release drift');
-}
-
-const videoEditorSession = read(
-  'src/app/core/services/media/video-editor-session.service.ts'
-);
-for (const fragment of [
-  'VIDEO_EDITOR_DRAFT_IDLE_TTL_MS = 15 * 60 * 1000',
-  'readonly expiresAt: number',
-  'this.scheduleExpiry(expiresAt)',
-  "this.clearDraft(undefined, 'expired')",
-  "this.clearDraft(undefined, 'auth-changed')",
-  'this.draftSubject.next(null)',
-  'takeResult(',
-]) {
-  requireIncludes(
-    videoEditorSession,
-    fragment,
-    'video editor session TTL/auth/teardown drift'
-  );
-}
-
-const videoEditorLauncher = read(
-  'src/app/core/services/media/video-editor-launcher.service.ts'
-);
-for (const fragment of [
-  'this.authSession.uid$.pipe(',
-  'takeUntilDestroyed(this.destroyRef)',
-  'this.session.clearIfOwnerMismatch(normalizedUid)',
-  "this.session.clearDraft(undefined, 'destroyed')",
-  'return this.session.takeResult(ownerUid, source);',
-]) {
-  requireIncludes(
-    videoEditorLauncher,
-    fragment,
-    'video editor auth boundary drift'
-  );
-}
-
-const videoEditorControls = read(
-  'src/app/media/videos/video-editor/video-simple-editor-controls.component.ts'
-);
-for (const fragment of [
-  'this.fileSubject.next(null)',
-  'this.metadataSubject.next(null)',
-  'this.fileSubject.complete()',
-  'this.metadataSubject.complete()',
-]) {
-  requireIncludes(
-    videoEditorControls,
-    fragment,
-    'video editor component File/Blob teardown drift'
-  );
-}
-
-const profileVideos = read(
-  'src/app/media/videos/profile-videos/profile-videos.component.ts'
-);
-for (const fragment of [
-  "reason === 'expired' || reason === 'auth-changed'",
-  'this.releaseEditorSelection()',
-  'this.revokePreviewUrl()',
-  'this.selectedFileSubject.next(null)',
-]) {
-  requireIncludes(
-    profileVideos,
-    fragment,
-    'profile video editor host teardown drift'
-  );
-}
-
-function runtimeFiles(directory) {
-  if (!fs.existsSync(directory)) return [];
-
-  return fs.readdirSync(directory).flatMap((entry) => {
-    const absolute = path.join(directory, entry);
-    const stat = fs.statSync(absolute);
-
-    if (stat.isDirectory()) return runtimeFiles(absolute);
-    if (
-      !entry.endsWith('.ts')
-      || entry.endsWith('.spec.ts')
-      || entry.endsWith('.test.ts')
-    ) {
-      return [];
-    }
-    return [absolute];
-  });
-}
-
-const scanRoots = [
-  path.join(root, 'src', 'app', 'core', 'services', 'media'),
-  path.join(root, 'src', 'app', 'core', 'services', 'image-handling'),
-  path.join(root, 'src', 'app', 'media'),
-  path.join(root, 'src', 'app', 'photo-editor'),
-  path.join(root, 'src', 'app', 'community', 'feed'),
-];
-
-const violations = [];
-
-for (const file of scanRoots.flatMap(runtimeFiles)) {
-  const source = fs.readFileSync(file, 'utf8');
-  const relative = path.relative(root, file).replaceAll('\\', '/');
-
-  if (
-    source.includes('URL.createObjectURL')
-    && !source.includes('URL.revokeObjectURL')
-  ) {
-    violations.push(relative + ': createObjectURL sem revokeObjectURL');
-  }
-
-  if (
-    source.includes('new IntersectionObserver')
-    && !source.includes('.disconnect()')
-  ) {
-    violations.push(relative + ': IntersectionObserver sem disconnect');
-  }
-
-  if (
-    source.includes('new ResizeObserver')
-    && !source.includes('.disconnect()')
-  ) {
-    violations.push(relative + ': ResizeObserver sem disconnect');
-  }
-
-  if (
-    source.includes('.subscribe(')
-    && !source.includes('takeUntilDestroyed(')
-    && !source.includes('take(1)')
-    && !source.includes('.unsubscribe()')
-    && !source.includes('Subscription')
-  ) {
-    violations.push(relative + ': subscribe imperativo sem teardown reconhecível');
-  }
-
-  if (
-    source.includes('VideoEditorSessionService')
-    && !relative.endsWith(
-      'src/app/core/services/media/video-editor-session.service.ts'
-    )
-    && !relative.endsWith(
-      'src/app/core/services/media/video-editor-launcher.service.ts'
-    )
-  ) {
-    violations.push(
-      relative + ': VideoEditorSessionService fora do auth-boundary do launcher'
-    );
-  }
-}
-
-if (violations.length) {
-  throw new Error(
-    '[media-runtime-resource] Violações:\n - ' + violations.join('\n - ')
-  );
-}
-
-console.log(
-  '[media-runtime-resource] OK: editor, feeds, preload, player e recursos transitórios possuem limites/teardown defensivos.'
+  '[media-runtime-resource] OK: Foto/Vídeo compartilham contratos de recursos, teclado/foco, touch, orientation, reduced-motion e degradação de memória.'
 );
