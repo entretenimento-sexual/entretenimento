@@ -229,17 +229,18 @@ async function run() {
     });
     const privateDownloadUrl = await getDownloadURL(privateStorageRef);
 
-    await setDoc(
-      doc(ownerClient.firestore, `users/${ownerUid}/photos/${photoId}`),
-      {
-        id: photoId,
-        url: privateDownloadUrl,
-        path: privateStoragePath,
-        fileName: 'reported-photo.png',
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-      }
+    const registerPrivatePhotoUpload = httpsCallable(
+      ownerClient.functions,
+      'registerPrivatePhotoUpload'
     );
+    await registerPrivatePhotoUpload({
+      ownerUid,
+      photoId,
+      storagePath: privateStoragePath,
+      url: privateDownloadUrl,
+      fileName: 'reported-photo.png',
+      mode: 'create',
+    });
 
     const publishPhoto = httpsCallable(ownerClient.functions, 'publishPhoto');
     const publicationResponse = await publishPhoto({
