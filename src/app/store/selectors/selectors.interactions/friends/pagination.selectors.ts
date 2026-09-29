@@ -56,9 +56,6 @@ export const selectFriendsPageSlice = (uid: string): Sel<FriendsPageSlice> =>
     }) as Sel<FriendsPageSlice>
   );
 
-// Alias compatível
-export const selectFriendsPageState = selectFriendsPageSlice;
-
 // -----------------------------------------------------------------------------
 // Leafs: mantendo os nomes usados no app
 // -----------------------------------------------------------------------------
@@ -100,13 +97,6 @@ export const selectFriendsPageOnlineCount = (uid: string) =>
     ) as Sel<number>
   );
 
-const offlineCountCache = new Map<string, Sel<number>>();
-export const selectFriendsPageOfflineCount = (uid: string) =>
-  getOrCreate(offlineCountCache, uid, () =>
-    createSelector(selectFriendsPageItems(uid), (items) =>
-      items.filter((f) => !((f as any)?.isOnline)).length
-    ) as Sel<number>
-  );
 
 // -----------------------------------------------------------------------------
 // Limpeza do cache
@@ -119,7 +109,6 @@ export function clearFriendsPaginationSelectorsCache(): void {
   nextOrderCache.clear();
   countCache.clear();
   onlineCountCache.clear();
-  offlineCountCache.clear();
 }
 
 export const __friendsPaginationSelectorsDebug = {
@@ -131,6 +120,5 @@ export const __friendsPaginationSelectorsDebug = {
     nextOrder: nextOrderCache.size,
     count: countCache.size,
     onlineCount: onlineCountCache.size,
-    offlineCount: offlineCountCache.size,
   }),
 };
