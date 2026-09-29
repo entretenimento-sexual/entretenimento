@@ -1,7 +1,7 @@
 <!-- src/app/preferences/pages/preferences-editor/preferences-editor.component.html -->
 <main class="preferences-editor-page app-page" aria-label="Editor de preferências">
   <section class="preferences-editor-shell">
-    <app-preferences-page-header title="Preferências">
+    <app-page-header title="Preferências">
       <a
         page-actions
         class="app-action app-action--ghost"
@@ -9,7 +9,7 @@
       >
         Voltar
       </a>
-    </app-preferences-page-header>
+    </app-page-header>
 
     @if (state$ | async; as state) {
       <section class="plan-strip" aria-label="Plano atual">
