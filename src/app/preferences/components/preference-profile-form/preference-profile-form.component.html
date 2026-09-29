@@ -6,14 +6,14 @@
   aria-label="Formulário de preferências"
   formInvalidMessage="Revise os filtros destacados antes de salvar suas preferências."
 >
-  <details class="preference-group" open>
-    <summary class="preference-group__summary">
-      <span class="preference-group__title"><strong>Intenções relacionais</strong><small>O tipo de conexão que você procura.</small></span>
-      <span class="preference-group__count">{{ selectionLabel(selectedCount('ri', relationshipIntentOptions)) }}</span>
+  <details class="preference-group app-disclosure" open>
+    <summary class="preference-group__summary app-disclosure__summary">
+      <strong class="preference-group__title app-disclosure__title">Intenções relacionais</strong>
+      <span class="preference-group__count app-disclosure__state">{{ selectionLabel(selectedCount('ri', relationshipIntentOptions)) }}</span>
     </summary>
-    <div class="preference-group__content">
+    <div class="preference-group__content app-disclosure__content">
       <div class="matching-mode">
-        <span class="matching-mode__label">Como usar estas escolhas</span>
+        <span class="matching-mode__label">Modo do filtro</span>
         <select id="relationshipIntentMode" formControlName="relationshipIntentMode" aria-describedby="relationshipIntentModeHelp">
           <option value="prefer">Preferir — melhora a ordem</option>
           <option value="require">Exigir — remove incompatíveis</option>
@@ -28,24 +28,24 @@
     </div>
   </details>
 
-  <details class="preference-group">
-    <summary class="preference-group__summary">
-      <span class="preference-group__title"><strong>Interesses de gênero</strong><small>Quem pode aparecer nas suas combinações.</small></span>
-      <span class="preference-group__count">{{ selectionLabel(selectedCount('gi', genderInterestOptions)) }}</span>
+  <details class="preference-group app-disclosure">
+    <summary class="preference-group__summary app-disclosure__summary">
+      <strong class="preference-group__title app-disclosure__title">Interesses de gênero</strong>
+      <span class="preference-group__count app-disclosure__state">{{ selectionLabel(selectedCount('gi', genderInterestOptions)) }}</span>
     </summary>
-    <div class="preference-group__content checkbox-grid">
+    <div class="preference-group__content app-disclosure__content checkbox-grid">
       @for (option of genderInterestOptions; track option.key) {
         <label class="checkbox-item"><input type="checkbox" [formControlName]="'gi_' + option.key" /><span>{{ option.label }}</span></label>
       }
     </div>
   </details>
 
-  <details class="preference-group">
-    <summary class="preference-group__summary">
-      <span class="preference-group__title"><strong>Minhas características</strong><small>Características que você escolhe declarar sobre si.</small></span>
-      <span class="preference-group__count">{{ selectionLabel(selectedCount('st', bodyPreferenceOptions)) }}</span>
+  <details class="preference-group app-disclosure">
+    <summary class="preference-group__summary app-disclosure__summary">
+      <strong class="preference-group__title app-disclosure__title">Minhas características</strong>
+      <span class="preference-group__count app-disclosure__state">{{ selectionLabel(selectedCount('st', bodyPreferenceOptions)) }}</span>
     </summary>
-    <div class="preference-group__content">
+    <div class="preference-group__content app-disclosure__content">
       <p class="preference-note" role="note">Essas informações só aparecem na descoberta quando “Exibir sinais de preferências” estiver ativo.</p>
       <div class="checkbox-grid checkbox-grid--nested">
         @for (option of bodyPreferenceOptions; track option.key) {
@@ -55,16 +55,16 @@
     </div>
   </details>
 
-  <details class="preference-group" [class.preference-group--locked]="!canEditAdvanced()">
-    <summary class="preference-group__summary">
-      <span class="preference-group__title"><strong>Preferências avançadas</strong><small>Práticas desejadas e características físicas procuradas.</small></span>
+  <details class="preference-group app-disclosure" [class.preference-group--locked]="!canEditAdvanced()">
+    <summary class="preference-group__summary app-disclosure__summary">
+      <strong class="preference-group__title app-disclosure__title">Preferências avançadas</strong>
       @if (canEditAdvanced()) {
-        <span class="preference-group__count">{{ selectionLabel(selectedCount('sp', sexualPracticeOptions) + selectedCount('bp', bodyPreferenceOptions)) }}</span>
+        <span class="preference-group__count app-disclosure__state">{{ selectionLabel(selectedCount('sp', sexualPracticeOptions) + selectedCount('bp', bodyPreferenceOptions)) }}</span>
       } @else {
-        <span class="preference-group__plan"><i class="fas fa-lock" aria-hidden="true"></i>Básico</span>
+        <span class="preference-group__plan app-disclosure__state"><i class="fas fa-lock" aria-hidden="true"></i>Básico</span>
       }
     </summary>
-    <div class="preference-group__content">
+    <div class="preference-group__content app-disclosure__content">
       @if (canEditAdvanced()) {
         <div class="preference-subgroup">
           <div class="preference-subgroup__header">
@@ -106,12 +106,11 @@
     </div>
   </details>
 
-  <details class="preference-group">
-    <summary class="preference-group__summary">
-      <span class="preference-group__title"><strong>Opções de descoberta</strong><small>Idade, distância e tipos de perfil aceitos.</small></span>
-      <span class="preference-group__count">Configurar</span>
+  <details class="preference-group app-disclosure">
+    <summary class="preference-group__summary app-disclosure__summary">
+      <strong class="preference-group__title app-disclosure__title">Opções de descoberta</strong>
     </summary>
-    <div class="preference-group__content form-grid">
+    <div class="preference-group__content app-disclosure__content form-grid">
       <div class="form-field">
         <label for="minAge">Idade mínima</label>
         <input
@@ -186,9 +185,9 @@
     </div>
   </details>
 
-  <details class="preference-group">
-    <summary class="preference-group__summary">
-      <span class="preference-group__title"><strong>Como quero aparecer</strong><small>Privacidade e visibilidade do seu perfil.</small></span><span class="preference-group__count">Configurar</span>
+  <details class="preference-group app-disclosure">
+    <summary class="preference-group__summary app-disclosure__summary">
+      <strong class="preference-group__title app-disclosure__title">Como quero aparecer</strong>
     </summary>
     <div class="preference-group__content form-grid">
       <div class="form-field form-field--wide">
@@ -206,12 +205,14 @@
   </details>
 
   <footer class="form-actions">
-    <span class="form-actions__status" aria-live="polite">
-      {{ saving() ? 'Salvando alterações…' : (form.dirty ? 'Existem alterações não salvas.' : 'Preferências salvas.') }}
-    </span>
+    @if (saving() || form.dirty) {
+      <span class="form-actions__status" aria-live="polite">
+        {{ saving() ? 'Salvando alterações…' : 'Alterações não salvas.' }}
+      </span>
+    }
     <button
       type="submit"
-      class="btn btn-primary"
+      class="app-action app-action--primary"
       [disabled]="!canEdit() || saving() || form.pristine"
       [attr.aria-busy]="saving() ? 'true' : 'false'"
     >
