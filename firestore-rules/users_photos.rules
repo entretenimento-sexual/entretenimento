@@ -1,8 +1,9 @@
 // ===============================================================
 // USERS / photos + imageStates + comments
 // - Fluxo atual: metadado da foto salva id, url, path, fileName, createdAt
-// - Somente o dono lê/escreve
-// - displayDate é metadado de organização do próprio acervo, sem regra comercial
+// - O dono lê; mutações críticas do ativo são backend-only
+// - displayDate é o único metadado organizacional ainda editável diretamente
+// - displayDate não participa de autoridade comercial/publicação
 // - Sem scraping, sem enumeração
 // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
 // uso de helpers globais
@@ -50,15 +51,19 @@ match /users/{userId}/photos/{photoId} {
 
   allow get, list: if isSelf(userId);
 
-  allow create: if isSelf(userId)
-    && currentUserCanUseAdultSocialPlatform()
-    && validPhotoPayload();
+  // Registro do ativo, troca de binário/metadados críticos e exclusão passam
+  // pela fronteira backend. O cliente só pode reorganizar displayDate.
+  allow create: if false;
 
   allow update: if isSelf(userId)
     && currentUserCanUseAdultSocialPlatform()
-    && validPhotoPayload();
+    && validPhotoPayload()
+    && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+      "displayDate",
+      "updatedAt"
+    ]);
 
-  allow delete: if isSelf(userId);
+  allow delete: if false;
 
   match /comments/{commentId} {
     function allowedCommentKeys() {
