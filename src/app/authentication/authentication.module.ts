@@ -6,17 +6,13 @@ import { FormsModule, ReactiveFormsModule } from '@angular/forms'; // Para usar 
 // Importe o RouterModule se este módulo tiver rotas
 import { RouterModule } from '@angular/router';
 import { LoginComponent } from './login-component/login-component';
-import { ProgressiveSignupComponent } from './progressive-signup/progressive-signup.component';
 import { AuthenticationRoutingModule } from './authentication-routing.module';
 import { MatCardModule } from '@angular/material/card';
 import { EmailInputModalComponent } from './email-input-modal/email-input-modal.component';
-import { PageHeaderComponent } from '../shared/page-header/page-header.component';
-import { ContentStateComponent } from '../shared/content-state/content-state.component';
 
 @NgModule({
   declarations: [
     LoginComponent,
-    ProgressiveSignupComponent,
   ],
 
   imports: [
@@ -27,14 +23,11 @@ import { ContentStateComponent } from '../shared/content-state/content-state.com
     AuthenticationRoutingModule, // Se este módulo tiver rotas
     MatCardModule,
     EmailInputModalComponent,
-    PageHeaderComponent,
-    ContentStateComponent,
 
   ],
 
   exports: [
     LoginComponent,
-    ProgressiveSignupComponent,
     
   ],
 
