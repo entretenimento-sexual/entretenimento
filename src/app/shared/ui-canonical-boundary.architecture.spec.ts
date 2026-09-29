@@ -33,6 +33,7 @@ const CANONICAL_ACTION_TEMPLATES = [
   'src/app/subscriptions/subscription-plan/subscription-plan.component.html',
   'src/app/explore/pages/social-explore-page/social-explore-page.component.html',
   'src/app/user-profile/user-profile-view/user-profile-view.component.html',
+  'src/app/notifications/notifications-page/notifications-page.component.html',
 ] as const;
 
 const CANONICAL_HEADER_TEMPLATES = [
@@ -44,6 +45,7 @@ const CANONICAL_HEADER_TEMPLATES = [
   'src/app/media/photos/photo-upload/photo-upload.component.html',
   'src/app/community/discovery/community-discovery-page.component.html',
   'src/app/subscriptions/subscription-plan/subscription-plan.component.html',
+  'src/app/notifications/notifications-page/notifications-page.component.html',
 ] as const;
 
 const CANONICALIZED_STYLES = [
@@ -56,6 +58,7 @@ const CANONICALIZED_STYLES = [
   'src/app/subscriptions/subscription-plan/subscription-plan.component.css',
   'src/app/explore/pages/social-explore-page/social-explore-page.component.css',
   'src/app/user-profile/user-profile-view/user-profile-view.component.css',
+  'src/app/notifications/notifications-page/notifications-page.component.css',
 ] as const;
 
 describe('Canonical UI boundary', () => {
@@ -111,6 +114,7 @@ describe('Canonical UI boundary', () => {
       'src/app/preferences/components/preferences-page-header/preferences-page-header.component.ts',
       'src/app/preferences/components/preferences-page-header/preferences-page-header.component.html',
       'src/app/preferences/components/preferences-page-header/preferences-page-header.component.css',
+      'src/app/notifications/notifications-page/notifications-page.clean.css',
     ];
 
     expect(
