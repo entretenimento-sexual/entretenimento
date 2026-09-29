@@ -58,6 +58,7 @@ export class AgeVerificationPageComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   readonly processing = signal(false);
+  readonly reconciling = signal(true);
   readonly feedback = signal<PageFeedback | null>(null);
 
   readonly vm$: Observable<AgeVerificationPageVm> =
@@ -91,6 +92,7 @@ export class AgeVerificationPageComponent implements OnInit {
             catchError(() => of('UNVERIFIED' as const))
           );
         }),
+        finalize(() => this.reconciling.set(false)),
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe();
