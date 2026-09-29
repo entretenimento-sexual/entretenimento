@@ -20,6 +20,14 @@ test('mapeia tipos opcionais para a preferência canônica', () => {
     'communities'
   );
   assert.equal(
+    resolvePushNotificationPreferenceKey('media.photo.published'),
+    'media'
+  );
+  assert.equal(
+    resolvePushNotificationPreferenceKey('media.video.published'),
+    'media'
+  );
+  assert.equal(
     resolvePushNotificationPreferenceKey('user_intent_status.compatible'),
     'compatibleStatus'
   );
@@ -51,6 +59,10 @@ test('desativa push opcional somente quando a preferência é false explícito',
   );
   assert.equal(
     isPushNotificationEnabledByPreference('communities', {communities: false}),
+    false
+  );
+  assert.equal(
+    isPushNotificationEnabledByPreference('media', {media: false}),
     false
   );
   assert.equal(
