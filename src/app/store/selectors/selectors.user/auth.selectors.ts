@@ -15,9 +15,6 @@ export const selectAuthUid = createSelector(
   (state) => state.userId
 );
 
-// compat
-export const selectAuthUserId = selectAuthUid;
-
 export const selectAuthEmailVerified = createSelector(
   selectAuthState,
   (state) => state.emailVerified
@@ -28,12 +25,4 @@ export const selectAuthReady = createSelector(
   (state) => state.ready
 );
 
-export const selectAuthLoading = createSelector(
-  selectAuthState,
-  (state) => state.loading
-);
 
-export const selectAuthError = createSelector(
-  selectAuthState,
-  (state) => state.error
-);
