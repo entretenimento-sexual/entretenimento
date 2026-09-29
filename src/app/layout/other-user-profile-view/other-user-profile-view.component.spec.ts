@@ -160,7 +160,8 @@ describe('OtherUserProfileViewComponent', () => {
         {
           provide: UserIntentStatusService,
           useValue: {
-            watchActiveStatusesForUserRegion$: vi.fn(() =>
+            watchActiveStatusesForUserRegion$: vi.fn(() => of([])),
+            watchActiveStatusesForRegion$: vi.fn(() =>
               of([
                 {
                   id: 'current_target-uid',
