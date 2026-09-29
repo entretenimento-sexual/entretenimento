@@ -43,6 +43,7 @@ export {
 export {
   setCoverPhoto,
 } from './application/manage-photo-publication.handler';
+// TOMBSTONE até 2026-12-31: compatibilidade fail-closed para clientes antigos.
 export {
   unpublishPhoto,
 } from './application/legacy-unpublish-photo.handler';
@@ -51,6 +52,7 @@ export {
   syncPublishedPhotoOnPrivateUpdate,
 } from './application/sync-published-photo-on-private-update.handler';
 
+// TOMBSTONE até 2026-12-31: compatibilidade fail-closed para clientes antigos.
 export {
   unpublishVideo,
 } from './application/legacy-unpublish-video.handler';
