@@ -9,11 +9,7 @@ export const resetSendFriendRequestStatus = createAction(
   '[Friendship] Reset Send Friend Request Status'
 );
 
-// Busca de usuários
-export const loadSearchResults = createAction(
-  '[Friendship] Load Search Results',
-  props<{ searchTerm: string }>()
-);
+// Resultados de busca são feedback de fluxos que ainda os consomem.
 
 export const loadSearchResultsSuccess = createAction(
   '[Friendship] Load Search Results Success',
