@@ -34,9 +34,6 @@ export type DirectChatBlockedReason =
   | 'preference-mismatch'
   | 'unknown';
 
-export interface DirectChatSelection {
-  chatId: DirectChatId | null;
-}
 
 export interface DirectChatListItem {
   /**
