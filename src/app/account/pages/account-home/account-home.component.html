@@ -5,7 +5,7 @@
       @if (currentUser$ | async; as currentUser) {
         @if (shouldShowPostPaymentNotice$ | async) {
           <section
-            class="account-context-panel account-context-panel--success"
+            class="account-context-panel account-context-panel--success app-card app-card--flat"
             aria-labelledby="account-post-payment-title"
           >
             <div>
@@ -14,12 +14,12 @@
             </div>
 
             <div class="account-context-panel__actions">
-              <button type="button" class="btn btn-primary" (click)="onCompleteProfile()">
+              <button type="button" class="app-action app-action--primary" (click)="onCompleteProfile()">
                 Completar perfil
               </button>
               <button
                 type="button"
-                class="btn btn-secondary"
+                class="app-action app-action--ghost"
                 (click)="onDismissPostPaymentNotice(currentUser)"
               >
                 Agora não
@@ -28,7 +28,7 @@
           </section>
         } @else if (shouldShowIncompleteProfileBanner$ | async) {
           <section
-            class="account-context-panel account-context-panel--info"
+            class="account-context-panel account-context-panel--info app-card app-card--flat"
             aria-labelledby="account-incomplete-profile-title"
           >
             <div>
@@ -37,12 +37,12 @@
             </div>
 
             <div class="account-context-panel__actions">
-              <button type="button" class="btn btn-primary" (click)="onCompleteProfile()">
+              <button type="button" class="app-action app-action--primary" (click)="onCompleteProfile()">
                 Finalizar perfil
               </button>
               <button
                 type="button"
-                class="btn btn-secondary"
+                class="app-action app-action--ghost"
                 (click)="onSnoozeIncompleteProfileBanner(currentUser)"
               >
                 Lembrar depois
@@ -53,7 +53,7 @@
       }
 
       <div class="account-overview-grid" aria-label="Resumo e atalhos da conta">
-        <a class="account-overview-card" routerLink="/perfil">
+        <a class="account-overview-card app-card app-card--flat app-card--interactive" routerLink="/perfil">
           <span class="account-overview-card__topline">
             <span class="account-fact-label">Perfil</span>
             <span class="account-overview-card__arrow" aria-hidden="true">→</span>
@@ -68,7 +68,7 @@
         </a>
 
         <a
-          class="account-overview-card account-overview-card--subscription"
+          class="account-overview-card account-overview-card--subscription app-card app-card--flat app-card--interactive"
           routerLink="/conta/assinatura"
         >
           <span class="account-overview-card__topline">
@@ -88,7 +88,7 @@
           <span class="account-overview-card__action">Gerenciar assinatura</span>
         </a>
 
-        <a class="account-overview-card" routerLink="/conta/seguranca">
+        <a class="account-overview-card app-card app-card--flat app-card--interactive" routerLink="/conta/seguranca">
           <span class="account-overview-card__topline">
             <span class="account-fact-label">Segurança</span>
             <span class="account-overview-card__arrow" aria-hidden="true">→</span>
@@ -100,7 +100,7 @@
           <span class="account-overview-card__action">Revisar segurança</span>
         </a>
 
-        <a class="account-overview-card" routerLink="/conta/gerenciar">
+        <a class="account-overview-card app-card app-card--flat app-card--interactive" routerLink="/conta/gerenciar">
           <span class="account-overview-card__topline">
             <span class="account-fact-label">Conta</span>
             <span class="account-overview-card__arrow" aria-hidden="true">→</span>
@@ -123,12 +123,12 @@
         </a>
       </div>
     } @else {
-      <section class="account-context-panel" role="alert">
+      <section class="account-context-panel app-card app-card--flat" role="alert">
         <p>Você precisa estar autenticado para acessar sua conta.</p>
       </section>
     }
   } @else {
-    <section class="account-context-panel" role="status" aria-live="polite">
+    <section class="account-context-panel app-card app-card--flat" role="status" aria-live="polite">
       <p>Carregando conta...</p>
     </section>
   }
