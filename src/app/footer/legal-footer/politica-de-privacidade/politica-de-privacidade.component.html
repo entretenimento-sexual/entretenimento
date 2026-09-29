@@ -87,7 +87,7 @@
   <section>
     <h2>5. Verificação de idade</h2>
     <p>
-      A plataforma é exclusiva para maiores de 18 anos. A simples declaração de idade não é considerada suficiente para liberar conteúdo adulto quando a legislação exigir método eficaz de aferição ou verificação.
+      A plataforma é exclusiva para maiores de 18 anos. A autodeclaração pode ser registrada como etapa provisória de baixo risco, mas não equivale a maioridade verificada. Upload, publicação, reprodução e consumo de mídia adulta exigem estado de maioridade verificada por fonte confiável e vigente.
     </p>
     <p>
       Dados coletados especificamente para verificação etária serão usados apenas para confirmar elegibilidade, prevenir acesso indevido, auditar o procedimento e cumprir obrigações. Eles não serão utilizados para publicidade comportamental, enriquecimento comercial de perfil ou finalidade incompatível.
@@ -111,14 +111,17 @@
     <h2>7. Compartilhamento de dados</h2>
     <p>Os dados podem ser compartilhados, no limite necessário, com:</p>
     <ul>
-      <li>provedores de infraestrutura, banco de dados, autenticação, armazenamento, entrega de conteúdo, monitoramento e suporte técnico;</li>
-      <li>parceiros de pagamento, bancos, adquirentes, subadquirentes, antifraude, KYC e prevenção à lavagem de dinheiro;</li>
-      <li>prestadores de verificação etária ou identidade, observando limitação de finalidade e segurança;</li>
-      <li>fornecedores de atendimento, comunicação, análise de segurança e moderação;</li>
+      <li><strong>Google/Firebase:</strong> infraestrutura de autenticação, banco de dados, armazenamento, Functions, App Check/reCAPTCHA e Firebase Cloud Messaging;</li>
+      <li><strong>Asaas:</strong> parceiro previsto para checkout e cobrança quando a recorrência real estiver operacionalmente habilitada;</li>
+      <li>prestadores de verificação etária ou identidade, se e quando essa integração for ativada, observando limitação de finalidade e segurança;</li>
+      <li>fornecedores de atendimento, comunicação, análise de segurança e moderação efetivamente contratados para a operação;</li>
       <li>consultores, auditores e assessores jurídicos sujeitos a deveres de confidencialidade;</li>
       <li>autoridades públicas, reguladores, órgãos de investigação e Poder Judiciário quando houver obrigação, ordem, fundamento legal ou necessidade de proteção;</li>
       <li>terceiros envolvidos em reorganização societária, aquisição ou transferência de ativos, com salvaguardas e transparência adequadas.</li>
     </ul>
+    <p>
+      Google Analytics não é inicializado pela aplicação atual. Sentry e VirusTotal permanecem desativados na configuração de produção e, enquanto assim permanecerem, não recebem dados por essas integrações.
+    </p>
     <p>
       A plataforma não vende dados pessoais. Compartilhamento para finalidade comercial incompatível, especialmente de dados sensíveis, não é autorizado por esta Política.
     </p>
@@ -182,7 +185,7 @@
   <section>
     <h2>13. Cookies e armazenamento local</h2>
     <p>
-      Cookies, IndexedDB, localStorage e tecnologias equivalentes podem ser usados para autenticação, preferências, segurança, prevenção a fraude, funcionamento offline, desempenho e métricas. Tecnologias estritamente necessárias podem operar sem consentimento quando houver outra base legal adequada. Categorias opcionais devem ser apresentadas com escolha granular quando exigido.
+      Cookies, IndexedDB, localStorage, armazenamento de sessão, service workers e tecnologias equivalentes são utilizados conforme descrito na <a href="/politica-de-cookies">Política de Cookies e Tecnologias Similares</a>. A configuração atual não inicializa Google Analytics nem cookies de publicidade comportamental. Tecnologias estritamente necessárias podem operar sem consentimento quando houver outra base legal adequada; categorias opcionais dependem de escolha específica quando exigido.
     </p>
   </section>
 
