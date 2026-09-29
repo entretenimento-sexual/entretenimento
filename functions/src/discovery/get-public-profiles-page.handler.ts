@@ -15,6 +15,7 @@ import {
 } from '../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
+import { resolvePublicProfileAge } from './public-profile-discovery-projection';
 import {
   REQUIRE_CALLABLE_APP_CHECK,
   assertCallableAppCheck,
@@ -370,7 +371,7 @@ export function serializePublicProfileForDiscovery(
     identityShortLabel: cleanText(data['identityShortLabel']),
     identityDiscoveryGroup: cleanText(data['identityDiscoveryGroup']),
     orientation: cleanText(data['orientation']),
-    age: null,
+    age: resolvePublicProfileAge(data['age'] ?? data['idade']),
     normalizedGender: cleanText(data['normalizedGender']),
     normalizedOrientation: cleanText(data['normalizedOrientation']),
     compatibilityReady:
