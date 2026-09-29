@@ -12,15 +12,17 @@
 import { CommonModule } from '@angular/common';
 import {
   ChangeDetectionStrategy,
-  ChangeDetectorRef,
   Component,
+  DestroyRef,
   computed,
   effect,
   inject,
   input,
   output,
+  signal,
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterModule } from '@angular/router';
 
 import { IntentState } from '../../models/intent-state.model';
@@ -60,7 +62,8 @@ export class IntentStateFormComponent {
   ];
 
   private readonly fb = new FormBuilder();
-  private readonly cdr = inject(ChangeDetectorRef);
+  private readonly destroyRef = inject(DestroyRef);
+  readonly hasPendingChanges = signal(false);
 
   readonly form = this.fb.nonNullable.group({
     mode: this.fb.nonNullable.control<IntentMode>('inactive'),
@@ -84,6 +87,9 @@ export class IntentStateFormComponent {
   );
 
   constructor() {
+    this.form.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.hasPendingChanges.set(true));
     effect(() => {
       const intent = this.intent() ?? createEmptyIntentState('');
       this.patchForm(intent);
@@ -105,7 +111,7 @@ export class IntentStateFormComponent {
       !this.canEdit() ||
       this.saving() ||
       this.form.invalid ||
-      this.form.pristine
+      !this.hasPendingChanges()
     ) {
       return;
     }
@@ -136,13 +142,13 @@ export class IntentStateFormComponent {
   }
 
   hasUnsavedChanges(): boolean {
-    return this.form.dirty;
+    return this.hasPendingChanges();
   }
 
   markSaved(): void {
     this.form.markAsPristine();
     this.form.markAsUntouched();
-    this.cdr.markForCheck();
+    this.hasPendingChanges.set(false);
   }
 
   private patchForm(intent: IntentState): void {
