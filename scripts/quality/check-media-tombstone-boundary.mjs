@@ -81,7 +81,7 @@ for (const tombstone of tombstones) {
   const handler = read(tombstone.handler);
   for (const fragment of [
     'API TOMBSTONE',
-    'LEGACY_MEDIA_TOMBSTONE_TARGET_REMOVAL_DATE',
+    'Data-alvo de retirada: 2026-12-31.',
     'logLegacyMediaTombstoneUse',
     `logLegacyMediaTombstoneUse('${tombstone.exportName}', 'unauthenticated')`,
     `logLegacyMediaTombstoneUse('${tombstone.exportName}', 'invalid_argument')`,
