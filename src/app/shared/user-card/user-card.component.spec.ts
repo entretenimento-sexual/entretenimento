@@ -132,6 +132,20 @@ describe('UserCardComponent', () => {
     expect(desireMatch.textContent).not.toMatch(/\d+%/u);
   });
 
+  it('destaca disponibilidade simultânea sem transformar contexto em score', () => {
+    fixture.componentRef.setInput('intentAvailability', 'available_now');
+    fixture.componentRef.setInput('mutualAvailableNow', true);
+    fixture.detectChanges();
+
+    const context = fixture.debugElement.query(
+      By.css('.user-card__intent-context')
+    ).nativeElement as HTMLElement;
+
+    expect(context.textContent).toContain('Vocês estão disponíveis agora');
+    expect(context.textContent).toContain('Momento em comum');
+    expect(context.textContent).not.toMatch(/\d+%/u);
+  });
+
   it('não mostra sinais públicos quando o perfil não autorizou badges', () => {
     fixture.componentRef.setInput('user', {
       ...baseProfile,
