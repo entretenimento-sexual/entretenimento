@@ -672,6 +672,40 @@ if (fs.existsSync(adultConsentPath)) {
 }
 
 
+
+const verifiedPublicProjectionFiles = Object.freeze([
+  'functions/src/discovery/sync-public-profile-discovery.handler.ts',
+  'functions/src/discovery/sync-public-preference-projection.handler.ts',
+  'functions/src/discovery/user-intent-status.handler.ts',
+]);
+
+for (const relativePath of verifiedPublicProjectionFiles) {
+  const absolutePath = path.join(root, relativePath);
+  if (!fs.existsSync(absolutePath)) {
+    violations.push(
+      `${relativePath} (projeção pública de maioridade verificada ausente)`
+    );
+    continue;
+  }
+
+  const source = codeOnly(fs.readFileSync(absolutePath, 'utf8'));
+
+  if (!source.includes('isVerifiedAdultAgeDecision')) {
+    violations.push(
+      `${relativePath} (projeção pública adulta deve depender de isVerifiedAdultAgeDecision)`
+    );
+  }
+
+  if (
+    relativePath !== 'functions/src/discovery/user-intent-status.handler.ts'
+    && source.includes('ageEligibilityVerifiedAdult: true')
+  ) {
+    violations.push(
+      `${relativePath} (ageEligibilityVerifiedAdult não pode ser hardcoded a partir de acesso provisório)`
+    );
+  }
+}
+
 const mediaVerifiedBoundaryFiles = Object.freeze([
   {
     path: 'functions/src/media/application/public-media-consumption-access.policy.ts',
