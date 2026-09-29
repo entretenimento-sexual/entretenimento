@@ -93,29 +93,20 @@
         </div>
       </article>
     } @else if (vm.planLoadFailed) {
-      <article class="checkout-card" role="alert">
-        <h1>Não foi possível carregar o plano</h1>
-        <p>
-          O plano não pôde ser consultado agora. Nenhuma contratação foi iniciada.
-        </p>
-
-        <div class="checkout-actions">
-          <button type="button" class="app-action app-action--primary" (click)="back()">
-            Voltar aos planos
-          </button>
-        </div>
-      </article>
+      <app-content-state
+        state="error"
+        title="Não foi possível carregar o plano"
+        message="O plano não pôde ser consultado agora. Nenhuma contratação foi iniciada."
+        actionLabel="Voltar aos planos"
+        (action)="back()"
+      ></app-content-state>
     } @else {
-      <article class="checkout-card">
-        <h1>Plano inválido</h1>
-        <p>O plano informado não existe ou não está disponível.</p>
-
-        <div class="checkout-actions">
-          <button type="button" class="app-action app-action--primary" (click)="back()">
-            Voltar aos planos
-          </button>
-        </div>
-      </article>
-    }
+      <app-content-state
+        state="empty"
+        title="Plano inválido"
+        message="O plano informado não existe ou não está disponível."
+        actionLabel="Voltar aos planos"
+        (action)="back()"
+      ></app-content-state>    }
   }
 </section>
