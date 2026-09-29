@@ -14,15 +14,17 @@
 import { CommonModule } from '@angular/common';
 import {
   ChangeDetectionStrategy,
-  ChangeDetectorRef,
   Component,
+  DestroyRef,
   computed,
   effect,
   inject,
   input,
   output,
+  signal,
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterModule } from '@angular/router';
 
 import { FormValidationFocusDirective } from '../../../shared/form-validation-focus/form-validation-focus.directive';
@@ -69,7 +71,8 @@ export class PreferenceProfileFormComponent {
   readonly discoveryModeOptions = DISCOVERY_MODE_OPTIONS;
 
   private readonly fb = new FormBuilder();
-  private readonly cdr = inject(ChangeDetectorRef);
+  private readonly destroyRef = inject(DestroyRef);
+  readonly hasPendingChanges = signal(false);
 
   readonly form = buildPreferenceProfileForm(this.fb);
 
@@ -98,6 +101,9 @@ export class PreferenceProfileFormComponent {
   );
 
   constructor() {
+    this.form.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.hasPendingChanges.set(true));
     effect(() => {
       const profile = this.profile() ?? createEmptyPreferenceProfile('');
       this.form.patchValue(mapPreferenceProfileToFormValue(profile), {
@@ -162,7 +168,7 @@ export class PreferenceProfileFormComponent {
       return;
     }
 
-    if (this.form.pristine) return;
+    if (!this.hasPendingChanges()) return;
 
     const current = this.profile() ?? createEmptyPreferenceProfile('');
     const result = mapFormValueToPreferenceProfile(
@@ -175,13 +181,13 @@ export class PreferenceProfileFormComponent {
   }
 
   hasUnsavedChanges(): boolean {
-    return this.form.dirty;
+    return this.hasPendingChanges();
   }
 
   markSaved(): void {
     this.form.markAsPristine();
     this.form.markAsUntouched();
-    this.cdr.markForCheck();
+    this.hasPendingChanges.set(false);
   }
 
   isModeAvailable(mode: string): boolean {
