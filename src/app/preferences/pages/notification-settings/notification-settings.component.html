@@ -6,7 +6,11 @@
       title="Notificações"
       subtitle="Escolha quais alertas devem chamar sua atenção. Alertas essenciais de conta continuam ativos."
     >
-      <a page-actions class="btn btn-secondary" routerLink="/notificacoes">
+      <a
+        page-actions
+        class="app-action app-action--ghost"
+        routerLink="/notificacoes"
+      >
         Voltar à central
       </a>
     </app-preferences-page-header>
@@ -20,9 +24,8 @@
         [attr.aria-busy]="pushVm.busy || null"
       >
         <div class="push-device-card__content">
-          <span class="push-device-card__eyebrow">Este dispositivo</span>
           <div class="push-device-card__heading">
-            <h2 id="push-device-title">Notificações no navegador</h2>
+            <h2 id="push-device-title">Notificações neste navegador</h2>
             <span
               class="push-device-card__status"
               [attr.data-state]="pushVm.state"
