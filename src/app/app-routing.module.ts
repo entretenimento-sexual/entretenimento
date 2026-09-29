@@ -146,7 +146,6 @@ const routes: Routes = [
         canActivate: [guestOnlyCanActivate],
         data: {
           allowUnverified: true,
-          guestAllowAuthenticatedPaths: [],
         },
       },
 
