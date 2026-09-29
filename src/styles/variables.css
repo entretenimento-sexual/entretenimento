@@ -37,6 +37,7 @@
       --line-height-base: 1.5;
 
       /* primitives semânticos globais de UI */
+      --content-form-narrow: 450px;
       --content-form: 800px;
 
       --control-height: 44px;
