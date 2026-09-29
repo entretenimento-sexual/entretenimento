@@ -79,6 +79,8 @@ const photoEditorCss = read(
 requireIncludes(photoEditorCss, [
   '100dvh',
   '@media (prefers-reduced-motion: reduce)',
+  '@media (pointer: coarse)',
+  'var(--tap-target, 44px)',
   'touch-action: none',
 ], 'photo editor responsive');
 
@@ -191,6 +193,8 @@ const videoViewerCss = read(
 requireIncludes(videoViewerCss, [
   '100dvh',
   'touch-action: pan-x pinch-zoom',
+  '@media (pointer: coarse)',
+  'var(--public-media-viewer-control-size)',
   '@media (max-height: 620px) and (orientation: landscape)',
   '@media (prefers-reduced-motion: reduce)',
 ], 'video viewer responsive');
@@ -228,6 +232,8 @@ const photoViewerCss = read(
 requireIncludes(photoViewerCss, [
   '100dvh',
   'touch-action: pan-y pinch-zoom',
+  '@media (pointer: coarse)',
+  'var(--public-media-viewer-control-size)',
   '@media (max-height: 620px) and (orientation: landscape)',
   '@media (prefers-reduced-motion: reduce)',
 ], 'photo viewer responsive');
@@ -310,6 +316,18 @@ requireIncludes(videoEditorCss, [
   '@media (prefers-reduced-motion: reduce)',
 ], 'local video editor responsive');
 
+for (const launcherPath of [
+  'src/app/media/photos/photo-viewer/public-photo-viewer-launcher.service.ts',
+  'src/app/media/videos/public-video-viewer/public-video-viewer-launcher.service.ts',
+]) {
+  requireIncludes(read(launcherPath), [
+    "autoFocus: 'first-tabbable'",
+    'restoreFocus: true',
+    "height: '100dvh'",
+    "maxHeight: '100dvh'",
+  ], launcherPath + ' focus/viewport contract');
+}
+
 const profileVideos = read(
   'src/app/media/videos/profile-videos/profile-videos.component.ts'
 );
@@ -350,6 +368,8 @@ for (const testPath of [
   'src/app/media/videos/public-video-metadata-preload.directive.spec.ts',
   'src/app/media/videos/public-video-viewer/public-video-viewer-lazy-playback.spec.ts',
   'src/app/media/photos/photo-viewer/photo-viewer.component.spec.ts',
+  'src/app/media/photos/photo-viewer/public-photo-viewer-launcher.service.spec.ts',
+  'src/app/media/videos/public-video-viewer/public-video-viewer-launcher.service.spec.ts',
   'src/app/core/services/media/video-metadata-preparation.service.spec.ts',
 ]) {
   requireIncludes(read(testPath), 'it(', testPath + ' coverage');
