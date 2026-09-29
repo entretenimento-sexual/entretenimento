@@ -5,6 +5,7 @@ import {
 } from '../../account_lifecycle/interaction-access.policy';
 import {
   evaluateCanonicalAgeEligibility,
+  isVerifiedAdultAgeDecision,
 } from '../../compliance/age-eligibility.policy';
 import { db } from '../../firebaseApp';
 
@@ -87,6 +88,18 @@ export function assertPublicMediaConsumptionAccessData(
       ageEligibilityRecord,
       uid
     );
+
+    const decision = evaluateCanonicalAgeEligibility({
+      uid,
+      rawRecord: ageEligibilityRecord,
+    });
+
+    if (!isVerifiedAdultAgeDecision(decision)) {
+      throw consumptionAccessError(
+        'Conclua a verificação de maioridade antes de acessar este conteúdo.',
+        'AGE_VERIFICATION_REQUIRED'
+      );
+    }
   } catch (error) {
     if (!(error instanceof HttpsError)) {
       throw error;
@@ -142,7 +155,7 @@ export async function assertPublicMediaConsumptionAccess(
   });
 
   return {
-    ageEligibilityExpiresAtMs: ageDecision.allowed
+    ageEligibilityExpiresAtMs: isVerifiedAdultAgeDecision(ageDecision)
       ? ageDecision.expiresAtMs ?? null
       : null,
   };
