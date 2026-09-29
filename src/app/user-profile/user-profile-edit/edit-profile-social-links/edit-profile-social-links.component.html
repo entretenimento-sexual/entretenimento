@@ -1,30 +1,33 @@
 <!-- src/app/user-profile/user-profile-edit/edit-profile-social-links/edit-profile-social-links.component.html -->
-<main class="social-links-editor" aria-labelledby="social-links-editor-title">
-  <header class="social-links-editor__header">
-    <h1 id="social-links-editor-title">Redes sociais</h1>
-  </header>
+<main class="social-links-editor container-reading" aria-label="Redes sociais">
+  <app-page-header
+    title="Redes sociais"
+    subtitle="Adicione apenas os links que quiser mostrar no seu perfil."
+  ></app-page-header>
 
   @if (!accessResolved) {
-    <div class="social-links-editor__status" role="status" aria-live="polite">
-      <span class="social-links-editor__spinner" aria-hidden="true"></span>
-      <span>Verificando acesso...</span>
-    </div>
+    <app-content-state
+      state="loading"
+      message="Verificando acesso."
+      [compact]="true"
+    ></app-content-state>
   } @else if (!isOwner) {
-    <div class="social-links-editor__status" role="alert">
-      <p>Edição indisponível.</p>
-      <button type="button" class="social-links-editor__link" (click)="cancelar()">
-        Voltar ao perfil
-      </button>
-    </div>
+    <app-content-state
+      state="error"
+      title="Edição indisponível"
+      message="Esta área só pode ser alterada pelo proprietário do perfil."
+      actionLabel="Voltar ao perfil"
+      (action)="cancelar()"
+    ></app-content-state>
   } @else {
     @if (!canPublish) {
-      <section class="social-links-editor__access" aria-label="Recurso para assinantes">
+      <section class="social-links-editor__access app-card app-card--flat" aria-label="Recurso para assinantes">
         <p>
           A publicação de redes sociais é exclusiva para assinantes. Seus links
           ficam ocultos para visitantes enquanto a assinatura estiver inativa;
           a remoção continua disponível.
         </p>
-        <button type="button" class="social-links-editor__plan" (click)="abrirPlanos()">
+        <button type="button" class="social-links-editor__plan app-action app-action--primary" (click)="abrirPlanos()">
           Ver planos
         </button>
       </section>
@@ -33,7 +36,7 @@
     <form class="social-links-editor__form" (ngSubmit)="salvarRedes()">
       @for (field of fields; track trackField($index, field)) {
         @if (canPublish || socialLinks[field.key]) {
-          <div class="social-links-editor__field">
+          <div class="social-links-editor__field app-field">
             <label [for]="'social-link-' + field.key">
               <i [class]="field.icon" aria-hidden="true"></i>
               <span>{{ field.label }}</span>
@@ -42,6 +45,7 @@
             <input
               [id]="'social-link-' + field.key"
               type="text"
+              class="app-control"
               inputmode="url"
               autocomplete="url"
               [placeholder]="field.placeholder"
@@ -54,7 +58,7 @@
             @if (socialLinks[field.key]) {
               <button
                 type="button"
-                class="social-links-editor__remove"
+                class="social-links-editor__remove app-action app-action--danger"
                 (click)="removerRede(field.key)"
                 [disabled]="removingKey !== null"
                 [attr.aria-busy]="removingKey === field.key ? 'true' : null"
@@ -75,11 +79,11 @@
         }
       }
 
-      <div class="social-links-editor__actions">
+      <div class="social-links-editor__actions app-form-actions">
         @if (canPublish) {
           <button
             type="submit"
-            class="social-links-editor__save"
+            class="social-links-editor__save app-action app-action--primary"
             [disabled]="saving || removingKey !== null"
             [attr.aria-busy]="saving ? 'true' : null"
           >
@@ -89,7 +93,7 @@
 
         <button
           type="button"
-          class="social-links-editor__cancel"
+          class="social-links-editor__cancel app-action app-action--ghost"
           (click)="cancelar()"
           [disabled]="saving || removingKey !== null"
         >
