@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { join, relative, resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
@@ -79,6 +79,28 @@ const CANONICALIZED_STYLES = [
   'src/app/media/photos/top-public-photos/top-public-photos.component.css',
 ] as const;
 
+function productionHtmlFiles(root: string): readonly string[] {
+  const files: string[] = [];
+
+  const visit = (directory: string): void => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const absolute = join(directory, entry.name);
+
+      if (entry.isDirectory()) {
+        visit(absolute);
+        continue;
+      }
+
+      if (entry.isFile() && entry.name.endsWith('.html')) {
+        files.push(absolute);
+      }
+    }
+  };
+
+  visit(root);
+  return files;
+}
+
 describe('Canonical UI boundary', () => {
   it('não reintroduz a classe genérica legada btn nas superfícies migradas', () => {
     const violations = CANONICAL_ACTION_TEMPLATES.filter((path) =>
@@ -124,7 +146,7 @@ describe('Canonical UI boundary', () => {
     ).toEqual([]);
   });
 
-  it('preserva remoções estruturais já concluídas em Preferências', () => {
+  it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
       'src/app/preferences/pages/preferences-home/preferences-home.component.html',
@@ -137,11 +159,39 @@ describe('Canonical UI boundary', () => {
       'src/app/user-profile/user-profile-edit/edit-region/edit-profile-region.component.html',
       'src/app/user-profile/user-profile-edit/edit-region/edit-profile-region.component.css',
       'src/app/user-profile/user-profile-edit/edit-region/edit-profile-region.component.spec.ts',
+      'src/app/chat-module/communities/communities.module.ts',
+      'src/app/chat-module/communities/communities-routing.module.ts',
+      'src/app/dashboard/featured-profiles/featured-profiles.component.ts',
+      'src/app/dashboard/featured-profiles/featured-profiles.component.html',
+      'src/app/dashboard/featured-profiles/featured-profiles.component.spec.ts',
+      'src/app/chat-module/chat-window/chat-window.component.css',
+      'src/app/footer/contact-footer/contact-footer.component.css',
+      'src/app/footer/footer/footer.component.css',
+      'src/app/footer/navigation-footer/navigation-footer.component.css',
     ];
 
     expect(
       removedPaths.filter((path) => existsSync(resolve(ROOT, path))),
       'Componentes consolidados não devem reaparecer como implementações paralelas.'
+    ).toEqual([]);
+  });
+
+
+  it('não permite novos placeholders works! em templates de produção', () => {
+    const appRoot = resolve(ROOT, 'src/app');
+    const allowed = new Set([
+      'src/app/footer/legal-footer/politica-de-cookies/politica-de-cookies.component.html',
+    ]);
+
+    const violations = productionHtmlFiles(appRoot)
+      .filter((file) => /\bworks!\b/iu.test(readFileSync(file, 'utf8')))
+      .map((file) => relative(ROOT, file).replaceAll('\\', '/'))
+      .filter((file) => !allowed.has(file))
+      .sort();
+
+    expect(
+      violations,
+      'Templates placeholder devem ser removidos ou substituídos por uma rota/implementação real.'
     ).toEqual([]);
   });
 
