@@ -102,7 +102,7 @@
   align-items: center;
   justify-content: center;
   gap: 0.42rem;
-  min-height: 2.75rem;
+  min-height: var(--tap-target, 44px);
   min-width: 0;
   padding: 0.5rem 0.6rem;
   border: 1px solid var(--border-color, #2d3748);
@@ -569,7 +569,7 @@
 
   .video-simple-editor__tool-tabs button {
     flex-basis: 4.8rem;
-    min-height: 2.6rem;
+    min-height: var(--tap-target, 44px);
     padding-inline: 0.45rem;
   }
 
@@ -634,4 +634,34 @@ html.high-contrast .video-simple-editor__error {
   border-color: currentColor !important;
   background: var(--background-color) !important;
   color: var(--text-color) !important;
+}
+
+
+@media (max-height: 620px) and (orientation: landscape) {
+  .video-simple-editor {
+    grid-template-columns: minmax(0, 1.25fr) minmax(17rem, 0.75fr);
+    grid-template-areas:
+      'media rail'
+      'error error';
+    align-items: start;
+  }
+
+  .video-simple-editor__stage,
+  .video-simple-editor__stage video {
+    min-height: 0;
+    max-height: 58dvh;
+  }
+
+  .video-simple-editor__rail {
+    max-height: 72dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .video-simple-editor__tool-tabs {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--surface-color, #111923);
+  }
 }
