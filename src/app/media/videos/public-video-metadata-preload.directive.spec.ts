@@ -1,6 +1,6 @@
 import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
 import { PublicVideoMetadataPreloadService } from 'src/app/core/services/media/public-video-metadata-preload.service';
@@ -48,10 +48,31 @@ describe('PublicVideoMetadataPreloadDirective', () => {
   let preloadMetadata: ReturnType<typeof vi.fn>;
   let cancelMetadataPreload: ReturnType<typeof vi.fn>;
   let button: HTMLButtonElement;
+  let intersectionCallback:
+    | ((entries: IntersectionObserverEntry[]) => void)
+    | null = null;
+  let disconnectObserver: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     preloadMetadata = vi.fn(() => true);
     cancelMetadataPreload = vi.fn();
+    disconnectObserver = vi.fn();
+    intersectionCallback = null;
+
+    vi.stubGlobal('IntersectionObserver', class {
+      constructor(callback: IntersectionObserverCallback) {
+        intersectionCallback = (entries) =>
+          callback(entries, this as unknown as IntersectionObserver);
+      }
+
+      observe = vi.fn();
+      unobserve = vi.fn();
+      disconnect = disconnectObserver;
+      takeRecords = vi.fn(() => []);
+      root = null;
+      rootMargin = '160px 0px';
+      thresholds = [0];
+    });
 
     TestBed.configureTestingModule({
       imports: [HostComponent],
@@ -66,6 +87,53 @@ describe('PublicVideoMetadataPreloadDirective', () => {
     fixture = TestBed.createComponent(HostComponent);
     fixture.detectChanges();
     button = fixture.nativeElement.querySelector('button');
+  });
+
+  afterEach(() => {
+    fixture?.destroy();
+    TestBed.resetTestingModule();
+    vi.unstubAllGlobals();
+  });
+
+  it('cancela preload imediatamente ao sair da viewport', () => {
+    button.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    expect(preloadMetadata).toHaveBeenCalledWith(VIDEO);
+
+    intersectionCallback?.([
+      {
+        isIntersecting: false,
+      } as IntersectionObserverEntry,
+    ]);
+
+    expect(cancelMetadataPreload).toHaveBeenCalledWith(VIDEO);
+  });
+
+  it('não inicia preload fora da viewport e volta a permitir ao reentrar', () => {
+    intersectionCallback?.([
+      {
+        isIntersecting: false,
+      } as IntersectionObserverEntry,
+    ]);
+
+    button.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    expect(preloadMetadata).not.toHaveBeenCalled();
+
+    intersectionCallback?.([
+      {
+        isIntersecting: true,
+      } as IntersectionObserverEntry,
+    ]);
+    button.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+
+    expect(preloadMetadata).toHaveBeenCalledWith(VIDEO);
+  });
+
+  it('destruição desconecta observer e cancela preload ativo', () => {
+    button.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    fixture.destroy();
+
+    expect(disconnectObserver).toHaveBeenCalledTimes(1);
+    expect(cancelMetadataPreload).toHaveBeenCalledWith(VIDEO);
   });
 
   it('prepara ao receber foco de teclado', () => {
