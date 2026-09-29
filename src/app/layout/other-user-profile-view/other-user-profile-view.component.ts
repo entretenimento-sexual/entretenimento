@@ -505,35 +505,43 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
           return of(null);
         }
 
-        return combineLatest([
-          this.userIntentStatus.watchActiveStatusesForUserRegion$(
-            viewerUid,
-            {
+        return this.userIntentStatus.watchCurrentStatus$(viewerUid).pipe(
+          switchMap((viewerStatus) => {
+            const options = {
               limit: 1,
               ownerUids: [targetUid],
-            }
-          ),
-          this.userIntentStatus.watchCurrentStatus$(viewerUid),
-        ]).pipe(
-          map(([targetStatuses, viewerStatus]) => {
-            const targetStatus = targetStatuses[0] ?? null;
+            };
 
-            if (!targetStatus?.isActive) {
-              return null;
-            }
+            const targetStatuses$ = viewerStatus?.isActive
+              ? this.userIntentStatus.watchActiveStatusesForRegion$(
+                  viewerStatus.destination.region,
+                  options
+                )
+              : this.userIntentStatus.watchActiveStatusesForUserRegion$(
+                  viewerUid,
+                  options
+                );
 
-            if (
-              targetStatus.availability === 'available_now' &&
-              viewerStatus?.isActive === true &&
-              viewerStatus.availability === 'available_now'
-            ) {
-              return {
-                title: 'Vocês estão disponíveis agora',
-                detail: 'Status temporário em comum',
-              };
-            }
+            return targetStatuses$.pipe(
+              map((targetStatuses) => {
+                const targetStatus = targetStatuses[0] ?? null;
 
-            switch (targetStatus.availability) {
+                if (!targetStatus?.isActive) {
+                  return null;
+                }
+
+                if (
+                  targetStatus.availability === 'available_now' &&
+                  viewerStatus?.isActive === true &&
+                  viewerStatus.availability === 'available_now'
+                ) {
+                  return {
+                    title: 'Vocês estão disponíveis agora',
+                    detail: 'Status temporário em comum',
+                  };
+                }
+
+                switch (targetStatus.availability) {
               case 'available_now':
                 return {
                   title: 'Disponível agora',
@@ -549,9 +557,11 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
                   title: 'Planejando mais tarde',
                   detail: 'Status temporário',
                 };
-              default:
-                return null;
-            }
+                  default:
+                    return null;
+                }
+              })
+            );
           })
         );
       }),
