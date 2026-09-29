@@ -12,11 +12,8 @@ import {
   getAuth,
 } from 'firebase/auth';
 import {
-  Timestamp,
   connectFirestoreEmulator,
-  doc,
   getFirestore as getClientFirestore,
-  setDoc,
 } from 'firebase/firestore';
 import {
   connectFunctionsEmulator,
