@@ -84,6 +84,11 @@ export class NotificationSettingsComponent {
       description: 'Novos locais ou pontos relevantes para sua região.',
     },
     {
+      key: 'media',
+      title: 'Fotos e vídeos',
+      description: 'Novas fotos e vídeos aprovados de suas conexões, respeitando limites de frequência.',
+    },
+    {
       key: 'compatibleStatus',
       title: 'Status compatível',
       description: 'Alertas futuros quando houver status compatível com suas preferências.',
