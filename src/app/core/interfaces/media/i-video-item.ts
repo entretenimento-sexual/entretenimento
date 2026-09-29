@@ -44,14 +44,3 @@ export interface IVideoItem {
   readonly updatedAt?: number | null;
 }
 
-export interface IPrivateVideoMetadataInput {
-  readonly id?: string | null;
-  readonly url: string;
-  readonly path: string;
-  readonly fileName: string;
-  readonly mimeType: string;
-  readonly sizeBytes: number;
-  readonly durationMs?: number | null;
-  readonly thumbnailUrl?: string | null;
-  readonly thumbnailPath?: string | null;
-}
