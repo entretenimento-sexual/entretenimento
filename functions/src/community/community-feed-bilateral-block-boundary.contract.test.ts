@@ -94,8 +94,12 @@ test('notificação social do Mural é revalidada no push e removida quando nasc
   );
   assert.equal(
     blockHandler.includes(
-      'removeCommunityMuralNotificationsBetweenUsers'
+      'removeSocialNotificationsBetweenUsers'
     ),
+    true
+  );
+  assert.equal(
+    blockHandler.includes('isMediaDistributionNotificationType'),
     true
   );
 });
