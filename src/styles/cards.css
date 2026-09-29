@@ -627,7 +627,8 @@
 @media (prefers-reduced-motion: reduce) {
   .app-card--interactive,
   .app-action,
-  .app-segmented__button {
+  .app-segmented__button,
+  .app-disclosure__summary::after {
     transition: none !important;
   }
 
@@ -638,6 +639,7 @@
 }
 
 html.high-contrast .app-card,
+html.high-contrast .app-disclosure,
 html.high-contrast .app-toolbar,
 html.high-contrast .app-empty-card,
 html.high-contrast .app-action,
