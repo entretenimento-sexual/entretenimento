@@ -48,6 +48,7 @@ describe('VisitedProfileAffinityPresenter', () => {
   it('projeta desireMatch sem expor score bruto', () => {
     const presenter = setup({
       uid: 'viewer',
+      role: 'admin',
       discoveryPreferences: {
         relationshipIntents: ['serious'],
         relationshipIntentMode: 'prefer',
@@ -68,17 +69,20 @@ describe('VisitedProfileAffinityPresenter', () => {
 
     const vm = presenter.build({
       uid: 'target',
-      relationshipIntents: ['serious'],
-      sexualPractices: ['bdsm'],
-      bodyTraits: ['tattoos'],
-      profileType: 'single',
+      publicRelationshipIntents: ['serious'],
+      publicSexualPractices: ['bdsm'],
+      publicBodyTraits: ['tattoos'],
       gender: 'female',
       idade: 30,
     } as any);
 
-    if (vm.desireMatch) {
-      expect(vm.desireMatch.title).toMatch(/Desejos/u);
-      expect(vm.desireMatch.labels).not.toContain('0.75');
-    }
+    expect(vm.desireMatch).not.toBeNull();
+    expect(vm.desireMatch?.title).toBe('Desejos bem alinhados');
+    expect(vm.desireMatch?.labels).toEqual([
+      'Intenção',
+      'Práticas',
+      'Características',
+    ]);
+    expect(vm.desireMatch?.labels).not.toContain('0.75');
   });
 });
