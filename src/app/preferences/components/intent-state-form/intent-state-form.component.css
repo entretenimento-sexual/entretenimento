@@ -22,9 +22,8 @@
 }
 
 .intent-toggles {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-1, 8px);
+  --app-responsive-grid-min: 10rem;
+  --app-responsive-grid-gap: var(--space-1, 8px);
 }
 
 .checkbox-item span {
@@ -41,9 +40,8 @@
 }
 
 .context-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-2, 12px);
+  --app-responsive-grid-min: 16rem;
+  --app-responsive-grid-gap: var(--space-2, 12px);
 }
 
 .intent-upgrade {
@@ -78,8 +76,7 @@
 }
 
 @media (max-width: 720px) {
-  .intent-basic,
-  .context-grid {
+  .intent-basic {
     grid-template-columns: 1fr;
   }
 
@@ -99,7 +96,4 @@
     padding: var(--space-2, 12px);
   }
 
-  .intent-toggles {
-    grid-template-columns: 1fr;
-  }
 }

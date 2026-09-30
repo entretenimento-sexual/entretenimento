@@ -247,6 +247,39 @@ describe('Canonical UI boundary', () => {
     ).toEqual([]);
   });
 
+  it('mantém grids de formulário migrados na primitive responsiva', () => {
+    const templates = [
+      'src/app/preferences/components/discovery-visibility-form/discovery-visibility-form.component.html',
+      'src/app/preferences/components/intent-state-form/intent-state-form.component.html',
+      'src/app/preferences/components/preference-profile-form/preference-profile-form.component.html',
+    ] as const;
+
+    expect(
+      templates.filter((path) => !source(path).includes('app-responsive-grid')),
+      'Grids de formulário responsivos devem usar app-responsive-grid.'
+    ).toEqual([]);
+
+    const visibilityCss = source(
+      'src/app/preferences/components/discovery-visibility-form/discovery-visibility-form.component.css'
+    );
+    expect(visibilityCss).not.toMatch(/@media\s*\(max-width:/u);
+    expect(visibilityCss).not.toContain('grid-template-columns: repeat(2');
+
+    const intentCss = source(
+      'src/app/preferences/components/intent-state-form/intent-state-form.component.css'
+    );
+    expect(intentCss).not.toContain('.context-grid {\n  display: grid;');
+    expect(intentCss).not.toContain('.intent-toggles {\n  display: grid;');
+
+    const profileCss = source(
+      'src/app/preferences/components/preference-profile-form/preference-profile-form.component.css'
+    );
+    expect(profileCss).not.toContain('@media (max-width: 900px)');
+    expect(profileCss).not.toContain('.checkbox-grid {\n  display: grid;');
+    expect(profileCss).not.toContain('.form-grid {\n  display: grid;');
+    expect(profileCss).not.toContain('.inline-options {\n  display: grid;');
+  });
+
   it('não permite novos placeholders works! em templates de produção', () => {
     const appRoot = resolve(ROOT, 'src/app');
     const violations = productionHtmlFiles(appRoot)

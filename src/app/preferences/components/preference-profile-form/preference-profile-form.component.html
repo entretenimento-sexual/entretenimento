@@ -20,7 +20,7 @@
         </select>
         <small id="relationshipIntentModeHelp" class="field-help app-field-help">Escolhas marcadas como essenciais não são ampliadas automaticamente.</small>
       </div>
-      <div class="checkbox-grid checkbox-grid--nested">
+      <div class="checkbox-grid checkbox-grid--nested app-responsive-grid">
         @for (option of relationshipIntentOptions; track option.key) {
           <label class="checkbox-item app-choice"><input type="checkbox" [formControlName]="'ri_' + option.key" /><span>{{ option.label }}</span></label>
         }
@@ -33,7 +33,7 @@
       <strong class="preference-group__title app-disclosure__title">Quem você gostaria de conhecer?</strong>
       <span class="preference-group__count app-disclosure__state">{{ selectionLabel(selectedCount('gi', genderInterestOptions)) }}</span>
     </summary>
-    <div class="preference-group__content app-disclosure__content checkbox-grid">
+    <div class="preference-group__content app-disclosure__content checkbox-grid app-responsive-grid">
       @for (option of genderInterestOptions; track option.key) {
         <label class="checkbox-item app-choice"><input type="checkbox" [formControlName]="'gi_' + option.key" /><span>{{ option.label }}</span></label>
       }
@@ -47,7 +47,7 @@
     </summary>
     <div class="preference-group__content app-disclosure__content">
       <p class="preference-note" role="note">Essas informações só aparecem na descoberta quando “Exibir sinais de preferências” estiver ativo.</p>
-      <div class="checkbox-grid checkbox-grid--nested">
+      <div class="checkbox-grid checkbox-grid--nested app-responsive-grid">
         @for (option of bodyPreferenceOptions; track option.key) {
           <label class="checkbox-item app-choice"><input type="checkbox" [formControlName]="'st_' + option.key" /><span>{{ option.label }}</span></label>
         }
@@ -74,7 +74,7 @@
               <option value="require" [disabled]="!canRequireAdvanced()">{{ advancedRequirementLabel() }}</option>
             </select>
           </div>
-          <div class="checkbox-grid checkbox-grid--nested">
+          <div class="checkbox-grid checkbox-grid--nested app-responsive-grid">
             @for (option of sexualPracticeOptions; track option.key) {
               <label class="checkbox-item app-choice"><input type="checkbox" [formControlName]="'sp_' + option.key" /><span>{{ option.label }}</span></label>
             }
@@ -88,7 +88,7 @@
               <option value="require" [disabled]="!canRequireAdvanced()">{{ advancedRequirementLabel() }}</option>
             </select>
           </div>
-          <div class="checkbox-grid checkbox-grid--nested">
+          <div class="checkbox-grid checkbox-grid--nested app-responsive-grid">
             @for (option of bodyPreferenceOptions; track option.key) {
               <label class="checkbox-item app-choice"><input type="checkbox" [formControlName]="'bp_' + option.key" /><span>{{ option.label }}</span></label>
             }
@@ -111,7 +111,7 @@
       <strong class="preference-group__title app-disclosure__title">Ajustar alcance</strong>
       <span class="preference-group__count app-disclosure__state">{{ reachSummary() }}</span>
     </summary>
-    <div class="preference-group__content app-disclosure__content form-grid">
+    <div class="preference-group__content app-disclosure__content form-grid app-responsive-grid">
       <div class="form-field app-field">
         <label for="minAge">Idade mínima</label>
         <input
@@ -181,7 +181,7 @@
       </div>
 
       <div class="form-field app-field"><label for="acceptsTransProfiles">Perfis trans</label><select class="app-control" id="acceptsTransProfiles" formControlName="acceptsTransProfiles"><option value="all">Sem restrição</option><option value="yes">Incluir</option><option value="no">Não incluir</option></select></div>
-      <div class="inline-options">
+      <div class="inline-options app-responsive-grid">
         <label class="checkbox-item app-choice"><input type="checkbox" formControlName="acceptsCouples" /><span>Incluir casais</span></label>
         <label class="checkbox-item app-choice"><input type="checkbox" formControlName="acceptsSingles" /><span>Incluir pessoas individuais</span></label>
         <label class="checkbox-item app-choice"><input type="checkbox" formControlName="locationRequired" /><span>Exigir localização para aplicar distância</span></label>
@@ -194,7 +194,7 @@
       <strong class="preference-group__title app-disclosure__title">Sua visibilidade</strong>
       <span class="preference-group__count app-disclosure__state">{{ visibilitySummary() }}</span>
     </summary>
-    <div class="preference-group__content app-disclosure__content form-grid">
+    <div class="preference-group__content app-disclosure__content form-grid app-responsive-grid">
       <div class="form-field form-field--wide app-field">
         <label for="discoveryMode">Como você quer aparecer</label>
         <select class="app-control" id="discoveryMode" formControlName="discoveryMode">
@@ -202,7 +202,7 @@
         </select>
         <small class="field-help app-field-help">Modo discreto exige Premium; prioridade exige VIP.</small>
       </div>
-      <div class="inline-options">
+      <div class="inline-options app-responsive-grid">
         <label class="checkbox-item app-choice"><input type="checkbox" formControlName="showPreferenceBadges" /><span>Exibir sinais de preferências no perfil</span></label>
         <label class="checkbox-item app-choice"><input type="checkbox" formControlName="showIntentPublicly" /><span>Exibir minha disponibilidade publicamente</span></label>
       </div>

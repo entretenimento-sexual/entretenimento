@@ -41,9 +41,8 @@
 }
 
 .checkbox-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-1, 8px);
+  --app-responsive-grid-min: 11rem;
+  --app-responsive-grid-gap: var(--space-1, 8px);
   padding-top: var(--space-3, 16px);
 }
 
@@ -121,9 +120,8 @@
 }
 
 .form-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3, 16px);
+  --app-responsive-grid-min: 18rem;
+  --app-responsive-grid-gap: var(--space-3, 16px);
   padding-top: var(--space-3, 16px);
 }
 
@@ -155,9 +153,8 @@
 }
 
 .inline-options {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-1, 8px);
+  --app-responsive-grid-min: 14rem;
+  --app-responsive-grid-gap: var(--space-1, 8px);
 }
 
 .form-actions {
@@ -174,16 +171,9 @@
   min-height: var(--control-height, 44px);
 }
 
-@media (max-width: 900px) {
-  .checkbox-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 @media (max-width: 640px) {
-  .checkbox-grid,
-  .form-grid,
-  .inline-options,
   .matching-mode {
     grid-template-columns: 1fr;
   }
