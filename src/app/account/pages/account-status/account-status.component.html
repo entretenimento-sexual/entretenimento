@@ -48,7 +48,7 @@
           <p>
             Consulte avisos de conformidade, prazos e manifestações vinculados à sua conta. Uma suspeita em análise não equivale a infração confirmada.
           </p>
-          <a class="btn btn-secondary" routerLink="/conta/conformidade">
+          <a class="app-action app-action--ghost" routerLink="/conta/conformidade">
             Abrir avisos e manifestações
           </a>
         </section>
@@ -58,7 +58,7 @@
         @if (vm.canReactivateSelfSuspension) {
           <button
             type="button"
-            class="btn btn-primary"
+            class="app-action app-action--primary"
             [disabled]="isBusy()"
             [attr.aria-busy]="isReactivating()"
             (click)="onReactivateSelfSuspension()"
@@ -70,7 +70,7 @@
         @if (vm.canCancelDeletion) {
           <button
             type="button"
-            class="btn btn-primary"
+            class="app-action app-action--primary"
             [disabled]="isBusy()"
             [attr.aria-busy]="isCancelingDeletion()"
             (click)="onCancelDeletion()"
@@ -80,13 +80,13 @@
         }
 
         @if (vm.canGoToAccountHome) {
-          <a class="btn btn-secondary" routerLink="/conta">
+          <a class="app-action app-action--ghost" routerLink="/conta">
             Voltar para minha conta
           </a>
         }
 
         @if (!vm.isBlocked) {
-          <a class="btn btn-secondary" routerLink="/perfil">
+          <a class="app-action app-action--ghost" routerLink="/perfil">
             Ir para meu perfil
           </a>
         }
