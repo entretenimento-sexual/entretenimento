@@ -17,14 +17,11 @@
   </header>
 
   @if (isLoading) {
-    <div
-      class="other-profile-page__loading"
-      role="status"
-      aria-live="polite"
-    >
-      <span class="other-profile-page__loading-dot" aria-hidden="true"></span>
-      <span class="visually-hidden">Carregando perfil</span>
-    </div>
+    <app-content-state
+      state="loading"
+      message="Carregando perfil..."
+      [skeletonRows]="3"
+    />
   } @else if (userProfile; as profile) {
     <article
       class="other-profile-page__hero"
@@ -90,7 +87,7 @@
             @if (interactionState.isFriend) {
               <button
                 type="button"
-                class="other-profile-page__action other-profile-page__action--primary"
+                class="app-action app-action--primary"
                 (click)="startDirectChat()"
                 [disabled]="(directChatBusy$ | async) === true || !uid"
                 [attr.aria-busy]="(directChatBusy$ | async) === true ? 'true' : 'false'"
@@ -102,7 +99,7 @@
             } @else {
               <button
                 type="button"
-                class="other-profile-page__action other-profile-page__action--primary"
+                class="app-action app-action--primary"
                 (click)="sendFriendRequest()"
                 [disabled]="(friendRequestBusy$ | async) === true || !uid || !interactionState.canSendFriendRequest"
                 [attr.aria-busy]="(friendRequestBusy$ | async) === true ? 'true' : 'false'"
@@ -166,7 +163,7 @@
           (profile.distanciaKm !== null && profile.distanciaKm !== undefined)
         ) {
           <section
-            class="other-profile-page__panel other-profile-page__about"
+            class="other-profile-page__panel other-profile-page__about app-card app-card--flat"
             aria-labelledby="profile-about-heading"
           >
             <h2 id="profile-about-heading">Sobre</h2>
@@ -204,7 +201,7 @@
 
         @if (publicIntentContext$ | async; as intentContext) {
           <section
-            class="other-profile-page__panel other-profile-page__intent-context"
+            class="other-profile-page__panel other-profile-page__intent-context app-card app-card--flat"
             aria-labelledby="profile-intent-context-heading"
           >
             <h2 id="profile-intent-context-heading">{{ intentContext.title }}</h2>
@@ -214,7 +211,7 @@
 
         @if (desireMatch; as match) {
           <section
-            class="other-profile-page__panel other-profile-page__desire-match"
+            class="other-profile-page__panel other-profile-page__desire-match app-card app-card--flat"
             aria-labelledby="profile-desire-match-heading"
           >
             <h2 id="profile-desire-match-heading">{{ match.title }}</h2>
@@ -224,7 +221,7 @@
               aria-label="Áreas em que os desejos se encaixam"
             >
               @for (label of match.labels; track label) {
-                <span class="other-profile-page__preference-chip">
+                <span class="other-profile-page__preference-chip app-chip">
                   {{ label }}
                 </span>
               }
@@ -234,7 +231,7 @@
 
         @if (hasPreferenceChips) {
           <section
-            class="other-profile-page__panel other-profile-page__affinities"
+            class="other-profile-page__panel other-profile-page__affinities app-card app-card--flat"
             aria-labelledby="profile-affinities-heading"
           >
             <h2 id="profile-affinities-heading">Afinidades</h2>
@@ -244,7 +241,7 @@
               aria-label="Interesses declarados"
             >
               @for (preference of preferenceChips; track preference) {
-                <span class="other-profile-page__preference-chip">
+                <span class="other-profile-page__preference-chip app-chip">
                   {{ preference }}
                 </span>
               }
@@ -270,13 +267,12 @@
       </aside>
     </div>
   } @else {
-    <div
-      class="other-profile-page__empty"
-      role="status"
-      aria-live="polite"
-    >
-      <p>Perfil indisponível.</p>
-      <a [routerLink]="discoveryLink">Voltar aos perfis</a>
-    </div>
+    <app-content-state
+      state="empty"
+      title="Perfil indisponível"
+      message="Este perfil não está disponível para visualização."
+      actionLabel="Voltar aos perfis"
+      (action)="router.navigate(discoveryLink)"
+    />
   }
 </section>
