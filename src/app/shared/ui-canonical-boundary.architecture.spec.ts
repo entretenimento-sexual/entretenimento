@@ -75,6 +75,9 @@ const CANONICAL_ACTION_TEMPLATES = [
 ] as const;
 
 const CANONICAL_HEADER_TEMPLATES = [
+  'src/app/account/pages/account-status/account-status.component.html',
+  'src/app/account/pages/subscription-history/subscription-history.component.html',
+  'src/app/account/pages/account-privilege-history/account-privilege-history.component.html',
   'src/app/preferences/pages/preferences-editor/preferences-editor.component.html',
   'src/app/preferences/pages/preferences-hub/preferences-hub.component.html',
   'src/app/preferences/pages/discovery-settings/discovery-settings.component.html',
