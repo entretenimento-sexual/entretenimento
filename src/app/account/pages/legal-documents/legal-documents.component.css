@@ -9,11 +9,6 @@
   padding: 1rem;
 }
 
-.legal-center__header {
-  margin-bottom: 1rem;
-}
-
-.legal-center__eyebrow,
 .acceptance-card__label {
   margin: 0 0 0.35rem;
   color: color-mix(in oklab, var(--text-color, #111827) 68%, transparent);
@@ -23,29 +18,12 @@
   text-transform: uppercase;
 }
 
-.legal-center h1 {
-  margin: 0;
-  color: var(--text-color, #111827);
-  font-size: clamp(1.55rem, 5vw, 2.15rem);
-  line-height: 1.15;
-}
-
-.legal-center__header > p:last-child,
-.legal-center__footer p {
-  margin: 0.7rem 0 0;
-  color: color-mix(in oklab, var(--text-color, #111827) 72%, transparent);
-  line-height: 1.55;
-}
-
 .acceptance-card {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  margin-bottom: 1rem;
+  margin: 1rem 0;
   padding: 1rem;
-  border: 1px solid var(--surface-border, #e5e7eb);
-  border-radius: 0.9rem;
-  background: var(--surface-color, #ffffff);
 }
 
 .acceptance-card p {
@@ -70,19 +48,12 @@
 
 .acceptance-card__version {
   align-self: flex-start;
-  padding: 0.35rem 0.55rem;
-  border-radius: 999px;
-  background: color-mix(
-    in oklab,
-    var(--primary-color, #ff4d57) 8%,
-    transparent
-  );
   font-weight: 750;
 }
 
 .document-grid {
-  display: grid;
-  gap: 0.75rem;
+  --app-responsive-grid-min: 16rem;
+  --app-responsive-grid-gap: 0.75rem;
 }
 
 .document-card {
@@ -92,28 +63,11 @@
   gap: 0.75rem;
   min-height: 4.75rem;
   padding: 0.9rem;
-  border: 1px solid var(--surface-border, #e5e7eb);
-  border-radius: 0.9rem;
-  background: var(--surface-color, #ffffff);
   color: var(--text-color, #111827);
   text-decoration: none;
 }
 
-.document-card:hover {
-  border-color: color-mix(
-    in oklab,
-    var(--primary-color, #ff4d57) 45%,
-    var(--surface-border, #e5e7eb)
-  );
-  background: color-mix(
-    in oklab,
-    var(--primary-color, #ff4d57) 4%,
-    var(--surface-color, #ffffff)
-  );
-}
-
-.document-card:focus-visible,
-.legal-center__footer a:focus-visible {
+.document-card:focus-visible {
   outline: var(--focus-ring, 2px solid var(--primary-color, #ff4d57));
   outline-offset: var(--focus-offset, 2px);
 }
@@ -174,20 +128,9 @@
 
 .legal-center__footer p {
   margin: 0;
+  color: color-mix(in oklab, var(--text-color, #111827) 72%, transparent);
   font-size: 0.82rem;
-}
-
-.legal-center__footer a {
-  min-height: 2.75rem;
-  display: inline-flex;
-  align-items: center;
-  color: var(--primary-color, #ff4d57);
-  font-weight: 800;
-  text-decoration: none;
-}
-
-.legal-center__footer a:hover {
-  text-decoration: underline;
+  line-height: 1.55;
 }
 
 @media (min-width: 48rem) {
@@ -204,10 +147,6 @@
   .acceptance-card__version {
     align-self: center;
     white-space: nowrap;
-  }
-
-  .document-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .document-card {
@@ -233,7 +172,6 @@
     border-width: 2px;
   }
 
-  .legal-center__header > p:last-child,
   .legal-center__footer p,
   .acceptance-card__meta,
   .acceptance-card__version,
