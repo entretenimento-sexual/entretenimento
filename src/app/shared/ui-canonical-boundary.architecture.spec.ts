@@ -50,6 +50,8 @@ function productionHtmlFiles(root: string): readonly string[] {
 }
 
 const CANONICAL_ACTION_TEMPLATES = [
+  'src/app/chat-module/chat-messages-list/chat-messages-list.component.html',
+  'src/app/chat-module/chat-module-layout/chat-module-layout.component.html',
   'src/app/compliance/age-reverification-page/age-reverification-page.component.html',
   'src/app/compliance/age-verification-page/age-verification-page.component.html',
   'src/app/compliance/adult-consent-page/adult-consent-page.component.html',
@@ -114,6 +116,9 @@ const CANONICAL_HEADER_TEMPLATES = [
 ] as const;
 
 const CANONICALIZED_STYLES = [
+  'src/app/chat-module/chat-list/chat-list.component.css',
+  'src/app/chat-module/chat-messages-list/chat-messages-list.component.css',
+  'src/app/chat-module/chat-module-layout/chat-module-layout.component.css',
   'src/app/compliance/age-reverification-page/age-reverification-page.component.css',
   'src/app/compliance/age-verification-page/age-verification-page.component.css',
   'src/app/compliance/adult-consent-page/adult-consent-page.component.css',
@@ -363,6 +368,39 @@ describe('Canonical UI boundary', () => {
     expect(verificationStyles).not.toContain('.age-verification__how-grid');
     expect(reverificationStyles).not.toContain('.age-reverification__primary');
     expect(reverificationStyles).not.toContain('.age-reverification__secondary');
+  });
+
+  it('mantém o chat direto sem UI e erros legados de Rooms', () => {
+    const layout = source(
+      'src/app/chat-module/chat-module-layout/chat-module-layout.component.html'
+    );
+    const layoutTs = source(
+      'src/app/chat-module/chat-module-layout/chat-module-layout.component.ts'
+    );
+    const thread = source(
+      'src/app/chat-module/chat-messages-list/chat-messages-list.component.html'
+    );
+    const threadTs = source(
+      'src/app/chat-module/chat-messages-list/chat-messages-list.component.ts'
+    );
+    const listStyles = source(
+      'src/app/chat-module/chat-list/chat-list.component.css'
+    );
+
+    expect(layout).toContain('<app-content-state');
+    expect(layout).toContain('class="app-control"');
+    expect(layout).not.toContain('/chat/rooms');
+    expect(layout).not.toMatch(/class=["'][^"']*\bbtn\b/u);
+
+    expect(thread).toContain('<app-content-state');
+    expect(thread).toContain('app-action');
+
+    expect(layoutTs).toContain('ApplicationErrorService');
+    expect(layoutTs).not.toContain('GlobalErrorHandlerService');
+    expect(threadTs).toContain('ApplicationErrorService');
+    expect(threadTs).not.toContain('GlobalErrorHandlerService');
+
+    expect(listStyles).not.toContain('room-card');
   });
 
   it('preserva remoções estruturais já concluídas', () => {
