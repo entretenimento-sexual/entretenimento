@@ -48,11 +48,12 @@ import {
 
 import { SharedMaterialModule } from 'src/app/shared/shared-material.module';
 import { FriendCardsComponent } from '../friend-cards/friend-cards.component';
+import { PageHeaderComponent } from '../../../shared/page-header/page-header.component';
 
 @Component({
   selector: 'app-friend-list-page',
   standalone: true,
-  imports: [CommonModule, SharedMaterialModule, FriendCardsComponent],
+  imports: [CommonModule, SharedMaterialModule, FriendCardsComponent, PageHeaderComponent],
   templateUrl: './friend-list-page.component.html',
   styleUrls: ['./friend-list-page.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
