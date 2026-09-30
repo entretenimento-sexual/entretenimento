@@ -40,9 +40,7 @@
   color: var(--text-color, #111827);
 }
 
-.other-profile-page__back:focus-visible,
-.other-profile-page__action:focus-visible,
-.other-profile-page__empty a:focus-visible {
+.other-profile-page__back:focus-visible {
   outline: var(--focus-ring, 2px solid var(--primary-color, #ff4d57));
   outline-offset: var(--focus-offset, 2px);
 }
@@ -176,46 +174,6 @@
   padding-top: 0.2rem;
 }
 
-.other-profile-page__action {
-  appearance: none;
-  -webkit-appearance: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.45rem;
-  min-height: 2.75rem;
-  padding: 0.68rem 1rem;
-  border: 1px solid color-mix(in oklab, var(--primary-color, #ff4d57) 58%, transparent);
-  border-radius: 0.75rem;
-  background: transparent;
-  color: var(--primary-color, #ff4d57);
-  font: inherit;
-  font-size: 0.86rem;
-  font-weight: 800;
-  line-height: 1;
-  cursor: pointer;
-  transition:
-    background-color 140ms ease,
-    color 140ms ease,
-    border-color 140ms ease;
-}
-
-.other-profile-page__action--primary {
-  background: var(--primary-color, #ff4d57);
-  color: #ffffff;
-}
-
-.other-profile-page__action:hover:not(:disabled) {
-  background: var(--primary-hover, #e83f49);
-  border-color: var(--primary-hover, #e83f49);
-  color: #ffffff;
-}
-
-.other-profile-page__action:disabled {
-  cursor: not-allowed;
-  opacity: 0.56;
-}
-
 .other-profile-page__report-button {
   display: block;
   min-width: 0;
@@ -248,17 +206,6 @@
   gap: 0.75rem;
   min-width: 0;
   padding: 1rem;
-  border: 1px solid color-mix(
-    in oklab,
-    var(--surface-border, #e5e7eb) 78%,
-    transparent
-  );
-  border-radius: 1rem;
-  background: color-mix(
-    in oklab,
-    var(--surface-color, #ffffff) 96%,
-    var(--text-color, #111827) 2%
-  );
 }
 
 .other-profile-page__panel h2 {
@@ -318,61 +265,14 @@
 }
 
 .other-profile-page__preference-chip {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2rem;
-  padding: 0.38rem 0.68rem;
-  border: 1px solid color-mix(
-    in oklab,
-    var(--surface-border, #e5e7eb) 82%,
-    transparent
-  );
-  border-radius: 0.6rem;
-  background: transparent;
-  color: color-mix(in oklab, var(--text-color, #111827) 74%, transparent);
   font-size: 0.8rem;
   font-weight: 680;
-  line-height: 1;
 }
 
 app-profile-media-showcase {
   display: block;
   width: 100%;
   min-width: 0;
-}
-
-.other-profile-page__loading,
-.other-profile-page__empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.65rem;
-  min-height: 16rem;
-  color: color-mix(in oklab, var(--text-color, #111827) 66%, transparent);
-}
-
-.other-profile-page__loading-dot {
-  width: 0.65rem;
-  height: 0.65rem;
-  border-radius: 50%;
-  background: var(--primary-color, #ff4d57);
-  animation: other-profile-pulse 1000ms ease-in-out infinite;
-}
-
-.other-profile-page__empty {
-  flex-direction: column;
-  text-align: center;
-}
-
-.other-profile-page__empty p {
-  margin: 0;
-  font-weight: 720;
-}
-
-.other-profile-page__empty a {
-  color: var(--primary-color, #ff4d57);
-  font-weight: 760;
-  text-decoration: none;
 }
 
 .visually-hidden,
@@ -388,33 +288,14 @@ app-profile-media-showcase {
   border: 0 !important;
 }
 
-@keyframes other-profile-pulse {
-  0%,
-  100% {
-    transform: scale(0.84);
-    opacity: 0.5;
-  }
-
-  50% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
 :host-context(.dark-mode) .other-profile-page__back {
   color: color-mix(in oklab, var(--text-color, #f9fafb) 74%, transparent);
 }
 
 :host-context(.high-contrast) .other-profile-page__photo-wrap,
-:host-context(.high-contrast) .other-profile-page__action,
 :host-context(.high-contrast) .other-profile-page__panel,
 :host-context(.high-contrast) .other-profile-page__preference-chip {
   border-color: currentColor !important;
-}
-
-:host-context(.high-contrast) .other-profile-page__action--primary {
-  background: var(--text-color, #000000) !important;
-  color: var(--background-color, #ffffff) !important;
 }
 
 @media (max-width: 900px) {
