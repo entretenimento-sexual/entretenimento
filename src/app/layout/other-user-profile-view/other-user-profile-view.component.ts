@@ -206,6 +206,16 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     return ['/dashboard/explorar'];
   }
 
+  goToDiscovery(): void {
+    this.router.navigate(this.discoveryLink).catch((error) => {
+      this.reportError(
+        'Não foi possível voltar para a exploração.',
+        { op: 'goToDiscovery' },
+        error
+      );
+    });
+  }
+
   get hasPreferenceChips(): boolean {
     return this.preferenceChips.length > 0;
   }
