@@ -24,9 +24,8 @@ import { MatListModule } from '@angular/material/list';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { CacheService } from 'src/app/core/services/general/cache/cache.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
 
 import { Store } from '@ngrx/store';
@@ -54,9 +53,8 @@ import {
 export class FriendSearchComponent implements OnInit {
   private readonly friendship = inject(FriendshipService);
   private readonly authSession = inject(AuthSessionService);
-  private readonly errorNotifier = inject(ErrorNotificationService);
-  private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
   private readonly cacheService = inject(CacheService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly store = inject<Store<AppState>>(Store);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -174,21 +172,13 @@ export class FriendSearchComponent implements OnInit {
   }
 
   private reportError(error: unknown): void {
-    const normalizedError =
-      error instanceof Error ? error : new Error('Erro inesperado ao buscar usuários.');
-
-    const reportableError = normalizedError as Error & {
-      context?: Record<string, unknown>;
-      skipUserNotification?: boolean;
-    };
-
-    reportableError.context = {
-      scope: 'FriendSearchComponent',
+    this.applicationError.report(error, {
+      feature: 'friend-search',
       operation: 'searchFriends',
-    };
-    reportableError.skipUserNotification = true;
-
-    this.globalErrorHandler.handleError(reportableError);
-    this.errorNotifier.showError('Erro ao buscar usuários.');
+      fallbackMessage: 'Não foi possível buscar usuários agora.',
+      metadata: {
+        scope: 'FriendSearchComponent',
+      },
+    });
   }
 }
