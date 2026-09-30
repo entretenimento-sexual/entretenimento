@@ -16,6 +16,7 @@ import { DirectThreadFacade } from '../../messaging/direct-chat/application/dire
 import { DirectChatNavigationOrchestrator } from '../application/direct-chat-navigation.orchestrator';
 import { DirectChatComposeAccessFacade } from '../application/direct-chat-compose-access.facade';
 import { DirectChatSendOrchestrator } from '../application/direct-chat-send.orchestrator';
+import { DirectChatSelectionContextFacade } from '../application/direct-chat-selection-context.facade';
 
 describe('ChatModuleLayoutComponent', () => {
   let component: ChatModuleLayoutComponent;
@@ -112,6 +113,24 @@ describe('ChatModuleLayoutComponent', () => {
                     blockedReason: null,
                   })
                 ),
+              },
+            },
+            {
+              provide: DirectChatSelectionContextFacade,
+              useValue: {
+                selectedChatId$: of(null),
+                selectedType$: of(null),
+                selectedDirectPeerUid$: vi.fn(() => of(null)),
+                selectedChatId: vi.fn(() => null),
+                selectedType: vi.fn(() => null),
+                activePeerUid: vi.fn(() => null),
+                activePeerName: vi.fn(() => null),
+                activePeerPhotoURL: vi.fn(() => null),
+                select: vi.fn(),
+                clear: vi.fn(),
+                clearPeer: vi.fn(),
+                resolvePeer$: vi.fn(() => of(void 0)),
+                selectEvent: vi.fn(() => true),
               },
             },
           ],
