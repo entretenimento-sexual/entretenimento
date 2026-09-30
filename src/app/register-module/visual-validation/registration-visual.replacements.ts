@@ -41,6 +41,20 @@ export class AuthSessionService {
   readonly readyAuthUser$: Observable<User | null> = of(null);
   readonly readyUid$: Observable<string | null> = of(null);
 
+  private terminating = false;
+
+  beginTermination(): void {
+    this.terminating = true;
+  }
+
+  endTermination(): void {
+    this.terminating = false;
+  }
+
+  get isTerminatingSnapshot(): boolean {
+    return this.terminating;
+  }
+
   whenReady(): Promise<void> {
     return Promise.resolve();
   }
