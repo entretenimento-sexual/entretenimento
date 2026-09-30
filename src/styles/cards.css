@@ -273,6 +273,17 @@
   outline-offset: -3px;
 }
 
+.app-responsive-grid {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(min(100%, var(--app-responsive-grid-min, 14rem)), 1fr)
+  );
+  gap: var(--app-responsive-grid-gap, var(--space-3, 16px));
+  align-items: var(--app-responsive-grid-align, stretch);
+  min-width: 0;
+}
+
 .app-card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));

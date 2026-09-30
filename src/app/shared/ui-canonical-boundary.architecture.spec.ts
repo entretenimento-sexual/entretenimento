@@ -276,6 +276,7 @@ describe('Canonical UI boundary', () => {
       '.app-card {',
       '.app-disclosure {',
       '.app-page-header {',
+      '.app-responsive-grid {',
     ]) {
       expect(cards).toContain(selector);
     }
