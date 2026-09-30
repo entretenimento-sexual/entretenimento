@@ -30,7 +30,6 @@ import {
   shareReplay,
   switchMap,
   take,
-  throwError,
 } from 'rxjs';
 import {
   catchError,
@@ -50,10 +49,8 @@ import { AuthSessionService } from 'src/app/core/services/autentication/auth/aut
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { UserIntentStatusService } from 'src/app/core/services/discovery/user-intent-status.service';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
-import { DirectChatService } from 'src/app/messaging/direct-chat/services/direct-chat.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
-import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import { ProfileMediaShowcaseComponent } from 'src/app/media/shared/components/profile-media-showcase/profile-media-showcase.component';
 import { SocialLinksAccordionComponent } from 'src/app/user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component';
@@ -63,6 +60,7 @@ import {
   VisitedProfileFriendshipFacade,
   VisitedProfileFriendshipRelation,
 } from './application/visited-profile-friendship.facade';
+import { VisitedProfileInteractionOrchestrator } from './application/visited-profile-interaction.orchestrator';
 
 interface PublicIntentContextVm {
   title: string;
@@ -86,7 +84,7 @@ const DEFAULT_PROFILE_PHOTO_URL = 'assets/imagem-padrao.webp';
   styleUrls: ['./other-user-profile-view.component.css'],
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  providers: [VisitedProfileFriendshipFacade],
+  providers: [VisitedProfileFriendshipFacade, VisitedProfileInteractionOrchestrator],
   imports: [
     CommonModule,
     RouterModule,
@@ -120,9 +118,8 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     private readonly authSession: AuthSessionService,
     private readonly currentUserStore: CurrentUserStoreService,
     private readonly userIntentStatus: UserIntentStatusService,
-    private readonly friendshipService: FriendshipService,
     private readonly visitedFriendship: VisitedProfileFriendshipFacade,
-    private readonly directChatService: DirectChatService,
+    private readonly interactionOrchestrator: VisitedProfileInteractionOrchestrator,
     private readonly cdr: ChangeDetectorRef,
     private readonly applicationError: ApplicationErrorService,
     private readonly errorNotification: ErrorNotificationService
@@ -387,60 +384,26 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
 
     this.friendRequestBusy$.next(true);
 
-    combineLatest([
-      this.authSession.uid$.pipe(take(1)),
-      this.friendshipInteractionState$.pipe(take(1)),
-    ])
+    this.friendshipInteractionState$
       .pipe(
-        switchMap(([requesterUid, interactionState]) => {
-          const safeRequesterUid = (requesterUid ?? '').trim();
-
-          if (!safeRequesterUid) {
-            return throwError(
-              () => new Error('Sessão não identificada para demonstrar interesse.')
-            );
-          }
-
-          if (safeRequesterUid === targetUid) {
-            return throwError(
-              () => new Error('Você não pode demonstrar interesse no próprio perfil.')
-            );
-          }
-
-          if (!interactionState.canSendFriendRequest) {
-            return throwError(() => new Error(interactionState.liveStatus));
-          }
-
-          return this.friendshipService.sendRequest(
-            safeRequesterUid,
+        take(1),
+        switchMap((interactionState) =>
+          this.interactionOrchestrator.sendInterest$(
             targetUid,
-            'Olá! Gostaria de conhecer você.'
-          );
-        }),
+            interactionState.canSendFriendRequest,
+            interactionState.liveStatus
+          )
+        ),
         finalize(() => {
           this.friendRequestBusy$.next(false);
           this.markView();
         }),
-        catchError((error) => {
-          this.reportError(
-            'Não foi possível enviar o interesse.',
-            {
-              op: 'sendFriendRequest',
-              hasTargetUid: !!targetUid,
-            },
-            error
-          );
-
-          return of(null);
-        }),
         takeUntilDestroyed(this.destroyRef)
       )
-      .subscribe((result) => {
-        if (result === null) {
-          return;
+      .subscribe((sent) => {
+        if (sent) {
+          this.errorNotification.showSuccess('Interesse enviado.');
         }
-
-        this.errorNotification.showSuccess('Interesse enviado.');
       });
   }
 
@@ -453,25 +416,12 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
 
     this.directChatBusy$.next(true);
 
-    this.directChatService
-      .ensureDirectChatIdWithUser$(targetUid)
+    this.interactionOrchestrator
+      .prepareDirectChat$(targetUid)
       .pipe(
-        take(1),
         finalize(() => {
           this.directChatBusy$.next(false);
           this.markView();
-        }),
-        catchError((error) => {
-          this.reportError(
-            'Não foi possível preparar a conversa.',
-            {
-              op: 'startDirectChat',
-              hasTargetUid: !!targetUid,
-            },
-            error
-          );
-
-          return of(null);
         }),
         takeUntilDestroyed(this.destroyRef)
       )
