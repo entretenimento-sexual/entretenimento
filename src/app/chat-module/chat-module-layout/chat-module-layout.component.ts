@@ -78,6 +78,15 @@ import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy
 import { DirectChatService } from 'src/app/messaging/direct-chat/services/direct-chat.service';
 import { DirectChatFacade } from 'src/app/messaging/direct-chat/application/direct-chat.facade';
 import { DirectThreadFacade } from 'src/app/messaging/direct-chat/application/direct-thread.facade';
+import {
+  DIRECT_CHAT_MAX_MESSAGE_LENGTH,
+  directMessageLength,
+  isDirectMessageNearLimit,
+  isDirectMessageTooLong,
+  normalizeDirectMessageContent,
+  resolveDirectMessageBlockMessage,
+  trimDirectMessageContent,
+} from '../policies/direct-chat-composer.policy';
 
 type ChatSelectionType = 'chat';
 
@@ -176,18 +185,18 @@ export class ChatModuleLayoutComponent implements OnInit {
 
   messageContent = '';
 
-  readonly maxMessageLength = 1000;
+  readonly maxMessageLength = DIRECT_CHAT_MAX_MESSAGE_LENGTH;
 
 get normalizedMessageContent(): string {
-  return String(this.messageContent ?? '');
+  return normalizeDirectMessageContent(this.messageContent);
 }
 
 get trimmedMessageContent(): string {
-  return this.normalizedMessageContent.trim();
+  return trimDirectMessageContent(this.messageContent);
 }
 
 get messageLength(): number {
-  return this.normalizedMessageContent.length;
+  return directMessageLength(this.messageContent);
 }
 
 get messageLengthLabel(): string {
@@ -195,7 +204,7 @@ get messageLengthLabel(): string {
 }
 
 get isMessageTooLong(): boolean {
-  return this.messageLength > this.maxMessageLength;
+  return isDirectMessageTooLong(this.messageContent, this.maxMessageLength);
 }
 
 get canSubmitMessage(): boolean {
@@ -210,7 +219,7 @@ get canSubmitMessage(): boolean {
 }
 
 get isNearMessageLimit(): boolean {
-  return this.messageLength >= Math.floor(this.maxMessageLength * 0.85);
+  return isDirectMessageNearLimit(this.messageContent, this.maxMessageLength);
 }
 
 get shouldShowComposerHelp(): boolean {
@@ -961,7 +970,7 @@ if (this.isMessageTooLong) {
         });
       }),
       catchError((error) => {
-        const blockedMessage = this.resolveDirectMessageBlockMessage(error);
+        const blockedMessage = resolveDirectMessageBlockMessage(error);
 
         if (blockedMessage) {
           this.directMessageBlockedReason.set(blockedMessage);
@@ -994,41 +1003,6 @@ if (this.isMessageTooLong) {
   // ---------------------------------------------------------------------------
   // Error helpers
   // ---------------------------------------------------------------------------
-
-  private resolveDirectMessageBlockMessage(error: unknown): string | null {
-    const code = String((error as { code?: unknown } | null)?.code ?? '')
-      .toLowerCase();
-
-    const message = String((error as { message?: unknown } | null)?.message ?? '')
-      .toLowerCase();
-
-    if (
-      code.includes('failed-precondition') &&
-      message.includes('conexão precisa estar aceita')
-    ) {
-      return 'Vocês precisam estar conectados para trocar mensagens.';
-    }
-
-    if (
-      code.includes('failed-precondition') &&
-      message.includes('verifique seu e-mail')
-    ) {
-      return 'Verifique seu e-mail antes de enviar mensagens.';
-    }
-
-    if (
-      code.includes('failed-precondition') &&
-      message.includes('complete seu perfil')
-    ) {
-      return 'Complete seu perfil antes de enviar mensagens.';
-    }
-
-    if (code.includes('permission-denied')) {
-      return 'Esta conversa não está disponível para envio.';
-    }
-
-    return null;
-  }
 
   private reportError(
     userMessage: string,
