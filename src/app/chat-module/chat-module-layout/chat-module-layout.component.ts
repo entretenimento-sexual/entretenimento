@@ -749,7 +749,6 @@ if (this.isMessageTooLong) {
 
         if (blockedMessage) {
           this.directMessageBlockedReason.set(blockedMessage);
-          this.errorNotifier.showWarning(blockedMessage);
         }
 
         return of(null);
