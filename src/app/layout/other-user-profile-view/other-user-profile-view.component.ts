@@ -20,7 +20,7 @@ import {
   inject,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import {
   BehaviorSubject,
   Observable,
@@ -47,7 +47,6 @@ import {
 } from 'src/app/core/utils/discovery/profile-type-preference-filter.util';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
-import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
@@ -82,7 +81,7 @@ const DEFAULT_PROFILE_PHOTO_URL = 'assets/imagem-padrao.webp';
   styleUrls: ['./other-user-profile-view.component.css'],
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  providers: [VisitedProfileFriendshipFacade, VisitedProfileInteractionOrchestrator, VisitedProfileIntentContextFacade],
+  providers: [VisitedProfileFriendshipFacade, VisitedProfileInteractionOrchestrator, VisitedProfileIntentContextFacade, VisitedProfileBootstrapOrchestrator],
   imports: [
     CommonModule,
     RouterModule,
@@ -110,10 +109,9 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
   readonly directChatBusy$ = new BehaviorSubject<boolean>(false);
 
   constructor(
-    private readonly route: ActivatedRoute,
     private readonly router: Router,
-    private readonly firestoreUserQuery: FirestoreUserQueryService,
     private readonly authSession: AuthSessionService,
+    private readonly bootstrapOrchestrator: VisitedProfileBootstrapOrchestrator,
     private readonly currentUserStore: CurrentUserStoreService,
     private readonly visitedFriendship: VisitedProfileFriendshipFacade,
     private readonly intentContextFacade: VisitedProfileIntentContextFacade,
@@ -127,48 +125,44 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    this.uid = this.getUidFromRoute();
+    this.isLoading = true;
+    this.profilePhotoFailed = false;
+    this.markView();
 
-    if (!this.uid) {
-      this.reportError('UID não encontrado na rota.', {
-        op: 'ngOnInit',
-      });
-
-      this.isLoading = false;
-      this.markView();
-      return;
-    }
-
-    this.authSession.uid$
+    this.bootstrapOrchestrator
+      .load$()
       .pipe(
-        take(1),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe((authUid) => {
-        const safeAuthUid = (authUid ?? '').trim();
-        const targetUid = (this.uid ?? '').trim();
-
-        if (safeAuthUid && targetUid && safeAuthUid === targetUid) {
-          this.debug('own profile opened here; redirecting to /perfil', {
-            hasUid: true,
-          });
-
+        finalize(() => {
           this.isLoading = false;
           this.markView();
-
-          this.router.navigate(['/perfil'], { replaceUrl: true }).catch((error) => {
-            this.reportError(
-              'Não foi possível redirecionar para seu perfil.',
-              { op: 'redirectOwnProfile' },
-              error
-            );
-          });
-
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe((result) => {
+        if (result.kind === 'redirect-own-profile') {
+          this.uid = result.targetUid;
+          this.userProfile = null;
           return;
         }
 
-        this.viewedProfileUid$.next(targetUid);
-        this.loadUserProfile(targetUid);
+        if (result.kind === 'missing') {
+          this.uid = result.targetUid;
+          this.userProfile = null;
+          if (result.targetUid) {
+            this.viewedProfileUid$.next(result.targetUid);
+          }
+          return;
+        }
+
+        this.uid = result.targetUid;
+        this.userProfile = { ...result.profile };
+        this.viewedProfileUid$.next(result.targetUid);
+
+        this.debug('bootstrap loaded profile', {
+          hasProfile: true,
+          hasNickname: !!this.userProfile.nickname,
+          hasPhoto: !!this.userProfile.photoURL,
+        });
       });
   }
 
@@ -303,74 +297,6 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
       hasConfiguredPhoto: !!this.userProfile?.photoURL,
     });
     this.markView();
-  }
-
-  loadUserProfile(uid: string): void {
-    const safeUid = (uid ?? '').trim();
-
-    if (!safeUid) {
-      this.reportError('UID inválido para carregar perfil.', {
-        op: 'loadUserProfile',
-      });
-
-      this.isLoading = false;
-      this.markView();
-      return;
-    }
-
-    this.isLoading = true;
-    this.profilePhotoFailed = false;
-    this.markView();
-
-    this.debug('loadUserProfile start', {
-      hasUid: true,
-    });
-
-    this.firestoreUserQuery
-      .getPublicUserById$(safeUid)
-      .pipe(
-        catchError((error: unknown) => {
-          this.reportError(
-            'Falha ao carregar perfil do usuário.',
-            {
-              op: 'loadUserProfile',
-              hasUid: true,
-            },
-            error
-          );
-
-          return of(null);
-        }),
-        finalize(() => {
-          this.isLoading = false;
-          this.markView();
-        }),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe((profile: IUserDados | null) => {
-        if (!profile) {
-          this.userProfile = null;
-
-          this.reportError('Usuário não encontrado ou indisponível.', {
-            op: 'loadUserProfile.empty',
-            hasUid: true,
-          });
-
-          this.markView();
-          return;
-        }
-
-        this.profilePhotoFailed = false;
-        this.userProfile = { ...profile };
-
-        this.debug('loadUserProfile success', {
-          hasProfile: true,
-          hasNickname: !!this.userProfile.nickname,
-          hasPhoto: !!this.userProfile.photoURL,
-        });
-
-        this.markView();
-      });
   }
 
   sendFriendRequest(): void {
@@ -521,14 +447,6 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
       friendRequestAriaLabel: `Mostrar interesse em ${this.displayName}`,
       liveStatus: 'Você pode demonstrar interesse neste perfil.',
     };
-  }
-
-  private getUidFromRoute(): string | null {
-    const uid =
-      this.route.snapshot.paramMap.get('uid') ??
-      this.route.snapshot.paramMap.get('id');
-
-    return uid?.trim() || null;
   }
 
   private markView(): void {
