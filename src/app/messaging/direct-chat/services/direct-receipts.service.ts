@@ -22,8 +22,8 @@ import { catchError, map, tap } from 'rxjs/operators';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
 
 import { ChatService } from '@core/services/batepapo/chat-service/chat.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 
 type ReceiptTransitionTarget = 'delivered' | 'read';
 
@@ -38,7 +38,7 @@ export class DirectReceiptsService {
 
   constructor(
     private readonly chatService: ChatService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly privacyDebug: PrivacyDebugLoggerService
   ) {}
 
@@ -178,20 +178,20 @@ export class DirectReceiptsService {
     extra?: Record<string, unknown>
   ): void {
     try {
-      const err =
-        error instanceof Error
-          ? error
-          : new Error('[DirectReceiptsService] operation failed');
-
-      (err as any).original = error;
-      (err as any).context = context;
-      (err as any).extra = extra;
-      (err as any).skipUserNotification = true;
-      (err as any).silent = true;
-
-      this.globalErrorHandler.handleError(err);
+      this.applicationError.report(error, {
+        feature: 'direct-receipts',
+        operation: context,
+        fallbackMessage:
+          'Não foi possível concluir uma atualização interna de recibo.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'DirectReceiptsService',
+          context,
+          ...(extra ?? {}),
+        },
+      });
     } catch {
-      // noop
+      // Receipts são best-effort e nunca podem quebrar a thread.
     }
   }
 }
