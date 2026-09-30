@@ -171,8 +171,6 @@
   min-height: var(--control-height, 44px);
 }
 
-}
-
 @media (max-width: 640px) {
   .matching-mode {
     grid-template-columns: 1fr;
