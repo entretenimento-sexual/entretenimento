@@ -8,7 +8,7 @@
 // - aceitar deep-link por query params: openChatId / withUser;
 // - delegar comandos de envio direto ao DirectChatSendOrchestrator;
 // - usar AuthSessionService como fonte canônica da sessão;
-// // - manter seleção canônica sincronizada com DirectChatFacade;
+- delegar seleção/contexto do peer ao DirectChatSelectionContextFacade;
 // - bloquear preventivamente envio direto sem conexão aceita;
 // - manter feedback de envio acessível e claro;
 // - usar PrivacyDebugLoggerService para logs de debug.
@@ -38,7 +38,6 @@ import {
 import { ActivatedRoute } from '@angular/router';
 import {
   Observable,
-  combineLatest,
   of,
 } from 'rxjs';
 
@@ -48,15 +47,12 @@ import {
   finalize,
   map,
   shareReplay,
-  take,
   tap,
 } from 'rxjs/operators';
 
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
-
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
@@ -98,7 +94,6 @@ export class ChatModuleLayoutComponent implements OnInit {
   private readonly composeAccessFacade = inject(DirectChatComposeAccessFacade);
   private readonly sendOrchestrator = inject(DirectChatSendOrchestrator);
   private readonly selectionContext = inject(DirectChatSelectionContextFacade);
-
 
   private readonly route = inject(ActivatedRoute);
 
@@ -220,7 +215,7 @@ get shouldShowComposerHelp(): boolean {
   ngOnInit(): void {
     this.observeAuthenticatedUser();
     this.observeChatDeepLink();
-    this.observeSelectedDirectPeerFallback();
+    this.observeSelectionPeerContext();
     this.observeComposePermissions();
   }
 
@@ -249,17 +244,6 @@ get shouldShowComposerHelp(): boolean {
     }
 
     return this.sendStatusMessageSignal();
-  }
-
-  // ---------------------------------------------------------------------------
-  // Selection context
-  // ---------------------------------------------------------------------------
-
-  private resolveActiveChatPeerFromUid(peerUid: string): void {
-    this.selectionContext
-      .resolvePeer$(peerUid)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe();
   }
 
   // ---------------------------------------------------------------------------
@@ -312,7 +296,9 @@ get shouldShowComposerHelp(): boolean {
           this.directMessageBlockedReason.set(null);
 
           if (resolved.withUser) {
-            this.resolveActiveChatPeerFromUid(resolved.withUser);
+            this.selectionContext.applyPeer({
+              peerUid: resolved.withUser,
+            });
           } else {
             this.selectionContext.clearPeer();
           }
@@ -353,44 +339,10 @@ get shouldShowComposerHelp(): boolean {
       });
   }
 
-  /**
-   * Em deep-link por openChatId, pode não haver withUser.
-   * Neste caso, a conversa selecionada na facade permite descobrir o outro UID.
-   */
-  private observeSelectedDirectPeerFallback(): void {
-    combineLatest([
-      this.selectedType$,
-      this.selectedDirectPeerUid$,
-    ])
-      .pipe(
-        tap(([selectedType, peerUid]) => {
-          const safePeerUid = (peerUid ?? '').trim();
-
-          if (selectedType !== 'chat' || !safePeerUid) {
-            return;
-          }
-
-          if (
-            this.activeChatPeerUid === safePeerUid &&
-            this.activeChatPeerName
-          ) {
-            return;
-          }
-
-          this.resolveActiveChatPeerFromUid(safePeerUid);
-        }),
-        catchError((error) => {
-          this.reportError(
-            'Não foi possível sincronizar o participante da conversa.',
-            error,
-            { op: 'observeSelectedDirectPeerFallback' },
-            false
-          );
-
-          return of(null);
-        }),
-        takeUntilDestroyed(this.destroyRef)
-      )
+  private observeSelectionPeerContext(): void {
+    this.selectionContext
+      .syncPeerContext$(this.currentUid$)
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe();
   }
 
@@ -443,10 +395,6 @@ get shouldShowComposerHelp(): boolean {
     }
 
     this.directMessageBlockedReason.set(null);
-
-    if (event.peerUid && !event.peerName) {
-      this.resolveActiveChatPeerFromUid(event.peerUid);
-    }
 
     this.dbg('onChatSelected()', {
       selectedChatId: this.selectedChatId,
@@ -567,4 +515,4 @@ if (this.isMessageTooLong) {
     this.privacyDebug.log('chat', `ChatModuleLayout: ${message}`, extra);
   }
 
-} // Linha 1173, final do ChatModuleLayoutComponent que está gigantesco e merece um refactor futuro para dividir responsabilidades.
+}
