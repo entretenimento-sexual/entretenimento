@@ -41,6 +41,7 @@ import { FeedPublicationComposerComponent } from '../../components/feed-publicat
 import { ExploreCommunityContentCardComponent } from '../../components/explore-community-content-card/explore-community-content-card.component';
 import { ExploreCommunityDistributionService } from '../../services/explore-community-distribution.service';
 import { SocialExploreTimelineFacade } from '../../facades/social-explore-timeline.facade';
+import { ExploreSocialFeedItem } from '../../models/explore-social-feed';
 
 @Component({
   selector: 'app-social-explore-page',
@@ -156,7 +157,7 @@ export class SocialExplorePageComponent {
 
   retryVideoHighlights(): void {
     this.failedVideoPosterKeys.set(new Set<string>());
-    this.exploreFeedFacade.retryVideoHighlights();
+    this.timelineFacade.retryVideoHighlights();
   }
 
   loadMoreFeed(): void {
