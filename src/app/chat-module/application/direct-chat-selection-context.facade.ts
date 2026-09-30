@@ -5,6 +5,7 @@ import {
   distinctUntilChanged,
   map,
   shareReplay,
+  switchMap,
   take,
   tap,
 } from 'rxjs/operators';
@@ -136,6 +137,32 @@ export class DirectChatSelectionContextFacade {
     this.activePeerUidSignal.set(null);
     this.activePeerNameSignal.set(null);
     this.activePeerPhotoURLSignal.set(null);
+  }
+
+  syncPeerContext$(
+    currentUid$: Observable<string | null>
+  ): Observable<void> {
+    return combineLatest([
+      this.selectedType$,
+      this.selectedDirectPeerUid$(currentUid$),
+    ]).pipe(
+      switchMap(([selectedType, peerUid]) => {
+        const safePeerUid = String(peerUid ?? '').trim();
+
+        if (selectedType !== 'chat' || !safePeerUid) {
+          return of(void 0);
+        }
+
+        if (
+          this.activePeerUidSignal() === safePeerUid &&
+          !!this.activePeerNameSignal()
+        ) {
+          return of(void 0);
+        }
+
+        return this.resolvePeer$(safePeerUid);
+      })
+    );
   }
 
   resolvePeer$(peerUid: string): Observable<void> {
