@@ -1,27 +1,55 @@
-/* src\app\layout\friend-management\friend-search\friend-search.component.css */
+:host {
+  display: block;
+  min-width: 0;
+}
+
 .friend-search {
-  max-width: 400px;
-  margin: auto;
-  text-align: center;
+  display: grid;
+  gap: var(--space-3, 16px);
+  width: min(100%, 760px);
+  margin-inline: auto;
 }
 
-mat-form-field {
-  width: 100%;
-}
-
-ul {
-  list-style: none;
+.friend-search__results {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
   padding: 0;
+  list-style: none;
 }
 
-li {
+.friend-search__result {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 8px;
-  border-bottom: 1px solid #ddd;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
 }
 
-button {
-  font-size: 14px;
+.friend-search__identity {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.friend-search__identity strong {
+  color: var(--text-color);
+  overflow-wrap: anywhere;
+}
+
+.friend-search__identity span {
+  color: color-mix(in oklab, var(--text-color) 62%, transparent);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 560px) {
+  .friend-search__result {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .friend-search__result .app-action {
+    width: 100%;
+  }
 }
