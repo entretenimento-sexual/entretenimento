@@ -1,16 +1,11 @@
 <main class="legal-center" aria-labelledby="legal-center-title">
-  <header class="legal-center__header">
-    <p class="legal-center__eyebrow">Conta e transparência</p>
-    <h1 id="legal-center-title">Documentos legais</h1>
-    <p>
-      Consulte os documentos vigentes quando precisar. A leitura desta página ou
-      a abertura de qualquer documento não altera seu aceite e não gera nova
-      confirmação.
-    </p>
-  </header>
+  <app-page-header
+    title="Documentos legais"
+    subtitle="Consulte os documentos vigentes quando precisar. A leitura desta página ou a abertura de qualquer documento não altera seu aceite e não gera nova confirmação."
+  />
 
   @if (acceptance$ | async; as acceptance) {
-    <section class="acceptance-card" aria-labelledby="acceptance-title">
+    <section class="acceptance-card app-card app-card--flat" aria-labelledby="acceptance-title">
       <div>
         <p class="acceptance-card__label" id="acceptance-title">
           Situação do aceite
@@ -36,15 +31,15 @@
         }
       </div>
 
-      <span class="acceptance-card__version">
+      <span class="acceptance-card__version app-chip app-chip--primary">
         Documento {{ legalManifest.termsDocumentVersion }}
       </span>
     </section>
   }
 
-  <nav class="document-grid" aria-label="Documentos legais disponíveis">
+  <nav class="document-grid app-responsive-grid" aria-label="Documentos legais disponíveis">
     <a
-      class="document-card"
+      class="document-card app-card app-card--flat app-card--interactive"
       routerLink="/termos-e-condicoes"
       target="_blank"
       rel="noopener"
@@ -65,7 +60,7 @@
     </a>
 
     <a
-      class="document-card"
+      class="document-card app-card app-card--flat app-card--interactive"
       routerLink="/politica-de-privacidade"
       target="_blank"
       rel="noopener"
@@ -87,7 +82,7 @@
     </a>
 
     <a
-      class="document-card"
+      class="document-card app-card app-card--flat app-card--interactive"
       routerLink="/politica-de-cookies"
       target="_blank"
       rel="noopener"
@@ -107,6 +102,6 @@
 
   <footer class="legal-center__footer">
     <p>Os documentos abrem em nova aba para preservar a tela em que você estava.</p>
-    <a routerLink="/conta">Voltar para Conta</a>
+    <a class="app-action app-action--ghost" routerLink="/conta">Voltar para Conta</a>
   </footer>
 </main>
