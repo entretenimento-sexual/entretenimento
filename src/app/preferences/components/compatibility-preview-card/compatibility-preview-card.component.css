@@ -27,9 +27,8 @@
 }
 
 .compatibility-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.75rem;
+  --app-responsive-grid-min: 10rem;
+  --app-responsive-grid-gap: 0.75rem;
 }
 
 .compatibility-item {
@@ -86,14 +85,4 @@
   opacity: 0.8;
 }
 
-@media (max-width: 840px) {
-  .compatibility-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 520px) {
-  .compatibility-grid {
-    grid-template-columns: 1fr;
-  }
 }
