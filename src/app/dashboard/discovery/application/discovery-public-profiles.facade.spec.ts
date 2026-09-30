@@ -15,7 +15,7 @@ import {
   DiscoveryVisibleProfileLocation,
   DiscoveryVisibleProfileLocationRepository,
 } from '../data-access/discovery-visible-profile-location.repository';
-import { DiscoveryCardEnrichmentService } from './discovery-card-enrichment.service';
+import { DiscoveryCardEnrichmentService, type DiscoveryCardEnrichmentResult } from './discovery-card-enrichment.service';
 import { DiscoveryPublicProfilesFacade } from './discovery-public-profiles.facade';
 
 describe('DiscoveryPublicProfilesFacade', () => {
@@ -45,12 +45,15 @@ describe('DiscoveryPublicProfilesFacade', () => {
   };
 
   const cardEnrichmentMock = {
-    buildCardsResult: vi.fn(() => ({
-      profiles: [],
-      rejected: [],
-      scores: [],
-      debugSummary: {},
-    })),
+    buildCardsResult: vi.fn(
+      (): DiscoveryCardEnrichmentResult =>
+        ({
+          profiles: [],
+          rejected: [],
+          scores: [],
+          debugSummary: {},
+        }) as DiscoveryCardEnrichmentResult
+    ),
   };
 
   const geolocationTrackingMock = {
