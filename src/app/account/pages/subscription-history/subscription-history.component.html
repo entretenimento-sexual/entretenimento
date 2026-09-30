@@ -1,47 +1,42 @@
 <!-- src/app/account/pages/subscription-history/subscription-history.component.html -->
 <main class="subscription-history-page app-page" aria-label="Histórico da assinatura">
   <section class="subscription-history-shell ui-container">
-    <header class="subscription-history-header">
+    <app-page-header
+      title="Histórico da assinatura"
+      subtitle="Mudanças registradas de plano e vigência. O histórico é somente leitura e identificadores financeiros internos permanecem protegidos."
+    >
       <a
-        class="subscription-history-back"
+        page-actions
+        class="app-action app-action--ghost"
         routerLink="/conta/assinatura"
         aria-label="Voltar para Assinatura da minha conta"
       >
         <span aria-hidden="true">←</span>
         Assinatura
       </a>
-
-      <div class="subscription-history-header__copy">
-        <h1>Histórico da assinatura</h1>
-        <p>
-          Mudanças registradas de plano e vigência. O histórico é somente leitura
-          e identificadores financeiros internos permanecem protegidos.
-        </p>
-      </div>
-    </header>
+    </app-page-header>
 
     @if (state$ | async; as state) {
       @if (state.status === 'loading') {
-        <section class="subscription-history-state" role="status" aria-live="polite">
-          <span class="subscription-history-state__spinner" aria-hidden="true"></span>
-          <p>Carregando seu histórico de assinatura...</p>
-        </section>
+        <app-content-state
+          state="loading"
+          message="Carregando seu histórico de assinatura..."
+          [skeletonRows]="3"
+        />
       } @else if (state.status === 'error') {
-        <section class="subscription-history-state" role="alert">
-          <h2>Não foi possível carregar o histórico</h2>
-          <p>Seus registros não foram alterados. Tente consultar novamente.</p>
-          <button type="button" class="app-action app-action--ghost" (click)="retry()">
-            Tentar novamente
-          </button>
-        </section>
+        <app-content-state
+          state="error"
+          title="Não foi possível carregar o histórico"
+          message="Seus registros não foram alterados. Tente consultar novamente."
+          actionLabel="Tentar novamente"
+          (action)="retry()"
+        />
       } @else if (state.items.length === 0) {
-        <section class="subscription-history-state" role="status">
-          <h2>Nenhum evento disponível neste histórico</h2>
-          <p>
-            A trilha mostra os eventos registrados desde sua implantação. O plano
-            atual continua sendo exibido normalmente na seção Assinatura da conta.
-          </p>
-        </section>
+        <app-content-state
+          state="empty"
+          title="Nenhum evento disponível neste histórico"
+          message="A trilha mostra os eventos registrados desde sua implantação. O plano atual continua sendo exibido normalmente na seção Assinatura da conta."
+        />
       } @else {
         <section
           class="subscription-history-timeline"
