@@ -51,6 +51,8 @@ function productionHtmlFiles(root: string): readonly string[] {
 
 const CANONICAL_ACTION_TEMPLATES = [
   'src/app/account/pages/account-home/account-home.component.html',
+  'src/app/account/pages/legal-documents/legal-documents.component.html',
+  'src/app/account/pages/compliance-cases/compliance-cases.component.html',
   'src/app/account/pages/account-manage/account-manage.component.html',
   'src/app/account/pages/account-security/account-security.component.html',
   'src/app/account/pages/account-subscription/account-subscription.component.html',
@@ -78,6 +80,8 @@ const CANONICAL_ACTION_TEMPLATES = [
 ] as const;
 
 const CANONICAL_HEADER_TEMPLATES = [
+  'src/app/account/pages/legal-documents/legal-documents.component.html',
+  'src/app/account/pages/compliance-cases/compliance-cases.component.html',
   'src/app/account/pages/account-status/account-status.component.html',
   'src/app/account/pages/subscription-history/subscription-history.component.html',
   'src/app/account/pages/account-privilege-history/account-privilege-history.component.html',
@@ -98,6 +102,8 @@ const CANONICAL_HEADER_TEMPLATES = [
 ] as const;
 
 const CANONICALIZED_STYLES = [
+  'src/app/account/pages/legal-documents/legal-documents.component.css',
+  'src/app/account/pages/compliance-cases/compliance-cases.component.css',
   'src/app/account/pages/account-status/account-status.component.css',
   'src/app/account/pages/subscription-history/subscription-history.component.css',
   'src/app/authentication/login-component/login-component.css',
@@ -202,6 +208,34 @@ describe('Canonical UI boundary', () => {
       'account-plan-hero app-card app-card--flat'
     );
     expect(home).toContain('<app-content-state');
+  });
+
+  it('mantém Documentos legais e Conformidade nas primitives compartilhadas', () => {
+    const legal = source(
+      'src/app/account/pages/legal-documents/legal-documents.component.html'
+    );
+    const compliance = source(
+      'src/app/account/pages/compliance-cases/compliance-cases.component.html'
+    );
+    const legalStyles = source(
+      'src/app/account/pages/legal-documents/legal-documents.component.css'
+    );
+    const complianceStyles = source(
+      'src/app/account/pages/compliance-cases/compliance-cases.component.css'
+    );
+
+    expect(legal).toContain('<app-page-header');
+    expect(legal).toContain('document-grid app-responsive-grid');
+    expect(legal).toContain('document-card app-card app-card--flat app-card--interactive');
+
+    expect(compliance).toContain('<app-page-header');
+    expect(compliance).toContain('<app-content-state');
+    expect(compliance).toContain('class="app-control"');
+    expect(compliance).toContain('class="app-action app-action--primary"');
+
+    expect(legalStyles).not.toContain('.legal-center h1');
+    expect(complianceStyles).not.toContain('.compliance-button');
+    expect(complianceStyles).not.toContain('.compliance-state');
   });
 
   it('preserva remoções estruturais já concluídas', () => {
