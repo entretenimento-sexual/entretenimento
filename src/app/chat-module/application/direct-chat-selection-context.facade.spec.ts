@@ -90,6 +90,17 @@ describe('DirectChatSelectionContextFacade', () => {
     );
   });
 
+  it('sincroniza automaticamente identidade do peer selecionado', async () => {
+    const { facade } = setup();
+
+    facade.select('chat-1', 'chat');
+
+    await firstValueFrom(facade.syncPeerContext$(of('me')));
+
+    expect(facade.activePeerUid()).toBe('peer-1');
+    expect(facade.activePeerName()).toBe('Pessoa');
+  });
+
   it('clear limpa seleção, contexto e facade canônica', () => {
     const { facade, clearSelection } = setup();
 
