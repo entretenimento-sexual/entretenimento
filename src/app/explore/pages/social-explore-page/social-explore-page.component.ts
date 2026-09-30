@@ -20,6 +20,7 @@ import {
   take,
 } from 'rxjs/operators';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
 import { IPublicProfileMediaItem } from 'src/app/core/interfaces/media/i-public-profile-media-item';
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
