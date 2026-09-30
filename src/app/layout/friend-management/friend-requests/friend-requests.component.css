@@ -13,34 +13,6 @@
   color: var(--text-color, #f5f7fb);
 }
 
-.friend-requests__header {
-  display: grid;
-  gap: 5px;
-  min-width: 0;
-  padding: 2px 2px 0;
-}
-
-.friend-requests__header h1,
-.friend-requests__header p {
-  margin: 0;
-}
-
-.friend-requests__header h1 {
-  color: var(--text-color, #f5f7fb);
-  font-size: clamp(1.38rem, 2vw, 1.8rem);
-  font-weight: 900;
-  letter-spacing: -0.03em;
-  line-height: 1.1;
-}
-
-.friend-requests__header p {
-  max-width: 42rem;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 68%, transparent);
-  font-size: 0.92rem;
-  font-weight: 600;
-  line-height: 1.45;
-}
-
 .friend-requests__tab-label {
   display: inline-flex;
   align-items: center;
@@ -412,69 +384,6 @@
   font-size: 0.8rem;
 }
 
-.friend-requests__state {
-  display: grid;
-  justify-items: center;
-  gap: 7px;
-  padding: clamp(22px, 4vw, 32px);
-  border: 1px dashed color-mix(
-    in oklab,
-    var(--surface-border, rgba(255, 255, 255, 0.12)) 90%,
-    transparent
-  );
-  border-radius: 14px;
-  background: color-mix(
-    in oklab,
-    var(--surface-color, #101923) 96%,
-    var(--text-color, #f5f7fb) 2%
-  );
-  text-align: center;
-}
-
-.friend-requests__state mat-icon {
-  width: 30px;
-  height: 30px;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 46%, transparent);
-  font-size: 30px;
-}
-
-.friend-requests__state h2,
-.friend-requests__state p {
-  margin: 0;
-}
-
-.friend-requests__state h2 {
-  color: var(--text-color, #f5f7fb);
-  font-size: clamp(1.04rem, 1.8vw, 1.2rem);
-  font-weight: 880;
-}
-
-.friend-requests__state p {
-  max-width: 32rem;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 64%, transparent);
-  font-size: 0.88rem;
-  line-height: 1.4;
-}
-
-.friend-requests__loader {
-  width: 30px;
-  height: 30px;
-  border: 3px solid color-mix(
-    in oklab,
-    var(--primary-color, #ff7070) 22%,
-    transparent
-  );
-  border-top-color: var(--primary-color, #ff7070);
-  border-radius: 50%;
-  animation: friend-requests-spin 850ms linear infinite;
-}
-
-@keyframes friend-requests-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 @media (hover: hover) and (pointer: fine) {
   .request-card:hover,
   .request-card:focus-within {
@@ -503,10 +412,6 @@
 @media (max-width: 680px) {
   .friend-requests {
     gap: 10px;
-  }
-
-  .friend-requests__header {
-    padding-inline: 0;
   }
 
   .request-card {
@@ -578,8 +483,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .request-card,
-  .request-action,
-  .friend-requests__loader {
+  .request-action {
     transition: none !important;
     animation: none !important;
   }
@@ -589,8 +493,7 @@ html.high-contrast .request-card,
 html.high-contrast .request-action,
 html.high-contrast .request-card__thumb,
 html.high-contrast .request-card__role,
-html.high-contrast .friend-requests__tab-count,
-html.high-contrast .friend-requests__state {
+html.high-contrast .friend-requests__tab-count {
   border-color: currentColor !important;
   box-shadow: none !important;
 }
