@@ -3163,6 +3163,27 @@ describe('Canonical UI boundary', () => {
     expect(styles).not.toContain('.feed-pagination button {');
   });
 
+  it('mantém viewer de mídia fora do SocialExplorePageComponent', () => {
+    const component = source(
+      'src/app/explore/pages/social-explore-page/social-explore-page.component.ts'
+    );
+    const facade = source(
+      'src/app/explore/facades/social-explore-media-viewer.facade.ts'
+    );
+
+    expect(component).toContain('SocialExploreMediaViewerFacade');
+    expect(component).not.toContain('PublicMixedMediaViewerLauncherService');
+    expect(component).not.toContain('buildPublicMediaIdentity');
+    expect(component).not.toContain('openingMediaKey = signal');
+    expect(component).not.toContain('failedVideoPosterKeys = signal');
+    expect(component).not.toContain('reportVideoViewerError');
+
+    expect(facade).toContain('PublicMixedMediaViewerLauncherService');
+    expect(facade).toContain('buildPublicMediaIdentity');
+    expect(facade).toContain('openingMediaKey');
+    expect(facade).toContain('failedVideoPosterKeys');
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
