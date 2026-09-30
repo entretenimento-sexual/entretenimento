@@ -49,5 +49,3 @@
   color: color-mix(in oklab, var(--text-color) 76%, transparent);
   line-height: 1.55;
 }
-
-}
