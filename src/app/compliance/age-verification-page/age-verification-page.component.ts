@@ -25,6 +25,7 @@ import { LogoutService } from 'src/app/core/services/autentication/auth/logout.s
 import {
   AgeEligibilityService,
 } from 'src/app/core/services/compliance/age-eligibility.service';
+import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.component';
 
 interface AgeVerificationPageVm {
   state: IUserAgeEligibility;
@@ -45,7 +46,7 @@ interface PageFeedback {
 @Component({
   selector: 'app-age-verification-page',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, PageHeaderComponent],
   templateUrl: './age-verification-page.component.html',
   styleUrls: ['./age-verification-page.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
