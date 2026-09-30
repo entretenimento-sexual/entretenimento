@@ -2860,6 +2860,24 @@ describe('Canonical UI boundary', () => {
     expect(orchestrator).toContain('redirectOwnProfile$(');
   });
 
+  it('mantém afinidades fora do perfil alheio', () => {
+    const component = source(
+      'src/app/layout/other-user-profile-view/other-user-profile-view.component.ts'
+    );
+    const presenter = source(
+      'src/app/layout/other-user-profile-view/application/visited-profile-affinity.presenter.ts'
+    );
+
+    expect(component).toContain('VisitedProfileAffinityPresenter');
+    expect(component).not.toContain('CurrentUserStoreService');
+    expect(component).not.toContain('resolvePublicPreferenceLabel');
+    expect(component).not.toContain('evaluateDiscoveryCandidatePreference');
+
+    expect(presenter).toContain('CurrentUserStoreService');
+    expect(presenter).toContain('resolvePublicPreferenceLabel');
+    expect(presenter).toContain('evaluateDiscoveryCandidatePreference');
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
