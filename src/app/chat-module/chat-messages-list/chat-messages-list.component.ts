@@ -47,9 +47,8 @@ import { DirectThreadFacade } from 'src/app/messaging/direct-chat/application/di
 
 import { RoomMessagesService } from 'src/app/core/services/batepapo/room-services/room-messages.service';
 
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 
 type ThreadViewItem = {
   kind: 'date-separator' | 'message';
@@ -97,8 +96,7 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
     private readonly directChatFacade: DirectChatFacade,
     private readonly directThreadFacade: DirectThreadFacade,
     private readonly roomMessage: RoomMessagesService,
-    private readonly errorNotifier: ErrorNotificationService,
-    private readonly globalError: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly privacyDebug: PrivacyDebugLoggerService,
     private readonly authSession: AuthSessionService,
     private readonly dateTime: DateTimeService,
@@ -744,24 +742,17 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
     context?: Record<string, unknown>,
     notifyUser = true
   ): void {
-    if (notifyUser) {
-      try {
-        this.errorNotifier.showError(userMessage);
-      } catch {}
-    }
-
-    try {
-      const err = error instanceof Error ? error : new Error(userMessage);
-
-      (err as any).original = error;
-      (err as any).context = {
+    this.applicationError.report(error, {
+      feature: 'direct-chat-thread',
+      operation: String(context?.['op'] ?? 'thread'),
+      fallbackMessage: userMessage,
+      presentation: notifyUser
+        ? undefined
+        : { surface: 'none', severity: 'error' },
+      metadata: {
         scope: 'ChatMessagesListComponent',
         ...(context ?? {}),
-      };
-      (err as any).skipUserNotification = true;
-      (err as any).silent = !notifyUser;
-
-      this.globalError.handleError(err);
-    } catch {}
+      },
+    });
   }
 }
