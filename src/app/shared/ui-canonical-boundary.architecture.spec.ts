@@ -80,6 +80,8 @@ const CANONICAL_ACTION_TEMPLATES = [
 ] as const;
 
 const CANONICAL_HEADER_TEMPLATES = [
+  'src/app/layout/friend-management/friend-list-page/friend-list-page.component.html',
+  'src/app/layout/friend-management/friend-requests/friend-requests.component.html',
   'src/app/account/pages/legal-documents/legal-documents.component.html',
   'src/app/account/pages/compliance-cases/compliance-cases.component.html',
   'src/app/account/pages/account-status/account-status.component.html',
@@ -102,6 +104,8 @@ const CANONICAL_HEADER_TEMPLATES = [
 ] as const;
 
 const CANONICALIZED_STYLES = [
+  'src/app/layout/friend-management/friend-list-page/friend-list-page.component.css',
+  'src/app/layout/friend-management/friend-requests/friend-requests.component.css',
   'src/app/account/pages/legal-documents/legal-documents.component.css',
   'src/app/account/pages/compliance-cases/compliance-cases.component.css',
   'src/app/account/pages/account-status/account-status.component.css',
@@ -236,6 +240,25 @@ describe('Canonical UI boundary', () => {
     expect(legalStyles).not.toContain('.legal-center h1');
     expect(complianceStyles).not.toContain('.compliance-button');
     expect(complianceStyles).not.toContain('.compliance-state');
+  });
+
+  it('mantém Friends usando header e estados canônicos', () => {
+    const list = source(
+      'src/app/layout/friend-management/friend-list-page/friend-list-page.component.html'
+    );
+    const requests = source(
+      'src/app/layout/friend-management/friend-requests/friend-requests.component.html'
+    );
+    const requestStyles = source(
+      'src/app/layout/friend-management/friend-requests/friend-requests.component.css'
+    );
+
+    expect(list).toContain('<app-page-header');
+    expect(requests).toContain('<app-page-header');
+    expect(requests).toContain('<app-content-state');
+    expect(requests).not.toContain('friend-requests__state');
+    expect(requestStyles).not.toContain('.friend-requests__state');
+    expect(requestStyles).not.toContain('.friend-requests__loader');
   });
 
   it('preserva remoções estruturais já concluídas', () => {
