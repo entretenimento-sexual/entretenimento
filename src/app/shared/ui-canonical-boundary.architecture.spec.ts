@@ -162,6 +162,18 @@ describe('Canonical UI boundary', () => {
     ).toEqual([]);
   });
 
+  it('mantém o overview de Conta no grid intrínseco canônico', () => {
+    const template = source(
+      'src/app/account/pages/account-home/account-home.component.html'
+    );
+    const styles = source(
+      'src/app/account/pages/account-section.css'
+    );
+
+    expect(template).toContain('account-overview-grid app-responsive-grid');
+    expect(styles).not.toContain('.account-overview-grid {\n    grid-template-columns:');
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
