@@ -44,15 +44,28 @@ describe('DiscoveryPublicProfilesFacade', () => {
     dispatch: vi.fn(),
   };
 
+  const emptyDebugSummary: DiscoveryCardEnrichmentResult['debugSummary'] = {
+    mode: 'all',
+    sourceTotal: 0,
+    candidateTotal: 0,
+    acceptedTotal: 0,
+    rejectedTotal: 0,
+    onlineTotal: 0,
+    withDistanceTotal: 0,
+    withMediaTotal: 0,
+    withVideoTotal: 0,
+    rejectedByReason: {},
+    topScores: [],
+  };
+
   const cardEnrichmentMock = {
     buildCardsResult: vi.fn(
-      (): DiscoveryCardEnrichmentResult =>
-        ({
-          profiles: [],
-          rejected: [],
-          scores: [],
-          debugSummary: {},
-        }) as DiscoveryCardEnrichmentResult
+      (): DiscoveryCardEnrichmentResult => ({
+        profiles: [],
+        rejected: [],
+        scores: [],
+        debugSummary: emptyDebugSummary,
+      })
     ),
   };
 
@@ -84,7 +97,7 @@ describe('DiscoveryPublicProfilesFacade', () => {
       profiles: [],
       rejected: [],
       scores: [],
-      debugSummary: {},
+      debugSummary: emptyDebugSummary,
     });
 
     TestBed.configureTestingModule({
@@ -195,7 +208,7 @@ describe('DiscoveryPublicProfilesFacade', () => {
       profiles: [{ uid: 'profile-1', nickname: 'Profile 1' }],
       rejected: [],
       scores: [],
-      debugSummary: {},
+      debugSummary: emptyDebugSummary,
     });
 
     intentStatusMock.watchActiveStatusesForRegion$.mockReturnValue(
