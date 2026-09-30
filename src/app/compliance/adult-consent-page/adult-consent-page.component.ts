@@ -8,11 +8,12 @@ import { LogoutService } from 'src/app/core/services/autentication/auth/logout.s
 import { AdultConsentService } from 'src/app/core/services/compliance/adult-consent.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.component';
 
 @Component({
   selector: 'app-adult-consent-page',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, PageHeaderComponent],
   templateUrl: './adult-consent-page.component.html',
   styleUrls: ['./adult-consent-page.component.css'],
 })
