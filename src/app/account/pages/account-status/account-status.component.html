@@ -2,17 +2,20 @@
 <main class="account-status-page app-page" aria-label="Status da conta">
   <section class="account-status-shell ui-container">
     @if (vm$ | async; as vm) {
-      <header class="account-status-hero">
-        <p class="account-status-hero__eyebrow">Estado da conta</p>
-        <h1>{{ vm.title }}</h1>
-        <p class="account-status-hero__subtitle">{{ vm.description }}</p>
-
-        <span class="account-status-badge" role="status">
+      <app-page-header
+        [title]="vm.title"
+        [subtitle]="vm.description"
+      >
+        <span
+          page-actions
+          class="account-status-badge"
+          role="status"
+        >
           {{ vm.badgeLabel }}
         </span>
-      </header>
+      </app-page-header>
 
-      <section class="account-status-card" aria-label="Detalhes do estado da conta">
+      <section class="app-card account-status-card" aria-label="Detalhes do estado da conta">
         @if (vm.suspensionReason) {
           <article class="account-status-item">
             <span class="label">Motivo</span>
@@ -43,7 +46,7 @@
       </section>
 
       @if (vm.isBlocked) {
-        <section class="account-status-card" aria-label="Manifestação e revisão">
+        <section class="app-card account-status-card" aria-label="Manifestação e revisão">
           <h2>Manifestação e revisão</h2>
           <p>
             Consulte avisos de conformidade, prazos e manifestações vinculados à sua conta. Uma suspeita em análise não equivale a infração confirmada.
@@ -102,9 +105,11 @@
         />
       }
     } @else {
-      <section class="account-status-card" role="status" aria-live="polite">
-        <p>Carregando o estado da conta...</p>
-      </section>
+      <app-content-state
+        state="loading"
+        message="Carregando o estado da conta..."
+        [skeletonRows]="2"
+      />
     }
   </section>
 </main>
