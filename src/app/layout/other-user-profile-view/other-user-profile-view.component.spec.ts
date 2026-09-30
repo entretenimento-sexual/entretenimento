@@ -311,7 +311,7 @@ describe('OtherUserProfileViewComponent', () => {
       By.css('.other-profile-page__title')
     ).nativeElement as HTMLElement;
     const primaryAction = fixture.debugElement.query(
-      By.css('.other-profile-page__action--primary')
+      By.css('.app-action--primary')
     ).nativeElement as HTMLButtonElement;
 
     expect(hero).toBeTruthy();
