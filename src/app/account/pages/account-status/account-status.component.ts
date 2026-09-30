@@ -35,11 +35,13 @@ import {
   type RuntimeAccountLifecycleStatus,
 } from '@core/services/autentication/auth/account-lifecycle.policy';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
+import { PageHeaderComponent } from '../../../shared/page-header/page-header.component';
+import { ContentStateComponent } from '../../../shared/content-state/content-state.component';
 
 @Component({
   selector: 'app-account-status',
   standalone: true,
-  imports: [CommonModule, RouterModule, AccountLifecycleDialogComponent],
+  imports: [CommonModule, RouterModule, AccountLifecycleDialogComponent, PageHeaderComponent, ContentStateComponent],
   templateUrl: './account-status.component.html',
   styleUrl: './account-status.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
