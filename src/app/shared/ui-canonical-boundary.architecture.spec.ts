@@ -3147,6 +3147,22 @@ describe('Canonical UI boundary', () => {
 );
   });
 
+  it('mantém estados genéricos do Social Explore nas primitives canônicas', () => {
+    const template = source(
+      'src/app/explore/pages/social-explore-page/social-explore-page.component.html'
+    );
+    const styles = source(
+      'src/app/explore/pages/social-explore-page/social-explore-page.component.css'
+    );
+
+    expect(template).toContain('<app-content-state');
+    expect(template).toContain('app-action app-action--ghost');
+    expect(template).toContain('feed-empty app-card app-card--flat');
+
+    expect(styles).not.toContain('.feed-empty__copy');
+    expect(styles).not.toContain('.feed-pagination button {');
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
