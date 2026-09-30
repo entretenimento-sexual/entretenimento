@@ -32,10 +32,12 @@ import {
   ConfirmationDialogComponent,
 } from 'src/app/shared/components-globais/confirmation-dialog/confirmation-dialog.component';
 
+import { ContentStateComponent } from '../../../shared/content-state/content-state.component';
+
 @Component({
   selector: 'app-account-subscription',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, ContentStateComponent],
   templateUrl: './account-subscription.component.html',
   styleUrl: '../account-section.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
