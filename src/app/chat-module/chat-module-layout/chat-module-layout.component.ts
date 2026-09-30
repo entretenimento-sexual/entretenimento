@@ -53,10 +53,7 @@ import {
   tap,
 } from 'rxjs/operators';
 
-import {
-  takeUntilDestroyed,
-  toObservable,
-} from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
@@ -68,7 +65,6 @@ import { ErrorNotificationService } from 'src/app/core/services/error-handler/er
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
-import { DirectChatFacade } from 'src/app/messaging/direct-chat/application/direct-chat.facade';
 import {
   DIRECT_CHAT_MAX_MESSAGE_LENGTH,
   directMessageLength,
@@ -80,22 +76,17 @@ import {
 import { DirectChatNavigationOrchestrator } from '../application/direct-chat-navigation.orchestrator';
 import { DirectChatComposeAccessFacade } from '../application/direct-chat-compose-access.facade';
 import { DirectChatSendOrchestrator } from '../application/direct-chat-send.orchestrator';
-
-type ChatSelectionType = 'chat';
-
-type ChatSelectionEvent = {
-  id: string;
-  type: ChatSelectionType;
-  peerUid?: string | null;
-  peerName?: string | null;
-  peerPhotoURL?: string | null;
-};
+import {
+  DirectChatSelectionContextFacade,
+  DirectChatSelectionEvent,
+  DirectChatSelectionType,
+} from '../application/direct-chat-selection-context.facade';
 
 @Component({
   selector: 'app-chat-module-layout',
   templateUrl: './chat-module-layout.component.html',
   styleUrls: ['./chat-module-layout.component.css'],
-  providers: [DirectChatNavigationOrchestrator, DirectChatComposeAccessFacade, DirectChatSendOrchestrator],
+  providers: [DirectChatNavigationOrchestrator, DirectChatComposeAccessFacade, DirectChatSendOrchestrator, DirectChatSelectionContextFacade],
   standalone: false,
 })
 export class ChatModuleLayoutComponent implements OnInit {
@@ -107,10 +98,10 @@ export class ChatModuleLayoutComponent implements OnInit {
   private readonly authSession = inject(AuthSessionService);
   private readonly currentUserStore = inject(CurrentUserStoreService);
 
-  private readonly directChatFacade = inject(DirectChatFacade);
   private readonly navigationOrchestrator = inject(DirectChatNavigationOrchestrator);
   private readonly composeAccessFacade = inject(DirectChatComposeAccessFacade);
   private readonly sendOrchestrator = inject(DirectChatSendOrchestrator);
+  private readonly selectionContext = inject(DirectChatSelectionContextFacade);
 
 
   private readonly route = inject(ActivatedRoute);
@@ -122,10 +113,6 @@ export class ChatModuleLayoutComponent implements OnInit {
   // ---------------------------------------------------------------------------
   // Internal reactive state
   // ---------------------------------------------------------------------------
-
-  private readonly selectedChatIdSignal = signal<string | null>(null);
-  private readonly selectedTypeSignal = signal<ChatSelectionType | null>(null);
-  private readonly activeChatPeerUidSignal = signal<string | null>(null);
 
   readonly isSendingMessage = signal(false);
 
@@ -142,21 +129,6 @@ export class ChatModuleLayoutComponent implements OnInit {
 
   private readonly sendStatusMessageSignal = signal(
     'Selecione uma conversa para enviar mensagem.'
-  );
-
-  private readonly selectedChatId$ = toObservable(this.selectedChatIdSignal).pipe(
-    distinctUntilChanged(),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
-
-  private readonly selectedType$ = toObservable(this.selectedTypeSignal).pipe(
-    distinctUntilChanged(),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
-
-  private readonly activeChatPeerUid$ = toObservable(this.activeChatPeerUidSignal).pipe(
-    distinctUntilChanged(),
-    shareReplay({ bufferSize: 1, refCount: true })
   );
 
   // ---------------------------------------------------------------------------
@@ -209,12 +181,13 @@ get shouldShowComposerHelp(): boolean {
     !!this.directMessageBlockedReason()
   );
 }
-  /**
-   * Mantidas como propriedades públicas para não quebrar o template atual.
-   * Internamente, a fonte reativa é selectedChatIdSignal/selectedTypeSignal.
-   */
-  selectedChatId: string | undefined;
-  selectedType: ChatSelectionType | undefined;
+  get selectedChatId(): string | undefined {
+    return this.selectionContext.selectedChatId() ?? undefined;
+  }
+
+  get selectedType(): DirectChatSelectionType | undefined {
+    return this.selectionContext.selectedType() ?? undefined;
+  }
 
   /**
    * userId da rota é apenas contexto.
@@ -227,12 +200,17 @@ get shouldShowComposerHelp(): boolean {
    */
   currentUserUid: string | null = null;
 
-  /**
-   * Contexto do contato ativo para o header.
-   */
-  activeChatPeerUid: string | null = null;
-  activeChatPeerName: string | null = null;
-  activeChatPeerPhotoURL: string | null = null;
+  get activeChatPeerUid(): string | null {
+    return this.selectionContext.activePeerUid();
+  }
+
+  get activeChatPeerName(): string | null {
+    return this.selectionContext.activePeerName();
+  }
+
+  get activeChatPeerPhotoURL(): string | null {
+    return this.selectionContext.activePeerPhotoURL();
+  }
 
   // ---------------------------------------------------------------------------
   // Core streams
@@ -255,40 +233,11 @@ get shouldShowComposerHelp(): boolean {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-  /**
-   * Resolve o UID do outro participante:
-   * - primeiro pelo contexto visual ativo;
-   * - depois pela conversa selecionada na DirectChatFacade.
-   */
-  readonly selectedDirectPeerUid$: Observable<string | null> = combineLatest([
-    this.directChatFacade.selectedChat$,
-    this.currentUid$,
-    this.activeChatPeerUid$,
-  ]).pipe(
-    map(([chat, currentUid, activePeerUid]) => {
-      const safeActivePeerUid = (activePeerUid ?? '').trim();
-      if (safeActivePeerUid) {
-        return safeActivePeerUid;
-      }
+  readonly selectedDirectPeerUid$: Observable<string | null> =
+    this.selectionContext.selectedDirectPeerUid$(this.currentUid$);
 
-      const safeCurrentUid = (currentUid ?? '').trim();
-      if (!safeCurrentUid) {
-        return null;
-      }
-
-      const participants = Array.isArray(chat?.participants)
-        ? chat.participants
-        : [];
-
-      return (
-        participants
-          .map((uid) => String(uid ?? '').trim())
-          .find((uid) => !!uid && uid !== safeCurrentUid) ?? null
-      );
-    }),
-    distinctUntilChanged(),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
+  private readonly selectedChatId$ = this.selectionContext.selectedChatId$;
+  private readonly selectedType$ = this.selectionContext.selectedType$;
 
   // ---------------------------------------------------------------------------
   // Lifecycle
@@ -330,71 +279,14 @@ get shouldShowComposerHelp(): boolean {
   }
 
   // ---------------------------------------------------------------------------
-  // Selection helpers
+  // Selection context
   // ---------------------------------------------------------------------------
 
-  private applySelection(
-    chatId: string | null | undefined,
-    type: ChatSelectionType | null | undefined
-  ): void {
-    const safeChatId = (chatId ?? '').trim() || null;
-    const safeType = type ?? null;
-
-    this.selectedChatId = safeChatId ?? undefined;
-    this.selectedType = safeType ?? undefined;
-
-    this.selectedChatIdSignal.set(safeChatId);
-    this.selectedTypeSignal.set(safeType);
-  }
-
-  private clearActiveChatPeer(): void {
-    this.activeChatPeerUid = null;
-    this.activeChatPeerName = null;
-    this.activeChatPeerPhotoURL = null;
-    this.activeChatPeerUidSignal.set(null);
-  }
-
-  private applyActiveChatPeer(meta: {
-    peerUid?: string | null;
-    peerName?: string | null;
-    peerPhotoURL?: string | null;
-  } | null | undefined): void {
-    const peerUid = (meta?.peerUid ?? '').trim() || null;
-
-    this.activeChatPeerUid = peerUid;
-    this.activeChatPeerName = (meta?.peerName ?? '').trim() || null;
-    this.activeChatPeerPhotoURL = (meta?.peerPhotoURL ?? '').trim() || null;
-
-    this.activeChatPeerUidSignal.set(peerUid);
-  }
-
   private resolveActiveChatPeerFromUid(peerUid: string): void {
-    const safePeerUid = (peerUid ?? '').trim();
-
-    if (!safePeerUid) {
-      this.clearActiveChatPeer();
-      return;
-    }
-
-    this.activeChatPeerUid = safePeerUid;
-    this.activeChatPeerUidSignal.set(safePeerUid);
-
-    this.navigationOrchestrator.resolvePeer$(safePeerUid)
-      .pipe(
-        take(1),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe((peer) => {
-        this.activeChatPeerName =
-          peer?.name ||
-          this.activeChatPeerName ||
-          'Conversa direta';
-
-        this.activeChatPeerPhotoURL =
-          peer?.photoURL ||
-          this.activeChatPeerPhotoURL ||
-          null;
-      });
+    this.selectionContext
+      .resolvePeer$(peerUid)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe();
   }
 
   // ---------------------------------------------------------------------------
@@ -434,9 +326,7 @@ get shouldShowComposerHelp(): boolean {
 
           if (!this.currentUserUid) {
             this.messageContent = '';
-            this.clearActiveChatPeer();
-            this.applySelection(null, null);
-            this.directChatFacade.clearSelection();
+            this.selectionContext.clear();
           }
 
           this.dbg('observeAuthenticatedUser.uid$', {
@@ -496,14 +386,13 @@ get shouldShowComposerHelp(): boolean {
             return;
           }
 
-          this.applySelection(resolved.chatId, 'chat');
-          this.directChatFacade.selectChat(resolved.chatId);
+          this.selectionContext.select(resolved.chatId, 'chat');
           this.directMessageBlockedReason.set(null);
 
           if (resolved.withUser) {
             this.resolveActiveChatPeerFromUid(resolved.withUser);
           } else {
-            this.clearActiveChatPeer();
+            this.selectionContext.clearPeer();
           }
 
           this.dbg('observeChatDeepLink() -> selected chat', {
@@ -623,28 +512,15 @@ get shouldShowComposerHelp(): boolean {
   // UI events
   // ---------------------------------------------------------------------------
 
-  onChatSelected(event: ChatSelectionEvent): void {
-    const safeId = (event?.id ?? '').trim();
-    const safeType = event?.type ?? undefined;
-
-    if (!safeId || !safeType) {
+  onChatSelected(event: DirectChatSelectionEvent): void {
+    if (!this.selectionContext.selectEvent(event)) {
       this.dbg('onChatSelected() ignorado', {
         hasEvent: !!event,
       });
-
       return;
     }
 
-    this.applySelection(safeId, safeType);
     this.directMessageBlockedReason.set(null);
-
-    this.directChatFacade.selectChat(safeId);
-
-    this.applyActiveChatPeer({
-      peerUid: event.peerUid,
-      peerName: event.peerName,
-      peerPhotoURL: event.peerPhotoURL,
-    });
 
     if (event.peerUid && !event.peerName) {
       this.resolveActiveChatPeerFromUid(event.peerUid);
