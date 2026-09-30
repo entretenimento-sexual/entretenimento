@@ -1563,6 +1563,29 @@ describe('Canonical UI boundary', () => {
     expect(styles).not.toContain('@keyframes other-profile-pulse');
   });
 
+  it('mantém amizade e chat direto fora do perfil alheio', () => {
+    const component = source(
+      'src/app/layout/other-user-profile-view/other-user-profile-view.component.ts'
+    );
+    const friendship = source(
+      'src/app/layout/other-user-profile-view/application/visited-profile-friendship.facade.ts'
+    );
+    const interactions = source(
+      'src/app/layout/other-user-profile-view/application/visited-profile-interaction.orchestrator.ts'
+    );
+
+    expect(component).toContain('VisitedProfileFriendshipFacade');
+    expect(component).toContain('VisitedProfileInteractionOrchestrator');
+    expect(component).not.toContain('FriendRequest');
+    expect(component).not.toContain('watchOutboundRequests');
+    expect(component).not.toContain('watchFriends');
+    expect(component).not.toContain('DirectChatService');
+
+    expect(friendship).toContain('FriendshipService');
+    expect(interactions).toContain('FriendshipService');
+    expect(interactions).toContain('DirectChatService');
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
