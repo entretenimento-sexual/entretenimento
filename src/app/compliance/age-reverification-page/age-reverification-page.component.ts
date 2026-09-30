@@ -13,6 +13,7 @@ import {
   AgeReverificationService,
 } from 'src/app/core/services/compliance/age-reverification.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { normalizeAgeReverificationStatus } from 'src/app/core/guards/compliance/age-reverification-status.util';
 
 interface AgeReverificationPageVm {
@@ -35,6 +36,7 @@ interface AgeReverificationPageVm {
 export class AgeReverificationPageComponent {
   private readonly ageReverification = inject(AgeReverificationService);
   private readonly notification = inject(ErrorNotificationService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly logoutService = inject(LogoutService);
   private readonly router = inject(Router);
 
@@ -91,11 +93,16 @@ export class AgeReverificationPageComponent {
     this.ageReverification.submitCurrent$(this.form.getRawValue())
       .pipe(
         take(1),
-        catchError((error) => {
-          this.notification.showError(
-            'Não foi possível enviar a revalidação. Revise os dados e tente novamente.',
-            this.errorDetail(error)
-          );
+        catchError((error: unknown) => {
+          this.applicationError.report(error, {
+            feature: 'age-reverification',
+            operation: 'submit',
+            fallbackMessage:
+              'Não foi possível enviar a revalidação. Revise os dados e tente novamente.',
+            metadata: {
+              scope: 'AgeReverificationPageComponent',
+            },
+          });
           return EMPTY;
         }),
         finalize(() => this.isSaving.set(false))
@@ -120,11 +127,16 @@ export class AgeReverificationPageComponent {
     this.ageReverification.requestAlternativeReview$()
       .pipe(
         take(1),
-        catchError((error) => {
-          this.notification.showError(
-            'Não foi possível solicitar a análise alternativa agora. Tente novamente.',
-            this.errorDetail(error)
-          );
+        catchError((error: unknown) => {
+          this.applicationError.report(error, {
+            feature: 'age-reverification',
+            operation: 'requestAlternativeReview',
+            fallbackMessage:
+              'Não foi possível solicitar a análise alternativa agora. Tente novamente.',
+            metadata: {
+              scope: 'AgeReverificationPageComponent',
+            },
+          });
           return EMPTY;
         }),
         finalize(() => this.isSaving.set(false))
@@ -150,11 +162,15 @@ export class AgeReverificationPageComponent {
     this.ageReverification.appealCurrent$(this.appealForm.getRawValue())
       .pipe(
         take(1),
-        catchError((error) => {
-          this.notification.showError(
-            'Não foi possível registrar a contestação agora.',
-            this.errorDetail(error)
-          );
+        catchError((error: unknown) => {
+          this.applicationError.report(error, {
+            feature: 'age-reverification',
+            operation: 'appeal',
+            fallbackMessage: 'Não foi possível registrar a contestação agora.',
+            metadata: {
+              scope: 'AgeReverificationPageComponent',
+            },
+          });
           return EMPTY;
         }),
         finalize(() => this.isSaving.set(false))
@@ -165,22 +181,6 @@ export class AgeReverificationPageComponent {
           'Contestação registrada. A restrição permanece durante a nova análise.'
         );
       });
-  }
-
-  private errorDetail(error: unknown): string | undefined {
-    if (error instanceof Error) {
-      const message = String(error.message ?? '').trim();
-      return message || undefined;
-    }
-
-    if (error && typeof error === 'object') {
-      const message = String(
-        (error as { message?: unknown }).message ?? ''
-      ).trim();
-      return message || undefined;
-    }
-
-    return undefined;
   }
 
   goToAccount(): void {
@@ -195,8 +195,15 @@ export class AgeReverificationPageComponent {
     this.logoutService.logout$()
       .pipe(
         take(1),
-        catchError(() => {
-          this.notification.showError('Não foi possível encerrar sua sessão.');
+        catchError((error: unknown) => {
+          this.applicationError.report(error, {
+            feature: 'age-reverification',
+            operation: 'logout',
+            fallbackMessage: 'Não foi possível encerrar sua sessão.',
+            metadata: {
+              scope: 'AgeReverificationPageComponent',
+            },
+          });
           return EMPTY;
         })
       )
