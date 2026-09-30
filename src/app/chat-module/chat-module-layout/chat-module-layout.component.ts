@@ -36,12 +36,11 @@ import {
   signal,
 } from '@angular/core';
 
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import {
   Observable,
   combineLatest,
   of,
-  throwError,
 } from 'rxjs';
 
 import {
@@ -68,14 +67,12 @@ import { AuthSessionService } from 'src/app/core/services/autentication/auth/aut
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
 
-import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
-import { DirectChatService } from 'src/app/messaging/direct-chat/services/direct-chat.service';
 import { DirectChatFacade } from 'src/app/messaging/direct-chat/application/direct-chat.facade';
 import { DirectThreadFacade } from 'src/app/messaging/direct-chat/application/direct-thread.facade';
 import {
@@ -87,6 +84,7 @@ import {
   resolveDirectMessageBlockMessage,
   trimDirectMessageContent,
 } from '../policies/direct-chat-composer.policy';
+import { DirectChatNavigationOrchestrator } from '../application/direct-chat-navigation.orchestrator';
 
 type ChatSelectionType = 'chat';
 
@@ -98,15 +96,11 @@ type ChatSelectionEvent = {
   peerPhotoURL?: string | null;
 };
 
-interface ChatDeepLinkPayload {
-  openChatId?: string;
-  withUser?: string;
-}
-
 @Component({
   selector: 'app-chat-module-layout',
   templateUrl: './chat-module-layout.component.html',
   styleUrls: ['./chat-module-layout.component.css'],
+  providers: [DirectChatNavigationOrchestrator],
   standalone: false,
 })
 export class ChatModuleLayoutComponent implements OnInit {
@@ -119,15 +113,13 @@ export class ChatModuleLayoutComponent implements OnInit {
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly accessControl = inject(AccessControlService);
 
-  private readonly directChatService = inject(DirectChatService);
   private readonly directChatFacade = inject(DirectChatFacade);
   private readonly directThreadFacade = inject(DirectThreadFacade);
+  private readonly navigationOrchestrator = inject(DirectChatNavigationOrchestrator);
 
-  private readonly firestoreUserQuery = inject(FirestoreUserQueryService);
   private readonly friendshipService = inject(FriendshipService);
 
   private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
 
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly applicationError = inject(ApplicationErrorService);
@@ -136,12 +128,6 @@ export class ChatModuleLayoutComponent implements OnInit {
   // ---------------------------------------------------------------------------
   // Internal reactive state
   // ---------------------------------------------------------------------------
-
-  /**
-   * Evita reaplicação infinita do mesmo deep-link.
-   * É resetado quando a URL fica limpa.
-   */
-  private appliedDeepLinkKey: string | null = null;
 
   private readonly selectedChatIdSignal = signal<string | null>(null);
   private readonly selectedTypeSignal = signal<ChatSelectionType | null>(null);
@@ -479,32 +465,19 @@ get shouldShowComposerHelp(): boolean {
     this.activeChatPeerUid = safePeerUid;
     this.activeChatPeerUidSignal.set(safePeerUid);
 
-    this.firestoreUserQuery.getPublicUserById$(safePeerUid)
+    this.navigationOrchestrator.resolvePeer$(safePeerUid)
       .pipe(
         take(1),
-        catchError((error) => {
-          this.reportError(
-            'Não foi possível carregar o contexto da conversa.',
-            error,
-            {
-              op: 'resolveActiveChatPeerFromUid',
-              peerUid: safePeerUid,
-            },
-            false
-          );
-
-          return of(null);
-        }),
         takeUntilDestroyed(this.destroyRef)
       )
-      .subscribe((user) => {
+      .subscribe((peer) => {
         this.activeChatPeerName =
-          user?.nickname?.trim() ||
+          peer?.name ||
           this.activeChatPeerName ||
           'Conversa direta';
 
         this.activeChatPeerPhotoURL =
-          user?.photoURL?.trim() ||
+          peer?.photoURL ||
           this.activeChatPeerPhotoURL ||
           null;
       });
@@ -600,77 +573,9 @@ get shouldShowComposerHelp(): boolean {
   // ---------------------------------------------------------------------------
 
   private observeChatDeepLink(): void {
-    const queryDeepLink$ = this.route.queryParamMap.pipe(
-      map((query): ChatDeepLinkPayload => ({
-        openChatId: (query.get('openChatId') ?? '').trim() || undefined,
-        withUser: (query.get('withUser') ?? '').trim() || undefined,
-      })),
-      distinctUntilChanged(
-        (a, b) =>
-          a.openChatId === b.openChatId &&
-          a.withUser === b.withUser
-      ),
-      tap((payload) => {
-        if (!payload.openChatId && !payload.withUser) {
-          this.appliedDeepLinkKey = null;
-        }
-      }),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
-
-    combineLatest([
-      this.currentUid$,
-      queryDeepLink$,
-    ])
+    this.navigationOrchestrator
+      .observeResolvedDeepLinks$(this.currentUid$, this.route.queryParamMap)
       .pipe(
-        filter(([uid, payload]) => {
-          return !!uid && (!!payload.openChatId || !!payload.withUser);
-        }),
-        switchMap(([uid, payload]) => {
-          const safeUid = (uid ?? '').trim();
-
-          const key = `${safeUid}:${payload.openChatId ?? ''}:${payload.withUser ?? ''}`;
-
-          if (this.appliedDeepLinkKey === key) {
-            this.dbg('observeChatDeepLink() -> skip repeated deep-link', {
-              key,
-            });
-
-            return of(null);
-          }
-
-          this.appliedDeepLinkKey = key;
-
-          if (payload.openChatId) {
-            return of({
-              chatId: payload.openChatId,
-              withUser: payload.withUser,
-            });
-          }
-
-          if (!payload.withUser) {
-            return of(null);
-          }
-
-          if (payload.withUser === safeUid) {
-            return throwError(
-              () => new Error('withUser inválido para chat direto.')
-            );
-          }
-
-          return this.directChatService
-            .ensureDirectChatIdWithUser$(payload.withUser)
-            .pipe(
-              map((chatId) =>
-                chatId
-                  ? {
-                      chatId,
-                      withUser: payload.withUser,
-                    }
-                  : null
-              )
-            );
-        }),
         tap((resolved) => {
           if (!resolved?.chatId) {
             this.consumeDeepLinkQueryParams();
@@ -711,22 +616,16 @@ get shouldShowComposerHelp(): boolean {
   }
 
   private consumeDeepLinkQueryParams(): void {
-    this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: {
-        openChatId: null,
-        withUser: null,
-      },
-      queryParamsHandling: 'merge',
-      replaceUrl: true,
-    }).catch((error) => {
-      this.reportError(
-        'A conversa foi aberta, mas a limpeza da URL falhou.',
-        error,
-        { op: 'consumeDeepLinkQueryParams' },
-        false
-      );
-    });
+    this.navigationOrchestrator
+      .consumeDeepLinkQueryParams(this.route)
+      .catch((error) => {
+        this.reportError(
+          'A conversa foi aberta, mas a limpeza da URL falhou.',
+          error,
+          { op: 'consumeDeepLinkQueryParams' },
+          false
+        );
+      });
   }
 
   /**
