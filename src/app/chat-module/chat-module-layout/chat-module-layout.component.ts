@@ -715,20 +715,6 @@ if (this.isMessageTooLong) {
             });
           }
         }),
-        catchError((error) => {
-          this.reportError(
-            'Erro ao enviar mensagem.',
-            error,
-            {
-              op: 'sendMessage',
-              selectedChatId,
-              selectedType,
-            },
-            true
-          );
-
-          return of(null);
-        }),
         finalize(() => {
           this.isSendingMessage.set(false);
         }),
