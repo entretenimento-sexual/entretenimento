@@ -20,7 +20,7 @@
 import { Injectable } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 
-import { Observable, defer, from, of } from 'rxjs';
+import { Observable, defer, from, of, throwError } from 'rxjs';
 import {
   catchError,
   map,
@@ -178,7 +178,7 @@ export class DirectThreadService {
       }),
       catchError((error) => {
         this.reportSendMessageError(error, safeChatId);
-        return of(null);
+        return throwError(() => error);
       })
     );
   }
