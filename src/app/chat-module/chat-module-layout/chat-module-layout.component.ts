@@ -69,7 +69,6 @@ import { ApplicationErrorService } from 'src/app/core/services/error-handler/app
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
 import { DirectChatFacade } from 'src/app/messaging/direct-chat/application/direct-chat.facade';
-import { DirectThreadFacade } from 'src/app/messaging/direct-chat/application/direct-thread.facade';
 import {
   DIRECT_CHAT_MAX_MESSAGE_LENGTH,
   directMessageLength,
@@ -109,7 +108,6 @@ export class ChatModuleLayoutComponent implements OnInit {
   private readonly currentUserStore = inject(CurrentUserStoreService);
 
   private readonly directChatFacade = inject(DirectChatFacade);
-  private readonly directThreadFacade = inject(DirectThreadFacade);
   private readonly navigationOrchestrator = inject(DirectChatNavigationOrchestrator);
   private readonly composeAccessFacade = inject(DirectChatComposeAccessFacade);
   private readonly sendOrchestrator = inject(DirectChatSendOrchestrator);
