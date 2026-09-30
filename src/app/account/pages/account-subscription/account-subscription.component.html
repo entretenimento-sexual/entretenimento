@@ -151,13 +151,19 @@
         </div>
       </section>
     } @else {
-      <section class="account-context-panel" role="alert">
-        <p>Não foi possível carregar sua assinatura agora.</p>
-      </section>
+      <app-content-state
+        state="error"
+        title="Não foi possível carregar a assinatura"
+        message="Não foi possível carregar sua assinatura agora."
+        [compact]="true"
+      />
     }
   } @else {
-    <section class="account-context-panel" role="status" aria-live="polite">
-      <p>Carregando assinatura...</p>
-    </section>
+    <app-content-state
+      state="loading"
+      message="Carregando assinatura..."
+      [compact]="true"
+      [skeletonRows]="2"
+    />
   }
 </section>
