@@ -8,12 +8,10 @@
   aria-labelledby="fr-title"
   aria-describedby="fr-description"
 >
-  <header class="friend-requests__header">
-    <h1 id="fr-title">Solicitações de amizade</h1>
-    <p id="fr-description">
-      Gerencie convites recebidos e enviados em um só lugar.
-    </p>
-  </header>
+  <app-page-header
+    title="Solicitações de amizade"
+    subtitle="Gerencie convites recebidos e enviados em um só lugar."
+  />
 
   <mat-tab-group class="friend-requests__tabs" aria-labelledby="fr-title">
     <mat-tab>
@@ -30,23 +28,22 @@
       </ng-template>
 
       @if (loadingInbound$ | async) {
-        <section
-          class="friend-requests__state"
-          role="status"
-          aria-live="polite"
-        >
-          <span class="friend-requests__loader" aria-hidden="true"></span>
-          <p>Carregando solicitações recebidas...</p>
-        </section>
+        <app-content-state
+          state="loading"
+          message="Carregando solicitações recebidas..."
+          [compact]="true"
+          [skeletonRows]="2"
+        />
       }
 
       @if (inbound$ | async; as requests) {
         @if (requests.length === 0) {
-          <section class="friend-requests__state">
-            <mat-icon aria-hidden="true">person_add_disabled</mat-icon>
-            <h2>Nenhuma solicitação recebida</h2>
-            <p>Novos convites aparecerão aqui para você responder.</p>
-          </section>
+          <app-content-state
+            state="empty"
+            title="Nenhuma solicitação recebida"
+            message="Novos convites aparecerão aqui para você responder."
+            [compact]="true"
+          />
         } @else {
           <ul class="request-list">
             @for (req of requests; track trackById($index, req)) {
@@ -241,23 +238,22 @@
       </ng-template>
 
       @if (loadingOutbound$ | async) {
-        <section
-          class="friend-requests__state"
-          role="status"
-          aria-live="polite"
-        >
-          <span class="friend-requests__loader" aria-hidden="true"></span>
-          <p>Carregando solicitações enviadas...</p>
-        </section>
+        <app-content-state
+          state="loading"
+          message="Carregando solicitações enviadas..."
+          [compact]="true"
+          [skeletonRows]="2"
+        />
       }
 
       @if (outbound$ | async; as sent) {
         @if (sent.length === 0) {
-          <section class="friend-requests__state">
-            <mat-icon aria-hidden="true">outgoing_mail</mat-icon>
-            <h2>Nenhuma solicitação enviada</h2>
-            <p>Explore perfis públicos para iniciar uma nova conexão.</p>
-          </section>
+          <app-content-state
+            state="empty"
+            title="Nenhuma solicitação enviada"
+            message="Explore perfis públicos para iniciar uma nova conexão."
+            [compact]="true"
+          />
         } @else {
           <ul class="request-list">
             @for (req of sent; track trackById($index, req)) {
