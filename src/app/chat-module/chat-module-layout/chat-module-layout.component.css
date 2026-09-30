@@ -117,8 +117,6 @@
 .chat-shell__main-kicker,
 .chat-shell__main-title,
 .chat-shell__main-subtitle,
-.chat-shell__empty-title,
-.chat-shell__empty-text,
 .chat-shell__composer-help { margin: 0; }
 
 .chat-shell__main-kicker {
@@ -137,16 +135,14 @@
   font-weight: 800;
 }
 
-.chat-shell__main-subtitle,
-.chat-shell__empty-text {
+.chat-shell__main-subtitle {
   color: var(--chat-muted-text);
   font-size: 0.86rem;
   line-height: 1.35;
 }
 
 .chat-shell__main-title,
-.chat-shell__main-subtitle,
-.chat-shell__empty-text {
+.chat-shell__main-subtitle {
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -201,22 +197,10 @@
 }
 
 .chat-shell__empty-state {
+  display: grid;
+  gap: 16px;
   max-width: 620px;
-  padding: 24px 22px;
-  border: 1px solid var(--chat-border-soft);
-  border-radius: 20px;
-  background: color-mix(in oklab, var(--surface-color) 94%, var(--background-color));
-  text-align: center;
-  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.22);
   box-sizing: border-box;
-}
-
-.chat-shell__empty-title {
-  margin-bottom: 10px;
-  color: var(--text-color);
-  font-size: 1.06rem;
-  line-height: 1.25;
-  font-weight: 800;
 }
 
 .chat-shell__empty-actions {
@@ -244,35 +228,18 @@
 
 .chat-shell__composer-main textarea {
   flex: 1 1 auto;
-  width: 100%;
   min-width: 0;
   min-height: 46px;
   max-height: 144px;
   resize: none;
-  padding: 0.78rem 0.95rem;
-  border: 1px solid color-mix(in oklab, var(--surface-border) 82%, transparent);
   border-radius: 16px;
-  background: var(--chat-input-bg);
-  color: var(--text-color);
-  font: inherit;
   font-size: 0.94rem;
   line-height: 1.38;
   box-sizing: border-box;
-  transition: border-color 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
 }
 
 .chat-shell__composer-main textarea::placeholder {
   color: color-mix(in oklab, var(--text-color) 48%, transparent);
-}
-
-.chat-shell__composer-main textarea:hover:not(:disabled):not([readonly]) {
-  border-color: color-mix(in oklab, var(--primary-color) 34%, var(--surface-border));
-}
-
-.chat-shell__composer-main textarea:focus {
-  outline: none;
-  border-color: color-mix(in oklab, var(--primary-color) 74%, var(--surface-border));
-  box-shadow: var(--chat-focus-shadow);
 }
 
 .chat-shell__composer-main textarea[aria-invalid='true'] {
@@ -420,31 +387,8 @@
   width: var(--chat-send-width);
   min-width: var(--chat-send-width);
   min-height: 46px;
-  padding: 0 0.95rem;
-  border: none;
   border-radius: 14px;
-  background: var(--primary-color);
-  color: #fff;
-  font: inherit;
-  font-size: 0.92rem;
-  line-height: 1;
-  font-weight: 800;
-  cursor: pointer;
   box-sizing: border-box;
-  transition: transform 0.16s ease, opacity 0.16s ease, background-color 0.16s ease, filter 0.16s ease;
-}
-
-.chat-shell__send:hover:not(:disabled) { background: var(--primary-hover); }
-.chat-shell__send:active:not(:disabled) { transform: translateY(1px); }
-.chat-shell__send:focus-visible {
-  outline: var(--focus-ring, 3px solid color-mix(in oklab, var(--primary-color) 58%, white));
-  outline-offset: var(--focus-offset, 2px);
-}
-
-.chat-shell__send:disabled {
-  opacity: 0.48;
-  cursor: not-allowed;
-  filter: grayscale(0.18);
 }
 
 .chat-shell__composer-help {
@@ -499,18 +443,12 @@
   background: rgba(255, 91, 132, 0.16);
 }
 
-:host-context(html.dark-mode) .chat-shell__empty-state {
-  background: #101722;
-  border-color: rgba(240, 246, 252, 0.12);
-}
-
 :host-context(html.high-contrast) .chat-shell,
 :host-context(html.high-contrast) .chat-shell__main,
 :host-context(html.high-contrast) .chat-shell__content,
 :host-context(html.high-contrast) .chat-shell__sidebar,
 :host-context(html.high-contrast) .chat-shell__main-header,
 :host-context(html.high-contrast) .chat-shell__input,
-:host-context(html.high-contrast) .chat-shell__empty-state,
 :host-context(html.high-contrast) .chat-shell__emoji-trigger,
 :host-context(html.high-contrast) .chat-shell__emoji-panel,
 :host-context(html.high-contrast) .chat-shell__emoji-grid button,
@@ -523,7 +461,6 @@
 
 :host-context(html.high-contrast) .chat-shell__main-kicker,
 :host-context(html.high-contrast) .chat-shell__main-subtitle,
-:host-context(html.high-contrast) .chat-shell__empty-text,
 :host-context(html.high-contrast) .chat-shell__emoji-panel-header span,
 :host-context(html.high-contrast) .chat-shell__emoji-group p,
 :host-context(html.high-contrast) .chat-shell__composer-help {
