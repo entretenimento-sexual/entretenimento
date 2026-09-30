@@ -17,8 +17,6 @@ import {
   throwError,
 } from 'rxjs';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
-import { MatButtonModule } from '@angular/material/button';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 import { AppState } from 'src/app/store/states/app.state';
 import { updateFriendSettings } from 'src/app/store/actions/actions.interactions/actions.friends';
@@ -26,6 +24,7 @@ import { AuthSessionService } from 'src/app/core/services/autentication/auth/aut
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { CacheService } from 'src/app/core/services/general/cache/cache.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.component';
 
 interface FriendSettings {
   receiveRequests: boolean;
@@ -40,8 +39,7 @@ interface FriendSettings {
     CommonModule,
     ReactiveFormsModule,
     MatSlideToggleModule,
-    MatButtonModule,
-    MatProgressSpinnerModule,
+    PageHeaderComponent,
   ],
   templateUrl: './friend-settings.component.html',
   styleUrl: './friend-settings.component.css',
