@@ -51,6 +51,9 @@ function productionHtmlFiles(root: string): readonly string[] {
 
 const CANONICAL_ACTION_TEMPLATES = [
   'src/app/account/pages/account-home/account-home.component.html',
+  'src/app/account/pages/account-status/account-status.component.html',
+  'src/app/account/pages/subscription-history/subscription-history.component.html',
+  'src/app/account/pages/account-privilege-history/account-privilege-history.component.html',
   'src/app/authentication/login-component/login-component.html',
   'src/app/register-module/register.component.html',
   'src/app/preferences/pages/preferences-editor/preferences-editor.component.html',
@@ -89,6 +92,8 @@ const CANONICAL_HEADER_TEMPLATES = [
 ] as const;
 
 const CANONICALIZED_STYLES = [
+  'src/app/account/pages/account-status/account-status.component.css',
+  'src/app/account/pages/subscription-history/subscription-history.component.css',
   'src/app/authentication/login-component/login-component.css',
   'src/app/register-module/register.component.css',
   'src/app/preferences/pages/preferences-editor/preferences-editor.component.css',
