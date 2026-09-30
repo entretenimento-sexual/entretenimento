@@ -57,5 +57,3 @@
   padding: var(--space-3, 16px);
   color: color-mix(in oklab, var(--text-color) 68%, transparent);
 }
-
-}
