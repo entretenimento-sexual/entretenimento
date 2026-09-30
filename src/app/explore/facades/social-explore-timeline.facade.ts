@@ -211,6 +211,10 @@ export class SocialExploreTimelineFacade {
     private readonly statusService: UserIntentStatusService
   ) {}
 
+  retryVideoHighlights(): void {
+    this.exploreFeedFacade.retryVideoHighlights();
+  }
+
   loadMore$(): Observable<void> {
     return this.feedWindow$.pipe(
       take(1),
