@@ -39,8 +39,6 @@ import {
 } from 'rxjs/operators';
 
 import { ProfileOfficialCommunitiesComponent } from 'src/app/community/profile-official-communities/profile-official-communities.component';
-import { Friend } from 'src/app/core/interfaces/friendship/friend.interface';
-import { FriendRequest } from 'src/app/core/interfaces/friendship/friend-request.interface';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import {
   resolvePublicPreferenceLabel,
@@ -61,6 +59,10 @@ import { ProfileMediaShowcaseComponent } from 'src/app/media/shared/components/p
 import { SocialLinksAccordionComponent } from 'src/app/user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component';
 import { SharedModule } from '../../shared/shared.module';
 import { ContentStateComponent } from '../../shared/content-state/content-state.component';
+import {
+  VisitedProfileFriendshipFacade,
+  VisitedProfileFriendshipRelation,
+} from './application/visited-profile-friendship.facade';
 
 interface PublicIntentContextVm {
   title: string;
@@ -84,6 +86,7 @@ const DEFAULT_PROFILE_PHOTO_URL = 'assets/imagem-padrao.webp';
   styleUrls: ['./other-user-profile-view.component.css'],
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
+  providers: [VisitedProfileFriendshipFacade],
   imports: [
     CommonModule,
     RouterModule,
@@ -118,6 +121,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     private readonly currentUserStore: CurrentUserStoreService,
     private readonly userIntentStatus: UserIntentStatusService,
     private readonly friendshipService: FriendshipService,
+    private readonly visitedFriendship: VisitedProfileFriendshipFacade,
     private readonly directChatService: DirectChatService,
     private readonly cdr: ChangeDetectorRef,
     private readonly applicationError: ApplicationErrorService,
@@ -582,79 +586,30 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
   }
 
   private buildFriendshipInteractionStateStream(): Observable<FriendshipInteractionState> {
-    return combineLatest([
-      this.authSession.uid$.pipe(
-        map((uid) => (uid ?? '').trim()),
-        distinctUntilChanged()
-      ),
-      this.viewedProfileUid$.pipe(
-        map((uid) => (uid ?? '').trim()),
-        distinctUntilChanged()
-      ),
-    ]).pipe(
-      switchMap(([viewerUid, targetUid]) => {
-        if (!viewerUid || !targetUid || viewerUid === targetUid) {
-          return of(this.buildFriendshipInteractionState(targetUid, [], []));
-        }
-
-        return combineLatest([
-          this.friendshipService.watchOutboundRequests(viewerUid).pipe(
-            catchError((error) => {
-              this.reportError(
-                'Não foi possível verificar interesses enviados.',
-                {
-                  op: 'friendshipInteractionState.outbound',
-                  hasTargetUid: !!targetUid,
-                },
-                error
-              );
-
-              return of([] as FriendRequest[]);
-            })
-          ),
-          this.friendshipService.watchFriends(viewerUid).pipe(
-            catchError((error) => {
-              this.reportError(
-                'Não foi possível verificar suas conexões.',
-                {
-                  op: 'friendshipInteractionState.friends',
-                  hasTargetUid: !!targetUid,
-                },
-                error
-              );
-
-              return of([] as Friend[]);
-            })
-          ),
-        ]).pipe(
-          map(([outboundRequests, friends]) =>
-            this.buildFriendshipInteractionState(
-              targetUid,
-              outboundRequests,
-              friends
-            )
-          )
-        );
-      }),
-      shareReplay({ bufferSize: 1, refCount: true })
+    const viewerUid$ = this.authSession.uid$.pipe(
+      map((uid) => (uid ?? '').trim()),
+      distinctUntilChanged()
     );
+
+    const targetUid$ = this.viewedProfileUid$.pipe(
+      map((uid) => (uid ?? '').trim()),
+      distinctUntilChanged()
+    );
+
+    return this.visitedFriendship
+      .observe$(viewerUid$, targetUid$)
+      .pipe(
+        map((relation) => this.buildFriendshipInteractionState(relation)),
+        shareReplay({ bufferSize: 1, refCount: true })
+      );
   }
 
   private buildFriendshipInteractionState(
-    targetUid: string,
-    outboundRequests: FriendRequest[],
-    friends: Friend[]
+    relation: VisitedProfileFriendshipRelation
   ): FriendshipInteractionState {
-    const safeTargetUid = (targetUid ?? '').trim();
-    const isFriend = friends.some(
-      (friend) => friend.friendUid === safeTargetUid
-    );
-    const hasPendingOutboundRequest = outboundRequests.some(
-      (request) =>
-        request.targetUid === safeTargetUid && request.status === 'pending'
-    );
+    const safeTargetUid = (this.uid ?? '').trim();
 
-    if (isFriend) {
+    if (relation.isFriend) {
       return {
         isFriend: true,
         canSendFriendRequest: false,
@@ -665,14 +620,14 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
       };
     }
 
-    if (hasPendingOutboundRequest) {
+    if (relation.hasPendingOutboundRequest) {
       return {
         isFriend: false,
         canSendFriendRequest: false,
         friendRequestIcon: 'fas fa-clock',
         friendRequestLabel: 'Interesse enviado',
         friendRequestAriaLabel: `Interesse em ${this.displayName} já enviado.`,
-        liveStatus: 'Interesse enviado. Aguarde a resposta do perfil.',
+        liveStatus: 'Seu interesse já foi enviado para este perfil.',
       };
     }
 
