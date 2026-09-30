@@ -25,7 +25,7 @@
     @if (vm$ | async; as vm) {
       @if (vm) {
         <section class="match-profile-lab-section" aria-label="Comparação do match profile">
-          <div class="cards-grid">
+          <div class="cards-grid app-responsive-grid">
             <app-match-profile-preview-card
               [title]="'Construído em memória'"
               [matchProfile]="vm.built">
