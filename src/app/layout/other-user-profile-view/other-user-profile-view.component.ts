@@ -60,6 +60,7 @@ import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy
 import { ProfileMediaShowcaseComponent } from 'src/app/media/shared/components/profile-media-showcase/profile-media-showcase.component';
 import { SocialLinksAccordionComponent } from 'src/app/user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component';
 import { SharedModule } from '../../shared/shared.module';
+import { ContentStateComponent } from '../../shared/content-state/content-state.component';
 
 interface PublicIntentContextVm {
   title: string;
@@ -90,6 +91,7 @@ const DEFAULT_PROFILE_PHOTO_URL = 'assets/imagem-padrao.webp';
     ProfileMediaShowcaseComponent,
     SocialLinksAccordionComponent,
     ProfileOfficialCommunitiesComponent,
+    ContentStateComponent,
   ],
 })
 export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
