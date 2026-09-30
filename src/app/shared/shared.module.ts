@@ -12,7 +12,6 @@ import { MatSnackBarModule } from '@angular/material/snack-bar';
 import { ProfileOfficialCommunitiesComponent } from '../community/profile-official-communities/profile-official-communities.component';
 import { ModalMensagemComponent } from './components-globais/modal-mensagem/modal-mensagem.component';
 import { TextoDialogComponent } from './components-globais/texto-dialog/texto-dialog.component';
-import { ConfirmacaoDialogComponent } from './components-globais/confirmacao-dialog/confirmacao-dialog.component';
 import { ConfirmationDialogComponent } from './components-globais/confirmation-dialog/confirmation-dialog.component';
 import { UploadPhotoComponent } from './components-globais/upload-photo/upload-photo.component';
 import { UniversalSidebarComponent } from './components-globais/universal-sidebar/universal-sidebar.component';
@@ -24,7 +23,6 @@ import { FormValidationFocusDirective } from './form-validation-focus/form-valid
   declarations: [
     ModalMensagemComponent,
     TextoDialogComponent,
-    ConfirmacaoDialogComponent,
     UploadPhotoComponent,
   ],
   imports: [
@@ -49,7 +47,6 @@ import { FormValidationFocusDirective } from './form-validation-focus/form-valid
     ProfileOfficialCommunitiesComponent,
     ModalMensagemComponent,
     TextoDialogComponent,
-    ConfirmacaoDialogComponent,
     ConfirmationDialogComponent,
     UploadPhotoComponent,
     ActionStateDirective,

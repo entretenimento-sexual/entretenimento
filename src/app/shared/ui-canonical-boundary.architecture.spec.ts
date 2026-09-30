@@ -180,12 +180,24 @@ describe('Canonical UI boundary', () => {
       'src/app/authentication/progressive-signup/progressive-signup.component.html',
       'src/app/authentication/progressive-signup/progressive-signup.component.css',
       'src/app/authentication/progressive-signup/progressive-signup.component.spec.ts',
+      'src/app/shared/components-globais/confirmacao-dialog/confirmacao-dialog.component.ts',
+      'src/app/shared/components-globais/confirmacao-dialog/confirmacao-dialog.component.html',
+      'src/app/shared/components-globais/confirmacao-dialog/confirmacao-dialog.component.css',
+      'src/app/shared/components-globais/confirmacao-dialog/confirmacao-dialog.component.spec.ts',
     ];
 
     expect(
       removedPaths.filter((item) => existsSync(resolve(ROOT, item))),
       'Componentes consolidados não devem reaparecer.'
     ).toEqual([]);
+  });
+
+  it('mantém ConfirmationDialog como única confirmação global compartilhada', () => {
+    const sharedModule = source('src/app/shared/shared.module.ts');
+
+    expect(sharedModule).toContain('ConfirmationDialogComponent');
+    expect(sharedModule).not.toContain('ConfirmacaoDialogComponent');
+    expect(sharedModule).not.toContain('components-globais/confirmacao-dialog');
   });
 
   it('não permite novos placeholders works! em templates de produção', () => {
