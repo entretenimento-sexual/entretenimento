@@ -39,14 +39,7 @@ import {
 
 import { ProfileOfficialCommunitiesComponent } from 'src/app/community/profile-official-communities/profile-official-communities.component';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import {
-  resolvePublicPreferenceLabel,
-} from 'src/app/core/catalogs/public-preference-options.catalog';
-import {
-  evaluateDiscoveryCandidatePreference,
-} from 'src/app/core/utils/discovery/profile-type-preference-filter.util';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
-import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
@@ -64,6 +57,7 @@ import {
   VisitedProfileIntentContextVm,
 } from './application/visited-profile-intent-context.facade';
 import { VisitedProfileBootstrapOrchestrator } from './application/visited-profile-bootstrap.orchestrator';
+import { VisitedProfileAffinityPresenter } from './application/visited-profile-affinity.presenter';
 
 interface FriendshipInteractionState {
   isFriend: boolean;
@@ -82,7 +76,7 @@ const DEFAULT_PROFILE_PHOTO_URL = 'assets/imagem-padrao.webp';
   styleUrls: ['./other-user-profile-view.component.css'],
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  providers: [VisitedProfileFriendshipFacade, VisitedProfileInteractionOrchestrator, VisitedProfileIntentContextFacade, VisitedProfileBootstrapOrchestrator],
+  providers: [VisitedProfileFriendshipFacade, VisitedProfileInteractionOrchestrator, VisitedProfileIntentContextFacade, VisitedProfileBootstrapOrchestrator, VisitedProfileAffinityPresenter],
   imports: [
     CommonModule,
     RouterModule,
@@ -113,7 +107,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     private readonly router: Router,
     private readonly authSession: AuthSessionService,
     private readonly bootstrapOrchestrator: VisitedProfileBootstrapOrchestrator,
-    private readonly currentUserStore: CurrentUserStoreService,
+    private readonly affinityPresenter: VisitedProfileAffinityPresenter,
     private readonly visitedFriendship: VisitedProfileFriendshipFacade,
     private readonly intentContextFacade: VisitedProfileIntentContextFacade,
     private readonly interactionOrchestrator: VisitedProfileInteractionOrchestrator,
@@ -210,82 +204,20 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     });
   }
 
+  get affinityVm() {
+    return this.affinityPresenter.build(this.userProfile);
+  }
+
   get hasPreferenceChips(): boolean {
-    return this.preferenceChips.length > 0;
+    return this.affinityVm.preferenceChips.length > 0;
   }
 
-  get preferenceChips(): string[] {
-    const profile = this.userProfile;
-    if (!profile || profile.preferenceBadgesVisible !== true) {
-      return [];
-    }
-
-    const labels: string[] = [];
-    const append = (
-      kind: 'relationship' | 'body_trait' | 'sexual_practice',
-      values: readonly string[] | null | undefined
-    ): void => {
-      for (const value of values ?? []) {
-        const label = resolvePublicPreferenceLabel(kind, value);
-        if (!label || labels.includes(label)) continue;
-        labels.push(label);
-        if (labels.length >= 8) return;
-      }
-    };
-
-    append('relationship', profile.publicRelationshipIntents);
-    if (labels.length < 8) {
-      append('body_trait', profile.publicBodyTraits);
-    }
-    if (labels.length < 8) {
-      append('sexual_practice', profile.publicSexualPractices);
-    }
-
-    return labels.slice(0, 8);
+  get preferenceChips(): readonly string[] {
+    return this.affinityVm.preferenceChips;
   }
 
-  get desireMatch(): {
-    title: string;
-    labels: readonly string[];
-  } | null {
-    const viewer = this.currentUserStore.getSnapshot();
-    const target = this.userProfile;
-
-    if (!viewer?.uid || !target?.uid || viewer.uid === target.uid) {
-      return null;
-    }
-
-    const result = evaluateDiscoveryCandidatePreference(viewer, target);
-    if (!result.accepted || result.matchedSignals.length === 0) {
-      return null;
-    }
-
-    const labels: string[] = [];
-    for (const signal of result.matchedSignals) {
-      switch (signal) {
-        case 'relationship_intent':
-          labels.push('Intenção');
-          break;
-        case 'sexual_practice':
-          labels.push('Práticas');
-          break;
-        case 'body_trait':
-          labels.push('Características');
-          break;
-      }
-    }
-
-    if (!labels.length) {
-      return null;
-    }
-
-    return {
-      title:
-        result.preferenceScore >= 0.75
-          ? 'Desejos bem alinhados'
-          : 'Desejos em comum',
-      labels,
-    };
+  get desireMatch() {
+    return this.affinityVm.desireMatch;
   }
 
   onProfilePhotoError(): void {
