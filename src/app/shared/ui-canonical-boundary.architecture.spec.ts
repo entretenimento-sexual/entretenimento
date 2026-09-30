@@ -80,6 +80,7 @@ const CANONICAL_ACTION_TEMPLATES = [
 ] as const;
 
 const CANONICAL_HEADER_TEMPLATES = [
+  'src/app/safety/safety-center/safety-center.component.html',
   'src/app/layout/friend-management/friend-search/friend-search.component.html',
   'src/app/layout/friend-management/friend-blocked/friend-blocked.component.html',
   'src/app/layout/friend-management/friend-settings/friend-settings.component.html',
@@ -107,6 +108,7 @@ const CANONICAL_HEADER_TEMPLATES = [
 ] as const;
 
 const CANONICALIZED_STYLES = [
+  'src/app/safety/safety-center/safety-center.component.css',
   'src/app/layout/friend-management/friend-search/friend-search.component.css',
   'src/app/layout/friend-management/friend-blocked/friend-blocked.component.css',
   'src/app/layout/friend-management/friend-settings/friend-settings.component.css',
@@ -284,6 +286,31 @@ describe('Canonical UI boundary', () => {
     expect(settings).not.toContain('GlobalErrorHandlerService');
     expect(blocked).toContain('AuthSessionService');
     expect(blocked).not.toContain('input.required');
+  });
+
+  it('mantém Safety e Compliance sem regressão de UI ou erro manual', () => {
+    const safety = source(
+      'src/app/safety/safety-center/safety-center.component.html'
+    );
+    const safetyStyles = source(
+      'src/app/safety/safety-center/safety-center.component.css'
+    );
+    const adultConsent = source(
+      'src/app/compliance/adult-consent-page/adult-consent-page.component.ts'
+    );
+    const reverification = source(
+      'src/app/compliance/age-reverification-page/age-reverification-page.component.ts'
+    );
+
+    expect(safety).toContain('<app-page-header');
+    expect(safety).toContain('safety-center__action-grid app-responsive-grid');
+    expect(safety).toContain('safety-center__guide-grid app-responsive-grid');
+    expect(safetyStyles).not.toContain('.safety-center h1');
+    expect(safetyStyles).not.toContain('.safety-center__hero');
+
+    expect(adultConsent).toContain('ApplicationErrorService');
+    expect(reverification).toContain('ApplicationErrorService');
+    expect(reverification).not.toContain('errorDetail(error');
   });
 
   it('preserva remoções estruturais já concluídas', () => {
