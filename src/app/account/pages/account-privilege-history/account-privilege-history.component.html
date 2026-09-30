@@ -1,45 +1,41 @@
 <main class="subscription-history-page app-page" aria-label="Histórico de privilégios da conta">
   <section class="subscription-history-shell ui-container">
-    <header class="subscription-history-header">
+    <app-page-header
+      title="Histórico de privilégios"
+      subtitle="Concessões e revogações administrativas da conta. O histórico é somente leitura e permanece separado da sua assinatura."
+    >
       <a
-        class="subscription-history-back"
+        page-actions
+        class="app-action app-action--ghost"
         routerLink="/conta/seguranca"
         aria-label="Voltar para Segurança da minha conta"
       >
         <span aria-hidden="true">←</span>
         Segurança
       </a>
-
-      <div class="subscription-history-header__copy">
-        <h1>Histórico de privilégios</h1>
-        <p>
-          Concessões e revogações administrativas da conta. O histórico é somente
-          leitura e permanece separado da sua assinatura.
-        </p>
-      </div>
-    </header>
+    </app-page-header>
 
     @if (state$ | async; as state) {
       @if (state.status === 'loading') {
-        <section class="subscription-history-state" role="status" aria-live="polite">
-          <span class="subscription-history-state__spinner" aria-hidden="true"></span>
-          <p>Carregando histórico de privilégios...</p>
-        </section>
+        <app-content-state
+          state="loading"
+          message="Carregando histórico de privilégios..."
+          [skeletonRows]="3"
+        />
       } @else if (state.status === 'error') {
-        <section class="subscription-history-state" role="alert">
-          <h2>Não foi possível carregar o histórico</h2>
-          <p>Os registros não foram alterados. Tente consultar novamente.</p>
-          <button type="button" class="app-action app-action--ghost" (click)="retry()">
-            Tentar novamente
-          </button>
-        </section>
+        <app-content-state
+          state="error"
+          title="Não foi possível carregar o histórico"
+          message="Os registros não foram alterados. Tente consultar novamente."
+          actionLabel="Tentar novamente"
+          (action)="retry()"
+        />
       } @else if (state.items.length === 0) {
-        <section class="subscription-history-state" role="status">
-          <h2>Nenhuma alteração de privilégio registrada</h2>
-          <p>
-            Isso é esperado para contas que nunca receberam acesso administrativo.
-          </p>
-        </section>
+        <app-content-state
+          state="empty"
+          title="Nenhuma alteração de privilégio registrada"
+          message="Isso é esperado para contas que nunca receberam acesso administrativo."
+        />
       } @else {
         <section
           class="subscription-history-timeline"
