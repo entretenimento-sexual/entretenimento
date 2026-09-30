@@ -354,8 +354,13 @@ describe('Canonical UI boundary', () => {
     expect(reverification).toContain('app-field-error');
 
     expect(consentStyles).not.toContain('.adult-consent__button');
+    expect(verification).toContain(
+      'age-verification__secondary-grid app-responsive-grid'
+    );
     expect(verificationStyles).not.toContain('.age-verification__primary');
     expect(verificationStyles).not.toContain('.age-verification__secondary');
+    expect(verificationStyles).not.toContain('.age-verification__steps');
+    expect(verificationStyles).not.toContain('.age-verification__how-grid');
     expect(reverificationStyles).not.toContain('.age-reverification__primary');
     expect(reverificationStyles).not.toContain('.age-reverification__secondary');
   });
