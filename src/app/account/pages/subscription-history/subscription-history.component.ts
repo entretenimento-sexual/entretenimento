@@ -32,6 +32,8 @@ import {
 } from 'src/app/payments-core/domain/models/platform-subscription-history.model';
 import { PlatformSubscriptionAccessService } from '@core/services/subscriptions/platform-subscription-access.service';
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
+import { PageHeaderComponent } from '../../../shared/page-header/page-header.component';
+import { ContentStateComponent } from '../../../shared/content-state/content-state.component';
 
 type SubscriptionHistoryState = {
   status: 'loading' | 'ready' | 'error';
@@ -54,7 +56,7 @@ const INITIAL_STATE: SubscriptionHistoryState = {
 @Component({
   selector: 'app-subscription-history',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, PageHeaderComponent, ContentStateComponent],
   templateUrl: './subscription-history.component.html',
   styleUrl: './subscription-history.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
