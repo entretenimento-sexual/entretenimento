@@ -1504,8 +1504,21 @@ describe('Canonical UI boundary', () => {
 
     expect(facade).toContain('DirectChatFacade');
     expect(facade).toContain('selectedDirectPeerUid$(');
+    expect(facade).toContain('syncPeerContext$(');
     expect(facade).toContain('selectEvent(');
     expect(facade).toContain('resolvePeer$(');
+  });
+
+  it('mantém observadores mortos fora do shell de chat', () => {
+    const layout = source(
+      'src/app/chat-module/chat-module-layout/chat-module-layout.component.ts'
+    );
+
+    expect(layout).not.toContain('CurrentUserStoreService');
+    expect(layout).not.toContain('IUserDados');
+    expect(layout).not.toContain('observeRouteUserId');
+    expect(layout).not.toContain('observeSelectedDirectPeerFallback');
+    expect(layout).not.toContain('resolveActiveChatPeerFromUid');
   });
 
   it('preserva remoções estruturais já concluídas', () => {
