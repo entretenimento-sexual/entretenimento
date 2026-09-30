@@ -50,8 +50,8 @@ import { DirectChatFacade } from './direct-chat.facade';
 
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
+import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
 
 @Injectable({ providedIn: 'root' })
 export class DirectThreadFacade {
@@ -171,7 +171,7 @@ export class DirectThreadFacade {
     private readonly directReceiptsService: DirectReceiptsService,
     private readonly authSession: AuthSessionService,
     private readonly accessControl: AccessControlService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly privacyDebug: PrivacyDebugLoggerService,
   ) {}
 
@@ -277,19 +277,19 @@ private dbg(message: string, extra?: unknown): void {
 
   private reportSilent(error: unknown, context: string): void {
     try {
-      const err =
-        error instanceof Error
-          ? error
-          : new Error('[DirectThreadFacade] operation failed');
-
-      (err as any).original = error;
-      (err as any).context = context;
-      (err as any).skipUserNotification = true;
-      (err as any).silent = true;
-
-      this.globalErrorHandler.handleError(err);
+      this.applicationError.report(error, {
+        feature: 'direct-thread',
+        operation: context,
+        fallbackMessage:
+          'Não foi possível concluir uma operação interna da conversa direta.',
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'DirectThreadFacade',
+          context,
+        },
+      });
     } catch {
-      // noop
+      // Diagnóstico secundário não pode interromper os fallbacks reativos.
     }
   }
 }
