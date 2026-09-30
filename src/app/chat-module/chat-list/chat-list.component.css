@@ -229,8 +229,7 @@
 /* Direct conversation card                                                    */
 /* -------------------------------------------------------------------------- */
 
-.conversation-card,
-.room-card__main {
+.conversation-card {
   width: 100%;
   border: 1px solid color-mix(in oklab, var(--surface-border) 88%, transparent);
   background: color-mix(in oklab, var(--surface-color) 98%, var(--background-color));
@@ -256,26 +255,21 @@
   box-shadow: none;
 }
 
-.conversation-card:hover,
-.room-card__main:hover {
+.conversation-card:hover {
   background: color-mix(in oklab, var(--primary-color) 6%, var(--surface-color));
   border-color: color-mix(in oklab, var(--primary-color) 32%, var(--surface-border));
 }
 
-.conversation-card:active,
-.room-card__main:active {
+.conversation-card:active {
   transform: translateY(1px);
 }
 
-.conversation-card:focus-visible,
-.room-card__main:focus-visible,
-.room-card__action:focus-visible {
+.conversation-card:focus-visible {
   outline: var(--focus-ring);
   outline-offset: var(--focus-offset);
 }
 
-.conversation-card--selected,
-.room-card__main--selected {
+.conversation-card--selected {
   border-color: color-mix(in oklab, var(--primary-color) 76%, var(--surface-border));
   background:
     linear-gradient(
@@ -285,8 +279,7 @@
     );
 }
 
-.conversation-card--selected::before,
-.room-card__main--selected::before {
+.conversation-card--selected::before {
   content: '';
   position: absolute;
   inset-block: 12px;
@@ -328,8 +321,7 @@
   border: 2px solid var(--surface-color);
 }
 
-.conversation-card__content,
-.room-card__content {
+.conversation-card__content {
   min-width: 0;
   flex: 1 1 auto;
   display: flex;
@@ -338,8 +330,7 @@
 }
 
 .conversation-card__topline,
-.conversation-card__bottomline,
-.room-card__topline {
+.conversation-card__bottomline {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -347,13 +338,11 @@
 }
 
 .conversation-card__topline,
-.conversation-card__bottomline,
-.room-card__topline {
+.conversation-card__bottomline {
   justify-content: space-between;
 }
 
-.conversation-card__name,
-.room-card__name {
+.conversation-card__name {
   min-width: 0;
   flex: 1 1 auto;
   margin: 0;
@@ -365,8 +354,7 @@
   font-weight: 800;
 }
 
-.conversation-card__time,
-.room-card__time {
+.conversation-card__time {
   flex: 0 0 auto;
   font-size: 0.7rem;
   line-height: 1;
@@ -374,8 +362,7 @@
   white-space: nowrap;
 }
 
-.conversation-card__meta,
-.room-card__meta {
+.conversation-card__meta {
   min-width: 0;
   flex: 1 1 auto;
   margin: 0;
@@ -414,60 +401,6 @@
 }
 
 /* -------------------------------------------------------------------------- */
-/* Room cards                                                                  */
-/* -------------------------------------------------------------------------- */
-
-.room-card {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.room-card__main {
-  position: relative;
-  display: flex;
-  align-items: center;
-  min-height: 66px;
-  padding: 11px 12px;
-  box-shadow: none;
-}
-
-.room-card__name {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.room-card__name::before {
-  content: '💬';
-  display: inline-block;
-  font-size: 0.92rem;
-}
-
-.room-card__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: flex-end;
-}
-
-.room-card__action {
-  min-height: var(--tap-target, 44px);
-  padding: 0 14px;
-  border-radius: 10px;
-}
-
-.room-card__action--danger {
-  color: var(--danger-color) !important;
-  border-color: color-mix(in oklab, var(--danger-color) 40%, var(--surface-border)) !important;
-}
-
-.room-card__action--danger:hover,
-.room-card__action--danger:focus-visible {
-  background: color-mix(in oklab, var(--danger-color) 10%, transparent) !important;
-}
-
-/* -------------------------------------------------------------------------- */
 /* Empty / loading                                                             */
 /* -------------------------------------------------------------------------- */
 
@@ -500,19 +433,16 @@
 }
 
 :host-context(html.dark-mode) .conversation-card,
-:host-context(html.dark-mode) .room-card__main,
 :host-context(html.dark-mode) .conversation-list__search-box {
   background: #111821;
   border-color: rgba(240, 246, 252, 0.12);
 }
 
-:host-context(html.dark-mode) .conversation-card:hover,
-:host-context(html.dark-mode) .room-card__main:hover {
+:host-context(html.dark-mode) .conversation-card:hover {
   background: color-mix(in oklab, var(--primary-color) 7%, #111821);
 }
 
 :host-context(html.high-contrast) .conversation-card,
-:host-context(html.high-contrast) .room-card__main,
 :host-context(html.high-contrast) .conversation-list__search-box,
 :host-context(html.high-contrast) .conversation-list__chip,
 :host-context(html.high-contrast) .conversation-list__empty {
@@ -544,7 +474,6 @@
   }
 
   .conversation-card,
-  .room-card__main,
   .conversation-list__empty {
     padding: 10px;
   }
@@ -556,11 +485,11 @@
     flex-basis: 44px;
   }
 
-  .room-card__actions {
+  .s {
     justify-content: stretch;
   }
 
-  .room-card__action {
+  . {
     flex: 1 1 calc(50% - 8px);
   }
 }
@@ -579,8 +508,7 @@
     min-height: 70px;
   }
 
-  .conversation-card__meta,
-  .room-card__meta {
+  .conversation-card__meta {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -590,9 +518,6 @@
     display: none;
   }
 
-  .room-card__action {
-    flex: 1 1 100%;
-  }
 }
 
 @media (max-width: 350px) {
@@ -608,7 +533,6 @@
   }
 
   .conversation-card,
-  .room-card__main,
   .conversation-list__empty {
     border-radius: 13px;
   }
