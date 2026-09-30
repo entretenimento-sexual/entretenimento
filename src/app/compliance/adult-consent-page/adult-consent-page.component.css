@@ -55,10 +55,9 @@
   position: relative;
   width: 100%;
   padding: clamp(24px, 4vw, 38px);
-  border: 1px solid rgba(255, 76, 92, 0.16);
+  border-color: rgba(255, 76, 92, 0.16);
   border-radius: 34px;
   background: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 34px 90px rgba(78, 13, 24, 0.18);
   backdrop-filter: blur(18px);
   box-sizing: border-box;
 }
@@ -76,33 +75,6 @@
   border-radius: 18px;
   background: linear-gradient(135deg, rgba(255, 76, 92, 0.14), rgba(255, 184, 107, 0.16));
   font-size: 1.35rem;
-}
-
-.adult-consent__kicker {
-  margin: 0 0 10px;
-  color: #ff4c5c;
-  font-size: 0.72rem;
-  font-weight: 950;
-  letter-spacing: 0.11em;
-  text-transform: uppercase;
-}
-
-.adult-consent h1 {
-  max-width: 12ch;
-  margin: 0;
-  color: #15070b;
-  font-size: clamp(2rem, 6vw, 3.45rem);
-  line-height: 0.98;
-  font-weight: 950;
-  letter-spacing: -0.065em;
-}
-
-.adult-consent__lead {
-  margin: 16px 0 0;
-  color: rgba(21, 7, 11, 0.72);
-  font-size: clamp(0.98rem, 2vw, 1.08rem);
-  line-height: 1.58;
-  font-weight: 650;
 }
 
 .adult-consent__checks {
@@ -149,51 +121,6 @@
   margin-top: 24px;
 }
 
-.adult-consent__button {
-  min-height: 52px;
-  padding: 0 20px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  font: inherit;
-  font-size: 0.94rem;
-  font-weight: 950;
-  cursor: pointer;
-  transition: transform 0.16s ease, background-color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease, filter 0.16s ease;
-}
-
-.adult-consent__button:hover:not(:disabled),
-.adult-consent__button:focus-visible:not(:disabled) {
-  transform: translateY(-1px);
-}
-
-.adult-consent__button:disabled {
-  cursor: wait;
-  opacity: 0.72;
-  filter: saturate(0.82);
-}
-
-.adult-consent__button:focus-visible {
-  outline: 3px solid rgba(255, 76, 92, 0.28);
-  outline-offset: 2px;
-}
-
-.adult-consent__button--primary {
-  background: linear-gradient(135deg, #ff4c5c, #ff5f73);
-  color: #fff;
-  box-shadow: 0 18px 38px rgba(255, 76, 92, 0.28);
-}
-
-.adult-consent__button--primary:hover:not(:disabled) {
-  box-shadow: 0 22px 46px rgba(255, 76, 92, 0.34);
-}
-
-.adult-consent__button--ghost {
-  min-width: 94px;
-  background: rgba(255, 255, 255, 0.68);
-  border-color: rgba(21, 7, 11, 0.1);
-  color: #15070b;
-}
-
 :host-context(html.dark-mode) .adult-consent {
   background:
     radial-gradient(circle at 18% 14%, rgba(255, 76, 92, 0.16), transparent 34%),
@@ -201,8 +128,7 @@
     #080d12;
 }
 
-:host-context(html.dark-mode) .adult-consent__brand,
-:host-context(html.dark-mode) .adult-consent h1 {
+:host-context(html.dark-mode) .adult-consent__brand {
   color: #f8fafc;
 }
 
@@ -212,35 +138,26 @@
   box-shadow: 0 34px 90px rgba(0, 0, 0, 0.34);
 }
 
-:host-context(html.dark-mode) .adult-consent__lead,
 :host-context(html.dark-mode) .adult-consent__checks li {
   color: rgba(248, 250, 252, 0.76);
 }
 
-:host-context(html.dark-mode) .adult-consent__checks li,
-:host-context(html.dark-mode) .adult-consent__button--ghost {
+:host-context(html.dark-mode) .adult-consent__checks li {
   background: rgba(255, 255, 255, 0.045);
   border-color: rgba(240, 246, 252, 0.12);
 }
 
-:host-context(html.dark-mode) .adult-consent__button--ghost {
-  color: #f8fafc;
-}
 
 :host-context(html.high-contrast) .adult-consent,
 :host-context(html.high-contrast) .adult-consent__card,
-:host-context(html.high-contrast) .adult-consent__checks li,
-:host-context(html.high-contrast) .adult-consent__button {
+:host-context(html.high-contrast) .adult-consent__checks li {
   background: var(--background-color) !important;
   color: var(--text-color) !important;
   border: 2px solid currentColor !important;
   box-shadow: none !important;
 }
 
-:host-context(html.high-contrast) .adult-consent__brand,
-:host-context(html.high-contrast) .adult-consent h1,
-:host-context(html.high-contrast) .adult-consent__lead,
-:host-context(html.high-contrast) .adult-consent__kicker {
+:host-context(html.high-contrast) .adult-consent__brand {
   color: var(--text-color) !important;
 }
 
@@ -257,9 +174,6 @@
     font-size: clamp(2rem, 12vw, 3.4rem);
   }
 
-  .adult-consent h1 {
-    max-width: none;
-  }
 }
 
 @media (max-width: 560px) {
@@ -276,7 +190,7 @@
     grid-template-columns: 1fr;
   }
 
-  .adult-consent__button {
+  .adult-consent__actions .app-action {
     width: 100%;
   }
 }
