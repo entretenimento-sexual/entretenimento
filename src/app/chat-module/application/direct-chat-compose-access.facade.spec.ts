@@ -1,4 +1,4 @@
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
@@ -111,9 +111,9 @@ describe('DirectChatComposeAccessFacade', () => {
     } as unknown as AccessControlService;
 
     const friendship = {
-      watchFriends: vi.fn(() => {
-        throw new Error('transport');
-      }),
+      watchFriends: vi.fn(() =>
+        throwError(() => new Error('transport'))
+      ),
     } as unknown as FriendshipService;
 
     const directThread = {
@@ -128,12 +128,14 @@ describe('DirectChatComposeAccessFacade', () => {
       { report } as unknown as ApplicationErrorService
     );
 
-    expect(() => {
-      facade
-        .observe$(of('me'), of('peer-1'), of('chat'), of('chat-1'))
-        .subscribe();
-    }).toThrow('transport');
+    const values: any[] = [];
 
-    expect(report).not.toHaveBeenCalled();
+    facade
+      .observe$(of('me'), of('peer-1'), of('chat'), of('chat-1'))
+      .subscribe((value) => values.push(value));
+
+    expect(report).toHaveBeenCalledTimes(1);
+    expect(values[0]?.canSendCurrentMessage).toBe(false);
+    expect(values[0]?.hasAcceptedConnection).toBe(false);
   });
 });
