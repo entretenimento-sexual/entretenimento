@@ -247,9 +247,4 @@
   .subscription-history-event__period {
     grid-template-columns: 1fr;
   }
-
-  .subscription-history-more .btn,
-  .subscription-history-state .btn {
-    width: 100%;
-  }
 }
