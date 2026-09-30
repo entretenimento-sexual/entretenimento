@@ -1487,6 +1487,27 @@ describe('Canonical UI boundary', () => {
     expect(orchestrator).toContain('resolveDirectMessageBlockMessage');
   });
 
+  it('mantém seleção e contexto do peer fora do ChatModuleLayoutComponent', () => {
+    const layout = source(
+      'src/app/chat-module/chat-module-layout/chat-module-layout.component.ts'
+    );
+    const facade = source(
+      'src/app/chat-module/application/direct-chat-selection-context.facade.ts'
+    );
+
+    expect(layout).toContain('DirectChatSelectionContextFacade');
+    expect(layout).not.toContain('selectedChatIdSignal');
+    expect(layout).not.toContain('selectedTypeSignal');
+    expect(layout).not.toContain('activeChatPeerUidSignal');
+    expect(layout).not.toContain('applySelection(');
+    expect(layout).not.toContain('applyActiveChatPeer(');
+
+    expect(facade).toContain('DirectChatFacade');
+    expect(facade).toContain('selectedDirectPeerUid$(');
+    expect(facade).toContain('selectEvent(');
+    expect(facade).toContain('resolvePeer$(');
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
