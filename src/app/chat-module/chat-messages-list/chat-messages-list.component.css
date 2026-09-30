@@ -150,44 +150,12 @@
 .thread-shell__empty {
   width: min(100%, 620px);
   margin: auto;
-  padding: 22px 20px;
-
-  border: 1px dashed var(--surface-border);
-  border-radius: 18px;
-
-  background: color-mix(in oklab, var(--surface-color) 94%, transparent);
-  text-align: center;
-
-  box-shadow: var(--box-shadow);
   box-sizing: border-box;
-}
-
-.thread-shell__empty-title {
-  margin: 0 0 8px;
-
-  font-size: 1.02rem;
-  font-weight: 800;
-
-  color: var(--text-color);
-}
-
-.thread-shell__empty-text {
-  margin: 0;
-
-  line-height: 1.55;
-
-  color: color-mix(in oklab, var(--text-color) 72%, transparent);
 }
 
 /* -------------------------------------------------------------------------- */
 /* Dark mode                                                                  */
 /* -------------------------------------------------------------------------- */
-
-:host-context(html.dark-mode) .thread-shell__empty {
-  background: #101722;
-  border-color: rgba(240, 246, 252, 0.12);
-  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.34);
-}
 
 :host-context(html.dark-mode) .thread-shell__date-separator span,
 :host-context(html.dark-mode) .thread-shell__new-messages {
@@ -199,7 +167,6 @@
 /* Alto contraste                                                             */
 /* -------------------------------------------------------------------------- */
 
-:host-context(html.high-contrast) .thread-shell__empty,
 :host-context(html.high-contrast) .thread-shell__date-separator span,
 :host-context(html.high-contrast) .thread-shell__new-messages {
   background: var(--background-color) !important;
@@ -220,8 +187,6 @@
 @media (max-width: 768px) {
   .thread-shell__empty {
     width: min(100%, 560px);
-    padding: 18px 16px;
-    border-radius: 14px;
   }
 
   .thread-shell__date-separator {
@@ -237,18 +202,6 @@
 }
 
 @media (max-width: 480px) {
-  .thread-shell__empty {
-    padding: 16px 14px;
-  }
-
-  .thread-shell__empty-title {
-    font-size: 0.98rem;
-  }
-
-  .thread-shell__empty-text {
-    font-size: 0.9rem;
-  }
-
   .thread-shell__date-separator span {
     font-size: 0.68rem;
     padding: 5px 10px;
