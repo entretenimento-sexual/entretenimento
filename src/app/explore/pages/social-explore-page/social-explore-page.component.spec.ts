@@ -628,7 +628,7 @@ describe('SocialExplorePageComponent', () => {
     loadingFixture.detectChanges();
 
     const loadingState = loadingFixture.debugElement.query(
-      By.css('.feed-empty[role="status"]')
+      By.css('app-content-state.feed-empty')
     );
 
     expect(loadingState.nativeElement.textContent).toContain(
@@ -659,7 +659,7 @@ describe('SocialExplorePageComponent', () => {
 
     const state = moreOwnersFixture.debugElement.query(By.css('.feed-empty'));
     const action = moreOwnersFixture.debugElement.query(
-      By.css('.feed-empty .feed-pagination button')
+      By.css('app-content-state.feed-empty button')
     );
 
     expect(state.nativeElement.textContent).toContain(
@@ -695,7 +695,7 @@ describe('SocialExplorePageComponent', () => {
 
     const retryState = retryFixture.debugElement.query(By.css('.feed-empty'));
     const retryButton = retryFixture.debugElement.query(
-      By.css('.feed-empty .feed-pagination button')
+      By.css('app-content-state.feed-empty button')
     );
 
     expect(retryState.nativeElement.textContent).toContain(
