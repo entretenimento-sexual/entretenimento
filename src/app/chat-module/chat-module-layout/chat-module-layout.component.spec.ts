@@ -121,6 +121,7 @@ describe('ChatModuleLayoutComponent', () => {
                 selectedChatId$: of(null),
                 selectedType$: of(null),
                 selectedDirectPeerUid$: vi.fn(() => of(null)),
+                syncPeerContext$: vi.fn(() => of(void 0)),
                 selectedChatId: vi.fn(() => null),
                 selectedType: vi.fn(() => null),
                 activePeerUid: vi.fn(() => null),
