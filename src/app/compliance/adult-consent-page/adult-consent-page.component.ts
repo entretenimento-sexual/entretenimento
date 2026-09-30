@@ -38,10 +38,16 @@ export class AdultConsentPageComponent {
     this.adultConsent.acceptCurrentConsent$()
       .pipe(
         take(1),
-        catchError(() => {
-          this.errorNotifier.showError(
-            'Não foi possível registrar o aceite do acesso adulto. Verifique a conexão e tente novamente.'
-          );
+        catchError((error: unknown) => {
+          this.applicationError.report(error, {
+            feature: 'adult-consent',
+            operation: 'acceptCurrentConsent',
+            fallbackMessage:
+              'Não foi possível registrar o aceite do acesso adulto. Verifique a conexão e tente novamente.',
+            metadata: {
+              scope: 'AdultConsentPageComponent',
+            },
+          });
           return EMPTY;
         }),
         switchMap((uid) => from(this.navigateAfterConsent(uid))),
@@ -66,10 +72,15 @@ export class AdultConsentPageComponent {
           return this.logout.logout$();
         }),
         take(1),
-        catchError(() => {
-          this.errorNotifier.showError(
-            'Não foi possível encerrar sua sessão. Tente novamente.'
-          );
+        catchError((error: unknown) => {
+          this.applicationError.report(error, {
+            feature: 'adult-consent',
+            operation: 'declineAndLogout',
+            fallbackMessage: 'Não foi possível encerrar sua sessão. Tente novamente.',
+            metadata: {
+              scope: 'AdultConsentPageComponent',
+            },
+          });
           return EMPTY;
         }),
         finalize(() => {
@@ -132,7 +143,7 @@ export class AdultConsentPageComponent {
         operation: 'navigateAfterConsent',
         fallbackMessage:
           'Seu aceite do acesso adulto foi registrado, mas não foi possível avançar.',
-        presentation: { surface: 'none', severity: 'error' },
+        presentation: { surface: 'snackbar', severity: 'error' },
         metadata: {
           scope: 'AdultConsentPageComponent',
           targetPath: String(target ?? '').split('?')[0].split('#')[0],
@@ -142,10 +153,6 @@ export class AdultConsentPageComponent {
     } catch {
       // O diagnóstico não pode invalidar uma confirmação já persistida.
     }
-
-    this.errorNotifier.showError(
-      'Seu aceite do acesso adulto foi registrado, mas não foi possível avançar. Recarregue a página e tente novamente.'
-    );
   }
 
   private resolveRedirectTo(uid: string): string {
