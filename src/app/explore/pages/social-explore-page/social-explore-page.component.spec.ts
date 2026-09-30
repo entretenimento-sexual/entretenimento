@@ -9,6 +9,7 @@ import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-i
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { UserIntentStatusService } from 'src/app/core/services/discovery/user-intent-status.service';
+import { ProfilePreferencesService } from 'src/app/preferences/services/profile-preferences.service';
 import {
   CommunityDistributionTelemetryService,
 } from 'src/app/community/discovery/community-distribution-telemetry.service';
@@ -245,6 +246,19 @@ describe('SocialExplorePageComponent', () => {
             watchActiveStatusesForUserRegion$: vi.fn(() => of([FRIEND_STATUS])),
             publishStatus$: vi.fn(() => of(void 0)),
             hideCurrentStatus$: vi.fn(() => of(void 0)),
+          },
+        },
+        {
+          provide: ProfilePreferencesService,
+          useValue: {
+            getProfile$: vi.fn((uid: string) =>
+              of({
+                userId: uid,
+                visibility: {
+                  showIntentPublicly: true,
+                },
+              } as any)
+            ),
           },
         },
         {
