@@ -59,18 +59,26 @@ export class VisitedProfileBootstrapOrchestrator {
         }
 
         return this.firestoreUserQuery.getPublicUserById$(targetUid).pipe(
-          map((profile) =>
-            profile
-              ? ({
-                  kind: 'loaded',
-                  targetUid,
-                  profile,
-                } as VisitedProfileBootstrapResult)
-              : ({
-                  kind: 'missing',
-                  targetUid,
-                } as VisitedProfileBootstrapResult)
-          ),
+          map((profile) => {
+            if (profile) {
+              return {
+                kind: 'loaded',
+                targetUid,
+                profile,
+              } as VisitedProfileBootstrapResult;
+            }
+
+            this.report(
+              new Error('Usuário não encontrado ou indisponível.'),
+              'VisitedProfileBootstrapOrchestrator.missingPublicProfile',
+              'Usuário não encontrado ou indisponível.'
+            );
+
+            return {
+              kind: 'missing',
+              targetUid,
+            } as VisitedProfileBootstrapResult;
+          }),
           catchError((error) => {
             this.report(
               error,
