@@ -14,10 +14,8 @@
   display: grid;
   gap: 22px;
   padding: clamp(24px, 4vw, 42px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.045);
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.22);
 }
 
 .age-verification__header {
@@ -41,38 +39,6 @@
   font-weight: 800;
   font-size: 1.05rem;
   background: rgba(255, 255, 255, 0.1);
-}
-
-.age-verification__eyebrow,
-.age-verification__intro,
-.age-verification__status p,
-.age-verification__feedback p,
-.age-verification__guidance p,
-.age-verification__step p,
-.age-verification__how p,
-.age-verification__privacy-note {
-  margin: 0;
-}
-
-.age-verification__eyebrow {
-  margin-bottom: 6px;
-  font-size: 0.82rem;
-  font-weight: 700;
-  opacity: 0.72;
-}
-
-.age-verification h1 {
-  margin: 0;
-  font-size: clamp(1.7rem, 3vw, 2.15rem);
-  line-height: 1.12;
-  text-wrap: balance;
-}
-
-.age-verification__intro {
-  margin-top: 10px;
-  max-width: 58ch;
-  line-height: 1.55;
-  opacity: 0.78;
 }
 
 .age-verification__status,
@@ -114,6 +80,7 @@
 .age-verification__guidance p,
 .age-verification__step p,
 .age-verification__how p {
+  margin: 0;
   line-height: 1.5;
 }
 
@@ -215,50 +182,6 @@
   gap: 10px;
 }
 
-.age-verification button {
-  min-height: 48px;
-  width: 100%;
-  border-radius: 12px;
-  padding: 0 18px;
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-  transition:
-    transform 120ms ease,
-    opacity 120ms ease,
-    background-color 120ms ease;
-}
-
-.age-verification button:not(:disabled):active {
-  transform: translateY(1px);
-}
-
-.age-verification button:disabled {
-  cursor: wait;
-  opacity: 0.55;
-}
-
-.age-verification__primary {
-  min-height: 52px !important;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  background: rgba(255, 255, 255, 0.94);
-  color: #111;
-}
-
-.age-verification__secondary {
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.075);
-  color: inherit;
-}
-
-.age-verification__link {
-  min-height: 40px !important;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  opacity: 0.72;
-}
-
 .age-verification__privacy-note {
   font-size: 0.88rem;
   line-height: 1.55;
@@ -284,6 +207,10 @@
 
   .age-verification__header {
     gap: 12px;
+  }
+
+  .age-verification__header app-page-header {
+    min-width: 0;
   }
 
   .age-verification__mark {
