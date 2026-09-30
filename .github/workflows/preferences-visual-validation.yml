@@ -163,7 +163,7 @@ jobs:
             const metrics = await page.evaluate(() => {
               const shellRect = document.querySelector('.preferences-editor-shell')?.getBoundingClientRect();
               const relationshipGroup = Array.from(document.querySelectorAll('.preference-group')).find((group) =>
-                group.querySelector('summary')?.textContent?.includes('Intenções relacionais')
+                group.querySelector('summary')?.textContent?.includes('O que você procura')
               );
               const grid = relationshipGroup?.querySelector('.checkbox-grid--nested');
               const gridStyle = grid ? getComputedStyle(grid) : null;
@@ -195,7 +195,7 @@ jobs:
           require_file "$OUT/free/desktop.png"
 
           run_checked "$OUT/free/desktop-advanced.metrics.log" "async (page) => {
-            const summary = page.locator('.preference-group__summary').filter({ hasText: 'Preferências avançadas' });
+            const summary = page.locator('.preference-group__summary').filter({ hasText: 'Refinar combinações' });
             await summary.click();
             const metrics = await page.evaluate(() => ({
               upgradeVisible: !!document.querySelector('.preference-upgrade')?.getClientRects().length,
@@ -216,7 +216,7 @@ jobs:
             const metrics = await page.evaluate(() => {
               const shellRect = document.querySelector('.preferences-editor-shell')?.getBoundingClientRect();
               const relationshipGroup = Array.from(document.querySelectorAll('.preference-group')).find((group) =>
-                group.querySelector('summary')?.textContent?.includes('Intenções relacionais')
+                group.querySelector('summary')?.textContent?.includes('O que você procura')
               );
               const grid = relationshipGroup?.querySelector('.checkbox-grid--nested');
               const gridStyle = grid ? getComputedStyle(grid) : null;
@@ -246,7 +246,7 @@ jobs:
           require_file "$OUT/free/mobile.png"
 
           run_checked "$OUT/free/mobile-invalid.metrics.log" "async (page) => {
-            const summary = page.locator('.preference-group__summary').filter({ hasText: 'Opções de descoberta' });
+            const summary = page.locator('.preference-group__summary').filter({ hasText: 'Ajustar alcance' });
             await summary.click();
             await page.locator('#minAge').fill('17');
             const submit = page.locator('.preference-profile-form button[type=submit]');
@@ -311,12 +311,12 @@ jobs:
 
           run_checked "$OUT/vip/desktop.metrics.log" "async (page) => {
             await page.waitForSelector('.preferences-editor-page', { state: 'visible' });
-            await page.locator('.preference-group__summary').filter({ hasText: 'Preferências avançadas' }).click();
+            await page.locator('.preference-group__summary').filter({ hasText: 'Refinar combinações' }).click();
             await page.locator('.availability-section .app-disclosure__summary').click();
             await page.locator('.intent-context__summary').click();
             const metrics = await page.evaluate(() => {
               const advancedGroup = Array.from(document.querySelectorAll('.preference-group')).find((group) =>
-                group.querySelector('summary')?.textContent?.includes('Preferências avançadas')
+                group.querySelector('summary')?.textContent?.includes('Refinar combinações')
               );
               const advancedGrid = advancedGroup?.querySelector('.checkbox-grid--nested');
               const advancedStyle = advancedGrid ? getComputedStyle(advancedGrid) : null;
@@ -351,13 +351,13 @@ jobs:
 
           run_checked "$OUT/vip/mobile.metrics.log" "async (page) => {
             await page.waitForSelector('.preferences-editor-page', { state: 'visible' });
-            await page.locator('.preference-group__summary').filter({ hasText: 'Preferências avançadas' }).click();
+            await page.locator('.preference-group__summary').filter({ hasText: 'Refinar combinações' }).click();
             await page.locator('.availability-section .app-disclosure__summary').click();
             await page.locator('.intent-context__summary').click();
             const metrics = await page.evaluate(() => {
               const shellRect = document.querySelector('.preferences-editor-shell')?.getBoundingClientRect();
               const advancedGroup = Array.from(document.querySelectorAll('.preference-group')).find((group) =>
-                group.querySelector('summary')?.textContent?.includes('Preferências avançadas')
+                group.querySelector('summary')?.textContent?.includes('Refinar combinações')
               );
               const advancedGrid = advancedGroup?.querySelector('.checkbox-grid--nested');
               const advancedStyle = advancedGrid ? getComputedStyle(advancedGrid) : null;
