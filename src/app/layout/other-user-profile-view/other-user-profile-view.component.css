@@ -359,7 +359,7 @@ app-profile-media-showcase {
     align-items: stretch;
   }
 
-  .other-profile-page__action {
+  .other-profile-page__actions .app-action {
     flex: 1 1 11rem;
   }
 
@@ -388,10 +388,7 @@ app-profile-media-showcase {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .other-profile-page__back,
-  .other-profile-page__action,
-  .other-profile-page__loading-dot {
+  .other-profile-page__back {
     transition: none;
-    animation: none;
   }
 }
