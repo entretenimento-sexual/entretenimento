@@ -1,20 +1,17 @@
-<main class="adult-consent" aria-labelledby="adult-consent-title">
+<main class="adult-consent" aria-label="Aceite do acesso adulto">
   <section class="adult-consent__shell">
     <div class="adult-consent__brand" aria-hidden="true">
       <span class="adult-consent__brand-mark">18+</span>
       <span>SEXO É O LIMITE</span>
     </div>
 
-    <article class="adult-consent__card" [attr.aria-busy]="isSaving">
+    <article class="adult-consent__card app-card app-card--flat" [attr.aria-busy]="isSaving">
       <div class="adult-consent__icon" aria-hidden="true">🔐</div>
 
-      <p class="adult-consent__kicker">Acesso adulto</p>
-
-      <h1 id="adult-consent-title">Aceite o acesso à experiência adulta</h1>
-
-      <p class="adult-consent__lead">
-        Esta etapa registra seu aceite para acessar conteúdo e interações adultas. A maioridade é verificada separadamente pela plataforma.
-      </p>
+      <app-page-header
+        title="Aceite o acesso à experiência adulta"
+        subtitle="Esta etapa registra seu aceite para acessar conteúdo e interações adultas. A maioridade é verificada separadamente pela plataforma."
+      />
 
       <ul class="adult-consent__checks" aria-label="Condições para continuar">
         <li>Sua maioridade já precisa estar confirmada pela plataforma.</li>
@@ -25,7 +22,7 @@
       <div class="adult-consent__actions">
         <button
           type="button"
-          class="adult-consent__button adult-consent__button--primary"
+          class="app-action app-action--primary"
           [disabled]="isSaving"
           (click)="accept()"
         >
@@ -34,7 +31,7 @@
 
         <button
           type="button"
-          class="adult-consent__button adult-consent__button--ghost"
+          class="app-action app-action--ghost"
           [disabled]="isSaving"
           (click)="decline()"
         >
