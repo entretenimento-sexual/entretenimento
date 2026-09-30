@@ -51,6 +51,9 @@ function productionHtmlFiles(root: string): readonly string[] {
 
 const CANONICAL_ACTION_TEMPLATES = [
   'src/app/account/pages/account-home/account-home.component.html',
+  'src/app/account/pages/account-manage/account-manage.component.html',
+  'src/app/account/pages/account-security/account-security.component.html',
+  'src/app/account/pages/account-subscription/account-subscription.component.html',
   'src/app/account/pages/account-status/account-status.component.html',
   'src/app/account/pages/subscription-history/subscription-history.component.html',
   'src/app/account/pages/account-privilege-history/account-privilege-history.component.html',
