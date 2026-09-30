@@ -1521,6 +1521,16 @@ describe('Canonical UI boundary', () => {
     expect(layout).not.toContain('resolveActiveChatPeerFromUid');
   });
 
+  it('mantém DirectThreadFacade no pipeline canônico de erros', () => {
+    const facade = source(
+      'src/app/messaging/direct-chat/application/direct-thread.facade.ts'
+    );
+
+    expect(facade).toContain('ApplicationErrorService');
+    expect(facade).not.toContain('GlobalErrorHandlerService');
+    expect(facade).toContain("presentation: { surface: 'none', severity: 'error' }");
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
