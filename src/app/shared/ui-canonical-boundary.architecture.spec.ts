@@ -1531,6 +1531,20 @@ describe('Canonical UI boundary', () => {
     expect(facade).toContain("presentation: { surface: 'none', severity: 'error' }");
   });
 
+  it('mantém messaging/direct-chat sem GlobalErrorHandlerService manual', () => {
+    const directThread = source(
+      'src/app/messaging/direct-chat/application/direct-thread.facade.ts'
+    );
+    const directReceipts = source(
+      'src/app/messaging/direct-chat/services/direct-receipts.service.ts'
+    );
+
+    expect(directThread).toContain('ApplicationErrorService');
+    expect(directReceipts).toContain('ApplicationErrorService');
+    expect(directThread).not.toContain('GlobalErrorHandlerService');
+    expect(directReceipts).not.toContain('GlobalErrorHandlerService');
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
