@@ -47,7 +47,6 @@ import {
 } from 'src/app/core/utils/discovery/profile-type-preference-filter.util';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
-import { UserIntentStatusService } from 'src/app/core/services/discovery/user-intent-status.service';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
@@ -61,11 +60,10 @@ import {
   VisitedProfileFriendshipRelation,
 } from './application/visited-profile-friendship.facade';
 import { VisitedProfileInteractionOrchestrator } from './application/visited-profile-interaction.orchestrator';
-
-interface PublicIntentContextVm {
-  title: string;
-  detail: string;
-}
+import {
+  VisitedProfileIntentContextFacade,
+  VisitedProfileIntentContextVm,
+} from './application/visited-profile-intent-context.facade';
 
 interface FriendshipInteractionState {
   isFriend: boolean;
@@ -84,7 +82,7 @@ const DEFAULT_PROFILE_PHOTO_URL = 'assets/imagem-padrao.webp';
   styleUrls: ['./other-user-profile-view.component.css'],
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  providers: [VisitedProfileFriendshipFacade, VisitedProfileInteractionOrchestrator],
+  providers: [VisitedProfileFriendshipFacade, VisitedProfileInteractionOrchestrator, VisitedProfileIntentContextFacade],
   imports: [
     CommonModule,
     RouterModule,
@@ -101,7 +99,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
   private readonly viewedProfileUid$ = new BehaviorSubject<string | null>(null);
 
   readonly friendshipInteractionState$: Observable<FriendshipInteractionState>;
-  readonly publicIntentContext$: Observable<PublicIntentContextVm | null>;
+  readonly publicIntentContext$: Observable<VisitedProfileIntentContextVm | null>;
 
   uid: string | null = null;
   userProfile: IUserDados | null = null;
@@ -117,8 +115,8 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     private readonly firestoreUserQuery: FirestoreUserQueryService,
     private readonly authSession: AuthSessionService,
     private readonly currentUserStore: CurrentUserStoreService,
-    private readonly userIntentStatus: UserIntentStatusService,
     private readonly visitedFriendship: VisitedProfileFriendshipFacade,
+    private readonly intentContextFacade: VisitedProfileIntentContextFacade,
     private readonly interactionOrchestrator: VisitedProfileInteractionOrchestrator,
     private readonly cdr: ChangeDetectorRef,
     private readonly applicationError: ApplicationErrorService,
@@ -455,84 +453,18 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
       });
   }
 
-  private buildPublicIntentContextStream(): Observable<PublicIntentContextVm | null> {
-    return combineLatest([
-      this.authSession.uid$.pipe(
-        map((uid) => (uid ?? '').trim()),
-        distinctUntilChanged()
-      ),
-      this.viewedProfileUid$.pipe(
-        map((uid) => (uid ?? '').trim()),
-        distinctUntilChanged()
-      ),
-    ]).pipe(
-      switchMap(([viewerUid, targetUid]) => {
-        if (!viewerUid || !targetUid || viewerUid === targetUid) {
-          return of(null);
-        }
-
-        return this.userIntentStatus.watchCurrentStatus$(viewerUid).pipe(
-          switchMap((viewerStatus) => {
-            const options = {
-              limit: 1,
-              ownerUids: [targetUid],
-            };
-
-            const targetStatuses$ = viewerStatus?.isActive
-              ? this.userIntentStatus.watchActiveStatusesForRegion$(
-                  viewerStatus.destination.region,
-                  options
-                )
-              : this.userIntentStatus.watchActiveStatusesForUserRegion$(
-                  viewerUid,
-                  options
-                );
-
-            return targetStatuses$.pipe(
-              map((targetStatuses) => {
-                const targetStatus = targetStatuses[0] ?? null;
-
-                if (!targetStatus?.isActive) {
-                  return null;
-                }
-
-                if (
-                  targetStatus.availability === 'available_now' &&
-                  viewerStatus?.isActive === true &&
-                  viewerStatus.availability === 'available_now'
-                ) {
-                  return {
-                    title: 'Vocês estão disponíveis agora',
-                    detail: 'Status temporário em comum',
-                  };
-                }
-
-                switch (targetStatus.availability) {
-              case 'available_now':
-                return {
-                  title: 'Disponível agora',
-                  detail: 'Status temporário',
-                };
-              case 'available_today':
-                return {
-                  title: 'Disponível hoje',
-                  detail: 'Status temporário',
-                };
-              case 'planning_later':
-                return {
-                  title: 'Planejando mais tarde',
-                  detail: 'Status temporário',
-                };
-                  default:
-                    return null;
-                }
-              })
-            );
-          })
-        );
-      }),
-      shareReplay({ bufferSize: 1, refCount: true })
+  private buildPublicIntentContextStream(): Observable<VisitedProfileIntentContextVm | null> {
+    const viewerUid$ = this.authSession.uid$.pipe(
+      map((uid) => (uid ?? '').trim()),
+      distinctUntilChanged()
     );
+
+    const targetUid$ = this.viewedProfileUid$.pipe(
+      map((uid) => (uid ?? '').trim()),
+      distinctUntilChanged()
+    );
+
+    return this.intentContextFacade.observe$(viewerUid$, targetUid$);
   }
 
   private buildFriendshipInteractionStateStream(): Observable<FriendshipInteractionState> {
