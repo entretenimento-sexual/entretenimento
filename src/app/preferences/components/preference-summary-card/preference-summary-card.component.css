@@ -18,9 +18,8 @@
 }
 
 .summary-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--space-2, 12px);
+  --app-responsive-grid-min: 12rem;
+  --app-responsive-grid-gap: var(--space-2, 12px);
   padding: 0 var(--space-3, 16px) var(--space-3, 16px);
 }
 
@@ -59,14 +58,4 @@
   color: color-mix(in oklab, var(--text-color) 68%, transparent);
 }
 
-@media (max-width: 900px) {
-  .summary-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 520px) {
-  .summary-grid {
-    grid-template-columns: 1fr;
-  }
 }
