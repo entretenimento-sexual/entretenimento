@@ -30,9 +30,6 @@
   display: grid;
   gap: 0.85rem;
   padding: 1rem 1.1rem;
-  border: 1px solid var(--surface-border);
-  border-radius: 18px;
-  background: var(--surface-color);
 }
 
 .account-context-panel--success {
@@ -223,8 +220,7 @@
   gap: 1.15rem;
   align-items: end;
   padding: clamp(1.1rem, 2.3vw, 1.5rem);
-  border: 1px solid color-mix(in oklab, var(--primary-color) 24%, var(--surface-border));
-  border-radius: 20px;
+  border-color: color-mix(in oklab, var(--primary-color) 24%, var(--surface-border));
   background:
     radial-gradient(circle at top right, color-mix(in oklab, var(--primary-color) 10%, transparent), transparent 44%),
     var(--surface-color);
@@ -260,15 +256,6 @@
   max-width: 58ch;
   line-height: 1.45;
   color: color-mix(in oklab, var(--text-color) 72%, transparent);
-}
-
-.account-support-link {
-  font-size: 0.88rem;
-  color: color-mix(in oklab, var(--text-color) 72%, transparent);
-}
-
-.account-support-link:hover {
-  color: var(--text-color);
 }
 
 .account-danger-surface {
