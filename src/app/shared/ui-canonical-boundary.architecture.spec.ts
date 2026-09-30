@@ -200,6 +200,30 @@ describe('Canonical UI boundary', () => {
     expect(sharedModule).not.toContain('components-globais/confirmacao-dialog');
   });
 
+  it('mantém grids migrados responsivos por primitive, sem breakpoints locais', () => {
+    const templates = [
+      'src/app/preferences/pages/preferences-hub/preferences-hub.component.html',
+      'src/app/preferences/components/compatibility-preview-card/compatibility-preview-card.component.html',
+      'src/app/preferences/components/match-profile-preview-card/match-profile-preview-card.component.html',
+      'src/app/preferences/components/preference-summary-card/preference-summary-card.component.html',
+      'src/app/preferences/pages/compatibility-lab/compatibility-lab.component.html',
+      'src/app/preferences/pages/match-profile-lab/match-profile-lab.component.html',
+      'src/app/preferences/components/discovery-upgrade-hints/discovery-upgrade-hints.component.html',
+      'src/app/preferences/components/discovery-visibility-panel/discovery-visibility-panel.component.html',
+    ] as const;
+    const styles = templates.map((path) => path.replace(/\.html$/u, '.css'));
+
+    expect(
+      templates.filter((path) => !source(path).includes('app-responsive-grid')),
+      'Grids migrados devem usar a primitive responsiva global.'
+    ).toEqual([]);
+
+    expect(
+      styles.filter((path) => /@media\s*\(max-width:/u.test(source(path))),
+      'Grids migrados não devem recriar breakpoints locais.'
+    ).toEqual([]);
+  });
+
   it('não permite novos placeholders works! em templates de produção', () => {
     const appRoot = resolve(ROOT, 'src/app');
     const violations = productionHtmlFiles(appRoot)
