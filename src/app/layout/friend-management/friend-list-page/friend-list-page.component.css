@@ -13,69 +13,6 @@
   color: var(--text-color, #f5f7fb);
 }
 
-.friends-page__hero,
-.friends-page__hero.app-card,
-.friends-controls,
-.friends-controls.app-card {
-  min-width: 0;
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
-  border-radius: 18px;
-  background: var(--surface-color, #101923);
-  box-shadow: var(--box-shadow, 0 10px 24px rgb(0 0 0 / 14%));
-}
-
-.friends-page__hero,
-.friends-page__hero.app-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 14px;
-  align-items: center;
-  padding: clamp(14px, 2vw, 18px);
-  background:
-    radial-gradient(circle at top left, color-mix(in oklab, var(--primary-color, #ff7070) 10%, transparent), transparent 32rem),
-    color-mix(in oklab, var(--surface-color, #101923) 96%, var(--text-color, #f5f7fb) 4%);
-}
-
-.friends-page__copy {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-}
-
-.friends-page__eyebrow {
-  display: inline-flex;
-  align-items: center;
-  width: fit-content;
-  min-height: 28px;
-  padding: 0.28rem 0.68rem;
-  border: 1px solid color-mix(in oklab, var(--primary-color, #ff7070) 34%, transparent);
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--primary-color, #ff7070) 10%, transparent);
-  color: var(--primary-color, #ff7070);
-  font-size: 0.72rem;
-  font-weight: 900;
-  letter-spacing: 0.06em;
-  line-height: 1;
-  text-transform: uppercase;
-}
-
-.friends-page h1 {
-  margin: 0;
-  color: var(--text-color, #f5f7fb);
-  font-size: clamp(1.35rem, 2vw, 1.8rem);
-  font-weight: 900;
-  line-height: 1.08;
-  letter-spacing: -0.03em;
-}
-
-.friends-page__copy p {
-  margin: 0;
-  max-width: 66ch;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 66%, transparent);
-  font-size: 0.92rem;
-  line-height: 1.45;
-}
-
 .friends-page__metrics {
   display: flex;
   flex-wrap: wrap;
@@ -157,8 +94,6 @@
 }
 
 @media (max-width: 900px) {
-  .friends-page__hero,
-  .friends-page__hero.app-card,
   .friends-controls,
   .friends-controls.app-card {
     grid-template-columns: 1fr;
@@ -178,17 +113,11 @@
     gap: 12px;
   }
 
-  .friends-page__hero,
   .friends-controls,
-  .friends-page__hero.app-card,
   .friends-controls.app-card {
     padding: 12px;
     border-radius: 14px;
     box-shadow: none;
-  }
-
-  .friends-page__copy p {
-    font-size: 0.86rem;
   }
 
   .friends-page__metrics {
@@ -203,14 +132,12 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .friends-page__hero,
   .friends-controls {
     transition: none !important;
     animation: none !important;
   }
 }
 
-html.high-contrast .friends-page__hero,
 html.high-contrast .friends-controls,
 html.high-contrast .friends-page__metric,
 html.high-contrast .friends-page__eyebrow {
