@@ -2,6 +2,7 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
+import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
 
 interface SafetyAction {
   id: string;
@@ -23,7 +24,7 @@ interface SafetyGuide {
 @Component({
   selector: 'app-safety-center',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, PageHeaderComponent],
   templateUrl: './safety-center.component.html',
   styleUrls: ['./safety-center.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
