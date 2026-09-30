@@ -17,11 +17,13 @@ import {
   ComplianceCaseItem,
 } from 'src/app/core/interfaces/compliance-case.interface';
 import { ComplianceCaseService } from 'src/app/core/services/compliance/compliance-case.service';
+import { PageHeaderComponent } from '../../../shared/page-header/page-header.component';
+import { ContentStateComponent } from '../../../shared/content-state/content-state.component';
 
 @Component({
   selector: 'app-compliance-cases',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterModule, PageHeaderComponent, ContentStateComponent],
   templateUrl: './compliance-cases.component.html',
   styleUrl: './compliance-cases.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
