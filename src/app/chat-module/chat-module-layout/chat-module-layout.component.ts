@@ -8,8 +8,7 @@
 // - aceitar deep-link por query params: openChatId / withUser;
 // - delegar comandos de envio direto ao DirectChatSendOrchestrator;
 // - usar AuthSessionService como fonte canônica da sessão;
-// - usar CurrentUserStoreService como fonte canônica do perfil do app;
-// - manter seleção canônica sincronizada com DirectChatFacade;
+// // - manter seleção canônica sincronizada com DirectChatFacade;
 // - bloquear preventivamente envio direto sem conexão aceita;
 // - manter feedback de envio acessível e claro;
 // - usar PrivacyDebugLoggerService para logs de debug.
@@ -55,10 +54,8 @@ import {
 
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
-import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -96,7 +93,6 @@ export class ChatModuleLayoutComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   private readonly authSession = inject(AuthSessionService);
-  private readonly currentUserStore = inject(CurrentUserStoreService);
 
   private readonly navigationOrchestrator = inject(DirectChatNavigationOrchestrator);
   private readonly composeAccessFacade = inject(DirectChatComposeAccessFacade);
@@ -189,17 +185,6 @@ get shouldShowComposerHelp(): boolean {
     return this.selectionContext.selectedType() ?? undefined;
   }
 
-  /**
-   * userId da rota é apenas contexto.
-   * Não deve ser tratado como chatId.
-   */
-  userId: string | undefined;
-
-  /**
-   * Snapshot útil do UID autenticado atual.
-   */
-  currentUserUid: string | null = null;
-
   get activeChatPeerUid(): string | null {
     return this.selectionContext.activePeerUid();
   }
@@ -222,17 +207,6 @@ get shouldShowComposerHelp(): boolean {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  /**
-   * Perfil atual do app.
-   * - undefined no store vira null para simplificar template e consumo local.
-   */
-  readonly usuario$: Observable<IUserDados | null> =
-    this.currentUserStore.user$.pipe(
-      map((user) => user ?? null),
-      distinctUntilChanged((a, b) => this.sameUser(a, b)),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
-
   readonly selectedDirectPeerUid$: Observable<string | null> =
     this.selectionContext.selectedDirectPeerUid$(this.currentUid$);
 
@@ -244,7 +218,6 @@ get shouldShowComposerHelp(): boolean {
   // ---------------------------------------------------------------------------
 
   ngOnInit(): void {
-    this.observeRouteUserId();
     this.observeAuthenticatedUser();
     this.observeChatDeepLink();
     this.observeSelectedDirectPeerFallback();
@@ -293,75 +266,24 @@ get shouldShowComposerHelp(): boolean {
   // Route/session observers
   // ---------------------------------------------------------------------------
 
-  private observeRouteUserId(): void {
-    this.route.paramMap
-      .pipe(
-        map((params) => (params.get('userId') ?? '').trim() || undefined),
-        distinctUntilChanged(),
-        tap((routeUserId) => {
-          this.userId = routeUserId;
-          this.dbg('observeRouteUserId()', { userId: this.userId });
-        }),
-        catchError((error) => {
-          this.reportError(
-            'Erro ao processar parâmetros da rota.',
-            error,
-            { op: 'observeRouteUserId' },
-            false
-          );
-
-          this.userId = undefined;
-          return of(undefined);
-        }),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe();
-  }
-
   private observeAuthenticatedUser(): void {
     this.currentUid$
       .pipe(
         tap((uid) => {
-          this.currentUserUid = uid;
-
-          if (!this.currentUserUid) {
+          if (!uid) {
             this.messageContent = '';
             this.selectionContext.clear();
           }
 
-          this.dbg('observeAuthenticatedUser.uid$', {
-            hasUid: !!this.currentUserUid,
+          this.dbg('observeAuthenticatedUser()', {
+            hasUid: !!uid,
           });
         }),
         catchError((error) => {
           this.reportError(
             'Erro ao obter sessão do usuário.',
             error,
-            { op: 'observeAuthenticatedUser.uid' },
-            false
-          );
-
-          this.currentUserUid = null;
-          return of(null);
-        }),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe();
-
-    this.usuario$
-      .pipe(
-        tap((user) => {
-          this.dbg('observeAuthenticatedUser.usuario$', {
-            hasUid: !!user?.uid,
-            hasNickname: !!user?.nickname,
-            profileCompleted: user?.profileCompleted ?? null,
-          });
-        }),
-        catchError((error) => {
-          this.reportError(
-            'Erro ao observar usuário atual.',
-            error,
-            { op: 'observeAuthenticatedUser.user' },
+            { op: 'observeAuthenticatedUser' },
             false
           );
 
@@ -645,17 +567,4 @@ if (this.isMessageTooLong) {
     this.privacyDebug.log('chat', `ChatModuleLayout: ${message}`, extra);
   }
 
-  // ---------------------------------------------------------------------------
-  // Utils
-  // ---------------------------------------------------------------------------
-
-  private sameUser(a: IUserDados | null, b: IUserDados | null): boolean {
-    return (
-      (a?.uid ?? null) === (b?.uid ?? null) &&
-      (a?.nickname ?? null) === (b?.nickname ?? null) &&
-      (a?.photoURL ?? null) === (b?.photoURL ?? null) &&
-      (a?.role ?? null) === (b?.role ?? null) &&
-      (a?.profileCompleted ?? null) === (b?.profileCompleted ?? null)
-    );
-  }
 } // Linha 1173, final do ChatModuleLayoutComponent que está gigantesco e merece um refactor futuro para dividir responsabilidades.
