@@ -67,9 +67,8 @@
 }
 
 .account-overview-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.8rem;
+  --app-responsive-grid-min: 22rem;
+  --app-responsive-grid-gap: 0.8rem;
 }
 
 .account-overview-card {
@@ -308,10 +307,6 @@
 }
 
 @media (max-width: 720px) {
-  .account-overview-grid {
-    grid-template-columns: 1fr;
-  }
-
   .account-plan-hero {
     grid-template-columns: 1fr;
     align-items: stretch;
