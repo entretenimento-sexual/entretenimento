@@ -403,6 +403,23 @@ describe('Canonical UI boundary', () => {
     expect(listStyles).not.toContain('room-card');
   });
 
+  it('mantém a policy do composer fora do ChatModuleLayoutComponent', () => {
+    const layoutTs = source(
+      'src/app/chat-module/chat-module-layout/chat-module-layout.component.ts'
+    );
+    const policy = source(
+      'src/app/chat-module/policies/direct-chat-composer.policy.ts'
+    );
+
+    expect(layoutTs).toContain('direct-chat-composer.policy');
+    expect(layoutTs).not.toContain(
+      'private resolveDirectMessageBlockMessage'
+    );
+    expect(layoutTs).not.toContain('readonly maxMessageLength = 1000');
+    expect(policy).toContain('DIRECT_CHAT_MAX_MESSAGE_LENGTH');
+    expect(policy).toContain('resolveDirectMessageBlockMessage');
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
