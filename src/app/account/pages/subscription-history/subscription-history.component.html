@@ -30,7 +30,7 @@
         <section class="subscription-history-state" role="alert">
           <h2>Não foi possível carregar o histórico</h2>
           <p>Seus registros não foram alterados. Tente consultar novamente.</p>
-          <button type="button" class="btn btn-secondary" (click)="retry()">
+          <button type="button" class="app-action app-action--ghost" (click)="retry()">
             Tentar novamente
           </button>
         </section>
@@ -108,7 +108,7 @@
             }
             <button
               type="button"
-              class="btn btn-secondary"
+              class="app-action app-action--ghost"
               [disabled]="state.loadingMore"
               (click)="loadMore()"
             >
