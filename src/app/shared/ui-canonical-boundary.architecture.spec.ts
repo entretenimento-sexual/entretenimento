@@ -1447,6 +1447,28 @@ describe('Canonical UI boundary', () => {
     expect(facade).toContain('canSendCurrentMessage');
   });
 
+  it('mantém falhas de envio direto observáveis até o shell', () => {
+    const service = source(
+      'src/app/messaging/direct-chat/services/direct-thread.service.ts'
+    );
+    const facade = source(
+      'src/app/messaging/direct-chat/application/direct-thread.facade.ts'
+    );
+    const layout = source(
+      'src/app/chat-module/chat-module-layout/chat-module-layout.component.ts'
+    );
+
+    const facadeSend = facade
+      .split('sendMessage$(content: string)')[1]
+      ?.split('deleteMessage$(messageId: string)')[0] ?? '';
+
+    expect(service).toContain('return throwError(() => error);');
+    expect(facadeSend).not.toContain('catchError');
+    expect(layout).toContain(
+      'this.directMessageBlockedReason.set(blockedMessage);'
+    );
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
