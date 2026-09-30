@@ -257,11 +257,9 @@ describe('DirectThreadService', () => {
     };
     sendCallableMock.mockRejectedValueOnce(error);
 
-    const result = await firstValueFrom(
-      service.sendMessage$('chat-1', 'olá', 'req-1')
-    );
-
-    expect(result).toBeNull();
+    await expect(
+      firstValueFrom(service.sendMessage$('chat-1', 'olá', 'req-1'))
+    ).rejects.toEqual(error);
     expect(applicationErrorMock.report).toHaveBeenCalledTimes(1);
     expect(applicationErrorMock.report).toHaveBeenCalledWith(error, {
       feature: 'direct-thread',
@@ -297,11 +295,10 @@ describe('DirectThreadService', () => {
       },
     });
 
-    const result = await firstValueFrom(
-      service.sendMessage$('chat-1', 'olá', 'req-1')
-    );
+    await expect(
+      firstValueFrom(service.sendMessage$('chat-1', 'olá', 'req-1'))
+    ).rejects.toEqual(expect.any(Error));
 
-    expect(result).toBeNull();
     expect(applicationErrorMock.report).toHaveBeenCalledTimes(1);
     expect(applicationErrorMock.report).toHaveBeenCalledWith(
       expect.any(Error),
@@ -324,11 +321,10 @@ describe('DirectThreadService', () => {
       throw new Error('application error unavailable');
     });
 
-    const result = await firstValueFrom(
-      service.sendMessage$('chat-1', 'olá', 'req-1')
-    );
+    await expect(
+      firstValueFrom(service.sendMessage$('chat-1', 'olá', 'req-1'))
+    ).rejects.toEqual(error);
 
-    expect(result).toBeNull();
     expect(applicationErrorMock.report).toHaveBeenCalledTimes(1);
     expect(errorNotifierMock.showError).toHaveBeenCalledTimes(1);
     expect(errorNotifierMock.showError).toHaveBeenCalledWith(
