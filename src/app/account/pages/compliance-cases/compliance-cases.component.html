@@ -58,7 +58,7 @@
                   <p class="compliance-detail__eyebrow">Caso {{ item.caseId }}</p>
                   <h2>{{ categoryLabel(item.category) }}</h2>
                 </div>
-                <span class="compliance-status" role="status">
+                <span class="compliance-status app-chip app-chip--primary" role="status">
                   {{ statusLabel(item.status) }}
                 </span>
               </header>
@@ -107,6 +107,7 @@
                   </p>
                   <textarea
                     id="compliance-response-text"
+                    class="app-control"
                     rows="8"
                     maxlength="4000"
                     [formControl]="responseControl"
@@ -152,9 +153,9 @@
               }
 
               <footer class="compliance-detail__footer">
-                <a routerLink="/termos-e-condicoes">Consultar Termos de Uso</a>
-                <a routerLink="/politica-de-privacidade">Consultar Política de Privacidade</a>
-                <a routerLink="/dashboard/seguranca">Central de segurança</a>
+                <a class="app-action app-action--ghost" routerLink="/termos-e-condicoes">Consultar Termos de Uso</a>
+                <a class="app-action app-action--ghost" routerLink="/politica-de-privacidade">Consultar Política de Privacidade</a>
+                <a class="app-action app-action--ghost" routerLink="/dashboard/seguranca">Central de segurança</a>
               </footer>
             </article>
           }
