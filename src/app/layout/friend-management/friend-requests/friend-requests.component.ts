@@ -17,7 +17,7 @@ import { filter, firstValueFrom, take } from 'rxjs';
 
 import { SharedMaterialModule } from 'src/app/shared/shared-material.module';
 import { DateFormatPipe } from 'src/app/shared/pipes/date-format.pipe';
-import { ConfirmacaoDialogComponent } from 'src/app/shared/components-globais/confirmacao-dialog/confirmacao-dialog.component';
+import { ConfirmationDialogComponent } from 'src/app/shared/components-globais/confirmation-dialog/confirmation-dialog.component';
 import { AppState } from 'src/app/store/states/app.state';
 import * as A from 'src/app/store/actions/actions.interactions/actions.friends';
 import { selectCurrentUserUid } from 'src/app/store/selectors/selectors.user/user.selectors';
@@ -110,7 +110,7 @@ export class FriendRequestsComponent {
     const displayName = String(req.nickname ?? '').trim() || 'este usuário';
     const confirmed = await firstValueFrom(
       this.dialog
-        .open(ConfirmacaoDialogComponent, {
+        .open(ConfirmationDialogComponent, {
           width: 'min(92vw, 430px)',
           maxWidth: '92vw',
           autoFocus: false,

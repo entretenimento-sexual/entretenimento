@@ -43,7 +43,7 @@ import { RoomManagementService } from 'src/app/core/services/batepapo/room-servi
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
-import { ConfirmacaoDialogComponent } from 'src/app/shared/components-globais/confirmacao-dialog/confirmacao-dialog.component';
+import { ConfirmationDialogComponent } from 'src/app/shared/components-globais/confirmation-dialog/confirmation-dialog.component';
 
 type RoomCardViewModel = RoomListItem & {
   isOwner: boolean;
@@ -114,7 +114,7 @@ export class ChatRoomsComponent implements OnInit {
       return;
     }
 
-    const confirmation = this.dialog.open(ConfirmacaoDialogComponent, {
+    const confirmation = this.dialog.open(ConfirmationDialogComponent, {
       width: 'min(92vw, 30rem)',
       maxWidth: '92vw',
       autoFocus: 'dialog',

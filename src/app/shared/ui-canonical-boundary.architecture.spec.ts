@@ -224,6 +224,29 @@ describe('Canonical UI boundary', () => {
     ).toEqual([]);
   });
 
+  it('não permite imports do diálogo global legado nos consumidores migrados', () => {
+    const consumers = [
+      'src/app/chat-module/chat-rooms/chat-rooms.component.ts',
+      'src/app/core/guards/unsaved-changes/unsaved-changes.guard.ts',
+      'src/app/layout/friend-management/friend-requests/friend-requests.component.ts',
+      'src/app/shared/shared.module.ts',
+    ] as const;
+
+    const violations = consumers.filter((path) => {
+      const value = source(path);
+      return (
+        value.includes('ConfirmacaoDialogComponent') ||
+        value.includes('ConfirmacaoDialogData') ||
+        value.includes('components-globais/confirmacao-dialog')
+      );
+    });
+
+    expect(
+      violations,
+      'Consumidores devem usar apenas ConfirmationDialogComponent.'
+    ).toEqual([]);
+  });
+
   it('não permite novos placeholders works! em templates de produção', () => {
     const appRoot = resolve(ROOT, 'src/app');
     const violations = productionHtmlFiles(appRoot)

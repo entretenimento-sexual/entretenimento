@@ -71,9 +71,7 @@ export class ConfirmationDialogComponent {
   readonly message = computed(() => this.cleanLabel(this.data?.message, 'Deseja continuar?'));
 
   /**
-   * Normaliza payloads legados. O antigo ConfirmacaoDialogComponent aceitava
-   * `tone: 'default'`; ao passar pelo adaptador isso deve virar warning em vez
-   * de produzir um estado visual sem accent.
+   * Mantém fallback seguro para payloads sem tom explícito.
    */
   readonly tone = computed<ConfirmationDialogTone>(() =>
     this.resolveTone((this.data as { tone?: unknown } | null)?.tone)

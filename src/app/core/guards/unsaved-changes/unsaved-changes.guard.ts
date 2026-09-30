@@ -5,9 +5,9 @@ import { MatDialog } from '@angular/material/dialog';
 import { map, take } from 'rxjs/operators';
 
 import {
-  ConfirmacaoDialogComponent,
-  ConfirmacaoDialogData,
-} from 'src/app/shared/components-globais/confirmacao-dialog/confirmacao-dialog.component';
+  ConfirmationDialogComponent,
+  ConfirmationDialogData,
+} from 'src/app/shared/components-globais/confirmation-dialog/confirmation-dialog.component';
 
 export interface UnsavedChangesAware {
   hasUnsavedChanges(): boolean;
@@ -22,7 +22,7 @@ export const unsavedChangesGuard: CanDeactivateFn<UnsavedChangesAware> = (
   }
 
   const dialog = inject(MatDialog);
-  const data: ConfirmacaoDialogData = {
+  const data: ConfirmationDialogData = {
     title: 'Sair sem salvar?',
     message:
       'Existem alterações que ainda não foram salvas. O rascunho local também será descartado.',
@@ -32,7 +32,7 @@ export const unsavedChangesGuard: CanDeactivateFn<UnsavedChangesAware> = (
   };
 
   return dialog
-    .open(ConfirmacaoDialogComponent, {
+    .open(ConfirmationDialogComponent, {
       data,
       width: 'min(92vw, 440px)',
       disableClose: true,
