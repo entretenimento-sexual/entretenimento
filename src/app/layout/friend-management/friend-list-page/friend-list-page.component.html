@@ -1,14 +1,10 @@
 <!-- src/app/layout/friend-management/friend-list-page/friend-list-page.component.html -->
 <section class="friends-page" aria-labelledby="friends-page-title">
-  <header class="friends-page__hero app-card">
-    <div class="friends-page__copy">
-      <h1 id="friends-page-title">Amizades</h1>
-      <p>
-        Filtre contatos online e mantenha as conversas acessíveis em qualquer tela.
-      </p>
-    </div>
-
-    <div class="friends-page__metrics" aria-label="Resumo de amizades">
+  <app-page-header
+    title="Amizades"
+    subtitle="Filtre contatos online e mantenha as conversas acessíveis em qualquer tela."
+  >
+    <div page-actions class="friends-page__metrics" aria-label="Resumo de amizades">
       <div class="friends-page__metric">
         <strong>{{ friendsCount$ | async }}</strong>
         <span>Total</span>
@@ -19,7 +15,7 @@
         <span>Online</span>
       </div>
     </div>
-  </header>
+  </app-page-header>
 
   <section class="friends-controls app-card" aria-label="Filtros da lista de amigos">
     <mat-form-field appearance="outline" class="friends-controls__field">
