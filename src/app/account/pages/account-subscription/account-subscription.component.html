@@ -6,7 +6,7 @@
         <h2 id="account-subscription-title">Assinatura</h2>
       </header>
 
-      <section class="account-plan-hero" aria-labelledby="account-current-plan-title">
+      <section class="account-plan-hero app-card app-card--flat" aria-labelledby="account-current-plan-title">
         <div class="account-plan-hero__copy">
           @if (vm.subscriptionActive) {
             <span class="account-plan-hero__badge">Ativa</span>
@@ -64,7 +64,7 @@
                 @if (renewal.renewalEnabled) {
                   <button
                     type="button"
-                    class="account-support-link"
+                    class="app-action app-action--ghost"
                     [disabled]="cancelingRenewal()"
                     [attr.aria-busy]="cancelingRenewal() ? 'true' : null"
                     (click)="cancelRenewal()"
@@ -113,7 +113,7 @@
                   } @else {
                     <button
                       type="button"
-                      class="account-support-link"
+                      class="app-action app-action--ghost"
                       [disabled]="cancelingDowngrade()"
                       [attr.aria-busy]="cancelingDowngrade() ? 'true' : null"
                       (click)="cancelScheduledDowngrade()"
@@ -141,7 +141,7 @@
             </div>
 
             <a
-              class="account-support-link"
+              class="app-action app-action--ghost"
               routerLink="/conta/assinatura/historico"
               aria-label="Ver histórico somente leitura da assinatura"
             >
