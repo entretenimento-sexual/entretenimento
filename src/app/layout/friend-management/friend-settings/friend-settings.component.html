@@ -1,11 +1,10 @@
-<section class="friend-settings" aria-labelledby="friend-settings-title">
-  <header class="app-section-header">
-    <div class="app-section-heading">
-      <h2 id="friend-settings-title" class="app-section-title">Amizade</h2>
-    </div>
-  </header>
+<section class="friend-settings app-page" aria-label="Configurações de amizade">
+  <app-page-header
+    title="Configurações de amizade"
+    subtitle="Controle solicitações, presença online e descoberta pelo nickname."
+  />
 
-  <form [formGroup]="settingsForm">
+  <form class="friend-settings__form app-card app-card--flat" [formGroup]="settingsForm">
     <mat-slide-toggle formControlName="receiveRequests">
       Receber solicitações
     </mat-slide-toggle>
@@ -22,13 +21,10 @@
       type="button"
       class="app-action app-action--primary"
       [disabled]="isLoading$ | async"
+      [attr.aria-busy]="(isLoading$ | async) ? 'true' : null"
       (click)="saveSettings()"
     >
-      {{ (isLoading$ | async) ? 'Salvando…' : 'Salvar' }}
+      {{ (isLoading$ | async) ? 'Salvando…' : 'Salvar configurações' }}
     </button>
   </form>
-
-  @if (isLoading$ | async) {
-    <mat-spinner aria-label="Salvando configurações"></mat-spinner>
-  }
 </section>
