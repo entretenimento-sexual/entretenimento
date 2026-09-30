@@ -123,13 +123,19 @@
         </a>
       </div>
     } @else {
-      <section class="account-context-panel app-card app-card--flat" role="alert">
-        <p>Você precisa estar autenticado para acessar sua conta.</p>
-      </section>
+      <app-content-state
+        state="error"
+        title="Não foi possível acessar sua conta"
+        message="Você precisa estar autenticado para acessar sua conta."
+        [compact]="true"
+      />
     }
   } @else {
-    <section class="account-context-panel app-card app-card--flat" role="status" aria-live="polite">
-      <p>Carregando conta...</p>
-    </section>
+    <app-content-state
+      state="loading"
+      message="Carregando conta..."
+      [compact]="true"
+      [skeletonRows]="2"
+    />
   }
 </section>
