@@ -42,6 +42,7 @@ import { FeedPublicationComposerComponent } from '../../components/feed-publicat
 import { ExploreCommunityContentCardComponent } from '../../components/explore-community-content-card/explore-community-content-card.component';
 import { ExploreCommunityDistributionService } from '../../services/explore-community-distribution.service';
 import { SocialExploreTimelineFacade } from '../../facades/social-explore-timeline.facade';
+import { ContentStateComponent } from 'src/app/shared/content-state/content-state.component';
 import { ExploreSocialFeedItem } from '../../models/explore-social-feed';
 
 @Component({
@@ -56,6 +57,7 @@ import { ExploreSocialFeedItem } from '../../models/explore-social-feed';
     UserIntentStatusComposerComponent,
     CommunityDiscoveryVisibilityDirective,
     ExploreCommunityContentCardComponent,
+    ContentStateComponent,
   ],
   templateUrl: './social-explore-page.component.html',
   styleUrls: ['./social-explore-page.component.css'],
