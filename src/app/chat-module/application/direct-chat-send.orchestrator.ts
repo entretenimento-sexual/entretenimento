@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
-import { catchError, map, tap } from 'rxjs/operators';
+import { catchError, map } from 'rxjs/operators';
 
 import { DirectChatFacade } from 'src/app/messaging/direct-chat/application/direct-chat.facade';
 import { DirectThreadFacade } from 'src/app/messaging/direct-chat/application/direct-thread.facade';
