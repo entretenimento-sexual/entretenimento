@@ -2,12 +2,12 @@
 <section class="account-section-page" aria-labelledby="account-security-title">
   @if (vm$ | async; as vm) {
     @if (vm) {
-      <header class="account-section-header">
+      <header class="account-section-header app-section-header">
         <h2 id="account-security-title">Segurança</h2>
       </header>
 
-      <section class="account-surface" aria-labelledby="account-access-methods-title">
-        <div class="account-surface__head">
+      <section class="account-surface app-card app-card--flat" aria-labelledby="account-access-methods-title">
+        <div class="account-surface__head app-card__header">
           <h3 id="account-access-methods-title">Acesso</h3>
         </div>
 
@@ -42,7 +42,7 @@
         </div>
       </section>
 
-      <section class="account-surface" aria-labelledby="account-security-history-title">
+      <section class="account-surface app-card app-card--flat" aria-labelledby="account-security-history-title">
         <div class="account-list">
           <div class="account-list__row">
             <div class="account-list__copy">
