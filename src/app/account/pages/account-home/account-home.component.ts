@@ -16,11 +16,12 @@ import { AccountFacade } from '../../application/account.facade';
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 import { IncompleteProfileSubscriptionNoticeService } from 'src/app/subscriptions/application/incomplete-profile-subscription-notice.service';
 import { SubscriptionCheckoutFacade } from 'src/app/subscriptions/application/subscription-checkout.facade';
+import { ContentStateComponent } from '../../../shared/content-state/content-state.component';
 
 @Component({
   selector: 'app-account-home',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, ContentStateComponent],
   providers: [SubscriptionCheckoutFacade],
   templateUrl: './account-home.component.html',
   styleUrl: '../account-section.css',
