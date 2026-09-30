@@ -18,6 +18,8 @@ import { filter, firstValueFrom, take } from 'rxjs';
 import { SharedMaterialModule } from 'src/app/shared/shared-material.module';
 import { DateFormatPipe } from 'src/app/shared/pipes/date-format.pipe';
 import { ConfirmationDialogComponent } from 'src/app/shared/components-globais/confirmation-dialog/confirmation-dialog.component';
+import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.component';
+import { ContentStateComponent } from 'src/app/shared/content-state/content-state.component';
 import { AppState } from 'src/app/store/states/app.state';
 import * as A from 'src/app/store/actions/actions.interactions/actions.friends';
 import { selectCurrentUserUid } from 'src/app/store/selectors/selectors.user/user.selectors';
@@ -36,7 +38,7 @@ import {
 @Component({
   selector: 'app-friend-requests',
   standalone: true,
-  imports: [CommonModule, SharedMaterialModule, DateFormatPipe],
+  imports: [CommonModule, SharedMaterialModule, DateFormatPipe, PageHeaderComponent, ContentStateComponent],
   templateUrl: './friend-requests.component.html',
   styleUrls: ['./friend-requests.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
