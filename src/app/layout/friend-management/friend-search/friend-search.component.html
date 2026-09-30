@@ -1,30 +1,61 @@
-<!-- src\app\layout\friend-management\friend-search\friend-search.component.html -->
-<div class="friend-search">
-  <h3>Buscar Amigos</h3>
+<section class="friend-search app-page" aria-label="Buscar amizades">
+  <app-page-header
+    title="Buscar amizades"
+    subtitle="Encontre pessoas pelo nome ou UID e envie uma solicitação de amizade."
+  />
 
-  <!-- Campo de entrada acessível -->
-  <mat-form-field appearance="outline">
-    <mat-label>Digite um nome ou UID</mat-label>
-    <input matInput [formControl]="searchControl" aria-label="Buscar amigos">
-  </mat-form-field>
+  <label class="app-field" for="friend-search-input">
+    <span class="app-field__label">Nome ou UID</span>
+    <input
+      id="friend-search-input"
+      class="app-control"
+      type="search"
+      autocomplete="off"
+      [formControl]="searchControl"
+      placeholder="Digite um nome ou UID"
+    />
+  </label>
 
-  <!-- Loader enquanto carrega -->
   @if (isLoading$ | async) {
-    <mat-spinner></mat-spinner>
+    <app-content-state
+      state="loading"
+      message="Buscando usuários..."
+      [compact]="true"
+      [skeletonRows]="2"
+    />
+  } @else if (searchControl.value.trim() && !(hasResults$ | async)) {
+    <app-content-state
+      state="empty"
+      title="Nenhum usuário encontrado"
+      message="Revise o nome ou UID informado e tente novamente."
+      [compact]="true"
+    />
   }
 
-  <!-- Lista de resultados -->
-  @if ((searchResults$ | async)?.length) {
-    <ul>
-      @for (user of searchResults$ | async; track user) {
-        <li>
-          {{ user.nickname || user.uid }}
-          <button mat-button color="primary">Adicionar Amigo</button>
-        </li>
-      }
-    </ul>
-  } @else {
-    <p>Nenhum usuário encontrado.</p>
+  @if (searchResults$ | async; as results) {
+    @if (results.length) {
+      <ul class="friend-search__results" aria-label="Resultados da busca">
+        @for (user of results; track user.uid) {
+          <li class="friend-search__result app-card app-card--flat">
+            <div class="friend-search__identity">
+              <strong>{{ user.nickname || user.uid }}</strong>
+              @if (user.nickname) {
+                <span>{{ user.uid }}</span>
+              }
+            </div>
+
+            <button
+              type="button"
+              class="app-action app-action--primary"
+              [disabled]="sendingUid() === user.uid"
+              [attr.aria-busy]="sendingUid() === user.uid ? 'true' : null"
+              (click)="addFriend(user)"
+            >
+              {{ sendingUid() === user.uid ? 'Enviando...' : 'Adicionar amigo' }}
+            </button>
+          </li>
+        }
+      </ul>
+    }
   }
-  <!-- Mensagem quando não há resultados -->
-</div>
+</section>
