@@ -24,7 +24,8 @@
   gap: 16px;
 }
 
-.age-verification__header > div {
+.age-verification__header app-page-header {
+  flex: 1 1 auto;
   min-width: 0;
 }
 
@@ -207,10 +208,6 @@
 
   .age-verification__header {
     gap: 12px;
-  }
-
-  .age-verification__header app-page-header {
-    min-width: 0;
   }
 
   .age-verification__mark {
