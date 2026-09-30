@@ -7,7 +7,8 @@
 }
 
 .account-section-header {
-  display: grid;
+  align-items: flex-start;
+  flex-direction: column;
   gap: 0.25rem;
 }
 
@@ -150,15 +151,10 @@
 
 .account-surface {
   overflow: hidden;
-  border: 1px solid var(--surface-border);
-  border-radius: 18px;
-  background: var(--surface-color);
 }
 
 .account-surface__head {
-  display: flex;
   align-items: flex-start;
-  justify-content: space-between;
   gap: 1rem;
   padding: 0.95rem 1.05rem;
   border-bottom: 1px solid var(--surface-border);
