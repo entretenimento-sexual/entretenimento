@@ -8,6 +8,7 @@ import {
   PLATFORM_LEGAL_MANIFEST,
 } from '@core/services/compliance/platform-legal.constants';
 import { isCurrentTermsRecordAccepted } from '@core/services/compliance/terms-acceptance.service';
+import { PageHeaderComponent } from '../../../shared/page-header/page-header.component';
 
 interface LegalAcceptanceVm {
   readonly accepted: boolean;
@@ -18,7 +19,7 @@ interface LegalAcceptanceVm {
 @Component({
   selector: 'app-legal-documents',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, PageHeaderComponent],
   templateUrl: './legal-documents.component.html',
   styleUrl: './legal-documents.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
