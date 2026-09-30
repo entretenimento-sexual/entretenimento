@@ -1,4 +1,4 @@
-import { firstValueFrom, of, throwError } from 'rxjs';
+import { firstValueFrom, Observable, of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { DirectChatFacade } from 'src/app/messaging/direct-chat/application/direct-chat.facade';
@@ -6,7 +6,7 @@ import { DirectThreadFacade } from 'src/app/messaging/direct-chat/application/di
 import { DirectChatSendOrchestrator } from './direct-chat-send.orchestrator';
 
 describe('DirectChatSendOrchestrator', () => {
-  function setup(sendResult: ReturnType<typeof of> | ReturnType<typeof throwError>) {
+  function setup(sendResult: Observable<string | null>) {
     const selectChat = vi.fn();
     const sendMessage$ = vi.fn(() => sendResult as any);
 
