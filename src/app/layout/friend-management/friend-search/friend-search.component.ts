@@ -1,5 +1,5 @@
 // src/app/layout/friend-management/friend-search/friend-search.component.ts
-import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
@@ -17,15 +17,14 @@ import {
   tap,
   throwError,
 } from 'rxjs';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatInputModule } from '@angular/material/input';
-import { MatButtonModule } from '@angular/material/button';
-import { MatListModule } from '@angular/material/list';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CacheService } from 'src/app/core/services/general/cache/cache.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.component';
+import { ContentStateComponent } from 'src/app/shared/content-state/content-state.component';
 import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
 
 import { Store } from '@ngrx/store';
@@ -42,10 +41,8 @@ import {
   imports: [
     CommonModule,
     ReactiveFormsModule,
-    MatProgressSpinnerModule,
-    MatInputModule,
-    MatButtonModule,
-    MatListModule,
+    PageHeaderComponent,
+    ContentStateComponent,
   ],
   templateUrl: './friend-search.component.html',
   styleUrls: ['./friend-search.component.css'],
@@ -55,6 +52,7 @@ export class FriendSearchComponent implements OnInit {
   private readonly authSession = inject(AuthSessionService);
   private readonly cacheService = inject(CacheService);
   private readonly applicationError = inject(ApplicationErrorService);
+  private readonly notifications = inject(ErrorNotificationService);
   private readonly store = inject<Store<AppState>>(Store);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -67,6 +65,7 @@ export class FriendSearchComponent implements OnInit {
     selectFriendSearchResults
   );
   readonly hasResults$ = this.store.select(selectHasFriendSearchResults);
+  readonly sendingUid = signal<string | null>(null);
 
   ngOnInit(): void {
     this.searchControl.valueChanges
@@ -133,6 +132,46 @@ export class FriendSearchComponent implements OnInit {
       }),
       finalize(() => this.updateLoadingState(false))
     );
+  }
+
+  addFriend(user: IUserDados): void {
+    const targetUid = this.normalizeUid(user?.uid);
+    if (!targetUid || this.sendingUid()) return;
+
+    this.sendingUid.set(targetUid);
+
+    this.authSession.readyUid$
+      .pipe(
+        take(1),
+        switchMap((uid) => {
+          const requesterUid = this.normalizeUid(uid);
+          if (!requesterUid) {
+            return throwError(
+              () => new Error('Sessão autenticada indisponível para enviar solicitação.')
+            );
+          }
+
+          return this.friendship.sendRequest(requesterUid, targetUid);
+        }),
+        tap(() => {
+          this.notifications.showSuccess('Solicitação de amizade enviada.');
+        }),
+        catchError((error: unknown) => {
+          this.applicationError.report(error, {
+            feature: 'friend-search',
+            operation: 'sendFriendRequest',
+            fallbackMessage: 'Não foi possível enviar a solicitação de amizade.',
+            metadata: {
+              scope: 'FriendSearchComponent',
+              hasTargetUid: true,
+            },
+          });
+          return of(void 0);
+        }),
+        finalize(() => this.sendingUid.set(null)),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
   }
 
   private clearSearchResults(): Observable<void> {
