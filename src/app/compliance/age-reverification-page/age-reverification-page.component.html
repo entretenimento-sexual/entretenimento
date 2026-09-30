@@ -1,14 +1,10 @@
 @if (vm$ | async; as vm) {
-  <main class="age-reverification" aria-labelledby="age-reverification-title">
-    <section class="age-reverification__card">
-      <header class="age-reverification__header">
-        <p class="age-reverification__eyebrow">Segurança da plataforma</p>
-        <h1 id="age-reverification-title">Revalidação de idade</h1>
-        <p>
-          Esta etapa aparece apenas quando a moderação solicita revisão após uma
-          denúncia de perfil por possível pessoa menor de 18 anos.
-        </p>
-      </header>
+  <main class="age-reverification" aria-label="Revalidação de idade">
+    <section class="age-reverification__card app-card app-card--flat">
+      <app-page-header
+        title="Revalidação de idade"
+        subtitle="Esta etapa aparece apenas quando a moderação solicita revisão após uma denúncia de perfil por possível pessoa menor de 18 anos."
+      />
 
       <div class="age-reverification__status" role="status" aria-live="polite">
         <span>Status</span>
@@ -40,10 +36,11 @@
         </section>
 
         <form class="age-reverification__form" [formGroup]="form" (ngSubmit)="submit()">
-          <div class="age-reverification__field">
+          <div class="age-reverification__field app-field">
             <label for="age-reverification-birth-date">Data de nascimento</label>
             <input
               id="age-reverification-birth-date"
+              class="app-control"
               type="date"
               formControlName="birthDate"
               autocomplete="bday"
@@ -54,18 +51,18 @@
               A data completa não será persistida.
             </small>
             @if (form.controls.birthDate.touched && form.controls.birthDate.invalid) {
-              <span class="age-reverification__error" role="alert">
+              <span class="age-reverification__error app-field-error" role="alert">
                 Informe uma data de nascimento válida.
               </span>
             }
           </div>
 
-          <label class="age-reverification__check">
+          <label class="age-reverification__check app-choice app-choice--roomy">
             <input type="checkbox" formControlName="confirmsTruthfulness" />
             <span>Confirmo que os dados informados são verdadeiros.</span>
           </label>
 
-          <label class="age-reverification__check">
+          <label class="age-reverification__check app-choice app-choice--roomy">
             <input type="checkbox" formControlName="acceptsRestrictedProcessing" />
             <span>
               Estou ciente de que esta informação será processada de forma
@@ -77,13 +74,13 @@
             (form.controls.confirmsTruthfulness.touched && form.controls.confirmsTruthfulness.invalid) ||
             (form.controls.acceptsRestrictedProcessing.touched && form.controls.acceptsRestrictedProcessing.invalid)
           ) {
-            <p class="age-reverification__error" role="alert">
+            <p class="age-reverification__error app-field-error" role="alert">
               As duas confirmações são obrigatórias.
             </p>
           }
 
           <button
-            class="age-reverification__primary"
+            class="app-action app-action--primary"
             type="submit"
             [disabled]="form.invalid || isSaving()"
           >
@@ -98,7 +95,7 @@
               enquanto a moderação analisa o caso.
             </p>
             <button
-              class="age-reverification__secondary"
+              class="app-action app-action--ghost"
               type="button"
               (click)="requestAlternativeReview()"
               [disabled]="isSaving()"
@@ -144,6 +141,7 @@
               </label>
               <textarea
                 id="age-reverification-appeal"
+                class="app-control"
                 formControlName="statement"
                 rows="6"
                 maxlength="4000"
@@ -158,14 +156,14 @@
                 appealForm.controls.statement.touched &&
                 appealForm.controls.statement.invalid
               ) {
-                <span class="age-reverification__error" role="alert">
+                <span class="age-reverification__error app-field-error" role="alert">
                   Escreva entre 20 e 4000 caracteres.
                 </span>
               }
             </div>
 
             <button
-              class="age-reverification__primary"
+              class="app-action app-action--primary"
               type="submit"
               [disabled]="appealForm.invalid || isSaving()"
             >
@@ -181,10 +179,10 @@
       }
 
       <footer class="age-reverification__actions">
-        <button type="button" class="age-reverification__secondary" (click)="goToAccount()">
+        <button type="button" class="app-action app-action--ghost" (click)="goToAccount()">
           Área da conta
         </button>
-        <button type="button" class="age-reverification__link" (click)="logout()">
+        <button type="button" class="app-action app-action--ghost" (click)="logout()">
           Sair da conta
         </button>
       </footer>
