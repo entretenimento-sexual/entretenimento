@@ -76,11 +76,11 @@ import {
   isDirectMessageNearLimit,
   isDirectMessageTooLong,
   normalizeDirectMessageContent,
-  resolveDirectMessageBlockMessage,
   trimDirectMessageContent,
 } from '../policies/direct-chat-composer.policy';
 import { DirectChatNavigationOrchestrator } from '../application/direct-chat-navigation.orchestrator';
 import { DirectChatComposeAccessFacade } from '../application/direct-chat-compose-access.facade';
+import { DirectChatSendOrchestrator } from '../application/direct-chat-send.orchestrator';
 
 type ChatSelectionType = 'chat';
 
@@ -96,7 +96,7 @@ type ChatSelectionEvent = {
   selector: 'app-chat-module-layout',
   templateUrl: './chat-module-layout.component.html',
   styleUrls: ['./chat-module-layout.component.css'],
-  providers: [DirectChatNavigationOrchestrator, DirectChatComposeAccessFacade],
+  providers: [DirectChatNavigationOrchestrator, DirectChatComposeAccessFacade, DirectChatSendOrchestrator],
   standalone: false,
 })
 export class ChatModuleLayoutComponent implements OnInit {
@@ -112,6 +112,7 @@ export class ChatModuleLayoutComponent implements OnInit {
   private readonly directThreadFacade = inject(DirectThreadFacade);
   private readonly navigationOrchestrator = inject(DirectChatNavigationOrchestrator);
   private readonly composeAccessFacade = inject(DirectChatComposeAccessFacade);
+  private readonly sendOrchestrator = inject(DirectChatSendOrchestrator);
 
 
   private readonly route = inject(ActivatedRoute);
@@ -698,10 +699,24 @@ if (this.isMessageTooLong) {
 
     this.isSendingMessage.set(true);
 
-    const send$ = this.sendDirectMessage$(selectedChatId, content);
-
-    send$
+    this.sendOrchestrator
+      .send$(selectedChatId, content)
       .pipe(
+        tap((result) => {
+          if (result.blockedReason) {
+            this.directMessageBlockedReason.set(result.blockedReason);
+          }
+
+          if (result.messageId) {
+            this.messageContent = '';
+            this.directMessageBlockedReason.set(null);
+
+            this.dbg('sendMessage() -> direct orchestrator ok', {
+              selectedChatId,
+              messageId: result.messageId,
+            });
+          }
+        }),
         catchError((error) => {
           this.reportError(
             'Erro ao enviar mensagem.',
@@ -722,38 +737,6 @@ if (this.isMessageTooLong) {
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe();
-  }
-
-  private sendDirectMessage$(
-    selectedChatId: string,
-    content: string
-  ): Observable<string | null> {
-    this.directChatFacade.selectChat(selectedChatId);
-
-    return this.directThreadFacade.sendMessage$(content).pipe(
-      tap((messageId) => {
-        if (!messageId) {
-          return;
-        }
-
-        this.messageContent = '';
-        this.directMessageBlockedReason.set(null);
-
-        this.dbg('sendMessage() -> direct facade ok', {
-          selectedChatId,
-          messageId,
-        });
-      }),
-      catchError((error) => {
-        const blockedMessage = resolveDirectMessageBlockMessage(error);
-
-        if (blockedMessage) {
-          this.directMessageBlockedReason.set(blockedMessage);
-        }
-
-        return of(null);
-      })
-    );
   }
 
   onComposerKeydown(event: KeyboardEvent): void {
