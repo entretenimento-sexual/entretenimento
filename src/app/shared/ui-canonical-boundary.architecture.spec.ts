@@ -1545,6 +1545,24 @@ describe('Canonical UI boundary', () => {
     expect(directReceipts).not.toContain('GlobalErrorHandlerService');
   });
 
+  it('mantém perfil alheio nas primitives visuais canônicas', () => {
+    const template = source(
+      'src/app/layout/other-user-profile-view/other-user-profile-view.component.html'
+    );
+    const styles = source(
+      'src/app/layout/other-user-profile-view/other-user-profile-view.component.css'
+    );
+
+    expect(template).toContain('<app-content-state');
+    expect(template).toContain('app-action app-action--primary');
+    expect(template).toContain('app-card app-card--flat');
+    expect(template).toContain('app-chip');
+
+    expect(styles).not.toContain('.other-profile-page__action {');
+    expect(styles).not.toContain('.other-profile-page__loading-dot');
+    expect(styles).not.toContain('@keyframes other-profile-pulse');
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
