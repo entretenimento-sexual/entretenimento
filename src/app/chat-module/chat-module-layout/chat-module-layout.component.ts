@@ -46,11 +46,9 @@ import {
 import {
   catchError,
   distinctUntilChanged,
-  filter,
   finalize,
   map,
   shareReplay,
-  switchMap,
   take,
   tap,
 } from 'rxjs/operators';
