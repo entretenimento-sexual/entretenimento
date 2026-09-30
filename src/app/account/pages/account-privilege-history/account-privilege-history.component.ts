@@ -23,6 +23,8 @@ import { AccountPrivilegeHistoryRepository } from '../../application/account-pri
 import { AccountPrivilegeHistoryItem } from '../../models/account-privilege-history.model';
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
+import { PageHeaderComponent } from '../../../shared/page-header/page-header.component';
+import { ContentStateComponent } from '../../../shared/content-state/content-state.component';
 
 interface PrivilegeHistoryState {
   status: 'loading' | 'ready' | 'error';
@@ -45,7 +47,7 @@ const INITIAL_STATE: PrivilegeHistoryState = {
 @Component({
   selector: 'app-account-privilege-history',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, PageHeaderComponent, ContentStateComponent],
   templateUrl: './account-privilege-history.component.html',
   styleUrl: '../subscription-history/subscription-history.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
