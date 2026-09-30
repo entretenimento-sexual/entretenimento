@@ -80,6 +80,9 @@ const CANONICAL_ACTION_TEMPLATES = [
 ] as const;
 
 const CANONICAL_HEADER_TEMPLATES = [
+  'src/app/layout/friend-management/friend-search/friend-search.component.html',
+  'src/app/layout/friend-management/friend-blocked/friend-blocked.component.html',
+  'src/app/layout/friend-management/friend-settings/friend-settings.component.html',
   'src/app/layout/friend-management/friend-list-page/friend-list-page.component.html',
   'src/app/layout/friend-management/friend-requests/friend-requests.component.html',
   'src/app/account/pages/legal-documents/legal-documents.component.html',
@@ -104,6 +107,9 @@ const CANONICAL_HEADER_TEMPLATES = [
 ] as const;
 
 const CANONICALIZED_STYLES = [
+  'src/app/layout/friend-management/friend-search/friend-search.component.css',
+  'src/app/layout/friend-management/friend-blocked/friend-blocked.component.css',
+  'src/app/layout/friend-management/friend-settings/friend-settings.component.css',
   'src/app/layout/friend-management/friend-list-page/friend-list-page.component.css',
   'src/app/layout/friend-management/friend-requests/friend-requests.component.css',
   'src/app/account/pages/legal-documents/legal-documents.component.css',
@@ -259,6 +265,25 @@ describe('Canonical UI boundary', () => {
     expect(requests).not.toContain('friend-requests__state');
     expect(requestStyles).not.toContain('.friend-requests__state');
     expect(requestStyles).not.toContain('.friend-requests__loader');
+  });
+
+  it('mantém Friends sem erro manual e sem input de rota fantasma', () => {
+    const search = source(
+      'src/app/layout/friend-management/friend-search/friend-search.component.ts'
+    );
+    const settings = source(
+      'src/app/layout/friend-management/friend-settings/friend-settings.component.ts'
+    );
+    const blocked = source(
+      'src/app/layout/friend-management/friend-blocked/friend-blocked.component.ts'
+    );
+
+    expect(search).toContain('ApplicationErrorService');
+    expect(search).not.toContain('GlobalErrorHandlerService');
+    expect(settings).toContain('ApplicationErrorService');
+    expect(settings).not.toContain('GlobalErrorHandlerService');
+    expect(blocked).toContain('AuthSessionService');
+    expect(blocked).not.toContain('input.required');
   });
 
   it('preserva remoções estruturais já concluídas', () => {
