@@ -5,7 +5,7 @@ import { MockStore, provideMockStore } from '@ngrx/store/testing';
 import { of } from 'rxjs';
 import { vi } from 'vitest';
 
-import { ConfirmacaoDialogComponent } from 'src/app/shared/components-globais/confirmacao-dialog/confirmacao-dialog.component';
+import { ConfirmationDialogComponent } from 'src/app/shared/components-globais/confirmation-dialog/confirmation-dialog.component';
 import * as A from 'src/app/store/actions/actions.interactions/actions.friends';
 import { selectCurrentUserUid } from 'src/app/store/selectors/selectors.user/user.selectors';
 import { selectRequestsLoading } from 'src/app/store/selectors/selectors.interactions/friends/inbound.selectors';
@@ -86,7 +86,7 @@ describe('FriendRequestsComponent', () => {
     });
 
     expect(dialogOpen).toHaveBeenCalledWith(
-      ConfirmacaoDialogComponent,
+      ConfirmationDialogComponent,
       expect.objectContaining({
         data: expect.objectContaining({
           title: 'Bloquear usuário?',
