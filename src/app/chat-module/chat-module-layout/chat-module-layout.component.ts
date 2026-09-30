@@ -61,13 +61,10 @@ import {
 } from '@angular/core/rxjs-interop';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { Friend } from 'src/app/core/interfaces/friendship/friend.interface';
 
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
-import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
 
-import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
@@ -85,6 +82,7 @@ import {
   trimDirectMessageContent,
 } from '../policies/direct-chat-composer.policy';
 import { DirectChatNavigationOrchestrator } from '../application/direct-chat-navigation.orchestrator';
+import { DirectChatComposeAccessFacade } from '../application/direct-chat-compose-access.facade';
 
 type ChatSelectionType = 'chat';
 
@@ -100,7 +98,7 @@ type ChatSelectionEvent = {
   selector: 'app-chat-module-layout',
   templateUrl: './chat-module-layout.component.html',
   styleUrls: ['./chat-module-layout.component.css'],
-  providers: [DirectChatNavigationOrchestrator],
+  providers: [DirectChatNavigationOrchestrator, DirectChatComposeAccessFacade],
   standalone: false,
 })
 export class ChatModuleLayoutComponent implements OnInit {
@@ -111,13 +109,12 @@ export class ChatModuleLayoutComponent implements OnInit {
 
   private readonly authSession = inject(AuthSessionService);
   private readonly currentUserStore = inject(CurrentUserStoreService);
-  private readonly accessControl = inject(AccessControlService);
 
   private readonly directChatFacade = inject(DirectChatFacade);
   private readonly directThreadFacade = inject(DirectThreadFacade);
   private readonly navigationOrchestrator = inject(DirectChatNavigationOrchestrator);
+  private readonly composeAccessFacade = inject(DirectChatComposeAccessFacade);
 
-  private readonly friendshipService = inject(FriendshipService);
 
   private readonly route = inject(ActivatedRoute);
 
@@ -262,19 +259,6 @@ get shouldShowComposerHelp(): boolean {
     );
 
   /**
-   * Estado mínimo para composição/envio.
-   * Não substitui regra de domínio do backend.
-   */
-  readonly canCompose$: Observable<boolean> = combineLatest([
-    this.currentUid$,
-    this.accessControl.canListenRealtime$,
-  ]).pipe(
-    map(([uid, canListen]) => !!uid && canListen === true),
-    distinctUntilChanged(),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
-
-  /**
    * Resolve o UID do outro participante:
    * - primeiro pelo contexto visual ativo;
    * - depois pela conversa selecionada na DirectChatFacade.
@@ -305,73 +289,6 @@ get shouldShowComposerHelp(): boolean {
           .find((uid) => !!uid && uid !== safeCurrentUid) ?? null
       );
     }),
-    distinctUntilChanged(),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
-
-  /**
-   * Hint preventivo de conexão aceita.
-   *
-   * Importante:
-   * - isto NÃO é autoridade de segurança;
-   * - serve para não deixar o usuário clicar em "Enviar" quando a UI já sabe
-   *   que não existe conexão aceita;
-   * - a Cloud Function sendDirectMessage continua validando novamente.
-   */
-  readonly hasAcceptedDirectConnection$: Observable<boolean> = combineLatest([
-    this.currentUid$,
-    this.selectedDirectPeerUid$,
-  ]).pipe(
-    switchMap(([currentUid, peerUid]) => {
-      const safeCurrentUid = (currentUid ?? '').trim();
-      const safePeerUid = (peerUid ?? '').trim();
-
-      if (!safeCurrentUid || !safePeerUid) {
-        return of(false);
-      }
-
-      return this.friendshipService.watchFriends(safeCurrentUid).pipe(
-        map((friends: Friend[]) =>
-          (friends ?? []).some(
-            (friend) => String(friend?.friendUid ?? '').trim() === safePeerUid
-          )
-        ),
-        catchError((error) => {
-          this.reportError(
-            'Não foi possível verificar a conexão com este perfil.',
-            error,
-            {
-              op: 'hasAcceptedDirectConnection$',
-              currentUid: safeCurrentUid,
-              peerUid: safePeerUid,
-            },
-            false
-          );
-
-          return of(false);
-        })
-      );
-    }),
-    distinctUntilChanged(),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
-
-  /**
-   * Permissão visual de envio no compose direto.
-   * Exige sessão, gate de realtime, DirectThreadFacade.canSend$ e conexão aceita.
-   */
-  readonly canSendCurrentMessage$: Observable<boolean> = combineLatest([
-    this.canCompose$,
-    this.directThreadFacade.canSend$,
-    this.selectedType$,
-    this.hasAcceptedDirectConnection$,
-  ]).pipe(
-    map(([canCompose, canSendDirect, selectedType, hasAcceptedConnection]) =>
-      selectedType === 'chat'
-      && canCompose
-      && canSendDirect
-      && hasAcceptedConnection
-    ),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
   );
@@ -673,56 +590,17 @@ get shouldShowComposerHelp(): boolean {
    * Mantém sinais locais sincronizados para template e clique rápido.
    */
   private observeComposePermissions(): void {
-    combineLatest([
-      this.canSendCurrentMessage$,
-      this.canCompose$,
-      this.directThreadFacade.canSend$,
-      this.selectedType$,
-      this.hasAcceptedDirectConnection$,
-      this.selectedChatId$,
-    ])
+    this.composeAccessFacade
+      .observe$(
+        this.currentUid$,
+        this.selectedDirectPeerUid$,
+        this.selectedType$,
+        this.selectedChatId$
+      )
       .pipe(
-        tap(([
-          canSendCurrentMessage,
-          canCompose,
-          canSendDirect,
-          selectedType,
-          hasAcceptedConnection,
-          selectedChatId,
-        ]) => {
-          this.canSendCurrentMessage.set(canSendCurrentMessage);
-
-          if (!selectedChatId || !selectedType) {
-            this.sendStatusMessageSignal.set(
-              'Selecione uma conversa para enviar mensagem.'
-            );
-            return;
-          }
-
-          if (!canCompose) {
-            this.sendStatusMessageSignal.set(
-              'Seu perfil ainda não pode enviar mensagens neste momento.'
-            );
-            return;
-          }
-
-          if (!hasAcceptedConnection) {
-            this.sendStatusMessageSignal.set(
-              'Vocês precisam estar conectados para trocar mensagens.'
-            );
-            return;
-          }
-
-          if (!canSendDirect) {
-            this.sendStatusMessageSignal.set(
-              'Esta conversa direta não está disponível para envio agora.'
-            );
-            return;
-          }
-
-          this.sendStatusMessageSignal.set(
-            'Conversa direta liberada para envio.'
-          );
+        tap((state) => {
+          this.canSendCurrentMessage.set(state.canSendCurrentMessage);
+          this.sendStatusMessageSignal.set(state.statusMessage);
         }),
         catchError((error) => {
           this.reportError(
