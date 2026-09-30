@@ -6,7 +6,7 @@
 // - manter o shell principal do módulo de chat;
 // - receber seleção de conversa direta;
 // - aceitar deep-link por query params: openChatId / withUser;
-// - enviar mensagens para chat direto pela DirectThreadFacade;
+// - delegar comandos de envio direto ao DirectChatSendOrchestrator;
 // - usar AuthSessionService como fonte canônica da sessão;
 // - usar CurrentUserStoreService como fonte canônica do perfil do app;
 // - manter seleção canônica sincronizada com DirectChatFacade;
