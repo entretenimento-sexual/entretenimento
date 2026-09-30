@@ -1,15 +1,28 @@
-/* src\app\layout\friend-management\friend-settings\friend-settings.component.css */
-.friend-settings {
-  max-width: 400px;
-  margin: auto;
-  padding: 16px;
-}
-
-mat-slide-toggle {
+:host {
   display: block;
-  margin: 10px 0;
+  min-width: 0;
 }
 
-.friend-settings form > .app-action {
-  margin-top: 20px;
+.friend-settings {
+  display: grid;
+  gap: var(--space-3, 16px);
+  width: min(100%, 560px);
+  margin-inline: auto;
+}
+
+.friend-settings__form {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem;
+}
+
+.friend-settings__form .app-action {
+  justify-self: start;
+  margin-top: 0.35rem;
+}
+
+@media (max-width: 560px) {
+  .friend-settings__form .app-action {
+    width: 100%;
+  }
 }
