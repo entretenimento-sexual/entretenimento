@@ -86,12 +86,6 @@
 
 .compliance-status {
   flex: 0 0 auto;
-  padding: 0.38rem 0.7rem;
-  border: 1px solid color-mix(in oklab, var(--primary-color) 40%, var(--surface-border));
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--primary-color) 10%, transparent);
-  font-size: 0.78rem;
-  font-weight: 800;
 }
 
 .compliance-notice {
@@ -158,22 +152,10 @@
 }
 
 .compliance-response textarea {
-  width: 100%;
   min-height: 160px;
   box-sizing: border-box;
   resize: vertical;
-  padding: 0.85rem;
-  border: 1px solid var(--surface-border);
-  border-radius: 12px;
-  background: var(--input-background);
-  color: var(--text-color);
-  font: inherit;
   line-height: 1.5;
-}
-
-.compliance-response textarea:focus-visible {
-  outline: 2px solid var(--primary-color);
-  outline-offset: 2px;
 }
 
 .compliance-response__meta {
@@ -196,11 +178,6 @@
   margin-top: 1rem;
   padding-top: 1rem;
   border-top: 1px solid var(--surface-border);
-}
-
-.compliance-detail__footer a {
-  color: var(--primary-color);
-  font-weight: 750;
 }
 
 .sr-only {
