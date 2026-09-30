@@ -2,7 +2,7 @@
 <section class="account-section-page" aria-labelledby="account-subscription-title">
   @if (vm$ | async; as vm) {
     @if (vm) {
-      <header class="account-section-header">
+      <header class="account-section-header app-section-header">
         <h2 id="account-subscription-title">Assinatura</h2>
       </header>
 
@@ -32,7 +32,7 @@
       @if (renewalState$ | async; as renewal) {
         @if (renewal?.recurringConfigured) {
           <section
-            class="account-surface"
+            class="account-surface app-card app-card--flat"
             aria-labelledby="account-subscription-renewal-title"
           >
             <div class="account-list">
@@ -132,7 +132,7 @@
         }
       }
 
-      <section class="account-surface" aria-labelledby="account-subscription-history-title">
+      <section class="account-surface app-card app-card--flat" aria-labelledby="account-subscription-history-title">
         <div class="account-list">
           <div class="account-list__row">
             <div class="account-list__copy">
