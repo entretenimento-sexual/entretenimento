@@ -522,31 +522,6 @@
   display: grid;
   gap: 0.8rem;
   margin-top: 0.85rem;
-  padding: 0.9rem;
-  border: 1px solid var(--surface-border, rgb(255 255 255 / 9%));
-  border-radius: 0.9rem;
-  background: color-mix(
-    in oklab,
-    var(--surface-color, #101925) 72%,
-    transparent
-  );
-}
-
-.feed-empty__copy {
-  display: grid;
-  gap: 0.18rem;
-}
-
-.feed-empty__copy strong {
-  color: var(--text-color, #f5f7fb);
-  font-size: 0.88rem;
-  font-weight: 820;
-}
-
-.feed-empty__copy span {
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 62%, transparent);
-  font-size: 0.77rem;
-  line-height: 1.45;
 }
 
 .feed-empty__profiles {
@@ -624,9 +599,7 @@
 
 .feed-composer a:focus-visible,
 .feed-composer button:focus-visible,
-.video-highlights__error button:focus-visible,
-.feed-empty a:focus-visible,
-.feed-pagination button:focus-visible {
+.feed-empty a:focus-visible {
   outline: var(--focus-ring, 2px solid rgba(255, 112, 112, 0.9));
   outline-offset: var(--focus-offset, 2px);
 }
@@ -723,7 +696,6 @@
 @media (prefers-reduced-motion: reduce) {
   .feed-composer *,
   .feed-empty a,
-  .feed-pagination button,
   .video-highlight-skeleton {
     transition: none;
     animation: none;
@@ -732,7 +704,6 @@
 
 :host-context(html.high-contrast) .feed-composer,
 :host-context(html.high-contrast) .feed-intent,
-:host-context(html.high-contrast) .feed-empty,
 :host-context(html.high-contrast) .community-distribution__card,
 :host-context(html.high-contrast) .video-highlights__error {
   border-color: currentColor !important;
@@ -743,7 +714,6 @@
 
 :host-context(html.high-contrast) .feed-composer__moment,
 :host-context(html.high-contrast) .feed-intent__relationship,
-:host-context(html.high-contrast) .feed-pagination button,
 :host-context(html.high-contrast) .feed-empty a,
 :host-context(html.high-contrast) .community-distribution a,
 :host-context(html.high-contrast) .video-highlights__error button,
