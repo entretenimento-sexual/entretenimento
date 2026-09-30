@@ -47,7 +47,7 @@
               required
               aria-describedby="age-reverification-birth-date-hint"
             />
-            <small id="age-reverification-birth-date-hint">
+            <small id="age-reverification-birth-date-hint" class="app-field-help">
               A data completa não será persistida.
             </small>
             @if (form.controls.birthDate.touched && form.controls.birthDate.invalid) {
@@ -135,7 +135,7 @@
             [formGroup]="appealForm"
             (ngSubmit)="appeal()"
           >
-            <div class="age-reverification__field">
+            <div class="age-reverification__field app-field">
               <label for="age-reverification-appeal">
                 Explique por que a decisão deve ser revista
               </label>
@@ -147,7 +147,7 @@
                 maxlength="4000"
                 aria-describedby="age-reverification-appeal-hint"
               ></textarea>
-              <small id="age-reverification-appeal-hint">
+              <small id="age-reverification-appeal-hint" class="app-field-help">
                 Você não precisa informar documento neste campo. A moderação
                 poderá considerar revisão documental, provedor confiável ou KYC
                 quando aplicável.
