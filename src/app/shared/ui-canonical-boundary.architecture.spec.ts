@@ -2840,6 +2840,26 @@ describe('Canonical UI boundary', () => {
 );
   });
 
+  it('mantém bootstrap do perfil alheio fora do componente', () => {
+    const component = source(
+      'src/app/layout/other-user-profile-view/other-user-profile-view.component.ts'
+    );
+    const orchestrator = source(
+      'src/app/layout/other-user-profile-view/application/visited-profile-bootstrap.orchestrator.ts'
+    );
+
+    expect(component).toContain('VisitedProfileBootstrapOrchestrator');
+    expect(component).not.toContain('ActivatedRoute');
+    expect(component).not.toContain('FirestoreUserQueryService');
+    expect(component).not.toContain('getPublicUserById$(');
+    expect(component).not.toContain('loadUserProfile(');
+    expect(component).not.toContain('getUidFromRoute(');
+
+    expect(orchestrator).toContain('ActivatedRoute');
+    expect(orchestrator).toContain('FirestoreUserQueryService');
+    expect(orchestrator).toContain('redirectOwnProfile$(');
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
