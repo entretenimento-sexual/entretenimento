@@ -229,6 +229,7 @@ describe('Canonical UI boundary', () => {
       'src/app/chat-module/chat-rooms/chat-rooms.component.ts',
       'src/app/core/guards/unsaved-changes/unsaved-changes.guard.ts',
       'src/app/layout/friend-management/friend-requests/friend-requests.component.ts',
+      'src/app/layout/friend-management/friend-requests/friend-requests.component.spec.ts',
       'src/app/shared/shared.module.ts',
     ] as const;
 
@@ -278,6 +279,41 @@ describe('Canonical UI boundary', () => {
     expect(profileCss).not.toContain('.checkbox-grid {\n  display: grid;');
     expect(profileCss).not.toContain('.form-grid {\n  display: grid;');
     expect(profileCss).not.toContain('.inline-options {\n  display: grid;');
+  });
+
+  it('mantém CSS de Preferências estruturalmente balanceado', () => {
+    const preferencesRoot = resolve(ROOT, 'src/app/preferences');
+    const styles: string[] = [];
+
+    const visit = (directory: string): void => {
+      for (const entry of readdirSync(directory, { withFileTypes: true })) {
+        const absolute = join(directory, entry.name);
+
+        if (entry.isDirectory()) {
+          visit(absolute);
+        } else if (entry.isFile() && entry.name.endsWith('.css')) {
+          styles.push(absolute);
+        }
+      }
+    };
+
+    visit(preferencesRoot);
+
+    const violations = styles
+      .filter((file) => {
+        const value = readFileSync(file, 'utf8');
+        return (
+          (value.match(/\{/gu) ?? []).length !==
+          (value.match(/\}/gu) ?? []).length
+        );
+      })
+      .map((file) => relative(ROOT, file).replaceAll('\\', '/'))
+      .sort();
+
+    expect(
+      violations,
+      'CSS de Preferências não deve conter blocos com chaves órfãs.'
+    ).toEqual([]);
   });
 
   it('não permite novos placeholders works! em templates de produção', () => {
