@@ -63,6 +63,7 @@ import {
   VisitedProfileIntentContextFacade,
   VisitedProfileIntentContextVm,
 } from './application/visited-profile-intent-context.facade';
+import { VisitedProfileBootstrapOrchestrator } from './application/visited-profile-bootstrap.orchestrator';
 
 interface FriendshipInteractionState {
   isFriend: boolean;
