@@ -1,32 +1,31 @@
 <main class="compliance-page app-page" aria-labelledby="compliance-title">
   <section class="compliance-shell ui-container">
-    <header class="compliance-hero">
-      <p class="compliance-hero__eyebrow">Segurança e conformidade</p>
-      <h1 id="compliance-title">Avisos e manifestações</h1>
-      <p>
-        Uma suspeita não significa que uma infração foi confirmada. Consulte os fatos informados, a regra relacionada, eventual medida preventiva e o prazo para apresentar sua manifestação.
-      </p>
-    </header>
+    <app-page-header
+      title="Avisos e manifestações"
+      subtitle="Uma suspeita não significa que uma infração foi confirmada. Consulte os fatos informados, a regra relacionada, eventual medida preventiva e o prazo para apresentar sua manifestação."
+    />
 
     @if (vm$ | async; as vm) {
       @if (vm.loading && vm.items.length === 0) {
-        <section class="compliance-state" role="status" aria-live="polite">
-          <span class="fas fa-spinner fa-spin" aria-hidden="true"></span>
-          <p>Carregando avisos de conformidade...</p>
-        </section>
+        <app-content-state
+          state="loading"
+          message="Carregando avisos de conformidade..."
+          [skeletonRows]="3"
+        />
       } @else if (vm.error && vm.items.length === 0) {
-        <section class="compliance-state" role="alert">
-          <p>{{ vm.error }}</p>
-          <button type="button" class="compliance-button" (click)="load()">
-            Tentar novamente
-          </button>
-        </section>
+        <app-content-state
+          state="error"
+          title="Não foi possível carregar os avisos"
+          [message]="vm.error"
+          actionLabel="Tentar novamente"
+          (action)="load()"
+        />
       } @else if (vm.items.length === 0) {
-        <section class="compliance-state" role="status">
-          <span class="fas fa-shield-check" aria-hidden="true"></span>
-          <h2>Nenhum caso aberto</h2>
-          <p>Não há avisos de suspeita ou solicitações de manifestação vinculados à sua conta.</p>
-        </section>
+        <app-content-state
+          state="empty"
+          title="Nenhum caso aberto"
+          message="Não há avisos de suspeita ou solicitações de manifestação vinculados à sua conta."
+        />
       } @else {
         <div class="compliance-layout">
           <nav class="compliance-list" aria-label="Casos de conformidade">
@@ -53,7 +52,7 @@
           </nav>
 
           @if (selectedCase(); as item) {
-            <article class="compliance-detail" [attr.aria-busy]="vm.submittingCaseId === item.caseId">
+            <article class="compliance-detail app-card app-card--flat" [attr.aria-busy]="vm.submittingCaseId === item.caseId">
               <header class="compliance-detail__header">
                 <div>
                   <p class="compliance-detail__eyebrow">Caso {{ item.caseId }}</p>
@@ -128,7 +127,7 @@
                   </div>
                   <button
                     type="submit"
-                    class="compliance-button compliance-button--primary"
+                    class="app-action app-action--primary"
                     [disabled]="vm.submittingCaseId === item.caseId"
                     [attr.aria-busy]="vm.submittingCaseId === item.caseId"
                   >
