@@ -15,6 +15,7 @@ import { DirectChatFacade } from '../../messaging/direct-chat/application/direct
 import { DirectThreadFacade } from '../../messaging/direct-chat/application/direct-thread.facade';
 import { DirectChatNavigationOrchestrator } from '../application/direct-chat-navigation.orchestrator';
 import { DirectChatComposeAccessFacade } from '../application/direct-chat-compose-access.facade';
+import { DirectChatSendOrchestrator } from '../application/direct-chat-send.orchestrator';
 
 describe('ChatModuleLayoutComponent', () => {
   let component: ChatModuleLayoutComponent;
@@ -98,6 +99,17 @@ describe('ChatModuleLayoutComponent', () => {
                     canSendCurrentMessage: false,
                     statusMessage:
                       'Vocês precisam estar conectados para trocar mensagens.',
+                  })
+                ),
+              },
+            },
+            {
+              provide: DirectChatSendOrchestrator,
+              useValue: {
+                send$: vi.fn(() =>
+                  of({
+                    messageId: 'msg-id',
+                    blockedReason: null,
                   })
                 ),
               },
