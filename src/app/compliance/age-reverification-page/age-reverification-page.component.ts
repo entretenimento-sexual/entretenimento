@@ -15,6 +15,7 @@ import {
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { normalizeAgeReverificationStatus } from 'src/app/core/guards/compliance/age-reverification-status.util';
+import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.component';
 
 interface AgeReverificationPageVm {
   state: IUserAgeReverification | null;
@@ -28,7 +29,7 @@ interface AgeReverificationPageVm {
 @Component({
   selector: 'app-age-reverification-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterModule, PageHeaderComponent],
   templateUrl: './age-reverification-page.component.html',
   styleUrls: ['./age-reverification-page.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
