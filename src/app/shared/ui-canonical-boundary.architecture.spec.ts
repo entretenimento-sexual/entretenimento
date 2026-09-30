@@ -174,6 +174,36 @@ describe('Canonical UI boundary', () => {
     expect(styles).not.toContain('.account-overview-grid {\n    grid-template-columns:');
   });
 
+  it('não reintroduz ações paralelas de suporte em Conta', () => {
+    const subscription = source(
+      'src/app/account/pages/account-subscription/account-subscription.component.html'
+    );
+    const security = source(
+      'src/app/account/pages/account-security/account-security.component.html'
+    );
+    const styles = source(
+      'src/app/account/pages/account-section.css'
+    );
+
+    expect(subscription).not.toContain('account-support-link');
+    expect(security).not.toContain('account-support-link');
+    expect(styles).not.toContain('.account-support-link');
+  });
+
+  it('mantém hero e estados principais de Conta apoiados em primitives globais', () => {
+    const subscription = source(
+      'src/app/account/pages/account-subscription/account-subscription.component.html'
+    );
+    const home = source(
+      'src/app/account/pages/account-home/account-home.component.html'
+    );
+
+    expect(subscription).toContain(
+      'account-plan-hero app-card app-card--flat'
+    );
+    expect(home).toContain('<app-content-state');
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
