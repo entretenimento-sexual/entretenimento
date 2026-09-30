@@ -198,10 +198,6 @@ export class DirectThreadFacade {
         }
 
         return this.directThreadService.sendMessage$(chatId, safeContent);
-      }),
-      catchError((error) => {
-        this.reportSilent(error, 'DirectThreadFacade.sendMessage$');
-        return of(null);
       })
     );
   }
