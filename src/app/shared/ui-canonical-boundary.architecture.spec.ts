@@ -1469,6 +1469,24 @@ describe('Canonical UI boundary', () => {
     );
   });
 
+  it('mantém o comando de envio fora do ChatModuleLayoutComponent', () => {
+    const layout = source(
+      'src/app/chat-module/chat-module-layout/chat-module-layout.component.ts'
+    );
+    const orchestrator = source(
+      'src/app/chat-module/application/direct-chat-send.orchestrator.ts'
+    );
+
+    expect(layout).toContain('DirectChatSendOrchestrator');
+    expect(layout).not.toContain('DirectThreadFacade');
+    expect(layout).not.toContain('sendDirectMessage$(');
+    expect(layout).not.toContain('resolveDirectMessageBlockMessage');
+
+    expect(orchestrator).toContain('DirectChatFacade');
+    expect(orchestrator).toContain('DirectThreadFacade');
+    expect(orchestrator).toContain('resolveDirectMessageBlockMessage');
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
