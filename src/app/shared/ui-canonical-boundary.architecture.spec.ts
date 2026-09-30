@@ -50,6 +50,9 @@ function productionHtmlFiles(root: string): readonly string[] {
 }
 
 const CANONICAL_ACTION_TEMPLATES = [
+  'src/app/compliance/age-reverification-page/age-reverification-page.component.html',
+  'src/app/compliance/age-verification-page/age-verification-page.component.html',
+  'src/app/compliance/adult-consent-page/adult-consent-page.component.html',
   'src/app/account/pages/account-home/account-home.component.html',
   'src/app/account/pages/legal-documents/legal-documents.component.html',
   'src/app/account/pages/compliance-cases/compliance-cases.component.html',
@@ -80,6 +83,9 @@ const CANONICAL_ACTION_TEMPLATES = [
 ] as const;
 
 const CANONICAL_HEADER_TEMPLATES = [
+  'src/app/compliance/age-reverification-page/age-reverification-page.component.html',
+  'src/app/compliance/age-verification-page/age-verification-page.component.html',
+  'src/app/compliance/adult-consent-page/adult-consent-page.component.html',
   'src/app/safety/safety-center/safety-center.component.html',
   'src/app/layout/friend-management/friend-search/friend-search.component.html',
   'src/app/layout/friend-management/friend-blocked/friend-blocked.component.html',
@@ -108,6 +114,9 @@ const CANONICAL_HEADER_TEMPLATES = [
 ] as const;
 
 const CANONICALIZED_STYLES = [
+  'src/app/compliance/age-reverification-page/age-reverification-page.component.css',
+  'src/app/compliance/age-verification-page/age-verification-page.component.css',
+  'src/app/compliance/adult-consent-page/adult-consent-page.component.css',
   'src/app/safety/safety-center/safety-center.component.css',
   'src/app/layout/friend-management/friend-search/friend-search.component.css',
   'src/app/layout/friend-management/friend-blocked/friend-blocked.component.css',
@@ -311,6 +320,44 @@ describe('Canonical UI boundary', () => {
     expect(adultConsent).toContain('ApplicationErrorService');
     expect(reverification).toContain('ApplicationErrorService');
     expect(reverification).not.toContain('errorDetail(error');
+  });
+
+  it('mantém as páginas de maioridade na camada visual canônica', () => {
+    const consent = source(
+      'src/app/compliance/adult-consent-page/adult-consent-page.component.html'
+    );
+    const verification = source(
+      'src/app/compliance/age-verification-page/age-verification-page.component.html'
+    );
+    const reverification = source(
+      'src/app/compliance/age-reverification-page/age-reverification-page.component.html'
+    );
+    const consentStyles = source(
+      'src/app/compliance/adult-consent-page/adult-consent-page.component.css'
+    );
+    const verificationStyles = source(
+      'src/app/compliance/age-verification-page/age-verification-page.component.css'
+    );
+    const reverificationStyles = source(
+      'src/app/compliance/age-reverification-page/age-reverification-page.component.css'
+    );
+
+    for (const template of [consent, verification, reverification]) {
+      expect(template).toContain('<app-page-header');
+      expect(template).toContain('app-card app-card--flat');
+      expect(template).toContain('app-action');
+      expect(template).not.toMatch(/<h1\b/iu);
+    }
+
+    expect(reverification).toContain('class="app-control"');
+    expect(reverification).toContain('app-choice app-choice--roomy');
+    expect(reverification).toContain('app-field-error');
+
+    expect(consentStyles).not.toContain('.adult-consent__button');
+    expect(verificationStyles).not.toContain('.age-verification__primary');
+    expect(verificationStyles).not.toContain('.age-verification__secondary');
+    expect(reverificationStyles).not.toContain('.age-reverification__primary');
+    expect(reverificationStyles).not.toContain('.age-reverification__secondary');
   });
 
   it('preserva remoções estruturais já concluídas', () => {
