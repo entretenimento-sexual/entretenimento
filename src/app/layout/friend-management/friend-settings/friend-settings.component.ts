@@ -24,8 +24,8 @@ import { AppState } from 'src/app/store/states/app.state';
 import { updateFriendSettings } from 'src/app/store/actions/actions.interactions/actions.friends';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { CacheService } from 'src/app/core/services/general/cache/cache.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 
 interface FriendSettings {
   receiveRequests: boolean;
@@ -59,7 +59,7 @@ export class FriendSettingsComponent implements OnInit {
     private readonly store: Store<AppState>,
     private readonly authSession: AuthSessionService,
     private readonly errorNotifier: ErrorNotificationService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly applicationError: ApplicationErrorService,
     private readonly cacheService: CacheService,
     private readonly destroyRef: DestroyRef
   ) {
@@ -175,28 +175,19 @@ export class FriendSettingsComponent implements OnInit {
     operation: 'loadSettings' | 'saveSettings',
     notifyUser: boolean
   ): void {
-    const normalizedError =
-      error instanceof Error
-        ? error
-        : new Error('Erro inesperado nas configurações de amizade.');
-
-    const reportableError = normalizedError as Error & {
-      context?: Record<string, unknown>;
-      skipUserNotification?: boolean;
-    };
-
-    reportableError.context = {
-      scope: 'FriendSettingsComponent',
+    this.applicationError.report(error, {
+      feature: 'friend-settings',
       operation,
-    };
-    reportableError.skipUserNotification = true;
-
-    this.globalErrorHandler.handleError(reportableError);
-
-    if (notifyUser) {
-      this.errorNotifier.showError(
-        'Não foi possível salvar as configurações de amizade.'
-      );
-    }
+      fallbackMessage:
+        operation === 'saveSettings'
+          ? 'Não foi possível salvar as configurações de amizade.'
+          : 'Não foi possível carregar as configurações de amizade.',
+      presentation: notifyUser
+        ? undefined
+        : { surface: 'none', severity: 'error' },
+      metadata: {
+        scope: 'FriendSettingsComponent',
+      },
+    });
   }
 }
