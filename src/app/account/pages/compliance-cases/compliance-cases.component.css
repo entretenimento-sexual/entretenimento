@@ -12,38 +12,6 @@
   margin-inline: auto;
 }
 
-.compliance-hero {
-  margin-bottom: 1rem;
-  padding: clamp(1rem, 3vw, 1.6rem);
-  border: 1px solid var(--surface-border);
-  border-radius: 18px;
-  background: var(--surface-color);
-}
-
-.compliance-hero__eyebrow,
-.compliance-detail__eyebrow {
-  margin: 0 0 0.35rem;
-  color: color-mix(in oklab, var(--text-color) 68%, transparent);
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.compliance-hero h1,
-.compliance-detail h2,
-.compliance-state h2,
-.compliance-response h3 {
-  margin: 0;
-  color: var(--text-color);
-}
-
-.compliance-hero p:last-child {
-  margin-bottom: 0;
-  color: color-mix(in oklab, var(--text-color) 76%, transparent);
-  line-height: 1.55;
-}
-
 .compliance-layout {
   display: grid;
   grid-template-columns: minmax(230px, 300px) minmax(0, 1fr);
@@ -90,12 +58,23 @@
   font-size: 0.78rem;
 }
 
-.compliance-detail,
-.compliance-state {
+.compliance-detail__eyebrow {
+  margin: 0 0 0.35rem;
+  color: color-mix(in oklab, var(--text-color) 68%, transparent);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.compliance-detail h2,
+.compliance-response h3 {
+  margin: 0;
+  color: var(--text-color);
+}
+
+.compliance-detail {
   padding: clamp(1rem, 3vw, 1.5rem);
-  border: 1px solid var(--surface-border);
-  border-radius: 18px;
-  background: var(--surface-color);
 }
 
 .compliance-detail__header {
@@ -210,30 +189,6 @@
   font-weight: 800;
 }
 
-.compliance-button {
-  min-height: 44px;
-  padding: 0.7rem 1rem;
-  border: 1px solid var(--surface-border);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--text-color);
-  font: inherit;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.compliance-button--primary {
-  justify-self: start;
-  border-color: var(--primary-color);
-  background: var(--primary-color);
-  color: #fff;
-}
-
-.compliance-button:disabled {
-  cursor: wait;
-  opacity: 0.62;
-}
-
 .compliance-detail__footer {
   display: flex;
   flex-wrap: wrap;
@@ -246,19 +201,6 @@
 .compliance-detail__footer a {
   color: var(--primary-color);
   font-weight: 750;
-}
-
-.compliance-state {
-  display: grid;
-  place-items: center;
-  gap: 0.65rem;
-  min-height: 220px;
-  text-align: center;
-}
-
-.compliance-state p {
-  margin: 0;
-  color: color-mix(in oklab, var(--text-color) 72%, transparent);
 }
 
 .sr-only {
