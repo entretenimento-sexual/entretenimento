@@ -3203,6 +3203,28 @@ describe('Canonical UI boundary', () => {
     expect(facade).toContain('initials(name: string)');
   });
 
+  it('mantém contexto operacional fora do UserProfileViewComponent', () => {
+    const component = source(
+      'src/app/user-profile/user-profile-view/user-profile-view.component.ts'
+    );
+    const facade = source(
+      'src/app/user-profile/user-profile-view/application/own-profile-context.facade.ts'
+    );
+
+    expect(component).toContain('OwnProfileContextFacade');
+    expect(component).not.toContain('ActivatedRoute');
+    expect(component).not.toContain('NetworkStatusService');
+    expect(component).not.toContain('selectCurrentUser');
+    expect(component).not.toContain('observeUserChanges');
+    expect(component).not.toContain('ApplicationErrorService');
+
+    expect(facade).toContain('ActivatedRoute');
+    expect(facade).toContain('NetworkStatusService');
+    expect(facade).toContain('selectCurrentUser');
+    expect(facade).toContain('observeUserChanges');
+    expect(facade).toContain('ApplicationErrorService');
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
