@@ -7,7 +7,7 @@ import { IUserSocialLinks } from 'src/app/core/interfaces/interfaces-user-dados/
 import {
   PROFILE_SOCIAL_LINK_FIELDS,
   ProfileSocialLinkField,
-  ProfileProfileSocialLinkKey,
+  ProfileSocialLinkKey,
 } from 'src/app/core/catalogs/profile-social-links.catalog';
 import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
