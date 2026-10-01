@@ -52,7 +52,7 @@
       [attr.aria-busy]="isSubmitting || isUploading || isEditingAvatar"
     >
       @if (needsNickname) {
-        <div class="form-field">
+        <div class="app-field">
           <label for="nickname">
             Apelido <span class="req" aria-hidden="true">*</span>
             <span class="sr-only">(obrigatório)</span>
@@ -67,7 +67,7 @@
             minlength="4"
             maxlength="24"
             autocomplete="nickname"
-            class="input-field"
+            class="app-control"
             placeholder="Como você quer aparecer?"
             (input)="checkFieldValidity('nickname', nickname, 'Apelido')"
             (blur)="checkFieldValidity('nickname', nickname, 'Apelido')"
@@ -88,7 +88,7 @@
         </div>
       }
 
-      <div class="form-field">
+      <div class="app-field">
         <label for="gender">
           Quero me cadastrar como <span class="req" aria-hidden="true">*</span>
           <span class="sr-only">(obrigatório)</span>
@@ -99,7 +99,7 @@
           [(ngModel)]="gender"
           name="gender"
           required
-          class="input-field"
+          class="app-control"
           (change)="checkFieldValidity('gender', gender, 'Quero me cadastrar como')"
           (blur)="checkFieldValidity('gender', gender, 'Quero me cadastrar como')"
           [disabled]="isSubmitting"
@@ -119,14 +119,14 @@
         }
       </div>
 
-      <div class="form-field">
+      <div class="app-field">
         <label for="orientation">Eu sou (opcional)</label>
 
         <select
           id="orientation"
           [(ngModel)]="orientation"
           name="orientation"
-          class="input-field"
+          class="app-control"
           (change)="onDraftChange()"
           [disabled]="isSubmitting"
         >
@@ -138,7 +138,7 @@
         </select>
       </div>
 
-      <div class="form-field">
+      <div class="app-field">
         <label for="estado">
           Estado <span class="req" aria-hidden="true">*</span>
           <span class="sr-only">(obrigatório)</span>
@@ -149,7 +149,7 @@
           [(ngModel)]="selectedEstado"
           name="estado"
           required
-          class="input-field"
+          class="app-control"
           (change)="selectedMunicipio = ''; municipios = []; onEstadoChange(); checkFieldValidity('estado', selectedEstado, 'Estado'); checkFieldValidity('municipio', selectedMunicipio, 'Município')"
           (blur)="checkFieldValidity('estado', selectedEstado, 'Estado')"
           [disabled]="isSubmitting"
@@ -169,7 +169,7 @@
         }
       </div>
 
-      <div class="form-field">
+      <div class="app-field">
         <label for="municipio">
           Município <span class="req" aria-hidden="true">*</span>
           <span class="sr-only">(obrigatório)</span>
@@ -180,7 +180,7 @@
           [(ngModel)]="selectedMunicipio"
           name="municipio"
           required
-          class="input-field"
+          class="app-control"
           (change)="checkFieldValidity('municipio', selectedMunicipio, 'Município')"
           (blur)="checkFieldValidity('municipio', selectedMunicipio, 'Município')"
           [disabled]="isSubmitting || !selectedEstado || municipios.length === 0"
@@ -200,14 +200,14 @@
         }
       </div>
 
-      <div class="form-field">
+      <div class="app-field">
         <label for="avatar">Foto principal (opcional)</label>
 
         <input
           id="avatar"
           type="file"
           (change)="uploadFile($event)"
-          class="input-field"
+          class="app-control"
           [attr.accept]="avatarAccept"
           [disabled]="isSubmitting || isEditingAvatar"
           aria-describedby="avatar-hint avatar-status"
@@ -244,7 +244,7 @@
       <button
         type="submit"
         [disabled]="isSubmitting || isLoading || isEditingAvatar"
-        class="btn-submit"
+        class="app-action app-action--primary completion-submit"
       >
         {{ isSubmitting ? 'Concluindo…' : 'Concluir cadastro' }}
       </button>

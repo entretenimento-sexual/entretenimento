@@ -83,7 +83,7 @@ form {
   gap: var(--space-2, 12px);
 }
 
-.form-field {
+.app-field {
   display: grid;
   gap: 0.4rem;
   min-width: 0;
@@ -101,7 +101,7 @@ label {
    4) Campos (touch targets + contraste + foco)
 ---------------------------------------------------------------------------- */
 select,
-.input-field,
+.app-control,
 input[type="file"] {
   width: 100%;
   min-height: var(--tap-target, 44px);
@@ -121,14 +121,14 @@ input[type="file"] {
 }
 
 select:focus,
-.input-field:focus,
+.app-control:focus,
 input[type="file"]:focus {
   border-color: var(--primary-color);
   outline: none;
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--primary-color) 30%, transparent);
 }
 
-.input-field.ng-invalid.ng-touched,
+.app-control.ng-invalid.ng-touched,
 select.ng-invalid.ng-touched {
   border-color: var(--danger-color);
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--danger-color) 25%, transparent);
@@ -176,43 +176,13 @@ form .error-message {
 }
 
 /* ----------------------------------------------------------------------------
-   6) Botões (touch-friendly + estados)
+   6) Ação principal — primitive canônico com sizing local
 ---------------------------------------------------------------------------- */
-.btn-submit {
+.completion-submit {
   width: 100%;
   min-height: var(--tap-target, 44px);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-
-  padding: 12px 14px;
-  border: none;
-  border-radius: var(--radius-md, 8px);
-
-  background: var(--primary-color);
-  color: #fff;
-
   font-size: 1rem;
   font-weight: 700;
-
-  cursor: pointer;
-  transition: background-color 0.2s ease, transform 0.15s ease, opacity 0.2s ease;
-}
-
-.btn-submit:hover {
-  background: var(--primary-hover);
-  transform: translateY(-1px);
-}
-
-.btn-submit:active {
-  transform: translateY(0);
-}
-
-.btn-submit[disabled] {
-  opacity: 0.7;
-  cursor: not-allowed;
-  transform: none;
 }
 
 /* ----------------------------------------------------------------------------
@@ -259,7 +229,7 @@ form .error-message {
   color: color-mix(in oklab, var(--text-color) 70%, transparent);
 }
 
-.form-field .tooltip-error {
+.app-field .tooltip-error {
   position: static;
   display: block;
   width: 100%;
@@ -279,7 +249,7 @@ form .error-message {
   line-height: 1.35;
 }
 
-.form-field .tooltip-error::before {
+.app-field .tooltip-error::before {
   content: none;
 }
 
@@ -309,14 +279,14 @@ form .error-message {
   }
 
   select,
-  .input-field,
+  .app-control,
   input[type="file"],
-  .btn-submit {
+  .completion-submit {
     font-size: 0.95rem;
   }
 
   form .error-message,
-  .form-field .tooltip-error {
+  .app-field .tooltip-error {
     font-size: 0.85rem;
   }
 }
@@ -326,9 +296,9 @@ form .error-message {
 ---------------------------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
 
-  .btn-submit,
+  .completion-submit,
   select,
-  .input-field,
+  .app-control,
   .progress-bar-custom {
     transition: none !important;
   }

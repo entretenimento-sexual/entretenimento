@@ -63,12 +63,12 @@
     </header>
 
     <div class="form-grid">
-      <div class="form-field app-field">
+      <div class="app-field">
         <label class="form-label" for="nickname">Nickname</label>
         <input
           id="nickname"
           type="text"
-          class="input-field app-control"
+          class="app-control"
           formControlName="nickname"
           name="nickname"
           autocomplete="nickname"
@@ -85,12 +85,12 @@
         }
       </div>
 
-      <div class="form-field app-field">
+      <div class="app-field">
         <label class="form-label" for="idade">Idade</label>
         <input
           id="idade"
           type="number"
-          class="input-field app-control"
+          class="app-control"
           formControlName="idade"
           name="idade"
           min="18"
@@ -109,11 +109,11 @@
         }
       </div>
 
-      <div class="form-field app-field">
+      <div class="app-field">
         <label class="form-label" for="estado">Estado</label>
         <select
           id="estado"
-          class="input-field app-control"
+          class="app-control"
           formControlName="estado"
           name="estado"
         >
@@ -124,11 +124,11 @@
         </select>
       </div>
 
-      <div class="form-field app-field">
+      <div class="app-field">
         <label class="form-label" for="municipio">Município</label>
         <select
           id="municipio"
-          class="input-field app-control"
+          class="app-control"
           formControlName="municipio"
           name="municipio"
           [attr.aria-disabled]="municipios.length ? null : 'true'"
@@ -140,11 +140,11 @@
         </select>
       </div>
 
-      <div class="form-field app-field">
+      <div class="app-field">
         <label class="form-label" for="gender">Gênero</label>
         <select
           id="gender"
-          class="input-field app-control"
+          class="app-control"
           formControlName="gender"
           name="gender"
         >
@@ -158,11 +158,11 @@
       </div>
 
       @if (!isCouple()) {
-        <div class="form-field app-field">
+        <div class="app-field">
           <label class="form-label" for="orientation">Orientação</label>
           <select
             id="orientation"
-            class="input-field app-control"
+            class="app-control"
             formControlName="orientation"
             name="orientation"
           >
@@ -178,13 +178,13 @@
 
     @if (isCouple()) {
       <div class="form-grid couple-grid" aria-label="Orientações do casal">
-        <div class="form-field app-field">
+        <div class="app-field">
           <label class="form-label" for="partner1Orientation">
             Orientação da pessoa 1
           </label>
           <select
             id="partner1Orientation"
-            class="input-field app-control"
+            class="app-control"
             formControlName="partner1Orientation"
             name="partner1Orientation"
           >
@@ -196,13 +196,13 @@
           </select>
         </div>
 
-        <div class="form-field app-field">
+        <div class="app-field">
           <label class="form-label" for="partner2Orientation">
             Orientação da pessoa 2
           </label>
           <select
             id="partner2Orientation"
-            class="input-field app-control"
+            class="app-control"
             formControlName="partner2Orientation"
             name="partner2Orientation"
           >
@@ -224,11 +224,11 @@
       </div>
     </header>
 
-    <div class="form-field app-field">
+    <div class="app-field">
       <label class="form-label" for="descricao">Descrição</label>
       <textarea
         id="descricao"
-        class="input-field app-control textarea-field"
+        class="app-control textarea-field"
         formControlName="descricao"
         rows="5"
         placeholder="Conte quem você é e o que procura."

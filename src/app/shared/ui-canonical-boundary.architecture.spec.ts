@@ -1058,4 +1058,34 @@ describe('Canonical UI boundary', () => {
     expect(styles).not.toContain('.btn-cancel');
   });
 
+
+  it('mantém edição de perfil e finalização de cadastro nos primitives canônicos', () => {
+    const editProfile = source(
+      'src/app/user-profile/user-profile-edit/edit-user-profile/edit-user-profile.component.html'
+    );
+    const editProfileStyles = source(
+      'src/app/user-profile/user-profile-edit/edit-user-profile/edit-user-profile.component.css'
+    );
+    const finishRegistration = source(
+      'src/app/register-module/finalizar-cadastro/finalizar-cadastro.component.html'
+    );
+    const finishRegistrationStyles = source(
+      'src/app/register-module/finalizar-cadastro/finalizar-cadastro.component.css'
+    );
+
+    for (const template of [editProfile, finishRegistration]) {
+      expect(template).not.toMatch(/class=["'][^"']*\binput-field\b/u);
+      expect(template).not.toMatch(/class=["'][^"']*\bform-field\b/u);
+    }
+
+    expect(finishRegistration).not.toContain('btn-submit');
+    expect(editProfileStyles).not.toContain('.form-field');
+    expect(finishRegistrationStyles).not.toContain('.input-field');
+    expect(finishRegistrationStyles).not.toContain('.form-field');
+    expect(finishRegistrationStyles).not.toContain('.btn-submit');
+    expect(finishRegistration).toContain(
+      'app-action app-action--primary completion-submit'
+    );
+  });
+
 });
