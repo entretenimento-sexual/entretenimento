@@ -28,21 +28,21 @@
           aria-label="Abrir galerias completas"
         >
           @if (state.photosCount > 0 && state.videosCount === 0) {
-            <a [routerLink]="photoGalleryLink()">
+            <a class="app-action app-action--ghost" [routerLink]="photoGalleryLink()">
               <span>Ver todas</span>
               <i class="fas fa-arrow-right" aria-hidden="true"></i>
             </a>
           } @else if (state.videosCount > 0 && state.photosCount === 0) {
-            <a [routerLink]="['/media', 'perfil', ownerUid(), 'videos-publicos']">
+            <a class="app-action app-action--ghost" [routerLink]="['/media', 'perfil', ownerUid(), 'videos-publicos']">
               <span>Ver todos</span>
               <i class="fas fa-arrow-right" aria-hidden="true"></i>
             </a>
           } @else {
-            <a [routerLink]="photoGalleryLink()">
+            <a class="app-action app-action--ghost" [routerLink]="photoGalleryLink()">
               <i class="fas fa-images" aria-hidden="true"></i>
               Fotos
             </a>
-            <a [routerLink]="['/media', 'perfil', ownerUid(), 'videos-publicos']">
+            <a class="app-action app-action--ghost" [routerLink]="['/media', 'perfil', ownerUid(), 'videos-publicos']">
               <i class="fas fa-film" aria-hidden="true"></i>
               Vídeos
             </a>
@@ -53,39 +53,32 @@
 
     @switch (state.status) {
       @case ('loading') {
-        <div
-          class="profile-media-showcase__skeleton"
-          role="status"
-          aria-live="polite"
-          aria-label="Carregando mídias públicas"
-        >
-          <span></span>
-          <span></span>
-          <span></span>
-        </div>
+        <app-content-state
+          state="loading"
+          message="Carregando mídias públicas..."
+          [compact]="true"
+          [skeletonRows]="3"
+          skeletonVariant="media-grid"
+        />
       }
 
       @case ('error') {
-        <div class="profile-media-showcase__state" role="alert">
-          <span>Não foi possível carregar as mídias.</span>
-          <button
-            type="button"
-            class="profile-media-showcase__retry"
-            (click)="retry()"
-          >
-            Tentar novamente
-          </button>
-        </div>
+        <app-content-state
+          state="error"
+          title="Não foi possível carregar as mídias"
+          message="Tente novamente em instantes."
+          actionLabel="Tentar novamente"
+          [compact]="true"
+          (action)="retry()"
+        />
       }
 
       @case ('empty') {
-        <p
-          class="profile-media-showcase__empty"
-          role="status"
-          aria-live="polite"
-        >
-          Sem mídias públicas.
-        </p>
+        <app-content-state
+          state="empty"
+          message="Sem mídias públicas."
+          [compact]="true"
+        />
       }
 
       @case ('ready') {
