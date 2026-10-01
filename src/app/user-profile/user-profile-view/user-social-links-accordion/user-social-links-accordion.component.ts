@@ -32,15 +32,17 @@ import {
 } from 'rxjs/operators';
 
 import { IUserSocialLinks } from 'src/app/core/interfaces/interfaces-user-dados/iuser-social-links';
+import {
+  PROFILE_SOCIAL_LINK_FIELDS,
+  ProfileSocialLinkField,
+  ProfileSocialLinkKey,
+} from 'src/app/core/catalogs/profile-social-links.catalog';
 import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { UserSocialLinksService } from 'src/app/core/services/user-profile/user-social-links.service';
-
-type PlatformKey = keyof IUserSocialLinks;
-type Platform = { key: PlatformKey; label: string; icon: string };
 
 @Component({
   selector: 'app-social-links-accordion',
@@ -56,25 +58,11 @@ export class SocialLinksAccordionComponent implements OnInit, OnDestroy {
   readonly hideWhenEmpty = input<boolean>(false);
 
   socialLinks: IUserSocialLinks | null = null;
-  normalizedLinks: Partial<Record<PlatformKey, string>> = {};
+  normalizedLinks: Partial<Record<ProfileSocialLinkKey, string>> = {};
   socialLinksResolved = false;
 
-  readonly socialMediaPlatforms: readonly Platform[] = [
-    { key: 'facebook', label: 'Facebook', icon: 'fab fa-facebook-square' },
-    { key: 'instagram', label: 'Instagram', icon: 'fab fa-instagram' },
-    { key: 'twitter', label: 'X', icon: 'fab fa-x-twitter' },
-    { key: 'linkedin', label: 'LinkedIn', icon: 'fab fa-linkedin' },
-    { key: 'youtube', label: 'YouTube', icon: 'fab fa-youtube' },
-    { key: 'tiktok', label: 'TikTok', icon: 'fab fa-tiktok' },
-    { key: 'snapchat', label: 'Snapchat', icon: 'fab fa-snapchat-ghost' },
-    { key: 'sexlog', label: 'Sexlog', icon: 'fas fa-link' },
-    { key: 'd4swing', label: 'D4', icon: 'fas fa-link' },
-    { key: 'hotvips', label: 'Hotvips', icon: 'fas fa-link' },
-    { key: 'privacy', label: 'Privacy', icon: 'fas fa-link' },
-    { key: 'onlyfans', label: 'OnlyFans', icon: 'fas fa-link' },
-    { key: 'fansly', label: 'Fansly', icon: 'fas fa-link' },
-    { key: 'linktree', label: 'Linktree', icon: 'fas fa-link' },
-  ];
+  readonly socialMediaPlatforms: readonly ProfileSocialLinkField[] =
+    PROFILE_SOCIAL_LINK_FIELDS;
 
   private readonly destroy$ = new Subject<void>();
   private readonly loggedUid$ = new BehaviorSubject<string | null>(null);
@@ -195,7 +183,7 @@ export class SocialLinksAccordionComponent implements OnInit, OnDestroy {
     );
   }
 
-  trackByKey = (_: number, item: Platform): PlatformKey => item.key;
+  trackByKey = (_: number, item: ProfileSocialLinkField): ProfileSocialLinkKey => item.key;
 
   canManage(): boolean {
     const loggedUid = this.loggedUid$.value;
@@ -210,7 +198,7 @@ export class SocialLinksAccordionComponent implements OnInit, OnDestroy {
     return this.canManage() && this.subscriber$.value;
   }
 
-  updateSocialLink(key: PlatformKey, rawValue: string): void {
+  updateSocialLink(key: ProfileSocialLinkKey, rawValue: string): void {
     if (!this.canEdit()) {
       this.notify.showWarning(
         'Uma assinatura ativa é necessária para publicar redes sociais.'
@@ -264,7 +252,7 @@ export class SocialLinksAccordionComponent implements OnInit, OnDestroy {
       });
   }
 
-  removeLink(key: PlatformKey): void {
+  removeLink(key: ProfileSocialLinkKey): void {
     if (!this.canManage()) {
       this.notify.showError('Você não pode alterar as redes deste perfil.');
       return;
@@ -320,10 +308,10 @@ export class SocialLinksAccordionComponent implements OnInit, OnDestroy {
 
   private buildNormalizedLinks(
     links: Partial<IUserSocialLinks>
-  ): Partial<Record<PlatformKey, string>> {
-    const out: Partial<Record<PlatformKey, string>> = {};
+  ): Partial<Record<ProfileSocialLinkKey, string>> {
+    const out: Partial<Record<ProfileSocialLinkKey, string>> = {};
 
-    (Object.keys(links) as PlatformKey[]).forEach((key) => {
+    (Object.keys(links) as ProfileSocialLinkKey[]).forEach((key) => {
       const value = String(links[key] ?? '').trim();
       if (!value || this.isDangerousUrl(value)) return;
       out[key] = this.normalizeValue(key, value);
@@ -332,7 +320,7 @@ export class SocialLinksAccordionComponent implements OnInit, OnDestroy {
     return out;
   }
 
-  private normalizeValue(key: PlatformKey, value: string): string {
+  private normalizeValue(key: ProfileSocialLinkKey, value: string): string {
     const cleanHandle = (handle: string) => handle.replace(/^@/, '').trim();
     const ensureHttps = (url: string) =>
       /^(https?:)?\/\//i.test(url)
