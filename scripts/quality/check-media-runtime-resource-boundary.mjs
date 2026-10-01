@@ -151,10 +151,23 @@ requireIncludes(videoAccess, [
   'this.authSession.uid$',
 ], 'public video access session/LRU');
 
+const viewerNavigationPolicy = read(
+  'src/app/media/shared/policies/public-media-viewer-navigation.policy.ts'
+);
+requireIncludes(viewerNavigationPolicy, [
+  'PUBLIC_MEDIA_VIEWER_SWIPE_MIN_DISTANCE_PX = 64',
+  'PUBLIC_MEDIA_VIEWER_SWIPE_INTENT_DISTANCE_PX = 18',
+  'PUBLIC_MEDIA_VIEWER_SWIPE_AXIS_DOMINANCE = 1.2',
+  'PUBLIC_MEDIA_VIEWER_SWIPE_MAX_DURATION_MS = 800',
+  'resolvePublicMediaViewerSwipeDirection',
+  'canUsePublicMediaViewerKeyboardNavigation',
+], 'shared public media viewer navigation policy');
+
 const videoViewer = read(
   'src/app/media/videos/public-video-viewer/public-video-viewer.component.ts'
 );
 requireIncludes(videoViewer, [
+  'public-media-viewer-navigation.policy',
   'VIEWER_ITEM_WINDOW_MAX = 48',
   'VIEWER_ITEM_RETAIN_BEHIND = 12',
   'trimViewerItemWindow()',
@@ -204,7 +217,7 @@ const photoViewer = read(
   'src/app/media/photos/photo-viewer/photo-viewer.component.ts'
 );
 requireIncludes(photoViewer, [
-  'PHOTO_SWIPE_MIN_DISTANCE_PX = 64',
+  'public-media-viewer-navigation.policy',
   'onSwipePointerDown(',
   'onSwipePointerMove(',
   'onSwipePointerUp(',
