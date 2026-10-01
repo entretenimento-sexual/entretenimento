@@ -200,7 +200,7 @@ jobs:
               upgradeText: document.querySelector('.preference-upgrade')?.textContent?.trim() ?? '',
             }));
             console.log(JSON.stringify(metrics));
-            if (!metrics.upgradeVisible || !metrics.upgradeText.includes('plano Básico')) throw new Error('Free advanced-preferences upgrade guidance is missing');
+            if (!metrics.upgradeVisible || !metrics.upgradeText.includes('Básico')) throw new Error('Free advanced-preferences upgrade guidance is missing');
             return metrics;
           }"
           playwright-cli screenshot --full-page --filename="$OUT/free/desktop-advanced.png"

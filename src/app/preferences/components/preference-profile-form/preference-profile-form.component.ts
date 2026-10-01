@@ -96,10 +96,6 @@ export class PreferenceProfileFormComponent {
     () => this.capabilities()?.canUsePriorityVisibility ?? false
   );
 
-  readonly currentPlanLabel = computed(
-    () => this.capabilities()?.currentPlanLabel ?? 'Sem sessão'
-  );
-
   constructor() {
     this.form.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))

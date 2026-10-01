@@ -1378,6 +1378,21 @@ describe('Canonical UI boundary', () => {
     expect(panelSource).not.toContain('monetizationHint');
   });
 
+  it('mantém upgrade avançado contextual e sem copy promocional do plano atual', () => {
+    const form = source(
+      'src/app/preferences/components/preference-profile-form/preference-profile-form.component.html'
+    );
+    const formSource = source(
+      'src/app/preferences/components/preference-profile-form/preference-profile-form.component.ts'
+    );
+
+    expect(form).toContain('Práticas e características procuradas ficam disponíveis a partir do Básico.');
+    expect(form).toContain('>Ver opções<');
+    expect(form).not.toContain('Seu plano {{ currentPlanLabel() }}');
+    expect(form).not.toContain('Ver plano Básico');
+    expect(formSource).not.toContain('currentPlanLabel = computed');
+  });
+
   it('mantém o editor de Preferences sem promoção permanente de plano', () => {
     const editor = source(
       'src/app/preferences/pages/preferences-editor/preferences-editor.component.html'

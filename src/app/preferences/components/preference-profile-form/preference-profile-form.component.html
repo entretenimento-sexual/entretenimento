@@ -95,12 +95,12 @@
           </div>
         </div>
         @if (!canRequireAdvanced()) {
-          <p class="preference-note" role="note">Seu plano usa estas escolhas para ordenar resultados. O Premium permite torná-las obrigatórias.</p>
+          <p class="preference-note" role="note">Estas escolhas ajudam a ordenar resultados. Torná-las obrigatórias requer Premium.</p>
         }
       } @else {
         <div class="preference-upgrade" role="note">
-          <span>Seu plano {{ currentPlanLabel() }} mantém as preferências essenciais. O plano Básico libera práticas e características procuradas.</span>
-          <a class="preference-upgrade__action app-action app-action--ghost" routerLink="/subscription-plan" [queryParams]="{ minimumRole: 'basic' }">Ver plano Básico</a>
+          <span>Práticas e características procuradas ficam disponíveis a partir do Básico.</span>
+          <a class="preference-upgrade__action app-action app-action--ghost" routerLink="/subscription-plan" [queryParams]="{ minimumRole: 'basic' }">Ver opções</a>
         </div>
       }
     </div>
