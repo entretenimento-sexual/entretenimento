@@ -156,8 +156,10 @@ describe('OnlineUsersFeedFacade', () => {
 
     distance$.next(18);
 
-    expect(buildCards).toHaveBeenCalled();
-    expect(emissions.length).toBeGreaterThan(0);
+    await vi.waitFor(() => {
+      expect(buildCards).toHaveBeenCalled();
+      expect(emissions.length).toBeGreaterThan(0);
+    });
 
     subscription.unsubscribe();
   });
@@ -185,16 +187,18 @@ describe('OnlineUsersFeedFacade', () => {
       values.push(value);
     });
 
-    expect(values).toContainEqual([]);
-    expect(report).toHaveBeenCalledWith(error, {
+    await vi.waitFor(() => {
+      expect(values).toContainEqual([]);
+      expect(report).toHaveBeenCalledWith(error, {
       feature: 'online-users',
       operation: 'OnlineUsersFeedFacade.observe',
       fallbackMessage:
         'Não foi possível atualizar os perfis disponíveis.',
       presentation: { surface: 'none', severity: 'error' },
-      metadata: {
-        scope: 'OnlineUsersFeedFacade',
-      },
+        metadata: {
+          scope: 'OnlineUsersFeedFacade',
+        },
+      });
     });
 
     subscription.unsubscribe();
