@@ -37,7 +37,6 @@ import {
   combineLatest,
   firstValueFrom,
   from,
-  interval,
   of,
 } from 'rxjs';
 
@@ -63,7 +62,6 @@ import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { selectCurrentUser, selectCurrentUserStatus
   } from 'src/app/store/selectors/selectors.user/user.selectors';
 
-import { selectGlobalOnlineUsers } from 'src/app/store/selectors/selectors.user/online.selectors';
 import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -79,9 +77,9 @@ import {
   normalizeDiscoveryMode,
 } from '../../discovery/models/discovery-mode.model';
 
-import type { IUserWithDistance, UserLocation } from './models/online-users.model';
-import { DiscoveryCardEnrichmentService } from '../../discovery/application/discovery-card-enrichment.service';
+import type { UserLocation } from './models/online-users.model';
 import { OnlineUsersLocationFacade } from './application/online-users-location.facade';
+import { OnlineUsersFeedFacade } from './application/online-users-feed.facade';
 
 function shallowUserEqual(
   a: IUserDados | null,
@@ -113,10 +111,9 @@ function shallowUserEqual(
   ],
   templateUrl: './online-users.component.html',
   styleUrls: ['./online-users.component.css'],
-  providers: [OnlineUsersLocationFacade],
+  providers: [OnlineUsersLocationFacade, OnlineUsersFeedFacade],
 })
 export class OnlineUsersComponent implements OnInit {
-  private static readonly UI_REFRESH_MS = 15_000;
   private readonly destroyRef = inject(DestroyRef);
 
   // ---------------------------------------------------------------------------
@@ -133,9 +130,6 @@ readonly discoveryControlsOpen = signal(false);
  *   a consulta da permissão já concedida pelo navegador.
  */
 readonly locationAutoCheckDone = this.locationFacade.autoCheckDone;
-
-  onlineUsers$: Observable<IUserWithDistance[]> = of([]);
-  count$: Observable<number> = of(0);
 
   get loading(): boolean {
     return this.locationFacade.loading();
@@ -163,7 +157,6 @@ readonly locationAutoCheckDone = this.locationFacade.autoCheckDone;
 
   showProfileCompletionPrompt = false;
 
-  private streamsReadyForUid: string | null = null;
 
   // ---------------------------------------------------------------------------
   // Seletores / streams base
@@ -200,6 +193,9 @@ get mode(): DiscoveryMode {
   return this.modeSubject.value;
 }
 
+readonly onlineUsers$ = this.feedFacade.observe$(this.mode$);
+readonly count$ = this.feedFacade.count$(this.onlineUsers$);
+
 /**
  * Lista preparada pelo NgRx para o modo Online.
  *
@@ -213,11 +209,6 @@ get mode(): DiscoveryMode {
  * - ordenação;
  * - contrato único de card.
  */
-private readonly onlineRaw$ = this.store.select(selectGlobalOnlineUsers).pipe(
-  map((users) => (Array.isArray(users) ? (users as IUserDados[]) : [])),
-  shareReplay({ bufferSize: 1, refCount: true })
-);
-
   private readonly authUid$ = this.access.authUid$.pipe(
     map((uid) => (uid ?? '').trim() || null),
     distinctUntilChanged(),
@@ -257,12 +248,12 @@ private readonly onlineRaw$ = this.store.select(selectGlobalOnlineUsers).pipe(
   );
 
 constructor(
-  private readonly cardEnrichment: DiscoveryCardEnrichmentService,
   private readonly errorNotificationService: ErrorNotificationService,
   private readonly store: Store<AppState>,
   private readonly access: AccessControlService,
   private readonly router: Router,
   private readonly locationFacade: OnlineUsersLocationFacade,
+  private readonly feedFacade: OnlineUsersFeedFacade,
   private readonly privacyDebug: PrivacyDebugLoggerService
 ) {}
 
@@ -288,8 +279,6 @@ ngOnInit(): void {
          * - no modo "Todos", a lista deve existir sem localização;
          * - no modo "Perto", a localização entra como filtro adicional.
          */
-this.ensureStreamsAfterLocation(gate.user);
-
 if (!discoveryModeRequiresLocation(mode)) {
   /**
    * Em modos que não exigem localização, não existe checagem automática pendente.
@@ -479,112 +468,11 @@ get listAriaLabel(): string {
     return this.locationFacade.getRangeTrackBackground(value);
   }
 
-/**
- * Nome mantido para reduzir impacto da migração.
- *
- * Antes este stream só era criado depois da localização.
- * Agora ele também precisa funcionar no modo "Todos", sem localização.
- *
- * Regras:
- * - all: lista todos os perfis online recebidos do NgRx;
- * - nearby: exige localização e aplica raio;
- * - modos futuros podem reaproveitar este mesmo pipeline.
- */
-private ensureStreamsAfterLocation(currentUser: IUserDados): void {
-  if (this.streamsReadyForUid === currentUser.uid) {
-    return;
-  }
-
-  this.streamsReadyForUid = currentUser.uid;
-
-  const uiTick$ = interval(OnlineUsersComponent.UI_REFRESH_MS).pipe(
-    startWith(0)
-  );
-
-  const km$ = this.locationFacade.distance$.pipe(
-    startWith(this.uiDistanceKm ?? this.policyMaxDistanceKm)
-  );
-
-this.onlineUsers$ = combineLatest([
-  this.mode$,
-  km$,
-  uiTick$,
-  this.onlineRaw$,
-  this.currentUserResolved$,
-]).pipe(
-  map(([mode, km, _tick, users, liveCurrentUser]) => {
-    const effectiveCurrentUser = liveCurrentUser ?? currentUser;
-    const cap = this.locationFacade.normalizeDistanceCap(km);
-    const filteredByPrefs = this.applyUserPreferences(
-      users,
-      effectiveCurrentUser
-    );
-
-const enriched = this.cardEnrichment.buildCards({
-  profiles: filteredByPrefs,
-  currentUser: effectiveCurrentUser,
-  currentUid: effectiveCurrentUser.uid,
-  mode,
-  capKm: cap,
-  fallbackLocation: this.userLocation,
-  applyVisibility: true,
-});
-
-this.log('onlineUsers enrichment result', {
-  mode,
-  inputTotal: filteredByPrefs.length,
-  outputTotal: enriched.length,
-  capKm: cap,
-  hasFallbackLocation: !!this.userLocation,
-});
-
-return enriched as IUserWithDistance[];
-  }),
-    catchError((error) => {
-      this.locationFacade.handleError(error);
-      return of([] as IUserWithDistance[]);
-    }),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
-
-  this.count$ = this.onlineUsers$.pipe(
-    map((list) => list.length),
-    startWith(0),
-    distinctUntilChanged(),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
-}
-
-  // ---------------------------------------------------------------------------
-  // Processamento dos usuários online
-  // ---------------------------------------------------------------------------
-
-  private applyUserPreferences(
-    users: IUserDados[],
-    _currentUser: IUserDados
-  ): IUserDados[] {
-    /**
-     * Ponto futuro:
-     * - preferências de gênero/orientação;
-     * - bloqueios;
-     * - invisibilidade;
-     * - idade;
-     * - limites por assinatura.
-     *
-     * Por enquanto, não filtramos por preferência aqui.
-     */
-    return users;
-  }
-
   // ---------------------------------------------------------------------------
   // Estado / navegação / reset
   // ---------------------------------------------------------------------------
 private resetRuntimeState(): void {
-  this.streamsReadyForUid = null;
   this.locationFacade.reset();
-
-  this.onlineUsers$ = of([]);
-  this.count$ = of(0);
 
   this.resetLocationPrompts();
 }
