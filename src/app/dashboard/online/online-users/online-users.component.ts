@@ -35,7 +35,6 @@ import {
   EMPTY,
   Observable,
   combineLatest,
-  defer,
   firstValueFrom,
   from,
   interval,
@@ -46,7 +45,6 @@ import {
   catchError,
   distinctUntilChanged,
   filter,
-  finalize,
   map,
   shareReplay,
   startWith,
@@ -66,22 +64,13 @@ import { selectCurrentUser, selectCurrentUserStatus
   } from 'src/app/store/selectors/selectors.user/user.selectors';
 
 import { selectGlobalOnlineUsers } from 'src/app/store/selectors/selectors.user/online.selectors';
-import {
-  GeolocationError,
-  GeolocationErrorCode,
-  GeolocationService,
-} from 'src/app/core/services/geolocation/geolocation.service';
-
-import { GeolocationTrackingService } from 'src/app/core/services/geolocation/geolocation-tracking.service';
-
 import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
 import { UserCardComponent } from 'src/app/shared/user-card/user-card.component';
 import { ContentStateComponent } from 'src/app/shared/content-state/content-state.component';
-import { environment } from 'src/environments/environment';
 
 import {
   DEFAULT_DISCOVERY_MODE,
@@ -90,8 +79,9 @@ import {
   normalizeDiscoveryMode,
 } from '../../discovery/models/discovery-mode.model';
 
-import type {IUserWithDistance, UserLocation } from './models/online-users.model';
+import type { IUserWithDistance, UserLocation } from './models/online-users.model';
 import { DiscoveryCardEnrichmentService } from '../../discovery/application/discovery-card-enrichment.service';
+import { OnlineUsersLocationFacade } from './application/online-users-location.facade';
 
 function shallowUserEqual(
   a: IUserDados | null,
@@ -123,14 +113,10 @@ function shallowUserEqual(
   ],
   templateUrl: './online-users.component.html',
   styleUrls: ['./online-users.component.css'],
+  providers: [OnlineUsersLocationFacade],
 })
 export class OnlineUsersComponent implements OnInit {
   private static readonly UI_REFRESH_MS = 15_000;
-  private static readonly DEFAULT_MAX_DISTANCE_KM = 20;
-  private static readonly MIN_DISTANCE_KM = 1;
-  private static readonly LAST_COORDS_TTL_MS = 15 * 60 * 1000;
-
-  private readonly debug = !environment.production;
   private readonly destroyRef = inject(DestroyRef);
 
   // ---------------------------------------------------------------------------
@@ -146,23 +132,37 @@ readonly discoveryControlsOpen = signal(false);
  * - sem este estado, o template mostra "Ativar localização" antes de terminar
  *   a consulta da permissão já concedida pelo navegador.
  */
-readonly locationAutoCheckDone = signal(false);
-
-private readonly dist$ = new BehaviorSubject<number | null>(null);
+readonly locationAutoCheckDone = this.locationFacade.autoCheckDone;
 
   onlineUsers$: Observable<IUserWithDistance[]> = of([]);
   count$: Observable<number> = of(0);
 
-  loading = false;
-  userLocation: UserLocation | null = null;
+  get loading(): boolean {
+    return this.locationFacade.loading();
+  }
 
-  uiDistanceKm?: number;
-  policyMaxDistanceKm = OnlineUsersComponent.DEFAULT_MAX_DISTANCE_KM;
+  get userLocation(): UserLocation | null {
+    return this.locationFacade.location();
+  }
+
+  set userLocation(value: UserLocation | null) {
+    this.locationFacade.location.set(value);
+  }
+
+  get uiDistanceKm(): number | undefined {
+    return this.locationFacade.uiDistanceKm();
+  }
+
+  set uiDistanceKm(value: number | undefined) {
+    this.locationFacade.uiDistanceKm.set(value);
+  }
+
+  get policyMaxDistanceKm(): number {
+    return this.locationFacade.policyMaxDistanceKm();
+  }
 
   showProfileCompletionPrompt = false;
 
-  private autoEnableUid: string | null = null;
-  private autoEnableInFlight = false;
   private streamsReadyForUid: string | null = null;
 
   // ---------------------------------------------------------------------------
@@ -257,19 +257,14 @@ private readonly onlineRaw$ = this.store.select(selectGlobalOnlineUsers).pipe(
   );
 
 constructor(
-  private readonly geolocationService: GeolocationService,
   private readonly cardEnrichment: DiscoveryCardEnrichmentService,
   private readonly errorNotificationService: ErrorNotificationService,
-  private readonly applicationError: ApplicationErrorService,
-  private readonly geoTracking: GeolocationTrackingService,
   private readonly store: Store<AppState>,
   private readonly access: AccessControlService,
-  private readonly router: Router
-) {
-    this.destroyRef.onDestroy(() => {
-      this.geoTracking.stopTracking();
-    });
-  }
+  private readonly router: Router,
+  private readonly locationFacade: OnlineUsersLocationFacade,
+  private readonly privacyDebug: PrivacyDebugLoggerService
+) {}
 
 ngOnInit(): void {
   combineLatest([this.gate$, this.mode$])
@@ -302,25 +297,12 @@ if (!discoveryModeRequiresLocation(mode)) {
    * Isso evita que o template fique preso em estado visual de "verificando
    * localização" quando o usuário está apenas no modo "Todos" ou "Online".
    */
-  this.locationAutoCheckDone.set(true);
+  this.locationFacade.markAutoCheckDone();
   return EMPTY;
 }
 
-        if (this.autoEnableUid === gate.uid || this.autoEnableInFlight) {
-          return EMPTY;
-        }
-
-        this.autoEnableUid = gate.uid;
-        this.autoEnableInFlight = true;
-
-        return defer(() => from(this.tryAutoEnableLocation(gate.user))).pipe(
-          catchError((err) => {
-            this.handleGeoError(err);
-            return EMPTY;
-          }),
-          finalize(() => {
-            this.autoEnableInFlight = false;
-          })
+        return from(
+          this.locationFacade.tryAutoEnable(gate.user)
         );
       }),
 
@@ -440,7 +422,7 @@ get listAriaLabel(): string {
       return;
     }
 
-    await this.enableLocationInternal({
+    await this.locationFacade.enable(currentUser, {
       requireUserGesture: false,
       silent: false,
     });
@@ -482,195 +464,19 @@ get listAriaLabel(): string {
   }
 
   onDistanceChange(value: number): void {
-    const max = Math.max(
-      OnlineUsersComponent.MIN_DISTANCE_KM,
-      this.policyMaxDistanceKm || OnlineUsersComponent.DEFAULT_MAX_DISTANCE_KM
-    );
-
-    const next = Math.min(
-      max,
-      Math.max(OnlineUsersComponent.MIN_DISTANCE_KM, Number(value) || max)
-    );
-
-    this.uiDistanceKm = next;
-    this.dist$.next(next);
-
-    this.log('raio alterado', {
-      requested: value,
-      applied: next,
-      max,
-    });
+    this.locationFacade.setUiDistance(value);
   }
 
   stepRange(delta: number): void {
-    const max = Math.max(
-      OnlineUsersComponent.MIN_DISTANCE_KM,
-      this.policyMaxDistanceKm || OnlineUsersComponent.DEFAULT_MAX_DISTANCE_KM
-    );
-
-    const current = this.uiDistanceKm ?? max;
-    const next = Math.min(
-      max,
-      Math.max(OnlineUsersComponent.MIN_DISTANCE_KM, current + delta)
-    );
-
-    this.onDistanceChange(next);
+    this.locationFacade.stepRange(delta);
   }
 
   getRangeThumbPercent(value?: number | null): number {
-    const min = OnlineUsersComponent.MIN_DISTANCE_KM;
-    const max = Math.max(min, this.policyMaxDistanceKm || min);
-    const safeValue = Math.min(max, Math.max(min, value ?? max));
-
-    return ((safeValue - min) * 100) / (max - min || 1);
+    return this.locationFacade.getRangeThumbPercent(value);
   }
 
   getRangeTrackBackground(value?: number | null): string {
-    const percent = this.getRangeThumbPercent(value);
-
-    return `linear-gradient(to right, var(--primary-color) ${percent}%, var(--range-track-color) ${percent}%)`;
-  }
-
-  // ---------------------------------------------------------------------------
-  // Fluxo de localização
-  // ---------------------------------------------------------------------------
-
-  private async enableLocationInternal(opts: {
-    requireUserGesture: boolean;
-    silent: boolean;
-  }): Promise<void> {
-    if (this.loading) return;
-
-    this.loading = true;
-
-    try {
-      const currentUser = await firstValueFrom(
-        this.currentUserResolved$.pipe(
-          filter((user): user is IUserDados => !!user?.uid),
-          take(1)
-        )
-      );
-
-      this.log('enableLocationInternal → user', currentUser.uid);
-
-      const hadSnapshot = this.tryUseLastKnownSnapshot(currentUser);
-
-      const raw = await firstValueFrom(
-        this.geolocationService.currentPosition$({
-          requireUserGesture: opts.requireUserGesture,
-          enableHighAccuracy: false,
-          maximumAge: 300_000,
-          timeout: 20_000,
-        })
-      );
-
-      const { coords: safe, policy } = this.geolocationService.applyRolePrivacy(
-        raw,
-        currentUser.role,
-        !!currentUser.emailVerified
-      );
-
-      /**
-       * A única escrita do cliente é a posição privada em users/{uid}.
-       * syncPublicProfileDiscovery deriva public_profiles/{uid} no backend.
-       * A versão reduzida continua sendo usada localmente para UI/raio.
-       */
-      await firstValueFrom(
-        this.geoTracking.persistLocationOnce$(currentUser.uid, raw)
-      );
-
-      this.userLocation = {
-        latitude: safe.latitude,
-        longitude: safe.longitude,
-      };
-
-      this.policyMaxDistanceKm =
-        policy?.maxDistanceKm ?? OnlineUsersComponent.DEFAULT_MAX_DISTANCE_KM;
-
-      this.clampUiDistanceToPolicy();
-
-      this.ensureStreamsAfterLocation(currentUser);
-      this.dist$.next(this.uiDistanceKm ?? this.policyMaxDistanceKm);
-
-      this.geoTracking.startTracking(currentUser.uid);
-
-      await this.maybePersistAlwaysAllow(opts);
-
-      if (!opts.silent) {
-        this.errorNotificationService.showSuccess(
-          hadSnapshot
-            ? 'Localização atualizada.'
-            : 'Localização ativada e usuários carregados.'
-        );
-      }
-    } catch (err) {
-      if (err instanceof GeolocationError) {
-        if (err.code === GeolocationErrorCode.TIMEOUT && this.userLocation) {
-          this.log('Timeout ao refinar posição; mantendo última posição conhecida.');
-
-          this.errorNotificationService.showInfo(
-            'Não foi possível atualizar sua posição agora; usando a última conhecida.'
-          );
-
-          return;
-        }
-
-if (err.code === GeolocationErrorCode.PERMISSION_DENIED) {
-  this.geoTracking.stopTracking();
-
-  if (this.userLocation) {
-    this.log('Permissão negada; mantendo última posição conhecida.');
-
-    this.errorNotificationService.showInfo(
-      'Permissão de localização negada. Mantendo a última posição conhecida.'
-    );
-
-    return;
-  }
-}
-      }
-
-      this.handleGeoError(err);
-    } finally {
-      this.loading = false;
-    }
-  }
-
-  private tryUseLastKnownSnapshot(currentUser: IUserDados): boolean {
-    const snap = this.geoTracking.getLastSnapshot(
-      OnlineUsersComponent.LAST_COORDS_TTL_MS
-    );
-
-    if (snap?.latitude == null || snap?.longitude == null) {
-      return false;
-    }
-
-    const { coords: safe, policy } = this.geolocationService.applyRolePrivacy(
-      snap as any,
-      currentUser.role,
-      !!currentUser.emailVerified
-    );
-
-    this.userLocation = {
-      latitude: safe.latitude,
-      longitude: safe.longitude,
-    };
-
-    this.policyMaxDistanceKm =
-      policy?.maxDistanceKm ?? OnlineUsersComponent.DEFAULT_MAX_DISTANCE_KM;
-
-    this.clampUiDistanceToPolicy();
-
-    this.ensureStreamsAfterLocation(currentUser);
-    this.dist$.next(this.uiDistanceKm ?? this.policyMaxDistanceKm);
-
-this.log('Usando snapshot local enquanto refinamos a posição', {
-  userLocation: this.userLocation,
-  policyMaxDistanceKm: this.policyMaxDistanceKm,
-  uiDistanceKm: this.uiDistanceKm,
-});
-
-    return true;
+    return this.locationFacade.getRangeTrackBackground(value);
   }
 
 /**
@@ -695,7 +501,7 @@ private ensureStreamsAfterLocation(currentUser: IUserDados): void {
     startWith(0)
   );
 
-  const km$ = this.dist$.pipe(
+  const km$ = this.locationFacade.distance$.pipe(
     startWith(this.uiDistanceKm ?? this.policyMaxDistanceKm)
   );
 
@@ -708,7 +514,7 @@ this.onlineUsers$ = combineLatest([
 ]).pipe(
   map(([mode, km, _tick, users, liveCurrentUser]) => {
     const effectiveCurrentUser = liveCurrentUser ?? currentUser;
-    const cap = this.normalizeDistanceCap(km);
+    const cap = this.locationFacade.normalizeDistanceCap(km);
     const filteredByPrefs = this.applyUserPreferences(
       users,
       effectiveCurrentUser
@@ -734,8 +540,8 @@ this.log('onlineUsers enrichment result', {
 
 return enriched as IUserWithDistance[];
   }),
-    catchError((err) => {
-      this.handleGeoError(err);
+    catchError((error) => {
+      this.locationFacade.handleError(error);
       return of([] as IUserWithDistance[]);
     }),
     shareReplay({ bufferSize: 1, refCount: true })
@@ -748,32 +554,6 @@ return enriched as IUserWithDistance[];
     shareReplay({ bufferSize: 1, refCount: true })
   );
 }
-
-  private normalizeDistanceCap(value: number | null | undefined): number {
-    const max = Math.max(
-      OnlineUsersComponent.MIN_DISTANCE_KM,
-      this.policyMaxDistanceKm || OnlineUsersComponent.DEFAULT_MAX_DISTANCE_KM
-    );
-
-    return Math.min(
-      max,
-      Math.max(OnlineUsersComponent.MIN_DISTANCE_KM, Number(value ?? max) || max)
-    );
-  }
-
-  private clampUiDistanceToPolicy(): void {
-    const max = Math.max(
-      OnlineUsersComponent.MIN_DISTANCE_KM,
-      this.policyMaxDistanceKm || OnlineUsersComponent.DEFAULT_MAX_DISTANCE_KM
-    );
-
-    const current = this.uiDistanceKm ?? max;
-
-    this.uiDistanceKm = Math.min(
-      max,
-      Math.max(OnlineUsersComponent.MIN_DISTANCE_KM, current)
-    );
-  }
 
   // ---------------------------------------------------------------------------
   // Processamento dos usuários online
@@ -797,93 +577,11 @@ return enriched as IUserWithDistance[];
   }
 
   // ---------------------------------------------------------------------------
-  // Auto-enable / fallback local
-  // ---------------------------------------------------------------------------
-private async tryAutoEnableLocation(user: IUserDados | null): Promise<void> {
-  this.locationAutoCheckDone.set(false);
-
-  try {
-    if (!user?.uid) {
-      return;
-    }
-
-    /**
-     * Primeiro tenta usar snapshot local.
-     * Isso evita exibir o card "Ativar localização" enquanto o browser ainda
-     * está refinando a posição atual.
-     */
-    const usedSnapshot = this.tryUseLastKnownSnapshot(user);
-
-    const state = await this.geoTracking.queryPermission();
-
-    this.log('auto-enable: permission state', {
-      uid: user.uid,
-      state,
-      usedSnapshot,
-    });
-
-    if (state === 'granted') {
-      await this.enableLocationInternal({
-        requireUserGesture: false,
-        silent: true,
-      });
-
-      if (this.userLocation) {
-        this.log('auto-enable: localização carregada automaticamente', {
-          uid: user.uid,
-          hasLocation: true,
-        });
-
-        return;
-      }
-    }
-
-    if (usedSnapshot) {
-      return;
-    }
-
-    this.log('auto-enable: aguardando ação do usuário');
-  } finally {
-    this.locationAutoCheckDone.set(true);
-  }
-}
-
-  // ---------------------------------------------------------------------------
-  // LocalStorage
-  // ---------------------------------------------------------------------------
-private async maybePersistAlwaysAllow(ctx: {
-  requireUserGesture: boolean;
-  silent: boolean;
-}): Promise<void> {
-  if (ctx.silent) return;
-
-  const state = await this.geoTracking.queryPermission();
-
-  if (state === 'granted') {
-    /**
-     * A permissão já foi concedida pelo navegador.
-     * Não fazemos segundo confirm interno.
-     */
-    return;
-  }
-}
-
-  // ---------------------------------------------------------------------------
   // Estado / navegação / reset
   // ---------------------------------------------------------------------------
 private resetRuntimeState(): void {
-  this.autoEnableUid = null;
-  this.autoEnableInFlight = false;
   this.streamsReadyForUid = null;
-  this.locationAutoCheckDone.set(false);
-
-  this.geoTracking.stopTracking();
-
-  this.userLocation = null;
-  this.uiDistanceKm = undefined;
-  this.policyMaxDistanceKm = OnlineUsersComponent.DEFAULT_MAX_DISTANCE_KM;
-
-  this.dist$.next(null);
+  this.locationFacade.reset();
 
   this.onlineUsers$ = of([]);
   this.count$ = of(0);
@@ -906,70 +604,11 @@ private normalizeRedirectTarget(url: string | null | undefined): string {
   return clean;
 }
 
-  // ---------------------------------------------------------------------------
-  // Tratamento centralizado de erro
-  // ---------------------------------------------------------------------------
-
-  private handleGeoError(err: unknown): void {
-    let msg = 'Falha ao obter a sua localização.';
-    let isGestureOnly = false;
-
-    if (err instanceof GeolocationError) {
-      switch (err.code) {
-        case GeolocationErrorCode.UNSUPPORTED:
-          msg = 'Seu navegador não suporta geolocalização.';
-          break;
-
-        case GeolocationErrorCode.INSECURE_CONTEXT:
-          msg = 'Ative HTTPS ou use localhost para permitir a geolocalização.';
-          break;
-
-        case GeolocationErrorCode.PERMISSION_DENIED:
-          msg = 'Permissão de localização negada.';
-          break;
-
-        case GeolocationErrorCode.USER_GESTURE_REQUIRED:
-          msg = 'Clique em “Ativar localização” para continuar.';
-          isGestureOnly = true;
-          break;
-
-        case GeolocationErrorCode.POSITION_UNAVAILABLE:
-          msg = 'Posição atual indisponível.';
-          break;
-
-        case GeolocationErrorCode.TIMEOUT:
-          msg = 'Tempo esgotado ao tentar localizar você.';
-          break;
-
-        default:
-          msg = 'Ocorreu um erro desconhecido ao obter localização.';
-      }
-    } else if (err instanceof Error) {
-      msg = err.message || msg;
-    }
-
-    this.errorNotificationService.showError(msg);
-
-    const expectedPermissionDenied =
-      err instanceof GeolocationError &&
-      err.code === GeolocationErrorCode.PERMISSION_DENIED;
-
-    if (!isGestureOnly && !expectedPermissionDenied) {
-      this.applicationError.report(err, {
-        feature: 'online-users',
-        operation: 'OnlineUsersComponent.handleGeoError',
-        fallbackMessage: msg,
-        presentation: { surface: 'none', severity: 'error' },
-        metadata: {
-          scope: 'OnlineUsersComponent',
-        },
-      });
-    }
-  }
-
   private log(message: string, extra?: unknown): void {
-    if (!this.debug) return;
-    // eslint-disable-next-line no-console
-    console.log(`[OnlineUsers] ${message}`, extra ?? '');
+    this.privacyDebug.log(
+      'online-users',
+      `OnlineUsersComponent: ${message}`,
+      extra
+    );
   }
 }
