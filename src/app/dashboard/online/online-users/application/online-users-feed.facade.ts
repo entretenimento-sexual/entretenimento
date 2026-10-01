@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
 import { Observable, combineLatest, interval, of } from 'rxjs';
@@ -42,6 +42,11 @@ function shallowUserEqual(
 
 @Injectable()
 export class OnlineUsersFeedFacade {
+  private readonly store = inject<Store<AppState>>(Store as any);
+  private readonly cardEnrichment = inject(DiscoveryCardEnrichmentService);
+  private readonly locationFacade = inject(OnlineUsersLocationFacade);
+  private readonly applicationError = inject(ApplicationErrorService);
+
   private readonly currentUser$ = this.store.select(selectCurrentUser).pipe(
     startWith(undefined as IUserDados | null | undefined),
     filter((user): user is IUserDados | null => user !== undefined),
@@ -65,13 +70,6 @@ export class OnlineUsersFeedFacade {
   private readonly uiTick$ = interval(UI_REFRESH_MS).pipe(
     startWith(0)
   );
-
-  constructor(
-    private readonly store: Store<AppState>,
-    private readonly cardEnrichment: DiscoveryCardEnrichmentService,
-    private readonly locationFacade: OnlineUsersLocationFacade,
-    private readonly applicationError: ApplicationErrorService
-  ) {}
 
   observe$(
     mode$: Observable<DiscoveryMode>
