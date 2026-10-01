@@ -3376,6 +3376,33 @@ describe('Canonical UI boundary', () => {
     expect(facade).toContain('getUser(');
   });
 
+  it('mantém Online Users nas primitives canônicas', () => {
+    const component = source(
+      'src/app/dashboard/online/online-users/online-users.component.ts'
+    );
+    const template = source(
+      'src/app/dashboard/online/online-users/online-users.component.html'
+    );
+    const styles = source(
+      'src/app/dashboard/online/online-users/online-users.component.css'
+    );
+
+    expect(component).toContain('ContentStateComponent');
+    expect(component).toContain('ApplicationErrorService');
+    expect(component).not.toContain('GlobalErrorHandlerService');
+
+    expect(template).toContain('<app-content-state');
+    expect(template).toContain('app-action app-action--primary');
+    expect(template).toContain('app-action app-action--ghost');
+    expect(template).not.toContain('btn btn-primary');
+    expect(template).not.toContain('btn btn-ghost');
+
+    expect(styles).not.toContain('.online-users__loader');
+    expect(styles).not.toContain('@keyframes online-users-spin');
+    expect(styles).not.toContain('.online-users__empty strong');
+    expect(styles).not.toContain('.online-users__empty span');
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
