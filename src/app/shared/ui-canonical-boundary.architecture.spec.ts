@@ -3403,6 +3403,30 @@ describe('Canonical UI boundary', () => {
     expect(styles).not.toContain('.online-users__empty span');
   });
 
+  it('mantém geolocalização fora do OnlineUsersComponent', () => {
+    const component = source(
+      'src/app/dashboard/online/online-users/online-users.component.ts'
+    );
+    const facade = source(
+      'src/app/dashboard/online/online-users/application/online-users-location.facade.ts'
+    );
+
+    expect(component).toContain('OnlineUsersLocationFacade');
+    expect(component).not.toContain('GeolocationTrackingService');
+    expect(component).not.toContain('GeolocationErrorCode');
+    expect(component).not.toContain('currentPosition$(');
+    expect(component).not.toContain('persistLocationOnce$(');
+    expect(component).not.toContain('tryUseLastKnownSnapshot(');
+    expect(component).not.toContain('enableLocationInternal(');
+    expect(component).not.toContain('console.log');
+
+    expect(facade).toContain('GeolocationService');
+    expect(facade).toContain('GeolocationTrackingService');
+    expect(facade).toContain('currentPosition$(');
+    expect(facade).toContain('persistLocationOnce$(');
+    expect(facade).toContain('PrivacyDebugLoggerService');
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
