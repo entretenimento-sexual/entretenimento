@@ -1455,8 +1455,9 @@ describe('Canonical UI boundary', () => {
     expect(completion).not.toContain('completion-hero');
     expect(hub).not.toContain('hub-capabilities');
     expect(hub).not.toContain('<app-preferences-domain-nav');
-    expect(hub).toContain('id="hub-main-title"');
+    expect(hub).not.toContain('id="hub-main-title"');
     expect(hub).not.toContain('id="hub-compatibility-title"');
+    expect(hub).not.toContain('Ajustes principais');
     expect(summary).not.toContain('summary-subtitle');
     expect(summary).not.toContain('summary-grid');
     expect(summary).not.toContain('summary-item');
