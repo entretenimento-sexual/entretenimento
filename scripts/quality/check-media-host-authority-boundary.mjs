@@ -93,12 +93,21 @@ for (const relativePath of hostFiles) {
 const otherProfile = read(
   'src/app/layout/other-user-profile-view/other-user-profile-view.component.ts'
 );
-requireIncludes(otherProfile, [
-  'getPublicUserById$(',
-  'ProfileMediaShowcaseComponent',
-], 'perfil alheio deve consumir somente projeção pública');
+const otherProfileBootstrap = read(
+  'src/app/layout/other-user-profile-view/application/visited-profile-bootstrap.orchestrator.ts'
+);
 
-forbid(otherProfile, [
+requireIncludes(otherProfile, [
+  'VisitedProfileBootstrapOrchestrator',
+  'ProfileMediaShowcaseComponent',
+], 'perfil alheio deve delegar bootstrap público');
+
+requireIncludes(otherProfileBootstrap, [
+  'getPublicUserById$(',
+  'FirestoreUserQueryService',
+], 'bootstrap do perfil alheio deve consumir somente projeção pública');
+
+forbid(otherProfile + '\n' + otherProfileBootstrap, [
   [/\.getUser(?:Once|ById)?\s*\(/, 'perfil alheio não pode cair em users/{uid} privado'],
   [/UserRepositoryService/, 'perfil alheio não pode importar repositório privado'],
   [/UsersReadRepository/, 'perfil alheio não pode importar leitura privada'],
