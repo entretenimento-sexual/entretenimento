@@ -12,7 +12,6 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterModule } from '@angular/router';
 
 import { PreferencesFacade } from '../../application/preferences.facade';
-import { PreferenceSummaryCardComponent } from '../../components/preference-summary-card/preference-summary-card.component';
 import { PreferencesHubCardComponent } from '../../components/preferences-hub-card/preferences-hub-card.component';
 import { PageHeaderComponent } from '../../../shared/page-header/page-header.component';
 import { PreferencesUiService } from '../../state/preferences-ui.service';
@@ -23,7 +22,6 @@ import { PreferencesUiService } from '../../state/preferences-ui.service';
   imports: [
     CommonModule,
     RouterModule,
-    PreferenceSummaryCardComponent,
     PreferencesHubCardComponent,
     PageHeaderComponent,
   ],
