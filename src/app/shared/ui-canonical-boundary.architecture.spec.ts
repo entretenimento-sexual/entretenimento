@@ -1437,6 +1437,8 @@ describe('Canonical UI boundary', () => {
     expect(template).not.toContain('Atalhos rápidos');
     expect(template).not.toContain('subscription-plan-status-card__eyebrow');
     expect(styles).not.toContain('.subscription-plan-status-card__eyebrow');
+    expect(template).not.toContain('subscription-plan-context__eyebrow');
+    expect(styles).not.toContain('.subscription-plan-context__eyebrow');
   });
 
 

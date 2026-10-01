@@ -111,14 +111,6 @@
   margin: 0;
 }
 
-.subscription-plan-context__eyebrow {
-  color: color-mix(in oklab, var(--text-color) 68%, transparent);
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
 .subscription-plan-context h2 {
   color: var(--text-color);
   font-size: 1.25rem;
