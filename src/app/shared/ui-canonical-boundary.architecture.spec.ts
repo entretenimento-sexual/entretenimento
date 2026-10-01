@@ -3184,6 +3184,25 @@ describe('Canonical UI boundary', () => {
     expect(facade).toContain('failedVideoPosterKeys');
   });
 
+  it('mantém distribuição de Comunidades fora do SocialExplorePageComponent', () => {
+    const component = source(
+      'src/app/explore/pages/social-explore-page/social-explore-page.component.ts'
+    );
+    const facade = source(
+      'src/app/explore/facades/social-explore-community-distribution.facade.ts'
+    );
+
+    expect(component).toContain('SocialExploreCommunityDistributionFacade');
+    expect(component).not.toContain('ExploreCommunityDistributionService');
+    expect(component).not.toContain('CommunityDistributionTelemetryService');
+    expect(component).not.toContain('recordQualifiedExposure(');
+
+    expect(facade).toContain('ExploreCommunityDistributionService');
+    expect(facade).toContain('CommunityDistributionTelemetryService');
+    expect(facade).toContain('recordQualifiedExposure(');
+    expect(facade).toContain('initials(name: string)');
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
