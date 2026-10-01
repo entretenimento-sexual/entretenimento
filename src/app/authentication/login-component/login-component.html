@@ -29,7 +29,7 @@
       <input
         formControlName="email"
         id="email"
-        class="input-field app-control"
+        class="app-control"
         type="email"
         name="email"
         placeholder="seu@email.com"
@@ -48,7 +48,7 @@
         <input
           formControlName="password"
           id="password"
-          class="input-field app-control"
+          class="app-control"
           [type]="passwordInputType"
           name="password"
           placeholder="Sua senha"
@@ -103,7 +103,7 @@
         </div>
 
         <button
-          class="forgot-password btn-link"
+          class="forgot-password"
           type="button"
           (click)="openPasswordRecoveryModal()"
           [disabled]="isLoading"

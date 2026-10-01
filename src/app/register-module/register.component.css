@@ -139,13 +139,13 @@
   border-radius: 12px;
 }
 
-.form-field {
+.app-field {
   margin-bottom: 16px;
   position: relative;
   overflow: visible;
 }
 
-.form-field label,
+.app-field label,
 .form-checkbox label {
   font-weight: 700;
 }
@@ -154,21 +154,21 @@
   position: relative;
 }
 
-.input-field {
+.app-control {
   min-height: var(--control-height, 44px);
   margin-bottom: 0;
 }
 
-.input-field::placeholder {
+.app-control::placeholder {
   color: color-mix(in oklab, var(--text-color) 48%, transparent);
 }
 
-.input-field:focus,
-.input-field:focus-visible {
+.app-control:focus,
+.app-control:focus-visible {
   border-color: var(--primary-color);
 }
 
-.input-wrapper .input-field {
+.input-wrapper .app-control {
   padding-right: 44px;
 }
 
@@ -200,18 +200,18 @@
   transform: translateY(-50%) scale(.98);
 }
 
-.input-field.is-pending {
+.app-control.is-pending {
   border-color: var(--primary-color);
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary-color) 18%, transparent);
 }
 
-.input-field.is-valid {
+.app-control.is-valid {
   border-color: var(--success-color);
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--success-color) 18%, transparent);
 }
 
-.input-field.is-invalid,
-.input-field[aria-invalid="true"] {
+.app-control.is-invalid,
+.app-control[aria-invalid="true"] {
   border-color: var(--danger-color) !important;
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--danger-color) 18%, transparent) !important;
 }
@@ -524,14 +524,14 @@
   gap: 0.62rem;
 }
 
-.form-field label {
+.app-field label {
   display: inline-flex;
   margin-bottom: 0.34rem;
   font-size: 0.88rem;
   line-height: 1.2;
 }
 
-.form-field {
+.app-field {
   margin-bottom: 0.38rem;
 }
 
@@ -557,7 +557,7 @@
   font-size: 0.78rem;
 }
 
-.input-field {
+.app-control {
   box-sizing: border-box;
   display: block;
   width: 100%;
@@ -571,13 +571,13 @@
   line-height: 40px;
 }
 
-.input-field:focus-visible {
+.app-control:focus-visible {
   border-color: var(--primary-color);
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary-color) 14%, transparent);
 }
 
-.nickname-field .input-wrapper .input-field,
-.form-field:not(:has(.password-field)) .input-field {
+.nickname-field .input-wrapper .app-control,
+.app-field:not(:has(.password-field)) .app-control {
   padding-right: 0.82rem;
 }
 
@@ -588,7 +588,7 @@
   min-height: 40px;
 }
 
-.password-field .input-field {
+.password-field .app-control {
   padding-right: 2.75rem;
 }
 
@@ -682,7 +682,7 @@
 }
 
 @media (max-width: 420px) {
-  .input-field,
+  .app-control,
   .password-field {
     height: 42px;
     min-height: 42px;

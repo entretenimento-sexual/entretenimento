@@ -67,12 +67,12 @@
 
 
       <!-- Apelido principal -->
-      <div class="form-field nickname-field app-field">
+      <div class="nickname-field app-field">
         <label for="apelidoPrincipal">Apelido *</label>
 
         <div class="field-row">
           <div class="input-wrapper">
-            <input id="apelidoPrincipal" formControlName="apelidoPrincipal" type="text" class="input-field app-control"
+            <input id="apelidoPrincipal" formControlName="apelidoPrincipal" type="text" class="app-control"
               name="nickname" autocomplete="nickname" placeholder="Ex: casadinho" spellcheck="false"
               autocapitalize="none" inputmode="text" maxlength="12" aria-label="Apelido"
               aria-describedby="apelidoTooltip" (input)="onNicknameTyping()" (blur)="onNicknameBlur()"
@@ -159,10 +159,10 @@
       </div>
 
       <!-- Complemento do apelido -->
-      <div class="form-field app-field">
+      <div class="app-field">
         <label for="complementoApelido">Complemento</label>
 
-        <input id="complementoApelido" formControlName="complementoApelido" type="text" class="input-field app-control"
+        <input id="complementoApelido" formControlName="complementoApelido" type="text" class="app-control"
           name="nicknameSuffix" autocomplete="off" placeholder="Opcional" autocapitalize="none" inputmode="text"
           maxlength="12" aria-label="Complemento do apelido" aria-describedby="complementoTooltip"
           (input)="onNicknameTyping()" (blur)="onComplementoBlur()" [attr.aria-invalid]="
@@ -182,10 +182,10 @@
       </div>
 
       <!-- Email -->
-      <div class="form-field app-field">
+      <div class="app-field">
         <label for="email">E-mail *</label>
 
-        <input id="email" formControlName="email" type="email" class="input-field app-control" name="email" autocomplete="email"
+        <input id="email" formControlName="email" type="email" class="app-control" name="email" autocomplete="email"
           placeholder="email@exemplo.com" autocapitalize="none" inputmode="email" aria-label="E-mail"
           aria-describedby="emailTooltip" [attr.aria-invalid]="
             (submitted() || form.get('email')?.touched)
@@ -204,12 +204,12 @@
       </div>
 
       <!-- Senha -->
-      <div class="form-field app-field">
+      <div class="app-field">
         <label for="password">Senha *</label>
 
         <div class="input-wrapper password-field">
           <input id="password" [type]="showPassword() ? 'text' : 'password'" formControlName="password"
-            class="input-field app-control" name="password" autocomplete="new-password" placeholder="Crie uma senha segura"
+            class="app-control" name="password" autocomplete="new-password" placeholder="Crie uma senha segura"
             spellcheck="false" autocapitalize="none" maxlength="128" aria-label="Senha"
             aria-describedby="passwordHint passwordTooltip" [attr.aria-invalid]="
               (submitted() || form.get('password')?.touched)
@@ -251,12 +251,12 @@
       </div>
 
       <!-- Confirmação de senha -->
-      <div class="form-field app-field">
+      <div class="app-field">
         <label for="confirmPassword">Confirmar senha *</label>
 
         <div class="input-wrapper password-field">
           <input id="confirmPassword" [type]="showConfirmPassword() ? 'text' : 'password'"
-            formControlName="confirmPassword" class="input-field app-control" name="confirmPassword"
+            formControlName="confirmPassword" class="app-control" name="confirmPassword"
             autocomplete="new-password" placeholder="Digite a mesma senha novamente" spellcheck="false"
             autocapitalize="none" maxlength="128" aria-label="Confirmar senha"
             aria-describedby="confirmPasswordTooltip" [attr.aria-invalid]="

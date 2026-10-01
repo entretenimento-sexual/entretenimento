@@ -149,19 +149,19 @@
   font-weight: 800;
 }
 
-.input-field {
+.app-control {
   min-height: 48px;
 }
 
-.input-field::placeholder {
+.app-control::placeholder {
   color: color-mix(in oklab, var(--text-color) 48%, transparent);
 }
 
-.input-field:focus-visible {
+.app-control:focus-visible {
   border-color: var(--primary-color);
 }
 
-.input-field[aria-invalid="true"] {
+.app-control[aria-invalid="true"] {
   border-color: var(--danger-color, #c62828);
 }
 
@@ -171,7 +171,7 @@
   align-items: center;
 }
 
-.password-field .input-field {
+.password-field .app-control {
   padding-right: 5.6rem;
 }
 
@@ -458,7 +458,7 @@
 
 html.high-contrast .form-container,
 html.high-contrast .btn-google,
-html.high-contrast .input-field,
+html.high-contrast .app-control,
 html.high-contrast .password-toggle,
 html.high-contrast .modal-content {
   border-color: currentColor !important;
@@ -561,7 +561,7 @@ html.high-contrast .loading-overlay .spinner {
 
 @media (prefers-reduced-motion: reduce) {
   .btn-google,
-  .input-field,
+  .app-control,
   .password-toggle,
   .forgot-password,
   .register-link a {
@@ -595,7 +595,7 @@ html.high-contrast .loading-overlay .spinner {
   line-height: 1.2;
 }
 
-.input-field {
+.app-control {
   box-sizing: border-box;
   display: block;
   width: 100%;
@@ -609,7 +609,7 @@ html.high-contrast .loading-overlay .spinner {
   line-height: 40px;
 }
 
-.input-field:focus-visible {
+.app-control:focus-visible {
   border-color: var(--primary-color);
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary-color) 14%, transparent);
 }
@@ -621,7 +621,7 @@ html.high-contrast .loading-overlay .spinner {
   min-height: 40px;
 }
 
-.password-field .input-field {
+.password-field .app-control {
   padding-right: 2.75rem;
 }
 
@@ -691,7 +691,7 @@ html.high-contrast .loading-overlay .spinner {
 }
 
 @media (max-width: 420px) {
-  .input-field,
+  .app-control,
   .password-field {
     height: 42px;
     min-height: 42px;

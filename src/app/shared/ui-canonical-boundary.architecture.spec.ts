@@ -995,4 +995,30 @@ describe('Canonical UI boundary', () => {
     expect(registerStyles).toContain('Auth density canônica — ownership local');
   });
 
+
+  it('mantém Login e Registro sem classes de formulário legadas', () => {
+    const login = source(
+      'src/app/authentication/login-component/login-component.html'
+    );
+    const register = source(
+      'src/app/register-module/register.component.html'
+    );
+    const loginStyles = source(
+      'src/app/authentication/login-component/login-component.css'
+    );
+    const registerStyles = source(
+      'src/app/register-module/register.component.css'
+    );
+
+    for (const template of [login, register]) {
+      expect(template).not.toMatch(/class=["'][^"']*\binput-field\b/u);
+      expect(template).not.toMatch(/class=["'][^"']*\bform-field\b/u);
+    }
+
+    expect(login).not.toMatch(/class=["'][^"']*\bbtn-link\b/u);
+    expect(loginStyles).not.toContain('.input-field');
+    expect(registerStyles).not.toContain('.input-field');
+    expect(registerStyles).not.toContain('.form-field');
+  });
+
 });
