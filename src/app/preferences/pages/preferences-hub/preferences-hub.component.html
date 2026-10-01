@@ -13,8 +13,6 @@
 
     @if (vm$ | async; as vm) {
       @if (vm) {
-        <app-preference-summary-card [vm]="vm"></app-preference-summary-card>
-
         <div class="hub-grid app-responsive-grid" aria-label="Ajustes de preferências">
           <app-preferences-hub-card
             title="Editar preferências"
