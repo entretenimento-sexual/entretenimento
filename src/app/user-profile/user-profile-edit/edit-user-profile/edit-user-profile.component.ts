@@ -8,15 +8,13 @@ import {
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 
-import { EMPTY, Observable, Subject, of } from 'rxjs';
+import { Subject, of } from 'rxjs';
 import {
-  catchError,
   distinctUntilChanged,
   finalize,
   map,
   startWith,
   switchMap,
-  take,
   takeUntil,
   tap,
 } from 'rxjs/operators';
