@@ -14,7 +14,7 @@
 // Fontes de verdade:
 // - presence/{uid}: define presença/online/away.
 // - public_profiles/{uid}: define card público e localização pública.
-// - a lista de presença pública chega ao feed pela facade de enrichment.
+// - presença pública e enrichment ficam fora do shell visual.
 //
 // Separação de responsabilidades:
 // - profileCompleted controla entrada na feature.
@@ -28,7 +28,7 @@
 import { Component, DestroyRef, Input, OnInit, inject, signal } from '@angular/core';
 import { CommonModule, AsyncPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
+import { RouterModule } from '@angular/router';
 
 import {
   BehaviorSubject,
@@ -53,16 +53,6 @@ import {
 
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-import { Store } from '@ngrx/store';
-
-import { AppState } from 'src/app/store/states/app.state';
-import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-
-import { selectCurrentUser, selectCurrentUserStatus
-  } from 'src/app/store/selectors/selectors.user/user.selectors';
-
-import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
-
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
@@ -79,23 +69,7 @@ import {
 import type { UserLocation } from './models/online-users.model';
 import { OnlineUsersLocationFacade } from './application/online-users-location.facade';
 import { OnlineUsersFeedFacade } from './application/online-users-feed.facade';
-
-function shallowUserEqual(
-  a: IUserDados | null,
-  b: IUserDados | null
-): boolean {
-  if (a === b) return true;
-  if (!a || !b) return false;
-
-  return (
-    a.uid === b.uid &&
-    a.emailVerified === b.emailVerified &&
-    a.role === b.role &&
-    a.profileCompleted === b.profileCompleted &&
-    (a.municipio || '') === (b.municipio || '') &&
-    (a.estado || '') === (b.estado || '')
-  );
-}
+import { OnlineUsersAccessFacade } from './application/online-users-access.facade';
 
 @Component({
   selector: 'app-online-users',
@@ -110,7 +84,7 @@ function shallowUserEqual(
   ],
   templateUrl: './online-users.component.html',
   styleUrls: ['./online-users.component.css'],
-  providers: [OnlineUsersLocationFacade, OnlineUsersFeedFacade],
+  providers: [OnlineUsersLocationFacade, OnlineUsersFeedFacade, OnlineUsersAccessFacade],
 })
 export class OnlineUsersComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
@@ -161,14 +135,13 @@ readonly locationAutoCheckDone = this.locationFacade.autoCheckDone;
   // Seletores / streams base
   // ---------------------------------------------------------------------------
 
-  readonly currentUserStatus$ = this.store.select(selectCurrentUserStatus);
+  readonly currentUserStatus$ =
+    this.accessFacade.currentUserStatus$;
 
-  readonly currentUserResolved$ = this.store.select(selectCurrentUser).pipe(
-    startWith(undefined as IUserDados | null | undefined),
-    filter((user): user is IUserDados | null => user !== undefined),
-    distinctUntilChanged((a, b) => shallowUserEqual(a, b)),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
+  readonly currentUserResolved$ =
+    this.accessFacade.currentUserResolved$;
+
+  private readonly gate$ = this.accessFacade.gate$;
 
   toggleDiscoveryControls(): void {
   this.discoveryControlsOpen.update((open) => !open);
@@ -201,51 +174,11 @@ readonly count$ = this.feedFacade.count$(this.onlineUsers$);
  * Fonte:
  * A composição da lista e o enrichment vivem em OnlineUsersFeedFacade.
  */
-  private readonly authUid$ = this.access.authUid$.pipe(
-    map((uid) => (uid ?? '').trim() || null),
-    distinctUntilChanged(),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
-
-  private readonly canRunOnlineUsers$ = this.access.canRunOnlineUsers$.pipe(
-    distinctUntilChanged(),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
-
-  private readonly gate$: Observable<{
-    canStart: boolean;
-    uid: string | null;
-    user: IUserDados | null;
-  }> = combineLatest([
-    this.canRunOnlineUsers$,
-    this.authUid$,
-    this.currentUserResolved$,
-  ]).pipe(
-    map(([canRunFeature, uid, user]) => {
-      const hasOperationalUser = !!user?.uid;
-
-      return {
-        canStart: canRunFeature === true && !!uid && hasOperationalUser,
-        uid,
-        user: hasOperationalUser ? user : null,
-      };
-    }),
-    distinctUntilChanged(
-      (a, b) =>
-        a.canStart === b.canStart &&
-        a.uid === b.uid &&
-        shallowUserEqual(a.user, b.user)
-    ),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
-
 constructor(
   private readonly errorNotificationService: ErrorNotificationService,
-  private readonly store: Store<AppState>,
-  private readonly access: AccessControlService,
-  private readonly router: Router,
   private readonly locationFacade: OnlineUsersLocationFacade,
   private readonly feedFacade: OnlineUsersFeedFacade,
+  private readonly accessFacade: OnlineUsersAccessFacade,
   private readonly privacyDebug: PrivacyDebugLoggerService
 ) {}
 
@@ -374,39 +307,36 @@ get listAriaLabel(): string {
   // ---------------------------------------------------------------------------
 
   async enableLocation(): Promise<void> {
-    const [canRun, profileOk, currentUser] = await firstValueFrom(
-      combineLatest([
-        this.access.canRunOnlineUsers$,
-        this.access.profileEligible$,
-        this.currentUserResolved$.pipe(take(1)),
-      ]).pipe(take(1))
+    const decision = await firstValueFrom(
+      this.accessFacade.checkLocationAccess$()
     );
-
-    if (!currentUser?.uid) {
-      this.errorNotificationService.showError(
-        'Entre na sua conta para ativar a localização.'
-      );
-      return;
-    }
 
     this.resetLocationPrompts();
 
-    if (!profileOk) {
-      this.showProfileCompletionPrompt = true;
-      return;
-    }
+    switch (decision.kind) {
+      case 'signed_out':
+        this.errorNotificationService.showError(
+          'Entre na sua conta para ativar a localização.'
+        );
+        return;
 
-    if (!canRun) {
-      this.errorNotificationService.showError(
-        'Perfis online indisponível no momento.'
-      );
-      return;
-    }
+      case 'profile_incomplete':
+        this.showProfileCompletionPrompt = true;
+        return;
 
-    await this.locationFacade.enable(currentUser, {
-      requireUserGesture: false,
-      silent: false,
-    });
+      case 'unavailable':
+        this.errorNotificationService.showError(
+          'Perfis online indisponível no momento.'
+        );
+        return;
+
+      case 'allowed':
+        await this.locationFacade.enable(decision.user, {
+          requireUserGesture: false,
+          silent: false,
+        });
+        return;
+    }
   }
 
   continueWithoutLocation(): void {
@@ -415,33 +345,7 @@ get listAriaLabel(): string {
 
   async goToFinishMinimumProfile(): Promise<void> {
     this.resetLocationPrompts();
-
-    const redirectTo = this.normalizeRedirectTarget(this.router.url);
-    const currentUser = await firstValueFrom(
-      this.currentUserResolved$.pipe(take(1))
-    ).catch(() => null);
-
-    if (currentUser?.emailVerified !== true) {
-      this.router
-        .navigate(['/register/welcome'], {
-          queryParams: {
-            autocheck: '1',
-            reason: 'email_unverified',
-            redirectTo,
-          },
-        })
-        .catch(() => {});
-      return;
-    }
-
-    this.router
-      .navigate(['/register/finalizar-cadastro'], {
-        queryParams: {
-          reason: 'profile_incomplete',
-          redirectTo,
-        },
-      })
-      .catch(() => {});
+    await this.accessFacade.goToFinishMinimumProfile();
   }
 
   onDistanceChange(value: number): void {
@@ -472,17 +376,6 @@ private resetRuntimeState(): void {
   private resetLocationPrompts(): void {
     this.showProfileCompletionPrompt = false;
   }
-
-private normalizeRedirectTarget(url: string | null | undefined): string {
-  const clean = (url ?? '').trim();
-
-  if (!clean) return '/dashboard/explorar';
-  if (!clean.startsWith('/') || clean.startsWith('//')) {
-    return '/dashboard/explorar';
-  }
-
-  return clean;
-}
 
   private log(message: string, extra?: unknown): void {
     this.privacyDebug.log(
