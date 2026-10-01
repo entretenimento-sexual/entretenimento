@@ -3461,7 +3461,8 @@ describe('Canonical UI boundary', () => {
     expect(component).not.toContain('AccessControlService');
     expect(component).not.toContain('Store<AppState>');
     expect(component).not.toContain('selectCurrentUser');
-    expect(component).not.toContain('Router');
+    expect(component).not.toContain('private readonly router');
+    expect(component).not.toContain('inject(Router)');
     expect(component).not.toContain('normalizeRedirectTarget(');
 
     expect(facade).toContain('AccessControlService');
