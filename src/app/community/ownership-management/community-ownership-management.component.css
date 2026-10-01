@@ -28,21 +28,6 @@
   gap: 0.25rem;
 }
 
-.community-ownership-management__eyebrow {
-  width: fit-content;
-  padding: 0.25rem 0.55rem;
-  border-radius: 999px;
-  background: color-mix(
-    in oklab,
-    var(--surface-color, #fff) 82%,
-    var(--primary-color, #d83768) 18%
-  );
-  font-size: 0.68rem;
-  font-weight: 850;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-}
-
 .community-ownership-management h2,
 .community-ownership-management h3,
 .community-ownership-management p {

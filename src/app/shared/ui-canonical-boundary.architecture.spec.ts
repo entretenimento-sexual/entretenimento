@@ -1608,4 +1608,28 @@ describe('Canonical UI boundary', () => {
     expect(userStyles).not.toContain('user-review-header__eyebrow');
   });
 
+
+  it('mantém recuperação de senha e ownership sem rótulos introdutórios redundantes', () => {
+    const recovery = source(
+      'src/app/authentication/email-input-modal/email-input-modal.component.html'
+    );
+    const recoveryStyles = source(
+      'src/app/authentication/email-input-modal/email-input-modal.component.css'
+    );
+    const ownership = source(
+      'src/app/community/ownership-management/community-ownership-management.component.html'
+    );
+    const ownershipStyles = source(
+      'src/app/community/ownership-management/community-ownership-management.component.css'
+    );
+
+    expect(recovery).not.toContain('modal-kicker');
+    expect(recovery).toContain('modal-description');
+    expect(recoveryStyles).not.toContain('.modal-kicker');
+
+    expect(ownership).not.toContain('community-ownership-management__eyebrow');
+    expect(ownership).toContain('community-ownership-management__intro');
+    expect(ownershipStyles).not.toContain('community-ownership-management__eyebrow');
+  });
+
 });
