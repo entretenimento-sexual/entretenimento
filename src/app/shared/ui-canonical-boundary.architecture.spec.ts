@@ -3568,6 +3568,28 @@ describe('Canonical UI boundary', () => {
     expect(catalog).toContain("key: 'linktree'");
   });
 
+  it('mantém orquestração de redes sociais fora do editor', () => {
+    const component = source(
+      'src/app/user-profile/user-profile-edit/edit-profile-social-links/edit-profile-social-links.component.ts'
+    );
+    const facade = source(
+      'src/app/user-profile/user-profile-edit/edit-profile-social-links/profile-social-links-editor.facade.ts'
+    );
+
+    expect(component).toContain('ProfileSocialLinksEditorFacade');
+    expect(component).not.toContain('ActivatedRoute');
+    expect(component).not.toContain('AccessControlService');
+    expect(component).not.toContain('PlatformSubscriptionAccessService');
+    expect(component).not.toContain('UserSocialLinksService');
+    expect(component).not.toContain('ApplicationErrorService');
+
+    expect(facade).toContain('ActivatedRoute');
+    expect(facade).toContain('AccessControlService');
+    expect(facade).toContain('PlatformSubscriptionAccessService');
+    expect(facade).toContain('UserSocialLinksService');
+    expect(facade).toContain('ApplicationErrorService');
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
