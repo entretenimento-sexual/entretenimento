@@ -3547,6 +3547,27 @@ describe('Canonical UI boundary', () => {
     expect(facade).toContain('loadMunicipios$(');
   });
 
+  it('mantém catálogo de redes sociais único entre perfil e editor', () => {
+    const accordion = source(
+      'src/app/user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component.ts'
+    );
+    const editor = source(
+      'src/app/user-profile/user-profile-edit/edit-profile-social-links/edit-profile-social-links.component.ts'
+    );
+    const catalog = source(
+      'src/app/core/catalogs/profile-social-links.catalog.ts'
+    );
+
+    expect(accordion).toContain('PROFILE_SOCIAL_LINK_FIELDS');
+    expect(editor).toContain('PROFILE_SOCIAL_LINK_FIELDS');
+    expect(accordion).not.toContain("key: 'instagram'");
+    expect(editor).not.toContain("key: 'instagram'");
+
+    expect(catalog).toContain("key: 'instagram'");
+    expect(catalog).toContain("key: 'facebook'");
+    expect(catalog).toContain("key: 'linktree'");
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
