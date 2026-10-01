@@ -3317,6 +3317,27 @@ describe('Canonical UI boundary', () => {
     expect(guard).toContain("presentation: { surface: 'none', severity: 'error' }");
   });
 
+  it('mantém avatar fora do EditUserProfileComponent', () => {
+    const component = source(
+      'src/app/user-profile/user-profile-edit/edit-user-profile/edit-user-profile.component.ts'
+    );
+    const facade = source(
+      'src/app/user-profile/user-profile-edit/edit-user-profile/application/profile-edit-avatar.facade.ts'
+    );
+
+    expect(component).toContain('ProfileEditAvatarFacade');
+    expect(component).not.toContain('PhotoEditorLauncherService');
+    expect(component).not.toContain('StorageService');
+    expect(component).not.toContain('validateImageMediaFile');
+    expect(component).not.toContain('uploadProfileAvatar(');
+    expect(component).not.toContain('private uploadProcessedAvatar$(');
+
+    expect(facade).toContain('PhotoEditorLauncherService');
+    expect(facade).toContain('StorageService');
+    expect(facade).toContain('validateImageMediaFile');
+    expect(facade).toContain("preset: 'avatar-square'");
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
