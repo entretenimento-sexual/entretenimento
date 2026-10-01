@@ -16,20 +16,55 @@ const criticalTemplates = new Set([
   'src/app/community/member-roster-management/community-member-roster-management.component.html',
   'src/app/account/pages/account-home/account-home.component.html',
   'src/app/notifications/notifications-page/notifications-page.component.html',
-  'src/app/chat-module/invite-list/invite-list.component.html',
   'src/app/chat-module/chat-rooms/chat-rooms.component.html',
-  'src/app/preferences/pages/preferences-home/preferences-home.component.html',
+  'src/app/preferences/pages/preferences-hub/preferences-hub.component.html',
+  'src/app/preferences/pages/preferences-editor/preferences-editor.component.html',
   'src/app/admin-dashboard/admin-dashboard.component.html',
   'src/app/layout/perfis-proximos/perfis-proximos.component.html',
   'src/app/dashboard/online/online-users/online-users.component.html',
   'src/app/media/photos/latest-public-photos/latest-public-photos.component.html',
   'src/app/media/photos/top-public-photos/top-public-photos.component.html',
-  'src/app/media/photos/boosted-public-photos/boosted-public-photos.component.html',
+  'src/app/subscriptions/subscription-plan/subscription-plan.component.html',
+  'src/app/register-module/welcome/welcome.component.html',
 ]);
 
 const normalized = (value) => value.split(path.sep).join('/');
 const count = (source, expression) => [...source.matchAll(expression)].length;
 const compact = (value) => value.replace(/\s+/g, ' ').trim();
+
+const semanticIntroKinds = [
+  ['eyebrow', /(?:^|[-_])eyebrow(?:$|[-_])/i],
+  ['overline', /(?:^|[-_])overline(?:$|[-_])/i],
+  ['kicker', /(?:^|[-_])kicker(?:$|[-_])/i],
+  ['subtitle', /(?:^|[-_])subtitle(?:$|[-_])/i],
+  ['description', /(?:^|[-_])description(?:$|[-_])/i],
+  ['lede', /(?:^|[-_])lede(?:$|[-_])/i],
+  ['lead', /(?:^|[-_])lead(?:$|[-_])/i],
+  ['intro', /(?:^|[-_])intro(?:$|[-_])/i],
+];
+
+const semanticIntroClasses = (source) => {
+  const findings = [];
+
+  for (const match of source.matchAll(/class\s*=\s*["']([^"']*)["']/gi)) {
+    const tokens = (match[1] ?? '').split(/\s+/).filter(Boolean);
+
+    for (const token of tokens) {
+      for (const [kind, expression] of semanticIntroKinds) {
+        if (expression.test(token)) {
+          findings.push({ kind, token });
+          break;
+        }
+      }
+    }
+  }
+
+  if (/<app-page-header\b[^>]*\bsubtitle\s*=|<app-page-header\b[^>]*\[subtitle\]/i.test(source)) {
+    findings.push({ kind: 'subtitle', token: 'app-page-header[subtitle]' });
+  }
+
+  return findings;
+};
 
 const htmlPaths = await glob('src/app/**/*.html', {
   cwd: projectRoot,
@@ -43,7 +78,17 @@ const cssPaths = await glob(['src/app/**/*.css', 'src/styles/**/*.css', 'src/sty
 });
 
 const templateFindings = [];
+const semanticResiduals = [];
 const strictFailures = [];
+
+const htmlPathSet = new Set(htmlPaths.map(normalized));
+for (const criticalPath of criticalTemplates) {
+  if (!htmlPathSet.has(criticalPath)) {
+    strictFailures.push(
+      `configuração da auditoria aponta para template crítico inexistente: ${criticalPath}.`
+    );
+  }
+}
 
 for (const relativePath of htmlPaths.map(normalized).sort()) {
   const source = await readFile(path.join(projectRoot, relativePath), 'utf8');
@@ -55,6 +100,24 @@ for (const relativePath of htmlPaths.map(normalized).sort()) {
   const hasIntroCopy = /(?:subtitle|description|lede|__intro)/i.test(source);
   const hasIntroStack = h1Count > 0 && hasEyebrow && hasIntroCopy;
   const isCritical = criticalTemplates.has(relativePath);
+  const semanticClasses = semanticIntroClasses(source);
+
+  if (semanticClasses.length > 0) {
+    const byKind = Object.fromEntries(
+      semanticIntroKinds.map(([kind]) => [
+        kind,
+        semanticClasses.filter((item) => item.kind === kind).length,
+      ])
+    );
+
+    semanticResiduals.push({
+      path: relativePath,
+      isCritical,
+      total: semanticClasses.length,
+      byKind,
+      tokens: [...new Set(semanticClasses.map((item) => item.token))],
+    });
+  }
 
   if (h1Count > 1 || hasIntroStack || headingCount >= 7 || cardClassCount >= 10) {
     templateFindings.push({
@@ -109,6 +172,13 @@ const topTemplates = templateFindings
   })
   .slice(0, 15);
 
+const topSemanticResiduals = semanticResiduals
+  .sort((a, b) => {
+    if (a.isCritical !== b.isCritical) return Number(b.isCritical) - Number(a.isCritical);
+    return b.total - a.total || a.path.localeCompare(b.path);
+  })
+  .slice(0, 30);
+
 const topStyles = cssFindings
   .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
   .slice(0, 15);
@@ -124,6 +194,21 @@ if (topTemplates.length > 0) {
       `- ${item.path} | h1=${item.h1Count} headings=${item.headingCount} ` +
         `parágrafos=${item.paragraphCount} cards=${item.cardClassCount} ` +
         `intro-tripla=${item.hasIntroStack ? 'sim' : 'não'}`
+    );
+  }
+}
+
+if (topSemanticResiduals.length > 0) {
+  console.log('\n[audit:visual] Resíduos semânticos para revisão:');
+  for (const item of topSemanticResiduals) {
+    const kinds = Object.entries(item.byKind)
+      .filter(([, value]) => value > 0)
+      .map(([kind, value]) => `${kind}=${value}`)
+      .join(' ');
+
+    console.log(
+      `- ${item.path} | crítico=${item.isCritical ? 'sim' : 'não'} ` +
+        `total=${item.total} ${kinds} | tokens=${item.tokens.join(', ')}`
     );
   }
 }
