@@ -76,7 +76,7 @@
   <footer class="direct-message-actions">
     <button
       type="button"
-      class="btn btn-ghost direct-message-action"
+      class="app-action app-action--ghost direct-message-action"
       (click)="fecharModal()"
       [disabled]="isSending()"
     >
@@ -85,7 +85,7 @@
 
     <button
       type="button"
-      class="btn btn-primary direct-message-action direct-message-submit"
+      class="app-action app-action--primary direct-message-action direct-message-submit"
       (click)="enviarMensagem()"
       [disabled]="isSending() || !mensagem.trim()"
       [attr.aria-busy]="isSending()"

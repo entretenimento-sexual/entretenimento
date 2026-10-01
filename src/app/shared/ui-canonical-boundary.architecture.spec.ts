@@ -1130,4 +1130,26 @@ describe('Canonical UI boundary', () => {
     expect(template).toContain('app-action app-action--ghost intent-composer__cancel');
   });
 
+
+  it('mantém shared banners e mensagem direta nos actions canônicos', () => {
+    const gateBanner = source(
+      'src/app/shared/components-globais/email-verification-gate-banner/email-verification-gate-banner.component.html'
+    );
+    const directMessage = source(
+      'src/app/shared/components-globais/modal-mensagem/modal-mensagem.component.html'
+    );
+
+    for (const template of [gateBanner, directMessage]) {
+      expect(template).not.toMatch(/class=["'][^"']*\bbtn(?:\s|["'])/u);
+      expect(template).not.toContain('btn-primary');
+      expect(template).not.toContain('btn-secondary');
+      expect(template).not.toContain('btn-ghost');
+    }
+
+    expect(gateBanner).toContain('app-action app-action--primary');
+    expect(directMessage).toContain(
+      'app-action app-action--primary direct-message-action'
+    );
+  });
+
 });
