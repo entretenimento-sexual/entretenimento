@@ -27,6 +27,24 @@ function hasClassToken(value: string, token: string): boolean {
   return false;
 }
 
+
+
+function countOccurrences(value: string, pattern: RegExp): number {
+  return [...value.matchAll(pattern)].length;
+}
+
+function globalComponentHostCounts(value: string): ReadonlyMap<string, number> {
+  const counts = new Map<string, number>();
+
+  for (const match of value.matchAll(/(^|\n)\s*(app-[a-z0-9-]+)\b[^{]*\{/giu)) {
+    const host = (match[2] ?? '').toLowerCase();
+    if (!host) continue;
+    counts.set(host, (counts.get(host) ?? 0) + 1);
+  }
+
+  return counts;
+}
+
 function productionHtmlFiles(root: string): readonly string[] {
   const files: string[] = [];
 
@@ -1254,6 +1272,69 @@ describe('Canonical UI boundary', () => {
     expect(components).toContain('.alert');
     expect(forms).toContain('.app-control');
     expect(forms).toContain('.app-field');
+  });
+
+
+  it('impede crescimento de !important nos styles globais', () => {
+    const budgets = new Map<string, number>([
+      ['src/styles.css', 12],
+      ['src/styles/global-components.css', 7],
+      ['src/styles/global-forms.css', 3],
+      ['src/styles/cards.css', 5],
+      ['src/styles/global-layout.css', 4],
+      ['src/styles/angular-material-bridge.css', 75],
+      ['src/styles/visual-clean.css', 10],
+      ['src/styles/variables.css', 0],
+    ]);
+
+    for (const [path, budget] of budgets) {
+      const stylesheet = source(path);
+      const current = countOccurrences(stylesheet, /!important/gu);
+
+      expect(
+        current,
+        `${path} aumentou !important: ${current} > ${budget}`
+      ).toBeLessThanOrEqual(budget);
+    }
+  });
+
+  it('congela overrides globais específicos de componentes', () => {
+    const globalStyles = [
+      'src/styles.css',
+      'src/styles/global-components.css',
+      'src/styles/global-forms.css',
+      'src/styles/cards.css',
+      'src/styles/global-layout.css',
+      'src/styles/angular-material-bridge.css',
+      'src/styles/variables.css',
+    ];
+
+    for (const path of globalStyles) {
+      expect(
+        [...globalComponentHostCounts(source(path)).entries()],
+        `${path} não deve conhecer hosts Angular específicos`
+      ).toEqual([]);
+    }
+
+    const visualClean = globalComponentHostCounts(
+      source('src/styles/visual-clean.css')
+    );
+    const allowed = new Map<string, number>([
+      ['app-community-feed', 20],
+      ['app-community-feed-comments', 25],
+    ]);
+
+    expect(
+      [...visualClean.keys()].sort(),
+      'visual-clean.css ganhou novo host Angular global'
+    ).toEqual([...allowed.keys()].sort());
+
+    for (const [host, maxSelectors] of allowed) {
+      expect(
+        visualClean.get(host) ?? 0,
+        `visual-clean.css expandiu overrides de ${host}`
+      ).toBeLessThanOrEqual(maxSelectors);
+    }
   });
 
 });
