@@ -74,7 +74,7 @@
   font-weight: 850;
 }
 
-.input-field {
+.app-control {
   width: 100%;
   min-height: 48px;
   padding: 0.85rem 1rem;
@@ -90,16 +90,16 @@
     background-color 0.2s ease;
 }
 
-.input-field::placeholder {
+.app-control::placeholder {
   color: color-mix(in oklab, var(--text-color) 48%, transparent);
 }
 
-.input-field:focus-visible {
+.app-control:focus-visible {
   border-color: var(--primary-color);
   box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary-color) 16%, transparent);
 }
 
-.input-field:disabled {
+.app-control:disabled {
   opacity: 0.72;
   cursor: progress;
 }
@@ -157,28 +157,7 @@
     background-color 0.2s ease;
 }
 
-.btn-submit {
-  border: 1px solid var(--primary-color);
-  background: var(--primary-color);
-  color: var(--button-text-color, #fff);
-}
 
-.btn-submit:hover:not(:disabled),
-.btn-submit:focus-visible {
-  box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary-color) 16%, transparent);
-}
-
-.btn-cancel {
-  border: 1px solid var(--surface-border, color-mix(in oklab, var(--text-color) 16%, transparent));
-  background: transparent;
-  color: var(--text-color);
-}
-
-.btn-cancel:hover:not(:disabled),
-.btn-cancel:focus-visible {
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary-color) 12%, transparent);
-}
 
 .modal-actions button:active:not(:disabled) {
   transform: translateY(1px);
@@ -203,7 +182,7 @@
 }
 
 html.high-contrast .modal-content,
-html.high-contrast .input-field,
+html.high-contrast .app-control,
 html.high-contrast .recovery-feedback,
 html.high-contrast .modal-actions button {
   border-color: currentColor !important;
@@ -241,7 +220,7 @@ html.high-contrast .modal-actions button {
 @media (prefers-reduced-motion: reduce) {
   .modal-content,
   .modal-actions button,
-  .input-field {
+  .app-control {
     animation: none !important;
     transition: none !important;
   }

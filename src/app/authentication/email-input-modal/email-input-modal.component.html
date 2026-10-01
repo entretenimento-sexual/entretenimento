@@ -27,7 +27,7 @@
           <input
             #emailInput
             id="password-recovery-email"
-            class="input-field"
+            class="app-control"
             type="email"
             name="passwordRecoveryEmail"
             inputmode="email"
@@ -66,7 +66,7 @@
 
           <div class="modal-actions">
             <button
-              class="btn-submit"
+              class="app-action app-action--primary"
               type="submit"
               [disabled]="vm.isSending || vm.requestCompleted"
               [attr.aria-busy]="vm.isSending ? 'true' : 'false'"
@@ -75,7 +75,7 @@
             </button>
 
             <button
-              class="btn-cancel"
+              class="app-action app-action--ghost"
               type="button"
               (click)="closeModal(vm.isSending)"
               [disabled]="vm.isSending"

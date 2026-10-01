@@ -1038,4 +1038,24 @@ describe('Canonical UI boundary', () => {
     expect(styles).not.toContain('.account-lifecycle-dialog__actions .btn');
   });
 
+
+  it('mantém recuperação de senha nos primitives canônicos', () => {
+    const template = source(
+      'src/app/authentication/email-input-modal/email-input-modal.component.html'
+    );
+    const styles = source(
+      'src/app/authentication/email-input-modal/email-input-modal.component.css'
+    );
+
+    expect(template).not.toMatch(/class=["'][^"']*\binput-field\b/u);
+    expect(template).not.toContain('btn-submit');
+    expect(template).not.toContain('btn-cancel');
+    expect(template).toContain('class="app-control"');
+    expect(template).toContain('app-action app-action--primary');
+    expect(template).toContain('app-action app-action--ghost');
+    expect(styles).not.toContain('.input-field');
+    expect(styles).not.toContain('.btn-submit');
+    expect(styles).not.toContain('.btn-cancel');
+  });
+
 });
