@@ -316,7 +316,7 @@ jobs:
           run_checked "$OUT/vip/desktop.metrics.log" "async (page) => {
             await page.waitForSelector('.preferences-editor-page', { state: 'visible' });
             await page.locator('.preference-group__summary').filter({ hasText: 'Refinar combinações' }).click();
-            await page.locator('.availability-section .app-disclosure__summary').click();
+            await page.locator('.availability-section > .app-disclosure__summary').click();
             await page.locator('.intent-context__summary').click();
             const metrics = await page.evaluate(() => {
               const advancedGroup = Array.from(document.querySelectorAll('.preference-group')).find((group) =>
@@ -356,7 +356,7 @@ jobs:
           run_checked "$OUT/vip/mobile.metrics.log" "async (page) => {
             await page.waitForSelector('.preferences-editor-page', { state: 'visible' });
             await page.locator('.preference-group__summary').filter({ hasText: 'Refinar combinações' }).click();
-            await page.locator('.availability-section .app-disclosure__summary').click();
+            await page.locator('.availability-section > .app-disclosure__summary').click();
             await page.locator('.intent-context__summary').click();
             const metrics = await page.evaluate(() => {
               const shellRect = document.querySelector('.preferences-editor-shell')?.getBoundingClientRect();
