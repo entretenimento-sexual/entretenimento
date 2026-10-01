@@ -305,7 +305,11 @@ jobs:
             return metrics;
           }"
 
-          playwright-cli goto "$BASE?visualPlan=vip" | tee "$OUT/vip/goto.log"
+          # Start VIP evidence in a fresh browser session. Reusing the Free page
+          # after validation/submission can leave navigation lifecycle state pending
+          # and make the CLI wait for domcontentloaded indefinitely.
+          playwright-cli close
+          playwright-cli open "$BASE?visualPlan=vip" | tee "$OUT/vip/goto.log"
           check_log "$OUT/vip/goto.log"
           playwright-cli resize 1440 1000
 

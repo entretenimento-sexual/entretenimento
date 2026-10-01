@@ -142,9 +142,10 @@ describe('ProfileOfficialCommunitiesComponent', () => {
       }, 4);
 
     const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('Participação pública');
     expect(text).toContain('Participação em comunidades');
-    expect(text).toContain('Vínculo verificado');
+    expect(text).toContain(
+      'Exibidas somente quando o perfil escolheu tornar a participação pública.'
+    );
     expect(text).toContain('Comunidade oficial');
 
     expect(
