@@ -30,7 +30,7 @@
     <div class="intent-composer__actions">
       <button
         type="button"
-        class="btn btn-primary intent-composer__toggle"
+        class="app-action app-action--primary intent-composer__toggle"
         [attr.aria-expanded]="isComposerExpanded ? 'true' : 'false'"
         [attr.aria-controls]="'intent-composer-form'"
         (click)="toggleComposer()"
@@ -50,7 +50,7 @@
       @if (activeStatus) {
         <button
           type="button"
-          class="btn btn-ghost intent-composer__hide"
+          class="app-action app-action--ghost intent-composer__hide"
           [disabled]="hiding"
           (click)="hideCurrentStatus()"
         >
@@ -104,7 +104,7 @@
             @if (form.controls.venueId.value) {
               <button
                 type="button"
-                class="btn btn-ghost intent-composer__clear-venue"
+                class="app-action app-action--ghost intent-composer__clear-venue"
                 (click)="clearVenueSelection()"
               >
                 <i class="fas fa-pen" aria-hidden="true"></i>
@@ -217,7 +217,7 @@
         <div class="intent-composer__footer-actions">
           <button
             type="button"
-            class="btn btn-ghost intent-composer__cancel"
+            class="app-action app-action--ghost intent-composer__cancel"
             [disabled]="publishing"
             (click)="closeComposer()"
           >
@@ -226,7 +226,7 @@
 
           <button
             type="submit"
-            class="btn btn-primary intent-composer__submit"
+            class="app-action app-action--primary intent-composer__submit"
             [disabled]="publishing"
           >
             <i class="fas fa-paper-plane" aria-hidden="true"></i>

@@ -1117,4 +1117,17 @@ describe('Canonical UI boundary', () => {
     expect(verificationStyles).not.toContain('.modal-overlay');
   });
 
+
+  it('mantém UserIntentStatusComposer nos actions canônicos', () => {
+    const template = source(
+      'src/app/dashboard/user-intent-status/user-intent-status-composer/user-intent-status-composer.component.html'
+    );
+
+    expect(template).not.toMatch(/class=["'][^"']*\bbtn(?:\s|["'])/u);
+    expect(template).not.toContain('btn-primary');
+    expect(template).not.toContain('btn-ghost');
+    expect(template).toContain('app-action app-action--primary intent-composer__toggle');
+    expect(template).toContain('app-action app-action--ghost intent-composer__cancel');
+  });
+
 });
