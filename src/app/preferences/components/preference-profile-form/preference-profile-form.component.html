@@ -189,26 +189,6 @@
     </div>
   </details>
 
-  <details class="preference-group app-disclosure">
-    <summary class="preference-group__summary app-disclosure__summary">
-      <strong class="preference-group__title app-disclosure__title">Sua visibilidade</strong>
-      <span class="preference-group__count app-disclosure__state">{{ visibilitySummary() }}</span>
-    </summary>
-    <div class="preference-group__content app-disclosure__content form-grid app-responsive-grid">
-      <div class="app-field app-field--wide">
-        <label for="discoveryMode">Como você quer aparecer</label>
-        <select class="app-control" id="discoveryMode" formControlName="discoveryMode">
-          @for (option of discoveryModeOptions; track option.key) { <option [value]="option.key" [disabled]="!isModeAvailable(option.key)">{{ option.label }}{{ modeRequirement(option.key) }}</option> }
-        </select>
-        <small class="field-help app-field-help">Modo discreto exige Premium; prioridade exige VIP.</small>
-      </div>
-      <div class="inline-options app-responsive-grid">
-        <label class="checkbox-item app-choice"><input type="checkbox" formControlName="showPreferenceBadges" /><span>Exibir sinais de preferências no perfil</span></label>
-        <label class="checkbox-item app-choice"><input type="checkbox" formControlName="showIntentPublicly" /><span>Exibir minha disponibilidade publicamente</span></label>
-      </div>
-    </div>
-  </details>
-
   <footer class="form-actions app-form-actions">
     @if (saving() || form.dirty) {
       <span class="form-actions__status" aria-live="polite">
