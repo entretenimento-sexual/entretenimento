@@ -110,14 +110,31 @@ describe('DirectThreadFacade sendMessage$', () => {
 
     expect(applicationError.report).toHaveBeenCalledWith(error, {
       feature: 'direct-thread',
-      operation: 'DirectThreadFacade.canOpen
-,
+      operation: 'DirectThreadFacade.canOpen,
       fallbackMessage:
         'Não foi possível concluir uma operação interna da conversa direta.',
       presentation: { surface: 'none', severity: 'error' },
       metadata: {
         scope: 'DirectThreadFacade',
         context: 'DirectThreadFacade.canOpen
+,
+      },
+    });
+  });
+});
+
+,
+      fallbackMessage:
+        'Não foi possível concluir uma operação interna da conversa direta.',
+      presentation: { surface: 'none', severity: 'error' },
+      metadata: {
+        scope: 'DirectThreadFacade',
+        context: 'DirectThreadFacade.canOpen,
+      },
+    });
+  });
+});
+
 ,
       },
     });
