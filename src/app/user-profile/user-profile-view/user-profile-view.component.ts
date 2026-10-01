@@ -59,7 +59,6 @@ export class UserProfileViewComponent implements OnInit {
   private authUid: string | null = null;
   public redirectingToOtherProfile = false;
 
-  public readonly status$ = this.contextFacade.status$;
   public readonly usuario$ = this.contextFacade.user$;
   public readonly profileContentState$: Observable<OwnProfileContentStateVm | null> =
     this.contextFacade.contentState$;
