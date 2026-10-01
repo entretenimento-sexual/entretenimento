@@ -20,21 +20,15 @@ import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
-import {
-  CommunityDistributionTelemetryService,
-} from 'src/app/community/discovery/community-distribution-telemetry.service';
-import type {
-  CommunityDistributionTelemetrySurface,
-} from 'src/app/community/data-access/community-distribution-telemetry.repository';
 import { CommunityDiscoveryVisibilityDirective } from 'src/app/community/discovery/community-discovery-visibility.directive';
 import { UserIntentStatusComposerComponent } from 'src/app/dashboard/user-intent-status/user-intent-status-composer/user-intent-status-composer.component';
 import { PublicPhotoCardComponent } from 'src/app/media/shared/components/public-photo-card/public-photo-card.component';
 import { PublicVideoCardComponent } from 'src/app/media/shared/components/public-video-card/public-video-card.component';
 import { FeedPublicationComposerComponent } from '../../components/feed-publication-composer/feed-publication-composer.component';
 import { ExploreCommunityContentCardComponent } from '../../components/explore-community-content-card/explore-community-content-card.component';
-import { ExploreCommunityDistributionService } from '../../services/explore-community-distribution.service';
 import { SocialExploreTimelineFacade } from '../../facades/social-explore-timeline.facade';
 import { SocialExploreMediaViewerFacade } from '../../facades/social-explore-media-viewer.facade';
+import { SocialExploreCommunityDistributionFacade } from '../../facades/social-explore-community-distribution.facade';
 import { ContentStateComponent } from 'src/app/shared/content-state/content-state.component';
 import { ExploreSocialFeedItem } from '../../models/explore-social-feed';
 
@@ -55,7 +49,7 @@ import { ExploreSocialFeedItem } from '../../models/explore-social-feed';
   templateUrl: './social-explore-page.component.html',
   styleUrls: ['./social-explore-page.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  providers: [SocialExploreTimelineFacade, SocialExploreMediaViewerFacade],
+  providers: [SocialExploreTimelineFacade, SocialExploreMediaViewerFacade, SocialExploreCommunityDistributionFacade],
 })
 export class SocialExplorePageComponent {
   @ViewChild(FeedPublicationComposerComponent)
@@ -68,12 +62,11 @@ export class SocialExplorePageComponent {
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly timelineFacade = inject(SocialExploreTimelineFacade);
   private readonly mediaViewerFacade = inject(SocialExploreMediaViewerFacade);
-  private readonly communityDistribution = inject(ExploreCommunityDistributionService);
-  private readonly communityDistributionTelemetry = inject(
-    CommunityDistributionTelemetryService
+  private readonly communityDistributionFacade = inject(
+    SocialExploreCommunityDistributionFacade
   );
 
-  readonly communityDistribution$ = this.communityDistribution.vm$;
+  readonly communityDistribution$ = this.communityDistributionFacade.vm$;
 
   readonly publicationComposerVisible = signal(false);
 
@@ -122,29 +115,20 @@ export class SocialExplorePageComponent {
 
   recordCommunityDistributionExposure(
     communityId: string,
-    surface: CommunityDistributionTelemetrySurface
+    surface: Parameters<SocialExploreCommunityDistributionFacade['recordExposure']>[1]
   ): void {
-    this.communityDistributionTelemetry.recordQualifiedExposure(
-      communityId,
-      surface
-    );
+    this.communityDistributionFacade.recordExposure(communityId, surface);
   }
 
   recordCommunityDistributionOpen(
     communityId: string,
-    surface: CommunityDistributionTelemetrySurface
+    surface: Parameters<SocialExploreCommunityDistributionFacade['recordOpen']>[1]
   ): void {
-    this.communityDistributionTelemetry.recordOpen(communityId, surface);
+    this.communityDistributionFacade.recordOpen(communityId, surface);
   }
 
   communityInitials(name: string): string {
-    return String(name ?? '')
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part.slice(0, 1).toUpperCase())
-      .join('') || '?';
+    return this.communityDistributionFacade.initials(name);
   }
 
   retryVideoHighlights(): void {
