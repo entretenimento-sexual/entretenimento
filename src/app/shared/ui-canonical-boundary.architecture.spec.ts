@@ -3225,6 +3225,26 @@ describe('Canonical UI boundary', () => {
     expect(facade).toContain('ApplicationErrorService');
   });
 
+  it('mantém perfil próprio sem css legado de redes', () => {
+    const template = source(
+      'src/app/user-profile/user-profile-view/user-profile-view.component.html'
+    );
+    const styles = source(
+      'src/app/user-profile/user-profile-view/user-profile-view.component.css'
+    );
+
+    expect(template).toContain('<app-social-links-accordion');
+    expect(template).toContain('app-action app-action--ghost');
+    expect(template).toContain('app-card');
+    expect(template).toContain('<app-content-state');
+
+    expect(styles).not.toContain('.links-list');
+    expect(styles).not.toContain('.links-item');
+    expect(styles).not.toContain('.links-label');
+    expect(styles).not.toContain('.links-value');
+    expect(styles).not.toContain('.profile-lead');
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
