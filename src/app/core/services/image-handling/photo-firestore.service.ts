@@ -305,8 +305,7 @@ export class PhotoFirestoreService {
 
   async deletePhoto(
     userId: string,
-    photoId: string,
-    _photoPath: string
+    photoId: string
   ): Promise<void> {
     const safeUserId = this.requireUserId(userId);
     const safePhotoId = String(photoId ?? '').trim();
