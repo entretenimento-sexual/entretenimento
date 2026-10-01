@@ -11,9 +11,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { EMPTY, Observable, Subject, of } from 'rxjs';
 import {
   catchError,
-  debounceTime,
   distinctUntilChanged,
-  filter,
   finalize,
   map,
   startWith,
@@ -30,7 +28,6 @@ import {
 import { UnsavedChangesAware } from 'src/app/core/guards/unsaved-changes/unsaved-changes.guard';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
-import { LocalDraftService } from 'src/app/core/services/drafts/local-draft.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { PhotoEditorLauncherService } from 'src/app/core/services/image-handling/photo-editor-launcher.service';
@@ -47,26 +44,13 @@ import {
   ProfileEditLocationService,
   ProfileEditMunicipio,
 } from './application/profile-edit-location.service';
-
-type ProfileDraft = Record<string, string>;
-
-const PROFILE_DRAFT_FIELDS = [
-  'nickname',
-  'estado',
-  'municipio',
-  'gender',
-  'orientation',
-  'idade',
-  'partner1Orientation',
-  'partner2Orientation',
-  'descricao',
-] as const;
+import { ProfileEditDraftFacade } from './application/profile-edit-draft.facade';
 
 @Component({
   selector: 'app-edit-user-profile',
   templateUrl: './edit-user-profile.component.html',
   styleUrls: ['./edit-user-profile.component.css'],
-  providers: [ProfileEditLocationService],
+  providers: [ProfileEditLocationService, ProfileEditDraftFacade],
   standalone: false,
 })
 export class EditUserProfileComponent
@@ -89,8 +73,6 @@ export class EditUserProfileComponent
   readonly avatarMaxMegabytes = resolveImageMaxBytes('avatar') / 1024 / 1024;
 
   private readonly destroy$ = new Subject<void>();
-  private draftReady = false;
-  private draftKey = '';
 
   readonly genderOptions = SELECTABLE_PROFILE_IDENTITY_OPTIONS.map((option) => ({
     value: option.code,
@@ -105,10 +87,10 @@ export class EditUserProfileComponent
     private readonly formBuilder: FormBuilder,
     private readonly photoEditor: PhotoEditorLauncherService,
     private readonly storageService: StorageService,
-    private readonly localDraft: LocalDraftService,
     private readonly notify: ErrorNotificationService,
     private readonly applicationError: ApplicationErrorService,
-    private readonly locationService: ProfileEditLocationService
+    private readonly locationService: ProfileEditLocationService,
+    private readonly draftFacade: ProfileEditDraftFacade
   ) {
     this.editForm = this.formBuilder.group({
       nickname: ['', [Validators.minLength(3)]],
@@ -145,8 +127,11 @@ export class EditUserProfileComponent
       return;
     }
 
-    this.draftKey = `profile-edit:${this.uid}`;
-    this.observeDraftChanges();
+    this.draftFacade.bind(
+      this.editForm,
+      this.uid,
+      () => this.isSaving
+    );
 
     this.firestoreUserQuery
       .getUser(this.uid)
@@ -176,7 +161,7 @@ export class EditUserProfileComponent
             'Falha ao carregar seus dados para edição.'
           )
         ),
-        finalize(() => this.initializeDraftState()),
+        finalize(() => this.draftFacade.restore(this.editForm)),
         takeUntil(this.destroy$)
       )
       .subscribe();
@@ -245,12 +230,14 @@ export class EditUserProfileComponent
   }
 
   hasUnsavedChanges(): boolean {
-    return this.draftReady && this.editForm.dirty && !this.isSaving;
+    return this.draftFacade.hasUnsavedChanges(
+      this.editForm,
+      this.isSaving
+    );
   }
 
   discardUnsavedChanges(): void {
-    this.localDraft.remove(this.draftKey);
-    this.editForm.markAsPristine();
+    this.draftFacade.discard(this.editForm);
   }
 
   onFileSelected(event: Event): void {
@@ -374,8 +361,7 @@ export class EditUserProfileComponent
       )
       .subscribe({
         next: () => {
-          this.localDraft.remove(this.draftKey);
-          this.editForm.markAsPristine();
+          this.draftFacade.clearAfterSave(this.editForm);
           this.notify.showSuccess('Perfil atualizado com sucesso.');
           this.router
             .navigate(['/perfil', this.uid])
@@ -405,51 +391,6 @@ export class EditUserProfileComponent
         ),
         finalize(() => (this.isUploading = false))
       );
-  }
-
-  private initializeDraftState(): void {
-    if (this.draftReady || !this.draftKey) return;
-
-    this.editForm.markAsPristine();
-    const draft = this.localDraft.load<ProfileDraft>(this.draftKey);
-    this.draftReady = true;
-
-    if (!draft) return;
-
-    const patch: ProfileDraft = {};
-    PROFILE_DRAFT_FIELDS.forEach((field) => {
-      if (typeof draft[field] === 'string') {
-        patch[field] = draft[field];
-      }
-    });
-
-    this.editForm.patchValue(patch, { emitEvent: true });
-    this.editForm.markAsDirty();
-  }
-
-  private observeDraftChanges(): void {
-    this.editForm.valueChanges
-      .pipe(
-        debounceTime(500),
-        filter(
-          () =>
-            this.draftReady &&
-            this.editForm.dirty &&
-            !this.isSaving
-        ),
-        tap(() => {
-          const rawValue = this.editForm.getRawValue();
-          const draft: ProfileDraft = {};
-
-          PROFILE_DRAFT_FIELDS.forEach((field) => {
-            draft[field] = String(rawValue[field] ?? '');
-          });
-
-          this.localDraft.save(this.draftKey, draft);
-        }),
-        takeUntil(this.destroy$)
-      )
-      .subscribe();
   }
 
   private patchFormFromUser(user: IUserDados): void {
