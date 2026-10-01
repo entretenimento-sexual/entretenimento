@@ -1468,4 +1468,38 @@ describe('Canonical UI boundary', () => {
     expect(notificationStyles).not.toContain('.community-activity__header p');
   });
 
+
+  it('mantém superfícies operacionais sem overlines redundantes', () => {
+    const photoEditor = source(
+      'src/app/photo-editor/photo-editor/photo-editor.component.html'
+    );
+    const photoEditorStyles = source(
+      'src/app/photo-editor/photo-editor/photo-editor.component.css'
+    );
+    const operational = source(
+      'src/app/admin-dashboard/operational-overview/operational-overview.component.html'
+    );
+    const operationalStyles = source(
+      'src/app/admin-dashboard/operational-overview/operational-overview.component.css'
+    );
+    const videoModeration = source(
+      'src/app/admin-dashboard/video-moderation/video-moderation.component.html'
+    );
+    const videoModerationStyles = source(
+      'src/app/admin-dashboard/video-moderation/video-moderation.component.css'
+    );
+
+    expect(photoEditor).not.toContain('class="eyebrow"');
+    expect(photoEditor).toContain('editor-selection-panel__eyebrow');
+    expect(photoEditorStyles).not.toMatch(/(^|\n)\.eyebrow\b/u);
+
+    expect(operational).not.toContain('operational-hero__eyebrow');
+    expect(operational).not.toContain('operational-panel__eyebrow');
+    expect(operational).not.toContain('mobile-summary__eyebrow');
+    expect(operationalStyles).not.toContain('__eyebrow');
+
+    expect(videoModeration).not.toContain('video-moderation__eyebrow');
+    expect(videoModerationStyles).not.toContain('video-moderation__eyebrow');
+  });
+
 });

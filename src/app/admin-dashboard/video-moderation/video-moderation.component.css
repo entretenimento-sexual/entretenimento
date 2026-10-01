@@ -34,20 +34,11 @@
   min-width: 0;
 }
 
-.video-moderation__eyebrow,
 .video-moderation__header h2,
 .video-moderation__header p,
 .video-moderation__operations h3,
 .video-moderation__operations p {
   margin: 0;
-}
-
-.video-moderation__eyebrow {
-  color: var(--primary-color, #ff6b6b);
-  font-size: 0.76rem;
-  font-weight: 850;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 .video-moderation__header h2 {

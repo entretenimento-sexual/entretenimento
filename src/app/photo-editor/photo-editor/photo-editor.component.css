@@ -34,8 +34,7 @@
 }
 
 .editor-title-block h2,
-.editor-title-block p,
-.editor-title-block .eyebrow {
+.editor-title-block p {
   margin: 0;
 }
 
@@ -44,7 +43,6 @@
   line-height: 1.1;
 }
 
-.eyebrow,
 .editor-selection-panel__eyebrow {
   color: var(--primary-color, #ff7070);
   font-size: 0.7rem;
@@ -659,9 +657,6 @@
 }
 
 @media (max-width: 390px) {
-  .editor-title-block .eyebrow {
-    display: none;
-  }
 
   .close-btn {
     min-width: 76px;
@@ -679,8 +674,7 @@
     padding-block: 8px;
   }
 
-  .subtitle,
-  .eyebrow {
+  .subtitle {
     display: none;
   }
 
