@@ -1456,6 +1456,8 @@ describe('Canonical UI boundary', () => {
     expect(hub).not.toContain('id="hub-main-title"');
     expect(hub).not.toContain('id="hub-compatibility-title"');
     expect(hub).not.toContain('Ajustes principais');
+    expect(hub).not.toContain('Voltar ao perfil');
+    expect(hub).toContain('<app-page-header title="Preferências"></app-page-header>');
     expect(hub).toContain('description="O que você procura e quem quer conhecer."');
     expect(hub).toContain('description="Como seu perfil aparece para outras pessoas."');
     expect(hub).toContain('description="Quais avisos você quer receber."');
