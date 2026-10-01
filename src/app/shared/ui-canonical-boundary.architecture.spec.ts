@@ -1447,10 +1447,6 @@ describe('Canonical UI boundary', () => {
     const hub = source(
       'src/app/preferences/pages/preferences-hub/preferences-hub.component.html'
     );
-    const summary = source(
-      'src/app/preferences/components/preference-summary-card/preference-summary-card.component.html'
-    );
-
     expect(welcome).not.toContain('card-kicker');
     expect(completion).not.toContain('completion-hero');
     expect(hub).not.toContain('hub-capabilities');
@@ -1458,11 +1454,15 @@ describe('Canonical UI boundary', () => {
     expect(hub).not.toContain('id="hub-main-title"');
     expect(hub).not.toContain('id="hub-compatibility-title"');
     expect(hub).not.toContain('Ajustes principais');
-    expect(summary).not.toContain('summary-subtitle');
-    expect(summary).not.toContain('summary-grid');
-    expect(summary).not.toContain('summary-item');
-    expect(summary).not.toContain('summary-badges');
-    expect(summary).toContain('<dl class="summary-list">');
+    expect(hub).not.toContain('<app-preference-summary-card');
+    expect(
+      existsSync(
+        resolve(
+          ROOT,
+          'src/app/preferences/components/preference-summary-card/preference-summary-card.component.ts'
+        )
+      )
+    ).toBe(false);
   });
 
 
@@ -1498,24 +1498,12 @@ describe('Canonical UI boundary', () => {
 
 
   it('mantém resumos frequentes sem títulos e CTAs redundantes', () => {
-    const preferenceSummary = source(
-      'src/app/preferences/components/preference-summary-card/preference-summary-card.component.html'
-    );
-    const preferenceSummaryStyles = source(
-      'src/app/preferences/components/preference-summary-card/preference-summary-card.component.css'
-    );
     const accountHome = source(
       'src/app/account/pages/account-home/account-home.component.html'
     );
     const accountStyles = source(
       'src/app/account/pages/account-section.css'
     );
-
-    expect(preferenceSummary).not.toContain('Resumo das preferências</h2>');
-    expect(preferenceSummary).not.toContain('Atualizado em:');
-    expect(preferenceSummary).not.toContain('summary-footer');
-    expect(preferenceSummaryStyles).not.toContain('.summary-footer');
-    expect(preferenceSummaryStyles).not.toContain('.summary-footnote');
 
     expect(accountHome).not.toContain('account-overview-card__action');
     expect(accountHome).not.toContain('>Ver perfil<');
