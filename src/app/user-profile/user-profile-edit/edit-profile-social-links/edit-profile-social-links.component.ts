@@ -4,20 +4,16 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { combineLatest, finalize, Subject, takeUntil } from 'rxjs';
 
 import { IUserSocialLinks } from 'src/app/core/interfaces/interfaces-user-dados/iuser-social-links';
+import {
+  PROFILE_SOCIAL_LINK_FIELDS,
+  ProfileSocialLinkField,
+  ProfileProfileSocialLinkKey,
+} from 'src/app/core/catalogs/profile-social-links.catalog';
 import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { PlatformSubscriptionAccessService } from 'src/app/core/services/subscriptions/platform-subscription-access.service';
 import { UserSocialLinksService } from 'src/app/core/services/user-profile/user-social-links.service';
-
-type SocialLinkKey = keyof IUserSocialLinks;
-
-interface SocialLinkField {
-  readonly key: SocialLinkKey;
-  readonly label: string;
-  readonly icon: string;
-  readonly placeholder: string;
-}
 
 @Component({
   selector: 'app-edit-profile-social-links',
@@ -26,21 +22,8 @@ interface SocialLinkField {
   standalone: false,
 })
 export class EditProfileSocialLinksComponent implements OnInit, OnDestroy {
-  readonly fields: readonly SocialLinkField[] = [
-    { key: 'instagram', label: 'Instagram', icon: 'fab fa-instagram', placeholder: '@usuario ou URL' },
-    { key: 'facebook', label: 'Facebook', icon: 'fab fa-facebook', placeholder: 'perfil ou URL' },
-    { key: 'twitter', label: 'X', icon: 'fab fa-x-twitter', placeholder: '@usuario ou URL' },
-    { key: 'tiktok', label: 'TikTok', icon: 'fab fa-tiktok', placeholder: '@usuario ou URL' },
-    { key: 'youtube', label: 'YouTube', icon: 'fab fa-youtube', placeholder: 'canal ou URL' },
-    { key: 'snapchat', label: 'Snapchat', icon: 'fab fa-snapchat', placeholder: 'usuario ou URL' },
-    { key: 'sexlog', label: 'Sexlog', icon: 'fas fa-link', placeholder: 'perfil ou URL' },
-    { key: 'd4swing', label: 'D4', icon: 'fas fa-link', placeholder: 'perfil ou URL' },
-    { key: 'hotvips', label: 'Hotvips', icon: 'fas fa-link', placeholder: 'URL do perfil' },
-    { key: 'privacy', label: 'Privacy', icon: 'fas fa-link', placeholder: 'perfil ou URL' },
-    { key: 'onlyfans', label: 'OnlyFans', icon: 'fas fa-link', placeholder: 'perfil ou URL' },
-    { key: 'fansly', label: 'Fansly', icon: 'fas fa-link', placeholder: 'perfil ou URL' },
-    { key: 'linktree', label: 'Linktree', icon: 'fas fa-link', placeholder: 'URL pública' },
-  ];
+  readonly fields: readonly ProfileSocialLinkField[] =
+    PROFILE_SOCIAL_LINK_FIELDS;
 
   uid: string | null = null;
   socialLinks: IUserSocialLinks = {};
@@ -49,7 +32,7 @@ export class EditProfileSocialLinksComponent implements OnInit, OnDestroy {
   isOwner = false;
   canPublish = false;
   saving = false;
-  removingKey: SocialLinkKey | null = null;
+  removingKey: ProfileSocialLinkKey | null = null;
 
   private readonly destroy$ = new Subject<void>();
 
@@ -100,7 +83,7 @@ export class EditProfileSocialLinksComponent implements OnInit, OnDestroy {
       });
   }
 
-  updateLocalLink(key: SocialLinkKey, value: string): void {
+  updateLocalLink(key: ProfileSocialLinkKey, value: string): void {
     if (!this.canPublish) return;
     this.socialLinks = {
       ...this.socialLinks,
@@ -149,7 +132,7 @@ export class EditProfileSocialLinksComponent implements OnInit, OnDestroy {
       });
   }
 
-  removerRede(key: SocialLinkKey): void {
+  removerRede(key: ProfileSocialLinkKey): void {
     if (!this.uid || !this.isOwner || this.removingKey) return;
     if (!this.socialLinks[key]) return;
 
@@ -197,7 +180,7 @@ export class EditProfileSocialLinksComponent implements OnInit, OnDestroy {
     }
   }
 
-  trackField(_: number, field: SocialLinkField): SocialLinkKey {
+  trackField(_: number, field: ProfileSocialLinkField): ProfileSocialLinkKey {
     return field.key;
   }
 
