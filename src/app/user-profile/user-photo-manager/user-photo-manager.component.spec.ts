@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { MatDialog } from '@angular/material/dialog';
 import { of } from 'rxjs';
 import { vi } from 'vitest';
 
@@ -11,17 +12,31 @@ import { ErrorNotificationService } from '../../core/services/error-handler/erro
 describe('UserPhotoManagerComponent', () => {
   let component: UserPhotoManagerComponent;
   let fixture: ComponentFixture<UserPhotoManagerComponent>;
+  let photoService: {
+    getPhotosByUser: ReturnType<typeof vi.fn>;
+    deletePhoto: ReturnType<typeof vi.fn>;
+  };
+  let dialog: {
+    open: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(async () => {
+    photoService = {
+      getPhotosByUser: vi.fn(() => of([])),
+      deletePhoto: vi.fn(() => Promise.resolve()),
+    };
+    dialog = {
+      open: vi.fn(() => ({
+        afterClosed: () => of(true),
+      })),
+    };
+
     await TestBed.configureTestingModule({
       imports: [UserPhotoManagerComponent],
       providers: [
         {
           provide: PhotoFirestoreService,
-          useValue: {
-            getPhotosByUser: vi.fn(() => of([])),
-            deletePhoto: vi.fn(() => Promise.resolve()),
-          },
+          useValue: photoService,
         },
         {
           provide: AuthSessionService,
@@ -42,6 +57,10 @@ describe('UserPhotoManagerComponent', () => {
             showWarning: vi.fn(),
           },
         },
+        {
+          provide: MatDialog,
+          useValue: dialog,
+        },
       ],
     }).compileComponents();
 
@@ -52,5 +71,31 @@ describe('UserPhotoManagerComponent', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('abre confirmação canônica antes de excluir', async () => {
+    component.userId = 'u1';
+
+    component.deleteFile('photo-1', 'profiles/u1/photo-1.jpg');
+
+    expect(dialog.open).toHaveBeenCalledTimes(1);
+    await Promise.resolve();
+    expect(photoService.deletePhoto).toHaveBeenCalledWith(
+      'u1',
+      'photo-1',
+      'profiles/u1/photo-1.jpg'
+    );
+  });
+
+  it('não exclui quando a confirmação é cancelada', async () => {
+    dialog.open.mockReturnValue({
+      afterClosed: () => of(false),
+    } as any);
+    component.userId = 'u1';
+
+    component.deleteFile('photo-1', 'profiles/u1/photo-1.jpg');
+
+    await Promise.resolve();
+    expect(photoService.deletePhoto).not.toHaveBeenCalled();
   });
 });
