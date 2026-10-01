@@ -10,6 +10,7 @@
 // - preserva compatibilidade com o template atual
 import { CommonModule } from '@angular/common';
 import { Component, input, OnInit, signal } from '@angular/core';
+import { MatDialog } from '@angular/material/dialog';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import {
   catchError,
@@ -28,6 +29,11 @@ import { AuthSessionService } from 'src/app/core/services/autentication/auth/aut
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { RouterModule } from '@angular/router';
+import {
+  ConfirmationDialogComponent,
+  ConfirmationDialogData,
+} from 'src/app/shared/components-globais/confirmation-dialog/confirmation-dialog.component';
+import { ContentStateComponent } from 'src/app/shared/content-state/content-state.component';
 
 type TPhotoSortMode = 'newest' | 'oldest';
 type TPhotoManagerMode = 'summary' | 'manager';
@@ -37,7 +43,7 @@ type TPhotoManagerMode = 'summary' | 'manager';
   templateUrl: './user-photo-manager.component.html',
   styleUrls: ['./user-photo-manager.component.css'],
   standalone: true,
-  imports: [CommonModule, RouterModule]
+  imports: [CommonModule, RouterModule, ContentStateComponent]
 })
 export class UserPhotoManagerComponent implements OnInit {
   userPhotos$: Observable<Photo[]> = of([]);
@@ -62,6 +68,7 @@ export class UserPhotoManagerComponent implements OnInit {
     private readonly authSession: AuthSessionService,
     private readonly applicationError: ApplicationErrorService,
     private readonly errorNotifier: ErrorNotificationService,
+    private readonly dialog: MatDialog,
   ) {}
 
   ngOnInit(): void {
@@ -203,29 +210,58 @@ private toMillis(value: unknown): number {
 
   deleteFile(photoId: string, photoPath: string): void {
     const uid = (this.userId ?? '').trim();
+    const safePhotoId = String(photoId ?? '').trim();
+    const safePhotoPath = String(photoPath ?? '').trim();
 
     if (!uid) {
-      this.errorNotifier.showWarning('Usuário não autenticado para excluir a foto.');
+      this.errorNotifier.showWarning(
+        'Usuário não autenticado para excluir a foto.'
+      );
       return;
     }
 
-    if (!photoId?.trim() || !photoPath?.trim()) {
-      this.errorNotifier.showWarning('Dados da foto inválidos para exclusão.');
+    if (!safePhotoId || !safePhotoPath) {
+      this.errorNotifier.showWarning(
+        'Dados da foto inválidos para exclusão.'
+      );
       return;
     }
 
-    if (!confirm('Tem certeza que deseja excluir esta foto?')) {
-      return;
-    }
+    const data: ConfirmationDialogData = {
+      title: 'Remover foto',
+      message: 'Tem certeza que deseja excluir esta foto do perfil?',
+      detail: 'Esta ação não pode ser desfeita.',
+      confirmLabel: 'Remover',
+      cancelLabel: 'Cancelar',
+      tone: 'danger',
+      icon: 'delete',
+    };
 
-    this.photoService
-      .deletePhoto(uid, photoId, photoPath)
-      .catch((error) => {
-        this.reportError(
-          'Erro ao excluir foto.',
-          error,
-          { op: 'deleteFile', uid, photoId, photoPath }
-        );
+    this.dialog
+      .open(ConfirmationDialogComponent, {
+        data,
+        autoFocus: 'first-tabbable',
+        restoreFocus: true,
+      })
+      .afterClosed()
+      .subscribe((confirmed) => {
+        if (confirmed !== true) {
+          return;
+        }
+
+        this.photoService
+          .deletePhoto(uid, safePhotoId, safePhotoPath)
+          .catch((error) => {
+            this.reportError(
+              'Erro ao excluir foto.',
+              error,
+              {
+                op: 'deleteFile',
+                uid,
+                photoId: safePhotoId,
+              }
+            );
+          });
       });
   }
 
@@ -256,4 +292,4 @@ getCollapseLabel(): string {
       },
     });
   }
-} // Linha 268
+}
