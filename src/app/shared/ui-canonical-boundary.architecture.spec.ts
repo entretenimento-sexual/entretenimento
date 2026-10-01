@@ -3287,6 +3287,25 @@ describe('Canonical UI boundary', () => {
     expect(service).toContain('loadMunicipios$(');
   });
 
+  it('mantém rascunho fora do EditUserProfileComponent', () => {
+    const component = source(
+      'src/app/user-profile/user-profile-edit/edit-user-profile/edit-user-profile.component.ts'
+    );
+    const facade = source(
+      'src/app/user-profile/user-profile-edit/edit-user-profile/application/profile-edit-draft.facade.ts'
+    );
+
+    expect(component).toContain('ProfileEditDraftFacade');
+    expect(component).not.toContain('LocalDraftService');
+    expect(component).not.toContain('PROFILE_DRAFT_FIELDS');
+    expect(component).not.toContain('observeDraftChanges(');
+    expect(component).not.toContain('initializeDraftState(');
+
+    expect(facade).toContain('LocalDraftService');
+    expect(facade).toContain('PROFILE_DRAFT_FIELDS');
+    expect(facade).toContain('debounceTime(500)');
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
