@@ -11,8 +11,8 @@
       </a>
     </app-page-header>
 
-    @if (vm$ | async; as vm) {
-      @if (vm) {
+    @if (uid$ | async; as uid) {
+      @if (uid) {
         <div class="hub-grid app-responsive-grid" aria-label="Ajustes de preferências">
           <app-preferences-hub-card
             title="Editar preferências"
