@@ -30,14 +30,6 @@ import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
-import { PhotoEditorLauncherService } from 'src/app/core/services/image-handling/photo-editor-launcher.service';
-import { StorageService } from 'src/app/core/services/image-handling/storage.service';
-import {
-  MEDIA_IMAGE_ACCEPT,
-  MEDIA_IMAGE_FORMAT_LABEL,
-  resolveImageMaxBytes,
-  validateImageMediaFile,
-} from 'src/app/core/services/media/media-format.policy';
 import { UsuarioService } from 'src/app/core/services/user-profile/usuario.service';
 import {
   ProfileEditEstado,
@@ -45,18 +37,18 @@ import {
   ProfileEditMunicipio,
 } from './application/profile-edit-location.service';
 import { ProfileEditDraftFacade } from './application/profile-edit-draft.facade';
+import { ProfileEditAvatarFacade } from './application/profile-edit-avatar.facade';
 
 @Component({
   selector: 'app-edit-user-profile',
   templateUrl: './edit-user-profile.component.html',
   styleUrls: ['./edit-user-profile.component.css'],
-  providers: [ProfileEditLocationService, ProfileEditDraftFacade],
+  providers: [ProfileEditLocationService, ProfileEditDraftFacade, ProfileEditAvatarFacade],
   standalone: false,
 })
 export class EditUserProfileComponent
   implements OnInit, OnDestroy, UnsavedChangesAware
 {
-  public progressValue = 0;
   userData: IUserDados = {} as IUserDados;
   editForm: FormGroup;
 
@@ -64,13 +56,31 @@ export class EditUserProfileComponent
   estados: ProfileEditEstado[] = [];
   municipios: ProfileEditMunicipio[] = [];
 
-  isEditingPhoto = false;
-  isUploading = false;
   isSaving = false;
 
-  readonly imageAccept = MEDIA_IMAGE_ACCEPT;
-  readonly imageFormatLabel = MEDIA_IMAGE_FORMAT_LABEL;
-  readonly avatarMaxMegabytes = resolveImageMaxBytes('avatar') / 1024 / 1024;
+  get progressValue(): number {
+    return this.avatarFacade.progress();
+  }
+
+  get isEditingPhoto(): boolean {
+    return this.avatarFacade.isEditing();
+  }
+
+  get isUploading(): boolean {
+    return this.avatarFacade.isUploading();
+  }
+
+  get imageAccept(): string {
+    return this.avatarFacade.imageAccept;
+  }
+
+  get imageFormatLabel(): string {
+    return this.avatarFacade.imageFormatLabel;
+  }
+
+  get avatarMaxMegabytes(): number {
+    return this.avatarFacade.avatarMaxMegabytes;
+  }
 
   private readonly destroy$ = new Subject<void>();
 
@@ -85,12 +95,11 @@ export class EditUserProfileComponent
     private readonly route: ActivatedRoute,
     private readonly router: Router,
     private readonly formBuilder: FormBuilder,
-    private readonly photoEditor: PhotoEditorLauncherService,
-    private readonly storageService: StorageService,
     private readonly notify: ErrorNotificationService,
     private readonly applicationError: ApplicationErrorService,
     private readonly locationService: ProfileEditLocationService,
-    private readonly draftFacade: ProfileEditDraftFacade
+    private readonly draftFacade: ProfileEditDraftFacade,
+    private readonly avatarFacade: ProfileEditAvatarFacade
   ) {
     this.editForm = this.formBuilder.group({
       nickname: ['', [Validators.minLength(3)]],
@@ -250,54 +259,15 @@ export class EditUserProfileComponent
   uploadFile(file: File): void {
     if (!this.uid || this.isUploading || this.isEditingPhoto) return;
 
-    const validation = validateImageMediaFile(file, 'avatar');
-    if (!validation.valid) {
-      this.notify.showError(
-        validation.userMessage ?? 'A foto de perfil selecionada não é válida.'
-      );
-      return;
-    }
-
-    this.progressValue = 0;
-    this.isEditingPhoto = true;
-
-    this.photoEditor
-      .editFile$(file, {
-        source: 'profile-avatar',
-        context: 'profile-avatar',
-        preset: 'avatar-square',
-      })
-      .pipe(
-        take(1),
-        switchMap((result) => {
-          if (!result) {
-            return EMPTY;
-          }
-
-          const processedValidation = validateImageMediaFile(
-            result.file,
-            'avatar'
-          );
-          if (!processedValidation.valid) {
-            this.notify.showError(
-              processedValidation.userMessage ?? 'A foto de perfil editada não é válida.'
-            );
-            return EMPTY;
-          }
-
-          return this.uploadProcessedAvatar$(result.file);
-        }),
-        catchError((error) =>
-          this.handleError$(
-            error,
-            'prepareProfileAvatar',
-            'Não foi possível preparar a foto de perfil.'
-          )
-        ),
-        finalize(() => (this.isEditingPhoto = false)),
-        takeUntil(this.destroy$)
-      )
-      .subscribe();
+    this.avatarFacade
+      .upload$(file, this.uid)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((imageUrl) => {
+        this.userData = {
+          ...this.userData,
+          photoURL: imageUrl,
+        };
+      });
   }
 
   onEstadoChange(_estadoSigla: string): void {
@@ -370,28 +340,6 @@ export class EditUserProfileComponent
       });
   }
 
-  private uploadProcessedAvatar$(file: File): Observable<string> {
-    this.progressValue = 0;
-    this.isUploading = true;
-
-    return this.storageService
-      .uploadProfileAvatar(file, this.uid, (progress: number) => {
-        this.progressValue = progress;
-      })
-      .pipe(
-        tap((imageUrl: string) => {
-          this.userData = { ...this.userData, photoURL: imageUrl };
-        }),
-        catchError((error) =>
-          this.handleError$(
-            error,
-            'uploadProfileAvatar',
-            'Erro durante o upload da foto.'
-          )
-        ),
-        finalize(() => (this.isUploading = false))
-      );
-  }
 
   private patchFormFromUser(user: IUserDados): void {
     this.editForm.patchValue(
