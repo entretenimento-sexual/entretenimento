@@ -82,7 +82,6 @@ export class EditUserProfileComponent
   constructor(
     private readonly router: Router,
     private readonly notify: ErrorNotificationService,
-    private readonly locationService: ProfileEditLocationService,
     private readonly draftFacade: ProfileEditDraftFacade,
     private readonly avatarFacade: ProfileEditAvatarFacade,
     private readonly saveOrchestrator: ProfileEditSaveOrchestrator,
@@ -115,6 +114,7 @@ export class EditUserProfileComponent
       });
 
     this.formFacade.bind();
+  }
 
   ngOnDestroy(): void {
     this.destroy$.next();
@@ -207,6 +207,5 @@ export class EditUserProfileComponent
         },
       });
   }
-
 
 }
