@@ -3306,6 +3306,17 @@ describe('Canonical UI boundary', () => {
     expect(facade).toContain('debounceTime(500)');
   });
 
+  it('mantém UserOwnerGuard no pipeline canônico de erros', () => {
+    const guard = source(
+      'src/app/core/guards/ownership-guard/user.owner.guard.ts'
+    );
+
+    expect(guard).toContain('AccessControlService');
+    expect(guard).toContain('ApplicationErrorService');
+    expect(guard).not.toContain('GlobalErrorHandlerService');
+    expect(guard).toContain("presentation: { surface: 'none', severity: 'error' }");
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
