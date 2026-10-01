@@ -14,7 +14,7 @@
 // Fontes de verdade:
 // - presence/{uid}: define presença/online/away.
 // - public_profiles/{uid}: define card público e localização pública.
-// - selectGlobalOnlineUsers: entrega ao componente a lista já combinada/hidratada.
+// - a lista de presença pública chega ao feed pela facade de enrichment.
 //
 // Separação de responsabilidades:
 // - profileCompleted controla entrada na feature.
