@@ -33,7 +33,6 @@ import type { PreferencesCapabilitySnapshot } from '../../services/preferences-c
 import { createEmptyPreferenceProfile } from '../../utils/preference-normalizers';
 import {
   BODY_PREFERENCE_OPTIONS,
-  DISCOVERY_MODE_OPTIONS,
   GENDER_INTEREST_OPTIONS,
   RELATIONSHIP_INTENT_OPTIONS,
   SEXUAL_PRACTICE_OPTIONS,
@@ -68,7 +67,6 @@ export class PreferenceProfileFormComponent {
   readonly genderInterestOptions = GENDER_INTEREST_OPTIONS;
   readonly sexualPracticeOptions = SEXUAL_PRACTICE_OPTIONS;
   readonly bodyPreferenceOptions = BODY_PREFERENCE_OPTIONS;
-  readonly discoveryModeOptions = DISCOVERY_MODE_OPTIONS;
 
   private readonly fb = new FormBuilder();
   private readonly destroyRef = inject(DestroyRef);
@@ -88,13 +86,7 @@ export class PreferenceProfileFormComponent {
     () => this.capabilities()?.canRequireAdvancedPreferences ?? false
   );
 
-  readonly canUseDiscreetMode = computed(
-    () => this.capabilities()?.canUseDiscreetMode ?? false
-  );
 
-  readonly canUsePriorityVisibility = computed(
-    () => this.capabilities()?.canUsePriorityVisibility ?? false
-  );
 
   constructor() {
     this.form.valueChanges
@@ -140,19 +132,6 @@ export class PreferenceProfileFormComponent {
         this.forceAdvancedModeToPrefer('bodyPreferenceMode');
       }
 
-      const currentMode = this.form.controls['discoveryMode']?.value;
-
-      if (currentMode === 'discreet' && !this.canUseDiscreetMode()) {
-        this.form.controls['discoveryMode']?.setValue('standard', {
-          emitEvent: false,
-        });
-      }
-
-      if (currentMode === 'priority' && !this.canUsePriorityVisibility()) {
-        this.form.controls['discoveryMode']?.setValue('standard', {
-          emitEvent: false,
-        });
-      }
     });
   }
 
@@ -186,23 +165,6 @@ export class PreferenceProfileFormComponent {
     this.hasPendingChanges.set(false);
   }
 
-  isModeAvailable(mode: string): boolean {
-    if (mode === 'discreet') return this.canUseDiscreetMode();
-    if (mode === 'priority') return this.canUsePriorityVisibility();
-    return true;
-  }
-
-  modeRequirement(mode: string): string {
-    if (mode === 'discreet' && !this.canUseDiscreetMode()) {
-      return ' — Premium';
-    }
-
-    if (mode === 'priority' && !this.canUsePriorityVisibility()) {
-      return ' — VIP';
-    }
-
-    return '';
-  }
 
   advancedRequirementLabel(): string {
     return this.canRequireAdvanced() ? 'Exigir' : 'Exigir — Premium';
@@ -236,12 +198,6 @@ export class PreferenceProfileFormComponent {
     return `${minAge}–${maxAge} anos · até ${maxDistanceKm} km`;
   }
 
-  visibilitySummary(): string {
-    const mode = String(this.form.controls['discoveryMode']?.value ?? 'standard');
-    const label = this.discoveryModeOptions.find((option) => option.key === mode)?.label;
-
-    return label || 'Padrão';
-  }
 
   selfDescriptionSummary(): string {
     return this.selectionLabel(
