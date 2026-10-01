@@ -23,14 +23,14 @@ import { Observable, combineLatest, of } from 'rxjs';
 import { catchError, filter, map, take } from 'rxjs/operators';
 
 import { AccessControlService } from '../../services/autentication/auth/access-control.service';
-import { GlobalErrorHandlerService } from '../../services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '../../services/error-handler/application-error.service';
 import { guardLog, isResolvedAccessState } from '../_shared-guard/guard-utils';
 
 @Injectable({ providedIn: 'root' })
 export class UserOwnerGuard implements CanActivate {
   private readonly router = inject(Router);
   private readonly access = inject(AccessControlService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
 
   canActivate(
     route: ActivatedRouteSnapshot,
@@ -66,12 +66,18 @@ export class UserOwnerGuard implements CanActivate {
         return authUid === routeId ? true : toDashboard();
       }),
 
-      catchError((err) => {
-        try {
-          (err as any).silent = true;
-          (err as any).feature = 'user-owner-guard';
-          this.globalError.handleError(err);
-        } catch {}
+      catchError((error) => {
+        this.applicationError.report(error, {
+          feature: 'profile-view',
+          operation: 'UserOwnerGuard.canActivate',
+          fallbackMessage:
+            'Não foi possível validar o acesso a este perfil.',
+          presentation: { surface: 'none', severity: 'error' },
+          metadata: {
+            scope: 'UserOwnerGuard',
+            hasRouteId: !!routeId,
+          },
+        });
 
         return of(toDashboard());
       })
