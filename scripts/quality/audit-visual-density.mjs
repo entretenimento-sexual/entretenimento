@@ -172,6 +172,30 @@ const topTemplates = templateFindings
   })
   .slice(0, 15);
 
+const semanticSummary = semanticResiduals.reduce(
+  (summary, item) => {
+    summary.templates += 1;
+    summary.occurrences += item.total;
+    if (item.isCritical) {
+      summary.criticalTemplates += 1;
+      summary.criticalOccurrences += item.total;
+    }
+
+    for (const [kind, value] of Object.entries(item.byKind)) {
+      summary.byKind[kind] = (summary.byKind[kind] ?? 0) + value;
+    }
+
+    return summary;
+  },
+  {
+    templates: 0,
+    occurrences: 0,
+    criticalTemplates: 0,
+    criticalOccurrences: 0,
+    byKind: {},
+  }
+);
+
 const topSemanticResiduals = semanticResiduals
   .sort((a, b) => {
     if (a.isCritical !== b.isCritical) return Number(b.isCritical) - Number(a.isCritical);
@@ -196,6 +220,21 @@ if (topTemplates.length > 0) {
         `intro-tripla=${item.hasIntroStack ? 'sim' : 'não'}`
     );
   }
+}
+
+if (semanticSummary.occurrences > 0) {
+  const categorySummary = semanticIntroKinds
+    .map(([kind]) => `${kind}=${semanticSummary.byKind[kind] ?? 0}`)
+    .join(' ');
+
+  console.log(
+    '\n[audit:visual] Baseline semântico: ' +
+      `templates=${semanticSummary.templates} ` +
+      `ocorrências=${semanticSummary.occurrences} ` +
+      `templates-críticos=${semanticSummary.criticalTemplates} ` +
+      `ocorrências-críticas=${semanticSummary.criticalOccurrences} ` +
+      `| ${categorySummary}`
+  );
 }
 
 if (topSemanticResiduals.length > 0) {
