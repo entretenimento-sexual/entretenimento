@@ -1427,6 +1427,9 @@ describe('Canonical UI boundary', () => {
     expect(hub).not.toContain('badge="Principal"');
     expect(hub).not.toContain('badge="Teste"');
     expect(hub).not.toContain('badge="Recente"');
+    expect(hub).not.toContain('route="/preferencias/match-profile"');
+    expect(hub).not.toContain('/preferencias/compatibility-lab/');
+    expect(hub).not.toContain('Retomar última comparação');
     expect(hubStyles).not.toContain('.hub-capability');
 
     expect(card).toContain('[routerLink]="route()"');
@@ -1453,7 +1456,7 @@ describe('Canonical UI boundary', () => {
     expect(hub).not.toContain('hub-capabilities');
     expect(hub).not.toContain('<app-preferences-domain-nav');
     expect(hub).toContain('id="hub-main-title"');
-    expect(hub).toContain('id="hub-compatibility-title"');
+    expect(hub).not.toContain('id="hub-compatibility-title"');
     expect(summary).not.toContain('summary-subtitle');
     expect(summary).not.toContain('summary-grid');
     expect(summary).not.toContain('summary-item');
