@@ -1418,4 +1418,20 @@ describe('Canonical UI boundary', () => {
     expect(accountStyles).not.toContain('.account-overview-card__action');
   });
 
+
+  it('mantém Planos de assinatura sem contexto e atalhos redundantes', () => {
+    const template = source(
+      'src/app/subscriptions/subscription-plan/subscription-plan.component.html'
+    );
+    const styles = source(
+      'src/app/subscriptions/subscription-plan/subscription-plan.component.css'
+    );
+
+    expect(template).toContain('<app-page-header title="Planos de assinatura">');
+    expect(template).not.toContain('Ative os benefícios da sua conta');
+    expect(template).not.toContain('Atalhos rápidos');
+    expect(template).not.toContain('subscription-plan-status-card__eyebrow');
+    expect(styles).not.toContain('.subscription-plan-status-card__eyebrow');
+  });
+
 });

@@ -1,10 +1,7 @@
 <!-- src/app/subscriptions/subscription-plan/subscription-plan.component.html -->
 <section class="subscription-plan-container ui-container">
   @if (vm$ | async; as vm) {
-    <app-page-header
-      title="Planos de assinatura"
-      subtitle="Ative os benefícios da sua conta e explore a plataforma com mais liberdade."
-    >
+    <app-page-header title="Planos de assinatura">
       <div page-actions class="subscription-plan-header__actions">
         @if (vm.canGoToAccount) {
           <button type="button" class="app-action app-action--ghost" (click)="goToAccount()">
@@ -21,7 +18,6 @@
     </app-page-header>
 
     <section class="subscription-plan-status-card app-card app-card--flat" aria-label="Status atual da assinatura">
-      <span class="subscription-plan-status-card__eyebrow">Status atual</span>
       <strong class="subscription-plan-status-card__title">{{ vm.statusTitle }}</strong>
       <p class="subscription-plan-status-card__description">
         {{ vm.statusDescription }}
@@ -87,24 +83,6 @@
     }
 
     <section class="subscription-plan-accordions" aria-label="Atalhos e informações rápidas">
-      <details class="subscription-plan-accordion app-disclosure">
-        <summary class="app-disclosure__summary"><strong class="app-disclosure__title">Atalhos rápidos</strong></summary>
-
-        <div class="subscription-plan-accordion__content app-disclosure__content">
-          @if (vm.canGoToAccount) {
-            <button type="button" class="app-action app-action--ghost" (click)="goToAccount()">
-              Abrir minha conta
-            </button>
-          }
-
-          @if (vm.canGoToProfile) {
-            <button type="button" class="app-action app-action--ghost" (click)="goToProfile()">
-              Abrir meu perfil
-            </button>
-          }
-        </div>
-      </details>
-
       <details class="subscription-plan-accordion app-disclosure">
         <summary class="app-disclosure__summary"><strong class="app-disclosure__title">O que muda se o perfil estiver incompleto?</strong></summary>
 
