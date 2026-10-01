@@ -24,15 +24,12 @@ import { Router, RouterModule } from '@angular/router';
 import {
   BehaviorSubject,
   Observable,
-  combineLatest,
   map,
-  of,
   shareReplay,
   switchMap,
   take,
 } from 'rxjs';
 import {
-  catchError,
   distinctUntilChanged,
   finalize,
 } from 'rxjs/operators';
