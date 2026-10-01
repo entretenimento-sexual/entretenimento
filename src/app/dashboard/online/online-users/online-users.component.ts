@@ -41,7 +41,6 @@ import {
 } from 'rxjs';
 
 import {
-  catchError,
   distinctUntilChanged,
   filter,
   map,
@@ -200,14 +199,7 @@ readonly count$ = this.feedFacade.count$(this.onlineUsers$);
  * Lista preparada pelo NgRx para o modo Online.
  *
  * Fonte:
- * - selectGlobalOnlineUsers já entrega perfis públicos hidratados com presença.
- *
- * Esta lista ainda será enriquecida pela camada genérica de discovery para:
- * - distância;
- * - score;
- * - filtro por modo;
- * - ordenação;
- * - contrato único de card.
+ * A composição da lista e o enrichment vivem em OnlineUsersFeedFacade.
  */
   private readonly authUid$ = this.access.authUid$.pipe(
     map((uid) => (uid ?? '').trim() || null),
