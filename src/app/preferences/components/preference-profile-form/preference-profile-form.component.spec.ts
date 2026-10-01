@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FormValidationFocusDirective } from '../../../shared/form-validation-focus/form-validation-focus.directive';
 import type { PreferencesCapabilitySnapshot } from '../../services/preferences-capability.service';
 import { createEmptyPreferenceProfile } from '../../utils/preference-normalizers';
+import { mapFormValueToPreferenceProfile } from '../../utils/preference-profile-form.factory';
 import { PreferenceProfileFormComponent } from './preference-profile-form.component';
 
 const capabilities: PreferencesCapabilitySnapshot = {
@@ -51,6 +52,36 @@ describe('PreferenceProfileFormComponent', () => {
     expect(
       formDebug.injector.get(FormValidationFocusDirective)
     ).toBeInstanceOf(FormValidationFocusDirective);
+
+    fixture.destroy();
+  });
+
+  it('mantém visibilidade fora do editor geral e preserva o estado atual ao salvar', () => {
+    const fixture = TestBed.createComponent(PreferenceProfileFormComponent);
+    const base = createEmptyPreferenceProfile('u1');
+    const profile = {
+      ...base,
+      visibility: {
+        showPreferenceBadges: false,
+        showIntentPublicly: true,
+        discoveryMode: 'priority' as const,
+      },
+    };
+
+    fixture.componentRef.setInput('profile', profile);
+    fixture.componentRef.setInput('capabilities', capabilities);
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance;
+    const mapped = mapFormValueToPreferenceProfile(
+      component.form.getRawValue(),
+      profile,
+      capabilities
+    );
+
+    expect(fixture.nativeElement.querySelector('#discoveryMode')).toBeNull();
+    expect(fixture.nativeElement.textContent).not.toContain('Sua visibilidade');
+    expect(mapped.visibility).toEqual(profile.visibility);
 
     fixture.destroy();
   });
