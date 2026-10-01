@@ -6,7 +6,7 @@ import {
   OnInit,
 } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { Router } from '@angular/router';
 
 import { EMPTY, Observable, Subject, of } from 'rxjs';
 import {
@@ -27,9 +27,7 @@ import {
 } from 'src/app/core/domain/profile-identity/profile-identity.catalog';
 import { UnsavedChangesAware } from 'src/app/core/guards/unsaved-changes/unsaved-changes.guard';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import {
   ProfileEditEstado,
   ProfileEditLocationService,
@@ -38,12 +36,13 @@ import {
 import { ProfileEditDraftFacade } from './application/profile-edit-draft.facade';
 import { ProfileEditAvatarFacade } from './application/profile-edit-avatar.facade';
 import { ProfileEditSaveOrchestrator } from './application/profile-edit-save.orchestrator';
+import { ProfileEditBootstrapFacade } from './application/profile-edit-bootstrap.facade';
 
 @Component({
   selector: 'app-edit-user-profile',
   templateUrl: './edit-user-profile.component.html',
   styleUrls: ['./edit-user-profile.component.css'],
-  providers: [ProfileEditLocationService, ProfileEditDraftFacade, ProfileEditAvatarFacade, ProfileEditSaveOrchestrator],
+  providers: [ProfileEditLocationService, ProfileEditDraftFacade, ProfileEditAvatarFacade, ProfileEditSaveOrchestrator, ProfileEditBootstrapFacade],
   standalone: false,
 })
 export class EditUserProfileComponent
@@ -90,16 +89,14 @@ export class EditUserProfileComponent
   }));
 
   constructor(
-    private readonly firestoreUserQuery: FirestoreUserQueryService,
-    private readonly route: ActivatedRoute,
     private readonly router: Router,
     private readonly formBuilder: FormBuilder,
     private readonly notify: ErrorNotificationService,
-    private readonly applicationError: ApplicationErrorService,
     private readonly locationService: ProfileEditLocationService,
     private readonly draftFacade: ProfileEditDraftFacade,
     private readonly avatarFacade: ProfileEditAvatarFacade,
-    private readonly saveOrchestrator: ProfileEditSaveOrchestrator
+    private readonly saveOrchestrator: ProfileEditSaveOrchestrator,
+    private readonly bootstrapFacade: ProfileEditBootstrapFacade
   ) {
     this.editForm = this.formBuilder.group({
       nickname: ['', [Validators.minLength(3)]],
@@ -122,58 +119,25 @@ export class EditUserProfileComponent
   }
 
   ngOnInit(): void {
-    this.uid = String(
-      this.route.snapshot.paramMap.get('id') ??
-        this.route.snapshot.paramMap.get('uid') ??
-        ''
-    ).trim();
+    this.bootstrapFacade
+      .load$()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((vm) => {
+        this.uid = vm.uid;
+        this.userData = vm.user;
+        this.estados = vm.estados;
+        this.municipios = vm.municipios;
 
-    if (!this.uid) {
-      this.notify.showError(
-        'Não foi possível identificar o usuário para edição.'
-      );
-      this.router.navigate(['/perfil']).catch(() => undefined);
-      return;
-    }
+        this.syncMunicipioControlState(vm.municipios);
+        this.patchFormFromUser(vm.user);
 
-    this.draftFacade.bind(
-      this.editForm,
-      this.uid,
-      () => this.isSaving
-    );
-
-    this.firestoreUserQuery
-      .getUser(this.uid)
-      .pipe(
-        take(1),
-        tap((user) => {
-          if (!user) throw new Error('Usuário não encontrado.');
-          this.userData = user;
-        }),
-        switchMap((user) =>
-          this.locationService.loadEstados$().pipe(
-            tap((estados) => (this.estados = estados)),
-            switchMap(() =>
-              user?.estado ? this.locationService.loadMunicipios$(user.estado) : of([])
-            ),
-            tap((municipios) => {
-              this.municipios = municipios;
-              this.syncMunicipioControlState(municipios);
-            }),
-            tap(() => this.patchFormFromUser(this.userData))
-          )
-        ),
-        catchError((error) =>
-          this.handleError$(
-            error,
-            'init',
-            'Falha ao carregar seus dados para edição.'
-          )
-        ),
-        finalize(() => this.draftFacade.restore(this.editForm)),
-        takeUntil(this.destroy$)
-      )
-      .subscribe();
+        this.draftFacade.bind(
+          this.editForm,
+          vm.uid,
+          () => this.isSaving
+        );
+        this.draftFacade.restore(this.editForm);
+      });
 
     this.editForm
       .get('gender')!
@@ -214,13 +178,6 @@ export class EditUserProfileComponent
             { emitEvent: false }
           );
         }),
-        catchError((error) =>
-          this.handleError$(
-            error,
-            'estadoChange',
-            'Falha ao carregar municípios.'
-          )
-        ),
         takeUntil(this.destroy$)
       )
       .subscribe();
@@ -361,21 +318,6 @@ export class EditUserProfileComponent
   }
 
 
-  private handleError$(
-    error: unknown,
-    context: string,
-    userMessage: string
-  ): Observable<never> {
-    this.applicationError.report(error, {
-      feature: 'profile-edit',
-      operation: context,
-      fallbackMessage: userMessage,
-      metadata: {
-        scope: 'EditUserProfileComponent',
-      },
-    });
-    return EMPTY;
-  }
 
   private syncMunicipioControlState(
     municipios: ProfileEditMunicipio[]
