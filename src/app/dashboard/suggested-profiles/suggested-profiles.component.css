@@ -43,15 +43,6 @@
   min-width: 0;
 }
 
-.suggested-profiles-hero__eyebrow {
-  color: color-mix(in oklab, var(--primary-color, #ff7070) 74%, var(--text-color, #f5f7fb));
-  font-size: 0.74rem;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  line-height: 1.1;
-  text-transform: uppercase;
-}
-
 .suggested-profiles-hero h1 {
   margin: 0;
   color: var(--text-color, #f5f7fb);

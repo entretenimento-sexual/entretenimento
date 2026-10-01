@@ -142,6 +142,15 @@ const reviewedSemanticContent = new Map([
   ['src/app/layout/friend-management/friend-settings/friend-settings.component.html', new Set([
     'app-page-header[subtitle]',
   ])],
+  ['src/app/dashboard/user-intent-status/user-intent-status-composer/user-intent-status-composer.component.html', new Set([
+    'intent-composer__eyebrow',
+  ])],
+  ['src/app/media/photos/photo-upload/photo-upload.component.html', new Set([
+    'app-page-header[subtitle]',
+  ])],
+  ['src/app/media/videos/profile-videos/profile-videos.component.html', new Set([
+    'profile-videos__description',
+  ])],
 ]);
 
 const isReviewedSemanticContent = (relativePath, token) =>

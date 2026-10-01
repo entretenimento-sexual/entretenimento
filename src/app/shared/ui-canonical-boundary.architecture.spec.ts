@@ -1694,4 +1694,31 @@ describe('Canonical UI boundary', () => {
     expect(termsStyles).not.toContain('legal-document__eyebrow');
   });
 
+
+  it('mantém discovery e previews sem contexto introdutório redundante', () => {
+    const suggested = source(
+      'src/app/dashboard/suggested-profiles/suggested-profiles.component.html'
+    );
+    const suggestedStyles = source(
+      'src/app/dashboard/suggested-profiles/suggested-profiles.component.css'
+    );
+    const matchPreview = source(
+      'src/app/preferences/components/match-profile-preview-card/match-profile-preview-card.component.html'
+    );
+    const matchPreviewStyles = source(
+      'src/app/preferences/components/match-profile-preview-card/match-profile-preview-card.component.css'
+    );
+    const publicPhotos = source(
+      'src/app/media/photos/public-profile-photos/public-profile-photos.component.html'
+    );
+
+    expect(suggested).not.toContain('suggested-profiles-hero__eyebrow');
+    expect(suggestedStyles).not.toContain('suggested-profiles-hero__eyebrow');
+
+    expect(matchPreview).not.toContain('card-subtitle');
+    expect(matchPreviewStyles).not.toContain('.card-subtitle');
+
+    expect(publicPhotos).not.toContain('subtitle="Explore as fotos aprovadas deste perfil."');
+  });
+
 });
