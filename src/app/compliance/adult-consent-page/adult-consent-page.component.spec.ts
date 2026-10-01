@@ -99,11 +99,20 @@ describe('AdultConsentPageComponent', () => {
 
     component.accept();
 
-    expect(errorNotifierMock.showError).toHaveBeenCalledTimes(1);
-    expect(errorNotifierMock.showError).toHaveBeenCalledWith(
-      'Não foi possível registrar o aceite do acesso adulto. Verifique a conexão e tente novamente.'
+    expect(applicationErrorMock.report).toHaveBeenCalledTimes(1);
+    expect(applicationErrorMock.report).toHaveBeenCalledWith(
+      expect.any(Error),
+      {
+        feature: 'adult-consent',
+        operation: 'acceptCurrentConsent',
+        fallbackMessage:
+          'Não foi possível registrar o aceite do acesso adulto. Verifique a conexão e tente novamente.',
+        metadata: {
+          scope: 'AdultConsentPageComponent',
+        },
+      }
     );
-    expect(applicationErrorMock.report).not.toHaveBeenCalled();
+    expect(errorNotifierMock.showError).not.toHaveBeenCalled();
     expect(component.isSaving).toBe(false);
   });
 
@@ -140,17 +149,16 @@ describe('AdultConsentPageComponent', () => {
       expect.objectContaining({
         feature: 'adult-consent',
         operation: 'navigateAfterConsent',
-        presentation: { surface: 'none', severity: 'error' },
+        fallbackMessage:
+          'Seu aceite do acesso adulto foi registrado, mas não foi possível avançar.',
+        presentation: { surface: 'snackbar', severity: 'error' },
         metadata: expect.objectContaining({
           scope: 'AdultConsentPageComponent',
           fallbackNavigationFailed: true,
         }),
       })
     );
-    expect(errorNotifierMock.showError).toHaveBeenCalledTimes(1);
-    expect(errorNotifierMock.showError).toHaveBeenCalledWith(
-      'Seu aceite do acesso adulto foi registrado, mas não foi possível avançar. Recarregue a página e tente novamente.'
-    );
+    expect(errorNotifierMock.showError).not.toHaveBeenCalled();
   });
 
   it('mantém um único feedback quando a saída após recusa falha no serviço', () => {
@@ -164,11 +172,19 @@ describe('AdultConsentPageComponent', () => {
       'O acesso à experiência adulta não foi aceito.',
       4200
     );
-    expect(errorNotifierMock.showError).toHaveBeenCalledTimes(1);
-    expect(errorNotifierMock.showError).toHaveBeenCalledWith(
-      'Não foi possível encerrar sua sessão. Tente novamente.'
+    expect(applicationErrorMock.report).toHaveBeenCalledTimes(1);
+    expect(applicationErrorMock.report).toHaveBeenCalledWith(
+      expect.any(Error),
+      {
+        feature: 'adult-consent',
+        operation: 'declineAndLogout',
+        fallbackMessage: 'Não foi possível encerrar sua sessão. Tente novamente.',
+        metadata: {
+          scope: 'AdultConsentPageComponent',
+        },
+      }
     );
-    expect(applicationErrorMock.report).not.toHaveBeenCalled();
+    expect(errorNotifierMock.showError).not.toHaveBeenCalled();
     expect(component.isSaving).toBe(false);
   });
 
