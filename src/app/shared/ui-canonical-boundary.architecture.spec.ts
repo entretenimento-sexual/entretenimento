@@ -3266,6 +3266,25 @@ describe('Canonical UI boundary', () => {
     expect(styles).not.toContain('.field-error {');
   });
 
+  it('mantém IBGE fora do EditUserProfileComponent', () => {
+    const component = source(
+      'src/app/user-profile/user-profile-edit/edit-user-profile/edit-user-profile.component.ts'
+    );
+    const service = source(
+      'src/app/user-profile/user-profile-edit/edit-user-profile/application/profile-edit-location.service.ts'
+    );
+
+    expect(component).toContain('ProfileEditLocationService');
+    expect(component).not.toContain('servicodados.ibge.gov.br');
+    expect(component).not.toContain('fetch(');
+    expect(component).not.toContain('loadEstados$(');
+    expect(component).not.toContain('loadMunicipios$(');
+
+    expect(service).toContain('servicodados.ibge.gov.br');
+    expect(service).toContain('loadEstados$(');
+    expect(service).toContain('loadMunicipios$(');
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
