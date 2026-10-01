@@ -16,11 +16,11 @@
     @if (vm$ | async; as vm) {
       @if (vm) {
         <app-preference-summary-card [vm]="vm"></app-preference-summary-card>
-
-        <section class="hub-capabilities app-card app-card--flat" aria-labelledby="account-resources-title">
-          <header class="app-card__header">
-            <h2 id="account-resources-title" class="app-card__title">Recursos da conta</h2>
-          </header>
+        <details class="hub-capabilities app-disclosure">
+          <summary class="app-disclosure__summary">
+            <strong class="app-disclosure__title">Recursos do plano</strong>
+            <span class="app-disclosure__state">Ver detalhes</span>
+          </summary>
 
           <div class="hub-capabilities__grid app-responsive-grid" role="list">
             <article class="hub-capability" role="listitem">
@@ -43,7 +43,7 @@
               <strong>{{ vm.capabilities.canSeeCompatibilityInsights ? 'Liberado' : 'Bloqueado' }}</strong>
             </article>
           </div>
-        </section>
+        </details>
 
         <section class="hub-grid app-responsive-grid" aria-label="Navegação de preferências">
           <app-preferences-hub-card

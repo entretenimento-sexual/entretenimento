@@ -52,9 +52,7 @@
   <main class="welcome-content" [attr.aria-describedby]="'welcome-subtitle'">
     <section *ngIf="!sessionInvalid" class="welcome-card status-card">
       <div class="status-card__header">
-        <div>
-          <p class="card-kicker">Status da conta</p>
-          <h2 class="card-title">
+        <div>          <h2 class="card-title">
             E-mail
             <span *ngIf="emailVerified; else notVerified" class="badge ok">verificado</span>
             <ng-template #notVerified><span class="badge warn">pendente</span></ng-template>
@@ -147,9 +145,7 @@
       role="alert"
       aria-live="assertive"
       aria-atomic="true"
-    >
-      <p class="card-kicker">Atenção</p>
-      <h2 class="card-title">Sessão encerrada</h2>
+    >      <h2 class="card-title">Sessão encerrada</h2>
       <p>
         Não conseguimos manter sua sessão ativa durante a verificação. Você pode tentar reconectar ou refazer o cadastro.
       </p>

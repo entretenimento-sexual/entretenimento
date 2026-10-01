@@ -17,7 +17,7 @@
 .hub-capabilities__grid {
   --app-responsive-grid-min: 12rem;
   --app-responsive-grid-gap: var(--space-2, 12px);
-  padding: 0 var(--space-3, 16px) var(--space-3, 16px);
+  padding: var(--space-2, 12px) var(--space-3, 16px) var(--space-3, 16px);
 }
 
 .hub-capability {

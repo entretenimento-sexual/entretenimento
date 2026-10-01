@@ -79,7 +79,7 @@ implements OnInit, UnsavedChangesAware
   public entryReason: 'profile_incomplete' | 'email_unverified' | null = null;
   public pageTitle = 'Complete seu perfil';
   public introText =
-    'Complete os dados abaixo para liberar os recursos básicos da plataforma.';
+    'Informe apenas o necessário agora. Fotos, preferências e outros detalhes podem ser ajustados depois.';
 
   public email = '';
   public nickname = '';

@@ -1337,4 +1337,26 @@ describe('Canonical UI boundary', () => {
     }
   });
 
+
+  it('mantém densidade semântica enxuta em onboarding e Preferences', () => {
+    const welcome = source(
+      'src/app/register-module/welcome/welcome.component.html'
+    );
+    const completion = source(
+      'src/app/register-module/finalizar-cadastro/finalizar-cadastro.component.html'
+    );
+    const hub = source(
+      'src/app/preferences/pages/preferences-hub/preferences-hub.component.html'
+    );
+    const summary = source(
+      'src/app/preferences/components/preference-summary-card/preference-summary-card.component.html'
+    );
+
+    expect(welcome).not.toContain('card-kicker');
+    expect(completion).not.toContain('completion-hero');
+    expect(hub).toContain('class="hub-capabilities app-disclosure"');
+    expect(hub).not.toContain('id="account-resources-title"');
+    expect(summary).not.toContain('summary-subtitle');
+  });
+
 });
