@@ -16,8 +16,8 @@ import { ApplicationErrorService } from 'src/app/core/services/error-handler/app
 import { selectGlobalOnlineUsers } from 'src/app/store/selectors/selectors.user/online.selectors';
 import { selectCurrentUser } from 'src/app/store/selectors/selectors.user/user.selectors';
 import { AppState } from 'src/app/store/states/app.state';
-import { DiscoveryCardEnrichmentService } from '../../discovery/application/discovery-card-enrichment.service';
-import type { DiscoveryMode } from '../../discovery/models/discovery-mode.model';
+import { DiscoveryCardEnrichmentService } from '../../../discovery/application/discovery-card-enrichment.service';
+import type { DiscoveryMode } from '../../../discovery/models/discovery-mode.model';
 import type { IUserWithDistance } from '../models/online-users.model';
 import { OnlineUsersLocationFacade } from './online-users-location.facade';
 
