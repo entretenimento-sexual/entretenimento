@@ -5,15 +5,11 @@
   [attr.aria-label]="'Abrir ' + title()"
 >
   <div class="hub-card__copy">
-    <div class="hub-card__title-row">
-      <strong class="hub-card-title app-card__title">{{ title() }}</strong>
+    <strong class="hub-card-title app-card__title">{{ title() }}</strong>
 
-      @if (badge()) {
-        <span class="hub-card-badge app-chip app-chip--muted">{{ badge() }}</span>
-      }
-    </div>
-
-    <p class="hub-card-description">{{ description() }}</p>
+    @if (description()) {
+      <span class="hub-card-description">{{ description() }}</span>
+    }
   </div>
 
   <span class="hub-card__arrow" aria-hidden="true">→</span>
