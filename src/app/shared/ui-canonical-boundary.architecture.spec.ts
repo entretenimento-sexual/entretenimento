@@ -971,10 +971,28 @@ describe('Canonical UI boundary', () => {
     expect(globalStyles).not.toContain('app-user-card .user-card');
     expect(globalStyles).not.toContain('app-public-profiles-list');
     expect(globalStyles).not.toContain('.chat-shell__reply-preview');
+    expect(globalStyles).not.toContain('app-login-component');
+    expect(globalStyles).not.toContain('app-register');
 
     expect(cardStyles).toContain('--user-card-media-height-mobile');
     expect(discoveryStyles).toContain('--user-card-media-height-mobile');
     expect(chatStyles).toContain('.chat-shell__reply-preview');
+  });
+
+
+  it('mantém densidade de autenticação no componente proprietário', () => {
+    const globalStyles = source('src/styles.css');
+    const loginStyles = source(
+      'src/app/authentication/login-component/login-component.css'
+    );
+    const registerStyles = source(
+      'src/app/register-module/register.component.css'
+    );
+
+    expect(globalStyles).not.toContain('Auth form density');
+    expect(globalStyles).not.toContain('Auth visual parity');
+    expect(loginStyles).toContain('Auth density canônica — ownership local');
+    expect(registerStyles).toContain('Auth density canônica — ownership local');
   });
 
 });

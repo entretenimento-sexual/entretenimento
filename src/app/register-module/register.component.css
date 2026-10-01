@@ -435,11 +435,7 @@
 
 @media (max-width: 1000px) {
   .auth-container {
-    /*
-     * O contrato global de densidade de Auth usa duas colunas com !important.
-     * Neste breakpoint, o componente precisa assumir explicitamente uma coluna
-     * para que o formulário use a largura disponível em tablet/mobile.
-     */
+    /* Tablet/mobile muda deliberadamente para uma coluna. */
     grid-template-columns: minmax(0, 1fr) !important;
     align-items: stretch;
     gap: 1.25rem;
@@ -503,5 +499,198 @@
   .form-container .tooltip-error {
     font-size: .88rem;
     padding: .55rem .7rem;
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   Auth density canônica — ownership local
+
+   O Registro mantém aqui apenas os ajustes ainda consumidos pelo template.
+   Regras antigas sem consumidor (Google, badges de hero e overrides externos)
+   foram removidas em vez de transferidas.
+----------------------------------------------------------------------------- */
+.auth-container {
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 440px);
+}
+
+.form-container {
+  width: min(100%, 440px);
+  max-width: 440px;
+  justify-self: end;
+}
+
+.form-container form {
+  display: grid;
+  gap: 0.62rem;
+}
+
+.form-field label {
+  display: inline-flex;
+  margin-bottom: 0.34rem;
+  font-size: 0.88rem;
+  line-height: 1.2;
+}
+
+.form-field {
+  margin-bottom: 0.38rem;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: stretch;
+  gap: 0.42rem;
+}
+
+.field-row .input-wrapper {
+  width: 100%;
+}
+
+.inline-feedback {
+  min-width: 0;
+  min-height: 0;
+  font-size: 0.82rem;
+}
+
+.badge {
+  padding: 0.3rem 0.55rem;
+  font-size: 0.78rem;
+}
+
+.input-field {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  height: 40px;
+  min-height: 40px;
+  padding: 0 0.82rem;
+  border-color: color-mix(in oklab, var(--text-color) 16%, transparent);
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--background-color) 94%, white 6%);
+  color: var(--text-color);
+  line-height: 40px;
+}
+
+.input-field:focus-visible {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary-color) 14%, transparent);
+}
+
+.nickname-field .input-wrapper .input-field,
+.form-field:not(:has(.password-field)) .input-field {
+  padding-right: 0.82rem;
+}
+
+.password-field {
+  position: relative;
+  display: block;
+  height: 40px;
+  min-height: 40px;
+}
+
+.password-field .input-field {
+  padding-right: 2.75rem;
+}
+
+.toggle-input {
+  appearance: none;
+  -webkit-appearance: none;
+  position: absolute;
+  top: 50%;
+  right: 0.42rem;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 28px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: color-mix(in oklab, var(--text-color) 74%, transparent);
+  line-height: 0;
+  transform: translate3d(0, -50%, 0);
+}
+
+.toggle-input:hover:not(:disabled),
+.toggle-input:focus-visible {
+  border-color: color-mix(in oklab, var(--primary-color) 28%, transparent);
+  background: color-mix(in oklab, var(--primary-color) 10%, transparent);
+  color: var(--primary-color);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary-color) 10%, transparent);
+  outline: none;
+}
+
+.toggle-input[aria-pressed="true"] {
+  background: color-mix(in oklab, var(--primary-color) 12%, transparent);
+  color: var(--primary-color);
+}
+
+.toggle-input svg {
+  flex: 0 0 auto;
+  display: block;
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.field-hint,
+.hint-row {
+  margin-top: 0.3rem;
+}
+
+.form-checkbox {
+  margin: 0.25rem 0 0.15rem;
+  gap: 0.55rem;
+  font-size: 0.88rem;
+}
+
+.form-container button[type="submit"] {
+  min-height: 42px;
+  border-color: var(--primary-color);
+  border-radius: 12px;
+  background: var(--primary-color);
+  color: var(--button-text-color, #fff);
+}
+
+.form-container button[type="submit"]:hover:not(:disabled),
+.form-container button[type="submit"]:focus-visible {
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary-color) 16%, transparent);
+}
+
+.login-redirect {
+  margin-top: 0.35rem;
+}
+
+.login-redirect a {
+  color: var(--primary-color);
+}
+
+@media (max-width: 1000px) {
+  .form-container {
+    max-width: none;
+    justify-self: stretch;
+  }
+}
+
+@media (max-width: 420px) {
+  .input-field,
+  .password-field {
+    height: 42px;
+    min-height: 42px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toggle-input {
+    transition: none;
   }
 }

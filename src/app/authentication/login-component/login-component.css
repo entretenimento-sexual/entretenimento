@@ -577,3 +577,129 @@ html.high-contrast .loading-overlay .spinner {
     animation: none !important;
   }
 }
+
+/* -----------------------------------------------------------------------------
+   Auth density canônica — ownership local
+
+   Estes ajustes pertencem ao Login. Não devem voltar para src/styles.css.
+   O componente consome primitives globais, mas mantém aqui sua densidade,
+   composição e detalhes de interação.
+----------------------------------------------------------------------------- */
+.form {
+  gap: 0.62rem;
+}
+
+.field-label {
+  margin-bottom: 0.34rem;
+  font-size: 0.88rem;
+  line-height: 1.2;
+}
+
+.input-field {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  height: 40px;
+  min-height: 40px;
+  padding: 0 0.82rem;
+  border-color: color-mix(in oklab, var(--text-color) 16%, transparent);
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--background-color) 94%, white 6%);
+  color: var(--text-color);
+  line-height: 40px;
+}
+
+.input-field:focus-visible {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary-color) 14%, transparent);
+}
+
+.password-field {
+  position: relative;
+  display: block;
+  height: 40px;
+  min-height: 40px;
+}
+
+.password-field .input-field {
+  padding-right: 2.75rem;
+}
+
+.password-toggle {
+  appearance: none;
+  -webkit-appearance: none;
+  position: absolute;
+  top: 50%;
+  right: 0.42rem;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 28px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: color-mix(in oklab, var(--text-color) 74%, transparent);
+  line-height: 0;
+  transform: translate3d(0, -50%, 0);
+}
+
+.password-toggle:hover:not(:disabled),
+.password-toggle:focus-visible {
+  border-color: color-mix(in oklab, var(--primary-color) 28%, transparent);
+  background: color-mix(in oklab, var(--primary-color) 10%, transparent);
+  color: var(--primary-color);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary-color) 10%, transparent);
+  outline: none;
+}
+
+.password-toggle[aria-pressed="true"] {
+  background: color-mix(in oklab, var(--primary-color) 12%, transparent);
+  color: var(--primary-color);
+}
+
+.password-toggle svg {
+  flex: 0 0 auto;
+  display: block;
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.form-container {
+  width: min(100%, 440px);
+}
+
+.btn-google {
+  min-height: 42px;
+  border-radius: 12px;
+  background: transparent;
+}
+
+.register-link a,
+.forgot-password {
+  color: var(--primary-color);
+}
+
+@media (max-width: 420px) {
+  .input-field,
+  .password-field {
+    height: 42px;
+    min-height: 42px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .password-toggle {
+    transition: none;
+  }
+}
