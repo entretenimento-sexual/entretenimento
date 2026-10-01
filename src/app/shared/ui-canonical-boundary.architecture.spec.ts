@@ -3527,6 +3527,26 @@ describe('Canonical UI boundary', () => {
     expect(service).not.toContain('_photoPath');
   });
 
+  it('mantém orquestração do formulário fora do EditUserProfileComponent', () => {
+    const component = source(
+      'src/app/user-profile/user-profile-edit/edit-user-profile/edit-user-profile.component.ts'
+    );
+    const facade = source(
+      'src/app/user-profile/user-profile-edit/edit-user-profile/application/profile-edit-form.facade.ts'
+    );
+
+    expect(component).toContain('ProfileEditFormFacade');
+    expect(component).not.toContain('FormBuilder');
+    expect(component).not.toContain('Validators');
+    expect(component).not.toContain('valueChanges.pipe');
+    expect(component).not.toContain('isCoupleProfileIdentityCode');
+
+    expect(facade).toContain('FormBuilder');
+    expect(facade).toContain('Validators');
+    expect(facade).toContain('isCoupleProfileIdentityCode');
+    expect(facade).toContain('loadMunicipios$(');
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
