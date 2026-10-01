@@ -3449,6 +3449,28 @@ describe('Canonical UI boundary', () => {
     expect(facade).toContain('interval(UI_REFRESH_MS)');
   });
 
+  it('mantém acesso e onboarding fora do OnlineUsersComponent', () => {
+    const component = source(
+      'src/app/dashboard/online/online-users/online-users.component.ts'
+    );
+    const facade = source(
+      'src/app/dashboard/online/online-users/application/online-users-access.facade.ts'
+    );
+
+    expect(component).toContain('OnlineUsersAccessFacade');
+    expect(component).not.toContain('AccessControlService');
+    expect(component).not.toContain('Store<AppState>');
+    expect(component).not.toContain('selectCurrentUser');
+    expect(component).not.toContain('Router');
+    expect(component).not.toContain('normalizeRedirectTarget(');
+
+    expect(facade).toContain('AccessControlService');
+    expect(facade).toContain('Store<AppState>');
+    expect(facade).toContain('selectCurrentUser');
+    expect(facade).toContain('Router');
+    expect(facade).toContain('normalizeRedirectTarget(');
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
