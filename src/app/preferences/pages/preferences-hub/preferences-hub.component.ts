@@ -33,7 +33,6 @@ export class PreferencesHubComponent {
   private readonly preferencesUi = inject(PreferencesUiService);
   readonly preferencesFacade = inject(PreferencesFacade);
 
-  readonly vm$ = this.preferencesFacade.currentPreferencesVm$;
   readonly uid$ = this.preferencesFacade.currentUid$;
 
 
