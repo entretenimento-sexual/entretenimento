@@ -1502,4 +1502,38 @@ describe('Canonical UI boundary', () => {
     expect(videoModerationStyles).not.toContain('video-moderation__eyebrow');
   });
 
+
+  it('preserva conteúdo legal e operacional sem linhas introdutórias redundantes', () => {
+    const terms = source(
+      'src/app/register-module/terms-acceptance/terms-acceptance-page.component.html'
+    );
+    const termsStyles = source(
+      'src/app/register-module/terms-acceptance/terms-acceptance-page.component.css'
+    );
+    const billing = source(
+      'src/app/payments-core/pages/billing-return/billing-return.component.html'
+    );
+    const billingStyles = source(
+      'src/app/payments-core/pages/billing-return/billing-return.component.css'
+    );
+    const lifecycle = source(
+      'src/app/account/components/account-lifecycle-dialog/account-lifecycle-dialog.component.html'
+    );
+    const lifecycleStyles = source(
+      'src/app/account/components/account-lifecycle-dialog/account-lifecycle-dialog.component.css'
+    );
+
+    expect(terms).not.toContain('terms-acceptance__kicker');
+    expect(terms).toContain('Versão {{ legalManifest.termsAcceptanceVersion }}');
+    expect(termsStyles).not.toContain('terms-acceptance__kicker');
+
+    expect(billing).not.toContain('billing-return-card__eyebrow');
+    expect(billing).toContain('billing-return-card__description');
+    expect(billingStyles).not.toContain('billing-return-card__eyebrow');
+
+    expect(lifecycle).not.toContain('account-lifecycle-dialog__eyebrow');
+    expect(lifecycle).toContain('account-lifecycle-dialog__description');
+    expect(lifecycleStyles).not.toContain('account-lifecycle-dialog__eyebrow');
+  });
+
 });

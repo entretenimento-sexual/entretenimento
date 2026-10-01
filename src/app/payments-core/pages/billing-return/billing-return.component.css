@@ -50,14 +50,6 @@
   gap: 0.55rem;
 }
 
-.billing-return-card__eyebrow {
-  margin: 0;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: color-mix(in oklab, var(--text-color) 68%, transparent);
-}
-
 .billing-return-card h1 {
   margin: 0;
   font-size: clamp(1.45rem, 2vw, 2rem);

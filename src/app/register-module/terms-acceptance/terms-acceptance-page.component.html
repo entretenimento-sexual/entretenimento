@@ -10,14 +10,10 @@
       [attr.aria-busy]="isSaving()"
     >
       @if (isMaterialUpdate$ | async) {
-        <p class="terms-acceptance__kicker">
-          Atualização legal · versão {{ legalManifest.termsAcceptanceVersion }}
-        </p>
-
         <h1 id="terms-acceptance-title">Atualizamos os documentos</h1>
 
         <p class="terms-acceptance__lead">
-          Houve mudanças relevantes com vigência em
+          Versão {{ legalManifest.termsAcceptanceVersion }}. Houve mudanças relevantes com vigência em
           {{ legalManifest.effectiveDateLabel }}. Revise o resumo e confirme o novo aceite uma única vez.
         </p>
 
@@ -30,14 +26,10 @@
           </ul>
         </section>
       } @else {
-        <p class="terms-acceptance__kicker">
-          Cadastro · versão {{ legalManifest.termsAcceptanceVersion }}
-        </p>
-
         <h1 id="terms-acceptance-title">Termos da plataforma</h1>
 
         <p class="terms-acceptance__lead">
-          Antes de continuar, consulte os Termos de Uso e a Política de Privacidade. Esta confirmação será solicitada novamente somente se houver alteração material.
+          Versão {{ legalManifest.termsAcceptanceVersion }}. Antes de continuar, consulte os Termos de Uso e a Política de Privacidade. Esta confirmação será solicitada novamente somente se houver alteração material.
         </p>
       }
 
