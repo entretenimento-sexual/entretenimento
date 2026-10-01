@@ -27,15 +27,6 @@
   margin-bottom: 1rem;
 }
 
-.legal-document__eyebrow {
-  margin: 0 0 0.4rem;
-  color: color-mix(in oklab, var(--text-color) 68%, transparent);
-  font-size: 0.76rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
 .legal-document h1,
 .legal-document h2 {
   color: var(--text-color);

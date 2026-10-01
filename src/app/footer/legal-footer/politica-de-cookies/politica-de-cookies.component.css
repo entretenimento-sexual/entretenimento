@@ -27,15 +27,6 @@
   margin-bottom: var(--space-3, 16px);
 }
 
-.cookie-document__eyebrow {
-  margin: 0 0 0.4rem;
-  color: color-mix(in oklab, var(--text-color) 68%, transparent);
-  font-size: 0.76rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
 .cookie-document h1,
 .cookie-document h2 {
   color: var(--text-color);

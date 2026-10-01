@@ -1665,4 +1665,33 @@ describe('Canonical UI boundary', () => {
     expect(recoveryStyles).not.toMatch(/(^|\n)\.eyebrow\b/u);
   });
 
+
+  it('mantém documentos legais sem overlines classificatórios redundantes', () => {
+    const cookies = source(
+      'src/app/footer/legal-footer/politica-de-cookies/politica-de-cookies.component.html'
+    );
+    const cookiesStyles = source(
+      'src/app/footer/legal-footer/politica-de-cookies/politica-de-cookies.component.css'
+    );
+    const privacy = source(
+      'src/app/footer/legal-footer/politica-de-privacidade/politica-de-privacidade.component.html'
+    );
+    const privacyStyles = source(
+      'src/app/footer/legal-footer/politica-de-privacidade/politica-de-privacidade.component.css'
+    );
+    const terms = source(
+      'src/app/footer/legal-footer/termos-e-condicoes/termos-e-condicoes.component.html'
+    );
+    const termsStyles = source(
+      'src/app/footer/legal-footer/termos-e-condicoes/termos-e-condicoes.component.css'
+    );
+
+    expect(cookies).not.toContain('cookie-document__eyebrow');
+    expect(cookiesStyles).not.toContain('cookie-document__eyebrow');
+    expect(privacy).not.toContain('privacy-document__eyebrow');
+    expect(privacyStyles).not.toContain('privacy-document__eyebrow');
+    expect(terms).not.toContain('legal-document__eyebrow');
+    expect(termsStyles).not.toContain('legal-document__eyebrow');
+  });
+
 });

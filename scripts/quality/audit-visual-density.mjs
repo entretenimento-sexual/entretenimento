@@ -127,6 +127,21 @@ const reviewedSemanticContent = new Map([
   ['src/app/compliance/age-verification-page/age-verification-page.component.html', new Set([
     'app-page-header[subtitle]',
   ])],
+  ['src/app/layout/friend-management/friend-blocked/friend-blocked.component.html', new Set([
+    'app-page-header[subtitle]',
+  ])],
+  ['src/app/layout/friend-management/friend-list-page/friend-list-page.component.html', new Set([
+    'app-page-header[subtitle]',
+  ])],
+  ['src/app/layout/friend-management/friend-requests/friend-requests.component.html', new Set([
+    'app-page-header[subtitle]',
+  ])],
+  ['src/app/layout/friend-management/friend-search/friend-search.component.html', new Set([
+    'app-page-header[subtitle]',
+  ])],
+  ['src/app/layout/friend-management/friend-settings/friend-settings.component.html', new Set([
+    'app-page-header[subtitle]',
+  ])],
 ]);
 
 const isReviewedSemanticContent = (relativePath, token) =>
