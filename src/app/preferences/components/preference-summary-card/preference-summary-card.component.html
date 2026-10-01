@@ -1,33 +1,30 @@
 <!-- src\app\preferences\components\preference-summary-card\preference-summary-card.component.html -->
 <section class="preferences-summary-card app-card app-card--flat" aria-label="Resumo das preferências">
   @if (vm()) {
-    <div class="summary-badges" aria-label="Indicadores do perfil">
-      <span class="summary-badge app-chip app-chip--muted">{{ discoveryModeLabel() }}</span>
-      <span class="summary-badge app-chip app-chip--muted">{{ currentModeLabel() }}</span>
+    <div class="summary-context" aria-label="Estado atual das preferências">
+      <span>{{ discoveryModeLabel() }}</span>
+      <span aria-hidden="true">·</span>
+      <span>{{ currentModeLabel() }}</span>
+      <span aria-hidden="true">·</span>
+      <strong>{{ availableNowLabel() }}</strong>
     </div>
 
-    <div class="summary-grid app-responsive-grid" role="list">
-      <article class="summary-item" role="listitem" aria-label="Interesses relacionais">
-        <span class="summary-label">Intenções relacionais</span>
-        <strong class="summary-value">{{ relationshipIntentSummary() }}</strong>
-      </article>
+    <dl class="summary-list">
+      <div>
+        <dt>Intenções</dt>
+        <dd>{{ relationshipIntentSummary() }}</dd>
+      </div>
 
-      <article class="summary-item" role="listitem" aria-label="Interesses de gênero">
-        <span class="summary-label">Interesses de gênero</span>
-        <strong class="summary-value">{{ acceptedGendersSummary() }}</strong>
-      </article>
+      <div>
+        <dt>Interesses de gênero</dt>
+        <dd>{{ acceptedGendersSummary() }}</dd>
+      </div>
 
-      <article class="summary-item" role="listitem" aria-label="Práticas desejadas">
-        <span class="summary-label">Práticas desejadas</span>
-        <strong class="summary-value">{{ practicesSummary() }}</strong>
-      </article>
-
-      <article class="summary-item" role="listitem" aria-label="Disponibilidade atual">
-        <span class="summary-label">Disponibilidade</span>
-        <strong class="summary-value">{{ availableNowLabel() }}</strong>
-      </article>
-    </div>
-
+      <div>
+        <dt>Práticas</dt>
+        <dd>{{ practicesSummary() }}</dd>
+      </div>
+    </dl>
   } @else {
     <div class="summary-empty" role="status" aria-live="polite">
       Carregando resumo das preferências...

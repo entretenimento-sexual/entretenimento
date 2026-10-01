@@ -5,42 +5,65 @@
 
 .preferences-summary-card {
   min-width: 0;
+  padding: var(--space-3, 16px);
 }
 
-.summary-badges {
+.summary-context {
   display: flex;
+  gap: var(--space-1, 8px);
+  align-items: center;
   flex-wrap: wrap;
-  gap: var(--space-1, 8px);
-  padding: var(--space-2, 12px) var(--space-3, 16px) 0;
-}
-
-.summary-grid {
-  --app-responsive-grid-min: 12rem;
-  --app-responsive-grid-gap: var(--space-2, 12px);
-  padding: 0 var(--space-3, 16px) var(--space-3, 16px);
-}
-
-.summary-item {
-  display: grid;
-  gap: var(--space-1, 8px);
-  padding: var(--space-2, 12px);
-  border-radius: var(--surface-radius-sm, 12px);
-  background: color-mix(in oklab, var(--surface-color) 94%, var(--text-color) 4%);
-}
-
-.summary-label {
   color: color-mix(in oklab, var(--text-color) 68%, transparent);
+  font-size: var(--font-size-label, 0.875rem);
+  line-height: 1.4;
+}
+
+.summary-context strong {
+  color: var(--text-color);
+  font-weight: 750;
+}
+
+.summary-list {
+  display: grid;
+  gap: var(--space-2, 12px);
+  margin: var(--space-3, 16px) 0 0;
+}
+
+.summary-list > div {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, 0.34fr) minmax(0, 1fr);
+  gap: var(--space-2, 12px);
+  align-items: baseline;
+  padding-top: var(--space-2, 12px);
+  border-top: 1px solid var(--surface-border);
+}
+
+.summary-list dt,
+.summary-list dd {
+  margin: 0;
+}
+
+.summary-list dt {
+  color: color-mix(in oklab, var(--text-color) 66%, transparent);
   font-size: var(--font-size-label, 0.875rem);
 }
 
-.summary-value {
+.summary-list dd {
   min-width: 0;
+  color: var(--text-color);
+  font-size: 0.94rem;
+  font-weight: 700;
+  line-height: 1.4;
   overflow-wrap: anywhere;
-  font-size: 0.92rem;
-  line-height: 1.35;
 }
 
 .summary-empty {
-  padding: var(--space-3, 16px);
   color: color-mix(in oklab, var(--text-color) 68%, transparent);
+}
+
+@media (max-width: 560px) {
+  .summary-list > div {
+    grid-template-columns: 1fr;
+    gap: var(--space-1, 8px);
+  }
 }

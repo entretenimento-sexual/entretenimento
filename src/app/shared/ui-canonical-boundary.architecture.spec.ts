@@ -1388,6 +1388,10 @@ describe('Canonical UI boundary', () => {
     expect(hub).toContain('id="hub-main-title"');
     expect(hub).toContain('id="hub-compatibility-title"');
     expect(summary).not.toContain('summary-subtitle');
+    expect(summary).not.toContain('summary-grid');
+    expect(summary).not.toContain('summary-item');
+    expect(summary).not.toContain('summary-badges');
+    expect(summary).toContain('<dl class="summary-list">');
   });
 
 
