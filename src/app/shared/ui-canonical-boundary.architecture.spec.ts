@@ -924,11 +924,11 @@ describe('Canonical UI boundary', () => {
       'src/app/user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component.ts'
     );
     const catalog = source(
-      'src/app/core/catalogs/social-link-platforms.catalog.ts'
+      'src/app/core/catalogs/profile-social-links.catalog.ts'
     );
 
     expect(accordion).toContain('UserSocialLinksService');
-    expect(catalog).toContain('SOCIAL_LINK_PLATFORMS');
+    expect(catalog).toContain('PROFILE_SOCIAL_LINK_FIELDS');
   });
 
   it('mantém navegação gestual compartilhada entre viewers públicos', () => {
