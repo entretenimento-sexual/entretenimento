@@ -485,13 +485,6 @@
     flex-basis: 44px;
   }
 
-  .s {
-    justify-content: stretch;
-  }
-
-  . {
-    flex: 1 1 calc(50% - 8px);
-  }
 }
 
 @media (max-width: 480px) {
