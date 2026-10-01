@@ -568,14 +568,14 @@ export class ProfilePhotosComponent {
           return;
         }
 
-        if (!item.id?.trim() || !item.path?.trim()) {
+        if (!item.id?.trim()) {
           this.errorNotifier.showWarning('Metadados insuficientes para excluir esta foto.');
           return;
         }
 
         this.deletingPhotoIdSubject.next(item.id);
 
-        from(this.photoFirestoreService.deletePhoto(ownerUid, item.id, item.path))
+        from(this.photoFirestoreService.deletePhoto(ownerUid, item.id))
           .pipe(
             finalize(() => {
               this.deletingPhotoIdSubject.next(null);
@@ -589,7 +589,6 @@ export class ProfilePhotosComponent {
                   op: 'confirmDelete',
                   ownerUid,
                   photoId: item.id,
-                  photoPath: item.path,
                 }
               );
               return EMPTY;
