@@ -117,14 +117,21 @@
           }
         </div>
       } @else {
-        <p class="empty-state app-empty-card">
-          Nenhuma foto publicada ainda. Adicione fotos para deixar seu perfil mais confiável e atrativo.
-        </p>
+        <app-content-state
+          state="empty"
+          title="Nenhuma foto publicada"
+          message="Adicione fotos para deixar seu perfil mais completo."
+          [compact]="true"
+        />
       }
     }
   } @else {
-    <p class="empty-state app-empty-card">
-      Carregando fotos do perfil...
-    </p>
+    <app-content-state
+      state="loading"
+      message="Carregando fotos do perfil..."
+      [compact]="true"
+      [skeletonRows]="3"
+      skeletonVariant="media-grid"
+    />
   }
 </section>
