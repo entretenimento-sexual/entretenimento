@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { selectGlobalOnlineUsers } from 'src/app/store/selectors/selectors.user/online.selectors';
 import { selectCurrentUser } from 'src/app/store/selectors/selectors.user/user.selectors';
-import { DiscoveryCardEnrichmentService } from '../../discovery/application/discovery-card-enrichment.service';
+import { DiscoveryCardEnrichmentService } from '../../../discovery/application/discovery-card-enrichment.service';
 import { OnlineUsersLocationFacade } from './online-users-location.facade';
 import { OnlineUsersFeedFacade } from './online-users-feed.facade';
 
