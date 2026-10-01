@@ -37,17 +37,12 @@ import {
   combineLatest,
   firstValueFrom,
   from,
-  of,
 } from 'rxjs';
 
 import {
   distinctUntilChanged,
-  filter,
-  map,
   shareReplay,
-  startWith,
   switchMap,
-  take,
   tap,
 } from 'rxjs/operators';
 
