@@ -3277,8 +3277,10 @@ describe('Canonical UI boundary', () => {
     expect(component).toContain('ProfileEditLocationService');
     expect(component).not.toContain('servicodados.ibge.gov.br');
     expect(component).not.toContain('fetch(');
-    expect(component).not.toContain('loadEstados$(');
-    expect(component).not.toContain('loadMunicipios$(');
+    expect(component).not.toContain('private loadEstados$(');
+    expect(component).not.toContain('private loadMunicipios$(');
+    expect(component).toContain('this.locationService.loadEstados$(');
+    expect(component).toContain('this.locationService.loadMunicipios$(');
 
     expect(service).toContain('servicodados.ibge.gov.br');
     expect(service).toContain('loadEstados$(');
