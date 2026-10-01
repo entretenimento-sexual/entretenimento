@@ -1390,4 +1390,32 @@ describe('Canonical UI boundary', () => {
     expect(styles).not.toContain('.badge');
   });
 
+
+  it('mantém resumos frequentes sem títulos e CTAs redundantes', () => {
+    const preferenceSummary = source(
+      'src/app/preferences/components/preference-summary-card/preference-summary-card.component.html'
+    );
+    const preferenceSummaryStyles = source(
+      'src/app/preferences/components/preference-summary-card/preference-summary-card.component.css'
+    );
+    const accountHome = source(
+      'src/app/account/pages/account-home/account-home.component.html'
+    );
+    const accountStyles = source(
+      'src/app/account/pages/account-section.css'
+    );
+
+    expect(preferenceSummary).not.toContain('Resumo das preferências</h2>');
+    expect(preferenceSummary).not.toContain('Atualizado em:');
+    expect(preferenceSummary).not.toContain('summary-footer');
+    expect(preferenceSummaryStyles).not.toContain('.summary-footer');
+    expect(preferenceSummaryStyles).not.toContain('.summary-footnote');
+
+    expect(accountHome).not.toContain('account-overview-card__action');
+    expect(accountHome).not.toContain('>Ver perfil<');
+    expect(accountHome).not.toContain('>Gerenciar assinatura<');
+    expect(accountHome).not.toContain('>Revisar segurança<');
+    expect(accountStyles).not.toContain('.account-overview-card__action');
+  });
+
 });

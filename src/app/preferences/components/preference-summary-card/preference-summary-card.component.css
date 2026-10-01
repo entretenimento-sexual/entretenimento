@@ -7,14 +7,11 @@
   min-width: 0;
 }
 
-.summary-header {
-  flex-wrap: wrap;
-}
-
 .summary-badges {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1, 8px);
+  padding: var(--space-2, 12px) var(--space-3, 16px) 0;
 }
 
 .summary-grid {
@@ -41,16 +38,6 @@
   overflow-wrap: anywhere;
   font-size: 0.92rem;
   line-height: 1.35;
-}
-
-.summary-footer {
-  justify-content: flex-end;
-}
-
-.summary-footnote {
-  margin: 0;
-  color: color-mix(in oklab, var(--text-color) 68%, transparent);
-  font-size: var(--font-size-help, 0.82rem);
 }
 
 .summary-empty {

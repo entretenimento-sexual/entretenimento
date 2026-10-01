@@ -74,7 +74,7 @@
   flex-direction: column;
   gap: 0.45rem;
   min-width: 0;
-  min-height: 150px;
+  min-height: 118px;
   padding: 1rem;
   border: 1px solid var(--surface-border);
   border-radius: 18px;
@@ -135,14 +135,6 @@
   line-height: 1.45;
   color: color-mix(in oklab, var(--text-color) 66%, transparent);
   overflow-wrap: anywhere;
-}
-
-.account-overview-card__action {
-  margin-top: auto;
-  padding-top: 0.45rem;
-  font-size: 0.86rem;
-  font-weight: 700;
-  color: color-mix(in oklab, var(--primary-color) 72%, var(--text-color));
 }
 
 .account-surface {
@@ -313,7 +305,7 @@
 
 @media (max-width: 520px) {
   .account-overview-card {
-    min-height: 138px;
+    min-height: 112px;
   }
 
   .account-surface__head,

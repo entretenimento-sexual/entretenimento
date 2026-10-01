@@ -1,16 +1,10 @@
 <!-- src\app\preferences\components\preference-summary-card\preference-summary-card.component.html -->
 <section class="preferences-summary-card app-card app-card--flat" aria-label="Resumo das preferências">
-  @if (vm(); as data) {
-    <header class="summary-header app-card__header">
-      <div>
-        <h2 class="summary-title app-card__title">Resumo das preferências</h2>
-      </div>
-
-      <div class="summary-badges" aria-label="Indicadores do perfil">
-        <span class="summary-badge app-chip app-chip--muted">{{ discoveryModeLabel() }}</span>
-        <span class="summary-badge app-chip app-chip--muted">{{ currentModeLabel() }}</span>
-      </div>
-    </header>
+  @if (vm()) {
+    <div class="summary-badges" aria-label="Indicadores do perfil">
+      <span class="summary-badge app-chip app-chip--muted">{{ discoveryModeLabel() }}</span>
+      <span class="summary-badge app-chip app-chip--muted">{{ currentModeLabel() }}</span>
+    </div>
 
     <div class="summary-grid app-responsive-grid" role="list">
       <article class="summary-item" role="listitem" aria-label="Interesses relacionais">
@@ -34,12 +28,6 @@
       </article>
     </div>
 
-    <footer class="summary-footer app-card__footer">
-      <p class="summary-footnote">
-        Atualizado em:
-        <span>{{ data.profile.updatedAt | date: 'short' }}</span>
-      </p>
-    </footer>
   } @else {
     <div class="summary-empty" role="status" aria-live="polite">
       Carregando resumo das preferências...
