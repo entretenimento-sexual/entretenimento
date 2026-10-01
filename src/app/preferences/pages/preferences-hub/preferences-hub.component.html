@@ -1,15 +1,7 @@
 <!-- src\app\preferences\pages\preferences-hub\preferences-hub.component.html -->
 <main class="preferences-hub-page app-page" aria-label="Preferências da conta">
   <section class="preferences-hub-shell stack container-wide">
-    <app-page-header title="Preferências">
-      <a
-        page-actions
-        class="app-action app-action--ghost"
-        routerLink="/perfil"
-      >
-        Voltar ao perfil
-      </a>
-    </app-page-header>
+    <app-page-header title="Preferências"></app-page-header>
 
     @if (uid$ | async; as uid) {
       @if (uid) {
