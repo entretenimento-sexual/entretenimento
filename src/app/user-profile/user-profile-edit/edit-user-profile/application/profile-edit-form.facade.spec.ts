@@ -72,10 +72,8 @@ describe('ProfileEditFormFacade', () => {
     const { facade } = setup();
     facade.bind();
 
-    facade.form.patchValue({
-      gender: 'casal-ele-ela',
-      orientation: 'heterossexual',
-    });
+    facade.form.patchValue({ orientation: 'heterossexual' });
+    facade.form.patchValue({ gender: 'casal-ele-ela' });
 
     expect(facade.isCouple()).toBe(true);
     expect(facade.form.get('orientation')?.disabled).toBe(true);
@@ -107,7 +105,8 @@ describe('ProfileEditFormFacade', () => {
     const { facade, loadMunicipios$ } = setup();
     facade.bind();
 
-    facade.form.patchValue({ estado: 'RJ', municipio: 'Cidade antiga' });
+    facade.form.patchValue({ municipio: 'Cidade antiga' });
+    facade.form.patchValue({ estado: 'RJ' });
 
     expect(loadMunicipios$).toHaveBeenCalledWith('RJ');
     expect(facade.municipios()).toEqual([
