@@ -27,15 +27,6 @@
   padding: 18px;
 }
 
-.moderation-reports__eyebrow {
-  margin: 0;
-  color: var(--primary-color, #d64d4d);
-  font-size: 0.74rem;
-  font-weight: 900;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-}
-
 .moderation-reports__hero h2 {
   margin: 4px 0;
   font-size: clamp(1.35rem, 2.6vw, 2rem);

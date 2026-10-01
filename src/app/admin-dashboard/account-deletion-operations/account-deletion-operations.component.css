@@ -27,15 +27,6 @@
   border-radius: 18px;
 }
 
-.deletion-operations__eyebrow {
-  margin: 0 0 5px;
-  color: var(--primary-color, #d64d4d);
-  font-size: 0.72rem;
-  font-weight: 900;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-}
-
 .deletion-operations h2,
 .deletion-operations h3,
 .deletion-operations p,

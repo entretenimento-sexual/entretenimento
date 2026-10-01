@@ -23,16 +23,7 @@
   min-width: 0;
 }
 
-.user-review-header__eyebrow {
-  margin: 0;
-  color: var(--primary-color, #d64d4d);
-  font-size: 0.72rem;
-  font-weight: 900;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-}
-
-.user-review-header p:not(.user-review-header__eyebrow) {
+.user-review-header p {
   margin: 0;
   color: var(--muted-text-color, #6b7280);
   font-size: 0.92rem;

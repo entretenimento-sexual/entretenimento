@@ -1571,4 +1571,41 @@ describe('Canonical UI boundary', () => {
     expect(upgradeHints).toContain('upgrade-hint-description');
   });
 
+
+  it('mantém painéis administrativos sem overlines redundantes', () => {
+    const moderation = source(
+      'src/app/admin-dashboard/moderation-reports/moderation-reports.component.html'
+    );
+    const moderationStyles = source(
+      'src/app/admin-dashboard/moderation-reports/moderation-reports.component.css'
+    );
+    const deletion = source(
+      'src/app/admin-dashboard/account-deletion-operations/account-deletion-operations.component.html'
+    );
+    const deletionStyles = source(
+      'src/app/admin-dashboard/account-deletion-operations/account-deletion-operations.component.css'
+    );
+    const claims = source(
+      'src/app/admin-dashboard/community-official-claims/community-official-claims.component.html'
+    );
+    const claimsStyles = source(
+      'src/app/admin-dashboard/community-official-claims/community-official-claims.component.css'
+    );
+    const users = source(
+      'src/app/admin-dashboard/user-list/user-list.component.html'
+    );
+    const userStyles = source(
+      'src/app/admin-dashboard/user-list/user-list.component.css'
+    );
+
+    expect(moderation).not.toContain('moderation-reports__eyebrow');
+    expect(moderationStyles).not.toContain('moderation-reports__eyebrow');
+    expect(deletion).not.toContain('deletion-operations__eyebrow');
+    expect(deletionStyles).not.toContain('deletion-operations__eyebrow');
+    expect(claims).not.toContain('official-claims__kicker');
+    expect(claimsStyles).not.toContain('official-claims__kicker');
+    expect(users).not.toContain('user-review-header__eyebrow');
+    expect(userStyles).not.toContain('user-review-header__eyebrow');
+  });
+
 });
