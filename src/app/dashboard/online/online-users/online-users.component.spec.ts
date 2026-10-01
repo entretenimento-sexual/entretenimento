@@ -124,9 +124,12 @@ describe('OnlineUsersComponent', () => {
   it('mantém o estado de sessão compacto sem empilhar títulos', () => {
     const element = fixture.nativeElement as HTMLElement;
 
-    expect(element.querySelector('.online-users__state')).toBeTruthy();
+    expect(
+      element.querySelector('app-content-state.online-users__content-state')
+    ).toBeTruthy();
     expect(element.textContent).toContain('Entre na sua conta');
-    expect(element.querySelectorAll('h1, h2, h3, h4').length).toBe(0);
+    expect(element.querySelectorAll('h1, h2').length).toBe(0);
+    expect(element.querySelectorAll('h3').length).toBe(1);
   });
 
   it('mantém os ajustes de proximidade compactos e acessíveis', () => {
