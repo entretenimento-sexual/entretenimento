@@ -32,8 +32,6 @@ const INFRASTRUCTURE_EXCEPTIONS = new Set<string>([
  */
 const LEGACY_MANUAL_COMPOSITION_BASELINE = new Set<string>([
   'chat-module/chat-message/chat-message.component.ts',
-  'chat-module/chat-messages-list/chat-messages-list.component.ts',
-  'chat-module/chat-module-layout/chat-module-layout.component.ts',
   'chat-module/chat-rooms/chat-rooms.component.ts',
   'chat-module/directives/delete-direct-message.directive.ts',
   'core/services/batepapo/room-services/room-management.service.ts',
@@ -41,9 +39,6 @@ const LEGACY_MANUAL_COMPOSITION_BASELINE = new Set<string>([
   'core/services/filtering/filters/region-filter.service.ts',
   'core/services/user-profile/user-profile.service.ts',
   'core/services/user-profile/user-social-links.service.ts',
-  'dashboard/online/online-users/online-users.component.ts',
-  'layout/friend-management/friend-search/friend-search.component.ts',
-  'layout/friend-management/friend-settings/friend-settings.component.ts',
   'layout/perfis-proximos/perfis-proximos.component.ts',
   'preferences/application/compatibility-preview.facade.ts',
   'preferences/application/discovery-settings.facade.ts',
@@ -143,6 +138,6 @@ describe('Application error ownership boundary', () => {
   });
 
   it('mantém explícito o tamanho atual da dívida legada', () => {
-    expect(LEGACY_MANUAL_COMPOSITION_BASELINE.size).toBe(24);
+    expect(LEGACY_MANUAL_COMPOSITION_BASELINE.size).toBe(19);
   });
 });
