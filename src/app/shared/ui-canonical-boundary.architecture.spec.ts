@@ -1152,4 +1152,15 @@ describe('Canonical UI boundary', () => {
     );
   });
 
+
+  it('mantém CommunityPreview fora dos botões globais legados', () => {
+    const template = source(
+      'src/app/community/preview/community-preview-page.component.html'
+    );
+
+    expect(template).not.toMatch(/class=["'][^"']*\bbtn(?:\s|["'])/u);
+    expect(template).not.toContain('btn-secondary');
+    expect(template).toContain('class="app-action" type="button" (click)="retryPreview()"');
+  });
+
 });
