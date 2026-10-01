@@ -1370,4 +1370,24 @@ describe('Canonical UI boundary', () => {
     expect(template).toContain('<h2 class="block-title">Sobre mim</h2>');
   });
 
+
+  it('mantém Welcome sem duplicar estado de verificação em um segundo cabeçalho', () => {
+    const template = source(
+      'src/app/register-module/welcome/welcome.component.html'
+    );
+    const styles = source(
+      'src/app/register-module/welcome/welcome.component.css'
+    );
+
+    expect(template).toContain(
+      "{{ emailVerified ? 'E-mail confirmado' : 'Confirme seu e-mail' }}"
+    );
+    expect(template).not.toContain('status-card__header');
+    expect(template).not.toContain('status-orb');
+    expect(template).not.toContain('class="badge');
+    expect(styles).not.toContain('.status-card__header');
+    expect(styles).not.toContain('.status-orb');
+    expect(styles).not.toContain('.badge');
+  });
+
 });

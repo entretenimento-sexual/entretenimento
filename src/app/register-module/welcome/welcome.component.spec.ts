@@ -120,6 +120,23 @@ describe('WelcomeComponent', () => {
     expect(copy).not.toContain('Enviamos um link de verificação');
   });
 
+
+  it('não repete instruções de verificação após o e-mail já estar confirmado', () => {
+    component.emailVerified = true;
+    component.profileCompleted = false;
+    fixture.detectChanges();
+
+    const subtitle = fixture.nativeElement.querySelector(
+      '#welcome-subtitle'
+    ) as HTMLElement;
+    const copy = subtitle.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+
+    expect(copy).toContain('Seu e-mail está confirmado');
+    expect(copy).toContain('completar seu perfil');
+    expect(copy).not.toContain('Se o link ainda não chegou');
+    expect(copy).not.toContain('Enviamos um link de verificação');
+  });
+
   it('preserva erro operacional sem convertê-lo em verificação pendente', () => {
     const authSession = TestBed.inject(AuthSessionService) as unknown as {
       refreshCurrentUser$: ReturnType<typeof vi.fn>;
@@ -179,6 +196,12 @@ describe('WelcomeComponent', () => {
     component.profileCompleted = false;
     component.sessionInvalid = false;
     fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('#welcome-title')?.textContent?.trim()
+    ).toBe('E-mail confirmado');
+    expect(fixture.nativeElement.querySelector('.status-card__header')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.status-orb')).toBeNull();
 
     const buttons = Array.from(
       fixture.nativeElement.querySelectorAll(

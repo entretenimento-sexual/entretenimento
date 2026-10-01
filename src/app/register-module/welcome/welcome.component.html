@@ -1,9 +1,11 @@
 <!-- src/app/authentication/register-module/welcome/welcome.component.html -->
 <div class="welcome-container">
   <section class="welcome-hero" aria-labelledby="welcome-title">
-    <h1 id="welcome-title">Confirme seu e-mail</h1>
+    <h1 id="welcome-title">{{ emailVerified ? 'E-mail confirmado' : 'Confirme seu e-mail' }}</h1>
     <p class="subtitle" id="welcome-subtitle">
-      @if (verificationEmailDelivery === 'sent') {
+      @if (emailVerified) {
+        Seu e-mail está confirmado. Continue para {{ profileCompleted ? 'ajustar suas preferências.' : 'completar seu perfil.' }}
+      } @else if (verificationEmailDelivery === 'sent') {
         Enviamos um link de verificação para <strong>{{ email || 'seu e-mail' }}</strong>.
       } @else if (verificationEmailDelivery === 'failed') {
         Sua conta foi criada, mas o primeiro envio do link para
@@ -51,19 +53,6 @@
 
   <main class="welcome-content" [attr.aria-describedby]="'welcome-subtitle'">
     <section *ngIf="!sessionInvalid" class="welcome-card status-card">
-      <div class="status-card__header">
-        <div>          <h2 class="card-title">
-            E-mail
-            <span *ngIf="emailVerified; else notVerified" class="badge ok">verificado</span>
-            <ng-template #notVerified><span class="badge warn">pendente</span></ng-template>
-          </h2>
-        </div>
-
-        <div class="status-orb" [class.status-orb--ok]="emailVerified" aria-hidden="true">
-          {{ emailVerified ? '✓' : '!' }}
-        </div>
-      </div>
-
       @if (!emailVerified) {
         <ol class="steps">
           @if (verificationEmailDelivery === 'failed') {
@@ -122,11 +111,6 @@
           <button class="app-action app-action--ghost" (click)="copyEmail()" [disabled]="!email">Copiar e-mail</button>
         </div>
       } @else {
-        <p class="status-card__message">
-          Seu e-mail está confirmado. Continue para
-          {{ profileCompleted ? 'ajustar suas preferências.' : 'completar seu perfil.' }}
-        </p>
-
         <div class="actions primary-actions">
           <button
             class="app-action app-action--primary"

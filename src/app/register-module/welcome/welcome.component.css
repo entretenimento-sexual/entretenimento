@@ -44,21 +44,6 @@
   transition: background-color .3s ease, color .3s ease, box-shadow .3s ease, border-color .3s ease;
 }
 
-.status-card__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.9rem;
-  margin-bottom: 0.9rem;
-}
-
-.status-card__message {
-  max-width: 58ch;
-  margin: 0;
-  color: color-mix(in oklab, var(--text-color) 78%, transparent);
-  line-height: 1.55;
-}
-
 .card-title {
   display: flex;
   align-items: center;
@@ -71,56 +56,12 @@
   letter-spacing: -0.035em;
 }
 
-.status-orb {
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  width: 48px;
-  height: 48px;
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--snackbar-warning) 14%, transparent);
-  border: 1px solid color-mix(in oklab, var(--snackbar-warning) 36%, transparent);
-  color: var(--text-color);
-  font-size: 1.25rem;
-  font-weight: 900;
-}
-
-.status-orb--ok {
-  background: color-mix(in oklab, var(--success-color) 14%, transparent);
-  border-color: color-mix(in oklab, var(--success-color) 36%, transparent);
-}
-
 .welcome-container .app-action {
   min-height: 44px;
   padding: 10px 14px;
   border-radius: 12px;
   font-weight: 800;
   touch-action: manipulation;
-}
-
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: .4rem;
-  padding: .28rem .7rem;
-  border-radius: 9999px;
-  border: 1px solid transparent;
-  line-height: 1;
-  font-size: .8rem;
-  white-space: nowrap;
-  letter-spacing: 0;
-}
-
-.badge.ok {
-  background: color-mix(in oklab, var(--success-color) 14%, transparent);
-  color: color-mix(in oklab, var(--text-color) 92%, transparent);
-  border-color: color-mix(in oklab, var(--success-color) 30%, transparent);
-}
-
-.badge.warn {
-  background: color-mix(in oklab, var(--snackbar-warning) 16%, transparent);
-  color: color-mix(in oklab, var(--text-color) 92%, transparent);
-  border-color: color-mix(in oklab, var(--snackbar-warning) 34%, transparent);
 }
 
 .steps {
@@ -253,8 +194,6 @@ html.high-contrast .welcome-card {
   border: 2px solid currentColor;
 }
 
-html.high-contrast .badge,
-html.high-contrast .status-orb,
 html.high-contrast .steps li::before {
   background: transparent;
   border-color: currentColor;
@@ -280,14 +219,6 @@ html.high-contrast .steps li::before {
     border-radius: 18px;
   }
 
-  .status-card__header {
-    align-items: stretch;
-  }
-
-  .status-orb {
-    width: 42px;
-    height: 42px;
-  }
 
   .actions,
   .alert-actions__main,
