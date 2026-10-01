@@ -3356,6 +3356,26 @@ describe('Canonical UI boundary', () => {
     expect(orchestrator).toContain('normalizeProfileAge(');
   });
 
+  it('mantém bootstrap fora do EditUserProfileComponent', () => {
+    const component = source(
+      'src/app/user-profile/user-profile-edit/edit-user-profile/edit-user-profile.component.ts'
+    );
+    const facade = source(
+      'src/app/user-profile/user-profile-edit/edit-user-profile/application/profile-edit-bootstrap.facade.ts'
+    );
+
+    expect(component).toContain('ProfileEditBootstrapFacade');
+    expect(component).not.toContain('ActivatedRoute');
+    expect(component).not.toContain('FirestoreUserQueryService');
+    expect(component).not.toContain('ApplicationErrorService');
+    expect(component).not.toContain('getUser(');
+
+    expect(facade).toContain('ActivatedRoute');
+    expect(facade).toContain('FirestoreUserQueryService');
+    expect(facade).toContain('ApplicationErrorService');
+    expect(facade).toContain('getUser(');
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
