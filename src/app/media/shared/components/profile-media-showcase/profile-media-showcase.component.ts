@@ -13,7 +13,6 @@ import {
   BehaviorSubject,
   Observable,
   combineLatest,
-  firstValueFrom,
   of,
 } from 'rxjs';
 import {
@@ -31,13 +30,13 @@ import {
   isPublicVideoItem,
 } from 'src/app/core/interfaces/media/i-public-profile-media-item';
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
+import { ContentStateComponent } from 'src/app/shared/content-state/content-state.component';
 import {
   IPublicProfileMediaPreview,
   MediaPublicPreviewQueryService,
 } from 'src/app/core/services/media/media-public-preview-query.service';
-import { PublicMixedMediaViewerLauncherService } from '../../services/public-mixed-media-viewer-launcher.service';
+import { ProfileMediaShowcaseViewerFacade } from './profile-media-showcase-viewer.facade';
 
 type ProfileMediaShowcaseStatus = 'loading' | 'ready' | 'empty' | 'error';
 
@@ -54,23 +53,23 @@ const SHOWCASE_ITEM_LIMIT = 5;
 @Component({
   selector: 'app-profile-media-showcase',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, ContentStateComponent],
   templateUrl: './profile-media-showcase.component.html',
   styleUrls: [
     './profile-media-showcase.component.css',
     './profile-media-showcase-video.component.css',
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  providers: [ProfileMediaShowcaseViewerFacade],
 })
 export class ProfileMediaShowcaseComponent {
   private readonly mediaPublicPreview = inject(MediaPublicPreviewQueryService);
-  private readonly mixedViewerLauncher = inject(PublicMixedMediaViewerLauncherService);
-  private readonly errorNotification = inject(ErrorNotificationService);
   private readonly mediaError = inject(MediaApplicationErrorService);
+  private readonly viewerFacade = inject(ProfileMediaShowcaseViewerFacade);
 
   readonly ownerUid = input.required<string>();
   readonly profileName = input('Perfil');
-  readonly viewerOpening = signal(false);
+  readonly viewerOpening = this.viewerFacade.opening;
 
   private readonly refreshSubject = new BehaviorSubject<number>(0);
   private readonly ownerUid$ = toObservable(this.ownerUid).pipe(
@@ -125,86 +124,17 @@ export class ProfileMediaShowcaseComponent {
     this.refreshSubject.next(this.refreshSubject.value + 1);
   }
 
-  async openMedia(
+  openMedia(
     item: IPublicProfileMediaItem,
     fallbackIndex: number
-  ): Promise<void> {
-    const ownerUid = (this.ownerUid() ?? '').trim();
-    const mediaId = (item.id ?? '').trim();
-
-    if (!ownerUid || !mediaId || this.viewerOpening()) {
-      return;
-    }
-
-    this.viewerOpening.set(true);
-
-    let preview: IPublicProfileMediaPreview;
-
-    try {
-      preview = await firstValueFrom(
-        this.mediaPublicPreview.getProfilePublicMediaPreview$(
-          ownerUid,
-          SHOWCASE_ITEM_LIMIT,
-          { propagateErrors: true }
-        )
-      );
-    } catch (error) {
-      this.mediaError.report(error, {
-        operation: 'refreshProfileMediaPreview',
-        reasonHint: 'media_access_temporarily_unavailable',
-        metadata: {
-          scope: 'ProfileMediaShowcaseComponent',
-          hasOwnerUid: !!ownerUid,
-        },
-      });
-      this.viewerOpening.set(false);
-      return;
-    }
-
-    const items = [...preview.items];
-    const selectedIdentity = this.buildMediaIdentity(item);
-    const refreshedIndex = items.findIndex(
-      (candidate) => this.buildMediaIdentity(candidate) === selectedIdentity
-    );
-    const safeFallbackIndex = Math.max(
-      0,
-      Math.min(fallbackIndex, Math.max(0, items.length - 1))
-    );
-    const fallbackItem = items[safeFallbackIndex] ?? null;
-    const refreshedItem = refreshedIndex >= 0
-      ? items[refreshedIndex]
-      : fallbackItem && this.buildMediaIdentity(fallbackItem) === selectedIdentity
-        ? fallbackItem
-        : null;
-
-    if (!refreshedItem) {
-      this.errorNotification.showWarning(
-        'Esta mídia não está mais disponível para visitantes.'
-      );
-      this.viewerOpening.set(false);
-      return;
-    }
-
-    try {
-      await firstValueFrom(this.mixedViewerLauncher.open$({
-        items,
-        selected: refreshedItem,
-        source: 'profile',
-      }));
-    } catch (error) {
-      this.mediaError.report(error, {
-        operation: 'openMedia.viewer',
-        reasonHint: 'media_navigation_failed',
-        metadata: {
-          scope: 'ProfileMediaShowcaseComponent',
-          mediaType: this.isVideo(refreshedItem) ? 'VIDEO' : 'PHOTO',
-          hasOwnerUid: !!ownerUid,
-          hasMediaId: !!refreshedItem.id,
-        },
-      });
-    } finally {
-      this.viewerOpening.set(false);
-    }
+  ): void {
+    this.viewerFacade
+      .open$(
+        (this.ownerUid() ?? '').trim(),
+        item,
+        fallbackIndex
+      )
+      .subscribe();
   }
 
   visibleItems(
@@ -221,7 +151,7 @@ export class ProfileMediaShowcaseComponent {
     _index: number,
     item: IPublicProfileMediaItem
   ): string {
-    return this.buildMediaIdentity(item);
+    return this.viewerFacade.identity(item);
   }
 
   isVideo(item: IPublicProfileMediaItem): item is IPublicVideoItem {
@@ -278,10 +208,6 @@ export class ProfileMediaShowcaseComponent {
       videosCount: preview?.videosCount ?? 0,
       totalCount: preview?.totalCount ?? 0,
     };
-  }
-
-  private buildMediaIdentity(item: IPublicProfileMediaItem): string {
-    return `${this.isVideo(item) ? 'VIDEO' : 'PHOTO'}:${item.id}`;
   }
 
 
