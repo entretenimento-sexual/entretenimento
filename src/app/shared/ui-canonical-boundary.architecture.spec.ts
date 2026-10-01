@@ -1185,4 +1185,29 @@ describe('Canonical UI boundary', () => {
     }
   });
 
+
+  it('mantém Nearby, BillingReturn e PhotoEditor fora de .btn legado', () => {
+    const templates = [
+      source('src/app/layout/perfis-proximos/perfis-proximos.component.html'),
+      source('src/app/payments-core/pages/billing-return/billing-return.component.html'),
+      source('src/app/photo-editor/photo-editor/photo-editor.component.html'),
+    ];
+    const styles = [
+      source('src/app/payments-core/pages/billing-return/billing-return.component.css'),
+      source('src/app/photo-editor/photo-editor/photo-editor.component.css'),
+    ];
+
+    for (const template of templates) {
+      expect(template).not.toMatch(/class=["'][^"']*\bbtn(?:\s|["'])/u);
+      expect(template).not.toContain('btn-primary');
+      expect(template).not.toContain('btn-secondary');
+      expect(template).not.toContain('btn-danger');
+      expect(template).not.toContain('btn-ghost');
+    }
+
+    for (const stylesheet of styles) {
+      expect(stylesheet).not.toMatch(/\.btn(?:\b|-)/u);
+    }
+  });
+
 });

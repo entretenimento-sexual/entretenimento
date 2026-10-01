@@ -10,7 +10,7 @@
     <button
       #closeButton
       type="button"
-      class="btn btn-ghost close-btn"
+      class="app-action app-action--ghost close-btn"
       (click)="onClose()"
       aria-label="Fechar editor"
     >
@@ -313,23 +313,23 @@
                 <output>{{ (selected.size * 100).toFixed(1) }}%</output>
               </label>
 
-              <button type="button" class="btn btn-ghost" (click)="useCurrentDateTimeForSelected()">
+              <button type="button" class="app-action app-action--ghost" (click)="useCurrentDateTimeForSelected()">
                 Usar agora
               </button>
             </div>
           }
 
           <div class="editor-selection-actions">
-            <button type="button" class="btn btn-ghost" (click)="sendSelectedOverlayBackward()">
+            <button type="button" class="app-action app-action--ghost" (click)="sendSelectedOverlayBackward()">
               Para trás
             </button>
-            <button type="button" class="btn btn-ghost" (click)="bringSelectedOverlayForward()">
+            <button type="button" class="app-action app-action--ghost" (click)="bringSelectedOverlayForward()">
               Para frente
             </button>
-            <button type="button" class="btn btn-ghost" (click)="duplicateSelectedOverlay()">
+            <button type="button" class="app-action app-action--ghost" (click)="duplicateSelectedOverlay()">
               Duplicar
             </button>
-            <button type="button" class="btn btn-danger" (click)="removeSelectedOverlay()">
+            <button type="button" class="app-action app-action--danger" (click)="removeSelectedOverlay()">
               Excluir
             </button>
           </div>
@@ -392,7 +392,7 @@
                 <output>{{ decorationSize.toFixed(1) }}%</output>
               </label>
 
-              <button type="button" class="btn btn-ghost" (click)="addCurrentToolAtCenter()">
+              <button type="button" class="app-action app-action--ghost" (click)="addCurrentToolAtCenter()">
                 Inserir no centro
               </button>
             </div>
@@ -452,7 +452,7 @@
 
             <button
               type="button"
-              class="btn btn-ghost"
+              class="app-action app-action--ghost"
               (click)="addCurrentToolAtCenter()"
               [disabled]="!captionText.trim()"
             >
@@ -539,10 +539,10 @@
               <output>{{ decorationSize.toFixed(1) }}%</output>
             </label>
 
-            <button type="button" class="btn btn-ghost" (click)="resetNewDateTimeToNow()">
+            <button type="button" class="app-action app-action--ghost" (click)="resetNewDateTimeToNow()">
               Agora
             </button>
-            <button type="button" class="btn btn-ghost" (click)="addCurrentToolAtCenter()">
+            <button type="button" class="app-action app-action--ghost" (click)="addCurrentToolAtCenter()">
               Inserir no centro
             </button>
           </div>
@@ -604,11 +604,11 @@
         <legend>Rotação</legend>
 
         <div class="editor-inline-actions">
-          <button type="button" class="btn btn-ghost" (click)="rotateLeft()">
+          <button type="button" class="app-action app-action--ghost" (click)="rotateLeft()">
             <i class="fas fa-rotate-left" aria-hidden="true"></i>
             Esquerda
           </button>
-          <button type="button" class="btn btn-ghost" (click)="rotateRight()">
+          <button type="button" class="app-action app-action--ghost" (click)="rotateRight()">
             <i class="fas fa-rotate-right" aria-hidden="true"></i>
             Direita
           </button>
@@ -639,7 +639,7 @@
     <footer class="editor-footer">
       <button
         type="button"
-        class="btn btn-ghost"
+        class="app-action app-action--ghost"
         (click)="resetEditor()"
         [disabled]="(isLoading$ | async) || (isSaving$ | async)"
       >
@@ -649,7 +649,7 @@
       <div class="editor-footer__actions">
         <button
           type="button"
-          class="btn btn-secondary"
+          class="app-action"
           (click)="onClose()"
           [disabled]="isSaving$ | async"
         >
@@ -657,7 +657,7 @@
         </button>
         <button
           type="button"
-          class="btn btn-primary"
+          class="app-action app-action--primary"
           (click)="save()"
           [disabled]="(isLoading$ | async) || (isSaving$ | async) || !(isEditorReady$ | async)"
         >

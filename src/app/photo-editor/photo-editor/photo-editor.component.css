@@ -298,7 +298,7 @@
   gap: 7px;
 }
 
-.editor-selection-actions .btn {
+.editor-selection-actions .app-action {
   min-height: 34px;
   padding: 5px 9px;
   font-size: 0.76rem;
@@ -413,7 +413,7 @@
   background: color-mix(in oklab, var(--primary-color, #ff7070) 18%, transparent);
 }
 
-.editor-tool-panel .btn {
+.editor-tool-panel .app-action {
   min-height: 36px;
   padding: 6px 10px;
   white-space: nowrap;
@@ -478,7 +478,7 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.editor-inline-actions .btn {
+.editor-inline-actions .app-action {
   min-height: 38px;
   padding-block: 6px;
 }
@@ -526,7 +526,7 @@
   gap: 8px;
 }
 
-.editor-footer .btn,
+.editor-footer .app-action,
 .close-btn {
   min-height: 38px;
   padding-block: 6px;
@@ -652,8 +652,8 @@
     grid-template-columns: 1fr 1fr;
   }
 
-  .editor-footer .btn,
-  .editor-footer__actions .btn {
+  .editor-footer .app-action,
+  .editor-footer__actions .app-action {
     width: 100%;
   }
 }
@@ -729,11 +729,11 @@ html.high-contrast .editor-emoji-palette button {
 
 @media (pointer: coarse) {
   .editor-tool-button,
-  .editor-selection-actions .btn,
-  .editor-tool-panel .btn,
+  .editor-selection-actions .app-action,
+  .editor-tool-panel .app-action,
   .editor-segmented button,
-  .editor-inline-actions .btn,
-  .editor-footer .btn,
+  .editor-inline-actions .app-action,
+  .editor-footer .app-action,
   .close-btn,
   .editor-emoji-palette button,
   .editor-tool-field input[type='text'],
