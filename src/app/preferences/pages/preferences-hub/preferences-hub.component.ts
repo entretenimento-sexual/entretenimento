@@ -9,7 +9,6 @@
 // Visual clean, simplificado, em português, de fácil navegação e sempre visando o mobile
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { RouterModule } from '@angular/router';
 
 import { PreferencesFacade } from '../../application/preferences.facade';
 import { PreferencesHubCardComponent } from '../../components/preferences-hub-card/preferences-hub-card.component';
@@ -21,7 +20,6 @@ import { PreferencesUiService } from '../../state/preferences-ui.service';
   standalone: true,
   imports: [
     CommonModule,
-    RouterModule,
     PreferencesHubCardComponent,
     PageHeaderComponent,
   ],
