@@ -3427,6 +3427,28 @@ describe('Canonical UI boundary', () => {
     expect(facade).toContain('PrivacyDebugLoggerService');
   });
 
+  it('mantém enrichment fora do OnlineUsersComponent', () => {
+    const component = source(
+      'src/app/dashboard/online/online-users/online-users.component.ts'
+    );
+    const facade = source(
+      'src/app/dashboard/online/online-users/application/online-users-feed.facade.ts'
+    );
+
+    expect(component).toContain('OnlineUsersFeedFacade');
+    expect(component).not.toContain('selectGlobalOnlineUsers');
+    expect(component).not.toContain('DiscoveryCardEnrichmentService');
+    expect(component).not.toContain('buildCards(');
+    expect(component).not.toContain('interval(');
+    expect(component).not.toContain('ensureStreamsAfterLocation(');
+    expect(component).not.toContain('applyUserPreferences(');
+
+    expect(facade).toContain('selectGlobalOnlineUsers');
+    expect(facade).toContain('DiscoveryCardEnrichmentService');
+    expect(facade).toContain('buildCards(');
+    expect(facade).toContain('interval(UI_REFRESH_MS)');
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
