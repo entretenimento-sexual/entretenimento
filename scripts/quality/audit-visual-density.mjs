@@ -151,6 +151,54 @@ const reviewedSemanticContent = new Map([
   ['src/app/media/videos/profile-videos/profile-videos.component.html', new Set([
     'profile-videos__description',
   ])],
+  ['src/app/community/community-settings/community-official-claim-panel.component.html', new Set([
+    'official-claim__intro',
+  ])],
+  ['src/app/layout/friend-management/friend-cards/friend-cards.component.html', new Set([
+    'state__subtitle',
+  ])],
+  ['src/app/layout/other-user-profile-view/other-user-profile-view.component.html', new Set([
+    'other-profile-page__description',
+  ])],
+  ['src/app/layout/profile-list/profile-list.component.html', new Set([
+    'profile-card__description',
+  ])],
+  ['src/app/payments-core/pages/billing-return/billing-return.component.html', new Set([
+    'billing-return-card__description',
+  ])],
+  ['src/app/preferences/components/discovery-upgrade-hints/discovery-upgrade-hints.component.html', new Set([
+    'upgrade-hint-description',
+  ])],
+  ['src/app/preferences/pages/compatibility-lab/compatibility-lab.component.html', new Set([
+    'app-page-header[subtitle]',
+  ])],
+  ['src/app/preferences/pages/match-profile-lab/match-profile-lab.component.html', new Set([
+    'app-page-header[subtitle]',
+  ])],
+  ['src/app/preferences/pages/notification-settings/notification-settings.component.html', new Set([
+    'push-device-card__description',
+  ])],
+  ['src/app/register-module/register.component.html', new Set([
+    'auth-intro',
+  ])],
+  ['src/app/safety/safety-center/safety-center.component.html', new Set([
+    'app-page-header[subtitle]',
+  ])],
+  ['src/app/shared/components-globais/confirmation-dialog/confirmation-dialog.component.html', new Set([
+    'confirmation-dialog__eyebrow',
+  ])],
+  ['src/app/shared/page-header/page-header.component.html', new Set([
+    'app-page-lead',
+  ])],
+  ['src/app/shared/user-card/user-card.component.html', new Set([
+    'user-card__description',
+  ])],
+  ['src/app/subscriptions/checkout/checkout.component.html', new Set([
+    'app-page-header[subtitle]',
+  ])],
+  ['src/app/user-profile/user-profile-edit/edit-profile-social-links/edit-profile-social-links.component.html', new Set([
+    'app-page-header[subtitle]',
+  ])],
 ]);
 
 const isReviewedSemanticContent = (relativePath, token) =>
