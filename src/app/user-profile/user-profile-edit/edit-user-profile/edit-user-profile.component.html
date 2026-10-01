@@ -1,6 +1,6 @@
 <!-- src/app/user-profile/user-profile-edit/edit-user-profile/edit-user-profile.component.html -->
 <form
-  class="form-myprofile"
+  class="form-myprofile app-card app-card--flat"
   [formGroup]="editForm"
   (ngSubmit)="onSubmit()"
   aria-label="Formulário de edição do perfil"
@@ -30,12 +30,12 @@
         class="input-file"
       />
 
-      <p id="photo-help" class="help-text">
+      <p id="photo-help" class="help-text app-field-help">
         {{ imageFormatLabel }}, até {{ avatarMaxMegabytes }} MB. A foto será enquadrada em 1:1 e normalizada pelo editor antes do upload.
       </p>
 
       @if (isEditingPhoto) {
-        <p class="help-text" role="status" aria-live="polite">
+        <p class="help-text app-field-help" role="status" aria-live="polite">
           Editor aberto. Confirme ou cancele a nova foto para continuar.
         </p>
       }
@@ -56,15 +56,19 @@
   </header>
 
   <section class="form-section" aria-labelledby="basic-info-title">
-    <h2 class="section-title" id="basic-info-title">Perfil</h2>
+    <header class="app-section-header">
+      <div class="app-section-heading">
+        <h2 class="app-section-title" id="basic-info-title">Perfil</h2>
+      </div>
+    </header>
 
     <div class="form-grid">
-      <div class="form-field">
+      <div class="form-field app-field">
         <label class="form-label" for="nickname">Nickname</label>
         <input
           id="nickname"
           type="text"
-          class="input-field"
+          class="input-field app-control"
           formControlName="nickname"
           name="nickname"
           autocomplete="nickname"
@@ -75,18 +79,18 @@
         />
 
         @if (editForm.get('nickname')?.invalid && editForm.get('nickname')?.touched) {
-          <div id="nickname-error" class="field-error" role="alert">
+          <div id="nickname-error" class="field-error app-field-error" role="alert">
             Informe um nickname válido.
           </div>
         }
       </div>
 
-      <div class="form-field">
+      <div class="form-field app-field">
         <label class="form-label" for="idade">Idade</label>
         <input
           id="idade"
           type="number"
-          class="input-field"
+          class="input-field app-control"
           formControlName="idade"
           name="idade"
           min="18"
@@ -95,21 +99,21 @@
           autocomplete="off"
           aria-describedby="idade-help"
         />
-        <p id="idade-help" class="help-text">
+        <p id="idade-help" class="help-text app-field-help">
           Esta idade aparece no seu perfil para dar contexto a quem interage com você. Ela não substitui a confirmação de maioridade da conta.
         </p>
         @if (editForm.get('idade')?.invalid && editForm.get('idade')?.touched) {
-          <div class="field-error" role="alert">
+          <div class="field-error app-field-error" role="alert">
             Informe uma idade entre 18 e 100 anos.
           </div>
         }
       </div>
 
-      <div class="form-field">
+      <div class="form-field app-field">
         <label class="form-label" for="estado">Estado</label>
         <select
           id="estado"
-          class="input-field"
+          class="input-field app-control"
           formControlName="estado"
           name="estado"
         >
@@ -120,11 +124,11 @@
         </select>
       </div>
 
-      <div class="form-field">
+      <div class="form-field app-field">
         <label class="form-label" for="municipio">Município</label>
         <select
           id="municipio"
-          class="input-field"
+          class="input-field app-control"
           formControlName="municipio"
           name="municipio"
           [attr.aria-disabled]="municipios.length ? null : 'true'"
@@ -136,11 +140,11 @@
         </select>
       </div>
 
-      <div class="form-field">
+      <div class="form-field app-field">
         <label class="form-label" for="gender">Gênero</label>
         <select
           id="gender"
-          class="input-field"
+          class="input-field app-control"
           formControlName="gender"
           name="gender"
         >
@@ -154,11 +158,11 @@
       </div>
 
       @if (!isCouple()) {
-        <div class="form-field">
+        <div class="form-field app-field">
           <label class="form-label" for="orientation">Orientação</label>
           <select
             id="orientation"
-            class="input-field"
+            class="input-field app-control"
             formControlName="orientation"
             name="orientation"
           >
@@ -174,13 +178,13 @@
 
     @if (isCouple()) {
       <div class="form-grid couple-grid" aria-label="Orientações do casal">
-        <div class="form-field">
+        <div class="form-field app-field">
           <label class="form-label" for="partner1Orientation">
             Orientação da pessoa 1
           </label>
           <select
             id="partner1Orientation"
-            class="input-field"
+            class="input-field app-control"
             formControlName="partner1Orientation"
             name="partner1Orientation"
           >
@@ -192,13 +196,13 @@
           </select>
         </div>
 
-        <div class="form-field">
+        <div class="form-field app-field">
           <label class="form-label" for="partner2Orientation">
             Orientação da pessoa 2
           </label>
           <select
             id="partner2Orientation"
-            class="input-field"
+            class="input-field app-control"
             formControlName="partner2Orientation"
             name="partner2Orientation"
           >
@@ -214,13 +218,17 @@
   </section>
 
   <section class="form-section" aria-labelledby="about-title">
-    <h2 class="section-title" id="about-title">Sobre mim</h2>
+    <header class="app-section-header">
+      <div class="app-section-heading">
+        <h2 class="app-section-title" id="about-title">Sobre mim</h2>
+      </div>
+    </header>
 
-    <div class="form-field">
+    <div class="form-field app-field">
       <label class="form-label" for="descricao">Descrição</label>
       <textarea
         id="descricao"
-        class="input-field textarea-field"
+        class="input-field app-control textarea-field"
         formControlName="descricao"
         rows="5"
         placeholder="Conte quem você é e o que procura."
@@ -228,19 +236,19 @@
         [attr.aria-describedby]="editForm.get('descricao')?.invalid && editForm.get('descricao')?.touched ? 'descricao-error' : 'descricao-help'"
       ></textarea>
 
-      <p id="descricao-help" class="help-text">
+      <p id="descricao-help" class="help-text app-field-help">
         Não inclua telefone, endereço ou outros dados sensíveis.
       </p>
 
       @if (editForm.get('descricao')?.invalid && editForm.get('descricao')?.touched) {
-        <div id="descricao-error" class="field-error" role="alert">
+        <div id="descricao-error" class="field-error app-field-error" role="alert">
           A descrição está muito longa.
         </div>
       }
     </div>
   </section>
 
-  <footer class="form-actions" aria-label="Ações do formulário">
+  <footer class="form-actions app-form-actions" aria-label="Ações do formulário">
     <button
       type="submit"
       class="app-action app-action--primary"
