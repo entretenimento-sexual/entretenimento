@@ -208,10 +208,9 @@ private toMillis(value: unknown): number {
   return 0;
 }
 
-  deleteFile(photoId: string, photoPath: string): void {
+  deleteFile(photoId: string): void {
     const uid = (this.userId ?? '').trim();
     const safePhotoId = String(photoId ?? '').trim();
-    const safePhotoPath = String(photoPath ?? '').trim();
 
     if (!uid) {
       this.errorNotifier.showWarning(
@@ -220,7 +219,7 @@ private toMillis(value: unknown): number {
       return;
     }
 
-    if (!safePhotoId || !safePhotoPath) {
+    if (!safePhotoId) {
       this.errorNotifier.showWarning(
         'Dados da foto inválidos para exclusão.'
       );
@@ -250,7 +249,7 @@ private toMillis(value: unknown): number {
         }
 
         this.photoService
-          .deletePhoto(uid, safePhotoId, safePhotoPath)
+          .deletePhoto(uid, safePhotoId)
           .catch((error) => {
             this.reportError(
               'Erro ao excluir foto.',
