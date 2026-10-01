@@ -21,7 +21,7 @@
           <div class="hub-grid app-responsive-grid">
             <app-preferences-hub-card
               title="Editar preferências"
-              description="Atualize intenção, perfil, visibilidade e informações usadas para descoberta."
+              description="Atualize o que você procura, quem gostaria de conhecer e o alcance das combinações."
               route="/preferencias/editar">
             </app-preferences-hub-card>
 
@@ -39,31 +39,6 @@
           </div>
         </section>
 
-        <section class="hub-section" aria-labelledby="hub-compatibility-title">
-          <h2 id="hub-compatibility-title" class="hub-section__title">Compatibilidade</h2>
-
-          <div class="hub-grid app-responsive-grid">
-            <app-preferences-hub-card
-              title="Perfil para combinações"
-              description="Revise os dados usados para compatibilidade e descoberta entre perfis."
-              route="/preferencias/match-profile">
-            </app-preferences-hub-card>
-
-            <app-preferences-hub-card
-              title="Comparar compatibilidade"
-              description="Veja como suas preferências se relacionam com outro perfil."
-              [route]="'/preferencias/compatibility-lab/' + vm.uid">
-            </app-preferences-hub-card>
-
-            @if (lastCompatibilityTargetUid()) {
-              <app-preferences-hub-card
-                title="Retomar última comparação"
-                description="Volte para a comparação de compatibilidade acessada mais recentemente."
-                [route]="'/preferencias/compatibility-lab/' + lastCompatibilityTargetUid()">
-              </app-preferences-hub-card>
-            }
-          </div>
-        </section>
       } @else {
         <section class="hub-empty section app-card app-card--flat" aria-label="Sem sessão ativa">
           <p>Você precisa estar autenticado para acessar suas preferências.</p>
