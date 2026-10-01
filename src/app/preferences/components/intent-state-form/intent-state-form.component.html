@@ -6,7 +6,7 @@
   aria-label="Formulário de disponibilidade atual"
 >
   <div class="intent-basic app-card app-card--flat" role="group" aria-label="Disponibilidade básica">
-    <div class="form-field app-field">
+    <div class="app-field">
       <label for="intentMode">O que você busca agora</label>
       <select class="app-control" id="intentMode" formControlName="mode">
         @for (option of intentOptions; track option.key) {
@@ -46,7 +46,7 @@
     <div class="intent-context__content app-disclosure__content">
       @if (canUseContextualIntent()) {
         <div class="context-grid app-responsive-grid">
-          <div class="form-field app-field">
+          <div class="app-field">
             <label for="cityOverride">Cidade contextual</label>
             <input
               class="app-control"
@@ -58,7 +58,7 @@
             />
           </div>
 
-          <div class="form-field app-field">
+          <div class="app-field">
             <label for="expiresAt">Expira em</label>
             <input
               class="app-control"
@@ -68,7 +68,7 @@
             />
           </div>
 
-          <div class="form-field form-field--wide app-field">
+          <div class="app-field app-field--wide">
             <label for="tagsText">Tags contextuais</label>
             <input
               class="app-control"

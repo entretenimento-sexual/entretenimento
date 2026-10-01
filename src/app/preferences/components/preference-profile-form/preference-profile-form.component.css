@@ -125,7 +125,7 @@
   padding-top: var(--space-3, 16px);
 }
 
-.form-field--wide,
+.app-field--wide,
 .inline-options {
   grid-column: 1 / -1;
 }

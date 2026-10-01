@@ -1163,4 +1163,26 @@ describe('Canonical UI boundary', () => {
     expect(template).toContain('class="app-action" type="button" (click)="retryPreview()"');
   });
 
+
+  it('mantém formulários de Preferences sem form-field legado', () => {
+    const templates = [
+      source('src/app/preferences/components/discovery-visibility-form/discovery-visibility-form.component.html'),
+      source('src/app/preferences/components/intent-state-form/intent-state-form.component.html'),
+      source('src/app/preferences/components/preference-profile-form/preference-profile-form.component.html'),
+    ];
+    const styles = [
+      source('src/app/preferences/components/intent-state-form/intent-state-form.component.css'),
+      source('src/app/preferences/components/preference-profile-form/preference-profile-form.component.css'),
+    ];
+
+    for (const template of templates) {
+      expect(template).not.toMatch(/class=["'][^"']*\bform-field\b/u);
+      expect(template).not.toContain('form-field--wide');
+    }
+
+    for (const stylesheet of styles) {
+      expect(stylesheet).not.toContain('.form-field--wide');
+    }
+  });
+
 });

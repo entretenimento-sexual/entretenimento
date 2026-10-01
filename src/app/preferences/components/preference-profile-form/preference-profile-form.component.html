@@ -112,7 +112,7 @@
       <span class="preference-group__count app-disclosure__state">{{ reachSummary() }}</span>
     </summary>
     <div class="preference-group__content app-disclosure__content form-grid app-responsive-grid">
-      <div class="form-field app-field">
+      <div class="app-field">
         <label for="minAge">Idade mínima</label>
         <input
           class="app-control"
@@ -132,7 +132,7 @@
         }
       </div>
 
-      <div class="form-field app-field">
+      <div class="app-field">
         <label for="maxAge">Idade máxima</label>
         <input
           class="app-control"
@@ -153,12 +153,12 @@
       </div>
 
       @if (ageRangeInvalid()) {
-        <p id="ageRangeError" class="field-error form-field--wide app-field-error" role="alert" aria-live="polite" aria-atomic="true">
+        <p id="ageRangeError" class="field-error app-field--wide app-field-error" role="alert" aria-live="polite" aria-atomic="true">
           A idade mínima não pode ser maior que a idade máxima.
         </p>
       }
 
-      <div class="form-field app-field">
+      <div class="app-field">
         <label for="maxDistanceKm">Distância máxima</label>
         <div class="input-with-suffix">
           <input
@@ -180,7 +180,7 @@
         }
       </div>
 
-      <div class="form-field app-field"><label for="acceptsTransProfiles">Perfis trans</label><select class="app-control" id="acceptsTransProfiles" formControlName="acceptsTransProfiles"><option value="all">Sem restrição</option><option value="yes">Incluir</option><option value="no">Não incluir</option></select></div>
+      <div class="app-field"><label for="acceptsTransProfiles">Perfis trans</label><select class="app-control" id="acceptsTransProfiles" formControlName="acceptsTransProfiles"><option value="all">Sem restrição</option><option value="yes">Incluir</option><option value="no">Não incluir</option></select></div>
       <div class="inline-options app-responsive-grid">
         <label class="checkbox-item app-choice"><input type="checkbox" formControlName="acceptsCouples" /><span>Incluir casais</span></label>
         <label class="checkbox-item app-choice"><input type="checkbox" formControlName="acceptsSingles" /><span>Incluir pessoas individuais</span></label>
@@ -195,7 +195,7 @@
       <span class="preference-group__count app-disclosure__state">{{ visibilitySummary() }}</span>
     </summary>
     <div class="preference-group__content app-disclosure__content form-grid app-responsive-grid">
-      <div class="form-field form-field--wide app-field">
+      <div class="app-field app-field--wide">
         <label for="discoveryMode">Como você quer aparecer</label>
         <select class="app-control" id="discoveryMode" formControlName="discoveryMode">
           @for (option of discoveryModeOptions; track option.key) { <option [value]="option.key" [disabled]="!isModeAvailable(option.key)">{{ option.label }}{{ modeRequirement(option.key) }}</option> }
