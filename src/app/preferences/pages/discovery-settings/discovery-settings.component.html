@@ -15,8 +15,7 @@
     @if (vm$ | async; as vm) {
       @if (vm) {
         <app-discovery-visibility-panel
-          [profile]="vm.profile"
-          [capabilities]="vm.capabilities">
+          [profile]="vm.profile">
         </app-discovery-visibility-panel>
 
         <section class="discovery-settings-section app-card app-card--flat" aria-label="Editar descoberta e privacidade">
@@ -27,10 +26,6 @@
             (saveVisibility)="onSave(vm.uid, $event)">
           </app-discovery-visibility-form>
         </section>
-
-        <app-discovery-upgrade-hints
-          [capabilities]="vm.capabilities">
-        </app-discovery-upgrade-hints>
       } @else {
         <section class="discovery-settings-section app-card app-card--flat" aria-label="Sem sessão ativa">
           <p>Você precisa estar autenticado para acessar esta área.</p>

@@ -5,55 +5,41 @@
 
 .discovery-visibility-panel {
   min-width: 0;
-}
-
-.panel-badges {
-  display: flex;
-  gap: var(--space-1, 8px);
-  flex-wrap: wrap;
-  padding: var(--space-3, 16px) var(--space-3, 16px) 0;
-}
-
-.panel-grid {
-  --app-responsive-grid-min: 18rem;
-  --app-responsive-grid-gap: var(--space-2, 12px);
   padding: var(--space-3, 16px);
 }
 
-.panel-item {
+.discovery-state-list {
   display: grid;
-  gap: var(--space-1, 8px);
-  padding: var(--space-2, 12px);
-  border-radius: var(--surface-radius-sm, 12px);
-  background: color-mix(in oklab, var(--surface-color) 94%, var(--text-color) 4%);
-}
-
-.panel-item-header {
-  display: flex;
-  justify-content: space-between;
   gap: var(--space-2, 12px);
-  align-items: center;
-}
-
-.panel-item-label {
-  font-size: 0.95rem;
-}
-
-.panel-item-status {
-  font-size: 0.9rem;
-}
-
-.panel-item-hint {
   margin: 0;
-  color: color-mix(in oklab, var(--text-color) 68%, transparent);
+}
+
+.discovery-state-list > div {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: var(--space-2, 12px);
+  align-items: baseline;
+  padding-top: var(--space-2, 12px);
+  border-top: 1px solid var(--surface-border);
+}
+
+.discovery-state-list > div:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.discovery-state-list dt,
+.discovery-state-list dd {
+  margin: 0;
+}
+
+.discovery-state-list dt {
+  color: color-mix(in oklab, var(--text-color) 66%, transparent);
   font-size: var(--font-size-label, 0.875rem);
 }
 
-.panel-footer {
-  justify-content: flex-start;
-}
-
-.panel-footnote {
-  margin: 0;
-  color: color-mix(in oklab, var(--text-color) 68%, transparent);
+.discovery-state-list dd {
+  color: var(--text-color);
+  font-weight: 750;
+  overflow-wrap: anywhere;
 }

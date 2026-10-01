@@ -3,32 +3,20 @@
   class="discovery-visibility-panel app-card app-card--flat"
   aria-label="Estado atual da descoberta e privacidade"
 >
-  <div class="panel-badges" aria-label="Estado atual de descoberta">
-      <span class="panel-badge app-chip app-chip--muted">{{ discoveryModeLabel() }}</span>
-      <span class="panel-badge app-chip app-chip--muted">Badges: {{ showBadgesLabel() }}</span>
-      <span class="panel-badge app-chip app-chip--muted">Intenção: {{ showIntentPubliclyLabel() }}</span>
-  </div>
+  <dl class="discovery-state-list">
+    <div>
+      <dt>Como você aparece</dt>
+      <dd>{{ discoveryModeLabel() }}</dd>
+    </div>
 
-  <div class="panel-grid app-responsive-grid" role="list">
-    @for (item of availabilityItems(); track item.label) {
-      <article class="panel-item" role="listitem">
-        <div class="panel-item-header">
-          <span class="panel-item-label">{{ item.label }}</span>
-          <strong class="panel-item-status">
-            {{ item.enabled ? 'Liberado' : 'Bloqueado' }}
-          </strong>
-        </div>
+    <div>
+      <dt>Sinais de preferências</dt>
+      <dd>{{ showBadgesLabel() }}</dd>
+    </div>
 
-        <p class="panel-item-hint">
-          {{ item.hint }}
-        </p>
-      </article>
-    }
-  </div>
-
-  <footer class="panel-footer app-card__footer">
-    <p class="panel-footnote">
-      {{ monetizationHint() }}
-    </p>
-  </footer>
+    <div>
+      <dt>Disponibilidade pública</dt>
+      <dd>{{ showIntentPubliclyLabel() }}</dd>
+    </div>
+  </dl>
 </section>

@@ -1361,6 +1361,25 @@ describe('Canonical UI boundary', () => {
     ).toBe(false);
   });
 
+  it('mantém descoberta com capabilities no ponto de uso, sem painéis duplicados', () => {
+    const page = source(
+      'src/app/preferences/pages/discovery-settings/discovery-settings.component.html'
+    );
+    const panel = source(
+      'src/app/preferences/components/discovery-visibility-panel/discovery-visibility-panel.component.html'
+    );
+    const panelSource = source(
+      'src/app/preferences/components/discovery-visibility-panel/discovery-visibility-panel.component.ts'
+    );
+
+    expect(page).not.toContain('app-discovery-upgrade-hints');
+    expect(panel).not.toContain('Liberado');
+    expect(panel).not.toContain('Bloqueado');
+    expect(panel).not.toContain('panel-grid');
+    expect(panelSource).not.toContain('availabilityItems');
+    expect(panelSource).not.toContain('monetizationHint');
+  });
+
   it('mantém o editor de Preferences sem promoção permanente de plano', () => {
     const editor = source(
       'src/app/preferences/pages/preferences-editor/preferences-editor.component.html'

@@ -16,7 +16,6 @@ import { PreferenceVisibilitySettings } from '../../models/preference-profile.mo
 import { DiscoverySettingsFacade } from '../../application/discovery-settings.facade';
 import { DiscoveryVisibilityPanelComponent } from '../../components/discovery-visibility-panel/discovery-visibility-panel.component';
 import { DiscoveryVisibilityFormComponent } from '../../components/discovery-visibility-form/discovery-visibility-form.component';
-import { DiscoveryUpgradeHintsComponent } from '../../components/discovery-upgrade-hints/discovery-upgrade-hints.component';
 import { PageHeaderComponent } from '../../../shared/page-header/page-header.component';
 import { PreferencesUiService } from '../../state/preferences-ui.service';
 
@@ -28,7 +27,6 @@ import { PreferencesUiService } from '../../state/preferences-ui.service';
     RouterModule,
     DiscoveryVisibilityPanelComponent,
     DiscoveryVisibilityFormComponent,
-    DiscoveryUpgradeHintsComponent,
     PageHeaderComponent,
   ],
   templateUrl: './discovery-settings.component.html',
