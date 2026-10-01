@@ -14,15 +14,18 @@ const SCOPES = [
 const CANONICAL_REPORTERS = [
   'dashboard/discovery/application/discovery-public-profiles.facade.ts',
   'explore/components/feed-publication-composer/feed-publication-composer.component.ts',
-  'explore/pages/social-explore-page/social-explore-page.component.ts',
+  'explore/facades/social-explore-media-viewer.facade.ts',
   'explore/services/explore-personal-media.service.ts',
-  'layout/other-user-profile-view/other-user-profile-view.component.ts',
+  'layout/other-user-profile-view/application/visited-profile-bootstrap.orchestrator.ts',
+  'layout/other-user-profile-view/application/visited-profile-friendship.facade.ts',
+  'layout/other-user-profile-view/application/visited-profile-interaction.orchestrator.ts',
   'media/shared/services/public-mixed-media-viewer-launcher.service.ts',
   'user-profile/user-photo-manager/user-photo-manager.component.ts',
   'preferences/application/preferences-editor.facade.ts',
-  'user-profile/user-profile-edit/edit-profile-social-links/edit-profile-social-links.component.ts',
-  'user-profile/user-profile-edit/edit-user-profile/edit-user-profile.component.ts',
-  'user-profile/user-profile-view/user-profile-view.component.ts',
+  'user-profile/user-profile-edit/edit-profile-social-links/profile-social-links-editor.facade.ts',
+  'user-profile/user-profile-edit/edit-user-profile/application/profile-edit-location.service.ts',
+  'user-profile/user-profile-edit/edit-user-profile/application/profile-edit-save.orchestrator.ts',
+  'user-profile/user-profile-view/application/own-profile-context.facade.ts',
   'user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component.ts',
 ] as const;
 
