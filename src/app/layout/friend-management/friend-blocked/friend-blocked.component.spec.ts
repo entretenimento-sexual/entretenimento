@@ -40,7 +40,6 @@ describe('FriendBlockedComponent', () => {
     }).compileComponents();
 
     fixture = TestBed.createComponent(FriendBlockedComponent);
-    fixture.componentRef.setInput('user', { uid: 'u1', nickname: 'Tester' } as any);
     component = fixture.componentInstance;
     fixture.detectChanges();
   });
