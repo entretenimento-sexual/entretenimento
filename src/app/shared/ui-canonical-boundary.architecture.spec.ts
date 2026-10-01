@@ -3512,6 +3512,21 @@ describe('Canonical UI boundary', () => {
     expect(styles).not.toContain('.empty-state');
   });
 
+  it('mantém exclusão de foto sem dependência de storage path', () => {
+    const manager = source(
+      'src/app/user-profile/user-photo-manager/user-photo-manager.component.ts'
+    );
+    const service = source(
+      'src/app/core/services/image-handling/photo-firestore.service.ts'
+    );
+
+    expect(manager).toContain('deletePhoto(uid, safePhotoId)');
+    expect(manager).not.toContain('safePhotoPath');
+    expect(service).toContain("httpsCallable<");
+    expect(service).toContain("'deleteProfilePhoto'");
+    expect(service).not.toContain('_photoPath');
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
