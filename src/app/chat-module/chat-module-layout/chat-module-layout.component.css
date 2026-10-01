@@ -589,7 +589,7 @@
   }
 
   .chat-shell__empty-actions { width: 100%; }
-  .chat-shell__empty-actions .btn {
+  .chat-shell__empty-actions .app-action {
     flex: 1 1 100%;
     justify-content: center;
   }

@@ -220,9 +220,7 @@ describe('NotificationsPageComponent', () => {
 
     expect(status?.textContent?.trim()).toBe('9 novidades');
     expect(card?.classList.contains('community-activity__item--priority')).toBe(false);
-    expect(scope?.textContent?.replace(/\s+/g, ' ').trim()).toBe(
-      'As Comunidades abaixo refletem atividade recente; as pendências consideram todas as atividades não lidas.'
-    );
+    expect(scope).toBeNull();
   });
 
   it('exibe a atividade de atenção e preserva a atividade já lida na linha do tempo', async () => {

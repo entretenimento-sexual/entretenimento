@@ -1,4 +1,4 @@
-import { TestBed, fakeAsync, tick } from '@angular/core/testing';
+import { TestBed } from '@angular/core/testing';
 import { FormControl, FormGroup } from '@angular/forms';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -61,49 +61,61 @@ describe('ProfileEditDraftFacade', () => {
     expect(editForm.dirty).toBe(true);
   });
 
-  it('salva rascunho após debounce quando há alterações', fakeAsync(() => {
-    const save = vi.fn();
-    const facade = setup({
-      load: vi.fn(() => null),
-      save,
-      remove: vi.fn(),
-    });
-    const editForm = createForm();
+  it('salva rascunho após debounce quando há alterações', async () => {
+    vi.useFakeTimers();
 
-    facade.bind(editForm, 'u1', () => false);
-    facade.restore(editForm);
+    try {
+      const save = vi.fn();
+      const facade = setup({
+        load: vi.fn(() => null),
+        save,
+        remove: vi.fn(),
+      });
+      const editForm = createForm();
 
-    editForm.get('descricao')?.setValue('Nova descrição');
-    editForm.markAsDirty();
-    tick(500);
+      facade.bind(editForm, 'u1', () => false);
+      facade.restore(editForm);
 
-    expect(save).toHaveBeenCalledWith(
-      'profile-edit:u1',
-      expect.objectContaining({
-        nickname: 'Alex',
-        descricao: 'Nova descrição',
-      })
-    );
-  }));
+      editForm.get('descricao')?.setValue('Nova descrição');
+      editForm.markAsDirty();
+      await vi.advanceTimersByTimeAsync(500);
 
-  it('não salva enquanto o formulário está sendo persistido', fakeAsync(() => {
-    const save = vi.fn();
-    const facade = setup({
-      load: vi.fn(() => null),
-      save,
-      remove: vi.fn(),
-    });
-    const editForm = createForm();
+      expect(save).toHaveBeenCalledWith(
+        'profile-edit:u1',
+        expect.objectContaining({
+          nickname: 'Alex',
+          descricao: 'Nova descrição',
+        })
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
-    facade.bind(editForm, 'u1', () => true);
-    facade.restore(editForm);
+  it('não salva enquanto o formulário está sendo persistido', async () => {
+    vi.useFakeTimers();
 
-    editForm.get('descricao')?.setValue('Nova descrição');
-    editForm.markAsDirty();
-    tick(500);
+    try {
+      const save = vi.fn();
+      const facade = setup({
+        load: vi.fn(() => null),
+        save,
+        remove: vi.fn(),
+      });
+      const editForm = createForm();
 
-    expect(save).not.toHaveBeenCalled();
-  }));
+      facade.bind(editForm, 'u1', () => true);
+      facade.restore(editForm);
+
+      editForm.get('descricao')?.setValue('Nova descrição');
+      editForm.markAsDirty();
+      await vi.advanceTimersByTimeAsync(500);
+
+      expect(save).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
   it('descarta e limpa estado dirty', () => {
     const remove = vi.fn();

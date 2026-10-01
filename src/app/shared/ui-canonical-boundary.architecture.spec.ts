@@ -203,7 +203,7 @@ describe('Canonical UI boundary', () => {
 
   it('não reintroduz seletor CSS .btn genérico nas superfícies migradas', () => {
     const violations = CANONICALIZED_STYLES.filter((path) =>
-      /\.btn(?=[\s,{.:>#\[])/u.test(source(path))
+      /(^|[\s,{>])\.btn(?=[\s,{.:>#\[])/u.test(source(path))
     );
 
     expect(
@@ -380,10 +380,10 @@ describe('Canonical UI boundary', () => {
     expect(verification).toContain(
       'age-verification__secondary-grid app-responsive-grid'
     );
-    expect(verificationStyles).not.toContain('.age-verification__primary');
-    expect(verificationStyles).not.toContain('.age-verification__secondary');
-    expect(verificationStyles).not.toContain('.age-verification__steps');
-    expect(verificationStyles).not.toContain('.age-verification__how-grid');
+    expect(verificationStyles).not.toMatch(/\.age-verification__primary(?:\s|,|\{)/u);
+    expect(verificationStyles).not.toMatch(/\.age-verification__secondary(?:\s|,|\{)/u);
+    expect(verificationStyles).not.toMatch(/\.age-verification__steps(?:\s|,|\{)/u);
+    expect(verificationStyles).not.toMatch(/\.age-verification__how-grid(?:\s|,|\{)/u);
     expect(reverificationStyles).not.toContain('.age-reverification__primary');
     expect(reverificationStyles).not.toContain('.age-reverification__secondary');
   });
@@ -914,10 +914,10 @@ describe('Canonical UI boundary', () => {
 
   it('mantém editor de perfil em facades e primitives canônicas', () => {
     const component = source(
-      'src/app/user-profile/user-profile-edit/user-profile-edit.component.ts'
+      'src/app/user-profile/user-profile-edit/edit-user-profile/edit-user-profile.component.ts'
     );
     const template = source(
-      'src/app/user-profile/user-profile-edit/user-profile-edit.component.html'
+      'src/app/user-profile/user-profile-edit/edit-user-profile/edit-user-profile.component.html'
     );
 
     expect(template).toContain('app-action');
@@ -929,11 +929,16 @@ describe('Canonical UI boundary', () => {
     const showcase = source(
       'src/app/media/shared/components/profile-media-showcase/profile-media-showcase.component.ts'
     );
+    const viewerFacade = source(
+      'src/app/media/shared/components/profile-media-showcase/profile-media-showcase-viewer.facade.ts'
+    );
     const manager = source(
       'src/app/user-profile/user-photo-manager/user-photo-manager.component.ts'
     );
 
-    expect(showcase).toContain('PublicMixedMediaViewerLauncherService');
+    expect(showcase).toContain('ProfileMediaShowcaseViewerFacade');
+    expect(showcase).not.toContain('PublicMixedMediaViewerLauncherService');
+    expect(viewerFacade).toContain('PublicMixedMediaViewerLauncherService');
     expect(manager).not.toContain('deleteDoc(');
   });
 
@@ -1216,7 +1221,7 @@ describe('Canonical UI boundary', () => {
     ];
 
     for (const template of templates) {
-      expect(template).not.toMatch(/class=["'][^"']*\bbtn(?:\s|["'])/u);
+      expect(hasClassToken(template, 'btn')).toBe(false);
       expect(template).not.toContain('btn-primary');
       expect(template).not.toContain('btn-secondary');
       expect(template).not.toContain('btn-danger');

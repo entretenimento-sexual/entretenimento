@@ -6,6 +6,7 @@ import { vi } from 'vitest';
 
 import { FriendBlockedComponent } from './friend-blocked.component';
 import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 
 describe('FriendBlockedComponent', () => {
   let component: FriendBlockedComponent;
@@ -20,6 +21,12 @@ describe('FriendBlockedComponent', () => {
           useValue: {
             blockUser: vi.fn(() => of(void 0)),
             unblockUser: vi.fn(() => of(void 0)),
+          },
+        },
+        {
+          provide: AuthSessionService,
+          useValue: {
+            readyUid$: of('u1'),
           },
         },
         {
