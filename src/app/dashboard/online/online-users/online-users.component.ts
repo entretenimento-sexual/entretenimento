@@ -80,6 +80,7 @@ import { ErrorNotificationService } from 'src/app/core/services/error-handler/er
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 
 import { UserCardComponent } from 'src/app/shared/user-card/user-card.component';
+import { ContentStateComponent } from 'src/app/shared/content-state/content-state.component';
 import { environment } from 'src/environments/environment';
 
 import {
@@ -118,6 +119,7 @@ function shallowUserEqual(
     FormsModule,
     RouterModule,
     UserCardComponent,
+    ContentStateComponent,
   ],
   templateUrl: './online-users.component.html',
   styleUrls: ['./online-users.component.css'],
