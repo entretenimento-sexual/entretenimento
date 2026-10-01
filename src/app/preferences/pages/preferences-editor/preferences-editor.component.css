@@ -13,12 +13,6 @@
   min-width: 0;
 }
 
-  .plan-strip__copy {
-    display: grid;
-    gap: 3px;
-  }
-}
-
 html.high-contrast .availability-section {
   border-color: currentColor;
 }
