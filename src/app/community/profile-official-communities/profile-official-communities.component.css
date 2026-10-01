@@ -48,18 +48,6 @@
   opacity: 0.72;
 }
 
-.profile-official-communities__eyebrow {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin: 0;
-  font-size: 0.76rem;
-  font-weight: 700;
-  letter-spacing: 0.035em;
-  text-transform: uppercase;
-  opacity: 0.78;
-}
-
 .profile-official-communities__list {
   display: grid;
   gap: 0.55rem;

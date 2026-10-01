@@ -1536,4 +1536,39 @@ describe('Canonical UI boundary', () => {
     expect(lifecycleStyles).not.toContain('account-lifecycle-dialog__eyebrow');
   });
 
+
+  it('mantém Comunidades oficiais e upgrade hints sem contexto duplicado', () => {
+    const officialTarget = source(
+      'src/app/community/official-communities-for-target/official-communities-for-target.component.html'
+    );
+    const officialTargetStyles = source(
+      'src/app/community/official-communities-for-target/official-communities-for-target.component.css'
+    );
+    const profileOfficial = source(
+      'src/app/community/profile-official-communities/profile-official-communities.component.html'
+    );
+    const profileOfficialStyles = source(
+      'src/app/community/profile-official-communities/profile-official-communities.component.css'
+    );
+    const upgradeHints = source(
+      'src/app/preferences/components/discovery-upgrade-hints/discovery-upgrade-hints.component.html'
+    );
+    const upgradeHintStyles = source(
+      'src/app/preferences/components/discovery-upgrade-hints/discovery-upgrade-hints.component.css'
+    );
+
+    expect(officialTarget).not.toContain('official-communities__eyebrow');
+    expect(officialTargetStyles).not.toContain('official-communities__eyebrow');
+    expect(officialTarget).toContain('official-communities__context');
+    expect(officialTarget).toContain('app-community-official-badge');
+
+    expect(profileOfficial).not.toContain('profile-official-communities__eyebrow');
+    expect(profileOfficialStyles).not.toContain('profile-official-communities__eyebrow');
+    expect(profileOfficial).toContain('profile-official-communities__context');
+
+    expect(upgradeHints).not.toContain('upgrade-hints-subtitle');
+    expect(upgradeHintStyles).not.toContain('upgrade-hints-subtitle');
+    expect(upgradeHints).toContain('upgrade-hint-description');
+  });
+
 });
