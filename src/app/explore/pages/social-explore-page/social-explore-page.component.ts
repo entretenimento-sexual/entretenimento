@@ -13,6 +13,7 @@ import {
   Observable,
 } from 'rxjs';
 import {
+  map,
   switchMap,
   take,
 } from 'rxjs/operators';
@@ -76,7 +77,9 @@ export class SocialExplorePageComponent {
   private readonly mediaFeedPool$ = this.timelineFacade.mediaFeedPool$;
 
   readonly currentUser$: Observable<IUserDados | null> =
-    this.currentUserStore.user$;
+    this.currentUserStore.user$.pipe(
+      map((user) => user ?? null)
+    );
 
   openPublicationComposer(openFilePicker = false): void {
     this.statusComposer?.closeComposer();
