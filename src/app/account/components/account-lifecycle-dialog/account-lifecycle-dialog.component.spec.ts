@@ -62,7 +62,7 @@ describe('AccountLifecycleDialogComponent', () => {
       await fixture.whenStable();
 
       const cancel = fixture.nativeElement.querySelector(
-        '.account-lifecycle-dialog__actions .btn-secondary'
+        '.account-lifecycle-dialog__actions .app-action--ghost'
       ) as HTMLButtonElement;
 
       expect(fixture.nativeElement.querySelector('[cdkFocusInitial]')).toBeNull();
@@ -97,7 +97,7 @@ describe('AccountLifecycleDialogComponent', () => {
       'textarea'
     ) as HTMLTextAreaElement;
     const confirm = fixture.nativeElement.querySelector(
-      '.account-lifecycle-dialog__actions .btn-danger'
+      '.account-lifecycle-dialog__actions .app-action--danger'
     ) as HTMLButtonElement;
 
     textarea.value = 'a'.repeat(501);
@@ -113,7 +113,7 @@ describe('AccountLifecycleDialogComponent', () => {
   it('exige a senha atual quando o provedor password está vinculado', () => {
     const fixture = create('self_suspend', 'password');
     const confirm = fixture.nativeElement.querySelector(
-      '.account-lifecycle-dialog__actions .btn-primary'
+      '.account-lifecycle-dialog__actions .app-action--primary'
     ) as HTMLButtonElement;
     const password = fixture.nativeElement.querySelector(
       '#account-lifecycle-dialog-password'
@@ -131,7 +131,7 @@ describe('AccountLifecycleDialogComponent', () => {
   it('bloqueia a ação para provedor sem reautenticação suportada', () => {
     const fixture = create('self_delete', 'unsupported');
     const confirm = fixture.nativeElement.querySelector(
-      '.account-lifecycle-dialog__actions .btn-danger'
+      '.account-lifecycle-dialog__actions .app-action--danger'
     ) as HTMLButtonElement;
 
     expect(confirm.disabled).toBe(true);
@@ -151,7 +151,7 @@ describe('AccountLifecycleDialogComponent', () => {
       '#account-lifecycle-dialog-password'
     ) as HTMLInputElement;
     const confirm = fixture.nativeElement.querySelector(
-      '.account-lifecycle-dialog__actions .btn-primary'
+      '.account-lifecycle-dialog__actions .app-action--primary'
     ) as HTMLButtonElement;
 
     textarea.value = '  pausa pessoal  ';

@@ -323,7 +323,7 @@ describe('FinalizarCadastroComponent', () => {
 
     const errors = Array.from(
       fixture.nativeElement.querySelectorAll(
-        '.form-field .tooltip-error'
+        '.app-field .tooltip-error'
       ) as NodeListOf<HTMLElement>
     );
 
