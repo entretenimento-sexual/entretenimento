@@ -45,14 +45,7 @@
     ) {
       <section class="community-activity app-card app-card--flat" aria-labelledby="community-activity-title">
         <div class="community-activity__header">
-          <div>
-            <h2 id="community-activity-title">Comunidades</h2>
-            @if (communitySummaries.length > 0) {
-              <p>As Comunidades abaixo refletem atividade recente; as pendências consideram todas as atividades não lidas.</p>
-            } @else {
-              <p>Há atividade de Comunidades fora das notificações recentes desta Central.</p>
-            }
-          </div>
+          <h2 id="community-activity-title">Comunidades</h2>
 
           @if (communityUnreadCount > 0) {
             <span

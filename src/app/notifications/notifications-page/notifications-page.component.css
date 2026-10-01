@@ -37,13 +37,6 @@
   line-height: 1.2;
 }
 
-.community-activity__header p {
-  margin: 4px 0 0;
-  color: color-mix(in oklab, var(--text-color) 64%, transparent);
-  font-size: var(--font-size-help, 0.82rem);
-  line-height: 1.4;
-}
-
 .community-activity__list {
   display: grid;
 }

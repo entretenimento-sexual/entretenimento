@@ -1434,4 +1434,33 @@ describe('Canonical UI boundary', () => {
     expect(styles).not.toContain('.subscription-plan-status-card__eyebrow');
   });
 
+
+  it('mantém Explore e Notificações sem overlines e explicações redundantes', () => {
+    const explore = source(
+      'src/app/explore/pages/social-explore-page/social-explore-page.component.html'
+    );
+    const exploreStyles = source(
+      'src/app/explore/pages/social-explore-page/social-explore-page.component.css'
+    );
+    const notifications = source(
+      'src/app/notifications/notifications-page/notifications-page.component.html'
+    );
+    const notificationStyles = source(
+      'src/app/notifications/notifications-page/notifications-page.component.css'
+    );
+
+    expect(explore).not.toContain('<span>Descobrir</span>');
+    expect(explore).not.toContain('<span>Suas Comunidades</span>');
+    expect(exploreStyles).not.toContain('.video-highlights__header > div');
+    expect(exploreStyles).not.toContain('.community-distribution__header > div');
+
+    expect(notifications).not.toContain(
+      'As Comunidades abaixo refletem atividade recente'
+    );
+    expect(notifications).not.toContain(
+      'Há atividade de Comunidades fora das notificações recentes'
+    );
+    expect(notificationStyles).not.toContain('.community-activity__header p');
+  });
+
 });
