@@ -3338,6 +3338,24 @@ describe('Canonical UI boundary', () => {
     expect(facade).toContain("preset: 'avatar-square'");
   });
 
+  it('mantém persistência fora do EditUserProfileComponent', () => {
+    const component = source(
+      'src/app/user-profile/user-profile-edit/edit-user-profile/edit-user-profile.component.ts'
+    );
+    const orchestrator = source(
+      'src/app/user-profile/user-profile-edit/edit-user-profile/application/profile-edit-save.orchestrator.ts'
+    );
+
+    expect(component).toContain('ProfileEditSaveOrchestrator');
+    expect(component).not.toContain('UsuarioService');
+    expect(component).not.toContain('atualizarUsuario(');
+    expect(component).not.toContain('normalizeProfileAge(');
+
+    expect(orchestrator).toContain('UsuarioService');
+    expect(orchestrator).toContain('atualizarUsuario(');
+    expect(orchestrator).toContain('normalizeProfileAge(');
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
