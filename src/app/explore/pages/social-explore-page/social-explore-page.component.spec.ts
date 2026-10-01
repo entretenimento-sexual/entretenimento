@@ -632,7 +632,7 @@ describe('SocialExplorePageComponent', () => {
     );
 
     expect(loadingState.nativeElement.textContent).toContain(
-      'Carregando atualizações'
+      'Buscando publicações recentes das suas conexões.'
     );
     expect(loadingState.nativeElement.textContent).not.toContain(
       'Seu feed começa com conexões'
