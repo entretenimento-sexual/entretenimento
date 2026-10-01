@@ -3494,6 +3494,24 @@ describe('Canonical UI boundary', () => {
     expect(template).toContain('app-action app-action--ghost');
   });
 
+  it('mantém UserPhotoManager nas primitives canônicas', () => {
+    const component = source(
+      'src/app/user-profile/user-photo-manager/user-photo-manager.component.ts'
+    );
+    const template = source(
+      'src/app/user-profile/user-photo-manager/user-photo-manager.component.html'
+    );
+    const styles = source(
+      'src/app/user-profile/user-photo-manager/user-photo-manager.component.css'
+    );
+
+    expect(component).toContain('ConfirmationDialogComponent');
+    expect(component).not.toContain('confirm(');
+    expect(template).toContain('<app-content-state');
+    expect(template).toContain('app-action app-action--danger');
+    expect(styles).not.toContain('.empty-state');
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
