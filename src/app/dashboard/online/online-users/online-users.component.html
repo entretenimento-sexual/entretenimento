@@ -5,23 +5,21 @@
 >
   @if (currentUserStatus$ | async; as status) {
     @if (status === 'boot' || status === 'loading_profile') {
-      <section class="online-users__state" role="status" aria-live="polite">
-        <span class="online-users__loader" aria-hidden="true"></span>
-        <span class="online-users__state-copy">
-          <strong>Carregando sua sessão</strong>
-          <span>Preparando sua experiência.</span>
-        </span>
-      </section>
+      <app-content-state
+        class="online-users__content-state"
+        state="loading"
+        message="Carregando sua sessão. Preparando sua experiência."
+        [compact]="true"
+        [skeletonRows]="2"
+      />
     } @else if (status === 'signed_out') {
-      <section class="online-users__state" role="status" aria-live="polite">
-        <span class="online-users__state-icon" aria-hidden="true">
-          <i class="fas fa-user-lock"></i>
-        </span>
-        <span class="online-users__state-copy">
-          <strong>Entre na sua conta</strong>
-          <span>Faça login para acessar a descoberta de perfis.</span>
-        </span>
-      </section>
+      <app-content-state
+        class="online-users__content-state"
+        state="error"
+        title="Entre na sua conta"
+        message="Faça login para acessar a descoberta de perfis."
+        [compact]="true"
+      />
     } @else {
       @if (currentUserResolved$ | async; as user) {
         @if (!user.emailVerified) {
@@ -35,13 +33,13 @@
         }
 
         @if (shouldShowLocationLoading) {
-          <section class="online-users__state" role="status" aria-live="polite">
-            <span class="online-users__loader" aria-hidden="true"></span>
-            <span class="online-users__state-copy">
-              <strong>Verificando localização</strong>
-              <span>Consultando a permissão já concedida neste navegador.</span>
-            </span>
-          </section>
+          <app-content-state
+            class="online-users__content-state"
+            state="loading"
+            message="Verificando localização. Consultando a permissão já concedida neste navegador."
+            [compact]="true"
+            [skeletonRows]="2"
+          />
         } @else if (shouldShowLocationRequest) {
           <section
             class="online-users__activation"
@@ -62,7 +60,7 @@
 
               <button
                 type="button"
-                class="btn btn-primary online-users__primary-action"
+                class="app-action app-action--primary online-users__primary-action"
                 (click)="enableLocation()"
                 [disabled]="loading || !user.uid"
                 [attr.aria-busy]="loading ? 'true' : 'false'"
@@ -85,7 +83,7 @@
                 <div class="online-users__decision-actions">
                   <button
                     type="button"
-                    class="btn btn-primary"
+                    class="app-action app-action--primary"
                     (click)="goToFinishMinimumProfile()"
                   >
                     Finalizar agora
@@ -93,7 +91,7 @@
 
                   <button
                     type="button"
-                    class="btn btn-ghost"
+                    class="app-action app-action--ghost"
                     (click)="continueWithoutLocation()"
                   >
                     Agora não
@@ -232,11 +230,13 @@
             @let users = (onlineUsers$ | async) ?? [];
 
             @if (users.length === 0) {
-              <section class="online-users__empty" role="status" aria-live="polite">
-                <i class="fas fa-user-group" aria-hidden="true"></i>
-                <strong>{{ emptyTitle }}</strong>
-                <span>{{ emptyText }}</span>
-              </section>
+              <app-content-state
+                class="online-users__empty"
+                state="empty"
+                [title]="emptyTitle"
+                [message]="emptyText"
+                [compact]="true"
+              />
             } @else {
               @for (profile of users; track profile.uid) {
                 <app-user-card
@@ -249,22 +249,22 @@
           </div>
         }
       } @else {
-        <section class="online-users__state" role="status" aria-live="polite">
-          <span class="online-users__loader" aria-hidden="true"></span>
-          <span class="online-users__state-copy">
-            <strong>Sincronizando perfil</strong>
-            <span>Aguarde um instante.</span>
-          </span>
-        </section>
+        <app-content-state
+          class="online-users__content-state"
+          state="loading"
+          message="Sincronizando perfil. Aguarde um instante."
+          [compact]="true"
+          [skeletonRows]="2"
+        />
       }
     }
   } @else {
-    <section class="online-users__state" role="status" aria-live="polite">
-      <span class="online-users__loader" aria-hidden="true"></span>
-      <span class="online-users__state-copy">
-        <strong>Carregando sessão</strong>
-        <span>Aguarde um instante.</span>
-      </span>
-    </section>
+    <app-content-state
+      class="online-users__content-state"
+      state="loading"
+      message="Carregando sessão. Aguarde um instante."
+      [compact]="true"
+      [skeletonRows]="2"
+    />
   }
 </div>
