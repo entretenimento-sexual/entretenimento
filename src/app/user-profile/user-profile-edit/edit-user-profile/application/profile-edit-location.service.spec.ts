@@ -66,9 +66,12 @@ describe('ProfileEditLocationService', () => {
     const service = new ProfileEditLocationService({ report } as any);
 
     const values: unknown[] = [];
-    service.loadEstados$().subscribe((value) => values.push(value));
-
-    await Promise.resolve();
+    await new Promise<void>((resolve) => {
+      service.loadEstados$().subscribe({
+        next: (value) => values.push(value),
+        complete: () => resolve(),
+      });
+    });
 
     expect(values).toEqual([]);
     expect(report).toHaveBeenCalledWith(error, {
