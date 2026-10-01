@@ -3472,6 +3472,28 @@ describe('Canonical UI boundary', () => {
     expect(facade).toContain('normalizeRedirectTarget(');
   });
 
+  it('mantém viewer do ProfileMediaShowcase fora do componente', () => {
+    const component = source(
+      'src/app/media/shared/components/profile-media-showcase/profile-media-showcase.component.ts'
+    );
+    const facade = source(
+      'src/app/media/shared/components/profile-media-showcase/profile-media-showcase-viewer.facade.ts'
+    );
+    const template = source(
+      'src/app/media/shared/components/profile-media-showcase/profile-media-showcase.component.html'
+    );
+
+    expect(component).toContain('ProfileMediaShowcaseViewerFacade');
+    expect(component).not.toContain('PublicMixedMediaViewerLauncherService');
+    expect(component).not.toContain('buildPublicMediaIdentity');
+    expect(component).not.toContain('firstValueFrom');
+
+    expect(facade).toContain('PublicMixedMediaViewerLauncherService');
+    expect(facade).toContain('buildPublicMediaIdentity');
+    expect(template).toContain('<app-content-state');
+    expect(template).toContain('app-action app-action--ghost');
+  });
+
   it('preserva remoções estruturais já concluídas', () => {
     const removedPaths = [
       'src/app/preferences/pages/preferences-home/preferences-home.component.ts',
