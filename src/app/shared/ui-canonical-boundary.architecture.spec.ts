@@ -1344,6 +1344,23 @@ describe('Canonical UI boundary', () => {
 
 
 
+  it('mantém subpáginas de Preferences sem navegação segmentada redundante', () => {
+    const templates = [
+      source('src/app/preferences/pages/compatibility-lab/compatibility-lab.component.html'),
+      source('src/app/preferences/pages/discovery-settings/discovery-settings.component.html'),
+      source('src/app/preferences/pages/match-profile-lab/match-profile-lab.component.html'),
+      source('src/app/preferences/pages/notification-settings/notification-settings.component.html'),
+    ];
+
+    for (const template of templates) {
+      expect(template).not.toContain('<app-preferences-domain-nav');
+    }
+
+    expect(
+      existsSync(resolve(ROOT, 'src/app/preferences/components/preferences-domain-nav/preferences-domain-nav.component.ts'))
+    ).toBe(false);
+  });
+
   it('mantém o Preferences Hub orientado a tarefas em vez de painel administrativo', () => {
     const hub = source(
       'src/app/preferences/pages/preferences-hub/preferences-hub.component.html'

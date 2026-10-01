@@ -12,7 +12,6 @@ import { CompatibilityPreviewFacade } from '../../application/compatibility-prev
 import { CompatibilityPreviewCardComponent } from '../../components/compatibility-preview-card/compatibility-preview-card.component';
 import { MatchProfilePreviewCardComponent } from '../../components/match-profile-preview-card/match-profile-preview-card.component';
 import { PageHeaderComponent } from '../../../shared/page-header/page-header.component';
-import { PreferencesDomainNavComponent } from '../../components/preferences-domain-nav/preferences-domain-nav.component';
 import { PreferencesUiService } from '../../state/preferences-ui.service';
 
 @Component({
@@ -24,7 +23,6 @@ import { PreferencesUiService } from '../../state/preferences-ui.service';
     CompatibilityPreviewCardComponent,
     MatchProfilePreviewCardComponent,
     PageHeaderComponent,
-    PreferencesDomainNavComponent,
   ],
   templateUrl: './compatibility-lab.component.html',
   styleUrl: './compatibility-lab.component.css',

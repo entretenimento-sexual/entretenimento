@@ -23,7 +23,6 @@ import {
   PushNotificationDeviceState,
 } from 'src/app/core/services/notifications/push-notification-device.service';
 import { PageHeaderComponent } from '../../../shared/page-header/page-header.component';
-import { PreferencesDomainNavComponent } from '../../components/preferences-domain-nav/preferences-domain-nav.component';
 
 interface NotificationSettingOption {
   key: NotificationPreferenceEditableKey | 'accountSecurity';
@@ -39,7 +38,6 @@ interface NotificationSettingOption {
     CommonModule,
     RouterModule,
     PageHeaderComponent,
-    PreferencesDomainNavComponent,
   ],
   templateUrl: './notification-settings.component.html',
   styleUrls: ['./notification-settings.component.css'],

@@ -10,8 +10,6 @@
       </a>
     </app-page-header>
 
-    <app-preferences-domain-nav></app-preferences-domain-nav>
-
     @if (vm$ | async; as vm) {
       <app-compatibility-preview-card [preview]="vm.preview"></app-compatibility-preview-card>
 
