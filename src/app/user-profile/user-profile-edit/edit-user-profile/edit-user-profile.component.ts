@@ -8,7 +8,7 @@ import {
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 
-import { EMPTY, Observable, Subject, from, of } from 'rxjs';
+import { EMPTY, Observable, Subject, of } from 'rxjs';
 import {
   catchError,
   debounceTime,
@@ -42,17 +42,11 @@ import {
   validateImageMediaFile,
 } from 'src/app/core/services/media/media-format.policy';
 import { UsuarioService } from 'src/app/core/services/user-profile/usuario.service';
-
-type IbgeEstado = {
-  id: number;
-  sigla: string;
-  nome: string;
-};
-
-type IbgeMunicipio = {
-  id: number;
-  nome: string;
-};
+import {
+  ProfileEditEstado,
+  ProfileEditLocationService,
+  ProfileEditMunicipio,
+} from './application/profile-edit-location.service';
 
 type ProfileDraft = Record<string, string>;
 
@@ -72,6 +66,7 @@ const PROFILE_DRAFT_FIELDS = [
   selector: 'app-edit-user-profile',
   templateUrl: './edit-user-profile.component.html',
   styleUrls: ['./edit-user-profile.component.css'],
+  providers: [ProfileEditLocationService],
   standalone: false,
 })
 export class EditUserProfileComponent
@@ -82,8 +77,8 @@ export class EditUserProfileComponent
   editForm: FormGroup;
 
   uid = '';
-  estados: IbgeEstado[] = [];
-  municipios: IbgeMunicipio[] = [];
+  estados: ProfileEditEstado[] = [];
+  municipios: ProfileEditMunicipio[] = [];
 
   isEditingPhoto = false;
   isUploading = false;
@@ -112,7 +107,8 @@ export class EditUserProfileComponent
     private readonly storageService: StorageService,
     private readonly localDraft: LocalDraftService,
     private readonly notify: ErrorNotificationService,
-    private readonly applicationError: ApplicationErrorService
+    private readonly applicationError: ApplicationErrorService,
+    private readonly locationService: ProfileEditLocationService
   ) {
     this.editForm = this.formBuilder.group({
       nickname: ['', [Validators.minLength(3)]],
@@ -161,10 +157,10 @@ export class EditUserProfileComponent
           this.userData = user;
         }),
         switchMap((user) =>
-          this.loadEstados$().pipe(
+          this.locationService.loadEstados$().pipe(
             tap((estados) => (this.estados = estados)),
             switchMap(() =>
-              user?.estado ? this.loadMunicipios$(user.estado) : of([])
+              user?.estado ? this.locationService.loadMunicipios$(user.estado) : of([])
             ),
             tap((municipios) => {
               this.municipios = municipios;
@@ -202,7 +198,7 @@ export class EditUserProfileComponent
         map((value) => String(value ?? '').trim()),
         distinctUntilChanged(),
         switchMap((sigla) =>
-          sigla ? this.loadMunicipios$(sigla) : of([])
+          sigla ? this.locationService.loadMunicipios$(sigla) : of([])
         ),
         tap((municipios) => {
           this.municipios = municipios;
@@ -510,52 +506,6 @@ export class EditUserProfileComponent
       : undefined;
   }
 
-  private loadEstados$(): Observable<IbgeEstado[]> {
-    return from(
-      fetch(
-        'https://servicodados.ibge.gov.br/api/v1/localidades/estados'
-      ).then((response) => response.json())
-    ).pipe(
-      map((estados: IbgeEstado[]) =>
-        (estados ?? []).sort((first, second) =>
-          first.nome.localeCompare(second.nome)
-        )
-      ),
-      catchError((error) =>
-        this.handleError$(
-          error,
-          'loadEstados',
-          'Erro ao carregar estados.'
-        ).pipe(map(() => []))
-      )
-    );
-  }
-
-  private loadMunicipios$(
-    estadoSigla: string
-  ): Observable<IbgeMunicipio[]> {
-    const sigla = String(estadoSigla ?? '').trim();
-    if (!sigla) return of([]);
-
-    return from(
-      fetch(
-        `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${sigla}/municipios`
-      ).then((response) => response.json())
-    ).pipe(
-      map((municipios: IbgeMunicipio[]) =>
-        (municipios ?? []).sort((first, second) =>
-          first.nome.localeCompare(second.nome)
-        )
-      ),
-      catchError((error) =>
-        this.handleError$(
-          error,
-          'loadMunicipios',
-          'Erro ao carregar municípios.'
-        ).pipe(map(() => []))
-      )
-    );
-  }
 
   private handleError$(
     error: unknown,
@@ -574,7 +524,7 @@ export class EditUserProfileComponent
   }
 
   private syncMunicipioControlState(
-    municipios: IbgeMunicipio[]
+    municipios: ProfileEditMunicipio[]
   ): void {
     const municipioControl = this.editForm.get('municipio');
     if (!municipioControl) return;
