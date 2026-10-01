@@ -1435,6 +1435,8 @@ describe('Canonical UI boundary', () => {
     expect(card).toContain('[routerLink]="route()"');
     expect(card).not.toContain('>Abrir<');
     expect(card).not.toContain('hub-card-footer');
+    expect(card).not.toContain('hub-card__title-row');
+    expect(card).not.toContain('hub-card-badge');
   });
 
   it('mantém densidade semântica enxuta em onboarding e Preferences', () => {
@@ -1454,6 +1456,9 @@ describe('Canonical UI boundary', () => {
     expect(hub).not.toContain('id="hub-main-title"');
     expect(hub).not.toContain('id="hub-compatibility-title"');
     expect(hub).not.toContain('Ajustes principais');
+    expect(hub).toContain('description="O que você procura e quem quer conhecer."');
+    expect(hub).toContain('description="Como seu perfil aparece para outras pessoas."');
+    expect(hub).toContain('description="Quais avisos você quer receber."');
     expect(hub).not.toContain('<app-preference-summary-card');
     expect(
       source(
