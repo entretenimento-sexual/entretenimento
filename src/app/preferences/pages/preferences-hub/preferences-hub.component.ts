@@ -15,7 +15,6 @@ import { PreferencesFacade } from '../../application/preferences.facade';
 import { PreferenceSummaryCardComponent } from '../../components/preference-summary-card/preference-summary-card.component';
 import { PreferencesHubCardComponent } from '../../components/preferences-hub-card/preferences-hub-card.component';
 import { PageHeaderComponent } from '../../../shared/page-header/page-header.component';
-import { PreferencesDomainNavComponent } from '../../components/preferences-domain-nav/preferences-domain-nav.component';
 import { PreferencesUiService } from '../../state/preferences-ui.service';
 
 @Component({
@@ -27,7 +26,6 @@ import { PreferencesUiService } from '../../state/preferences-ui.service';
     PreferenceSummaryCardComponent,
     PreferencesHubCardComponent,
     PageHeaderComponent,
-    PreferencesDomainNavComponent,
   ],
   templateUrl: './preferences-hub.component.html',
   styleUrl: './preferences-hub.component.css',

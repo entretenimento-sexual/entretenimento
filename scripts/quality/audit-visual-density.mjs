@@ -86,7 +86,6 @@ const reviewedSemanticContent = new Map([
   ])],
   ['src/app/preferences/components/preferences-hub-card/preferences-hub-card.component.html', new Set([
     'hub-card-description',
-    'app-card__subtitle',
   ])],
   ['src/app/register-module/terms-acceptance/terms-acceptance-page.component.html', new Set([
     'terms-acceptance__lead',

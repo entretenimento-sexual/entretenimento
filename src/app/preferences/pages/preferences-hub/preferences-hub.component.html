@@ -11,81 +11,58 @@
       </a>
     </app-page-header>
 
-    <app-preferences-domain-nav></app-preferences-domain-nav>
-
     @if (vm$ | async; as vm) {
       @if (vm) {
         <app-preference-summary-card [vm]="vm"></app-preference-summary-card>
-        <details class="hub-capabilities app-disclosure">
-          <summary class="app-disclosure__summary">
-            <strong class="app-disclosure__title">Recursos do plano</strong>
-            <span class="app-disclosure__state">Ver detalhes</span>
-          </summary>
 
-          <div class="hub-capabilities__grid app-responsive-grid" role="list">
-            <article class="hub-capability" role="listitem">
-              <span>Discovery avançado</span>
-              <strong>{{ vm.capabilities.canUseAdvancedDiscovery ? 'Liberado' : 'Bloqueado' }}</strong>
-            </article>
+        <section class="hub-section" aria-labelledby="hub-main-title">
+          <h2 id="hub-main-title" class="hub-section__title">Ajustes principais</h2>
 
-            <article class="hub-capability" role="listitem">
-              <span>Modo discreto</span>
-              <strong>{{ vm.capabilities.canUseDiscreetMode ? 'Liberado' : 'Bloqueado' }}</strong>
-            </article>
-
-            <article class="hub-capability" role="listitem">
-              <span>Visibilidade prioritária</span>
-              <strong>{{ vm.capabilities.canUsePriorityVisibility ? 'Liberado' : 'Bloqueado' }}</strong>
-            </article>
-
-            <article class="hub-capability" role="listitem">
-              <span>Compatibilidade</span>
-              <strong>{{ vm.capabilities.canSeeCompatibilityInsights ? 'Liberado' : 'Bloqueado' }}</strong>
-            </article>
-          </div>
-        </details>
-
-        <section class="hub-grid app-responsive-grid" aria-label="Navegação de preferências">
-          <app-preferences-hub-card
-            title="Editar preferências"
-            description="Atualize intenção, perfil, visibilidade e informações usadas para descoberta."
-            route="/preferencias/editar"
-            badge="Principal">
-          </app-preferences-hub-card>
-
-          <app-preferences-hub-card
-            title="Notificações"
-            description="Controle avisos de mensagens, conexões, salas, locais e atividades relevantes."
-            route="/preferencias/notificacoes">
-          </app-preferences-hub-card>
-
-          <app-preferences-hub-card
-            title="Descoberta e privacidade"
-            description="Defina se seu perfil pode aparecer em buscas, sugestões e recursos regionais."
-            route="/preferencias/discovery-settings">
-          </app-preferences-hub-card>
-
-          <app-preferences-hub-card
-            title="Perfil para combinações"
-            description="Revise os dados usados para compatibilidade e descoberta entre perfis."
-            route="/preferencias/match-profile">
-          </app-preferences-hub-card>
-
-          <app-preferences-hub-card
-            title="Compatibilidade"
-            description="Compare preferências e sinais de compatibilidade com outro perfil."
-            [route]="'/preferencias/compatibility-lab/' + vm.uid"
-            badge="Teste">
-          </app-preferences-hub-card>
-
-          @if (lastCompatibilityTargetUid()) {
+          <div class="hub-grid app-responsive-grid">
             <app-preferences-hub-card
-              title="Retomar compatibilidade"
-              description="Volte para a última comparação de compatibilidade acessada."
-              [route]="'/preferencias/compatibility-lab/' + lastCompatibilityTargetUid()"
-              badge="Recente">
+              title="Editar preferências"
+              description="Atualize intenção, perfil, visibilidade e informações usadas para descoberta."
+              route="/preferencias/editar">
             </app-preferences-hub-card>
-          }
+
+            <app-preferences-hub-card
+              title="Descoberta e privacidade"
+              description="Defina como seu perfil aparece em buscas, sugestões e recursos regionais."
+              route="/preferencias/discovery-settings">
+            </app-preferences-hub-card>
+
+            <app-preferences-hub-card
+              title="Notificações"
+              description="Escolha quais avisos de mensagens, conexões e atividades você quer receber."
+              route="/preferencias/notificacoes">
+            </app-preferences-hub-card>
+          </div>
+        </section>
+
+        <section class="hub-section" aria-labelledby="hub-compatibility-title">
+          <h2 id="hub-compatibility-title" class="hub-section__title">Compatibilidade</h2>
+
+          <div class="hub-grid app-responsive-grid">
+            <app-preferences-hub-card
+              title="Perfil para combinações"
+              description="Revise os dados usados para compatibilidade e descoberta entre perfis."
+              route="/preferencias/match-profile">
+            </app-preferences-hub-card>
+
+            <app-preferences-hub-card
+              title="Comparar compatibilidade"
+              description="Veja como suas preferências se relacionam com outro perfil."
+              [route]="'/preferencias/compatibility-lab/' + vm.uid">
+            </app-preferences-hub-card>
+
+            @if (lastCompatibilityTargetUid()) {
+              <app-preferences-hub-card
+                title="Retomar última comparação"
+                description="Volte para a comparação de compatibilidade acessada mais recentemente."
+                [route]="'/preferencias/compatibility-lab/' + lastCompatibilityTargetUid()">
+              </app-preferences-hub-card>
+            }
+          </div>
         </section>
       } @else {
         <section class="hub-empty section app-card app-card--flat" aria-label="Sem sessão ativa">

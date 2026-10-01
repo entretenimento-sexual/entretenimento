@@ -1343,6 +1343,30 @@ describe('Canonical UI boundary', () => {
   });
 
 
+
+  it('mantém o Preferences Hub orientado a tarefas em vez de painel administrativo', () => {
+    const hub = source(
+      'src/app/preferences/pages/preferences-hub/preferences-hub.component.html'
+    );
+    const hubStyles = source(
+      'src/app/preferences/pages/preferences-hub/preferences-hub.component.css'
+    );
+    const card = source(
+      'src/app/preferences/components/preferences-hub-card/preferences-hub-card.component.html'
+    );
+
+    expect(hub).not.toContain('Recursos do plano');
+    expect(hub).not.toContain('hub-capability');
+    expect(hub).not.toContain('badge="Principal"');
+    expect(hub).not.toContain('badge="Teste"');
+    expect(hub).not.toContain('badge="Recente"');
+    expect(hubStyles).not.toContain('.hub-capability');
+
+    expect(card).toContain('[routerLink]="route()"');
+    expect(card).not.toContain('>Abrir<');
+    expect(card).not.toContain('hub-card-footer');
+  });
+
   it('mantém densidade semântica enxuta em onboarding e Preferences', () => {
     const welcome = source(
       'src/app/register-module/welcome/welcome.component.html'
@@ -1359,8 +1383,10 @@ describe('Canonical UI boundary', () => {
 
     expect(welcome).not.toContain('card-kicker');
     expect(completion).not.toContain('completion-hero');
-    expect(hub).toContain('class="hub-capabilities app-disclosure"');
-    expect(hub).not.toContain('id="account-resources-title"');
+    expect(hub).not.toContain('hub-capabilities');
+    expect(hub).not.toContain('<app-preferences-domain-nav');
+    expect(hub).toContain('id="hub-main-title"');
+    expect(hub).toContain('id="hub-compatibility-title"');
     expect(summary).not.toContain('summary-subtitle');
   });
 
