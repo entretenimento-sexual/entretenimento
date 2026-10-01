@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IUserDados } from '../../../core/interfaces/iuser-dados';
 import { AccessControlService } from '../../../core/services/autentication/auth/access-control.service';
 import { ErrorNotificationService } from '../../../core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '../../../core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '../../../core/services/error-handler/application-error.service';
 import { DistanceCalculationService } from '../../../core/services/geolocation/distance-calculation.service';
 import { GeolocationService } from '../../../core/services/geolocation/geolocation.service';
 import { GeolocationTrackingService } from '../../../core/services/geolocation/geolocation-tracking.service';
@@ -54,8 +54,8 @@ describe('OnlineUsersComponent', () => {
     showWarning: vi.fn(),
   };
 
-  const globalErrorHandlerMock = {
-    handleError: vi.fn(),
+  const applicationErrorMock = {
+    report: vi.fn(),
   };
 
   beforeEach(async () => {
@@ -105,8 +105,8 @@ describe('OnlineUsersComponent', () => {
           useValue: errorNotificationMock,
         },
         {
-          provide: GlobalErrorHandlerService,
-          useValue: globalErrorHandlerMock,
+          provide: ApplicationErrorService,
+          useValue: applicationErrorMock,
         },
       ],
     }).compileComponents();
