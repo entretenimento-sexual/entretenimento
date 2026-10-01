@@ -23,7 +23,7 @@
 
       <button
         type="button"
-        class="btn btn-ghost account-lifecycle-dialog__close"
+        class="app-action app-action--ghost account-lifecycle-dialog__close"
         (click)="onClose()"
         [appActionState]="false"
         [actionDisabled]="busy()"
@@ -57,7 +57,7 @@
 
           <textarea
             id="account-lifecycle-dialog-reason"
-            class="input-field account-lifecycle-dialog__textarea"
+            class="app-control account-lifecycle-dialog__textarea"
             rows="4"
             [value]="reason()"
             [placeholder]="reasonPlaceholder()"
@@ -106,7 +106,7 @@
             <div class="account-lifecycle-dialog__password-wrap">
               <input
                 id="account-lifecycle-dialog-password"
-                class="input-field account-lifecycle-dialog__password"
+                class="app-control account-lifecycle-dialog__password"
                 [type]="showPassword() ? 'text' : 'password'"
                 autocomplete="current-password"
                 [value]="password()"
@@ -175,7 +175,7 @@
       <button
         #initialFocusTarget
         type="button"
-        class="btn btn-secondary"
+        class="app-action app-action--ghost"
         (click)="onClose()"
         [appActionState]="false"
         [actionDisabled]="busy()"
@@ -185,9 +185,9 @@
 
       <button
         type="button"
-        class="btn"
-        [class.btn-danger]="isDanger()"
-        [class.btn-primary]="!isDanger()"
+        class="app-action"
+        [class.app-action--danger]="isDanger()"
+        [class.app-action--primary]="!isDanger()"
         [appActionState]="busy()"
         [actionDisabled]="!canConfirm()"
         (click)="onConfirm()"

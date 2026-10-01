@@ -1021,4 +1021,21 @@ describe('Canonical UI boundary', () => {
     expect(registerStyles).not.toContain('.form-field');
   });
 
+
+  it('mantém AccountLifecycleDialog nos primitives canônicos', () => {
+    const template = source(
+      'src/app/account/components/account-lifecycle-dialog/account-lifecycle-dialog.component.html'
+    );
+    const styles = source(
+      'src/app/account/components/account-lifecycle-dialog/account-lifecycle-dialog.component.css'
+    );
+
+    expect(template).not.toMatch(/class=["'][^"']*\bbtn(?:\s|["'])/u);
+    expect(template).not.toMatch(/class=["'][^"']*\binput-field\b/u);
+    expect(template).toContain('app-action app-action--ghost');
+    expect(template).toContain('class="app-control account-lifecycle-dialog__textarea"');
+    expect(template).toContain('class="app-control account-lifecycle-dialog__password"');
+    expect(styles).not.toContain('.account-lifecycle-dialog__actions .btn');
+  });
+
 });
