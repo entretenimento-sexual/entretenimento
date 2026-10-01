@@ -1210,4 +1210,50 @@ describe('Canonical UI boundary', () => {
     }
   });
 
+
+  it('proíbe classes visuais legadas em todos os templates de produção', () => {
+    const htmlRoot = resolve(ROOT, 'src/app');
+    const forbidden = [
+      'btn',
+      'btn-primary',
+      'btn-secondary',
+      'btn-danger',
+      'btn-success',
+      'btn-ghost',
+      'btn-link',
+      'input-field',
+      'form-field',
+      'form-wrapper',
+      'form-header',
+    ] as const;
+
+    for (const file of productionHtmlFiles(htmlRoot)) {
+      const template = readFileSync(file, 'utf8');
+
+      for (const token of forbidden) {
+        expect(
+          hasClassToken(template, token),
+          `${relative(ROOT, file)} não deve reutilizar .${token}`
+        ).toBe(false);
+      }
+    }
+  });
+
+  it('remove os contratos globais legados de ação e formulário', () => {
+    const components = source('src/styles/global-components.css');
+    const forms = source('src/styles/global-forms.css');
+
+    expect(components).not.toMatch(/(^|\n)\.btn(?:\b|-)/u);
+    expect(components).not.toContain('html.high-contrast .btn');
+
+    expect(forms).not.toMatch(/(^|\n)\.input-field\b/u);
+    expect(forms).not.toMatch(/(^|\n)\.form-field\b/u);
+    expect(forms).not.toMatch(/(^|\n)\.form-wrapper\b/u);
+    expect(forms).not.toMatch(/(^|\n)\.form-header\b/u);
+
+    expect(components).toContain('.alert');
+    expect(forms).toContain('.app-control');
+    expect(forms).toContain('.app-field');
+  });
+
 });

@@ -1,49 +1,4 @@
 /* src\styles\global-components.css */
-.btn {
-  display: inline-block;
-  background-color: var(--primary-color);
-  font-size: 1rem;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background-color 0.3s ease, transform 0.2s ease;
-  color: #fff;
-}
-
-.btn-primary {
-  background-color: var(--primary-color);
-}
-
-.btn-primary:hover {
-  background-color: var(--primary-hover);
-  transform: scale(1.05);
-}
-
-.btn-danger {
-  background-color: var(--danger-color);
-}
-
-.btn-danger:hover {
-  background-color: var(--danger-hover);
-}
-
-.btn-success {
-  background-color: var(--success-color);
-}
-
-.btn-success:hover {
-  background-color: var(--success-hover);
-}
-
-.btn-secondary {
-  background-color: var(--secondary-color);
-}
-
-.btn-secondary:hover {
-  background-color: #666;
-}
-
-.btn:focus-visible,
 button:focus-visible,
 [role="button"]:focus-visible {
   outline: var(--focus-ring);
@@ -51,7 +6,6 @@ button:focus-visible,
 }
 
 button[disabled],
-.btn[disabled],
 [aria-disabled="true"] {
   opacity: .7;
   cursor: not-allowed !important;
@@ -171,23 +125,7 @@ button[disabled],
 }
 
 /* === Alto Contraste (padronizado em html.high-contrast) === */
-html.high-contrast .btn,
-html.high-contrast .btn-primary,
-html.high-contrast .btn-secondary,
-html.high-contrast .btn-danger,
-html.high-contrast .btn-success {
-  background: var(--primary-color) !important;
-  color: var(--background-color) !important;
-  border: 2px solid var(--text-color) !important;
-  transform: none !important;
-}
-
-html.high-contrast .btn:hover {
-  background: var(--primary-hover) !important;
-}
-
 html.high-contrast button[disabled],
-html.high-contrast .btn[disabled],
 html.high-contrast [aria-disabled="true"] {
   opacity: 1 !important;
   border-style: dashed !important;
@@ -200,27 +138,3 @@ html.high-contrast .alert {
   border: 3px solid #000 !important;
 }
 
-/* Variante ghost/link para ações discretas */
-.btn-ghost {
-  background: transparent !important;
-  color: var(--text-color) !important;
-  border: 1px solid var(--surface-border) !important;
-}
-
-.btn-ghost:hover,
-.btn-ghost:focus-visible {
-  background: var(--header-hover-bg) !important;
-}
-
-/* Variante link (só texto) mantendo foco visível */
-.btn-link {
-  background: transparent !important;
-  color: var(--primary-color) !important;
-  border: none !important;
-  padding: 0 !important;
-  text-decoration: underline;
-}
-
-.btn-link:hover {
-  color: var(--primary-hover) !important;
-}
