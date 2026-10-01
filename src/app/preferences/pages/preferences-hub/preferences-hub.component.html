@@ -15,29 +15,25 @@
       @if (vm) {
         <app-preference-summary-card [vm]="vm"></app-preference-summary-card>
 
-        <section class="hub-section" aria-labelledby="hub-main-title">
-          <h2 id="hub-main-title" class="hub-section__title">Ajustes principais</h2>
+        <div class="hub-grid app-responsive-grid" aria-label="Ajustes de preferências">
+          <app-preferences-hub-card
+            title="Editar preferências"
+            description="Atualize o que você procura, quem gostaria de conhecer e o alcance das combinações."
+            route="/preferencias/editar">
+          </app-preferences-hub-card>
 
-          <div class="hub-grid app-responsive-grid">
-            <app-preferences-hub-card
-              title="Editar preferências"
-              description="Atualize o que você procura, quem gostaria de conhecer e o alcance das combinações."
-              route="/preferencias/editar">
-            </app-preferences-hub-card>
+          <app-preferences-hub-card
+            title="Descoberta e privacidade"
+            description="Defina como seu perfil aparece em buscas, sugestões e recursos regionais."
+            route="/preferencias/discovery-settings">
+          </app-preferences-hub-card>
 
-            <app-preferences-hub-card
-              title="Descoberta e privacidade"
-              description="Defina como seu perfil aparece em buscas, sugestões e recursos regionais."
-              route="/preferencias/discovery-settings">
-            </app-preferences-hub-card>
-
-            <app-preferences-hub-card
-              title="Notificações"
-              description="Escolha quais avisos de mensagens, conexões e atividades você quer receber."
-              route="/preferencias/notificacoes">
-            </app-preferences-hub-card>
-          </div>
-        </section>
+          <app-preferences-hub-card
+            title="Notificações"
+            description="Escolha quais avisos de mensagens, conexões e atividades você quer receber."
+            route="/preferencias/notificacoes">
+          </app-preferences-hub-card>
+        </div>
 
       } @else {
         <section class="hub-empty section app-card app-card--flat" aria-label="Sem sessão ativa">
