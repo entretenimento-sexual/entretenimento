@@ -12,22 +12,6 @@
     </app-page-header>
 
     @if (state$ | async; as state) {
-      <section class="plan-strip app-card app-card--flat" aria-label="Plano atual">
-        <div class="plan-strip__copy">
-          <strong>Plano {{ state.capabilities.currentPlanLabel }}</strong>
-        </div>
-
-        @if (nextPlan(state.capabilities); as minimumPlan) {
-          <a
-            class="app-action app-action--ghost"
-            routerLink="/subscription-plan"
-            [queryParams]="{ minimumRole: minimumPlan }"
-          >
-            Ver planos
-          </a>
-        }
-      </section>
-
       <section
         class="editor-section"
         aria-label="Preferências pessoais"

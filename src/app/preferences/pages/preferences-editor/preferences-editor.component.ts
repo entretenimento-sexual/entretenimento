@@ -40,10 +40,6 @@ import { ErrorNotificationService } from '@core/services/error-handler/error-not
 import { PreferencesEditorFacade } from '../../application/preferences-editor.facade';
 import { IntentState } from '../../models/intent-state.model';
 import { PreferenceProfile } from '../../models/preference-profile.model';
-import {
-  PreferencesCapabilitySnapshot,
-  PreferencesPlanRole,
-} from '../../services/preferences-capability.service';
 import { PreferencesUiService } from '../../state/preferences-ui.service';
 
 import { IntentStateFormComponent } from '../../components/intent-state-form/intent-state-form.component';
@@ -150,22 +146,6 @@ export class PreferencesEditorComponent
 
     event.preventDefault();
     event.returnValue = '';
-  }
-
-  nextPlan(capabilities: PreferencesCapabilitySnapshot): PreferencesPlanRole | null {
-    switch (capabilities.currentPlan) {
-      case 'free':
-      case null:
-        return 'basic';
-      case 'basic':
-        return 'premium';
-      case 'premium':
-        return 'vip';
-      case 'vip':
-      case 'admin':
-      default:
-        return null;
-    }
   }
 
   intentSummary(intent: IntentState): string {

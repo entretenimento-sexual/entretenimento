@@ -1361,6 +1361,24 @@ describe('Canonical UI boundary', () => {
     ).toBe(false);
   });
 
+  it('mantém o editor de Preferences sem promoção permanente de plano', () => {
+    const editor = source(
+      'src/app/preferences/pages/preferences-editor/preferences-editor.component.html'
+    );
+    const editorStyles = source(
+      'src/app/preferences/pages/preferences-editor/preferences-editor.component.css'
+    );
+    const editorSource = source(
+      'src/app/preferences/pages/preferences-editor/preferences-editor.component.ts'
+    );
+
+    expect(editor).not.toContain('plan-strip');
+    expect(editor).not.toContain('Plano {{ state.capabilities.currentPlanLabel }}');
+    expect(editor).not.toContain('Ver planos');
+    expect(editorStyles).not.toContain('.plan-strip');
+    expect(editorSource).not.toContain('nextPlan(');
+  });
+
   it('mantém o Preferences Hub orientado a tarefas em vez de painel administrativo', () => {
     const hub = source(
       'src/app/preferences/pages/preferences-hub/preferences-hub.component.html'
