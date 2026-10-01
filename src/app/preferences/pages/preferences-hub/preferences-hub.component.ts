@@ -38,8 +38,6 @@ export class PreferencesHubComponent {
   readonly vm$ = this.preferencesFacade.currentPreferencesVm$;
   readonly uid$ = this.preferencesFacade.currentUid$;
 
-  readonly lastCompatibilityTargetUid =
-    this.preferencesUi.lastCompatibilityTargetUid;
 
   constructor() {
     this.preferencesUi.setActiveView('hub');
