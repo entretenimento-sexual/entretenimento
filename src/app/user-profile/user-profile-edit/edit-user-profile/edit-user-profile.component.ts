@@ -5,53 +5,47 @@ import {
   OnDestroy,
   OnInit,
 } from '@angular/core';
-import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { FormGroup } from '@angular/forms';
 import { Router } from '@angular/router';
 
-import { Subject, of } from 'rxjs';
+import { Subject } from 'rxjs';
 import {
-  distinctUntilChanged,
   finalize,
-  map,
-  startWith,
-  switchMap,
   takeUntil,
-  tap,
 } from 'rxjs/operators';
 
-import {
-  SELECTABLE_PROFILE_IDENTITY_OPTIONS,
-  isCoupleProfileIdentityCode,
-} from 'src/app/core/domain/profile-identity/profile-identity.catalog';
 import { UnsavedChangesAware } from 'src/app/core/guards/unsaved-changes/unsaved-changes.guard';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import {
   ProfileEditEstado,
   ProfileEditLocationService,
-  ProfileEditMunicipio,
 } from './application/profile-edit-location.service';
 import { ProfileEditDraftFacade } from './application/profile-edit-draft.facade';
 import { ProfileEditAvatarFacade } from './application/profile-edit-avatar.facade';
 import { ProfileEditSaveOrchestrator } from './application/profile-edit-save.orchestrator';
 import { ProfileEditBootstrapFacade } from './application/profile-edit-bootstrap.facade';
+import { ProfileEditFormFacade } from './application/profile-edit-form.facade';
 
 @Component({
   selector: 'app-edit-user-profile',
   templateUrl: './edit-user-profile.component.html',
   styleUrls: ['./edit-user-profile.component.css'],
-  providers: [ProfileEditLocationService, ProfileEditDraftFacade, ProfileEditAvatarFacade, ProfileEditSaveOrchestrator, ProfileEditBootstrapFacade],
+  providers: [ProfileEditLocationService, ProfileEditDraftFacade, ProfileEditAvatarFacade, ProfileEditSaveOrchestrator, ProfileEditBootstrapFacade, ProfileEditFormFacade],
   standalone: false,
 })
 export class EditUserProfileComponent
   implements OnInit, OnDestroy, UnsavedChangesAware
 {
   userData: IUserDados = {} as IUserDados;
-  editForm: FormGroup;
+  readonly editForm: FormGroup;
 
   uid = '';
   estados: ProfileEditEstado[] = [];
-  municipios: ProfileEditMunicipio[] = [];
+
+  get municipios() {
+    return this.formFacade.municipios();
+  }
 
   isSaving = false;
 
@@ -81,39 +75,25 @@ export class EditUserProfileComponent
 
   private readonly destroy$ = new Subject<void>();
 
-  readonly genderOptions = SELECTABLE_PROFILE_IDENTITY_OPTIONS.map((option) => ({
-    value: option.code,
-    label: option.label,
-  }));
+  get genderOptions() {
+    return this.formFacade.genderOptions;
+  }
 
   constructor(
     private readonly router: Router,
-    private readonly formBuilder: FormBuilder,
     private readonly notify: ErrorNotificationService,
     private readonly locationService: ProfileEditLocationService,
     private readonly draftFacade: ProfileEditDraftFacade,
     private readonly avatarFacade: ProfileEditAvatarFacade,
     private readonly saveOrchestrator: ProfileEditSaveOrchestrator,
-    private readonly bootstrapFacade: ProfileEditBootstrapFacade
+    private readonly bootstrapFacade: ProfileEditBootstrapFacade,
+    private readonly formFacade: ProfileEditFormFacade
   ) {
-    this.editForm = this.formBuilder.group({
-      nickname: ['', [Validators.minLength(3)]],
-      estado: [''],
-      municipio: [{ value: '', disabled: true }],
-      gender: [''],
-      orientation: [''],
-      idade: [null, [Validators.min(18), Validators.max(100)]],
-      partner1Orientation: [''],
-      partner2Orientation: [''],
-      descricao: ['', [Validators.maxLength(2000)]],
-    });
+    this.editForm = this.formFacade.form;
   }
 
   isCouple(): boolean {
-    const gender = String(
-      this.editForm.get('gender')?.value ?? this.userData.gender ?? ''
-    );
-    return isCoupleProfileIdentityCode(gender);
+    return this.formFacade.isCouple();
   }
 
   ngOnInit(): void {
@@ -124,10 +104,7 @@ export class EditUserProfileComponent
         this.uid = vm.uid;
         this.userData = vm.user;
         this.estados = vm.estados;
-        this.municipios = vm.municipios;
-
-        this.syncMunicipioControlState(vm.municipios);
-        this.patchFormFromUser(vm.user);
+        this.formFacade.initialize(vm.user, vm.municipios);
 
         this.draftFacade.bind(
           this.editForm,
@@ -137,49 +114,7 @@ export class EditUserProfileComponent
         this.draftFacade.restore(this.editForm);
       });
 
-    this.editForm
-      .get('gender')!
-      .valueChanges.pipe(
-        startWith(this.editForm.get('gender')!.value),
-        map((value) => String(value ?? '')),
-        distinctUntilChanged(),
-        tap((gender) => this.syncOrientationControls(gender)),
-        takeUntil(this.destroy$)
-      )
-      .subscribe();
-
-    this.editForm
-      .get('estado')!
-      .valueChanges.pipe(
-        map((value) => String(value ?? '').trim()),
-        distinctUntilChanged(),
-        switchMap((sigla) =>
-          sigla ? this.locationService.loadMunicipios$(sigla) : of([])
-        ),
-        tap((municipios) => {
-          this.municipios = municipios;
-          this.syncMunicipioControlState(municipios);
-
-          const selected = String(
-            this.editForm.get('municipio')?.value ?? ''
-          );
-
-          if (
-            selected &&
-            municipios.some((municipio) => municipio.nome === selected)
-          ) {
-            return;
-          }
-
-          this.editForm.patchValue(
-            { municipio: municipios[0]?.nome ?? '' },
-            { emitEvent: false }
-          );
-        }),
-        takeUntil(this.destroy$)
-      )
-      .subscribe();
-  }
+    this.formFacade.bind();
 
   ngOnDestroy(): void {
     this.destroy$.next();
@@ -273,62 +208,5 @@ export class EditUserProfileComponent
       });
   }
 
-  private patchFormFromUser(user: IUserDados): void {
-    this.editForm.patchValue(
-      {
-        nickname: user.nickname ?? '',
-        estado: user.estado ?? '',
-        municipio: user.municipio ?? '',
-        gender: user.gender ?? '',
-        orientation: user.orientation ?? '',
-        idade: user.idade ?? null,
-        partner1Orientation: user.partner1Orientation ?? '',
-        partner2Orientation: user.partner2Orientation ?? '',
-        descricao: user.descricao ?? '',
-      },
-      { emitEvent: true }
-    );
-  }
 
-  private syncOrientationControls(gender: string): void {
-    const isCouple = isCoupleProfileIdentityCode(gender);
-
-    const orientation = this.editForm.get('orientation')!;
-    const partner1 = this.editForm.get('partner1Orientation')!;
-    const partner2 = this.editForm.get('partner2Orientation')!;
-
-    if (isCouple) {
-      orientation.disable({ emitEvent: false });
-      orientation.setValue('', { emitEvent: false });
-      partner1.enable({ emitEvent: false });
-      partner2.enable({ emitEvent: false });
-    } else {
-      orientation.enable({ emitEvent: false });
-      partner1.disable({ emitEvent: false });
-      partner2.disable({ emitEvent: false });
-      partner1.setValue('', { emitEvent: false });
-      partner2.setValue('', { emitEvent: false });
-    }
-
-    partner1.updateValueAndValidity({ emitEvent: false });
-    partner2.updateValueAndValidity({ emitEvent: false });
-    orientation.updateValueAndValidity({ emitEvent: false });
-  }
-
-
-
-  private syncMunicipioControlState(
-    municipios: ProfileEditMunicipio[]
-  ): void {
-    const municipioControl = this.editForm.get('municipio');
-    if (!municipioControl) return;
-
-    if (municipios.length > 0) {
-      municipioControl.enable({ emitEvent: false });
-      return;
-    }
-
-    municipioControl.disable({ emitEvent: false });
-    municipioControl.patchValue('', { emitEvent: false });
-  }
 }
