@@ -76,14 +76,25 @@ describe('UserPhotoManagerComponent', () => {
   it('abre confirmação canônica antes de excluir', async () => {
     component.userId = 'u1';
 
-    component.deleteFile('photo-1', 'profiles/u1/photo-1.jpg');
+    component.deleteFile('photo-1');
 
     expect(dialog.open).toHaveBeenCalledTimes(1);
     await Promise.resolve();
     expect(photoService.deletePhoto).toHaveBeenCalledWith(
       'u1',
-      'photo-1',
-      'profiles/u1/photo-1.jpg'
+      'photo-1'
+    );
+  });
+
+  it('permite excluir foto sem path legado', async () => {
+    component.userId = 'u1';
+
+    component.deleteFile('photo-legacy');
+
+    await Promise.resolve();
+    expect(photoService.deletePhoto).toHaveBeenCalledWith(
+      'u1',
+      'photo-legacy'
     );
   });
 
@@ -93,7 +104,7 @@ describe('UserPhotoManagerComponent', () => {
     } as any);
     component.userId = 'u1';
 
-    component.deleteFile('photo-1', 'profiles/u1/photo-1.jpg');
+    component.deleteFile('photo-1');
 
     await Promise.resolve();
     expect(photoService.deletePhoto).not.toHaveBeenCalled();
