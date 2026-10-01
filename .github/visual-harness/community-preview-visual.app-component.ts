@@ -81,6 +81,7 @@ const preview: CommunityPreviewResponse = {
     memberLimitOptions: [],
     allowedMemberLimits: [],
   },
+  capacityRegularization: null,
   settings: null,
   canLeaveMembership: true,
   generatedAt: now,
