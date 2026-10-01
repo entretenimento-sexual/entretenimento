@@ -8,7 +8,7 @@
 // - aceitar deep-link por query params: openChatId / withUser;
 // - delegar comandos de envio direto ao DirectChatSendOrchestrator;
 // - usar AuthSessionService como fonte canônica da sessão;
-- delegar seleção/contexto do peer ao DirectChatSelectionContextFacade;
+// - delegar seleção/contexto do peer ao DirectChatSelectionContextFacade;
 // - bloquear preventivamente envio direto sem conexão aceita;
 // - manter feedback de envio acessível e claro;
 // - usar PrivacyDebugLoggerService para logs de debug.
