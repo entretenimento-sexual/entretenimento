@@ -5,7 +5,6 @@ import {
   finalize,
   switchMap,
   take,
-  tap,
 } from 'rxjs/operators';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
