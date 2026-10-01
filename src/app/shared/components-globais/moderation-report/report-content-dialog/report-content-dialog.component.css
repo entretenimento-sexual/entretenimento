@@ -14,23 +14,6 @@
   padding: 22px 22px 0;
 }
 
-.report-dialog__eyebrow {
-  display: inline-flex;
-  align-items: center;
-  width: fit-content;
-  min-height: 28px;
-  padding: 0.28rem 0.68rem;
-  border: 1px solid color-mix(in oklab, var(--primary-color, #ff7070) 34%, transparent);
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--primary-color, #ff7070) 10%, transparent);
-  color: var(--primary-color, #ff7070);
-  font-size: 0.72rem;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  line-height: 1;
-  text-transform: uppercase;
-}
-
 .report-dialog__header h2 {
   margin: 0;
   padding: 0;
@@ -113,7 +96,6 @@
   }
 }
 
-html.high-contrast .report-dialog__eyebrow,
 html.high-contrast .report-dialog__helper {
   border-color: currentColor !important;
 }

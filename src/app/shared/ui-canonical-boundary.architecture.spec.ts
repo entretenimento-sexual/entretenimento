@@ -1634,4 +1634,35 @@ describe('Canonical UI boundary', () => {
     expect(ownershipStyles).not.toContain('community-ownership-management__eyebrow');
   });
 
+
+  it('mantém diálogos e recuperação sem rótulos contextuais redundantes', () => {
+    const directMessage = source(
+      'src/app/shared/components-globais/modal-mensagem/modal-mensagem.component.html'
+    );
+    const directMessageStyles = source(
+      'src/app/shared/components-globais/modal-mensagem/modal-mensagem.component.css'
+    );
+    const reportDialog = source(
+      'src/app/shared/components-globais/moderation-report/report-content-dialog/report-content-dialog.component.html'
+    );
+    const reportDialogStyles = source(
+      'src/app/shared/components-globais/moderation-report/report-content-dialog/report-content-dialog.component.css'
+    );
+    const recovery = source(
+      'src/app/register-module/account-recovery/account-recovery-page.component.html'
+    );
+    const recoveryStyles = source(
+      'src/app/register-module/account-recovery/account-recovery-page.component.css'
+    );
+
+    expect(directMessage).not.toContain('direct-message-eyebrow');
+    expect(directMessageStyles).not.toContain('direct-message-eyebrow');
+
+    expect(reportDialog).not.toContain('report-dialog__eyebrow');
+    expect(reportDialogStyles).not.toContain('report-dialog__eyebrow');
+
+    expect(recovery).not.toContain('class="eyebrow"');
+    expect(recoveryStyles).not.toMatch(/(^|\n)\.eyebrow\b/u);
+  });
+
 });
