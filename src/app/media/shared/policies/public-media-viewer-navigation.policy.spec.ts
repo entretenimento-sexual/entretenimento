@@ -23,6 +23,17 @@ function pointerEventLike(input: Partial<PointerEvent>): PointerEvent {
   } as PointerEvent;
 }
 
+function keyboardEventLike(input: Partial<KeyboardEvent>): KeyboardEvent {
+  return {
+    altKey: false,
+    ctrlKey: false,
+    metaKey: false,
+    shiftKey: false,
+    target: document.createElement('div'),
+    ...input,
+  } as unknown as KeyboardEvent;
+}
+
 describe('public media viewer navigation policy', () => {
   it('inicia swipe apenas com ponteiro válido, navegação disponível e target livre', () => {
     expect(
@@ -127,13 +138,7 @@ describe('public media viewer navigation policy', () => {
 
     expect(
       canUsePublicMediaViewerKeyboardNavigation(
-        {
-          altKey: false,
-          ctrlKey: true,
-          metaKey: false,
-          shiftKey: false,
-          target: document.createElement('div'),
-        } as KeyboardEvent,
+        keyboardEventLike({ ctrlKey: true }),
         PUBLIC_MEDIA_VIEWER_BLOCKED_TARGET_SELECTOR
       )
     ).toBe(false);
