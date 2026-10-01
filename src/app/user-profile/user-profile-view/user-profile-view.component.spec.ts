@@ -14,10 +14,8 @@ import { UserPhotoManagerComponent } from '../user-photo-manager/user-photo-mana
 import { AccessControlService } from '../../core/services/autentication/auth/access-control.service';
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from '../../core/services/autentication/auth/current-user-store.service';
-import { FirestoreUserQueryService } from '../../core/services/data-handling/firestore-user-query.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
 import { ApplicationErrorService } from '../../core/services/error-handler/application-error.service';
-import { RoomManagementService } from '../../core/services/batepapo/room-services/room-management.service';
 import { NetworkStatusService } from '../../core/services/network/network-status.service';
 import { PrivacyDebugLoggerService } from '../../core/services/privacy/privacy-debug-logger.service';
 import { UserSocialLinksService } from '../../core/services/user-profile/user-social-links.service';
@@ -105,19 +103,10 @@ class MockUserSocialLinksService {
   removeLink = vi.fn(() => of(void 0));
 }
 
-class MockFirestoreUserQueryService {
-  getUser = vi.fn(() => of(CURRENT_USER));
-  getUserWithObservable = vi.fn(() => of(CURRENT_USER));
-}
-
 class MockErrorNotificationService {
   showError = vi.fn();
   showSuccess = vi.fn();
   showWarning = vi.fn();
-}
-
-class MockRoomManagementService {
-  createRoom = vi.fn(() => of({ id: 'room-1' }));
 }
 
 describe('UserProfileViewComponent', () => {
@@ -161,10 +150,6 @@ describe('UserProfileViewComponent', () => {
           useClass: MockUserSocialLinksService,
         },
         {
-          provide: FirestoreUserQueryService,
-          useClass: MockFirestoreUserQueryService,
-        },
-        {
           provide: ErrorNotificationService,
           useClass: MockErrorNotificationService,
         },
@@ -182,10 +167,6 @@ describe('UserProfileViewComponent', () => {
         {
           provide: PrivacyDebugLoggerService,
           useValue: { log: vi.fn() },
-        },
-        {
-          provide: RoomManagementService,
-          useClass: MockRoomManagementService,
         },
       ],
     });
