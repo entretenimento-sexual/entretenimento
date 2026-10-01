@@ -66,6 +66,15 @@ import { PublicPhotoContinuationService } from 'src/app/core/services/media/publ
 import type { TPhotoViewSource } from 'src/app/core/services/media/photo-view-tracking.service';
 import { PublicMediaBadgeComponent } from '../../shared/components/public-media-badge/public-media-badge.component';
 import { PublicMediaRecommendationBadgeComponent } from '../../shared/components/public-media-recommendation-badge/public-media-recommendation-badge.component';
+import {
+  PUBLIC_MEDIA_VIEWER_BLOCKED_TARGET_SELECTOR,
+  PublicMediaViewerSwipeGesture,
+  canStartPublicMediaViewerSwipe,
+  canUsePublicMediaViewerKeyboardNavigation,
+  createPublicMediaViewerSwipeGesture,
+  resolvePublicMediaViewerSwipeDirection,
+  updatePublicMediaViewerSwipeGesture,
+} from '../../shared/policies/public-media-viewer-navigation.policy';
 
 export type { TPhotoViewSource } from 'src/app/core/services/media/photo-view-tracking.service';
 
@@ -131,35 +140,8 @@ type TPhotoCommentThread = {
   replies: IPhotoComment[];
 };
 
-interface PhotoSwipeGesture {
-  pointerId: number;
-  startX: number;
-  startY: number;
-  lastX: number;
-  lastY: number;
-  startedAt: number;
-}
-
 const CONTINUATION_PREFETCH_REMAINING_ITEMS = 2;
 const CONTINUATION_BATCH_SIZE = 8;
-const PHOTO_SWIPE_MIN_DISTANCE_PX = 64;
-const PHOTO_SWIPE_INTENT_DISTANCE_PX = 18;
-const PHOTO_SWIPE_AXIS_DOMINANCE = 1.2;
-const PHOTO_SWIPE_MAX_DURATION_MS = 800;
-const PHOTO_SWIPE_BLOCKED_TARGET_SELECTOR = [
-  'button',
-  'a',
-  'input',
-  'textarea',
-  'select',
-  'option',
-  'label',
-  '[contenteditable="true"]',
-  '[role="button"]',
-  '[role="link"]',
-  '[role="slider"]',
-].join(',');
-
 @Component({
   selector: 'app-photo-viewer',
   standalone: true,
@@ -194,7 +176,7 @@ export class PhotoViewerComponent {
   readonly loadingContinuation = signal(false);
   readonly continuationAnnouncement = signal('');
   readonly navigationAnnouncement = signal('');
-  private photoSwipeGesture: PhotoSwipeGesture | null = null;
+  private photoSwipeGesture: PublicMediaViewerSwipeGesture | null = null;
 
   readonly commentControl = new FormControl('', {
     nonNullable: true,
@@ -424,7 +406,10 @@ export class PhotoViewerComponent {
   onArrowLeft(event: Event): void {
     const keyboardEvent = event as KeyboardEvent;
 
-    if (!this.canUseGalleryKeyboardNavigation(keyboardEvent) || !this.hasPrev) {
+    if (!canUsePublicMediaViewerKeyboardNavigation(
+      keyboardEvent,
+      PUBLIC_MEDIA_VIEWER_BLOCKED_TARGET_SELECTOR
+    ) || !this.hasPrev) {
       return;
     }
 
@@ -437,7 +422,10 @@ export class PhotoViewerComponent {
   onArrowRight(event: Event): void {
     const keyboardEvent = event as KeyboardEvent;
 
-    if (!this.canUseGalleryKeyboardNavigation(keyboardEvent) || !this.hasNext) {
+    if (!canUsePublicMediaViewerKeyboardNavigation(
+      keyboardEvent,
+      PUBLIC_MEDIA_VIEWER_BLOCKED_TARGET_SELECTOR
+    ) || !this.hasNext) {
       return;
     }
 
@@ -446,37 +434,24 @@ export class PhotoViewerComponent {
   }
 
   onSwipePointerDown(event: PointerEvent): void {
-    if (!this.canStartSwipeNavigation(event)) {
+    if (!canStartPublicMediaViewerSwipe(event, {
+      axis: 'horizontal',
+      blockedTargetSelector: PUBLIC_MEDIA_VIEWER_BLOCKED_TARGET_SELECTOR,
+      navigationAvailable: this.hasPrev || this.hasNext,
+    })) {
       this.cancelSwipeNavigation();
       return;
     }
 
-    this.photoSwipeGesture = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      lastX: event.clientX,
-      lastY: event.clientY,
-      startedAt: Date.now(),
-    };
+    this.photoSwipeGesture = createPublicMediaViewerSwipeGesture(event);
   }
 
   onSwipePointerMove(event: PointerEvent): void {
     const gesture = this.photoSwipeGesture;
 
-    if (!gesture || gesture.pointerId !== event.pointerId) {
-      return;
-    }
-
-    gesture.lastX = event.clientX;
-    gesture.lastY = event.clientY;
-
-    const horizontalDistance = Math.abs(gesture.lastX - gesture.startX);
-    const verticalDistance = Math.abs(gesture.lastY - gesture.startY);
-
     if (
-      horizontalDistance >= PHOTO_SWIPE_INTENT_DISTANCE_PX &&
-      horizontalDistance > verticalDistance * PHOTO_SWIPE_AXIS_DOMINANCE &&
+      gesture &&
+      updatePublicMediaViewerSwipeGesture(gesture, event, 'horizontal') &&
       event.cancelable
     ) {
       event.preventDefault();
@@ -487,27 +462,19 @@ export class PhotoViewerComponent {
     const gesture = this.photoSwipeGesture;
     this.photoSwipeGesture = null;
 
-    if (!gesture || gesture.pointerId !== event.pointerId) {
+    if (!gesture) {
       return;
     }
 
-    const deltaX = event.clientX - gesture.startX;
-    const deltaY = event.clientY - gesture.startY;
-    const horizontalDistance = Math.abs(deltaX);
-    const verticalDistance = Math.abs(deltaY);
-    const durationMs = Date.now() - gesture.startedAt;
+    const direction = resolvePublicMediaViewerSwipeDirection(
+      gesture,
+      event,
+      'horizontal'
+    );
 
-    if (
-      durationMs > PHOTO_SWIPE_MAX_DURATION_MS ||
-      horizontalDistance < PHOTO_SWIPE_MIN_DISTANCE_PX ||
-      horizontalDistance <= verticalDistance * PHOTO_SWIPE_AXIS_DOMINANCE
-    ) {
-      return;
-    }
-
-    if (deltaX > 0) {
+    if (direction === 'previous') {
       this.prev();
-    } else {
+    } else if (direction === 'next') {
       this.next();
     }
   }
@@ -1139,40 +1106,6 @@ export class PhotoViewerComponent {
     this.navigationAnnouncement.set(
       `${this.index + 1} de ${this.data.items.length}. ${label}.`
     );
-  }
-
-  private canStartSwipeNavigation(event: PointerEvent): boolean {
-    const pointerType = String(event.pointerType ?? '').trim().toLowerCase();
-
-    if (
-      pointerType === 'mouse' ||
-      event.isPrimary === false ||
-      event.button !== 0 ||
-      (!this.hasPrev && !this.hasNext)
-    ) {
-      return false;
-    }
-
-    return !this.isSwipeNavigationTargetBlocked(event.target);
-  }
-
-  private isSwipeNavigationTargetBlocked(target: EventTarget | null): boolean {
-    if (!(target instanceof Element)) {
-      return true;
-    }
-
-    return !!target.closest(PHOTO_SWIPE_BLOCKED_TARGET_SELECTOR);
-  }
-
-  private canUseGalleryKeyboardNavigation(event: KeyboardEvent): boolean {
-    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
-      return false;
-    }
-
-    const target = event.target;
-
-    return !(target instanceof Element) ||
-      !target.closest(PHOTO_SWIPE_BLOCKED_TARGET_SELECTOR);
   }
 
   private debug(message: string, extra?: unknown): void {
