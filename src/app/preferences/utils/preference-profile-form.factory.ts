@@ -11,17 +11,13 @@ import {
 
 import {
   BODY_PREFERENCE_OPTIONS,
-  DISCOVERY_MODE_OPTIONS,
   GENDER_INTEREST_OPTIONS,
   RELATIONSHIP_INTENT_OPTIONS,
   SEXUAL_PRACTICE_OPTIONS,
   PreferenceOption,
 } from '../catalogs/preference-profile-options.catalog';
 import type { PreferenceProfile } from '../models/preference-profile.model';
-import type {
-  DiscoveryMode,
-  PreferenceMatchMode,
-} from '../models/preference.types';
+import type { PreferenceMatchMode } from '../models/preference.types';
 import type { PreferencesCapabilitySnapshot } from '../services/preferences-capability.service';
 
 type AcceptsTransProfilesFormValue = 'all' | 'yes' | 'no';
@@ -46,9 +42,6 @@ export function buildPreferenceProfileForm(fb: FormBuilder) {
       acceptsTransProfiles: fb.nonNullable.control<AcceptsTransProfilesFormValue>('all'),
       locationRequired: fb.nonNullable.control(false),
 
-      showPreferenceBadges: fb.nonNullable.control(true),
-      showIntentPublicly: fb.nonNullable.control(false),
-      discoveryMode: fb.nonNullable.control<DiscoveryMode>('standard'),
 
       ...buildFlagControls(fb, 'ri', RELATIONSHIP_INTENT_OPTIONS),
       ...buildFlagControls(fb, 'gi', GENDER_INTEREST_OPTIONS),
@@ -72,9 +65,6 @@ export function mapPreferenceProfileToFormValue(profile: PreferenceProfile): Raw
     acceptsSingles: profile.hardRules.acceptsSingles,
     acceptsTransProfiles: writeAcceptsTransProfiles(profile.hardRules.acceptsTransProfiles),
     locationRequired: profile.hardRules.locationRequired,
-    showPreferenceBadges: profile.visibility.showPreferenceBadges,
-    showIntentPublicly: profile.visibility.showIntentPublicly,
-    discoveryMode: profile.visibility.discoveryMode,
     ...buildFlagPatch(profile.relationshipIntents, 'ri', RELATIONSHIP_INTENT_OPTIONS),
     ...buildFlagPatch(profile.hardRules.acceptedGenders, 'gi', GENDER_INTEREST_OPTIONS),
     ...buildFlagPatch(profile.softRules.sexualPractices, 'sp', SEXUAL_PRACTICE_OPTIONS),
@@ -130,14 +120,7 @@ export function mapFormValueToPreferenceProfile(
         ? normalizeAdvancedMode(raw['bodyPreferenceMode'], canRequireAdvanced)
         : current.matchingModes?.bodyPreferences ?? 'prefer',
     },
-    visibility: {
-      showPreferenceBadges: raw['showPreferenceBadges'] === true,
-      showIntentPublicly: raw['showIntentPublicly'] === true,
-      discoveryMode: normalizeDiscoveryMode(
-        (raw['discoveryMode'] as DiscoveryMode) ?? 'standard',
-        capabilities
-      ),
-    },
+    visibility: current.visibility,
     updatedAt: Date.now(),
   };
 }
@@ -217,19 +200,9 @@ function normalizeAdvancedMode(value: unknown, canRequireAdvanced: boolean): Pre
   return value === 'require' && canRequireAdvanced ? 'require' : 'prefer';
 }
 
-function normalizeDiscoveryMode(
-  mode: DiscoveryMode,
-  capabilities: PreferencesCapabilitySnapshot | null | undefined
-): DiscoveryMode {
-  if (mode === 'priority' && !(capabilities?.canUsePriorityVisibility ?? false)) return 'standard';
-  if (mode === 'discreet' && !(capabilities?.canUseDiscreetMode ?? false)) return 'standard';
-  return mode;
-}
-
 export {
   RELATIONSHIP_INTENT_OPTIONS,
   GENDER_INTEREST_OPTIONS,
   SEXUAL_PRACTICE_OPTIONS,
   BODY_PREFERENCE_OPTIONS,
-  DISCOVERY_MODE_OPTIONS,
 };
