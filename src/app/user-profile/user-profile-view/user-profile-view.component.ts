@@ -22,60 +22,28 @@
 // - Este componente NÃO renderiza edição/social/fotos se detectar perfil alheio.
 // - Perfil alheio pertence ao OtherUserProfileViewComponent.
 import { CommonModule } from '@angular/common';
-import { Component, DestroyRef, OnInit, inject } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { Store } from '@ngrx/store';
-import { Observable, combineLatest, of } from 'rxjs';
-import {
-  auditTime,
-  catchError,
-  distinctUntilChanged,
-  filter,
-  map,
-  scan,
-  shareReplay,
-  switchMap,
-  tap,
-} from 'rxjs/operators';
-
+import { Component, OnInit, inject } from '@angular/core';
+import { RouterModule } from '@angular/router';
+import { Observable } from 'rxjs';
 import { ProfileMyCommunitiesComponent } from 'src/app/community/profile-my-communities/profile-my-communities.component';
 import { ProfileOfficialCommunitiesComponent } from 'src/app/community/profile-official-communities/profile-official-communities.component';
-import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
-import { ApplicationErrorService } from '@core/services/error-handler/application-error.service';
-import { NetworkStatusService } from '@core/services/network/network-status.service';
 import type { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
-import {
-  ContentStateComponent,
-  ContentStateKind,
-} from 'src/app/shared/content-state/content-state.component';
+import { ContentStateComponent } from 'src/app/shared/content-state/content-state.component';
 import { CapitalizePipe } from 'src/app/shared/pipes/capitalize.pipe';
 import { DateFormatPipe } from 'src/app/shared/pipes/date-format.pipe';
-import * as UserActions from 'src/app/store/actions/actions.user/user.actions';
-import {
-  selectCurrentUser,
-  selectCurrentUserStatus,
-  selectCurrentUserUid,
-  type CurrentUserStatus,
-} from 'src/app/store/selectors/selectors.user/user.selectors';
-import { AppState } from 'src/app/store/states/app.state';
 import { SocialLinksAccordionComponent } from './user-social-links-accordion/user-social-links-accordion.component';
 import { UserPhotoManagerComponent } from '../user-photo-manager/user-photo-manager.component';
-
-interface ProfileContentStateVm {
-  state: ContentStateKind;
-  title: string;
-  message: string;
-  actionLabel: string;
-  compact: boolean;
-}
+import {
+  OwnProfileContextFacade,
+  OwnProfileContentStateVm,
+} from './application/own-profile-context.facade';
 
 @Component({
   selector: 'app-user-profile-view',
   templateUrl: './user-profile-view.component.html',
   styleUrls: ['./user-profile-view.component.css'],
   standalone: true,
+  providers: [OwnProfileContextFacade],
   imports: [
     CommonModule,
     RouterModule,
@@ -89,30 +57,15 @@ interface ProfileContentStateVm {
   ],
 })
 export class UserProfileViewComponent implements OnInit {
-  private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
-  private readonly store = inject<Store<AppState>>(Store as any);
-  private readonly destroyRef = inject(DestroyRef);
-
-  private readonly applicationError = inject(ApplicationErrorService);
-  private readonly errorNotification = inject(ErrorNotificationService);
-  private readonly network = inject(NetworkStatusService);
-  private readonly privacyDebug = inject(PrivacyDebugLoggerService);
+  private readonly contextFacade = inject(OwnProfileContextFacade);
 
   public uid: string | null = null;
   private authUid: string | null = null;
 
-  public readonly status$: Observable<CurrentUserStatus> =
-    this.store.select(selectCurrentUserStatus);
-
-  public usuario$: Observable<IUserDados | null> = of(null);
-  public profileContentState$: Observable<ProfileContentStateVm | null> = of({
-    state: 'loading',
-    title: '',
-    message: 'Carregando seu perfil.',
-    actionLabel: '',
-    compact: false,
-  });
+  public readonly status$ = this.contextFacade.status$;
+  public readonly usuario$ = this.contextFacade.user$;
+  public readonly profileContentState$: Observable<OwnProfileContentStateVm | null> =
+    this.contextFacade.contentState$;
   public redirectingToOtherProfile = false;
 
   ngOnInit(): void {
@@ -134,189 +87,18 @@ export class UserProfileViewComponent implements OnInit {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-    const context$ = combineLatest([routeUid$, authUid$]).pipe(
-      tap(([routeUid, authUid]) => {
-        const isExternal =
-          !!routeUid &&
-          !!authUid &&
-          routeUid !== authUid;
+  ngOnInit(): void {
+    this.contextFacade.init();
 
-        this.redirectingToOtherProfile = isExternal;
-        this.uid = isExternal ? authUid : routeUid ?? authUid ?? null;
-      }),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
-
-    context$
-      .pipe(
-        filter(
-          ([routeUid, authUid]) =>
-            !!routeUid && !!authUid && routeUid !== authUid
-        ),
-        tap(([routeUid]) => {
-          const targetUid = routeUid ?? '';
-
-          this.dbg(
-            'external profile detected; redirecting to OtherUserProfileView',
-            {
-              hasTargetUid: !!targetUid,
-            }
-          );
-          this.router
-            .navigate(['/outro-perfil', targetUid], { replaceUrl: true })
-            .catch((error) => {
-              this.reportError(
-                'Não foi possível redirecionar para o perfil público.',
-                error,
-                {
-                  op: 'redirectExternalProfile',
-                  hasTargetUid: !!targetUid,
-                }
-              );
-            });
-        }),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe();
-
-    this.usuario$ = context$.pipe(
-      switchMap(([routeUid, authUid]) => {
-        if (!authUid) {
-          return of(null);
-        }
-
-        if (routeUid && routeUid !== authUid) {
-          return of(null);
-        }
-
-        return this.store.select(selectCurrentUser);
-      }),
-      catchError((error) => {
-        this.reportError(
-          'Não foi possível carregar seu perfil no momento.',
-          error,
-          { op: 'usuario$' }
-        );
-
-        return of(null);
-      }),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
-
-    this.profileContentState$ = combineLatest([
-      this.status$,
-      this.usuario$,
-      this.network.isOffline$,
-    ]).pipe(
-      map(([status, user, offline]) => {
-        if (user && (offline || status === 'loading_profile')) {
-          return {
-            state: 'stale',
-            title: 'Exibindo seu perfil salvo',
-            message: offline
-              ? 'A conexão está indisponível. Alterações recentes podem aparecer quando você voltar a ficar online.'
-              : 'Seu perfil está sendo atualizado em segundo plano.',
-            actionLabel: offline ? '' : 'Atualizar',
-            compact: true,
-          } satisfies ProfileContentStateVm;
-        }
-
-        if (user) return null;
-
-        if (status === 'boot' || status === 'loading_profile') {
-          return {
-            state: 'loading',
-            title: '',
-            message: 'Carregando seu perfil.',
-            actionLabel: '',
-            compact: false,
-          } satisfies ProfileContentStateVm;
-        }
-
-        if (offline) {
-          return {
-            state: 'offline',
-            title: 'Perfil indisponível sem conexão',
-            message:
-              'Este perfil ainda não está no cache deste dispositivo. Conecte-se para carregá-lo.',
-            actionLabel: 'Tentar novamente',
-            compact: false,
-          } satisfies ProfileContentStateVm;
-        }
-
-        if (status === 'signed_out') {
-          return {
-            state: 'error',
-            title: 'Sessão não encontrada',
-            message: 'Entre novamente para acessar seu perfil.',
-            actionLabel: 'Entrar',
-            compact: false,
-          } satisfies ProfileContentStateVm;
-        }
-
-        return {
-          state: 'error',
-          title: 'Seu perfil não está disponível',
-          message:
-            'A sessão continua ativa, mas o perfil não pôde ser hidratado. Tente novamente.',
-          actionLabel: 'Tentar novamente',
-          compact: false,
-        } satisfies ProfileContentStateVm;
-      }),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
-
-    context$
-      .pipe(
-        auditTime(500),
-        tap(([routeUid, authUid]) => {
-          this.dbg('context$', {
-            hasRouteUid: !!routeUid,
-            hasAuthUid: !!authUid,
-            isOwnProfile: !!authUid && (!routeUid || routeUid === authUid),
-            redirectingToOtherProfile:
-              !!routeUid && !!authUid && routeUid !== authUid,
-          });
-        }),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe();
-
-    this.status$
-      .pipe(
-        auditTime(500),
-        tap((status) => this.dbg('currentUserStatus$', status)),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe();
-
-    this.usuario$
-      .pipe(
-        filter(Boolean),
-        scan((count) => count + 1, 0),
-        auditTime(1000),
-        tap((count) => this.dbg('usuario$ emits/sec', count)),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe();
+    this.contextFacade.context$.subscribe((context) => {
+      this.uid = context.uid;
+      this.authUid = context.authUid;
+      this.redirectingToOtherProfile = context.redirectingToOtherProfile;
+    });
   }
 
   retryProfile(): void {
-    if (!this.authUid) {
-      this.router.navigate(['/login']).catch(() => {});
-      return;
-    }
-
-    if (!this.network.isOnlineSnapshot()) {
-      this.errorNotification.showWarning(
-        'Aguarde a conexão voltar para atualizar seu perfil.'
-      );
-      return;
-    }
-
-    this.store.dispatch(
-      UserActions.observeUserChanges({ uid: this.authUid })
-    );
+    this.contextFacade.retryProfile(this.authUid);
   }
 
   onAvatarImageError(event: Event): void {
@@ -372,23 +154,5 @@ export class UserProfileViewComponent implements OnInit {
       !this.redirectingToOtherProfile;
   }
 
-  private dbg(message: string, extra?: unknown): void {
-    this.privacyDebug.log('profile', `UserProfileView: ${message}`, extra);
-  }
 
-  private reportError(
-    userMessage: string,
-    error: unknown,
-    context?: Readonly<Record<string, unknown>>
-  ): void {
-    this.applicationError.report(error, {
-      feature: 'profile-view',
-      operation: String(context?.['op'] ?? 'unknown'),
-      fallbackMessage: userMessage,
-      metadata: {
-        scope: 'UserProfileViewComponent',
-        ...(context ?? {}),
-      },
-    });
-  }
 }
