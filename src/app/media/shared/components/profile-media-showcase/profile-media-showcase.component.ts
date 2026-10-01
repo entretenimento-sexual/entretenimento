@@ -6,7 +6,6 @@ import {
   computed,
   inject,
   input,
-  signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { RouterModule } from '@angular/router';
