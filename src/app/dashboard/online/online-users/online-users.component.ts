@@ -77,7 +77,7 @@ import { GeolocationTrackingService } from 'src/app/core/services/geolocation/ge
 import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 
 import { UserCardComponent } from 'src/app/shared/user-card/user-card.component';
 import { environment } from 'src/environments/environment';
@@ -258,7 +258,7 @@ constructor(
   private readonly geolocationService: GeolocationService,
   private readonly cardEnrichment: DiscoveryCardEnrichmentService,
   private readonly errorNotificationService: ErrorNotificationService,
-  private readonly globalErrorHandlerService: GlobalErrorHandlerService,
+  private readonly applicationError: ApplicationErrorService,
   private readonly geoTracking: GeolocationTrackingService,
   private readonly store: Store<AppState>,
   private readonly access: AccessControlService,
@@ -953,13 +953,15 @@ private normalizeRedirectTarget(url: string | null | undefined): string {
       err.code === GeolocationErrorCode.PERMISSION_DENIED;
 
     if (!isGestureOnly && !expectedPermissionDenied) {
-      const e = err instanceof Error ? err : new Error(msg);
-
-      (e as any).context = 'OnlineUsersComponent.handleGeoError';
-      (e as any).original = err;
-      (e as any).skipUserNotification = true;
-
-      this.globalErrorHandlerService.handleError(e);
+      this.applicationError.report(err, {
+        feature: 'online-users',
+        operation: 'OnlineUsersComponent.handleGeoError',
+        fallbackMessage: msg,
+        presentation: { surface: 'none', severity: 'error' },
+        metadata: {
+          scope: 'OnlineUsersComponent',
+        },
+      });
     }
   }
 
@@ -968,4 +970,4 @@ private normalizeRedirectTarget(url: string | null | undefined): string {
     // eslint-disable-next-line no-console
     console.log(`[OnlineUsers] ${message}`, extra ?? '');
   }
-}// Linha 959, absurdamente grande para um componente, mas a maioria das linhas são tipos, estados e comentários detalhados. Refatorar para reduzir complexidade futura é recomendado, mas fora do escopo desta tarefa de migração.
+}
