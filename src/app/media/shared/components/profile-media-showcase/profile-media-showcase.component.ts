@@ -2,12 +2,13 @@ import { CommonModule } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   computed,
   inject,
   input,
   signal,
 } from '@angular/core';
-import { toObservable } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { RouterModule } from '@angular/router';
 import {
   BehaviorSubject,
@@ -63,6 +64,7 @@ const SHOWCASE_ITEM_LIMIT = 5;
   providers: [ProfileMediaShowcaseViewerFacade],
 })
 export class ProfileMediaShowcaseComponent {
+  private readonly destroyRef = inject(DestroyRef);
   private readonly mediaPublicPreview = inject(MediaPublicPreviewQueryService);
   private readonly mediaError = inject(MediaApplicationErrorService);
   private readonly viewerFacade = inject(ProfileMediaShowcaseViewerFacade);
@@ -134,6 +136,7 @@ export class ProfileMediaShowcaseComponent {
         item,
         fallbackIndex
       )
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe();
   }
 
