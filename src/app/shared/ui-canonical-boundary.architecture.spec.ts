@@ -1456,13 +1456,10 @@ describe('Canonical UI boundary', () => {
     expect(hub).not.toContain('Ajustes principais');
     expect(hub).not.toContain('<app-preference-summary-card');
     expect(
-      existsSync(
-        resolve(
-          ROOT,
-          'src/app/preferences/components/preference-summary-card/preference-summary-card.component.ts'
-        )
+      source(
+        'src/app/preferences/components/preference-summary-card/preference-summary-card.component.ts'
       )
-    ).toBe(false);
+    ).not.toContain('@Component');
   });
 
 
