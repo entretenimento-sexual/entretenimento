@@ -1,4 +1,4 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { Observable, combineLatest, of } from 'rxjs';
 import {
@@ -24,6 +24,12 @@ export interface ProfileSocialLinksAccessState {
 
 @Injectable()
 export class ProfileSocialLinksEditorFacade {
+  private readonly route = inject(ActivatedRoute);
+  private readonly accessControl = inject(AccessControlService);
+  private readonly subscriptionAccess = inject(PlatformSubscriptionAccessService);
+  private readonly userSocialLinksService = inject(UserSocialLinksService);
+  private readonly applicationError = inject(ApplicationErrorService);
+
   readonly uid = signal<string | null>(this.resolveUid());
 
   readonly access$: Observable<ProfileSocialLinksAccessState> =
@@ -78,13 +84,7 @@ export class ProfileSocialLinksEditorFacade {
         )
     : of({});
 
-  constructor(
-    private readonly route: ActivatedRoute,
-    private readonly accessControl: AccessControlService,
-    private readonly subscriptionAccess: PlatformSubscriptionAccessService,
-    private readonly userSocialLinksService: UserSocialLinksService,
-    private readonly applicationError: ApplicationErrorService
-  ) {
+  constructor() {
     if (!this.uid()) {
       this.report(
         new Error('UID não encontrado para editar redes sociais.'),
