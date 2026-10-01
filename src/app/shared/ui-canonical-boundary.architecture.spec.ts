@@ -955,4 +955,26 @@ describe('Canonical UI boundary', () => {
     expect(policy).toContain('canUsePublicMediaViewerKeyboardNavigation');
   });
 
+
+  it('mantém estilos de UserCard, Discovery e reply preview fora do global', () => {
+    const globalStyles = source('src/styles.css');
+    const cardStyles = source(
+      'src/app/shared/user-card/user-card.component.css'
+    );
+    const discoveryStyles = source(
+      'src/app/dashboard/discovery/public-profiles-list/public-profiles-list.component.css'
+    );
+    const chatStyles = source(
+      'src/app/chat-module/chat-module-layout/chat-module-layout.component.css'
+    );
+
+    expect(globalStyles).not.toContain('app-user-card .user-card');
+    expect(globalStyles).not.toContain('app-public-profiles-list');
+    expect(globalStyles).not.toContain('.chat-shell__reply-preview');
+
+    expect(cardStyles).toContain('--user-card-media-height-mobile');
+    expect(discoveryStyles).toContain('--user-card-media-height-mobile');
+    expect(chatStyles).toContain('.chat-shell__reply-preview');
+  });
+
 });
