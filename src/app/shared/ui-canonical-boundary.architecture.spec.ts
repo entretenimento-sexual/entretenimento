@@ -931,4 +931,28 @@ describe('Canonical UI boundary', () => {
     expect(catalog).toContain('SOCIAL_LINK_PLATFORMS');
   });
 
+  it('mantém navegação gestual compartilhada entre viewers públicos', () => {
+    const photo = source(
+      'src/app/media/photos/photo-viewer/photo-viewer.component.ts'
+    );
+    const video = source(
+      'src/app/media/videos/public-video-viewer/public-video-viewer.component.ts'
+    );
+    const policy = source(
+      'src/app/media/shared/policies/public-media-viewer-navigation.policy.ts'
+    );
+
+    expect(photo).toContain('public-media-viewer-navigation.policy');
+    expect(video).toContain('public-media-viewer-navigation.policy');
+
+    expect(photo).not.toContain('PHOTO_SWIPE_MIN_DISTANCE_PX');
+    expect(photo).not.toContain('PHOTO_SWIPE_INTENT_DISTANCE_PX');
+    expect(video).not.toContain('SWIPE_MIN_DISTANCE_PX');
+    expect(video).not.toContain('SWIPE_INTENT_DISTANCE_PX');
+
+    expect(policy).toContain('PUBLIC_MEDIA_VIEWER_SWIPE_MIN_DISTANCE_PX');
+    expect(policy).toContain('resolvePublicMediaViewerSwipeDirection');
+    expect(policy).toContain('canUsePublicMediaViewerKeyboardNavigation');
+  });
+
 });
