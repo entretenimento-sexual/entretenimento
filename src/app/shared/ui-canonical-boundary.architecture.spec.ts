@@ -1359,4 +1359,15 @@ describe('Canonical UI boundary', () => {
     expect(summary).not.toContain('summary-subtitle');
   });
 
+
+  it('mantém o hero do perfil próprio sem título visual redundante de identidade', () => {
+    const template = source(
+      'src/app/user-profile/user-profile-view/user-profile-view.component.html'
+    );
+
+    expect(template).toContain('<h2 class="visually-hidden">Identidade</h2>');
+    expect(template).not.toContain('<h2 class="block-title">Identidade</h2>');
+    expect(template).toContain('<h2 class="block-title">Sobre mim</h2>');
+  });
+
 });
