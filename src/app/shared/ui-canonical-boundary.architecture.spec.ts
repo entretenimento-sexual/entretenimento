@@ -1088,4 +1088,33 @@ describe('Canonical UI boundary', () => {
     );
   });
 
+
+  it('mantém Welcome e AuthVerificationHandler fora dos botões e campos legados', () => {
+    const welcome = source(
+      'src/app/register-module/welcome/welcome.component.html'
+    );
+    const welcomeStyles = source(
+      'src/app/register-module/welcome/welcome.component.css'
+    );
+    const verification = source(
+      'src/app/register-module/auth-verification-handler/auth-verification-handler.component.html'
+    );
+    const verificationStyles = source(
+      'src/app/register-module/auth-verification-handler/auth-verification-handler.component.css'
+    );
+
+    for (const template of [welcome, verification]) {
+      expect(template).not.toMatch(/class=["'][^"']*\bbtn(?:\s|["'])/u);
+      expect(template).not.toMatch(/class=["'][^"']*\binput-field\b/u);
+    }
+
+    expect(verification).not.toContain('class="form-header"');
+    expect(welcomeStyles).not.toContain('.btn-primary');
+    expect(welcomeStyles).not.toContain('.actions .btn');
+    expect(verificationStyles).not.toContain('.input-field');
+    expect(verificationStyles).not.toContain('.cta-row .btn');
+    expect(verificationStyles).not.toContain('Modal legado');
+    expect(verificationStyles).not.toContain('.modal-overlay');
+  });
+
 });

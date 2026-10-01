@@ -110,7 +110,7 @@
   border-color: color-mix(in oklab, var(--success-color) 36%, transparent);
 }
 
-.welcome-container .btn {
+.welcome-container .app-action {
   min-height: 44px;
   padding: 10px 14px;
   border-radius: 12px;
@@ -198,8 +198,8 @@
   margin-top: .75rem;
 }
 
-.primary-actions .btn-primary,
-.alert-actions__main .btn-primary {
+.primary-actions .app-action--primary,
+.alert-actions__main .app-action--primary {
   flex: 1 1 240px;
 }
 
@@ -214,8 +214,8 @@
   padding-top: 0.15rem;
 }
 
-.alert-actions__support .btn,
-.alert-actions__debug .btn {
+.alert-actions__support .app-action,
+.alert-actions__debug .app-action {
   min-height: 40px;
   padding-block: 8px;
 }
@@ -316,10 +316,10 @@ html.high-contrast .steps li::before {
     flex-direction: column;
   }
 
-  .actions .btn,
-  .alert-actions .btn,
-  .primary-actions .btn-primary,
-  .alert-actions__main .btn-primary {
+  .actions .app-action,
+  .alert-actions .app-action,
+  .primary-actions .app-action--primary,
+  .alert-actions__main .app-action--primary {
     width: 100%;
     flex: 1 1 auto;
   }

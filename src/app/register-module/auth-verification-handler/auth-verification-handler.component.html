@@ -21,13 +21,13 @@
       @if (mode === 'verifyEmail') {
         <div class="cta-row">
           @if (verifyOk && !showGoToLoginCTA) {
-            <button type="button" class="btn btn-primary" (click)="goToWelcome()">
+            <button type="button" class="app-action app-action--primary" (click)="goToWelcome()">
               Continuar cadastro
             </button>
           }
 
           @if (showGoToLoginCTA) {
-            <button type="button" class="btn btn-primary" (click)="goToLogin()">
+            <button type="button" class="app-action app-action--primary" (click)="goToLogin()">
               Ir para o login
             </button>
           }
@@ -35,7 +35,7 @@
           @if (showResendVerifyCTA) {
             <button
               type="button"
-              class="btn btn-secondary"
+              class="app-action"
               (click)="resendVerificationEmail()"
             >
               Reenviar e-mail de verificação
@@ -54,7 +54,7 @@
     !passwordResetUnavailable
   ) {
     <div class="form-container">
-      <h1 class="form-header">Redefinir senha</h1>
+      <h1 class="password-reset-title">Redefinir senha</h1>
       <p id="password-reset-help" class="form-help">
         Use pelo menos 8 caracteres, com letra maiúscula, minúscula e número.
       </p>
@@ -78,7 +78,7 @@
             autocomplete="new-password"
             spellcheck="false"
             autocapitalize="none"
-            class="input-field"
+            class="app-control"
             aria-describedby="password-reset-help"
             [disabled]="isLoading"
           />
@@ -110,7 +110,7 @@
             autocomplete="new-password"
             spellcheck="false"
             autocapitalize="none"
-            class="input-field"
+            class="app-control"
             aria-describedby="password-reset-help"
             [disabled]="isLoading"
           />
@@ -131,7 +131,7 @@
 
         <button
           type="submit"
-          class="btn btn-primary submit-button"
+          class="app-action app-action--primary submit-button"
           [disabled]="!canSubmitPasswordReset"
         >
           Redefinir senha
@@ -145,7 +145,7 @@
       @if (passwordResetValidationRetryAvailable) {
         <button
           type="button"
-          class="btn btn-secondary"
+          class="app-action"
           (click)="retryPasswordResetValidation()"
         >
           Validar link novamente

@@ -32,7 +32,7 @@
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-.form-header {
+.password-reset-title {
   margin: 0 0 0.5rem;
   color: var(--text-color);
   font-size: 1.5rem;
@@ -86,7 +86,7 @@
   position: relative;
 }
 
-.input-field {
+.app-control {
   box-sizing: border-box;
   width: 100%;
   min-height: 44px;
@@ -152,33 +152,9 @@ input:disabled {
     flex-direction: column;
   }
 
-  .cta-row .btn {
+  .cta-row .app-action {
     width: 100%;
     min-height: 44px;
   }
 }
 
-/* Modal legado mantido por compatibilidade visual do componente incorporado. */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.75);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.modal-content {
-  width: min(100%, 450px);
-  padding: 1.5rem;
-  background-color: var(--modal-background);
-  border-radius: 16px;
-  box-shadow: var(--box-shadow);
-  text-align: center;
-}
-
-.modal-actions button {
-  margin: 0.625rem;
-}

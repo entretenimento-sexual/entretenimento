@@ -37,12 +37,12 @@
 
     <div *ngIf="debugEnabled()" class="alert-actions" aria-label="Ações técnicas de suporte">
       <div class="alert-actions__debug">
-        <button class="btn btn-ghost" (click)="toggleTech()">
+        <button class="app-action app-action--ghost" (click)="toggleTech()">
           {{ showTech ? 'Ocultar detalhes' : 'Mostrar detalhes técnicos' }}
         </button>
 
-        <button class="btn btn-ghost" (click)="reloadPage()">Recarregar</button>
-        <button class="btn btn-ghost" (click)="restartRegistration()">Refazer cadastro</button>
+        <button class="app-action app-action--ghost" (click)="reloadPage()">Recarregar</button>
+        <button class="app-action app-action--ghost" (click)="restartRegistration()">Refazer cadastro</button>
       </div>
     </div>
 
@@ -91,7 +91,7 @@
 
         <div class="actions primary-actions">
           <button
-            class="btn btn-primary"
+            class="app-action app-action--primary"
             (click)="checkNow()"
             [disabled]="checkingVerification || resendingVerificationEmail || markingVerifiedDev || sessionInvalid"
             [attr.aria-busy]="checkingVerification"
@@ -101,7 +101,7 @@
 
           <button
             *ngIf="isDevEmu"
-            class="btn btn-ghost"
+            class="app-action app-action--ghost"
             (click)="markVerifiedDev()"
             [disabled]="markingVerifiedDev || checkingVerification || resendingVerificationEmail || sessionInvalid"
             [attr.aria-busy]="markingVerifiedDev"
@@ -110,7 +110,7 @@
           </button>
 
           <button
-            class="btn btn-secondary"
+            class="app-action"
             (click)="resendVerificationEmail()"
             [disabled]="resendingVerificationEmail || checkingVerification || markingVerifiedDev || sessionInvalid"
             [attr.aria-busy]="resendingVerificationEmail"
@@ -120,8 +120,8 @@
         </div>
 
         <div class="actions support-actions" aria-label="Ações auxiliares de e-mail">
-          <button class="btn btn-ghost" (click)="openInbox()">Abrir e-mail</button>
-          <button class="btn btn-ghost" (click)="copyEmail()" [disabled]="!email">Copiar e-mail</button>
+          <button class="app-action app-action--ghost" (click)="openInbox()">Abrir e-mail</button>
+          <button class="app-action app-action--ghost" (click)="copyEmail()" [disabled]="!email">Copiar e-mail</button>
         </div>
       } @else {
         <p class="status-card__message">
@@ -131,7 +131,7 @@
 
         <div class="actions primary-actions">
           <button
-            class="btn btn-primary"
+            class="app-action app-action--primary"
             (click)="continueToPreferences()"
             [disabled]="busy"
           >
@@ -156,7 +156,7 @@
 
       <div class="actions">
         <button
-          class="btn btn-secondary"
+          class="app-action"
           (click)="checkNow()"
           [disabled]="checkingVerification || resendingVerificationEmail || markingVerifiedDev"
           [attr.aria-busy]="checkingVerification"
@@ -164,7 +164,7 @@
           {{ checkingVerification ? 'Reconectando…' : 'Tentar reconectar' }}
         </button>
 
-        <button class="btn btn-primary" (click)="restartRegistration()">Refazer cadastro</button>
+        <button class="app-action app-action--primary" (click)="restartRegistration()">Refazer cadastro</button>
       </div>
     </section>
   </main>
