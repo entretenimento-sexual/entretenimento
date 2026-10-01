@@ -76,12 +76,6 @@
   letter-spacing: -0.045em;
 }
 
-.profile-lead {
-  margin-top: var(--space-2, 10px);
-  color: color-mix(in oklab, var(--text-color) 78%, transparent);
-  line-height: 1.5;
-}
-
 .profile-actions {
   display: grid;
   grid-template-columns: 1fr;
@@ -122,35 +116,6 @@
   word-break: break-word;
   overflow-wrap: anywhere;
   line-height: 1.45;
-}
-
-.links-list {
-  display: grid;
-  gap: 10px;
-  margin: 0;
-  padding: 0;
-}
-
-.links-item {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 4px;
-  align-items: start;
-  padding: 10px 12px;
-  border-radius: 14px;
-  border: 1px solid var(--surface-border, color-mix(in oklab, var(--text-color) 11%, transparent));
-  background: color-mix(in oklab, var(--background-color) 97%, white 3%);
-}
-
-.links-label {
-  font-weight: 800;
-  opacity: 0.9;
-}
-
-.links-value {
-  word-break: break-word;
-  overflow-wrap: anywhere;
-  opacity: 0.95;
 }
 
 .profile-media-entry {
