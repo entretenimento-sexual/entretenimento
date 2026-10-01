@@ -30,7 +30,6 @@ import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
-import { UsuarioService } from 'src/app/core/services/user-profile/usuario.service';
 import {
   ProfileEditEstado,
   ProfileEditLocationService,
@@ -38,12 +37,13 @@ import {
 } from './application/profile-edit-location.service';
 import { ProfileEditDraftFacade } from './application/profile-edit-draft.facade';
 import { ProfileEditAvatarFacade } from './application/profile-edit-avatar.facade';
+import { ProfileEditSaveOrchestrator } from './application/profile-edit-save.orchestrator';
 
 @Component({
   selector: 'app-edit-user-profile',
   templateUrl: './edit-user-profile.component.html',
   styleUrls: ['./edit-user-profile.component.css'],
-  providers: [ProfileEditLocationService, ProfileEditDraftFacade, ProfileEditAvatarFacade],
+  providers: [ProfileEditLocationService, ProfileEditDraftFacade, ProfileEditAvatarFacade, ProfileEditSaveOrchestrator],
   standalone: false,
 })
 export class EditUserProfileComponent
@@ -91,7 +91,6 @@ export class EditUserProfileComponent
 
   constructor(
     private readonly firestoreUserQuery: FirestoreUserQueryService,
-    private readonly usuarioService: UsuarioService,
     private readonly route: ActivatedRoute,
     private readonly router: Router,
     private readonly formBuilder: FormBuilder,
@@ -99,7 +98,8 @@ export class EditUserProfileComponent
     private readonly applicationError: ApplicationErrorService,
     private readonly locationService: ProfileEditLocationService,
     private readonly draftFacade: ProfileEditDraftFacade,
-    private readonly avatarFacade: ProfileEditAvatarFacade
+    private readonly avatarFacade: ProfileEditAvatarFacade,
+    private readonly saveOrchestrator: ProfileEditSaveOrchestrator
   ) {
     this.editForm = this.formBuilder.group({
       nickname: ['', [Validators.minLength(3)]],
@@ -295,38 +295,16 @@ export class EditUserProfileComponent
     }
 
     this.isSaving = true;
-    const value = this.editForm.getRawValue();
 
-    const profilePatch: Partial<IUserDados> = {
-      nickname: String(value.nickname ?? '').trim(),
-      estado: String(value.estado ?? '').trim(),
-      municipio: String(value.municipio ?? '').trim(),
-      gender: String(value.gender ?? '').trim(),
-      descricao: String(value.descricao ?? ''),
-      orientation: this.isCouple()
-        ? ''
-        : String(value.orientation ?? '').trim(),
-      idade: this.normalizeProfileAge(value.idade),
-      partner1Orientation: this.isCouple()
-        ? String(value.partner1Orientation ?? '').trim()
-        : undefined,
-      partner2Orientation: this.isCouple()
-        ? String(value.partner2Orientation ?? '').trim()
-        : undefined,
-      photoURL: this.userData.photoURL ?? null,
-    };
-
-    this.usuarioService
-      .atualizarUsuario(this.uid, profilePatch)
+    this.saveOrchestrator
+      .save$(
+        this.uid,
+        this.editForm.getRawValue(),
+        this.isCouple(),
+        this.userData.photoURL
+      )
       .pipe(
         finalize(() => (this.isSaving = false)),
-        catchError((error) =>
-          this.handleError$(
-            error,
-            'onSubmit',
-            'Não foi possível salvar agora.'
-          )
-        ),
         takeUntil(this.destroy$)
       )
       .subscribe({
@@ -339,7 +317,6 @@ export class EditUserProfileComponent
         },
       });
   }
-
 
   private patchFormFromUser(user: IUserDados): void {
     this.editForm.patchValue(
@@ -381,18 +358,6 @@ export class EditUserProfileComponent
     partner1.updateValueAndValidity({ emitEvent: false });
     partner2.updateValueAndValidity({ emitEvent: false });
     orientation.updateValueAndValidity({ emitEvent: false });
-  }
-
-  private normalizeProfileAge(value: unknown): number | undefined {
-    if (value === null || value === undefined || value === '') {
-      return undefined;
-    }
-
-    const age = Number(value);
-
-    return Number.isInteger(age) && age >= 18 && age <= 100
-      ? age
-      : undefined;
   }
 
 
