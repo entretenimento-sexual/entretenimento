@@ -24,7 +24,7 @@
     "audit:all": "npm audit"
   },
   "dependencies": {
-    "axios": "^1.13.1",
+    "axios": "^1.20.0",
     "firebase-admin": "^13.6.0",
     "firebase-functions": "^7.2.5",
     "sharp": "0.35.4"
@@ -39,6 +39,8 @@
   },
   "overrides": {
     "uuid": "11.1.1",
-    "qs": "6.16.0"
+    "qs": "6.16.0",
+    "@grpc/grpc-js": "1.14.5",
+    "brace-expansion": "2.1.7"
   }
 }
