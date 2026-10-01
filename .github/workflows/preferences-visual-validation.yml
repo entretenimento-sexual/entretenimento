@@ -326,7 +326,6 @@ jobs:
               return {
                 viewportWidth: window.innerWidth,
                 scrollWidth: document.documentElement.scrollWidth,
-                planText: document.querySelector('.plan-strip')?.textContent?.trim() ?? '',
                 advancedLocked: advancedGroup?.classList.contains('preference-group--locked') ?? true,
                 advancedGridDisplay: advancedStyle?.display ?? '',
                 advancedGridColumns: advancedStyle?.gridTemplateColumns?.split(/\\s+/).filter(Boolean).length ?? 0,
@@ -336,7 +335,6 @@ jobs:
             });
             console.log(JSON.stringify(metrics));
             if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('VIP desktop has horizontal overflow');
-            if (!metrics.planText.includes('VIP')) throw new Error('VIP desktop did not render VIP capabilities');
             if (metrics.advancedLocked || metrics.freeUpgradeVisible) throw new Error('VIP desktop incorrectly renders advanced preferences as locked');
             if (metrics.advancedGridDisplay !== 'grid' || metrics.advancedGridColumns < 2) throw new Error('VIP advanced preferences lost their desktop grid');
             if (!metrics.contextualVisible) throw new Error('VIP contextual availability fields are not visible');

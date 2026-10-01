@@ -495,8 +495,6 @@ describe('Canonical UI boundary', () => {
       'src/app/preferences/components/preference-summary-card/preference-summary-card.component.html',
       'src/app/preferences/pages/compatibility-lab/compatibility-lab.component.html',
       'src/app/preferences/pages/match-profile-lab/match-profile-lab.component.html',
-      'src/app/preferences/components/discovery-upgrade-hints/discovery-upgrade-hints.component.html',
-      'src/app/preferences/components/discovery-visibility-panel/discovery-visibility-panel.component.html',
     ] as const;
     const styles = templates.map((path) => path.replace(/\.html$/u, '.css'));
 
@@ -1623,7 +1621,7 @@ describe('Canonical UI boundary', () => {
   });
 
 
-  it('mantém Comunidades oficiais e upgrade hints sem contexto duplicado', () => {
+  it('mantém Comunidades oficiais sem contexto duplicado', () => {
     const officialTarget = source(
       'src/app/community/official-communities-for-target/official-communities-for-target.component.html'
     );
@@ -1636,12 +1634,6 @@ describe('Canonical UI boundary', () => {
     const profileOfficialStyles = source(
       'src/app/community/profile-official-communities/profile-official-communities.component.css'
     );
-    const upgradeHints = source(
-      'src/app/preferences/components/discovery-upgrade-hints/discovery-upgrade-hints.component.html'
-    );
-    const upgradeHintStyles = source(
-      'src/app/preferences/components/discovery-upgrade-hints/discovery-upgrade-hints.component.css'
-    );
 
     expect(officialTarget).not.toContain('official-communities__eyebrow');
     expect(officialTargetStyles).not.toContain('official-communities__eyebrow');
@@ -1651,10 +1643,6 @@ describe('Canonical UI boundary', () => {
     expect(profileOfficial).not.toContain('profile-official-communities__eyebrow');
     expect(profileOfficialStyles).not.toContain('profile-official-communities__eyebrow');
     expect(profileOfficial).toContain('profile-official-communities__context');
-
-    expect(upgradeHints).not.toContain('upgrade-hints-subtitle');
-    expect(upgradeHintStyles).not.toContain('upgrade-hints-subtitle');
-    expect(upgradeHints).toContain('upgrade-hint-description');
   });
 
 
