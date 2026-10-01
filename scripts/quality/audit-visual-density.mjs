@@ -43,6 +43,95 @@ const semanticIntroKinds = [
   ['intro', /(?:^|[-_])intro(?:$|[-_])/i],
 ];
 
+const reviewedSemanticContent = new Map([
+  ['src/app/subscriptions/subscription-plan/subscription-plan.component.html', new Set([
+    'subscription-plan-status-card__description',
+    'plan-description',
+  ])],
+  ['src/app/chat-module/chat-rooms/chat-rooms.component.html', new Set([
+    'chat-rooms__description',
+  ])],
+  ['src/app/community/membership-management/community-membership-management.component.html', new Set([
+    'community-management-hub__eyebrow',
+  ])],
+  ['src/app/register-module/welcome/welcome.component.html', new Set([
+    'subtitle',
+  ])],
+  ['src/app/account/pages/account-privilege-history/account-privilege-history.component.html', new Set([
+    'subscription-history-event__description',
+    'app-page-header[subtitle]',
+  ])],
+  ['src/app/account/pages/compliance-cases/compliance-cases.component.html', new Set([
+    'compliance-detail__eyebrow',
+    'app-page-header[subtitle]',
+  ])],
+  ['src/app/account/pages/subscription-history/subscription-history.component.html', new Set([
+    'subscription-history-event__description',
+    'app-page-header[subtitle]',
+  ])],
+  ['src/app/community/official-communities-for-target/official-communities-for-target.component.html', new Set([
+    'official-community__description',
+  ])],
+  ['src/app/media/photos/profile-photos/profile-photos.component.html', new Set([
+    'subtitle',
+    'app-page-header[subtitle]',
+  ])],
+  ['src/app/photo-editor/photo-editor/photo-editor.component.html', new Set([
+    'subtitle',
+    'editor-selection-panel__eyebrow',
+  ])],
+  ['src/app/preferences/components/compatibility-preview-card/compatibility-preview-card.component.html', new Set([
+    'compatibility-subtitle',
+    'reason-description',
+  ])],
+  ['src/app/preferences/components/preferences-hub-card/preferences-hub-card.component.html', new Set([
+    'hub-card-description',
+    'app-card__subtitle',
+  ])],
+  ['src/app/register-module/terms-acceptance/terms-acceptance-page.component.html', new Set([
+    'terms-acceptance__lead',
+  ])],
+  ['src/app/shared/components-globais/universal-sidebar/universal-sidebar.component.html', new Set([
+    'universal-sidebar__profile-subtitle',
+  ])],
+  ['src/app/account/components/account-lifecycle-dialog/account-lifecycle-dialog.component.html', new Set([
+    'account-lifecycle-dialog__description',
+  ])],
+  ['src/app/account/pages/account-status/account-status.component.html', new Set([
+    'app-page-header[subtitle]',
+  ])],
+  ['src/app/account/pages/legal-documents/legal-documents.component.html', new Set([
+    'app-page-header[subtitle]',
+  ])],
+  ['src/app/admin-dashboard/user-details/compliance-notice-dialog.component.html', new Set([
+    'compliance-dialog__lead',
+  ])],
+  ['src/app/authentication/email-input-modal/email-input-modal.component.html', new Set([
+    'modal-description',
+  ])],
+  ['src/app/authentication/login-component/login-component.html', new Set([
+    'auth-intro',
+  ])],
+  ['src/app/community/ownership-management/community-ownership-management.component.html', new Set([
+    'community-ownership-management__intro',
+  ])],
+  ['src/app/community/profile-official-communities/profile-official-communities.component.html', new Set([
+    'profile-official-community__description',
+  ])],
+  ['src/app/compliance/adult-consent-page/adult-consent-page.component.html', new Set([
+    'app-page-header[subtitle]',
+  ])],
+  ['src/app/compliance/age-reverification-page/age-reverification-page.component.html', new Set([
+    'app-page-header[subtitle]',
+  ])],
+  ['src/app/compliance/age-verification-page/age-verification-page.component.html', new Set([
+    'app-page-header[subtitle]',
+  ])],
+]);
+
+const isReviewedSemanticContent = (relativePath, token) =>
+  reviewedSemanticContent.get(relativePath)?.has(token) === true;
+
 const semanticIntroClasses = (source) => {
   const findings = [];
 
@@ -79,6 +168,8 @@ const cssPaths = await glob(['src/app/**/*.css', 'src/styles/**/*.css', 'src/sty
 
 const templateFindings = [];
 const semanticResiduals = [];
+const reviewedResiduals = [];
+const actionableResiduals = [];
 const strictFailures = [];
 
 const htmlPathSet = new Set(htmlPaths.map(normalized));
@@ -110,13 +201,46 @@ for (const relativePath of htmlPaths.map(normalized).sort()) {
       ])
     );
 
-    semanticResiduals.push({
+    const reviewed = semanticClasses.filter((item) =>
+      isReviewedSemanticContent(relativePath, item.token)
+    );
+    const actionable = semanticClasses.filter((item) =>
+      !isReviewedSemanticContent(relativePath, item.token)
+    );
+
+    const baseResidual = {
       path: relativePath,
       isCritical,
       total: semanticClasses.length,
       byKind,
       tokens: [...new Set(semanticClasses.map((item) => item.token))],
-    });
+    };
+
+    semanticResiduals.push(baseResidual);
+
+    if (reviewed.length > 0) {
+      reviewedResiduals.push({
+        path: relativePath,
+        isCritical,
+        total: reviewed.length,
+        tokens: [...new Set(reviewed.map((item) => item.token))],
+      });
+    }
+
+    if (actionable.length > 0) {
+      actionableResiduals.push({
+        path: relativePath,
+        isCritical,
+        total: actionable.length,
+        byKind: Object.fromEntries(
+          semanticIntroKinds.map(([kind]) => [
+            kind,
+            actionable.filter((item) => item.kind === kind).length,
+          ])
+        ),
+        tokens: [...new Set(actionable.map((item) => item.token))],
+      });
+    }
   }
 
   if (h1Count > 1 || hasIntroStack || headingCount >= 7 || cardClassCount >= 10) {
@@ -196,7 +320,36 @@ const semanticSummary = semanticResiduals.reduce(
   }
 );
 
-const topSemanticResiduals = semanticResiduals
+const actionableSummary = actionableResiduals.reduce(
+  (summary, item) => {
+    summary.templates += 1;
+    summary.occurrences += item.total;
+    if (item.isCritical) {
+      summary.criticalTemplates += 1;
+      summary.criticalOccurrences += item.total;
+    }
+
+    for (const [kind, value] of Object.entries(item.byKind)) {
+      summary.byKind[kind] = (summary.byKind[kind] ?? 0) + value;
+    }
+
+    return summary;
+  },
+  {
+    templates: 0,
+    occurrences: 0,
+    criticalTemplates: 0,
+    criticalOccurrences: 0,
+    byKind: {},
+  }
+);
+
+const reviewedOccurrenceCount = reviewedResiduals.reduce(
+  (total, item) => total + item.total,
+  0
+);
+
+const topSemanticResiduals = actionableResiduals
   .sort((a, b) => {
     if (a.isCritical !== b.isCritical) return Number(b.isCritical) - Number(a.isCritical);
     return b.total - a.total || a.path.localeCompare(b.path);
@@ -237,8 +390,23 @@ if (semanticSummary.occurrences > 0) {
   );
 }
 
+if (semanticSummary.occurrences > 0) {
+  const actionableCategorySummary = semanticIntroKinds
+    .map(([kind]) => `${kind}=${actionableSummary.byKind[kind] ?? 0}`)
+    .join(' ');
+
+  console.log(
+    '[audit:visual] Classificação semântica: ' +
+      `reconhecidas=${reviewedOccurrenceCount} ` +
+      `acionáveis=${actionableSummary.occurrences} ` +
+      `templates-acionáveis=${actionableSummary.templates} ` +
+      `críticas-acionáveis=${actionableSummary.criticalOccurrences} ` +
+      `| ${actionableCategorySummary}`
+  );
+}
+
 if (topSemanticResiduals.length > 0) {
-  console.log('\n[audit:visual] Resíduos semânticos para revisão:');
+  console.log('\n[audit:visual] Resíduos semânticos acionáveis para revisão:');
   for (const item of topSemanticResiduals) {
     const kinds = Object.entries(item.byKind)
       .filter(([, value]) => value > 0)
