@@ -293,6 +293,44 @@ for (const forbidden of [
   }
 }
 
+const onlineUsersHtml = read(
+  'src/app/dashboard/online/online-users/online-users.component.html'
+);
+for (const required of [
+  'online-users__activation app-card app-card--flat',
+  'online-users__toolbar app-toolbar',
+  'online-users__toggle app-action app-action--ghost',
+  'online-users__controls app-card app-card--flat',
+  'online-users__refresh app-action app-action--ghost',
+  'online-users__step app-action app-action--ghost',
+  'profiles-grid app-responsive-grid',
+]) {
+  if (!onlineUsersHtml.includes(required)) {
+    violations.push(
+      'online-users.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const onlineUsersCss = read(
+  'src/app/dashboard/online/online-users/online-users.component.css'
+);
+for (const forbidden of [
+  '--ou-border:',
+  '--ou-surface:',
+  'box-shadow: 0 8px 20px',
+  'border-radius: 16px',
+  'width: 42px',
+  'height: 42px',
+  'grid-template-columns: 42px minmax(0, 1fr) 42px',
+]) {
+  if (onlineUsersCss.includes(forbidden)) {
+    violations.push(
+      'online-users.component.css contains duplicate local UI chrome ' + forbidden
+    );
+  }
+}
+
 const principalHtml = read(
   'src/app/dashboard/principal/principal.component.html'
 );
