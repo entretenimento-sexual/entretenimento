@@ -1554,6 +1554,34 @@ describe('Canonical UI boundary', () => {
   });
 
 
+  it('mantém Admin sem descrições e status operacionais duplicados', () => {
+    const overview = source(
+      'src/app/admin-dashboard/operational-overview/operational-overview.component.html'
+    );
+    const overviewStyles = source(
+      'src/app/admin-dashboard/operational-overview/operational-overview.component.css'
+    );
+    const users = source(
+      'src/app/admin-dashboard/user-list/user-list.component.html'
+    );
+    const userStyles = source(
+      'src/app/admin-dashboard/user-list/user-list.component.css'
+    );
+
+    expect(overview).not.toContain(
+      'Acompanhe usuários, cadastros pendentes, denúncias, presença e assinaturas.'
+    );
+    expect(overviewStyles).not.toContain('.operational-hero p');
+    expect(overview).not.toContain(
+      '<strong>{{ statusLabel(report.status) }}</strong>'
+    );
+
+    expect(users).not.toContain(
+      'Priorize cadastros pendentes, contas restritas e ações administrativas'
+    );
+    expect(userStyles).not.toContain('.user-review-header p');
+  });
+
   it('mantém Amizades e moderação de vídeo sem contexto e estilos aposentados', () => {
     const friends = source(
       'src/app/layout/friend-management/friend-list-page/friend-list-page.component.html'
