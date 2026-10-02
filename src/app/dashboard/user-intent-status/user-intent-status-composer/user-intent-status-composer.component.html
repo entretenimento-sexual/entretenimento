@@ -3,7 +3,7 @@
 @let activeStatus = (activeStatus$ | async);
 
 <section
-  class="intent-composer app-card"
+  class="intent-composer app-card app-card--flat"
   [class.intent-composer--expanded]="isComposerExpanded"
   [attr.aria-label]="isComposerExpanded ? 'Editar momento de 12 horas' : 'Seu momento de 12 horas'"
 >
@@ -73,7 +73,7 @@
           <i class="fas fa-clock" aria-hidden="true"></i>
           Disponibilidade
         </span>
-        <select formControlName="availability">
+        <select class="app-control" formControlName="availability">
           <option value="available_now">Disponível agora</option>
           <option value="available_today">Disponível hoje</option>
           <option value="planning_later">Planejando ir depois</option>
@@ -85,7 +85,7 @@
           <i class="fas fa-location-dot" aria-hidden="true"></i>
           Destino
         </span>
-        <select formControlName="destinationKind">
+        <select class="app-control" formControlName="destinationKind">
           <option value="region">Região</option>
           <option value="venue">Local</option>
           <option value="event">Evento</option>
@@ -94,7 +94,7 @@
       </label>
 
       @if ((destinationKind$ | async) === 'venue') {
-        <section class="intent-composer__venues" aria-label="Locais disponíveis">
+        <section class="intent-composer__venues app-card app-card--flat app-card--compact" aria-label="Locais disponíveis">
           <div class="intent-composer__venues-header">
             <strong>
               <i class="fas fa-map-pin" aria-hidden="true"></i>
@@ -123,7 +123,7 @@
                 @for (venue of venues; track venue.id) {
                   <button
                     type="button"
-                    class="intent-composer__venue-option"
+                    class="intent-composer__venue-option app-card app-card--flat app-card--compact app-card--interactive"
                     [class.intent-composer__venue-option--selected]="form.controls.venueId.value === venue.id"
                     (click)="applyVenue(venue)"
                   >
@@ -158,6 +158,7 @@
         </span>
         <input
           type="text"
+          class="app-control"
           formControlName="destinationLabel"
           maxlength="80"
           placeholder="Centro, Zona Sul, Bar X..."
@@ -170,6 +171,7 @@
           <span>UF</span>
           <input
             type="text"
+            class="app-control"
             formControlName="uf"
             maxlength="2"
             placeholder="RJ"
@@ -181,6 +183,7 @@
           <span>Cidade</span>
           <input
             type="text"
+            class="app-control"
             formControlName="city"
             maxlength="80"
             placeholder="Rio de Janeiro"
@@ -194,7 +197,7 @@
           <i class="fas fa-shield-halved" aria-hidden="true"></i>
           Visibilidade
         </span>
-        <select formControlName="visibility">
+        <select class="app-control" formControlName="visibility">
           <option value="public_discovery" [disabled]="!publicIntentAllowed">
             Descoberta pública
           </option>
@@ -208,7 +211,7 @@
         }
       </label>
 
-      <footer class="intent-composer__footer">
+      <footer class="intent-composer__footer app-form-actions">
         <p class="intent-composer__hint">
           <i class="fas fa-hourglass-half" aria-hidden="true"></i>
           Expira em até 12h e pode ser encerrado antes.
