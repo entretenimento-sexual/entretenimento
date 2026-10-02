@@ -298,6 +298,64 @@ for (const forbidden of [
   }
 }
 
+const reportContentButtonHtml = read(
+  'src/app/shared/components-globais/moderation-report/report-content-button/report-content-button.component.html'
+);
+if (!reportContentButtonHtml.includes(
+  'report-button report-button--default app-action app-action--danger'
+)) {
+  violations.push(
+    'report-content-button.component.html missing canonical danger action'
+  );
+}
+
+const reportContentButtonCss = read(
+  'src/app/shared/components-globais/moderation-report/report-content-button/report-content-button.component.css'
+);
+for (const forbidden of [
+  'border-radius: 999px',
+  '!important',
+  '.report-button:focus-visible,',
+]) {
+  if (reportContentButtonCss.includes(forbidden)) {
+    violations.push(
+      'report-content-button.component.css contains duplicate action chrome ' + forbidden
+    );
+  }
+}
+
+const reportContentDialogHtml = read(
+  'src/app/shared/components-globais/moderation-report/report-content-dialog/report-content-dialog.component.html'
+);
+for (const required of [
+  'report-dialog app-card app-card--media',
+  'report-dialog__helper app-card app-card--flat app-card--compact',
+  'class="app-action app-action--ghost"',
+  'class="app-action app-action--danger"',
+]) {
+  if (!reportContentDialogHtml.includes(required)) {
+    violations.push(
+      'report-content-dialog.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const reportContentDialogCss = read(
+  'src/app/shared/components-globais/moderation-report/report-content-dialog/report-content-dialog.component.css'
+);
+for (const forbidden of [
+  'border-radius: 999px',
+  '!important',
+  'html.high-contrast .report-dialog__helper',
+  '@media (prefers-reduced-motion: reduce)',
+]) {
+  if (reportContentDialogCss.includes(forbidden)) {
+    violations.push(
+      'report-content-dialog.component.css contains duplicate shared UI chrome ' + forbidden
+    );
+  }
+}
+
 const textoDialogHtml = read(
   'src/app/shared/components-globais/texto-dialog/texto-dialog.component.html'
 );
