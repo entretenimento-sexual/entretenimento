@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "capturedAt": "2026-10-02",
+  "templatesAnalyzed": 157,
+  "stylesheetsAnalyzed": 181,
+  "semantic": {
+    "templates": 41,
+    "occurrences": 49,
+    "criticalTemplates": 4,
+    "criticalOccurrences": 6,
+    "byKind": {
+      "eyebrow": 5,
+      "overline": 0,
+      "kicker": 0,
+      "subtitle": 17,
+      "description": 19,
+      "lede": 0,
+      "lead": 4,
+      "intro": 4
+    }
+  },
+  "classification": {
+    "reviewedOccurrences": 49,
+    "actionable": {
+      "templates": 0,
+      "occurrences": 0,
+      "criticalTemplates": 0,
+      "criticalOccurrences": 0,
+      "byKind": {
+        "eyebrow": 0,
+        "overline": 0,
+        "kicker": 0,
+        "subtitle": 0,
+        "description": 0,
+        "lede": 0,
+        "lead": 0,
+        "intro": 0
+      }
+    }
+  }
+}
