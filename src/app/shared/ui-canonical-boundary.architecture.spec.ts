@@ -1554,6 +1554,23 @@ describe('Canonical UI boundary', () => {
   });
 
 
+  it('mantém o viewer social de vídeo sem segunda autoridade de interações', () => {
+    const socialStyles = source(
+      'src/app/media/videos/public-video-viewer/public-video-viewer-social.component.css'
+    );
+
+    expect(socialStyles).not.toContain('.public-video-viewer__footer-main');
+    expect(socialStyles).not.toContain('.public-video-viewer__copy');
+    expect(socialStyles).not.toContain(
+      '.public-video-viewer .public-video-viewer__footer'
+    );
+    expect(socialStyles).not.toContain('.public-video-viewer__interactions');
+    expect(socialStyles).not.toContain('.public-video-viewer__interaction {');
+    expect(socialStyles).not.toContain(
+      '.public-video-viewer__interaction--active'
+    );
+  });
+
   it('mantém viewers e cards públicos de Media sem microcopy e métricas duplicadas', () => {
     const photoViewer = source(
       'src/app/media/photos/photo-viewer/photo-viewer.component.html'
