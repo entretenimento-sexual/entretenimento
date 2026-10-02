@@ -1,32 +1,31 @@
 <!-- src/app/community/venue-create/venue-community-create-page.component.html -->
-<main class="venue-create" aria-labelledby="venue-create-title">
-  <header class="venue-create__header">
+<main class="venue-create app-page" aria-labelledby="venue-create-title">
+  <header class="venue-create__header app-page-header">
     <a
-      class="venue-create__back"
+      class="venue-create__back app-action app-action--ghost"
       routerLink="/dashboard/locais"
       aria-label="Voltar para Locais"
     >
       <i class="fas fa-arrow-left" aria-hidden="true"></i>
     </a>
 
-    <div>
-      <h1 id="venue-create-title">Cadastrar Espaço Oficial</h1>
-      <p>{{ venueDefinition.description }}</p>
-      <p>
-        Destinado a estabelecimentos, Locais e espaços de eventos. A publicação
-        exige uma organização e um responsável comercial verificados.
+    <div class="app-page-heading">
+      <h1 id="venue-create-title" class="app-page-title">Cadastrar Espaço Oficial</h1>
+      <p class="app-page-lead">
+        {{ venueDefinition.description }} Destinado a estabelecimentos, Locais e espaços de eventos. A publicação exige uma organização e um responsável comercial verificados.
       </p>
     </div>
   </header>
 
   <form class="venue-create__form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
-    <section aria-labelledby="venue-create-basic-title">
-      <h2 id="venue-create-basic-title">Identificação</h2>
+    <section class="app-card app-card--flat" aria-labelledby="venue-create-basic-title">
+      <h2 class="app-section-title" id="venue-create-basic-title">Identificação</h2>
 
       <label>
         <span>Nome</span>
         <input
           type="text"
+          class="app-control"
           formControlName="name"
           maxlength="80"
           autocomplete="organization"
@@ -36,7 +35,7 @@
 
       <label>
         <span>Tipo</span>
-        <select formControlName="kind">
+        <select class="app-control" formControlName="kind">
           @for (option of kindOptions; track option.value) {
             <option [value]="option.value">{{ option.label }}</option>
           }
@@ -46,6 +45,7 @@
       <label>
         <span>Descrição</span>
         <textarea
+          class="app-control"
           formControlName="description"
           maxlength="240"
           rows="3"
@@ -54,8 +54,8 @@
       </label>
     </section>
 
-    <section aria-labelledby="venue-create-region-title">
-      <h2 id="venue-create-region-title">Região</h2>
+    <section class="app-card app-card--flat" aria-labelledby="venue-create-region-title">
+      <h2 class="app-section-title" id="venue-create-region-title">Região</h2>
 
       <div class="venue-create__row venue-create__row--region">
         <label>
@@ -86,6 +86,7 @@
         <span>Bairro</span>
         <input
           type="text"
+          class="app-control"
           formControlName="district"
           maxlength="80"
           autocomplete="address-level3"
@@ -97,6 +98,7 @@
         <span>Referência pública</span>
         <input
           type="text"
+          class="app-control"
           formControlName="addressHint"
           maxlength="160"
           autocomplete="off"
@@ -105,12 +107,12 @@
       </label>
     </section>
 
-    <section aria-labelledby="venue-create-access-title">
-      <h2 id="venue-create-access-title">Acompanhamento e acesso</h2>
+    <section class="app-card app-card--flat" aria-labelledby="venue-create-access-title">
+      <h2 class="app-section-title" id="venue-create-access-title">Acompanhamento e acesso</h2>
 
       <label>
         <span>Quem pode acompanhar e interagir</span>
-        <select formControlName="joinPolicy">
+        <select class="app-control" formControlName="joinPolicy">
           <option value="approval">Aprovação da administração</option>
           <option value="open">Acompanhamento imediato</option>
         </select>
@@ -125,9 +127,9 @@
       </p>
     </section>
 
-    <div class="venue-create__actions">
-      <a routerLink="/dashboard/locais">Cancelar</a>
-      <button type="submit" [disabled]="submitting()">
+    <div class="venue-create__actions app-card app-card--flat app-card--compact">
+      <a class="app-action app-action--ghost" routerLink="/dashboard/locais">Cancelar</a>
+      <button type="submit" class="app-action app-action--primary" [disabled]="submitting()">
         @if (submitting()) {
           <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
           <span>Cadastrando</span>
