@@ -298,6 +298,53 @@ for (const forbidden of [
   }
 }
 
+const communityMembersPageHtml = read(
+  'src/app/community/members/community-members-page.component.html'
+);
+for (const required of [
+  'community-members app-page',
+  'class="app-action app-action--ghost"',
+  'community-members__header app-section-heading',
+  'class="app-section-title"',
+  'class="app-page-title"',
+  'class="app-control"',
+  'community-members__search-clear app-action app-action--ghost',
+  'community-members__state app-card app-card--flat app-card--compact',
+  'community-members__item app-card app-card--flat app-card--compact',
+]) {
+  if (!communityMembersPageHtml.includes(required)) {
+    violations.push(
+      'community-members-page.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+for (const forbidden of [
+  '<span>Comunidade</span>',
+]) {
+  if (communityMembersPageHtml.includes(forbidden)) {
+    violations.push(
+      'community-members-page.component.html reintroduced redundant copy ' + forbidden
+    );
+  }
+}
+
+const communityMembersPageCss = read(
+  'src/app/community/members/community-members-page.component.css'
+);
+for (const forbidden of [
+  '.community-members__state button,',
+  '.community-members__more button {',
+  '.community-members__search-clear:focus-visible',
+  ':host-context(.high-contrast) .community-members__item,',
+  '@media (prefers-reduced-motion: reduce)',
+]) {
+  if (communityMembersPageCss.includes(forbidden)) {
+    violations.push(
+      'community-members-page.component.css contains duplicate shared UI chrome ' + forbidden
+    );
+  }
+}
+
 const communityFeedCommentsHtml = read(
   'src/app/community/feed-comments/community-feed-comments.component.html'
 );
