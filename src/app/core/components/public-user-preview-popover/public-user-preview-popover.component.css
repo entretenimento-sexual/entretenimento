@@ -6,18 +6,8 @@
 }
 
 .public-user-preview {
+  --app-card-radius: 1rem;
   overflow: hidden;
-  border: 1px solid color-mix(
-    in oklab,
-    var(--surface-border) 88%,
-    transparent
-  );
-  border-radius: 1rem;
-  background: var(--surface-color);
-  color: var(--text-color);
-  box-shadow:
-    0 16px 38px rgb(15 23 42 / 16%),
-    0 3px 10px rgb(15 23 42 / 8%);
 }
 
 .public-user-preview__header {
@@ -126,25 +116,10 @@
 }
 
 .public-user-preview__highlight {
-  display: inline-flex;
   min-width: 0;
-  align-items: center;
   min-height: 1.7rem;
   padding: 0.28rem 0.48rem;
-  border: 1px solid color-mix(
-    in oklab,
-    var(--surface-border) 78%,
-    transparent
-  );
-  border-radius: 999px;
-  background: color-mix(
-    in oklab,
-    var(--surface-color) 94%,
-    var(--primary-color)
-  );
-  color: color-mix(in oklab, var(--text-color) 74%, transparent);
   font-size: 0.68rem;
-  font-weight: 680;
   line-height: 1.15;
 }
 
@@ -168,40 +143,11 @@
   );
 }
 
-.public-user-preview__profile-link {
-  display: flex;
-  min-height: 44px;
-  align-items: center;
+.public-user-preview__profile-link.app-action {
+  width: 100%;
+  min-height: var(--tap-target, 44px);
   justify-content: space-between;
-  gap: 0.7rem;
-  padding: 0.58rem 0.68rem;
-  border-radius: 0.7rem;
-  color: var(--primary-color);
   font-size: 0.76rem;
-  font-weight: 820;
-  line-height: 1;
-  text-decoration: none;
-  transition: background-color 130ms ease;
-}
-
-.public-user-preview__profile-link:hover,
-.public-user-preview__profile-link:focus-visible {
-  background: color-mix(
-    in oklab,
-    var(--primary-color) 7%,
-    var(--surface-color)
-  );
-}
-
-.public-user-preview__profile-link:focus-visible {
-  outline: var(--focus-ring, 2px solid var(--primary-color));
-  outline-offset: var(--focus-offset, 2px);
-}
-
-:host-context(.high-contrast) .public-user-preview {
-  border: 2px solid var(--text-color);
-  background: var(--background-color);
-  box-shadow: none;
 }
 
 :host-context(.high-contrast) .public-user-preview__header,
@@ -212,14 +158,11 @@
 :host-context(.high-contrast) .public-user-preview__demographics,
 :host-context(.high-contrast) .public-user-preview__signals,
 :host-context(.high-contrast) .public-user-preview__relationship,
-:host-context(.high-contrast) .public-user-preview__highlight,
-:host-context(.high-contrast) .public-user-preview__bio,
-:host-context(.high-contrast) .public-user-preview__profile-link {
+:host-context(.high-contrast) .public-user-preview__bio {
   color: var(--text-color);
 }
 
-:host-context(.high-contrast) .public-user-preview__relationship,
-:host-context(.high-contrast) .public-user-preview__highlight {
+:host-context(.high-contrast) .public-user-preview__relationship {
   border-color: var(--text-color);
   background: var(--background-color);
 }
@@ -234,7 +177,7 @@
   }
 
   .public-user-preview {
-    border-radius: 1.05rem;
+    --app-card-radius: 1.05rem;
   }
 
   .public-user-preview__header {
@@ -253,8 +196,3 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .public-user-preview__profile-link {
-    transition: none;
-  }
-}
