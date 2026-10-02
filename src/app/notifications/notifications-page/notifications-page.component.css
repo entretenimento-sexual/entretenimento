@@ -124,12 +124,6 @@
   border-top: 1px solid var(--surface-border);
 }
 
-.community-activity__fallback p {
-  margin: 0;
-  color: color-mix(in oklab, var(--text-color) 70%, transparent);
-  font-size: 0.8rem;
-  line-height: 1.45;
-}
 
 .notifications-list {
   display: grid;
