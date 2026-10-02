@@ -179,9 +179,7 @@ export class CommunityDiscoveryPageComponent {
     ? 'Minhas comunidades'
     : this.definition.pluralLabel;
   readonly hubTitle = this.socialSpace.discovery.hubTitle;
-  readonly description = this.discoveryMode === 'mine'
-    ? 'Comunidades das quais você participa ou administra.'
-    : this.definition.description;
+  readonly description = this.definition.description;
   readonly emptyMessage = this.discoveryMode === 'mine'
     ? 'Você ainda não participa de nenhuma Comunidade.'
     : this.socialSpace.discovery.emptyExploreMessage;
