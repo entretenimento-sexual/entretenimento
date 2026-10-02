@@ -15,20 +15,7 @@
 .intent-radar__summary {
   width: fit-content;
   min-height: 30px;
-  display: inline-flex;
-  align-items: center;
   gap: 7px;
-  padding: 0 10px;
-  border: 1px solid color-mix(
-    in oklab,
-    var(--surface-border, rgba(255, 255, 255, 0.12)) 86%,
-    transparent
-  );
-  border-radius: 999px;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 76%, transparent);
-  background: var(--surface-color, #101923);
-  font-size: 0.78rem;
-  font-weight: 750;
 }
 
 .intent-radar__summary i {
@@ -74,14 +61,6 @@
   grid-template-rows: auto 1fr auto auto;
   gap: 11px;
   padding: 13px;
-  border: 1px solid color-mix(
-    in oklab,
-    var(--surface-border, rgba(255, 255, 255, 0.12)) 90%,
-    transparent
-  );
-  border-radius: 17px;
-  background: var(--surface-color, #101923);
-  box-shadow: 0 6px 18px rgb(0 0 0 / 7%);
   scroll-snap-align: start;
 }
 
@@ -184,50 +163,12 @@
   min-width: 0;
 }
 
-.intent-status-card__action {
+.intent-status-card__action.app-action {
   min-height: 40px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   gap: 7px;
-  padding: 0.55rem 0.7rem;
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
-  border-radius: 999px;
-  color: var(--text-color, #f5f7fb);
-  text-align: center;
-  text-decoration: none;
   font-size: 0.79rem;
   font-weight: 850;
   line-height: 1.1;
-  transition:
-    background-color 160ms ease,
-    border-color 160ms ease,
-    transform 160ms ease;
-}
-
-.intent-status-card__action:hover,
-.intent-status-card__action:focus-visible {
-  border-color: color-mix(in oklab, var(--primary-color, #ff7070) 55%, transparent);
-  background: color-mix(in oklab, var(--primary-color, #ff7070) 8%, transparent);
-  outline: none;
-}
-
-.intent-status-card__action:focus-visible {
-  outline: 2px solid var(--primary-color, #ff7070);
-  outline-offset: 2px;
-}
-
-.intent-status-card__action:active {
-  transform: scale(0.98);
-}
-
-.intent-status-card__action--primary {
-  border-color: color-mix(in oklab, var(--primary-color, #ff7070) 40%, transparent);
-  background: color-mix(in oklab, var(--primary-color, #ff7070) 14%, transparent);
-}
-
-.intent-status-card__action--secondary {
-  background: transparent;
 }
 
 @media (min-width: 760px) {
@@ -251,10 +192,6 @@
     grid-auto-columns: minmax(218px, 88%);
   }
 
-  .intent-status-card {
-    border-radius: 15px;
-    box-shadow: none;
-  }
 }
 
 @media (max-width: 340px) {
@@ -263,8 +200,3 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .intent-status-card__action {
-    transition: none !important;
-  }
-}
