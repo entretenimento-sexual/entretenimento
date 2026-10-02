@@ -26,6 +26,7 @@ import {
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
+import { MediaPublicationService } from 'src/app/core/services/media/media-publication.service';
 import type { MediaErrorReason } from 'src/app/core/services/media/media-error.catalog';
 import { PhotoEditorLauncherService } from 'src/app/core/services/image-handling/photo-editor-launcher.service';
 import {
@@ -69,6 +70,7 @@ export class PhotoUploadComponent {
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly errorHandler = inject(MediaApplicationErrorService);
   private readonly photoUploadFlow = inject(PhotoUploadFlowService);
+  private readonly mediaPublication = inject(MediaPublicationService);
   private readonly photoEditor = inject(PhotoEditorLauncherService);
 
   private readonly DEBUG =
@@ -326,8 +328,7 @@ export class PhotoUploadComponent {
           return this.uploadSelectedFile$(
             ownerUid,
             file,
-            imageStateStr,
-            'Upload concluído com sucesso.'
+            imageStateStr
           );
         }),
         takeUntilDestroyed(this.destroyRef)
@@ -443,8 +444,7 @@ export class PhotoUploadComponent {
   private uploadSelectedFile$(
     ownerUid: string,
     file: File,
-    imageStateStr: string,
-    successMessage: string
+    imageStateStr: string
   ): Observable<IPhotoUploadFlowEvent> {
     return this.photoUploadFlow.uploadProcessedPhotoWithProgress$({
       userId: ownerUid,
@@ -453,9 +453,62 @@ export class PhotoUploadComponent {
       mimeType: file.type,
       imageStateStr,
     }).pipe(
-      tap((event: IPhotoUploadFlowEvent) => {
+      tap((event) => {
         if (event.type === 'progress') {
           this.uploadPercentSubject.next(event.progress);
+        }
+      }),
+      switchMap((event) => {
+        if (event.type === 'progress') {
+          return of(event);
+        }
+
+        const result = event.result;
+
+        return this.mediaPublication.publishPhoto$({
+          ownerUid,
+          photo: {
+            id: result.photoId,
+            ownerUid,
+            url: result.url,
+            alt: result.fileName,
+            createdAt: result.createdAt.getTime(),
+            path: result.path,
+            fileName: result.fileName,
+          },
+          visibility: 'PUBLIC',
+          isCover: false,
+          orderIndex: 0,
+          commentsEnabled: true,
+          commentsPolicy: 'EVERYONE',
+          reactionsEnabled: true,
+        }).pipe(
+          tap(() => {
+            this.errorNotifier.showSuccess(
+              'Foto enviada para análise. Ela será exibida publicamente após a aprovação.'
+            );
+          }),
+          map(() => event),
+          catchError((error) => {
+            this.errorHandler.report(error, {
+              operation: 'photoUpload.autoPublish',
+              reasonHint: 'media_publication_failed',
+              silent: true,
+              metadata: {
+                scope: 'PhotoUploadComponent',
+                ownerUid,
+                photoId: result.photoId,
+              },
+            });
+            this.errorNotifier.showWarning(
+              'A foto foi enviada, mas não entrou na análise automaticamente. Você pode publicá-la pela galeria.'
+            );
+            return of(event);
+          })
+        );
+      }),
+      tap((event) => {
+        if (event.type === 'progress') {
           return;
         }
 
@@ -471,7 +524,6 @@ export class PhotoUploadComponent {
 
         this.fileSubject.next(null);
         this.imageStateSubject.next(null);
-        this.errorNotifier.showSuccess(successMessage);
       }),
       catchError((error) => {
         this.phaseSubject.next('READY');
