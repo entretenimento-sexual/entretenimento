@@ -15,6 +15,7 @@ import { LayoutRoutingModule } from './layout-routing.module';
 import { SharedModule } from '../shared/shared.module';
 import { HeaderModule } from '../header/header.module';
 import { LAYOUT_FEATURE_EFFECTS } from './layout-feature.effects';
+import { ContentStateComponent } from '../shared/content-state/content-state.component';
 
 @NgModule({
   declarations: [
@@ -28,6 +29,7 @@ import { LAYOUT_FEATURE_EFFECTS } from './layout-feature.effects';
     SharedModule,
     HeaderModule,
     EffectsModule.forFeature(LAYOUT_FEATURE_EFFECTS),
+    ContentStateComponent,
   ],
 
   exports: [
