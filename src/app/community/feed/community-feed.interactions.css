@@ -175,39 +175,10 @@
   pointer-events: none;
 }
 
-.community-feed__new-items button {
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.42rem;
+.community-feed__new-items .app-action {
   max-width: 100%;
-  padding: 0.45rem 0.8rem;
-  border: 1px solid color-mix(
-    in oklab,
-    var(--primary-color) 32%,
-    var(--surface-border)
-  );
-  border-radius: 999px;
-  background: color-mix(
-    in oklab,
-    var(--surface-color) 96%,
-    var(--primary-color) 4%
-  );
-  color: var(--primary-color);
-  box-shadow: 0 0.45rem 1.25rem color-mix(in oklab, #000 12%, transparent);
-  font: inherit;
-  font-size: 0.76rem;
-  font-weight: 750;
-  cursor: pointer;
+  min-height: var(--tap-target, 44px);
   pointer-events: auto;
-}
-
-.community-feed__new-items button:hover {
-  background: color-mix(
-    in oklab,
-    var(--surface-color) 91%,
-    var(--primary-color) 9%
-  );
 }
 
 @media (max-width: 47.99rem) {
@@ -218,13 +189,6 @@
       + 0.75rem
     );
   }
-}
-
-:host-context(.high-contrast) .community-feed__new-items button {
-  border: 2px solid var(--text-color);
-  background: var(--surface-color);
-  color: var(--text-color);
-  box-shadow: none;
 }
 
 /* Responder expressa intenção; abrir Comentários expressa somente leitura. */
@@ -317,33 +281,9 @@
 /* Desktop: usa melhor a área disponível sem reduzir os alvos de interação. */
 @media (min-width: 48rem) {
   .community-feed__composer {
-    padding-block: 0.62rem;
-  }
-
-  .community-post {
-    padding: 0.78rem 1.1rem;
-  }
-
-  .community-post__header {
-    margin-bottom: 0.38rem;
-  }
-
-  .community-post__media {
-    max-width: 38rem;
-    margin-top: 0.52rem;
-  }
-
-  .community-post__media img {
-    max-height: 38rem;
-  }
-
-  .community-post__metrics {
-    margin-top: 0.3rem;
-  }
-
-  .community-post__reply-context {
-    margin-bottom: 0.18rem;
-  }
+  margin: 0.55rem 0.65rem 0.72rem;
+  padding: 0.58rem 0.62rem 0.64rem;
+  gap: 0.46rem;
 }
 
 /* Localização escolhida explicitamente no composer. */
@@ -354,9 +294,6 @@
   align-items: center;
   gap: 0.45rem;
   padding: 0.35rem 0.45rem;
-  border: 1px solid var(--surface-border);
-  border-radius: 0.7rem;
-  background: color-mix(in oklab, var(--surface-color) 97%, var(--primary-color) 3%);
 }
 
 .community-feed__location-preview > i {
@@ -627,12 +564,6 @@
     var(--primary-color) 48%,
     var(--surface-border)
   );
-  background: color-mix(
-    in oklab,
-    var(--surface-color) 98%,
-    var(--primary-color) 2%
-  );
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary-color) 8%, transparent);
 }
 
 .community-feed__composer-row {
@@ -691,16 +622,7 @@
 }
 
 .community-feed__send {
-  box-shadow: 0 0.24rem 0.65rem color-mix(in oklab, var(--primary-color) 20%, transparent);
-  transition:
-    transform 120ms ease,
-    box-shadow 120ms ease,
-    opacity 120ms ease;
-}
-
-.community-feed__send:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 0.38rem 0.8rem color-mix(in oklab, var(--primary-color) 26%, transparent);
+  transition: opacity 120ms ease;
 }
 
 .community-feed__composer-help {
@@ -729,26 +651,15 @@
   }
 }
 
-:host-context(.high-contrast) .community-feed__composer {
-  border: 2px solid var(--text-color);
-  background: var(--surface-color);
-  box-shadow: none;
-}
-
 :host-context(.high-contrast)
   .community-feed:not(.community-feed--photos) .community-post__metrics {
   border-top-color: var(--text-color);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .community-feed__composer,
   .community-feed__composer textarea,
   .community-feed__send {
     transition: none;
-  }
-
-  .community-feed__send:hover:not(:disabled) {
-    transform: none;
   }
 }
 
