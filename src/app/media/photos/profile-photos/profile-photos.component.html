@@ -24,20 +24,9 @@
 @let savingDisplayDateId = (savingDisplayDateId$ | async);
 
 <section class="photos-page container-wide" aria-label="Fotos do perfil">
-  <app-page-header
-    title="Fotos do perfil"
-    subtitle="Revise as fotos adicionadas, publique quando estiverem prontas e escolha a capa da sua presença pública."
-  >
+  <app-page-header title="Fotos do perfil">
     @if (ownerUid && isOwner) {
       <div page-actions class="actions">
-        <a
-          class="app-action app-action--ghost"
-          [routerLink]="['/perfil']"
-          aria-label="Voltar ao meu perfil"
-        >
-          Voltar ao perfil
-        </a>
-
         <button
           type="button"
           class="app-action app-action--primary"
