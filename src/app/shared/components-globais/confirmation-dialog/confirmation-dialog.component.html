@@ -1,5 +1,5 @@
 <section
-  class="confirmation-dialog"
+  class="confirmation-dialog app-card app-card--media"
   [attr.data-tone]="tone()"
   role="dialog"
   aria-modal="true"
@@ -41,7 +41,7 @@
     @if (data.detail) {
       <p
         id="confirmation-dialog-detail"
-        class="confirmation-dialog__detail"
+        class="confirmation-dialog__detail app-card app-card--flat app-card--compact"
       >
         {{ data.detail }}
       </p>
@@ -55,7 +55,7 @@
     @if (data.showCancel !== false) {
       <button
         type="button"
-        class="confirmation-dialog__button confirmation-dialog__button--ghost"
+        class="confirmation-dialog__button confirmation-dialog__button--ghost app-action app-action--ghost"
         (click)="cancel()"
         cdkFocusInitial
       >
@@ -65,7 +65,9 @@
 
     <button
       type="button"
-      class="confirmation-dialog__button confirmation-dialog__button--confirm"
+      class="confirmation-dialog__button confirmation-dialog__button--confirm app-action"
+      [class.app-action--primary]="tone() !== 'danger'"
+      [class.app-action--danger]="tone() === 'danger'"
       (click)="confirm()"
     >
       {{ confirmLabel() }}
