@@ -152,7 +152,7 @@ export class NotificationsPageComponent {
     return summaryAttentionNotification(summary);
   }
 
-  communitySummaryLabel(summary: ICommunityNotificationSummary): string {
+  communitySummaryLabel(summary: ICommunityNotificationSummary): string | null {
     if (summary.hasPriorityUnread) {
       return 'Requer atenção';
     }
@@ -165,7 +165,7 @@ export class NotificationsPageComponent {
       return `${summary.unreadCount} novidades`;
     }
 
-    return 'Em dia';
+    return null;
   }
 
   openCommunitySummary(summary: ICommunityNotificationSummary): void {
