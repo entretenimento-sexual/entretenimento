@@ -11,7 +11,7 @@
   <main class="profiles-discovery-page__content">
     @if (showLocationNotice()) {
       @if (locationPermission() === 'prompt') {
-        <section class="profiles-discovery-page__location-notice" aria-labelledby="discovery-location-title">
+        <section class="profiles-discovery-page__location-notice app-card app-card--flat app-card--compact" aria-labelledby="discovery-location-title">
           <span class="profiles-discovery-page__location-icon" aria-hidden="true">
             <i class="fas fa-location-dot"></i>
           </span>
@@ -22,7 +22,7 @@
           <div class="profiles-discovery-page__location-controls">
             <button
               type="button"
-              class="profiles-discovery-page__location-action"
+              class="profiles-discovery-page__location-action app-action app-action--primary"
               [disabled]="requestingLocation()"
               [attr.aria-busy]="requestingLocation() ? 'true' : null"
               (click)="activateLocation()"
@@ -37,7 +37,7 @@
 
             <button
               type="button"
-              class="profiles-discovery-page__location-dismiss"
+              class="profiles-discovery-page__location-dismiss app-action app-action--ghost"
               aria-label="Ocultar aviso de localização"
               title="Não mostrar novamente neste dispositivo"
               (click)="dismissLocationNotice()"
@@ -47,7 +47,7 @@
           </div>
         </section>
       } @else if (locationPermission() === 'denied') {
-        <section class="profiles-discovery-page__location-notice profiles-discovery-page__location-notice--blocked" role="status">
+        <section class="profiles-discovery-page__location-notice profiles-discovery-page__location-notice--blocked app-card app-card--flat app-card--compact" role="status">
           <span class="profiles-discovery-page__location-icon" aria-hidden="true">
             <i class="fas fa-location-dot"></i>
           </span>
@@ -58,7 +58,7 @@
           <div class="profiles-discovery-page__location-controls">
             <button
               type="button"
-              class="profiles-discovery-page__location-dismiss"
+              class="profiles-discovery-page__location-dismiss app-action app-action--ghost"
               aria-label="Ocultar aviso de localização"
               title="Não mostrar novamente neste dispositivo"
               (click)="dismissLocationNotice()"
