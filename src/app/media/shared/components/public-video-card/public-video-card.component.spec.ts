@@ -126,6 +126,15 @@ describe('PublicVideoCardComponent', () => {
     expect(actions[1].nativeElement.textContent).toContain('3');
   });
 
+  it('exibe visualizações apenas sobre a thumbnail', () => {
+    expect(
+      fixture.debugElement.query(By.css('.public-video-card__views'))
+    ).toBeTruthy();
+    expect(
+      fixture.debugElement.query(By.css('.public-video-card__views-metric'))
+    ).toBeNull();
+  });
+
   it('aplica o fallback canônico quando o avatar remoto do autor falha', () => {
     fixture.componentRef.setInput('video', {
       ...VIDEO,
