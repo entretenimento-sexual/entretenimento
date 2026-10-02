@@ -1554,6 +1554,46 @@ describe('Canonical UI boundary', () => {
   });
 
 
+  it('mantém galerias públicas de Media sem chrome e estilos residuais', () => {
+    const publicPhotos = source(
+      'src/app/media/photos/public-profile-photos/public-profile-photos.component.html'
+    );
+    const publicPhotoStyles = source(
+      'src/app/media/photos/public-profile-photos/public-profile-photos.component.css'
+    );
+    const publicVideos = source(
+      'src/app/media/videos/public-profile-videos/public-profile-videos.component.html'
+    );
+    const publicVideoStyles = source(
+      'src/app/media/videos/public-profile-videos/public-profile-videos.component.css'
+    );
+    const topPhotoStyles = source(
+      'src/app/media/photos/top-public-photos/top-public-photos.component.css'
+    );
+
+    expect(publicPhotos).toContain(
+      '<app-page-header title="Fotos públicas"></app-page-header>'
+    );
+    expect(publicPhotos).not.toContain('Voltar ao perfil');
+    expect(publicPhotos).not.toContain('gallery-strip');
+    expect(publicPhotos).not.toContain('Conteúdo aprovado');
+    expect(publicPhotoStyles).not.toContain('.back-link');
+    expect(publicPhotoStyles).not.toContain('.gallery-pill');
+    expect(publicPhotoStyles).not.toContain('.gallery-strip');
+
+    expect(publicVideos).toContain('<app-page-header title="Vídeos">');
+    expect(publicVideos).not.toContain('<h1 id="public-profile-videos-title">');
+    expect(publicVideos).not.toContain('Voltar ao perfil');
+    expect(publicVideoStyles).not.toContain('.back-link');
+    expect(publicVideoStyles).not.toContain('.public-videos-header');
+    expect(publicVideoStyles).not.toContain('.title-block');
+
+    expect(topPhotoStyles).not.toContain('.eyebrow');
+    expect(topPhotoStyles).not.toContain('.subtitle');
+    expect(topPhotoStyles).not.toContain('.title-block h2');
+    expect(topPhotoStyles).not.toContain('.empty-state');
+  });
+
   it('mantém Vídeos no PageHeader canônico e sem descrição redundante no editor', () => {
     const videos = source(
       'src/app/media/videos/profile-videos/profile-videos.component.html'
