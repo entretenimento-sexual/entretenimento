@@ -95,6 +95,7 @@ const CANONICAL_ACTION_TEMPLATES = [
   'src/app/explore/pages/social-explore-page/social-explore-page.component.html',
   'src/app/user-profile/user-profile-view/user-profile-view.component.html',
   'src/app/notifications/notifications-page/notifications-page.component.html',
+  'src/app/media/videos/profile-videos/profile-videos.component.html',
   'src/app/user-profile/user-profile-edit/edit-profile-social-links/edit-profile-social-links.component.html',
   'src/app/subscriptions/checkout/checkout.component.html',
   'src/app/media/photos/profile-photos/profile-photos.component.html',
