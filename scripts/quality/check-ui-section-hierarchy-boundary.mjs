@@ -298,6 +298,39 @@ for (const forbidden of [
   }
 }
 
+const friendListPageHtml = read(
+  'src/app/layout/friend-management/friend-list-page/friend-list-page.component.html'
+);
+for (const required of [
+  'friends-page app-page',
+  'friends-page__metric app-card app-card--flat app-card--compact',
+  'friends-page__metric friends-page__metric--online app-card app-card--flat app-card--compact',
+  'friends-controls app-card app-card--flat app-card--compact',
+]) {
+  if (!friendListPageHtml.includes(required)) {
+    violations.push(
+      'friend-list-page.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const friendListPageCss = read(
+  'src/app/layout/friend-management/friend-list-page/friend-list-page.component.css'
+);
+for (const forbidden of [
+  '.friends-controls.app-card',
+  'box-shadow: none',
+  '@media (prefers-reduced-motion: reduce)',
+  'html.high-contrast .friends-controls',
+  '!important',
+]) {
+  if (friendListPageCss.includes(forbidden)) {
+    violations.push(
+      'friend-list-page.component.css contains duplicate shared UI chrome ' + forbidden
+    );
+  }
+}
+
 const userIntentStatusComposerHtml = read(
   'src/app/dashboard/user-intent-status/user-intent-status-composer/user-intent-status-composer.component.html'
 );
