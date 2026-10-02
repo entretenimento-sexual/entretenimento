@@ -2032,6 +2032,40 @@ for (const forbidden of [
   }
 }
 
+const profilePhotosHtml = read(
+  'src/app/media/photos/profile-photos/profile-photos.component.html'
+);
+for (const required of [
+  'photos-grid app-card-grid app-card-grid--media',
+  'photo-tile app-card app-card--media app-card--interactive',
+  'gallery-filter-group app-segmented',
+  'management-date app-control',
+]) {
+  if (!profilePhotosHtml.includes(required)) {
+    violations.push(
+      'profile-photos.component.html missing canonical media gallery contract ' + required
+    );
+  }
+}
+
+const profilePhotosCss = read(
+  'src/app/media/photos/profile-photos/profile-photos.component.css'
+);
+for (const forbidden of [
+  'minmax(min(100%, 220px), 230px)',
+  'box-shadow: 0 10px 28px',
+  '.gallery-filter:hover,',
+  '.management-action:hover,',
+  'html.high-contrast .photo-tile',
+  '!important',
+]) {
+  if (profilePhotosCss.includes(forbidden)) {
+    violations.push(
+      'profile-photos.component.css contains duplicate gallery chrome ' + forbidden
+    );
+  }
+}
+
 const mediaQueryService = read(
   'src/app/core/services/media/media-query.service.ts'
 );
