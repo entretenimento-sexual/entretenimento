@@ -52,31 +52,9 @@
 
 .community-discovery__filter-chip {
   flex: 0 0 auto;
-  min-height: 2.45rem;
-  padding-inline: 0.78rem;
-  border: 1px solid var(--surface-border, #d5d5d5);
-  border-radius: 999px;
-  background: var(--surface-color, #fff);
-  color: color-mix(in oklab, var(--text-color, #222) 80%, transparent);
-  font: inherit;
+  min-height: var(--tap-target, 2.75rem);
   font-size: 0.78rem;
-  font-weight: 680;
   white-space: nowrap;
-  cursor: pointer;
-  transition:
-    border-color 150ms ease,
-    background-color 150ms ease,
-    color 150ms ease;
-}
-
-.community-discovery__filter-chip:hover,
-.community-discovery__filter-chip:focus-visible {
-  border-color: color-mix(
-    in oklab,
-    var(--primary-color, #d83768) 42%,
-    var(--surface-border, #d5d5d5)
-  );
-  color: var(--text-color, #222);
 }
 
 .community-discovery__filter-chip.is-active {
@@ -122,16 +100,8 @@
 }
 
 .community-discovery__filter-retry {
-  min-height: 2.45rem;
-  padding-inline: 0.85rem;
-  border: 1px solid var(--surface-border, #d5d5d5);
-  border-radius: 999px;
-  background: var(--surface-color, #fff);
-  color: var(--text-color, #222);
-  font: inherit;
+  min-height: var(--tap-target, 2.75rem);
   font-size: 0.78rem;
-  font-weight: 700;
-  cursor: pointer;
 }
 
 .community-discovery__state {
@@ -171,61 +141,16 @@
 
 .community-discovery__empty-explore {
   min-height: var(--tap-target, 2.75rem);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding-inline: 0.95rem;
-  border: 1px solid var(--surface-border, #d5d5d5);
-  border-radius: 999px;
-  background: var(--surface-color, #fff);
-  color: var(--text-color, #222);
   font-size: 0.82rem;
-  font-weight: 700;
-  text-decoration: none;
-  transition: border-color 150ms ease, background-color 150ms ease;
 }
 
-.community-discovery__empty-explore:hover,
-.community-discovery__empty-explore:focus-visible {
-  border-color: color-mix(
-    in oklab,
-    var(--primary-color, #d83768) 36%,
-    var(--surface-border, #d5d5d5)
-  );
-  background: color-mix(
-    in oklab,
-    var(--surface-color, #fff) 96%,
-    var(--primary-color, #d83768) 4%
-  );
-}
-
-.community-discovery__state button,
-.community-discovery__more button {
+.community-discovery__state .app-action,
+.community-discovery__more .app-action {
   min-height: var(--tap-target, 2.75rem);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.45rem;
-  padding-inline: 0.9rem;
-  border: 1px solid var(--surface-border, #d5d5d5);
-  border-radius: 999px;
-  background: var(--surface-color, #fff);
-  color: var(--text-color, #222);
-  font: inherit;
-  font-size: 0.84rem;
-  font-weight: 650;
-  cursor: pointer;
 }
 
 .community-card__sponsorship {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.28rem;
-  padding: 0.14rem 0.38rem;
-  border: 1px solid var(--surface-border, #d5d5d5);
-  border-radius: 999px;
   font-size: 0.67rem;
-  font-weight: 760;
 }
 
 .community-discovery__grid {
@@ -302,13 +227,8 @@
   gap: 0;
   overflow: hidden;
   border: 1px solid var(--surface-border, #d5d5d5);
-  border-radius: var(--radius-lg, 0.9rem);
-  background:
-    linear-gradient(
-      135deg,
-      color-mix(in oklab, var(--surface-color, #fff) 98%, var(--primary-color, #d83768) 2%),
-      var(--surface-color, #fff)
-    );
+  border-radius: var(--app-card-radius, 18px);
+  background: var(--surface-color, #fff);
   transition:
     border-color 160ms ease,
     transform 160ms ease,
@@ -317,13 +237,13 @@
 
 .community-card-shell--mine:hover,
 .community-card-shell:has(.community-card__dismiss):hover {
-  transform: translateY(-2px);
+  transform: translateY(-1px);
   border-color: color-mix(
     in oklab,
     var(--primary-color, #d83768) 34%,
     var(--surface-border, #d5d5d5)
   );
-  box-shadow: 0 8px 24px color-mix(in oklab, var(--text-color, #222) 6%, transparent);
+  box-shadow: var(--app-card-shadow-hover, 0 14px 34px rgb(0 0 0 / 24%));
 }
 
 .community-card-shell--mine:focus-within,
@@ -350,33 +270,8 @@
 
 .community-card__notification-action {
   min-height: var(--tap-target, 2.75rem);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
   max-width: 100%;
-  padding: 0.45rem 0.7rem;
-  border: 0;
-  border-radius: 0.65rem;
-  background: transparent;
-  color: color-mix(in oklab, var(--text-color, #222) 70%, transparent);
-  font: inherit;
   font-size: 0.76rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition:
-    background-color 150ms ease,
-    color 150ms ease;
-}
-
-.community-card__notification-action:hover,
-.community-card__notification-action:focus-visible {
-  background: color-mix(
-    in oklab,
-    var(--surface-color, #fff) 94%,
-    var(--primary-color, #d83768) 6%
-  );
-  color: var(--text-color, #222);
 }
 
 .community-card__notification-action:disabled {
@@ -388,14 +283,7 @@
   max-width: 100%;
   min-height: var(--tap-target, 2.75rem);
   justify-self: start;
-  gap: 0.3rem;
-  padding-inline: 0.45rem;
-  border-color: transparent;
-  border-radius: 0.65rem;
-  background: transparent;
-  color: color-mix(in oklab, var(--text-color, #222) 62%, transparent);
   font-size: 0.74rem;
-  font-weight: 650;
 }
 
 .community-card-shell:has(.community-card__dismiss) .community-card__dismiss {
@@ -433,7 +321,7 @@
   gap: 0.8rem;
   padding: 0.62rem;
   border: 1px solid var(--surface-border, #d5d5d5);
-  border-radius: var(--radius-lg, 0.9rem);
+  border-radius: var(--app-card-radius, 18px);
   background: var(--surface-color, #fff);
   color: inherit;
   text-decoration: none;
@@ -444,13 +332,13 @@
 }
 
 .community-card:hover {
-  transform: translateY(-2px);
+  transform: translateY(-1px);
   border-color: color-mix(
     in oklab,
     var(--primary-color, #d83768) 34%,
     var(--surface-border, #d5d5d5)
   );
-  box-shadow: 0 8px 24px color-mix(in oklab, var(--text-color, #222) 6%, transparent);
+  box-shadow: var(--app-card-shadow-hover, 0 14px 34px rgb(0 0 0 / 24%));
 }
 
 .community-card--mine,
@@ -469,16 +357,10 @@
 }
 
 .community-card:focus-visible,
-.community-card__notification-action:focus-visible,
 .community-discovery__scope-nav a:focus-visible,
 .community-discovery__create:focus-visible,
 .community-discovery__empty-create:focus-visible,
-.community-discovery__empty-explore:focus-visible,
-.community-discovery__filter-chip:focus-visible,
-.community-discovery__filter-control select:focus-visible,
-.community-discovery__filter-retry:focus-visible,
-.community-discovery__state button:focus-visible,
-.community-discovery__more button:focus-visible {
+.community-discovery__filter-control select:focus-visible {
   outline: 3px solid color-mix(
     in oklab,
     var(--primary-color, #d83768) 32%,
@@ -695,24 +577,7 @@
 .community-card__contextual-match {
   width: fit-content;
   max-width: 100%;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.18rem 0.42rem;
-  border-radius: 999px;
-  background: color-mix(
-    in oklab,
-    var(--primary-color, #d83768) 9%,
-    var(--surface-color, #fff)
-  );
-  color: color-mix(
-    in oklab,
-    var(--primary-color, #d83768) 76%,
-    var(--text-color, #222)
-  );
   font-size: 0.66rem;
-  font-weight: 720;
-  line-height: 1.25;
 }
 
 .community-card__attention[data-attention='priority'] {
@@ -755,23 +620,11 @@
   gap: 0.3rem;
 }
 
-.community-card__tags span {
+.community-card__tags .app-chip {
   max-width: 100%;
   overflow: hidden;
-  padding: 0.16rem 0.4rem;
-  border: 1px solid color-mix(
-    in oklab,
-    var(--surface-border, #d5d5d5) 80%,
-    transparent
-  );
-  border-radius: 999px;
-  color: var(--text-color, #222);
   font-size: 0.66rem;
-  font-weight: 650;
-  line-height: 1.25;
   text-overflow: ellipsis;
-  white-space: nowrap;
-  opacity: 0.78;
 }
 
 .community-card__metrics {
@@ -905,18 +758,11 @@
 :host-context(.high-contrast) .community-card,
 :host-context(.high-contrast) .community-card-shell--mine,
 :host-context(.high-contrast) .community-card-shell:has(.community-card__dismiss),
-:host-context(.high-contrast) .community-card__notification-action,
 :host-context(.high-contrast) .community-discovery__scope-nav,
 :host-context(.high-contrast) .community-discovery__create,
 :host-context(.high-contrast) .community-discovery__empty-create,
-:host-context(.high-contrast) .community-discovery__empty-explore,
-:host-context(.high-contrast) .community-discovery__filter-chip,
 :host-context(.high-contrast) .community-discovery__filter-control select,
-:host-context(.high-contrast) .community-discovery__filter-retry,
-:host-context(.high-contrast) .community-card__identity,
-:host-context(.high-contrast) .community-card__tags span,
-:host-context(.high-contrast) .community-discovery__state button,
-:host-context(.high-contrast) .community-discovery__more button {
+:host-context(.high-contrast) .community-card__identity {
   border: 2px solid var(--text-color, #222);
 }
 
@@ -950,9 +796,7 @@
   .community-card,
   .community-card-shell--mine,
   .community-card-shell:has(.community-card__dismiss),
-  .community-card__notification-action,
-  .community-discovery__filter-chip,
-  .community-discovery__empty-explore {
+  .community-card__dismiss {
     transition: none;
   }
 
