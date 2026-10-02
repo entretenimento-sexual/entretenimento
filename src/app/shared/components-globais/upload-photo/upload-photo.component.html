@@ -1,12 +1,12 @@
 <!-- src/app/shared/components-globais/upload-photo/upload-photo.component.html -->
 <section
-  class="upload-modal-content"
+  class="upload-modal-content app-card app-card--media"
   aria-labelledby="upload-photo-title"
   [attr.aria-busy]="isLoading ? 'true' : null"
 >
   <button
     type="button"
-    class="btn-close"
+    class="btn-close app-action app-action--ghost"
     [appActionState]="isLoading"
     (click)="closeModal('cancel')"
     aria-label="Fechar seleção de foto"
@@ -39,7 +39,7 @@
   </p>
 
   @if (isLoading) {
-    <div class="loading-spinner" role="status" aria-live="polite">
+    <div class="loading-spinner app-card app-card--flat app-card--compact" role="status" aria-live="polite">
       <div class="spinner" aria-hidden="true"></div>
       <p>Preparando o editor...</p>
     </div>
@@ -48,7 +48,7 @@
   @if (errorMessage) {
     <div
       id="upload-photo-error"
-      class="alert alert-danger mt-2"
+      class="alert alert-danger mt-2 app-card app-card--flat app-card--compact"
       role="alert"
       aria-live="assertive"
     >
