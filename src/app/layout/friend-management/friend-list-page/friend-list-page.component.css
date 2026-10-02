@@ -108,11 +108,8 @@
     gap: 12px;
   }
 
-  .friends-controls,
-  .friends-controls.app-card {
+  .friends-controls {
     padding: 12px;
-    border-radius: 14px;
-    box-shadow: none;
   }
 
   .friends-page__metrics {
