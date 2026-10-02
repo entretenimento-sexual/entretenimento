@@ -293,6 +293,53 @@ for (const forbidden of [
   }
 }
 
+const profilesDiscoveryHtml = read(
+  'src/app/dashboard/discovery/profiles-discovery-page/profiles-discovery-page.component.html'
+);
+for (const required of [
+  'profiles-discovery-page__location-notice app-card app-card--flat app-card--compact',
+  'profiles-discovery-page__location-action app-action app-action--primary',
+  'profiles-discovery-page__location-dismiss app-action app-action--ghost',
+]) {
+  if (!profilesDiscoveryHtml.includes(required)) {
+    violations.push(
+      'profiles-discovery-page.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const publicProfilesHtml = read(
+  'src/app/dashboard/discovery/public-profiles-list/public-profiles-list.component.html'
+);
+for (const required of [
+  'public-profiles__grid app-responsive-grid',
+  'public-profiles__retry app-action app-action--ghost',
+  'public-profiles__load-more app-action app-action--ghost',
+  'public-profiles__review app-action app-action--ghost',
+]) {
+  if (!publicProfilesHtml.includes(required)) {
+    violations.push(
+      'public-profiles-list.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const publicProfilesCss = read(
+  'src/app/dashboard/discovery/public-profiles-list/public-profiles-list.component.css'
+);
+for (const forbidden of [
+  '.sr-only {',
+  '.public-profiles__retry:hover,',
+  'grid-template-columns: repeat(auto-fit, minmax(236px, 1fr))',
+  ':host-context(.high-contrast) .public-profiles__retry,',
+]) {
+  if (publicProfilesCss.includes(forbidden)) {
+    violations.push(
+      'public-profiles-list.component.css contains duplicate local UI chrome ' + forbidden
+    );
+  }
+}
+
 const socialExploreHtml = read(
   'src/app/explore/pages/social-explore-page/social-explore-page.component.html'
 );
