@@ -1554,6 +1554,14 @@ describe('Canonical UI boundary', () => {
   });
 
 
+  it('mantém Conta sem estilos de ação órfãos', () => {
+    const accountStyles = source(
+      'src/app/account/pages/account-section.css'
+    );
+
+    expect(accountStyles).not.toContain('.account-section-actions');
+  });
+
   it('mantém cards e viewers de Media sem seletores órfãos conhecidos', () => {
     const photoFeed = source(
       'src/app/media/shared/components/public-photo-card/public-photo-card.feed.css'
