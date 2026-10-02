@@ -38,8 +38,7 @@
 }
 
 .exclusive-connections-feed__state button,
-.exclusive-connections-feed__more,
-.exclusive-connections-feed__profile-action {
+.exclusive-connections-feed__more {
   min-height: 2.75rem;
   display: inline-flex;
   align-items: center;
@@ -118,11 +117,15 @@
   flex: 1;
   margin: 0;
   overflow: hidden;
-  color: var(--text-primary, #202124);
   font-size: 1rem;
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.exclusive-connections-feed__identity h3 a {
+  color: var(--text-primary, #202124);
+  text-decoration: none;
 }
 
 .exclusive-connections-feed__score {
@@ -176,15 +179,6 @@
   white-space: nowrap;
 }
 
-.exclusive-connections-feed__profile-action {
-  align-self: flex-start;
-  min-height: 2.5rem;
-  margin-top: 0.15rem;
-  padding: 0.5rem 0.8rem;
-  background: var(--text-primary, #202124);
-  color: var(--surface-color, #fff);
-  font-size: 0.85rem;
-}
 
 .exclusive-connections-feed__more {
   margin: 1rem auto 0;
