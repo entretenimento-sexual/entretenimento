@@ -320,9 +320,9 @@ for (const forbidden of [
   '--ou-surface:',
   'box-shadow: 0 8px 20px',
   'border-radius: 16px',
-  'width: 42px',
-  'height: 42px',
   'grid-template-columns: 42px minmax(0, 1fr) 42px',
+  '.online-users__step {\n    width: 42px',
+  '.online-users__step {\n    height: 42px',
 ]) {
   if (onlineUsersCss.includes(forbidden)) {
     violations.push(
