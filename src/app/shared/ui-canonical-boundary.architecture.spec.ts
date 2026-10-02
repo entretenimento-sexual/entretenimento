@@ -1605,7 +1605,7 @@ describe('Canonical UI boundary', () => {
       '@if (notificationRoute(item) || item.readAt === null)'
     );
     expect(notifications).not.toContain(
-      "{{ isBusy(item.id) ? 'Abrindo...' : 'Abrir' }}"
+      '(click)="openNotification(item)"\n                    [disabled]="isBusy(item.id)"'
     );
     expect(notifications).toContain('notification-card__title-action');
 
