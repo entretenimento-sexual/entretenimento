@@ -298,6 +298,48 @@ for (const forbidden of [
   }
 }
 
+const communityMemberRosterHtml = read(
+  'src/app/community/member-roster-management/community-member-roster-management.component.html'
+);
+for (const required of [
+  'community-member-roster app-card app-card--flat',
+  'community-member-roster__header app-section-header',
+  'class="app-section-heading"',
+  'class="app-section-title"',
+  'class="app-section-meta"',
+  'community-member-roster__refresh app-action app-action--ghost',
+  'community-member-roster__status-tabs app-segmented',
+  'class="app-segmented__button"',
+  'class="app-control"',
+  'community-member-roster__confirmation app-card app-card--flat app-card--compact',
+  'community-member-roster__item app-card app-card--flat app-card--compact',
+]) {
+  if (!communityMemberRosterHtml.includes(required)) {
+    violations.push(
+      'community-member-roster-management.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const communityMemberRosterCss = read(
+  'src/app/community/member-roster-management/community-member-roster-management.component.css'
+);
+for (const forbidden of [
+  '.community-member-roster__status-tabs button {',
+  '.community-member-roster__state button,',
+  '.community-member-roster__actions button,',
+  '.community-member-roster__confirmation button {',
+  ':host-context(.high-contrast) .community-member-roster,',
+  '@media (prefers-reduced-motion: reduce)',
+  '!important',
+]) {
+  if (communityMemberRosterCss.includes(forbidden)) {
+    violations.push(
+      'community-member-roster-management.component.css contains duplicate shared UI chrome ' + forbidden
+    );
+  }
+}
+
 const communityFeedMainCss = read(
   'src/app/community/feed/community-feed.component.css'
 );
