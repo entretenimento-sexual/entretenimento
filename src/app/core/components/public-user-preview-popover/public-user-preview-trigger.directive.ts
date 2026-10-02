@@ -26,7 +26,7 @@ import { PublicUserPreviewPopoverComponent } from './public-user-preview-popover
  * No desktop ela é centralizada exatamente sobre o próprio card. Não usamos
  * `push` nesse modo porque o reposicionamento automático pode deslocar a prévia
  * para fora do card e quebrar a associação visual. Em dispositivos touch a
- * apresentação continua usando a superfície global própria para mobile.
+ * prévia é posicionada globalmente próxima à borda inferior da viewport.
  */
 const DESKTOP_POSITIONS: readonly ConnectedPosition[] = [
   {
@@ -117,9 +117,6 @@ export class PublicUserPreviewTriggerDirective {
       scrollStrategy: this.overlay.scrollStrategies.reposition(),
       hasBackdrop: false,
       disposeOnNavigation: true,
-      panelClass: isCoarsePointer
-        ? 'public-user-preview-overlay--touch'
-        : 'public-user-preview-overlay--desktop',
     });
     this.overlayRef = overlayRef;
 
