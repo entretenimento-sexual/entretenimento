@@ -298,6 +298,34 @@ for (const forbidden of [
   }
 }
 
+const mobileBottomNavHtml = read(
+  'src/app/shared/components-globais/mobile-bottom-nav/mobile-bottom-nav.component.html'
+);
+if (!mobileBottomNavHtml.includes(
+  'mobile-bottom-nav app-card app-card--flat app-card--media'
+)) {
+  violations.push(
+    'mobile-bottom-nav.component.html missing canonical navigation surface'
+  );
+}
+
+const mobileBottomNavCss = read(
+  'src/app/shared/components-globais/mobile-bottom-nav/mobile-bottom-nav.component.css'
+);
+for (const forbidden of [
+  'linear-gradient(',
+  'box-shadow:',
+  '!important',
+  '@media (prefers-reduced-motion: reduce)',
+  'html.high-contrast .mobile-bottom-nav,',
+]) {
+  if (mobileBottomNavCss.includes(forbidden)) {
+    violations.push(
+      'mobile-bottom-nav.component.css contains duplicate shared surface chrome ' + forbidden
+    );
+  }
+}
+
 const universalSidebarHtml = read(
   'src/app/shared/components-globais/universal-sidebar/universal-sidebar.component.html'
 );
