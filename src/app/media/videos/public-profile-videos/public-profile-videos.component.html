@@ -2,22 +2,9 @@
 @let viewerUid = (viewerUid$ | async);
 
 @if (state$ | async; as state) {
-  <section class="public-videos-page" aria-labelledby="public-profile-videos-title">
-    <header class="public-videos-header">
-      <a
-        class="back-link"
-        [routerLink]="['/perfil', ownerUid || '']"
-        aria-label="Voltar ao perfil"
-      >
-        <span aria-hidden="true">←</span>
-        <span>Voltar ao perfil</span>
-      </a>
-
-      <div class="title-block">
-        <h1 id="public-profile-videos-title">Vídeos</h1>
-      </div>
-
-      <div class="gallery-summary" aria-live="polite" aria-atomic="true">
+  <section class="public-videos-page" aria-label="Vídeos públicos">
+    <app-page-header title="Vídeos">
+      <div page-actions class="gallery-summary" aria-live="polite" aria-atomic="true">
         @if (state.status === 'ready') {
           <strong>{{ state.items.length }}</strong>
           <span>
@@ -32,7 +19,7 @@
           <span>vídeos</span>
         }
       </div>
-    </header>
+    </app-page-header>
 
     @switch (state.status) {
       @case ('loading') {
