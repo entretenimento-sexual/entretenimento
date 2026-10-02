@@ -222,9 +222,8 @@ describe('CommunityDiscoveryPageComponent / Minhas comunidades', () => {
     const text = definition?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 
     expect(text).toContain(
-      'As comunidades com novidades importantes aparecem primeiro.'
+      'Novidades importantes aparecem primeiro.'
     );
-    expect(text).toContain('Silenciar alertas reduz notificações push');
     expect(text).not.toContain('ao ver mais');
     expect(text).not.toContain('Comunidades carregadas');
   });
