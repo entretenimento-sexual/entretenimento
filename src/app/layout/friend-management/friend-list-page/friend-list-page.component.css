@@ -139,8 +139,7 @@
 }
 
 html.high-contrast .friends-controls,
-html.high-contrast .friends-page__metric,
-html.high-contrast .friends-page__eyebrow {
+html.high-contrast .friends-page__metric {
   border-color: currentColor !important;
   box-shadow: none !important;
 }
