@@ -2,29 +2,7 @@
 @if (vm$ | async; as vm) {
   <section class="moderation-reports" aria-labelledby="moderation-reports-title">
     <header class="moderation-reports__hero">
-      <div>
-        <h2 id="moderation-reports-title">Triagem de denúncias</h2>
-        <p>
-          Revise denúncias recebidas, acompanhe o status e registre a decisão inicial da moderação.
-        </p>
-      </div>
-
-      <div class="moderation-reports__stats" aria-label="Resumo de denúncias">
-        <button type="button" (click)="setFilter('open')" [class.is-active]="selectedFilter() === 'open' || selectedFilter() === 'aged_open'">
-          <strong>{{ vm.open }}</strong>
-          <span>Abertas / 48h+</span>
-        </button>
-
-        <button type="button" (click)="setFilter('reviewing')" [class.is-active]="selectedFilter() === 'reviewing'">
-          <strong>{{ vm.reviewing }}</strong>
-          <span>Em análise</span>
-        </button>
-
-        <button type="button" (click)="setFilter('all')" [class.is-active]="selectedFilter() === 'all'">
-          <strong>{{ vm.total }}</strong>
-          <span>Total</span>
-        </button>
-      </div>
+      <h2 id="moderation-reports-title">Triagem de denúncias</h2>
     </header>
 
     <section class="moderation-reports__admin-notice" role="note" aria-label="Aviso de acesso restrito">
