@@ -298,6 +298,46 @@ for (const forbidden of [
   }
 }
 
+const communityOwnershipManagementHtml = read(
+  'src/app/community/ownership-management/community-ownership-management.component.html'
+);
+for (const required of [
+  'community-ownership-management app-card app-card--flat',
+  'community-ownership-management__header app-section-header',
+  'class="app-section-heading"',
+  'class="app-section-title"',
+  'community-ownership-management__refresh app-action app-action--ghost',
+  'community-ownership-management__intro app-section-meta',
+  'community-ownership-management__transfer app-card app-card--flat app-card--compact',
+  'class="app-control"',
+  'community-ownership-management__transfer-action app-action app-action--primary',
+  'community-ownership-management__danger-zone app-card app-card--flat app-card--compact',
+  'class="app-action app-action--danger"',
+]) {
+  if (!communityOwnershipManagementHtml.includes(required)) {
+    violations.push(
+      'community-ownership-management.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const communityOwnershipManagementCss = read(
+  'src/app/community/ownership-management/community-ownership-management.component.css'
+);
+for (const forbidden of [
+  '.community-ownership-management__transfer-action,',
+  '.community-ownership-management button:disabled',
+  '.community-ownership-management button:focus-visible',
+  ':host-context(.high-contrast) .community-ownership-management__refresh,',
+  '@media (prefers-reduced-motion: reduce)',
+]) {
+  if (communityOwnershipManagementCss.includes(forbidden)) {
+    violations.push(
+      'community-ownership-management.component.css contains duplicate shared UI chrome ' + forbidden
+    );
+  }
+}
+
 const communityMembershipManagementHtml = read(
   'src/app/community/membership-management/community-membership-management.component.html'
 );
