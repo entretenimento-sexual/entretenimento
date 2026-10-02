@@ -221,6 +221,15 @@ describe('Canonical UI boundary', () => {
     ).toEqual([]);
   });
 
+  it('mantém Gerenciar conta sem contexto duplicado antes das ações', () => {
+    const manage = source(
+      'src/app/account/pages/account-manage/account-manage.component.html'
+    );
+
+    expect(manage).toContain('<h2 id="account-manage-title">Gerenciar conta</h2>');
+    expect(manage).not.toContain('Revise os efeitos antes de suspender ou excluir sua conta.');
+  });
+
   it('mantém o overview de Conta no grid intrínseco canônico', () => {
     const template = source(
       'src/app/account/pages/account-home/account-home.component.html'
