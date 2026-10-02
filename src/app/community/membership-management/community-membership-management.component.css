@@ -379,13 +379,4 @@ button.community-management-hub__card {
   }
 }
 
-:host-context(.high-contrast) .community-management-hub__nav button,
-:host-context(.high-contrast) .community-management-hub__card,
-:host-context(.high-contrast) .community-management-hub__capacity-alert,
-:host-context(.high-contrast) .community-membership-management__refresh,
-:host-context(.high-contrast) .community-membership-management__list li,
-:host-context(.high-contrast) .community-membership-management__actions .app-action {
-  border-color: currentColor;
-  border-width: 2px;
-}
 
