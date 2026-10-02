@@ -10,8 +10,6 @@
   gap: 1.25rem;
   width: 100%;
   padding: clamp(18px, 4vw, 24px);
-  background: var(--modal-background);
-  color: var(--text-color);
 }
 
 .direct-message-header {
@@ -29,25 +27,15 @@
   line-height: 1.25;
 }
 
-.direct-message-close {
-  display: grid;
-  flex: 0 0 var(--tap-target-sm);
-  place-items: center;
+.direct-message-close.app-action {
   width: var(--tap-target-sm);
+  min-width: var(--tap-target-sm);
   height: var(--tap-target-sm);
-  border: 1px solid transparent;
-  border-radius: 999px;
-  background: transparent;
-  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+  min-height: var(--tap-target-sm);
+  padding: 0;
+  border-radius: 50%;
   font-size: 1.45rem;
   line-height: 1;
-  cursor: pointer;
-}
-
-.direct-message-close:hover:not(:disabled) {
-  border-color: var(--surface-border);
-  background: var(--header-hover-bg);
-  color: var(--text-color);
 }
 
 .direct-message-recipient {
@@ -55,9 +43,6 @@
   align-items: center;
   gap: 0.875rem;
   padding: 0.75rem;
-  border: 1px solid var(--surface-border);
-  border-radius: var(--radius-lg);
-  background: color-mix(in oklab, var(--surface-color) 76%, transparent);
 }
 
 .profile-photo-modal {
@@ -157,14 +142,7 @@
 .direct-message-action {
   min-height: var(--tap-target);
   min-width: 98px;
-  padding: 0.65rem 1rem;
-  border-radius: var(--radius-lg);
   font-size: 0.95rem;
-  font-weight: 500;
-}
-
-.direct-message-submit:hover:not(:disabled) {
-  transform: none;
 }
 
 @media (max-width: 420px) {
@@ -183,9 +161,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .message-textarea,
-  .direct-message-close,
-  .direct-message-action {
+  .message-textarea {
     transition: none;
   }
 }
