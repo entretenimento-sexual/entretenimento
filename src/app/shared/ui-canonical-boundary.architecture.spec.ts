@@ -221,13 +221,25 @@ describe('Canonical UI boundary', () => {
     ).toEqual([]);
   });
 
-  it('mantém Gerenciar conta sem contexto duplicado antes das ações', () => {
+  it('mantém Conta sem contexto repetido nos cabeçalhos internos', () => {
     const manage = source(
       'src/app/account/pages/account-manage/account-manage.component.html'
+    );
+    const subscriptionHistory = source(
+      'src/app/account/pages/subscription-history/subscription-history.component.html'
+    );
+    const privilegeHistory = source(
+      'src/app/account/pages/account-privilege-history/account-privilege-history.component.html'
+    );
+    const styles = source(
+      'src/app/account/pages/account-section.css'
     );
 
     expect(manage).toContain('<h2 id="account-manage-title">Gerenciar conta</h2>');
     expect(manage).not.toContain('Revise os efeitos antes de suspender ou excluir sua conta.');
+    expect(subscriptionHistory).not.toContain('subtitle=');
+    expect(privilegeHistory).not.toContain('subtitle=');
+    expect(styles).not.toContain('.account-section-header > p:last-child');
   });
 
   it('mantém o overview de Conta no grid intrínseco canônico', () => {
