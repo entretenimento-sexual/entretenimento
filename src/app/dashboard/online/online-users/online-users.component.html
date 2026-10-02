@@ -23,7 +23,7 @@
     } @else {
       @if (currentUserResolved$ | async; as user) {
         @if (!user.emailVerified) {
-          <aside class="online-users__notice" role="note">
+          <aside class="online-users__notice app-card app-card--flat app-card--compact" role="note">
             <i class="fas fa-circle-info" aria-hidden="true"></i>
             <span>
               <strong>Conta não verificada.</strong>
@@ -42,7 +42,7 @@
           />
         } @else if (shouldShowLocationRequest) {
           <section
-            class="online-users__activation"
+            class="online-users__activation app-card app-card--flat"
             aria-labelledby="onlineLocationTitle"
             aria-describedby="onlineLocationDescription onlineLocationHelp"
           >
@@ -105,7 +105,7 @@
             @let total = (count$ | async) ?? 0;
 
             <section
-              class="online-users__toolbar"
+              class="online-users__toolbar app-toolbar"
               aria-labelledby="onlineDiscoveryTitle"
             >
               <div class="online-users__toolbar-main">
@@ -133,7 +133,7 @@
 
                 <button
                   type="button"
-                  class="online-users__toggle"
+                  class="online-users__toggle app-action app-action--ghost"
                   (click)="toggleDiscoveryControls()"
                   [attr.aria-expanded]="discoveryControlsOpen() ? 'true' : 'false'"
                   aria-controls="onlineDiscoveryControls"
@@ -148,7 +148,7 @@
           @if (shouldShowDistanceControls && discoveryControlsOpen()) {
             <section
               id="onlineDiscoveryControls"
-              class="online-users__controls"
+              class="online-users__controls app-card app-card--flat"
               aria-label="Ajustes da descoberta por proximidade"
             >
               <header class="online-users__controls-head">
@@ -159,7 +159,7 @@
 
                 <button
                   type="button"
-                  class="online-users__refresh"
+                  class="online-users__refresh app-action app-action--ghost"
                   (click)="enableLocation()"
                   [disabled]="loading || !user.uid"
                   [attr.aria-busy]="loading ? 'true' : 'false'"
@@ -177,7 +177,7 @@
                 aria-label="Ajuste do raio de busca"
               >
                 <button
-                  class="online-users__step"
+                  class="online-users__step app-action app-action--ghost"
                   type="button"
                   (click)="stepRange(-1)"
                   aria-label="Diminuir raio em um quilômetro"
@@ -199,7 +199,7 @@
                 />
 
                 <button
-                  class="online-users__step"
+                  class="online-users__step app-action app-action--ghost"
                   type="button"
                   (click)="stepRange(1)"
                   aria-label="Aumentar raio em um quilômetro"
@@ -223,7 +223,7 @@
           }
 
           <div
-            class="profiles-grid"
+            class="profiles-grid app-responsive-grid"
             role="list"
             [attr.aria-label]="listAriaLabel"
           >
