@@ -319,6 +319,8 @@ for (const forbidden of [
   '.user-card__action--primary:hover,',
   ':host-context(.dark-mode) .user-card,',
   ':host-context(.high-contrast) .user-card,',
+  'html.high-contrast .user-card__body',
+  'color: var(--text-color) !important',
 ]) {
   if (userCardCss.includes(forbidden)) {
     violations.push(
