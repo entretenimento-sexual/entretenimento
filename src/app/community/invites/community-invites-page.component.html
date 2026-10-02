@@ -1,7 +1,7 @@
 <!-- src/app/community/invites/community-invites-page.component.html -->
-<main class="community-invites" aria-labelledby="community-invites-hub-title">
-  <header class="community-invites__hub-header">
-    <h1 id="community-invites-hub-title">Comunidades</h1>
+<main class="community-invites app-page" aria-labelledby="community-invites-hub-title">
+  <header class="community-invites__hub-header app-page-header">
+    <h1 id="community-invites-hub-title" class="app-page-title">Comunidades</h1>
   </header>
 
   <nav
@@ -32,34 +32,34 @@
     class="community-invites__content"
     aria-labelledby="community-invites-title"
   >
-    <header class="community-invites__section-header">
-      <h2 id="community-invites-title">Convites</h2>
-      <p>Comunidades que convidaram você para participar.</p>
+    <header class="community-invites__section-header app-section-heading">
+      <h2 id="community-invites-title" class="app-section-title">Convites</h2>
+      <p class="app-section-meta">Comunidades que convidaram você para participar.</p>
     </header>
 
     @if (state$ | async; as state) {
       @if (state.status === 'loading') {
-        <div class="community-invites__state" role="status" aria-live="polite">
+        <div class="community-invites__state app-card app-card--flat app-card--compact" role="status" aria-live="polite">
           <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
           <span>Carregando convites...</span>
         </div>
       } @else if (state.status === 'error') {
-        <div class="community-invites__state" role="alert">
+        <div class="community-invites__state app-card app-card--flat app-card--compact" role="alert">
           <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
           <span>Não foi possível carregar seus convites.</span>
-          <button type="button" (click)="retry()">Tentar novamente</button>
+          <button type="button" class="app-action app-action--ghost" (click)="retry()">Tentar novamente</button>
         </div>
       } @else if (state.status === 'empty') {
-        <section class="community-invites__empty" aria-label="Sem convites pendentes">
+        <section class="community-invites__empty app-card app-card--flat app-card--compact" aria-label="Sem convites pendentes">
           <i class="fas fa-envelope-open" aria-hidden="true"></i>
           <h2>Nenhum convite pendente</h2>
           <p>Quando uma Comunidade convidar você, ela aparecerá aqui.</p>
-          <a routerLink="/dashboard/comunidades">Explorar Comunidades</a>
+          <a class="app-action app-action--ghost" routerLink="/dashboard/comunidades">Explorar Comunidades</a>
         </section>
       } @else {
         <ul class="community-invites__list" aria-label="Convites pendentes">
           @for (item of state.items; track item.inviteId) {
-            <li class="community-invite-card">
+            <li class="community-invite-card app-card app-card--flat">
               <div class="community-invite-card__identity">
                 <span class="community-invite-card__avatar" aria-hidden="true">
                   @if (item.senderAvatarUrl) {
@@ -92,7 +92,7 @@
               >
                 <button
                   type="button"
-                  class="community-invite-card__decline"
+                  class="community-invite-card__decline app-action app-action--ghost"
                   [disabled]="isBusy(item.inviteId)"
                   [attr.aria-busy]="busyAction(item.inviteId) === 'decline' ? 'true' : null"
                   (click)="decline(item)"
@@ -106,7 +106,7 @@
                 </button>
                 <button
                   type="button"
-                  class="community-invite-card__accept"
+                  class="community-invite-card__accept app-action app-action--primary"
                   [disabled]="isBusy(item.inviteId)"
                   [attr.aria-busy]="busyAction(item.inviteId) === 'accept' ? 'true' : null"
                   (click)="accept(item)"
