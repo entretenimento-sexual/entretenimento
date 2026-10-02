@@ -1,11 +1,6 @@
 .app-public-media-viewer {
   --public-media-viewer-bg: #05070c;
-  --public-media-viewer-stage-bg: #000;
   --public-media-viewer-control-bg: rgb(10 12 18 / 64%);
-  --public-media-viewer-control-bg-hover: rgb(255 255 255 / 18%);
   --public-media-viewer-control-border: rgb(255 255 255 / 20%);
-  --public-media-viewer-muted: rgb(255 255 255 / 72%);
-  --public-media-viewer-focus: rgb(255 112 112 / 94%);
   --public-media-viewer-control-size: 44px;
-  --public-media-viewer-stage-radius: 24px;
 }
