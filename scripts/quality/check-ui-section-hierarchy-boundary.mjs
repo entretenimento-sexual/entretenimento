@@ -293,6 +293,38 @@ for (const forbidden of [
   }
 }
 
+const publicUserPreviewHtml = read(
+  'src/app/core/components/public-user-preview-popover/public-user-preview-popover.component.html'
+);
+for (const required of [
+  'public-user-preview app-card app-card--media',
+  'public-user-preview__highlight app-chip app-chip--muted',
+  'public-user-preview__profile-link app-action app-action--ghost',
+]) {
+  if (!publicUserPreviewHtml.includes(required)) {
+    violations.push(
+      'public-user-preview-popover.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const publicUserPreviewCss = read(
+  'src/app/core/components/public-user-preview-popover/public-user-preview-popover.component.css'
+);
+for (const forbidden of [
+  'box-shadow:',
+  'border-radius: 999px',
+  '.public-user-preview__profile-link:hover,',
+  ':host-context(.high-contrast) .public-user-preview {',
+  '@media (prefers-reduced-motion: reduce)',
+]) {
+  if (publicUserPreviewCss.includes(forbidden)) {
+    violations.push(
+      'public-user-preview-popover.component.css contains duplicate shared UI chrome ' + forbidden
+    );
+  }
+}
+
 const publicUserIdentityCss = read(
   'src/app/core/components/public-user-identity/public-user-identity.component.css'
 );
