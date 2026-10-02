@@ -145,25 +145,28 @@
 
             <div class="notification-card__body">
               <header class="notification-card__header">
-                <h2>{{ item.title }}</h2>
+                <h2>
+                  @if (notificationRoute(item)) {
+                    <button
+                      type="button"
+                      class="notification-card__title-action"
+                      (click)="openNotification(item)"
+                      [disabled]="isBusy(item.id)"
+                      [attr.aria-busy]="isBusy(item.id)"
+                      [attr.aria-label]="'Abrir notificação: ' + item.title"
+                    >
+                      {{ item.title }}
+                    </button>
+                  } @else {
+                    {{ item.title }}
+                  }
+                </h2>
                 <time>{{ formatNotificationDate(item.createdAt) }}</time>
               </header>
 
               <p>{{ item.body }}</p>
 
-              @if (notificationRoute(item)) {
-                <div class="notification-card__actions">
-                  <button
-                    type="button"
-                    class="notification-card__link notification-card__link--button app-action app-action--ghost"
-                    (click)="openNotification(item)"
-                    [disabled]="isBusy(item.id)"
-                    [attr.aria-busy]="isBusy(item.id)"
-                  >
-                    {{ isBusy(item.id) ? 'Abrindo...' : 'Abrir' }}
-                  </button>
-                </div>
-              } @else if (item.readAt === null) {
+              @if (!notificationRoute(item) && item.readAt === null) {
                 <div class="notification-card__actions">
                   <button
                     type="button"
