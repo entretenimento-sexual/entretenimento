@@ -343,8 +343,13 @@ describe('Canonical UI boundary', () => {
       'src/app/compliance/age-reverification-page/age-reverification-page.component.ts'
     );
 
-    expect(safety).toContain('<app-page-header');
+    expect(safety).toContain('<app-page-header title="Central de Segurança"></app-page-header>');
     expect(safety).toContain('safety-center__action-grid app-responsive-grid');
+    expect(safety).not.toContain('safety-center__status');
+    expect(safety).not.toContain('Controles essenciais ativos');
+    expect(safety).not.toContain('Atalhos para resolver problemas comuns');
+    expect(safety).not.toContain('Orientações objetivas para reduzir abuso');
+    expect(safety).not.toContain('Camadas que devem ser ampliadas');
     expect(safety).toContain('safety-center__guide-grid app-responsive-grid');
     expect(safetyStyles).not.toContain('.safety-center h1');
     expect(safetyStyles).not.toContain('.safety-center__hero');
