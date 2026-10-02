@@ -5,17 +5,13 @@
 }
 
 .upload-modal-content {
+  --app-card-radius: 1.25rem;
   position: relative;
   display: grid;
   gap: 1rem;
   width: min(100%, 32rem);
   padding: 1.25rem;
   box-sizing: border-box;
-  border: 1px solid var(--surface-border);
-  border-radius: 1.25rem;
-  background: var(--surface-color);
-  color: var(--text-color);
-  box-shadow: 0 1rem 2.5rem rgb(0 0 0 / 16%);
 }
 
 .upload-modal-content h2 {
@@ -25,32 +21,20 @@
   line-height: 1.2;
 }
 
-.btn-close {
+.btn-close.app-action {
   position: absolute;
   top: 0.75rem;
   right: 0.75rem;
-  display: inline-grid;
-  place-items: center;
   width: 2.75rem;
   min-width: 2.75rem;
   height: 2.75rem;
+  min-height: 2.75rem;
   padding: 0;
-  border: 1px solid var(--surface-border);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--text-color);
-  font: inherit;
+  border-radius: 50%;
   font-size: 1.5rem;
   line-height: 1;
-  cursor: pointer;
 }
 
-.btn-close:hover:not(:disabled),
-.btn-close:focus-visible {
-  background: var(--header-hover-bg);
-}
-
-.btn-close:focus-visible,
 .file-input:focus-visible,
 .file-input-label:focus-visible {
   outline: var(--focus-ring);
@@ -101,8 +85,6 @@
   gap: 0.75rem;
   min-height: 3rem;
   padding: 0.85rem 1rem;
-  border-radius: 1rem;
-  background: color-mix(in oklab, var(--primary-color) 8%, var(--surface-color));
 }
 
 .loading-spinner p {
@@ -123,7 +105,6 @@
 .alert {
   margin: 0;
   padding: 0.85rem 1rem;
-  border-radius: 0.9rem;
   line-height: 1.4;
 }
 
@@ -135,9 +116,9 @@
 
 @media (max-width: 480px) {
   .upload-modal-content {
+    --app-card-radius: 1rem;
     width: 100%;
     padding: 1rem;
-    border-radius: 1rem;
   }
 
   .file-input::file-selector-button {
@@ -153,13 +134,8 @@
   }
 }
 
-:host-context(html.high-contrast) .upload-modal-content,
-:host-context(html.high-contrast) .file-input,
-:host-context(html.high-contrast) .btn-close,
-:host-context(html.high-contrast) .loading-spinner,
-:host-context(html.high-contrast) .alert {
-  border: 2px solid currentColor !important;
-  background: var(--background-color) !important;
-  color: var(--text-color) !important;
-  box-shadow: none !important;
+:host-context(html.high-contrast) .file-input {
+  border: 2px solid currentColor;
+  background: var(--background-color);
+  color: var(--text-color);
 }
