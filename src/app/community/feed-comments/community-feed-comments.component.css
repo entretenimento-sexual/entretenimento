@@ -54,9 +54,7 @@
   font-size: 0.75rem;
 }
 
-.feed-comments__close,
-.feed-comment__menu > summary,
-.feed-comments__reply-target > button {
+.feed-comment__menu > summary {
   width: 44px;
   height: 44px;
   display: grid;
@@ -69,9 +67,7 @@
   cursor: pointer;
 }
 
-.feed-comments__close:hover,
-.feed-comment__menu > summary:hover,
-.feed-comments__reply-target > button:hover:not(:disabled) {
+.feed-comment__menu > summary:hover {
   background: color-mix(in oklab, currentColor 6%, transparent);
   color: inherit;
 }
@@ -83,24 +79,9 @@
   color: var(--text-secondary, #6b7280);
 }
 
-.feed-comments__state button,
-.feed-comments__more {
-  min-height: 44px;
-  border: 0;
-  border-radius: 999px;
-  padding: 0.5rem 0.85rem;
-  background: color-mix(in oklab, currentColor 6%, transparent);
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-
-.feed-comments__more {
+.feed-comments__more.app-action {
   display: block;
   margin: 0.15rem auto 0.55rem;
-  color: var(--text-secondary, #6b7280);
-  font-size: 0.76rem;
-  font-weight: 700;
 }
 
 .feed-comments__list {
@@ -292,43 +273,25 @@
   min-width: 12rem;
   max-width: min(18rem, calc(100vw - 2rem));
   padding: 0.35rem;
-  border: 1px solid color-mix(in oklab, currentColor 12%, transparent);
-  border-radius: 0.8rem;
-  background: var(--surface-color, #fff);
-  box-shadow: 0 0.7rem 1.8rem color-mix(in oklab, #000 16%, transparent);
 }
 
-.feed-comment__menu-action {
+.feed-comment__menu-action.app-action {
   width: 100%;
   min-height: 44px;
-  display: flex;
-  align-items: center;
+  justify-content: flex-start;
   gap: 0.55rem;
-  border: 0;
-  border-radius: 0.6rem;
-  padding: 0.6rem 0.7rem;
-  background: transparent;
-  color: inherit;
-  font: inherit;
   font-size: 0.82rem;
   text-align: left;
-  cursor: pointer;
-}
-
-.feed-comment__menu-action:hover {
-  background: color-mix(in oklab, currentColor 6%, transparent);
-}
-
-.feed-comment__menu-action.is-danger {
-  color: #b42318;
 }
 
 .feed-comment__confirmation {
   margin-top: 0.4rem;
   padding: 0.65rem;
-  border-left: 3px solid color-mix(in oklab, #b42318 58%, transparent);
-  border-radius: 0.55rem;
-  background: color-mix(in oklab, currentColor 4%, transparent);
+  border-inline-start-color: color-mix(
+    in oklab,
+    var(--danger-color, #b42318) 58%,
+    transparent
+  );
 }
 
 .feed-comment__confirmation label {
@@ -338,28 +301,8 @@
   font-weight: 700;
 }
 
-.feed-comment__confirmation textarea {
-  width: 100%;
+.feed-comment__confirmation textarea.app-control {
   resize: vertical;
-  border: 1px solid color-mix(in oklab, currentColor 18%, transparent);
-  border-radius: 0.75rem;
-  padding: 0.65rem 0.7rem;
-  background: var(--surface-color, #fff);
-  color: inherit;
-  font: inherit;
-}
-
-.feed-comment__confirmation button {
-  min-height: 44px;
-  border: 0;
-  border-radius: 0.65rem;
-  padding: 0.5rem 0.8rem;
-  cursor: pointer;
-}
-
-.feed-comment__confirmation .is-danger {
-  background: #b42318;
-  color: #fff;
 }
 
 .feed-comments__composer {
@@ -389,8 +332,7 @@
   width: min(100%, 32rem);
   margin-bottom: 0.45rem;
   padding: 0.35rem 0 0.35rem 0.55rem;
-  border-left: 2px solid var(--primary-color, #d83768);
-  background: transparent;
+  border-inline-start-color: var(--primary-color, #d83768);
 }
 
 .feed-comments__reply-target > div {
@@ -420,36 +362,19 @@
   align-items: flex-end;
 }
 
-.feed-comments__composer-row textarea {
+.feed-comments__composer-row textarea.app-control {
   min-width: 0;
   min-height: 44px;
   max-height: 9rem;
   flex: 1 1 auto;
   resize: vertical;
-  border: 1px solid color-mix(in oklab, currentColor 15%, transparent);
-  border-radius: 0.9rem;
-  padding: 0.62rem 0.72rem;
-  background: var(--surface-color, #fff);
-  color: inherit;
-  font: inherit;
   line-height: 1.35;
 }
 
-.feed-comments__composer-row > button {
+.feed-comments__composer-row > .app-action {
   min-width: 44px;
   min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
   flex: 0 0 auto;
-  border: 0;
-  border-radius: 0.85rem;
-  padding: 0.55rem 0.8rem;
-  background: var(--primary-color, #d83768);
-  color: #fff;
-  font: inherit;
-  cursor: pointer;
 }
 
 .feed-comments__composer > small {
@@ -458,17 +383,10 @@
   text-align: right;
 }
 
-button:focus-visible,
 summary:focus-visible,
-textarea:focus-visible,
 .feed-comment__quote:focus-visible {
   outline: 3px solid color-mix(in oklab, var(--primary-color, #d83768) 35%, transparent);
   outline-offset: 2px;
-}
-
-button:disabled {
-  cursor: wait;
-  opacity: 0.55;
 }
 
 @keyframes feed-comment-arrival {
@@ -510,21 +428,9 @@ button:disabled {
     align-items: stretch;
   }
 
-  .feed-comments__composer-row > button {
+  .feed-comments__composer-row > .app-action {
     width: 44px;
     padding-inline: 0;
-  }
-
-  .feed-comments__send-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
   }
 }
 
@@ -544,4 +450,14 @@ button:disabled {
   .feed-comments__reply-target {
     border-left-color: Highlight;
   }
+}
+
+.feed-comments__close.app-action,
+.feed-comments__reply-target > .app-action {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  border-radius: 50%;
 }
