@@ -65,7 +65,21 @@
 
                 <div class="community-activity__body">
                   <div class="community-activity__meta">
-                    <strong>{{ activity.title }}</strong>
+                    @if (notificationRoute(activity)) {
+                      <button
+                        type="button"
+                        class="community-activity__title-action"
+                        (click)="openCommunitySummary(summary)"
+                        [disabled]="isBusy(activity.id)"
+                        [attr.aria-busy]="isBusy(activity.id)"
+                        [attr.aria-label]="'Abrir atividade: ' + activity.title"
+                      >
+                        {{ activity.title }}
+                      </button>
+                    } @else {
+                      <strong>{{ activity.title }}</strong>
+                    }
+
                     <span
                       class="community-activity__status app-chip app-chip--muted"
                       [class.community-activity__status--priority]="summary.hasPriorityUnread"
@@ -77,19 +91,6 @@
                   <p>{{ activity.body }}</p>
                   <time>{{ formatNotificationDate(activity.createdAt) }}</time>
                 </div>
-
-                @if (notificationRoute(activity)) {
-                  <button
-                    type="button"
-                    class="community-activity__open app-action app-action--ghost"
-                    (click)="openCommunitySummary(summary)"
-                    [disabled]="isBusy(activity.id)"
-                    [attr.aria-busy]="isBusy(activity.id)"
-                    [attr.aria-label]="'Abrir atividade: ' + activity.title"
-                  >
-                    {{ isBusy(activity.id) ? 'Abrindo...' : 'Abrir' }}
-                  </button>
-                }
               </article>
             }
           </div>
