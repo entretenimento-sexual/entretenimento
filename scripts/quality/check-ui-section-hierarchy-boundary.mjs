@@ -298,6 +298,23 @@ for (const forbidden of [
   }
 }
 
+const globalNetworkStatusCss = read(
+  'src/app/core/components/global-network-status/global-network-status.component.css'
+);
+for (const forbidden of [
+  'box-shadow:',
+  'color: #713f12',
+  'background: #fef3c7',
+  'color: #14532d',
+  'background: #dcfce7',
+]) {
+  if (globalNetworkStatusCss.includes(forbidden)) {
+    violations.push(
+      'global-network-status.component.css contains duplicate or hardcoded status chrome ' + forbidden
+    );
+  }
+}
+
 const contentAccessNoticeHtml = read(
   'src/app/shared/components/content-access-notice/content-access-notice.component.html'
 );
