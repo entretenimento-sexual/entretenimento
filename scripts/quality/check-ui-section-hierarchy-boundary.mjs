@@ -318,6 +318,7 @@ for (const forbidden of [
   'box-shadow: 0 8px 24px',
   'transform: translateY(-2px)',
   'border-radius: var(--radius-lg',
+  '.community-discovery__filter-control select {\n  width: min(10.25rem, 46vw);\n  min-height: 2.45rem',
   '.community-discovery__filter-chip {\n  flex: 0 0 auto;\n  min-height: 2.45rem',
   '.community-discovery__filter-retry {\n  min-height: 2.45rem',
 ]) {
