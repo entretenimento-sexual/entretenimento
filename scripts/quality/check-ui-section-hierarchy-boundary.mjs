@@ -2032,6 +2032,51 @@ for (const forbidden of [
   }
 }
 
+const mediaQueryService = read(
+  'src/app/core/services/media/media-query.service.ts'
+);
+for (const required of [
+  'private readonly storageService: StorageService',
+  'resolvePhotoItem$(',
+  'this.storageService.getPhotoUrl(readableSource)',
+]) {
+  if (!mediaQueryService.includes(required)) {
+    violations.push(
+      'media-query.service.ts missing owner photo URL hydration contract ' + required
+    );
+  }
+}
+
+const photoUploadComponent = read(
+  'src/app/media/photos/photo-upload/photo-upload.component.ts'
+);
+for (const required of [
+  'private readonly mediaPublication = inject(MediaPublicationService)',
+  'this.mediaPublication.publishPhoto$(',
+  "visibility: 'PUBLIC'",
+  "commentsPolicy: 'EVERYONE'",
+]) {
+  if (!photoUploadComponent.includes(required)) {
+    violations.push(
+      'photo-upload.component.ts missing automatic preventive publication contract ' + required
+    );
+  }
+}
+
+const photoUploadHtml = read(
+  'src/app/media/photos/photo-upload/photo-upload.component.html'
+);
+for (const forbidden of [
+  'A publicação no perfil é uma etapa separada.',
+  'Ela permanece privada até você decidir publicá-la no perfil.',
+]) {
+  if (photoUploadHtml.includes(forbidden)) {
+    violations.push(
+      'photo-upload.component.html contains obsolete manual-publication copy ' + forbidden
+    );
+  }
+}
+
 const chatMessageHtml = read(
   'src/app/chat-module/chat-message/chat-message.component.html'
 );
