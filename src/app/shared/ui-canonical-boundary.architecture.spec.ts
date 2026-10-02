@@ -1676,6 +1676,25 @@ describe('Canonical UI boundary', () => {
     expect(reports).toContain('moderation-reports__admin-notice');
   });
 
+  it('mantém o shell Admin no PageHeader canônico e com alvo de toque válido', () => {
+    const admin = source(
+      'src/app/admin-dashboard/admin-dashboard.component.html'
+    );
+    const adminStyles = source(
+      'src/app/admin-dashboard/admin-dashboard.component.css'
+    );
+    const adminModule = source(
+      'src/app/admin-dashboard/admin-dashboard.module.ts'
+    );
+
+    expect(admin).toContain('<app-page-header title="Admin">');
+    expect(admin).toContain('page-actions');
+    expect(adminStyles).not.toContain('.admin-shell__header');
+    expect(adminStyles).not.toContain('.admin-shell h1');
+    expect(adminStyles).toContain('min-height: var(--tap-target, 44px)');
+    expect(adminModule).toContain('PageHeaderComponent');
+  });
+
   it('mantém Admin sem descrições e status operacionais duplicados', () => {
     const overview = source(
       'src/app/admin-dashboard/operational-overview/operational-overview.component.html'
