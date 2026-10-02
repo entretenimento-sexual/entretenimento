@@ -285,6 +285,35 @@ describe('NotificationsPageComponent', () => {
     expect(timelineCard?.textContent).not.toContain('Conteúdo moderado');
   });
 
+  it('oculta status neutro de Comunidade sem pendências', () => {
+    const latestNotification: IAppNotification = {
+      ...communityNotification(),
+      readAt: 100,
+    };
+    const summary: ICommunityNotificationSummary = {
+      communityId: 'community-1',
+      latestNotification,
+      unreadCount: 0,
+      hasPriorityUnread: false,
+    };
+
+    configure('ready', 0, [summary]);
+
+    const component = TestBed.runInInjectionContext(
+      () => new NotificationsPageComponent()
+    );
+
+    expect(component.communitySummaryLabel(summary)).toBeNull();
+
+    const fixture = TestBed.createComponent(NotificationsPageComponent);
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('.community-activity__status')
+    ).toBeNull();
+  });
+
   it('usa o título da atividade de Comunidade como ação de abertura', () => {
     const latestNotification = communityNotification();
     const summary: ICommunityNotificationSummary = {
