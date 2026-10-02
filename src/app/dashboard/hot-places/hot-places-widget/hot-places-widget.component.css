@@ -145,7 +145,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .hot-places__pulse::after {
-    animation: none !important;
+    animation: none;
   }
 }
 
