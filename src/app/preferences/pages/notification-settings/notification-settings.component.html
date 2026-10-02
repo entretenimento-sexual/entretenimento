@@ -97,7 +97,7 @@
       @let busyKeys = ((busyKeys$ | async) || null);
 
       <section class="notification-settings-panel app-card app-card--flat" aria-labelledby="notification-types-title">
-        <h2 id="notification-types-title" class="sr-only">Tipos de notificação</h2>
+        <h2 id="notification-types-title" class="visually-hidden">Tipos de notificação</h2>
         @if (vm.loading || readState === 'loading') {
           <div class="notification-settings-state" role="status" aria-live="polite">
             Carregando preferências...
@@ -137,7 +137,7 @@
                 <span class="notification-toggle__track app-toggle__track" aria-hidden="true">
                   <span class="notification-toggle__thumb app-toggle__thumb"></span>
                 </span>
-                <span class="sr-only">
+                <span class="visually-hidden">
                   {{ isEnabled(vm.preferences, option.key) ? 'Desativar' : 'Ativar' }} {{ option.title }}
                 </span>
               </label>
