@@ -293,6 +293,21 @@ for (const forbidden of [
   }
 }
 
+const publicUserPreviewTrigger = read(
+  'src/app/core/components/public-user-preview-popover/public-user-preview-trigger.directive.ts'
+);
+for (const forbidden of [
+  'public-user-preview-overlay--desktop',
+  'public-user-preview-overlay--touch',
+  'panelClass:',
+]) {
+  if (publicUserPreviewTrigger.includes(forbidden)) {
+    violations.push(
+      'public-user-preview-trigger.directive.ts contains orphan overlay presentation hook ' + forbidden
+    );
+  }
+}
+
 const publicUserPreviewHtml = read(
   'src/app/core/components/public-user-preview-popover/public-user-preview-popover.component.html'
 );
