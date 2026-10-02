@@ -1554,6 +1554,47 @@ describe('Canonical UI boundary', () => {
   });
 
 
+  it('mantém tokens e reports de Media sem contratos mortos', () => {
+    const tokens = source(
+      'src/app/media/shared/styles/public-media-viewer.tokens.css'
+    );
+    const reports = source(
+      'src/app/media/videos/public-video-viewer/public-video-viewer-reports.component.css'
+    );
+    const photoBase = source(
+      'src/app/media/shared/components/public-photo-card/public-photo-card.component.css'
+    );
+    const photoFeed = source(
+      'src/app/media/shared/components/public-photo-card/public-photo-card.feed.css'
+    );
+
+    expect(tokens).not.toContain('--public-media-viewer-stage-bg');
+    expect(tokens).not.toContain('--public-media-viewer-control-bg-hover');
+    expect(tokens).not.toContain('--public-media-viewer-muted');
+    expect(tokens).not.toContain('--public-media-viewer-focus');
+    expect(tokens).not.toContain('--public-media-viewer-stage-radius');
+
+    expect(reports).not.toContain('public-video-viewer__interaction--link');
+
+    expect(photoBase).not.toContain(
+      '.photo-tile--feed,\n.photo-tile--feed.app-card'
+    );
+    expect(photoBase).not.toContain('.feed-card-header {');
+    expect(photoBase).not.toContain(
+      '.photo-card-link--feed,\n.photo-card-link--feed.app-media-frame'
+    );
+    expect(photoBase).not.toContain('.feed-card-footer {');
+
+    expect(photoFeed).toContain(
+      '.photo-tile--feed,\n.photo-tile--feed.app-card'
+    );
+    expect(photoFeed).toContain('.feed-card-header {');
+    expect(photoFeed).toContain(
+      '.photo-card-link--feed,\n.photo-card-link--feed.app-media-frame'
+    );
+    expect(photoFeed).toContain('.feed-card-footer {');
+  });
+
   it('mantém o viewer social de vídeo sem segunda autoridade de interações', () => {
     const socialStyles = source(
       'src/app/media/videos/public-video-viewer/public-video-viewer-social.component.css'
