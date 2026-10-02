@@ -298,6 +298,41 @@ for (const forbidden of [
   }
 }
 
+const communityFeedHtml = read(
+  'src/app/community/feed/community-feed.component.html'
+);
+for (const required of [
+  'community-feed__composer app-card app-card--flat app-card--compact',
+  'community-feed__location-preview app-card app-card--flat app-card--compact',
+  'class="app-action app-action--ghost"',
+]) {
+  if (!communityFeedHtml.includes(required)) {
+    violations.push(
+      'community-feed.component.html missing canonical interaction contract ' + required
+    );
+  }
+}
+
+const communityFeedInteractionsCss = read(
+  'src/app/community/feed/community-feed.interactions.css'
+);
+for (const forbidden of [
+  'box-shadow: 0 0.45rem 1.25rem',
+  'box-shadow: 0 0.25rem 0.8rem',
+  'box-shadow: 0 0 0 3px',
+  'box-shadow: 0 0.24rem 0.65rem',
+  'box-shadow: 0 0.38rem 0.8rem',
+  ':host-context(.high-contrast) .community-feed__new-items button',
+  ':host-context(.high-contrast) .community-feed__composer',
+  '.community-feed__new-items button:hover',
+]) {
+  if (communityFeedInteractionsCss.includes(forbidden)) {
+    violations.push(
+      'community-feed.interactions.css contains duplicate shared interaction chrome ' + forbidden
+    );
+  }
+}
+
 const communityCreateHtml = read(
   'src/app/community/community-create/community-create-page.component.html'
 );
