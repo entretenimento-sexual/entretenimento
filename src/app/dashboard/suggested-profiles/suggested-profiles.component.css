@@ -26,15 +26,11 @@
 
 /* Hero --------------------------------------------------------------------- */
 
-.suggested-profiles-hero,
-.suggested-profiles-hero.app-card {
+.suggested-profiles-hero {
   padding: clamp(14px, 2vw, 20px);
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
-  border-radius: 20px;
   background:
     radial-gradient(circle at top left, color-mix(in oklab, var(--primary-color, #ff7070) 18%, transparent), transparent 36%),
     color-mix(in oklab, var(--surface-color, #101923) 96%, black 4%);
-  box-shadow: var(--box-shadow, 0 14px 34px rgb(0 0 0 / 18%));
 }
 
 .suggested-profiles-hero__copy {
@@ -54,10 +50,7 @@
 
 .profile-count,
 .no-profile-message {
-  margin: 0;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 76%, transparent);
-  font-size: 0.95rem;
-  line-height: 1.45;
+  padding: 16px;
 }
 
 .profile-count strong {
@@ -69,8 +62,7 @@
   color: color-mix(in oklab, var(--text-color, #f5f7fb) 62%, transparent);
 }
 
-.no-profile-message,
-.no-profile-message.app-empty-card {
+.no-profile-message {
   padding: 16px;
   border: 1px dashed var(--surface-border, rgba(255, 255, 255, 0.12));
   border-radius: 18px;
@@ -79,8 +71,7 @@
 
 /* Grid --------------------------------------------------------------------- */
 
-.profiles-grid,
-.profiles-grid.app-card-grid {
+.profiles-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
   gap: clamp(12px, 2vw, 18px);
@@ -90,42 +81,14 @@
 
 /* Card --------------------------------------------------------------------- */
 
-.profile-card,
-.profile-card.app-card {
+.profile-card {
   display: grid;
   grid-template-rows: auto 1fr auto;
   min-width: 0;
   overflow: hidden;
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
-  border-radius: 20px;
-  background: var(--surface-color, #101923);
-  color: var(--text-color, #f5f7fb);
-  box-shadow: 0 10px 28px rgb(0 0 0 / 18%);
-  transition:
-    transform 160ms ease,
-    border-color 160ms ease,
-    box-shadow 160ms ease;
 }
 
-.profile-card:hover,
-.profile-card:focus-within {
-  transform: translateY(-2px);
-  border-color: color-mix(
-    in oklab,
-    var(--primary-color, #ff7070) 32%,
-    var(--surface-border, rgba(255, 255, 255, 0.12))
-  );
-  box-shadow: 0 16px 36px rgb(0 0 0 / 24%);
-}
-
-.profile-card__media,
-.profile-card__media.app-media-frame {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 100%;
-  min-width: 0;
-  overflow: hidden;
+.profile-card__media {
   aspect-ratio: 4 / 5;
   background:
     linear-gradient(
@@ -133,13 +96,6 @@
       color-mix(in oklab, var(--surface-color, #101923) 90%, white 7%),
       color-mix(in oklab, var(--surface-color, #101923) 78%, black 18%)
     );
-  color: inherit;
-  text-decoration: none;
-}
-
-.profile-card__media:focus-visible {
-  outline: var(--focus-ring, 2px solid rgba(255, 112, 112, 0.9));
-  outline-offset: calc(var(--focus-offset, 2px) * -1);
 }
 
 .profile-card__photo {
@@ -172,19 +128,12 @@
   font-weight: 950;
 }
 
-.profile-card__status,
-.profile-card__status.app-chip {
+.profile-card__status {
   position: absolute;
   inset: 10px 10px auto auto;
   min-height: 26px;
-  padding: 4px 9px;
-  border: 1px solid rgb(255 255 255 / 20%);
-  border-radius: 999px;
   background: rgb(0 0 0 / 44%);
   color: #fff;
-  font-size: 0.72rem;
-  font-weight: 860;
-  line-height: 1;
   backdrop-filter: blur(8px);
 }
 
@@ -192,8 +141,7 @@
   background: color-mix(in oklab, var(--success-color, #5ed39a) 54%, rgb(0 0 0 / 35%));
 }
 
-.profile-card__body,
-.profile-card__body.app-card__body {
+.profile-card__body {
   display: grid;
   gap: 10px;
   min-width: 0;
@@ -220,8 +168,7 @@
   white-space: nowrap;
 }
 
-.profile-card__age,
-.profile-card__age.app-chip {
+.profile-card__age {
   flex: 0 0 auto;
   min-height: 24px;
   padding: 3px 8px;
@@ -253,19 +200,16 @@
   min-width: 0;
 }
 
-.profile-card__footer,
-.profile-card__footer.app-card__footer {
+.profile-card__footer {
   display: flex;
   justify-content: stretch;
   padding: 0 13px 13px;
   border-top: 0;
 }
 
-.profile-card__action,
-.profile-card__action.app-action {
+.profile-card__action {
   width: 100%;
   min-height: 38px;
-  border-radius: 999px;
   font-weight: 900;
 }
 
@@ -276,38 +220,17 @@
     gap: 12px;
   }
 
-  .suggested-profiles-hero,
-  .suggested-profiles-hero.app-card {
-    border-radius: 16px;
-    box-shadow: none;
-  }
-
-  .profiles-grid,
-  .profiles-grid.app-card-grid {
+  .profiles-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
   }
 
-  .profile-card,
-  .profile-card.app-card {
-    border-radius: 15px;
-    box-shadow: none;
-  }
-
-  .profile-card:hover,
-  .profile-card:focus-within {
-    transform: none;
-    box-shadow: none;
-  }
-
-  .profile-card__body,
-  .profile-card__body.app-card__body {
+  .profile-card__body {
     gap: 8px;
     padding: 10px;
   }
 
-  .profile-card__footer,
-  .profile-card__footer.app-card__footer {
+  .profile-card__footer {
     padding: 0 10px 10px;
   }
 
@@ -326,40 +249,17 @@
     font-size: 0.74rem;
   }
 
-  .profile-card__action,
-  .profile-card__action.app-action {
+  .profile-card__action {
     min-height: 34px;
     font-size: 0.78rem;
   }
 }
 
 @media (max-width: 380px) {
-  .profiles-grid,
-  .profiles-grid.app-card-grid {
+  .profiles-grid {
     grid-template-columns: 1fr;
   }
 }
 
 /* Acessibilidade ----------------------------------------------------------- */
 
-@media (prefers-reduced-motion: reduce) {
-  .profile-card,
-  .profile-card__photo {
-    transition: none !important;
-  }
-
-  .profile-card:hover,
-  .profile-card:focus-within,
-  .profile-card:hover .profile-card__photo,
-  .profile-card:focus-within .profile-card__photo {
-    transform: none;
-  }
-}
-
-html.high-contrast .profile-card,
-html.high-contrast .suggested-profiles-hero,
-html.high-contrast .profile-card__placeholder,
-html.high-contrast .profile-card__status {
-  border-color: currentColor !important;
-  box-shadow: none !important;
-}
