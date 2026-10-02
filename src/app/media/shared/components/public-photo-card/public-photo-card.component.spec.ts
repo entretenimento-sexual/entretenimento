@@ -152,10 +152,13 @@ describe('PublicPhotoCardComponent', () => {
     ).toContain('Patrocinado');
   });
 
-  it('não usa overlay nem rodapé duplicado da variante latest', () => {
-    expect(fixture.debugElement.query(By.css('.photo-overlay'))).toBeNull();
+  it('não repete o horário da variante latest em um segundo rodapé', () => {
+    fixture.componentRef.setInput('variant', 'latest');
+    fixture.detectChanges();
+
+    expect(fixture.debugElement.query(By.css('.photo-overlay'))).toBeTruthy();
+    expect(fixture.debugElement.query(By.css('.stat-chip--time'))).toBeTruthy();
     expect(fixture.debugElement.query(By.css('.photo-meta'))).toBeNull();
-    expect(fixture.debugElement.query(By.css('.feed-card-footer'))).toBeTruthy();
   });
 
   it('mantém ações disponíveis mesmo quando os contadores começam zerados', () => {
