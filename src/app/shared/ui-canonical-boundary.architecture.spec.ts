@@ -1610,6 +1610,7 @@ describe('Canonical UI boundary', () => {
     expect(notifications).toContain('notification-card__title-action');
     expect(notifications).toContain('community-activity__title-action');
     expect(notifications).not.toContain('community-activity__open app-action');
+    expect(notifications).not.toContain('>Em dia<');
 
     const settings = source(
       'src/app/preferences/pages/notification-settings/notification-settings.component.html'
