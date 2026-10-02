@@ -129,16 +129,7 @@ color: rgb(255 255 255 / 56%);
 text-overflow: ellipsis;
 }
 
-.viewer-owner-cta {
-flex: 0 0 auto;
-color: color-mix(in oklab, var(--primary-color, #ff4f86) 70%, #fff 30%);
-font-weight: 780;
-}
 
-.viewer-owner:hover .viewer-owner-cta,
-.viewer-owner:focus-visible .viewer-owner-cta {
-text-decoration: underline;
-}
 
 .viewer-counter {
 color: rgb(255 255 255 / 76%);
