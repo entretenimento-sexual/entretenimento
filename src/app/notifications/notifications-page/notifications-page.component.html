@@ -80,12 +80,14 @@
                       <strong>{{ activity.title }}</strong>
                     }
 
-                    <span
-                      class="community-activity__status app-chip app-chip--muted"
-                      [class.community-activity__status--priority]="summary.hasPriorityUnread"
-                    >
-                      {{ communitySummaryLabel(summary) }}
-                    </span>
+                    @if (communitySummaryLabel(summary); as summaryLabel) {
+                      <span
+                        class="community-activity__status app-chip app-chip--muted"
+                        [class.community-activity__status--priority]="summary.hasPriorityUnread"
+                      >
+                        {{ summaryLabel }}
+                      </span>
+                    }
                   </div>
 
                   <p>{{ activity.body }}</p>
