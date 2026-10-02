@@ -2,14 +2,15 @@
 
 <div class="discovery-tabs-shell">
   <nav
-    class="discovery-tabs"
+    class="discovery-tabs app-segmented"
     aria-label="Tipos de descoberta de perfis"
   >
     @for (tab of tabs(); track trackTab($index, tab)) {
       <button
         type="button"
-        class="discovery-tabs__item"
+        class="discovery-tabs__item app-segmented__button"
         [class.discovery-tabs__item--active]="activeMode() === tab.id"
+        [class.app-segmented__button--active]="activeMode() === tab.id"
         [class.discovery-tabs__item--disabled]="tab.disabled"
         [disabled]="tab.disabled"
         [attr.aria-label]="tab.ariaLabel"
