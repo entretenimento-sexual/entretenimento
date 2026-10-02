@@ -1552,6 +1552,23 @@ describe('Canonical UI boundary', () => {
   });
 
 
+  it('mantém cabeçalhos de Fotos sem instruções e retorno redundantes', () => {
+    const upload = source(
+      'src/app/media/photos/photo-upload/photo-upload.component.html'
+    );
+    const profilePhotos = source(
+      'src/app/media/photos/profile-photos/profile-photos.component.html'
+    );
+
+    expect(upload).toContain('<app-page-header title="Adicionar foto">');
+    expect(upload).not.toContain('Escolha, ajuste e confirme antes de enviar.');
+    expect(profilePhotos).toContain('<app-page-header title="Fotos do perfil">');
+    expect(profilePhotos).not.toContain(
+      'Revise as fotos adicionadas, publique quando estiverem prontas'
+    );
+    expect(profilePhotos).not.toContain('Voltar ao perfil');
+  });
+
   it('mantém Checkout e Comunidades sem contexto repetido', () => {
     const checkout = source(
       'src/app/subscriptions/checkout/checkout.component.html'
