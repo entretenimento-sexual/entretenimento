@@ -138,18 +138,6 @@
   justify-self: end;
 }
 
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
 @media (max-width: 560px) {
   .push-device-card,
   .notification-option {
@@ -172,9 +160,4 @@
   }
 }
 
-:host-context(html.high-contrast) .push-device-card,
-:host-context(html.high-contrast) .notification-settings-panel {
-  border-color: currentColor !important;
-  background: var(--background-color) !important;
-  color: var(--text-color) !important;
-}
+
