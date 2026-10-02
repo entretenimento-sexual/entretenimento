@@ -1554,6 +1554,29 @@ describe('Canonical UI boundary', () => {
   });
 
 
+  it('mantém cards e viewers de Media sem seletores órfãos conhecidos', () => {
+    const photoFeed = source(
+      'src/app/media/shared/components/public-photo-card/public-photo-card.feed.css'
+    );
+    const videoCard = source(
+      'src/app/media/shared/components/public-video-card/public-video-card.component.css'
+    );
+    const ratings = source(
+      'src/app/media/videos/public-video-viewer/public-video-viewer-ratings.component.css'
+    );
+    const reports = source(
+      'src/app/media/videos/public-video-viewer/public-video-viewer-reports.component.css'
+    );
+
+    expect(photoFeed).not.toContain('feed-card-boosted');
+    expect(videoCard).not.toContain('public-video-card__views-metric');
+    expect(reports).not.toContain('public-video-viewer__interaction--link');
+
+    expect(ratings).toContain('.public-video-viewer__ratings {');
+    expect(ratings).toContain('.public-video-viewer__rating-option {');
+    expect(reports).toContain('.public-video-viewer__comment-actions a {');
+  });
+
   it('mantém tokens e reports de Media sem contratos mortos', () => {
     const tokens = source(
       'src/app/media/shared/styles/public-media-viewer.tokens.css'
