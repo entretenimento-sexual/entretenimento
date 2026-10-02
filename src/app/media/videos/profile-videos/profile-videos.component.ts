@@ -68,6 +68,7 @@ import {
 import { ProfileVideoLibraryFacade } from '../state/profile-video-library.facade';
 import type { IProfileVideoViewItem } from '../state/profile-video-library.models';
 import { VideoSimpleEditorControlsComponent } from '../video-editor/video-editor-controls.entrypoint';
+import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.component';
 
 interface VideoUploadFailureFeedback {
   title: string;
@@ -98,6 +99,7 @@ const DENY_UNKNOWN: IMediaPolicyResult = {
     ReactiveFormsModule,
     RouterModule,
     VideoSimpleEditorControlsComponent,
+    PageHeaderComponent,
   ],
   templateUrl: './profile-videos.component.html',
   styleUrls: [
