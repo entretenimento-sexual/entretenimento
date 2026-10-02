@@ -60,22 +60,19 @@
   object-fit: cover;
 }
 
-.feed-create-bar__prompt {
+.feed-create-bar__prompt.app-action {
   min-width: 0;
   min-height: 44px;
-  padding: 0 15px;
+  justify-content: flex-start;
+  padding-inline: 15px;
   overflow: hidden;
-  border: 0;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--surface-color, #fff) 88%, var(--text-color, #17191c) 12%);
   color: color-mix(in srgb, var(--text-color, #17191c) 67%, transparent);
-  font: inherit;
   font-size: 0.92rem;
   font-weight: 650;
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
-  cursor: pointer;
 }
 
 .feed-create-bar__actions {
@@ -83,32 +80,17 @@
   gap: 4px;
 }
 
-.feed-create-bar__actions a {
-  display: grid;
-  place-items: center;
+.feed-create-bar__media-action.app-action {
   width: var(--tap-target, 44px);
+  min-width: var(--tap-target, 44px);
   height: var(--tap-target, 44px);
+  min-height: var(--tap-target, 44px);
+  padding: 0;
   border-radius: 50%;
   color: var(--primary-color, #ff6262);
   font-size: 1.05rem;
-  text-decoration: none;
-  transition: background-color 150ms ease, transform 150ms ease;
 }
 
-.feed-create-bar__actions a:hover,
-.feed-create-bar__actions a:focus-visible,
-.feed-create-bar__prompt:hover,
-.feed-create-bar__prompt:focus-visible {
-  background: color-mix(in srgb, var(--primary-color, #ff6262) 10%, var(--surface-color, #fff));
-}
-
-.feed-create-bar__actions a:hover,
-.feed-create-bar__actions a:focus-visible {
-  transform: translateY(-1px);
-}
-
-.feed-create-bar__actions a:focus-visible,
-.feed-create-bar__prompt:focus-visible,
 .social-space-card__link:focus-visible {
   outline: 2px solid var(--primary-color, #ff6262);
   outline-offset: 2px;
@@ -503,16 +485,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .feed-create-bar__actions a,
-  .feed-create-bar__prompt,
   .feed-state__pulse {
-    animation: none !important;
-    transition: none !important;
+    animation: none;
   }
 }
 
-html.high-contrast .feed-create-bar__prompt,
-html.high-contrast .feed-create-bar__actions a {
-  border-color: currentColor !important;
-  box-shadow: none !important;
-}
