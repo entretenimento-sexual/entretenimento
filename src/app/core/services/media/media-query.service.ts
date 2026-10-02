@@ -66,19 +66,37 @@ export class MediaQueryService {
   ): Observable<IPhotoItem> {
     const storedUrl = String(photo.url ?? '').trim();
     const storagePath = String(photo.path ?? '').trim();
-    const readableSource = /^https?:\/\//i.test(storedUrl)
-      ? storedUrl
-      : storagePath || storedUrl;
+    if (storagePath) {
+      return this.storageService.getPhotoUrl(storagePath).pipe(
+        switchMap((resolvedUrl) => {
+          if (resolvedUrl) {
+            return of(
+              this.mapPhotoToMediaItem(ownerUid, photo, resolvedUrl)
+            );
+          }
 
-    if (!readableSource) {
-      return of(this.mapPhotoToMediaItem(ownerUid, photo, ''));
+          if (/^https?:\/\//i.test(storedUrl)) {
+            return this.storageService.getPhotoUrl(storedUrl).pipe(
+              map((fallbackUrl) =>
+                this.mapPhotoToMediaItem(ownerUid, photo, fallbackUrl)
+              )
+            );
+          }
+
+          return of(this.mapPhotoToMediaItem(ownerUid, photo, ''));
+        })
+      );
     }
 
-    return this.storageService.getPhotoUrl(readableSource).pipe(
-      map((resolvedUrl) =>
-        this.mapPhotoToMediaItem(ownerUid, photo, resolvedUrl)
-      )
-    );
+    if (/^https?:\/\//i.test(storedUrl)) {
+      return this.storageService.getPhotoUrl(storedUrl).pipe(
+        map((resolvedUrl) =>
+          this.mapPhotoToMediaItem(ownerUid, photo, resolvedUrl)
+        )
+      );
+    }
+
+    return of(this.mapPhotoToMediaItem(ownerUid, photo, ''));
   }
 
   private mapPhotoToMediaItem(
