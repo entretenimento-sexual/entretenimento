@@ -211,25 +211,15 @@
     </footer>
   }
 
-  @if (mode === 'latest' || mode === 'sponsored') {
+  @if (mode === 'sponsored') {
     <div class="photo-meta app-card__footer">
-      @switch (mode) {
-        @case ('latest') {
-          <span class="meta-chip app-chip app-chip--muted">
-            {{ getPublishedLabel(item) }}
-          </span>
-        }
-
-        @case ('sponsored') {
-          <app-public-media-badge
-            class="meta-chip meta-sponsored"
-            kind="sponsored"
-            label="Patrocinado"
-            ariaLabel="Conteúdo patrocinado"
-            iconClass="fas fa-bullhorn"
-          />
-        }
-      }
+      <app-public-media-badge
+        class="meta-chip meta-sponsored"
+        kind="sponsored"
+        label="Patrocinado"
+        ariaLabel="Conteúdo patrocinado"
+        iconClass="fas fa-bullhorn"
+      />
     </div>
   }
 </article>
