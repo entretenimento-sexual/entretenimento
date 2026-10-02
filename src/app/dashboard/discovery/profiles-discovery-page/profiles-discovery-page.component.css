@@ -50,12 +50,19 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.7rem;
+  gap: var(--space-3, 0.7rem);
   min-width: 0;
-  padding: 0.72rem 0.82rem;
-  border: 1px solid color-mix(in oklab, var(--primary-color) 26%, var(--surface-border));
-  border-radius: 0.9rem;
-  background: color-mix(in oklab, var(--primary-color) 5%, var(--surface-color));
+  padding: var(--space-3, 0.75rem);
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color) 26%,
+    var(--surface-border)
+  );
+  background: color-mix(
+    in oklab,
+    var(--primary-color) 5%,
+    var(--surface-color)
+  );
 }
 
 .profiles-discovery-page__location-notice--blocked {
@@ -104,53 +111,20 @@
 
 .profiles-discovery-page__location-action,
 .profiles-discovery-page__location-dismiss {
-  appearance: none;
-  -webkit-appearance: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 44px;
-  border-radius: 0.75rem;
-  font: inherit;
-  cursor: pointer;
+  min-height: var(--tap-target, 44px);
 }
 
 .profiles-discovery-page__location-action {
-  gap: 0.42rem;
-  padding: 0.58rem 0.85rem;
-  border: 1px solid var(--primary-color);
-  background: var(--primary-color);
-  color: #fff;
   font-size: 0.78rem;
-  font-weight: 800;
   white-space: nowrap;
 }
 
 .profiles-discovery-page__location-dismiss {
-  width: 44px;
-  min-width: 44px;
-  height: 44px;
+  width: var(--tap-target, 44px);
+  min-width: var(--tap-target, 44px);
+  height: var(--tap-target, 44px);
   padding: 0;
-  border: 1px solid color-mix(in oklab, var(--text-color) 14%, var(--surface-border));
-  background: transparent;
-  color: color-mix(in oklab, var(--text-color) 62%, transparent);
-  font-size: 0.8rem;
-  transition:
-    background-color 140ms ease,
-    border-color 140ms ease,
-    color 140ms ease;
-}
-
-.profiles-discovery-page__location-dismiss:hover {
-  border-color: color-mix(in oklab, var(--text-color) 26%, var(--surface-border));
-  background: color-mix(in oklab, var(--text-color) 5%, transparent);
-  color: var(--text-color);
-}
-
-.profiles-discovery-page__location-action:focus-visible,
-.profiles-discovery-page__location-dismiss:focus-visible {
-  outline: var(--focus-ring, 2px solid var(--primary-color));
-  outline-offset: var(--focus-offset, 2px);
+  flex: 0 0 auto;
 }
 
 .profiles-discovery-page__location-action:disabled {
@@ -173,28 +147,12 @@
   -webkit-backdrop-filter: none;
 }
 
-:host-context(.high-contrast) .profiles-discovery-page__location-notice,
-:host-context(.high-contrast) .profiles-discovery-page__location-action,
-:host-context(.high-contrast) .profiles-discovery-page__location-dismiss {
-  border: 2px solid var(--text-color);
-}
-
 :host-context(.high-contrast) .profiles-discovery-page__location-notice {
   background: var(--background-color);
 }
 
 :host-context(.high-contrast) .profiles-discovery-page__location-copy span,
 :host-context(.high-contrast) .profiles-discovery-page__empty {
-  color: var(--text-color);
-}
-
-:host-context(.high-contrast) .profiles-discovery-page__location-action {
-  background: var(--text-color);
-  color: var(--background-color);
-}
-
-:host-context(.high-contrast) .profiles-discovery-page__location-dismiss {
-  background: var(--background-color);
   color: var(--text-color);
 }
 
