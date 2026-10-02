@@ -2,27 +2,28 @@
 @if (state$ | async; as state) {
   @if (action$ | async; as action) {
     <section
-      class="community-management-hub"
+      class="community-management-hub app-card app-card--flat"
       aria-labelledby="community-management-hub-title"
     >
-      <header class="community-management-hub__header">
-        <div class="community-management-hub__heading">
+      <header class="community-management-hub__header app-section-header">
+        <div class="community-management-hub__heading app-section-heading">
           <span class="community-management-hub__eyebrow">
             <i class="fas fa-shield-halved" aria-hidden="true"></i>
             {{ viewerRoleLabel() }}
           </span>
-          <h2 id="community-management-hub-title">{{ managementHubTitle() }}</h2>
-          <p>{{ managementHubDescription() }}</p>
+          <h2 id="community-management-hub-title" class="app-section-title">{{ managementHubTitle() }}</h2>
+          <p class="app-section-meta">{{ managementHubDescription() }}</p>
         </div>
       </header>
 
       <nav
-        class="community-management-hub__nav"
+        class="community-management-hub__nav app-segmented"
         [attr.aria-label]="'Áreas de ' + managementHubTitle().toLowerCase()"
       >
         <button
           type="button"
-          [class.is-active]="activePanel() === 'overview'"
+          class="app-segmented__button"
+          [class.app-segmented__button--active]="activePanel() === 'overview'"
           [attr.aria-pressed]="activePanel() === 'overview'"
           (click)="selectPanel('overview')"
         >
@@ -32,14 +33,15 @@
 
         <button
           type="button"
-          [class.is-active]="activePanel() === 'requests'"
+          class="app-segmented__button"
+          [class.app-segmented__button--active]="activePanel() === 'requests'"
           [attr.aria-pressed]="activePanel() === 'requests'"
           (click)="selectPanel('requests')"
         >
           <i class="fas fa-user-clock" aria-hidden="true"></i>
           <span>Solicitações</span>
           @if (state.status === 'ready' && state.items.length > 0) {
-            <span class="community-management-hub__badge" aria-label="Solicitações pendentes">
+            <span class="community-management-hub__badge app-chip app-chip--primary" aria-label="Solicitações pendentes">
               {{ state.items.length }}
             </span>
           }
@@ -105,7 +107,7 @@
             as regularization
           ) {
             <section
-              class="community-management-hub__regularization"
+              class="community-management-hub__regularization app-card app-card--flat app-card--compact"
               [attr.data-phase]="regularization.phase"
               role="status"
               aria-labelledby="community-capacity-regularization-title"
@@ -135,11 +137,11 @@
 
                 @if (canResolveCapacityRegularization()) {
                   <div class="community-management-hub__regularization-actions">
-                    <a routerLink="/subscription-plan">
+                    <a class="app-action app-action--primary" routerLink="/subscription-plan">
                       <i class="fas fa-arrow-up-right-dots" aria-hidden="true"></i>
                       Regularizar plano
                     </a>
-                    <button type="button" (click)="selectPanel('ownership')">
+                    <button type="button" class="app-action app-action--ghost" (click)="selectPanel('ownership')">
                       <i class="fas fa-right-left" aria-hidden="true"></i>
                       Transferir ou arquivar
                     </button>
@@ -163,7 +165,7 @@
               || capacity()?.acceptingNewMembers === false
             )
           ) {
-            <div class="community-management-hub__capacity-alert" role="status">
+            <div class="community-management-hub__capacity-alert app-card app-card--flat app-card--compact" role="status">
               <i class="fas fa-users-slash" aria-hidden="true"></i>
               <div>
                 <strong>{{ capacityStatusLabel() }}</strong>
@@ -183,7 +185,7 @@
           <div class="community-management-hub__cards">
             <button
               type="button"
-              class="community-management-hub__card"
+              class="community-management-hub__card app-card app-card--flat app-card--compact app-card--interactive"
               (click)="selectPanel('requests')"
             >
               <span class="community-management-hub__card-icon" aria-hidden="true">
@@ -207,7 +209,7 @@
             @if (canManageMembersPanel()) {
               <button
                 type="button"
-                class="community-management-hub__card"
+                class="community-management-hub__card app-card app-card--flat app-card--compact app-card--interactive"
                 (click)="selectPanel('members')"
               >
                 <span class="community-management-hub__card-icon" aria-hidden="true">
@@ -224,7 +226,7 @@
             @if (canInviteCommunityMembers()) {
               <button
                 type="button"
-                class="community-management-hub__card"
+                class="community-management-hub__card app-card app-card--flat app-card--compact app-card--interactive"
                 (click)="openInvites()"
               >
                 <span class="community-management-hub__card-icon" aria-hidden="true">
@@ -241,7 +243,7 @@
             @if (canManageSettingsPanel()) {
               <button
                 type="button"
-                class="community-management-hub__card"
+                class="community-management-hub__card app-card app-card--flat app-card--compact app-card--interactive"
                 (click)="selectPanel('settings')"
               >
                 <span class="community-management-hub__card-icon" aria-hidden="true">
@@ -260,7 +262,7 @@
             @if (supportsContentModeration()) {
               <button
                 type="button"
-                class="community-management-hub__card"
+                class="community-management-hub__card app-card app-card--flat app-card--compact app-card--interactive"
                 (click)="openModeration()"
               >
                 <span class="community-management-hub__card-icon" aria-hidden="true">
@@ -275,7 +277,7 @@
             }
 
             @if (supportsCapacityManagement() && capacity()) {
-              <div class="community-management-hub__card community-management-hub__card--status">
+              <div class="community-management-hub__card community-management-hub__card--status app-card app-card--flat app-card--compact">
                 <span class="community-management-hub__card-icon" aria-hidden="true">
                   <i class="fas fa-gauge-high"></i>
                 </span>
@@ -290,7 +292,7 @@
             @if (canViewAuditPanel()) {
               <button
                 type="button"
-                class="community-management-hub__card"
+                class="community-management-hub__card app-card app-card--flat app-card--compact app-card--interactive"
                 (click)="selectPanel('audit')"
               >
                 <span class="community-management-hub__card-icon" aria-hidden="true">
@@ -307,7 +309,7 @@
             @if (canManageOwnershipPanel()) {
               <button
                 type="button"
-                class="community-management-hub__card"
+                class="community-management-hub__card app-card app-card--flat app-card--compact app-card--interactive"
                 (click)="selectPanel('ownership')"
               >
                 <span class="community-management-hub__card-icon" aria-hidden="true">
@@ -327,17 +329,17 @@
           class="community-membership-management"
           aria-labelledby="community-membership-management-title"
         >
-          <header class="community-membership-management__header">
-            <div>
-              <h3 id="community-membership-management-title">{{ managementTitle() }}</h3>
+          <header class="community-membership-management__header app-section-header">
+            <div class="app-section-heading">
+              <h3 id="community-membership-management-title" class="app-section-title">{{ managementTitle() }}</h3>
               @if (state.status === 'ready') {
-                <span aria-live="polite">{{ state.items.length }}</span>
+                <span class="community-membership-management__count app-chip app-chip--muted" aria-live="polite">{{ state.items.length }}</span>
               }
             </div>
 
             <button
               type="button"
-              class="community-membership-management__refresh"
+              class="community-membership-management__refresh app-action app-action--ghost"
               [disabled]="state.status === 'loading' || action.status === 'loading'"
               [attr.aria-label]="'Atualizar ' + managementTitle().toLowerCase()"
               (click)="refresh()"
@@ -350,7 +352,7 @@
           </header>
 
           @if (supportsCapacityManagement() && capacity()?.acceptingNewMembers === false) {
-            <div class="community-membership-management__state community-membership-management__state--compact" role="status">
+            <div class="community-membership-management__state community-membership-management__state--compact app-card app-card--flat app-card--compact" role="status">
               <i class="fas fa-users-slash" aria-hidden="true"></i>
               <span>
                 Novas entradas estão pausadas pela capacidade atual. As solicitações
@@ -377,7 +379,7 @@
           } @else {
             <ul class="community-membership-management__list">
               @for (request of state.items; track request.memberId) {
-                <li>
+                <li class="app-card app-card--flat app-card--compact">
                   <span class="community-membership-management__avatar" aria-hidden="true">
                     @if (request.avatarUrl) {
                       <img [src]="request.avatarUrl" alt="" />
@@ -396,7 +398,7 @@
                   <div class="community-membership-management__actions">
                     <button
                       type="button"
-                      class="is-approve"
+                      class="is-approve app-action app-action--primary"
                       [disabled]="action.status === 'loading' || capacity()?.acceptingNewMembers === false"
                       [attr.aria-label]="'Aprovar solicitação de ' + request.label"
                       (click)="review(request, 'approve')"
@@ -415,7 +417,7 @@
 
                     <button
                       type="button"
-                      class="is-reject"
+                      class="is-reject app-action app-action--ghost"
                       [disabled]="action.status === 'loading'"
                       [attr.aria-label]="'Recusar solicitação de ' + request.label"
                       (click)="review(request, 'reject')"
