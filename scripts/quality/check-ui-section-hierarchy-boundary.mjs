@@ -2031,6 +2031,35 @@ for (const forbidden of [
   }
 }
 
+const principalActiveHtml = read(
+  'src/app/dashboard/principal/principal.component.html'
+);
+for (const required of [
+  'feed-create-bar__prompt app-action app-action--ghost',
+  'feed-create-bar__media-action app-action app-action--ghost',
+]) {
+  if (!principalActiveHtml.includes(required)) {
+    violations.push(
+      'principal.component.html missing canonical quick-publish action contract ' + required
+    );
+  }
+}
+const principalActiveCss = read(
+  'src/app/dashboard/principal/principal.component.css'
+);
+for (const forbidden of [
+  'html.high-contrast .feed-create-bar__prompt',
+  'animation: none !important',
+  'transition: none !important',
+  '.feed-create-bar__actions a:hover',
+]) {
+  if (principalActiveCss.includes(forbidden)) {
+    violations.push(
+      'principal.component.css contains duplicate quick-publish chrome ' + forbidden
+    );
+  }
+}
+
 const principalHtml = read(
   'src/app/dashboard/principal/principal.component.html'
 );
