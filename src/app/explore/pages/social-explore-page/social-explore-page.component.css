@@ -47,33 +47,14 @@
 .feed-composer__moment {
   min-width: 0;
   min-height: var(--tap-target, 2.75rem);
-  padding: 0.55rem 0.85rem;
+  justify-content: flex-start;
   overflow: hidden;
-  border: 0;
-  border-radius: 999px;
-  background: color-mix(
-    in oklab,
-    var(--text-color, #f5f7fb) 7%,
-    transparent
-  );
   color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
-  font: inherit;
   font-size: 0.84rem;
   font-weight: 680;
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
-  cursor: pointer;
-}
-
-.feed-composer__moment:hover,
-.feed-composer__moment:focus-visible {
-  background: color-mix(
-    in oklab,
-    var(--primary-color, #ff7070) 10%,
-    transparent
-  );
-  color: var(--text-color, #f5f7fb);
 }
 
 .feed-publication-composer {
@@ -89,26 +70,13 @@
 }
 
 .video-highlights__header {
-  display: flex;
   align-items: end;
-  justify-content: space-between;
-  gap: 0.75rem;
 }
 
-.video-highlights__header h2 {
-  margin: 0;
-  color: var(--text-color, #f5f7fb);
-  font-size: clamp(0.96rem, 2.5vw, 1.08rem);
-  line-height: 1.2;
-}
-
-.video-highlights__header .video-highlights__count {
+.video-highlights__count {
   flex: 0 0 auto;
   padding-bottom: 0.08rem;
   font-size: 0.66rem;
-  font-weight: 680;
-  letter-spacing: 0;
-  text-transform: none;
 }
 
 .video-highlights__rail {
@@ -156,11 +124,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.7rem 0.75rem;
-  border: 1px solid var(--surface-border, rgb(255 255 255 / 10%));
-  border-radius: 0.85rem;
-  background: var(--surface-color, #101925);
+  gap: var(--space-3, 0.75rem);
+  padding: var(--space-3, 0.75rem);
 }
 
 .video-highlights__error > div {
@@ -179,19 +144,11 @@
   font-size: 0.7rem;
 }
 
-.video-highlights__error button {
+.video-highlights__error .app-action {
   flex: 0 0 auto;
   min-height: var(--tap-target, 2.75rem);
-  padding: 0.4rem 0.65rem;
-  border: 0;
-  background: transparent;
-  color: var(--primary-color, #ff7070);
-  font: inherit;
   font-size: 0.72rem;
-  font-weight: 780;
-  cursor: pointer;
 }
-
 
 .community-distribution {
   display: grid;
@@ -201,28 +158,13 @@
 }
 
 .community-distribution__header {
-  display: flex;
   align-items: end;
-  justify-content: space-between;
-  gap: 0.75rem;
 }
 
-.community-distribution__header h2 {
-  margin: 0;
-  color: var(--text-color, #f5f7fb);
-  font-size: clamp(0.96rem, 2.5vw, 1.08rem);
-  line-height: 1.2;
-}
-
-.community-distribution__header > a {
+.community-distribution__header > .app-action {
   flex: 0 0 auto;
   min-height: var(--tap-target, 2.75rem);
-  display: inline-flex;
-  align-items: center;
-  color: var(--primary-color, #ff7070);
   font-size: 0.72rem;
-  font-weight: 780;
-  text-decoration: none;
 }
 
 .community-distribution__rail {
@@ -241,12 +183,9 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: 0.65rem;
+  gap: var(--space-3, 0.65rem);
   min-height: 4.5rem;
-  padding: 0.65rem;
-  border: 1px solid var(--surface-border, rgb(255 255 255 / 10%));
-  border-radius: 0.9rem;
-  background: var(--surface-color, #101925);
+  padding: var(--space-3, 0.65rem);
   color: var(--text-color, #f5f7fb);
   text-decoration: none;
   scroll-snap-align: start;
@@ -316,27 +255,11 @@
 .community-distribution__priority {
   grid-column: 2;
   justify-self: start;
+  min-height: 0;
   padding: 0.12rem 0.38rem;
-  border-radius: 999px;
-  background: color-mix(
-    in oklab,
-    var(--primary-color, #ff7070) 12%,
-    transparent
-  );
-  color: var(--primary-color, #ff7070) !important;
-  font-size: 0.62rem !important;
-  font-weight: 780 !important;
-  letter-spacing: 0 !important;
-  text-transform: none !important;
-}
-
-.community-distribution__card:hover,
-.community-distribution__card:focus-visible {
-  border-color: color-mix(
-    in oklab,
-    var(--primary-color, #ff7070) 42%,
-    var(--surface-border, rgb(255 255 255 / 10%))
-  );
+  font-size: 0.62rem;
+  font-weight: 780;
+  text-transform: none;
 }
 
 .feed-timeline {
@@ -357,18 +280,17 @@
 
 .feed-intent {
   display: grid;
-  gap: 0.8rem;
-  padding: 0.85rem;
-  border: 1px solid color-mix(
+  gap: var(--space-3, 0.8rem);
+  padding: var(--space-3, 0.85rem);
+  border-color: color-mix(
     in oklab,
     var(--primary-color, #ff7070) 18%,
-    var(--surface-border, rgb(255 255 255 / 10%))
+    var(--surface-border)
   );
-  border-radius: 0.9rem;
   background: color-mix(
     in oklab,
     var(--primary-color, #ff7070) 2%,
-    var(--surface-color, #101925)
+    var(--surface-color)
   );
   content-visibility: auto;
   contain-intrinsic-size: 9rem;
@@ -473,21 +395,9 @@
   padding: 0.55rem 0 0.1rem;
 }
 
-.feed-pagination button {
+.feed-pagination .app-action {
   min-height: var(--tap-target, 2.75rem);
-  padding: 0.45rem 0.75rem;
-  border: 0;
-  background: transparent;
-  color: var(--primary-color, #ff7070);
-  font: inherit;
   font-size: 0.78rem;
-  font-weight: 780;
-  cursor: pointer;
-}
-
-.feed-pagination button:hover {
-  text-decoration: underline;
-  text-underline-offset: 0.18em;
 }
 
 .feed-empty {
@@ -570,7 +480,6 @@
 }
 
 .feed-composer a:focus-visible,
-.feed-composer button:focus-visible,
 .feed-empty a:focus-visible {
   outline: var(--focus-ring, 2px solid rgba(255, 112, 112, 0.9));
   outline-offset: var(--focus-offset, 2px);
@@ -647,7 +556,7 @@
     flex-direction: column;
   }
 
-  .video-highlights__error button {
+  .video-highlights__error .app-action {
     align-self: start;
   }
 
@@ -666,30 +575,16 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .feed-composer *,
-  .feed-empty a,
+  .feed-composer__avatar,
+  .feed-empty__profiles a,
   .video-highlight-skeleton {
     transition: none;
     animation: none;
   }
 }
 
-:host-context(html.high-contrast) .feed-composer,
-:host-context(html.high-contrast) .feed-intent,
-:host-context(html.high-contrast) .community-distribution__card,
-:host-context(html.high-contrast) .video-highlights__error {
-  border-color: currentColor !important;
-  background: var(--background-color) !important;
-  color: var(--text-color) !important;
-  box-shadow: none !important;
-}
-
-:host-context(html.high-contrast) .feed-composer__moment,
 :host-context(html.high-contrast) .feed-intent__relationship,
-:host-context(html.high-contrast) .feed-empty a,
-:host-context(html.high-contrast) .community-distribution a,
-:host-context(html.high-contrast) .video-highlights__error button,
+:host-context(html.high-contrast) .feed-empty__profiles a,
 :host-context(html.high-contrast) .video-highlights__count {
-  color: var(--text-color) !important;
-  outline-color: currentColor !important;
+  color: var(--text-color);
 }
