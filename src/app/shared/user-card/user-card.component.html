@@ -1,7 +1,7 @@
 <!-- src/app/shared/user-card/user-card.component.html -->
 @if (user(); as profile) {
   <article
-    class="user-card"
+    class="user-card app-card app-card--media app-card--interactive"
     [class.user-card--online]="profile.isOnline"
     [class.user-card--pending]="relationshipVm().state === 'outgoing_pending' || relationshipVm().state === 'incoming_pending'"
     [attr.aria-labelledby]="'uc-title-' + (profile.uid || 'x')"
@@ -46,7 +46,7 @@
           [showAvatar]="false"
         />
 
-        <span class="sr-only">
+        <span class="visually-hidden">
           {{ profile.isOnline ? 'Online' : 'Offline' }}
         </span>
       </div>
@@ -61,7 +61,7 @@
       (click)="quickPreview.open()"
     >
       <i class="fas fa-circle-info" aria-hidden="true"></i>
-      <span class="sr-only">Ver resumo do perfil</span>
+      <span class="visually-hidden">Ver resumo do perfil</span>
     </button>
 
     <div class="user-card__body">
@@ -103,7 +103,7 @@
             <span class="user-card__location-copy">
               @if (distanciaKm() !== null) {
                 <strong class="user-card__distance">
-                  <span class="sr-only">Distância aproximada:</span>
+                  <span class="visually-hidden">Distância aproximada:</span>
                   @if (distanciaKm()! < 1) {
                     &lt; 1 km
                   } @else {
@@ -116,7 +116,7 @@
                   title="Distância não disponível"
                 >
                   <span aria-hidden="true">—</span>
-                  <span class="sr-only">Distância não disponível</span>
+                  <span class="visually-hidden">Distância não disponível</span>
                 </span>
               }
             </span>
@@ -171,18 +171,18 @@
             @if (relationship.canMessage) {
               <button
                 type="button"
-                class="user-card__action user-card__action--primary"
+                class="user-card__action user-card__action--primary app-action app-action--primary"
                 (click)="abrirDM($event)"
                 [attr.aria-label]="'Conversar com ' + (profile.nickname || 'usuário')"
                 title="Conversar"
               >
                 <i class="fas fa-paper-plane" aria-hidden="true"></i>
-                <span class="sr-only">Conversar</span>
+                <span class="visually-hidden">Conversar</span>
               </button>
 
               <button
                 type="button"
-                class="user-card__action user-card__action--danger-subtle"
+                class="user-card__action user-card__action--danger-subtle app-action app-action--ghost app-action--danger"
                 (click)="desfazerAmizade($event)"
                 [disabled]="isEndingFriendship()"
                 [attr.aria-busy]="isEndingFriendship()"
@@ -200,34 +200,34 @@
                   [class.fa-spinner]="isEndingFriendship()"
                   [class.user-card__spin]="isEndingFriendship()"
                 ></i>
-                <span class="sr-only">
+                <span class="visually-hidden">
                   {{ isEndingFriendship() ? 'Desfazendo conexão' : 'Desfazer conexão' }}
                 </span>
               </button>
             } @else if (relationship.canRespond) {
               <a
-                class="user-card__action user-card__action--primary"
+                class="user-card__action user-card__action--primary app-action app-action--primary"
                 routerLink="/friends/requests"
                 [attr.aria-label]="'Responder interesse de ' + (profile.nickname || 'usuário')"
                 title="Responder interesse"
               >
                 <i class="fas fa-user-check" aria-hidden="true"></i>
-                <span class="sr-only">Responder interesse</span>
+                <span class="visually-hidden">Responder interesse</span>
               </a>
             } @else if (relationship.state === 'outgoing_pending') {
               <a
-                class="user-card__action user-card__action--neutral"
+                class="user-card__action user-card__action--neutral app-action app-action--ghost"
                 routerLink="/friends/requests"
                 [attr.aria-label]="'Interesse enviado para ' + (profile.nickname || 'usuário') + '. Aguardando resposta.'"
                 title="Aguardando resposta"
               >
                 <i class="fas fa-clock" aria-hidden="true"></i>
-                <span class="sr-only">Aguardando resposta</span>
+                <span class="visually-hidden">Aguardando resposta</span>
               </a>
 
               <button
                 type="button"
-                class="user-card__action user-card__action--danger-subtle"
+                class="user-card__action user-card__action--danger-subtle app-action app-action--ghost app-action--danger"
                 (click)="cancelarSolicitacaoEnviada($event)"
                 [disabled]="isCancelingOutgoingRequest()"
                 [attr.aria-busy]="isCancelingOutgoingRequest() ? 'true' : null"
@@ -245,30 +245,30 @@
                   [class.fa-spinner]="isCancelingOutgoingRequest()"
                   [class.user-card__spin]="isCancelingOutgoingRequest()"
                 ></i>
-                <span class="sr-only">
+                <span class="visually-hidden">
                   {{ isCancelingOutgoingRequest() ? 'Cancelando interesse' : 'Cancelar interesse' }}
                 </span>
               </button>
             } @else if (relationship.state === 'blocked_by_me') {
               <a
-                class="user-card__action user-card__action--neutral"
+                class="user-card__action user-card__action--neutral app-action app-action--ghost"
                 routerLink="/friends/blocked"
                 aria-label="Perfil bloqueado"
                 title="Perfil bloqueado"
               >
                 <i class="fas fa-ban" aria-hidden="true"></i>
-                <span class="sr-only">Perfil bloqueado</span>
+                <span class="visually-hidden">Perfil bloqueado</span>
               </a>
             } @else if (relationship.canConnect) {
               <button
                 type="button"
-                class="user-card__action user-card__action--primary"
+                class="user-card__action user-card__action--primary app-action app-action--primary"
                 (click)="adicionarAmigo()"
                 [attr.aria-label]="'Mostrar interesse em ' + (profile.nickname || 'usuário')"
                 title="Mostrar interesse"
               >
                 <i class="fas fa-user-plus" aria-hidden="true"></i>
-                <span class="sr-only">Mostrar interesse</span>
+                <span class="visually-hidden">Mostrar interesse</span>
               </button>
             }
           </div>
@@ -277,8 +277,8 @@
     </div>
   </article>
 } @else {
-  <div class="user-card user-card--placeholder" role="status" aria-live="polite">
+  <div class="user-card user-card--placeholder app-card app-card--media app-card--flat" role="status" aria-live="polite">
     <span class="spinner" aria-hidden="true"></span>
-    <span class="sr-only">Carregando perfil</span>
+    <span class="visually-hidden">Carregando perfil</span>
   </div>
 }
