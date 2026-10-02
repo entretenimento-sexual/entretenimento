@@ -5,7 +5,6 @@
 
 .report-dialog {
   width: min(100%, 520px);
-  color: var(--text-color, #f5f7fb);
 }
 
 .report-dialog__header {
@@ -27,10 +26,7 @@
 .report-dialog__header p,
 .report-dialog__header small,
 .report-dialog__helper {
-  margin: 0;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
-  font-size: 0.9rem;
-  line-height: 1.45;
+  padding: 10px 12px;
 }
 
 .report-dialog__content {
@@ -54,19 +50,8 @@
   padding: 18px 22px 22px;
 }
 
-.report-dialog__actions button {
-  min-height: 40px;
-  border-radius: 999px;
-  font-weight: 850;
-}
-
-.report-dialog__actions button[aria-busy='true'] {
-  cursor: progress;
-}
-
-.report-dialog__actions button:disabled {
-  cursor: not-allowed;
-  opacity: 0.62;
+.report-dialog__actions .app-action {
+  min-height: var(--tap-target-sm, 40px);
 }
 
 @media (max-width: 560px) {
@@ -85,17 +70,8 @@
     grid-template-columns: 1fr;
   }
 
-  .report-dialog__actions button {
+  .report-dialog__actions .app-action {
     width: 100%;
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .report-dialog__actions button {
-    transition: none !important;
-  }
-}
-
-html.high-contrast .report-dialog__helper {
-  border-color: currentColor !important;
-}
