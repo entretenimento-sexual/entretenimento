@@ -293,6 +293,40 @@ for (const forbidden of [
   }
 }
 
+const userCardHtml = read(
+  'src/app/shared/user-card/user-card.component.html'
+);
+for (const required of [
+  'user-card app-card app-card--media app-card--interactive',
+  'user-card__action user-card__action--primary app-action app-action--primary',
+  'user-card__action user-card__action--neutral app-action app-action--ghost',
+  'user-card__action user-card__action--danger-subtle app-action app-action--ghost app-action--danger',
+  'class="visually-hidden"',
+]) {
+  if (!userCardHtml.includes(required)) {
+    violations.push(
+      'user-card.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const userCardCss = read('src/app/shared/user-card/user-card.component.css');
+for (const forbidden of [
+  'box-shadow: 0 5px 16px',
+  'box-shadow: 0 8px 22px',
+  '--uc-accent-hover:',
+  '.sr-only {',
+  '.user-card__action--primary:hover,',
+  ':host-context(.dark-mode) .user-card,',
+  ':host-context(.high-contrast) .user-card,',
+]) {
+  if (userCardCss.includes(forbidden)) {
+    violations.push(
+      'user-card.component.css contains duplicate shared UI chrome ' + forbidden
+    );
+  }
+}
+
 const discoveryModeTabsHtml = read(
   'src/app/dashboard/discovery/discovery-mode-tabs/discovery-mode-tabs.component.html'
 );
