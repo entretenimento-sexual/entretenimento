@@ -100,28 +100,28 @@
           aria-label="Filtrar Minhas comunidades por participação"
         >
           <button
-            class="community-discovery__filter-chip"
+            class="community-discovery__filter-chip app-action app-action--ghost"
             type="button"
             [class.is-active]="mineFacade.isParticipationFilterSelected('all')"
             [attr.aria-pressed]="mineFacade.isParticipationFilterSelected('all')"
             (click)="mineFacade.selectParticipationFilter('all')"
           >Todas</button>
           <button
-            class="community-discovery__filter-chip"
+            class="community-discovery__filter-chip app-action app-action--ghost"
             type="button"
             [class.is-active]="mineFacade.isParticipationFilterSelected('managed')"
             [attr.aria-pressed]="mineFacade.isParticipationFilterSelected('managed')"
             (click)="mineFacade.selectParticipationFilter('managed')"
           >Administradas</button>
           <button
-            class="community-discovery__filter-chip"
+            class="community-discovery__filter-chip app-action app-action--ghost"
             type="button"
             [class.is-active]="mineFacade.isParticipationFilterSelected('member')"
             [attr.aria-pressed]="mineFacade.isParticipationFilterSelected('member')"
             (click)="mineFacade.selectParticipationFilter('member')"
           >Participo</button>
           <button
-            class="community-discovery__filter-chip"
+            class="community-discovery__filter-chip app-action app-action--ghost"
             type="button"
             [class.is-active]="mineFacade.isParticipationFilterSelected('muted')"
             [attr.aria-pressed]="mineFacade.isParticipationFilterSelected('muted')"
@@ -138,6 +138,7 @@
             <span>{{ state.items.length }} visíveis agora</span>
             <button
               type="button"
+              class="app-action app-action--ghost"
               (click)="mineFacade.clearControls()"
             >Limpar filtros</button>
           </div>
@@ -154,13 +155,13 @@
               Carregando interesses
             </span>
           } @else if (tagFilterState.status === 'error') {
-            <button class="community-discovery__filter-retry" type="button" (click)="retryTagCatalog()">
+            <button class="community-discovery__filter-retry app-action app-action--ghost" type="button" (click)="retryTagCatalog()">
               Tentar novamente
             </button>
           } @else {
             <div class="community-discovery__filter-strip" role="group" aria-label="Interesses rápidos">
               <button
-                class="community-discovery__filter-chip"
+                class="community-discovery__filter-chip app-action app-action--ghost"
                 type="button"
                 [class.is-active]="selectedTagId() === null"
                 [attr.aria-pressed]="selectedTagId() === null"
@@ -169,7 +170,7 @@
 
               @for (tag of quickFilterTags(tagFilterState.items); track tag.id) {
                 <button
-                  class="community-discovery__filter-chip"
+                  class="community-discovery__filter-chip app-action app-action--ghost"
                   type="button"
                   [attr.data-tag-id]="tag.id"
                   [class.is-active]="selectedTagId() === tag.id"
@@ -217,7 +218,7 @@
       >
         <span><strong>{{ hiddenFeedback.name }}</strong> foi ocultada nesta sessão.</span>
         <button
-          class="community-discovery__empty-explore"
+          class="community-discovery__empty-explore app-action app-action--ghost"
           type="button"
           (click)="restoreHiddenCommunity()"
         >Desfazer</button>
@@ -254,7 +255,7 @@
       <div class="community-discovery__state" role="alert">
         <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
         <span>Não foi possível carregar.</span>
-        <button type="button" (click)="retry()">Tentar novamente</button>
+        <button type="button" class="app-action app-action--ghost" (click)="retry()">Tentar novamente</button>
       </div>
     } @else if (state.status === 'empty') {
       @if (discoveryMode === 'mine') {
@@ -262,7 +263,7 @@
           <i class="fas fa-user-group" aria-hidden="true"></i>
           <strong>Você ainda não participa de Comunidades</strong>
           <p>Explore espaços que combinam com seus interesses e entre quando quiser.</p>
-          <a class="community-discovery__empty-explore" routerLink="/dashboard/comunidades">
+          <a class="community-discovery__empty-explore app-action app-action--ghost" routerLink="/dashboard/comunidades">
             Explorar Comunidades
           </a>
         </div>
@@ -314,6 +315,7 @@
         @if (state.nextCursor) {
           <button
             type="button"
+            class="app-action app-action--ghost"
             aria-label="Carregar mais comunidades para ampliar os resultados"
             [disabled]="state.loadingMore"
             [attr.aria-busy]="state.loadingMore"
@@ -340,6 +342,7 @@
         >
           <button
             type="button"
+            class="app-action app-action--ghost"
             aria-label="Ver resultados anteriores já carregados"
             (click)="showPreviousLoadedResults(state.items)"
           >
@@ -422,7 +425,7 @@
 
                       @if (mineFacade.notificationStatusPresentation(item); as notificationStatus) {
                         <span
-                          class="community-card__attention"
+                          class="community-card__attention app-chip"
                           [attr.data-attention]="notificationStatus.attention"
                           [attr.aria-label]="
                             item.notificationUnreadCount > 0
@@ -438,7 +441,7 @@
                         </span>
                       } @else if (contextualMatchLabel(item); as contextualMatch) {
                         <span
-                          class="community-card__contextual-match"
+                          class="community-card__contextual-match app-chip app-chip--primary"
                           [attr.aria-label]="contextualMatch"
                         >
                           <i class="fas fa-star" aria-hidden="true"></i>
@@ -468,10 +471,10 @@
                 @if (discoveryMode === 'explore' && item.tags.length > 0) {
                   <div class="community-card__tags" aria-label="Interesses desta Comunidade">
                     @for (tag of item.tags.slice(0, 2); track tag.id) {
-                      <span>#{{ tag.label }}</span>
+                      <span class="app-chip app-chip--muted">#{{ tag.label }}</span>
                     }
                     @if (item.tags.length > 2) {
-                      <span aria-label="Mais {{ item.tags.length - 2 }} interesses">+{{ item.tags.length - 2 }}</span>
+                      <span class="app-chip app-chip--muted" aria-label="Mais {{ item.tags.length - 2 }} interesses">+{{ item.tags.length - 2 }}</span>
                     }
                   </div>
                 }
@@ -503,7 +506,7 @@
                 [attr.aria-label]="'Ações rápidas de ' + item.name"
               >
                 <button
-                  class="community-card__notification-action"
+                  class="community-card__notification-action app-action app-action--ghost"
                   type="button"
                   [disabled]="mineFacade.isNotificationPreferenceBusy(item.communityId)"
                   [attr.aria-busy]="mineFacade.isNotificationPreferenceBusy(item.communityId)"
@@ -529,7 +532,7 @@
               </div>
             } @else if (canFilterByTags) {
               <button
-                class="community-card__dismiss community-discovery__empty-explore"
+                class="community-card__dismiss app-action app-action--ghost"
                 type="button"
                 [attr.aria-label]="'Não tenho interesse em ' + item.name + ' nesta sessão'"
                 (click)="hideCommunity(item, $event)"
@@ -608,7 +611,7 @@
                       <div>
                         <div class="community-card__status-row">
                           <span
-                            class="community-card__sponsorship"
+                            class="community-card__sponsorship app-chip app-chip--muted"
                             title="Exibição patrocinada; não altera a ordem orgânica."
                           >
                             <i
@@ -639,7 +642,7 @@
                           tag of placement.community.tags.slice(0, 2);
                           track tag.id
                         ) {
-                          <span>#{{ tag.label }}</span>
+                          <span class="app-chip app-chip--muted">#{{ tag.label }}</span>
                         }
                       </div>
                     }
@@ -708,6 +711,7 @@
         >
           <button
             type="button"
+            class="app-action app-action--ghost"
             aria-label="Ver resultados seguintes já carregados"
             (click)="showNextLoadedResults(state.items)"
           >
