@@ -1604,6 +1604,10 @@ describe('Canonical UI boundary', () => {
     expect(notifications).not.toContain(
       '@if (notificationRoute(item) || item.readAt === null)'
     );
+    expect(notifications).not.toContain(
+      "{{ isBusy(item.id) ? 'Abrindo...' : 'Abrir' }}"
+    );
+    expect(notifications).toContain('notification-card__title-action');
 
     const settings = source(
       'src/app/preferences/pages/notification-settings/notification-settings.component.html'
