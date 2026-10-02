@@ -166,10 +166,6 @@
   justify-content: space-between;
   min-width: 0;
   margin-bottom: 16px;
-  padding: 10px;
-  border: 1px solid var(--photos-border);
-  border-radius: 16px;
-  background: color-mix(in oklab, var(--photos-surface) 92%, transparent);
 }
 
 .gallery-toolbar__summary {
@@ -201,38 +197,18 @@
 .gallery-filter-group {
   gap: 4px;
   max-width: 100%;
-  padding: 4px;
-  border: 1px solid var(--photos-border);
-  border-radius: 999px;
-  background: rgb(0 0 0 / 12%);
 }
 
 .gallery-filter {
   min-height: 30px;
-  padding: 5px 10px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: color-mix(in oklab, var(--photos-text) 72%, transparent);
-  font: inherit;
   font-size: 0.76rem;
   font-weight: 800;
-  line-height: 1;
   white-space: nowrap;
-  cursor: pointer;
-}
-
-.gallery-filter:hover,
-.gallery-filter:focus-visible,
-.gallery-filter--active,
-.app-segmented__button--active {
-  background: color-mix(in oklab, var(--photos-primary) 18%, transparent);
-  color: var(--photos-text);
 }
 
 .photos-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 230px));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 270px), 300px));
   justify-content: start;
   align-items: start;
   gap: clamp(12px, 1.6vw, 20px);
@@ -242,19 +218,7 @@
   width: 100%;
   min-width: 0;
   overflow: hidden;
-  border: 1px solid var(--photos-border);
-  border-radius: 18px;
-  background: var(--photos-surface);
-  box-shadow: 0 10px 28px rgb(0 0 0 / 18%);
   isolation: isolate;
-  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
-}
-
-.photo-tile:hover,
-.photo-tile:focus-within {
-  transform: translateY(-1px);
-  border-color: color-mix(in oklab, var(--photos-primary) 30%, var(--photos-border));
-  box-shadow: 0 14px 34px rgb(0 0 0 / 24%);
 }
 
 .photo-tile--published {
@@ -363,10 +327,6 @@
   justify-content: center;
   min-height: 25px;
   max-width: 100%;
-  padding: 3px 8px;
-  border: 1px solid rgb(255 255 255 / 20%);
-  border-radius: 999px;
-  background: rgb(0 0 0 / 42%);
   color: #fff;
   font-size: 0.74rem;
   font-weight: 820;
@@ -421,57 +381,14 @@
 
 .management-action {
   min-width: 0;
-  min-height: 34px;
+  min-height: 40px;
   flex: 1 1 auto;
-  padding: 0 10px;
-  border: 1px solid var(--photos-border);
-  border-radius: 10px;
-  background: transparent;
-  color: color-mix(in oklab, var(--photos-text) 84%, transparent);
-  font: inherit;
   font-size: 0.78rem;
   font-weight: 760;
-  line-height: 1;
-  cursor: pointer;
-  transition: background 140ms ease, border-color 140ms ease, color 140ms ease, transform 140ms ease;
-}
-
-.management-action:hover,
-.management-action:focus-visible {
-  background: color-mix(in oklab, var(--photos-text) 7%, transparent);
-  border-color: color-mix(in oklab, var(--photos-text) 22%, transparent);
-  transform: translateY(-1px);
-}
-
-.management-action:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-  transform: none;
 }
 
 .management-action--primary {
-  border-color: color-mix(in oklab, var(--photos-primary) 46%, var(--photos-border));
-  background: color-mix(in oklab, var(--photos-primary) 16%, transparent);
-  color: color-mix(in oklab, var(--photos-primary) 76%, #fff 24%);
   font-weight: 820;
-}
-
-.management-action--neutral {
-  color: color-mix(in oklab, var(--photos-text) 76%, transparent);
-}
-
-.management-action--danger {
-  border-color: color-mix(in oklab, var(--photos-danger) 34%, var(--photos-border));
-  color: var(--photos-danger);
-}
-
-.management-action--danger:hover,
-.management-action--danger:focus-visible {
-  background: color-mix(in oklab, var(--photos-danger) 10%, transparent);
-}
-
-.management-action--solid {
-  background: color-mix(in oklab, var(--photos-danger) 20%, transparent);
 }
 
 .management-action--icon {
@@ -488,8 +405,10 @@
   line-height: 1;
 }
 
-.management-action[type='date'] {
+.management-date {
   min-width: 8rem;
+  min-height: 40px;
+  flex: 1 1 auto;
 }
 
 .delete-confirm-box {
@@ -562,11 +481,6 @@
     gap: 12px;
   }
 
-  .photo-tile {
-    border-radius: 14px;
-    box-shadow: none;
-  }
-
   .photo-overlay { padding: 28px 6px 6px; }
 
   .status-chip,
@@ -581,10 +495,10 @@
     padding: 7px;
   }
 
-  .management-action {
-    min-height: 32px;
-    padding-inline: 7px;
-    font-size: 0.72rem;
+  .management-action,
+  .management-date {
+    min-height: 40px;
+    font-size: 0.74rem;
   }
 
   .management-action--icon {
@@ -617,18 +531,3 @@
   }
 }
 
-html.high-contrast .photo-tile,
-html.high-contrast .gallery-toolbar,
-html.high-contrast .gallery-action,
-html.high-contrast .management-action,
-html.high-contrast .status-chip,
-html.high-contrast .photo-date-chip {
-  border-color: currentColor !important;
-  box-shadow: none !important;
-}
-
-html.high-contrast .photo-busy-overlay {
-  border: 2px solid currentColor;
-  background: var(--background-color) !important;
-  color: var(--text-color) !important;
-}
