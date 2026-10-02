@@ -1554,6 +1554,23 @@ describe('Canonical UI boundary', () => {
   });
 
 
+  it('mantém showcase e comunidades do perfil sem chrome legado', () => {
+    const showcase = source(
+      'src/app/media/shared/components/profile-media-showcase/profile-media-showcase.component.css'
+    );
+    const communities = source(
+      'src/app/community/profile-official-communities/profile-official-communities.component.html'
+    );
+
+    expect(showcase).not.toContain('profile-media-showcase__skeleton');
+    expect(showcase).not.toContain('profile-media-showcase__retry');
+    expect(showcase).not.toContain('profile-media-showcase__state');
+    expect(showcase).not.toContain('profile-media-showcase__empty');
+
+    expect(communities).not.toContain('Ver comunidade');
+    expect(communities).toContain("item.metrics.memberCount + ' membros'");
+  });
+
   it('mantém a entrada de vídeos do perfil sem CTA duplicado', () => {
     const profile = source(
       'src/app/user-profile/user-profile-view/user-profile-view.component.html'
