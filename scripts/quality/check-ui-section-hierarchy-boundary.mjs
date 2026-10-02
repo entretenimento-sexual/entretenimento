@@ -298,6 +298,43 @@ for (const forbidden of [
   }
 }
 
+const suggestedProfilesHtml = read(
+  'src/app/dashboard/suggested-profiles/suggested-profiles.component.html'
+);
+for (const required of [
+  'suggested-profiles-hero app-card app-card--flat app-card--media',
+  'profile-card app-card app-card--flat app-card--interactive',
+  'profile-card__status app-chip app-chip--overlay',
+  'profile-card__age app-chip app-chip--muted',
+  'profile-card__action app-action app-action--primary',
+]) {
+  if (!suggestedProfilesHtml.includes(required)) {
+    violations.push(
+      'suggested-profiles.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const suggestedProfilesCss = read(
+  'src/app/dashboard/suggested-profiles/suggested-profiles.component.css'
+);
+for (const forbidden of [
+  '.suggested-profiles-hero.app-card',
+  '.profile-card.app-card',
+  '.profiles-grid.app-card-grid',
+  '.profile-card__action.app-action',
+  'box-shadow:',
+  '@media (prefers-reduced-motion: reduce)',
+  'html.high-contrast .profile-card',
+  '!important',
+]) {
+  if (suggestedProfilesCss.includes(forbidden)) {
+    violations.push(
+      'suggested-profiles.component.css contains duplicate shared UI chrome ' + forbidden
+    );
+  }
+}
+
 const profileListHtml = read(
   'src/app/layout/profile-list/profile-list.component.html'
 );
