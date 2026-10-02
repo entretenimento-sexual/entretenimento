@@ -17,7 +17,7 @@
               </span>
             </div>
             <button
-              class="feed-comments__close"
+              class="feed-comments__close app-action app-action--ghost"
               type="button"
               aria-label="Fechar comentários"
               title="Fechar comentários"
@@ -35,7 +35,7 @@
           } @else if (state.status === 'error') {
             <div class="feed-comments__state" role="alert">
               <span>Não foi possível carregar os comentários.</span>
-              <button type="button" (click)="retry()">Tentar novamente</button>
+              <button type="button" class="app-action app-action--ghost" (click)="retry()">Tentar novamente</button>
             </div>
           } @else if (state.status === 'empty') {
             <p class="feed-comments__state" role="status">
@@ -44,7 +44,7 @@
           } @else {
             @if (state.nextCursor) {
               <button
-                class="feed-comments__more"
+                class="feed-comments__more app-action app-action--ghost"
                 type="button"
                 [disabled]="state.loadingMore"
                 (click)="loadMore(state.nextCursor)"
@@ -83,13 +83,13 @@
                             <i class="fas fa-ellipsis" aria-hidden="true"></i>
                           </summary>
                           <div
-                            class="feed-comment__menu-panel"
+                            class="feed-comment__menu-panel app-card app-card--flat app-card--media"
                             role="group"
                             [attr.aria-label]="'Ações do comentário de ' + item.author.label"
                           >
                             @if (item.capabilities.canDeleteOwn) {
                               <button
-                                class="feed-comment__menu-action is-danger"
+                                class="feed-comment__menu-action is-danger app-action app-action--ghost app-action--danger"
                                 type="button"
                                 [disabled]="actionState.status === 'loading'"
                                 (click)="commentMenu.open = false; requestAction(item, 'delete_own')"
@@ -100,7 +100,7 @@
                             }
                             @if (item.capabilities.canModerate) {
                               <button
-                                class="feed-comment__menu-action"
+                                class="feed-comment__menu-action app-action app-action--ghost"
                                 type="button"
                                 [disabled]="actionState.status === 'loading'"
                                 (click)="commentMenu.open = false; requestAction(item, 'remove')"
@@ -175,7 +175,7 @@
                         actionCommentId() === item.commentId
                         && actionMode(); as selectedAction
                       ) {
-                        <section class="feed-comment__confirmation">
+                        <section class="feed-comment__confirmation app-card app-card--flat app-card--compact">
                           @if (selectedAction === 'delete_own') {
                             <p>Excluir este comentário?</p>
                           } @else {
@@ -184,6 +184,7 @@
                             </label>
                             <textarea
                               [id]="'comment-removal-reason-' + item.commentId"
+                              class="app-control"
                               rows="2"
                               maxlength="240"
                               [formControl]="removalReason"
@@ -192,12 +193,13 @@
                           <div>
                             <button
                               type="button"
+                              class="app-action app-action--ghost"
                               [disabled]="actionState.status === 'loading'"
                               (click)="cancelAction()"
                             >Cancelar</button>
                             <button
                               type="button"
-                              class="is-danger"
+                              class="is-danger app-action app-action--danger"
                               [disabled]="actionState.status === 'loading' || (selectedAction === 'remove' && removalReason.invalid)"
                               (click)="confirmAction(item)"
                             >
@@ -235,13 +237,14 @@
             novalidate
           >
             @if (replyTarget(); as target) {
-              <div class="feed-comments__reply-target" aria-live="polite">
+              <div class="feed-comments__reply-target app-card app-card--flat app-card--compact" aria-live="polite">
                 <div>
                   <strong>Respondendo a {{ target.author.label }}</strong>
                   <span>{{ target.text }}</span>
                 </div>
                 <button
                   type="button"
+                  class="app-action app-action--ghost"
                   aria-label="Cancelar resposta"
                   title="Cancelar resposta"
                   [disabled]="createState === 'loading'"
@@ -258,6 +261,7 @@
                 </div>
                 <button
                   type="button"
+                  class="app-action app-action--ghost"
                   aria-label="Cancelar resposta à publicação"
                   title="Cancelar resposta"
                   [disabled]="createState === 'loading'"
@@ -278,6 +282,7 @@
                 rows="2"
                 maxlength="500"
                 enterkeyhint="send"
+                class="app-control"
                 formControlName="text"
                 [placeholder]="replyTarget() || replyToPostRequested() ? 'Escreva sua resposta' : 'Escreva um comentário'"
                 [attr.aria-invalid]="commentControl.invalid && commentControl.touched ? 'true' : null"
@@ -285,16 +290,17 @@
               ></textarea>
               <button
                 type="submit"
+                class="app-action app-action--primary"
                 aria-label="Publicar comentário"
                 [disabled]="commentForm.invalid || createState === 'loading'"
                 [attr.aria-busy]="createState === 'loading' ? 'true' : null"
               >
                 @if (createState === 'loading') {
                   <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
-                  <span class="feed-comments__send-label">Publicando</span>
+                  <span class="feed-comments__send-label visually-hidden">Publicando</span>
                 } @else {
                   <i class="fas fa-paper-plane" aria-hidden="true"></i>
-                  <span class="feed-comments__send-label">Publicar</span>
+                  <span class="feed-comments__send-label visually-hidden">Publicar</span>
                 }
               </button>
             </div>
