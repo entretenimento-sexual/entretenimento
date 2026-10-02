@@ -2036,7 +2036,7 @@ const profilePhotosHtml = read(
   'src/app/media/photos/profile-photos/profile-photos.component.html'
 );
 for (const required of [
-  'photos-grid app-card-grid app-card-grid--media',
+  'class="photos-grid"',
   'photo-tile app-card app-card--media app-card--interactive',
   'gallery-filter-group app-segmented',
   'management-date app-control',
@@ -2046,6 +2046,21 @@ for (const required of [
       'profile-photos.component.html missing canonical media gallery contract ' + required
     );
   }
+}
+
+if (profilePhotosHtml.includes('app-card-grid--media')) {
+  violations.push(
+    'profile photo owner gallery should prefer its management grid over the compact shared media grid'
+  );
+}
+
+const mediaQuerySource = read(
+  'src/app/core/services/media/media-query.service.ts'
+);
+if (!mediaQuerySource.includes('if (storagePath) {')) {
+  violations.push(
+    'media-query.service.ts should prefer canonical private photo storage path before stale persisted URLs'
+  );
 }
 
 const profilePhotosCss = read(
