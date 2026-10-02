@@ -293,6 +293,40 @@ for (const forbidden of [
   }
 }
 
+const discoveryModeTabsHtml = read(
+  'src/app/dashboard/discovery/discovery-mode-tabs/discovery-mode-tabs.component.html'
+);
+for (const required of [
+  'discovery-tabs app-segmented',
+  'discovery-tabs__item app-segmented__button',
+  'app-segmented__button--active',
+]) {
+  if (!discoveryModeTabsHtml.includes(required)) {
+    violations.push(
+      'discovery-mode-tabs.component.html missing canonical segmented contract ' + required
+    );
+  }
+}
+
+const discoveryModeTabsCss = read(
+  'src/app/dashboard/discovery/discovery-mode-tabs/discovery-mode-tabs.component.css'
+);
+for (const forbidden of [
+  '--tabs-border:',
+  '--tabs-text:',
+  '--tabs-active:',
+  '.discovery-tabs__item:hover:not(:disabled)',
+  ':host-context(.dark-mode)',
+  ':host-context(.high-contrast)',
+  '@media (prefers-reduced-motion: reduce)',
+]) {
+  if (discoveryModeTabsCss.includes(forbidden)) {
+    violations.push(
+      'discovery-mode-tabs.component.css contains duplicate segmented UI chrome ' + forbidden
+    );
+  }
+}
+
 const profilesDiscoveryHtml = read(
   'src/app/dashboard/discovery/profiles-discovery-page/profiles-discovery-page.component.html'
 );
