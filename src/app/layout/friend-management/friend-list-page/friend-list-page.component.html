@@ -1,20 +1,20 @@
 <!-- src/app/layout/friend-management/friend-list-page/friend-list-page.component.html -->
-<section class="friends-page" aria-labelledby="friends-page-title">
+<section class="friends-page app-page" aria-labelledby="friends-page-title">
   <app-page-header title="Amizades">
     <div page-actions class="friends-page__metrics" aria-label="Resumo de amizades">
-      <div class="friends-page__metric">
+      <div class="friends-page__metric app-card app-card--flat app-card--compact">
         <strong>{{ friendsCount$ | async }}</strong>
         <span>Total</span>
       </div>
 
-      <div class="friends-page__metric friends-page__metric--online">
+      <div class="friends-page__metric friends-page__metric--online app-card app-card--flat app-card--compact">
         <strong>{{ onlineCount$ | async }}</strong>
         <span>Online</span>
       </div>
     </div>
   </app-page-header>
 
-  <section class="friends-controls app-card" aria-label="Filtros da lista de amigos">
+  <section class="friends-controls app-card app-card--flat app-card--compact" aria-label="Filtros da lista de amigos">
     <mat-form-field appearance="outline" class="friends-controls__field">
       <mat-label>Buscar</mat-label>
       <input
