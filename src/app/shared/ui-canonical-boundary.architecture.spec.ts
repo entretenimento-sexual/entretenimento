@@ -1554,6 +1554,20 @@ describe('Canonical UI boundary', () => {
   });
 
 
+  it('mantém a entrada de vídeos do perfil sem CTA duplicado', () => {
+    const profile = source(
+      'src/app/user-profile/user-profile-view/user-profile-view.component.html'
+    );
+    const profileStyles = source(
+      'src/app/user-profile/user-profile-view/user-profile-view.component.css'
+    );
+
+    expect(profile).toContain('profile-media-entry__link');
+    expect(profile).not.toContain('aria-label="Gerenciar meus vídeos"');
+    expect(profile).not.toContain('>\n                      Gerenciar\n                    </a>');
+    expect(profileStyles).toContain('.profile-media-entry__link');
+  });
+
   it('mantém Conexões exclusivas sem CTA de perfil duplicado', () => {
     const feed = source(
       'src/app/subscriber-experiences/exclusive-connections/exclusive-connections-feed.component.html'
