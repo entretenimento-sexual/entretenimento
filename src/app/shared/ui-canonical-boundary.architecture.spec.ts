@@ -1601,6 +1601,9 @@ describe('Canonical UI boundary', () => {
     );
     expect(notificationStyles).not.toContain('.community-activity__header p');
     expect(notificationStyles).not.toContain('.community-activity__fallback p');
+    expect(notifications).not.toContain(
+      '@if (notificationRoute(item) || item.readAt === null)'
+    );
 
     const settings = source(
       'src/app/preferences/pages/notification-settings/notification-settings.component.html'
