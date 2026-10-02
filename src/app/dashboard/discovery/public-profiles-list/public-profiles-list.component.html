@@ -13,7 +13,7 @@
       <p>{{ errorMessage() }}</p>
       <button
         type="button"
-        class="public-profiles__retry"
+        class="public-profiles__retry app-action app-action--ghost"
         (click)="requestRetry()"
       >
         Tentar novamente
@@ -27,7 +27,7 @@
         @if (hasMore()) {
           <button
             type="button"
-            class="public-profiles__load-more"
+            class="public-profiles__load-more app-action app-action--ghost"
             [disabled]="loadingMore()"
             [attr.aria-busy]="loadingMore() ? 'true' : 'false'"
             (click)="requestLoadMore()"
@@ -37,32 +37,32 @@
         }
 
         @if (filteredByPreferences()) {
-          <a class="public-profiles__review" routerLink="/preferencias/editar">
+          <a class="public-profiles__review app-action app-action--ghost" routerLink="/preferencias/editar">
             Revisar preferências
           </a>
         }
       </div>
     </div>
   } @else {
-    <p class="sr-only" role="status" aria-live="polite">
+    <p class="visually-hidden" role="status" aria-live="polite">
       {{ profiles().length === 1 ? '1 perfil disponível' : (profiles().length + ' perfis disponíveis') }}
     </p>
 
     @if (refreshing()) {
       <div class="public-profiles__refreshing" role="status" aria-live="polite">
         <span class="spinner" aria-hidden="true"></span>
-        <span class="sr-only">Atualizando perfis</span>
+        <span class="visually-hidden">Atualizando perfis</span>
       </div>
     }
 
     @if (errorMessage()) {
       <div class="public-profiles__inline-error" role="alert">
         <span>{{ errorMessage() }}</span>
-        <button type="button" (click)="requestRetry()">Tentar novamente</button>
+        <button type="button" class="app-action app-action--ghost" (click)="requestRetry()">Tentar novamente</button>
       </div>
     }
 
-    <div class="public-profiles__grid">
+    <div class="public-profiles__grid app-responsive-grid">
       @for (profile of profiles(); track trackProfile($index, profile)) {
         <app-user-card
           class="public-profiles__item"
@@ -86,7 +86,7 @@
         } @else {
           <button
             type="button"
-            class="public-profiles__load-more"
+            class="public-profiles__load-more app-action app-action--ghost"
             (click)="requestLoadMore()"
           >
             Ver mais
