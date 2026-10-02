@@ -11,24 +11,6 @@
   color: var(--text-color, #111827);
 }
 
-.admin-shell__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  min-width: 0;
-  padding: 0.15rem 0 0.6rem;
-  border-bottom: 1px solid var(--surface-border, rgba(0, 0, 0, 0.12));
-}
-
-.admin-shell h1 {
-  margin: 0;
-  font-size: clamp(1.3rem, 1.18rem + 0.55vw, 1.7rem);
-  font-weight: 900;
-  line-height: 1.05;
-  letter-spacing: -0.025em;
-}
-
 .admin-shell__nav {
   display: flex;
   flex-wrap: wrap;
@@ -37,7 +19,7 @@
 }
 
 .admin-shell__nav a {
-  min-height: 34px;
+  min-height: var(--tap-target, 44px);
   padding: 0 0.7rem;
   display: inline-flex;
   align-items: center;
@@ -65,10 +47,6 @@
 }
 
 @media (max-width: 760px) {
-  .admin-shell__header {
-    align-items: flex-start;
-    flex-direction: column;
-  }
 
   .admin-shell__nav {
     width: 100%;
@@ -90,7 +68,6 @@
   }
 }
 
-:host-context(html.high-contrast) .admin-shell__header,
 :host-context(html.high-contrast) .admin-shell__nav a {
   border-color: currentColor !important;
   background: var(--background-color) !important;
