@@ -2,7 +2,8 @@
   @let vm = viewModel();
 
   <section
-    class="content-access-notice"
+    class="content-access-notice app-card app-card--flat"
+    [class.app-card--compact]="compact()"
     [class.content-access-notice--compact]="compact()"
     role="status"
     aria-live="polite"
@@ -17,7 +18,7 @@
     @if (vm.actionLabel) {
       <button
         type="button"
-        class="content-access-notice__action"
+        class="content-access-notice__action app-action app-action--ghost"
         [disabled]="navigating()"
         (click)="handleAction()"
       >
