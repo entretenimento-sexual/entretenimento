@@ -10,7 +10,7 @@
     @if (canCreatePost()) {
       @if (postCreateState$ | async; as writeState) {
         <form
-          class="community-feed__composer"
+          class="community-feed__composer app-card app-card--flat app-card--compact"
           [class.is-expanded]="composerExpanded() || !!selectedAttachment()"
           [formGroup]="postForm"
           (ngSubmit)="submitPost()"
@@ -39,7 +39,7 @@
                 </div>
               }
               @case ('location') {
-                <div class="community-feed__location-preview" role="status" aria-live="polite">
+                <div class="community-feed__location-preview app-card app-card--flat app-card--compact" role="status" aria-live="polite">
                   <i class="fas fa-location-dot" aria-hidden="true"></i>
                   <span>
                     <strong>Localização atual</strong>
@@ -206,6 +206,7 @@
       <div class="community-feed__new-items" aria-live="polite">
         <button
           type="button"
+          class="app-action app-action--ghost"
           [attr.aria-label]="newPostsLabel() + '. Ir para a publicação mais recente.'"
           (click)="showLatestPosts()"
         >
