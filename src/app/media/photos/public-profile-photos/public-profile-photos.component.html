@@ -3,18 +3,7 @@
 @let items = state?.items || [];
 
 <section class="public-photos-page container-wide" aria-label="Fotos públicas">
-  <app-page-header
-    title="Fotos públicas"
-  >
-    <a
-      page-actions
-      class="app-action app-action--ghost"
-      [routerLink]="['/perfil', ownerUid || '']"
-      aria-label="Voltar ao perfil"
-    >
-      ← Voltar ao perfil
-    </a>
-  </app-page-header>
+  <app-page-header title="Fotos públicas"></app-page-header>
 
   @if (state) {
     @switch (state.status) {
@@ -46,21 +35,6 @@
       }
 
       @case ('ready') {
-        <div class="gallery-strip" aria-label="Recursos da galeria">
-          <span class="gallery-pill">
-            <i class="fas fa-shield-halved" aria-hidden="true"></i>
-            Conteúdo aprovado
-          </span>
-          <span class="gallery-pill">
-            <i class="fas fa-expand" aria-hidden="true"></i>
-            Visualização imersiva
-          </span>
-          <span class="gallery-pill">
-            <i class="fas fa-hand-pointer" aria-hidden="true"></i>
-            Toque ou use o teclado
-          </span>
-        </div>
-
         <div class="photos-grid" role="list" aria-label="Fotos públicas do perfil">
           @for (item of items; track trackByPhotoId($index, item); let i = $index) {
             <div
