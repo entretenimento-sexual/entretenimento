@@ -366,6 +366,38 @@ describe('NotificationsPageComponent', () => {
     expect(timeline?.textContent).not.toContain('Novidade B');
   });
 
+  it('não duplica ação de leitura quando abrir já marca a notificação como lida', () => {
+    const routed = systemNotification();
+    const withoutRoute: IAppNotification = {
+      ...systemNotification(),
+      id: 'notification-without-route',
+      title: 'Aviso sem destino',
+      route: null,
+    };
+
+    configure('ready', 0, [], new Map(), [routed, withoutRoute], 2);
+
+    const fixture = TestBed.createComponent(NotificationsPageComponent);
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const cards = Array.from(
+      fixture.nativeElement.querySelectorAll('.notification-card') as NodeListOf<HTMLElement>
+    );
+
+    const routedCard = cards.find((card) =>
+      card.textContent?.includes('Atualização da plataforma')
+    );
+    const routeLessCard = cards.find((card) =>
+      card.textContent?.includes('Aviso sem destino')
+    );
+
+    expect(routedCard?.textContent).toContain('Abrir');
+    expect(routedCard?.textContent).not.toContain('Marcar como lida');
+    expect(routeLessCard?.textContent).not.toContain('Abrir');
+    expect(routeLessCard?.textContent).toContain('Marcar como lida');
+  });
+
   it('preserva o resumo recente quando a projeção exata não contém a Comunidade', async () => {
     const latestNotification = communityNotification();
     const recentSummary: ICommunityNotificationSummary = {
@@ -423,8 +455,8 @@ describe('NotificationsPageComponent', () => {
 
     expect(section).not.toBeNull();
     expect(total?.textContent?.replace(/\s+/g, ' ').trim()).toBe('6 pendentes');
-    expect(fallback?.textContent?.replace(/\s+/g, ' ').trim()).toContain(
-      'Abrir a lista não altera o estado de leitura das atividades.'
+    expect(fallback?.textContent?.replace(/\s+/g, ' ').trim()).toBe(
+      'Ver minhas Comunidades'
     );
     expect(link?.textContent?.trim()).toBe('Ver minhas Comunidades');
     expect(link?.getAttribute('href')).toBe('/dashboard/comunidades/minhas');
