@@ -1,5 +1,5 @@
 <!-- src/app/shared/components-globais/moderation-report/report-content-dialog/report-content-dialog.component.html -->
-<section class="report-dialog" aria-labelledby="report-dialog-title">
+<section class="report-dialog app-card app-card--media" aria-labelledby="report-dialog-title">
   <header class="report-dialog__header">
     <h2 id="report-dialog-title" mat-dialog-title>
       Denunciar {{ targetLabel() }}
@@ -35,7 +35,7 @@
       </mat-form-field>
 
       @if (selectedReasonHelper; as helper) {
-        <p class="report-dialog__helper" role="status">
+        <p class="report-dialog__helper app-card app-card--flat app-card--compact" role="status">
           {{ helper }}
         </p>
       }
@@ -66,14 +66,13 @@
   </mat-dialog-content>
 
   <mat-dialog-actions align="end" class="report-dialog__actions">
-    <button mat-button type="button" (click)="cancel()" [disabled]="submitting()">
+    <button type="button" class="app-action app-action--ghost" (click)="cancel()" [disabled]="submitting()">
       Cancelar
     </button>
 
     <button
-      mat-flat-button
-      color="warn"
       type="button"
+      class="app-action app-action--danger"
       (click)="submit()"
       [disabled]="form.invalid || submitting()"
       [attr.aria-busy]="submitting() ? 'true' : null"
