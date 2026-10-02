@@ -22,28 +22,11 @@
   box-shadow: var(--box-shadow, 0 12px 28px rgb(0 0 0 / 16%));
 }
 
-.profile-videos__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  min-width: 0;
-  padding: 2px 0;
-  color: var(--text-color, #f5f7fb);
-}
-
-.profile-videos__header h1,
 .profile-videos__upload h2,
 .profile-videos__upload p {
   margin: 0;
 }
 
-.profile-videos__header h1 {
-  color: var(--text-color, #f5f7fb);
-  font-size: clamp(1.35rem, 1.2rem + 0.6vw, 1.8rem);
-  line-height: 1.08;
-  letter-spacing: -0.025em;
-}
 
 .profile-videos__upload {
   display: grid;
