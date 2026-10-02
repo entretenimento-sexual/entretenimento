@@ -1595,7 +1595,19 @@ describe('Canonical UI boundary', () => {
     expect(notifications).not.toContain(
       'Há atividade de Comunidades fora das notificações recentes'
     );
+    expect(notifications).not.toContain('notificação não lida');
+    expect(notifications).not.toContain(
+      'Abrir a lista não altera o estado de leitura das atividades.'
+    );
     expect(notificationStyles).not.toContain('.community-activity__header p');
+    expect(notificationStyles).not.toContain('.community-activity__fallback p');
+
+    const settings = source(
+      'src/app/preferences/pages/notification-settings/notification-settings.component.html'
+    );
+
+    expect(settings).not.toContain('identificador aleatório desta instalação');
+    expect(settings).toContain('Sem impressão digital do dispositivo.');
   });
 
 
