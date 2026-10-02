@@ -171,6 +171,27 @@
   line-height: 1.2;
 }
 
+.notification-card__title-action {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.notification-card__title-action:hover {
+  text-decoration: underline;
+}
+
+.notification-card__title-action:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
 .notification-card time {
   flex: 0 0 auto;
   color: color-mix(in oklab, var(--text-color) 56%, transparent);
