@@ -298,6 +298,37 @@ for (const forbidden of [
   }
 }
 
+const modalMensagemHtml = read(
+  'src/app/shared/components-globais/modal-mensagem/modal-mensagem.component.html'
+);
+for (const required of [
+  'direct-message-dialog app-card app-card--media',
+  'direct-message-close app-action app-action--ghost',
+  'direct-message-recipient app-card app-card--flat app-card--compact',
+]) {
+  if (!modalMensagemHtml.includes(required)) {
+    violations.push(
+      'modal-mensagem.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const modalMensagemCss = read(
+  'src/app/shared/components-globais/modal-mensagem/modal-mensagem.component.css'
+);
+for (const forbidden of [
+  '.direct-message-close:hover:not(:disabled)',
+  'background: var(--modal-background)',
+  'border-radius: 999px',
+  '.direct-message-submit:hover:not(:disabled)',
+]) {
+  if (modalMensagemCss.includes(forbidden)) {
+    violations.push(
+      'modal-mensagem.component.css contains duplicate shared UI chrome ' + forbidden
+    );
+  }
+}
+
 const uploadPhotoHtml = read(
   'src/app/shared/components-globais/upload-photo/upload-photo.component.html'
 );
