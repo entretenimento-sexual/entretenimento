@@ -298,6 +298,45 @@ for (const forbidden of [
   }
 }
 
+const friendRequestsHtml = read(
+  'src/app/layout/friend-management/friend-requests/friend-requests.component.html'
+);
+for (const required of [
+  'friend-requests__tab-count app-chip app-chip--muted',
+  'class="visually-hidden"',
+  'request-card request-card--inbound app-card app-card--flat',
+  'request-card request-card--outbound app-card app-card--flat',
+  'request-card__role app-chip app-chip--muted',
+  'request-action request-action--accept app-action',
+  'request-action request-action--decline app-action app-action--ghost',
+  'request-action request-action--block app-action app-action--ghost app-action--danger',
+]) {
+  if (!friendRequestsHtml.includes(required)) {
+    violations.push(
+      'friend-requests.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const friendRequestsCss = read(
+  'src/app/layout/friend-management/friend-requests/friend-requests.component.css'
+);
+for (const forbidden of [
+  ':host ::ng-deep .mat-mdc-tab .mdc-tab__text-label',
+  ':host ::ng-deep .mat-mdc-tab.mdc-tab--active .mdc-tab__text-label',
+  '.request-action[disabled] {',
+  'box-shadow: 0 5px 16px',
+  'box-shadow: 0 8px 20px',
+  '@media (prefers-reduced-motion: reduce)',
+  '!important',
+]) {
+  if (friendRequestsCss.includes(forbidden)) {
+    violations.push(
+      'friend-requests.component.css contains duplicate shared UI chrome ' + forbidden
+    );
+  }
+}
+
 const communityAdminTimelineHtml = read(
   'src/app/community/admin-timeline/community-admin-timeline.component.html'
 );
