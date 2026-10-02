@@ -5,7 +5,7 @@
   aria-label="Início"
 >
   <div class="principal-feed">
-    <section class="feed-create-bar app-card" aria-label="Criar publicação">
+    <section class="feed-create-bar app-card app-card--flat" aria-label="Criar publicação">
       @if (profileLink$ | async; as profileLink) {
         <a
           class="feed-create-bar__avatar"
@@ -71,7 +71,7 @@
 
     @if (items$ | async; as friends) {
       @if (friends.length) {
-        <section class="connections-feed app-card" aria-label="Conexões">
+        <section class="connections-feed app-card app-card--flat" aria-label="Conexões">
           <div class="connections-strip" role="list">
             @for (
               friend of (expanded() ? friends : friends.slice(0, 7));
@@ -125,7 +125,7 @@
           @if (friends.length > 7) {
             <button
               type="button"
-              class="connections-feed__toggle"
+              class="connections-feed__toggle app-action app-action--ghost"
               [attr.aria-expanded]="expanded() ? 'true' : 'false'"
               (click)="toggleExpand()"
             >
@@ -135,7 +135,7 @@
         </section>
       } @else if (loading$ | async) {
         <section
-          class="connections-feed connections-feed--loading app-card"
+          class="connections-feed connections-feed--loading app-card app-card--flat"
           role="status"
           aria-live="polite"
         >
@@ -147,7 +147,7 @@
     @if (profileChecklist$ | async; as checklist) {
       @if (!checklist.isComplete) {
         <section
-          class="profile-checklist app-card"
+          class="profile-checklist app-card app-card--flat"
           aria-label="Pendências do perfil"
         >
           <div class="profile-checklist__summary">
@@ -158,7 +158,7 @@
             <div class="profile-checklist__actions">
               @if (checklist.firstPending) {
                 <a
-                  class="feed-action feed-action--primary"
+                  class="feed-action app-action app-action--primary"
                   [routerLink]="checklist.firstPending.routerLink"
                 >
                   {{ checklist.firstPending.actionLabel }}
@@ -167,7 +167,7 @@
 
               <button
                 type="button"
-                class="feed-action"
+                class="feed-action app-action app-action--ghost"
                 [attr.aria-expanded]="checklistDetailsOpen() ? 'true' : 'false'"
                 (click)="toggleChecklistDetails()"
               >
@@ -221,17 +221,17 @@
         [attr.aria-busy]="feed.status === 'loading' ? 'true' : null"
       >
         @if (feed.status === 'loading') {
-          <div class="feed-state feed-state--loading app-card" role="status">
+          <div class="feed-state feed-state--loading app-card app-card--flat" role="status">
             <span class="feed-state__pulse" aria-hidden="true"></span>
             <span>Atualizando…</span>
           </div>
         } @else if (feed.status === 'error') {
-          <div class="feed-state app-card" role="status">
+          <div class="feed-state app-card app-card--flat" role="status">
             <span>Não foi possível atualizar agora.</span>
-            <button type="button" (click)="retryFeed()">Tentar novamente</button>
+            <button type="button" class="app-action app-action--ghost" (click)="retryFeed()">Tentar novamente</button>
           </div>
         } @else if (feed.status === 'empty') {
-          <div class="feed-state app-card" role="status">
+          <div class="feed-state app-card app-card--flat" role="status">
             Nada novo agora.
           </div>
         } @else {
@@ -259,7 +259,7 @@
               }
 
               @case ('community-post') {
-                <article class="social-space-card app-card" role="article">
+                <article class="social-space-card app-card app-card--flat app-card--media" role="article">
                   <a
                     class="social-space-card__link"
                     [routerLink]="feedItemRoute(item)"
@@ -309,7 +309,7 @@
               }
 
               @case ('community') {
-                <article class="social-space-card app-card" role="article">
+                <article class="social-space-card app-card app-card--flat app-card--media" role="article">
                   <a
                     class="social-space-card__link"
                     [routerLink]="feedItemRoute(item)"
@@ -366,7 +366,7 @@
               }
 
               @case ('venue') {
-                <article class="social-space-card app-card" role="article">
+                <article class="social-space-card app-card app-card--flat app-card--media" role="article">
                   <a
                     class="social-space-card__link"
                     [routerLink]="feedItemRoute(item)"
