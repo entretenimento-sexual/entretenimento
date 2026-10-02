@@ -10,14 +10,6 @@
     <app-page-header title="Notificações">
       @if (!vm.loading && readState !== 'error') {
         <div page-actions class="notifications-page__actions">
-          @if (vm.unreadCount > 0) {
-            <span
-              class="app-chip app-chip--muted"
-              [attr.aria-label]="vm.unreadCount + (vm.unreadCount === 1 ? ' notificação não lida' : ' notificações não lidas')"
-            >
-              {{ vm.unreadCount }} nova{{ vm.unreadCount === 1 ? '' : 's' }}
-            </span>
-          }
 
           <a class="app-action app-action--ghost" routerLink="/preferencias/notificacoes">
             Preferências
@@ -103,9 +95,7 @@
           </div>
         } @else {
           <div class="community-activity__fallback">
-            <p>
-              Acesse Minhas comunidades para revisar as pendências. Abrir a lista não altera o estado de leitura das atividades.
-            </p>
+
             <a
               class="community-activity__fallback-link app-action app-action--ghost"
               routerLink="/dashboard/comunidades/minhas"
