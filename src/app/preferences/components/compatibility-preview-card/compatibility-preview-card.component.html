@@ -1,5 +1,5 @@
 <!-- src\app\preferences\components\compatibility-preview-card\compatibility-preview-card.component.html -->
- <section class="compatibility-card" aria-label="Prévia de compatibilidade">
+ <section class="compatibility-card app-card app-card--flat" aria-label="Prévia de compatibilidade">
   @if (preview(); as data) {
     <header class="compatibility-header">
       <div>
@@ -11,32 +11,32 @@
     </header>
 
     <div class="compatibility-grid app-responsive-grid" role="list">
-      <article class="compatibility-item" role="listitem">
+      <article class="compatibility-item app-card app-card--flat app-card--compact" role="listitem">
         <span class="compatibility-label">Intenção</span>
         <strong>{{ data.intentScore }}%</strong>
       </article>
 
-      <article class="compatibility-item" role="listitem">
+      <article class="compatibility-item app-card app-card--flat app-card--compact" role="listitem">
         <span class="compatibility-label">Práticas</span>
         <strong>{{ data.practiceScore }}%</strong>
       </article>
 
-      <article class="compatibility-item" role="listitem">
+      <article class="compatibility-item app-card app-card--flat app-card--compact" role="listitem">
         <span class="compatibility-label">Disponibilidade</span>
         <strong>{{ data.availabilityScore }}%</strong>
       </article>
 
-      <article class="compatibility-item" role="listitem">
+      <article class="compatibility-item app-card app-card--flat app-card--compact" role="listitem">
         <span class="compatibility-label">Descoberta</span>
         <strong>{{ data.discoveryModeScore }}%</strong>
       </article>
 
-      <article class="compatibility-item" role="listitem">
+      <article class="compatibility-item app-card app-card--flat app-card--compact" role="listitem">
         <span class="compatibility-label">Geografia</span>
         <strong>{{ data.geographyScore }}%</strong>
       </article>
 
-      <article class="compatibility-item" role="listitem">
+      <article class="compatibility-item app-card app-card--flat app-card--compact" role="listitem">
         <span class="compatibility-label">Prontidão</span>
         <strong>{{ data.readinessScore }}%</strong>
       </article>
@@ -47,7 +47,7 @@
 
       <div class="reasons-list" role="list">
         @for (reason of data.reasons; track reason.key) {
-          <article class="reason-item" role="listitem">
+          <article class="reason-item app-card app-card--flat app-card--compact" role="listitem">
             <div class="reason-header">
               <span>{{ reason.label }}</span>
               <strong>{{ reason.score }}%</strong>
