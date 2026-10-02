@@ -264,6 +264,55 @@ for (const boundary of boundaries) {
 }
 
 
+const preferenceProfileHtml = read(
+  'src/app/preferences/components/preference-profile-form/preference-profile-form.component.html'
+);
+if (!preferenceProfileHtml.includes(
+  'preference-upgrade app-card app-card--flat app-card--compact'
+)) {
+  violations.push(
+    'preference-profile-form.component.html missing canonical upgrade surface'
+  );
+}
+
+const preferenceProfileCss = read(
+  'src/app/preferences/components/preference-profile-form/preference-profile-form.component.css'
+);
+for (const forbidden of [
+  'border-radius: var(--surface-radius-sm',
+  'html.high-contrast .preference-upgrade',
+]) {
+  if (preferenceProfileCss.includes(forbidden)) {
+    violations.push(
+      'preference-profile-form.component.css contains duplicate upgrade chrome ' + forbidden
+    );
+  }
+}
+
+const notificationSettingsHtml = read(
+  'src/app/preferences/pages/notification-settings/notification-settings.component.html'
+);
+if (!notificationSettingsHtml.includes('class="visually-hidden"')) {
+  violations.push(
+    'notification-settings.component.html should use canonical visually-hidden helper'
+  );
+}
+
+const notificationSettingsCss = read(
+  'src/app/preferences/pages/notification-settings/notification-settings.component.css'
+);
+for (const forbidden of [
+  '.sr-only {',
+  ':host-context(html.high-contrast) .push-device-card,',
+  '!important',
+]) {
+  if (notificationSettingsCss.includes(forbidden)) {
+    violations.push(
+      'notification-settings.component.css contains duplicate shared UI chrome ' + forbidden
+    );
+  }
+}
+
 const preferencesEditorCss = read(
   'src/app/preferences/pages/preferences-editor/preferences-editor.component.css'
 );
