@@ -52,7 +52,6 @@
 
   background: var(--surface-color);
   border-right: 1px solid var(--surface-border);
-  box-shadow: 0 0 0 rgba(0, 0, 0, 0);
 
   transition:
     transform 220ms ease,
@@ -85,34 +84,13 @@
   margin-bottom: 0.15rem;
 }
 
-.universal-sidebar__action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
+.universal-sidebar__action.app-action {
+  width: var(--tap-target-sm, 40px);
   min-width: var(--tap-target-sm, 40px);
+  height: var(--tap-target-sm, 40px);
   min-height: var(--tap-target-sm, 40px);
-
-  border: 1px solid var(--surface-border);
-  border-radius: 12px;
-  cursor: pointer;
-
-  background: var(--input-background);
-  color: var(--text-color);
-
-  transition:
-    background-color 160ms ease,
-    transform 160ms ease,
-    border-color 160ms ease;
-}
-
-.universal-sidebar__action:hover,
-.universal-sidebar__action:focus-visible {
-  background: var(--header-hover-bg);
-}
-
-.universal-sidebar__action:active {
-  transform: scale(0.98);
+  padding: 0;
+  flex: 0 0 auto;
 }
 
 /* ==========================================================================
@@ -402,8 +380,7 @@
 @media (prefers-reduced-motion: reduce) {
   .universal-sidebar,
   .universal-sidebar__link,
-  .universal-sidebar__profile-link,
-  .universal-sidebar__action {
+  .universal-sidebar__profile-link {
     transition: none !important;
   }
 }
@@ -416,7 +393,6 @@ html.high-contrast .universal-sidebar {
   box-shadow: none;
 }
 
-html.high-contrast .universal-sidebar__action,
 html.high-contrast .universal-sidebar__link,
 html.high-contrast .universal-sidebar__profile-link {
   border: 1px solid transparent;
@@ -425,9 +401,7 @@ html.high-contrast .universal-sidebar__profile-link {
 html.high-contrast .universal-sidebar__link:hover,
 html.high-contrast .universal-sidebar__link:focus-visible,
 html.high-contrast .universal-sidebar__profile-link:hover,
-html.high-contrast .universal-sidebar__profile-link:focus-visible,
-html.high-contrast .universal-sidebar__action:hover,
-html.high-contrast .universal-sidebar__action:focus-visible {
+html.high-contrast .universal-sidebar__profile-link:focus-visible {
   border-color: currentColor;
   background: transparent !important;
 }
