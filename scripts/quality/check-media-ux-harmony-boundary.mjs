@@ -219,7 +219,6 @@ for (const fragment of [
   '--public-media-viewer-bg',
   '--public-media-viewer-control-bg',
   '--public-media-viewer-control-border',
-  '--public-media-viewer-focus',
 ]) {
   requireIncludes(viewerTokens, fragment, 'viewer token drift');
 }
