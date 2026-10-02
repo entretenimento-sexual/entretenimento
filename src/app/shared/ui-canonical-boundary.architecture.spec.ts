@@ -1554,6 +1554,21 @@ describe('Canonical UI boundary', () => {
   });
 
 
+  it('mantém Conexões exclusivas sem CTA de perfil duplicado', () => {
+    const feed = source(
+      'src/app/subscriber-experiences/exclusive-connections/exclusive-connections-feed.component.html'
+    );
+    const styles = source(
+      'src/app/subscriber-experiences/exclusive-connections/exclusive-connections-feed.component.css'
+    );
+
+    expect(feed).not.toContain('exclusive-connections-feed__profile-action');
+    expect(styles).not.toContain('.exclusive-connections-feed__profile-action');
+    expect(feed).toContain(
+      "[routerLink]=\"['/outro-perfil', item.candidateUid]\""
+    );
+  });
+
   it('mantém superfícies auxiliares sem subtítulos que apenas narram os controles', () => {
     const requests = source(
       'src/app/layout/friend-management/friend-requests/friend-requests.component.html'
