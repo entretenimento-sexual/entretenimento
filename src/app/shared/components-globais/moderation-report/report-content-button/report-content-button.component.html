@@ -24,10 +24,8 @@
   </button>
 } @else {
   <button
-    mat-stroked-button
     type="button"
-    color="warn"
-    class="report-button report-button--default"
+    class="report-button report-button--default app-action app-action--danger"
     [attr.aria-label]="submitting() ? 'Enviando denúncia' : ariaLabel"
     [attr.aria-busy]="submitting() ? 'true' : null"
     [disabled]="disabled || submitting()"
