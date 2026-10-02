@@ -298,6 +298,47 @@ for (const forbidden of [
   }
 }
 
+const communityInvitesPageHtml = read(
+  'src/app/community/invites/community-invites-page.component.html'
+);
+for (const required of [
+  'community-invites app-page',
+  'community-invites__hub-header app-page-header',
+  'class="app-page-title"',
+  'community-invites__section-header app-section-heading',
+  'class="app-section-title"',
+  'class="app-section-meta"',
+  'community-invites__state app-card app-card--flat app-card--compact',
+  'community-invites__empty app-card app-card--flat app-card--compact',
+  'community-invite-card app-card app-card--flat',
+  'community-invite-card__decline app-action app-action--ghost',
+  'community-invite-card__accept app-action app-action--primary',
+]) {
+  if (!communityInvitesPageHtml.includes(required)) {
+    violations.push(
+      'community-invites-page.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const communityInvitesPageCss = read(
+  'src/app/community/invites/community-invites-page.component.css'
+);
+for (const forbidden of [
+  '.community-invites__state button,',
+  '.community-invite-card__actions button {',
+  '.community-invite-card__decline {',
+  '.community-invite-card__accept {',
+  '@media (prefers-reduced-motion: reduce)',
+  '!important',
+]) {
+  if (communityInvitesPageCss.includes(forbidden)) {
+    violations.push(
+      'community-invites-page.component.css contains duplicate shared UI chrome ' + forbidden
+    );
+  }
+}
+
 const venueCreateHtml = read(
   'src/app/community/venue-create/venue-community-create-page.component.html'
 );
