@@ -320,6 +320,7 @@ for (const forbidden of [
   '.community-preview__management-actions button {',
   '.community-preview__rail-card > button,',
   '.community-preview__membership-action {\n  border: 0;',
+  ':host-context(.high-contrast) .community-preview__rail-card,',
 ]) {
   if (communityPreviewCss.includes(forbidden)) {
     violations.push(
