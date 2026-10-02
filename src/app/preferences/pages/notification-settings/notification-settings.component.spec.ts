@@ -135,7 +135,7 @@ describe('NotificationSettingsComponent', () => {
     ) as HTMLButtonElement | null;
 
     expect(card?.textContent).toContain('Notificações neste navegador');
-    expect(card?.textContent).toContain('identificador aleatório');
+    expect(card?.textContent).toContain('Sem impressão digital do dispositivo.');
     expect(button?.textContent).toContain('Ativar neste dispositivo');
 
     button?.click();
