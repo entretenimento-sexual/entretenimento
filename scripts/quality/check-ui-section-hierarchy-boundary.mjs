@@ -298,11 +298,39 @@ for (const forbidden of [
   }
 }
 
+const communityFeedMainCss = read(
+  'src/app/community/feed/community-feed.component.css'
+);
+for (const forbidden of [
+  '.community-feed__sr-only {',
+  '.community-feed__state button,',
+  '.community-feed__more button {',
+  '.community-post__menu-action:hover:not(:disabled)',
+  '.community-post__confirmation-actions button {',
+  'box-shadow: 0 0.75rem 2rem',
+  ':host-context(.high-contrast) .community-post__menu-panel,',
+  ':host-context(.high-contrast) .community-post__confirmation,',
+]) {
+  if (communityFeedMainCss.includes(forbidden)) {
+    violations.push(
+      'community-feed.component.css contains duplicate shared interaction chrome ' + forbidden
+    );
+  }
+}
+
 const communityFeedHtml = read(
   'src/app/community/feed/community-feed.component.html'
 );
 for (const required of [
   'community-feed__composer app-card app-card--flat app-card--compact',
+  'class="visually-hidden"',
+  'community-feed__composer-tool app-action app-action--ghost',
+  'community-feed__send app-action app-action--primary',
+  'community-post__menu-panel app-card app-card--flat app-card--media',
+  'community-post__menu-action app-action app-action--ghost',
+  'community-post__confirmation app-card app-card--flat app-card--compact',
+  'class="app-control"',
+  'community-post__confirmation-actions app-form-actions',
   'community-feed__location-preview app-card app-card--flat app-card--compact',
   'class="app-action app-action--ghost"',
 ]) {
