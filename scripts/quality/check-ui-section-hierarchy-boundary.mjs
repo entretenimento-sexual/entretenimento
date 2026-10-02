@@ -2032,6 +2032,33 @@ for (const forbidden of [
   }
 }
 
+const chatMessageHtml = read(
+  'src/app/chat-module/chat-message/chat-message.component.html'
+);
+if (!chatMessageHtml.includes(
+  'thread-message__status-text visually-hidden'
+)) {
+  violations.push(
+    'chat-message.component.html should use canonical visually-hidden helper for delivery status text'
+  );
+}
+const chatMessageCss = read(
+  'src/app/chat-module/chat-message/chat-message.component.css'
+);
+for (const forbidden of [
+  '.thread-message__status-text {',
+  'color: var(--danger-color, #ff5c7a) !important',
+  'background: var(--background-color) !important',
+  'border: 2px solid currentColor !important',
+  'box-shadow: none !important',
+]) {
+  if (chatMessageCss.includes(forbidden)) {
+    violations.push(
+      'chat-message.component.css contains duplicate accessibility chrome ' + forbidden
+    );
+  }
+}
+
 const chatModuleLayoutCss = read(
   'src/app/chat-module/chat-module-layout/chat-module-layout.component.css'
 );
