@@ -333,6 +333,8 @@ for (const forbidden of [
   ':host-context(.high-contrast) .community-create__section,',
   ':host-context(.high-contrast) .community-create__gate,',
   ':host-context(.high-contrast) .community-create__preview,',
+  '!important',
+  '.community-create__tag,\n  border-width',
 ]) {
   if (communityCreateCss.includes(forbidden)) {
     violations.push(
