@@ -1,10 +1,9 @@
 @if (state$ | async; as state) {
-  <section class="community-admin-timeline" aria-labelledby="community-admin-timeline-title">
-    <header class="community-admin-timeline__header">
-      <div>
-        <span>Auditoria consumível</span>
-        <h3 id="community-admin-timeline-title">Histórico administrativo</h3>
-        <p>
+  <section class="community-admin-timeline app-card app-card--flat" aria-labelledby="community-admin-timeline-title">
+    <header class="community-admin-timeline__header app-section-header">
+      <div class="app-section-heading">
+        <h3 id="community-admin-timeline-title" class="app-section-title">Histórico administrativo</h3>
+        <p class="app-section-meta">
           Ações relevantes da gestão. Dados internos de auditoria e evidências não
           são exibidos aqui.
         </p>
@@ -12,6 +11,7 @@
 
       <button
         type="button"
+        class="app-action app-action--ghost"
         [disabled]="state.status === 'loading' || state.status === 'loading-more'"
         aria-label="Atualizar histórico administrativo"
         (click)="refresh()"
@@ -24,18 +24,18 @@
     </header>
 
     @if (state.status === 'loading') {
-      <div class="community-admin-timeline__state" role="status">
+      <div class="community-admin-timeline__state app-card app-card--flat app-card--compact" role="status">
         <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
         <span>Carregando histórico...</span>
       </div>
     } @else if (state.status === 'error') {
-      <div class="community-admin-timeline__state" role="alert">
+      <div class="community-admin-timeline__state app-card app-card--flat app-card--compact" role="alert">
         <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
         <span>Histórico temporariamente indisponível.</span>
-        <button type="button" (click)="refresh()">Tentar novamente</button>
+        <button type="button" class="app-action app-action--ghost" (click)="refresh()">Tentar novamente</button>
       </div>
     } @else if (state.items.length === 0) {
-      <div class="community-admin-timeline__state" role="status">
+      <div class="community-admin-timeline__state app-card app-card--flat app-card--compact" role="status">
         <i class="fas fa-clock-rotate-left" aria-hidden="true"></i>
         <span>Ainda não há ações administrativas registradas nesta linha do tempo.</span>
       </div>
@@ -63,6 +63,7 @@
         <div class="community-admin-timeline__footer">
           <button
             type="button"
+            class="app-action app-action--ghost"
             [disabled]="state.status === 'loading-more'"
             (click)="loadMore()"
           >
