@@ -298,6 +298,46 @@ for (const forbidden of [
   }
 }
 
+const feedPublicationComposerHtml = read(
+  'src/app/explore/components/feed-publication-composer/feed-publication-composer.component.html'
+);
+for (const required of [
+  'publication-composer app-card app-card--flat app-card--compact',
+  'publication-composer__header app-section-header',
+  'class="app-section-title"',
+  'publication-composer__close app-action app-action--ghost',
+  'publication-composer__caption app-control',
+  'publication-composer__choose app-action app-action--ghost',
+  'publication-composer__actions app-form-actions',
+  'publication-composer__cancel app-action app-action--ghost',
+  'publication-composer__publish app-action app-action--primary',
+]) {
+  if (!feedPublicationComposerHtml.includes(required)) {
+    violations.push(
+      'feed-publication-composer.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const feedPublicationComposerCss = read(
+  'src/app/explore/components/feed-publication-composer/feed-publication-composer.component.css'
+);
+for (const forbidden of [
+  '.publication-composer__close,',
+  '.publication-composer__cancel,',
+  '.publication-composer__publish {',
+  '.publication-composer button:disabled',
+  '.publication-composer button:focus-visible',
+  ':host-context(html.high-contrast)',
+  '!important',
+]) {
+  if (feedPublicationComposerCss.includes(forbidden)) {
+    violations.push(
+      'feed-publication-composer.component.css contains duplicate shared UI chrome ' + forbidden
+    );
+  }
+}
+
 const exploreCommunityContentCardHtml = read(
   'src/app/explore/components/explore-community-content-card/explore-community-content-card.component.html'
 );
