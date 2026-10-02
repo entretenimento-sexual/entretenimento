@@ -86,7 +86,7 @@
 
 /* atalho visual (Ctrl/⌘) */
 .shortcut-hint {
-  color: color-mix(in oklab, var(--text-color) 62%, transparent) !important;
+  color: color-mix(in oklab, var(--text-color) 62%, transparent);
   font-size: 0.76rem;
   font-weight: 700;
 }
