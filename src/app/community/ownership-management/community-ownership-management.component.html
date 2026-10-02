@@ -2,17 +2,17 @@
 @if (state$ | async; as state) {
   @if (action$ | async; as action) {
     <section
-      class="community-ownership-management"
+      class="community-ownership-management app-card app-card--flat"
       aria-labelledby="community-ownership-management-title"
     >
-      <header class="community-ownership-management__header">
-        <div>
-          <h2 id="community-ownership-management-title">Propriedade e encerramento</h2>
+      <header class="community-ownership-management__header app-section-header">
+        <div class="app-section-heading">
+          <h2 id="community-ownership-management-title" class="app-section-title">Propriedade e encerramento</h2>
         </div>
 
         <button
           type="button"
-          class="community-ownership-management__refresh"
+          class="community-ownership-management__refresh app-action app-action--ghost"
           [appActionState]="state.status === 'loading'"
           [actionDisabled]="action.status === 'loading' || state.loadingMore"
           aria-label="Atualizar membros elegíveis à transferência"
@@ -25,19 +25,19 @@
         </button>
       </header>
 
-      <p class="community-ownership-management__intro">
+      <p class="community-ownership-management__intro app-section-meta">
         Transfira a propriedade antes de sair ou arquive a Comunidade para encerrar
         as interações sem apagar o histórico.
       </p>
 
       <section
-        class="community-ownership-management__transfer"
+        class="community-ownership-management__transfer app-card app-card--flat app-card--compact"
         aria-labelledby="community-ownership-transfer-title"
       >
-        <div class="community-ownership-management__section-heading">
-          <div>
-            <h3 id="community-ownership-transfer-title">Transferir propriedade</h3>
-            <p>Somente membros ativos e com conta elegível aparecem nesta lista.</p>
+        <div class="community-ownership-management__section-heading app-section-header">
+          <div class="app-section-heading">
+            <h3 id="community-ownership-transfer-title" class="app-section-title">Transferir propriedade</h3>
+            <p class="app-section-meta">Somente membros ativos e com conta elegível aparecem nesta lista.</p>
           </div>
         </div>
 
@@ -47,6 +47,7 @@
             <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
             <input
               type="search"
+              class="app-control"
               autocomplete="off"
               maxlength="40"
               placeholder="Buscar membro elegível"
@@ -57,6 +58,7 @@
             @if (searchTerm()) {
               <button
                 type="button"
+                class="app-action app-action--ghost"
                 aria-label="Limpar busca de sucessor"
                 [disabled]="action.status === 'loading'"
                 (click)="clearSearch()"
@@ -69,6 +71,7 @@
           <label class="community-ownership-management__role-filter">
             <span>Priorizar</span>
             <select
+              class="app-control"
               [value]="selectedRoleFilter()"
               [disabled]="action.status === 'loading'"
               (change)="changeRoleFilter($event)"
@@ -114,7 +117,7 @@
             @if (state.items.length > 0) {
               <ul class="community-ownership-management__list">
                 @for (candidate of state.items; track candidate.uid) {
-                  <li>
+                  <li class="app-card app-card--flat app-card--compact">
                     <span class="community-ownership-management__avatar" aria-hidden="true">
                       @if (candidate.avatarUrl) {
                         <img [src]="candidate.avatarUrl" alt="" />
@@ -130,7 +133,7 @@
 
                     <button
                       type="button"
-                      class="community-ownership-management__transfer-action"
+                      class="community-ownership-management__transfer-action app-action app-action--primary"
                       [appActionState]="
                         action.status === 'loading'
                         && action.kind === 'transfer'
@@ -173,7 +176,7 @@
             @if (state.nextCursor) {
               <button
                 type="button"
-                class="community-ownership-management__transfer-action"
+                class="community-ownership-management__transfer-action app-action app-action--primary"
                 [appActionState]="state.loadingMore"
                 [actionDisabled]="action.status === 'loading' || state.loadingMore"
                 aria-label="Carregar mais membros elegíveis à transferência"
@@ -191,7 +194,7 @@
       </section>
 
       <section
-        class="community-ownership-management__danger-zone"
+        class="community-ownership-management__danger-zone app-card app-card--flat app-card--compact"
         aria-labelledby="community-ownership-archive-title"
       >
         <div>
@@ -204,6 +207,7 @@
 
         <button
           type="button"
+          class="app-action app-action--danger"
           [appActionState]="action.status === 'loading' && action.kind === 'archive'"
           [actionDisabled]="action.status === 'loading' || state.loadingMore"
           (click)="requestArchive()"
