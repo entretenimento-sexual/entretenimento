@@ -151,31 +151,29 @@
 
               <p>{{ item.body }}</p>
 
-              @if (notificationRoute(item) || item.readAt === null) {
+              @if (notificationRoute(item)) {
                 <div class="notification-card__actions">
-                  @if (notificationRoute(item)) {
-                    <button
-                      type="button"
-                      class="notification-card__link notification-card__link--button app-action app-action--ghost"
-                      (click)="openNotification(item)"
-                      [disabled]="isBusy(item.id)"
-                      [attr.aria-busy]="isBusy(item.id)"
-                    >
-                      {{ isBusy(item.id) ? 'Abrindo...' : 'Abrir' }}
-                    </button>
-                  }
-
-                  @if (item.readAt === null) {
-                    <button
-                      type="button"
-                      class="notification-card__link notification-card__link--button app-action app-action--ghost"
-                      (click)="markAsRead(item)"
-                      [disabled]="isBusy(item.id)"
-                      [attr.aria-busy]="isBusy(item.id)"
-                    >
-                      {{ isBusy(item.id) ? 'Marcando...' : 'Marcar como lida' }}
-                    </button>
-                  }
+                  <button
+                    type="button"
+                    class="notification-card__link notification-card__link--button app-action app-action--ghost"
+                    (click)="openNotification(item)"
+                    [disabled]="isBusy(item.id)"
+                    [attr.aria-busy]="isBusy(item.id)"
+                  >
+                    {{ isBusy(item.id) ? 'Abrindo...' : 'Abrir' }}
+                  </button>
+                </div>
+              } @else if (item.readAt === null) {
+                <div class="notification-card__actions">
+                  <button
+                    type="button"
+                    class="notification-card__link notification-card__link--button app-action app-action--ghost"
+                    (click)="markAsRead(item)"
+                    [disabled]="isBusy(item.id)"
+                    [attr.aria-busy]="isBusy(item.id)"
+                  >
+                    {{ isBusy(item.id) ? 'Marcando...' : 'Marcar como lida' }}
+                  </button>
                 </div>
               }
             </div>
