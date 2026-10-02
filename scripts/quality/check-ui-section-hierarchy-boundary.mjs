@@ -293,6 +293,71 @@ for (const forbidden of [
   }
 }
 
+const compatibilityPreviewHtml = read(
+  'src/app/preferences/components/compatibility-preview-card/compatibility-preview-card.component.html'
+);
+for (const required of [
+  'compatibility-card app-card app-card--flat',
+  'compatibility-item app-card app-card--flat app-card--compact',
+  'reason-item app-card app-card--flat app-card--compact',
+  'compatibility-grid app-responsive-grid',
+]) {
+  if (!compatibilityPreviewHtml.includes(required)) {
+    violations.push(
+      'compatibility-preview-card.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const compatibilityPreviewCss = read(
+  'src/app/preferences/components/compatibility-preview-card/compatibility-preview-card.component.css'
+);
+for (const forbidden of [
+  'border: 1px solid var(--surface-border',
+  'border-radius: 1rem',
+  'background: var(--surface-color',
+  'background: rgba(255, 255, 255, 0.03)',
+]) {
+  if (compatibilityPreviewCss.includes(forbidden)) {
+    violations.push(
+      'compatibility-preview-card.component.css contains duplicate card chrome ' + forbidden
+    );
+  }
+}
+
+const matchProfilePreviewHtml = read(
+  'src/app/preferences/components/match-profile-preview-card/match-profile-preview-card.component.html'
+);
+for (const required of [
+  'match-profile-card app-card app-card--flat',
+  'card-badge app-chip app-chip--muted',
+  'card-item app-card app-card--flat app-card--compact',
+  'card-grid app-responsive-grid',
+]) {
+  if (!matchProfilePreviewHtml.includes(required)) {
+    violations.push(
+      'match-profile-preview-card.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const matchProfilePreviewCss = read(
+  'src/app/preferences/components/match-profile-preview-card/match-profile-preview-card.component.css'
+);
+for (const forbidden of [
+  'border: 1px solid var(--surface-border',
+  'border-radius: 1rem',
+  'border-radius: 999px',
+  'background: var(--surface-color',
+  'background: rgba(255, 255, 255, 0.03)',
+]) {
+  if (matchProfilePreviewCss.includes(forbidden)) {
+    violations.push(
+      'match-profile-preview-card.component.css contains duplicate card/chip chrome ' + forbidden
+    );
+  }
+}
+
 const publicUserPreviewTrigger = read(
   'src/app/core/components/public-user-preview-popover/public-user-preview-trigger.directive.ts'
 );
