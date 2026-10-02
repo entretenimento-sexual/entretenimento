@@ -1554,6 +1554,26 @@ describe('Canonical UI boundary', () => {
   });
 
 
+  it('mantém Triagem de denúncias sem resumo duplicado no hero', () => {
+    const reports = source(
+      'src/app/admin-dashboard/moderation-reports/moderation-reports.component.html'
+    );
+    const reportStyles = source(
+      'src/app/admin-dashboard/moderation-reports/moderation-reports.component.css'
+    );
+
+    expect(reports).not.toContain('moderation-reports__stats');
+    expect(reports).not.toContain(
+      'Revise denúncias recebidas, acompanhe o status e registre a decisão inicial da moderação.'
+    );
+    expect(reportStyles).not.toContain('.moderation-reports__stats');
+    expect(reportStyles).not.toContain('.moderation-reports__hero p');
+
+    expect(reports).toContain('moderation-reports__filters');
+    expect(reports).toContain('moderation-queue-overview');
+    expect(reports).toContain('moderation-reports__admin-notice');
+  });
+
   it('mantém Admin sem descrições e status operacionais duplicados', () => {
     const overview = source(
       'src/app/admin-dashboard/operational-overview/operational-overview.component.html'
