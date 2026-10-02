@@ -1,6 +1,6 @@
 <!-- src\app\shared\components-globais\modal-mensagem\modal-mensagem.component.html -->
 <section
-  class="direct-message-dialog"
+  class="direct-message-dialog app-card app-card--media"
   role="dialog"
   aria-modal="true"
   aria-labelledby="direct-message-title"
@@ -15,7 +15,7 @@
 
     <button
       type="button"
-      class="direct-message-close"
+      class="direct-message-close app-action app-action--ghost"
       (click)="fecharModal()"
       [disabled]="isSending()"
       aria-label="Fechar janela de mensagem"
@@ -24,7 +24,7 @@
     </button>
   </header>
 
-  <div class="direct-message-recipient">
+  <div class="direct-message-recipient app-card app-card--flat app-card--compact">
     <img
       [src]="data.profile.photoURL || 'assets/imagem-padrao.webp'"
       class="profile-photo-modal"
