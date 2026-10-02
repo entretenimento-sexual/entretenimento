@@ -293,6 +293,41 @@ for (const forbidden of [
   }
 }
 
+const communityPreviewHtml = read(
+  'src/app/community/preview/community-preview-page.component.html'
+);
+for (const required of [
+  'community-preview__content app-card app-card--flat app-card--media',
+  'community-preview__membership-action app-action app-action--primary',
+  'community-preview__membership-leave-action app-action app-action--ghost',
+  'community-preview__lifecycle app-card app-card--flat app-card--compact',
+  'community-preview__rail-card app-card app-card--flat app-card--compact',
+  'class="app-action app-action--ghost"\n                    id="community-tab-requests"',
+]) {
+  if (!communityPreviewHtml.includes(required)) {
+    violations.push(
+      'community-preview-page.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const communityPreviewCss = read(
+  'src/app/community/preview/community-preview-page.component.css'
+);
+for (const forbidden of [
+  'box-shadow: 0 0.2rem 0.7rem',
+  'border-radius: var(--radius-lg',
+  '.community-preview__management-actions button {',
+  '.community-preview__rail-card > button,',
+  '.community-preview__membership-action {\n  border: 0;',
+]) {
+  if (communityPreviewCss.includes(forbidden)) {
+    violations.push(
+      'community-preview-page.component.css contains duplicate local UI chrome ' + forbidden
+    );
+  }
+}
+
 const communityDiscoveryHtml = read(
   'src/app/community/discovery/community-discovery-page.component.html'
 );
