@@ -39,17 +39,32 @@
     10px
     max(14px, env(safe-area-inset-left, 0px));
   border-block-end: 1px solid currentColor;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 
 .network-notice--offline {
-  color: #713f12;
-  background: #fef3c7;
+  color: color-mix(
+    in oklab,
+    var(--snackbar-warning, #f57c00) 72%,
+    var(--text-color) 28%
+  );
+  background: color-mix(
+    in oklab,
+    var(--snackbar-warning, #f57c00) 14%,
+    var(--surface-color) 86%
+  );
 }
 
 .network-notice--online {
-  color: #14532d;
-  background: #dcfce7;
+  color: color-mix(
+    in oklab,
+    var(--success-color, #28a745) 72%,
+    var(--text-color) 28%
+  );
+  background: color-mix(
+    in oklab,
+    var(--success-color, #28a745) 14%,
+    var(--surface-color) 86%
+  );
 }
 
 .network-notice__icon {
