@@ -122,3 +122,18 @@
   padding-block: clamp(1rem, 2.2vw, 1.25rem);
 }
 
+.profile-media-entry__link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.profile-media-entry__link:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.profile-media-entry__link:focus-visible {
+  outline: var(--focus-ring, 2px solid var(--primary-color));
+  outline-offset: var(--focus-offset, 2px);
+}
+
