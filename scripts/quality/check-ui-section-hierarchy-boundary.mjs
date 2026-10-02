@@ -298,6 +298,47 @@ for (const forbidden of [
   }
 }
 
+const communityInviteManagementHtml = read(
+  'src/app/community/invite-management/community-invite-management.component.html'
+);
+for (const required of [
+  'community-invite-management app-card app-card--flat',
+  'community-invite-management__header app-section-header',
+  'class="app-section-title"',
+  'class="app-control"',
+  'class="app-action app-action--primary"',
+  'community-invite-candidate app-card app-card--flat app-card--compact',
+  'class="app-chip app-chip--muted"',
+  'class="app-action app-action--ghost app-action--danger"',
+]) {
+  if (!communityInviteManagementHtml.includes(required)) {
+    violations.push(
+      'community-invite-management.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+if (communityInviteManagementHtml.includes('<span>Participação</span>')) {
+  violations.push(
+    'community-invite-management.component.html reintroduced redundant eyebrow Participação'
+  );
+}
+
+const communityInviteManagementCss = read(
+  'src/app/community/invite-management/community-invite-management.component.css'
+);
+for (const forbidden of [
+  '.community-invite-management button {',
+  '.community-invite-management button:disabled',
+  '.community-invite-management input:focus-visible,',
+  ':host-context(.high-contrast) .community-invite-candidate,',
+]) {
+  if (communityInviteManagementCss.includes(forbidden)) {
+    violations.push(
+      'community-invite-management.component.css contains duplicate shared UI chrome ' + forbidden
+    );
+  }
+}
+
 const communityMembersPageHtml = read(
   'src/app/community/members/community-members-page.component.html'
 );
