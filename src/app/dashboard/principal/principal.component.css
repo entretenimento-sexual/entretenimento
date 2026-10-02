@@ -18,26 +18,15 @@
 .principal-page {
   width: 100%;
   min-width: 0;
-  padding-block: clamp(8px, 1.4vw, 16px) 34px;
+  padding-block: var(--space-2, 8px) var(--space-5, 32px);
 }
 
 .principal-feed {
   display: grid;
-  gap: 12px;
+  gap: var(--space-3, 12px);
   width: min(100%, 720px);
   min-width: 0;
   margin-inline: auto;
-}
-
-.feed-create-bar,
-.profile-checklist,
-.connections-feed,
-.social-space-card,
-.feed-state {
-  border: 1px solid var(--surface-border, rgb(127 127 127 / 18%));
-  background: var(--surface-color, #fff);
-  color: var(--text-color, #17191c);
-  box-shadow: 0 6px 18px rgb(0 0 0 / 6%);
 }
 
 /* Publicação rápida --------------------------------------------------------- */
@@ -47,8 +36,7 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
-  padding: 11px 13px;
-  border-radius: 17px;
+  padding: var(--space-3, 12px);
 }
 
 .feed-create-bar__avatar {
@@ -98,8 +86,8 @@
 .feed-create-bar__actions a {
   display: grid;
   place-items: center;
-  width: 42px;
-  height: 42px;
+  width: var(--tap-target, 44px);
+  height: var(--tap-target, 44px);
   border-radius: 50%;
   color: var(--primary-color, #ff6262);
   font-size: 1.05rem;
@@ -121,9 +109,6 @@
 
 .feed-create-bar__actions a:focus-visible,
 .feed-create-bar__prompt:focus-visible,
-.feed-action:focus-visible,
-.connections-feed__toggle:focus-visible,
-.feed-state button:focus-visible,
 .social-space-card__link:focus-visible {
   outline: 2px solid var(--primary-color, #ff6262);
   outline-offset: 2px;
@@ -146,10 +131,9 @@
 
 .connections-feed {
   display: grid;
-  gap: 9px;
+  gap: var(--space-2, 8px);
   min-width: 0;
-  padding: 12px 12px 10px;
-  border-radius: 17px;
+  padding: var(--space-3, 12px);
 }
 
 .connections-strip {
@@ -227,16 +211,7 @@
 
 .connections-feed__toggle {
   justify-self: center;
-  min-height: 34px;
-  padding-inline: 14px;
-  border: 0;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--surface-color, #fff) 90%, var(--text-color, #17191c) 10%);
-  color: inherit;
-  font: inherit;
-  font-size: 0.76rem;
-  font-weight: 820;
-  cursor: pointer;
+  min-height: var(--tap-target, 44px);
 }
 
 .connections-feed--loading {
@@ -249,9 +224,8 @@
 
 .profile-checklist {
   display: grid;
-  gap: 10px;
-  padding: 13px 14px;
-  border-radius: 16px;
+  gap: var(--space-3, 12px);
+  padding: var(--space-3, 12px);
 }
 
 .profile-checklist__summary {
@@ -273,22 +247,7 @@
 }
 
 .feed-action {
-  min-height: 34px;
-  padding-inline: 11px;
-  border: 1px solid var(--surface-border, rgb(127 127 127 / 18%));
-  border-radius: 999px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  font-size: 0.75rem;
-  font-weight: 810;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.feed-action--primary {
-  border-color: color-mix(in srgb, var(--primary-color, #ff6262) 46%, transparent);
-  background: color-mix(in srgb, var(--primary-color, #ff6262) 11%, transparent);
+  min-height: var(--tap-target, 44px);
 }
 
 .profile-checklist__bar {
@@ -356,7 +315,6 @@
 
 .social-space-card {
   overflow: hidden;
-  border-radius: 17px;
   content-visibility: auto;
   contain-intrinsic-size: 360px;
 }
@@ -450,24 +408,10 @@
   justify-content: center;
   gap: 10px;
   min-height: 88px;
-  padding: 14px;
-  border-radius: 16px;
+  padding: var(--space-3, 14px);
   color: color-mix(in srgb, var(--text-color, #17191c) 68%, transparent);
   font-size: 0.86rem;
   text-align: center;
-}
-
-.feed-state button {
-  min-height: 36px;
-  padding-inline: 12px;
-  border: 1px solid color-mix(in srgb, var(--primary-color, #ff6262) 46%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--primary-color, #ff6262) 10%, transparent);
-  color: inherit;
-  font: inherit;
-  font-size: 0.78rem;
-  font-weight: 810;
-  cursor: pointer;
 }
 
 .feed-state__pulse {
@@ -495,14 +439,6 @@
     gap: 9px;
   }
 
-  .feed-create-bar,
-  .profile-checklist,
-  .connections-feed,
-  .social-space-card,
-  .feed-state {
-    border-radius: 14px;
-    box-shadow: none;
-  }
 }
 
 @media (max-width: 520px) {
@@ -520,8 +456,9 @@
 
   .feed-create-bar__actions a {
     width: auto;
-    height: 40px;
-    border-radius: 11px;
+    min-height: var(--tap-target, 44px);
+    height: var(--tap-target, 44px);
+    border-radius: var(--control-radius, 12px);
     background: color-mix(in srgb, var(--surface-color, #fff) 90%, var(--text-color, #17191c) 10%);
   }
 
@@ -574,11 +511,6 @@
   }
 }
 
-html.high-contrast .feed-create-bar,
-html.high-contrast .profile-checklist,
-html.high-contrast .connections-feed,
-html.high-contrast .social-space-card,
-html.high-contrast .feed-state,
 html.high-contrast .feed-create-bar__prompt,
 html.high-contrast .feed-create-bar__actions a {
   border-color: currentColor !important;
