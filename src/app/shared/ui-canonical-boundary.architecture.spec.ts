@@ -1552,6 +1552,27 @@ describe('Canonical UI boundary', () => {
   });
 
 
+  it('mantém Checkout e Comunidades sem contexto repetido', () => {
+    const checkout = source(
+      'src/app/subscriptions/checkout/checkout.component.html'
+    );
+    const community = source(
+      'src/app/community/discovery/community-discovery-page.component.html'
+    );
+    const communitySource = source(
+      'src/app/community/discovery/community-discovery-page.component.ts'
+    );
+
+    expect(checkout).not.toContain('<strong>Plano:</strong> {{ plan.title }}');
+    expect(community).toContain('Novidades importantes aparecem primeiro.');
+    expect(community).not.toContain(
+      'Silenciar alertas reduz notificações push'
+    );
+    expect(communitySource).not.toContain(
+      "'Comunidades das quais você participa ou administra.'"
+    );
+  });
+
   it('mantém Planos de assinatura sem contexto e atalhos redundantes', () => {
     const template = source(
       'src/app/subscriptions/subscription-plan/subscription-plan.component.html'
