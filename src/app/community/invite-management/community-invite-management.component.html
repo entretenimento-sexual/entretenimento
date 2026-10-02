@@ -1,12 +1,11 @@
 @if (actionState$ | async; as actionState) {
   <section
-    class="community-invite-management"
+    class="community-invite-management app-card app-card--flat"
     aria-labelledby="community-invite-management-title"
   >
-    <header class="community-invite-management__header">
-      <div>
-        <span>Participação</span>
-        <h2 id="community-invite-management-title">Convidar pessoas</h2>
+    <header class="community-invite-management__header app-section-header">
+      <div class="app-section-heading">
+        <h2 id="community-invite-management-title" class="app-section-title">Convidar pessoas</h2>
       </div>
       <i class="fas fa-user-plus" aria-hidden="true"></i>
     </header>
@@ -17,6 +16,7 @@
         <input
           id="community-invite-nickname"
           type="text"
+          class="app-control"
           [formControl]="nickname"
           maxlength="40"
           autocomplete="off"
@@ -24,7 +24,7 @@
           [attr.aria-invalid]="nickname.invalid && nickname.touched"
           aria-describedby="community-invite-nickname-help"
         />
-        <button type="submit">
+        <button type="submit" class="app-action app-action--primary">
           <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
           Localizar
         </button>
@@ -52,7 +52,7 @@
             Busca indisponível. Tente novamente.
           </div>
         } @else if (candidateState.status === 'ready') {
-          <article class="community-invite-candidate">
+          <article class="community-invite-candidate app-card app-card--flat app-card--compact">
             <span class="community-invite-candidate__avatar" aria-hidden="true">
               @if (candidateState.candidate.avatarUrl) {
                 <img
@@ -70,6 +70,7 @@
             </div>
             <button
               type="button"
+              class="app-action app-action--primary"
               [disabled]="candidateState.candidate.status !== 'eligible' || actionState.status === 'loading'"
               [attr.aria-busy]="actionState.status === 'loading' && actionState.action === 'send' ? 'true' : null"
               (click)="send(candidateState.candidate)"
@@ -91,10 +92,10 @@
         class="community-invite-management__pending"
         aria-labelledby="community-pending-invites-title"
       >
-        <header>
-          <h3 id="community-pending-invites-title">Convites pendentes</h3>
+        <header class="app-section-header">
+          <h3 id="community-pending-invites-title" class="app-section-title">Convites pendentes</h3>
           @if (sentState.status === 'ready') {
-            <span aria-live="polite">{{ sentState.items.length }}</span>
+            <span class="app-chip app-chip--muted" aria-live="polite">{{ sentState.items.length }}</span>
           }
         </header>
 
@@ -106,7 +107,7 @@
         } @else if (sentState.status === 'error') {
           <div class="community-invite-management__state" role="alert">
             <span>Não foi possível carregar os convites.</span>
-            <button type="button" (click)="retrySentInvites()">
+            <button type="button" class="app-action app-action--ghost" (click)="retrySentInvites()">
               Tentar novamente
             </button>
           </div>
@@ -117,7 +118,7 @@
         } @else {
           <ul>
             @for (invite of sentState.items; track invite.inviteId) {
-              <li>
+              <li class="app-card app-card--flat app-card--compact">
                 <span class="community-invite-candidate__avatar" aria-hidden="true">
                   @if (invite.receiverAvatarUrl) {
                     <img
@@ -139,6 +140,7 @@
                 </div>
                 <button
                   type="button"
+                  class="app-action app-action--ghost app-action--danger"
                   [disabled]="actionState.status === 'loading'"
                   [attr.aria-label]="'Revogar convite para ' + invite.receiverLabel"
                   [attr.aria-busy]="actionState.status === 'loading' && actionState.targetId === invite.inviteId ? 'true' : null"
