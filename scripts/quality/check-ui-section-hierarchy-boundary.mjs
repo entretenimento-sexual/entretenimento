@@ -298,6 +298,46 @@ for (const forbidden of [
   }
 }
 
+const communityFeedCommentsHtml = read(
+  'src/app/community/feed-comments/community-feed-comments.component.html'
+);
+for (const required of [
+  'feed-comments__close app-action app-action--ghost',
+  'feed-comments__more app-action app-action--ghost',
+  'feed-comment__menu-panel app-card app-card--flat app-card--media',
+  'feed-comment__menu-action app-action app-action--ghost',
+  'feed-comment__confirmation app-card app-card--flat app-card--compact',
+  'class="app-control"',
+  'feed-comments__reply-target app-card app-card--flat app-card--compact',
+  'class="app-action app-action--primary"',
+  'feed-comments__send-label visually-hidden',
+]) {
+  if (!communityFeedCommentsHtml.includes(required)) {
+    violations.push(
+      'community-feed-comments.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const communityFeedCommentsCss = read(
+  'src/app/community/feed-comments/community-feed-comments.component.css'
+);
+for (const forbidden of [
+  '.feed-comments__state button,',
+  'box-shadow: 0 0.7rem 1.8rem',
+  '.feed-comment__menu-action:hover {',
+  '.feed-comment__confirmation button {',
+  'button:disabled {',
+  'textarea:focus-visible,',
+  '.feed-comments__send-label {',
+]) {
+  if (communityFeedCommentsCss.includes(forbidden)) {
+    violations.push(
+      'community-feed-comments.component.css contains duplicate shared UI chrome ' + forbidden
+    );
+  }
+}
+
 const communityOwnershipManagementHtml = read(
   'src/app/community/ownership-management/community-ownership-management.component.html'
 );
