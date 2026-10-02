@@ -1554,6 +1554,35 @@ describe('Canonical UI boundary', () => {
   });
 
 
+  it('mantém viewers e cards públicos de Media sem microcopy e métricas duplicadas', () => {
+    const photoViewer = source(
+      'src/app/media/photos/photo-viewer/photo-viewer.component.html'
+    );
+    const photoViewerStyles = source(
+      'src/app/media/photos/photo-viewer/photo-viewer.component.css'
+    );
+    const videoViewer = source(
+      'src/app/media/videos/public-video-viewer/public-video-viewer.component.html'
+    );
+    const videoViewerStyles = source(
+      'src/app/media/videos/public-video-viewer/public-video-viewer.component.css'
+    );
+    const photoCard = source(
+      'src/app/media/shared/components/public-photo-card/public-photo-card.component.html'
+    );
+    const videoCard = source(
+      'src/app/media/shared/components/public-video-card/public-video-card.component.html'
+    );
+
+    expect(photoViewer).not.toContain('viewer-owner-cta');
+    expect(videoViewer).not.toContain('public-video-viewer__owner-cta');
+    expect(photoViewerStyles).not.toContain('.viewer-owner-cta');
+    expect(videoViewerStyles).not.toContain('.public-video-viewer__owner-cta');
+
+    expect(photoCard).not.toContain("@case ('latest')");
+    expect(videoCard).not.toContain('public-video-card__views-metric');
+  });
+
   it('mantém galerias públicas de Media sem chrome e estilos residuais', () => {
     const publicPhotos = source(
       'src/app/media/photos/public-profile-photos/public-profile-photos.component.html'
