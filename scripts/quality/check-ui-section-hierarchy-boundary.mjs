@@ -298,6 +298,38 @@ for (const forbidden of [
   }
 }
 
+const contentStateHtml = read(
+  'src/app/shared/content-state/content-state.component.html'
+);
+for (const required of [
+  'content-state content-state--loading app-card app-card--flat',
+  'content-state app-card app-card--flat',
+  '[class.app-card--compact]="compact"',
+  'class="visually-hidden"',
+]) {
+  if (!contentStateHtml.includes(required)) {
+    violations.push(
+      'content-state.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const contentStateCss = read(
+  'src/app/shared/content-state/content-state.component.css'
+);
+for (const forbidden of [
+  '.visually-hidden {',
+  'border: 1px solid var(--surface-border',
+  'background: var(--surface-color',
+  '.content-state--compact {\n  padding: 12px 14px;\n  border-radius:',
+]) {
+  if (contentStateCss.includes(forbidden)) {
+    violations.push(
+      'content-state.component.css contains duplicate shared state chrome ' + forbidden
+    );
+  }
+}
+
 const reportContentButtonHtml = read(
   'src/app/shared/components-globais/moderation-report/report-content-button/report-content-button.component.html'
 );
