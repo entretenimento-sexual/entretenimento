@@ -99,6 +99,23 @@ describe('PublicUserPreviewTriggerDirective', () => {
     ).toBeNull();
   });
 
+  it('não injeta classes visuais órfãs no painel do overlay', () => {
+    const directive = fixture.debugElement.query(
+      By.directive(PublicUserPreviewTriggerDirective)
+    ).injector.get(PublicUserPreviewTriggerDirective);
+
+    directive.open();
+    fixture.detectChanges();
+
+    const pane = overlayContainer.getContainerElement().querySelector(
+      '.cdk-overlay-pane'
+    ) as HTMLElement | null;
+
+    expect(pane).toBeTruthy();
+    expect(pane?.classList.contains('public-user-preview-overlay--desktop')).toBe(false);
+    expect(pane?.classList.contains('public-user-preview-overlay--touch')).toBe(false);
+  });
+
   it('não abre overlay quando não existe identidade pública válida', () => {
     fixture.componentInstance.preview = null;
     fixture.detectChanges();
