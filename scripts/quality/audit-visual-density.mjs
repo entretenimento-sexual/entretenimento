@@ -74,7 +74,6 @@ const reviewedSemanticContent = new Map([
   ])],
   ['src/app/media/photos/profile-photos/profile-photos.component.html', new Set([
     'subtitle',
-    'app-page-header[subtitle]',
   ])],
   ['src/app/photo-editor/photo-editor/photo-editor.component.html', new Set([
     'subtitle',
@@ -129,23 +128,8 @@ const reviewedSemanticContent = new Map([
   ['src/app/layout/friend-management/friend-blocked/friend-blocked.component.html', new Set([
     'app-page-header[subtitle]',
   ])],
-  ['src/app/layout/friend-management/friend-list-page/friend-list-page.component.html', new Set([
-    'app-page-header[subtitle]',
-  ])],
-  ['src/app/layout/friend-management/friend-requests/friend-requests.component.html', new Set([
-    'app-page-header[subtitle]',
-  ])],
-  ['src/app/layout/friend-management/friend-search/friend-search.component.html', new Set([
-    'app-page-header[subtitle]',
-  ])],
-  ['src/app/layout/friend-management/friend-settings/friend-settings.component.html', new Set([
-    'app-page-header[subtitle]',
-  ])],
   ['src/app/dashboard/user-intent-status/user-intent-status-composer/user-intent-status-composer.component.html', new Set([
     'intent-composer__eyebrow',
-  ])],
-  ['src/app/media/photos/photo-upload/photo-upload.component.html', new Set([
-    'app-page-header[subtitle]',
   ])],
   ['src/app/media/videos/profile-videos/profile-videos.component.html', new Set([
     'profile-videos__description',
@@ -180,9 +164,6 @@ const reviewedSemanticContent = new Map([
   ['src/app/register-module/register.component.html', new Set([
     'auth-intro',
   ])],
-  ['src/app/safety/safety-center/safety-center.component.html', new Set([
-    'app-page-header[subtitle]',
-  ])],
   ['src/app/shared/components-globais/confirmation-dialog/confirmation-dialog.component.html', new Set([
     'confirmation-dialog__eyebrow',
   ])],
@@ -193,9 +174,6 @@ const reviewedSemanticContent = new Map([
     'user-card__description',
   ])],
   ['src/app/subscriptions/checkout/checkout.component.html', new Set([
-    'app-page-header[subtitle]',
-  ])],
-  ['src/app/user-profile/user-profile-edit/edit-profile-social-links/edit-profile-social-links.component.html', new Set([
     'app-page-header[subtitle]',
   ])],
 ]);
