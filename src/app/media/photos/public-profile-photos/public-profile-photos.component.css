@@ -11,16 +11,6 @@
   padding: 12px 12px 32px;
 }
 
-
-.back-link:focus-visible {
-  border-radius: 8px;
-  outline: var(--focus-ring, 2px solid currentColor);
-  outline-offset: 4px;
-}
-
-
-
-
 .photos-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -75,7 +65,6 @@
     padding-inline: clamp(16px, 3vw, 28px);
   }
 
-
   .photos-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: clamp(9px, 1.4vw, 14px);
@@ -85,9 +74,6 @@
     grid-column: span 2;
     grid-row: span 2;
   }
-}
-
-@media (min-width: 760px) {
 }
 
 @media (min-width: 1040px) {
@@ -107,7 +93,6 @@
   }
 
 }
-
 
 html.high-contrast .featured-label {
   border-color: currentColor !important;
