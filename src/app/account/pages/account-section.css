@@ -19,7 +19,6 @@
   color: var(--text-color);
 }
 
-
 .account-context-panel {
   display: grid;
   gap: 0.85rem;
@@ -69,29 +68,14 @@
   min-width: 0;
   min-height: 118px;
   padding: 1rem;
-  border: 1px solid var(--surface-border);
-  border-radius: 18px;
-  background: color-mix(in oklab, var(--surface-color) 98%, transparent);
   color: var(--text-color);
   text-decoration: none;
-  transition:
-    transform 160ms ease,
-    border-color 160ms ease,
-    background-color 160ms ease,
-    box-shadow 160ms ease;
 }
 
 .account-overview-card--subscription {
   background:
     radial-gradient(circle at top right, color-mix(in oklab, var(--primary-color) 9%, transparent), transparent 52%),
     var(--surface-color);
-}
-
-.account-overview-card:hover {
-  transform: translateY(-2px);
-  border-color: color-mix(in oklab, var(--primary-color) 28%, var(--surface-border));
-  background-color: var(--header-hover-bg);
-  box-shadow: 0 8px 24px color-mix(in oklab, var(--text-color) 8%, transparent);
 }
 
 .account-overview-card:focus-visible {
@@ -267,14 +251,8 @@
     animation: none;
   }
 
-  .account-overview-card,
   .account-overview-card__arrow {
     transition: none;
-  }
-
-  .account-overview-card:hover,
-  .account-overview-card:focus-visible {
-    transform: none;
   }
 }
 
