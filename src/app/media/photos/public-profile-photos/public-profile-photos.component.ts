@@ -9,7 +9,7 @@
 
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, RouterModule } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 
 import {
   BehaviorSubject,
@@ -51,7 +51,6 @@ interface PublicProfilePhotosState {
   standalone: true,
   imports: [
     CommonModule,
-    RouterModule,
     PublicPhotoCardComponent,
     ContentStateComponent,
     PageHeaderComponent,
