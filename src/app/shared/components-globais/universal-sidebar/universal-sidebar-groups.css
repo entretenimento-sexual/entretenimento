@@ -132,7 +132,7 @@ html.high-contrast .universal-sidebar__group-toggle:focus-visible,
 html.high-contrast .universal-sidebar__submenu-link:hover,
 html.high-contrast .universal-sidebar__submenu-link:focus-visible {
   border-color: currentColor;
-  background: transparent !important;
+  background: transparent;
 }
 
 @media (max-width: 350px) {
