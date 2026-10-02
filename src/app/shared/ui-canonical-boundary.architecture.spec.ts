@@ -1554,6 +1554,45 @@ describe('Canonical UI boundary', () => {
   });
 
 
+  it('mantém superfícies auxiliares sem subtítulos que apenas narram os controles', () => {
+    const requests = source(
+      'src/app/layout/friend-management/friend-requests/friend-requests.component.html'
+    );
+    const search = source(
+      'src/app/layout/friend-management/friend-search/friend-search.component.html'
+    );
+    const settings = source(
+      'src/app/layout/friend-management/friend-settings/friend-settings.component.html'
+    );
+    const socialLinks = source(
+      'src/app/user-profile/user-profile-edit/edit-profile-social-links/edit-profile-social-links.component.html'
+    );
+    const blocked = source(
+      'src/app/layout/friend-management/friend-blocked/friend-blocked.component.html'
+    );
+
+    expect(requests).toContain('<app-page-header title="Solicitações de amizade" />');
+    expect(search).toContain('<app-page-header title="Buscar amizades" />');
+    expect(settings).toContain('<app-page-header title="Configurações de amizade" />');
+    expect(socialLinks).toContain(
+      '<app-page-header title="Redes sociais"></app-page-header>'
+    );
+
+    expect(requests).not.toContain('Gerencie convites recebidos e enviados');
+    expect(search).not.toContain('Encontre pessoas pelo nome ou UID');
+    expect(settings).not.toContain(
+      'Controle solicitações, presença online e descoberta pelo nickname.'
+    );
+    expect(socialLinks).not.toContain(
+      'Adicione apenas os links que quiser mostrar no seu perfil.'
+    );
+
+    // A cautela ao desbloquear continua sendo contexto de segurança, não decoração.
+    expect(blocked).toContain(
+      'Desbloqueie apenas quando tiver certeza de que a aproximação pode ser retomada.'
+    );
+  });
+
   it('mantém exclusão de conta sem estado vazio redundante', () => {
     const deletion = source(
       'src/app/admin-dashboard/account-deletion-operations/account-deletion-operations.component.html'
