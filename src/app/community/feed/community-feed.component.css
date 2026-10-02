@@ -897,7 +897,7 @@ button.community-post__action {
     padding-inline: 0.42rem;
   }
 
-  .community-post__confirmation-actions button {
+  .community-post__confirmation-actions .app-action {
     flex: 1;
   }
 
