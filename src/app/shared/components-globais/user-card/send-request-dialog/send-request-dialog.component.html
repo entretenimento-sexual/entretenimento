@@ -50,7 +50,7 @@
     </mat-form-field>
   </ng-container>
 
-  <div class="policy" role="note">
+  <div class="policy app-card app-card--flat app-card--compact" role="note">
     <mat-icon class="i" aria-hidden="true">shield</mat-icon>
     <span>Interesses passam por controles anti-spam e segurança antes de virar conversa.</span>
   </div>
@@ -58,8 +58,7 @@
 
 <mat-dialog-actions align="end" class="actions">
   <button
-    mat-button
-    class="cancel-action"
+    class="cancel-action app-action app-action--ghost"
     (click)="cancel()"
     [disabled]="submitting()"
   >
@@ -67,9 +66,7 @@
   </button>
 
   <button
-    mat-raised-button
-    color="primary"
-    class="send-action"
+    class="send-action app-action app-action--primary"
     (click)="confirm()"
     [disabled]="form.invalid || submitting()"
     aria-label="Enviar interesse"
