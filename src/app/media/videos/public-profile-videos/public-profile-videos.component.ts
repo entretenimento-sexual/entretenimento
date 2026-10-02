@@ -13,7 +13,7 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, RouterModule } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import {
   BehaviorSubject,
   EMPTY,
@@ -48,6 +48,7 @@ import {
 import { PublicVideoShareService } from 'src/app/core/services/media/public-video-share.service';
 import { ReportContentButtonComponent } from 'src/app/shared/components-globais/moderation-report/report-content-button/report-content-button.component';
 import { ContentStateComponent } from 'src/app/shared/content-state/content-state.component';
+import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.component';
 import { PublicVideoCardComponent } from '../../shared/components/public-video-card/public-video-card.component';
 import { PublicVideoViewerLauncherService } from '../public-video-viewer/public-video-viewer-launcher.service';
 
@@ -75,7 +76,7 @@ const PUBLIC_VIDEO_RENDER_WINDOW_STEP = 12;
   standalone: true,
   imports: [
     CommonModule,
-    RouterModule,
+    PageHeaderComponent,
     ReportContentButtonComponent,
     ContentStateComponent,
     PublicVideoCardComponent,
