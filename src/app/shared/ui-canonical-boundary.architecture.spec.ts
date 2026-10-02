@@ -100,6 +100,7 @@ const CANONICAL_ACTION_TEMPLATES = [
   'src/app/media/photos/profile-photos/profile-photos.component.html',
   'src/app/media/photos/public-profile-photos/public-profile-photos.component.html',
   'src/app/media/photos/top-public-photos/top-public-photos.component.html',
+  'src/app/media/videos/profile-videos/profile-videos.component.html',
 ] as const;
 
 const CANONICAL_HEADER_TEMPLATES = [
@@ -1551,6 +1552,30 @@ describe('Canonical UI boundary', () => {
     expect(accountStyles).not.toContain('.account-overview-card__action');
   });
 
+
+  it('mantém Vídeos no PageHeader canônico e sem descrição redundante no editor', () => {
+    const videos = source(
+      'src/app/media/videos/profile-videos/profile-videos.component.html'
+    );
+    const styles = source(
+      'src/app/media/videos/profile-videos/profile-videos.component.css'
+    );
+    const settingsStyles = source(
+      'src/app/media/videos/profile-videos/profile-videos-settings.component.css'
+    );
+
+    expect(videos).toContain('<app-page-header title="Meus vídeos">');
+    expect(videos).not.toContain('<h1>Meus vídeos</h1>');
+    expect(videos).not.toContain('video-settings-description');
+    expect(videos).not.toContain(
+      'Ajuste as informações e as interações de'
+    );
+    expect(styles).not.toContain('.profile-videos__header');
+    expect(settingsStyles).not.toContain('.profile-videos__header');
+    expect(settingsStyles).not.toContain(
+      '.profile-videos__settings-dialog-heading p'
+    );
+  });
 
   it('mantém cabeçalhos de Fotos sem instruções e retorno redundantes', () => {
     const upload = source(
