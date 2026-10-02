@@ -252,29 +252,10 @@
 
 .community-create__choice {
   position: relative;
-  min-height: var(--tap-target, 2.75rem);
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 0.65rem;
-  padding: 0.65rem;
-  border: 1px solid var(--surface-border, #d5d5d5);
-  border-radius: 0.75rem;
-  background: color-mix(
-    in oklab,
-    var(--surface-color, #fff) 96%,
-    transparent
-  );
-  cursor: pointer;
-}
-
-.community-create__choice.is-selected {
-  border-color: var(--primary-color, #d83768);
-  background: color-mix(
-    in oklab,
-    var(--primary-color, #d83768) 10%,
-    var(--surface-color, #fff)
-  );
 }
 
 .community-create__choice input {
@@ -317,15 +298,6 @@
   opacity: 0.7;
 }
 
-.community-create__choice:has(input:focus-visible) {
-  outline: 3px solid color-mix(
-    in oklab,
-    var(--primary-color, #d83768) 34%,
-    transparent
-  );
-  outline-offset: 2px;
-}
-
 .community-create__capacity {
   padding-top: 0.2rem;
 }
@@ -336,22 +308,19 @@
   gap: 0.5rem;
 }
 
-.community-create__capacity-options button {
+.community-create__capacity-option {
   min-height: 5.5rem;
   display: grid;
   align-content: space-between;
   gap: 0.35rem;
   padding: 0.65rem;
-  border: 1px solid var(--surface-border, #d5d5d5);
-  border-radius: 0.75rem;
-  background: var(--surface-color, #fff);
   color: var(--text-color, #222);
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
 
-.community-create__capacity-options button.is-selected {
+.community-create__capacity-option.is-selected {
   border-color: var(--primary-color, #d83768);
   background: color-mix(
     in oklab,
@@ -360,29 +329,29 @@
   );
 }
 
-.community-create__capacity-options button.is-locked {
+.community-create__capacity-option.is-locked {
   border-style: dashed;
   opacity: 0.62;
 }
 
-.community-create__capacity-options button > span {
+.community-create__capacity-option > span {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.45rem;
 }
 
-.community-create__capacity-options button strong {
+.community-create__capacity-option strong {
   font-size: 1rem;
 }
 
-.community-create__capacity-options button small {
+.community-create__capacity-option small {
   font-size: 0.67rem;
   line-height: 1.35;
   opacity: 0.72;
 }
 
-.community-create__capacity-options button em {
+.community-create__capacity-option em {
   color: var(--primary-color, #d83768);
   font-size: 0.65rem;
   font-style: normal;
@@ -390,28 +359,12 @@
   text-transform: uppercase;
 }
 
-.community-create__form input,
-.community-create__form select,
-.community-create__form textarea {
-  width: 100%;
-  min-height: var(--tap-target, 2.75rem);
-  box-sizing: border-box;
-  border: 1px solid var(--surface-border, #d5d5d5);
-  border-radius: var(--radius-md, 0.7rem);
-  background: var(--surface-color, #fff);
-  color: var(--text-color, #222);
-  font: inherit;
+.community-create__form .app-control {
   font-weight: 500;
 }
 
-.community-create__form input,
-.community-create__form select {
-  padding: 0.68rem 0.75rem;
-}
-
-.community-create__form textarea {
+.community-create__form textarea.app-control {
   min-height: 5.25rem;
-  padding: 0.75rem;
   resize: vertical;
   line-height: 1.45;
 }
@@ -468,33 +421,16 @@
   gap: 0.45rem;
 }
 
-.community-create__tag {
+.community-create__tag.app-chip {
   min-height: var(--tap-target, 2.75rem);
   max-width: 100%;
-  display: inline-flex;
-  align-items: center;
   gap: 0.12rem;
-  padding: 0.48rem 0.68rem;
-  border: 1px solid var(--surface-border, #d5d5d5);
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--surface-color, #fff) 92%, transparent);
-  color: var(--text-color, #222);
   font: inherit;
   font-size: 0.78rem;
   font-weight: 650;
   line-height: 1.2;
   text-align: left;
   cursor: pointer;
-}
-
-.community-create__tag.is-selected {
-  border-color: var(--primary-color, #d83768);
-  background: color-mix(
-    in oklab,
-    var(--primary-color, #d83768) 16%,
-    var(--surface-color, #fff)
-  );
-  color: var(--text-color, #222);
 }
 
 .community-create__tag:disabled {
@@ -509,16 +445,7 @@
   line-height: 1.4;
 }
 
-.community-create__form input:focus-visible,
-.community-create__form select:focus-visible,
-.community-create__form textarea:focus-visible,
-.community-create__tag:focus-visible,
-.community-create__capacity-options button:focus-visible,
-.community-create__gate a:focus-visible,
-.community-create__gate button:focus-visible,
-.community-create__back:focus-visible,
-.community-create__actions a:focus-visible,
-.community-create__actions button:focus-visible {
+.community-create__capacity-option:focus-visible {
   outline: 3px solid color-mix(
     in oklab,
     var(--primary-color, #d83768) 34%,
@@ -527,9 +454,7 @@
   outline-offset: 2px;
 }
 
-.community-create__form input.ng-invalid.ng-touched,
-.community-create__form select.ng-invalid.ng-touched,
-.community-create__form textarea.ng-invalid.ng-touched {
+.community-create__form .app-control.ng-invalid.ng-touched {
   border-color: var(--danger-color, #c62828);
 }
 
@@ -594,7 +519,7 @@
     grid-template-columns: 1fr;
   }
 
-  .community-create__capacity-options button {
+  .community-create__capacity-option {
     min-height: var(--tap-target, 2.75rem);
   }
 }
@@ -609,12 +534,7 @@
   }
 }
 
-:host-context(.high-contrast) .community-create__choice,
-:host-context(.high-contrast) .community-create__capacity-options button,
-:host-context(.high-contrast) .community-create__form input,
-:host-context(.high-contrast) .community-create__form select,
-:host-context(.high-contrast) .community-create__form textarea,
-:host-context(.high-contrast) .community-create__tag {
+:host-context(.high-contrast) .community-create__capacity-option {
   border-width: 2px;
 }
 
