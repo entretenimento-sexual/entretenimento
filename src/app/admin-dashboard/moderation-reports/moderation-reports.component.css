@@ -20,10 +20,6 @@
 }
 
 .moderation-reports__hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(240px, 360px);
-  gap: 16px;
-  align-items: center;
   padding: 18px;
 }
 
@@ -32,13 +28,6 @@
   font-size: clamp(1.35rem, 2.6vw, 2rem);
   font-weight: 950;
   line-height: 1.05;
-}
-
-.moderation-reports__hero p {
-  margin: 0;
-  color: color-mix(in oklab, var(--text-color, #111827) 68%, transparent);
-  font-weight: 650;
-  line-height: 1.4;
 }
 
 .moderation-reports__admin-notice {
@@ -74,7 +63,6 @@
   line-height: 1.35;
 }
 
-.moderation-reports__stats,
 .moderation-reports__filters,
 .report-card__actions,
 .report-card__target-actions {
@@ -83,11 +71,6 @@
   gap: 8px;
 }
 
-.moderation-reports__stats {
-  justify-content: flex-end;
-}
-
-.moderation-reports__stats button,
 .moderation-reports__filters button {
   border: 1px solid var(--surface-border, rgba(0, 0, 0, 0.12));
   border-radius: 999px;
@@ -96,20 +79,6 @@
   cursor: pointer;
   font: inherit;
   font-weight: 850;
-}
-
-.moderation-reports__stats button {
-  min-width: 96px;
-  min-height: 58px;
-  padding: 8px 10px;
-  display: grid;
-  border-radius: 14px;
-  text-align: left;
-}
-
-.moderation-reports__stats strong {
-  font-size: 1.25rem;
-  font-weight: 950;
 }
 
 .moderation-reports__filters button {
@@ -416,15 +385,11 @@ button.is-active {
 }
 
 @media (max-width: 900px) {
-  .moderation-reports__hero,
   .report-card__facts,
   .report-card__review dl {
     grid-template-columns: 1fr;
   }
 
-  .moderation-reports__stats {
-    justify-content: flex-start;
-  }
 }
 
 @media (max-width: 560px) {
