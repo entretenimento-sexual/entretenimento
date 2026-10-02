@@ -159,7 +159,7 @@ describe('CommunityDiscoveryPageComponent / escopo de atenção carregada', () =
     ).map((heading) => (heading as HTMLElement).textContent?.trim());
 
     expect(scope?.textContent?.replace(/\s+/g, ' ').trim()).toContain(
-      'As comunidades com novidades importantes aparecem primeiro.'
+      'Novidades importantes aparecem primeiro.'
     );
     expect(grid?.getAttribute('aria-describedby')).toBe(
       'community-mine-attention-scope'
