@@ -1,6 +1,6 @@
 @let content = item();
 
-<article class="community-content-card">
+<article class="community-content-card app-card app-card--flat app-card--compact">
   <a
     class="community-content-card__community"
     [routerLink]="['/dashboard/comunidades', content.communityId]"
@@ -55,7 +55,7 @@
 
   @if (content.post.image) {
     <a
-      class="community-content-card__media"
+      class="community-content-card__media app-media-frame"
       [routerLink]="['/dashboard/comunidades', content.communityId]"
       [queryParams]="{ post: content.postId }"
       [attr.aria-label]="'Ver foto publicada em ' + content.community.name"
@@ -72,7 +72,7 @@
   }
 
   <a
-    class="community-content-card__action"
+    class="community-content-card__action app-action app-action--ghost"
     [routerLink]="['/dashboard/comunidades', content.communityId]"
     [queryParams]="{ post: content.postId }"
     (click)="recordOpen()"
