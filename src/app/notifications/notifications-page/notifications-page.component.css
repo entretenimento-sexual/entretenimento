@@ -118,8 +118,6 @@
 .community-activity__fallback {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2, 12px);
   padding-top: var(--space-2, 12px);
   border-top: 1px solid var(--surface-border);
 }
@@ -203,8 +201,7 @@
     justify-content: flex-start;
   }
 
-  .community-activity__header,
-  .community-activity__fallback {
+  .community-activity__header {
     align-items: stretch;
     flex-direction: column;
   }
