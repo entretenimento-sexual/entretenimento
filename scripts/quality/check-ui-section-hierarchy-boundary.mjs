@@ -293,6 +293,41 @@ for (const forbidden of [
   }
 }
 
+const principalHtml = read(
+  'src/app/dashboard/principal/principal.component.html'
+);
+for (const required of [
+  'feed-create-bar app-card app-card--flat',
+  'profile-checklist app-card app-card--flat',
+  'social-space-card app-card app-card--flat app-card--media',
+  'connections-feed__toggle app-action app-action--ghost',
+  'feed-action app-action app-action--primary',
+]) {
+  if (!principalHtml.includes(required)) {
+    violations.push(
+      'principal.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const principalCss = read(
+  'src/app/dashboard/principal/principal.component.css'
+);
+for (const forbidden of [
+  'box-shadow: 0 6px 18px',
+  'border-radius: 17px',
+  'min-height: 34px',
+  'min-height: 36px',
+  'width: 42px',
+  'height: 40px',
+]) {
+  if (principalCss.includes(forbidden)) {
+    violations.push(
+      'principal.component.css contains duplicate local UI chrome ' + forbidden
+    );
+  }
+}
+
 const subscriptionPlanHtml = read(
   'src/app/subscriptions/subscription-plan/subscription-plan.component.html'
 );
