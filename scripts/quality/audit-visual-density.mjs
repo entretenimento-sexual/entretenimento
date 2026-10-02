@@ -439,6 +439,18 @@ if (semanticSummary.occurrences > 0) {
   );
 }
 
+const visualAuditSnapshot = {
+  templatesAnalyzed: htmlPaths.length,
+  stylesheetsAnalyzed: cssPaths.length,
+  semantic: semanticSummary,
+  actionable: actionableSummary,
+  reviewedOccurrences: reviewedOccurrenceCount,
+};
+
+console.log(
+  '[audit:visual] Snapshot JSON: ' + JSON.stringify(visualAuditSnapshot)
+);
+
 if (semanticSummary.occurrences > 0) {
   const actionableCategorySummary = semanticIntroKinds
     .map(([kind]) => `${kind}=${actionableSummary.byKind[kind] ?? 0}`)
