@@ -163,9 +163,9 @@
 }
 
 .community-create__gate-actions {
-  display: flex !important;
+  display: flex;
   flex-wrap: wrap;
-  gap: 0.55rem !important;
+  gap: 0.55rem;
 }
 
 .community-create__form {
@@ -253,10 +253,10 @@
 .community-create__choice {
   position: relative;
   min-height: var(--tap-target, 2.75rem);
-  display: grid !important;
+  display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: 0.65rem !important;
+  gap: 0.65rem;
   padding: 0.65rem;
   border: 1px solid var(--surface-border, #d5d5d5);
   border-radius: 0.75rem;
@@ -614,7 +614,7 @@
 :host-context(.high-contrast) .community-create__form input,
 :host-context(.high-contrast) .community-create__form select,
 :host-context(.high-contrast) .community-create__form textarea,
-:host-context(.high-contrast) .community-create__tag,
+:host-context(.high-contrast) .community-create__tag {
   border-width: 2px;
 }
 
