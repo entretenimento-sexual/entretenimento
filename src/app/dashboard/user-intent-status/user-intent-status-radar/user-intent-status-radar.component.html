@@ -2,10 +2,10 @@
 
 <section class="intent-radar" aria-label="Pessoas disponíveis hoje">
   @if (vm$ | async; as vm) {
-    <h2 class="sr-only">Pessoas disponíveis hoje</h2>
+    <h2 class="visually-hidden">Pessoas disponíveis hoje</h2>
 
     @if (!vm.loading && vm.items.length > 0) {
-      <div class="intent-radar__summary" role="status" aria-live="polite">
+      <div class="intent-radar__summary app-chip app-chip--muted" role="status" aria-live="polite">
         <i class="fas fa-user-group" aria-hidden="true"></i>
         <span>
           {{ vm.items.length }} {{ vm.items.length === 1 ? 'pessoa' : 'pessoas' }}
@@ -14,19 +14,19 @@
     }
 
     @if (vm.loading) {
-      <div class="intent-radar__state" role="status" aria-live="polite">
+      <div class="intent-radar__state app-card app-card--flat app-card--compact" role="status" aria-live="polite">
         <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
         <span>Carregando disponibilidade...</span>
       </div>
     } @else if (vm.items.length === 0) {
-      <div class="intent-radar__state intent-radar__state--empty" role="status">
+      <div class="intent-radar__state intent-radar__state--empty app-card app-card--flat app-card--compact" role="status">
         <i class="fas fa-user-clock" aria-hidden="true"></i>
         <span>Ninguém compartilhou disponibilidade agora.</span>
       </div>
     } @else {
       <div class="intent-radar__rail" aria-label="Perfis disponíveis hoje">
         @for (status of vm.items; track trackByStatusId($index, status)) {
-          <article class="intent-status-card">
+          <article class="intent-status-card app-card app-card--flat">
             <header class="intent-status-card__header">
               @if (status.profile.photoURL) {
                 <img
@@ -69,7 +69,7 @@
 
             <div class="intent-status-card__actions" aria-label="Ações do perfil">
               <a
-                class="intent-status-card__action intent-status-card__action--secondary"
+                class="intent-status-card__action intent-status-card__action--secondary app-action app-action--ghost"
                 [routerLink]="['/perfil', status.uid]"
                 [attr.aria-label]="'Ver perfil de ' + status.profile.nickname"
               >
@@ -78,7 +78,7 @@
               </a>
 
               <a
-                class="intent-status-card__action intent-status-card__action--primary"
+                class="intent-status-card__action intent-status-card__action--primary app-action app-action--primary"
                 [routerLink]="['/chat']"
                 [queryParams]="{ withUser: status.uid }"
                 [attr.aria-label]="'Conversar com ' + status.profile.nickname"
