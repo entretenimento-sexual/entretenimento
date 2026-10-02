@@ -1554,6 +1554,23 @@ describe('Canonical UI boundary', () => {
   });
 
 
+  it('mantém exclusão de conta sem estado vazio redundante', () => {
+    const deletion = source(
+      'src/app/admin-dashboard/account-deletion-operations/account-deletion-operations.component.html'
+    );
+    const deletionStyles = source(
+      'src/app/admin-dashboard/account-deletion-operations/account-deletion-operations.component.css'
+    );
+
+    expect(deletion).toContain('Nenhuma operação neste filtro.');
+    expect(deletion).not.toContain(
+      'Não há registros recentes que correspondam ao estado selecionado.'
+    );
+
+    // O parágrafo continua válido no feedback de erro.
+    expect(deletionStyles).toContain('.feedback-card p');
+  });
+
   it('mantém Triagem de denúncias sem resumo duplicado no hero', () => {
     const reports = source(
       'src/app/admin-dashboard/moderation-reports/moderation-reports.component.html'
