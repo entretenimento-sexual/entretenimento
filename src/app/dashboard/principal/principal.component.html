@@ -32,7 +32,7 @@
 
       <button
         type="button"
-        class="feed-create-bar__prompt"
+        class="feed-create-bar__prompt app-action app-action--ghost"
         aria-label="Publicar status"
         (click)="openStatusComposer()"
       >
@@ -42,6 +42,7 @@
       <div class="feed-create-bar__actions" aria-label="Adicionar mídia">
         @if (photoUploadLink$ | async; as photoUploadLink) {
           <a
+            class="feed-create-bar__media-action app-action app-action--ghost"
             [routerLink]="photoUploadLink"
             aria-label="Adicionar foto"
             title="Adicionar foto"
@@ -52,6 +53,7 @@
 
         @if (videoLibraryLink$ | async; as videoLibraryLink) {
           <a
+            class="feed-create-bar__media-action app-action app-action--ghost"
             [routerLink]="videoLibraryLink"
             aria-label="Gerenciar vídeos"
             title="Gerenciar vídeos"
