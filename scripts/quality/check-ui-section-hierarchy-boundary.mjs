@@ -298,6 +298,38 @@ for (const forbidden of [
   }
 }
 
+const exploreCommunityContentCardHtml = read(
+  'src/app/explore/components/explore-community-content-card/explore-community-content-card.component.html'
+);
+for (const required of [
+  'community-content-card app-card app-card--flat app-card--compact',
+  'community-content-card__media app-media-frame',
+  'community-content-card__action app-action app-action--ghost',
+]) {
+  if (!exploreCommunityContentCardHtml.includes(required)) {
+    violations.push(
+      'explore-community-content-card.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const exploreCommunityContentCardCss = read(
+  'src/app/explore/components/explore-community-content-card/explore-community-content-card.component.css'
+);
+for (const forbidden of [
+  'border-radius: 0.95rem',
+  'background: color-mix(',
+  '.community-content-card a:focus-visible',
+  ':host-context(html.high-contrast) .community-content-card',
+  '!important',
+]) {
+  if (exploreCommunityContentCardCss.includes(forbidden)) {
+    violations.push(
+      'explore-community-content-card.component.css contains duplicate shared UI chrome ' + forbidden
+    );
+  }
+}
+
 const suggestedProfilesHtml = read(
   'src/app/dashboard/suggested-profiles/suggested-profiles.component.html'
 );
