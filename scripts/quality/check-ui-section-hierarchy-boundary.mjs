@@ -293,6 +293,41 @@ for (const forbidden of [
   }
 }
 
+const communityDiscoveryHtml = read(
+  'src/app/community/discovery/community-discovery-page.component.html'
+);
+for (const required of [
+  'community-discovery__filter-chip app-action app-action--ghost',
+  'community-discovery__filter-retry app-action app-action--ghost',
+  'community-card__notification-action app-action app-action--ghost',
+  'community-card__dismiss app-action app-action--ghost',
+  'community-card__sponsorship app-chip app-chip--muted',
+  'community-card__contextual-match app-chip app-chip--primary',
+]) {
+  if (!communityDiscoveryHtml.includes(required)) {
+    violations.push(
+      'community-discovery-page.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const communityDiscoveryCss = read(
+  'src/app/community/discovery/community-discovery-page.component.css'
+);
+for (const forbidden of [
+  'box-shadow: 0 8px 24px',
+  'transform: translateY(-2px)',
+  'border-radius: var(--radius-lg',
+  '.community-discovery__filter-chip {\n  flex: 0 0 auto;\n  min-height: 2.45rem',
+  '.community-discovery__filter-retry {\n  min-height: 2.45rem',
+]) {
+  if (communityDiscoveryCss.includes(forbidden)) {
+    violations.push(
+      'community-discovery-page.component.css contains duplicate local UI chrome ' + forbidden
+    );
+  }
+}
+
 const onlineUsersHtml = read(
   'src/app/dashboard/online/online-users/online-users.component.html'
 );
