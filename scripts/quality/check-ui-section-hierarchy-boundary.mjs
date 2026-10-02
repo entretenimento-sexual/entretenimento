@@ -264,6 +264,43 @@ for (const boundary of boundaries) {
 }
 
 
+const confirmationDialogHtml = read(
+  'src/app/shared/components-globais/confirmation-dialog/confirmation-dialog.component.html'
+);
+for (const required of [
+  'confirmation-dialog app-card app-card--media',
+  'confirmation-dialog__detail app-card app-card--flat app-card--compact',
+  'confirmation-dialog__button confirmation-dialog__button--ghost app-action app-action--ghost',
+  '[class.app-action--primary]="tone() !== \'danger\'"',
+  '[class.app-action--danger]="tone() === \'danger\'"',
+]) {
+  if (!confirmationDialogHtml.includes(required)) {
+    violations.push(
+      'confirmation-dialog.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const confirmationDialogCss = read(
+  'src/app/shared/components-globais/confirmation-dialog/confirmation-dialog.component.css'
+);
+for (const forbidden of [
+  'box-shadow:',
+  'linear-gradient(',
+  'radial-gradient(',
+  'border-radius: 999px',
+  '!important',
+  '.confirmation-dialog__button:hover',
+  ':host-context(.high-contrast)',
+  '@media (prefers-reduced-motion: reduce)',
+]) {
+  if (confirmationDialogCss.includes(forbidden)) {
+    violations.push(
+      'confirmation-dialog.component.css contains duplicate global dialog chrome ' + forbidden
+    );
+  }
+}
+
 const preferenceProfileHtml = read(
   'src/app/preferences/components/preference-profile-form/preference-profile-form.component.html'
 );
