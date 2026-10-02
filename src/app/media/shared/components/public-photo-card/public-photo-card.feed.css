@@ -77,19 +77,10 @@
   font-weight: 900;
 }
 
-.feed-card-time,
-.feed-card-boosted {
+.feed-card-time {
   flex: 0 0 auto;
   font: inherit;
   white-space: nowrap;
-}
-
-.feed-card-boosted {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.18rem;
-  color: var(--primary-color, #ff7070);
-  font-weight: 760;
 }
 
 .photo-card-link--feed,
@@ -166,6 +157,3 @@
   box-shadow: none !important;
 }
 
-:host-context(html.high-contrast) .feed-card-boosted {
-  color: currentColor !important;
-}
