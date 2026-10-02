@@ -293,6 +293,38 @@ for (const forbidden of [
   }
 }
 
+const subscriptionPlanHtml = read(
+  'src/app/subscriptions/subscription-plan/subscription-plan.component.html'
+);
+for (const required of [
+  'plans-grid app-responsive-grid',
+  'app-card app-card--flat',
+  'app-action app-action--primary',
+]) {
+  if (!subscriptionPlanHtml.includes(required)) {
+    violations.push(
+      'subscription-plan.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const subscriptionPlanCss = read(
+  'src/app/subscriptions/subscription-plan/subscription-plan.component.css'
+);
+for (const forbidden of [
+  'linear-gradient(',
+  'box-shadow:',
+  'border-radius: 24px',
+  '.app-action-secondary',
+  'transform: translateY(-2px)',
+]) {
+  if (subscriptionPlanCss.includes(forbidden)) {
+    violations.push(
+      'subscription-plan.component.css contains duplicate local UI chrome ' + forbidden
+    );
+  }
+}
+
 const profileCss = read(
   'src/app/user-profile/user-profile-view/user-profile-view.component.css'
 );
