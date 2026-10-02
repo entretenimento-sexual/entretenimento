@@ -885,21 +885,17 @@
 :host-context(.high-contrast) .community-preview__access,
 :host-context(.high-contrast) .community-preview__membership-state {
   border: 2px solid var(--text-color, #222);
-  border-width: 2px;
 }
 
 :host-context(.high-contrast) .community-preview__cover,
 :host-context(.high-contrast) .community-preview__avatar-fallback,
-:host-context(.high-contrast) .community-preview__rail-card,
 :host-context(.high-contrast) .community-preview__rail-metrics span {
   background: var(--background-color) !important;
   color: var(--text-color) !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .community-preview__tabs button,
-  .community-preview__membership-action,
-  .community-preview__rail button {
+  .community-preview__tabs button {
     scroll-behavior: auto;
   }
 }
