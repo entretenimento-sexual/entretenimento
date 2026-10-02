@@ -298,6 +298,49 @@ for (const forbidden of [
   }
 }
 
+const communityCreateHtml = read(
+  'src/app/community/community-create/community-create-page.component.html'
+);
+for (const required of [
+  'community-create app-page',
+  'community-create__header app-page-header',
+  'community-create__back app-action app-action--ghost',
+  'class="app-page-heading"',
+  'class="app-page-title"',
+  'class="app-page-lead"',
+  'community-create__preview app-card app-card--flat app-card--compact',
+  'community-create__gate app-card app-card--flat',
+  'community-create__section app-card app-card--flat',
+  'community-create__tag-count app-chip app-chip--muted',
+  'community-create__actions app-card app-card--flat app-card--compact',
+  'class="app-action app-action--primary" [disabled]="submitting()"',
+]) {
+  if (!communityCreateHtml.includes(required)) {
+    violations.push(
+      'community-create-page.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const communityCreateCss = read(
+  'src/app/community/community-create/community-create-page.component.css'
+);
+for (const forbidden of [
+  '.community-create__gate button,',
+  '.community-create__tag-state button {',
+  '.community-create__actions a,',
+  '.community-create__actions button {',
+  ':host-context(.high-contrast) .community-create__section,',
+  ':host-context(.high-contrast) .community-create__gate,',
+  ':host-context(.high-contrast) .community-create__preview,',
+]) {
+  if (communityCreateCss.includes(forbidden)) {
+    violations.push(
+      'community-create-page.component.css contains duplicate shared UI chrome ' + forbidden
+    );
+  }
+}
+
 const globalNetworkStatusCss = read(
   'src/app/core/components/global-network-status/global-network-status.component.css'
 );
