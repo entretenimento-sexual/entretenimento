@@ -298,6 +298,53 @@ for (const forbidden of [
   }
 }
 
+const friendCardsHtml = read(
+  'src/app/layout/friend-management/friend-cards/friend-cards.component.html'
+);
+for (const required of [
+  'class="visually-hidden"',
+  '<app-content-state',
+  'state="loading"',
+  'state="empty"',
+  'friend-cards__end app-section-meta',
+]) {
+  if (!friendCardsHtml.includes(required)) {
+    violations.push(
+      'friend-cards.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+for (const forbidden of [
+  '<mat-spinner',
+  'class="state ',
+  'class="sr-only"',
+]) {
+  if (friendCardsHtml.includes(forbidden)) {
+    violations.push(
+      'friend-cards.component.html contains legacy local state UI ' + forbidden
+    );
+  }
+}
+
+const friendCardsCss = read(
+  'src/app/layout/friend-management/friend-cards/friend-cards.component.css'
+);
+for (const forbidden of [
+  '.state {',
+  '.state--loading',
+  '.state--empty',
+  '.state--end',
+  'box-shadow:',
+  '@media (prefers-reduced-motion: reduce)',
+  '!important',
+]) {
+  if (friendCardsCss.includes(forbidden)) {
+    violations.push(
+      'friend-cards.component.css contains duplicate shared state chrome ' + forbidden
+    );
+  }
+}
+
 const friendListPageHtml = read(
   'src/app/layout/friend-management/friend-list-page/friend-list-page.component.html'
 );
