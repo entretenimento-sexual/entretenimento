@@ -1,10 +1,11 @@
 <!-- src/app/community/members/community-members-page.component.html -->
 @if (state$ | async; as state) {
-  <div class="community-members" [attr.role]="embedded() ? null : 'main'">
+  <div class="community-members app-page" [attr.role]="embedded() ? null : 'main'">
     @if (!embedded()) {
       <nav class="community-members__topbar" aria-label="Navegação dos integrantes">
         @if (state.communityId) {
           <a
+            class="app-action app-action--ghost"
             [routerLink]="['/dashboard/comunidades', state.communityId]"
             aria-label="Voltar para a Comunidade"
           >
@@ -14,17 +15,16 @@
       </nav>
     }
 
-    <header class="community-members__header">
+    <header class="community-members__header app-section-heading">
       @if (embedded()) {
-        <h2>Membros</h2>
+        <h2 class="app-section-title">Membros</h2>
       } @else {
-        <span>Comunidade</span>
-        <h1>Integrantes</h1>
+        <h1 class="app-page-title">Integrantes</h1>
       }
       @if (state.status === 'ready' || state.status === 'empty') {
-        <p>{{ state.memberCount }} participantes</p>
+        <p class="app-section-meta">{{ state.memberCount }} participantes</p>
       } @else {
-        <p>Veja quem participa deste espaço.</p>
+        <p class="app-section-meta">Veja quem participa deste espaço.</p>
       }
     </header>
 
@@ -35,6 +35,7 @@
         <input
           id="community-member-search"
           type="search"
+          class="app-control"
           [formControl]="searchControl"
           maxlength="40"
           autocomplete="off"
@@ -44,7 +45,7 @@
         @if (searchControl.value) {
           <button
             type="button"
-            class="community-members__search-clear"
+            class="community-members__search-clear app-action app-action--ghost"
             aria-label="Limpar busca"
             (click)="clearSearch()"
           >
@@ -60,15 +61,15 @@
     @if (searchState$ | async; as search) {
       @if (search.active) {
         @if (search.status === 'loading') {
-          <section class="community-members__state" role="status" aria-live="polite">
+          <section class="community-members__state app-card app-card--flat app-card--compact" role="status" aria-live="polite">
             <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
             <span>Buscando integrantes…</span>
           </section>
         } @else if (search.status === 'error') {
-          <section class="community-members__state" role="alert">
+          <section class="community-members__state app-card app-card--flat app-card--compact" role="alert">
             <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
             <span>{{ search.errorMessage || 'Não foi possível buscar integrantes.' }}</span>
-            <button type="button" (click)="retrySearch()">Tentar novamente</button>
+            <button type="button" class="app-action app-action--ghost" (click)="retrySearch()">Tentar novamente</button>
           </section>
         } @else {
           @if (search.items.length > 0) {
@@ -77,7 +78,7 @@
               [attr.aria-label]="'Resultados da busca por ' + search.query"
             >
               @for (member of search.items; track member.memberKey) {
-                <li class="community-members__item">
+                <li class="community-members__item app-card app-card--flat app-card--compact">
                   <a
                     class="community-members__profile"
                     [routerLink]="['/perfil', member.identity.profileId]"
@@ -94,7 +95,7 @@
               }
             </ul>
           } @else {
-            <section class="community-members__state" role="status">
+            <section class="community-members__state app-card app-card--flat app-card--compact" role="status">
               <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
               <span>Nenhum integrante encontrado para esta busca.</span>
             </section>
@@ -108,12 +109,13 @@
 
           @if (search.restartRequired) {
             <div class="community-members__more">
-              <button type="button" (click)="retrySearch()">Atualizar resultados</button>
+              <button type="button" class="app-action app-action--ghost" (click)="retrySearch()">Atualizar resultados</button>
             </div>
           } @else if (search.nextCursor) {
             <div class="community-members__more">
               <button
                 type="button"
+                class="app-action app-action--ghost"
                 [disabled]="search.loadingMore"
                 (click)="loadMoreSearch(search.nextCursor)"
               >
@@ -130,21 +132,21 @@
         }
       } @else {
         @if (state.status === 'loading') {
-          <section class="community-members__state" role="status" aria-live="polite">
+          <section class="community-members__state app-card app-card--flat app-card--compact" role="status" aria-live="polite">
             <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
             <span>Carregando integrantes…</span>
           </section>
         } @else if (state.status === 'error') {
-          <section class="community-members__state" role="alert">
+          <section class="community-members__state app-card app-card--flat app-card--compact" role="alert">
             <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
             <span>{{ state.errorMessage || 'Não foi possível carregar os integrantes.' }}</span>
-            <button type="button" (click)="retry()">Tentar novamente</button>
+            <button type="button" class="app-action app-action--ghost" (click)="retry()">Tentar novamente</button>
           </section>
         } @else {
           @if (state.items.length > 0) {
             <ul class="community-members__list" aria-label="Integrantes da Comunidade">
               @for (member of state.items; track member.memberKey) {
-                <li class="community-members__item">
+                <li class="community-members__item app-card app-card--flat app-card--compact">
                   <a
                     class="community-members__profile"
                     [routerLink]="['/perfil', member.identity.profileId]"
@@ -161,7 +163,7 @@
               }
             </ul>
           } @else {
-            <section class="community-members__state" role="status">
+            <section class="community-members__state app-card app-card--flat app-card--compact" role="status">
               <i class="fas fa-users" aria-hidden="true"></i>
               <span>Nenhum integrante disponível para exibição nesta página.</span>
             </section>
@@ -175,12 +177,13 @@
 
           @if (state.restartRequired) {
             <div class="community-members__more">
-              <button type="button" (click)="retry()">Atualizar lista</button>
+              <button type="button" class="app-action app-action--ghost" (click)="retry()">Atualizar lista</button>
             </div>
           } @else if (state.nextCursor) {
             <div class="community-members__more">
               <button
                 type="button"
+                class="app-action app-action--ghost"
                 [disabled]="state.loadingMore"
                 (click)="loadMore(state.nextCursor)"
               >
