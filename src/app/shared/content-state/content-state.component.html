@@ -1,6 +1,6 @@
 @if (state === 'loading') {
   <section
-    class="content-state content-state--loading"
+    class="content-state content-state--loading app-card app-card--flat"
     [class.content-state--compact]="compact"
     role="status"
     aria-live="polite"
@@ -50,7 +50,8 @@
   </section>
 } @else {
   <section
-    class="content-state"
+    class="content-state app-card app-card--flat"
+    [class.app-card--compact]="compact"
     [class.content-state--compact]="compact"
     [class.content-state--empty]="state === 'empty'"
     [class.content-state--error]="state === 'error'"
