@@ -401,10 +401,6 @@ button.is-active {
     box-shadow: none;
   }
 
-  .moderation-reports__stats {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
 
   .moderation-reports__admin-notice {
     align-items: flex-start;
