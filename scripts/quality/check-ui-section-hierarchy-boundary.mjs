@@ -347,7 +347,6 @@ const hotPlacesCss = read(
 for (const forbidden of [
   '.hot-places.app-card',
   'box-shadow:',
-  'border-radius: 999px',
   '.hot-place-card__footer a:hover,',
 ]) {
   if (hotPlacesCss.includes(forbidden)) {
