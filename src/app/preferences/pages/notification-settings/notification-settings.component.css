@@ -49,8 +49,7 @@
   border-color: color-mix(in oklab, var(--danger-color) 42%, var(--surface-border));
 }
 
-.push-device-card__description,
-.push-device-card__privacy {
+.push-device-card__description {
   margin: 0;
   color: color-mix(in oklab, var(--text-color) 70%, transparent);
   line-height: 1.45;
@@ -60,9 +59,6 @@
   font-size: 0.86rem;
 }
 
-.push-device-card__privacy {
-  font-size: var(--font-size-help, 0.82rem);
-}
 
 .push-device-card__actions {
   display: flex;
