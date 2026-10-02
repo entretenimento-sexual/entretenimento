@@ -215,7 +215,7 @@ describe('UserCardComponent', () => {
       By.css('.user-card__distance-unavailable')
     );
     const unavailable = unavailableDebug.nativeElement as HTMLElement;
-    const accessibleText = unavailableDebug.query(By.css('.sr-only'))
+    const accessibleText = unavailableDebug.query(By.css('.visually-hidden'))
       .nativeElement as HTMLElement;
 
     expect(unavailable.textContent).toContain('—');
