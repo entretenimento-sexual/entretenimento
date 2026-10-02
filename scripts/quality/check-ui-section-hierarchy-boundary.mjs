@@ -298,6 +298,41 @@ for (const forbidden of [
   }
 }
 
+const userIntentStatusComposerHtml = read(
+  'src/app/dashboard/user-intent-status/user-intent-status-composer/user-intent-status-composer.component.html'
+);
+for (const required of [
+  'intent-composer app-card app-card--flat',
+  'class="app-control"',
+  'intent-composer__venues app-card app-card--flat app-card--compact',
+  'intent-composer__venue-option app-card app-card--flat app-card--compact app-card--interactive',
+  'intent-composer__footer app-form-actions',
+]) {
+  if (!userIntentStatusComposerHtml.includes(required)) {
+    violations.push(
+      'user-intent-status-composer.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const userIntentStatusComposerCss = read(
+  'src/app/dashboard/user-intent-status/user-intent-status-composer/user-intent-status-composer.component.css'
+);
+for (const forbidden of [
+  '.intent-composer__field input,',
+  '.intent-composer__venue-option:hover,',
+  '@media (prefers-reduced-motion: reduce)',
+  ':host-context(html.high-contrast) .intent-composer',
+  '!important',
+  'box-shadow: none',
+]) {
+  if (userIntentStatusComposerCss.includes(forbidden)) {
+    violations.push(
+      'user-intent-status-composer.component.css contains duplicate shared UI chrome ' + forbidden
+    );
+  }
+}
+
 const friendRequestsHtml = read(
   'src/app/layout/friend-management/friend-requests/friend-requests.component.html'
 );
