@@ -1,13 +1,13 @@
 <section
-  class="publication-composer"
+  class="publication-composer app-card app-card--flat app-card--compact"
   aria-label="Criar publicação"
   [attr.aria-busy]="publishing() || editingPhoto() ? 'true' : null"
 >
-  <header class="publication-composer__header">
-    <strong>Criar publicação</strong>
+  <header class="publication-composer__header app-section-header">
+    <strong class="app-section-title">Criar publicação</strong>
     <button
       type="button"
-      class="publication-composer__close"
+      class="publication-composer__close app-action app-action--ghost"
       [disabled]="publishing() || editingPhoto()"
       (click)="cancel()"
       aria-label="Fechar publicação"
@@ -17,7 +17,7 @@
   </header>
 
   <textarea
-    class="publication-composer__caption"
+    class="publication-composer__caption app-control"
     [formControl]="captionControl"
     [attr.maxlength]="maxCaptionLength"
     [disabled]="publishing() || editingPhoto()"
@@ -55,6 +55,7 @@
       <img [src]="preview" alt="Prévia da foto editada" />
       <button
         type="button"
+        class="app-action app-action--ghost"
         [disabled]="publishing() || editingPhoto()"
         (click)="removeSelectedPhoto()"
         aria-label="Remover foto escolhida"
@@ -65,7 +66,7 @@
   } @else {
     <button
       type="button"
-      class="publication-composer__choose"
+      class="publication-composer__choose app-action app-action--ghost"
       [disabled]="publishing() || editingPhoto()"
       (click)="openFilePicker()"
     >
@@ -87,10 +88,10 @@
     </div>
   }
 
-  <footer class="publication-composer__actions">
+  <footer class="publication-composer__actions app-form-actions">
     <button
       type="button"
-      class="publication-composer__cancel"
+      class="publication-composer__cancel app-action app-action--ghost"
       [disabled]="publishing() || editingPhoto()"
       (click)="cancel()"
     >
@@ -98,7 +99,7 @@
     </button>
     <button
       type="button"
-      class="publication-composer__publish"
+      class="publication-composer__publish app-action app-action--primary"
       [disabled]="publishing() || editingPhoto() || !selectedFile() || captionControl.invalid"
       (click)="publish()"
     >
