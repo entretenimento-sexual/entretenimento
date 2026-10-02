@@ -298,6 +298,42 @@ for (const forbidden of [
   }
 }
 
+const userIntentStatusRadarHtml = read(
+  'src/app/dashboard/user-intent-status/user-intent-status-radar/user-intent-status-radar.component.html'
+);
+for (const required of [
+  'class="visually-hidden"',
+  'intent-radar__summary app-chip app-chip--muted',
+  'intent-radar__state app-card app-card--flat app-card--compact',
+  'intent-status-card app-card app-card--flat',
+  'intent-status-card__action intent-status-card__action--secondary app-action app-action--ghost',
+  'intent-status-card__action intent-status-card__action--primary app-action app-action--primary',
+]) {
+  if (!userIntentStatusRadarHtml.includes(required)) {
+    violations.push(
+      'user-intent-status-radar.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const userIntentStatusRadarCss = read(
+  'src/app/dashboard/user-intent-status/user-intent-status-radar/user-intent-status-radar.component.css'
+);
+for (const forbidden of [
+  'box-shadow: 0 6px 18px',
+  '.intent-status-card__action:hover,',
+  '.intent-status-card__action:focus-visible {',
+  '.intent-status-card__action:active {',
+  '@media (prefers-reduced-motion: reduce)',
+  '!important',
+]) {
+  if (userIntentStatusRadarCss.includes(forbidden)) {
+    violations.push(
+      'user-intent-status-radar.component.css contains duplicate shared UI chrome ' + forbidden
+    );
+  }
+}
+
 const friendCardsHtml = read(
   'src/app/layout/friend-management/friend-cards/friend-cards.component.html'
 );
