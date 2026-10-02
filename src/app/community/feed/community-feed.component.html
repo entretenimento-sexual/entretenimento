@@ -30,6 +30,7 @@
                   <span class="community-feed__photo-name">{{ attachment.file.name }}</span>
                   <button
                     type="button"
+                    class="app-action app-action--ghost app-action--danger"
                     aria-label="Remover foto selecionada"
                     [disabled]="writeState.status === 'loading'"
                     (click)="removeSelectedPhoto()"
@@ -59,7 +60,7 @@
           }
 
           <div class="community-feed__composer-row">
-            <label class="community-feed__sr-only" for="community-feed-post-text">
+            <label class="visually-hidden" for="community-feed-post-text">
               Criar uma publicação no Mural
             </label>
             <textarea
@@ -102,7 +103,7 @@
               class="community-post__menu community-feed__attachment-menu"
             >
               <summary
-                class="community-feed__composer-tool"
+                class="community-feed__composer-tool app-action app-action--ghost"
                 aria-label="Adicionar ao Mural"
                 title="Adicionar"
                 [attr.aria-disabled]="writeState.status === 'loading' ? 'true' : null"
@@ -112,12 +113,12 @@
               </summary>
 
               <div
-                class="community-post__menu-panel"
+                class="community-post__menu-panel app-card app-card--flat app-card--media"
                 role="group"
                 aria-label="Adicionar ao Mural"
               >
                 <button
-                  class="community-post__menu-action"
+                  class="community-post__menu-action app-action app-action--ghost"
                   type="button"
                   [disabled]="writeState.status === 'loading'"
                   (click)="attachmentMenu.open = false; galleryPhotoInput.click()"
@@ -133,7 +134,7 @@
                   (fallbackRequested)="attachmentMenu.open = false; cameraPhotoInput.click()"
                 />
                 <button
-                  class="community-post__menu-action"
+                  class="community-post__menu-action app-action app-action--ghost"
                   type="button"
                   [disabled]="writeState.status === 'loading' || locationCaptureState() === 'loading'"
                   (click)="shareApproximateLocation()"
@@ -150,7 +151,7 @@
             </details>
 
             <button
-              class="community-feed__send is-primary"
+              class="community-feed__send app-action app-action--primary"
               type="submit"
               aria-label="Publicar no Mural"
               [disabled]="postForm.invalid || writeState.status === 'loading' || (!postForm.controls.text.value.trim() && !selectedAttachment())"
@@ -225,7 +226,7 @@
       <div class="community-feed__state" role="alert">
         <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
         <span>{{ errorStateLabel() }}</span>
-        <button type="button" (click)="retry()">Tentar novamente</button>
+        <button type="button" class="app-action app-action--ghost" (click)="retry()">Tentar novamente</button>
       </div>
     } @else if (state.status === 'empty') {
       <div class="community-feed__state" role="status">
@@ -246,6 +247,7 @@
         >
           <button
             type="button"
+            class="app-action app-action--ghost"
             aria-label="Ver publicações mais recentes já carregadas"
             (click)="showNewerLoadedPosts(state.items)"
           >
@@ -289,13 +291,13 @@
                     </summary>
 
                     <div
-                      class="community-post__menu-panel"
+                      class="community-post__menu-panel app-card app-card--flat app-card--media"
                       role="group"
                       [attr.aria-label]="'Ações da publicação de ' + item.author.label"
                     >
                       @if (item.capabilities.canDeleteOwn) {
                         <button
-                          class="community-post__menu-action is-danger"
+                          class="community-post__menu-action is-danger app-action app-action--ghost app-action--danger"
                           type="button"
                           [disabled]="actionState.status === 'loading'"
                           (click)="postMenu.open = false; requestPostAction(item, 'delete_own')"
@@ -307,7 +309,7 @@
 
                       @if (item.capabilities.canModerate) {
                         <button
-                          class="community-post__menu-action"
+                          class="community-post__menu-action app-action app-action--ghost"
                           type="button"
                           [disabled]="actionState.status === 'loading'"
                           (click)="postMenu.open = false; requestPostAction(item, 'remove')"
@@ -570,7 +572,7 @@
 
               @if (actionPostId() === item.postId && actionMode(); as selectedAction) {
                 <section
-                  class="community-post__confirmation"
+                  class="community-post__confirmation app-card app-card--flat app-card--compact"
                   [attr.aria-label]="selectedAction === 'delete_own' ? 'Confirmar exclusão' : 'Confirmar remoção'"
                 >
                   @if (selectedAction === 'delete_own') {
@@ -582,6 +584,7 @@
                     </label>
                     <textarea
                       [id]="'community-feed-removal-reason-' + item.postId"
+                      class="app-control"
                       rows="2"
                       maxlength="240"
                       [formControl]="removalReason"
@@ -593,16 +596,17 @@
                     </small>
                   }
 
-                  <div class="community-post__confirmation-actions">
+                  <div class="community-post__confirmation-actions app-form-actions">
                     <button
                       type="button"
+                      class="app-action app-action--ghost"
                       [disabled]="actionState.status === 'loading'"
                       (click)="cancelPostAction()"
                     >
                       Cancelar
                     </button>
                     <button
-                      class="is-danger"
+                      class="is-danger app-action app-action--danger"
                       type="button"
                       [disabled]="actionState.status === 'loading' || (selectedAction === 'remove' && removalReason.invalid)"
                       (click)="confirmPostAction(item)"
@@ -642,6 +646,7 @@
         >
           <button
             type="button"
+            class="app-action app-action--ghost"
             aria-label="Ver publicações anteriores já carregadas"
             (click)="showOlderLoadedPosts(state.items)"
           >
@@ -663,6 +668,7 @@
           }
           <button
             type="button"
+            class="app-action app-action--ghost"
             [disabled]="state.loadingMore"
             [attr.aria-label]="state.loadMoreError ? 'Tentar carregar publicações anteriores novamente' : 'Carregar publicações anteriores'"
             (click)="loadMore(state.nextCursor)"
