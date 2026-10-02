@@ -1676,6 +1676,22 @@ describe('Canonical UI boundary', () => {
     expect(reports).toContain('moderation-reports__admin-notice');
   });
 
+  it('mantém atalhos de Conta sem reimplementar a superfície global de card', () => {
+    const account = source(
+      'src/app/account/pages/account-home/account-home.component.html'
+    );
+    const styles = source(
+      'src/app/account/pages/account-section.css'
+    );
+
+    expect(account).toContain(
+      'account-overview-card app-card app-card--flat app-card--interactive'
+    );
+    expect(styles).not.toContain('border-radius: 18px');
+    expect(styles).not.toContain('.account-overview-card:hover {');
+    expect(styles).not.toContain('box-shadow: 0 8px 24px');
+  });
+
   it('mantém o shell Admin no PageHeader canônico e com alvo de toque válido', () => {
     const admin = source(
       'src/app/admin-dashboard/admin-dashboard.component.html'
