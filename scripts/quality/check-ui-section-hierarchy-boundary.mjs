@@ -298,6 +298,65 @@ for (const forbidden of [
   }
 }
 
+const dashboardLayoutHtml = read(
+  'src/app/dashboard/dashboard-layout/dashboard-layout.component.html'
+);
+if (!dashboardLayoutHtml.includes('class="visually-hidden"')) {
+  violations.push(
+    'dashboard-layout.component.html should use canonical visually-hidden helper'
+  );
+}
+const dashboardLayoutCss = read(
+  'src/app/dashboard/dashboard-layout/dashboard-layout.component.css'
+);
+for (const forbidden of [
+  '.dashboard-sidebar',
+  '.dashboard-container',
+  '!important',
+  'box-shadow:',
+]) {
+  if (dashboardLayoutCss.includes(forbidden)) {
+    violations.push(
+      'dashboard-layout.component.css contains orphan legacy sidebar chrome ' + forbidden
+    );
+  }
+}
+
+const hotPlacesHtml = read(
+  'src/app/dashboard/hot-places/hot-places-widget/hot-places-widget.component.html'
+);
+for (const required of [
+  'hot-places app-card app-card--flat app-card--media',
+  'hot-places__header app-section-header',
+  'class="app-section-title"',
+  'hot-places__state app-card app-card--flat app-card--compact',
+  'hot-place-card app-card app-card--flat app-card--compact',
+  'hot-place-card__tag app-chip app-chip--muted',
+  'class="app-action app-action--ghost" routerLink="/chat"',
+]) {
+  if (!hotPlacesHtml.includes(required)) {
+    violations.push(
+      'hot-places-widget.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const hotPlacesCss = read(
+  'src/app/dashboard/hot-places/hot-places-widget/hot-places-widget.component.css'
+);
+for (const forbidden of [
+  '.hot-places.app-card',
+  'box-shadow:',
+  'border-radius: 999px',
+  '.hot-place-card__footer a:hover,',
+]) {
+  if (hotPlacesCss.includes(forbidden)) {
+    violations.push(
+      'hot-places-widget.component.css contains duplicate shared UI chrome ' + forbidden
+    );
+  }
+}
+
 const feedPublicationComposerHtml = read(
   'src/app/explore/components/feed-publication-composer/feed-publication-composer.component.html'
 );
