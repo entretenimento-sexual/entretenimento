@@ -1,33 +1,33 @@
 <!-- src\app\preferences\components\match-profile-preview-card\match-profile-preview-card.component.html -->
- <section class="match-profile-card" aria-label="Prévia do match profile">
+ <section class="match-profile-card app-card app-card--flat" aria-label="Prévia do match profile">
   @if (matchProfile(); as data) {
     <header class="card-header">
       <div>
         <h2 class="card-title">{{ title() }}</h2>
       </div>
 
-      <span class="card-badge">
+      <span class="card-badge app-chip app-chip--muted">
         {{ data.search.discoveryMode }}
       </span>
     </header>
 
     <div class="card-grid app-responsive-grid" role="list">
-      <article class="card-item" role="listitem">
+      <article class="card-item app-card app-card--flat app-card--compact" role="listitem">
         <span class="card-label">Intenções</span>
         <strong class="card-value">{{ relationshipIntentsCount() }}</strong>
       </article>
 
-      <article class="card-item" role="listitem">
+      <article class="card-item app-card app-card--flat app-card--compact" role="listitem">
         <span class="card-label">Práticas</span>
         <strong class="card-value">{{ sexualPracticesCount() }}</strong>
       </article>
 
-      <article class="card-item" role="listitem">
+      <article class="card-item app-card app-card--flat app-card--compact" role="listitem">
         <span class="card-label">Disponibilidade</span>
         <strong class="card-value">{{ availabilityLabel() }}</strong>
       </article>
 
-      <article class="card-item" role="listitem">
+      <article class="card-item app-card app-card--flat app-card--compact" role="listitem">
         <span class="card-label">Boosts</span>
         <strong class="card-value">{{ boostsCount() }}</strong>
       </article>
