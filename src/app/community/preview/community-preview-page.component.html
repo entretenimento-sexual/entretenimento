@@ -3,6 +3,7 @@
   <main class="community-preview">
     <nav class="community-preview__topbar" aria-label="Navegação do espaço">
       <a
+        class="app-action app-action--ghost"
         [routerLink]="returnRoute()"
         [queryParams]="returnQueryParams()"
         aria-label="Voltar para a lista anterior"
@@ -26,7 +27,7 @@
       </div>
     } @else if (state.preview; as preview) {
       @if (membershipAction$ | async; as membershipAction) {
-        <article class="community-preview__content">
+        <article class="community-preview__content app-card app-card--flat app-card--media">
           <div
             class="community-preview__cover"
             [attr.data-visual-variant]="communityVisualVariant(preview.community)"
@@ -115,7 +116,7 @@
                   </span>
                 } @else {
                   <button
-                    class="community-preview__membership-action"
+                    class="community-preview__membership-action app-action app-action--primary"
                     type="button"
                     [disabled]="membershipAction.status === 'loading'"
                     [attr.aria-label]="membershipActionLabel(preview.community) + ' ' + preview.community.name"
@@ -158,7 +159,7 @@
 
                 @if (preview.canLeaveMembership) {
                   <button
-                    class="community-preview__membership-leave-action"
+                    class="community-preview__membership-leave-action app-action app-action--ghost"
                     type="button"
                     [disabled]="membershipAction.status === 'loading'"
                     aria-label="Cancelar solicitação"
@@ -181,7 +182,7 @@
                 }
               } @else if (preview.canLeaveMembership) {
                 <button
-                  class="community-preview__membership-leave-action"
+                  class="community-preview__membership-leave-action app-action app-action--ghost"
                   type="button"
                   [disabled]="membershipAction.status === 'loading'"
                   [attr.aria-label]="'Sair de ' + preview.community.name"
@@ -211,7 +212,7 @@
                 && preview.viewerMode !== 'pending'
               ) {
                 <button
-                  class="community-preview__membership-action community-preview__membership-action--privacy"
+                  class="community-preview__membership-action community-preview__membership-action--privacy app-action app-action--ghost"
                   type="button"
                   aria-label="Abrir privacidade da participação"
                   (click)="selectSection('about')"
@@ -240,7 +241,7 @@
             <div class="community-preview__context">
               @if (lifecycleNotice(preview.lifecycleStatus); as notice) {
                 <section
-                  class="community-preview__lifecycle"
+                  class="community-preview__lifecycle app-card app-card--flat app-card--compact"
                   [attr.data-lifecycle-status]="preview.lifecycleStatus"
                   role="status"
                   aria-labelledby="community-preview-lifecycle-title"
@@ -264,7 +265,7 @@
                 && activeSection() !== 'about'
               ) {
                 <section
-                  class="community-preview__rules community-preview__rules--before-entry"
+                  class="community-preview__rules community-preview__rules--before-entry app-card app-card--flat app-card--compact"
                   aria-labelledby="community-preview-rules-before-entry-title"
                 >
                   <div class="community-preview__rules-heading">
@@ -349,6 +350,7 @@
               <div class="community-preview__management-actions">
                 @if (preview.canManageMemberships) {
                   <button
+                    class="app-action app-action--ghost"
                     id="community-tab-requests"
                     type="button"
                     [attr.aria-pressed]="activeSection() === 'requests'"
@@ -365,6 +367,7 @@
 
                 @if (preview.canInviteCommunityMembers) {
                   <button
+                    class="app-action app-action--ghost"
                     id="community-tab-invites"
                     type="button"
                     [attr.aria-pressed]="activeSection() === 'invites'"
@@ -503,7 +506,7 @@
                     && preview.rules
                   ) {
                     <section
-                      class="community-preview__rules community-preview__rules--about"
+                      class="community-preview__rules community-preview__rules--about app-card app-card--flat app-card--compact"
                       aria-labelledby="community-preview-rules-about-title"
                     >
                       <div class="community-preview__rules-heading">
@@ -596,7 +599,7 @@
                 class="community-preview__rail"
                 aria-label="Resumo da Comunidade"
               >
-                <section class="community-preview__rail-card">
+                <section class="community-preview__rail-card app-card app-card--flat app-card--compact">
                   <div class="community-preview__rail-heading">
                     <i class="fas fa-circle-info" aria-hidden="true"></i>
                     <h2>Sobre</h2>
@@ -604,7 +607,7 @@
                   <p>
                     {{ preview.community.description || sourceDescription(preview.community) }}
                   </p>
-                  <button type="button" (click)="selectSection('about')">
+                  <button type="button" class="app-action app-action--ghost" (click)="selectSection('about')">
                     Ver informações completas
                   </button>
                 </section>
@@ -613,7 +616,7 @@
                   preview.viewerMode !== 'visitor'
                   && preview.viewerMode !== 'pending'
                 ) {
-                  <section class="community-preview__rail-card">
+                  <section class="community-preview__rail-card app-card app-card--flat app-card--compact">
                     <div class="community-preview__rail-heading">
                       <i class="fas fa-user-shield" aria-hidden="true"></i>
                       <h2>Privacidade</h2>
@@ -621,13 +624,13 @@
                     <p>
                       Sua participação é privada por padrão. Você decide se esta Comunidade pode aparecer no seu perfil.
                     </p>
-                    <button type="button" (click)="selectSection('about')">
+                    <button type="button" class="app-action app-action--ghost" (click)="selectSection('about')">
                       Ajustar participação no perfil
                     </button>
                   </section>
                 }
 
-                <section class="community-preview__rail-card">
+                <section class="community-preview__rail-card app-card app-card--flat app-card--compact">
                   <div class="community-preview__rail-heading">
                     <i class="fas fa-chart-simple" aria-hidden="true"></i>
                     <h2>Comunidade agora</h2>
@@ -655,7 +658,7 @@
                 </section>
 
                 @if (preview.community.tags.length > 0) {
-                  <section class="community-preview__rail-card">
+                  <section class="community-preview__rail-card app-card app-card--flat app-card--compact">
                     <div class="community-preview__rail-heading">
                       <i class="fas fa-hashtag" aria-hidden="true"></i>
                       <h2>Interesses</h2>
@@ -672,13 +675,13 @@
                 }
 
                 @if (preview.rules) {
-                  <section class="community-preview__rail-card">
+                  <section class="community-preview__rail-card app-card app-card--flat app-card--compact">
                     <div class="community-preview__rail-heading">
                       <i class="fas fa-scale-balanced" aria-hidden="true"></i>
                       <h2>Regras</h2>
                     </div>
                     <p class="community-preview__rail-rules">{{ preview.rules }}</p>
-                    <button type="button" (click)="selectSection('about')">
+                    <button type="button" class="app-action app-action--ghost" (click)="selectSection('about')">
                       Ler regras completas
                     </button>
                   </section>
