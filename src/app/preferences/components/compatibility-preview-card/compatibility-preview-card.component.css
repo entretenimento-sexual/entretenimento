@@ -3,9 +3,6 @@
   display: grid;
   gap: 1rem;
   padding: 1rem;
-  border: 1px solid var(--surface-border, #2b2b2b);
-  border-radius: 1rem;
-  background: var(--surface-color, rgba(255, 255, 255, 0.02));
 }
 
 .compatibility-header {
@@ -35,8 +32,6 @@
   display: grid;
   gap: 0.35rem;
   padding: 0.875rem;
-  border-radius: 0.875rem;
-  background: rgba(255, 255, 255, 0.03);
 }
 
 .compatibility-label {
@@ -63,8 +58,6 @@
   display: grid;
   gap: 0.35rem;
   padding: 0.875rem;
-  border-radius: 0.875rem;
-  background: rgba(255, 255, 255, 0.03);
 }
 
 .reason-header {
