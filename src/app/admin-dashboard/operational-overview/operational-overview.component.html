@@ -136,7 +136,6 @@
           *ngFor="let report of vm.filteredReports; trackBy: trackByReportId"
         >
           <div class="compact-list__content">
-            <strong>{{ statusLabel(report.status) }}</strong>
             <span>{{ report.reason || 'Motivo não informado' }} · {{ report.targetType || 'alvo não informado' }}</span>
           </div>
           <span [class]="'status-pill status-pill--' + report.status">{{ statusLabel(report.status) }}</span>
