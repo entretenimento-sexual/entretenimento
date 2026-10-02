@@ -264,6 +264,19 @@ for (const boundary of boundaries) {
 }
 
 
+const preferencesEditorCss = read(
+  'src/app/preferences/pages/preferences-editor/preferences-editor.component.css'
+);
+for (const forbidden of [
+  'html.high-contrast .availability-section',
+]) {
+  if (preferencesEditorCss.includes(forbidden)) {
+    violations.push(
+      'preferences-editor.component.css contains duplicate disclosure contrast chrome ' + forbidden
+    );
+  }
+}
+
 const intentCss = read(
   'src/app/preferences/components/intent-state-form/intent-state-form.component.css'
 );
