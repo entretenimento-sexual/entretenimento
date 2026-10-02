@@ -232,18 +232,6 @@
   text-shadow: 0 0 10px rgba(77, 163, 255, 0.22);
 }
 
-.thread-message__status-text {
-  position: absolute !important;
-  width: 1px !important;
-  height: 1px !important;
-  padding: 0 !important;
-  margin: -1px !important;
-  overflow: hidden !important;
-  clip: rect(0, 0, 0, 0) !important;
-  white-space: nowrap !important;
-  border: 0 !important;
-}
-
 .thread-message__reactions {
   position: absolute;
   top: -36px;
@@ -369,7 +357,7 @@
 }
 
 .thread-message__menu-danger {
-  color: var(--danger-color, #ff5c7a) !important;
+  color: var(--danger-color, #ff5c7a);
 }
 
 .thread-message__selected-reaction {
@@ -451,17 +439,16 @@
 :host-context(html.high-contrast) .thread-message__reply-card,
 :host-context(html.high-contrast) .thread-message__menu-panel,
 :host-context(html.high-contrast) .thread-message__menu-panel button {
-  opacity: 1;
-  background: var(--background-color) !important;
-  color: var(--text-color) !important;
-  border: 2px solid currentColor !important;
-  box-shadow: none !important;
+  background: var(--background-color);
+  color: var(--text-color);
+  border-color: currentColor;
+  box-shadow: none;
 }
 
 :host-context(html.high-contrast) .thread-message__reply-card strong,
 :host-context(html.high-contrast) .thread-message__reply-card span,
 :host-context(html.high-contrast) .thread-message__content--deleted {
-  color: var(--text-color) !important;
+  color: var(--text-color);
 }
 
 @media (min-width: 1600px) {
