@@ -1554,6 +1554,37 @@ describe('Canonical UI boundary', () => {
   });
 
 
+  it('mantém Amizades e moderação de vídeo sem contexto e estilos aposentados', () => {
+    const friends = source(
+      'src/app/layout/friend-management/friend-list-page/friend-list-page.component.html'
+    );
+    const friendStyles = source(
+      'src/app/layout/friend-management/friend-list-page/friend-list-page.component.css'
+    );
+    const videoModeration = source(
+      'src/app/admin-dashboard/video-moderation/video-moderation.component.html'
+    );
+    const videoModerationStyles = source(
+      'src/app/admin-dashboard/video-moderation/video-moderation.component.css'
+    );
+
+    expect(friends).toContain('<app-page-header title="Amizades">');
+    expect(friends).not.toContain(
+      'Filtre contatos online e mantenha as conversas acessíveis'
+    );
+    expect(friendStyles).not.toContain('friends-page__eyebrow');
+
+    expect(videoModeration).toContain('Diagnóstico do pipeline');
+    expect(videoModerationStyles).not.toContain('.video-moderation__status');
+    expect(videoModerationStyles).not.toContain('.video-moderation__card');
+    expect(videoModerationStyles).not.toContain('.video-moderation__grid');
+    expect(videoModerationStyles).not.toContain('.video-moderation__media');
+    expect(videoModerationStyles).not.toContain('.video-moderation__title-row');
+    expect(videoModerationStyles).not.toContain('.video-moderation__chip');
+    expect(videoModerationStyles).not.toContain('.video-moderation__meta');
+    expect(videoModerationStyles).not.toContain('.video-moderation__actions');
+  });
+
   it('mantém Conta sem estilos de ação órfãos', () => {
     const accountStyles = source(
       'src/app/account/pages/account-section.css'
