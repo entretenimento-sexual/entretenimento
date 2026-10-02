@@ -8,20 +8,22 @@
 // - mantém stream reativa e contrato de leitura
 
 import { Injectable } from '@angular/core';
-import { Observable, of } from 'rxjs';
-import { catchError, distinctUntilChanged, map, shareReplay } from 'rxjs/operators';
+import { Observable, combineLatest, of } from 'rxjs';
+import { catchError, distinctUntilChanged, map, shareReplay, switchMap } from 'rxjs/operators';
 
 import {
   Photo,
   PhotoFirestoreService,
 } from 'src/app/core/services/image-handling/photo-firestore.service';
 import type { IPhotoItem } from 'src/app/core/interfaces/media/i-photo-item';
+import { StorageService } from 'src/app/core/services/image-handling/storage.service';
 import { MediaApplicationErrorService } from './media-application-error.service';
 
 @Injectable({ providedIn: 'root' })
 export class MediaQueryService {
   constructor(
     private readonly photoFirestoreService: PhotoFirestoreService,
+    private readonly storageService: StorageService,
     private readonly mediaError: MediaApplicationErrorService
   ) {}
 
@@ -36,7 +38,15 @@ export class MediaQueryService {
     }
 
     return this.photoFirestoreService.getPhotosByUser(safeOwnerUid).pipe(
-      map((items) => items.map((photo) => this.mapPhotoToMediaItem(safeOwnerUid, photo))),
+      switchMap((items) => {
+        if (items.length === 0) {
+          return of([] as IPhotoItem[]);
+        }
+
+        return combineLatest(
+          items.map((photo) => this.resolvePhotoItem$(safeOwnerUid, photo))
+        );
+      }),
       distinctUntilChanged((a, b) => this.sameItems(a, b)),
       catchError((error) => {
         this.mediaError.report(error, {
@@ -50,11 +60,36 @@ export class MediaQueryService {
     );
   }
 
-  private mapPhotoToMediaItem(ownerUid: string, photo: Photo): IPhotoItem {
+  private resolvePhotoItem$(
+    ownerUid: string,
+    photo: Photo
+  ): Observable<IPhotoItem> {
+    const storedUrl = String(photo.url ?? '').trim();
+    const storagePath = String(photo.path ?? '').trim();
+    const readableSource = /^https?:\/\//i.test(storedUrl)
+      ? storedUrl
+      : storagePath || storedUrl;
+
+    if (!readableSource) {
+      return of(this.mapPhotoToMediaItem(ownerUid, photo, ''));
+    }
+
+    return this.storageService.getPhotoUrl(readableSource).pipe(
+      map((resolvedUrl) =>
+        this.mapPhotoToMediaItem(ownerUid, photo, resolvedUrl)
+      )
+    );
+  }
+
+  private mapPhotoToMediaItem(
+    ownerUid: string,
+    photo: Photo,
+    resolvedUrl: string
+  ): IPhotoItem {
     return {
       id: photo.id,
       ownerUid,
-      url: photo.url,
+      url: resolvedUrl,
       alt: photo.fileName || 'Foto do perfil',
       createdAt: this.normalizeCreatedAt(photo.createdAt),
       displayDate: this.normalizeOptionalDateMs(photo.displayDate),
