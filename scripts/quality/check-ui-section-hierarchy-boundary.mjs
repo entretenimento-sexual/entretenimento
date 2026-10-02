@@ -264,6 +264,40 @@ for (const boundary of boundaries) {
 }
 
 
+const sendRequestDialogHtml = read(
+  'src/app/shared/components-globais/user-card/send-request-dialog/send-request-dialog.component.html'
+);
+for (const required of [
+  'policy app-card app-card--flat app-card--compact',
+  'cancel-action app-action app-action--ghost',
+  'send-action app-action app-action--primary',
+]) {
+  if (!sendRequestDialogHtml.includes(required)) {
+    violations.push(
+      'send-request-dialog.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const sendRequestDialogCss = read(
+  'src/app/shared/components-globais/user-card/send-request-dialog/send-request-dialog.component.css'
+);
+for (const forbidden of [
+  'box-shadow:',
+  'linear-gradient(',
+  'radial-gradient(',
+  'border-radius: 999px',
+  '!important',
+  '.mat-mdc-form-field.mat-mdc-form-field-appearance-fill',
+  ':host-context(html.dark-mode)',
+]) {
+  if (sendRequestDialogCss.includes(forbidden)) {
+    violations.push(
+      'send-request-dialog.component.css contains duplicate dialog/material chrome ' + forbidden
+    );
+  }
+}
+
 const universalSidebarHtml = read(
   'src/app/shared/components-globais/universal-sidebar/universal-sidebar.component.html'
 );
