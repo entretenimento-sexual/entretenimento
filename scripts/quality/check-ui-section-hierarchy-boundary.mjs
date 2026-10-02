@@ -298,6 +298,39 @@ for (const forbidden of [
   }
 }
 
+const uploadPhotoHtml = read(
+  'src/app/shared/components-globais/upload-photo/upload-photo.component.html'
+);
+for (const required of [
+  'upload-modal-content app-card app-card--media',
+  'btn-close app-action app-action--ghost',
+  'loading-spinner app-card app-card--flat app-card--compact',
+  'alert alert-danger mt-2 app-card app-card--flat app-card--compact',
+]) {
+  if (!uploadPhotoHtml.includes(required)) {
+    violations.push(
+      'upload-photo.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const uploadPhotoCss = read(
+  'src/app/shared/components-globais/upload-photo/upload-photo.component.css'
+);
+for (const forbidden of [
+  'box-shadow:',
+  '!important',
+  '.btn-close:hover:not(:disabled)',
+  ':host-context(html.high-contrast) .upload-modal-content,',
+  ':host-context(html.high-contrast) .btn-close,',
+]) {
+  if (uploadPhotoCss.includes(forbidden)) {
+    violations.push(
+      'upload-photo.component.css contains duplicate shared UI chrome ' + forbidden
+    );
+  }
+}
+
 const mobileBottomNavHtml = read(
   'src/app/shared/components-globais/mobile-bottom-nav/mobile-bottom-nav.component.html'
 );
