@@ -9,15 +9,6 @@
   padding: 12px 12px 32px;
 }
 
-
-
-.back-link:focus-visible {
-  border-radius: 8px;
-  outline: var(--focus-ring, 2px solid currentColor);
-  outline-offset: 4px;
-}
-
-
 .gallery-summary {
   display: inline-flex;
   align-items: center;
