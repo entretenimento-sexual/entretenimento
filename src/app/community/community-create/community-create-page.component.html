@@ -1,25 +1,26 @@
 <!-- src/app/community/community-create/community-create-page.component.html -->
-<main class="community-create" aria-labelledby="community-create-title">
-  <header class="community-create__header">
+<main class="community-create app-page" aria-labelledby="community-create-title">
+  <header class="community-create__header app-page-header">
     <a
-      class="community-create__back"
+      class="community-create__back app-action app-action--ghost"
       routerLink="/dashboard/comunidades"
       aria-label="Voltar para Comunidades"
     >
       <i class="fas fa-arrow-left" aria-hidden="true"></i>
     </a>
 
-    <div>
-      <h1 id="community-create-title">Criar Comunidade</h1>
-      <p>{{ communityDefinition.description }}</p>
-      <p>Você será o proprietário desta Comunidade e poderá definir a equipe de gestão depois.</p>
+    <div class="app-page-heading">
+      <h1 id="community-create-title" class="app-page-title">Criar Comunidade</h1>
+      <p class="app-page-lead">
+        {{ communityDefinition.description }} Você será o proprietário desta Comunidade e poderá definir a equipe de gestão depois.
+      </p>
     </div>
   </header>
 
   @if (creationState$ | async; as creationState) {
     @if (creationState.status === 'loading') {
       <section
-        class="community-create__gate"
+        class="community-create__gate app-card app-card--flat"
         role="status"
         aria-live="polite"
       >
@@ -30,19 +31,19 @@
         </div>
       </section>
     } @else if (creationState.status === 'error') {
-      <section class="community-create__gate" role="alert">
+      <section class="community-create__gate app-card app-card--flat" role="alert">
         <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
         <div>
           <h2>Não foi possível abrir o compositor</h2>
           <p>Sua participação nas Comunidades continua disponível normalmente.</p>
-          <button type="button" (click)="retryCreationCapability()">
+          <button type="button" class="app-action app-action--ghost" (click)="retryCreationCapability()">
             Tentar novamente
           </button>
         </div>
       </section>
     } @else if (!creationState.capability.canCreate) {
       <section
-        class="community-create__gate community-create__gate--upgrade"
+        class="community-create__gate community-create__gate--upgrade app-card app-card--flat"
         aria-labelledby="community-create-gate-title"
       >
         <i
@@ -59,7 +60,7 @@
               {{ creationState.capability.currentOwnedCommunities === 1 ? 'Comunidade' : 'Comunidades' }}.
               Elas continuam funcionando normalmente.
             </p>
-            <a routerLink="/dashboard/comunidades/minhas">
+            <a class="app-action app-action--ghost" routerLink="/dashboard/comunidades/minhas">
               Gerenciar minhas Comunidades
             </a>
           } @else {
@@ -73,7 +74,7 @@
             </p>
             <div class="community-create__gate-actions">
               <a
-                class="community-create__upgrade"
+                class="community-create__upgrade app-action app-action--primary"
                 routerLink="/subscription-plan"
                 [queryParams]="{
                   minimumRole: creationUpgradeRole(creationState.capability),
@@ -83,7 +84,7 @@
                 <i class="fas fa-crown" aria-hidden="true"></i>
                 Conhecer o plano {{ creationUpgradePlanLabel(creationState.capability) }}
               </a>
-              <a routerLink="/dashboard/comunidades">Explorar Comunidades</a>
+              <a class="app-action app-action--ghost" routerLink="/dashboard/comunidades">Explorar Comunidades</a>
             </div>
           }
         </div>
@@ -91,7 +92,7 @@
     } @else {
   @if (preview$ | async; as preview) {
     <section
-      class="community-create__preview"
+      class="community-create__preview app-card app-card--flat app-card--compact"
       aria-labelledby="community-create-preview-title"
       aria-live="polite"
     >
@@ -126,7 +127,7 @@
     novalidate
   >
     <section
-      class="community-create__section community-create__section--identity"
+      class="community-create__section app-card app-card--flat community-create__section--identity"
       aria-labelledby="community-create-identity-title"
     >
       <h2 id="community-create-identity-title">Identidade</h2>
@@ -177,7 +178,7 @@
     </section>
 
     <section
-      class="community-create__section community-create__section--access"
+      class="community-create__section app-card app-card--flat community-create__section--access"
       aria-labelledby="community-create-access-title"
     >
       <h2 id="community-create-access-title">Entrada e acesso</h2>
@@ -265,7 +266,7 @@
     </section>
 
     <section
-      class="community-create__section community-create__section--tags"
+      class="community-create__section app-card app-card--flat community-create__section--tags"
       [class.is-invalid]="form.controls.tagIds.invalid && form.controls.tagIds.touched"
       aria-labelledby="community-create-tags-title"
       aria-describedby="community-create-tags-help"
@@ -277,7 +278,7 @@
             Escolha de 1 a {{ maxCommunityTags }} tags. Elas serão usadas para busca e recomendações de Comunidades.
           </p>
         </div>
-        <span class="community-create__tag-count" aria-live="polite">
+        <span class="community-create__tag-count app-chip app-chip--muted" aria-live="polite">
           {{ form.controls.tagIds.value.length }}/{{ maxCommunityTags }}
         </span>
       </div>
@@ -292,7 +293,7 @@
           <div class="community-create__tag-state" role="alert">
             <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
             <span>Os interesses não puderam ser carregados agora.</span>
-            <button type="button" (click)="retryTagCatalog()">
+            <button type="button" class="app-action app-action--ghost" (click)="retryTagCatalog()">
               Tentar novamente
             </button>
           </div>
@@ -363,7 +364,7 @@
     </section>
 
     <section
-      class="community-create__section community-create__section--rules"
+      class="community-create__section app-card app-card--flat community-create__section--rules"
       aria-labelledby="community-create-rules-title"
     >
       <h2 id="community-create-rules-title">Regras</h2>
@@ -384,9 +385,9 @@
       </p>
     </section>
 
-    <div class="community-create__actions">
-      <a routerLink="/dashboard/comunidades">Cancelar</a>
-      <button type="submit" [disabled]="submitting()">
+    <div class="community-create__actions app-card app-card--flat app-card--compact">
+      <a class="app-action app-action--ghost" routerLink="/dashboard/comunidades">Cancelar</a>
+      <button type="submit" class="app-action app-action--primary" [disabled]="submitting()">
         @if (submitting()) {
           <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
           <span>Criando</span>
