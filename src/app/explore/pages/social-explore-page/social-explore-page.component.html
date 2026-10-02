@@ -34,7 +34,7 @@
 
         <button
           type="button"
-          class="feed-composer__moment"
+          class="feed-composer__moment app-action app-action--ghost"
           aria-label="Criar publicação persistente"
           (click)="openPublicationComposer()"
         >
@@ -57,11 +57,11 @@
         class="video-highlights"
         aria-labelledby="video-highlights-title"
       >
-        <header class="video-highlights__header">
-          <h2 id="video-highlights-title">Vídeos em destaque</h2>
+        <header class="video-highlights__header app-section-header">
+          <h2 id="video-highlights-title" class="app-section-title">Vídeos em destaque</h2>
 
           @if (vm.videoHighlightsStatus === 'ready') {
-            <span class="video-highlights__count" aria-live="polite">
+            <span class="video-highlights__count app-section-meta" aria-live="polite">
               {{ vm.videoHighlights.length }} disponíveis
             </span>
           }
@@ -82,7 +82,7 @@
           }
 
           @case ('error') {
-            <div class="video-highlights__error" role="alert">
+            <div class="video-highlights__error app-card app-card--flat app-card--compact" role="alert">
               <div>
                 <strong>Vídeos temporariamente indisponíveis</strong>
                 <span>Tente carregar novamente.</span>
@@ -131,9 +131,9 @@
           class="community-distribution community-distribution--activity"
           aria-labelledby="community-activity-title"
         >
-          <header class="community-distribution__header">
-            <h2 id="community-activity-title">Atividade nas suas Comunidades</h2>
-            <a routerLink="/dashboard/comunidades/minhas">Ver todas</a>
+          <header class="community-distribution__header app-section-header">
+            <h2 id="community-activity-title" class="app-section-title">Atividade nas suas Comunidades</h2>
+            <a class="app-action app-action--ghost" routerLink="/dashboard/comunidades/minhas">Ver todas</a>
           </header>
 
           <div
@@ -143,7 +143,7 @@
           >
             @for (item of communities.activity; track item.communityId) {
               <a
-                class="community-distribution__card"
+                class="community-distribution__card app-card app-card--flat app-card--compact app-card--interactive"
                 role="listitem"
                 [routerLink]="['/dashboard/comunidades/minhas', item.communityId]"
                 [attr.aria-label]="'Abrir ' + item.name + ', ' + item.unreadCount + ' novas atividades'"
@@ -173,7 +173,7 @@
                 </span>
 
                 @if (item.hasPriorityUnread) {
-                  <span class="community-distribution__priority">
+                  <span class="community-distribution__priority app-chip app-chip--primary">
                     Requer atenção
                   </span>
                 }
@@ -188,9 +188,9 @@
           class="community-distribution"
           aria-labelledby="community-recommendations-title"
         >
-          <header class="community-distribution__header">
-            <h2 id="community-recommendations-title">Comunidades para você</h2>
-            <a routerLink="/dashboard/comunidades">Explorar</a>
+          <header class="community-distribution__header app-section-header">
+            <h2 id="community-recommendations-title" class="app-section-title">Comunidades para você</h2>
+            <a class="app-action app-action--ghost" routerLink="/dashboard/comunidades">Explorar</a>
           </header>
 
           <div
@@ -200,7 +200,7 @@
           >
             @for (item of communities.recommendations; track item.communityId) {
               <a
-                class="community-distribution__card"
+                class="community-distribution__card app-card app-card--flat app-card--compact app-card--interactive"
                 role="listitem"
                 [routerLink]="['/dashboard/comunidades', item.communityId]"
                 [appCommunityDiscoveryVisibility]="item.communityId"
@@ -307,7 +307,7 @@
             />
           } @else {
             <article
-              class="feed-intent"
+              class="feed-intent app-card app-card--flat app-card--compact"
               role="listitem"
               [attr.aria-label]="
                 'Momento temporário de ' + item.status.profile.nickname
