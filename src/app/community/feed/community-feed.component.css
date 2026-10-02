@@ -24,12 +24,6 @@
   display: grid;
   gap: 0.62rem;
   padding: 0.8rem 1rem;
-  border-bottom: 1px solid var(--surface-border);
-  background: color-mix(
-    in oklab,
-    var(--surface-color) 98%,
-    var(--primary-color) 2%
-  );
 }
 
 .community-feed__composer-row {
@@ -117,7 +111,6 @@
 .community-post__reaction:focus-visible,
 .community-post__comments-toggle:focus-visible,
 .community-post__reply-context.is-navigable:focus-visible,
-.community-feed__new-items button:focus-visible,
 .community-post__reply:focus-visible {
   outline: var(--focus-ring);
   outline-offset: var(--focus-offset);
@@ -697,7 +690,6 @@ button.community-post__action {
   opacity: 0.62;
 }
 
-
 /* A localização e o contexto de resposta fazem parte do conteúdo do post.
    O tratamento abaixo concentra a apresentação no CSS e mantém alvos de 44px. */
 .community-feed__location-preview {
@@ -707,17 +699,6 @@ button.community-post__action {
   align-items: center;
   gap: 0.65rem;
   padding: 0.55rem 0.65rem;
-  border: 1px solid color-mix(
-    in oklab,
-    var(--surface-border) 76%,
-    var(--primary-color) 24%
-  );
-  border-radius: 0.9rem;
-  background: color-mix(
-    in oklab,
-    var(--surface-color) 95%,
-    var(--primary-color) 5%
-  );
 }
 
 .community-feed__location-preview > i {
