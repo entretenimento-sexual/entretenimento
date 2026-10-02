@@ -31,8 +31,3 @@
   padding: clamp(0.75rem, 2vw, 1.25rem);
 }
 
-/* Em alto contraste, o wrapper não deve inventar fundo, sombra ou borda. */
-html.high-contrast .online-users-full {
-  background: transparent !important;
-  box-shadow: none !important;
-}
