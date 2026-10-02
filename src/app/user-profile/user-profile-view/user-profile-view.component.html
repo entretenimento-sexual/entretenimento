@@ -141,18 +141,13 @@
                       id="profile-video-entry-title"
                       class="app-section-title"
                     >
-                      Meus vídeos
+                      <a
+                        class="profile-media-entry__link"
+                        [routerLink]="['/media', 'perfil', currentUid, 'videos']"
+                      >
+                        Meus vídeos
+                      </a>
                     </h2>
-                  </div>
-
-                  <div class="app-section-actions">
-                    <a
-                      class="app-action app-action--primary"
-                      [routerLink]="['/media', 'perfil', currentUid, 'videos']"
-                      aria-label="Gerenciar meus vídeos"
-                    >
-                      Gerenciar
-                    </a>
                   </div>
                 </header>
               </section>
