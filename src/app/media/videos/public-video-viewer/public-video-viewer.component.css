@@ -153,13 +153,6 @@
   overflow: hidden;
 }
 
-.public-video-viewer__owner-cta {
-  flex: 0 0 auto;
-  color: color-mix(in oklab, var(--primary-color, #ff7070) 72%, white 28%);
-  font-size: 0.7rem;
-  font-weight: 780;
-  white-space: nowrap;
-}
 
 .public-video-viewer__owner-copy strong,
 .public-video-viewer__owner-copy small {
