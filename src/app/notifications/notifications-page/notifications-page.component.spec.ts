@@ -392,9 +392,14 @@ describe('NotificationsPageComponent', () => {
       card.textContent?.includes('Aviso sem destino')
     );
 
-    expect(routedCard?.textContent).toContain('Abrir');
+    const routedTitleAction = routedCard?.querySelector(
+      '.notification-card__title-action'
+    ) as HTMLButtonElement | null;
+
+    expect(routedTitleAction).not.toBeNull();
+    expect(routedTitleAction?.textContent?.trim()).toBe('Atualização da plataforma');
     expect(routedCard?.textContent).not.toContain('Marcar como lida');
-    expect(routeLessCard?.textContent).not.toContain('Abrir');
+    expect(routeLessCard?.querySelector('.notification-card__title-action')).toBeNull();
     expect(routeLessCard?.textContent).toContain('Marcar como lida');
   });
 
