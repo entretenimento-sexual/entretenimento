@@ -8,10 +8,9 @@
   font-weight: 850;
 }
 
-.report-button--default {
-  min-height: 40px;
+.report-button--default.app-action {
+  min-height: var(--tap-target-sm, 40px);
   max-width: 100%;
-  border-radius: 999px;
 }
 
 .report-button--default mat-icon {
@@ -52,12 +51,6 @@
   opacity: 0.6;
 }
 
-.report-button:focus-visible,
-.report-button--link:focus-visible {
-  outline: 2px solid color-mix(in oklab, var(--primary-color, #ff7070) 70%, #fff 30%);
-  outline-offset: 3px;
-}
-
 @keyframes report-button-spin {
   to {
     transform: rotate(360deg);
@@ -73,6 +66,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .report-button[aria-busy='true'] mat-icon {
-    animation: none !important;
+    animation: none;
   }
 }
