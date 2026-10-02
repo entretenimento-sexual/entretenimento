@@ -8,6 +8,7 @@ import { AdminDashboardComponent } from './admin-dashboard.component';
 import { UserListComponent } from './user-list/user-list.component';
 import { UserDetailsComponent } from './user-details/user-details.component';
 import { AdminMaterialModule } from './admin-material.module';
+import { PageHeaderComponent } from '../shared/page-header/page-header.component';
 
 @NgModule({
   declarations: [
@@ -22,6 +23,7 @@ import { AdminMaterialModule } from './admin-material.module';
     AdminDashboardRoutingModule,
     UserListComponent,
     UserDetailsComponent,
+    PageHeaderComponent,
 
   ],
 })
