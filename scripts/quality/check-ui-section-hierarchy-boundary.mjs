@@ -298,6 +298,39 @@ for (const forbidden of [
   }
 }
 
+const contentAccessNoticeHtml = read(
+  'src/app/shared/components/content-access-notice/content-access-notice.component.html'
+);
+for (const required of [
+  'content-access-notice app-card app-card--flat',
+  '[class.app-card--compact]="compact()"',
+  'content-access-notice__action app-action app-action--ghost',
+]) {
+  if (!contentAccessNoticeHtml.includes(required)) {
+    violations.push(
+      'content-access-notice.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const contentAccessNoticeCss = read(
+  'src/app/shared/components/content-access-notice/content-access-notice.component.css'
+);
+for (const forbidden of [
+  'border-radius: 999px',
+  '.content-access-notice__action:hover,',
+  ':host-context(.high-contrast) .content-access-notice,',
+  '@media (prefers-reduced-motion: reduce)',
+  'border: 1px solid var(--surface-border',
+  'background: var(--surface-color',
+]) {
+  if (contentAccessNoticeCss.includes(forbidden)) {
+    violations.push(
+      'content-access-notice.component.css contains duplicate shared UI chrome ' + forbidden
+    );
+  }
+}
+
 const contentStateHtml = read(
   'src/app/shared/content-state/content-state.component.html'
 );
