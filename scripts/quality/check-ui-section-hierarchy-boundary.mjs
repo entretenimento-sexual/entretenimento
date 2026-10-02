@@ -298,6 +298,39 @@ for (const forbidden of [
   }
 }
 
+const textoDialogHtml = read(
+  'src/app/shared/components-globais/texto-dialog/texto-dialog.component.html'
+);
+for (const required of [
+  'container_text_dialog app-card app-card--media',
+  'class="app-action app-action--ghost"',
+  'class="app-action app-action--primary"',
+]) {
+  if (!textoDialogHtml.includes(required)) {
+    violations.push(
+      'texto-dialog.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const textoDialogCss = read(
+  'src/app/shared/components-globais/texto-dialog/texto-dialog.component.css'
+);
+for (const forbidden of [
+  '::ng-deep',
+  'box-shadow:',
+  '#007bff',
+  'button:hover',
+  'button[mat-stroked-button]',
+  'button[mat-flat-button]',
+]) {
+  if (textoDialogCss.includes(forbidden)) {
+    violations.push(
+      'texto-dialog.component.css contains legacy dialog chrome ' + forbidden
+    );
+  }
+}
+
 const modalMensagemHtml = read(
   'src/app/shared/components-globais/modal-mensagem/modal-mensagem.component.html'
 );
