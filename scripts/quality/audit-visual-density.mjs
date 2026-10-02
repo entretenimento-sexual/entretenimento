@@ -5,6 +5,12 @@ import { glob } from 'glob';
 
 const projectRoot = process.cwd();
 const strict = process.argv.includes('--strict');
+const baselinePath = path.join(
+  projectRoot,
+  'config',
+  'visual-density-baseline.json'
+);
+const baseline = JSON.parse(await readFile(baselinePath, 'utf8'));
 
 const criticalTemplates = new Set([
   'src/app/header/navbar/navbar.component.html',
@@ -450,6 +456,49 @@ const visualAuditSnapshot = {
 console.log(
   '[audit:visual] Snapshot JSON: ' + JSON.stringify(visualAuditSnapshot)
 );
+
+console.log(
+  '[audit:visual] Baseline versionado: ' +
+    `v${baseline.version} ${baseline.capturedAt} | ` +
+    `semântica<=${baseline.semantic.occurrences} ` +
+    `acionáveis<=${baseline.classification.actionable.occurrences}`
+);
+
+if (semanticSummary.occurrences > baseline.semantic.occurrences) {
+  strictFailures.push(
+    `baseline semântico excedido: ${semanticSummary.occurrences} > ${baseline.semantic.occurrences}.`
+  );
+}
+
+if (
+  semanticSummary.criticalOccurrences >
+  baseline.semantic.criticalOccurrences
+) {
+  strictFailures.push(
+    'baseline semântico crítico excedido: ' +
+      `${semanticSummary.criticalOccurrences} > ${baseline.semantic.criticalOccurrences}.`
+  );
+}
+
+for (const [kind] of semanticIntroKinds) {
+  const current = semanticSummary.byKind[kind] ?? 0;
+  const allowed = baseline.semantic.byKind[kind] ?? 0;
+  if (current > allowed) {
+    strictFailures.push(
+      `baseline ${kind} excedido: ${current} > ${allowed}.`
+    );
+  }
+}
+
+if (
+  actionableSummary.occurrences >
+  baseline.classification.actionable.occurrences
+) {
+  strictFailures.push(
+    'resíduos semânticos acionáveis excederam o baseline: ' +
+      `${actionableSummary.occurrences} > ${baseline.classification.actionable.occurrences}.`
+  );
+}
 
 if (semanticSummary.occurrences > 0) {
   const actionableCategorySummary = semanticIntroKinds
