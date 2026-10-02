@@ -24,41 +24,15 @@
 }
 
 .community-preview__topbar a {
-  width: 2.75rem;
-  height: 2.75rem;
-  display: grid;
-  place-items: center;
-  border: 1px solid color-mix(
-    in oklab,
-    var(--surface-border, #d5d5d5) 72%,
-    transparent
-  );
+  width: var(--tap-target, 2.75rem);
+  height: var(--tap-target, 2.75rem);
+  padding: 0;
   border-radius: 50%;
-  background: color-mix(
-    in oklab,
-    var(--surface-color, #fff) 88%,
-    transparent
-  );
-  color: var(--text-color, #222);
-  box-shadow: 0 0.2rem 0.7rem color-mix(in oklab, #000 12%, transparent);
-  text-decoration: none;
   backdrop-filter: blur(8px);
 }
 
-.community-preview__topbar a:hover {
-  background: color-mix(
-    in oklab,
-    var(--surface-color, #fff) 82%,
-    var(--primary-color, #d83768) 18%
-  );
-}
-
-.community-preview__topbar a:focus-visible,
 .community-preview__tabs button:focus-visible,
-.community-preview__management-nav button:focus-visible,
-.community-preview__membership-action:focus-visible,
-.community-preview__membership-leave-action:focus-visible,
-.community-preview__rail button:focus-visible {
+.community-preview__tabs button:focus-visible {
   outline: 3px solid color-mix(
     in oklab,
     var(--primary-color, #d83768) 34%,
@@ -84,7 +58,6 @@
 
 .community-preview__content {
   overflow: clip;
-  background: var(--surface-color, #fff);
 }
 
 .community-preview__cover {
@@ -291,52 +264,35 @@
 }
 
 .community-preview__membership-action,
-.community-preview__membership-leave-action,
+.community-preview__membership-leave-action {
+  min-height: var(--tap-target, 2.75rem);
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
 .community-preview__membership-state {
-  min-height: 2.5rem;
+  min-height: var(--tap-target, 2.75rem);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.42rem;
-  border-radius: 999px;
-  font-size: 0.76rem;
-  font-weight: 760;
-  white-space: nowrap;
-}
-
-.community-preview__membership-action,
-.community-preview__membership-leave-action {
-  padding: 0.55rem 0.8rem;
-  font: inherit;
-  cursor: pointer;
-}
-
-.community-preview__membership-action {
-  border: 0;
-  background: var(--primary-color, #d83768);
-  color: var(--on-primary-color, #fff);
-}
-
-.community-preview__membership-leave-action {
-  border: 1px solid var(--surface-border, #d5d5d5);
-  background: transparent;
-  color: var(--text-color, #222);
-}
-
-.community-preview__membership-action:disabled,
-.community-preview__membership-leave-action:disabled {
-  cursor: wait;
-  opacity: 0.66;
-}
-
-.community-preview__membership-state {
   padding: 0.45rem 0.7rem;
+  border-radius: 999px;
   color: var(--text-color, #222);
   background: color-mix(
     in oklab,
     var(--surface-color, #fff) 90%,
     var(--primary-color, #d83768) 10%
   );
+  font-size: 0.76rem;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
+.community-preview__membership-action:disabled,
+.community-preview__membership-leave-action:disabled {
+  cursor: wait;
+  opacity: 0.66;
 }
 
 .community-preview__membership-state i {
@@ -352,16 +308,15 @@
 .community-preview__lifecycle,
 .community-preview__rules {
   min-width: 0;
-  border: 1px solid color-mix(
+  color: var(--text-color, #222);
+  border-color: color-mix(
     in oklab,
-    var(--surface-border, #d5d5d5) 76%,
+    var(--surface-border) 76%,
     var(--primary-color, #d83768) 24%
   );
-  border-radius: var(--radius-lg, 0.75rem);
-  color: var(--text-color, #222);
   background: color-mix(
     in oklab,
-    var(--surface-color, #fff) 94%,
+    var(--surface-color) 94%,
     var(--primary-color, #d83768) 6%
   );
 }
@@ -546,29 +501,21 @@
   gap: 0.25rem;
 }
 
-.community-preview__management-actions button {
+.community-preview__management-actions .app-action {
   min-height: var(--tap-target, 2.75rem);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.38rem;
-  padding: 0.45rem 0.68rem;
-  border: 0;
-  border-radius: 0.65rem;
-  background: transparent;
-  color: color-mix(in oklab, var(--text-color, #222) 72%, transparent);
-  font: inherit;
   font-size: 0.76rem;
-  font-weight: 740;
-  cursor: pointer;
 }
 
-.community-preview__management-actions button:hover,
-.community-preview__management-actions button.is-active {
+.community-preview__management-actions .app-action.is-active {
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color, #d83768) 38%,
+    var(--surface-border)
+  );
   background: color-mix(
     in oklab,
-    var(--surface-color, #fff) 90%,
-    var(--primary-color, #d83768) 10%
+    var(--primary-color, #d83768) 10%,
+    transparent
   );
   color: var(--primary-color, #d83768);
 }
@@ -585,17 +532,11 @@
 .community-preview__rail-card {
   min-width: 0;
   display: grid;
-  gap: 0.65rem;
-  padding: 1rem;
-  border: 1px solid color-mix(
-    in oklab,
-    var(--surface-border, #d5d5d5) 82%,
-    transparent
-  );
-  border-radius: 0.85rem;
+  gap: var(--space-2, 0.65rem);
+  padding: var(--space-4, 1rem);
   background: color-mix(
     in oklab,
-    var(--surface-color, #fff) 97%,
+    var(--surface-color) 97%,
     var(--primary-color, #d83768) 3%
   );
 }
@@ -636,36 +577,16 @@
   white-space: pre-line;
 }
 
-.community-preview__rail-card > button,
-.community-preview__rail-actions button {
-  min-height: 2.75rem;
-  display: inline-flex;
-  align-items: center;
+.community-preview__rail-card > .app-action,
+.community-preview__rail-actions .app-action {
+  min-height: var(--tap-target, 2.75rem);
   justify-content: flex-start;
-  gap: 0.42rem;
-  padding: 0.5rem 0.65rem;
-  border: 0;
-  border-radius: 0.65rem;
-  background: transparent;
-  color: var(--primary-color, #d83768);
-  font: inherit;
   font-size: 0.72rem;
-  font-weight: 760;
-  cursor: pointer;
 }
 
-.community-preview__rail-card > button {
+.community-preview__rail-card > .app-action {
   justify-self: start;
   margin-inline-start: -0.65rem;
-}
-
-.community-preview__rail-card > button:hover,
-.community-preview__rail-actions button:hover {
-  background: color-mix(
-    in oklab,
-    var(--surface-color, #fff) 90%,
-    var(--primary-color, #d83768) 10%
-  );
 }
 
 .community-preview__rail-metrics {
@@ -804,7 +725,7 @@
     justify-content: stretch;
   }
 
-  .community-preview__management-actions button {
+  .community-preview__management-actions .app-action {
     flex: 1 1 8rem;
   }
 }
@@ -952,7 +873,6 @@
     font-size: 0.95rem;
   }
 
-  .community-preview__membership-action,
   .community-preview__membership-leave-action {
     width: 2.75rem;
     min-height: 2.75rem;
@@ -961,16 +881,10 @@
   }
 }
 
-:host-context(.high-contrast) .community-preview__content,
 :host-context(.high-contrast) .community-preview__tabs,
 :host-context(.high-contrast) .community-preview__access,
-:host-context(.high-contrast) .community-preview__membership-action,
-:host-context(.high-contrast) .community-preview__membership-leave-action,
-:host-context(.high-contrast) .community-preview__membership-state,
-:host-context(.high-contrast) .community-preview__lifecycle,
-:host-context(.high-contrast) .community-preview__rules,
-:host-context(.high-contrast) .community-preview__rail-card {
-  border-color: var(--text-color, #222);
+:host-context(.high-contrast) .community-preview__membership-state {
+  border: 2px solid var(--text-color, #222);
   border-width: 2px;
 }
 
@@ -983,10 +897,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .community-preview__topbar a,
   .community-preview__tabs button,
   .community-preview__membership-action,
-  .community-preview__membership-leave-action,
   .community-preview__rail button {
     scroll-behavior: auto;
   }
