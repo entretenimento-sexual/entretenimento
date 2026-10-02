@@ -298,6 +298,46 @@ for (const forbidden of [
   }
 }
 
+const communityAdminTimelineHtml = read(
+  'src/app/community/admin-timeline/community-admin-timeline.component.html'
+);
+for (const required of [
+  'community-admin-timeline app-card app-card--flat',
+  'community-admin-timeline__header app-section-header',
+  'class="app-section-heading"',
+  'class="app-section-title"',
+  'class="app-section-meta"',
+  'class="app-action app-action--ghost"',
+  'community-admin-timeline__state app-card app-card--flat app-card--compact',
+]) {
+  if (!communityAdminTimelineHtml.includes(required)) {
+    violations.push(
+      'community-admin-timeline.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+if (communityAdminTimelineHtml.includes('Auditoria consumível')) {
+  violations.push(
+    'community-admin-timeline.component.html reintroduced redundant eyebrow Auditoria consumível'
+  );
+}
+
+const communityAdminTimelineCss = read(
+  'src/app/community/admin-timeline/community-admin-timeline.component.css'
+);
+for (const forbidden of [
+  '.community-admin-timeline button {',
+  '.community-admin-timeline button:disabled {',
+  '.community-admin-timeline__state button {',
+  '.community-admin-timeline__footer button {',
+]) {
+  if (communityAdminTimelineCss.includes(forbidden)) {
+    violations.push(
+      'community-admin-timeline.component.css contains duplicate shared UI chrome ' + forbidden
+    );
+  }
+}
+
 const communityInvitesPageHtml = read(
   'src/app/community/invites/community-invites-page.component.html'
 );
