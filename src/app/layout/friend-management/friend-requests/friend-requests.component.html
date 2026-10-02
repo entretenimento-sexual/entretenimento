@@ -14,10 +14,10 @@
       <ng-template mat-tab-label>
         <span class="friend-requests__tab-label">
           Recebidas
-          <span class="friend-requests__tab-count" aria-hidden="true">
+          <span class="friend-requests__tab-count app-chip app-chip--muted" aria-hidden="true">
             {{ inboundCount }}
           </span>
-          <span class="sr-only">
+          <span class="visually-hidden">
             {{ inboundCount }} solicitação ou solicitações recebidas
           </span>
         </span>
@@ -45,7 +45,7 @@
             @for (req of requests; track trackById($index, req)) {
               <li>
                 <article
-                  class="request-card request-card--inbound"
+                  class="request-card request-card--inbound app-card app-card--flat"
                   [attr.aria-labelledby]="'request-inbound-' + req.id"
                 >
                   <div class="request-card__avatar">
@@ -60,7 +60,7 @@
                     } @else {
                       <div class="request-card__avatar-fallback">
                         <mat-icon aria-hidden="true">person</mat-icon>
-                        <span class="sr-only">Usuário sem avatar</span>
+                        <span class="visually-hidden">Usuário sem avatar</span>
                       </div>
                     }
                   </div>
@@ -81,7 +81,7 @@
 
                       @if (req.role) {
                         <span
-                          class="request-card__role"
+                          class="request-card__role app-chip app-chip--muted"
                           [attr.data-role]="req.role"
                         >
                           {{ req.role | titlecase }}
@@ -175,7 +175,7 @@
                     >
                       <button
                         type="button"
-                        class="request-action request-action--accept"
+                        class="request-action request-action--accept app-action"
                         (click)="acceptRequest(req)"
                         [attr.aria-label]="
                           'Aceitar solicitação de ' +
@@ -188,7 +188,7 @@
 
                       <button
                         type="button"
-                        class="request-action request-action--decline"
+                        class="request-action request-action--decline app-action app-action--ghost"
                         (click)="declineRequest(req)"
                         [attr.aria-label]="
                           'Recusar solicitação de ' +
@@ -201,7 +201,7 @@
 
                       <button
                         type="button"
-                        class="request-action request-action--block"
+                        class="request-action request-action--block app-action app-action--ghost app-action--danger"
                         (click)="blockUser(req)"
                         [attr.aria-label]="
                           'Bloquear ' + (req.nickname || 'usuário')
@@ -224,10 +224,10 @@
       <ng-template mat-tab-label>
         <span class="friend-requests__tab-label">
           Enviadas
-          <span class="friend-requests__tab-count" aria-hidden="true">
+          <span class="friend-requests__tab-count app-chip app-chip--muted" aria-hidden="true">
             {{ outboundCount }}
           </span>
-          <span class="sr-only">
+          <span class="visually-hidden">
             {{ outboundCount }} solicitação ou solicitações enviadas
           </span>
         </span>
@@ -255,7 +255,7 @@
             @for (req of sent; track trackById($index, req)) {
               <li>
                 <article
-                  class="request-card request-card--outbound"
+                  class="request-card request-card--outbound app-card app-card--flat"
                   [attr.aria-labelledby]="'request-outbound-' + req.id"
                 >
                   <div class="request-card__avatar">
@@ -270,7 +270,7 @@
                     } @else {
                       <div class="request-card__avatar-fallback">
                         <mat-icon aria-hidden="true">person</mat-icon>
-                        <span class="sr-only">Usuário sem avatar</span>
+                        <span class="visually-hidden">Usuário sem avatar</span>
                       </div>
                     }
                   </div>
@@ -291,7 +291,7 @@
 
                       @if (req.role) {
                         <span
-                          class="request-card__role"
+                          class="request-card__role app-chip app-chip--muted"
                           [attr.data-role]="req.role"
                         >
                           {{ req.role | titlecase }}
@@ -387,7 +387,7 @@
 
                       <button
                         type="button"
-                        class="request-action request-action--cancel"
+                        class="request-action request-action--cancel app-action app-action--ghost"
                         (click)="cancelRequest(req)"
                         [disabled]="isCanceling"
                         [attr.aria-busy]="isCanceling ? 'true' : null"
@@ -407,7 +407,7 @@
 
                       <button
                         type="button"
-                        class="request-action request-action--block"
+                        class="request-action request-action--block app-action app-action--ghost app-action--danger"
                         (click)="blockUser(req)"
                         [attr.aria-label]="
                           'Bloquear ' + (req.nickname || 'usuário')
