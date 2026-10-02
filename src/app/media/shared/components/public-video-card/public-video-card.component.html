@@ -142,11 +142,6 @@
       }
 
       <footer class="public-video-card__metrics" aria-label="Engajamento do vídeo">
-        <span class="public-video-card__views-metric" aria-label="Visualizações">
-          <i class="fas fa-eye" aria-hidden="true"></i>
-          {{ formatCount(item.viewsCount) }}
-        </span>
-
         @if (engagementActions()) {
           <app-public-media-engagement-actions
             kind="video"
