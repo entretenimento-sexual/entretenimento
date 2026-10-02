@@ -1,77 +1,72 @@
-/* src\app\shared\components-globais\texto-dialog\texto-dialog.component.css */
-
-.container_text_dialog{
-  background-color: #f7f7f7;
+/* src/app/shared/components-globais/texto-dialog/texto-dialog.component.css */
+:host {
+  display: block;
 }
 
-::ng-deep .mat-dialog-container {
-  display: flex;
-    flex-direction: column;
-    align-items: center;
-    /* Isso ajudará a centralizar todos os elementos filho */
-    justify-content: center;
-    border-radius: 8px;
-    padding: 24px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    max-width: 600px;
-    margin: auto;
+.container_text_dialog {
+  --app-card-radius: 12px;
+  display: grid;
+  gap: 1rem;
+  width: min(92vw, 600px);
+  padding: 1.25rem;
 }
 
-/* Centralizando o título e ajustando a fonte */
-::ng-deep h2[mat-dialog-title] {
+.container_text_dialog h2[mat-dialog-title] {
+  margin: 0;
+  color: var(--text-color);
   text-align: center;
-  font-family: 'Roboto', sans-serif;  /* Exemplo de fonte, ajuste conforme necessário */
-  font-weight: 500;  color: #333;  /* Cor do texto, ajuste conforme necessário */
+  font-size: clamp(1.05rem, 2vw, 1.2rem);
+  font-weight: 850;
+  line-height: 1.2;
 }
 
-/* Ajustando o background e centralizando o conteúdo do dialog */
+.separa,
+.texto-dialog-content {
+  width: 100%;
+  min-width: 0;
+}
+
 .texto-dialog-content {
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 100%;  /* Faz o conteúdo ocupar toda a largura */
-  padding: 20px 0;  /* Espaçamento interno vertical */
-  border-radius: 8px;  /* Bordas arredondadas */
+  padding: 0;
 }
 
 mat-form-field {
-  width: 80%;  /* Ajuste da largura do campo */
+  width: min(100%, 34rem);
 }
 
 textarea {
+  width: 100%;
   min-height: 100px;
-  width: 90%;  /* Faz o textarea ocupar toda a largura do mat-form-field */
+  resize: vertical;
 }
 
-button {
-  border-radius: 20px;
-  padding: 5px 20px;
-  font-weight: 500;
-  transition: all 0.3s ease;
+.texto-dialog-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
 }
 
-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+.texto-dialog-actions .app-action {
+  min-height: var(--tap-target, 44px);
 }
 
-button:active {
-  transform: translateY(1px);
-}
+@media (max-width: 420px) {
+  .container_text_dialog {
+    width: min(96vw, 600px);
+    padding: 1rem;
+  }
 
-/* Ajuste das cores dos botões com valores específicos */
-button[mat-stroked-button] {
-  border: 1px solid #007bff;
-  /* Cor de borda azul */
-  color: #007bff;
-  /* Cor de texto azul */
-}
+  .texto-dialog-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
 
-button[mat-flat-button] {
-  background-color: #007bff;  /* Cor de fundo azul */
-  color: white;  /* Texto branco */
-}
-
-button[mat-stroked-button],button[mat-flat-button] {
-  margin: 0 10px;  /* Espaçamento entre botões */
+  .texto-dialog-actions .app-action {
+    width: 100%;
+  }
 }
