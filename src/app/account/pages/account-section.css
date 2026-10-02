@@ -19,12 +19,6 @@
   color: var(--text-color);
 }
 
-.account-section-header > p:last-child {
-  margin: 0;
-  max-width: 62ch;
-  line-height: 1.5;
-  color: color-mix(in oklab, var(--text-color) 70%, transparent);
-}
 
 .account-context-panel {
   display: grid;
