@@ -11,9 +11,9 @@ import { toObservable } from '@angular/core/rxjs-interop';
 import { combineLatest, Observable } from 'rxjs';
 import { map, shareReplay, tap } from 'rxjs/operators';
 
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { UserCardComponent } from 'src/app/shared/user-card/user-card.component';
+import { ContentStateComponent } from 'src/app/shared/content-state/content-state.component';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
 type SortKey = 'none' | 'recent' | 'online' | 'distance' | 'alpha';
@@ -24,7 +24,7 @@ type UserForCard = IUserDados & { distanciaKm?: number | null };
 @Component({
   selector: 'app-friend-cards',
   standalone: true,
-  imports: [CommonModule, MatProgressSpinnerModule, UserCardComponent],
+  imports: [CommonModule, UserCardComponent, ContentStateComponent],
   templateUrl: './friend-cards.component.html',
   styleUrls: ['./friend-cards.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
