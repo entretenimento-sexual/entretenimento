@@ -2020,15 +2020,42 @@ for (const forbidden of [
   '--ou-surface:',
   'box-shadow: 0 8px 20px',
   'border-radius: 16px',
-  'grid-template-columns: 42px minmax(0, 1fr) 42px',
+  'grid-template-columns: 42px minmax(0, 1fr) auto',
   '.online-users__step {\n    width: 42px',
   '.online-users__step {\n    height: 42px',
+  ':host-context(html.high-contrast) .online-users__decision',
 ]) {
   if (onlineUsersCss.includes(forbidden)) {
     violations.push(
       'online-users.component.css contains duplicate local UI chrome ' + forbidden
     );
   }
+}
+
+const onlineUsersFullCss = read(
+  'src/app/dashboard/online/online-users-full/online-users-full.component.css'
+);
+for (const forbidden of [
+  'html.high-contrast .online-users-full',
+  '!important',
+  'box-shadow:',
+]) {
+  if (onlineUsersFullCss.includes(forbidden)) {
+    violations.push(
+      'online-users-full.component.css should remain a layout-only wrapper without shared chrome ' + forbidden
+    );
+  }
+}
+
+const onlineUsersCurrentHtml = read(
+  'src/app/dashboard/online/online-users/online-users.component.html'
+);
+if (!onlineUsersCurrentHtml.includes(
+  'online-users__decision app-card app-card--flat app-card--compact'
+)) {
+  violations.push(
+    'online-users.component.html missing canonical decision surface'
+  );
 }
 
 const principalActiveHtml = read(
