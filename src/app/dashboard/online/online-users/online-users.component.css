@@ -155,17 +155,6 @@
   gap: 12px;
   margin-top: 13px;
   padding: 12px;
-  border: 1px solid color-mix(
-    in oklab,
-    var(--primary-color, #ff7070) 28%,
-    var(--surface-border, rgba(255, 255, 255, 0.12))
-  );
-  border-radius: 12px;
-  background: color-mix(
-    in oklab,
-    var(--primary-color, #ff7070) 6%,
-    transparent
-  );
 }
 
 .online-users__decision-actions {
@@ -317,7 +306,7 @@
 
 @media (min-width: 640px) {
   .online-users__activation-main {
-    grid-template-columns: 42px minmax(0, 1fr) auto;
+    grid-template-columns: var(--tap-target, 44px) minmax(0, 1fr) auto;
     align-items: center;
   }
 
@@ -410,11 +399,6 @@
     gap: 7px;
   }
 
-  .online-users__step {
-    width: 42px;
-    height: 42px;
-  }
-
   .online-users__range-meta {
     grid-template-columns: 1fr;
     justify-items: center;
@@ -423,21 +407,6 @@
   .online-users__range-meta span:last-child {
     text-align: center;
   }
-}
-
-:host-context(html.high-contrast) .online-users__decision {
-  border-color: currentColor;
-  background: var(--background-color, #000);
-  color: var(--text-color, #fff);
-}
-
-:host-context(html.high-contrast) .online-users__activation-copy span,
-:host-context(html.high-contrast) .online-users__decision-copy span,
-:host-context(html.high-contrast) .online-users__controls-copy span,
-:host-context(html.high-contrast) .online-users__toolbar-copy span,
-:host-context(html.high-contrast) .online-users__helper,
-:host-context(html.high-contrast) .online-users__range-meta {
-  color: var(--text-color, #fff);
 }
 
 @media (forced-colors: active) {
