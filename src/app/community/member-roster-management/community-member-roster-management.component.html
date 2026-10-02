@@ -1,18 +1,18 @@
 @if (state$ | async; as state) {
   @if (action$ | async; as action) {
     <section
-      class="community-member-roster"
+      class="community-member-roster app-card app-card--flat"
       aria-labelledby="community-member-roster-title"
     >
-      <header class="community-member-roster__header">
-        <div>
-          <h2 id="community-member-roster-title">Participantes</h2>
-          <p>Gerencie papéis e acesso sem alterar a propriedade da Comunidade.</p>
+      <header class="community-member-roster__header app-section-header">
+        <div class="app-section-heading">
+          <h2 id="community-member-roster-title" class="app-section-title">Participantes</h2>
+          <p class="app-section-meta">Gerencie papéis e acesso sem alterar a propriedade da Comunidade.</p>
         </div>
 
         <button
           type="button"
-          class="community-member-roster__refresh"
+          class="community-member-roster__refresh app-action app-action--ghost"
           [disabled]="state.status === 'loading' || action.status === 'loading'"
           aria-label="Atualizar participantes"
           (click)="refresh()"
@@ -24,10 +24,11 @@
         </button>
       </header>
 
-      <div class="community-member-roster__status-tabs" role="group" aria-label="Tipo de vínculo">
+      <div class="community-member-roster__status-tabs app-segmented" role="group" aria-label="Tipo de vínculo">
         <button
           type="button"
-          [class.is-active]="selectedStatus() === 'active'"
+          class="app-segmented__button"
+          [class.app-segmented__button--active]="selectedStatus() === 'active'"
           [attr.aria-pressed]="selectedStatus() === 'active'"
           (click)="selectStatus('active')"
         >
@@ -35,7 +36,8 @@
         </button>
         <button
           type="button"
-          [class.is-active]="selectedStatus() === 'blocked'"
+          class="app-segmented__button"
+          [class.app-segmented__button--active]="selectedStatus() === 'blocked'"
           [attr.aria-pressed]="selectedStatus() === 'blocked'"
           (click)="selectStatus('blocked')"
         >
@@ -49,6 +51,7 @@
           <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
           <input
             type="search"
+            class="app-control"
             autocomplete="off"
             maxlength="40"
             placeholder="Buscar participante"
@@ -59,6 +62,7 @@
           @if (searchTerm()) {
             <button
               type="button"
+              class="app-action app-action--ghost"
               aria-label="Limpar busca de participantes"
               [disabled]="action.status === 'loading'"
               (click)="clearSearch()"
@@ -71,6 +75,7 @@
         <label class="community-member-roster__role-filter">
           <span>Papel</span>
           <select
+            class="app-control"
             [value]="selectedRoleFilter()"
             [disabled]="action.status === 'loading'"
             (change)="changeRoleFilter($event)"
@@ -93,7 +98,7 @@
 
       @if (confirmation(); as pendingConfirmation) {
         <div
-          class="community-member-roster__confirmation"
+          class="community-member-roster__confirmation app-card app-card--flat app-card--compact"
           [class.is-role-change]="pendingConfirmation.action === 'set_role'"
           role="alert"
         >
@@ -104,7 +109,7 @@
           <div>
             <button
               type="button"
-              class="is-cancel"
+              class="is-cancel app-action app-action--ghost"
               [disabled]="action.status === 'loading'"
               (click)="cancelConfirmation()"
             >
@@ -114,7 +119,7 @@
             @if (pendingConfirmation.action === 'set_role') {
               <button
                 type="button"
-                class="is-role-confirm"
+                class="is-role-confirm app-action app-action--primary"
                 [disabled]="action.status === 'loading'"
                 [attr.aria-busy]="action.status === 'loading' ? 'true' : null"
                 (click)="confirmRoleChange()"
@@ -127,7 +132,7 @@
             } @else {
               <button
                 type="button"
-                class="is-confirm"
+                class="is-confirm app-action app-action--danger"
                 [disabled]="action.status === 'loading'"
                 [attr.aria-busy]="action.status === 'loading' ? 'true' : null"
                 (click)="confirmDestructiveAction()"
@@ -151,7 +156,7 @@
         <div class="community-member-roster__state" role="alert">
           <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
           <span>Participantes indisponíveis.</span>
-          <button type="button" (click)="refresh()">Tentar novamente</button>
+          <button type="button" class="app-action app-action--ghost" (click)="refresh()">Tentar novamente</button>
         </div>
       } @else if (state.status === 'empty') {
         <div class="community-member-roster__state" role="status">
@@ -172,7 +177,7 @@
       } @else {
         <ul class="community-member-roster__list" aria-label="Participantes gerenciáveis">
           @for (item of state.items; track item.memberId) {
-            <li class="community-member-roster__item">
+            <li class="community-member-roster__item app-card app-card--flat app-card--compact">
               <span class="community-member-roster__avatar" aria-hidden="true">
                 @if (item.avatarUrl) {
                   <img [src]="item.avatarUrl" alt="" loading="lazy" appImageFallback />
@@ -203,6 +208,7 @@
                     <label class="community-member-roster__role-control">
                       <span class="visually-hidden">Papel de {{ item.label }}</span>
                       <select
+                        class="app-control"
                         [value]="item.role"
                         [disabled]="action.status === 'loading'"
                         [attr.aria-label]="'Papel de ' + item.label"
@@ -220,7 +226,7 @@
                       @if (canRemove(item)) {
                         <button
                           type="button"
-                          class="is-remove"
+                          class="is-remove app-action app-action--ghost"
                           [disabled]="action.status === 'loading'"
                           [attr.aria-label]="'Remover ' + item.label + ' da Comunidade'"
                           (click)="requestDestructiveAction(item, 'remove')"
@@ -231,7 +237,7 @@
                       @if (canBlock(item)) {
                         <button
                           type="button"
-                          class="is-block"
+                          class="is-block app-action app-action--danger"
                           [disabled]="action.status === 'loading'"
                           [attr.aria-label]="'Bloquear ' + item.label + ' na Comunidade'"
                           (click)="requestDestructiveAction(item, 'block')"
@@ -248,7 +254,7 @@
                 } @else if (canUnblock(item)) {
                   <button
                     type="button"
-                    class="community-member-roster__unblock"
+                    class="community-member-roster__unblock app-action app-action--ghost"
                     [disabled]="action.status === 'loading'"
                     [attr.aria-busy]="
                       action.status === 'loading'
@@ -280,6 +286,7 @@
           <div class="community-member-roster__more">
             <button
               type="button"
+              class="app-action app-action--ghost"
               [disabled]="state.loadingMore || action.status === 'loading'"
               (click)="loadMore(state.nextCursor)"
             >
