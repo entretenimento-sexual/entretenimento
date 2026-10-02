@@ -22,42 +22,7 @@
 }
 
 .friend-requests__tab-count {
-  display: inline-grid;
-  place-items: center;
   min-width: 24px;
-  height: 24px;
-  padding-inline: 6px;
-  border: 1px solid color-mix(
-    in oklab,
-    var(--surface-border, rgba(255, 255, 255, 0.12)) 88%,
-    transparent
-  );
-  border-radius: 8px;
-  background: color-mix(
-    in oklab,
-    var(--surface-color, #101923) 90%,
-    var(--text-color, #f5f7fb) 7%
-  );
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 78%, transparent);
-  font-size: 0.72rem;
-  font-weight: 900;
-  line-height: 1;
-}
-
-:host ::ng-deep .mat-mdc-tab-header {
-  border-bottom-color: color-mix(
-    in oklab,
-    var(--surface-border, rgba(255, 255, 255, 0.12)) 86%,
-    transparent
-  );
-}
-
-:host ::ng-deep .mat-mdc-tab .mdc-tab__text-label {
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 64%, transparent) !important;
-}
-
-:host ::ng-deep .mat-mdc-tab.mdc-tab--active .mdc-tab__text-label {
-  color: var(--primary-color, #ff7070) !important;
 }
 
 :host ::ng-deep .mat-mdc-tab-body-content {
@@ -84,15 +49,7 @@
   gap: 12px;
   min-width: 0;
   padding: 12px;
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
   border-left-width: 3px;
-  border-radius: 16px;
-  background: var(--surface-color, #101923);
-  color: var(--text-color, #f5f7fb);
-  box-shadow: 0 5px 16px rgb(0 0 0 / 10%);
-  transition:
-    border-color 150ms ease,
-    box-shadow 150ms ease;
 }
 
 .request-card--inbound {
@@ -192,15 +149,6 @@
 .request-card__role {
   flex: 0 0 auto;
   min-height: 24px;
-  padding: 3px 8px;
-  border: 1px solid color-mix(
-    in oklab,
-    var(--primary-color, #ff7070) 26%,
-    var(--surface-border, rgba(255, 255, 255, 0.12))
-  );
-  border-radius: 8px;
-  background: color-mix(in oklab, var(--primary-color, #ff7070) 8%, transparent);
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 84%, transparent);
   font-size: 0.7rem;
   font-weight: 850;
   line-height: 1.2;
@@ -297,36 +245,13 @@
   padding-top: 3px;
 }
 
-.request-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.request-action.app-action {
   gap: 7px;
   min-height: 44px;
-  padding: 0 13px;
-  border: 1px solid color-mix(
-    in oklab,
-    var(--surface-border, rgba(255, 255, 255, 0.12)) 88%,
-    transparent
-  );
-  border-radius: 11px;
-  background: color-mix(
-    in oklab,
-    var(--surface-color, #101923) 92%,
-    var(--text-color, #f5f7fb) 6%
-  );
-  color: var(--text-color, #f5f7fb);
-  cursor: pointer;
-  font: inherit;
   font-size: 0.84rem;
   font-weight: 850;
-  transition:
-    border-color 140ms ease,
-    background-color 140ms ease,
-    opacity 140ms ease;
 }
 
-.request-action:focus-visible,
 .request-card__thumb:focus-visible {
   outline: 3px solid color-mix(
     in oklab,
@@ -336,18 +261,13 @@
   outline-offset: 2px;
 }
 
-.request-action[disabled] {
-  cursor: not-allowed;
-  opacity: 0.58;
-}
-
 .request-action mat-icon {
   width: 18px;
   height: 18px;
   font-size: 18px;
 }
 
-.request-action--accept {
+.request-action--accept.app-action {
   border-color: color-mix(in oklab, var(--success-color, #36d399) 54%, transparent);
   background: color-mix(
     in oklab,
@@ -361,49 +281,13 @@
   );
 }
 
-.request-action--decline,
-.request-action--cancel {
-  border-color: color-mix(in oklab, var(--primary-color, #ff7070) 28%, transparent);
-  background: color-mix(
-    in oklab,
-    var(--surface-color, #101923) 94%,
-    var(--primary-color, #ff7070) 5%
-  );
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 82%, transparent);
-}
-
-.request-action--block {
+.request-action--block.app-action {
   margin-left: auto;
-  border-color: transparent;
-  background: transparent;
-  color: color-mix(
-    in oklab,
-    var(--danger-color, #ef4444) 72%,
-    var(--text-color, #f5f7fb) 28%
-  );
   font-size: 0.8rem;
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .request-card:hover,
-  .request-card:focus-within {
-    border-color: color-mix(
-      in oklab,
-      var(--primary-color, #ff7070) 28%,
-      var(--surface-border, rgba(255, 255, 255, 0.12))
-    );
-    box-shadow: 0 8px 20px rgb(0 0 0 / 14%);
-  }
-
-  .request-action:hover {
-    border-color: color-mix(
-      in oklab,
-      var(--primary-color, #ff7070) 40%,
-      var(--surface-border, rgba(255, 255, 255, 0.12))
-    );
-  }
-
-  .request-action--block:hover {
+  .request-action--block.app-action:hover:not(:disabled) {
     border-color: color-mix(in oklab, var(--danger-color, #ef4444) 28%, transparent);
     background: color-mix(in oklab, var(--danger-color, #ef4444) 7%, transparent);
   }
@@ -418,8 +302,6 @@
     grid-template-columns: 64px minmax(0, 1fr);
     gap: 10px;
     padding: 10px;
-    border-radius: 14px;
-    box-shadow: none;
   }
 
   .request-card__avatar {
@@ -441,19 +323,19 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .request-action {
+  .request-action.app-action {
     width: 100%;
     padding-inline: 9px;
   }
 
-  .request-card--inbound .request-action--block {
+  .request-card--inbound .request-action--block.app-action {
     grid-column: 1 / -1;
     justify-self: start;
     width: auto;
     margin-left: 0;
   }
 
-  .request-card--outbound .request-action--block {
+  .request-card--outbound .request-action--block.app-action {
     margin-left: 0;
   }
 }
@@ -476,24 +358,11 @@
     font-size: 0.74rem;
   }
 
-  .request-action {
+  .request-action.app-action {
     font-size: 0.8rem;
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .request-card,
-  .request-action {
-    transition: none !important;
-    animation: none !important;
-  }
-}
-
-html.high-contrast .request-card,
-html.high-contrast .request-action,
-html.high-contrast .request-card__thumb,
-html.high-contrast .request-card__role,
-html.high-contrast .friend-requests__tab-count {
-  border-color: currentColor !important;
-  box-shadow: none !important;
+html.high-contrast .request-card__thumb {
+  border-color: currentColor;
 }
