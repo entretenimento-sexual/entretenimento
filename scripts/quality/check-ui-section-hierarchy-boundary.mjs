@@ -298,6 +298,53 @@ for (const forbidden of [
   }
 }
 
+const communityMembershipManagementHtml = read(
+  'src/app/community/membership-management/community-membership-management.component.html'
+);
+for (const required of [
+  'community-management-hub app-card app-card--flat',
+  'community-management-hub__header app-section-header',
+  'community-management-hub__heading app-section-heading',
+  'class="app-section-title"',
+  'class="app-section-meta"',
+  'community-management-hub__nav app-segmented',
+  'class="app-segmented__button"',
+  'community-management-hub__badge app-chip app-chip--primary',
+  'community-management-hub__regularization app-card app-card--flat app-card--compact',
+  'community-management-hub__capacity-alert app-card app-card--flat app-card--compact',
+  'community-management-hub__card app-card app-card--flat app-card--compact app-card--interactive',
+  'community-membership-management__header app-section-header',
+  'community-membership-management__refresh app-action app-action--ghost',
+  'community-membership-management__count app-chip app-chip--muted',
+  'class="is-approve app-action app-action--primary"',
+  'class="is-reject app-action app-action--ghost"',
+]) {
+  if (!communityMembershipManagementHtml.includes(required)) {
+    violations.push(
+      'community-membership-management.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const communityMembershipManagementCss = read(
+  'src/app/community/membership-management/community-membership-management.component.css'
+);
+for (const forbidden of [
+  '.community-management-hub__nav button {',
+  '.community-management-hub__nav button.is-active {',
+  '.community-management-hub__regularization-actions a,',
+  'button.community-management-hub__card:hover {',
+  '.community-membership-management__actions button {',
+  ':host-context(.high-contrast) .community-management-hub__nav button,',
+  '@media (prefers-reduced-motion: reduce)',
+]) {
+  if (communityMembershipManagementCss.includes(forbidden)) {
+    violations.push(
+      'community-membership-management.component.css contains duplicate shared UI chrome ' + forbidden
+    );
+  }
+}
+
 const communityMemberRosterHtml = read(
   'src/app/community/member-roster-management/community-member-roster-management.component.html'
 );
