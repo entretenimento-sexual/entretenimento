@@ -179,6 +179,15 @@ describe('Canonical UI boundary', () => {
     ).toEqual([]);
   });
 
+  it('remove ações vazias do fluxo do PageHeader', () => {
+    const styles = source(
+      'src/app/shared/page-header/page-header.component.css'
+    );
+
+    expect(styles).toContain('.app-page-actions:empty');
+    expect(styles).toContain('display: none;');
+  });
+
   it('mantém PageHeader como autoridade das páginas migradas', () => {
     const violations = CANONICAL_HEADER_TEMPLATES.flatMap((path) => {
       const value = source(path);
