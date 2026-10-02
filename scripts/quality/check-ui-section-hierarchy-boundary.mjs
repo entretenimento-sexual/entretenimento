@@ -583,8 +583,10 @@ const universalSidebarCss = read(
 for (const forbidden of [
   '.universal-sidebar__action:hover,',
   'box-shadow: 0 0 0 rgba(0, 0, 0, 0)',
+  'box-shadow: 0 8px 18px rgba(255, 77, 87, 0.24)',
   'html.high-contrast .universal-sidebar__action,',
   'html.high-contrast .universal-sidebar__action:hover,',
+  '!important',
 ]) {
   if (universalSidebarCss.includes(forbidden)) {
     violations.push(
@@ -601,6 +603,7 @@ for (const forbidden of [
   'background: var(--surface-color)',
   'html.high-contrast .universal-sidebar__submenu {',
   '@media (prefers-reduced-motion: reduce)',
+  '!important',
 ]) {
   if (universalSidebarGroupsCss.includes(forbidden)) {
     violations.push(
