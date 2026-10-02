@@ -298,6 +298,51 @@ for (const forbidden of [
   }
 }
 
+const profileListHtml = read(
+  'src/app/layout/profile-list/profile-list.component.html'
+);
+for (const required of [
+  '<app-content-state',
+  'state="loading"',
+  'state="error"',
+  'state="empty"',
+  'profile-card app-card app-card--flat app-card--interactive',
+  'profile-card__status app-chip',
+]) {
+  if (!profileListHtml.includes(required)) {
+    violations.push(
+      'profile-list.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+for (const forbidden of [
+  'profile-list-state',
+]) {
+  if (profileListHtml.includes(forbidden)) {
+    violations.push(
+      'profile-list.component.html contains legacy local state UI ' + forbidden
+    );
+  }
+}
+
+const profileListCss = read(
+  'src/app/layout/profile-list/profile-list.component.css'
+);
+for (const forbidden of [
+  '.profile-list-state',
+  '@keyframes profile-list-spin',
+  'box-shadow:',
+  '@media (prefers-reduced-motion: reduce)',
+  'html.high-contrast .profile-card',
+  '!important',
+]) {
+  if (profileListCss.includes(forbidden)) {
+    violations.push(
+      'profile-list.component.css contains duplicate shared UI chrome ' + forbidden
+    );
+  }
+}
+
 const userIntentStatusRadarHtml = read(
   'src/app/dashboard/user-intent-status/user-intent-status-radar/user-intent-status-radar.component.html'
 );
