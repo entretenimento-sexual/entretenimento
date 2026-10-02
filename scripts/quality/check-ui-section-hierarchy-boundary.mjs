@@ -293,6 +293,22 @@ for (const forbidden of [
   }
 }
 
+const publicUserIdentityCss = read(
+  'src/app/core/components/public-user-identity/public-user-identity.component.css'
+);
+for (const forbidden of [
+  'box-shadow:',
+  '!important',
+  '.app-card',
+  '.app-action',
+]) {
+  if (publicUserIdentityCss.includes(forbidden)) {
+    violations.push(
+      'public-user-identity.component.css should remain a lightweight identity primitive without shared chrome ' + forbidden
+    );
+  }
+}
+
 const userCardHtml = read(
   'src/app/shared/user-card/user-card.component.html'
 );
