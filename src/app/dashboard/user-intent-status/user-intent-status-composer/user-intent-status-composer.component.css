@@ -5,32 +5,16 @@
   min-width: 0;
 }
 
-.intent-composer,
-.intent-composer.app-card {
+.intent-composer {
   --intent-control-height: 44px;
-  --intent-radius: 14px;
-
   display: grid;
   gap: 12px;
   min-width: 0;
   padding: 12px 14px;
-  border: 1px solid color-mix(
-    in oklab,
-    var(--primary-color, #ff7070) 22%,
-    var(--surface-border, rgba(255, 255, 255, 0.12))
-  );
-  border-radius: var(--intent-radius);
-  background: color-mix(
-    in oklab,
-    var(--primary-color, #ff7070) 3%,
-    var(--surface-color, #101923)
-  );
   color: var(--text-color, #f5f7fb);
-  box-shadow: none;
 }
 
-.intent-composer--expanded,
-.intent-composer--expanded.app-card {
+.intent-composer--expanded {
   padding: clamp(14px, 2vw, 18px);
   border-color: color-mix(
     in oklab,
@@ -136,10 +120,6 @@
 .intent-composer__clear-venue,
 .intent-composer__submit,
 .intent-composer__cancel {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
   min-height: var(--intent-control-height);
   white-space: nowrap;
 }
@@ -196,23 +176,11 @@
   color: var(--primary-color, #ff7070);
 }
 
-.intent-composer__field input,
-.intent-composer__field select {
-  width: 100%;
+.intent-composer__field .app-control {
   min-height: var(--intent-control-height);
-  padding: 0 12px;
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
-  border-radius: 12px;
-  background: var(--background-color, #0b1118);
-  color: var(--text-color, #f5f7fb);
-  font: inherit;
-  outline: none;
 }
 
-.intent-composer__field input:focus-visible,
-.intent-composer__field select:focus-visible,
-.intent-composer__venue-option:focus-visible,
-.intent-composer button:focus-visible {
+.intent-composer__venue-option:focus-visible {
   outline: 2px solid var(--primary-color, #ff7070);
   outline-offset: 2px;
 }
@@ -222,9 +190,6 @@
   gap: 9px;
   min-width: 0;
   padding: 11px;
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
-  border-radius: 14px;
-  background: color-mix(in oklab, var(--background-color, #0b1118) 90%, transparent);
 }
 
 .intent-composer__venue-list {
@@ -238,15 +203,11 @@
   gap: 4px;
   min-width: 0;
   padding: 10px;
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
-  border-radius: 12px;
-  background: var(--surface-color, #101923);
   color: var(--text-color, #f5f7fb);
   text-align: left;
   cursor: pointer;
 }
 
-.intent-composer__venue-option:hover,
 .intent-composer__venue-option--selected {
   border-color: color-mix(in oklab, var(--primary-color, #ff7070) 72%, transparent);
   background: color-mix(in oklab, var(--primary-color, #ff7070) 6%, var(--surface-color, #101923));
@@ -302,14 +263,6 @@
 }
 
 @media (max-width: 640px) {
-  .intent-composer,
-  .intent-composer.app-card,
-  .intent-composer--expanded,
-  .intent-composer--expanded.app-card {
-    border-radius: 14px;
-    box-shadow: none;
-  }
-
   .intent-composer__form {
     grid-template-columns: 1fr;
   }
@@ -372,17 +325,3 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .intent-composer *,
-  .intent-composer *::before,
-  .intent-composer *::after {
-    scroll-behavior: auto !important;
-    transition: none !important;
-  }
-}
-
-:host-context(html.high-contrast) .intent-composer {
-  border-color: currentColor !important;
-  background: var(--background-color) !important;
-  color: var(--text-color) !important;
-}
