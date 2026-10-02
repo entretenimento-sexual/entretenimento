@@ -1,25 +1,25 @@
 <!-- src/app/dashboard/hot-places/hot-places-widget/hot-places-widget.component.html -->
 
-<section class="hot-places app-card" aria-labelledby="hot-places-title">
-  <header class="hot-places__header">
-    <h2 id="hot-places-title">Locais</h2>
+<section class="hot-places app-card app-card--flat app-card--media" aria-labelledby="hot-places-title">
+  <header class="hot-places__header app-section-header">
+    <h2 id="hot-places-title" class="app-section-title">Locais</h2>
   </header>
 
   @if (vm$ | async; as vm) {
     @if (vm.state === 'loading') {
-      <div class="hot-places__state" role="status" aria-live="polite">
+      <div class="hot-places__state app-card app-card--flat app-card--compact" role="status" aria-live="polite">
         <span class="hot-places__pulse" aria-hidden="true"></span>
         <strong>Carregando...</strong>
       </div>
     } @else if (vm.state === 'empty') {
-      <div class="hot-places__state hot-places__state--empty" role="status" aria-live="polite">
+      <div class="hot-places__state hot-places__state--empty app-card app-card--flat app-card--compact" role="status" aria-live="polite">
         <span class="hot-places__empty-icon" aria-hidden="true">📍</span>
         <strong>Nada em destaque.</strong>
       </div>
     } @else {
       <div class="hot-places__rail" aria-label="Lista de locais em destaque">
         @for (place of vm.items; track trackByPlaceId($index, place)) {
-          <article class="hot-place-card">
+          <article class="hot-place-card app-card app-card--flat app-card--compact">
             <div class="hot-place-card__topline">
               <span>{{ place.regionLabel }}</span>
               <strong>{{ place.scoreLabel }}</strong>
@@ -49,11 +49,11 @@
               <span>{{ place.activityLabel }}</span>
 
               @if (place.kind === 'room_cluster') {
-                <a routerLink="/chat" aria-label="Abrir conversas e salas relacionadas">
+                <a class="app-action app-action--ghost" routerLink="/chat" aria-label="Abrir conversas e salas relacionadas">
                   Salas
                 </a>
               } @else {
-                <span class="hot-place-card__tag">Em alta</span>
+                <span class="hot-place-card__tag app-chip app-chip--muted">Em alta</span>
               }
             </footer>
           </article>
