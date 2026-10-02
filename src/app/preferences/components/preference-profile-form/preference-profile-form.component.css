@@ -108,8 +108,7 @@
   gap: var(--space-3, 16px);
   margin-top: var(--space-3, 16px);
   padding: var(--space-2, 12px);
-  border: 1px solid color-mix(in oklab, var(--primary-color) 28%, var(--surface-border));
-  border-radius: var(--surface-radius-sm, 12px);
+  border-color: color-mix(in oklab, var(--primary-color) 28%, var(--surface-border));
   color: color-mix(in oklab, var(--text-color) 72%, transparent);
   font-size: 0.86rem;
   line-height: 1.4;
@@ -198,6 +197,3 @@
   }
 }
 
-html.high-contrast .preference-upgrade {
-  border-color: currentColor;
-}
