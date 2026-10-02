@@ -136,6 +136,7 @@
         <span>Nome</span>
         <input
           type="text"
+          class="app-control"
           formControlName="name"
           maxlength="80"
           autocomplete="off"
@@ -148,7 +149,7 @@
         <div class="community-create__choice-grid community-create__choice-grid--theme">
           @for (option of themeOptions; track option.value) {
             <label
-              class="community-create__choice"
+              class="community-create__choice app-choice app-choice--roomy"
               [class.is-selected]="form.controls.theme.value === option.value"
             >
               <input
@@ -169,6 +170,7 @@
       <label>
         <span>Descrição</span>
         <textarea
+          class="app-control"
           formControlName="description"
           maxlength="240"
           rows="3"
@@ -188,7 +190,7 @@
         <div class="community-create__choice-grid">
           @for (option of joinPolicyOptions; track option.value) {
             <label
-              class="community-create__choice"
+              class="community-create__choice app-choice app-choice--roomy"
               [class.is-selected]="form.controls.joinPolicy.value === option.value"
             >
               <input
@@ -227,6 +229,7 @@
             @for (option of capability.memberLimitOptions; track option.memberLimit) {
               <button
                 type="button"
+                class="community-create__capacity-option app-card app-card--flat app-card--compact app-card--media"
                 [class.is-selected]="isMemberLimitSelected(option.memberLimit)"
                 [class.is-locked]="!option.allowed"
                 [attr.aria-pressed]="isMemberLimitSelected(option.memberLimit)"
@@ -305,7 +308,8 @@
                 @for (tag of tagsForCategory(tagState.items, 'intent'); track tag.id) {
                   <button
                     type="button"
-                    class="community-create__tag"
+                    class="community-create__tag app-chip app-chip--muted"
+                    [class.app-chip--primary]="isTagSelected(tag.id)"
                     [class.is-selected]="isTagSelected(tag.id)"
                     [attr.aria-pressed]="isTagSelected(tag.id)"
                     [disabled]="submitting()"
@@ -323,7 +327,8 @@
                 @for (tag of tagsForCategory(tagState.items, 'practice'); track tag.id) {
                   <button
                     type="button"
-                    class="community-create__tag"
+                    class="community-create__tag app-chip app-chip--muted"
+                    [class.app-chip--primary]="isTagSelected(tag.id)"
                     [class.is-selected]="isTagSelected(tag.id)"
                     [attr.aria-pressed]="isTagSelected(tag.id)"
                     [disabled]="submitting()"
@@ -341,7 +346,8 @@
                 @for (tag of tagsForCategory(tagState.items, 'audience'); track tag.id) {
                   <button
                     type="button"
-                    class="community-create__tag"
+                    class="community-create__tag app-chip app-chip--muted"
+                    [class.app-chip--primary]="isTagSelected(tag.id)"
                     [class.is-selected]="isTagSelected(tag.id)"
                     [attr.aria-pressed]="isTagSelected(tag.id)"
                     [disabled]="submitting()"
@@ -372,6 +378,7 @@
       <label>
         <span>Convivência e limites</span>
         <textarea
+          class="app-control"
           formControlName="rules"
           maxlength="1200"
           rows="4"
