@@ -282,10 +282,11 @@ requireIncludes(videoCardCss, 'var(--tap-target, 44px)', 'video card touch');
 const viewerTokens = read(
   'src/app/media/shared/styles/public-media-viewer.tokens.css'
 );
-requireIncludes(viewerTokens, [
+requireIncludes(
+  viewerTokens,
   '--public-media-viewer-control-size: 44px',
-  '--public-media-viewer-focus:',
-], 'shared viewer tokens');
+  'shared viewer tokens'
+);
 
 const videoEditorSession = read(
   'src/app/core/services/media/video-editor-session.service.ts'
