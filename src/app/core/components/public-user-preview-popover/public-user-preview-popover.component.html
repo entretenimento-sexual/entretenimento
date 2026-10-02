@@ -1,7 +1,7 @@
 <!-- src/app/core/components/public-user-preview-popover/public-user-preview-popover.component.html -->
 @if (preview(); as vm) {
   <section
-    class="public-user-preview"
+    class="public-user-preview app-card app-card--media"
     role="region"
     [attr.aria-label]="'Prévia do perfil de ' + vm.identity.nickname"
   >
@@ -68,7 +68,7 @@
           aria-label="Destaques públicos do perfil"
         >
           @for (highlight of vm.highlights; track highlight) {
-            <span class="public-user-preview__highlight">{{ highlight }}</span>
+            <span class="public-user-preview__highlight app-chip app-chip--muted">{{ highlight }}</span>
           }
         </div>
       }
@@ -81,7 +81,7 @@
     @if (resolvedProfileRoute(); as route) {
       <footer class="public-user-preview__footer">
         <a
-          class="public-user-preview__profile-link"
+          class="public-user-preview__profile-link app-action app-action--ghost"
           [routerLink]="route"
           [attr.aria-label]="'Ver perfil de ' + vm.identity.nickname"
         >
