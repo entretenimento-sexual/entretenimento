@@ -298,6 +298,46 @@ for (const forbidden of [
   }
 }
 
+const venueCreateHtml = read(
+  'src/app/community/venue-create/venue-community-create-page.component.html'
+);
+for (const required of [
+  'venue-create app-page',
+  'venue-create__header app-page-header',
+  'venue-create__back app-action app-action--ghost',
+  'class="app-page-heading"',
+  'class="app-page-title"',
+  'class="app-page-lead"',
+  'class="app-card app-card--flat"',
+  'class="app-section-title"',
+  'class="app-control"',
+  'venue-create__actions app-card app-card--flat app-card--compact',
+  'class="app-action app-action--primary" [disabled]="submitting()"',
+]) {
+  if (!venueCreateHtml.includes(required)) {
+    violations.push(
+      'venue-community-create-page.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const venueCreateCss = read(
+  'src/app/community/venue-create/venue-community-create-page.component.css'
+);
+for (const forbidden of [
+  '.venue-create__form input,',
+  '.venue-create__actions a,',
+  '.venue-create__actions button {',
+  ':host-context(.high-contrast)',
+  'border-radius: 999px',
+]) {
+  if (venueCreateCss.includes(forbidden)) {
+    violations.push(
+      'venue-community-create-page.component.css contains duplicate shared UI chrome ' + forbidden
+    );
+  }
+}
+
 const communityInviteManagementHtml = read(
   'src/app/community/invite-management/community-invite-management.component.html'
 );
