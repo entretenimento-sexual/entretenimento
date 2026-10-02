@@ -1,21 +1,24 @@
 <!-- src/app/layout/profile-list/profile-list.component.html -->
 @if (loading) {
-  <section class="profile-list-state app-card" aria-live="polite">
-    <span class="profile-list-state__icon" aria-hidden="true"></span>
-    <h2>Carregando perfis</h2>
-    <p>Atualizando a lista da rede.</p>
-  </section>
+  <app-content-state
+    state="loading"
+    message="Atualizando a lista da rede."
+    [compact]="true"
+    [skeletonRows]="3"
+    skeletonVariant="media-grid"
+  />
 } @else if (loadError) {
-  <section class="profile-list-state profile-list-state--error app-card" aria-live="assertive">
-    <span class="profile-list-state__icon" aria-hidden="true"></span>
-    <h2>Perfis indisponíveis</h2>
-    <p>Não foi possível carregar a lista agora. Tente novamente em instantes.</p>
-  </section>
+  <app-content-state
+    state="error"
+    title="Perfis indisponíveis"
+    message="Não foi possível carregar a lista agora. Tente novamente em instantes."
+    [compact]="true"
+  />
 } @else if (profiles && profiles.length) {
   <section class="profile-list-container app-card-grid" aria-label="Perfis disponíveis na rede">
     @for (profile of profiles; track trackByUid($index, profile)) {
       <article
-        class="profile-card app-card app-card--interactive"
+        class="profile-card app-card app-card--flat app-card--interactive"
         [class.profile-card--online]="profile.isOnline"
       >
         <a
@@ -35,7 +38,7 @@
           <span class="profile-card__shade" aria-hidden="true"></span>
 
           <span
-            class="profile-card__status"
+            class="profile-card__status app-chip"
             [class.profile-card__status--online]="profile.isOnline"
           >
             <span class="profile-card__status-dot" aria-hidden="true"></span>
@@ -78,9 +81,10 @@
     }
   </section>
 } @else {
-  <section class="profile-list-state app-card" aria-live="polite">
-    <span class="profile-list-state__icon" aria-hidden="true"></span>
-    <h2>Nenhum perfil encontrado</h2>
-    <p>A lista será atualizada quando houver perfis disponíveis na rede.</p>
-  </section>
+  <app-content-state
+    state="empty"
+    title="Nenhum perfil encontrado"
+    message="A lista será atualizada quando houver perfis disponíveis na rede."
+    [compact]="true"
+  />
 }
