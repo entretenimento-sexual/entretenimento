@@ -2032,6 +2032,29 @@ for (const forbidden of [
   }
 }
 
+const chatModuleLayoutCss = read(
+  'src/app/chat-module/chat-module-layout/chat-module-layout.component.css'
+);
+for (const forbidden of [
+  '.chat-shell__main-context',
+  '.chat-shell__main-avatar',
+  '.chat-shell__main-kicker',
+  '.chat-shell__main-title',
+  '.chat-shell__main-subtitle',
+  '.chat-shell__emoji-picker',
+  '.chat-shell__emoji-trigger',
+  '.chat-shell__emoji-panel',
+  '.chat-shell__emoji-grid',
+  '.chat-shell__reply-preview',
+  '!important',
+]) {
+  if (chatModuleLayoutCss.includes(forbidden)) {
+    violations.push(
+      'chat-module-layout.component.css contains orphan or duplicate shell UI ' + forbidden
+    );
+  }
+}
+
 const onlineUsersFullCss = read(
   'src/app/dashboard/online/online-users-full/online-users-full.component.css'
 );
