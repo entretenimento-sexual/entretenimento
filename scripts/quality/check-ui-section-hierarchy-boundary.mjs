@@ -293,6 +293,43 @@ for (const forbidden of [
   }
 }
 
+const socialExploreHtml = read(
+  'src/app/explore/pages/social-explore-page/social-explore-page.component.html'
+);
+for (const required of [
+  'feed-composer__moment app-action app-action--ghost',
+  'video-highlights__error app-card app-card--flat app-card--compact',
+  'community-distribution__card app-card app-card--flat app-card--compact app-card--interactive',
+  'community-distribution__priority app-chip app-chip--primary',
+  'feed-intent app-card app-card--flat app-card--compact',
+  'community-distribution__header app-section-header',
+]) {
+  if (!socialExploreHtml.includes(required)) {
+    violations.push(
+      'social-explore-page.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const socialExploreCss = read(
+  'src/app/explore/pages/social-explore-page/social-explore-page.component.css'
+);
+for (const forbidden of [
+  'color: var(--primary-color, #ff7070) !important',
+  'font-size: 0.62rem !important',
+  'font-weight: 780 !important',
+  'letter-spacing: 0 !important',
+  'text-transform: none !important',
+  ':host-context(html.high-contrast) .feed-composer,',
+  '.feed-pagination button {',
+]) {
+  if (socialExploreCss.includes(forbidden)) {
+    violations.push(
+      'social-explore-page.component.css contains duplicate local UI chrome ' + forbidden
+    );
+  }
+}
+
 const communityPreviewHtml = read(
   'src/app/community/preview/community-preview-page.component.html'
 );
