@@ -274,8 +274,8 @@ describe('NotificationsPageComponent', () => {
     fixture.detectChanges();
 
     const summaryTitle = fixture.nativeElement.querySelector(
-      '.community-activity__meta strong'
-    ) as HTMLElement | null;
+      '.community-activity__title-action'
+    ) as HTMLButtonElement | null;
     const timelineCard = fixture.nativeElement.querySelector(
       '.notification-card'
     ) as HTMLElement | null;
@@ -283,6 +283,32 @@ describe('NotificationsPageComponent', () => {
     expect(summaryTitle?.textContent?.trim()).toBe('Conteúdo moderado');
     expect(timelineCard?.textContent).toContain('Atividade já vista');
     expect(timelineCard?.textContent).not.toContain('Conteúdo moderado');
+  });
+
+  it('usa o título da atividade de Comunidade como ação de abertura', () => {
+    const latestNotification = communityNotification();
+    const summary: ICommunityNotificationSummary = {
+      communityId: 'community-1',
+      latestNotification,
+      unreadCount: 2,
+      hasPriorityUnread: false,
+    };
+
+    configure('ready', 2, [summary]);
+
+    const fixture = TestBed.createComponent(NotificationsPageComponent);
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const titleAction = fixture.nativeElement.querySelector(
+      '.community-activity__title-action'
+    ) as HTMLButtonElement | null;
+
+    expect(titleAction).not.toBeNull();
+    expect(titleAction?.textContent?.trim()).toBe('Nova atividade na Comunidade');
+    expect(
+      fixture.nativeElement.querySelector('.community-activity__open')
+    ).toBeNull();
   });
 
   it('remove da linha do tempo somente as atividades já representadas pelos resumos de várias Comunidades', async () => {
