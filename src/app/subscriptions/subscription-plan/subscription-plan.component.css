@@ -1,5 +1,4 @@
 /* src/app/subscriptions/subscription-plan/subscription-plan.component.css */
-/* src/app/subscriptions/subscription-plan/subscription-plan.component.css */
 
 :host {
   display: block;
@@ -7,8 +6,8 @@
 
 .subscription-plan-container {
   display: grid;
-  gap: 1.5rem;
-  padding-block: 1.25rem 3rem;
+  gap: var(--space-4, 24px);
+  padding-block: var(--space-4, 20px) var(--space-6, 48px);
 }
 
 .plan-price-label {
@@ -18,10 +17,16 @@
   color: color-mix(in oklab, var(--text-color) 62%, transparent);
 }
 
+.subscription-plan-status-card,
+.subscription-plan-warning,
+.subscription-plan-context,
+.plan {
+  padding: var(--space-4, 18px);
+}
+
 .subscription-plan-status-card {
   display: grid;
-  gap: 0.45rem;
-  padding: 1rem 1.1rem;
+  gap: var(--space-2, 8px);
 }
 
 .subscription-plan-status-card__title {
@@ -40,69 +45,58 @@
 .subscription-plan-header__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: var(--space-2, 8px);
 }
 
 .subscription-plan-header__actions .app-action {
-  min-height: var(--tap-target);
-  padding: 0.85rem 1rem;
-}
-
-.subscription-plan-header__actions .app-action-secondary {
-  background: transparent;
-  color: var(--text-color);
-  border: 1px solid var(--surface-border);
-}
-
-.subscription-plan-header__actions .app-action-secondary:hover {
-  background: var(--header-hover-bg);
+  min-height: var(--tap-target, 44px);
 }
 
 .subscription-plan-warning {
   display: grid;
-  gap: 0.9rem;
-  padding: 1.15rem 1.2rem;
-  border-radius: 24px;
-  border: 1px solid color-mix(in oklab, var(--primary-color) 20%, var(--surface-border));
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in oklab, var(--primary-color) 8%, transparent),
-      color-mix(in oklab, var(--surface-color) 98%, transparent)
-    );
-  box-shadow: var(--box-shadow);
+  gap: var(--space-3, 12px);
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color) 20%,
+    var(--surface-border)
+  );
+  background: color-mix(
+    in oklab,
+    var(--primary-color) 5%,
+    var(--surface-color)
+  );
 }
 
 .subscription-plan-context {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: start;
-  gap: 1rem;
-  padding: 1.15rem 1.2rem;
-  border: 1px solid color-mix(in oklab, var(--primary-color) 34%, var(--surface-border));
-  border-radius: 24px;
-  background:
-    linear-gradient(
-      135deg,
-      color-mix(in oklab, var(--primary-color) 12%, transparent),
-      color-mix(in oklab, var(--surface-color) 98%, transparent)
-    );
-  box-shadow: var(--box-shadow);
+  gap: var(--space-3, 16px);
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color) 28%,
+    var(--surface-border)
+  );
+  background: color-mix(
+    in oklab,
+    var(--primary-color) 6%,
+    var(--surface-color)
+  );
 }
 
 .subscription-plan-context__icon {
   display: inline-grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
+  width: var(--tap-target, 44px);
+  height: var(--tap-target, 44px);
   border-radius: 50%;
   color: var(--text-color);
-  background: color-mix(in oklab, var(--primary-color) 20%, transparent);
+  background: color-mix(in oklab, var(--primary-color) 16%, transparent);
 }
 
 .subscription-plan-context > div {
   display: grid;
-  gap: 0.45rem;
+  gap: var(--space-2, 8px);
 }
 
 .subscription-plan-context h2,
@@ -110,10 +104,11 @@
   margin: 0;
 }
 
-.subscription-plan-context h2 {
+.subscription-plan-context h2,
+.subscription-plan-warning h2 {
   color: var(--text-color);
-  font-size: 1.25rem;
-  line-height: 1.25;
+  font-size: var(--font-size-section-title, clamp(1rem, 0.94rem + 0.3vw, 1.2rem));
+  line-height: 1.2;
 }
 
 .subscription-plan-context p:last-child {
@@ -128,15 +123,10 @@
   color: var(--text-color);
 }
 
-.subscription-plan-warning h2 {
-  font-size: 1.25rem;
-  line-height: 1.2;
-}
-
 .subscription-plan-warning__list {
   display: grid;
-  gap: 0.55rem;
-  padding-left: 1rem;
+  gap: var(--space-2, 8px);
+  padding-left: var(--space-4, 18px);
 }
 
 .subscription-plan-warning__list li {
@@ -152,86 +142,62 @@
 
 .subscription-plan-accordions {
   display: grid;
-  gap: 0.75rem;
+  gap: var(--space-2, 8px);
 }
 
 .subscription-plan-accordion__content {
   display: grid;
-  gap: 0.85rem;
+  gap: var(--space-2, 8px);
   color: color-mix(in oklab, var(--text-color) 78%, transparent);
   line-height: 1.5;
 }
 
-.subscription-plan-accordion__content .app-action {
-  min-height: var(--tap-target);
-  justify-self: start;
-  padding: 0.8rem 1rem;
-}
-
-.subscription-plan-accordion__content .app-action-secondary {
-  background: transparent;
-  color: var(--text-color);
-  border: 1px solid var(--surface-border);
-}
-
-.subscription-plan-accordion__content .app-action-secondary:hover {
-  background: var(--header-hover-bg);
-}
-
 .plans-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
+  --app-responsive-grid-min: 18rem;
+  --app-responsive-grid-gap: var(--space-3, 16px);
 }
 
 .plan {
   display: grid;
   align-content: start;
-  gap: 1rem;
+  gap: var(--space-3, 16px);
   min-height: 100%;
-  padding: 1.15rem;
-  transition:
-    border-color 0.25s ease,
-    transform 0.25s ease,
-    background 0.25s ease;
-}
-
-.plan:hover {
-  transform: translateY(-2px);
 }
 
 .plan.featured-plan {
-  border-color: color-mix(in oklab, var(--primary-color) 34%, var(--surface-border));
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in oklab, var(--primary-color) 8%, transparent),
-      var(--surface-color)
-    );
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color) 32%,
+    var(--surface-border)
+  );
 }
 
 .plan[data-current='true'] {
-  border-color: color-mix(in oklab, var(--success-color) 34%, var(--surface-border));
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in oklab, var(--success-color) 8%, transparent),
-      var(--surface-color)
-    );
+  border-color: color-mix(
+    in oklab,
+    var(--success-color) 36%,
+    var(--surface-border)
+  );
+  background: color-mix(
+    in oklab,
+    var(--success-color) 6%,
+    var(--surface-color)
+  );
 }
 
 .plan.plan--recommended {
-  border-color: color-mix(in oklab, var(--primary-color) 62%, var(--surface-border));
-  box-shadow:
-    0 0 0 2px color-mix(in oklab, var(--primary-color) 18%, transparent),
-    var(--box-shadow);
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color) 58%,
+    var(--surface-border)
+  );
 }
 
 .plan-badges {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-2, 8px);
 }
 
 .plan-badge {
@@ -240,11 +206,19 @@
 
 .plan[data-current='true'] .plan-badge {
   background: color-mix(in oklab, var(--success-color) 14%, transparent);
-  border-color: color-mix(in oklab, var(--success-color) 24%, var(--surface-border));
+  border-color: color-mix(
+    in oklab,
+    var(--success-color) 24%,
+    var(--surface-border)
+  );
 }
 
 .plan-recommendation {
-  border-color: color-mix(in oklab, var(--primary-color) 40%, var(--surface-border));
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color) 40%,
+    var(--surface-border)
+  );
   background: color-mix(in oklab, var(--primary-color) 20%, transparent);
 }
 
@@ -263,11 +237,9 @@
 
 .plan-price-block {
   display: grid;
-  gap: 0.3rem;
-  padding: 1rem;
-  border: 1px solid var(--surface-border);
-  border-radius: 18px;
-  background: color-mix(in oklab, var(--surface-color) 98%, transparent);
+  gap: var(--space-1, 4px);
+  padding-block: var(--space-3, 12px);
+  border-block: 1px solid var(--surface-border);
 }
 
 .price {
@@ -280,8 +252,8 @@
 
 .plan ul {
   display: grid;
-  gap: 0.55rem;
-  padding-left: 1rem;
+  gap: var(--space-2, 8px);
+  padding-left: var(--space-4, 18px);
 }
 
 .plan li {
@@ -290,22 +262,34 @@
   color: var(--text-color);
 }
 
-.plan-current-state {
+.plan-current-state,
+.plan-requirement-state {
   display: grid;
-  gap: 0.3rem;
-  padding: 0.85rem 0.95rem;
-  border-radius: 16px;
-  border: 1px solid color-mix(in oklab, var(--success-color) 24%, var(--surface-border));
+  gap: var(--space-1, 4px);
+  padding: var(--space-3, 12px);
+  border-radius: var(--app-card-radius-compact, 14px);
+}
+
+.plan-current-state {
+  border: 1px solid color-mix(
+    in oklab,
+    var(--success-color) 24%,
+    var(--surface-border)
+  );
   background: color-mix(in oklab, var(--success-color) 8%, transparent);
 }
 
 .plan-requirement-state {
-  display: grid;
-  gap: 0.3rem;
-  padding: 0.85rem 0.95rem;
-  border-radius: 16px;
-  border: 1px solid color-mix(in oklab, var(--warning-color, #f5a623) 28%, var(--surface-border));
-  background: color-mix(in oklab, var(--warning-color, #f5a623) 8%, transparent);
+  border: 1px solid color-mix(
+    in oklab,
+    var(--warning-color, #f5a623) 28%,
+    var(--surface-border)
+  );
+  background: color-mix(
+    in oklab,
+    var(--warning-color, #f5a623) 8%,
+    transparent
+  );
 }
 
 .plan-current-state strong,
@@ -317,41 +301,30 @@
 
 .plan .app-action {
   width: 100%;
-  min-height: var(--tap-target);
-  padding: 0.9rem 1rem;
+  min-height: var(--tap-target, 44px);
   margin-top: auto;
 }
 
 .plan .app-action[disabled] {
   opacity: 0.82;
   cursor: not-allowed;
-  transform: none !important;
+  transform: none;
   background: color-mix(in oklab, var(--success-color) 78%, black 8%);
 }
 
-.plan .app-action[disabled]:hover {
-  transform: none !important;
-}
-
-@media (max-width: 1024px) {
-  .plans-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 640px) {
+@media (max-width: 720px) {
   .subscription-plan-container {
-    gap: 1rem;
-    padding-block: 1rem 2rem;
+    gap: var(--space-3, 16px);
+    padding-block: var(--space-3, 16px) var(--space-5, 32px);
   }
 
   .subscription-plan-header__actions {
     display: grid;
     grid-template-columns: 1fr;
+    width: 100%;
   }
 
-  .subscription-plan-header__actions .app-action,
-  .subscription-plan-accordion__content .app-action {
+  .subscription-plan-header__actions .app-action {
     width: 100%;
   }
 
@@ -361,9 +334,11 @@
 }
 
 @media (max-width: 380px) {
+  .subscription-plan-status-card,
   .subscription-plan-warning,
+  .subscription-plan-context,
   .plan {
-    padding: 0.95rem;
+    padding: var(--space-3, 14px);
   }
 
   .price {
