@@ -264,6 +264,52 @@ for (const boundary of boundaries) {
 }
 
 
+const universalSidebarHtml = read(
+  'src/app/shared/components-globais/universal-sidebar/universal-sidebar.component.html'
+);
+for (const required of [
+  'universal-sidebar__action app-action app-action--ghost',
+  'universal-sidebar__submenu app-card app-card--flat app-card--media',
+]) {
+  if (!universalSidebarHtml.includes(required)) {
+    violations.push(
+      'universal-sidebar.component.html missing canonical UI contract ' + required
+    );
+  }
+}
+
+const universalSidebarCss = read(
+  'src/app/shared/components-globais/universal-sidebar/universal-sidebar.component.css'
+);
+for (const forbidden of [
+  '.universal-sidebar__action:hover,',
+  'box-shadow: 0 0 0 rgba(0, 0, 0, 0)',
+  'html.high-contrast .universal-sidebar__action,',
+  'html.high-contrast .universal-sidebar__action:hover,',
+]) {
+  if (universalSidebarCss.includes(forbidden)) {
+    violations.push(
+      'universal-sidebar.component.css contains duplicate action chrome ' + forbidden
+    );
+  }
+}
+
+const universalSidebarGroupsCss = read(
+  'src/app/shared/components-globais/universal-sidebar/universal-sidebar-groups.css'
+);
+for (const forbidden of [
+  'box-shadow: var(--box-shadow)',
+  'background: var(--surface-color)',
+  'html.high-contrast .universal-sidebar__submenu {',
+  '@media (prefers-reduced-motion: reduce)',
+]) {
+  if (universalSidebarGroupsCss.includes(forbidden)) {
+    violations.push(
+      'universal-sidebar-groups.css contains duplicate submenu chrome ' + forbidden
+    );
+  }
+}
+
 const confirmationDialogHtml = read(
   'src/app/shared/components-globais/confirmation-dialog/confirmation-dialog.component.html'
 );
