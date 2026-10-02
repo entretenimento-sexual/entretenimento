@@ -18,17 +18,9 @@
 }
 
 .user-review-header__copy {
-  display: grid;
-  gap: 6px;
   min-width: 0;
 }
 
-.user-review-header p {
-  margin: 0;
-  color: var(--muted-text-color, #6b7280);
-  font-size: 0.92rem;
-  line-height: 1.45;
-}
 
 .user-review-search {
   width: 100%;
