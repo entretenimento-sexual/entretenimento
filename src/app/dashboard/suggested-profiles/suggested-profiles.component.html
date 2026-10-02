@@ -10,7 +10,7 @@
 
 <main class="app-page suggested-profiles-page">
   <section class="container-wide suggested-profiles-shell" aria-labelledby="suggested-profiles-title">
-    <header class="suggested-profiles-hero app-card app-card--flat">
+    <header class="suggested-profiles-hero app-card app-card--flat app-card--media">
       <div class="suggested-profiles-hero__copy">
         <h1 id="suggested-profiles-title">Perfis sugeridos</h1>
 
@@ -30,7 +30,7 @@
     @if (suggestedProfiles.length) {
       <div class="profiles-grid app-card-grid" role="list" aria-label="Perfis sugeridos">
         @for (profile of suggestedProfiles; track trackByUid($index, profile)) {
-          <article class="profile-card app-card app-card--interactive" role="listitem">
+          <article class="profile-card app-card app-card--flat app-card--interactive" role="listitem">
             <a
               class="profile-card__media app-media-frame app-media-frame--portrait"
               [routerLink]="['/outro-perfil', profile.uid]"
