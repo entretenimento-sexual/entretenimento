@@ -324,7 +324,6 @@
   font-weight: 900;
   line-height: 1;
 
-  box-shadow: 0 8px 18px rgba(255, 77, 87, 0.24);
 }
 
 .universal-sidebar--collapsed .universal-sidebar__badge {
@@ -381,7 +380,7 @@
   .universal-sidebar,
   .universal-sidebar__link,
   .universal-sidebar__profile-link {
-    transition: none !important;
+    transition: none;
   }
 }
 
@@ -403,7 +402,7 @@ html.high-contrast .universal-sidebar__link:focus-visible,
 html.high-contrast .universal-sidebar__profile-link:hover,
 html.high-contrast .universal-sidebar__profile-link:focus-visible {
   border-color: currentColor;
-  background: transparent !important;
+  background: transparent;
 }
 
 html.high-contrast .universal-sidebar__link--active {
@@ -496,5 +495,5 @@ html.high-contrast .universal-sidebar__avatar {
 
 html.high-contrast .universal-sidebar__quick-action {
   border-color: currentColor;
-  background: transparent !important;
+  background: transparent;
 }
