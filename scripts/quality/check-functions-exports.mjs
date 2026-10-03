@@ -25,8 +25,9 @@ const temporaryCompatibilityExports = [
   'unpublishPhoto',
   'unpublishVideo',
 
-  // Migração idempotente temporária de moderação legada.
+  // Migrações idempotentes temporárias de moderação legada.
   'normalizeLegacyVideoModeration',
+  'normalizeLegacyPhotoModeration',
 ];
 
 const expectedDeploymentExports = [
@@ -164,6 +165,7 @@ const expectedDeploymentExports = [
   'moderateUnsuspendAccount',
   'moderateVideoComment',
   'normalizeLegacyVideoModeration',
+  'normalizeLegacyPhotoModeration',
   'onUserCreate',
   'onUserCreateIndexNickname',
   'paymentWebhook',
