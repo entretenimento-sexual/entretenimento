@@ -282,7 +282,10 @@ async function setOwnerAgeProjection(eligible: boolean) {
     await Promise.all([
       updateDoc(
         doc(db, 'public_profiles', OWNER_UID),
-        { ageEligibilityVerifiedAdult: eligible }
+        {
+          ageEligibilityAdultAccessAllowed: eligible,
+          ageEligibilityVerifiedAdult: eligible,
+        }
       ),
       updateDoc(
         doc(
