@@ -108,10 +108,11 @@ export interface IPhotoPublicationConfig {
   reactionsCount?: number;
 
   /**
-   * Moderação.
+   * Moderação posterior ou em tempo real.
    *
-   * Para plataforma adulta, nenhuma foto deveria ganhar alcance real sem
-   * passar por algum estado claro de moderação.
+   * APPROVED é o estado normal de uma publicação sem sinal de risco.
+   * PENDING_REVIEW/FLAGGED/HIDDEN/REJECTED representam intervenção real de
+   * segurança e nunca uma fila humana preventiva obrigatória.
    */
   moderationStatus?: TPhotoModerationStatus;
   moderationReason?: string | null;
