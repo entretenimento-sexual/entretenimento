@@ -49,12 +49,34 @@ export function isRestrictedVideoModerationStatus(
 }
 
 /**
+ * Nova publicação entra ativa por padrão.
+ *
+ * PENDING_REVIEW continua existindo como estado de quarentena posterior,
+ * acionável por denúncia ou por mecanismos automáticos/tempo-real.
+ */
+export function defaultVideoPublicationModerationStatus(): 'APPROVED' {
+  return 'APPROVED';
+}
+
+export function buildUnassessedVideoScoreBreakdown():
+UnassessedVideoScoreBreakdown {
+  return {
+    rankingScore: 0,
+    qualityScore: 0,
+    engagementScore: 0,
+    safetyScore: null,
+    audienceScore: 0,
+    retentionScore: 0,
+  };
+}
+
+/**
  * Edição do proprietário preserva restrições impostas pela moderação.
  * Estados não restritos permanecem publicáveis sem fila preventiva.
  */
 export function resolveVideoModerationAfterOwnerEdit(
   currentStatus: unknown
-): 'APPROVED' | 'PENDING_REVIEW' | RestrictedVideoModerationStatus {
+): 'APPROVED' | RestrictedVideoModerationStatus {
   const normalized = normalizeVideoPublicationModerationStatus(currentStatus);
 
   if (isRestrictedVideoModerationStatus(normalized)) {
@@ -64,6 +86,10 @@ export function resolveVideoModerationAfterOwnerEdit(
   return 'APPROVED';
 }
 
+/**
+ * Compatibilidade para identificar registros antigos criados quando
+ * PENDING_REVIEW era o default de publicação.
+ */
 export function isLegacyPendingVideoModeration(value: unknown): boolean {
   return normalizeVideoPublicationModerationStatus(value) === 'PENDING_REVIEW';
 }
