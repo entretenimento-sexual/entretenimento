@@ -267,6 +267,19 @@
   transition: transform 180ms ease, filter 180ms ease;
 }
 
+.photo-unavailable {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  color: var(--photos-muted);
+  font-size: 0.84rem;
+  font-weight: 760;
+  text-align: center;
+  background: color-mix(in oklab, var(--photos-surface) 88%, black 12%);
+}
+
 .photo-card-link:hover .photo,
 .photo-card-link:focus-visible .photo {
   transform: scale(1.025);
