@@ -5,14 +5,8 @@ import * as logger from 'firebase-functions/logger';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import {
-  assertInteractionAccess,
-} from '../../account_lifecycle/interaction-access.policy';
-import {
-  getCanonicalAgeEligibilityForUid,
-} from '../../compliance/age-eligibility.service';
-import {
-  isVerifiedAdultAgeDecision,
-} from '../../compliance/age-eligibility.policy';
+  assertMediaAuthoringEligibility,
+} from './media-authoring-eligibility.service';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, getDefaultStorageBucket } from '../../firebaseApp';
 import {
@@ -169,15 +163,7 @@ export const registerPrivatePhotoUpload = onCall<
       config: REGISTER_RATE_LIMIT,
       message: 'Muitas tentativas de registro de foto foram feitas em pouco tempo.',
     });
-    await assertInteractionAccess(ownerUid);
-    const ageDecision = await getCanonicalAgeEligibilityForUid(ownerUid);
-
-    if (!isVerifiedAdultAgeDecision(ageDecision)) {
-      throw new HttpsError(
-        'failed-precondition',
-        'Conclua a verificação de maioridade antes de enviar fotos.'
-      );
-    }
+    await assertMediaAuthoringEligibility(ownerUid);
 
     const storagePath = extractOwnedPrivatePhotoPath(
       ownerUid,
