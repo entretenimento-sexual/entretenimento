@@ -48,6 +48,7 @@ import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy
 
 import { PhotoViewerComponent, IProfilePhotoItem } from '../photo-viewer/photo-viewer.component';
 import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.component';
+import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 
 type IManageablePhotoItem = IProfilePhotoItem & {
   path?: string;
@@ -68,7 +69,7 @@ const DENY_UNKNOWN: IMediaPolicyResult = { decision: 'DENY', reason: 'UNKNOWN' }
 @Component({
   selector: 'app-profile-photos',
   standalone: true,
-  imports: [CommonModule, RouterModule, MatDialogModule, PageHeaderComponent],
+  imports: [CommonModule, RouterModule, MatDialogModule, PageHeaderComponent, ImageFallbackDirective],
   templateUrl: './profile-photos.component.html',
   styleUrls: ['./profile-photos.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
