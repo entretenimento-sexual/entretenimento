@@ -1,5 +1,4 @@
 import {
-  PHOTO_PREVENTIVE_REVIEW_MESSAGE,
   buildUnassessedPhotoScoreBreakdown,
   defaultPhotoPublicationModerationStatus,
   isPhotoPublicationApproved,
@@ -146,9 +145,9 @@ export async function synchronizePublishedPhotoUpdate(
   }
 
   /**
-   * Qualquer publicação sem aprovação explícita fica congelada até decisão
-   * administrativa. Isso cobre tanto a quarentena preventiva quanto flags
-   * posteriores e impede substituir o ativo retido para revisão/evidência.
+   * Publicações em estado restrito continuam congeladas até decisão
+   * administrativa. PENDING_REVIEW permanece reservado para quarentena real
+   * posterior; novas publicações não entram mais nesse estado por padrão.
    */
   if (!isPhotoPublicationApproved(publication.moderationStatus)) {
     return { status: 'ignored-quarantined' };
@@ -216,13 +215,12 @@ export async function synchronizePublishedPhotoUpdate(
     publicationPatch['publishedStoragePath'] = nextPublishedStoragePath;
     publicationPatch['assetVersion'] = now;
     publicationPatch['moderationStatus'] = moderationStatus;
-    publicationPatch['moderationReason'] = PHOTO_PREVENTIVE_REVIEW_MESSAGE;
+    publicationPatch['moderationReason'] = null;
     publicationPatch['lastModeratedAt'] = null;
     publicationPatch['moderatedBy'] = null;
     publicationPatch['safetyScore'] = null;
     publicationPatch['score'] = 0;
     publicationPatch['scoreBreakdown'] = scoreBreakdown;
-    publicationPatch['reviewEvidenceRetention'] = 'PUBLISHED_ASSET_LOCKED';
 
     /**
      * A projeção pública precisa receber a mesma versão física. O cache de URL
@@ -231,7 +229,7 @@ export async function synchronizePublishedPhotoUpdate(
      */
     publicPhotoPatch['assetVersion'] = now;
     publicPhotoPatch['moderationStatus'] = moderationStatus;
-    publicPhotoPatch['moderationReason'] = PHOTO_PREVENTIVE_REVIEW_MESSAGE;
+    publicPhotoPatch['moderationReason'] = null;
     publicPhotoPatch['safetyScore'] = null;
     publicPhotoPatch['score'] = 0;
     publicPhotoPatch['scoreBreakdown'] = scoreBreakdown;
@@ -274,8 +272,8 @@ export async function synchronizePublishedPhotoUpdate(
    * Reconciliação completa é deliberadamente cold-path. Alterações somente de
    * alt/fileName não mudam contadores, score de audiência ou elegibilidade da
    * mídia e portanto não justificam varrer todas as mídias públicas do perfil.
-   * Troca real do binário volta a mídia para revisão preventiva e altera a
-   * elegibilidade agregada, então reconciliamos nesse caso.
+   * Troca real do binário altera a versão física e a elegibilidade agregada,
+   * então reconciliamos nesse caso sem criar fila humana preventiva.
    */
   if (shouldCopyAsset) {
     await dependencies.refreshMetrics(input.ownerUid).catch((error) => {
