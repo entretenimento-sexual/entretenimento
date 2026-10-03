@@ -485,7 +485,7 @@ export class PhotoUploadComponent {
         }).pipe(
           tap(() => {
             this.errorNotifier.showSuccess(
-              'Foto enviada para análise. Ela será exibida publicamente após a aprovação.'
+              'Foto publicada.'
             );
           }),
           map(() => event),
@@ -501,7 +501,7 @@ export class PhotoUploadComponent {
               },
             });
             this.errorNotifier.showWarning(
-              'A foto foi enviada, mas não entrou na análise automaticamente. Você pode publicá-la pela galeria.'
+              'A foto foi enviada, mas não pôde ser publicada automaticamente. Você pode publicá-la pela galeria.'
             );
             return of(event);
           })
