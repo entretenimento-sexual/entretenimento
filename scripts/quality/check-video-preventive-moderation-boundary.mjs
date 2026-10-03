@@ -142,6 +142,40 @@ for (const fragment of [
   requireIncludes(review, fragment, 'explicit review release drift');
 }
 
+
+const photoGallery = read(
+  'src/app/media/photos/profile-photos/profile-photos.component.html'
+);
+
+for (const forbidden of [
+  'Aguardando análise',
+  'revisão preventiva',
+  'ainda não participa da distribuição pública',
+]) {
+  forbidIncludes(
+    photoGallery,
+    forbidden,
+    'photo gallery must not present mandatory preventive moderation'
+  );
+}
+
+const legacyPhotoMigration = read(
+  'functions/src/media/application/legacy-photo-preventive-review-migration.service.ts'
+);
+
+for (const fragment of [
+  "'preventive_media_review'",
+  "moderationStatus: 'APPROVED'",
+  'LEGACY_PREVENTIVE_REVIEW_RELEASED',
+  'real_moderation_present',
+]) {
+  requireIncludes(
+    legacyPhotoMigration,
+    fragment,
+    'legacy photo preventive-review cleanup boundary drift'
+  );
+}
+
 const discovery = read(
   'functions/src/media/application/get-public-media-discovery.handler.ts'
 );
