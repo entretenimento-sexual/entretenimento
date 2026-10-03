@@ -73,11 +73,39 @@ for (const fragment of [
   'transaction.create(photoRef',
   'transaction.update(photoRef',
   'transaction.delete(reservationRef)',
-  'assertInteractionAccess(ownerUid)',
+  'assertMediaAuthoringEligibility(ownerUid)',
   'consumeBackendRateLimitQuota',
   'assertCallableAppCheck',
 ]) {
   requireIncludes(handler, fragment, 'private photo backend boundary drift');
+}
+
+for (const forbidden of [
+  'assertInteractionAccess(ownerUid)',
+  'isVerifiedAdultAgeDecision',
+  'assertPublicMediaConsumptionAccess',
+]) {
+  forbidIncludes(
+    handler,
+    forbidden,
+    'private photo backend must use canonical media authoring authority'
+  );
+}
+
+const authoringEligibility = read(
+  'functions/src/media/application/media-authoring-eligibility.service.ts'
+);
+for (const fragment of [
+  'assertInteractionAccessData',
+  'evaluateCanonicalAgeEligibility',
+  'ageEligibility.allowed',
+  "ageEligibility.status === 'VERIFIED_ADULT'",
+]) {
+  requireIncludes(
+    authoringEligibility,
+    fragment,
+    'media authoring eligibility boundary drift'
+  );
 }
 
 const consistencyService = read(
