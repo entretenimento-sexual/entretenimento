@@ -8,7 +8,7 @@
 // - publicação cria revisão preventiva de sistema e mantém o ativo retido;
 // - edição do proprietário não promove conteúdo pendente;
 // - ativo PENDING_REVIEW já publicado fica bloqueado durante a revisão;
-// - upload ainda não publicado que falhou continua elegível à limpeza técnica;
+// - upload ainda não publicado permanece PRIVATE e elegível à limpeza técnica;
 // - discovery público continua aceitando apenas APPROVED.
 // -----------------------------------------------------------------------------
 
@@ -28,13 +28,13 @@ function read(relativePath) {
 
 function requireIncludes(source, fragment, label) {
   if (!source.includes(fragment)) {
-    throw new Error('[video-preventive-moderation] ' + label + ': ' + fragment);
+    throw new Error('[media-moderation-timing] ' + label + ': ' + fragment);
   }
 }
 
 function forbidIncludes(source, fragment, label) {
   if (source.includes(fragment)) {
-    throw new Error('[video-preventive-moderation] ' + label + ': ' + fragment);
+    throw new Error('[media-moderation-timing] ' + label + ': ' + fragment);
   }
 }
 
@@ -43,35 +43,38 @@ const policy = read(
 );
 
 for (const fragment of [
-  "VIDEO_PREVENTIVE_REVIEW_REASON",
-  "'preventive_media_review'",
-  "defaultVideoPublicationModerationStatus(): 'PENDING_REVIEW'",
-  "return 'PENDING_REVIEW';",
+  "defaultVideoPublicationModerationStatus(): 'APPROVED'",
+  "return 'APPROVED';",
   'safetyScore: null,',
-  'buildPreventiveVideoReviewId',
-  "normalized === 'APPROVED' ? 'APPROVED' : 'PENDING_REVIEW'",
+  'isRestrictedVideoModerationStatus',
 ]) {
-  requireIncludes(policy, fragment, 'preventive policy drift');
+  requireIncludes(policy, fragment, 'moderation timing policy drift');
 }
 
-forbidIncludes(
-  policy,
-  "defaultVideoPublicationModerationStatus(): 'APPROVED'",
-  'new videos must never be implicitly approved'
-);
+for (const forbidden of [
+  'VIDEO_PREVENTIVE_REVIEW_REASON',
+  'VIDEO_PREVENTIVE_REVIEW_MESSAGE',
+  'buildPreventiveVideoReviewId',
+]) {
+  forbidIncludes(
+    policy,
+    forbidden,
+    'preventive review queue must not return'
+  );
+}
 
 const registration = read(
   'functions/src/media/application/register-private-video-upload.handler.ts'
 );
 requireIncludes(
   registration,
-  "moderationStatus: 'PENDING_REVIEW'",
-  'video registration moderation drift'
+  "moderationStatus: 'PRIVATE'",
+  'unpublished video draft must remain private'
 );
 forbidIncludes(
   registration,
-  "moderationStatus: 'APPROVED'",
-  'video registration must not seed approval'
+  "moderationStatus: 'PENDING_REVIEW'",
+  'registration must not seed preventive review'
 );
 
 const publication = read(
@@ -80,17 +83,24 @@ const publication = read(
 
 for (const fragment of [
   'buildUnassessedVideoScoreBreakdown()',
+  'defaultVideoPublicationModerationStatus()',
+  'moderationReason: null',
+  'safetyScore: null,',
+]) {
+  requireIncludes(publication, fragment, 'immediate publication wiring drift');
+}
+
+for (const forbidden of [
   'buildPreventiveVideoReviewId(',
   'VIDEO_PREVENTIVE_REVIEW_MESSAGE',
-  "reviewEvidenceRetention: 'PUBLISHED_ASSET_LOCKED'",
-  'safetyScore: null,',
+  'VIDEO_PREVENTIVE_REVIEW_REASON',
   'batch.create(moderationReportRef',
-  "reporterUid: 'system'",
-  "targetType: 'video'",
-  'reason: VIDEO_PREVENTIVE_REVIEW_REASON',
-  'contentQuarantined: true',
 ]) {
-  requireIncludes(publication, fragment, 'publication quarantine wiring drift');
+  forbidIncludes(
+    publication,
+    forbidden,
+    'publication must not create preventive moderation work'
+  );
 }
 
 const settings = read(
@@ -98,10 +108,10 @@ const settings = read(
 );
 
 for (const fragment of [
-  "normalizedPublicationStatus === 'PENDING_REVIEW'",
-  "? 'APPROVED'",
-  ": 'PENDING_REVIEW'",
-  "currentPublication?.moderationStatus ?? 'PENDING_REVIEW'",
+  "currentPublication?.moderationStatus ?? 'PRIVATE'",
+  "const moderationStatus = isPublished",
+  "resolveVideoModerationAfterOwnerEdit(currentModerationStatus)",
+  ": 'PRIVATE';",
 ]) {
   requireIncludes(settings, fragment, 'owner edit moderation drift');
 }
@@ -143,5 +153,5 @@ requireIncludes(
 );
 
 console.log(
-  '[video-preventive-moderation] OK: published videos remain quarantined until explicit moderation approval; failed unpublished uploads remain cleanable.'
+  '[media-moderation-timing] OK: publicação é imediata; moderação atua depois ou em tempo real, e estados restritos continuam fail-closed.'
 );
