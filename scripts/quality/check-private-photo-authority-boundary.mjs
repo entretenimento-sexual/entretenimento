@@ -80,6 +80,39 @@ for (const fragment of [
   requireIncludes(handler, fragment, 'private photo backend boundary drift');
 }
 
+const consistencyService = read(
+  'functions/src/media/application/private-photo-storage-consistency.service.ts'
+);
+for (const fragment of [
+  'inspectPrivatePhotoStorageConsistency',
+  'reconcilePrivatePhotoStorageConsistency',
+  'deleteProfilePhotoResources',
+  "state: exists ? 'consistent' : 'missing_storage_object'",
+]) {
+  requireIncludes(
+    consistencyService,
+    fragment,
+    'private photo storage consistency boundary drift'
+  );
+}
+
+const emulatorReconcile = read(
+  'scripts/maintenance/reconcile-orphan-photo-storage-emu.mjs'
+);
+for (const fragment of [
+  'Emulator Hub',
+  "const dryRun = !apply;",
+  "PHOTO_STORAGE_RECONCILE_CONFIRM",
+  "reconcilePrivatePhotoStorageConsistency",
+  "invalid_private_path",
+]) {
+  requireIncludes(
+    emulatorReconcile,
+    fragment,
+    'emulator orphan reconciliation must remain fail-closed and canonical'
+  );
+}
+
 console.log(
   '[private-photo-authority] OK: critical private Photo mutations are backend-authoritative; only displayDate/updatedAt remain owner-writable.'
 );
