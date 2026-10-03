@@ -1,12 +1,8 @@
 import { HttpsError } from 'firebase-functions/v2/https';
 
 import {
-  assertInteractionAccessData,
-} from '../../account_lifecycle/interaction-access.policy';
-import {
-  evaluateCanonicalAgeEligibility,
-  isVerifiedAdultAgeDecision,
-} from '../../compliance/age-eligibility.policy';
+  assertMediaAuthoringEligibilityData,
+} from './media-authoring-eligibility.service';
 import { auth, db } from '../../firebaseApp';
 
 interface PrivateMediaUploadAuthSnapshot {
@@ -75,23 +71,11 @@ export function assertPrivateVideoUploadEligibilityData(
     );
   }
 
-  assertInteractionAccessData(
+  assertMediaAuthoringEligibilityData(
     user,
     ageEligibilityRecord,
     expectedUid
   );
-
-  const ageDecision = evaluateCanonicalAgeEligibility({
-    uid: expectedUid,
-    rawRecord: ageEligibilityRecord,
-  });
-
-  if (!isVerifiedAdultAgeDecision(ageDecision)) {
-    throw new HttpsError(
-      'failed-precondition',
-      'Conclua a verificação de maioridade antes de enviar vídeos.'
-    );
-  }
 
   if (authUser.emailVerified !== true) {
     throw new HttpsError(
