@@ -135,7 +135,8 @@
     "audit:angular-component-consumers": "node scripts/quality/audit-angular-component-consumers.mjs",
     "media:notification-distribution-boundary:check": "node scripts/quality/check-media-notification-distribution-boundary.mjs",
     "ui:section-hierarchy-boundary:check": "node scripts/quality/check-ui-section-hierarchy-boundary.mjs",
-    "maintenance:photo-storage-orphans:emu": "npm run functions:build && node scripts/maintenance/reconcile-orphan-photo-storage-emu.mjs"
+    "maintenance:photo-storage-orphans:emu": "npm run functions:build && node scripts/maintenance/reconcile-orphan-photo-storage-emu.mjs",
+    "maintenance:legacy-photo-review:emu": "npm run functions:build && node scripts/maintenance/reconcile-legacy-photo-preventive-review-emu.mjs"
   },
   "private": true,
   "dependencies": {
