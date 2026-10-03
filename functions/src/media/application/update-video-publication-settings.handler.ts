@@ -51,14 +51,8 @@ function resolvePublicModerationAfterOwnerEdit(
   const normalizedPublicationStatus =
     normalizeVideoPublicationModerationStatus(publicationStatus);
 
-  if (normalizedPublicationStatus === 'PENDING_REVIEW') {
-    return 'PENDING_REVIEW';
-  }
-
   if (!isRestrictedVideoModerationStatus(normalizedPublicationStatus)) {
-    return normalizedPublicationStatus === 'APPROVED'
-      ? 'APPROVED'
-      : 'PENDING_REVIEW';
+    return 'APPROVED';
   }
 
   const normalizedPublicStatus = normalizeVideoPublicationModerationStatus(
@@ -134,10 +128,10 @@ export const updateVideoPublicationSettings =
         );
         const isPublished = currentPublication?.isPublished === true;
         const currentModerationStatus =
-          currentPublication?.moderationStatus ?? 'PENDING_REVIEW';
-        const moderationStatus = resolveVideoModerationAfterOwnerEdit(
-          currentModerationStatus
-        );
+          currentPublication?.moderationStatus ?? 'PRIVATE';
+        const moderationStatus = isPublished
+          ? resolveVideoModerationAfterOwnerEdit(currentModerationStatus)
+          : 'PRIVATE';
         const restricted = isRestrictedVideoModerationStatus(
           moderationStatus
         );
