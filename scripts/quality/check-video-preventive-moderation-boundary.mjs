@@ -1,14 +1,13 @@
 // scripts/quality/check-video-preventive-moderation-boundary.mjs
 // -----------------------------------------------------------------------------
-// VIDEO PREVENTIVE MODERATION BOUNDARY
+// MEDIA MODERATION TIMING BOUNDARY
 // -----------------------------------------------------------------------------
-// Garante paridade de segurança com Fotos:
-// - nova publicação nasce PENDING_REVIEW, nunca APPROVED;
-// - safetyScore permanece desconhecido até decisão explícita;
-// - publicação cria revisão preventiva de sistema e mantém o ativo retido;
-// - edição do proprietário não promove conteúdo pendente;
-// - ativo PENDING_REVIEW já publicado fica bloqueado durante a revisão;
-// - upload ainda não publicado permanece PRIVATE e elegível à limpeza técnica;
+// Garante paridade de timing e segurança entre Foto e Vídeo:
+// - publicação entra ativa por padrão, sem fila humana preventiva;
+// - safetyScore pode permanecer desconhecido até existir sinal real;
+// - denúncia ou mecanismo em tempo real pode mover conteúdo para quarentena;
+// - edição do proprietário nunca libera estado restrito imposto por moderação;
+// - upload ainda não publicado permanece PRIVATE;
 // - discovery público continua aceitando apenas APPROVED.
 // -----------------------------------------------------------------------------
 
