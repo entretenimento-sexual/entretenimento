@@ -35,9 +35,6 @@ import {
   deletePublishedPhotoAssetOrQueue,
 } from './published-photo-asset.service';
 import {
-  PHOTO_PREVENTIVE_REVIEW_MESSAGE,
-  PHOTO_PREVENTIVE_REVIEW_REASON,
-  buildPreventivePhotoReviewId,
   buildUnassessedPhotoScoreBreakdown,
   defaultPhotoPublicationModerationStatus,
   isPhotoPublicationApproved,
@@ -46,7 +43,7 @@ import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics
 
 type PhotoVisibility = AvailableMediaPublicationVisibility;
 type CommentsPolicy = AvailablePhotoCommentsPolicy;
-type ModerationStatus = 'PENDING_REVIEW';
+type ModerationStatus = 'APPROVED';
 
 type PrivatePhotoDoc = {
   id?: string;
@@ -308,14 +305,6 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
     const now = Date.now();
     const moderationStatus = resolveModerationStatus();
     const scoreBreakdown = buildUnassessedPhotoScoreBreakdown();
-    const moderationReportId = buildPreventivePhotoReviewId(
-      ownerUid,
-      photoId,
-      now
-    );
-    const moderationReportRef = db
-      .collection('moderation_reports')
-      .doc(moderationReportId);
     const batch = db.batch();
 
     const publicationPayload = {
@@ -333,7 +322,7 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
       reactionsEnabled,
       reactionsCount: 0,
       moderationStatus,
-      moderationReason: PHOTO_PREVENTIVE_REVIEW_MESSAGE,
+      moderationReason: null,
       reportsCount: 0,
       openReportsCount: 0,
       confirmedReportsCount: 0,
@@ -344,8 +333,6 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
       updatedAt: now,
       lastModeratedAt: null,
       moderatedBy: null,
-      preventiveReviewReportId: moderationReportId,
-      reviewEvidenceRetention: 'PUBLISHED_ASSET_LOCKED',
       sourceStoragePath,
       publishedStoragePath,
       assetVersion: now,
@@ -387,39 +374,17 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
         reactionsEnabled,
         reactionsCount: 0,
         moderationStatus,
-        moderationReason: PHOTO_PREVENTIVE_REVIEW_MESSAGE,
+        moderationReason: null,
         reportsCount: 0,
         openReportsCount: 0,
         confirmedReportsCount: 0,
         safetyScore: null,
         score: 0,
         scoreBreakdown,
-        preventiveReviewReportId: moderationReportId,
       },
       { merge: true }
     );
 
-    batch.create(moderationReportRef, {
-      reporterUid: 'system',
-      targetType: 'photo',
-      targetId: photoId,
-      parentTargetId: null,
-      targetOwnerUid: ownerUid,
-      targetAuthorUid: ownerUid,
-      reason: PHOTO_PREVENTIVE_REVIEW_REASON,
-      details: PHOTO_PREVENTIVE_REVIEW_MESSAGE,
-      route: null,
-      status: 'open',
-      moderationAction: null,
-      contentQuarantined: true,
-      evidencePreservationStatus: 'NOT_REQUIRED',
-      evidenceRetentionStatus: 'PUBLISHED_ASSET_LOCKED',
-      legalReviewStatus: null,
-      source: 'system',
-      reviewAssetVersion: now,
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
 
     try {
       await batch.commit();
