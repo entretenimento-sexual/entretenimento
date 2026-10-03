@@ -6,8 +6,8 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import {
-  assertPublicMediaConsumptionAccess,
-} from './public-media-consumption-access.policy';
+  assertMediaAuthoringEligibility,
+} from './media-authoring-eligibility.service';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, getDefaultStorageBucket } from '../../firebaseApp';
 import {
@@ -283,9 +283,10 @@ export const reservePhotoUpload = onCall<ReservePhotoUploadRequest>(
       );
     }
 
-    // A reserva é a primeira etapa do pipeline de Media e deve falhar antes
-    // de consumir quota/storage quando a maioridade ainda é apenas declarada.
-    await assertPublicMediaConsumptionAccess(ownerUid);
+    // Reserva pertence à fronteira de autoria, não à de consumo público.
+    // A maioridade da conta é consultada uma vez pela autoridade canônica;
+    // segurança do conteúdo permanece no pipeline preventivo posterior.
+    await assertMediaAuthoringEligibility(ownerUid);
 
     const reservationId = buildReservationId(ownerUid, storagePath);
     const reservationRef = db
