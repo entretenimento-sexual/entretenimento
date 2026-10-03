@@ -10,9 +10,9 @@
 // - o acesso temporário é emitido por backend após nova validação;
 // - cliente não grava projeção pública, score ou contadores;
 // - métricas públicas são recalculadas no backend;
-// - publicação nasce PENDING_REVIEW e sem safetyScore presumido;
-// - enquanto não avaliada, o ativo versionado fica retido e fora da distribuição;
-// - denúncia posterior pode manter/agravar a quarentena e acionar evidência probatória;
+// - publicação entra ativa por padrão e sem fila humana preventiva;
+// - safetyScore pode permanecer desconhecido até existir sinal real de moderação;
+// - denúncia posterior ou mecanismo em tempo real pode quarentenar e preservar evidência;
 // - republicação usa precondition para não sobrescrever estado de revisão concorrente.
 
 import { logger } from 'firebase-functions';
