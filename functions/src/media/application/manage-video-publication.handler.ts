@@ -2,11 +2,8 @@ import { logger } from 'firebase-functions';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import {
-  isVerifiedAdultAgeDecision,
-} from '../../compliance/age-eligibility.policy';
-import {
-  getCanonicalAgeEligibilityForUid,
-} from '../../compliance/age-eligibility.service';
+  assertMediaAuthoringEligibility,
+} from './media-authoring-eligibility.service';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue, Timestamp } from '../../firebaseApp';
 import {
@@ -303,16 +300,16 @@ export const publishVideo = onCall<PublishVideoRequest>(
 
     assertOwner(requesterUid, ownerUid);
 
-    const ageDecision = await getCanonicalAgeEligibilityForUid(ownerUid);
-    if (!isVerifiedAdultAgeDecision(ageDecision)) {
-      throw new HttpsError(
-        'failed-precondition',
-        'Conclua a verificação de maioridade antes de publicar mídia.'
-      );
-    }
+    const authoringEligibility =
+      await assertMediaAuthoringEligibility(ownerUid);
     const ageEligibilityValidUntil = Timestamp.fromMillis(
-      ageDecision.expiresAtMs ?? 253402300799999
+      authoringEligibility.ageEligibilityValidUntilMs ?? 253402300799999
     );
+    const ageEligibilityVerifiedAdult =
+      authoringEligibility.ageEligibilityVerifiedAdult;
+    const ageEligibilityAssurance = ageEligibilityVerifiedAdult
+      ? 'VERIFIED'
+      : 'SELF_DECLARED';
 
     const visibility = cleanVisibility(request.data?.visibility);
     const orderIndex = normalizeOrderIndex(request.data?.orderIndex);
@@ -445,7 +442,9 @@ export const publishVideo = onCall<PublishVideoRequest>(
         id: videoId,
         ownerUid,
         mediaType: 'VIDEO',
-        ageEligibilityVerifiedAdult: true,
+        ageEligibilityAdultAccessAllowed: true,
+        ageEligibilityVerifiedAdult,
+        ageEligibilityAssurance,
         ageEligibilityValidUntil,
         assetAccess: 'SIGNED_URL',
         posterAccess: publishedAssets.posterStoragePath
