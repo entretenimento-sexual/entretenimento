@@ -637,7 +637,7 @@ export const registerPrivateVideoUpload = onCall<
           publishWhenReady: true,
           visibility: 'PUBLIC',
           orderIndex: 0,
-          moderationStatus: 'PENDING_REVIEW',
+          moderationStatus: 'PRIVATE',
           moderationReason: null,
           ...publicationSettings,
           createdAt,
