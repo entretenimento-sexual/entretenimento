@@ -2,8 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  VIDEO_PREVENTIVE_REVIEW_REASON,
-  buildPreventiveVideoReviewId,
   buildUnassessedVideoScoreBreakdown,
   defaultVideoPublicationModerationStatus,
   isLegacyPendingVideoModeration,
@@ -12,28 +10,21 @@ import {
 } from './video-publication-moderation.policy';
 
 test('video-publication-moderation policy', async (t) => {
-  await t.test('new publication starts in preventive review', () => {
-    assert.equal(defaultVideoPublicationModerationStatus(), 'PENDING_REVIEW');
-    assert.equal(VIDEO_PREVENTIVE_REVIEW_REASON, 'preventive_media_review');
+  await t.test('new publication starts active without implicit safety score', () => {
+    assert.equal(defaultVideoPublicationModerationStatus(), 'APPROVED');
     assert.equal(buildUnassessedVideoScoreBreakdown().safetyScore, null);
-    assert.equal(
-      buildPreventiveVideoReviewId('owner', 'video', 100),
-      buildPreventiveVideoReviewId('owner', 'video', 100)
-    );
   });
 
-  await t.test('pending state remains pending after owner edit', () => {
-    assert.equal(
-      resolveVideoModerationAfterOwnerEdit('PENDING_REVIEW'),
-      'PENDING_REVIEW'
-    );
+  await t.test('legacy pending state is recognized but no longer the default', () => {
     assert.equal(isLegacyPendingVideoModeration('PENDING_REVIEW'), true);
+    assert.equal(isLegacyPendingVideoModeration('APPROVED'), false);
   });
 
-  await t.test('unassessed states cannot become approved through owner edit', () => {
-    assert.equal(resolveVideoModerationAfterOwnerEdit('PRIVATE'), 'PENDING_REVIEW');
-    assert.equal(resolveVideoModerationAfterOwnerEdit(''), 'PENDING_REVIEW');
+  await t.test('non-restricted owner edits remain publishable', () => {
+    assert.equal(resolveVideoModerationAfterOwnerEdit('PRIVATE'), 'APPROVED');
+    assert.equal(resolveVideoModerationAfterOwnerEdit(''), 'APPROVED');
     assert.equal(resolveVideoModerationAfterOwnerEdit('APPROVED'), 'APPROVED');
+    assert.equal(resolveVideoModerationAfterOwnerEdit('PENDING_REVIEW'), 'APPROVED');
   });
 
   await t.test('owner edit cannot release moderation restrictions', () => {
