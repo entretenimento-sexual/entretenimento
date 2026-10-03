@@ -114,6 +114,7 @@ async function seedPublicMedia(): Promise<void> {
         nickname: 'Perfil adulto',
         nicknameNormalized: 'perfil-adulto',
         role: 'free',
+        ageEligibilityAdultAccessAllowed: true,
         ageEligibilityVerifiedAdult: true,
         ageEligibilityValidUntil: new Date(Date.now() + 60_000),
       }),
@@ -128,7 +129,8 @@ async function seedPublicMedia(): Promise<void> {
         {
           id: VIDEO_ID,
           ownerUid: OWNER_UID,
-          ageEligibilityVerifiedAdult: true,
+          ageEligibilityAdultAccessAllowed: true,
+        ageEligibilityVerifiedAdult: true,
         ageEligibilityValidUntil: new Date(Date.now() + 60_000),
           visibility: 'PUBLIC',
           moderationStatus: 'APPROVED',
@@ -147,7 +149,8 @@ async function seedPublicMedia(): Promise<void> {
         {
           id: PHOTO_ID,
           ownerUid: OWNER_UID,
-          ageEligibilityVerifiedAdult: true,
+          ageEligibilityAdultAccessAllowed: true,
+        ageEligibilityVerifiedAdult: true,
         ageEligibilityValidUntil: new Date(Date.now() + 60_000),
           visibility: 'PUBLIC',
           moderationStatus: 'APPROVED',
@@ -211,6 +214,46 @@ async function setOwnerCanonicalAgeExpiry(expiresAt: Date | null) {
       doc(context.firestore(), 'age_eligibility_records', OWNER_UID),
       { expiresAt }
     );
+  });
+}
+
+async function setOwnerSelfDeclaredAdult(): Promise<void> {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await setDoc(
+      doc(context.firestore(), 'age_eligibility_records', OWNER_UID),
+      {
+        uid: OWNER_UID,
+        status: 'SELF_DECLARED_ADULT',
+        policyVersion: 1,
+        source: 'SELF_DECLARATION',
+        method: 'SELF_DECLARATION',
+        decidedAt: new Date(Date.now() - 1_000),
+        verifiedAt: null,
+        expiresAt: null,
+      }
+    );
+
+    const db = context.firestore();
+    await Promise.all([
+      updateDoc(doc(db, 'public_profiles', OWNER_UID), {
+        ageEligibilityAdultAccessAllowed: true,
+        ageEligibilityVerifiedAdult: false,
+      }),
+      updateDoc(
+        doc(db, 'public_profiles', OWNER_UID, 'public_photos', PHOTO_ID),
+        {
+          ageEligibilityAdultAccessAllowed: true,
+          ageEligibilityVerifiedAdult: false,
+        }
+      ),
+      updateDoc(
+        doc(db, 'public_profiles', OWNER_UID, 'public_videos', VIDEO_ID),
+        {
+          ageEligibilityAdultAccessAllowed: true,
+          ageEligibilityVerifiedAdult: false,
+        }
+      ),
+    ]);
   });
 }
 
@@ -384,6 +427,18 @@ describe('Firestore Rules / public media age visibility', () => {
           PHOTO_ID
         )
       )
+    );
+  });
+
+  it('permite exposição de owner adulto autodeclarado sem reexigir verificação forte na autoria', async () => {
+    await setOwnerSelfDeclaredAdult();
+    const db = viewerDb();
+
+    await assertSucceeds(
+      getDoc(doc(db, 'public_profiles', OWNER_UID, 'public_photos', PHOTO_ID))
+    );
+    await assertSucceeds(
+      getDoc(doc(db, 'public_profiles', OWNER_UID, 'public_videos', VIDEO_ID))
     );
   });
 
