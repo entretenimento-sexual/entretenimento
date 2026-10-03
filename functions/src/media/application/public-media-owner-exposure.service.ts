@@ -1,6 +1,5 @@
 import {
   evaluateCanonicalAgeEligibility,
-  isVerifiedAdultAgeDecision,
 } from '../../compliance/age-eligibility.policy';
 import {
   evaluateCanonicalOwnerLifecycle,
@@ -91,12 +90,10 @@ async function resolveCanonicalOwnerExposure(
 
         return evaluatePublicMediaSignedOwnerExposure({
           ...baseInput,
-          canonicalAgeAllowed:
-            isVerifiedAdultAgeDecision(ownerAgeDecision),
-          canonicalAgeExpiresAtMs:
-            isVerifiedAdultAgeDecision(ownerAgeDecision)
-              ? ownerAgeDecision.expiresAtMs ?? null
-              : null,
+          canonicalAgeAllowed: ownerAgeDecision.allowed,
+          canonicalAgeExpiresAtMs: ownerAgeDecision.allowed
+            ? ownerAgeDecision.expiresAtMs ?? null
+            : null,
         });
       })()
       : evaluatePublicMediaOwnerExposure(baseInput);
