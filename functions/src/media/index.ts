@@ -69,6 +69,9 @@ export {
 export {
   normalizeLegacyVideoModeration,
 } from './application/normalize-legacy-video-moderation.handler';
+export {
+  normalizeLegacyPhotoModeration,
+} from './application/normalize-legacy-photo-moderation.handler';
 
 export {
   syncPublishedVideoSettings,
