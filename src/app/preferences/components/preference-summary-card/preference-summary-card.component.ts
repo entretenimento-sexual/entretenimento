@@ -1,2 +1,0 @@
-// Retired: Preferences Hub no longer renders a summary card.
-export {};
