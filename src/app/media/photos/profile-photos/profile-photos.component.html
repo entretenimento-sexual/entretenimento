@@ -182,14 +182,19 @@
               [attr.aria-busy]="publishingPhotoId === item.id || deletingPhotoId === item.id || savingDisplayDateId === item.id"
               [attr.aria-label]="'Abrir foto ' + (item.alt || item.id)"
             >
-              <img
-                class="photo"
-                [src]="item.url"
-                appImageFallback
-                [alt]="item.alt || 'Foto do perfil'"
-                loading="lazy"
-                referrerpolicy="no-referrer"
-              />
+              @if (item.url) {
+                <img
+                  class="photo"
+                  [src]="item.url"
+                  [alt]="item.alt || 'Foto do perfil'"
+                  loading="lazy"
+                  referrerpolicy="no-referrer"
+                />
+              } @else {
+                <span class="photo-unavailable" role="status">
+                  Mídia indisponível
+                </span>
+              }
 
               <span class="photo-overlay app-media-overlay">
                 <span class="photo-status-stack">
