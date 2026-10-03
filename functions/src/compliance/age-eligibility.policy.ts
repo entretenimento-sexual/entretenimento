@@ -253,9 +253,12 @@ export function evaluateCanonicalAgeEligibility(input: {
 
 
 /**
- * Garantia forte para superfícies que manipulam ou expõem mídia adulta.
- * SELF_DECLARED_ADULT pode continuar sendo um estado provisório de acesso
- * social, mas nunca satisfaz esta fronteira.
+ * Assurance forte para superfícies que explicitamente exigem verificação
+ * confiável, como consumo público adulto sob a política atual.
+ *
+ * Não usar esta função como gate genérico de autoria/upload: autoria consulta
+ * a elegibilidade adulta canônica da conta e a segurança do conteúdo é
+ * decidida separadamente pelo pipeline preventivo de moderação.
  */
 export function isVerifiedAdultAgeDecision(
   decision: Readonly<AgeEligibilityDecision>
