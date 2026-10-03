@@ -1,10 +1,3 @@
-import { createHash } from 'node:crypto';
-
-export const PHOTO_PREVENTIVE_REVIEW_REASON =
-  'preventive_media_review' as const;
-export const PHOTO_PREVENTIVE_REVIEW_MESSAGE =
-  'Conteúdo aguardando avaliação preventiva antes da distribuição.';
-
 export type PhotoPublicationModerationStatus =
   | 'PENDING_REVIEW'
   | 'APPROVED'
@@ -39,8 +32,8 @@ export function normalizePhotoPublicationModerationStatus(
   }
 }
 
-export function defaultPhotoPublicationModerationStatus(): 'PENDING_REVIEW' {
-  return 'PENDING_REVIEW';
+export function defaultPhotoPublicationModerationStatus(): 'APPROVED' {
+  return 'APPROVED';
 }
 
 export function isPhotoPublicationApproved(value: unknown): boolean {
@@ -57,19 +50,3 @@ UnassessedPhotoScoreBreakdown {
   };
 }
 
-export function buildPreventivePhotoReviewId(
-  ownerUid: string,
-  photoId: string,
-  assetVersion: number
-): string {
-  return createHash('sha256')
-    .update([
-      'system',
-      PHOTO_PREVENTIVE_REVIEW_REASON,
-      ownerUid,
-      photoId,
-      String(assetVersion),
-    ].join('|'))
-    .digest('hex')
-    .slice(0, 48);
-}
