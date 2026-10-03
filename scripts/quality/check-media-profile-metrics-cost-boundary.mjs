@@ -124,6 +124,7 @@ const coldReconciliationCallers = new Set([
   'functions/src/media/application/delete-profile-video.handler.ts',
   'functions/src/media/application/sync-published-photo-on-private-update.handler.ts',
   'functions/src/media/application/normalize-legacy-video-moderation.handler.ts',
+  'functions/src/media/application/normalize-legacy-photo-moderation.handler.ts',
   'functions/src/media/application/review-photo-content-report.handler.ts',
   'functions/src/media/application/review-video-content-report.handler.ts',
 ]);
