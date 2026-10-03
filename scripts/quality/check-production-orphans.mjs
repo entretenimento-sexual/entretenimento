@@ -425,7 +425,11 @@ while (functionsQueue.length > 0) {
   }
 }
 
-const functionsOperationalPolicyArtifacts = new Set([
+// Alguns módulos de Functions são deliberadamente compilados para consumo
+// operacional fora do grafo implantável de index.ts (ex.: manutenção local
+// fail-closed). A exceção precisa ser explícita e pequena: qualquer novo arquivo
+// continua sendo órfão por padrão.
+const functionsOperationalArtifacts = new Set([
   posix(path.join(
     functionsSourceRoot,
     'community-boost/community-boost-cost-calibration.policy.ts'
@@ -438,12 +442,19 @@ const functionsOperationalPolicyArtifacts = new Set([
     functionsSourceRoot,
     'shared/observability/operational-cost-baseline.policy.ts'
   )),
+  // Consumido pelo entrypoint manual
+  // scripts/maintenance/reconcile-orphan-photo-storage-emu.mjs por meio do
+  // artefato compilado functions/lib/...; não deve virar Function implantável.
+  posix(path.join(
+    functionsSourceRoot,
+    'media/application/private-photo-storage-consistency.service.ts'
+  )),
 ]);
 
 const functionOrphans = functionsProductionTs
   .filter((filePath) => !functionsReachable.has(path.normalize(filePath)))
   .map(posix)
-  .filter((filePath) => !functionsOperationalPolicyArtifacts.has(filePath))
+  .filter((filePath) => !functionsOperationalArtifacts.has(filePath))
   .sort();
 
 // -----------------------------------------------------------------------------
