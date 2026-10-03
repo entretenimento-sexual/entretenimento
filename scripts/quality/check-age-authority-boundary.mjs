@@ -706,29 +706,13 @@ for (const relativePath of verifiedPublicProjectionFiles) {
   }
 }
 
-const mediaVerifiedBoundaryFiles = Object.freeze([
+const mediaConsumptionVerifiedBoundaryFiles = Object.freeze([
   {
     path: 'functions/src/media/application/public-media-consumption-access.policy.ts',
     required: [
       'isVerifiedAdultAgeDecision',
       "'AGE_VERIFICATION_REQUIRED'",
     ],
-  },
-  {
-    path: 'functions/src/media/application/manage-photo-publication.handler.ts',
-    required: ['isVerifiedAdultAgeDecision'],
-  },
-  {
-    path: 'functions/src/media/application/manage-video-publication.handler.ts',
-    required: ['isVerifiedAdultAgeDecision'],
-  },
-  {
-    path: 'functions/src/media/application/private-video-upload-eligibility.service.ts',
-    required: ['isVerifiedAdultAgeDecision'],
-  },
-  {
-    path: 'functions/src/media/application/reserve-photo-upload.handler.ts',
-    required: ['assertPublicMediaConsumptionAccess'],
   },
   {
     path: 'firestore-rules/_helpers.rules',
@@ -738,26 +722,12 @@ const mediaVerifiedBoundaryFiles = Object.freeze([
       'canConsumeAdultPublicMedia',
     ],
   },
-  {
-    path: 'firestore-rules/public_profiles_photos.rules',
-    required: [
-      'canConsumeAdultPublicMedia()',
-      'canonicalAgeEligibilityIsVerifiedAdult(userId)',
-    ],
-  },
-  {
-    path: 'firestore-rules/public_profiles_videos.rules',
-    required: [
-      'canConsumeAdultPublicMedia()',
-      'canonicalAgeEligibilityIsVerifiedAdult(userId)',
-    ],
-  },
 ]);
 
-for (const boundary of mediaVerifiedBoundaryFiles) {
+for (const boundary of mediaConsumptionVerifiedBoundaryFiles) {
   const absolutePath = path.join(root, boundary.path);
   if (!fs.existsSync(absolutePath)) {
-    violations.push(`${boundary.path} (fronteira forte de Media ausente)`);
+    violations.push(`${boundary.path} (fronteira forte de consumo Media ausente)`);
     continue;
   }
 
@@ -766,7 +736,99 @@ for (const boundary of mediaVerifiedBoundaryFiles) {
   for (const required of boundary.required) {
     if (!source.includes(required)) {
       violations.push(
-        `${boundary.path} (Media deve exigir maioridade verificada: ${required})`
+        `${boundary.path} (consumo público de Media deve preservar verificação forte: ${required})`
+      );
+    }
+  }
+}
+
+const mediaAuthoringBoundaryFiles = Object.freeze([
+  {
+    path: 'functions/src/media/application/media-authoring-eligibility.service.ts',
+    required: [
+      'assertInteractionAccessData',
+      'evaluateCanonicalAgeEligibility',
+      'ageEligibility.allowed',
+      "ageEligibility.status === 'VERIFIED_ADULT'",
+    ],
+  },
+  {
+    path: 'functions/src/media/application/reserve-photo-upload.handler.ts',
+    required: ['assertMediaAuthoringEligibility'],
+    forbidden: ['assertPublicMediaConsumptionAccess'],
+  },
+  {
+    path: 'functions/src/media/application/register-private-photo-upload.handler.ts',
+    required: ['assertMediaAuthoringEligibility'],
+    forbidden: ['isVerifiedAdultAgeDecision'],
+  },
+  {
+    path: 'functions/src/media/application/private-video-upload-eligibility.service.ts',
+    required: ['assertMediaAuthoringEligibilityData'],
+    forbidden: ['isVerifiedAdultAgeDecision'],
+  },
+  {
+    path: 'functions/src/media/application/manage-photo-publication.handler.ts',
+    required: [
+      'assertMediaAuthoringEligibility',
+      'ageEligibilityAdultAccessAllowed: true',
+      'ageEligibilityAssurance',
+    ],
+    forbidden: ['isVerifiedAdultAgeDecision'],
+  },
+  {
+    path: 'functions/src/media/application/manage-video-publication.handler.ts',
+    required: [
+      'assertMediaAuthoringEligibility',
+      'ageEligibilityAdultAccessAllowed: true',
+      'ageEligibilityAssurance',
+    ],
+    forbidden: ['isVerifiedAdultAgeDecision'],
+  },
+  {
+    path: 'functions/src/media/application/public-media-owner-exposure.service.ts',
+    required: ['ownerAgeDecision.allowed'],
+    forbidden: ['isVerifiedAdultAgeDecision(ownerAgeDecision)'],
+  },
+  {
+    path: 'firestore-rules/public_profiles_photos.rules',
+    required: [
+      'canConsumeAdultPublicMedia()',
+      'canonicalAgeEligibilityAllowsAdultAccess(userId)',
+      'ageEligibilityAdultAccessAllowed == true',
+    ],
+  },
+  {
+    path: 'firestore-rules/public_profiles_videos.rules',
+    required: [
+      'canConsumeAdultPublicMedia()',
+      'canonicalAgeEligibilityAllowsAdultAccess(userId)',
+      'ageEligibilityAdultAccessAllowed == true',
+    ],
+  },
+]);
+
+for (const boundary of mediaAuthoringBoundaryFiles) {
+  const absolutePath = path.join(root, boundary.path);
+  if (!fs.existsSync(absolutePath)) {
+    violations.push(`${boundary.path} (fronteira de autoria Media ausente)`);
+    continue;
+  }
+
+  const source = fs.readFileSync(absolutePath, 'utf8');
+
+  for (const required of boundary.required) {
+    if (!source.includes(required)) {
+      violations.push(
+        `${boundary.path} (autoria Media deve depender da autoridade adulta da conta: ${required})`
+      );
+    }
+  }
+
+  for (const forbidden of boundary.forbidden ?? []) {
+    if (source.includes(forbidden)) {
+      violations.push(
+        `${boundary.path} (autoria Media não pode reusar gate de consumo/verificação forte: ${forbidden})`
       );
     }
   }
