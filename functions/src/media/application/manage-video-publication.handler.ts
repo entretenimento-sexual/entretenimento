@@ -16,9 +16,6 @@ import {
   deletePublishedVideoAssetOrQueue,
 } from './published-video-asset.service';
 import {
-  VIDEO_PREVENTIVE_REVIEW_MESSAGE,
-  VIDEO_PREVENTIVE_REVIEW_REASON,
-  buildPreventiveVideoReviewId,
   buildUnassessedVideoScoreBreakdown,
   defaultVideoPublicationModerationStatus,
   isRestrictedVideoModerationStatus,
@@ -30,7 +27,7 @@ import {
 } from './video-storage-path';
 
 type VideoVisibility = AvailableMediaPublicationVisibility;
-type ModerationStatus = 'PENDING_REVIEW';
+type ModerationStatus = 'APPROVED';
 type PublishedVideoAssets = Awaited<
   ReturnType<typeof copyPrivateVideoToPublishedAsset>
 >;
@@ -388,14 +385,6 @@ export const publishVideo = onCall<PublishVideoRequest>(
     const now = Date.now();
     const moderationStatus = defaultVideoPublicationModerationStatus();
     const scoreBreakdown = buildUnassessedVideoScoreBreakdown();
-    const moderationReportId = buildPreventiveVideoReviewId(
-      ownerUid,
-      videoId,
-      now
-    );
-    const moderationReportRef = db
-      .collection('moderation_reports')
-      .doc(moderationReportId);
     const durationMs = normalizeOptionalPositiveInteger(
       ownerVideo.durationMs
     );
@@ -411,15 +400,15 @@ export const publishVideo = onCall<PublishVideoRequest>(
         visibility,
         orderIndex,
         moderationStatus,
-        moderationReason: VIDEO_PREVENTIVE_REVIEW_MESSAGE,
+        moderationReason: null,
         reportsCount: 0,
         openReportsCount: 0,
         confirmedReportsCount: 0,
         safetyScore: null,
         score: 0,
         scoreBreakdown,
-        preventiveReviewReportId: moderationReportId,
-        reviewEvidenceRetention: 'PUBLISHED_ASSET_LOCKED',
+        preventiveReviewReportId: FieldValue.delete(),
+        reviewEvidenceRetention: FieldValue.delete(),
         viewsCount: 0,
         uniqueViewersCount: 0,
         publishedAt: now,
@@ -466,39 +455,18 @@ export const publishVideo = onCall<PublishVideoRequest>(
         visibility,
         orderIndex,
         moderationStatus,
-        moderationReason: VIDEO_PREVENTIVE_REVIEW_MESSAGE,
+        moderationReason: null,
         reportsCount: 0,
         openReportsCount: 0,
         confirmedReportsCount: 0,
         safetyScore: null,
         score: 0,
         scoreBreakdown,
-        preventiveReviewReportId: moderationReportId,
+        preventiveReviewReportId: FieldValue.delete(),
       },
       { merge: true }
     );
 
-    batch.create(moderationReportRef, {
-      reporterUid: 'system',
-      targetType: 'video',
-      targetId: videoId,
-      parentTargetId: videoId,
-      targetOwnerUid: ownerUid,
-      targetAuthorUid: ownerUid,
-      reason: VIDEO_PREVENTIVE_REVIEW_REASON,
-      details: VIDEO_PREVENTIVE_REVIEW_MESSAGE,
-      route: null,
-      status: 'open',
-      moderationAction: null,
-      contentQuarantined: true,
-      evidencePreservationStatus: 'NOT_REQUIRED',
-      evidenceRetentionStatus: 'PUBLISHED_ASSET_LOCKED',
-      legalReviewStatus: null,
-      source: 'system',
-      reviewAssetVersion: now,
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
 
     try {
       await batch.commit();
