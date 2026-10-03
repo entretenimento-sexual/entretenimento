@@ -213,7 +213,7 @@
                     @switch (item.publication.moderationStatus) {
                       @case ('PENDING_REVIEW') {
                         <span class="status-chip status-chip--pending app-chip app-chip--overlay">
-                          Aguardando análise
+                          Em análise de segurança
                         </span>
                       }
 
@@ -263,7 +263,7 @@
             @if (isOwner) {
               @if (item.publication.moderationStatus === 'PENDING_REVIEW') {
                 <p class="publication-note" role="status">
-                  Esta foto está retida para revisão preventiva e ainda não participa da distribuição pública.
+                  Esta foto está temporariamente fora da distribuição por uma intervenção de segurança.
                 </p>
               } @else if (moderationLocked) {
                 <p class="publication-note" role="status">
@@ -347,7 +347,7 @@
                     (click)="requestDelete(item, $event)"
                     [disabled]="moderationLocked || deletingPhotoId === item.id || publishingPhotoId === item.id || savingDisplayDateId === item.id"
                     [attr.aria-label]="'Excluir foto ' + (item.alt || item.id)"
-                    [title]="moderationLocked ? 'A foto não pode ser excluída enquanto a revisão de segurança estiver pendente' : 'Excluir foto'"
+                    [title]="moderationLocked ? 'A foto não pode ser excluída enquanto houver uma restrição de segurança ativa' : 'Excluir foto'"
                   >
                     <span aria-hidden="true">🗑</span>
                   </button>
