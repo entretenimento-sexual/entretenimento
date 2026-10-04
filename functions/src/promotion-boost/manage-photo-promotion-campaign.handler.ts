@@ -2,7 +2,7 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { assertRecentAuthentication } from '../account_lifecycle/_shared';
-import { assertInteractionAccessData } from '../account_lifecycle/interaction-access.policy';
+import { assertPlatformAccountAccessData } from '../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import { REQUIRE_CALLABLE_APP_CHECK, assertCallableAppCheck } from '../shared/security/callable-app-check';
@@ -143,7 +143,6 @@ export const managePhotoPromotionCampaign = onCall<Request>(
       const billingRef = promotionBoostBillingConfigRef();
       const advertiserRef = promotionBoostAdvertiserAccountRef(actor.uid);
       const actorUserRef = db.collection('users').doc(actor.uid);
-      const actorAgeRef = db.collection('age_eligibility_records').doc(actor.uid);
       const activeSlotRef = db.collection('promotion_boost_active_slots').doc(`photo:${ownerUid}:${photoId}`);
 
       return db.runTransaction(async (transaction) => {
@@ -154,7 +153,6 @@ export const managePhotoPromotionCampaign = onCall<Request>(
           billingSnapshot,
           advertiserSnapshot,
           actorUserSnapshot,
-          actorAgeSnapshot,
           activeSlotSnapshot,
         ] = await Promise.all([
           transaction.get(operationRef),
@@ -163,7 +161,6 @@ export const managePhotoPromotionCampaign = onCall<Request>(
           transaction.get(billingRef),
           transaction.get(advertiserRef),
           transaction.get(actorUserRef),
-          transaction.get(actorAgeRef),
           transaction.get(activeSlotRef),
         ]);
 
@@ -183,10 +180,8 @@ export const managePhotoPromotionCampaign = onCall<Request>(
           };
         }
 
-        assertInteractionAccessData(
-          actorUserSnapshot.exists ? actorUserSnapshot.data() : null,
-          actorAgeSnapshot.exists ? actorAgeSnapshot.data() : null,
-          actor.uid
+        assertPlatformAccountAccessData(
+          actorUserSnapshot.exists ? actorUserSnapshot.data() : null
         );
         assertPhotoEligible(
           ownerUid,
@@ -397,7 +392,6 @@ export const managePhotoPromotionCampaign = onCall<Request>(
           publicPhotoSnapshot,
           advertiserSnapshot,
           advertiserUserSnapshot,
-          advertiserAgeSnapshot,
         ] = await Promise.all([
           transaction.get(
             db.doc(
@@ -415,20 +409,13 @@ export const managePhotoPromotionCampaign = onCall<Request>(
           transaction.get(
             db.collection('users').doc(campaign.advertiserUid)
           ),
-          transaction.get(
-            db.collection('age_eligibility_records')
-              .doc(campaign.advertiserUid)
-          ),
+
         ]);
 
-        assertInteractionAccessData(
+        assertPlatformAccountAccessData(
           advertiserUserSnapshot.exists
             ? advertiserUserSnapshot.data()
-            : null,
-          advertiserAgeSnapshot.exists
-            ? advertiserAgeSnapshot.data()
-            : null,
-          campaign.advertiserUid
+            : null
         );
         assertPhotoEligible(
           campaign.targetOwnerUid,
