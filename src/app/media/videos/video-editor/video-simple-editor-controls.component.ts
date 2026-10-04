@@ -576,7 +576,7 @@ export class VideoSimpleEditorControlsComponent {
 
   private resetForm(): void {
     this.activeTrimHandleValue = 'end';
-    this.activeTool.set('trim');
+    this.activeTool.set(null);
     this.previewTimeMs.set(0);
     this.metadataSubject.next(null);
     this.form.reset({
