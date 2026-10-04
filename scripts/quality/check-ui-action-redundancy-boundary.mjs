@@ -59,7 +59,7 @@ function escapeRegExp(value) {
 function attribute(attrs, name) {
   const escaped = escapeRegExp(name);
   const expression = new RegExp(
-    escaped + '\\s*=\\s*(?:"([^"]*)"|\\'([^\\']*)\\')',
+    escaped + "\\s*=\\s*(?:\\\"([^\\\"]*)\\\"|'([^']*)')",
     'i'
   );
   const match = attrs.match(expression);
