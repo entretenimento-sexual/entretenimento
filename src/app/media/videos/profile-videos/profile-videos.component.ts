@@ -759,12 +759,30 @@ export class ProfileVideosComponent {
   publicationLabel(item: IProfileVideoViewItem): string | null {
     const moderationStatus = item.publication?.moderationStatus;
 
+    if (
+      moderationStatus === 'REJECTED' ||
+      item.video.status === 'failed'
+    ) {
+      return 'Indisponível';
+    }
+
     if (moderationStatus === 'FLAGGED' || moderationStatus === 'HIDDEN') {
       return 'Em revisão';
     }
 
-    if (item.video.status !== 'ready') {
+    if (
+      item.video.status === 'uploaded' ||
+      item.video.status === 'queued' ||
+      item.video.status === 'processing'
+    ) {
       return 'Preparando';
+    }
+
+    if (
+      item.video.status === 'ready' &&
+      item.publication?.isPublished !== true
+    ) {
+      return 'Finalizando';
     }
 
     return null;
