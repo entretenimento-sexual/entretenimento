@@ -10,7 +10,7 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import {
-  assertInteractionAccess
+  assertInteractionAccess,
   assertPlatformAccountAccessData,
 } from '../../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
