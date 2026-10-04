@@ -25,7 +25,7 @@ import {
   type AgeEligibilityProjection,
 } from './age-eligibility.service';
 import {
-  isAgeReverificationAccessRestricted,
+  isAgeReverificationAssuranceUnresolved,
 } from './profile-age-reverification.policy';
 
 interface RefreshMyAgeEligibilityResponse {
@@ -250,7 +250,7 @@ export const refreshMyAgeEligibility = onCall(
        * Não reconstruímos SELF_DECLARED_ADULT enquanto existir fato novo de
        * segurança que exija revisão.
        */
-      if (isAgeReverificationAccessRestricted(reverificationStatus)) {
+      if (isAgeReverificationAssuranceUnresolved(reverificationStatus)) {
         return {
           status: 'REVIEW_REQUIRED',
           migrated: false,
