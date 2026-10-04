@@ -226,8 +226,7 @@ export const getPublicPhotoAccessUrls = onCall<PublicPhotoAccessRequest>(
     }
 
     await consumePublicPhotoAccessQuota(viewerUid, uniqueItems.size);
-    const viewerAccess =
-      await assertPublicMediaConsumptionAccess(viewerUid);
+    await assertPublicMediaConsumptionAccess(viewerUid);
     const nowMs = Date.now();
 
     const ownerUids = [
