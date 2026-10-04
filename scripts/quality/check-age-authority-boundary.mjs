@@ -282,7 +282,17 @@ for (const file of walk(path.join(root, 'src', 'app'), ['.ts'])) {
   for (const token of [
     'AgeEligibilityService',
     'AgeReverificationService',
-    'ageEligibility.currentrequireAll(
+    'ageEligibility.current$',
+  ]) {
+    if (source.includes(token)) {
+      violations.push(
+        `${relative} (frontend fora de Account/Registration/Compliance não pode consumir assurance etário: ${token})`
+      );
+    }
+  }
+}
+
+requireAll(
   'src/app/app-routing.module.ts',
   ['accountLifecycleGuard'],
   'roteamento normal deve preservar lifecycle como fronteira de conta'
