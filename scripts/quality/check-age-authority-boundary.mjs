@@ -107,6 +107,29 @@ requireAll(
   'cliente deve preservar projeção de assurance'
 );
 
+// Nenhum domínio backend fora de Compliance pode consultar diretamente
+// a autoridade etária ou reavaliar assurance. Consequências chegam pelo lifecycle.
+for (const file of walk(path.join(root, 'functions', 'src'), ['.ts'])) {
+  const relative = path.normalize(path.relative(root, file));
+  const compliancePrefix = path.normalize('functions/src/compliance') + path.sep;
+
+  if (relative.startsWith(compliancePrefix)) {
+    continue;
+  }
+
+  const source = codeOnly(fs.readFileSync(file, 'utf8'));
+  for (const token of [
+    'age_eligibility_records',
+    'evaluateCanonicalAgeEligibility',
+  ]) {
+    if (source.includes(token)) {
+      violations.push(
+        `${relative} (domínio fora de Compliance não pode consultar assurance etário: ${token})`
+      );
+    }
+  }
+}
+
 // Firestore só pode consultar a autoridade etária no fechamento do cadastro.
 // Superfícies normais recebem qualquer consequência pelo lifecycle da conta.
 for (const relativePath of [
