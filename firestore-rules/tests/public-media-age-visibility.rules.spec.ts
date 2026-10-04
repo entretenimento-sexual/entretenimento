@@ -380,7 +380,7 @@ function dbRefVideo(db: ReturnType<typeof viewerDb>) {
   );
 }
 
-describe('Firestore Rules / public media age visibility', () => {
+describe('Firestore Rules / public media account and content visibility', () => {
   beforeAll(async () => {
     const rules = readFileSync(
       resolve(process.cwd(), 'firestore.rules'),
@@ -445,14 +445,14 @@ describe('Firestore Rules / public media age visibility', () => {
     );
   });
 
-  it('mantém acesso social provisório, mas bloqueia Media para viewer apenas autodeclarado', async () => {
+  it('viewer autodeclarado continua acessando Media enquanto a conta permanece ativa', async () => {
     await setViewerSelfDeclaredAdult();
     const db = viewerDb();
 
     await assertSucceeds(
       getDoc(doc(db, 'public_profiles', OWNER_UID))
     );
-    await assertFails(
+    await assertSucceeds(
       getDoc(
         doc(
           db,
@@ -463,7 +463,7 @@ describe('Firestore Rules / public media age visibility', () => {
         )
       )
     );
-    await assertFails(
+    await assertSucceeds(
       getDoc(
         doc(
           db,
@@ -525,11 +525,11 @@ describe('Firestore Rules / public media age visibility', () => {
     await assertFails(getDoc(videoRef));
   });
 
-  it('bloqueia deep links imediatamente quando a autoridade do proprietário expira', async () => {
+  it('não revoga mídia quando muda apenas a validade do assurance etário do owner', async () => {
     await setOwnerCanonicalAgeExpiry(new Date(Date.now() - 1_000));
     const db = viewerDb();
 
-    await assertFails(
+    await assertSucceeds(
       getDoc(
         doc(
           db,
@@ -540,7 +540,7 @@ describe('Firestore Rules / public media age visibility', () => {
         )
       )
     );
-    await assertFails(
+    await assertSucceeds(
       getDoc(
         doc(
           db,
@@ -605,7 +605,7 @@ describe('Firestore Rules / public media age visibility', () => {
     });
     const db = viewerDb();
 
-    await assertFails(
+    await assertSucceeds(
       getDoc(
         doc(
           db,
@@ -616,7 +616,7 @@ describe('Firestore Rules / public media age visibility', () => {
         )
       )
     );
-    await assertFails(
+    await assertSucceeds(
       getDoc(
         doc(
           db,
@@ -633,13 +633,11 @@ describe('Firestore Rules / public media age visibility', () => {
     const db = viewerDb();
     const globalVideoQuery = query(
       collectionGroup(db, 'public_videos'),
-      where('ageEligibilityVerifiedAdult', '==', true),
       where('visibility', '==', 'PUBLIC'),
       where('moderationStatus', '==', 'APPROVED')
     );
     const globalPhotoQuery = query(
       collectionGroup(db, 'public_photos'),
-      where('ageEligibilityVerifiedAdult', '==', true),
       where('visibility', '==', 'PUBLIC'),
       where('moderationStatus', '==', 'APPROVED')
     );
@@ -654,7 +652,6 @@ describe('Firestore Rules / public media age visibility', () => {
         OWNER_UID,
         'public_videos'
       ),
-      where('ageEligibilityVerifiedAdult', '==', true),
       where('visibility', '==', 'PUBLIC'),
       where('moderationStatus', '==', 'APPROVED')
     );
@@ -665,7 +662,6 @@ describe('Firestore Rules / public media age visibility', () => {
         OWNER_UID,
         'public_photos'
       ),
-      where('ageEligibilityVerifiedAdult', '==', true),
       where('visibility', '==', 'PUBLIC'),
       where('moderationStatus', '==', 'APPROVED')
     );
@@ -704,13 +700,11 @@ describe('Firestore Rules / public media age visibility', () => {
 
     const videoQuery = query(
       collection(db, 'public_profiles', OWNER_UID, 'public_videos'),
-      where('ageEligibilityVerifiedAdult', '==', true),
       where('visibility', '==', 'PUBLIC'),
       where('moderationStatus', '==', 'APPROVED')
     );
     const photoQuery = query(
       collection(db, 'public_profiles', OWNER_UID, 'public_photos'),
-      where('ageEligibilityVerifiedAdult', '==', true),
       where('visibility', '==', 'PUBLIC'),
       where('moderationStatus', '==', 'APPROVED')
     );
@@ -731,7 +725,7 @@ describe('Firestore Rules / public media age visibility', () => {
     );
   });
 
-  it('bloqueia mídia e consultas globais quando o proprietário perde elegibilidade etária', async () => {
+  it('ignora projeções etárias legadas do proprietário e mantém listagem client-side bloqueada', async () => {
     await setOwnerAgeProjection(false);
     const db = viewerDb();
 
@@ -760,13 +754,11 @@ describe('Firestore Rules / public media age visibility', () => {
 
     const videoQuery = query(
       collectionGroup(db, 'public_videos'),
-      where('ageEligibilityVerifiedAdult', '==', true),
       where('visibility', '==', 'PUBLIC'),
       where('moderationStatus', '==', 'APPROVED')
     );
     const photoQuery = query(
       collectionGroup(db, 'public_photos'),
-      where('ageEligibilityVerifiedAdult', '==', true),
       where('visibility', '==', 'PUBLIC'),
       where('moderationStatus', '==', 'APPROVED')
     );
@@ -776,13 +768,11 @@ describe('Firestore Rules / public media age visibility', () => {
 
     const ownerVideoQuery = query(
       collection(db, 'public_profiles', OWNER_UID, 'public_videos'),
-      where('ageEligibilityVerifiedAdult', '==', true),
       where('visibility', '==', 'PUBLIC'),
       where('moderationStatus', '==', 'APPROVED')
     );
     const ownerPhotoQuery = query(
       collection(db, 'public_profiles', OWNER_UID, 'public_photos'),
-      where('ageEligibilityVerifiedAdult', '==', true),
       where('visibility', '==', 'PUBLIC'),
       where('moderationStatus', '==', 'APPROVED')
     );
@@ -791,19 +781,18 @@ describe('Firestore Rules / public media age visibility', () => {
     await assertFails(getDocs(ownerPhotoQuery));
   });
 
-  it('bloqueia vídeo direto e collectionGroup durante reverificação etária', async () => {
+  it('reverificação etária não vira gate local de Media', async () => {
     await setViewerCompliance({
       ageReverification: { status: 'REQUIRED' },
     });
     const db = viewerDb();
     const videoQuery = query(
       collectionGroup(db, 'public_videos'),
-      where('ageEligibilityVerifiedAdult', '==', true),
       where('visibility', '==', 'PUBLIC'),
       where('moderationStatus', '==', 'APPROVED')
     );
 
-    await assertFails(
+    await assertSucceeds(
       getDoc(
         doc(
           db,
