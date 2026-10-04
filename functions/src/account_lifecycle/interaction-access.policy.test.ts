@@ -16,27 +16,30 @@ const validUser = {
     accepted: true,
     version: 'v1',
   },
-  ageReverification: { status: 'VERIFIED' },
-};
-
-const validAge = {
-  uid: 'user-1',
-  status: 'VERIFIED_ADULT',
-  policyVersion: 1,
-  source: 'AGE_REVERIFICATION',
-  method: 'MANUAL_REVIEW',
-  caseId: 'case-1',
-  verifiedAtMs: Date.now() - 1_000,
-  expiresAtMs: null,
 };
 
 describe('interaction access policy', () => {
-  it('permite conta ativa com fronteiras adultas satisfeitas', () => {
+  it('permite conta ativa com termos e consentimento vigentes', () => {
     assert.doesNotThrow(() => assertInteractionAccessData(
       validUser,
-      validAge,
+      null,
       'user-1'
     ));
+  });
+
+  it('não usa assurance ou reverificação etária como segundo gate', () => {
+    for (const ageRecord of [
+      null,
+      { status: 'SELF_DECLARED_ADULT' },
+      { status: 'VERIFIED_ADULT' },
+      { status: 'EXPIRED' },
+    ]) {
+      assert.doesNotThrow(() => assertInteractionAccessData(
+        validUser,
+        ageRecord,
+        'user-1'
+      ));
+    }
   });
 
   it('bloqueia conta com interactionBlocked', () => {
@@ -45,27 +48,9 @@ describe('interaction access policy', () => {
         ...validUser,
         interactionBlocked: true,
       },
-      validAge,
+      null,
       'user-1'
     ));
-  });
-
-  it('bloqueia estados pendentes de revalidação', () => {
-    for (const status of [
-      'REQUIRED',
-      'SUBMITTED',
-      'UNDER_REVIEW',
-      'EXPIRED',
-    ]) {
-      assert.throws(() => assertInteractionAccessData(
-        {
-          ...validUser,
-          ageReverification: { status },
-        },
-        validAge,
-        'user-1'
-      ));
-    }
   });
 
   it('bloqueia conta suspensa ou fora do estado ativo', () => {
@@ -76,14 +61,6 @@ describe('interaction access policy', () => {
         suspended: true,
         interactionBlocked: true,
       },
-      validAge,
-      'user-1'
-    ));
-  });
-
-  it('bloqueia interação sem prova etária canônica', () => {
-    assert.throws(() => assertInteractionAccessData(
-      validUser,
       null,
       'user-1'
     ));
@@ -99,7 +76,7 @@ describe('interaction access policy', () => {
           acknowledgedPrivacyNotice: true,
         },
       },
-      validAge,
+      null,
       'user-1'
     ));
   });
@@ -113,7 +90,7 @@ describe('interaction access policy', () => {
           version: 'v1',
         },
       },
-      validAge,
+      null,
       'user-1'
     ));
   });
