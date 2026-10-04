@@ -1,0 +1,19 @@
+:host {
+  display: block;
+  min-width: min(360px, 82vw);
+}
+
+.media-date-dialog__field {
+  display: grid;
+  gap: 8px;
+}
+
+.media-date-dialog__field > span {
+  font-size: 0.84rem;
+  font-weight: 760;
+}
+
+.media-date-dialog__field input {
+  min-height: var(--tap-target, 44px);
+  width: 100%;
+}
