@@ -22,7 +22,6 @@ import {
   type PublicMediaOwnerExposureContext,
 } from './public-media-owner-exposure.service';
 import {
-  publicAgeProjectionValidUntilMs,
   resolvePublicMediaSignedUrlExpiresAt,
 } from './public-media-age-expiry.policy';
 import { createTemporaryStorageReadUrl } from './temporary-storage-read-url.service';
@@ -101,8 +100,6 @@ async function resolveAccessItem(
   ownerUid: string,
   photoId: string,
   technicalExpiresAt: number,
-  viewerExpiresAt: number,
-  ownerExpiresAt: number,
   ownerExposureAllowed: boolean,
   viewerIsOwner: boolean,
   viewerIsFriend: boolean,
@@ -129,10 +126,7 @@ async function resolveAccessItem(
 
   const publicPhoto = publicPhotoSnap.data() as Record<string, unknown>;
   const publication = publicationSnap.data() as Record<string, unknown>;
-  const mediaValidUntilMs = publicAgeProjectionValidUntilMs(publicPhoto);
-
   if (
-    mediaValidUntilMs === null ||
     !isCurrentPublicPhotoAssetExposure({
       publicMedia: publicPhoto,
       publication,
@@ -165,9 +159,6 @@ async function resolveAccessItem(
   const expiresAt = resolvePublicMediaSignedUrlExpiresAt({
     nowMs,
     technicalExpiresAtMs: technicalExpiresAt,
-    viewerExpiresAtMs: viewerExpiresAt,
-    ownerExpiresAtMs: ownerExpiresAt,
-    mediaExpiresAtMs: mediaValidUntilMs,
   });
 
   if (expiresAt === null) {
@@ -292,9 +283,6 @@ export const getPublicPhotoAccessUrls = onCall<PublicPhotoAccessRequest>(
     }
 
     const technicalExpiresAt = nowMs + SIGNED_URL_TTL_MS;
-    const viewerExpiresAt =
-      viewerAccess.ageEligibilityExpiresAtMs ??
-      Number.POSITIVE_INFINITY;
     const resolutions = await Promise.all(
       [...uniqueItems.values()].map(
         async ({ ownerUid, photoId }): Promise<PublicPhotoAccessResolution> => {
@@ -306,9 +294,6 @@ export const getPublicPhotoAccessUrls = onCall<PublicPhotoAccessRequest>(
                 ownerUid,
                 photoId,
                 technicalExpiresAt,
-                viewerExpiresAt,
-                profileAccess?.validUntilMs ??
-                  Number.NEGATIVE_INFINITY,
                 profileAccess?.allowed === true,
                 ownerUid === viewerUid,
                 socialAccess.friendTargetUids.has(ownerUid),
