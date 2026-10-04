@@ -50,6 +50,20 @@ async function seedViewerAndStatuses(): Promise<void> {
         adultConsent: { accepted: true, version: 'v1' },
         ageReverification: { status: 'NONE' },
       }),
+      setDoc(doc(db, 'users', OWNER_UID), {
+        uid: OWNER_UID,
+        accountStatus: 'active',
+        suspended: false,
+        publicVisibility: 'visible',
+        loginAllowed: true,
+      }),
+      setDoc(doc(db, 'users', 'hidden_age_owner'), {
+        uid: 'hidden_age_owner',
+        accountStatus: 'active',
+        suspended: false,
+        publicVisibility: 'hidden',
+        loginAllowed: true,
+      }),
       setDoc(doc(db, 'age_eligibility_records', VIEWER_UID), {
         uid: VIEWER_UID,
         status: 'VERIFIED_ADULT',
