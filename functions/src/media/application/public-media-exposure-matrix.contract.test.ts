@@ -3,7 +3,6 @@ import { describe, it } from 'node:test';
 
 import {
   evaluatePublicMediaOwnerExposure,
-  evaluatePublicMediaSignedOwnerExposure,
   isCurrentPublicMediaAssetExposure,
   isCurrentPublicPhotoAssetExposure,
 } from './public-media-exposure.policy';
@@ -27,8 +26,6 @@ const MEDIA_KINDS = Object.freeze(['PHOTO', 'VIDEO'] as const);
 function publicProfile(overrides: Record<string, unknown> = {}) {
   return {
     uid: 'owner-1',
-    ageEligibilityVerifiedAdult: true,
-    ageEligibilityValidUntil: { toMillis: () => NOW + 60_000 },
     ...overrides,
   };
 }
@@ -36,8 +33,6 @@ function publicProfile(overrides: Record<string, unknown> = {}) {
 function projection(overrides: Record<string, unknown> = {}) {
   return {
     ownerUid: 'owner-1',
-    ageEligibilityVerifiedAdult: true,
-    ageEligibilityValidUntil: { toMillis: () => NOW + 60_000 },
     visibility: 'PUBLIC',
     moderationStatus: 'APPROVED',
     ...overrides,
@@ -92,6 +87,25 @@ describe('public media exposure matrix contract', () => {
     }
   });
 
+  it('conta ativa não é reavaliada por assurance etário em Media', () => {
+    const user = {
+      accountStatus: 'active',
+      suspended: false,
+      interactionBlocked: false,
+      acceptedTerms: {
+        accepted: true,
+        version: 'v3',
+        acknowledgedPrivacyNotice: true,
+      },
+      adultConsent: { accepted: true, version: 'v1' },
+      ageReverification: { status: 'REQUIRED' },
+    };
+
+    assert.doesNotThrow(() =>
+      assertPublicMediaConsumptionAccessData(user)
+    );
+  });
+
   it('bloqueio bilateral derruba todas as superfícies públicas', () => {
     const owner = evaluatePublicMediaOwnerExposure({
       canonicalOwnerLifecycleAllowed: true,
@@ -135,102 +149,7 @@ describe('public media exposure matrix contract', () => {
     }
   });
 
-  it('idade/reverificação inválida do viewer bloqueia consumo antes de qualquer superfície', () => {
-    const user = {
-      accountStatus: 'active',
-      suspended: false,
-      interactionBlocked: false,
-      acceptedTerms: {
-        accepted: true,
-        version: 'v3',
-        acknowledgedPrivacyNotice: true,
-      },
-      initialAdultConsentRequired: false,
-      adultConsent: { accepted: true, version: 'v1' },
-      ageReverification: { status: 'NONE' },
-    };
-
-    assert.throws(() =>
-      assertPublicMediaConsumptionAccessData(
-        user,
-        {
-          uid: 'viewer-1',
-          status: 'EXPIRED',
-          policyVersion: 1,
-          source: 'AGE_REVERIFICATION',
-          method: 'MANUAL_REVIEW',
-          verifiedAtMs: NOW - 60_000,
-          decidedAtMs: NOW - 60_000,
-          expiresAtMs: NOW - 1,
-          updatedAtMs: NOW - 1,
-        },
-        'viewer-1'
-      )
-    );
-
-    assert.throws(() =>
-      assertPublicMediaConsumptionAccessData(
-        {
-          ...user,
-          ageReverification: { status: 'REQUIRED' },
-        },
-        {
-          uid: 'viewer-1',
-          status: 'VERIFIED_ADULT',
-          policyVersion: 1,
-          source: 'AGE_REVERIFICATION',
-          method: 'MANUAL_REVIEW',
-          verifiedAtMs: NOW - 60_000,
-          decidedAtMs: NOW - 60_000,
-          expiresAtMs: NOW + 60_000,
-          updatedAtMs: NOW - 1,
-        },
-        'viewer-1'
-      )
-    );
-  });
-
-  it('idade expirada do proprietário derruba projeção, viewer e share', () => {
-    const projectionExpired = evaluatePublicMediaOwnerExposure({
-      canonicalOwnerLifecycleAllowed: true,
-      publicProfile: publicProfile({
-        ageEligibilityValidUntil: { toMillis: () => NOW },
-      }),
-      viewerBlocked: false,
-      nowMs: NOW,
-    });
-    assert.equal(projectionExpired.allowed, false);
-    assert.equal(
-      projectionExpired.denialReason,
-      'OWNER_AGE_PROJECTION_EXPIRED'
-    );
-
-    const canonicalExpired = evaluatePublicMediaSignedOwnerExposure({
-      canonicalOwnerLifecycleAllowed: true,
-      publicProfile: publicProfile(),
-      viewerBlocked: false,
-      canonicalAgeAllowed: true,
-      canonicalAgeExpiresAtMs: NOW,
-      nowMs: NOW,
-    });
-    assert.equal(canonicalExpired.allowed, false);
-    assert.equal(
-      canonicalExpired.denialReason,
-      'OWNER_AGE_CANONICAL_EXPIRED'
-    );
-
-    for (const kind of MEDIA_KINDS) {
-      assert.equal(
-        publicAssetAllowed({
-          kind,
-          ownerAllowed: projectionExpired.allowed,
-        }),
-        false
-      );
-    }
-  });
-
-  it('quarentena nunca é exposição: PENDING_REVIEW, FLAGGED, HIDDEN e REJECTED falham fechado', () => {
+  it('quarentena nunca é exposição', () => {
     for (const moderationStatus of [
       'PENDING_REVIEW',
       'FLAGGED',
@@ -253,7 +172,7 @@ describe('public media exposure matrix contract', () => {
     }
   });
 
-  it('unpublish, PRIVATE e divergência de autoridade falham fechado para Foto e Vídeo', () => {
+  it('unpublish, PRIVATE e divergência de autoridade falham fechado', () => {
     const cases = [
       {
         projection: projection(),
@@ -279,17 +198,18 @@ describe('public media exposure matrix contract', () => {
     }
   });
 
-  it('biblioteca privada do próprio perfil permanece fora da autoridade pública', () => {
-    // O dono administra users/{uid}/photos e users/{uid}/videos; isso não
-    // concede acesso ao ativo publicado nem ignora moderação.
+  it('campos etários legados não viram autoridade de distribuição', () => {
     for (const kind of MEDIA_KINDS) {
       assert.equal(
         publicAssetAllowed({
           kind,
-          projection: projection({ moderationStatus: 'PENDING_REVIEW' }),
-          publication: publication({ moderationStatus: 'PENDING_REVIEW' }),
+          projection: projection({
+            ageEligibilityVerifiedAdult: false,
+            ageEligibilityAssurance: 'SELF_DECLARED',
+            ageEligibilityValidUntil: null,
+          }),
         }),
-        false
+        true
       );
     }
   });
