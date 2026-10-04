@@ -353,3 +353,39 @@ requireIncludes(profilePhotosTemplate, [
   '@if (total > 1)',
   'aria-label="Ordenar fotos"',
 ], 'profile photo compact gallery controls');
+
+
+const photoUploadTemplate = read(
+  'src/app/media/photos/photo-upload/photo-upload.component.html'
+);
+const photoUploadComponent = read(
+  'src/app/media/photos/photo-upload/photo-upload.component.ts'
+);
+
+for (const forbidden of [
+  'Foto publicada</h2>',
+  'Adicionar outra',
+  "phase === 'DONE'",
+  'sendAnotherPhoto()',
+]) {
+  if (
+    photoUploadTemplate.includes(forbidden) ||
+    photoUploadComponent.includes(forbidden)
+  ) {
+    throw new Error(
+      '[media-ux-harmony] photo upload voltou ao sucesso intermediário redundante: ' +
+      forbidden
+    );
+  }
+}
+
+requireIncludes(photoUploadComponent, [
+  "this.errorNotifier.showSuccess('Foto adicionada.')",
+  "navigate(['/media', 'perfil', ownerUid, 'fotos'])",
+], 'photo upload direct return to gallery');
+
+forbidIncludes(
+  profilePhotosTemplate,
+  'photo-date-chip',
+  'profile photo card must keep a single visible date presentation'
+);
