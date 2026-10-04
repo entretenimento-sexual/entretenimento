@@ -188,20 +188,11 @@
 
           <div class="upload-done__copy">
             <h2>Foto publicada</h2>
-            <p>A foto já foi publicada. Denúncias ou sinais de segurança podem colocá-la em revisão posteriormente.</p>
 
             <div class="upload-actions upload-actions--done">
               <button
                 type="button"
                 class="app-action app-action--primary"
-                (click)="backToPhotos(ownerUid || '')"
-              >
-                Ver minhas fotos
-              </button>
-
-              <button
-                type="button"
-                class="app-action app-action--ghost"
                 (click)="sendAnotherPhoto()"
               >
                 Adicionar outra
