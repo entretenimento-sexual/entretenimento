@@ -305,3 +305,51 @@ for (const forbiddenPackage of [
 console.log(
   '[media-ux-harmony] OK: Foto/Vídeo share badges, recommendation context, states, skeletons and viewer tokens; Photo Editor remains local Canvas and registry-extensible.'
 );
+
+
+const profilePhotosTemplate = read(
+  'src/app/media/photos/profile-photos/profile-photos.component.html'
+);
+const profilePhotosComponent = read(
+  'src/app/media/photos/profile-photos/profile-photos.component.ts'
+);
+
+for (const forbidden of [
+  'A publicar',
+  '>Publicadas<',
+  '(click)="publishPhoto(',
+  'confirmDeleteId',
+  'delete-confirm-box',
+]) {
+  if (profilePhotosTemplate.includes(forbidden)) {
+    throw new Error(
+      '[media-ux-harmony] profile photos voltou a expor estado/ação redundante: ' +
+      forbidden
+    );
+  }
+}
+
+for (const forbidden of [
+  'publishPhoto(item:',
+  'confirmDeleteIdSubject',
+  'cancelDelete(',
+  'confirmDelete(item:',
+]) {
+  if (profilePhotosComponent.includes(forbidden)) {
+    throw new Error(
+      '[media-ux-harmony] profile photos voltou ao fluxo manual/inline legado: ' +
+      forbidden
+    );
+  }
+}
+
+requireIncludes(profilePhotosComponent, [
+  'ConfirmationDialogComponent',
+  "title: 'Excluir foto?'",
+  "confirmLabel: 'Excluir foto'",
+], 'profile photo deletion confirmation');
+
+requireIncludes(profilePhotosTemplate, [
+  '@if (total > 1)',
+  'aria-label="Ordenar fotos"',
+], 'profile photo compact gallery controls');
