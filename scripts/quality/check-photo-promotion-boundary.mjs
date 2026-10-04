@@ -322,7 +322,6 @@ for (const fragment of [
   'syncPhotoPromotionFromPublication',
   'syncPhotoPromotionFromAdvertiserAccount',
   'syncPhotoPromotionFromUserLifecycle',
-  'syncPhotoPromotionFromAgeEligibility',
   'photo_promotion_campaign_stopped_by_target_lifecycle',
 ]) {
   requireIncludes(
