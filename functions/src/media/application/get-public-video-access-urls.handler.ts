@@ -28,7 +28,7 @@ import {
 } from './public-video-access-rate-limit.service';
 import {
   resolvePublicMediaSignedUrlExpiresAt,
-} from './public-media-age-expiry.policy';
+} from './public-media-signed-url-expiry.policy';
 import { createTemporaryStorageReadUrl } from './temporary-storage-read-url.service';
 import {
   normalizeOwnedPublishedVideoPath,
