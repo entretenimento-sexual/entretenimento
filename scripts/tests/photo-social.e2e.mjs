@@ -328,7 +328,11 @@ async function run() {
     assert.equal((await readDocumentData(publicPhotoRef)).commentsCount, 1);
 
     await ownerUserRef.set(
-      { ageReverification: { status: 'REQUIRED' } },
+      {
+        ageReverification: { status: 'REQUIRED' },
+        publicVisibility: 'hidden',
+        interactionBlocked: true,
+      },
       { merge: true }
     );
 
@@ -336,7 +340,7 @@ async function run() {
       ownerUid,
       photoId,
       parentCommentId: rootCommentId,
-      content: 'Nova resposta deve ser bloqueada durante reverificação.',
+      content: 'Nova resposta deve ser bloqueada enquanto a conta estiver restrita.',
     });
 
     const moderatePhotoComment = httpsCallable(
@@ -365,7 +369,7 @@ async function run() {
     console.log('✔ reação elegível alternou estado e contador no backend');
     console.log('✔ comentário respeitou preferência do autor e elegibilidade');
     console.log('✔ resposta do autor preservou contador de comentários raiz');
-    console.log('✔ reverificação bloqueou nova interação social');
+    console.log('✔ lifecycle da conta bloqueou nova interação social');
     console.log('✔ moderação defensiva permaneceu disponível ao proprietário');
   } finally {
     const cleanupTasks = [];
