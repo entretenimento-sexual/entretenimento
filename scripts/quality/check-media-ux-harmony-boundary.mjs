@@ -647,3 +647,36 @@ requireIncludes(videoEditorComponent, [
 requireIncludes(videoEditorStyles, [
   'grid-template-columns: repeat(3, minmax(0, 1fr));',
 ], 'video editor readable desktop tool grid');
+
+
+requireIncludes(videoEditorComponent, [
+  "this.activeTool.set(null);",
+], 'video editor must remain collapsed after file reset');
+
+requireIncludes(profileVideosTemplate, [
+  'title="Vídeos do perfil"',
+  'Nenhum vídeo adicionado ainda.',
+], 'profile video canonical page copy');
+
+for (const forbidden of [
+  'title="Meus vídeos"',
+  'Você ainda não publicou nenhum vídeo.',
+]) {
+  forbidIncludes(
+    profileVideosTemplate,
+    forbidden,
+    'profile video page must not restore publication-centric copy'
+  );
+}
+
+for (const forbidden of [
+  'Validators.required, Validators.maxLength(120)',
+  'title: this.defaultFileTitle(file.name)',
+  'private defaultFileTitle(',
+]) {
+  forbidIncludes(
+    profileVideosComponent,
+    forbidden,
+    'profile video upload must not expose technical filename titles by default'
+  );
+}
