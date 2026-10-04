@@ -203,7 +203,7 @@
                 class="photo-action-menu"
                 [disabled]="moderationLocked || updatingPhotoId === item.id || deletingPhotoId === item.id || savingDisplayDateId === item.id"
                 [canSetCover]="item.publication.isPublished"
-                [isCover]="item.publication.isCover"
+                [isCover]="item.publication.isCover === true"
                 (edit)="editPhoto(item)"
                 (changeDate)="editPhotoDate(item)"
                 (setCover)="setCoverPhoto(item)"
