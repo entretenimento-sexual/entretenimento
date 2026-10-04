@@ -30,6 +30,8 @@ const criticalTemplates = new Set([
   'src/app/dashboard/online/online-users/online-users.component.html',
   'src/app/media/photos/latest-public-photos/latest-public-photos.component.html',
   'src/app/media/photos/top-public-photos/top-public-photos.component.html',
+  'src/app/media/photos/profile-photos/profile-photos.component.html',
+  'src/app/media/videos/profile-videos/profile-videos.component.html',
   'src/app/subscriptions/subscription-plan/subscription-plan.component.html',
   'src/app/register-module/welcome/welcome.component.html',
 ]);
