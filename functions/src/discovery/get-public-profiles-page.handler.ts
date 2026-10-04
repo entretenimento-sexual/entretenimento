@@ -326,7 +326,7 @@ function matchesDiscoveryFilters(
 export function serializePublicProfileForDiscovery(
   uid: string,
   data: Record<string, unknown>,
-  nowMs: number
+  _nowMs: number
 ): Record<string, unknown> | null {
   const nickname = cleanText(data['nickname']);
 
