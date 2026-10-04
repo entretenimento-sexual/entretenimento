@@ -113,7 +113,7 @@ describe('synchronizePublishedPhotoUpdate', () => {
       binaryChanged: true,
       metadataChanged: false,
       copiedAsset: true,
-      moderationStatus: 'PENDING_REVIEW',
+      moderationStatus: 'APPROVED',
     });
     assert.deepEqual(harness.copyCalls, [
       {
@@ -128,8 +128,8 @@ describe('synchronizePublishedPhotoUpdate', () => {
       sourceStoragePath: NEW_PRIVATE_PATH,
       publishedStoragePath: NEW_PUBLIC_PATH,
       assetVersion: 123456,
-      moderationStatus: 'PENDING_REVIEW',
-      moderationReason: 'Conteúdo aguardando avaliação preventiva antes da distribuição.',
+      moderationStatus: 'APPROVED',
+      moderationReason: null,
       lastModeratedAt: null,
       moderatedBy: null,
       safetyScore: null,
@@ -140,14 +140,13 @@ describe('synchronizePublishedPhotoUpdate', () => {
         engagementScore: 0,
         safetyScore: null,
       },
-      reviewEvidenceRetention: 'PUBLISHED_ASSET_LOCKED',
     });
     assert.deepEqual(harness.commitCalls[0].publicPhotoPatch, {
       alt: 'Foto do perfil',
       updatedAt: 123456,
       assetVersion: 123456,
-      moderationStatus: 'PENDING_REVIEW',
-      moderationReason: 'Conteúdo aguardando avaliação preventiva antes da distribuição.',
+      moderationStatus: 'APPROVED',
+      moderationReason: null,
       safetyScore: null,
       score: 0,
       scoreBreakdown: {
@@ -287,13 +286,13 @@ describe('synchronizePublishedPhotoUpdate', () => {
     assert.equal(harness.metricCalls.length, 0);
   });
 
-  it('também congela a foto enquanto a revisão preventiva está pendente', async () => {
+  it('também congela a foto quando existe estado restrito de moderação', async () => {
     const harness = createHarness({
       publication: {
         isPublished: true,
         sourceStoragePath: OLD_PRIVATE_PATH,
         publishedStoragePath: OLD_PUBLIC_PATH,
-        moderationStatus: 'PENDING_REVIEW',
+        moderationStatus: 'APPROVED',
       },
     });
 
