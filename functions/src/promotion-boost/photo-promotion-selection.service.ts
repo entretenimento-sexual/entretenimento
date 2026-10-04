@@ -183,9 +183,6 @@ async function claimPlacement(input: {
   const advertiserUserRef = db
     .collection('users')
     .doc(input.campaign.advertiserUid);
-  const advertiserAgeEligibilityRef = db
-    .collection('age_eligibility_records')
-    .doc(input.campaign.advertiserUid);
   const activeSlotRef = db.collection('promotion_boost_active_slots').doc(
     `photo:${input.campaign.targetOwnerUid}:${input.campaign.targetId}`
   );
@@ -198,7 +195,6 @@ async function claimPlacement(input: {
       capSnapshot,
       advertiserSnapshot,
       advertiserUserSnapshot,
-      advertiserAgeEligibilitySnapshot,
       publicationSnapshot,
       publicPhotoSnapshot,
     ] = await Promise.all([
@@ -206,7 +202,6 @@ async function claimPlacement(input: {
       transaction.get(capRef),
       transaction.get(advertiserRef),
       transaction.get(advertiserUserRef),
-      transaction.get(advertiserAgeEligibilityRef),
       transaction.get(
         db.doc(
           `users/${input.campaign.targetOwnerUid}/photo_publications/${input.campaign.targetId}`
@@ -294,9 +289,6 @@ async function claimPlacement(input: {
       isPromotionBoostAdvertiserInteractionEligible({
         rawUser: advertiserUserSnapshot.exists
           ? advertiserUserSnapshot.data()
-          : null,
-        rawAgeEligibility: advertiserAgeEligibilitySnapshot.exists
-          ? advertiserAgeEligibilitySnapshot.data()
           : null,
         advertiserUid: campaign.advertiserUid,
       });
