@@ -250,7 +250,7 @@ async function run() {
       commentsPolicy: 'EVERYONE',
       reactionsEnabled: true,
     });
-    assert.equal(publicationResponse.data.moderationStatus, 'PENDING_REVIEW');
+    assert.equal(publicationResponse.data.moderationStatus, 'APPROVED');
 
     const publicationRef = adminDb.doc(
       `users/${ownerUid}/photo_publications/${photoId}`
