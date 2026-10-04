@@ -9,10 +9,6 @@ import {
   safeNotifyAgeReverificationRequired,
 } from '../moderation/moderation-safety-notification.service';
 import {
-  hideProfileMediaVisibility,
-  readProfileMediaVisibilitySnapshots,
-} from './profile-age-reverification-media';
-import {
   PROFILE_AGE_REVERIFICATION_DUE_DAYS,
   PROFILE_AGE_REVERIFICATION_RESPONSE_WINDOW_BASIS,
   buildAgeReverificationDueAt,
@@ -138,18 +134,7 @@ export const requestProfileAgeReverification = onCall<
         );
       }
 
-      const mediaSnapshots = await readProfileMediaVisibilitySnapshots(
-        transaction,
-        targetUid
-      );
       const timestamp = FieldValue.serverTimestamp();
-
-      hideProfileMediaVisibility(
-        transaction,
-        mediaSnapshots,
-        caseRef.id,
-        requestedAt
-      );
 
       transaction.set(
         userRef,
@@ -197,7 +182,6 @@ export const requestProfileAgeReverification = onCall<
         responseWindowBasis:
           PROFILE_AGE_REVERIFICATION_RESPONSE_WINDOW_BASIS,
         requestedBy: adminUid,
-        hiddenMediaDocumentCount: mediaSnapshots.totalDocuments,
         publicProfileBackup: publicProfileSnapshot.data(),
         nicknameIndexBackup: nicknameIndexSnapshot?.exists
           ? nicknameIndexSnapshot.data()
@@ -226,7 +210,6 @@ export const requestProfileAgeReverification = onCall<
           caseId: caseRef.id,
           reason: 'minor_safety',
           targetType: 'profile',
-          hiddenMediaDocumentCount: mediaSnapshots.totalDocuments,
           resolution,
         },
         timestamp,
@@ -239,7 +222,6 @@ export const requestProfileAgeReverification = onCall<
         caseId: caseRef.id,
         actorUid: adminUid,
         source: 'moderation',
-        hiddenMediaDocumentCount: mediaSnapshots.totalDocuments,
         responseWindowDays: PROFILE_AGE_REVERIFICATION_DUE_DAYS,
         responseWindowBasis:
           PROFILE_AGE_REVERIFICATION_RESPONSE_WINDOW_BASIS,
