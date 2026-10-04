@@ -17,7 +17,7 @@ export class MediaActionMenuComponent {
   @Output() edit = new EventEmitter<void>();
   @Output() changeDate = new EventEmitter<void>();
   @Output() setCover = new EventEmitter<void>();
-  @Output() delete = new EventEmitter<void>();
+  @Output() deleteRequested = new EventEmitter<void>();
 
   stopPropagation(event: Event): void {
     event.stopPropagation();
