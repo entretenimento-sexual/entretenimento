@@ -18,7 +18,7 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import {
-  assertInteractionAccessData,
+  assertPlatformAccountAccessData,
 } from '../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
@@ -358,7 +358,7 @@ async function findCompatibleNotificationCandidates(
     }
 
     try {
-      assertInteractionAccessData(targetUser, null, targetUid);
+      assertPlatformAccountAccessData(targetUser);
     } catch {
       continue;
     }
