@@ -460,7 +460,7 @@ export const publishUserIntentStatus = onCall<PublishUserIntentStatusRequest>(
       operation: 'publish-user-intent-status',
       perspective: 'actor',
     });
-    assertInteractionAccessData(user, null, uid);
+    assertPlatformAccountAccessData(user);
 
     const now = Date.now();
     const durationHours = normalizeDurationHours(request.data?.durationHours);
