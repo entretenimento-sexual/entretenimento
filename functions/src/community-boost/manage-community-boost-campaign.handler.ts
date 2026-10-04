@@ -6,7 +6,7 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { assertRecentAuthentication } from '../account_lifecycle/_shared';
-import { assertInteractionAccessData } from '../account_lifecycle/interaction-access.policy';
+import { assertPlatformAccountAccessData } from '../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import {
@@ -258,9 +258,6 @@ export const manageCommunityBoostCampaign =
           .collection('community_boost_advertiser_accounts')
           .doc(actor.uid);
         const actorUserRef = db.collection('users').doc(actor.uid);
-        const actorAgeEligibilityRef = db
-          .collection('age_eligibility_records')
-          .doc(actor.uid);
         const activeSlotRef = db
           .collection('community_boost_active_slots')
           .doc(communityId);
@@ -274,7 +271,6 @@ export const manageCommunityBoostCampaign =
             billingConfigSnapshot,
             advertiserAccountSnapshot,
             actorUserSnapshot,
-            actorAgeEligibilitySnapshot,
             activeSlotSnapshot,
           ] = await Promise.all([
             transaction.get(requestRef),
@@ -284,7 +280,6 @@ export const manageCommunityBoostCampaign =
             transaction.get(billingConfigRef),
             transaction.get(advertiserAccountRef),
             transaction.get(actorUserRef),
-            transaction.get(actorAgeEligibilityRef),
             transaction.get(activeSlotRef),
           ]);
 
@@ -311,12 +306,8 @@ export const manageCommunityBoostCampaign =
             throw new HttpsError('not-found', 'Comunidade não encontrada.');
           }
 
-          assertInteractionAccessData(
-            actorUserSnapshot.exists ? actorUserSnapshot.data() : null,
-            actorAgeEligibilitySnapshot.exists
-              ? actorAgeEligibilitySnapshot.data()
-              : null,
-            actor.uid
+          assertPlatformAccountAccessData(
+            actorUserSnapshot.exists ? actorUserSnapshot.data() : null
           );
 
           if (activeSlotSnapshot.exists) {
