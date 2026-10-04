@@ -269,31 +269,6 @@
   );
 }
 
-.profile-videos__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-}
-
-.profile-videos__meta span {
-  display: inline-flex;
-  align-items: center;
-  min-height: 26px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: color-mix(
-    in oklab,
-    var(--surface-color, #101923) 88%,
-    var(--text-color, #f5f7fb) 6%
-  );
-  color: color-mix(
-    in oklab,
-    var(--text-color, #f5f7fb) 66%,
-    transparent
-  );
-  font-size: 0.75rem;
-  font-weight: 700;
-}
 
 .profile-videos__helper {
   margin: 0;
@@ -422,7 +397,6 @@ html.high-contrast .profile-videos__card,
 html.high-contrast .profile-videos__empty,
 html.high-contrast .profile-videos__policy-state,
 html.high-contrast .profile-videos__publication-chip,
-html.high-contrast .profile-videos__meta span,
 html.high-contrast .profile-videos__helper,
 html.high-contrast .profile-videos__progress-track {
   border-color: currentColor !important;
@@ -487,24 +461,6 @@ html.high-contrast .profile-videos__progress-track {
   -webkit-line-clamp: 2;
 }
 
-.profile-videos .profile-videos__meta {
-  gap: 0;
-}
-
-.profile-videos .profile-videos__meta span {
-  min-height: 0;
-  padding: 0;
-  border-radius: 0;
-  background: transparent;
-  color: color-mix(
-    in oklab,
-    var(--text-color, #f5f7fb) 52%,
-    transparent
-  );
-  font-size: 0.72rem;
-  font-weight: 650;
-  line-height: 1.35;
-}
 
 
 @media (hover: hover) and (pointer: fine) {
