@@ -1,17 +1,10 @@
 import {
   canReadPublishedPhotoAudience,
 } from './photo-audience-access.policy';
-import {
-  publicAgeProjectionValidUntilMs,
-} from './public-media-age-expiry.policy';
 
 export type PublicMediaOwnerExposureDenialReason =
   | 'OWNER_LIFECYCLE_NOT_CANONICAL'
   | 'OWNER_NOT_PUBLIC'
-  | 'OWNER_AGE_PROJECTION_UNAVAILABLE'
-  | 'OWNER_AGE_PROJECTION_EXPIRED'
-  | 'OWNER_AGE_NOT_CANONICAL'
-  | 'OWNER_AGE_CANONICAL_EXPIRED'
   | 'BILATERAL_BLOCK';
 
 export interface PublicMediaOwnerExposureDecision {
@@ -25,12 +18,6 @@ interface PublicMediaOwnerExposureInput {
   readonly canonicalOwnerLifecycleAllowed: boolean;
   readonly viewerBlocked: boolean;
   readonly nowMs: number;
-}
-
-interface PublicMediaSignedOwnerExposureInput
-  extends PublicMediaOwnerExposureInput {
-  readonly canonicalAgeAllowed: boolean;
-  readonly canonicalAgeExpiresAtMs: number | null;
 }
 
 interface PublicMediaAssetExposureInput {
@@ -52,12 +39,9 @@ function normalizedUpper(value: unknown): string {
 }
 
 /**
- * Base canônica de exposição do proprietário.
- *
- * Suspensão, exclusão, ocultação e outras transições de lifecycle retiram
- * public_profiles/{uid}; portanto a presença de uma projeção pública adulta
- * vigente é pré-condição de qualquer distribuição. Bloqueio bilateral é
- * aplicado na mesma fronteira antes de discovery/ranking/boost ou acesso.
+ * Exposição do proprietário deriva exclusivamente do lifecycle público da
+ * conta e do bloqueio bilateral. Assurance etária é atributo da conta e não
+ * integra a autoridade de distribuição de cada mídia.
  */
 export function evaluatePublicMediaOwnerExposure(
   input: PublicMediaOwnerExposureInput
@@ -86,107 +70,43 @@ export function evaluatePublicMediaOwnerExposure(
     };
   }
 
-  const validUntilMs = publicAgeProjectionValidUntilMs(input.publicProfile);
-
-  if (validUntilMs === null) {
-    return {
-      allowed: false,
-      validUntilMs: null,
-      denialReason: 'OWNER_AGE_PROJECTION_UNAVAILABLE',
-    };
-  }
-
-  if (validUntilMs <= input.nowMs) {
-    return {
-      allowed: false,
-      validUntilMs,
-      denialReason: 'OWNER_AGE_PROJECTION_EXPIRED',
-    };
-  }
-
   return {
     allowed: true,
-    validUntilMs,
+    validUntilMs: null,
     denialReason: null,
   };
 }
 
 /**
- * URL assinada é a última fronteira e, além da base pública comum, revalida o
- * registro etário canônico do proprietário. O prazo final nunca ultrapassa a
- * menor validade entre projeção pública e autoridade etária.
+ * Compatibilidade temporária dos consumidores de URL assinada. Não existe uma
+ * segunda fronteira etária para o proprietário.
  */
 export function evaluatePublicMediaSignedOwnerExposure(
-  input: PublicMediaSignedOwnerExposureInput
+  input: PublicMediaOwnerExposureInput
 ): PublicMediaOwnerExposureDecision {
-  const base = evaluatePublicMediaOwnerExposure(input);
-
-  if (!base.allowed || base.validUntilMs === null) {
-    return base;
-  }
-
-  if (!input.canonicalAgeAllowed) {
-    return {
-      allowed: false,
-      validUntilMs: null,
-      denialReason: 'OWNER_AGE_NOT_CANONICAL',
-    };
-  }
-
-  const canonicalValidUntilMs =
-    input.canonicalAgeExpiresAtMs === null
-      ? Number.POSITIVE_INFINITY
-      : Number(input.canonicalAgeExpiresAtMs);
-
-  if (
-    Number.isNaN(canonicalValidUntilMs) ||
-    canonicalValidUntilMs <= input.nowMs
-  ) {
-    return {
-      allowed: false,
-      validUntilMs: Number.isFinite(canonicalValidUntilMs)
-        ? canonicalValidUntilMs
-        : null,
-      denialReason: 'OWNER_AGE_CANONICAL_EXPIRED',
-    };
-  }
-
-  return {
-    allowed: true,
-    validUntilMs: Math.min(base.validUntilMs, canonicalValidUntilMs),
-    denialReason: null,
-  };
+  return evaluatePublicMediaOwnerExposure(input);
 }
 
 /**
- * Política comum de projeção distribuível. Ranking e discovery trabalham só
- * com APPROVED + maioridade pública vigente; audiências aceitas são explícitas
- * por superfície.
+ * Ranking/discovery dependem da publicação e da moderação do conteúdo, não da
+ * idade ou do assurance do proprietário.
  */
 export function isCurrentPublicMediaProjectionExposure(
   data: Record<string, unknown> | null | undefined,
-  nowMs: number,
+  _nowMs: number,
   allowedVisibilities: readonly string[] = ['PUBLIC']
 ): boolean {
   if (!data) return false;
 
-  const validUntilMs = publicAgeProjectionValidUntilMs(data);
   const visibility = normalizedUpper(data['visibility']);
   const allowed = new Set(
     allowedVisibilities.map((value) => normalizedUpper(value))
   );
 
-  return validUntilMs !== null
-    && validUntilMs > nowMs
-    && allowed.has(visibility)
+  return allowed.has(visibility)
     && normalizedUpper(data['moderationStatus']) === 'APPROVED';
 }
 
-/**
- * Revalida a projeção e a publicação autoritativa imediatamente antes de
- * liberar o ativo. Isso impede que uma projeção atrasada mantenha acesso após
- * unpublish, troca de audiência ou reabertura de moderação preventiva.
- */
 export function isCurrentPublicMediaAssetExposure(
   input: PublicMediaAssetExposureInput
 ): boolean {
