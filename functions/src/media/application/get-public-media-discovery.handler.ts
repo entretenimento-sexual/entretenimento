@@ -442,7 +442,6 @@ export const getPublicMediaDiscovery = onCall<PublicMediaDiscoveryRequest>(
         : db.collectionGroup(collectionId);
 
     mediaQuery = mediaQuery
-      .where('ageEligibilityVerifiedAdult', '==', true)
       .where('visibility', '==', 'PUBLIC')
       .where('moderationStatus', '==', 'APPROVED');
 
