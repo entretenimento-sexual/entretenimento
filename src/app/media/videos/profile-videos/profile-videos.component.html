@@ -392,6 +392,15 @@
                     </span>
                   }
                 </button>
+
+                <app-media-action-menu
+                  class="profile-videos__action-menu"
+                  [disabled]="isBusy(item.video.id) || editingVideoId === item.video.id"
+                  editLabel="Editar informações"
+                  deleteLabel="Excluir vídeo"
+                  (edit)="startEditingPublication(item)"
+                  (deleteRequested)="requestDelete(item)"
+                />
               </div>
 
               <div class="profile-videos__body">
@@ -431,31 +440,7 @@
                   </p>
                 }
 
-                <div class="profile-videos__actions">
-                  <button
-                    type="button"
-                    class="app-action app-action--ghost"
-                    (click)="startEditingPublication(item)"
-                    [disabled]="isBusy(item.video.id) || editingVideoId === item.video.id"
-                    aria-haspopup="dialog"
-                    aria-controls="video-publication-settings-dialog"
-                  >
-                    Editar
-                  </button>
 
-                  <button
-                    type="button"
-                    class="profile-videos__delete-button"
-                    (click)="requestDelete(item)"
-                    [disabled]="isBusy(item.video.id)"
-                    [attr.aria-label]="'Excluir definitivamente ' + displayVideoTitle(item)"
-                    [attr.aria-busy]="busyActions?.get(item.video.id) === 'delete' ? 'true' : 'false'"
-                    aria-haspopup="dialog"
-                    title="Excluir vídeo"
-                  >
-                    <i class="fas fa-trash" aria-hidden="true"></i>
-                  </button>
-                </div>
               </div>
             </article>
           }
