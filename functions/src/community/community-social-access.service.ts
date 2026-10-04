@@ -16,7 +16,7 @@ import { db } from '../firebaseApp';
 export function assertCommunitySocialAccessEligible(
   rawUser: unknown,
   uid: string,
-  rawAgeEligibility: unknown
+  _rawAgeEligibility: unknown
 ): void {
   const user = (rawUser ?? {}) as Record<string, unknown>;
 
@@ -27,11 +27,7 @@ export function assertCommunitySocialAccessEligible(
     });
   }
 
-  assertInteractionAccessData(
-    user,
-    rawAgeEligibility,
-    uid
-  );
+  assertInteractionAccessData(user, null, uid);
 
   if (
     user['accountLocked'] === true ||
@@ -56,14 +52,11 @@ export async function assertCommunitySocialAccessForUid(
     throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
   }
 
-  const [userSnapshot, ageEligibilitySnapshot] = await Promise.all([
-    db.collection('users').doc(normalizedUid).get(),
-    db.collection('age_eligibility_records').doc(normalizedUid).get(),
-  ]);
+  const userSnapshot = await db.collection('users').doc(normalizedUid).get();
 
   assertCommunitySocialAccessEligible(
     userSnapshot.exists ? userSnapshot.data() : null,
     normalizedUid,
-    ageEligibilitySnapshot.exists ? ageEligibilitySnapshot.data() : null
+    null
   );
 }
