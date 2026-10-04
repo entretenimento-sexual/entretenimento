@@ -229,30 +229,15 @@ export class ProfilePhotosComponent {
     return this.sortModeSubject.value;
   }
 
-  getPhotoDateLabel(item: IPhotoCardVm): string {
-    const displayDate = this.toMillis(item.displayDate);
-    const fallbackDate = this.toMillis(item.createdAt);
-    const date = displayDate || fallbackDate;
-
-    if (!date) {
-      return 'data não informada';
-    }
-
-    return new Intl.DateTimeFormat('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    }).format(new Date(date));
-  }
-
   getDisplayDateInputValue(item: IPhotoCardVm): string {
-    const displayDate = this.toMillis(item.displayDate);
+    const effectiveDate =
+      this.toMillis(item.displayDate) || this.toMillis(item.createdAt);
 
-    if (!displayDate) {
+    if (!effectiveDate) {
       return '';
     }
 
-    const date = new Date(displayDate);
+    const date = new Date(effectiveDate);
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
