@@ -637,3 +637,13 @@ forbidIncludes(
   '.video-simple-editor__tool-tabs button span {\n    display: none;',
   'video editor desktop tools must remain self-explanatory'
 );
+
+
+requireIncludes(videoEditorComponent, [
+  "if (this.disabled) {",
+  "this.activeTool.update((current) => current === tool ? null : tool);",
+], 'video editor tool toggle behavior');
+
+requireIncludes(videoEditorStyles, [
+  'grid-template-columns: repeat(3, minmax(0, 1fr));',
+], 'video editor readable desktop tool grid');
