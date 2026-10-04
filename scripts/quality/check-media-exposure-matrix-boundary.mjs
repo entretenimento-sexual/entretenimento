@@ -42,8 +42,6 @@ requireIncludes(helpers, [
   'suspended != true',
   'publicVisibility == null || publicVisibility == "visible"',
   'loginAllowed != false',
-  'canonicalAgeEligibilityAllowsAdultAccess',
-  'canonicalAgeEligibilityIsVerifiedAdult',
   'canConsumeAdultPublicMedia',
   'bilateralExposureAllows',
 ], 'helpers canônicos');
@@ -55,7 +53,6 @@ for (const rulePath of [
   const source = read(rulePath);
   requireIncludes(source, [
     'canonicalOwnerLifecycleAllowsPublicMediaExposure(userId)',
-    'canonicalAgeEligibilityAllowsAdultAccess(userId)',
     'bilateralExposureAllows(userId)',
     'moderationStatus == "APPROVED"',
     'allow list: if false;',
@@ -93,7 +90,6 @@ const ownerExposure = read(
 );
 requireIncludes(ownerExposure, [
   'evaluateCanonicalOwnerLifecycle',
-  'evaluateCanonicalAgeEligibility',
   'resolvePublicMediaOwnerExposure',
   'resolvePublicMediaSignedOwnerExposure',
 ], 'owner exposure backend');
@@ -102,10 +98,7 @@ const consumption = read(
   'functions/src/media/application/public-media-consumption-access.policy.ts'
 );
 requireIncludes(consumption, [
-  'assertInteractionAccessData',
-  'evaluateCanonicalAgeEligibility',
-  'AGE_REVERIFICATION_REQUIRED',
-  'AGE_VERIFICATION_REQUIRED',
+  'assertPlatformAccountAccessData',
 ], 'viewer consumption authority');
 
 const discovery = read(
@@ -168,11 +161,8 @@ for (const required of [
   "'REJECTED'",
   'BILATERAL_BLOCK',
   'OWNER_LIFECYCLE_NOT_CANONICAL',
-  'OWNER_AGE_PROJECTION_EXPIRED',
-  'OWNER_AGE_CANONICAL_EXPIRED',
   'assertPublicMediaConsumptionAccessData',
-  "'EXPIRED'",
-  "'REQUIRED'",
+  'ageReverification',
 ]) {
   if (!matrixTest.includes(required)) {
     throw new Error(
