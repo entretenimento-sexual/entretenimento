@@ -121,7 +121,7 @@ service cloud.firestore {
       return /databases/$(database)/documents/age_eligibility_records/$(userId);
     }
 
-    function canonicalAgeEligibilityAllowsAdultAccess(userId) {
+    function canonicalAgeEligibilityAllowsRegistration(userId) {
       let eligibilityPath = canonicalAgeEligibilityPath(userId);
       let eligibility = signedIn()
         ? get(eligibilityPath).data
@@ -160,9 +160,9 @@ service cloud.firestore {
         );
     }
 
-    function currentUserHasAdultAgeAccess() {
+    function currentUserHasRegistrationAgeEligibility() {
       return signedIn()
-        && canonicalAgeEligibilityAllowsAdultAccess(uid());
+        && canonicalAgeEligibilityAllowsRegistration(uid());
     }
 
     function currentUserCanUseAdultSocialPlatform() {
