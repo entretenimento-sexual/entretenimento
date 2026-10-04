@@ -1,0 +1,24 @@
+<h2 mat-dialog-title>Data da foto</h2>
+
+<mat-dialog-content>
+  <label class="media-date-dialog__field">
+    <span>Data</span>
+    <input
+      type="date"
+      class="app-control"
+      [value]="value"
+      (input)="onInput($event)"
+      cdkFocusInitial
+    />
+  </label>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button type="button" class="app-action app-action--ghost" (click)="cancel()">
+    Cancelar
+  </button>
+
+  <button type="button" class="app-action app-action--primary" (click)="save()">
+    Salvar
+  </button>
+</mat-dialog-actions>
