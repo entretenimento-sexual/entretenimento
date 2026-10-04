@@ -22,7 +22,7 @@ import {
   assertMediaAuthoringEligibility,
 } from './media-authoring-eligibility.service';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
-import { db, FieldValue, Timestamp } from '../../firebaseApp';
+import { db, FieldValue } from '../../firebaseApp';
 import {
   resolveMediaPublicationVisibility,
   resolvePhotoCommentsPolicy,
@@ -219,16 +219,7 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
 
     assertOwner(requesterUid, ownerUid);
 
-    const authoringEligibility =
-      await assertMediaAuthoringEligibility(ownerUid);
-    const ageEligibilityValidUntil = Timestamp.fromMillis(
-      authoringEligibility.ageEligibilityValidUntilMs ?? 253402300799999
-    );
-    const ageEligibilityVerifiedAdult =
-      authoringEligibility.ageEligibilityVerifiedAdult;
-    const ageEligibilityAssurance = ageEligibilityVerifiedAdult
-      ? 'VERIFIED'
-      : 'SELF_DECLARED';
+    await assertMediaAuthoringEligibility(ownerUid);
 
     const visibility = cleanVisibility(request.data?.visibility);
     const caption = cleanCaption(request.data?.caption);
@@ -354,10 +345,10 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
         id: photoId,
         ownerUid,
         mediaType: 'PHOTO',
-        ageEligibilityAdultAccessAllowed: true,
-        ageEligibilityVerifiedAdult,
-        ageEligibilityAssurance,
-        ageEligibilityValidUntil,
+        ageEligibilityAdultAccessAllowed: FieldValue.delete(),
+        ageEligibilityVerifiedAdult: FieldValue.delete(),
+        ageEligibilityAssurance: FieldValue.delete(),
+        ageEligibilityValidUntil: FieldValue.delete(),
         assetAccess: 'SIGNED_URL',
         url: FieldValue.delete(),
         alt: privatePhoto.alt ?? privatePhoto.fileName ?? 'Foto do perfil',
