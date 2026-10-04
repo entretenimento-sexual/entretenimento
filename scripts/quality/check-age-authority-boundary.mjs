@@ -222,6 +222,15 @@ requireAll(
   ],
   'runtime social deve usar lifecycle/consentimento'
 );
+requireAll(
+  'src/app/core/services/autentication/auth/account-lifecycle.policy.ts',
+  [
+    'interactionBlocked',
+    "return 'locked'",
+  ],
+  'frontend lifecycle deve materializar bloqueio canônico de interação'
+);
+
 forbidAll(
   'src/app/core/services/autentication/auth/access-control.service.ts',
   [
