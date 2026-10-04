@@ -1,0 +1,47 @@
+<button
+  type="button"
+  class="media-action-menu__trigger"
+  [matMenuTriggerFor]="menu"
+  [disabled]="disabled"
+  aria-label="Mais ações"
+  title="Mais ações"
+  (click)="stopPropagation($event)"
+>
+  <mat-icon fontIcon="more_vert"></mat-icon>
+</button>
+
+<mat-menu #menu="matMenu" xPosition="before">
+  <button mat-menu-item type="button" (click)="edit.emit()">
+    <mat-icon fontIcon="edit"></mat-icon>
+    <span>Editar foto</span>
+  </button>
+
+  <button mat-menu-item type="button" (click)="changeDate.emit()">
+    <mat-icon fontIcon="calendar_month"></mat-icon>
+    <span>Alterar data</span>
+  </button>
+
+  @if (canSetCover) {
+    <button
+      mat-menu-item
+      type="button"
+      [disabled]="isCover"
+      (click)="setCover.emit()"
+    >
+      <mat-icon fontIcon="star"></mat-icon>
+      <span>{{ isCover ? 'Foto de capa' : 'Definir como capa' }}</span>
+    </button>
+  }
+
+  <mat-divider></mat-divider>
+
+  <button
+    mat-menu-item
+    type="button"
+    class="media-action-menu__danger"
+    (click)="delete.emit()"
+  >
+    <mat-icon fontIcon="delete"></mat-icon>
+    <span>Excluir foto</span>
+  </button>
+</mat-menu>
