@@ -500,7 +500,7 @@
 
   .video-simple-editor__tool-tabs {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.34rem;
     overflow: visible;
     padding: 0;
@@ -509,16 +509,17 @@
   .video-simple-editor__tool-tabs button {
     flex: initial;
     min-height: 3rem;
-    padding: 0.42rem 0.34rem;
+    padding: 0.42rem 0.5rem;
     border-radius: 0.75rem;
-    gap: 0.3rem;
-    font-size: 0.7rem;
+    gap: 0.34rem;
+    font-size: 0.72rem;
   }
 
   .video-simple-editor__tool-tabs button span {
     display: inline;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    min-width: 0;
+    overflow: visible;
+    text-overflow: clip;
     white-space: nowrap;
   }
 
