@@ -8,8 +8,7 @@ export type PublicMediaCallableAction =
 type PublicMediaConsumptionAccessReason =
   | 'ACCOUNT_UNAVAILABLE'
   | 'TERMS_REQUIRED'
-  | 'ADULT_CONSENT_REQUIRED'
-  | 'AGE_REVERIFICATION_REQUIRED';
+  | 'ADULT_CONSENT_REQUIRED';
 
 interface CallableErrorLike {
   code?: unknown;
@@ -61,8 +60,7 @@ function readConsumptionAccessReason(
   if (
     rawReason === 'ACCOUNT_UNAVAILABLE' ||
     rawReason === 'TERMS_REQUIRED' ||
-    rawReason === 'ADULT_CONSENT_REQUIRED' ||
-    rawReason === 'AGE_REVERIFICATION_REQUIRED'
+    rawReason === 'ADULT_CONSENT_REQUIRED'
   ) {
     return rawReason;
   }
@@ -85,7 +83,7 @@ function consumptionAccessMessage(
     return 'Confirme o consentimento para conteúdo adulto para continuar.';
   }
 
-  return 'Conclua a revalidação de idade para continuar.';
+  return 'Confirme o consentimento para conteúdo adulto para continuar.';
 }
 
 function actionUnavailableMessage(action: PublicMediaCallableAction): string {
