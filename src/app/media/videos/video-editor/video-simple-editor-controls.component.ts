@@ -310,9 +310,11 @@ export class VideoSimpleEditorControlsComponent {
   }
 
   selectTool(tool: TVideoEditorTool): void {
-    if (!this.disabled) {
-      this.activeTool.set(tool);
+    if (this.disabled) {
+      return;
     }
+
+    this.activeTool.update((current) => current === tool ? null : tool);
   }
 
   rotateClockwise(video: HTMLVideoElement): void {
