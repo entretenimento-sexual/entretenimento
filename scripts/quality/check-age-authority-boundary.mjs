@@ -107,6 +107,47 @@ requireAll(
   'cliente deve preservar projeção de assurance'
 );
 
+// Firestore pode consultar a autoridade etária somente no domínio de conta.
+// Hoje a única concessão cliente-side legítima é concluir o cadastro em users.rules.
+for (const relativePath of [
+  'firestore-rules/public_index.rules',
+  'firestore-rules/public_profiles_next.rules',
+  'firestore-rules/public_profiles_photos.rules',
+  'firestore-rules/public_profiles_videos.rules',
+  'firestore-rules/user_intent_statuses.rules',
+  'firestore-rules/friendRequests.rules',
+  'firestore-rules/friends_root.rules',
+  'firestore-rules/public_social_links.rules',
+]) {
+  forbidAll(
+    relativePath,
+    [
+      'canonicalAgeEligibilityAllowsAdultAccess',
+      'canonicalAgeEligibilityIsVerifiedAdult',
+      'currentUserHasAdultAgeAccess',
+      'currentUserHasVerifiedAdultAge',
+      'publicAgeProjectionAllowsAdultExposure',
+    ],
+    'superfície fora de Account não pode revalidar assurance etário'
+  );
+}
+
+forbidAll(
+  'firestore-rules/_helpers.rules',
+  [
+    'publicAgeProjectionAllowsAdultExposure',
+    'canonicalAgeEligibilityIsVerifiedAdult',
+    'currentUserHasVerifiedAdultAge',
+  ],
+  'helpers etários sem consumidor não devem permanecer como autoridade latente'
+);
+
+requireAll(
+  'firestore-rules/users.rules',
+  ['currentUserHasAdultAgeAccess()'],
+  'conclusão do cadastro deve consultar a autoridade etária da conta'
+);
+
 const ageRules = read('firestore-rules/age_eligibility_records.rules');
 if (
   ageRules &&
