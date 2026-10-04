@@ -96,7 +96,7 @@ const authoringEligibility = read(
   'functions/src/media/application/media-authoring-eligibility.service.ts'
 );
 for (const fragment of [
-  'assertInteractionAccessData',
+  'assertPlatformAccountAccessData',
   'evaluateCanonicalAgeEligibility',
   'ageEligibility.allowed',
   "ageEligibility.status === 'VERIFIED_ADULT'",
