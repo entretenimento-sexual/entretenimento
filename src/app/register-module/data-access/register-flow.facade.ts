@@ -23,7 +23,12 @@ export class RegisterFlowFacade {
     this.session.ready$,
     this.session.authUser$,
     this.currentUser.user$,
-    this.ageEligibility.reconciledAdultAccess$,
+    this.ageEligibility.current$.pipe(
+      map((state) =>
+        state.status === 'SELF_DECLARED_ADULT' ||
+        state.status === 'VERIFIED_ADULT'
+      )
+    ),
     this.adultConsent.currentConsentAccepted$,
   ]).pipe(
     map(([
