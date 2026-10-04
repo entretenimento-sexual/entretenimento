@@ -3,8 +3,8 @@
 // PENDING FRIEND REQUESTS READ BOUNDARY
 // -----------------------------------------------------------------------------
 // Solicitações pendentes são privadas, mas continuam sendo conteúdo social.
-// A listagem revalida viewer e contraparte no backend para que a passagem do
-// tempo em ageEligibility.expiresAt retire a solicitação da UI sem nova escrita.
+// A listagem revalida viewer e contraparte no backend pela autoridade canônica
+// de lifecycle da conta.
 // -----------------------------------------------------------------------------
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
@@ -188,21 +188,10 @@ export const getPendingFriendRequests =
       const userRefs = counterpartUids.map((uid) =>
         db.collection('users').doc(uid)
       );
-      const ageRefs = counterpartUids.map((uid) =>
-        db.collection('age_eligibility_records').doc(uid)
-      );
-      const [userSnapshots, ageSnapshots] = await Promise.all([
-        userRefs.length ? db.getAll(...userRefs) : Promise.resolve([]),
-        ageRefs.length ? db.getAll(...ageRefs) : Promise.resolve([]),
-      ]);
+      const userSnapshots =
+        userRefs.length ? await db.getAll(...userRefs) : [];
       const userByUid = new Map(
         userSnapshots.map((item) => [
-          item.id,
-          item.exists ? item.data() ?? null : null,
-        ])
-      );
-      const ageByUid = new Map(
-        ageSnapshots.map((item) => [
           item.id,
           item.exists ? item.data() ?? null : null,
         ])
@@ -214,7 +203,7 @@ export const getPendingFriendRequests =
         try {
           assertInteractionAccessData(
             userByUid.get(candidate.counterpartUid),
-            ageByUid.get(candidate.counterpartUid),
+            null,
             candidate.counterpartUid
           );
         } catch {
