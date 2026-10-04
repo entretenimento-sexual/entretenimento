@@ -1,0 +1,47 @@
+:host {
+  display: block;
+}
+
+.media-action-menu__trigger {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 20%);
+  border-radius: 999px;
+  background: rgb(7 12 20 / 72%);
+  color: #fff;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.media-action-menu__trigger:hover,
+.media-action-menu__trigger:focus-visible {
+  background: rgb(7 12 20 / 88%);
+  border-color: rgb(255 255 255 / 34%);
+}
+
+.media-action-menu__trigger:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.media-action-menu__trigger mat-icon {
+  width: 22px;
+  height: 22px;
+  font-size: 22px;
+  line-height: 22px;
+}
+
+:host ::ng-deep .media-action-menu__danger,
+:host ::ng-deep .media-action-menu__danger mat-icon {
+  color: var(--danger-color, #ff6b6b);
+}
+
+@media (pointer: coarse) {
+  .media-action-menu__trigger {
+    width: var(--tap-target, 44px);
+    height: var(--tap-target, 44px);
+  }
+}
