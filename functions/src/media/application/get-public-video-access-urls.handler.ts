@@ -27,7 +27,6 @@ import {
   consumePublicVideoAccessQuota,
 } from './public-video-access-rate-limit.service';
 import {
-  publicAgeProjectionValidUntilMs,
   resolvePublicMediaSignedUrlExpiresAt,
 } from './public-media-age-expiry.policy';
 import { createTemporaryStorageReadUrl } from './temporary-storage-read-url.service';
@@ -88,8 +87,6 @@ async function resolveAccessItem(
   ownerUid: string,
   videoId: string,
   technicalExpiresAt: number,
-  viewerExpiresAt: number,
-  ownerExpiresAt: number,
   ownerExposureAllowed: boolean,
   mode: TPublicVideoAccessMode,
   nowMs: number
@@ -115,10 +112,7 @@ async function resolveAccessItem(
 
   const publicVideo = publicVideoSnap.data() as Record<string, unknown>;
   const publication = publicationSnap.data() as Record<string, unknown>;
-  const mediaValidUntilMs = publicAgeProjectionValidUntilMs(publicVideo);
-
   if (
-    mediaValidUntilMs === null ||
     !isCurrentPublicMediaAssetExposure({
       publicMedia: publicVideo,
       publication,
@@ -143,9 +137,6 @@ async function resolveAccessItem(
   const expiresAt = resolvePublicMediaSignedUrlExpiresAt({
     nowMs,
     technicalExpiresAtMs: technicalExpiresAt,
-    viewerExpiresAtMs: viewerExpiresAt,
-    ownerExpiresAtMs: ownerExpiresAt,
-    mediaExpiresAtMs: mediaValidUntilMs,
   });
 
   if (expiresAt === null) {
@@ -322,9 +313,6 @@ export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
     }
 
     const technicalExpiresAt = nowMs + SIGNED_URL_TTL_MS;
-    const viewerExpiresAt =
-      viewerAccess.ageEligibilityExpiresAtMs ??
-      Number.POSITIVE_INFINITY;
     const resolutions = await Promise.all(
       [...uniqueItems.values()].map(
         async ({ ownerUid, videoId }): Promise<PublicVideoAccessResolution> => {
@@ -336,9 +324,6 @@ export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
                 ownerUid,
                 videoId,
                 technicalExpiresAt,
-                viewerExpiresAt,
-                profileAccess?.validUntilMs ??
-                  Number.NEGATIVE_INFINITY,
                 profileAccess?.allowed === true,
                 mode,
                 nowMs
