@@ -3,7 +3,6 @@ import { describe, it } from 'node:test';
 
 import {
   discoveryReadRateLimitCost,
-  isCurrentPublicProfileAgeProjection,
   serializePublicProfileForDiscovery,
 } from './get-public-profiles-page.handler';
 
@@ -11,11 +10,7 @@ const NOW = 1_800_000_000_000;
 
 function profile(overrides: Record<string, unknown> = {}) {
   return {
-    nickname: 'Perfil adulto',
-    ageEligibilityVerifiedAdult: true,
-    ageEligibilityValidUntil: {
-      toMillis: () => NOW + 60_000,
-    },
+    nickname: 'Perfil público',
     updatedAt: {
       toMillis: () => NOW - 1_000,
     },
@@ -23,64 +18,26 @@ function profile(overrides: Record<string, unknown> = {}) {
   };
 }
 
-describe('get-public-profiles-page temporal boundary', () => {
-  it('aceita somente projeção adulta ainda vigente no relógio do backend', () => {
-    assert.equal(
-      isCurrentPublicProfileAgeProjection(profile(), NOW),
-      true
-    );
-    assert.equal(
-      isCurrentPublicProfileAgeProjection(
-        profile({
-          ageEligibilityValidUntil: { toMillis: () => NOW },
-        }),
-        NOW
-      ),
-      false
-    );
-    assert.equal(
-      isCurrentPublicProfileAgeProjection(
-        profile({
-          ageEligibilityValidUntil: { toMillis: () => NOW - 1 },
-        }),
-        NOW
-      ),
-      false
-    );
-  });
-
-  it('falha fechado quando o booleano ou validUntil não estão íntegros', () => {
-    assert.equal(
-      isCurrentPublicProfileAgeProjection(
-        profile({ ageEligibilityVerifiedAdult: false }),
-        NOW
-      ),
-      false
-    );
-    assert.equal(
-      isCurrentPublicProfileAgeProjection(
-        profile({ ageEligibilityValidUntil: null }),
-        NOW
-      ),
-      false
-    );
-  });
-
-  it('serializa idade social válida sem usá-la como autoridade etária', () => {
+describe('get-public-profiles-page boundary', () => {
+  it('serializa perfil público sem depender de assurance etário', () => {
     const serialized = serializePublicProfileForDiscovery(
       'profile-1',
-      profile({ age: 41, idade: 42 }),
+      profile({
+        age: 41,
+        ageEligibilityVerifiedAdult: false,
+        ageEligibilityValidUntil: null,
+      }),
       NOW
     );
 
     assert.ok(serialized);
     assert.equal(serialized['uid'], 'profile-1');
     assert.equal(serialized['age'], 41);
-    assert.equal(serialized['ageEligibilityVerifiedAdult'], true);
-    assert.equal(serialized['ageEligibilityValidUntil'], NOW + 60_000);
+    assert.equal('ageEligibilityVerifiedAdult' in serialized, false);
+    assert.equal('ageEligibilityValidUntil' in serialized, false);
   });
 
-  it('descarta idade social fora da faixa sem afetar a elegibilidade adulta', () => {
+  it('descarta idade social fora da faixa sem bloquear o perfil', () => {
     const serialized = serializePublicProfileForDiscovery(
       'profile-invalid-social-age',
       profile({ age: 17 }),
@@ -89,19 +46,21 @@ describe('get-public-profiles-page temporal boundary', () => {
 
     assert.ok(serialized);
     assert.equal(serialized['age'], null);
-    assert.equal(serialized['ageEligibilityVerifiedAdult'], true);
   });
 
-  it('não serializa perfil temporalmente expirado', () => {
-    const serialized = serializePublicProfileForDiscovery(
-      'profile-expired',
-      profile({
-        ageEligibilityValidUntil: { toMillis: () => NOW - 1 },
-      }),
-      NOW
+  it('exige apenas identidade pública mínima para serialização', () => {
+    assert.equal(
+      serializePublicProfileForDiscovery('', profile(), NOW),
+      null
     );
-
-    assert.equal(serialized, null);
+    assert.equal(
+      serializePublicProfileForDiscovery(
+        'profile-no-nickname',
+        profile({ nickname: '' }),
+        NOW
+      ),
+      null
+    );
   });
 
   it('dimensiona a quota de leitura proporcionalmente ao custo da consulta', () => {
