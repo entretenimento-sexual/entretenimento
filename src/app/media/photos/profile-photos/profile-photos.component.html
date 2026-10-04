@@ -62,7 +62,7 @@
       </div>
     } @else {
       @let total = (totalPhotos$ | async) || 0;
-      @if (total > 1) {
+      @if (total >= 4) {
         <div class="gallery-toolbar app-toolbar" aria-live="polite">
           <div class="gallery-toolbar__summary app-toolbar__summary">
             <strong>{{ total }}</strong> fotos
