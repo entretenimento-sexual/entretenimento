@@ -362,9 +362,10 @@ const storageService = read(
   'src/app/core/services/image-handling/storage.service.ts'
 );
 requireIncludes(storageService, [
-  'private readonly reservePhotoUploadCallable = httpsCallable<',
+  'private readonly firebaseContext: FirestoreContextService',
+  'return this.firebaseContext.deferPromise$(() => {',
+  'const callable = httpsCallable<',
   ">(this.functions, 'reservePhotoUpload');",
-  'return from(this.reservePhotoUploadCallable({',
 ], 'photo upload callable injection context');
 
 const videoUploadFlow = read(
