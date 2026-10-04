@@ -11,12 +11,23 @@ import { SharedMaterialModule } from 'src/app/shared/shared-material.module';
 })
 export class MediaActionMenuComponent {
   @Input() disabled = false;
-  @Input() canSetCover = false;
-  @Input() isCover = false;
+
+  @Input() editLabel = 'Editar';
+  @Input() secondaryLabel = '';
+  @Input() secondaryIcon = 'tune';
+  @Input() showSecondaryAction = false;
+
+  @Input() featureLabel = '';
+  @Input() featureCurrentLabel = '';
+  @Input() featureIcon = 'star';
+  @Input() showFeatureAction = false;
+  @Input() featureActive = false;
+
+  @Input() deleteLabel = 'Excluir';
 
   @Output() edit = new EventEmitter<void>();
-  @Output() changeDate = new EventEmitter<void>();
-  @Output() setCover = new EventEmitter<void>();
+  @Output() secondaryAction = new EventEmitter<void>();
+  @Output() featureAction = new EventEmitter<void>();
   @Output() deleteRequested = new EventEmitter<void>();
 
   stopPropagation(event: Event): void {
