@@ -3,25 +3,14 @@
 // PUBLIC PROFILES (consultable / discovery)
 // =========================================================================
 // Fronteira de autorização concentrada em ownership, estado privado pós-write,
-// maioridade canônica e conjunto de chaves permitido. Validações editoriais de
+// lifecycle da conta e conjunto de chaves permitido. Validações editoriais de
 // formato ficam no formulário/backend para preservar o orçamento de expressões.
 // =========================================================================
 match /public_profiles/{userId} {
-  function targetAgeProjectionAllowsAdultExposure() {
-    let validUntil = resource.data.ageEligibilityValidUntil;
-    return resource.data.ageEligibilityVerifiedAdult == true
-      && validUntil is timestamp
-      && request.time < validUntil;
-  }
-
-  function targetCanonicalAgeEligibilityAllowsAdultExposure() {
-    return canonicalAgeEligibilityAllowsAdultAccess(userId);
-  }
 
   allow get: if currentUserCanUseAdultSocialPlatform()
     && bilateralExposureAllows(userId)
-    && targetAgeProjectionAllowsAdultExposure()
-    && targetCanonicalAgeEligibilityAllowsAdultExposure();
+    && canonicalOwnerLifecycleAllowsPublicMediaExposure(userId);
 
   allow list: if false;
 
@@ -36,7 +25,6 @@ match /public_profiles/{userId} {
       && user.profileCompleted == true
       && user.publicVisibility == "visible"
       && user.interactionBlocked == false
-      && canonicalAgeEligibilityAllowsAdultAccess(userId)
       && adultMediaHasCurrentTerms(user)
       && adultMediaHasRequiredConsent(user);
   }
@@ -48,7 +36,6 @@ match /public_profiles/{userId} {
       && user.profileCompleted == true
       && user.publicVisibility == "visible"
       && user.interactionBlocked == false
-      && canonicalAgeEligibilityAllowsAdultAccess(userId)
       && adultMediaHasCurrentTerms(user)
       && adultMediaHasRequiredConsent(user);
   }
