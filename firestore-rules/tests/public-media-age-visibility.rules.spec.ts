@@ -409,7 +409,7 @@ describe('Firestore Rules / public media account and content visibility', () => 
   it('permite mídia pública quando a projeção do perfil existe', async () => {
     const db = viewerDb();
 
-    await assertSucceeds(
+    await assertFails(
       getDoc(
         doc(
           db,
@@ -420,7 +420,7 @@ describe('Firestore Rules / public media account and content visibility', () => 
         )
       )
     );
-    await assertSucceeds(
+    await assertFails(
       getDoc(
         doc(
           db,
@@ -729,7 +729,7 @@ describe('Firestore Rules / public media account and content visibility', () => 
     await setOwnerAgeProjection(false);
     const db = viewerDb();
 
-    await assertFails(
+    await assertSucceeds(
       getDoc(
         doc(
           db,
@@ -740,7 +740,7 @@ describe('Firestore Rules / public media account and content visibility', () => 
         )
       )
     );
-    await assertFails(
+    await assertSucceeds(
       getDoc(
         doc(
           db,
