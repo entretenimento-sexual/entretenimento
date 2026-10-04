@@ -17,18 +17,31 @@ describe('media-error.catalog', () => {
     expect(presentationReasons).toEqual(messageReasons);
   });
 
-  it('resolve reason conhecido sem depender de fallback local', () => {
-    expect(resolveMediaErrorMessage('AGE_REVERIFICATION_REQUIRED')).toBe(
-      'Conclua a revalidação de idade antes de acessar este conteúdo.'
+  it('resolve reason de conta sem depender de fallback local', () => {
+    expect(resolveMediaErrorMessage('ACCOUNT_UNAVAILABLE')).toBe(
+      'Esta conta não pode acessar conteúdo de mídia no momento.'
     );
     expect(
-      resolveMediaErrorPresentation('AGE_REVERIFICATION_REQUIRED')
+      resolveMediaErrorPresentation('ACCOUNT_UNAVAILABLE')
     ).toEqual(
       expect.objectContaining({
         surface: 'modal',
         severity: 'warning',
       })
     );
+  });
+
+  it('não mantém assurance etário como reason de Media', () => {
+    for (const reason of [
+      'AGE_VERIFICATION_REQUIRED',
+      'AGE_REVERIFICATION_REQUIRED',
+      'verification_required',
+      'verification_expired',
+      'underage',
+    ]) {
+      expect(resolveMediaErrorMessage(reason)).toBeNull();
+      expect(resolveMediaErrorPresentation(reason)).toBeNull();
+    }
   });
 
   it('não inventa mensagem ou presentation para reason desconhecido', () => {
