@@ -95,16 +95,22 @@ for (const forbidden of [
 const authoringEligibility = read(
   'functions/src/media/application/media-authoring-eligibility.service.ts'
 );
-for (const fragment of [
+requireIncludes(
+  authoringEligibility,
   'assertPlatformAccountAccessData',
+  'media authoring eligibility boundary drift'
+);
+
+for (const forbidden of [
   'evaluateCanonicalAgeEligibility',
   'ageEligibility.allowed',
   "ageEligibility.status === 'VERIFIED_ADULT'",
+  "collection('age_eligibility_records')",
 ]) {
-  requireIncludes(
+  forbidIncludes(
     authoringEligibility,
-    fragment,
-    'media authoring eligibility boundary drift'
+    forbidden,
+    'media authoring must not reintroduce age assurance authority'
   );
 }
 
