@@ -215,6 +215,7 @@
 }
 
 .photo-tile {
+  position: relative;
   width: 100%;
   min-width: 0;
   overflow: hidden;
@@ -257,6 +258,13 @@
 .photo-card-link:disabled .photo {
   transform: none;
   filter: brightness(0.72) saturate(0.88);
+}
+
+.photo-action-menu {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 4;
 }
 
 .photo {
@@ -378,82 +386,13 @@
   flex: 0 0 auto;
 }
 
-.management-bar {
-  position: relative;
-  align-items: stretch;
-  justify-content: space-between;
-  gap: 7px;
-  padding: 9px;
-  border-top: 1px solid var(--photos-border);
-  background: color-mix(in oklab, var(--photos-surface) 96%, transparent);
-}
-
-.management-bar--busy {
-  opacity: 0.82;
-}
-
-.management-action {
-  min-width: 0;
-  min-height: 40px;
-  flex: 1 1 auto;
-  font-size: 0.78rem;
-  font-weight: 760;
-}
-
-.management-action--primary {
-  font-weight: 820;
-}
-
-.management-action--icon {
-  flex: 0 0 34px;
-  width: 34px;
-  padding: 0;
-  font-size: 0.95rem;
-}
-
-.management-action--icon span {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-}
-
-.management-date {
-  min-width: 8rem;
-  min-height: 40px;
-  flex: 1 1 auto;
-}
-
-.delete-confirm-box {
-  display: grid;
-  gap: 10px;
-  padding: 10px;
-  border-top: 1px solid color-mix(in oklab, var(--photos-danger) 30%, var(--photos-border));
-  background: color-mix(in oklab, var(--photos-danger) 7%, transparent);
-}
-
-.delete-confirm-box p,
 .publication-note {
   margin: 0;
-  color: color-mix(in oklab, var(--photos-text) 88%, transparent);
+  padding: 10px 12px;
+  border-top: 1px solid var(--photos-border);
+  color: color-mix(in oklab, var(--photos-text) 72%, transparent);
   font-size: 0.82rem;
   line-height: 1.4;
-}
-
-.delete-confirm-actions {
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.delete-confirm-actions .management-action {
-  flex: 1 1 auto;
-}
-
-.publication-note {
-  margin-top: 16px;
-  color: color-mix(in oklab, var(--photos-text) 68%, transparent);
-  font-size: 0.86rem;
-  line-height: 1.45;
 }
 
 @media (max-width: 720px) {
@@ -503,22 +442,6 @@
     font-size: 0.68rem;
   }
 
-  .management-bar {
-    gap: 6px;
-    padding: 7px;
-  }
-
-  .management-action,
-  .management-date {
-    min-height: 40px;
-    font-size: 0.74rem;
-  }
-
-  .management-action--icon {
-    flex-basis: 32px;
-    width: 32px;
-    font-size: 0.88rem;
-  }
 }
 
 @media (max-width: 380px) {
@@ -528,8 +451,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .photo-tile,
-  .photo,
-  .management-action {
+  .photo {
     transition: none;
   }
 
@@ -537,9 +459,7 @@
 
   .photo-tile:hover,
   .photo-card-link:hover .photo,
-  .photo-card-link:focus-visible .photo,
-  .management-action:hover,
-  .management-action:focus-visible {
+  .photo-card-link:focus-visible .photo {
     transform: none;
   }
 }
