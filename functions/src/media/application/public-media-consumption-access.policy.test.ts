@@ -21,31 +21,14 @@ describe('public media consumption access policy', () => {
       accepted: true,
       version: 'v1',
     },
-    ageReverification: { status: 'NONE' },
-  };
-
-  const eligibleAge = {
-    uid: 'user-1',
-    status: 'VERIFIED_ADULT',
-    policyVersion: 1,
-    source: 'AGE_REVERIFICATION',
-    method: 'MANUAL_REVIEW',
-    caseId: 'case-1',
-    verifiedAtMs: Date.now() - 1_000,
-    expiresAtMs: null,
   };
 
   function assertBlockedWithReason(
     user: Parameters<typeof assertPublicMediaConsumptionAccessData>[0],
-    age: unknown,
     expectedReason: PublicMediaConsumptionAccessReason
   ): void {
     assert.throws(
-      () => assertPublicMediaConsumptionAccessData(
-        user,
-        age,
-        'user-1'
-      ),
+      () => assertPublicMediaConsumptionAccessData(user),
       (error: unknown) => {
         assert.ok(error instanceof HttpsError);
         assert.equal(
@@ -57,13 +40,20 @@ describe('public media consumption access policy', () => {
     );
   }
 
-  it('permite conta adulta com termos e consentimento vigentes', () => {
+  it('permite conta ativa com termos e consentimento vigentes', () => {
     assert.doesNotThrow(() =>
-      assertPublicMediaConsumptionAccessData(
-        eligibleUser,
-        eligibleAge,
-        'user-1'
-      )
+      assertPublicMediaConsumptionAccessData(eligibleUser)
+    );
+  });
+
+  it('não cria gate de Media a partir de reverificação etária', () => {
+    assert.doesNotThrow(() =>
+      assertPublicMediaConsumptionAccessData({
+        ...eligibleUser,
+        ageReverification: { status: 'REQUIRED' },
+      } as typeof eligibleUser & {
+        ageReverification: { status: string };
+      })
     );
   });
 
@@ -73,7 +63,6 @@ describe('public media consumption access policy', () => {
         ...eligibleUser,
         accountStatus: 'pending_deletion',
       },
-      eligibleAge,
       'ACCOUNT_UNAVAILABLE'
     );
     assertBlockedWithReason(
@@ -81,7 +70,6 @@ describe('public media consumption access policy', () => {
         ...eligibleUser,
         suspended: true,
       },
-      eligibleAge,
       'ACCOUNT_UNAVAILABLE'
     );
   });
@@ -96,7 +84,6 @@ describe('public media consumption access policy', () => {
           acknowledgedPrivacyNotice: true,
         },
       },
-      eligibleAge,
       'TERMS_REQUIRED'
     );
   });
@@ -107,7 +94,6 @@ describe('public media consumption access policy', () => {
         ...eligibleUser,
         adultConsent: null,
       },
-      eligibleAge,
       'ADULT_CONSENT_REQUIRED'
     );
     assertBlockedWithReason(
@@ -115,64 +101,7 @@ describe('public media consumption access policy', () => {
         ...eligibleUser,
         adultConsent: { accepted: true, version: 'legacy' },
       },
-      eligibleAge,
       'ADULT_CONSENT_REQUIRED'
     );
-  });
-
-  it('bloqueia ausência de verificação etária canônica', () => {
-    assertBlockedWithReason(
-      eligibleUser,
-      null,
-      'AGE_VERIFICATION_REQUIRED'
-    );
-  });
-
-  it('não aceita autodeclaração como verificação suficiente para Media', () => {
-    assertBlockedWithReason(
-      eligibleUser,
-      {
-        uid: 'user-1',
-        status: 'SELF_DECLARED_ADULT',
-        policyVersion: 1,
-        source: 'SELF_DECLARATION',
-        method: 'SELF_DECLARATION',
-        caseId: null,
-        verifiedAtMs: null,
-        decidedAtMs: Date.now() - 1_000,
-        expiresAtMs: null,
-      },
-      'AGE_VERIFICATION_REQUIRED'
-    );
-  });
-
-  it('bloqueia decisão canônica de menoridade', () => {
-    assertBlockedWithReason(
-      eligibleUser,
-      {
-        ...eligibleAge,
-        status: 'DENIED_UNDERAGE',
-        verifiedAtMs: null,
-      },
-      'AGE_ACCESS_DENIED'
-    );
-  });
-
-  it('bloqueia estados pendentes de revalidação etária', () => {
-    for (const status of [
-      'REQUIRED',
-      'SUBMITTED',
-      'UNDER_REVIEW',
-      'EXPIRED',
-    ]) {
-      assertBlockedWithReason(
-        {
-          ...eligibleUser,
-          ageReverification: { status },
-        },
-        eligibleAge,
-        'AGE_REVERIFICATION_REQUIRED'
-      );
-    }
   });
 });
