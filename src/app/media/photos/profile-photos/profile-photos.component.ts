@@ -24,6 +24,7 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { BehaviorSubject, EMPTY, Observable, combineLatest, from, of } from 'rxjs';
 import {
   catchError,
+  filter,
   distinctUntilChanged,
   finalize,
   map,
@@ -48,6 +49,9 @@ import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy
 
 import { PhotoViewerComponent, IProfilePhotoItem } from '../photo-viewer/photo-viewer.component';
 import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.component';
+import {
+  ConfirmationDialogComponent,
+} from 'src/app/shared/components-globais/confirmation-dialog/confirmation-dialog.component';
 
 type IManageablePhotoItem = IProfilePhotoItem & {
   path?: string;
@@ -60,7 +64,6 @@ type IPhotoCardVm = IManageablePhotoItem & {
   publication: IPhotoPublicationConfig;
 };
 
-type TProfilePhotoFilterMode = 'all' | 'published' | 'private';
 type TProfilePhotoSortMode = 'newest' | 'oldest';
 
 const DENY_UNKNOWN: IMediaPolicyResult = { decision: 'DENY', reason: 'UNKNOWN' };
@@ -89,20 +92,14 @@ export class ProfilePhotosComponent {
   private readonly photoEditor = inject(PhotoEditorLauncherService);
   private readonly photoUploadFlow = inject(PhotoUploadFlowService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
-  private readonly confirmDeleteIdSubject = new BehaviorSubject<string | null>(null);
-  readonly confirmDeleteId$ = this.confirmDeleteIdSubject.asObservable();
-
   private readonly deletingPhotoIdSubject = new BehaviorSubject<string | null>(null);
   readonly deletingPhotoId$ = this.deletingPhotoIdSubject.asObservable();
 
-  private readonly publishingPhotoIdSubject = new BehaviorSubject<string | null>(null);
-  readonly publishingPhotoId$ = this.publishingPhotoIdSubject.asObservable();
+  private readonly updatingPhotoIdSubject = new BehaviorSubject<string | null>(null);
+  readonly updatingPhotoId$ = this.updatingPhotoIdSubject.asObservable();
 
   private readonly savingDisplayDateIdSubject = new BehaviorSubject<string | null>(null);
   readonly savingDisplayDateId$ = this.savingDisplayDateIdSubject.asObservable();
-
-  private readonly filterModeSubject = new BehaviorSubject<TProfilePhotoFilterMode>('all');
-  readonly filterMode$ = this.filterModeSubject.asObservable();
 
   private readonly sortModeSubject = new BehaviorSubject<TProfilePhotoSortMode>('newest');
   readonly sortMode$ = this.sortModeSubject.asObservable();
@@ -198,10 +195,9 @@ export class ProfilePhotosComponent {
     this.ownerUid$,
     this.photos$,
     this.publicationConfigs$,
-    this.filterMode$,
     this.sortMode$,
   ]).pipe(
-    map(([ownerUid, photos, publicationConfigs, filterMode, sortMode]) => {
+    map(([ownerUid, photos, publicationConfigs, sortMode]) => {
       const cards = photos.map((photo) => ({
         ...photo,
         publication:
@@ -209,10 +205,7 @@ export class ProfilePhotosComponent {
           this.mediaPublicationService.buildDefaultConfig(ownerUid, photo.id),
       }));
 
-      return this.sortPhotoCards(
-        this.filterPhotoCards(cards, filterMode),
-        sortMode
-      );
+      return this.sortPhotoCards(cards, sortMode);
     }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
@@ -228,16 +221,8 @@ export class ProfilePhotosComponent {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  setFilterMode(mode: TProfilePhotoFilterMode): void {
-    this.filterModeSubject.next(mode);
-  }
-
   setSortMode(mode: TProfilePhotoSortMode): void {
     this.sortModeSubject.next(mode);
-  }
-
-  getFilterModeSnapshot(): TProfilePhotoFilterMode {
-    return this.filterModeSubject.value;
   }
 
   getSortModeSnapshot(): TProfilePhotoSortMode {
@@ -342,20 +327,6 @@ export class ProfilePhotosComponent {
         })
       )
       .subscribe();
-  }
-
-  private filterPhotoCards(
-    items: readonly IPhotoCardVm[],
-    mode: TProfilePhotoFilterMode
-  ): IPhotoCardVm[] {
-    switch (mode) {
-      case 'published':
-        return items.filter((item) => item.publication.isPublished);
-      case 'private':
-        return items.filter((item) => !item.publication.isPublished);
-      default:
-        return [...items];
-    }
   }
 
   private sortPhotoCards(
@@ -545,59 +516,68 @@ export class ProfilePhotosComponent {
 
   requestDelete(item: IPhotoCardVm, event?: Event): void {
     event?.stopPropagation();
-    this.confirmDeleteIdSubject.next(item.id);
-  }
-
-  cancelDelete(event?: Event): void {
-    event?.stopPropagation();
-    this.confirmDeleteIdSubject.next(null);
-  }
-
-  confirmDelete(item: IPhotoCardVm, event?: Event): void {
-    event?.stopPropagation();
 
     combineLatest([this.isOwner$, this.ownerUid$, this.deletingPhotoId$])
-      .pipe(take(1))
-      .subscribe(([isOwner, ownerUid, deletingPhotoId]) => {
-        if (!isOwner) {
-          this.errorNotifier.showWarning('Você não tem permissão para excluir esta foto.');
-          return;
-        }
+      .pipe(
+        take(1),
+        switchMap(([isOwner, ownerUid, deletingPhotoId]) => {
+          if (!isOwner || !ownerUid?.trim()) {
+            this.errorNotifier.showWarning(
+              'Você não tem permissão para excluir esta foto.'
+            );
+            return EMPTY;
+          }
 
-        if (deletingPhotoId === item.id) {
-          return;
-        }
+          if (!item.id?.trim() || deletingPhotoId === item.id) {
+            return EMPTY;
+          }
 
-        if (!item.id?.trim()) {
-          this.errorNotifier.showWarning('Metadados insuficientes para excluir esta foto.');
-          return;
-        }
-
-        this.deletingPhotoIdSubject.next(item.id);
-
-        from(this.photoFirestoreService.deletePhoto(ownerUid, item.id))
-          .pipe(
-            finalize(() => {
-              this.deletingPhotoIdSubject.next(null);
-              this.confirmDeleteIdSubject.next(null);
-            }),
-            catchError((error) => {
-              this.reportError(
-                'photo_delete_failed',
-                error,
-                {
-                  op: 'confirmDelete',
-                  ownerUid,
-                  photoId: item.id,
-                }
-              );
-              return EMPTY;
-            })
-          )
-          .subscribe(() => {
-            this.errorNotifier.showSuccess('Foto excluída com sucesso.');
+          const dialogRef = this.dialog.open(ConfirmationDialogComponent, {
+            data: {
+              title: 'Excluir foto?',
+              message: 'Esta ação remove a foto do seu perfil.',
+              detail: 'A exclusão não pode ser desfeita.',
+              confirmLabel: 'Excluir foto',
+              cancelLabel: 'Cancelar',
+              tone: 'danger',
+            },
+            autoFocus: 'first-tabbable',
+            restoreFocus: true,
+            ariaLabel: 'Confirmar exclusão da foto',
+            maxWidth: 'min(92vw, 440px)',
           });
-      });
+
+          return dialogRef.afterClosed().pipe(
+            filter((confirmed) => confirmed === true),
+            switchMap(() => {
+              this.deletingPhotoIdSubject.next(item.id);
+
+              return from(
+                this.photoFirestoreService.deletePhoto(ownerUid, item.id)
+              ).pipe(
+                tap(() =>
+                  this.errorNotifier.showSuccess('Foto excluída.')
+                ),
+                catchError((error) => {
+                  this.reportError(
+                    'photo_delete_failed',
+                    error,
+                    {
+                      op: 'requestDelete',
+                      ownerUid,
+                      photoId: item.id,
+                    }
+                  );
+                  return EMPTY;
+                }),
+                finalize(() => this.deletingPhotoIdSubject.next(null))
+              );
+            })
+          );
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
   }
 
   private canManagePhotoPublication$(): Observable<{
@@ -611,64 +591,6 @@ export class ProfilePhotosComponent {
         ownerUid: ownerUid ?? '',
       }))
     );
-  }
-
-  publishPhoto(item: IPhotoCardVm, event?: Event): void {
-    event?.stopPropagation();
-
-    this.canManagePhotoPublication$()
-      .pipe(
-        switchMap(({ canManage, ownerUid }) => {
-          if (!canManage) {
-            this.errorNotifier.showWarning('Você não tem permissão para publicar esta foto.');
-            return EMPTY;
-          }
-
-          if (!item.id?.trim() || !item.url?.trim()) {
-            this.errorNotifier.showWarning('Metadados insuficientes para publicar esta foto.');
-            return EMPTY;
-          }
-
-          this.publishingPhotoIdSubject.next(item.id);
-
-          return this.mediaPublicationService.publishPhoto$({
-            ownerUid,
-            photo: {
-              id: item.id,
-              ownerUid,
-              url: item.url,
-              alt: item.alt,
-              createdAt: item.createdAt ?? Date.now(),
-              path: item.path,
-              fileName: item.fileName,
-            },
-            visibility: 'PUBLIC',
-            isCover: !!item.publication.isCover,
-            orderIndex: item.publication.orderIndex ?? 0,
-            commentsEnabled: true,
-            commentsPolicy: 'EVERYONE',
-            reactionsEnabled: true,
-          }).pipe(
-            tap(() => {
-              this.errorNotifier.showSuccess('Foto publicada.');
-            }),
-            catchError((error) => {
-              this.reportError(
-                'media_publication_failed',
-                error,
-                {
-                  op: 'publishPhoto',
-                  ownerUid,
-                  photoId: item.id,
-                }
-              );
-              return EMPTY;
-            }),
-            finalize(() => this.publishingPhotoIdSubject.next(null))
-          );
-        })
-      )
-      .subscribe();
   }
 
   setCoverPhoto(item: IPhotoCardVm, event?: Event): void {
@@ -687,7 +609,7 @@ export class ProfilePhotosComponent {
             return EMPTY;
           }
 
-          this.publishingPhotoIdSubject.next(item.id);
+          this.updatingPhotoIdSubject.next(item.id);
 
           return this.mediaPublicationService.setCoverPhoto$(ownerUid, item.id).pipe(
             tap(() => {
@@ -705,7 +627,7 @@ export class ProfilePhotosComponent {
               );
               return EMPTY;
             }),
-            finalize(() => this.publishingPhotoIdSubject.next(null))
+            finalize(() => this.updatingPhotoIdSubject.next(null))
           );
         })
       )
