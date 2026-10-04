@@ -34,11 +34,6 @@
   line-height: 22px;
 }
 
-:host ::ng-deep .media-action-menu__danger,
-:host ::ng-deep .media-action-menu__danger mat-icon {
-  color: var(--danger-color, #ff6b6b);
-}
-
 @media (pointer: coarse) {
   .media-action-menu__trigger {
     width: var(--tap-target, 44px);
