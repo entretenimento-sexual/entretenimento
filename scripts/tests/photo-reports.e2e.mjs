@@ -265,32 +265,15 @@ async function run() {
     assert.ok(publishedStoragePath);
     assert.equal(await fileExists(bucket.file(publishedStoragePath)), true);
 
-    const preventiveReportId = String(
-      initialPublication?.preventiveReviewReportId ?? ''
-    );
-    assert.ok(preventiveReportId);
+    assert.equal(initialPublication?.moderationStatus, 'APPROVED');
+    assert.equal(initialPublication?.preventiveReviewReportId, undefined);
+
+    const initialPublicPhoto = await readDocumentData(publicPhotoRef);
+    assert.equal(initialPublicPhoto?.moderationStatus, 'APPROVED');
 
     const reviewAsAdmin = httpsCallable(
       moderatorClient.functions,
       'reviewPhotoContentReport'
-    );
-
-    await reviewAsAdmin({
-      reportId: preventiveReportId,
-      decision: 'KEEP',
-      resolution: 'Foto aprovada na revisão preventiva do cenário de denúncias.',
-    });
-
-    await waitFor(
-      'revisão preventiva liberar foto antes das denúncias',
-      async () => ({
-        photo: await readDocumentData(publicPhotoRef),
-        publication: await readDocumentData(publicationRef),
-      }),
-      (state) =>
-        state.photo?.moderationStatus === 'APPROVED' &&
-        state.publication?.moderationStatus === 'APPROVED' &&
-        state.publication?.preventiveReviewReportId === undefined
     );
 
     const reportAsA = httpsCallable(
