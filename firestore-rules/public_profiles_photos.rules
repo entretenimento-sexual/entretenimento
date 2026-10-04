@@ -12,17 +12,9 @@ match /public_profiles/{userId}/public_photos/{photoId} {
   function publicProfileExists() {
     return exists(publicProfilePath());
   }
-
-  function publicProfileProjectionAllowsAdultExposure() {
-    return publicAgeProjectionAllowsAdultExposure(
-      get(publicProfilePath()).data
-    );
-  }
-
   function publicProfileAllowsAdultExposure() {
-    return canonicalOwnerLifecycleAllowsPublicMediaExposure(userId)
-      && publicProfileProjectionAllowsAdultExposure()
-      && canonicalAgeEligibilityAllowsAdultAccess(userId);
+    return publicProfileExists()
+      && canonicalOwnerLifecycleAllowsPublicMediaExposure(userId);
   }
 
   function photoPath() {
@@ -50,15 +42,12 @@ match /public_profiles/{userId}/public_photos/{photoId} {
   }
 
   function isApprovedPublicPhotoData(data) {
-    return data.ageEligibilityAdultAccessAllowed == true
-      && data.visibility == "PUBLIC"
+    return data.visibility == "PUBLIC"
       && data.moderationStatus == "APPROVED";
   }
 
   function commentPhotoAllowsAdultExposure(data) {
-    return canonicalOwnerLifecycleAllowsPublicMediaExposure(userId)
-      && canonicalAgeEligibilityAllowsAdultAccess(userId)
-      && publicAgeProjectionAllowsAdultExposure(data);
+    return canonicalOwnerLifecycleAllowsPublicMediaExposure(userId);
   }
 
   function isApprovedCommentReadablePhotoData(data) {
@@ -74,14 +63,12 @@ match /public_profiles/{userId}/public_photos/{photoId} {
   function isPublicReadable() {
     return publicProfileAllowsAdultExposure()
       && bilateralExposureAllows(userId)
-      && resource.data.ageEligibilityAdultAccessAllowed == true
       && resource.data.visibility == "PUBLIC"
       && resource.data.moderationStatus == "APPROVED";
   }
 
   function isPublicListReadable() {
-    return resource.data.ageEligibilityAdultAccessAllowed == true
-      && resource.data.visibility == "PUBLIC"
+    return resource.data.visibility == "PUBLIC"
       && resource.data.moderationStatus == "APPROVED";
   }
 
@@ -127,8 +114,6 @@ match /public_profiles/{userId}/public_photos/{photoId} {
 
 // ------------------------------------------------------------
 // Collection group: public_photos
-// A revalidação muda a projeção para PRIVATE na mesma transação;
-// por isso a consulta global continua filtrável por visibility.
 // FRIENDS não é aberta nesta superfície: descoberta restrita passa
 // pelo backend autorizado e por URL temporária revalidada.
 // Leituras diretas permanecem no match específico acima, que também
