@@ -357,6 +357,34 @@ for (const relativePath of [
   );
 }
 
+// Outras superfícies sociais também não consultam a autoridade etária.
+for (const relativePath of [
+  'functions/src/community/community-social-access.service.ts',
+  'functions/src/friendship/application/get-pending-friend-requests.handler.ts',
+]) {
+  forbidAll(
+    relativePath,
+    [
+      "collection('age_eligibility_records')",
+      'evaluateCanonicalAgeEligibility',
+      'VERIFIED_ADULT',
+    ],
+    'superfície social não pode duplicar a decisão etária'
+  );
+}
+
+// Segurança de menor dentro do conteúdo é uma autoridade de moderação de Media.
+requireAll(
+  'functions/src/media/application/media-report-safety.ts',
+  [
+    'minor_exposure_safety',
+    'minor_content_safety',
+    'MAXIMUM_MINOR',
+    'shouldQuarantineMediaAfterReport',
+  ],
+  'Media deve preservar a fronteira crítica de segurança de menor no conteúdo'
+);
+
 // Discovery geral segue a mesma arquitetura de conta.
 for (const relativePath of [
   'functions/src/discovery/get-public-profiles-page.handler.ts',
