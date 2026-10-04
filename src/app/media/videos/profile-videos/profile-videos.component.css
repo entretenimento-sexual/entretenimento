@@ -163,8 +163,7 @@
   transition: width 180ms ease;
 }
 
-.profile-videos__upload-actions,
-.profile-videos__actions {
+.profile-videos__upload-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 9px;
@@ -191,6 +190,13 @@
   aspect-ratio: 16 / 9;
   overflow: hidden;
   background: #05070d;
+}
+
+.profile-videos__action-menu {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 4;
 }
 
 .profile-videos__body {
@@ -308,33 +314,6 @@
   line-height: 1.42;
 }
 
-.profile-videos__actions {
-  padding-top: 2px;
-}
-
-.profile-videos__actions .app-action {
-  min-height: 44px;
-  flex: 1 1 150px;
-}
-
-.profile-videos__actions .app-action--danger {
-  border-color: color-mix(
-    in oklab,
-    var(--error-color, #ff6b6b) 48%,
-    var(--surface-border, rgb(255 255 255 / 12%))
-  );
-  background: color-mix(
-    in oklab,
-    var(--error-color, #ff6b6b) 10%,
-    transparent
-  );
-  color: color-mix(
-    in oklab,
-    var(--error-color, #ff6b6b) 82%,
-    var(--text-color, #f5f7fb)
-  );
-}
-
 .profile-videos__empty {
   display: grid;
   grid-template-columns: 52px minmax(0, 1fr);
@@ -405,14 +384,12 @@
     padding: 13px;
   }
 
-  .profile-videos__upload-actions,
-  .profile-videos__actions {
+  .profile-videos__upload-actions {
     display: grid;
     grid-template-columns: 1fr;
   }
 
   .profile-videos__upload-actions .app-action,
-  .profile-videos__actions .app-action,
   .profile-videos__file-label {
     width: 100%;
     min-height: 46px;
@@ -529,21 +506,6 @@ html.high-contrast .profile-videos__progress-track {
   line-height: 1.35;
 }
 
-.profile-videos .profile-videos__actions {
-  gap: 8px;
-  margin-top: auto;
-  padding-top: 10px;
-  border-top: 1px solid color-mix(
-    in oklab,
-    var(--surface-border, rgb(255 255 255 / 12%)) 64%,
-    transparent
-  );
-}
-
-.profile-videos .profile-videos__actions > .app-action,
-.profile-videos .profile-videos__delete-button {
-  min-height: 44px;
-}
 
 @media (hover: hover) and (pointer: fine) {
   .profile-videos .profile-videos__card:hover {
@@ -572,9 +534,6 @@ html.high-contrast .profile-videos__progress-track {
     padding: 12px;
   }
 
-  .profile-videos .profile-videos__actions {
-    padding-top: 9px;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
