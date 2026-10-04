@@ -59,15 +59,6 @@ async function seedViewerAndStatuses(): Promise<void> {
         verifiedAt: new Date(Date.now() - 1_000),
         expiresAt: null,
       }),
-      setDoc(doc(db, 'age_eligibility_records', OWNER_UID), {
-        uid: OWNER_UID,
-        status: 'VERIFIED_ADULT',
-        policyVersion: 1,
-        source: 'AGE_REVERIFICATION',
-        method: 'MANUAL_REVIEW',
-        verifiedAt: new Date(Date.now() - 1_000),
-        expiresAt: null,
-      }),
       setDoc(doc(db, 'user_intent_statuses', `current_${OWNER_UID}`), {
         uid: OWNER_UID,
         ageEligibilityVerifiedAdult: true,
@@ -131,7 +122,7 @@ describe('Firestore Rules / user intent status age visibility', () => {
     await testEnv.cleanup();
   });
 
-  it('permite ler status público somente quando a projeção etária do autor está ativa', async () => {
+  it('permite ler status público por lifecycle e moderação, sem gate etário', async () => {
     const db = testEnv.authenticatedContext(VIEWER_UID).firestore();
 
     await assertSucceeds(
@@ -142,11 +133,11 @@ describe('Firestore Rules / user intent status age visibility', () => {
     );
   });
 
-  it('bloqueia leitura pública direta quando a autoridade do autor expira', async () => {
+  it('mantém leitura pública quando muda apenas o assurance etário do autor', async () => {
     await setOwnerCanonicalAgeExpiry(new Date(Date.now() - 1_000));
     const db = testEnv.authenticatedContext(VIEWER_UID).firestore();
 
-    await assertFails(
+    await assertSucceeds(
       getDoc(doc(db, 'user_intent_statuses', `current_${OWNER_UID}`))
     );
   });
@@ -156,7 +147,6 @@ describe('Firestore Rules / user intent status age visibility', () => {
 
     const guardedQuery = query(
       collection(db, 'user_intent_statuses'),
-      where('ageEligibilityVerifiedAdult', '==', true),
       where('moderation.state', '==', 'active'),
       where('visibility', '==', 'public_discovery')
     );
@@ -164,7 +154,7 @@ describe('Firestore Rules / user intent status age visibility', () => {
     await assertFails(getDocs(guardedQuery));
     await assertFails(getDocs(collection(db, 'user_intent_statuses')));
 
-    // Deep link documental permanece protegido pela fronteira temporal forte.
+    // Deep link documental permanece protegido por lifecycle e moderação.
     await assertSucceeds(
       getDoc(doc(db, 'user_intent_statuses', `current_${OWNER_UID}`))
     );
