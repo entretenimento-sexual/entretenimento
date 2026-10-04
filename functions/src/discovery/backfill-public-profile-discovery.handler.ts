@@ -16,11 +16,8 @@
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FieldPath } from 'firebase-admin/firestore';
-import { FieldValue, Timestamp, db } from '../firebaseApp';
+import { FieldValue, db } from '../firebaseApp';
 import { FUNCTIONS_REGION } from '../config/functions-region';
-import {
-  evaluateCanonicalAgeEligibility,
-} from '../compliance/age-eligibility.policy';
 import {
   normalizePublicProfileId,
   resolveOrGeneratePublicProfileId,
@@ -55,7 +52,6 @@ interface BackfillPublicProfileDiscoveryResult {
 }
 
 const MAX_PENDING_BATCH_WRITES = 400;
-const PUBLIC_AGE_ELIGIBILITY_MAX_VALID_UNTIL_MS = 253402300799999;
 
 function normalizeLimit(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value)
@@ -179,14 +175,10 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
         .doc(uid)
         .collection('preferences')
         .doc('profile');
-      const ageEligibilityRef = db
-        .collection('age_eligibility_records')
-        .doc(uid);
-      const [publicProfileSnap, preferenceSnap, ageEligibilitySnap] =
+      const [publicProfileSnap, preferenceSnap] =
         await Promise.all([
           publicProfileRef.get(),
           preferenceRef.get(),
-          ageEligibilityRef.get(),
         ]);
 
       if (!publicProfileSnap.exists) {
@@ -198,22 +190,6 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
         continue;
       }
 
-      const ageDecision = evaluateCanonicalAgeEligibility({
-        uid,
-        rawRecord: ageEligibilitySnap.exists
-          ? ageEligibilitySnap.data()
-          : null,
-      });
-      const ageEligibilityAssurance = ageDecision.allowed
-        ? ageDecision.status === 'VERIFIED_ADULT'
-          ? 'VERIFIED'
-          : 'SELF_DECLARED'
-        : null;
-      const ageEligibilityValidUntil = Timestamp.fromMillis(
-        ageDecision.allowed
-          ? ageDecision.expiresAtMs ?? PUBLIC_AGE_ELIGIBILITY_MAX_VALID_UNTIL_MS
-          : 0
-      );
       const canonical = normalizeProfileDiscoveryFields(user);
       const publicPreferences = buildPublicPreferenceProjection(
         preferenceSnap.exists
@@ -240,11 +216,10 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
             interestedInOrientations: canonical.interestedInOrientations,
             compatibilityReady: canonical.compatibilityReady,
             age: resolvePublicProfileAge(user['idade']),
-            ageEligibilityAdultAccessAllowed: ageDecision.allowed,
-            // Alias indexado legado até migração completa.
-            ageEligibilityVerifiedAdult: ageDecision.allowed,
-            ageEligibilityAssurance,
-            ageEligibilityValidUntil,
+            ageEligibilityAdultAccessAllowed: FieldValue.delete(),
+            ageEligibilityVerifiedAdult: FieldValue.delete(),
+            ageEligibilityAssurance: FieldValue.delete(),
+            ageEligibilityValidUntil: FieldValue.delete(),
             ...publicPreferences,
             ...publicLocation,
             discoveryNormalizedAt: FieldValue.serverTimestamp(),
