@@ -109,55 +109,52 @@
                       </label>
                     </div>
 
-                    <div
+                    <details
                       videoEditorComposerTop
-                      class="profile-videos__settings-form profile-videos__upload-composer"
+                      class="profile-videos__upload-options"
                     >
-                      <label for="new-video-title">
-                        <span>Título</span>
-                        <input
-                          id="new-video-title"
-                          type="text"
-                          formControlName="title"
-                          maxlength="120"
-                          autocomplete="off"
-                          [readonly]="isUploadActive()"
-                        />
-                      </label>
+                      <summary>Detalhes e interações</summary>
 
-                      @if (
-                        uploadPublicationForm.controls.title.touched &&
-                        uploadPublicationForm.controls.title.invalid
-                      ) {
-                        <p class="profile-videos__field-error" role="alert">
-                          Informe um título com até 120 caracteres.
-                        </p>
-                      }
+                      <div class="profile-videos__settings-form profile-videos__upload-composer">
+                        <label for="new-video-title">
+                          <span>Título</span>
+                          <input
+                            id="new-video-title"
+                            type="text"
+                            formControlName="title"
+                            maxlength="120"
+                            autocomplete="off"
+                            [readonly]="isUploadActive()"
+                          />
+                        </label>
 
-                      <label for="new-video-description">
-                        <span>Descrição</span>
-                        <textarea
-                          id="new-video-description"
-                          formControlName="description"
-                          maxlength="1000"
-                          rows="4"
-                          placeholder="Descrição opcional"
-                          [readonly]="isUploadActive()"
-                        ></textarea>
-                      </label>
-                    </div>
+                        @if (
+                          uploadPublicationForm.controls.title.touched &&
+                          uploadPublicationForm.controls.title.invalid
+                        ) {
+                          <p class="profile-videos__field-error" role="alert">
+                            Informe um título com até 120 caracteres.
+                          </p>
+                        }
 
-                    <div
-                      videoEditorComposerBottom
-                      class="profile-videos__settings-form"
-                    >
-                      <details class="profile-videos__publication-options">
-                        <summary>Opções</summary>
+                        <label for="new-video-description">
+                          <span>Descrição</span>
+                          <textarea
+                            id="new-video-description"
+                            formControlName="description"
+                            maxlength="1000"
+                            rows="3"
+                            placeholder="Descrição opcional"
+                            [readonly]="isUploadActive()"
+                          ></textarea>
+                        </label>
+
                         <fieldset
                           class="profile-videos__settings-options"
                           aria-label="Interações"
                           [disabled]="isUploadActive()"
                         >
+                          <legend>Interações</legend>
                           <label>
                             <input type="checkbox" formControlName="reactionsEnabled" />
                             <span>Curtidas</span>
@@ -171,17 +168,20 @@
                             <span>Avaliações</span>
                           </label>
                         </fieldset>
-                      </details>
-
-                      <div class="profile-videos__settings-actions">
-                        <button
-                          type="submit"
-                          class="app-action app-action--primary"
-                          [disabled]="!canUpload || uploadPublicationForm.invalid || editorState?.valid !== true || isUploadActive()"
-                        >
-                          {{ isUploadActive() ? 'Enviando...' : 'Adicionar vídeo' }}
-                        </button>
                       </div>
+                    </details>
+
+                    <div
+                      videoEditorComposerBottom
+                      class="profile-videos__upload-primary-action"
+                    >
+                      <button
+                        type="submit"
+                        class="app-action app-action--primary"
+                        [disabled]="!canUpload || uploadPublicationForm.invalid || editorState?.valid !== true || isUploadActive()"
+                      >
+                        {{ isUploadActive() ? 'Enviando...' : 'Adicionar vídeo' }}
+                      </button>
                     </div>
                   </app-video-simple-editor-controls>
                 }
