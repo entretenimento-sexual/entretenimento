@@ -11,16 +11,9 @@ match /public_profiles/{userId}/public_videos/{videoId} {
   function publicProfileExists() {
     return exists(publicProfilePath());
   }
-
-  function publicProfileProjectionAllowsAdultExposure() {
-    return publicProfileExists()
-      && publicAgeProjectionAllowsAdultExposure(get(publicProfilePath()).data);
-  }
-
   function publicProfileAllowsAdultExposure() {
-    return canonicalOwnerLifecycleAllowsPublicMediaExposure(userId)
-      && publicProfileProjectionAllowsAdultExposure()
-      && canonicalAgeEligibilityAllowsAdultAccess(userId);
+    return publicProfileExists()
+      && canonicalOwnerLifecycleAllowsPublicMediaExposure(userId);
   }
 
   function videoPath() {
@@ -36,22 +29,19 @@ match /public_profiles/{userId}/public_videos/{videoId} {
   }
 
   function isApprovedPublicVideoData(data) {
-    return data.ageEligibilityAdultAccessAllowed == true
-      && data.visibility == "PUBLIC"
+    return data.visibility == "PUBLIC"
       && data.moderationStatus == "APPROVED";
   }
 
   function isPublicReadableVideo() {
     return publicProfileAllowsAdultExposure()
       && bilateralExposureAllows(userId)
-      && resource.data.ageEligibilityAdultAccessAllowed == true
       && resource.data.visibility == "PUBLIC"
       && resource.data.moderationStatus == "APPROVED";
   }
 
   function isPublicListReadableVideo() {
-    return resource.data.ageEligibilityAdultAccessAllowed == true
-      && resource.data.visibility == "PUBLIC"
+    return resource.data.visibility == "PUBLIC"
       && resource.data.moderationStatus == "APPROVED";
   }
 
@@ -118,10 +108,6 @@ match /public_profiles/{userId}/public_videos/{videoId} {
 
 // ------------------------------------------------------------
 // Collection group: public_videos
-// A revalidação muda a projeção para PRIVATE na mesma transação;
-// por isso a consulta global continua filtrável por visibility.
-// A elegibilidade do viewer é verificada independentemente do documento,
-// evitando que um cliente modificado contorne os guards de rota.
 // ------------------------------------------------------------
 match /{path=**}/public_videos/{mediaId} {
   // Collection-group discovery é backend-only. Galerias de proprietário
