@@ -20,12 +20,8 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import {
   assertInteractionAccessData,
 } from '../account_lifecycle/interaction-access.policy';
-import {
-  evaluateCanonicalAgeEligibility,
-  isVerifiedAdultAgeDecision,
-} from '../compliance/age-eligibility.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
-import { db, FieldValue, Timestamp } from '../firebaseApp';
+import { db, FieldValue } from '../firebaseApp';
 import {
   assertMessagingAccountOperational,
 } from '../chat/shared/messaging-account.policy';
@@ -33,7 +29,6 @@ import type { MessagingUserDoc } from '../chat/shared/messaging.types';
 
 const MAX_STATUS_DURATION_HOURS = 12;
 const DEFAULT_STATUS_DURATION_HOURS = 12;
-const PUBLIC_AGE_ELIGIBILITY_MAX_VALID_UNTIL_MS = 253402300799999;
 const MAX_COMPATIBLE_STATUS_NOTIFICATIONS = 10;
 
 const ALLOWED_AVAILABILITY = new Set([
@@ -461,10 +456,9 @@ export const publishUserIntentStatus = onCall<PublishUserIntentStatusRequest>(
       throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
     }
 
-    const [userSnapshot, ageEligibilitySnapshot, preferenceSnapshot] =
+    const [userSnapshot, preferenceSnapshot] =
       await Promise.all([
         db.collection('users').doc(uid).get(),
-        db.collection('age_eligibility_records').doc(uid).get(),
         db.collection('users').doc(uid).collection('preferences').doc('profile').get(),
       ]);
     const user = userSnapshot.data() as MessagingUserDoc | undefined;
@@ -473,31 +467,9 @@ export const publishUserIntentStatus = onCall<PublishUserIntentStatusRequest>(
       operation: 'publish-user-intent-status',
       perspective: 'actor',
     });
-    assertInteractionAccessData(
-      user,
-      ageEligibilitySnapshot.exists ? ageEligibilitySnapshot.data() : null,
-      uid
-    );
+    assertInteractionAccessData(user, null, uid);
 
     const now = Date.now();
-    const ageDecision = evaluateCanonicalAgeEligibility({
-      uid,
-      rawRecord: ageEligibilitySnapshot.exists
-        ? ageEligibilitySnapshot.data()
-        : null,
-      nowMs: now,
-    });
-
-    if (!isVerifiedAdultAgeDecision(ageDecision)) {
-      throw new HttpsError(
-        'failed-precondition',
-        'Conclua a verificação de maioridade para publicar o status.'
-      );
-    }
-
-    const ageEligibilityValidUntil = Timestamp.fromMillis(
-      ageDecision.expiresAtMs ?? PUBLIC_AGE_ELIGIBILITY_MAX_VALID_UNTIL_MS
-    );
     const durationHours = normalizeDurationHours(request.data?.durationHours);
     const expiresAt = now + durationHours * 60 * 60 * 1000;
     const statusId = `current_${uid}`;
@@ -539,8 +511,8 @@ export const publishUserIntentStatus = onCall<PublishUserIntentStatusRequest>(
       tx.set(statusRef, {
         uid,
         profile,
-        ageEligibilityVerifiedAdult: true,
-        ageEligibilityValidUntil,
+        ageEligibilityVerifiedAdult: FieldValue.delete(),
+        ageEligibilityValidUntil: FieldValue.delete(),
         availability,
         visibility,
         destination,
