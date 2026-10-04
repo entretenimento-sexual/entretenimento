@@ -424,12 +424,6 @@
                   </p>
                 }
 
-                @if (item.video.sizeBytes) {
-                  <div class="profile-videos__meta" aria-label="Tamanho do vídeo">
-                    <span>{{ formatFileSize(item.video.sizeBytes) }}</span>
-                  </div>
-                }
-
                 @if (
                   item.publication?.moderationReason &&
                   (item.publication?.moderationStatus === 'FLAGGED' ||
