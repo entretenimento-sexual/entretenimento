@@ -52,6 +52,10 @@ import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.comp
 import {
   ConfirmationDialogComponent,
 } from 'src/app/shared/components-globais/confirmation-dialog/confirmation-dialog.component';
+import { MediaActionMenuComponent } from 'src/app/media/shared/components/media-action-menu/media-action-menu.component';
+import {
+  MediaDateDialogComponent,
+} from 'src/app/media/shared/components/media-date-dialog/media-date-dialog.component';
 
 type IManageablePhotoItem = IProfilePhotoItem & {
   path?: string;
@@ -71,7 +75,13 @@ const DENY_UNKNOWN: IMediaPolicyResult = { decision: 'DENY', reason: 'UNKNOWN' }
 @Component({
   selector: 'app-profile-photos',
   standalone: true,
-  imports: [CommonModule, RouterModule, MatDialogModule, PageHeaderComponent],
+  imports: [
+    CommonModule,
+    RouterModule,
+    MatDialogModule,
+    PageHeaderComponent,
+    MediaActionMenuComponent,
+  ],
   templateUrl: './profile-photos.component.html',
   styleUrls: ['./profile-photos.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -245,71 +255,70 @@ export class ProfilePhotosComponent {
     return `${year}-${month}-${day}`;
   }
 
-  updatePhotoDisplayDate(
-    item: IPhotoCardVm,
-    event: Event
-  ): void {
-    event.stopPropagation();
-
-    const input = event.target as HTMLInputElement | null;
-    const rawValue = input?.value ?? '';
-
-    const nextDisplayDate = rawValue ? this.parseDateInputValue(rawValue) : null;
-
-    if (rawValue && nextDisplayDate === null) {
-      if (input) {
-        input.value = this.getDisplayDateInputValue(item);
-      }
-      this.errorNotifier.showWarning('Informe uma data válida.');
-      return;
-    }
-
+  editPhotoDate(item: IPhotoCardVm): void {
     combineLatest([this.isOwner$, this.ownerUid$, this.savingDisplayDateId$])
       .pipe(
         take(1),
         switchMap(([isOwner, ownerUid, savingDisplayDateId]) => {
-          if (!isOwner || !ownerUid?.trim()) {
-            this.errorNotifier.showWarning('Você não tem permissão para organizar esta foto.');
-            return EMPTY;
-          }
-
-          if (savingDisplayDateId === item.id) {
+          if (!isOwner || !ownerUid?.trim() || savingDisplayDateId === item.id) {
             return EMPTY;
           }
 
           if (!item.id?.trim()) {
-            this.errorNotifier.showWarning('Metadados insuficientes para atualizar a data.');
+            this.errorNotifier.showWarning(
+              'Metadados insuficientes para atualizar a data.'
+            );
             return EMPTY;
           }
 
-          this.savingDisplayDateIdSubject.next(item.id);
+          const dialogRef = this.dialog.open(MediaDateDialogComponent, {
+            data: { value: this.getDisplayDateInputValue(item) },
+            autoFocus: 'dialog',
+            restoreFocus: true,
+            ariaLabel: 'Alterar data da foto',
+            maxWidth: 'min(92vw, 420px)',
+          });
 
-          return from(
-            this.photoFirestoreService.updatePhotoDisplayDate(
-              ownerUid,
-              item.id,
-              nextDisplayDate
-            )
-          ).pipe(
-            tap(() => this.errorNotifier.showSuccess('Data da foto atualizada.')),
-            catchError((error) => {
-              if (input) {
-                input.value = this.getDisplayDateInputValue(item);
+          return dialogRef.afterClosed().pipe(
+            filter((value) => value !== undefined),
+            switchMap((value) => {
+              const nextDisplayDate = value
+                ? this.parseDateInputValue(value)
+                : null;
+
+              if (value && nextDisplayDate === null) {
+                this.errorNotifier.showWarning('Informe uma data válida.');
+                return EMPTY;
               }
-              this.reportError(
-                'media_publication_failed',
-                error,
-                {
-                  op: 'updatePhotoDisplayDate',
+
+              this.savingDisplayDateIdSubject.next(item.id);
+
+              return from(
+                this.photoFirestoreService.updatePhotoDisplayDate(
                   ownerUid,
-                  photoId: item.id,
-                }
+                  item.id,
+                  nextDisplayDate
+                )
+              ).pipe(
+                tap(() => this.errorNotifier.showSuccess('Data atualizada.')),
+                catchError((error) => {
+                  this.reportError(
+                    'media_publication_failed',
+                    error,
+                    {
+                      op: 'editPhotoDate',
+                      ownerUid,
+                      photoId: item.id,
+                    }
+                  );
+                  return EMPTY;
+                }),
+                finalize(() => this.savingDisplayDateIdSubject.next(null))
               );
-              return EMPTY;
-            }),
-            finalize(() => this.savingDisplayDateIdSubject.next(null))
+            })
           );
-        })
+        }),
+        takeUntilDestroyed(this.destroyRef)
       )
       .subscribe();
   }
@@ -565,7 +574,7 @@ export class ProfilePhotosComponent {
       .subscribe();
   }
 
-  private canManagePhotoPublication$(): Observable<{
+  private canManagePhoto$(): Observable<{
     canManage: boolean;
     ownerUid: string;
   }> {
@@ -581,7 +590,7 @@ export class ProfilePhotosComponent {
   setCoverPhoto(item: IPhotoCardVm, event?: Event): void {
     event?.stopPropagation();
 
-    this.canManagePhotoPublication$()
+    this.canManagePhoto$()
       .pipe(
         switchMap(({ canManage, ownerUid }) => {
           if (!canManage) {
