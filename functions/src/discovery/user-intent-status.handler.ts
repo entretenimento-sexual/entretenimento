@@ -350,10 +350,7 @@ async function findCompatibleNotificationCandidates(
       continue;
     }
 
-    const [targetSnapshot, targetAgeSnapshot] = await Promise.all([
-      db.collection('users').doc(targetUid).get(),
-      db.collection('age_eligibility_records').doc(targetUid).get(),
-    ]);
+    const targetSnapshot = await db.collection('users').doc(targetUid).get();
     const targetUser = targetSnapshot.data() as MessagingUserDoc | undefined;
 
     if (!isOperationalCandidate(targetUser) || !isSameRegion(targetUser, destination)) {
@@ -361,11 +358,7 @@ async function findCompatibleNotificationCandidates(
     }
 
     try {
-      assertInteractionAccessData(
-        targetUser,
-        targetAgeSnapshot.exists ? targetAgeSnapshot.data() : null,
-        targetUid
-      );
+      assertInteractionAccessData(targetUser, null, targetUid);
     } catch {
       continue;
     }
