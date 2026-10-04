@@ -8,5 +8,4 @@ export {
   syncPhotoPromotionFromPublication,
   syncPhotoPromotionFromAdvertiserAccount,
   syncPhotoPromotionFromUserLifecycle,
-  syncPhotoPromotionFromAgeEligibility,
 } from './sync-photo-promotion-lifecycle.trigger';
