@@ -51,6 +51,10 @@ export function normalizeUserAccountLifecycleStatus(
       : 'moderation_suspended';
   }
 
+  if (user.interactionBlocked === true) {
+    return 'locked';
+  }
+
   const raw = String(user.accountStatus ?? '')
     .trim()
     .toLowerCase();
