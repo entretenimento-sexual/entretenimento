@@ -256,7 +256,3 @@ export const syncPhotoPromotionFromUserLifecycle = onDocumentWritten(
     );
   }
 );
-
-
-    }
-  );
