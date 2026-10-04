@@ -41,7 +41,6 @@ match /public_index/{docId} {
       && user.profileCompleted == true
       && user.publicVisibility == "visible"
       && user.interactionBlocked == false
-      && canonicalAgeEligibilityAllowsAdultAccess(uid())
       && adultMediaHasCurrentTerms(user)
       && adultMediaHasRequiredConsent(user);
   }
