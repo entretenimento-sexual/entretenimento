@@ -3,8 +3,8 @@
 // COMMUNITY MEMBERSHIP ELIGIBILITY
 // -----------------------------------------------------------------------------
 // Centraliza a elegibilidade atual da conta para entrada e aprovação. O gate
-// social canônico protege conta/termos/maioridade; membership acrescenta apenas
-// o requisito específico de perfil concluído.
+// social canônico protege lifecycle/termos/consentimento; membership acrescenta
+// apenas o requisito específico de perfil concluído.
 // -----------------------------------------------------------------------------
 
 import type { Transaction } from 'firebase-admin/firestore';
@@ -18,9 +18,9 @@ import {
 export function assertCommunityMembershipActorEligible(
   rawUser: unknown,
   uid: string,
-  rawAgeEligibility: unknown
+  _rawAgeEligibility: unknown
 ): void {
-  assertCommunitySocialAccessEligible(rawUser, uid, rawAgeEligibility);
+  assertCommunitySocialAccessEligible(rawUser, uid, null);
 
   const user = (rawUser ?? {}) as Record<string, unknown>;
   if (user['profileCompleted'] !== true) {
@@ -44,16 +44,13 @@ export async function assertCommunityMembershipActorEligibleForUid(
     throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
   }
 
-  const [userSnapshot, ageEligibilitySnapshot] = await Promise.all([
-    db.collection('users').doc(normalizedUid).get(),
-    db.collection('age_eligibility_records').doc(normalizedUid).get(),
-  ]);
+  const userSnapshot = await db.collection('users').doc(normalizedUid).get();
   const user = userSnapshot.exists ? userSnapshot.data() ?? {} : null;
 
   assertCommunityMembershipActorEligible(
     user,
     normalizedUid,
-    ageEligibilitySnapshot.exists ? ageEligibilitySnapshot.data() : null
+    null
   );
 
   return (user ?? {}) as Record<string, unknown>;
@@ -69,13 +66,11 @@ export async function assertCommunityMembershipActorEligibleInTransaction(
     throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
   }
 
-  const ageEligibilitySnapshot = await transaction.get(
-    db.collection('age_eligibility_records').doc(normalizedUid)
-  );
+  void transaction;
 
   assertCommunityMembershipActorEligible(
     rawUser,
     normalizedUid,
-    ageEligibilitySnapshot.exists ? ageEligibilitySnapshot.data() : null
+    null
   );
 }
