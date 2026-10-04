@@ -8,8 +8,10 @@
 
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable, defer, from } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { Observable, defer, from, of } from 'rxjs';
+import { map, switchMap, take } from 'rxjs/operators';
+
+import { AgeEligibilityService } from 'src/app/core/services/compliance/age-eligibility.service';
 
 export type PublicMediaReadType = 'PHOTO' | 'VIDEO';
 export type PublicMediaReadMode =
@@ -46,6 +48,7 @@ export interface PublicMediaReadResponse {
 @Injectable({ providedIn: 'root' })
 export class PublicMediaReadBoundaryService {
   private readonly functions = inject(Functions);
+  private readonly ageEligibility = inject(AgeEligibilityService);
 
   private readonly callable = httpsCallable<
     PublicMediaReadRequest,
@@ -55,8 +58,27 @@ export class PublicMediaReadBoundaryService {
   read$(
     request: PublicMediaReadRequest
   ): Observable<PublicMediaReadResponse> {
-    return defer(() => from(this.callable(request))).pipe(
-      map((response) => response.data)
+    return this.ageEligibility.verifiedAdult$.pipe(
+      take(1),
+      switchMap((verifiedAdult) => {
+        if (!verifiedAdult) {
+          return of(this.emptyResponse());
+        }
+
+        return defer(() => from(this.callable(request))).pipe(
+          map((response) => response.data)
+        );
+      })
     );
+  }
+
+  private emptyResponse(): PublicMediaReadResponse {
+    return {
+      items: [],
+      nextCursor: null,
+      hasMore: false,
+      fetchedAt: Date.now(),
+      scanned: 0,
+    };
   }
 }
