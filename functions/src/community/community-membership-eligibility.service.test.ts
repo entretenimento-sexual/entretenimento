@@ -45,7 +45,7 @@ test('aceita conta elegível no instante da revisão', () => {
   );
 });
 
-test('nega perfil divergente, restrito, incompleto ou sem acesso adulto', () => {
+test('nega perfil divergente, restrito ou incompleto sem reavaliar assurance etário', () => {
   assert.throws(
     () => assertCommunityMembershipActorEligible(
       eligibleUser(),
@@ -89,14 +89,11 @@ test('nega perfil divergente, restrito, incompleto ou sem acesso adulto', () => 
       (error as { code?: unknown }).code === 'failed-precondition'
   );
 
-  assert.throws(
-    () =>
-      assertCommunityMembershipActorEligible(
-        eligibleUser(),
-        'user-1',
-        null
-      ),
-    (error: unknown) =>
-      (error as { code?: unknown }).code === 'failed-precondition'
+  assert.doesNotThrow(() =>
+    assertCommunityMembershipActorEligible(
+      eligibleUser(),
+      'user-1',
+      null
+    )
   );
 });
