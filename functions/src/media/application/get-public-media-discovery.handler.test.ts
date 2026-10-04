@@ -12,10 +12,6 @@ const NOW = 1_800_000_000_000;
 function media(overrides: Record<string, unknown> = {}) {
   return {
     ownerUid: 'owner-1',
-    ageEligibilityVerifiedAdult: true,
-    ageEligibilityValidUntil: {
-      toMillis: () => NOW + 60_000,
-    },
     visibility: 'PUBLIC',
     moderationStatus: 'APPROVED',
     publishedAt: NOW - 10_000,
@@ -27,45 +23,22 @@ function media(overrides: Record<string, unknown> = {}) {
 }
 
 describe('get-public-media-discovery backend-time boundary', () => {
-  it('aceita somente projeção pública adulta ainda vigente', () => {
+  it('aceita projeção pública aprovada sem depender de assurance etário', () => {
     assert.equal(isCurrentPublicMediaExposure(media(), NOW), true);
 
     assert.equal(
       isCurrentPublicMediaExposure(
         media({
-          ageEligibilityValidUntil: { toMillis: () => NOW },
-        }),
-        NOW
-      ),
-      false
-    );
-
-    assert.equal(
-      isCurrentPublicMediaExposure(
-        media({
+          ageEligibilityVerifiedAdult: false,
           ageEligibilityValidUntil: { toMillis: () => NOW - 1 },
         }),
         NOW
       ),
-      false
+      true
     );
   });
 
-  it('falha fechado para projeção etária ausente, não adulta ou mídia não pública', () => {
-    assert.equal(
-      isCurrentPublicMediaExposure(
-        media({ ageEligibilityVerifiedAdult: false }),
-        NOW
-      ),
-      false
-    );
-    assert.equal(
-      isCurrentPublicMediaExposure(
-        media({ ageEligibilityValidUntil: null }),
-        NOW
-      ),
-      false
-    );
+  it('falha fechado para mídia não pública ou moderada como restrita', () => {
     assert.equal(
       isCurrentPublicMediaExposure(
         media({ visibility: 'PRIVATE' }),
@@ -138,11 +111,13 @@ describe('get-public-media-discovery backend-time boundary', () => {
     }
   });
 
-  it('não serializa mídia cuja elegibilidade etária venceu sem nova escrita', () => {
+  it('não usa campos etários legados como autoridade de distribuição', () => {
     const serialized = serializePublicMediaForDiscovery(
-      'media-expired',
-      'public_profiles/owner-1/public_videos/media-expired',
+      'media-age-legacy',
+      'public_profiles/owner-1/public_videos/media-age-legacy',
       media({
+        ageEligibilityVerifiedAdult: false,
+        ageEligibilityAssurance: 'SELF_DECLARED',
         ageEligibilityValidUntil: { toMillis: () => NOW - 1 },
       }),
       {
@@ -154,7 +129,7 @@ describe('get-public-media-discovery backend-time boundary', () => {
       { ownerAllowed: true }
     );
 
-    assert.equal(serialized, null);
+    assert.equal(serialized?.['id'], 'media-age-legacy');
   });
 
   it('não serializa candidato quando o lifecycle do proprietário bloqueia exposição', () => {
