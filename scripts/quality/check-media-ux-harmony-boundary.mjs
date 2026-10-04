@@ -606,3 +606,34 @@ requireIncludes(profileVideosSettingsStyles, [
   '.profile-videos__upload-options',
   '.profile-videos__upload-primary-action',
 ], 'profile video progressive upload styles');
+
+
+const videoEditorTemplate = read(
+  'src/app/media/videos/video-editor/video-simple-editor-controls.component.html'
+);
+const videoEditorComponent = read(
+  'src/app/media/videos/video-editor/video-simple-editor-controls.component.ts'
+);
+const videoEditorStyles = read(
+  'src/app/media/videos/video-editor/video-simple-editor-controls.component.css'
+);
+
+requireIncludes(videoEditorComponent, [
+  "signal<TVideoEditorTool | null>(null)",
+  "current === tool ? null : tool",
+], 'video editor progressive tools state');
+
+requireIncludes(videoEditorTemplate, [
+  '@if (timeline && activeTool())',
+  '<span>Cortar</span>',
+  '<span>Formato</span>',
+  '<span>Girar</span>',
+  '<span>Áudio</span>',
+  '<span>Capa</span>',
+], 'video editor progressive tool disclosure');
+
+forbidIncludes(
+  videoEditorStyles,
+  '.video-simple-editor__tool-tabs button span {\n    display: none;',
+  'video editor desktop tools must remain self-explanatory'
+);
