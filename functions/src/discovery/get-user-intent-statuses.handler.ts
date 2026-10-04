@@ -3,9 +3,8 @@
 // USER INTENT STATUS READ BOUNDARY
 // -----------------------------------------------------------------------------
 // Listagens públicas de "Status de Hoje" passam por uma fronteira backend-time.
-// O cliente não enumera user_intent_statuses diretamente. A elegibilidade 18+
-// projetada é revalidada contra o relógio do servidor antes de qualquer item
-// sair da Callable, inclusive durante eventual atraso da materialização.
+// O cliente não enumera user_intent_statuses diretamente. Conta/lifecycle,
+// moderação, visibilidade e expiração do próprio status definem a exposição.
 // -----------------------------------------------------------------------------
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
@@ -152,19 +151,13 @@ export function isCurrentUserIntentStatusExposure(
   data: Record<string, unknown>,
   nowMs: number
 ): boolean {
-  const validUntilMs = timestampToMillis(
-    data['ageEligibilityValidUntil']
-  );
   const expiresAtMs = positiveEpoch(data['expiresAt']);
   const moderation =
     data['moderation'] && typeof data['moderation'] === 'object'
       ? data['moderation'] as Record<string, unknown>
       : {};
 
-  return data['ageEligibilityVerifiedAdult'] === true
-    && validUntilMs !== null
-    && validUntilMs > nowMs
-    && expiresAtMs !== null
+  return expiresAtMs !== null
     && expiresAtMs > nowMs
     && moderation['state'] === 'active'
     && data['visibility'] === 'public_discovery';
@@ -218,7 +211,6 @@ export function serializeUserIntentStatusForDiscovery(
       uid,
       nickname,
       photoURL: cleanText(rawProfile['photoURL']),
-      // A prova de maioridade não autoriza reprojetar idade exata.
       age: null,
     },
     availability: ALLOWED_AVAILABILITY.has(availability)
@@ -239,8 +231,6 @@ export function serializeUserIntentStatusForDiscovery(
     },
     startsAt: positiveEpoch(data['startsAt']) ?? 0,
     expiresAt: positiveEpoch(data['expiresAt']),
-    ageEligibilityValidUntil:
-      timestampToMillis(data['ageEligibilityValidUntil']),
     createdAt: timestampToMillis(data['createdAt']),
     updatedAt: timestampToMillis(data['updatedAt']),
   };
@@ -282,8 +272,7 @@ export const getUserIntentStatuses = onCall<UserIntentStatusesReadRequest>(
       .where('destination.region.uf', '==', region.uf)
       .where('destination.region.city', '==', region.city)
       .where('moderation.state', '==', 'active')
-      .where('visibility', '==', 'public_discovery')
-      .where('ageEligibilityVerifiedAdult', '==', true);
+      .where('visibility', '==', 'public_discovery');
 
     if (venueId) {
       statusesQuery = statusesQuery.where(
