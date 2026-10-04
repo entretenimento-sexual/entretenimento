@@ -550,3 +550,22 @@ requireIncludes(profileVideosComponent, [
   "return 'Vídeo indisponível.'",
   "return 'Finalizando vídeo.'",
 ], 'profile video automatic publication feedback');
+
+
+for (const forbidden of [
+  'profile-videos__meta',
+  'Tamanho do vídeo',
+]) {
+  forbidIncludes(
+    profileVideosTemplate,
+    forbidden,
+    'profile video gallery must not expose diagnostic file metadata'
+  );
+}
+
+requireIncludes(profileVideosComponent, [
+  "return 'Preparando'",
+  "return 'Finalizando'",
+  "return 'Em revisão'",
+  "return 'Indisponível'",
+], 'profile video meaningful state labels');
