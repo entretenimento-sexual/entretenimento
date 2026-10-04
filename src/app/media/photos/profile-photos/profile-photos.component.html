@@ -58,25 +58,8 @@
       <div class="empty-state app-empty-card" role="status" aria-live="polite">
         <div class="empty-copy">
           <span class="empty-icon" aria-hidden="true">🖼️</span>
-
-          <div>
-            <h3 class="app-empty-card__title">Sua vitrine ainda está vazia</h3>
-
-            <p class="app-empty-card__text">
-              Adicione uma foto para publicá-la no seu perfil.
-            </p>
-          </div>
+          <p class="app-empty-card__text">Nenhuma foto adicionada ainda.</p>
         </div>
-
-        @if (ownerUid && isOwner) {
-          <button
-            type="button"
-            class="app-action app-action--ghost"
-            (click)="openUpload(ownerUid)"
-          >
-            Adicionar foto
-          </button>
-        }
       </div>
     } @else {
       <!-- Toolbar principal: contador, filtros e ordenação. -->
