@@ -13,23 +13,25 @@
 <mat-menu #menu="matMenu" xPosition="before" class="app-media-action-menu-panel">
   <button mat-menu-item type="button" (click)="edit.emit()">
     <mat-icon fontIcon="edit"></mat-icon>
-    <span>Editar foto</span>
+    <span>{{ editLabel }}</span>
   </button>
 
-  <button mat-menu-item type="button" (click)="changeDate.emit()">
-    <mat-icon fontIcon="calendar_month"></mat-icon>
-    <span>Alterar data</span>
-  </button>
+  @if (showSecondaryAction) {
+    <button mat-menu-item type="button" (click)="secondaryAction.emit()">
+      <mat-icon [fontIcon]="secondaryIcon"></mat-icon>
+      <span>{{ secondaryLabel }}</span>
+    </button>
+  }
 
-  @if (canSetCover) {
+  @if (showFeatureAction) {
     <button
       mat-menu-item
       type="button"
-      [disabled]="isCover"
-      (click)="setCover.emit()"
+      [disabled]="featureActive"
+      (click)="featureAction.emit()"
     >
-      <mat-icon fontIcon="star"></mat-icon>
-      <span>{{ isCover ? 'Foto de capa' : 'Definir como capa' }}</span>
+      <mat-icon [fontIcon]="featureIcon"></mat-icon>
+      <span>{{ featureActive && featureCurrentLabel ? featureCurrentLabel : featureLabel }}</span>
     </button>
   }
 
@@ -42,6 +44,6 @@
     (click)="deleteRequested.emit()"
   >
     <mat-icon fontIcon="delete"></mat-icon>
-    <span>Excluir foto</span>
+    <span>{{ deleteLabel }}</span>
   </button>
 </mat-menu>
