@@ -10,8 +10,8 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import {
-  assertInteractionAccess,
-  assertInteractionAccessData,
+  assertInteractionAccess
+  assertPlatformAccountAccessData,
 } from '../../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
@@ -201,11 +201,7 @@ export const getPendingFriendRequests =
 
       for (const candidate of candidates) {
         try {
-          assertInteractionAccessData(
-            userByUid.get(candidate.counterpartUid),
-            null,
-            candidate.counterpartUid
-          );
+          assertPlatformAccountAccessData(userByUid.get(candidate.counterpartUid));
         } catch {
           continue;
         }
