@@ -461,6 +461,45 @@ for (const relativePath of [
   );
 }
 
+// Revalidação de conta não pode reescrever estado de Media.
+for (const relativePath of [
+  'functions/src/compliance/request-profile-age-reverification.handler.ts',
+  'functions/src/compliance/review-profile-age-reverification.handler.ts',
+]) {
+  forbidAll(
+    relativePath,
+    [
+      'profile-age-reverification-media',
+      'ageReverificationHidden',
+      'ageReverificationPreviousVisibility',
+      'ageReverificationPreviousModerationStatus',
+      'hideProfileMediaVisibility',
+      'restoreProfileMediaVisibility',
+    ],
+    'revalidação deve atuar pelo lifecycle da conta, não mutar Media'
+  );
+}
+
+requireAll(
+  'functions/src/compliance/request-profile-age-reverification.handler.ts',
+  [
+    "publicVisibility: 'hidden'",
+    'interactionBlocked: true',
+  ],
+  'revalidação deve materializar restrição no lifecycle da conta'
+);
+
+requireAll(
+  'functions/src/compliance/review-profile-age-reverification.handler.ts',
+  [
+    "publicVisibility: 'visible'",
+    'interactionBlocked: false',
+    "accountStatus: 'moderation_suspended'",
+    'interactionBlocked: true',
+  ],
+  'resultado da revalidação deve restaurar ou restringir a conta'
+);
+
 // Segurança de menor dentro do conteúdo é uma autoridade de moderação de Media.
 requireAll(
   'functions/src/media/application/media-report-safety.ts',
