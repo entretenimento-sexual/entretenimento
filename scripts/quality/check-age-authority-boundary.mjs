@@ -123,9 +123,9 @@ for (const relativePath of [
   forbidAll(
     relativePath,
     [
-      'canonicalAgeEligibilityAllowsAdultAccess',
+      'canonicalAgeEligibilityAllowsRegistration',
       'canonicalAgeEligibilityIsVerifiedAdult',
-      'currentUserHasAdultAgeAccess',
+      'currentUserHasRegistrationAgeEligibility',
       'currentUserHasVerifiedAdultAge',
       'publicAgeProjectionAllowsAdultExposure',
     ],
@@ -146,7 +146,7 @@ forbidAll(
 
 requireAll(
   'firestore-rules/users.rules',
-  ['currentUserHasAdultAgeAccess()'],
+  ['currentUserHasRegistrationAgeEligibility()'],
   'conclusão do cadastro deve consultar a autoridade etária da conta'
 );
 
@@ -437,7 +437,7 @@ for (const relativePath of [
   forbidAll(
     relativePath,
     [
-      'canonicalAgeEligibilityAllowsAdultAccess(userId)',
+      'canonicalAgeEligibilityAllowsRegistration(userId)',
       'ageEligibilityAdultAccessAllowed == true',
       'publicAgeProjectionAllowsAdultExposure',
     ],
@@ -561,7 +561,7 @@ for (const relativePath of [
   forbidAll(
     relativePath,
     [
-      'canonicalAgeEligibilityAllowsAdultAccess',
+      'canonicalAgeEligibilityAllowsRegistration',
       'canonicalAgeEligibilityIsVerifiedAdult',
       'ageEligibilityVerifiedAdult == true',
       'ageEligibilityValidUntil',
