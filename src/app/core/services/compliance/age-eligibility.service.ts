@@ -19,18 +19,14 @@ import {
   BehaviorSubject,
   Observable,
   combineLatest,
-  concat,
   from,
-  of,
   throwError,
-  timer,
 } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
   map,
   shareReplay,
-  switchMap,
   take,
 } from 'rxjs/operators';
 
@@ -114,52 +110,6 @@ export class AgeEligibilityService {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-  readonly adultAccessAllowed$: Observable<boolean> = this.current$.pipe(
-    switchMap((state) => this.observeAdultAccessWindow$(state)),
-    distinctUntilChanged(),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
-
-  /**
-   * Gate de entrada idempotente.
-   *
-   * Se a projeção local ainda vier UNVERIFIED para uma conta já resolvida,
-   * consulta primeiro as fontes backend e restaura eventual declaração
-   * histórica antes de decidir navegação.
-   */
-  readonly reconciledAdultAccess$: Observable<boolean> = combineLatest([
-    this.currentUser.user$,
-    this.current$,
-  ]).pipe(
-    switchMap(([user, state]) => {
-      const uid = String(user?.uid ?? '').trim();
-
-      if (!uid) {
-        return of(false);
-      }
-
-      if (state.status !== 'UNVERIFIED') {
-        return this.observeAdultAccessWindow$(state);
-      }
-
-      return this.refreshTrustedSources$().pipe(
-        map(
-          (status) =>
-            status === 'SELF_DECLARED_ADULT' ||
-            status === 'VERIFIED_ADULT'
-        ),
-        catchError(() => of(false))
-      );
-    }),
-    distinctUntilChanged(),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
-
-  readonly verifiedAdult$: Observable<boolean> = this.current$.pipe(
-    switchMap((state) => this.observeVerifiedWindow$(state)),
-    distinctUntilChanged(),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
 
   getCurrentOnce$(): Observable<IUserAgeEligibility> {
     return this.current$.pipe(take(1));
@@ -342,115 +292,6 @@ export class AgeEligibilityService {
 
         return throwError(() => error);
       })
-    );
-  }
-
-  private observeAdultAccessWindow$(
-    state: IUserAgeEligibility
-  ): Observable<boolean> {
-    const now = Date.now();
-    const active = this.isAdultAccessAllowedAt(state, now);
-    const futureBoundaries = [state.expiresAtMs].filter(
-      (value): value is number =>
-        typeof value === 'number' &&
-        Number.isFinite(value) &&
-        value > now
-    );
-
-    if (futureBoundaries.length === 0) {
-      return of(active);
-    }
-
-    const nextBoundary = Math.min(...futureBoundaries);
-    const delayMs = Math.max(1, nextBoundary - now + 1);
-
-    return concat(
-      of(active),
-      timer(delayMs).pipe(
-        switchMap(() => this.observeAdultAccessWindow$(state))
-      )
-    );
-  }
-
-  private isAdultAccessAllowedAt(
-    state: IUserAgeEligibility,
-    now: number
-  ): boolean {
-    if (
-      state.policyVersion !== 1 ||
-      (
-        state.status !== 'SELF_DECLARED_ADULT' &&
-        state.status !== 'VERIFIED_ADULT'
-      )
-    ) {
-      return false;
-    }
-
-    if (
-      state.status === 'VERIFIED_ADULT' &&
-      state.verifiedAtMs != null &&
-      state.verifiedAtMs > now
-    ) {
-      return false;
-    }
-
-    return (
-      state.expiresAtMs == null ||
-      now < state.expiresAtMs
-    );
-  }
-
-  private observeVerifiedWindow$(
-    state: IUserAgeEligibility
-  ): Observable<boolean> {
-    const now = Date.now();
-    const active = this.isVerifiedAdultAt(state, now);
-    const futureBoundaries = [
-      state.verifiedAtMs,
-      state.expiresAtMs,
-    ].filter(
-      (value): value is number =>
-        typeof value === 'number' &&
-        Number.isFinite(value) &&
-        value > now
-    );
-
-    if (futureBoundaries.length === 0) {
-      return of(active);
-    }
-
-    const nextBoundary = Math.min(...futureBoundaries);
-    const delayMs = Math.max(1, nextBoundary - now + 1);
-
-    return concat(
-      of(active),
-      timer(delayMs).pipe(
-        switchMap(() => this.observeVerifiedWindow$(state))
-      )
-    );
-  }
-
-  private isVerifiedAdultAt(
-    state: IUserAgeEligibility,
-    now: number
-  ): boolean {
-    if (
-      state.status !== 'VERIFIED_ADULT' ||
-      state.policyVersion !== 1
-    ) {
-      return false;
-    }
-
-    if (
-      state.verifiedAtMs != null &&
-      state.verifiedAtMs > now
-    ) {
-      return false;
-    }
-
-    return (
-      state.expiresAtMs == null ||
-      now < state.expiresAtMs
     );
   }
 
