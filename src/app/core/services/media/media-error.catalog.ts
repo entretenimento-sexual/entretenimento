@@ -9,31 +9,11 @@ export const MEDIA_ERROR_MESSAGES = Object.freeze({
       'Aceite os termos vigentes antes de acessar conteúdo adulto.',
     ADULT_CONSENT_REQUIRED:
       'Confirme o acesso à experiência adulta antes de continuar.',
-    AGE_VERIFICATION_REQUIRED:
-      'Conclua a verificação de maioridade antes de acessar este conteúdo.',
-    AGE_ACCESS_DENIED:
-      'O acesso adulto não está disponível para esta conta.',
-    AGE_REVERIFICATION_REQUIRED:
-      'Conclua a revalidação de idade antes de acessar este conteúdo.',
 
     terms_required:
       'Aceite os termos vigentes antes de continuar.',
     adult_consent_required:
       'Confirme o acesso à experiência adulta antes de continuar.',
-    age_reverification_required:
-      'Conclua a revalidação de idade antes de continuar.',
-    verification_required:
-      'Conclua a verificação de maioridade antes de continuar.',
-    review_required:
-      'A verificação de maioridade precisa ser concluída antes de continuar.',
-    verification_expired:
-      'Sua verificação de maioridade expirou. Verifique novamente para continuar.',
-    record_mismatch:
-      'Sua verificação de maioridade precisa ser atualizada antes de continuar.',
-    policy_outdated:
-      'Sua verificação de maioridade precisa ser atualizada antes de continuar.',
-    underage:
-      'O acesso adulto não está disponível para esta conta.',
     account_interaction_blocked:
       'Esta conta não pode realizar esta ação no momento.',
     moderation_automation_hold:
@@ -367,34 +347,6 @@ export const MEDIA_ERROR_PRESENTATIONS:
       },
       dismissLabel: 'Agora não',
     },
-    AGE_VERIFICATION_REQUIRED: {
-      surface: 'modal',
-      severity: 'info',
-      title: 'Verificação de maioridade necessária',
-      primaryAction: {
-        label: 'Verificar agora',
-        route: '/adulto/verificar-idade',
-      },
-      dismissLabel: 'Agora não',
-    },
-    AGE_ACCESS_DENIED: {
-      surface: 'modal',
-      severity: 'warning',
-      title: 'Acesso adulto indisponível',
-      primaryAction: { label: 'Ver status da conta', route: '/conta/status' },
-      dismissLabel: 'Fechar',
-    },
-    AGE_REVERIFICATION_REQUIRED: {
-      surface: 'modal',
-      severity: 'warning',
-      title: 'Confirmação de maioridade necessária',
-      primaryAction: {
-        label: 'Revalidar agora',
-        route: '/adulto/revalidar',
-      },
-      dismissLabel: 'Agora não',
-    },
-
     terms_required: {
       surface: 'modal',
       severity: 'info',
@@ -414,69 +366,6 @@ export const MEDIA_ERROR_PRESENTATIONS:
         route: '/adulto/confirmar',
       },
       dismissLabel: 'Agora não',
-    },
-    age_reverification_required: {
-      surface: 'modal',
-      severity: 'warning',
-      title: 'Confirmação de maioridade necessária',
-      primaryAction: {
-        label: 'Revalidar agora',
-        route: '/adulto/revalidar',
-      },
-      dismissLabel: 'Agora não',
-    },
-    verification_required: {
-      surface: 'modal',
-      severity: 'info',
-      title: 'Verificação de maioridade necessária',
-      primaryAction: {
-        label: 'Verificar agora',
-        route: '/adulto/verificar-idade',
-      },
-      dismissLabel: 'Agora não',
-    },
-    review_required: {
-      surface: 'modal',
-      severity: 'info',
-      title: 'Verificação em andamento',
-      dismissLabel: 'Fechar',
-    },
-    verification_expired: {
-      surface: 'modal',
-      severity: 'warning',
-      title: 'Verificação de maioridade expirada',
-      primaryAction: {
-        label: 'Verificar novamente',
-        route: '/adulto/verificar-idade',
-      },
-      dismissLabel: 'Agora não',
-    },
-    record_mismatch: {
-      surface: 'modal',
-      severity: 'warning',
-      title: 'Verificação precisa ser atualizada',
-      primaryAction: {
-        label: 'Atualizar verificação',
-        route: '/adulto/verificar-idade',
-      },
-      dismissLabel: 'Agora não',
-    },
-    policy_outdated: {
-      surface: 'modal',
-      severity: 'warning',
-      title: 'Verificação precisa ser atualizada',
-      primaryAction: {
-        label: 'Atualizar verificação',
-        route: '/adulto/verificar-idade',
-      },
-      dismissLabel: 'Agora não',
-    },
-    underage: {
-      surface: 'modal',
-      severity: 'warning',
-      title: 'Acesso adulto indisponível',
-      primaryAction: { label: 'Ver status da conta', route: '/conta/status' },
-      dismissLabel: 'Fechar',
     },
     account_interaction_blocked: {
       surface: 'modal',
