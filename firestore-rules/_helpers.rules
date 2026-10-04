@@ -160,63 +160,9 @@ service cloud.firestore {
         );
     }
 
-    function publicAgeProjectionAllowsAdultExposure(data) {
-      let validUntil = data is map
-        ? mapFieldOrNull(data, "ageEligibilityValidUntil")
-        : null;
-      let accessAllowed = data is map
-        ? mapFieldOrNull(data, "ageEligibilityAdultAccessAllowed")
-        : null;
-      let legacyVerified = data is map
-        ? mapFieldOrNull(data, "ageEligibilityVerifiedAdult")
-        : null;
-
-      return data is map
-        && (accessAllowed == true || legacyVerified == true)
-        && validUntil is timestamp
-        && request.time < validUntil;
-    }
-
-    function canonicalAgeEligibilityRecordIsVerifiedAdult(userId, eligibility) {
-      let verifiedAt = eligibility is map
-        ? mapFieldOrNull(eligibility, "verifiedAt")
-        : null;
-      let expiresAt = eligibility is map
-        ? mapFieldOrNull(eligibility, "expiresAt")
-        : null;
-
-      return eligibility is map
-        && eligibility.uid == userId
-        && eligibility.policyVersion == 1
-        && eligibility.status == "VERIFIED_ADULT"
-        && verifiedAt is timestamp
-        && verifiedAt <= request.time
-        && (
-          expiresAt == null
-          || (expiresAt is timestamp && request.time < expiresAt)
-        );
-    }
-
-    function canonicalAgeEligibilityIsVerifiedAdult(userId) {
-      let eligibilityPath = canonicalAgeEligibilityPath(userId);
-      let eligibility = signedIn()
-        ? get(eligibilityPath).data
-        : null;
-
-      return canonicalAgeEligibilityRecordIsVerifiedAdult(
-        userId,
-        eligibility
-      );
-    }
-
     function currentUserHasAdultAgeAccess() {
       return signedIn()
         && canonicalAgeEligibilityAllowsAdultAccess(uid());
-    }
-
-    function currentUserHasVerifiedAdultAge() {
-      return signedIn()
-        && canonicalAgeEligibilityIsVerifiedAdult(uid());
     }
 
     function currentUserCanUseAdultSocialPlatform() {
