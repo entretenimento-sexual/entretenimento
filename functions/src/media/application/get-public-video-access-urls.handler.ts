@@ -248,16 +248,15 @@ export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
     /**
      * Esta Function é a barreira definitiva antes de emitir URL assinada.
      * O Router protege a UX, mas não é fronteira de segurança: lifecycle,
-     * termos vigentes, consentimento adulto e reverificação etária são
-     * validados novamente no backend a cada emissão/renovação.
+     * termos vigentes e consentimento adulto são validados novamente no
+     * backend a cada emissão/renovação; assurance etário não é gate de Media.
      *
      * MANUTENÇÃO — RESTRIÇÃO FUTURA POR ASSINATURA/AUDIÊNCIA
      * Quando FRIENDS, SUBSCRIBERS ou PREMIUM forem ativados, esta policy deve
      * ser estendida com amizade/entitlement vigentes. Compartilhar um link ou
      * uma referência no chat nunca concede acesso por si só.
      */
-    const viewerAccess =
-      await assertPublicMediaConsumptionAccess(viewerUid);
+    await assertPublicMediaConsumptionAccess(viewerUid);
     const nowMs = Date.now();
 
     const ownerUids = [
