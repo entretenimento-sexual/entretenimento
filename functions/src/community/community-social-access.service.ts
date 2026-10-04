@@ -9,7 +9,7 @@
 import { HttpsError } from 'firebase-functions/v2/https';
 
 import {
-  assertInteractionAccessData,
+  assertPlatformAccountAccessData,
 } from '../account_lifecycle/interaction-access.policy';
 import { db } from '../firebaseApp';
 
@@ -27,7 +27,7 @@ export function assertCommunitySocialAccessEligible(
     });
   }
 
-  assertInteractionAccessData(user, null, uid);
+  assertPlatformAccountAccessData(user);
 
   if (
     user['accountLocked'] === true ||
