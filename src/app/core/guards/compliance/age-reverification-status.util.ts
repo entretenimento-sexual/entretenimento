@@ -1,6 +1,5 @@
 import type {
   AgeReverificationStatus,
-  IUserAgeReverification,
 } from 'src/app/core/interfaces/iuser-dados';
 
 export function normalizeAgeReverificationStatus(
