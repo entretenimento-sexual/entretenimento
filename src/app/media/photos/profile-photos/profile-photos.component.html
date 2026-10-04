@@ -5,9 +5,9 @@
   Diretriz visual:
   - usa o card system global: app-card, app-toolbar, app-action, app-chip;
   - mantém classes locais para compatibilidade visual durante a migração gradual;
-  - fluxo de produto: adicionar/editar -> publicar -> moderação posterior ou em tempo real quando houver sinal;
-  - não oferece mais "ocultar mantendo privada" para foto já publicada;
-  - mantém capa como recurso discreto de destaque, fora dos filtros principais;
+  - fluxo de produto: adicionar -> publicar automaticamente -> gerir foto;
+  - estado de publicação é interno; a UI só expõe restrições reais de segurança;
+  - mantém capa como recurso discreto de destaque;
   - adiciona organização por data sem criar pastas ou eventos;
   - bloqueia mutações do proprietário enquanto a mídia estiver em revisão;
   - prioriza mobile, acessibilidade e leitura clara dos estados.
@@ -61,48 +61,41 @@
         </div>
       </div>
     } @else {
-      <!-- Toolbar principal: contador, filtros e ordenação. -->
-      <div class="gallery-toolbar app-toolbar" aria-live="polite">
-        <div class="gallery-toolbar__summary app-toolbar__summary">
-          @let total = (totalPhotos$ | async) || 0;
+      @let total = (totalPhotos$ | async) || 0;
+      @if (total > 1) {
+        <div class="gallery-toolbar app-toolbar" aria-live="polite">
+          <div class="gallery-toolbar__summary app-toolbar__summary">
+            <strong>{{ total }}</strong> fotos
+          </div>
 
-          <strong>{{ total }}</strong>
-          {{ total === 1 ? 'foto' : 'fotos' }}
+          <div
+            class="gallery-toolbar__controls app-toolbar__controls"
+            aria-label="Ordenar fotos"
+          >
+            <div class="gallery-filter-group app-segmented" aria-label="Ordenar fotos">
+              <button
+                type="button"
+                class="gallery-filter app-segmented__button"
+                [class.gallery-filter--active]="getSortModeSnapshot() === 'newest'"
+                [class.app-segmented__button--active]="getSortModeSnapshot() === 'newest'"
+                (click)="setSortMode('newest')"
+              >
+                Recentes
+              </button>
 
-          @if ((items?.length || 0) !== total) {
-            <span>
-              · {{ items?.length || 0 }} exibida{{ (items?.length || 0) === 1 ? '' : 's' }} neste filtro
-            </span>
-          }
-        </div>
-
-        <div
-          class="gallery-toolbar__controls app-toolbar__controls"
-          aria-label="Filtros e ordenação das fotos"
-        >
-          <div class="gallery-filter-group app-segmented" aria-label="Ordenar fotos">
-            <button
-              type="button"
-              class="gallery-filter app-segmented__button"
-              [class.gallery-filter--active]="getSortModeSnapshot() === 'newest'"
-              [class.app-segmented__button--active]="getSortModeSnapshot() === 'newest'"
-              (click)="setSortMode('newest')"
-            >
-              Recentes
-            </button>
-
-            <button
-              type="button"
-              class="gallery-filter app-segmented__button"
-              [class.gallery-filter--active]="getSortModeSnapshot() === 'oldest'"
-              [class.app-segmented__button--active]="getSortModeSnapshot() === 'oldest'"
-              (click)="setSortMode('oldest')"
-            >
-              Antigas
-            </button>
+              <button
+                type="button"
+                class="gallery-filter app-segmented__button"
+                [class.gallery-filter--active]="getSortModeSnapshot() === 'oldest'"
+                [class.app-segmented__button--active]="getSortModeSnapshot() === 'oldest'"
+                (click)="setSortMode('oldest')"
+              >
+                Antigas
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      }
 
       <!-- Lista de cards de mídia. -->
       <div
