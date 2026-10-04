@@ -4,7 +4,7 @@ import { describe, it } from 'node:test';
 import {
   buildAgeReverificationDueAt,
   calculateAgeBand,
-  isAgeReverificationAccessRestricted,
+  isAgeReverificationAssuranceUnresolved,
   isAgeReverificationSubmissionAcceptedStatus,
   isProfileMinorSafetyReport,
 } from './profile-age-reverification.policy';
@@ -42,12 +42,12 @@ describe('profile-age-reverification policy', () => {
   });
 
   it('restringe somente estados pendentes de revalidação', () => {
-    assert.equal(isAgeReverificationAccessRestricted('REQUIRED'), true);
-    assert.equal(isAgeReverificationAccessRestricted('SUBMITTED'), true);
-    assert.equal(isAgeReverificationAccessRestricted('UNDER_REVIEW'), true);
-    assert.equal(isAgeReverificationAccessRestricted('EXPIRED'), true);
-    assert.equal(isAgeReverificationAccessRestricted('VERIFIED'), false);
-    assert.equal(isAgeReverificationAccessRestricted('REJECTED'), false);
+    assert.equal(isAgeReverificationAssuranceUnresolved('REQUIRED'), true);
+    assert.equal(isAgeReverificationAssuranceUnresolved('SUBMITTED'), true);
+    assert.equal(isAgeReverificationAssuranceUnresolved('UNDER_REVIEW'), true);
+    assert.equal(isAgeReverificationAssuranceUnresolved('EXPIRED'), true);
+    assert.equal(isAgeReverificationAssuranceUnresolved('VERIFIED'), false);
+    assert.equal(isAgeReverificationAssuranceUnresolved('REJECTED'), false);
   });
 
   it('define meta operacional padrão de sete dias', () => {
