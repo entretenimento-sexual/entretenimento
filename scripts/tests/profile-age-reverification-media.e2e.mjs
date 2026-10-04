@@ -365,13 +365,15 @@ async function run() {
     });
     const reportId = reportResponse.data.reportId;
 
-    await requestProfileAgeReverification({
+    const reverificationResponse = await requestProfileAgeReverification({
       reportId,
       resolution: 'Indícios suficientes para solicitar revalidação de idade.',
     });
+    const caseId = reverificationResponse.data.caseId;
+    const ageCaseRef = db.doc(`age_reverification_cases/${caseId}`);
 
-    const hiddenMedia = await waitFor(
-      'mídia ficar indisponível durante a reverificação',
+    const restrictedState = await waitFor(
+      'conta ficar restrita sem reescrever a mídia',
       async () => ({
         video: await readData(publicVideoRef),
         photo: await readData(publicPhotoRef),
@@ -381,44 +383,23 @@ async function run() {
       }),
       (state) =>
         state.video?.visibility === 'PUBLIC' &&
-        state.video?.moderationStatus === 'HIDDEN' &&
-        state.video?.ageReverificationHidden === true &&
-        state.photo?.visibility === 'PRIVATE' &&
-        state.photo?.ageReverificationHidden === true &&
+        state.video?.moderationStatus === 'APPROVED' &&
+        state.photo?.visibility === 'PUBLIC' &&
         state.videoPublication?.visibility === 'PUBLIC' &&
-        state.videoPublication?.moderationStatus === 'FLAGGED' &&
-        state.videoPublication?.ageReverificationHidden === true &&
-        state.photoPublication?.visibility === 'PRIVATE' &&
-        state.photoPublication?.ageReverificationHidden === true &&
+        state.videoPublication?.moderationStatus === 'APPROVED' &&
+        state.photoPublication?.visibility === 'PUBLIC' &&
         state.profile === null
     );
-    const caseId = hiddenMedia.video.ageReverificationCaseId;
-    const ageCaseRef = db.doc(`age_reverification_cases/${caseId}`);
 
-    assert.equal(hiddenMedia.photo.ageReverificationCaseId, caseId);
+    assert.equal(restrictedState.video.ageReverificationHidden, undefined);
+    assert.equal(restrictedState.photo.ageReverificationHidden, undefined);
     assert.equal(
-      hiddenMedia.videoPublication.ageReverificationCaseId,
-      caseId
+      restrictedState.videoPublication.ageReverificationHidden,
+      undefined
     );
     assert.equal(
-      hiddenMedia.photoPublication.ageReverificationCaseId,
-      caseId
-    );
-    assert.equal(
-      hiddenMedia.video.ageReverificationPreviousVisibility,
-      'PUBLIC'
-    );
-    assert.equal(
-      hiddenMedia.video.ageReverificationPreviousModerationStatus,
-      'APPROVED'
-    );
-    assert.equal(
-      hiddenMedia.videoPublication.ageReverificationPreviousModerationStatus,
-      'APPROVED'
-    );
-    assert.equal(
-      hiddenMedia.photo.ageReverificationPreviousVisibility,
-      'PUBLIC'
+      restrictedState.photoPublication.ageReverificationHidden,
+      undefined
     );
 
     for (const [callable, payload] of restrictedCallables) {
@@ -449,7 +430,7 @@ async function run() {
     });
 
     const restoredState = await waitFor(
-      'mídia, publicações e perfil serem restaurados',
+      'acesso e projeções de conta serem restaurados sem mutar mídia',
       async () => ({
         video: await readData(publicVideoRef),
         photo: await readData(publicPhotoRef),
@@ -462,14 +443,10 @@ async function run() {
       (state) =>
         state.video?.visibility === 'PUBLIC' &&
         state.video?.moderationStatus === 'APPROVED' &&
-        state.video?.ageReverificationHidden !== true &&
         state.photo?.visibility === 'PUBLIC' &&
-        state.photo?.ageReverificationHidden !== true &&
         state.videoPublication?.visibility === 'PUBLIC' &&
         state.videoPublication?.moderationStatus === 'APPROVED' &&
-        state.videoPublication?.ageReverificationHidden !== true &&
         state.photoPublication?.visibility === 'PUBLIC' &&
-        state.photoPublication?.ageReverificationHidden !== true &&
         state.profile?.uid === targetUid &&
         state.nicknameIndex?.uid === targetUid &&
         state.ageCase?.publicProfileBackup === undefined &&
@@ -481,10 +458,9 @@ async function run() {
     assert.equal(restoredState.profile.coverVideoId, 'cover-before-review');
     assert.equal(restoredState.nicknameIndex.createdAt, 123456);
 
-    console.log('✔ vídeos foram colocados em quarentena sem estado privado');
-    console.log('✔ fotos permaneceram ocultas pela política existente');
+    console.log('✔ revalidação restringiu a conta sem reescrever mídia');
     console.log('✔ chamadas manuais de publicação e interação foram bloqueadas');
-    console.log('✔ Callables de URL recusaram mídia durante a revalidação');
+    console.log('✔ Callables de URL recusaram mídia via lifecycle da conta');
     console.log('✔ perfil enriquecido, índice e visibilidade foram restaurados');
     console.log('✔ backups de compliance foram removidos ao encerrar o caso');
   } finally {
