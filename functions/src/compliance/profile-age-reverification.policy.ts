@@ -41,7 +41,7 @@ export function isAgeReverificationSubmissionAcceptedStatus(
   return normalized === 'REQUIRED' || normalized === 'EXPIRED';
 }
 
-export function isAgeReverificationAccessRestricted(
+export function isAgeReverificationAssuranceUnresolved(
   status: unknown
 ): boolean {
   const normalized = String(status ?? '').trim().toUpperCase();
