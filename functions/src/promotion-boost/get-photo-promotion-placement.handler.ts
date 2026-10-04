@@ -1,7 +1,7 @@
 // functions/src/promotion-boost/get-photo-promotion-placement.handler.ts
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import { assertInteractionAccessData } from '../account_lifecycle/interaction-access.policy';
+import { assertPlatformAccountAccessData } from '../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import { REQUIRE_CALLABLE_APP_CHECK, assertCallableAppCheck } from '../shared/security/callable-app-check';
@@ -48,14 +48,9 @@ export const getPhotoPromotionPlacement = onCall<Request>(
       throw new HttpsError('invalid-argument', 'Contexto de Promotion/Boost inválido.');
     }
 
-    const [userSnapshot, ageSnapshot] = await Promise.all([
-      db.collection('users').doc(uid).get(),
-      db.collection('age_eligibility_records').doc(uid).get(),
-    ]);
-    assertInteractionAccessData(
-      userSnapshot.exists ? userSnapshot.data() : null,
-      ageSnapshot.exists ? ageSnapshot.data() : null,
-      uid
+    const userSnapshot = await db.collection('users').doc(uid).get();
+    assertPlatformAccountAccessData(
+      userSnapshot.exists ? userSnapshot.data() : null
     );
 
     if (organic.length < MIN_ORGANIC) {
