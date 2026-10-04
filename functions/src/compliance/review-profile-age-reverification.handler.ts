@@ -24,10 +24,6 @@ import {
   writeCanonicalAgeEligibilityInTransaction,
 } from './age-eligibility.service';
 import {
-  readProfileMediaVisibilitySnapshots,
-  restoreProfileMediaVisibility,
-} from './profile-age-reverification-media';
-import {
   type AgeReverificationUserDocument,
   type ModerationReportDocument,
   assertComplianceModerator,
@@ -179,9 +175,6 @@ export const reviewProfileAgeReverification = onCall<
         (accountStatus === 'active' && user.suspended !== true) ||
         ageDecisionOwnsSuspension
       );
-      const mediaSnapshots = canRestoreAccess
-        ? await readProfileMediaVisibilitySnapshots(transaction, targetUid)
-        : null;
       const timestamp = FieldValue.serverTimestamp();
       const publicProfileRef = db
         .collection('public_profiles')
@@ -253,7 +246,7 @@ export const reviewProfileAgeReverification = onCall<
           { merge: true }
         );
 
-        if (canRestoreAccess && mediaSnapshots) {
+        if (canRestoreAccess) {
           const publicProfileBackup = asBackupRecord(
             ageCase.publicProfileBackup
           );
@@ -261,12 +254,6 @@ export const reviewProfileAgeReverification = onCall<
             ageCase.nicknameIndexBackup
           );
 
-          restoreProfileMediaVisibility(
-            transaction,
-            mediaSnapshots,
-            caseId,
-            reviewedAt
-          );
           transaction.set(
             publicProfileRef,
             publicProfileBackup
@@ -351,7 +338,6 @@ export const reviewProfileAgeReverification = onCall<
           resolution,
           evidenceMethod: evidence.method,
           evidenceReferenceHash: evidence.referenceHash,
-          restoredMediaDocumentCount: mediaSnapshots?.totalDocuments ?? 0,
           activeAppealCaseId: null,
           publicProfileBackup: FieldValue.delete(),
           nicknameIndexBackup: FieldValue.delete(),
@@ -409,7 +395,6 @@ export const reviewProfileAgeReverification = onCall<
           caseId,
           decision,
           nextStatus: finalStatus,
-          restoredMediaDocumentCount: mediaSnapshots?.totalDocuments ?? 0,
           resolution,
           evidenceMethod: evidence.method,
           evidenceReferenceHash: evidence.referenceHash,
@@ -429,7 +414,6 @@ export const reviewProfileAgeReverification = onCall<
         source: 'moderation',
         evidenceMethod: evidence.method,
         evidenceReferenceHash: evidence.referenceHash,
-        restoredMediaDocumentCount: mediaSnapshots?.totalDocuments ?? 0,
         createdAt: timestamp,
         createdAtMs: reviewedAt,
       });
