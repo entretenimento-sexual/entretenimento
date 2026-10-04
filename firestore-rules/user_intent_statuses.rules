@@ -21,17 +21,14 @@ match /user_intent_statuses/{statusId} {
   }
 
   function isDiscoverableStatus() {
-    let validUntil = resource.data.ageEligibilityValidUntil;
-    return resource.data.ageEligibilityVerifiedAdult == true
-      && validUntil is timestamp
-      && request.time < validUntil
+    return resource.data.uid is string
       && resource.data.moderation.state == "active"
       && resource.data.visibility == "public_discovery";
   }
 
-  function targetCanonicalAgeEligibilityAllowsAdultExposure() {
+  function targetLifecycleAllowsExposure() {
     return resource.data.uid is string
-      && canonicalAgeEligibilityIsVerifiedAdult(resource.data.uid);
+      && canonicalOwnerLifecycleAllowsPublicMediaExposure(resource.data.uid);
   }
 
   allow get: if isCurrentStatusPath()
@@ -41,13 +38,13 @@ match /user_intent_statuses/{statusId} {
         isOwnerStatus()
         || (
           isDiscoverableStatus()
-          && targetCanonicalAgeEligibilityAllowsAdultExposure()
+          && targetLifecycleAllowsExposure()
         )
       )
     );
 
   // Enumeração client-side encerrada. As listagens públicas atravessam
-  // getUserIntentStatuses, que aplica relógio e elegibilidade no backend.
+  // getUserIntentStatuses, que aplica relógio, lifecycle e moderação no backend.
   allow list: if false;
 
   allow create, update, delete: if false;
