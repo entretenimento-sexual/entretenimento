@@ -26,8 +26,66 @@
 .profile-videos__upload-composer {
   align-content: start;
   min-width: 0;
-  padding: clamp(13px, 2vw, 18px);
-  border-radius: 16px;
+  padding: 13px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+}
+
+.profile-videos__upload-options {
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
+  border-radius: 14px;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #101923) 96%,
+    var(--text-color, #f5f7fb) 2%
+  );
+}
+
+.profile-videos__upload-options > summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 10px 13px;
+  cursor: pointer;
+  color: color-mix(
+    in oklab,
+    var(--text-color, #f5f7fb) 82%,
+    transparent
+  );
+  font-size: 0.84rem;
+  font-weight: 760;
+  list-style: none;
+}
+
+.profile-videos__upload-options > summary::-webkit-details-marker {
+  display: none;
+}
+
+.profile-videos__upload-options > summary::after {
+  content: '›';
+  margin-left: auto;
+  font-size: 1.1rem;
+  transform: rotate(90deg);
+  transition: transform 160ms ease;
+}
+
+.profile-videos__upload-options[open] > summary::after {
+  transform: rotate(-90deg);
+}
+
+.profile-videos__upload-options[open] > summary {
+  border-bottom: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
+}
+
+.profile-videos__upload-primary-action {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.profile-videos__upload-primary-action .app-action {
+  min-height: 44px;
+  min-width: 150px;
 }
 
 .profile-videos__upload-start {
