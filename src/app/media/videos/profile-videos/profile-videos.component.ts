@@ -149,7 +149,7 @@ export class ProfileVideosComponent {
   readonly editingVideoId$ = this.editingVideoIdSubject.asObservable();
 
   readonly uploadPublicationForm = this.formBuilder.nonNullable.group({
-    title: ['', [Validators.required, Validators.maxLength(120)]],
+    title: ['', [Validators.maxLength(120)]],
     description: ['', [Validators.maxLength(1000)]],
     reactionsEnabled: [true],
     commentsEnabled: [true],
@@ -353,7 +353,7 @@ export class ProfileVideosComponent {
         this.selectedFileSubject.next(file);
         this.previewUrlSubject.next(URL.createObjectURL(file));
         this.uploadPublicationForm.reset({
-          title: this.defaultFileTitle(file.name),
+          title: '',
           description: '',
           reactionsEnabled: true,
           commentsEnabled: true,
@@ -400,7 +400,7 @@ export class ProfileVideosComponent {
     if (this.uploadPublicationForm.invalid) {
       this.uploadPublicationForm.markAllAsTouched();
       this.errorNotification.showWarning(
-        'Informe um título válido antes de enviar o vídeo.'
+        'Revise as informações do vídeo antes de continuar.'
       );
       return;
     }
@@ -883,15 +883,8 @@ export class ProfileVideosComponent {
     };
   }
 
-  private defaultFileTitle(fileName: string): string {
-    return String(fileName ?? '')
-      .trim()
-      .replace(/\.[A-Za-z0-9]{2,5}$/, '')
-      .slice(0, 120) || 'Vídeo';
-  }
-
-  private defaultVideoTitle(video: IVideoItem): string {
-    return this.defaultFileTitle(video.fileName ?? 'Vídeo');
+  private defaultVideoTitle(_video: IVideoItem): string {
+    return 'Vídeo';
   }
 
   private handleUploadEvent(event: IVideoUploadFlowEvent): void {
