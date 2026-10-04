@@ -75,9 +75,16 @@ function runCommand(command, args) {
 function parseWindowsListeningPids(port) {
   if (process.platform !== 'win32') return [];
 
+  const script = [
+    `$connections = Get-NetTCPConnection -State Listen -LocalPort ${port} -ErrorAction SilentlyContinue`,
+    'if ($connections) {',
+    '  $connections | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { [Console]::WriteLine($_) }',
+    '}',
+  ].join('; ');
+
   const result = spawnSync(
-    'cmd.exe',
-    ['/d', '/s', '/c', `netstat -ano -p tcp | findstr /R /C:":${port} .*LISTENING"`],
+    'powershell.exe',
+    ['-NoProfile', '-Command', script],
     {
       cwd: root,
       env: process.env,
@@ -86,15 +93,12 @@ function parseWindowsListeningPids(port) {
     }
   );
 
-  const output = String(result.stdout ?? '');
-  const pids = new Set();
+  const pids = String(result.stdout ?? '')
+    .split(/\r?\n/)
+    .map((value) => value.trim())
+    .filter((value) => /^\d+$/.test(value));
 
-  for (const line of output.split(/\r?\n/)) {
-    const match = line.trim().match(/\s(\d+)$/);
-    if (match?.[1]) pids.add(match[1]);
-  }
-
-  return [...pids];
+  return [...new Set(pids)];
 }
 
 function describeWindowsPid(pid) {
