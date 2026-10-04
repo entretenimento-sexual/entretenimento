@@ -41,9 +41,7 @@
 .gallery-filter-group,
 .photo-status-stack,
 .status-chip,
-.photo-date-chip,
-.management-bar,
-.delete-confirm-actions {
+.photo-date-chip {
   display: flex;
   align-items: center;
 }
@@ -354,15 +352,6 @@
   line-height: 1;
   white-space: nowrap;
   backdrop-filter: blur(8px);
-}
-
-.status-chip--published {
-  background: color-mix(in oklab, var(--photos-primary) 62%, rgb(0 0 0 / 35%));
-}
-
-.status-chip--private {
-  background: rgb(0 0 0 / 44%);
-  color: rgb(255 255 255 / 88%);
 }
 
 .status-chip--pending {
