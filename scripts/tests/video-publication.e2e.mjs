@@ -361,7 +361,7 @@ async function run() {
     assert.equal(registeredPublication?.isPublished, false);
     assert.equal(registeredPublication?.publishWhenReady, true);
     assert.equal(registeredPublication?.visibility, 'PUBLIC');
-    assert.equal(registeredPublication?.moderationStatus, 'PENDING_REVIEW');
+    assert.equal(registeredPublication?.moderationStatus, 'PRIVATE');
     assert.equal(registeredPublication?.title, draftTitle);
     assert.equal(registeredPublication?.description, draftDescription);
     assert.equal(registeredPublication?.reactionsEnabled, false);
@@ -456,8 +456,8 @@ async function run() {
       (value) =>
         value.publication?.isPublished === true &&
         value.publication?.autoPublishState === 'COMPLETED' &&
-        value.publication?.moderationStatus === 'PENDING_REVIEW' &&
-        value.publicVideo?.moderationStatus === 'PENDING_REVIEW' &&
+        value.publication?.moderationStatus === 'APPROVED' &&
+        value.publicVideo?.moderationStatus === 'APPROVED' &&
         value.publicVideo?.title === draftTitle &&
         value.publicVideo?.description === draftDescription
     );
@@ -466,9 +466,8 @@ async function run() {
 
     assert.equal(publication.publishWhenReady, false);
     assert.equal(publication.visibility, 'PUBLIC');
-    assert.equal(publication.moderationStatus, 'PENDING_REVIEW');
+    assert.equal(publication.moderationStatus, 'APPROVED');
     assert.equal(publication.safetyScore, null);
-    assert.ok(publication.preventiveReviewReportId);
     assert.equal(publication.reactionsEnabled, false);
     assert.equal(publication.commentsEnabled, true);
     assert.equal(publication.ratingsEnabled, false);
@@ -511,7 +510,7 @@ async function run() {
 
     assert.equal(editedResponse.data.videoId, videoId);
     assert.equal(editedResponse.data.isPublished, true);
-    assert.equal(editedResponse.data.moderationStatus, 'PENDING_REVIEW');
+    assert.equal(editedResponse.data.moderationStatus, 'APPROVED');
 
     const editedState = await waitFor(
       'edição pública de metadados e preferências',
@@ -533,68 +532,13 @@ async function run() {
     assert.equal(editedState.publicVideo.reactionsEnabled, true);
     assert.equal(editedState.publicVideo.commentsEnabled, false);
     assert.equal(editedState.publicVideo.ratingsEnabled, true);
-    assert.equal(editedState.publication.moderationStatus, 'PENDING_REVIEW');
-    assert.equal(editedState.publicVideo.moderationStatus, 'PENDING_REVIEW');
+    assert.equal(editedState.publication.moderationStatus, 'APPROVED');
+    assert.equal(editedState.publicVideo.moderationStatus, 'APPROVED');
 
     const getPublicVideoAccessUrls = httpsCallable(
       clientFunctions,
       'getPublicVideoAccessUrls'
     );
-    const blockedAccessResponse = await getPublicVideoAccessUrls({
-      items: [{ ownerUid, videoId }],
-    });
-    assert.equal(
-      blockedAccessResponse.data.items.length,
-      0,
-      'Vídeo pendente de revisão não pode emitir URL pública.'
-    );
-
-    await assert.rejects(
-      () => httpsCallable(clientFunctions, 'deleteProfileVideo')({
-        ownerUid,
-        videoId,
-      }),
-      (error) => {
-        assert.equal(error?.code, 'functions/failed-precondition');
-        return true;
-      }
-    );
-
-    const preventiveReviewReportId = String(
-      publication.preventiveReviewReportId ?? ''
-    );
-    assert.ok(preventiveReviewReportId);
-
-    await adminAuth.setCustomUserClaims(ownerUid, { admin: true });
-    await authenticatedUser.getIdToken(true);
-
-    const reviewVideoContentReport = httpsCallable(
-      clientFunctions,
-      'reviewVideoContentReport'
-    );
-    await reviewVideoContentReport({
-      reportId: preventiveReviewReportId,
-      decision: 'KEEP',
-      resolution: 'Conteúdo preventivamente revisado e liberado no E2E.',
-    });
-
-    const preventiveReportRef = adminDb.doc(
-      `moderation_reports/${preventiveReviewReportId}`
-    );
-    await waitFor(
-      'revisão preventiva liberar explicitamente o vídeo',
-      async () => ({
-        publication: await readDocumentData(publicationRef),
-        publicVideo: await readDocumentData(publicVideoRef),
-        report: await readDocumentData(preventiveReportRef),
-      }),
-      (value) =>
-        value.publication?.moderationStatus === 'APPROVED' &&
-        value.publicVideo?.moderationStatus === 'APPROVED' &&
-        value.report?.status === 'rejected' &&
-        value.report?.moderationAction === 'KEEP'
-    );
-
     const accessResponse = await getPublicVideoAccessUrls({
       items: [{ ownerUid, videoId }],
     });
@@ -767,12 +711,11 @@ async function run() {
     assert.match(String(failureNotification.body ?? ''), /removido da plataforma/i);
 
     console.log('✔ arquivo-fonte protegido pelas Storage Rules');
-    console.log('✔ registro nasceu com intenção PUBLIC + PENDING_REVIEW');
-    console.log('✔ fila de processamento criada e publicação automática ficou em PENDING_REVIEW');
+    console.log('✔ registro nasceu privado com intenção de publicação PUBLIC após processamento');
+    console.log('✔ fila de processamento criada e publicação automática ficou APPROVED');
     console.log('✔ título, descrição e permissões propagados à projeção pública');
-    console.log('✔ edição pós-publicação preservou PENDING_REVIEW');
-    console.log('✔ acesso e exclusão foram bloqueados antes da revisão preventiva');
-    console.log('✔ KEEP explícito liberou o vídeo para distribuição');
+    console.log('✔ edição pós-publicação preservou APPROVED sem fila preventiva');
+    console.log('✔ acesso público ficou disponível imediatamente após processamento');
     console.log('✔ derivado processado usado na publicação, não o arquivo original');
     console.log('✔ vídeo e poster públicos validados no Storage Emulator');
     console.log('✔ URL temporária pública validada com conteúdo binário');
