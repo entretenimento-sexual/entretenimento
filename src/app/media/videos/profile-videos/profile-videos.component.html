@@ -12,7 +12,7 @@
 <section class="profile-videos" aria-label="Vídeos">
   @if (isOwner$ | async) {
     @if (viewItems$ | async; as items) {
-      <app-page-header title="Meus vídeos">
+      <app-page-header title="Vídeos do perfil">
         <button
           page-actions
           type="button"
@@ -133,7 +133,7 @@
                           uploadPublicationForm.controls.title.invalid
                         ) {
                           <p class="profile-videos__field-error" role="alert">
-                            Informe um título com até 120 caracteres.
+                            O título pode ter até 120 caracteres.
                           </p>
                         }
 
@@ -441,7 +441,7 @@
         </div>
       } @else {
         <p class="profile-videos__upload-status" role="status">
-          Você ainda não publicou nenhum vídeo.
+          Nenhum vídeo adicionado ainda.
         </p>
       }
     }
