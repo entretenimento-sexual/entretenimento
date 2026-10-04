@@ -72,6 +72,10 @@ export class StorageService {
   private readonly storage = inject(Storage);
   private readonly auth = inject(Auth);
   private readonly functions = inject(Functions);
+  private readonly reservePhotoUploadCallable = httpsCallable<
+    ReservePhotoUploadCallableRequest,
+    ReservePhotoUploadCallableResponse
+  >(this.functions, 'reservePhotoUpload');
 
   constructor(
     private readonly errorNotifier: ErrorNotificationService,
@@ -391,12 +395,7 @@ export class StorageService {
       );
     }
 
-    const callable = httpsCallable<
-      ReservePhotoUploadCallableRequest,
-      ReservePhotoUploadCallableResponse
-    >(this.functions, 'reservePhotoUpload');
-
-    return from(callable({
+    return from(this.reservePhotoUploadCallable({
       ownerUid: userId,
       storagePath,
       sizeBytes: file.size,
