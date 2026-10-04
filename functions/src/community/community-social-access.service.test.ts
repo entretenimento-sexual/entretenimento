@@ -92,42 +92,34 @@ test('nega termos ausentes ou desatualizados', () => {
   );
 });
 
-test('ignora idade client-side e usa somente decisão etária canônica', () => {
+test('não usa idade ou assurance etário como gate social local', () => {
+  for (const ageRecord of [
+    null,
+    eligibleAge(),
+    eligibleAge({
+      status: 'DENIED_UNDERAGE',
+      verifiedAtMs: null,
+    }),
+  ]) {
+    assert.doesNotThrow(() =>
+      assertCommunitySocialAccessEligible(
+        eligibleUser({ idade: 17 }),
+        'user-1',
+        ageRecord
+      )
+    );
+  }
+
   assert.doesNotThrow(() =>
     assertCommunitySocialAccessEligible(
-      eligibleUser({ idade: 17 }),
+      eligibleUser({ ageReverification: { status: 'UNDER_REVIEW' } }),
       'user-1',
-      eligibleAge()
+      null
     )
-  );
-
-  assert.throws(
-    () =>
-      assertCommunitySocialAccessEligible(
-        eligibleUser({ idade: 30 }),
-        'user-1',
-        eligibleAge({
-          status: 'DENIED_UNDERAGE',
-          verifiedAtMs: null,
-        })
-      ),
-    (error: unknown) =>
-      errorCode(error) === 'permission-denied'
-      && errorReason(error) === 'underage'
   );
 });
 
-test('nega reverificação pendente e consentimento adulto inválido', () => {
-  assert.throws(
-    () =>
-      assertCommunitySocialAccessEligible(
-        eligibleUser({ ageReverification: { status: 'UNDER_REVIEW' } }),
-        'user-1',
-        eligibleAge()
-      ),
-    (error: unknown) => errorReason(error) === 'age_reverification_required'
-  );
-
+test('nega consentimento adulto inválido', () => {
   assert.throws(
     () =>
       assertCommunitySocialAccessEligible(
