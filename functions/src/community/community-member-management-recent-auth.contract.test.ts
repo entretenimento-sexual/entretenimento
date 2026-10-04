@@ -131,7 +131,7 @@ function installTransactionProbe(
     'users/member-1': {
       uid: 'member-1',
       profileCompleted: true,
-      interactionBlocked: false,
+      interactionBlocked: scenario.targetEligible === false,
       acceptedTerms: {
         accepted: true,
         version: TERMS_ACCEPTANCE_VERSION,
@@ -139,20 +139,7 @@ function installTransactionProbe(
       },
       adultConsent: { accepted: true, version: ADULT_CONSENT_VERSION },
     },
-    ...(scenario.targetEligible === false
-      ? {}
-      : {
-        'age_eligibility_records/member-1': {
-          uid: 'member-1',
-          status: 'VERIFIED_ADULT',
-          policyVersion: 1,
-          source: 'INITIAL_VERIFICATION',
-          method: 'EXTERNAL_PROVIDER',
-          caseId: 'contract-age-target-1',
-          verifiedAtMs: Date.now() - 1_000,
-          expiresAtMs: null,
-        },
-      }),
+
   };
   const transaction: TransactionProbe = {
     get: async (ref) => ({
@@ -291,11 +278,11 @@ test('manageCommunityMember promove member → moderator com autenticação rece
   assert.equal((result.writes[0]?.data as { role: string }).role, 'moderator');
 });
 
-test('manageCommunityMember nega promoção quando destinatário não está elegível', async () => {
+test('manageCommunityMember nega promoção quando lifecycle do destinatário está bloqueado', async () => {
   await runRejectedScenario(
     { authTime: -30, targetEligible: false },
     'failed-precondition',
-    'verification_required'
+    'account_interaction_blocked'
   );
 });
 
