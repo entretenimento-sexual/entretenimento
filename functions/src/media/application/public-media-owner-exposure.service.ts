@@ -1,13 +1,9 @@
 import {
-  evaluateCanonicalAgeEligibility,
-} from '../../compliance/age-eligibility.policy';
-import {
   evaluateCanonicalOwnerLifecycle,
 } from './owner-lifecycle-exposure.policy';
 import { db } from '../../firebaseApp';
 import {
   evaluatePublicMediaOwnerExposure,
-  evaluatePublicMediaSignedOwnerExposure,
   type PublicMediaOwnerExposureDecision,
 } from './public-media-exposure.policy';
 
@@ -34,8 +30,7 @@ function normalizeOwnerUids(values: readonly string[]): string[] {
 async function resolveCanonicalOwnerExposure(
   ownerUids: readonly string[],
   blockedTargetUids: ReadonlySet<string>,
-  nowMs: number,
-  requireCanonicalAge: boolean
+  nowMs: number
 ): Promise<ReadonlyMap<string, PublicMediaOwnerExposureContext>> {
   const owners = normalizeOwnerUids(ownerUids);
 
@@ -43,31 +38,22 @@ async function resolveCanonicalOwnerExposure(
     return new Map<string, PublicMediaOwnerExposureContext>();
   }
 
-  const refs = owners.flatMap((ownerUid) => {
-    const baseRefs = [
-      db.doc(`users/${ownerUid}`),
-      db.doc(`public_profiles/${ownerUid}`),
-    ];
-
-    return requireCanonicalAge
-      ? [
-        ...baseRefs,
-        db.doc(`age_eligibility_records/${ownerUid}`),
-      ]
-      : baseRefs;
-  });
+  const refs = owners.flatMap((ownerUid) => [
+    db.doc(`users/${ownerUid}`),
+    db.doc(`public_profiles/${ownerUid}`),
+  ]);
   const snapshots = await db.getAll(...refs);
   const result = new Map<string, PublicMediaOwnerExposureContext>();
-  const stride = requireCanonicalAge ? 3 : 2;
 
   owners.forEach((ownerUid, index) => {
-    const offset = index * stride;
+    const offset = index * 2;
     const userSnapshot = snapshots[offset];
     const profileSnapshot = snapshots[offset + 1];
     const lifecycle = evaluateCanonicalOwnerLifecycle(
       userSnapshot?.exists === true ? userSnapshot.data() : null
     );
-    const baseInput = {
+
+    const decision = evaluatePublicMediaOwnerExposure({
       publicProfile:
         profileSnapshot?.exists === true
           ? profileSnapshot.data() as Record<string, unknown>
@@ -75,28 +61,7 @@ async function resolveCanonicalOwnerExposure(
       canonicalOwnerLifecycleAllowed: lifecycle.allowed,
       viewerBlocked: blockedTargetUids.has(ownerUid),
       nowMs,
-    };
-    const decision = requireCanonicalAge
-      ? (() => {
-        const ageEligibilitySnapshot = snapshots[offset + 2];
-        const ownerAgeDecision = evaluateCanonicalAgeEligibility({
-          uid: ownerUid,
-          rawRecord:
-            ageEligibilitySnapshot?.exists === true
-              ? ageEligibilitySnapshot.data()
-              : null,
-          nowMs,
-        });
-
-        return evaluatePublicMediaSignedOwnerExposure({
-          ...baseInput,
-          canonicalAgeAllowed: ownerAgeDecision.allowed,
-          canonicalAgeExpiresAtMs: ownerAgeDecision.allowed
-            ? ownerAgeDecision.expiresAtMs ?? null
-            : null,
-        });
-      })()
-      : evaluatePublicMediaOwnerExposure(baseInput);
+    });
 
     result.set(ownerUid, { ownerUid, ...decision });
   });
@@ -112,11 +77,14 @@ export async function resolvePublicMediaOwnerExposure(
   return resolveCanonicalOwnerExposure(
     ownerUids,
     blockedTargetUids,
-    nowMs,
-    false
+    nowMs
   );
 }
 
+/**
+ * Alias transitório para consumidores de URL assinada. A resolução é a mesma:
+ * lifecycle público + bloqueio bilateral, sem consulta etária em Media.
+ */
 export async function resolvePublicMediaSignedOwnerExposure(
   ownerUids: readonly string[],
   blockedTargetUids: ReadonlySet<string>,
@@ -125,7 +93,6 @@ export async function resolvePublicMediaSignedOwnerExposure(
   return resolveCanonicalOwnerExposure(
     ownerUids,
     blockedTargetUids,
-    nowMs,
-    true
+    nowMs
   );
 }
