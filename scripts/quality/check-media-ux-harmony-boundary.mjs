@@ -480,6 +480,9 @@ const profileVideosComponent = read(
 const profileVideosStyles = read(
   'src/app/media/videos/profile-videos/profile-videos.component.css'
 );
+const profileVideosSettingsStyles = read(
+  'src/app/media/videos/profile-videos/profile-videos-settings.component.css'
+);
 
 requireIncludes(profileVideosComponent, [
   'MediaActionMenuComponent',
@@ -569,3 +572,37 @@ requireIncludes(profileVideosComponent, [
   "return 'Em revisão'",
   "return 'Indisponível'",
 ], 'profile video meaningful state labels');
+
+
+requireIncludes(profileVideosTemplate, [
+  'class="profile-videos__upload-options"',
+  '<summary>Detalhes e interações</summary>',
+  'class="profile-videos__upload-primary-action"',
+], 'profile video progressive upload disclosure');
+
+for (const forbidden of [
+  '<summary>Opções</summary>',
+  'videoEditorComposerTop\n                      class="profile-videos__settings-form',
+]) {
+  forbidIncludes(
+    profileVideosTemplate,
+    forbidden,
+    'profile video upload must not restore always-visible administrative settings'
+  );
+}
+
+for (const forbidden of [
+  '.profile-videos__actions',
+  '.profile-videos__delete-button',
+]) {
+  forbidIncludes(
+    profileVideosSettingsStyles,
+    forbidden,
+    'profile video settings stylesheet must not restore legacy card actions'
+  );
+}
+
+requireIncludes(profileVideosSettingsStyles, [
+  '.profile-videos__upload-options',
+  '.profile-videos__upload-primary-action',
+], 'profile video progressive upload styles');
