@@ -169,11 +169,11 @@ describe('Firestore Rules / public profile eligibility', () => {
     );
   });
 
-  it('nega projeção sem verificação etária canônica', async () => {
+  it('permite projeção sem revalidar assurance etário depois que a conta está ativa', async () => {
     await seedUser({}, false);
     const db = authenticatedDb();
 
-    await assertFails(
+    await assertSucceeds(
       setDoc(doc(db, 'public_profiles', UID), publicProfile())
     );
   });
@@ -291,7 +291,7 @@ describe('Firestore Rules / public profile eligibility', () => {
     );
   });
 
-  it('permite ler perfil-alvo somente com projeção etária backend-only ativa e vigente', async () => {
+  it('ignora campos etários legados na leitura de perfil ativo', async () => {
     await seedUser();
     await seedPublicProfile({
       ageEligibilityVerifiedAdult: true,
@@ -306,14 +306,14 @@ describe('Firestore Rules / public profile eligibility', () => {
       ageEligibilityValidUntil: new Date(Date.now() - 1_000),
     });
 
-    await assertFails(getDoc(doc(db, 'public_profiles', UID)));
+    await assertSucceeds(getDoc(doc(db, 'public_profiles', UID)));
 
     await seedPublicProfile({
       ageEligibilityVerifiedAdult: false,
       ageEligibilityValidUntil: new Date(Date.now() + 60_000),
     });
 
-    await assertFails(getDoc(doc(db, 'public_profiles', UID)));
+    await assertSucceeds(getDoc(doc(db, 'public_profiles', UID)));
   });
 
   it('nega qualquer enumeração client-side de public_profiles', async () => {
@@ -326,13 +326,13 @@ describe('Firestore Rules / public profile eligibility', () => {
 
     const guardedQuery = query(
       collection(db, 'public_profiles'),
-      where('ageEligibilityVerifiedAdult', '==', true)
+      where('role', '==', 'free')
     );
 
     await assertFails(getDocs(guardedQuery));
     await assertFails(getDocs(collection(db, 'public_profiles')));
 
-    // Deep link documental continua disponível sob a fronteira temporal forte.
+    // Deep link documental continua disponível sob lifecycle canônico da conta.
     await assertSucceeds(getDoc(doc(db, 'public_profiles', UID)));
   });
 
