@@ -386,7 +386,12 @@ requireIncludes(photoUploadComponent, [
 
 requireIncludes(profilePhotosTemplate, [
   'app-media-action-menu',
-  '(changeDate)="editPhotoDate(item)"',
+  'editLabel="Editar foto"',
+  '[showSecondaryAction]="true"',
+  'secondaryLabel="Alterar data"',
+  '(secondaryAction)="editPhotoDate(item)"',
+  'featureLabel="Definir como capa"',
+  '(featureAction)="setCoverPhoto(item)"',
   '(deleteRequested)="requestDelete(item)"',
   'photo-date-chip',
 ], 'profile photo compact action/menu contract');
@@ -407,19 +412,39 @@ for (const forbidden of [
 const mediaActionMenu = read(
   'src/app/media/shared/components/media-action-menu/media-action-menu.component.html'
 );
+const mediaActionMenuController = read(
+  'src/app/media/shared/components/media-action-menu/media-action-menu.component.ts'
+);
 for (const fragment of [
   'matMenuTriggerFor',
   'class="app-media-action-menu-panel"',
   'Mais ações',
-  'Editar foto',
-  'Alterar data',
-  'Definir como capa',
-  'Excluir foto',
+  '{{ editLabel }}',
+  'showSecondaryAction',
+  '{{ secondaryLabel }}',
+  'showFeatureAction',
+  'featureCurrentLabel',
+  '{{ deleteLabel }}',
 ]) {
   requireIncludes(
     mediaActionMenu,
     fragment,
     'canonical media action menu drift'
+  );
+}
+for (const fragment of [
+  "@Input() editLabel = 'Editar'",
+  '@Input() showSecondaryAction = false',
+  '@Input() showFeatureAction = false',
+  "@Input() deleteLabel = 'Excluir'",
+  '@Output() secondaryAction',
+  '@Output() featureAction',
+  '@Output() deleteRequested',
+]) {
+  requireIncludes(
+    mediaActionMenuController,
+    fragment,
+    'canonical media action menu contract drift'
   );
 }
 
@@ -444,3 +469,55 @@ requireIncludes(mediaDateDialog, [
   'Salvar',
   'Cancelar',
 ], 'canonical media date dialog drift');
+
+
+const profileVideosTemplate = read(
+  'src/app/media/videos/profile-videos/profile-videos.component.html'
+);
+const profileVideosComponent = read(
+  'src/app/media/videos/profile-videos/profile-videos.component.ts'
+);
+const profileVideosStyles = read(
+  'src/app/media/videos/profile-videos/profile-videos.component.css'
+);
+
+requireIncludes(profileVideosComponent, [
+  'MediaActionMenuComponent',
+], 'profile video canonical media action menu import');
+
+requireIncludes(profileVideosTemplate, [
+  'app-media-action-menu',
+  'editLabel="Editar informações"',
+  'deleteLabel="Excluir vídeo"',
+  '(edit)="startEditingPublication(item)"',
+  '(deleteRequested)="requestDelete(item)"',
+], 'profile video compact action/menu contract');
+
+for (const forbidden of [
+  'class="profile-videos__actions"',
+  'class="profile-videos__delete-button"',
+  '>Editar</button>',
+]) {
+  forbidIncludes(
+    profileVideosTemplate,
+    forbidden,
+    'profile video card must not restore permanent administrative actions'
+  );
+}
+
+for (const forbidden of [
+  '.profile-videos__actions',
+  '.profile-videos__delete-button',
+]) {
+  forbidIncludes(
+    profileVideosStyles,
+    forbidden,
+    'profile video legacy action-bar styles must stay removed'
+  );
+}
+
+requireIncludes(
+  profileVideosStyles,
+  '.profile-videos__action-menu',
+  'profile video overflow menu placement'
+);
