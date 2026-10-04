@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  isAgeReverificationAccessRestricted,
   normalizeAgeReverificationStatus,
 } from './age-reverification-status.util';
 
