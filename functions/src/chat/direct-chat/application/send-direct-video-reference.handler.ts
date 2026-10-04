@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import {
-  assertInteractionAccessData,
+  assertPlatformAccountAccessData,
 } from '../../../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../../../config/functions-region';
 import { db, FieldValue } from '../../../firebaseApp';
@@ -110,8 +110,6 @@ export const sendDirectVideoReference = onCall<SendDirectVideoReferenceRequest>(
 
       const actorRef = db.doc(`users/${actorUid}`);
       const targetRef = db.doc(`users/${targetUid}`);
-      const actorAgeRef = db.doc(`age_eligibility_records/${actorUid}`);
-      const targetAgeRef = db.doc(`age_eligibility_records/${targetUid}`);
       const publicProfileRef = db.doc(
         `public_profiles/${requestedReference.ownerUid}`
       );
@@ -133,8 +131,6 @@ export const sendDirectVideoReference = onCall<SendDirectVideoReferenceRequest>(
         publicVideoSnapshot,
         publicationSnapshot,
         existingMessageSnapshot,
-        actorAgeSnapshot,
-        targetAgeSnapshot,
       ] = await Promise.all([
         transaction.get(actorRef),
         transaction.get(targetRef),
@@ -146,8 +142,6 @@ export const sendDirectVideoReference = onCall<SendDirectVideoReferenceRequest>(
         transaction.get(publicVideoRef),
         transaction.get(publicationRef),
         transaction.get(messageRef),
-        transaction.get(actorAgeRef),
-        transaction.get(targetAgeRef),
       ]);
 
       const actor = actorSnapshot.data() as MessagingUserDoc | undefined;
@@ -161,16 +155,8 @@ export const sendDirectVideoReference = onCall<SendDirectVideoReferenceRequest>(
         operation: 'send-direct-message',
         perspective: 'target',
       });
-      assertInteractionAccessData(
-        actor,
-        actorAgeSnapshot.exists ? actorAgeSnapshot.data() : null,
-        actorUid
-      );
-      assertInteractionAccessData(
-        target,
-        targetAgeSnapshot.exists ? targetAgeSnapshot.data() : null,
-        targetUid
-      );
+      assertPlatformAccountAccessData(actor);
+      assertPlatformAccountAccessData(target);
       assertNoDirectMessagingBlock({
         actorBlockedTarget: isBlocked(
           actorBlockSnapshot.data() as StoredBlockDoc | undefined
