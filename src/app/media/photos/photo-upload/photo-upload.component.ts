@@ -51,7 +51,7 @@ import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.comp
 
 const DENY_UNKNOWN: IMediaPolicyResult = { decision: 'DENY', reason: 'UNKNOWN' };
 
-type UploadPhase = 'IDLE' | 'EDITING' | 'READY' | 'UPLOADING' | 'DONE';
+type UploadPhase = 'IDLE' | 'EDITING' | 'READY' | 'UPLOADING';
 
 @Component({
   selector: 'app-photo-upload',
@@ -165,11 +165,6 @@ export class PhotoUploadComponent {
   private readonly phaseSubject = new BehaviorSubject<UploadPhase>('IDLE');
   readonly phase$: Observable<UploadPhase> = this.phaseSubject.asObservable();
 
-  private readonly uploadedPhotoIdSubject = new BehaviorSubject<string | null>(
-    null
-  );
-  readonly uploadedPhotoId$: Observable<string | null> =
-    this.uploadedPhotoIdSubject.asObservable();
 
   private readonly uploadPercentSubject = new BehaviorSubject<number>(0);
   readonly uploadPercent$: Observable<number> =
@@ -421,26 +416,11 @@ export class PhotoUploadComponent {
     this.imageStateSubject.next(null);
     this.previewUrlSubject.next(null);
     this.phaseSubject.next('IDLE');
-    this.uploadedPhotoIdSubject.next(null);
     this.uploadPercentSubject.next(0);
 
     if (fileInput) {
       fileInput.value = '';
     }
-  }
-
-  sendAnotherPhoto(): void {
-    this.resetSelection();
-  }
-
-  backToPhotos(ownerUid: string): void {
-    this.router.navigate(['/media', 'perfil', ownerUid, 'fotos']).catch((error) => {
-      this.reportError(
-        'media_navigation_failed',
-        error,
-        { op: 'backToPhotos', ownerUid }
-      );
-    });
   }
 
   private uploadSelectedFile$(
@@ -485,11 +465,6 @@ export class PhotoUploadComponent {
           commentsPolicy: 'EVERYONE',
           reactionsEnabled: true,
         }).pipe(
-          tap(() => {
-            this.errorNotifier.showSuccess(
-              'Foto publicada.'
-            );
-          }),
           map(() => event),
           catchError((error) => {
             this.errorHandler.report(error, {
@@ -530,17 +505,19 @@ export class PhotoUploadComponent {
         }
 
         this.debug('uploadSuccess', event.result);
-        this.phaseSubject.next('DONE');
-        this.uploadedPhotoIdSubject.next(event.result.photoId);
         this.uploadPercentSubject.next(100);
+        this.errorNotifier.showSuccess('Foto adicionada.');
 
-        if (event.result.url) {
-          this.revokePreviewUrl();
-          this.previewUrlSubject.next(event.result.url);
-        }
-
-        this.fileSubject.next(null);
-        this.imageStateSubject.next(null);
+        this.router
+          .navigate(['/media', 'perfil', ownerUid, 'fotos'])
+          .catch((navigationError) => {
+            this.phaseSubject.next('READY');
+            this.reportError(
+              'media_navigation_failed',
+              navigationError,
+              { op: 'uploadSelectedFile.navigateBack', ownerUid }
+            );
+          });
       }),
       catchError((error) => {
         this.phaseSubject.next('READY');
@@ -576,7 +553,6 @@ export class PhotoUploadComponent {
     this.imageStateSubject.next(imageStateStr);
     this.previewUrlSubject.next(previewUrl);
     this.phaseSubject.next('READY');
-    this.uploadedPhotoIdSubject.next(null);
     this.uploadPercentSubject.next(0);
   }
 
