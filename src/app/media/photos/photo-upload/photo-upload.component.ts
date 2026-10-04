@@ -11,7 +11,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { BehaviorSubject, EMPTY, Observable, combineLatest, of } from 'rxjs';
+import { BehaviorSubject, EMPTY, Observable, combineLatest, from, of, throwError } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -29,6 +29,7 @@ import { MediaApplicationErrorService } from 'src/app/core/services/media/media-
 import { MediaPublicationService } from 'src/app/core/services/media/media-publication.service';
 import type { MediaErrorReason } from 'src/app/core/services/media/media-error.catalog';
 import { PhotoEditorLauncherService } from 'src/app/core/services/image-handling/photo-editor-launcher.service';
+import { PhotoFirestoreService } from 'src/app/core/services/image-handling/photo-firestore.service';
 import {
   IPhotoUploadFlowEvent,
   PhotoUploadFlowService,
@@ -70,6 +71,7 @@ export class PhotoUploadComponent {
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly errorHandler = inject(MediaApplicationErrorService);
   private readonly photoUploadFlow = inject(PhotoUploadFlowService);
+  private readonly photoFirestore = inject(PhotoFirestoreService);
   private readonly mediaPublication = inject(MediaPublicationService);
   private readonly photoEditor = inject(PhotoEditorLauncherService);
 
@@ -500,10 +502,25 @@ export class PhotoUploadComponent {
                 photoId: result.photoId,
               },
             });
-            this.errorNotifier.showWarning(
-              'A foto foi enviada, mas não pôde ser publicada automaticamente. Você pode publicá-la pela galeria.'
+
+            return from(
+              this.photoFirestore.deletePhoto(ownerUid, result.photoId)
+            ).pipe(
+              catchError((cleanupError) => {
+                this.errorHandler.report(cleanupError, {
+                  operation: 'photoUpload.rollbackFailedPublication',
+                  reasonHint: 'photo_delete_failed',
+                  silent: true,
+                  metadata: {
+                    scope: 'PhotoUploadComponent',
+                    ownerUid,
+                    photoId: result.photoId,
+                  },
+                });
+                return of(void 0);
+              }),
+              switchMap(() => throwError(() => error))
             );
-            return of(event);
           })
         );
       }),
