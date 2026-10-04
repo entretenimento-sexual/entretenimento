@@ -2,9 +2,9 @@
 // -----------------------------------------------------------------------------
 // DISCOVERY PUBLIC PROFILES READ BOUNDARY
 // -----------------------------------------------------------------------------
-// Todas as listagens/hidratações públicas passam por uma fronteira backend-time.
-// A passagem do relógio invalida a exposição mesmo que a projeção materializada
-// ainda não tenha sido atualizada pela Cloud Task de expiração.
+// Todas as listagens/hidratações públicas passam por uma fronteira backend.
+// O viewer é validado pela autoridade de conta; a existência da projeção pública
+// representa a exposição do perfil e não carrega assurance etário como gate.
 // -----------------------------------------------------------------------------
 
 import { FieldPath, Timestamp } from 'firebase-admin/firestore';
@@ -303,17 +303,6 @@ function cleanStringArray(value: unknown): string[] | null {
   return result.length ? result : null;
 }
 
-export function isCurrentPublicProfileAgeProjection(
-  data: Record<string, unknown>,
-  nowMs: number
-): boolean {
-  const validUntilMs = timestampToMillis(data['ageEligibilityValidUntil']);
-
-  return data['ageEligibilityVerifiedAdult'] === true
-    && validUntilMs !== null
-    && validUntilMs > nowMs;
-}
-
 function matchesDiscoveryFilters(
   card: Record<string, unknown>,
   filters: DiscoveryFilters
@@ -341,15 +330,9 @@ export function serializePublicProfileForDiscovery(
 ): Record<string, unknown> | null {
   const nickname = cleanText(data['nickname']);
 
-  if (
-    !uid
-    || !nickname
-    || !isCurrentPublicProfileAgeProjection(data, nowMs)
-  ) {
+  if (!uid || !nickname) {
     return null;
   }
-
-  const validUntilMs = timestampToMillis(data['ageEligibilityValidUntil']);
   const latitude = finiteNumber(data['latitude']);
   const longitude = finiteNumber(data['longitude']);
   const coordinatesValid =
@@ -442,8 +425,6 @@ export function serializePublicProfileForDiscovery(
       finiteNumber(data['profileCompletenessScore']),
     mediaMetricsUpdatedAt:
       timestampToMillis(data['mediaMetricsUpdatedAt']),
-    ageEligibilityVerifiedAdult: true,
-    ageEligibilityValidUntil: validUntilMs,
   };
 }
 
@@ -465,7 +446,6 @@ async function getNearbyProfiles(
     nearby.bounds.map((bound) =>
       db
         .collection('public_profiles')
-        .where('ageEligibilityVerifiedAdult', '==', true)
         .where('geohash', '>=', bound.start)
         .where('geohash', '<=', bound.end)
         .orderBy('geohash', 'asc')
@@ -679,8 +659,7 @@ export const getPublicProfilesPage = onCall<DiscoveryPageRequest>(
       && !reachedEnd
     ) {
       let profilesQuery: FirebaseFirestore.Query = db
-        .collection('public_profiles')
-        .where('ageEligibilityVerifiedAdult', '==', true);
+        .collection('public_profiles');
 
       if (mode === 'compatible') {
         profilesQuery = profilesQuery
