@@ -115,8 +115,8 @@ const photoPlacementHandler = read(
 );
 requireIncludes(
   photoPlacementHandler,
-  'assertInteractionAccessData',
-  'photo sponsored delivery must remain adult-gated'
+  'assertPlatformAccountAccessData',
+  'photo sponsored delivery must remain account-gated'
 );
 
 const communityPlacementHandler = read(
@@ -220,5 +220,5 @@ requireIncludes(
 );
 
 console.log(
-  '[promotion-compliance] OK: advertiser/creative/targeting/delivery/payment/retention snapshot is versioned, privacy-minimized, adult-gated and backend-only.'
+  '[promotion-compliance] OK: advertiser/creative/targeting/delivery/payment/retention snapshot is versioned, privacy-minimized, account-gated and backend-only.'
 );
