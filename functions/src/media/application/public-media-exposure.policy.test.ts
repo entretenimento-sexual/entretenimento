@@ -14,10 +14,6 @@ const NOW = 1_800_000_000_000;
 function publicProjection(overrides: Record<string, unknown> = {}) {
   return {
     ownerUid: 'owner-1',
-    ageEligibilityVerifiedAdult: true,
-    ageEligibilityValidUntil: {
-      toMillis: () => NOW + 60_000,
-    },
     visibility: 'PUBLIC',
     moderationStatus: 'APPROVED',
     ...overrides,
@@ -34,11 +30,11 @@ function publication(overrides: Record<string, unknown> = {}) {
 }
 
 describe('public media exposure policy', () => {
-  it('bloqueia lifecycle canônico, ausência de projeção pública e bloqueio bilateral', () => {
+  it('bloqueia lifecycle canônico, ausência de perfil público e bloqueio bilateral', () => {
     assert.equal(
       evaluatePublicMediaOwnerExposure({
         canonicalOwnerLifecycleAllowed: false,
-        publicProfile: publicProjection(),
+        publicProfile: { uid: 'owner-1' },
         viewerBlocked: false,
         nowMs: NOW,
       }).denialReason,
@@ -58,7 +54,7 @@ describe('public media exposure policy', () => {
     assert.equal(
       evaluatePublicMediaOwnerExposure({
         canonicalOwnerLifecycleAllowed: true,
-        publicProfile: publicProjection(),
+        publicProfile: { uid: 'owner-1' },
         viewerBlocked: true,
         nowMs: NOW,
       }).denialReason,
@@ -66,51 +62,32 @@ describe('public media exposure policy', () => {
     );
   });
 
-  it('expira owner pela projeção e pela autoridade etária canônica', () => {
-    assert.equal(
-      evaluatePublicMediaOwnerExposure({
-        canonicalOwnerLifecycleAllowed: true,
-        publicProfile: publicProjection({
-          ageEligibilityValidUntil: { toMillis: () => NOW },
-        }),
-        viewerBlocked: false,
-        nowMs: NOW,
-      }).allowed,
-      false
-    );
-
-    assert.equal(
-      evaluatePublicMediaSignedOwnerExposure({
-        canonicalOwnerLifecycleAllowed: true,
-        publicProfile: publicProjection(),
-        viewerBlocked: false,
-        canonicalAgeAllowed: false,
-        canonicalAgeExpiresAtMs: null,
-        nowMs: NOW,
-      }).denialReason,
-      'OWNER_AGE_NOT_CANONICAL'
-    );
-
-    const allowed = evaluatePublicMediaSignedOwnerExposure({
+  it('usa a mesma autoridade de lifecycle para URL assinada', () => {
+    const input = {
       canonicalOwnerLifecycleAllowed: true,
-      publicProfile: publicProjection({
-        ageEligibilityValidUntil: { toMillis: () => NOW + 60_000 },
-      }),
+      publicProfile: { uid: 'owner-1' },
       viewerBlocked: false,
-      canonicalAgeAllowed: true,
-      canonicalAgeExpiresAtMs: NOW + 30_000,
       nowMs: NOW,
-    });
+    };
 
-    assert.equal(allowed.allowed, true);
-    assert.equal(allowed.validUntilMs, NOW + 30_000);
+    assert.deepEqual(
+      evaluatePublicMediaSignedOwnerExposure(input),
+      evaluatePublicMediaOwnerExposure(input)
+    );
   });
 
-  it('usa a mesma base APPROVED + maioridade vigente em discovery e ranking', () => {
+  it('ignora campos etários legados da mídia e decide por moderação e audiência', () => {
     assert.equal(
-      isCurrentPublicMediaProjectionExposure(publicProjection(), NOW),
+      isCurrentPublicMediaProjectionExposure(
+        publicProjection({
+          ageEligibilityVerifiedAdult: false,
+          ageEligibilityValidUntil: null,
+        }),
+        NOW
+      ),
       true
     );
+
     assert.equal(
       isCurrentPublicMediaProjectionExposure(
         publicProjection({ moderationStatus: 'PENDING_REVIEW' }),
@@ -118,6 +95,7 @@ describe('public media exposure policy', () => {
       ),
       false
     );
+
     assert.equal(
       isCurrentPublicMediaProjectionExposure(
         publicProjection({ visibility: 'FRIENDS' }),
@@ -127,7 +105,7 @@ describe('public media exposure policy', () => {
     );
   });
 
-  it('signed URL revalida publicação autoritativa e moderação', () => {
+  it('URL assinada revalida publicação autoritativa e moderação', () => {
     assert.equal(
       isCurrentPublicMediaAssetExposure({
         publicMedia: publicProjection(),
@@ -177,6 +155,7 @@ describe('public media exposure policy', () => {
       }),
       true
     );
+
     assert.equal(
       isCurrentPublicPhotoAssetExposure({
         publicMedia: friendsProjection,
