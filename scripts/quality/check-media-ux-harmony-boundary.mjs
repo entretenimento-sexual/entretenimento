@@ -350,7 +350,7 @@ requireIncludes(profilePhotosComponent, [
 ], 'profile photo deletion confirmation');
 
 requireIncludes(profilePhotosTemplate, [
-  '@if (total > 1)',
+  '@if (total >= 4)',
   'aria-label="Ordenar fotos"',
 ], 'profile photo compact gallery controls');
 
@@ -409,6 +409,7 @@ const mediaActionMenu = read(
 );
 for (const fragment of [
   'matMenuTriggerFor',
+  'class="app-media-action-menu-panel"',
   'Mais ações',
   'Editar foto',
   'Alterar data',
@@ -419,6 +420,19 @@ for (const fragment of [
     mediaActionMenu,
     fragment,
     'canonical media action menu drift'
+  );
+}
+
+const globalStyles = read('src/styles.css');
+for (const fragment of [
+  '.app-media-action-menu-panel.mat-mdc-menu-panel',
+  '--mat-menu-container-color',
+  '.media-action-menu__danger',
+]) {
+  requireIncludes(
+    globalStyles,
+    fragment,
+    'canonical media action menu theme drift'
   );
 }
 
