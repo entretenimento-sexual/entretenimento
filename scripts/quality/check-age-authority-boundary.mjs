@@ -160,18 +160,23 @@ if (
   );
 }
 
-// O legado ageVerification não pode voltar a conceder autorização.
+// O legado ageVerification não pode voltar a conceder autorização fora do
+// fluxo explícito de cadastro/compliance. O nome da etapa de registro continua
+// válido como navegação/UX e não representa autoridade de Media.
 for (const directory of [
   path.join(root, 'functions', 'src'),
   path.join(root, 'src', 'app'),
 ]) {
   for (const file of walk(directory, ['.ts'])) {
     const relative = path.normalize(path.relative(root, file));
-    if (
-      relative === path.normalize(
-        'src/app/core/services/autentication/auth/age-verification.service.ts'
-      )
-    ) {
+    const allowedAgeVerificationNaming = [
+      'src/app/core/services/autentication/auth/age-verification.service.ts',
+      'src/app/app-routing.module.ts',
+      'src/app/register-module/data-access/register-flow.model.ts',
+      'src/app/register-module/data-access/register-navigation.service.ts',
+    ].map((item) => path.normalize(item));
+
+    if (allowedAgeVerificationNaming.includes(relative)) {
       continue;
     }
 
