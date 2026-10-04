@@ -1,3 +1,5 @@
+import { HttpsError } from 'firebase-functions/v2/https';
+
 import {
   assertPlatformAccountAccessData,
 } from '../../account_lifecycle/interaction-access.policy';
@@ -42,7 +44,7 @@ export async function assertMediaAuthoringEligibility(
   const normalizedUid = String(uid ?? '').trim();
 
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(normalizedUid)) {
-    throw new Error('Usuário não autenticado.');
+    throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
   }
 
   const userSnapshot = await db.doc(`users/${normalizedUid}`).get();
