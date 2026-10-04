@@ -486,6 +486,39 @@ for (const relativePath of [
   );
 }
 
+// Media não pode reintroduzir assurance etário como razão/apresentação própria.
+forbidAll(
+  'src/app/core/services/media/media-error.catalog.ts',
+  [
+    'AGE_VERIFICATION_REQUIRED',
+    'AGE_REVERIFICATION_REQUIRED',
+    'age_reverification_required',
+    'verification_required',
+    'verification_expired',
+    'record_mismatch',
+    'policy_outdated',
+    '/adulto/verificar-idade',
+    '/adulto/revalidar',
+  ],
+  'catálogo Media não pode apresentar gate etário'
+);
+
+forbidAll(
+  'src/app/core/services/media/public-media-callable-feedback.policy.ts',
+  [
+    'AGE_VERIFICATION_REQUIRED',
+    'AGE_REVERIFICATION_REQUIRED',
+    'age_reverification_required',
+    'verification_required',
+    'verification_expired',
+    'record_mismatch',
+    'policy_outdated',
+    '/adulto/verificar-idade',
+    '/adulto/revalidar',
+  ],
+  'feedback Media não pode apresentar gate etário'
+);
+
 // Enumeração pública continua backend-only.
 for (const relativePath of [
   'firestore-rules/public_profiles_next.rules',
