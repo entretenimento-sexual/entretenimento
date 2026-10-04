@@ -269,6 +269,7 @@ for (const file of walk(path.join(root, 'src', 'app'), ['.ts'])) {
   const allowedPrefixes = [
     path.normalize('src/app/register-module') + path.sep,
     path.normalize('src/app/compliance') + path.sep,
+    path.normalize('src/app/account') + path.sep,
     path.normalize('src/app/core/services/compliance') + path.sep,
     path.normalize('src/app/admin-dashboard/moderation-reports') + path.sep,
   ];
