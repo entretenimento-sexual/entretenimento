@@ -202,11 +202,19 @@
               <app-media-action-menu
                 class="photo-action-menu"
                 [disabled]="moderationLocked || updatingPhotoId === item.id || deletingPhotoId === item.id || savingDisplayDateId === item.id"
-                [canSetCover]="item.publication.isPublished"
-                [isCover]="item.publication.isCover === true"
+                editLabel="Editar foto"
+                [showSecondaryAction]="true"
+                secondaryLabel="Alterar data"
+                secondaryIcon="calendar_month"
+                [showFeatureAction]="item.publication.isPublished"
+                featureLabel="Definir como capa"
+                featureCurrentLabel="Foto de capa"
+                featureIcon="star"
+                [featureActive]="item.publication.isCover === true"
+                deleteLabel="Excluir foto"
                 (edit)="editPhoto(item)"
-                (changeDate)="editPhotoDate(item)"
-                (setCover)="setCoverPhoto(item)"
+                (secondaryAction)="editPhotoDate(item)"
+                (featureAction)="setCoverPhoto(item)"
                 (deleteRequested)="requestDelete(item)"
               />
             }
