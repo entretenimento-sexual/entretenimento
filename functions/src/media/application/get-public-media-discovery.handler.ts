@@ -5,7 +5,8 @@
 // Toda listagem pública de fotos/vídeos é backend-only, inclusive galerias
 // owner-scoped. Deep links documentais permanecem protegidos diretamente pelas
 // Rules; listas usam relógio do servidor, projeções como pré-filtro e revalidam
-// publicação, lifecycle e maioridade nas fontes canônicas antes de distribuir.
+// publicação e lifecycle nas fontes canônicas antes de distribuir. Assurance
+// etário da conta não é autoridade de Media.
 // -----------------------------------------------------------------------------
 
 import { FieldPath } from 'firebase-admin/firestore';
