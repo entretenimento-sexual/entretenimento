@@ -790,11 +790,19 @@ export class ProfileVideosComponent {
   }
 
   mediaStateLabel(video: IVideoItem): string {
-    if (video.status === 'queued' || video.status === 'processing') {
-      return 'Vídeo em preparação para publicação.';
+    if (
+      video.status === 'uploaded' ||
+      video.status === 'queued' ||
+      video.status === 'processing'
+    ) {
+      return 'Vídeo em preparação.';
     }
 
-    return 'Vídeo aguardando publicação.';
+    if (video.status === 'failed') {
+      return 'Vídeo indisponível.';
+    }
+
+    return 'Finalizando vídeo.';
   }
 
   displayVideoTitle(item: IProfileVideoViewItem): string {
@@ -880,7 +888,7 @@ export class ProfileVideosComponent {
     this.uploadPhaseSubject.next('DONE');
     this.uploadProgressSubject.next(100);
     this.uploadStepSubject.next('');
-    this.errorNotification.showSuccess('Vídeo enviado para publicação.');
+    this.errorNotification.showSuccess('Vídeo adicionado.');
 
     this.closeUploadDialog();
     this.resetSelection(this.videoInputRef()?.nativeElement);
