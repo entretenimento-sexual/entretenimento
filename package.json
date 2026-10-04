@@ -138,7 +138,8 @@
     "ui:action-redundancy-boundary:check": "node scripts/quality/check-ui-action-redundancy-boundary.mjs",
     "maintenance:photo-storage-orphans:emu": "npm run functions:build && node scripts/maintenance/reconcile-orphan-photo-storage-emu.mjs",
     "maintenance:legacy-photo-review:emu": "npm run functions:build && node scripts/maintenance/reconcile-legacy-photo-preventive-review-emu.mjs",
-    "maintenance:media-state:emu": "npm run maintenance:photo-storage-orphans:emu -- --apply && npm run maintenance:legacy-photo-review:emu -- --apply && npm run emu:save"
+    "maintenance:media-state:emu": "npm run maintenance:photo-storage-orphans:emu -- --apply && npm run maintenance:legacy-photo-review:emu -- --apply && npm run emu:save",
+    "emu:diagnose": "node scripts/dev/safe-emulator-pre.mjs --diagnose-only"
   },
   "private": true,
   "dependencies": {
