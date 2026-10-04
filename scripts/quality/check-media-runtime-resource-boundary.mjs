@@ -358,6 +358,15 @@ requireIncludes(profileVideos, [
   'this.selectedFileSubject.next(null)',
 ], 'profile video editor host teardown');
 
+const storageService = read(
+  'src/app/core/services/image-handling/storage.service.ts'
+);
+requireIncludes(storageService, [
+  'private readonly reservePhotoUploadCallable = httpsCallable<',
+  ">(this.functions, 'reservePhotoUpload');",
+  'return from(this.reservePhotoUploadCallable({',
+], 'photo upload callable injection context');
+
 const videoUploadFlow = read(
   'src/app/core/services/media/video-upload-flow.service.ts'
 );
