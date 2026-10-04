@@ -231,6 +231,21 @@ forbidAll(
   'runtime social não deve reavaliar assurance etário'
 );
 
+// O roteamento normal não pode transformar assurance/revalidação em gate.
+requireAll(
+  'src/app/app-routing.module.ts',
+  ['accountLifecycleGuard'],
+  'roteamento normal deve preservar lifecycle como fronteira de conta'
+);
+forbidAll(
+  'src/app/app-routing.module.ts',
+  [
+    'ageEligibilityGuard',
+    'ageReverificationGuard',
+  ],
+  'rotas normais não podem reintroduzir gate de assurance etário'
+);
+
 // Media: consumo e autoria dependem da conta, nunca do assurance.
 requireAll(
   'functions/src/media/application/media-authoring-eligibility.service.ts',
