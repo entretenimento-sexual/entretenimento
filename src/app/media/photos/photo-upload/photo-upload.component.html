@@ -63,8 +63,7 @@
       class="upload-card app-card"
       [attr.aria-busy]="phase === 'EDITING' || phase === 'UPLOADING' ? 'true' : null"
     >
-      @if (phase !== 'DONE') {
-        <div class="upload-grid">
+      <div class="upload-grid">
           <section class="upload-panel" aria-label="Selecionar e enviar foto">
             <label class="file-drop" for="fileInput">
               <input
@@ -172,35 +171,6 @@
             }
           </section>
         </div>
-      }
-
-      @if (phase === 'DONE') {
-        <section class="upload-done" role="status" aria-live="polite">
-          <div class="upload-done__visual">
-            @if (preview) {
-              <img [src]="preview" alt="Foto enviada com sucesso" />
-            } @else {
-              <div class="upload-done__fallback" aria-hidden="true">
-                <i class="fas fa-check"></i>
-              </div>
-            }
-          </div>
-
-          <div class="upload-done__copy">
-            <h2>Foto publicada</h2>
-
-            <div class="upload-actions upload-actions--done">
-              <button
-                type="button"
-                class="app-action app-action--primary"
-                (click)="sendAnotherPhoto()"
-              >
-                Adicionar outra
-              </button>
-            </div>
-          </div>
-        </section>
-      }
     </article>
   }
 </section>
