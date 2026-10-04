@@ -23,3 +23,75 @@
   box-shadow: none !important;
   overflow: hidden !important;
 }
+
+
+/* Canonical media overflow menu rendered by the Angular Material overlay. */
+.app-media-action-menu-panel.mat-mdc-menu-panel {
+  --mat-menu-container-color: color-mix(
+    in oklab,
+    var(--surface-color, #0e1624) 96%,
+    black 4%
+  );
+  --mat-menu-item-label-text-color: var(--text-color, #f5f7fb);
+  --mat-menu-item-icon-color: color-mix(
+    in oklab,
+    var(--text-color, #f5f7fb) 78%,
+    transparent
+  );
+  --mat-menu-item-hover-state-layer-color: color-mix(
+    in oklab,
+    var(--primary-color, #ff6b81) 10%,
+    transparent
+  );
+  --mat-menu-item-focus-state-layer-color: color-mix(
+    in oklab,
+    var(--primary-color, #ff6b81) 14%,
+    transparent
+  );
+
+  min-width: 190px;
+  max-width: min(240px, calc(100vw - 24px));
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 14px 34px rgb(0 0 0 / 34%);
+}
+
+.app-media-action-menu-panel .mat-mdc-menu-content {
+  padding: 6px;
+}
+
+.app-media-action-menu-panel .mat-mdc-menu-item {
+  min-height: 42px;
+  border-radius: 9px;
+  padding-inline: 10px;
+  font-size: 0.88rem;
+}
+
+.app-media-action-menu-panel .mat-mdc-menu-item .mat-icon {
+  margin-right: 10px;
+  width: 20px;
+  height: 20px;
+  font-size: 20px;
+  line-height: 20px;
+}
+
+.app-media-action-menu-panel .mat-divider {
+  margin: 5px 4px;
+  border-top-color: var(--surface-border, rgb(255 255 255 / 12%));
+}
+
+.app-media-action-menu-panel .media-action-menu__danger,
+.app-media-action-menu-panel .media-action-menu__danger .mat-icon {
+  color: var(--danger-color, #ff6b6b);
+}
+
+.app-media-action-menu-panel .mat-mdc-menu-item[disabled] {
+  opacity: 0.5;
+}
+
+@media (pointer: coarse) {
+  .app-media-action-menu-panel .mat-mdc-menu-item {
+    min-height: var(--tap-target, 44px);
+  }
+}
