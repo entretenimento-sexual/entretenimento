@@ -58,7 +58,7 @@ describe('account lifecycle policy', () => {
     expect(isRuntimeAccountLifecycleBlocked(status)).toBe(true);
   });
 
-  it('prioriza lock e suspensão sobre accountStatus ativo inconsistente', () => {
+  it('prioriza lock, suspensão e bloqueio de interação sobre accountStatus ativo inconsistente', () => {
     expect(
       normalizeUserAccountLifecycleStatus(
         user({ accountStatus: 'active', accountLocked: true })
@@ -70,6 +70,12 @@ describe('account lifecycle policy', () => {
         user({ accountStatus: 'active', suspended: true, suspensionSource: 'moderator' })
       )
     ).toBe('moderation_suspended');
+
+    expect(
+      normalizeUserAccountLifecycleStatus(
+        user({ accountStatus: 'active', interactionBlocked: true })
+      )
+    ).toBe('locked');
   });
 
   it('trata status não reconhecido como unknown em vez de liberar a conta', () => {
