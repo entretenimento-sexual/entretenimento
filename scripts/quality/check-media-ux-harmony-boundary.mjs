@@ -521,3 +521,32 @@ requireIncludes(
   '.profile-videos__action-menu',
   'profile video overflow menu placement'
 );
+
+
+for (const forbidden of [
+  ">Publicar<",
+  "Vídeo enviado para publicação.",
+  "aguardando publicação",
+  "em preparação para publicação",
+]) {
+  if (
+    profileVideosTemplate.includes(forbidden) ||
+    profileVideosComponent.includes(forbidden)
+  ) {
+    throw new Error(
+      '[media-ux-harmony] profile videos voltou a expor publicação manual/transitória: ' +
+      forbidden
+    );
+  }
+}
+
+requireIncludes(profileVideosTemplate, [
+  "Adicionar vídeo",
+], 'profile video automatic publication action');
+
+requireIncludes(profileVideosComponent, [
+  "this.errorNotification.showSuccess('Vídeo adicionado.')",
+  "return 'Vídeo em preparação.'",
+  "return 'Vídeo indisponível.'",
+  "return 'Finalizando vídeo.'",
+], 'profile video automatic publication feedback');
