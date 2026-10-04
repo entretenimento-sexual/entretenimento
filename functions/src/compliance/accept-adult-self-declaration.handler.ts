@@ -26,7 +26,7 @@ import {
   type AgeEligibilityProjection,
 } from './age-eligibility.service';
 import {
-  isAgeReverificationAccessRestricted,
+  isAgeReverificationAssuranceUnresolved,
 } from './profile-age-reverification.policy';
 import {
   ADULT_SELF_DECLARATION_TEXT_PT_BR,
@@ -201,7 +201,7 @@ export const acceptAdultSelfDeclaration =
           );
         }
 
-        if (isAgeReverificationAccessRestricted(
+        if (isAgeReverificationAssuranceUnresolved(
           (user['ageReverification'] as Record<string, unknown> | null)
             ?.['status']
         )) {
