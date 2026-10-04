@@ -9,10 +9,6 @@ import {
 
 const NOW = 1_800_000_000_000;
 
-function timestamp(value: number) {
-  return { toMillis: () => value };
-}
-
 describe('photo promotion target policy', () => {
   it('ignora writes de publicação que não alteram elegibilidade', () => {
     assert.equal(
@@ -52,35 +48,20 @@ describe('photo promotion target policy', () => {
     );
   });
 
-  it('falha fechado quando a projeção etária da foto expirou', () => {
-    const base = {
-      ownerUid: 'owner-1',
-      id: 'photo-1',
-      visibility: 'PUBLIC',
-      moderationStatus: 'APPROVED',
-      ageEligibilityVerifiedAdult: true,
-    };
-
+  it('não usa assurance etário do owner como elegibilidade da promoção', () => {
     assert.equal(
       isPhotoPromotionPublicProjectionEligible(
         {
-          ...base,
-          ageEligibilityValidUntil: timestamp(NOW + 1),
+          ownerUid: 'owner-1',
+          id: 'photo-1',
+          visibility: 'PUBLIC',
+          moderationStatus: 'APPROVED',
+          ageEligibilityVerifiedAdult: false,
+          ageEligibilityValidUntil: { toMillis: () => NOW - 1 },
         },
         NOW
       ),
       true
-    );
-
-    assert.equal(
-      isPhotoPromotionPublicProjectionEligible(
-        {
-          ...base,
-          ageEligibilityValidUntil: timestamp(NOW),
-        },
-        NOW
-      ),
-      false
     );
   });
 
