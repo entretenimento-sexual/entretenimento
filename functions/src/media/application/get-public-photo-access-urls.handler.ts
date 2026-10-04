@@ -23,7 +23,7 @@ import {
 } from './public-media-owner-exposure.service';
 import {
   resolvePublicMediaSignedUrlExpiresAt,
-} from './public-media-age-expiry.policy';
+} from './public-media-signed-url-expiry.policy';
 import { createTemporaryStorageReadUrl } from './temporary-storage-read-url.service';
 import { logPhotoOperation } from './photo-operation-telemetry';
 
