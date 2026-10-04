@@ -114,7 +114,7 @@
           </button>
         </div>
 
-        @if (timeline) {
+        @if (timeline && activeTool()) {
           <div class="video-simple-editor__tool-panel" [formGroup]="form">
             @switch (activeTool()) {
               @case ('trim') {
