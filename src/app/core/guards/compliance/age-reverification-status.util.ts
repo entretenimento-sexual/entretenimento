@@ -21,13 +21,3 @@ export function normalizeAgeReverificationStatus(
   }
 }
 
-export function isAgeReverificationAccessRestricted(
-  value: IUserAgeReverification | null | undefined
-): boolean {
-  const status = normalizeAgeReverificationStatus(value?.status);
-
-  return status === 'REQUIRED' ||
-    status === 'SUBMITTED' ||
-    status === 'UNDER_REVIEW' ||
-    status === 'EXPIRED';
-}
