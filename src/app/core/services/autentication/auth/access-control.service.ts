@@ -56,7 +56,6 @@ import {
 import { ApplicationErrorService } from '../../error-handler/application-error.service';
 import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 import { PlatformSubscriptionAccessService } from '@core/services/subscriptions/platform-subscription-access.service';
-import { AgeEligibilityService } from '@core/services/compliance/age-eligibility.service';
 import { TERMS_ACCEPTANCE_VERSION } from '@core/services/compliance/platform-legal.constants';
 import { ADULT_CONSENT_VERSION } from '@core/guards/compliance/adult-content-consent.storage';
 
@@ -85,7 +84,6 @@ export class AccessControlService {
   private readonly session = inject(AuthSessionService);
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly subscriptionAccess = inject(PlatformSubscriptionAccessService);
-  private readonly ageEligibility = inject(AgeEligibilityService);
   private readonly appBlock = inject(AuthAppBlockService);
   private readonly routeContext = inject(AuthRouteContextService);
 
@@ -577,21 +575,18 @@ export class AccessControlService {
     this.isAuthenticated$,
     this.isBlocked$,
     this.appUser$,
-    this.ageEligibility.adultAccessAllowed$,
     this.moderationInteractionAllowed$,
   ]).pipe(
     map(([
       isAuthenticated,
       blocked,
       user,
-      adultAgeAccessAllowed,
       moderationAllowed,
     ]) => {
       if (
         isAuthenticated !== true ||
         blocked === true ||
         !user ||
-        adultAgeAccessAllowed !== true ||
         moderationAllowed !== true
       ) {
         return false;
@@ -599,9 +594,6 @@ export class AccessControlService {
 
       const terms = user.acceptedTerms;
       const adultConsent = user.adultConsent;
-      const reverificationStatus = String(
-        user.ageReverification?.status ?? 'NONE'
-      ).toUpperCase();
 
       const termsOk =
         terms?.accepted === true &&
@@ -612,14 +604,7 @@ export class AccessControlService {
         adultConsent?.accepted === true &&
         adultConsent.version === ADULT_CONSENT_VERSION;
 
-      const ageReverificationOk = ![
-        'REQUIRED',
-        'SUBMITTED',
-        'UNDER_REVIEW',
-        'EXPIRED',
-      ].includes(reverificationStatus);
-
-      return termsOk && adultConsentOk && ageReverificationOk;
+      return termsOk && adultConsentOk;
     }),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true }),
