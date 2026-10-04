@@ -156,7 +156,6 @@
 .profile-videos__upload-failure button:focus-visible,
 .profile-videos__upload-launch:focus-visible,
 .profile-videos__dialog-close:focus-visible,
-.profile-videos__delete-button:focus-visible,
 .profile-videos__media-trigger--interactive:focus-visible {
   outline: var(--focus-ring, 3px solid rgb(255 112 112 / 92%));
   outline-offset: 2px;
@@ -470,48 +469,6 @@
   -webkit-line-clamp: 2;
 }
 
-.profile-videos__actions {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 44px;
-  align-items: stretch;
-  gap: 8px;
-  margin-top: auto;
-}
-
-.profile-videos__actions > .app-action {
-  min-height: 44px;
-}
-
-.profile-videos__delete-button {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  border: 1px solid color-mix(
-    in oklab,
-    var(--error-color, #ff6b6b) 44%,
-    var(--surface-border, rgb(255 255 255 / 14%))
-  );
-  border-radius: 11px;
-  background: transparent;
-  color: var(--error-color, #ff7a86);
-  cursor: pointer;
-}
-
-.profile-videos__delete-button:hover:not(:disabled) {
-  background: color-mix(
-    in oklab,
-    var(--error-color, #ff6b6b) 12%,
-    transparent
-  );
-}
-
-.profile-videos__delete-button:disabled {
-  opacity: 0.48;
-  cursor: not-allowed;
-}
-
 .profile-videos__media-trigger {
   position: relative;
   display: block;
@@ -647,6 +604,10 @@
     justify-content: center;
   }
 
+  .profile-videos__upload-primary-action .app-action {
+    width: 100%;
+  }
+
   .profile-videos__upload-failure {
     grid-template-columns: 38px minmax(0, 1fr);
   }
@@ -723,7 +684,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .profile-videos__media-trigger img,
-  .profile-videos__play {
+  .profile-videos__play,
+  .profile-videos__upload-options > summary::after {
     transition: none;
   }
 }
@@ -735,7 +697,6 @@ html.high-contrast .profile-videos__upload-start,
 html.high-contrast .profile-videos__upload-failure,
 html.high-contrast .profile-videos__upload-launch,
 html.high-contrast .profile-videos__dialog-close,
-html.high-contrast .profile-videos__delete-button,
 html.high-contrast .profile-videos__upload-dialog .profile-videos__upload,
 html.high-contrast .profile-videos__settings-dialog-card,
 html.high-contrast .profile-videos__media-trigger,
