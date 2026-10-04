@@ -143,7 +143,7 @@ describe('Firestore Rules / presence adult social boundary', () => {
     );
   });
 
-  it('nega presença quando a autoridade etária deixa de autorizar acesso adulto', async () => {
+  it('mantém presença quando muda apenas o assurance etário da conta', async () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {
       await setDoc(doc(context.firestore(), 'age_eligibility_records', UID), {
         uid: UID,
@@ -158,7 +158,7 @@ describe('Firestore Rules / presence adult social boundary', () => {
 
     const db = testEnv.authenticatedContext(UID).firestore();
 
-    await assertFails(
+    await assertSucceeds(
       updateDoc(doc(db, 'presence', UID), {
         presenceSessionId: 'session-1',
         presenceState: 'online',
