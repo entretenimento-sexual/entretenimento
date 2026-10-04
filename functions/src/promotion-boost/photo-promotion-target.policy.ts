@@ -69,8 +69,6 @@ export function advertiserInteractionFieldsChanged(
   const right = asRecord(after);
   const leftHold = asRecord(left['moderationAutomationHold']);
   const rightHold = asRecord(right['moderationAutomationHold']);
-  const leftAge = asRecord(left['ageReverification']);
-  const rightAge = asRecord(right['ageReverification']);
   const leftTerms = asRecord(left['acceptedTerms']);
   const rightTerms = asRecord(right['acceptedTerms']);
   const leftConsent = asRecord(left['adultConsent']);
@@ -81,7 +79,6 @@ export function advertiserInteractionFieldsChanged(
     || left['interactionBlocked'] !== right['interactionBlocked']
     || leftHold['active'] !== rightHold['active']
     || leftHold['expiresAtMs'] !== rightHold['expiresAtMs']
-    || leftAge['status'] !== rightAge['status']
     || leftTerms['accepted'] !== rightTerms['accepted']
     || leftTerms['version'] !== rightTerms['version']
     || leftTerms['acknowledgedPrivacyNotice']
