@@ -263,6 +263,446 @@ forbidAll(
   'runtime social não deve reavaliar assurance etário'
 );
 
+// Frontend: assurance etário só pode ser consumido por Registration/Compliance.
+for (const file of walk(path.join(root, 'src', 'app'), ['.ts'])) {
+  const relative = path.normalize(path.relative(root, file));
+  const allowedPrefixes = [
+    path.normalize('src/app/register-module') + path.sep,
+    path.normalize('src/app/compliance') + path.sep,
+    path.normalize('src/app/core/services/compliance') + path.sep,
+    path.normalize('src/app/admin-dashboard/moderation-reports') + path.sep,
+  ];
+
+  if (allowedPrefixes.some((prefix) => relative.startsWith(prefix))) {
+    continue;
+  }
+
+  const source = codeOnly(fs.readFileSync(file, 'utf8'));
+  for (const token of [
+    'AgeEligibilityService',
+    'AgeReverificationService',
+    'ageEligibility.current
+requireAll(
+  'src/app/app-routing.module.ts',
+  ['accountLifecycleGuard'],
+  'roteamento normal deve preservar lifecycle como fronteira de conta'
+);
+forbidAll(
+  'src/app/app-routing.module.ts',
+  [
+    'ageEligibilityGuard',
+    'ageReverificationGuard',
+  ],
+  'rotas normais não podem reintroduzir gate de assurance etário'
+);
+
+forbidAll(
+  'src/app/core/services/compliance/age-eligibility.service.ts',
+  [
+    'adultAccessAllowed',
+    'reconciledAdultAccess',
+    'verifiedAdult',
+  ],
+  'cliente de assurance não pode expor gates globais de acesso'
+);
+
+forbidAll(
+  'functions/src/account_lifecycle/interaction-access.policy.ts',
+  ['assertInteractionAccessData'],
+  'wrapper legado com shape etário não deve permanecer'
+);
+
+// Media: consumo e autoria dependem da conta, nunca do assurance.
+requireAll(
+  'functions/src/media/application/media-authoring-eligibility.service.ts',
+  ['assertPlatformAccountAccessData'],
+  'autoria Media deve usar a fronteira de conta'
+);
+forbidAll(
+  'functions/src/media/application/media-authoring-eligibility.service.ts',
+  [
+    'age_eligibility_records',
+    'evaluateCanonicalAgeEligibility',
+    'isVerifiedAdultAgeDecision',
+  ],
+  'autoria Media não pode reavaliar idade'
+);
+
+requireAll(
+  'functions/src/media/application/public-media-consumption-access.policy.ts',
+  ['assertPlatformAccountAccessData'],
+  'consumo Media deve usar a fronteira de conta'
+);
+forbidAll(
+  'functions/src/media/application/public-media-consumption-access.policy.ts',
+  [
+    'age_eligibility_records',
+    'evaluateCanonicalAgeEligibility',
+    'isVerifiedAdultAgeDecision',
+  ],
+  'consumo Media não pode reavaliar idade'
+);
+
+forbidAll(
+  'src/app/core/services/media/public-media-read-boundary.service.ts',
+  [
+    'AgeEligibilityService',
+    'verifiedAdult$',
+    'adultAccessAllowed$',
+    'if (!verifiedAdult)',
+  ],
+  'cliente Media não pode criar preflight etário'
+);
+
+for (const relativePath of [
+  'functions/src/media/application/manage-photo-publication.handler.ts',
+  'functions/src/media/application/manage-video-publication.handler.ts',
+]) {
+  requireAll(
+    relativePath,
+    [
+      'assertMediaAuthoringEligibility',
+      'ageEligibilityVerifiedAdult: FieldValue.delete()',
+      'ageEligibilityAssurance: FieldValue.delete()',
+      'ageEligibilityValidUntil: FieldValue.delete()',
+    ],
+    'publicação deve limpar projeções etárias legadas'
+  );
+  forbidAll(
+    relativePath,
+    [
+      'ageEligibilityVerifiedAdult: true',
+      'evaluateCanonicalAgeEligibility',
+      'isVerifiedAdultAgeDecision',
+    ],
+    'mídia publicada não pode carregar autoridade etária'
+  );
+}
+
+requireAll(
+  'functions/src/media/application/public-media-exposure.policy.ts',
+  [
+    'evaluatePublicMediaOwnerExposure',
+    'evaluatePublicMediaSignedOwnerExposure',
+    'isCurrentPublicMediaProjectionExposure',
+    'isCurrentPublicMediaAssetExposure',
+    'BILATERAL_BLOCK',
+    'APPROVED',
+  ],
+  'exposure Media incompleto'
+);
+forbidAll(
+  'functions/src/media/application/public-media-exposure.policy.ts',
+  [
+    'publicAgeProjectionValidUntilMs',
+    'OWNER_AGE_',
+    'ageEligibilityVerifiedAdult',
+    'ageEligibilityValidUntil',
+  ],
+  'exposure Media não pode depender da idade do owner'
+);
+
+requireAll(
+  'functions/src/media/application/public-media-owner-exposure.service.ts',
+  [
+    "db.doc(`users/\${ownerUid}`)",
+    "db.doc(`public_profiles/\${ownerUid}`)",
+    'evaluateCanonicalOwnerLifecycle',
+  ],
+  'owner exposure deve consultar lifecycle'
+);
+forbidAll(
+  'functions/src/media/application/public-media-owner-exposure.service.ts',
+  [
+    'age_eligibility_records',
+    'evaluateCanonicalAgeEligibility',
+  ],
+  'owner exposure não pode consultar autoridade etária'
+);
+
+for (const relativePath of [
+  'functions/src/media/application/get-public-photo-access-urls.handler.ts',
+  'functions/src/media/application/get-public-video-access-urls.handler.ts',
+]) {
+  requireAll(
+    relativePath,
+    [
+      'assertPublicMediaConsumptionAccess',
+      'resolvePublicMediaSignedOwnerExposure',
+      'resolvePublicMediaSignedUrlExpiresAt',
+    ],
+    'URL assinada deve preservar conta/lifecycle e TTL técnico'
+  );
+  forbidAll(
+    relativePath,
+    [
+      'ageEligibilityExpiresAtMs',
+      'publicAgeProjectionValidUntilMs',
+      'viewerExpiresAt',
+      'ownerExpiresAt',
+      'mediaValidUntilMs',
+    ],
+    'URL assinada não pode ter TTL etário'
+  );
+}
+
+requireAll(
+  'functions/src/media/application/public-media-signed-url-expiry.policy.ts',
+  ['technicalExpiresAtMs'],
+  'TTL temporário deve preservar limite técnico'
+);
+forbidAll(
+  'functions/src/media/application/public-media-signed-url-expiry.policy.ts',
+  [
+    'viewerExpiresAtMs',
+    'ownerExpiresAtMs',
+    'mediaExpiresAtMs',
+    'ageEligibility',
+  ],
+  'TTL temporário não pode depender de idade'
+);
+
+for (const relativePath of [
+  'firestore-rules/public_profiles_photos.rules',
+  'firestore-rules/public_profiles_videos.rules',
+]) {
+  requireAll(
+    relativePath,
+    [
+      'canConsumeAdultPublicMedia()',
+      'canonicalOwnerLifecycleAllowsPublicMediaExposure(userId)',
+      'moderationStatus == "APPROVED"',
+    ],
+    'Rules de Media devem preservar lifecycle e moderação'
+  );
+  forbidAll(
+    relativePath,
+    [
+      'canonicalAgeEligibilityAllowsRegistration(userId)',
+      'ageEligibilityAdultAccessAllowed == true',
+      'publicAgeProjectionAllowsAdultExposure',
+    ],
+    'Rules de Media não podem reavaliar idade'
+  );
+}
+
+// Outras superfícies sociais também não consultam a autoridade etária.
+for (const relativePath of [
+  'functions/src/community/community-social-access.service.ts',
+  'functions/src/friendship/application/get-pending-friend-requests.handler.ts',
+]) {
+  forbidAll(
+    relativePath,
+    [
+      "collection('age_eligibility_records')",
+      'evaluateCanonicalAgeEligibility',
+      'VERIFIED_ADULT',
+    ],
+    'superfície social não pode duplicar a decisão etária'
+  );
+}
+
+// Promotion/Boost também depende de lifecycle e autoridade comercial, nunca do assurance etário.
+for (const relativePath of [
+  'functions/src/promotion-boost/promotion-boost-advertiser-eligibility.ts',
+  'functions/src/promotion-boost/sync-photo-promotion-lifecycle.trigger.ts',
+  'functions/src/promotion-boost/manage-photo-promotion-campaign.handler.ts',
+  'functions/src/promotion-boost/get-photo-promotion-placement.handler.ts',
+]) {
+  forbidAll(
+    relativePath,
+    [
+      "age_eligibility_records",
+      'rawAgeEligibility',
+      'syncPhotoPromotionFromAgeEligibility',
+      'evaluateCanonicalAgeEligibility',
+      'VERIFIED_ADULT',
+    ],
+    'Promotion/Boost não pode usar assurance etário como autoridade'
+  );
+}
+
+// Revalidação de conta não pode reescrever estado de Media.
+for (const relativePath of [
+  'functions/src/compliance/request-profile-age-reverification.handler.ts',
+  'functions/src/compliance/review-profile-age-reverification.handler.ts',
+]) {
+  forbidAll(
+    relativePath,
+    [
+      'profile-age-reverification-media',
+      'ageReverificationHidden',
+      'ageReverificationPreviousVisibility',
+      'ageReverificationPreviousModerationStatus',
+      'hideProfileMediaVisibility',
+      'restoreProfileMediaVisibility',
+    ],
+    'revalidação deve atuar pelo lifecycle da conta, não mutar Media'
+  );
+}
+
+requireAll(
+  'functions/src/compliance/request-profile-age-reverification.handler.ts',
+  [
+    "publicVisibility: 'hidden'",
+    'interactionBlocked: true',
+  ],
+  'revalidação deve materializar restrição no lifecycle da conta'
+);
+
+requireAll(
+  'functions/src/compliance/review-profile-age-reverification.handler.ts',
+  [
+    "publicVisibility: 'visible'",
+    'interactionBlocked: false',
+    "accountStatus: 'moderation_suspended'",
+    'interactionBlocked: true',
+  ],
+  'resultado da revalidação deve restaurar ou restringir a conta'
+);
+
+// Segurança de menor dentro do conteúdo é uma autoridade de moderação de Media.
+requireAll(
+  'functions/src/media/application/media-report-safety.ts',
+  [
+    'minor_exposure_safety',
+    'minor_content_safety',
+    'MAXIMUM_MINOR',
+    'shouldQuarantineMediaAfterReport',
+  ],
+  'Media deve preservar a fronteira crítica de segurança de menor no conteúdo'
+);
+
+// Discovery geral segue a mesma arquitetura de conta.
+for (const relativePath of [
+  'functions/src/discovery/get-public-profiles-page.handler.ts',
+  'functions/src/discovery/get-user-intent-statuses.handler.ts',
+]) {
+  requireAll(
+    relativePath,
+    ['assertInteractionAccess', 'Date.now()'],
+    'discovery deve validar o viewer pela conta'
+  );
+  forbidAll(
+    relativePath,
+    [
+      "where('ageEligibilityVerifiedAdult'",
+      "data['ageEligibilityVerifiedAdult']",
+      "data['ageEligibilityValidUntil']",
+    ],
+    'discovery não pode filtrar por assurance etário'
+  );
+}
+
+forbidAll(
+  'functions/src/discovery/user-intent-status.handler.ts',
+  [
+    'evaluateCanonicalAgeEligibility',
+    'isVerifiedAdultAgeDecision',
+    "collection('age_eligibility_records')",
+    'ageEligibilityVerifiedAdult: true',
+  ],
+  'publicação de intenção não pode exigir verificação forte'
+);
+
+forbidAll(
+  'functions/src/discovery/sync-public-profile-discovery.handler.ts',
+  [
+    'evaluateCanonicalAgeEligibility',
+    "collection('age_eligibility_records')",
+    'ageEligibilityVerifiedAdult: true',
+  ],
+  'perfil público não pode depender de assurance etário'
+);
+
+for (const relativePath of [
+  'firestore-rules/public_profiles_next.rules',
+  'firestore-rules/user_intent_statuses.rules',
+]) {
+  forbidAll(
+    relativePath,
+    [
+      'canonicalAgeEligibilityAllowsRegistration',
+      'canonicalAgeEligibilityIsVerifiedAdult',
+      'ageEligibilityVerifiedAdult == true',
+      'ageEligibilityValidUntil',
+    ],
+    'Rules de discovery não podem reavaliar assurance etário'
+  );
+}
+
+// Media não pode reintroduzir assurance etário como razão/apresentação própria.
+forbidAll(
+  'src/app/core/services/media/media-error.catalog.ts',
+  [
+    'AGE_VERIFICATION_REQUIRED',
+    'AGE_REVERIFICATION_REQUIRED',
+    'age_reverification_required',
+    'verification_required',
+    'verification_expired',
+    'record_mismatch',
+    'policy_outdated',
+    '/adulto/verificar-idade',
+    '/adulto/revalidar',
+  ],
+  'catálogo Media não pode apresentar gate etário'
+);
+
+forbidAll(
+  'src/app/core/services/media/public-media-callable-feedback.policy.ts',
+  [
+    'AGE_VERIFICATION_REQUIRED',
+    'AGE_REVERIFICATION_REQUIRED',
+    'age_reverification_required',
+    'verification_required',
+    'verification_expired',
+    'record_mismatch',
+    'policy_outdated',
+    '/adulto/verificar-idade',
+    '/adulto/revalidar',
+  ],
+  'feedback Media não pode apresentar gate etário'
+);
+
+// Enumeração pública continua backend-only.
+for (const relativePath of [
+  'firestore-rules/public_profiles_next.rules',
+  'firestore-rules/user_intent_statuses.rules',
+  'firestore-rules/public_profiles_photos.rules',
+  'firestore-rules/public_profiles_videos.rules',
+]) {
+  const source = read(relativePath);
+  if (source && !/allow\s+list\s*:\s*if\s+false\s*;/.test(source)) {
+    violations.push(
+      `${relativePath} (listagem pública deve permanecer backend-only)`
+    );
+  }
+}
+
+const unique = [...new Set(violations)].sort();
+
+if (unique.length > 0) {
+  console.error('[age-authority] Fronteira canônica violada:');
+  for (const violation of unique) {
+    console.error(`  - ${violation}`);
+  }
+  process.exit(1);
+}
+
+console.log(
+  '[age-authority] OK: maioridade pertence à conta; assurance permanece backend-only/UX e Media/Discovery usam lifecycle + moderação sem segundo gate etário.'
+);
+,
+    'ageReverification',
+  ]) {
+    if (source.includes(token)) {
+      violations.push(
+        `${relative} (frontend fora de Registration/Compliance não pode consumir assurance etário: ${token})`
+      );
+    }
+  }
+}
+
 // O roteamento normal não pode transformar assurance/revalidação em gate.
 requireAll(
   'src/app/app-routing.module.ts',
