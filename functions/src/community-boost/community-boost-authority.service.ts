@@ -9,7 +9,7 @@
 import type { Transaction } from 'firebase-admin/firestore';
 
 import {
-  assertInteractionAccessData,
+  assertPlatformAccountAccessData,
 } from '../account_lifecycle/interaction-access.policy';
 import { db } from '../firebaseApp';
 import {
@@ -98,10 +98,8 @@ function advertiserInteractionEligible(input: {
   readonly advertiserUid: string;
 }): boolean {
   try {
-    assertInteractionAccessData(
-      input.rawUser as Parameters<typeof assertInteractionAccessData>[0],
-      input.rawAgeEligibility,
-      input.advertiserUid
+    assertPlatformAccountAccessData(
+      input.rawUser as Parameters<typeof assertPlatformAccountAccessData>[0]
     );
     return true;
   } catch {
