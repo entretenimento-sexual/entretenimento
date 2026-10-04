@@ -150,17 +150,11 @@ async function reconcileUserPromotionEligibility(
 ): Promise<void> {
   if (!userUid) return;
 
-  const [userSnapshot, ageEligibilitySnapshot] = await Promise.all([
-    db.collection('users').doc(userUid).get(),
-    db.collection('age_eligibility_records').doc(userUid).get(),
-  ]);
+  const userSnapshot = await db.collection('users').doc(userUid).get();
 
   if (
     isPromotionBoostAdvertiserInteractionEligible({
       rawUser: userSnapshot.exists ? userSnapshot.data() : null,
-      rawAgeEligibility: ageEligibilitySnapshot.exists
-        ? ageEligibilitySnapshot.data()
-        : null,
       advertiserUid: userUid,
     })
   ) {
@@ -263,18 +257,6 @@ export const syncPhotoPromotionFromUserLifecycle = onDocumentWritten(
   }
 );
 
-export const syncPhotoPromotionFromAgeEligibility =
-  onDocumentWritten(
-    {
-      document: 'age_eligibility_records/{userUid}',
-      region: FUNCTIONS_REGION,
-      retry: true,
-    },
-    async (event) => {
-      await reconcileUserPromotionEligibility(
-        String(event.params.userUid ?? '').trim(),
-        'user_age_ineligible',
-        Date.now()
-      );
+
     }
   );
