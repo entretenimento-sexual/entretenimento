@@ -79,7 +79,7 @@ export class VideoSimpleEditorControlsComponent {
   private disabledValue = false;
   private activeTrimHandleValue: TVideoTrimHandle = 'end';
 
-  readonly activeTool = signal<TVideoEditorTool>('trim');
+  readonly activeTool = signal<TVideoEditorTool | null>(null);
   readonly previewTimeMs = signal(0);
 
   @Input()
