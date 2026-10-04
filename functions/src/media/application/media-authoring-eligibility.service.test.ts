@@ -20,76 +20,78 @@ describe('media authoring eligibility', () => {
       accepted: true,
       version: 'v1',
     },
-    ageReverification: { status: 'NONE' },
   };
 
-  const selfDeclaredAdult = {
-    uid: 'user-1',
-    status: 'SELF_DECLARED_ADULT',
-    policyVersion: 1,
-    source: 'SELF_DECLARATION',
-    method: 'SELF_DECLARATION',
-    caseId: null,
-    verifiedAtMs: null,
-    decidedAtMs: Date.now() - 1_000,
-    expiresAtMs: null,
-  };
-
-  const verifiedAdult = {
-    uid: 'user-1',
-    status: 'VERIFIED_ADULT',
-    policyVersion: 1,
-    source: 'AGE_REVERIFICATION',
-    method: 'MANUAL_REVIEW',
-    caseId: 'case-1',
-    verifiedAtMs: Date.now() - 1_000,
-    expiresAtMs: null,
-  };
-
-  it('permite autoria com maioridade autodeclarada registrada no backend', () => {
-    const decision = assertMediaAuthoringEligibilityData(
-      eligibleUser,
-      selfDeclaredAdult,
-      'user-1'
-    );
-
-    assert.equal(decision.ageEligibility.allowed, true);
-    assert.equal(decision.ageEligibility.status, 'SELF_DECLARED_ADULT');
-    assert.equal(decision.ageEligibilityVerifiedAdult, false);
+  it('permite autoria para conta ativa sem depender do assurance etário', () => {
+    for (const ageRecord of [
+      null,
+      {
+        uid: 'user-1',
+        status: 'SELF_DECLARED_ADULT',
+        policyVersion: 1,
+      },
+      {
+        uid: 'user-1',
+        status: 'VERIFIED_ADULT',
+        policyVersion: 1,
+      },
+      {
+        uid: 'user-1',
+        status: 'EXPIRED',
+        policyVersion: 1,
+      },
+    ]) {
+      assert.deepEqual(
+        assertMediaAuthoringEligibilityData(
+          eligibleUser,
+          ageRecord,
+          'user-1'
+        ),
+        { allowed: true }
+      );
+    }
   });
 
-  it('preserva assurance forte quando a conta já é verificada', () => {
-    const decision = assertMediaAuthoringEligibilityData(
-      eligibleUser,
-      verifiedAdult,
-      'user-1'
-    );
-
-    assert.equal(decision.ageEligibility.allowed, true);
-    assert.equal(decision.ageEligibilityVerifiedAdult, true);
-  });
-
-  it('bloqueia menoridade, reverificação e lifecycle restrito', () => {
-    assert.throws(
-      () => assertMediaAuthoringEligibilityData(
-        eligibleUser,
-        {
-          ...verifiedAdult,
-          status: 'DENIED_UNDERAGE',
-          verifiedAtMs: null,
-        },
-        'user-1'
-      ),
-      HttpsError
-    );
-
-    assert.throws(
-      () => assertMediaAuthoringEligibilityData(
+  it('não transforma reverificação etária em gate local de Media', () => {
+    assert.doesNotThrow(() =>
+      assertMediaAuthoringEligibilityData(
         {
           ...eligibleUser,
           ageReverification: { status: 'REQUIRED' },
+        } as typeof eligibleUser & {
+          ageReverification: { status: string };
         },
-        verifiedAdult,
+        null,
+        'user-1'
+      )
+    );
+  });
+
+  it('bloqueia quando o lifecycle da conta não autoriza interação', () => {
+    for (const user of [
+      { ...eligibleUser, suspended: true },
+      { ...eligibleUser, interactionBlocked: true },
+      { ...eligibleUser, accountStatus: 'pending_deletion' },
+    ]) {
+      assert.throws(
+        () => assertMediaAuthoringEligibilityData(user, null, 'user-1'),
+        HttpsError
+      );
+    }
+  });
+
+  it('bloqueia termos ou consentimento adulto ausentes', () => {
+    assert.throws(
+      () => assertMediaAuthoringEligibilityData(
+        {
+          ...eligibleUser,
+          acceptedTerms: {
+            accepted: true,
+            version: 'legacy',
+            acknowledgedPrivacyNotice: true,
+          },
+        },
+        null,
         'user-1'
       ),
       HttpsError
@@ -99,9 +101,9 @@ describe('media authoring eligibility', () => {
       () => assertMediaAuthoringEligibilityData(
         {
           ...eligibleUser,
-          suspended: true,
+          adultConsent: null,
         },
-        verifiedAdult,
+        null,
         'user-1'
       ),
       HttpsError
