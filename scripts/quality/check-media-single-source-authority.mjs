@@ -5,8 +5,9 @@
 // Projeções podem duplicar campos para leitura/ranking, mas nunca concedem:
 // - visibility/publication/moderation;
 // - lifecycle do proprietário;
-// - elegibilidade etária;
+// - segurança/moderação do conteúdo;
 // - autoridade comercial/oficial.
+// A elegibilidade etária pertence à conta e não é autoridade de Media.
 // -----------------------------------------------------------------------------
 
 import fs from 'node:fs';
@@ -46,12 +47,22 @@ const ownerExposure = read(
 );
 for (const fragment of [
   'evaluateCanonicalOwnerLifecycle',
-  'evaluateCanonicalAgeEligibility',
   'users/${ownerUid}',
-  'age_eligibility_records/${ownerUid}',
   'public_profiles/${ownerUid}',
 ]) {
   requireIncludes(ownerExposure, fragment, 'owner authority drift');
+}
+
+for (const forbidden of [
+  'evaluateCanonicalAgeEligibility',
+  'age_eligibility_records/${ownerUid}',
+]) {
+  if (ownerExposure.includes(forbidden)) {
+    throw new Error(
+      '[media-single-source-authority] age authority leaked into Media: ' +
+      forbidden
+    );
+  }
 }
 
 const discovery = read(
