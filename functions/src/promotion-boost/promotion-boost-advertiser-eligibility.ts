@@ -5,7 +5,6 @@ import {
 
 export function isPromotionBoostAdvertiserInteractionEligible(input: {
   readonly rawUser: unknown;
-  readonly rawAgeEligibility: unknown;
   readonly advertiserUid: string;
 }): boolean {
   try {
