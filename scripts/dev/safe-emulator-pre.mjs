@@ -71,6 +71,88 @@ function runCommand(command, args) {
   });
 }
 
+
+function parseWindowsListeningPids(port) {
+  if (process.platform !== 'win32') return [];
+
+  const result = spawnSync(
+    'cmd.exe',
+    ['/d', '/s', '/c', `netstat -ano -p tcp | findstr /R /C:":${port} .*LISTENING"`],
+    {
+      cwd: root,
+      env: process.env,
+      encoding: 'utf8',
+      shell: false,
+    }
+  );
+
+  const output = String(result.stdout ?? '');
+  const pids = new Set();
+
+  for (const line of output.split(/\r?\n/)) {
+    const match = line.trim().match(/\s(\d+)$/);
+    if (match?.[1]) pids.add(match[1]);
+  }
+
+  return [...pids];
+}
+
+function describeWindowsPid(pid) {
+  if (process.platform !== 'win32') return null;
+
+  const ps = spawnSync(
+    'powershell.exe',
+    [
+      '-NoProfile',
+      '-Command',
+      `$p=Get-CimInstance Win32_Process -Filter "ProcessId=${pid}" -ErrorAction SilentlyContinue; if($p){[Console]::Write(($p.Name + '|' + $p.ProcessId + '|' + $p.CommandLine))}`,
+    ],
+    {
+      cwd: root,
+      env: process.env,
+      encoding: 'utf8',
+      shell: false,
+    }
+  );
+
+  const raw = String(ps.stdout ?? '').trim();
+  if (!raw) return { pid, name: 'desconhecido', commandLine: '' };
+
+  const [name = 'desconhecido', resolvedPid = pid, ...commandParts] =
+    raw.split('|');
+
+  return {
+    pid: resolvedPid,
+    name,
+    commandLine: commandParts.join('|').trim(),
+  };
+}
+
+function printPortOwners(ports) {
+  if (process.platform !== 'win32') return;
+
+  console.error('[emu:pre] Processos que estão segurando as portas:');
+
+  for (const port of ports) {
+    const pids = parseWindowsListeningPids(port);
+
+    if (!pids.length) {
+      console.error(`  - porta ${port}: PID não identificado`);
+      continue;
+    }
+
+    for (const pid of pids) {
+      const details = describeWindowsPid(pid);
+      const suffix = details?.commandLine
+        ? ` | ${details.commandLine}`
+        : '';
+      console.error(
+        `  - porta ${port}: PID ${details?.pid ?? pid} (${details?.name ?? 'desconhecido'})${suffix}`
+      );
+    }
+  }
+}
+
 const portStates = await Promise.all(
   knownPorts.map(async (port) => ({
     port,
@@ -86,12 +168,20 @@ if (openPorts.length === 0) {
 }
 
 const openStatefulPorts = openPorts.filter((port) => statefulPorts.includes(port));
+const diagnoseOnly = process.argv.includes('--diagnose-only');
+
+if (diagnoseOnly) {
+  console.log(`[emu:pre] Portas conhecidas ocupadas: ${openPorts.join(', ')}.`);
+  printPortOwners(openPorts);
+  process.exit(0);
+}
 
 if (openStatefulPorts.length > 0) {
   if (!openPorts.includes(hubPort)) {
     console.error(
       `[emu:pre] Emuladores com estado estão ativos nas portas ${openStatefulPorts.join(', ')}, mas o Hub ${hubPort} não responde.`
     );
+    printPortOwners(openStatefulPorts);
     console.error(
       '[emu:pre] Limpeza abortada para não perder dados. Encerre a sessão manualmente somente se aceitar descartar o estado não exportado.'
     );
@@ -114,6 +204,7 @@ if (openStatefulPorts.length > 0) {
   }
 }
 
+printPortOwners(openPorts);
 console.log(`[emu:pre] Liberando portas conhecidas: ${openPorts.join(', ')}.`);
 const killResult = runCommand('npx', ['kill-port', ...openPorts.map(String)]);
 
