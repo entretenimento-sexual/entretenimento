@@ -49,6 +49,7 @@ import {
   validateVideoMediaFile,
 } from '../media/media-format.policy';
 import { PrivacyDebugLoggerService } from '../privacy/privacy-debug-logger.service';
+import { FirestoreContextService } from '../data-handling/firestore/core/firestore-context.service';
 
 type UploadKind = 'image' | 'video';
 type StorageDebugKind = UploadKind | 'avatar';
@@ -72,16 +73,13 @@ export class StorageService {
   private readonly storage = inject(Storage);
   private readonly auth = inject(Auth);
   private readonly functions = inject(Functions);
-  private readonly reservePhotoUploadCallable = httpsCallable<
-    ReservePhotoUploadCallableRequest,
-    ReservePhotoUploadCallableResponse
-  >(this.functions, 'reservePhotoUpload');
 
   constructor(
     private readonly errorNotifier: ErrorNotificationService,
     private readonly mediaError: MediaApplicationErrorService,
     private readonly store: Store<AppState>,
-    private readonly privacyDebug: PrivacyDebugLoggerService
+    private readonly privacyDebug: PrivacyDebugLoggerService,
+    private readonly firebaseContext: FirestoreContextService
   ) {}
 
   /**
@@ -395,12 +393,19 @@ export class StorageService {
       );
     }
 
-    return from(this.reservePhotoUploadCallable({
-      ownerUid: userId,
-      storagePath,
-      sizeBytes: file.size,
-      contentType: resolvedFormat.mimeType,
-    })).pipe(
+    return this.firebaseContext.deferPromise$(() => {
+      const callable = httpsCallable<
+        ReservePhotoUploadCallableRequest,
+        ReservePhotoUploadCallableResponse
+      >(this.functions, 'reservePhotoUpload');
+
+      return callable({
+        ownerUid: userId,
+        storagePath,
+        sizeBytes: file.size,
+        contentType: resolvedFormat.mimeType,
+      });
+    }).pipe(
       map((response) => {
         const reservationId = String(
           response.data?.reservationId ?? ''
@@ -628,7 +633,23 @@ export class StorageService {
       }),
       catchError((error) => {
         const errorMsg = this.extractErrorMessage(error);
-        this.dbg('getPhotoUrl failed', { errorMsg, hasPath: !!cleanPath });
+        const code =
+          typeof error === 'object' &&
+          error !== null &&
+          'code' in error
+            ? String((error as { code?: unknown }).code ?? '')
+            : '';
+
+        this.dbg('getPhotoUrl failed', {
+          errorMsg,
+          code,
+          hasPath: !!cleanPath,
+        });
+
+        if (code === 'storage/object-not-found') {
+          return of('');
+        }
+
         this.routeError(
           'getPhotoUrl',
           error,
