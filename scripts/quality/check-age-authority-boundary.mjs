@@ -461,6 +461,26 @@ for (const relativePath of [
   );
 }
 
+// Promotion/Boost também depende de lifecycle e autoridade comercial, nunca do assurance etário.
+for (const relativePath of [
+  'functions/src/promotion-boost/promotion-boost-advertiser-eligibility.ts',
+  'functions/src/promotion-boost/sync-photo-promotion-lifecycle.trigger.ts',
+  'functions/src/promotion-boost/manage-photo-promotion-campaign.handler.ts',
+  'functions/src/promotion-boost/get-photo-promotion-placement.handler.ts',
+]) {
+  forbidAll(
+    relativePath,
+    [
+      "age_eligibility_records",
+      'rawAgeEligibility',
+      'syncPhotoPromotionFromAgeEligibility',
+      'evaluateCanonicalAgeEligibility',
+      'VERIFIED_ADULT',
+    ],
+    'Promotion/Boost não pode usar assurance etário como autoridade'
+  );
+}
+
 // Revalidação de conta não pode reescrever estado de Media.
 for (const relativePath of [
   'functions/src/compliance/request-profile-age-reverification.handler.ts',
