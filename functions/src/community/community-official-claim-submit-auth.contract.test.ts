@@ -55,37 +55,26 @@ function installBoundaryProbe(
 
   firestore.collection = (path: string): unknown => {
     firestoreOperations.push(`collection:${path}`);
-    if (!allowSocialAccess || !['users', 'age_eligibility_records'].includes(path)) {
+    if (!allowSocialAccess || path !== 'users') {
       throw new Error('Firestore acessado antes da autenticação recente.');
     }
     return {
       doc: (uid: string) => ({
         get: async () => ({
           exists: true,
-          data: () => path === 'users'
-            ? {
-              uid,
-              interactionBlocked: false,
-              acceptedTerms: {
-                accepted: true,
-                version: TERMS_ACCEPTANCE_VERSION,
-                acknowledgedPrivacyNotice: true,
-              },
-              adultConsent: {
-                accepted: true,
-                version: ADULT_CONSENT_VERSION,
-              },
-            }
-            : {
-              uid,
-              status: 'VERIFIED_ADULT',
-              policyVersion: 1,
-              source: 'INITIAL_VERIFICATION',
-              method: 'EXTERNAL_PROVIDER',
-              caseId: 'contract-age-1',
-              verifiedAtMs: Date.now() - 1_000,
-              expiresAtMs: null,
+          data: () => ({
+            uid,
+            interactionBlocked: false,
+            acceptedTerms: {
+              accepted: true,
+              version: TERMS_ACCEPTANCE_VERSION,
+              acknowledgedPrivacyNotice: true,
             },
+            adultConsent: {
+              accepted: true,
+              version: ADULT_CONSENT_VERSION,
+            },
+          }),
         }),
       }),
     };
@@ -176,7 +165,7 @@ test('submitCommunityOfficialClaim aceita auth_time recente e alcança a valida�
     );
     assert.deepEqual(
       probe.firestoreOperations,
-      ['collection:users', 'collection:age_eligibility_records']
+      ['collection:users']
     );
     assert.deepEqual(probe.rateLimitOperations, []);
   } finally {
