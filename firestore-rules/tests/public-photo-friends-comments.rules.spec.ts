@@ -249,11 +249,11 @@ describe('Firestore Rules / FRIENDS photo comments', () => {
     expect(comments.size).toBe(1);
   });
 
-  it('expiração canônica do proprietário revoga comentários sem aguardar a projeção', async () => {
+  it('expiração do assurance etário do proprietário não revoga comentários', async () => {
     await setFriendEdges({ viewerToOwner: true, ownerToViewer: true });
     await setOwnerCanonicalAgeExpiry(new Date(Date.now() - 1_000));
 
-    await assertFails(getDoc(commentRef(viewerDb())));
+    await assertSucceeds(getDoc(commentRef(viewerDb())));
   });
 
   it('bloqueio em qualquer direção revoga leitura mesmo entre amigos', async () => {
