@@ -98,10 +98,16 @@ export class AgeVerificationPageComponent implements OnInit {
       )
       .subscribe();
 
-    this.ageEligibility.adultAccessAllowed$
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((allowed) => {
-        if (allowed) {
+    this.ageEligibility.current$
+      .pipe(
+        map((state) =>
+          state.status === 'SELF_DECLARED_ADULT' ||
+          state.status === 'VERIFIED_ADULT'
+        ),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe((registrationAgeStepSatisfied) => {
+        if (registrationAgeStepSatisfied) {
           this.continueAfterAgeStep();
         }
       });
@@ -143,9 +149,9 @@ export class AgeVerificationPageComponent implements OnInit {
         });
 
         /**
-         * A navegação pertence exclusivamente à projeção autoritativa
-         * adultAccessAllowed$. A callable confirma a persistência, mas não deve
-         * competir com o listener realtime iniciando uma segunda navegação.
+         * A navegação pertence exclusivamente à projeção autoritativa current$.
+         * A callable confirma a persistência, mas não deve competir com o
+         * listener realtime iniciando uma segunda navegação.
          */
       });
   }
