@@ -92,7 +92,7 @@ describe('public-media-callable-feedback.policy', () => {
     );
   });
 
-  it('orienta revalidação de idade por reason estruturado', () => {
+  it('não trata assurance etário como reason conhecido de Media', () => {
     expect(
       resolvePublicMediaCallableUserMessage(
         {
@@ -102,7 +102,7 @@ describe('public-media-callable-feedback.policy', () => {
         'reply',
         'Fallback'
       )
-    ).toBe('Conclua a revalidação de idade para continuar.');
+    ).toBe('Não foi possível responder este comentário agora.');
   });
 
   it('aceita reason estruturado anexado em original', () => {
