@@ -24,9 +24,15 @@ function read(relativePath) {
   return fs.readFileSync(path.join(root, relativePath), 'utf8');
 }
 
-function requireIncludes(source, fragment, label) {
-  if (!source.includes(fragment)) {
-    throw new Error('[media-ux-harmony] ' + label + ': ' + fragment);
+function requireIncludes(source, fragmentOrFragments, label) {
+  const fragments = Array.isArray(fragmentOrFragments)
+    ? fragmentOrFragments
+    : [fragmentOrFragments];
+
+  for (const fragment of fragments) {
+    if (!source.includes(fragment)) {
+      throw new Error('[media-ux-harmony] ' + label + ': ' + fragment);
+    }
   }
 }
 
@@ -301,11 +307,6 @@ for (const forbiddenPackage of [
     'photo editor must not depend on third-party editing runtime'
   );
 }
-
-console.log(
-  '[media-ux-harmony] OK: Foto/Vídeo share badges, recommendation context, states, skeletons and viewer tokens; Photo Editor remains local Canvas and registry-extensible.'
-);
-
 
 const profilePhotosTemplate = read(
   'src/app/media/photos/profile-photos/profile-photos.component.html'
@@ -680,3 +681,8 @@ for (const forbidden of [
     'profile video upload must not expose technical filename titles by default'
   );
 }
+
+
+console.log(
+  '[media-ux-harmony] OK: Foto/Vídeo compartilham contratos visuais, ações compactas, upload progressivo e editores protegidos contra regressão.'
+);
