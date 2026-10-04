@@ -384,8 +384,49 @@ requireIncludes(photoUploadComponent, [
   "navigate(['/media', 'perfil', ownerUid, 'fotos'])",
 ], 'photo upload direct return to gallery');
 
-forbidIncludes(
-  profilePhotosTemplate,
+requireIncludes(profilePhotosTemplate, [
+  'app-media-action-menu',
+  '(changeDate)="editPhotoDate(item)"',
+  '(deleteRequested)="requestDelete(item)"',
   'photo-date-chip',
-  'profile photo card must keep a single visible date presentation'
+], 'profile photo compact action/menu contract');
+
+for (const forbidden of [
+  'management-bar',
+  'management-date',
+  'type="date"',
+  '(click)="editPhoto(item, $event)"',
+]) {
+  forbidIncludes(
+    profilePhotosTemplate,
+    forbidden,
+    'profile photo card must not restore permanent administrative controls'
+  );
+}
+
+const mediaActionMenu = read(
+  'src/app/media/shared/components/media-action-menu/media-action-menu.component.html'
 );
+for (const fragment of [
+  'matMenuTriggerFor',
+  'Mais ações',
+  'Editar foto',
+  'Alterar data',
+  'Definir como capa',
+  'Excluir foto',
+]) {
+  requireIncludes(
+    mediaActionMenu,
+    fragment,
+    'canonical media action menu drift'
+  );
+}
+
+const mediaDateDialog = read(
+  'src/app/media/shared/components/media-date-dialog/media-date-dialog.component.html'
+);
+requireIncludes(mediaDateDialog, [
+  'type="date"',
+  'Salvar',
+  'Cancelar',
+], 'canonical media date dialog drift');
