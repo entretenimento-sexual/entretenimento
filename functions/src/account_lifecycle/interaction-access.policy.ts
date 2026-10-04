@@ -2,9 +2,6 @@ import type { Transaction } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 
 import {
-  evaluateCanonicalAgeEligibility,
-} from '../compliance/age-eligibility.policy';
-import {
   ADULT_CONSENT_VERSION,
   TERMS_ACCEPTANCE_VERSION,
 } from '../compliance/platform-legal.constants';
@@ -20,9 +17,6 @@ interface InteractionAccessUserDocument {
   } | null;
   acceptedTerms?: unknown;
   adultConsent?: unknown;
-  ageReverification?: {
-    status?: unknown;
-  } | null;
 }
 
 function hasCurrentTerms(value: unknown): boolean {
@@ -46,10 +40,16 @@ function hasCurrentAdultConsent(value: unknown): boolean {
     String(consent['version'] ?? '').trim() === ADULT_CONSENT_VERSION;
 }
 
-export function assertInteractionAccessData(
-  user: InteractionAccessUserDocument | null | undefined,
-  ageEligibilityRecord: unknown,
-  uid: string
+/**
+ * Autoridade canônica de acesso da conta às superfícies normais da plataforma.
+ *
+ * Maioridade é decidida no domínio da conta. SELF_DECLARED_ADULT e
+ * VERIFIED_ADULT são níveis de assurance dessa decisão e não gates que cada
+ * feature deve reavaliar. Evidência posterior de menoridade precisa primeiro
+ * produzir uma consequência de lifecycle da conta.
+ */
+export function assertPlatformAccountAccessData(
+  user: InteractionAccessUserDocument | null | undefined
 ): void {
   if (!user) {
     throw new HttpsError('not-found', 'Conta não encontrada.');
@@ -58,13 +58,6 @@ export function assertInteractionAccessData(
   const accountStatus = String(user.accountStatus ?? 'active')
     .trim()
     .toLowerCase();
-  const ageStatus = String(user.ageReverification?.status ?? '')
-    .trim()
-    .toUpperCase();
-  const ageRestricted = ageStatus === 'REQUIRED' ||
-    ageStatus === 'SUBMITTED' ||
-    ageStatus === 'UNDER_REVIEW' ||
-    ageStatus === 'EXPIRED';
   const holdExpiresAtMs = Number(
     user.moderationAutomationHold?.expiresAtMs ?? 0
   );
@@ -77,40 +70,15 @@ export function assertInteractionAccessData(
     accountStatus !== 'active' ||
     user.suspended === true ||
     user.interactionBlocked === true ||
-    automationHoldActive ||
-    ageRestricted
+    automationHoldActive
   ) {
     throw new HttpsError(
       'failed-precondition',
-      ageRestricted
-        ? 'Conclua a revalidação de idade antes de realizar esta ação.'
-        : 'Esta conta não pode realizar interações no momento.',
+      'Esta conta não pode realizar interações no momento.',
       {
-        reason: ageRestricted
-          ? 'age_reverification_required'
-          : automationHoldActive
-            ? 'moderation_automation_hold'
-            : 'account_interaction_blocked',
-      }
-    );
-  }
-
-  const ageDecision = evaluateCanonicalAgeEligibility({
-    uid,
-    rawRecord: ageEligibilityRecord,
-  });
-
-  if (!ageDecision.allowed) {
-    throw new HttpsError(
-      ageDecision.denialReason === 'underage'
-        ? 'permission-denied'
-        : 'failed-precondition',
-      ageDecision.denialReason === 'underage'
-        ? 'O acesso adulto não está disponível para esta conta.'
-        : 'Conclua a etapa de maioridade antes de realizar esta ação.',
-      {
-        reason: ageDecision.denialReason,
-        recommendedAction: 'complete_age_verification',
+        reason: automationHoldActive
+          ? 'moderation_automation_hold'
+          : 'account_interaction_blocked',
       }
     );
   }
@@ -138,22 +106,27 @@ export function assertInteractionAccessData(
   }
 }
 
+/**
+ * Mantém a assinatura antiga durante a limpeza dos consumidores, mas a decisão
+ * já é exclusivamente da conta. Os argumentos etários não têm autoridade.
+ */
+export function assertInteractionAccessData(
+  user: InteractionAccessUserDocument | null | undefined,
+  _ageEligibilityRecord: unknown,
+  _uid: string
+): void {
+  assertPlatformAccountAccessData(user);
+}
+
 export async function assertInteractionAccess(
   uid: string
 ): Promise<void> {
-  const [userSnapshot, ageEligibilitySnapshot] = await Promise.all([
-    db.collection('users').doc(uid).get(),
-    db.collection('age_eligibility_records').doc(uid).get(),
-  ]);
+  const userSnapshot = await db.collection('users').doc(uid).get();
 
-  assertInteractionAccessData(
+  assertPlatformAccountAccessData(
     userSnapshot.exists
       ? userSnapshot.data() as InteractionAccessUserDocument
-      : null,
-    ageEligibilitySnapshot.exists
-      ? ageEligibilitySnapshot.data()
-      : null,
-    uid
+      : null
   );
 }
 
@@ -161,18 +134,13 @@ export async function assertInteractionAccessInTransaction(
   transaction: Transaction,
   uid: string
 ): Promise<void> {
-  const [userSnapshot, ageEligibilitySnapshot] = await Promise.all([
-    transaction.get(db.collection('users').doc(uid)),
-    transaction.get(db.collection('age_eligibility_records').doc(uid)),
-  ]);
+  const userSnapshot = await transaction.get(
+    db.collection('users').doc(uid)
+  );
 
-  assertInteractionAccessData(
+  assertPlatformAccountAccessData(
     userSnapshot.exists
       ? userSnapshot.data() as InteractionAccessUserDocument
-      : null,
-    ageEligibilitySnapshot.exists
-      ? ageEligibilitySnapshot.data()
-      : null,
-    uid
+      : null
   );
 }
