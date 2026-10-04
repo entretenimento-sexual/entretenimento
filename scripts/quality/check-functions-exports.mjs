@@ -294,7 +294,6 @@ const expectedDeploymentExports = [
   'syncOfficialMediaContextFromVenue',
   'syncOfficialMediaContextFromVideo',
   'syncPhotoPromotionFromAdvertiserAccount',
-  'syncPhotoPromotionFromAgeEligibility',
   'syncPhotoPromotionFromUserLifecycle',
   'syncPhotoPromotionFromPublication',
   'syncPublishedPhotoOnPrivateUpdate',
