@@ -255,6 +255,22 @@ forbidAll(
   'rotas normais não podem reintroduzir gate de assurance etário'
 );
 
+forbidAll(
+  'src/app/core/services/compliance/age-eligibility.service.ts',
+  [
+    'adultAccessAllowed',
+    'reconciledAdultAccess',
+    'verifiedAdult',
+  ],
+  'cliente de assurance não pode expor gates globais de acesso'
+);
+
+forbidAll(
+  'functions/src/account_lifecycle/interaction-access.policy.ts',
+  ['assertInteractionAccessData'],
+  'wrapper legado com shape etário não deve permanecer'
+);
+
 // Media: consumo e autoria dependem da conta, nunca do assurance.
 requireAll(
   'functions/src/media/application/media-authoring-eligibility.service.ts',
