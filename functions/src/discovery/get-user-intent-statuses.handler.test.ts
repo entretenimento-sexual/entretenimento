@@ -14,7 +14,7 @@ function status(overrides: Record<string, unknown> = {}) {
     uid: 'status-owner',
     profile: {
       uid: 'status-owner',
-      nickname: 'Pessoa adulta',
+      nickname: 'Pessoa',
       photoURL: 'https://example.com/avatar.webp',
       age: 42,
     },
@@ -29,10 +29,6 @@ function status(overrides: Record<string, unknown> = {}) {
     moderation: { state: 'active' },
     startsAt: NOW - 60_000,
     expiresAt: NOW + 60_000,
-    ageEligibilityVerifiedAdult: true,
-    ageEligibilityValidUntil: {
-      toMillis: () => NOW + 60_000,
-    },
     createdAt: { toMillis: () => NOW - 120_000 },
     updatedAt: { toMillis: () => NOW - 30_000 },
     ...overrides,
@@ -40,42 +36,11 @@ function status(overrides: Record<string, unknown> = {}) {
 }
 
 describe('get-user-intent-statuses backend-time boundary', () => {
-  it('aceita somente status e elegibilidade adulta ainda vigentes', () => {
+  it('exige status vigente, ativo e publicamente descobrível', () => {
     assert.equal(isCurrentUserIntentStatusExposure(status(), NOW), true);
 
     assert.equal(
-      isCurrentUserIntentStatusExposure(
-        status({ expiresAt: NOW }),
-        NOW
-      ),
-      false
-    );
-
-    assert.equal(
-      isCurrentUserIntentStatusExposure(
-        status({
-          ageEligibilityValidUntil: { toMillis: () => NOW },
-        }),
-        NOW
-      ),
-      false
-    );
-  });
-
-  it('falha fechado para projeção etária ausente, inválida ou não adulta', () => {
-    assert.equal(
-      isCurrentUserIntentStatusExposure(
-        status({ ageEligibilityVerifiedAdult: false }),
-        NOW
-      ),
-      false
-    );
-
-    assert.equal(
-      isCurrentUserIntentStatusExposure(
-        status({ ageEligibilityValidUntil: null }),
-        NOW
-      ),
+      isCurrentUserIntentStatusExposure(status({ expiresAt: NOW }), NOW),
       false
     );
 
@@ -85,6 +50,27 @@ describe('get-user-intent-statuses backend-time boundary', () => {
         NOW
       ),
       false
+    );
+
+    assert.equal(
+      isCurrentUserIntentStatusExposure(
+        status({ moderation: { state: 'hidden' } }),
+        NOW
+      ),
+      false
+    );
+  });
+
+  it('não usa campos etários legados como autoridade de exposição', () => {
+    assert.equal(
+      isCurrentUserIntentStatusExposure(
+        status({
+          ageEligibilityVerifiedAdult: false,
+          ageEligibilityValidUntil: null,
+        }),
+        NOW
+      ),
+      true
     );
   });
 
@@ -105,18 +91,7 @@ describe('get-user-intent-statuses backend-time boundary', () => {
       (serialized['moderation'] as Record<string, unknown>)['state'],
       'active'
     );
-  });
-
-  it('não serializa status cujo validUntil etário venceu sem nova escrita', () => {
-    const serialized = serializeUserIntentStatusForDiscovery(
-      'current_status-owner',
-      status({
-        ageEligibilityValidUntil: { toMillis: () => NOW - 1 },
-      }),
-      NOW
-    );
-
-    assert.equal(serialized, null);
+    assert.equal('ageEligibilityValidUntil' in serialized, false);
   });
 
   it('pondera a quota pela quantidade máxima de itens solicitados', () => {
