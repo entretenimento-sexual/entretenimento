@@ -359,6 +359,16 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
           targetType === 'video_comment' &&
           isCriticalMinorMediaSafetyReason(reason);
         const quarantine = videoQuarantine || commentQuarantine;
+        const criticalMinorSafety =
+          targetType === 'video' &&
+          isCriticalMinorMediaSafetyReason(reason);
+        const contentSafetyAssessment = criticalMinorSafety
+          ? buildPossibleMinorContentSafetyAssessment({
+            reason,
+            assessedAtMs: Date.now(),
+            assessorId: reporterUid,
+          })
+          : null;
         const binaryEvidenceRequired = targetType === 'video' &&
           shouldPreserveMediaEvidence(reason);
         const textEvidenceRequired = targetType === 'video_comment';
@@ -402,9 +412,7 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
           moderationAction: null,
           contentQuarantined: quarantine,
           safetySeverity: mediaSafetySeverity(reason),
-          criticalMinorSafety:
-            targetType === 'video' &&
-            isCriticalMinorMediaSafetyReason(reason),
+          criticalMinorSafety,
           evidencePreservationStatus: binaryEvidenceRequired
             ? 'PENDING'
             : textEvidenceRequired
@@ -439,6 +447,9 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
           safetyScore: safetyState.safetyScore,
           score: nextScore.score,
           scoreBreakdown: nextScore.scoreBreakdown,
+          ...(contentSafetyAssessment
+            ? { contentSafetyAssessment }
+            : {}),
           ...(videoQuarantine
             ? {
               moderationStatus: 'HIDDEN',
@@ -460,6 +471,9 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
               visibility: 'PUBLIC',
               moderationStatus: 'FLAGGED',
               moderationReason: QUARANTINE_REASON,
+              ...(contentSafetyAssessment
+                ? { contentSafetyAssessment }
+                : {}),
               updatedAt: Date.now(),
             },
             { merge: true }
