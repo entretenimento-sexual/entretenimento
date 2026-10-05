@@ -2,6 +2,9 @@
 import { logger } from 'firebase-functions';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 
+import {
+  buildConfirmedUnderageSuspensionPatch,
+} from '../account_lifecycle/account-age-review-lifecycle.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
@@ -119,8 +122,19 @@ export const processAgeVerificationProviderAssertion = onDocumentCreated(
         }
       );
 
+      const lifecyclePatch =
+        nextStatus === 'DENIED_UNDERAGE'
+          ? buildConfirmedUnderageSuspensionPatch({
+            reviewedAt: decidedAtMs,
+            reason: 'Fonte confiável indicou menoridade.',
+            reviewedBy: `provider:${assertion.provider}`,
+            caseId: assertion.assertionId,
+          })
+          : {};
+
       transaction.set(userRef, {
         ageEligibility: projection,
+        ...lifecyclePatch,
         updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
 

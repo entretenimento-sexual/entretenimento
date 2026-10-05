@@ -100,6 +100,8 @@ async function resolveAccessItem(
   ownerUid: string,
   photoId: string,
   technicalExpiresAt: number,
+  requesterAccessExpiresAtMs: number | null,
+  ownerAccessExpiresAtMs: number | null,
   ownerExposureAllowed: boolean,
   viewerIsOwner: boolean,
   viewerIsFriend: boolean,
@@ -159,6 +161,8 @@ async function resolveAccessItem(
   const expiresAt = resolvePublicMediaSignedUrlExpiresAt({
     nowMs,
     technicalExpiresAtMs: technicalExpiresAt,
+    requesterAccessExpiresAtMs,
+    ownerAccessExpiresAtMs,
   });
 
   if (expiresAt === null) {
@@ -226,7 +230,8 @@ export const getPublicPhotoAccessUrls = onCall<PublicPhotoAccessRequest>(
     }
 
     await consumePublicPhotoAccessQuota(viewerUid, uniqueItems.size);
-    await assertPublicMediaConsumptionAccess(viewerUid);
+    const requesterAccess =
+      await assertPublicMediaConsumptionAccess(viewerUid);
     const nowMs = Date.now();
 
     const ownerUids = [
@@ -293,6 +298,8 @@ export const getPublicPhotoAccessUrls = onCall<PublicPhotoAccessRequest>(
                 ownerUid,
                 photoId,
                 technicalExpiresAt,
+                requesterAccess.accessExpiresAtMs,
+                profileAccess?.accountAccessExpiresAtMs ?? null,
                 profileAccess?.allowed === true,
                 ownerUid === viewerUid,
                 socialAccess.friendTargetUids.has(ownerUid),

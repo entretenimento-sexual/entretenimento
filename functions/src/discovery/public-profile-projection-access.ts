@@ -1,3 +1,7 @@
+import {
+  hasCurrentTrustedAdultAgeProjection,
+} from '../account_lifecycle/trusted-adult-account-assurance.policy';
+
 interface PublicProfileProjectionAccount {
   publicVisibility?: unknown;
   interactionBlocked?: unknown;
@@ -13,7 +17,8 @@ interface PublicProfileProjectionAccount {
  * Fail-closed para projeções públicas derivadas do documento privado do usuário.
  *
  * Um trigger atrasado nunca pode recriar public_profiles/{uid} enquanto a conta
- * estiver explicitamente escondida, bloqueada, suspensa ou em reverificação.
+ * estiver sem assurance adulta confiável, escondida, bloqueada, suspensa ou
+ * em reverificação.
  */
 export function isPublicProfileProjectionBlocked(
   user: PublicProfileProjectionAccount | null | undefined
@@ -29,7 +34,8 @@ export function isPublicProfileProjectionBlocked(
     .trim()
     .toUpperCase();
 
-  return visibility === 'hidden' ||
+  return !hasCurrentTrustedAdultAgeProjection(user) ||
+    visibility === 'hidden' ||
     visibility === 'private' ||
     user.interactionBlocked === true ||
     user.suspended === true ||

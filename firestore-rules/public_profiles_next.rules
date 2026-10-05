@@ -26,7 +26,8 @@ match /public_profiles/{userId} {
       && user.publicVisibility == "visible"
       && user.interactionBlocked == false
       && adultMediaHasCurrentTerms(user)
-      && adultMediaHasRequiredConsent(user);
+      && adultMediaHasRequiredConsent(user)
+      && canonicalAgeEligibilityAllowsTrustedAdultAccess(userId);
   }
 
   function privateUserEligibleCurrent() {
@@ -37,7 +38,8 @@ match /public_profiles/{userId} {
       && user.publicVisibility == "visible"
       && user.interactionBlocked == false
       && adultMediaHasCurrentTerms(user)
-      && adultMediaHasRequiredConsent(user);
+      && adultMediaHasRequiredConsent(user)
+      && canonicalAgeEligibilityAllowsTrustedAdultAccess(userId);
   }
 
   function createKeysValid() {

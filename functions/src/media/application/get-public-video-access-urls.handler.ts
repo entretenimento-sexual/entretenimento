@@ -87,6 +87,8 @@ async function resolveAccessItem(
   ownerUid: string,
   videoId: string,
   technicalExpiresAt: number,
+  requesterAccessExpiresAtMs: number | null,
+  ownerAccessExpiresAtMs: number | null,
   ownerExposureAllowed: boolean,
   mode: TPublicVideoAccessMode,
   nowMs: number
@@ -137,6 +139,8 @@ async function resolveAccessItem(
   const expiresAt = resolvePublicMediaSignedUrlExpiresAt({
     nowMs,
     technicalExpiresAtMs: technicalExpiresAt,
+    requesterAccessExpiresAtMs,
+    ownerAccessExpiresAtMs,
   });
 
   if (expiresAt === null) {
@@ -248,15 +252,16 @@ export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
     /**
      * Esta Function é a barreira definitiva antes de emitir URL assinada.
      * O Router protege a UX, mas não é fronteira de segurança: lifecycle,
-     * termos vigentes e consentimento adulto são validados novamente no
-     * backend a cada emissão/renovação; assurance etário não é gate de Media.
+     * termos, consentimento e Account Access são validados novamente no
+     * backend a cada emissão/renovação. Media não interpreta a razão da decisão.
      *
      * MANUTENÇÃO — RESTRIÇÃO FUTURA POR ASSINATURA/AUDIÊNCIA
      * Quando FRIENDS, SUBSCRIBERS ou PREMIUM forem ativados, esta policy deve
      * ser estendida com amizade/entitlement vigentes. Compartilhar um link ou
      * uma referência no chat nunca concede acesso por si só.
      */
-    await assertPublicMediaConsumptionAccess(viewerUid);
+    const requesterAccess =
+      await assertPublicMediaConsumptionAccess(viewerUid);
     const nowMs = Date.now();
 
     const ownerUids = [
@@ -323,6 +328,8 @@ export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
                 ownerUid,
                 videoId,
                 technicalExpiresAt,
+                requesterAccess.accessExpiresAtMs,
+                profileAccess?.accountAccessExpiresAtMs ?? null,
                 profileAccess?.allowed === true,
                 mode,
                 nowMs

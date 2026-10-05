@@ -10,6 +10,7 @@ import {
 export interface PublicMediaOwnerExposureContext
   extends PublicMediaOwnerExposureDecision {
   readonly ownerUid: string;
+  readonly accountAccessExpiresAtMs: number | null;
 }
 
 function cleanOwnerUid(value: unknown): string {
@@ -50,7 +51,8 @@ async function resolveCanonicalOwnerExposure(
     const userSnapshot = snapshots[offset];
     const profileSnapshot = snapshots[offset + 1];
     const lifecycle = evaluateCanonicalOwnerLifecycle(
-      userSnapshot?.exists === true ? userSnapshot.data() : null
+      userSnapshot?.exists === true ? userSnapshot.data() : null,
+      nowMs
     );
 
     const decision = evaluatePublicMediaOwnerExposure({
@@ -63,7 +65,11 @@ async function resolveCanonicalOwnerExposure(
       nowMs,
     });
 
-    result.set(ownerUid, { ownerUid, ...decision });
+    result.set(ownerUid, {
+      ownerUid,
+      ...decision,
+      accountAccessExpiresAtMs: lifecycle.accessExpiresAtMs,
+    });
   });
 
   return result;
