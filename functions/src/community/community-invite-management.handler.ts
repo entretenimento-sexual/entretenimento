@@ -84,11 +84,10 @@ function isManagementRole(role: CommunityMembershipRole): boolean {
 
 function isEligibleUser(
   raw: unknown,
-  uid: string,
-  rawAgeEligibility: unknown
+  uid: string
 ): boolean {
   try {
-    assertCommunityMembershipActorEligible(raw, uid, rawAgeEligibility);
+    assertCommunityMembershipActorEligible(raw, uid);
     return true;
   } catch {
     return false;
@@ -218,10 +217,7 @@ export const findCommunityInviteCandidate =
         || blockedUids.has(candidateUid)
         || !isEligibleUser(
           userSnapshot.exists ? userSnapshot.data() : null,
-          candidateUid,
-          ageEligibilitySnapshot.exists
-            ? ageEligibilitySnapshot.data()
-            : null
+          candidateUid
         )
       ) {
         return { candidate: null, generatedAt };
