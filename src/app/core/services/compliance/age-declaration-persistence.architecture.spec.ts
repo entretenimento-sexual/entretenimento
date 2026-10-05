@@ -52,51 +52,9 @@ describe('Adult declaration persistence boundary', () => {
     );
     const routing = source('src/app/app-routing.module.ts');
 
-    expect(service).toContain('refreshTrustedSources
-  it('não mostra nova confirmação enquanto reconcilia o estado já salvo', () => {
-    const component = source(
-      'src/app/compliance/age-verification-page/age-verification-page.component.ts'
-    );
-    const template = source(
-      'src/app/compliance/age-verification-page/age-verification-page.component.html'
-    );
-
-    expect(component).toContain('reconciling = signal(true)');
-    expect(component).toContain('refreshTrustedSources$()');
-    expect(component).toContain(
-      'finalize(() => this.reconciling.set(false))'
-    );
-    expect(template).toContain(
-      'Verificando sua confirmação já registrada'
-    );
-    expect(template).toContain('Você não precisa');
-    expect(template).toContain('Essa declaração não equivale à');
-  });
-});
-);
+    expect(service).toContain('refreshTrustedSources$');
     expect(service).toContain('trustedSessionProjection');
-    expect(registerFlow).toContain('this.ageEligibility.current
-  it('não mostra nova confirmação enquanto reconcilia o estado já salvo', () => {
-    const component = source(
-      'src/app/compliance/age-verification-page/age-verification-page.component.ts'
-    );
-    const template = source(
-      'src/app/compliance/age-verification-page/age-verification-page.component.html'
-    );
-
-    expect(component).toContain('reconciling = signal(true)');
-    expect(component).toContain('refreshTrustedSources$()');
-    expect(component).toContain(
-      'finalize(() => this.reconciling.set(false))'
-    );
-    expect(template).toContain(
-      'Verificando sua confirmação já registrada'
-    );
-    expect(template).toContain('Você não precisa');
-    expect(template).toContain('Essa declaração não equivale à');
-  });
-});
-);
+    expect(registerFlow).toContain('this.ageEligibility.current$');
     expect(registerFlow).toContain("state.status === 'SELF_DECLARED_ADULT'");
     expect(registerFlow).toContain("state.status === 'VERIFIED_ADULT'");
     expect(routing).not.toContain('ageEligibilityGuard');
