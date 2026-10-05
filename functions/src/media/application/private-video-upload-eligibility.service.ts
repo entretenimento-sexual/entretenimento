@@ -41,8 +41,7 @@ function authErrorCode(error: unknown): string {
 export function assertPrivateVideoUploadEligibilityData(
   authUser: PrivateMediaUploadAuthSnapshot | null | undefined,
   user: PrivateMediaUploadAccountSnapshot | null | undefined,
-  expectedUid: string,
-  ageEligibilityRecord: unknown
+  expectedUid: string
 ): void {
   if (!authUser || !user) {
     throw new HttpsError(
@@ -71,11 +70,7 @@ export function assertPrivateVideoUploadEligibilityData(
     );
   }
 
-  assertMediaAuthoringEligibilityData(
-    user,
-    ageEligibilityRecord,
-    expectedUid
-  );
+  assertMediaAuthoringEligibilityData(user);
 
   if (authUser.emailVerified !== true) {
     throw new HttpsError(
@@ -96,11 +91,10 @@ export async function assertPrivateVideoUploadEligibility(
   ownerUid: string
 ): Promise<void> {
   try {
-    const [authUser, userSnapshot, ageEligibilitySnapshot] =
+    const [authUser, userSnapshot] =
       await Promise.all([
         auth.getUser(ownerUid),
         db.doc(`users/${ownerUid}`).get(),
-        db.doc(`age_eligibility_records/${ownerUid}`).get(),
       ]);
 
     assertPrivateVideoUploadEligibilityData(
@@ -111,10 +105,7 @@ export async function assertPrivateVideoUploadEligibility(
       userSnapshot.exists
         ? userSnapshot.data() as PrivateMediaUploadAccountSnapshot
         : null,
-      ownerUid,
-      ageEligibilitySnapshot.exists
-        ? ageEligibilitySnapshot.data()
-        : null
+      ownerUid
     );
   } catch (error) {
     if (error instanceof HttpsError) {
