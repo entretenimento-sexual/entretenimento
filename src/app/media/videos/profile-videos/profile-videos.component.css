@@ -450,7 +450,7 @@ html.high-contrast .profile-videos__progress-track {
   -webkit-line-clamp: 2;
 }
 
-.profile-videos .profile-videos__description {
+.profile-videos .profile-videos__caption {
   color: color-mix(
     in oklab,
     var(--text-color, #f5f7fb) 66%,

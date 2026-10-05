@@ -155,7 +155,6 @@ describe('public-profile-card.mapper', () => {
   it('deve recusar projeção sem nickname público', () => {
     expect(
       mapPublicProfileCard({
-        ...ACTIVE_AGE_PROJECTION,
         uid: 'profile-3',
       })
     ).toBeNull();

@@ -28,7 +28,7 @@
   gap: var(--space-3, 16px);
 }
 
-.subtitle {
+.profile-photos__blocked-message {
   margin: 10px 0 0;
   max-width: 68ch;
   color: color-mix(in oklab, var(--photos-text) 74%, transparent);
