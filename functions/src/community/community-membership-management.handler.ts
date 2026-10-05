@@ -395,12 +395,10 @@ export const getCommunityMembershipRequests = onCall<CommunityIdPayload>(
         communitySnapshot,
         actorMembershipSnapshot,
         actorUserSnapshot,
-        actorAgeEligibilitySnapshot,
       ] = await Promise.all([
         transaction.get(communityRef),
         transaction.get(actorMembershipRef),
         transaction.get(actorUserRef),
-        transaction.get(actorAgeEligibilityRef),
       ]);
 
       if (!communitySnapshot.exists) {
@@ -675,8 +673,6 @@ export const reviewCommunityMembership =
           targetMembershipSnapshot,
           actorUserSnapshot,
           targetUserSnapshot,
-          actorAgeEligibilitySnapshot,
-          targetAgeEligibilitySnapshot,
         ] = await Promise.all([
           transaction.get(communityRef),
           transaction.get(discoveryRef),
@@ -684,8 +680,6 @@ export const reviewCommunityMembership =
           transaction.get(targetMembershipRef),
           transaction.get(actorUserRef),
           transaction.get(targetUserRef),
-          transaction.get(actorAgeEligibilityRef),
-          transaction.get(targetAgeEligibilityRef),
         ]);
 
         if (!communitySnapshot.exists) {
