@@ -14,6 +14,9 @@ import {
 } from '../../moderation/moderation-safety-notification.service';
 import { deleteProfileVideoResources } from './delete-profile-video.handler';
 import {
+  buildReviewedMinorContentSafetyAssessment,
+} from './media-content-safety-assessment.policy';
+import {
   isCriticalMinorMediaSafetyReason,
   normalizeMinorMediaSafetyReason,
   shouldPreserveMediaEvidence,
@@ -368,11 +371,25 @@ export const reviewVideoContentReport = onCall<
           ? 'KEEP'
           : 'REMOVE';
         const now = Date.now();
+        const contentSafetyAssessment =
+          targetType === 'video' &&
+          effectiveReason &&
+          isCriticalMinorMediaSafetyReason(effectiveReason)
+            ? buildReviewedMinorContentSafetyAssessment({
+              confirmed: decision === 'REMOVE',
+              reason: effectiveReason,
+              assessedAtMs: now,
+              moderatorUid: adminUid,
+            })
+            : null;
 
         if (decision === 'KEEP' && targetType === 'video') {
           if (video) {
             transaction.update(videoRef, {
               ...scorePatch(video, event),
+              ...(contentSafetyAssessment
+                ? { contentSafetyAssessment }
+                : {}),
               ...(report.contentQuarantined === true
                 ? {
                   moderationStatus: 'APPROVED',
@@ -392,6 +409,9 @@ export const reviewVideoContentReport = onCall<
                 publishWhenReady: false,
                 moderationStatus: 'APPROVED',
                 moderationReason: null,
+                ...(contentSafetyAssessment
+                  ? { contentSafetyAssessment }
+                  : {}),
                 preventiveReviewReportId: FieldValue.delete(),
                 ...(isPreventiveReview
                   ? { reviewEvidenceRetention: 'RELEASED_AFTER_REVIEW' }
@@ -445,6 +465,9 @@ export const reviewVideoContentReport = onCall<
           if (video) {
             transaction.update(videoRef, {
               ...scorePatch(video, event),
+              ...(contentSafetyAssessment
+                ? { contentSafetyAssessment }
+                : {}),
               moderationStatus: 'HIDDEN',
               moderationReason: resolution,
               updatedAt: now,
@@ -460,6 +483,9 @@ export const reviewVideoContentReport = onCall<
                 visibility: 'PUBLIC',
                 moderationStatus: 'FLAGGED',
                 moderationReason: resolution,
+                ...(contentSafetyAssessment
+                  ? { contentSafetyAssessment }
+                  : {}),
                 lastModeratedAt: FieldValue.serverTimestamp(),
                 moderatedBy: adminUid,
                 updatedAt: FieldValue.serverTimestamp(),
