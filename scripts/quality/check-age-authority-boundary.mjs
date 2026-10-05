@@ -153,6 +153,8 @@ const productDomainDirectories = [
   'src/app/media',
   'src/app/community',
   'src/app/dashboard/online',
+  'src/app/dashboard/discovery',
+  'src/app/core/interfaces/discovery',
   'src/app/core/services/discovery',
   'src/app/core/services/interactions/friendship',
   'src/app/core/services/media',
@@ -173,6 +175,10 @@ const forbiddenProductAgeTokens = [
   'evaluateCanonicalAgeEligibility',
   'age_eligibility_records',
   'isVerifiedAdultAgeDecision',
+  'ageEligibilityVerifiedAdult',
+  'ageEligibilityAdultAccessAllowed',
+  'ageEligibilityAssurance',
+  'ageEligibilityValidUntil',
 ];
 
 const forbiddenLegacyAuthorityPatterns = [
