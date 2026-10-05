@@ -71,7 +71,7 @@
 
 .profile-card__status--online .profile-card__status-dot {
   background: var(--success-color, #36d399);
-  box-shadow: 0 0 0 4px color-mix(in oklab, var(--success-color, #36d399) 18%, transparent);
+  outline: 4px solid color-mix(in oklab, var(--success-color, #36d399) 18%, transparent);
 }
 
 .profile-card__body {
