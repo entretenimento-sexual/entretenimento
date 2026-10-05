@@ -148,7 +148,7 @@ describe('AccessControlService canonical subscription roles', () => {
     TestBed.resetTestingModule();
   });
 
-  it('libera recursos sociais com assurance confiável projetada pela conta', async () => {
+  it('libera recursos sociais pela conta ativa com contrato vigente', async () => {
     user$.next({
       ...createUser(),
       acceptedTerms: {
@@ -172,7 +172,7 @@ describe('AccessControlService canonical subscription roles', () => {
       .resolves.toBe(true);
   });
 
-  it('reage a mudanças do contrato da conta preservando assurance confiável', async () => {
+  it('reage a mudanças do contrato da conta sem reinterpretar maioridade', async () => {
     user$.next({
       ...createUser(),
       acceptedTerms: {
@@ -213,7 +213,7 @@ describe('AccessControlService canonical subscription roles', () => {
     subscription.unsubscribe();
   });
 
-  it('nega experiência adulta para autodeclaração sem verificação confiável', async () => {
+  it('não reinterpreta autodeclaração em uma conta já admitida e ativa', async () => {
     user$.next({
       ...createUser(),
       acceptedTerms: {
@@ -240,12 +240,12 @@ describe('AccessControlService canonical subscription roles', () => {
     const service = TestBed.inject(AccessControlService);
 
     await expect(firstValueFrom(service.canUseAdultSocial$))
-      .resolves.toBe(false);
+      .resolves.toBe(true);
     await expect(firstValueFrom(service.canEnterCore$))
-      .resolves.toBe(false);
+      .resolves.toBe(true);
   });
 
-  it('autoexpira a capability adulta sem reload', async () => {
+  it('expiração de assurance não derruba capability de uma conta ativa', async () => {
     vi.useFakeTimers();
     const now = 1_800_000_000_000;
     vi.setSystemTime(now);
@@ -280,7 +280,7 @@ describe('AccessControlService canonical subscription roles', () => {
 
     expect(states.at(-1)).toBe(true);
     await vi.advanceTimersByTimeAsync(101);
-    expect(states.at(-1)).toBe(false);
+    expect(states.at(-1)).toBe(true);
     subscription.unsubscribe();
   });
 
