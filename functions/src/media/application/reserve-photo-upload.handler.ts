@@ -11,6 +11,13 @@ import {
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, getDefaultStorageBucket } from '../../firebaseApp';
 import {
+  assertCallableAppCheck,
+  REQUIRE_CALLABLE_APP_CHECK,
+} from '../../shared/security/callable-app-check';
+import {
+  consumeBackendRateLimitQuota,
+} from '../../shared/security/backend-rate-limit.service';
+import {
   IMAGE_INPUT_MIME_TYPES,
   IMAGE_MAX_BYTES,
 } from '../media-format.generated';
@@ -56,6 +63,12 @@ const CLEANUP_BATCH_SIZE = 100;
 const CLEANUP_CONCURRENCY = 8;
 const DEAD_LETTER_COLLECTION = 'media_photo_upload_cleanup_dead_letters';
 const ALLOWED_CONTENT_TYPES = new Set<string>(IMAGE_INPUT_MIME_TYPES);
+const PHOTO_UPLOAD_RESERVE_RATE_LIMIT = Object.freeze({
+  burstWindowMs: 60_000,
+  burstMax: 8,
+  sustainedWindowMs: 10 * 60_000,
+  sustainedMax: 30,
+});
 
 function cleanId(value: unknown): string {
   const normalized = String(value ?? '').trim();
@@ -246,8 +259,13 @@ function sameReservation(
 }
 
 export const reservePhotoUpload = onCall<ReservePhotoUploadRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_CALLABLE_APP_CHECK,
+  },
   async (request): Promise<ReservePhotoUploadResponse> => {
+    assertCallableAppCheck(request.app);
+
     const requesterUid = cleanId(request.auth?.uid);
     const ownerUid = cleanId(request.data?.ownerUid);
 
@@ -283,9 +301,15 @@ export const reservePhotoUpload = onCall<ReservePhotoUploadRequest>(
       );
     }
 
+    await consumeBackendRateLimitQuota({
+      action: 'photo-upload-reservation',
+      subject: ownerUid,
+      config: PHOTO_UPLOAD_RESERVE_RATE_LIMIT,
+      message: 'Muitas tentativas de upload de foto foram iniciadas em pouco tempo.',
+    });
+
     // Reserva pertence à fronteira de autoria, não à de consumo público.
-    // A maioridade da conta é consultada uma vez pela autoridade canônica;
-    // segurança do conteúdo permanece no pipeline preventivo posterior.
+    // Segurança do conteúdo permanece no pipeline preventivo posterior.
     await assertMediaAuthoringEligibility(ownerUid);
 
     const reservationId = buildReservationId(ownerUid, storagePath);

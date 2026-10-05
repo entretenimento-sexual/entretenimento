@@ -4,6 +4,13 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
 import {
+  assertCallableAppCheck,
+  REQUIRE_CALLABLE_APP_CHECK,
+} from '../../shared/security/callable-app-check';
+import {
+  consumeBackendRateLimitQuota,
+} from '../../shared/security/backend-rate-limit.service';
+import {
   normalizePrivateVideoAccessMode,
   shouldIssuePrivateVideoPlaybackAccess,
   type PrivateVideoAccessMode,
@@ -46,6 +53,12 @@ interface PrivateVideoDocument {
 
 const MAX_ITEMS_PER_REQUEST = 60;
 const SIGNED_URL_TTL_MS = 10 * 60 * 1000;
+const PRIVATE_VIDEO_ACCESS_RATE_LIMIT = Object.freeze({
+  burstWindowMs: 60_000,
+  burstMax: 30,
+  sustainedWindowMs: 10 * 60_000,
+  sustainedMax: 180,
+});
 
 function cleanId(value: unknown): string {
   const normalized = String(value ?? '').trim();
@@ -180,8 +193,13 @@ async function resolveAccessItem(
 }
 
 export const getPrivateVideoAccessUrls = onCall<PrivateVideoAccessRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_CALLABLE_APP_CHECK,
+  },
   async (request): Promise<PrivateVideoAccessResponse> => {
+    assertCallableAppCheck(request.app);
+
     const requesterUid = cleanId(request.auth?.uid);
     const ownerUid = cleanId(request.data?.ownerUid);
     const mode = normalizePrivateVideoAccessMode(request.data?.mode);
@@ -208,6 +226,14 @@ export const getPrivateVideoAccessUrls = onCall<PrivateVideoAccessRequest>(
         `Informe entre 1 e ${MAX_ITEMS_PER_REQUEST} vídeos.`
       );
     }
+
+    await consumeBackendRateLimitQuota({
+      action: 'private-video-access',
+      subject: requesterUid,
+      cost: Math.max(1, Math.ceil(videoIds.length / 10)),
+      config: PRIVATE_VIDEO_ACCESS_RATE_LIMIT,
+      message: 'Muitas solicitações de acesso aos seus vídeos foram feitas em pouco tempo.',
+    });
 
     const expiresAt = Date.now() + SIGNED_URL_TTL_MS;
     const resolutions = await Promise.all(

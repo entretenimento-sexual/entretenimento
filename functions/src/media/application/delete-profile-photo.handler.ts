@@ -4,6 +4,13 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, getDefaultStorageBucket } from '../../firebaseApp';
+import {
+  assertCallableAppCheck,
+  REQUIRE_CALLABLE_APP_CHECK,
+} from '../../shared/security/callable-app-check';
+import {
+  consumeBackendRateLimitQuota,
+} from '../../shared/security/backend-rate-limit.service';
 import { isPhotoPublicationApproved } from './photo-publication-moderation.policy';
 import { extractOwnedPrivatePhotoPath } from './photo-storage-path';
 import {
@@ -55,6 +62,12 @@ type PhotoPublicationDoc = {
 
 const DELETION_JOBS_COLLECTION = 'media_photo_deletion_jobs';
 const CLEANUP_BATCH_SIZE = 100;
+const PHOTO_DELETE_RATE_LIMIT = Object.freeze({
+  burstWindowMs: 60_000,
+  burstMax: 10,
+  sustainedWindowMs: 10 * 60_000,
+  sustainedMax: 40,
+});
 
 function cleanId(value: unknown): string {
   return String(value ?? '').trim();
@@ -290,8 +303,13 @@ export async function deleteProfilePhotoResources(
 }
 
 export const deleteProfilePhoto = onCall<DeleteProfilePhotoRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_CALLABLE_APP_CHECK,
+  },
   async (request): Promise<DeleteProfilePhotoResponse> => {
+    assertCallableAppCheck(request.app);
+
     const requesterUid = request.auth?.uid ?? null;
     const ownerUid = cleanId(request.data?.ownerUid);
     const photoId = cleanId(request.data?.photoId);
@@ -301,6 +319,12 @@ export const deleteProfilePhoto = onCall<DeleteProfilePhotoRequest>(
     }
 
     assertOwner(requesterUid, ownerUid);
+    await consumeBackendRateLimitQuota({
+      action: 'photo-delete',
+      subject: ownerUid,
+      config: PHOTO_DELETE_RATE_LIMIT,
+      message: 'Muitas exclusões de foto foram solicitadas em pouco tempo.',
+    });
     const startedAt = Date.now();
     const result = await deleteProfilePhotoResources(ownerUid, photoId);
 

@@ -4,6 +4,13 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue, storage } from '../../firebaseApp';
+import {
+  assertCallableAppCheck,
+  REQUIRE_CALLABLE_APP_CHECK,
+} from '../../shared/security/callable-app-check';
+import {
+  consumeBackendRateLimitQuota,
+} from '../../shared/security/backend-rate-limit.service';
 import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
 import { deletePublishedVideoAssetOrQueue } from './published-video-asset.service';
 import {
@@ -70,6 +77,12 @@ interface VideoProcessingJobDoc {
 
 const DELETION_JOBS_COLLECTION = 'media_video_deletion_jobs';
 const CLEANUP_BATCH_SIZE = 50;
+const VIDEO_DELETE_RATE_LIMIT = Object.freeze({
+  burstWindowMs: 60_000,
+  burstMax: 10,
+  sustainedWindowMs: 10 * 60_000,
+  sustainedMax: 40,
+});
 
 function containsControlCharacter(value: string): boolean {
   for (let index = 0; index < value.length; index += 1) {
@@ -492,8 +505,13 @@ export async function deleteProfileVideoResources(
 }
 
 export const deleteProfileVideo = onCall<DeleteProfileVideoRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_CALLABLE_APP_CHECK,
+  },
   async (request): Promise<DeleteProfileVideoResponse> => {
+    assertCallableAppCheck(request.app);
+
     const requesterUid = request.auth?.uid ?? null;
     const ownerUid = cleanId(request.data?.ownerUid);
     const videoId = cleanId(request.data?.videoId);
@@ -503,6 +521,12 @@ export const deleteProfileVideo = onCall<DeleteProfileVideoRequest>(
     }
 
     assertOwner(requesterUid, ownerUid);
+    await consumeBackendRateLimitQuota({
+      action: 'video-delete',
+      subject: ownerUid,
+      config: VIDEO_DELETE_RATE_LIMIT,
+      message: 'Muitas exclusões de vídeo foram solicitadas em pouco tempo.',
+    });
     return deleteProfileVideoResources(ownerUid, videoId);
   }
 );
