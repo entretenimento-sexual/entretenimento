@@ -21,26 +21,11 @@ function eligibleUser(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function eligibleAge(overrides: Record<string, unknown> = {}) {
-  return {
-    uid: 'user-1',
-    status: 'VERIFIED_ADULT',
-    policyVersion: 1,
-    source: 'AGE_REVERIFICATION',
-    method: 'MANUAL_REVIEW',
-    caseId: 'case-1',
-    verifiedAtMs: Date.now() - 1_000,
-    expiresAtMs: null,
-    ...overrides,
-  };
-}
-
 test('aceita conta elegÃ­vel no instante da revisÃ£o', () => {
   assert.doesNotThrow(() =>
     assertCommunityMembershipActorEligible(
       eligibleUser(),
-      'user-1',
-      eligibleAge()
+      'user-1'
     )
   );
 });
@@ -49,8 +34,7 @@ test('nega perfil divergente, restrito ou incompleto sem reavaliar assurance etÃ
   assert.throws(
     () => assertCommunityMembershipActorEligible(
       eligibleUser(),
-      'user-2',
-      eligibleAge()
+      'user-2'
     ),
     (error: unknown) =>
       (error as { code?: unknown }).code === 'not-found'
@@ -60,8 +44,7 @@ test('nega perfil divergente, restrito ou incompleto sem reavaliar assurance etÃ
     () =>
       assertCommunityMembershipActorEligible(
         eligibleUser({ accountStatus: 'moderation_suspended' }),
-        'user-1',
-        eligibleAge()
+        'user-1'
       ),
     (error: unknown) =>
       (error as { code?: unknown }).code === 'failed-precondition'
@@ -71,8 +54,7 @@ test('nega perfil divergente, restrito ou incompleto sem reavaliar assurance etÃ
     () =>
       assertCommunityMembershipActorEligible(
         eligibleUser({ profileCompleted: false }),
-        'user-1',
-        eligibleAge()
+        'user-1'
       ),
     (error: unknown) =>
       (error as { code?: unknown }).code === 'failed-precondition'
@@ -82,8 +64,7 @@ test('nega perfil divergente, restrito ou incompleto sem reavaliar assurance etÃ
     () =>
       assertCommunityMembershipActorEligible(
         eligibleUser({ adultConsent: { accepted: false, version: 'v1' } }),
-        'user-1',
-        eligibleAge()
+        'user-1'
       ),
     (error: unknown) =>
       (error as { code?: unknown }).code === 'failed-precondition'
@@ -91,9 +72,13 @@ test('nega perfil divergente, restrito ou incompleto sem reavaliar assurance etÃ
 
   assert.doesNotThrow(() =>
     assertCommunityMembershipActorEligible(
-      eligibleUser(),
-      'user-1',
-      null
+      eligibleUser({
+        ageEligibility: {
+          status: 'DENIED_UNDERAGE',
+          assurance: 'legacy_projection_only',
+        },
+      }),
+      'user-1'
     )
   );
 });
