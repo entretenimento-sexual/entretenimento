@@ -4,7 +4,6 @@ import { describe, it } from 'node:test';
 import {
   AGE_ELIGIBILITY_POLICY_VERSION,
   evaluateCanonicalAgeEligibility,
-  isVerifiedAdultAgeDecision,
 } from './age-eligibility.policy';
 
 const NOW = 1_800_000_000_000;
@@ -122,7 +121,7 @@ describe('age-eligibility.policy', () => {
     assert.equal(decision.denialReason, 'underage');
   });
 
-  it('distingue acesso provisório de garantia etária forte', () => {
+  it('mantém SELF_DECLARED_ADULT e VERIFIED_ADULT como decisões distintas de assurance', () => {
     const selfDeclared = evaluateCanonicalAgeEligibility({
       uid: 'user-1',
       nowMs: NOW,
@@ -154,8 +153,11 @@ describe('age-eligibility.policy', () => {
     });
 
     assert.equal(selfDeclared.allowed, true);
-    assert.equal(isVerifiedAdultAgeDecision(selfDeclared), false);
-    assert.equal(isVerifiedAdultAgeDecision(verified), true);
+    assert.equal(selfDeclared.status, 'SELF_DECLARED_ADULT');
+    assert.equal(selfDeclared.verifiedAtMs, null);
+    assert.equal(verified.allowed, true);
+    assert.equal(verified.status, 'VERIFIED_ADULT');
+    assert.equal(verified.verifiedAtMs, NOW - 1_000);
   });
 
   it('não aceita registro vencido ou política divergente', () => {
