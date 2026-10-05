@@ -24,7 +24,7 @@ interface AccountAgeEligibilityProjection {
 }
 
 interface AccountWithAgeEligibilityProjection {
-  ageEligibility?: AccountAgeEligibilityProjection | null;
+  ageEligibility?: unknown;
 }
 
 export interface TrustedAdultAccountAssurance {
@@ -43,12 +43,17 @@ export function resolveCurrentTrustedAdultAgeProjection(
   user: AccountWithAgeEligibilityProjection | null | undefined,
   nowMs = Date.now()
 ): TrustedAdultAccountAssurance {
-  const state = user?.ageEligibility;
+  const rawState = user?.ageEligibility;
 
-  if (!state || typeof state !== 'object') {
+  if (
+    !rawState ||
+    typeof rawState !== 'object' ||
+    Array.isArray(rawState)
+  ) {
     return { allowed: false, accessExpiresAtMs: null };
   }
 
+  const state = rawState as AccountAgeEligibilityProjection;
   const verifiedAtMs = positiveEpoch(state.verifiedAtMs);
   const rawExpiresAtMs = state.expiresAtMs;
   const expiresAtMs = rawExpiresAtMs == null
