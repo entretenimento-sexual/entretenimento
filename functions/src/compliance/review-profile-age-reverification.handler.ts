@@ -5,6 +5,10 @@ import {
   getNicknameIndexDocId,
   normalizeNicknameForIndex,
 } from '../account_lifecycle/_shared';
+import {
+  buildAgeReviewRestorePatch,
+  buildConfirmedUnderageSuspensionPatch,
+} from '../account_lifecycle/account-age-review-lifecycle.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
@@ -221,25 +225,11 @@ export const reviewProfileAgeReverification = onCall<
             },
             ageEligibility,
             ...(canRestoreAccess
-              ? {
-                publicVisibility: 'visible',
-                interactionBlocked: false,
-                ageReverificationRestrictedAt: null,
-                ...(ageDecisionOwnsSuspension
-                  ? {
-                    accountStatus: 'active',
-                    suspended: false,
-                    suspensionReason: null,
-                    suspensionSource: null,
-                    suspensionEndsAt: null,
-                    suspendedAtMs: null,
-                    suspendedBy: null,
-                    statusUpdatedAt: reviewedAt,
-                    statusUpdatedBy: adminUid,
-                    ageReverificationSuspensionCaseId: null,
-                  }
-                  : {}),
-              }
+              ? buildAgeReviewRestorePatch({
+                reviewedAt,
+                reviewedBy: adminUid,
+                ownsSuspension: ageDecisionOwnsSuspension,
+              })
               : {}),
             updatedAt: timestamp,
           },
@@ -302,18 +292,12 @@ export const reviewProfileAgeReverification = onCall<
               appealRequestedAt: null,
             },
             ageEligibility,
-            accountStatus: 'moderation_suspended',
-            publicVisibility: 'hidden',
-            interactionBlocked: true,
-            loginAllowed: true,
-            suspended: true,
-            suspensionReason: resolution,
-            suspensionSource: 'moderator',
-            suspendedAtMs: reviewedAt,
-            suspendedBy: adminUid,
-            ageReverificationSuspensionCaseId: caseId,
-            statusUpdatedAt: reviewedAt,
-            statusUpdatedBy: adminUid,
+            ...buildConfirmedUnderageSuspensionPatch({
+              reviewedAt,
+              reviewedBy: adminUid,
+              reason: resolution,
+              caseId,
+            }),
             updatedAt: timestamp,
           },
           { merge: true }
