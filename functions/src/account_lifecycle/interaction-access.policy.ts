@@ -2,10 +2,6 @@ import type { Transaction } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 
 import {
-  evaluateCanonicalAgeEligibility,
-  isTrustedAdultAgeDecision,
-} from '../compliance/age-eligibility.policy';
-import {
   ADULT_CONSENT_VERSION,
   TERMS_ACCEPTANCE_VERSION,
 } from '../compliance/platform-legal.constants';
@@ -105,41 +101,6 @@ export function assertPlatformAccountAccessData(
   }
 }
 
-export function assertTrustedAdultAccountAccessData(
-  uid: string,
-  rawAgeEligibility: unknown,
-  nowMs = Date.now()
-): PlatformAccountAccessContext {
-  const decision = evaluateCanonicalAgeEligibility({
-    uid,
-    rawRecord: rawAgeEligibility,
-    nowMs,
-  });
-
-  if (isTrustedAdultAgeDecision(decision)) {
-    return { accessExpiresAtMs: decision.expiresAtMs };
-  }
-
-  const reason =
-    decision.status === 'SELF_DECLARED_ADULT'
-      ? 'verification_required'
-      : decision.denialReason ?? 'verification_required';
-
-  throw new HttpsError(
-    reason === 'underage' ? 'permission-denied' : 'failed-precondition',
-    reason === 'underage'
-      ? 'O acesso adulto não está disponível para esta conta.'
-      : 'Conclua a verificação confiável de maioridade para continuar.',
-    {
-      reason,
-      recommendedAction:
-        reason === 'review_required'
-          ? 'complete_age_review'
-          : 'complete_age_verification',
-    }
-  );
-}
-
 export async function assertInteractionAccess(
   uid: string
 ): Promise<PlatformAccountAccessContext> {
@@ -148,10 +109,10 @@ export async function assertInteractionAccess(
     throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
   }
 
-  const [userSnapshot, ageSnapshot] = await db.getAll(
-    db.collection('users').doc(normalizedUid),
-    db.collection('age_eligibility_records').doc(normalizedUid)
-  );
+  const userSnapshot = await db
+    .collection('users')
+    .doc(normalizedUid)
+    .get();
 
   assertPlatformAccountAccessData(
     userSnapshot.exists
@@ -159,10 +120,7 @@ export async function assertInteractionAccess(
       : null
   );
 
-  return assertTrustedAdultAccountAccessData(
-    normalizedUid,
-    ageSnapshot.exists ? ageSnapshot.data() : null
-  );
+  return { accessExpiresAtMs: null };
 }
 
 export async function assertInteractionAccessInTransaction(
@@ -174,12 +132,9 @@ export async function assertInteractionAccessInTransaction(
     throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
   }
 
-  const [userSnapshot, ageSnapshot] = await Promise.all([
-    transaction.get(db.collection('users').doc(normalizedUid)),
-    transaction.get(
-      db.collection('age_eligibility_records').doc(normalizedUid)
-    ),
-  ]);
+  const userSnapshot = await transaction.get(
+    db.collection('users').doc(normalizedUid)
+  );
 
   assertPlatformAccountAccessData(
     userSnapshot.exists
@@ -187,8 +142,5 @@ export async function assertInteractionAccessInTransaction(
       : null
   );
 
-  return assertTrustedAdultAccountAccessData(
-    normalizedUid,
-    ageSnapshot.exists ? ageSnapshot.data() : null
-  );
+  return { accessExpiresAtMs: null };
 }
