@@ -134,7 +134,7 @@ describe('VenueCommunityCreatePageComponent', () => {
     });
   });
 
-  it('expõe finalidade comercial, verificação e capacidade do Espaço Oficial', () => {
+  it('mantém o cadastro do Espaço Oficial enxuto e preserva a capacidade', () => {
     const fixture = TestBed.createComponent(VenueCommunityCreatePageComponent);
 
     fixture.detectChanges();
@@ -142,10 +142,10 @@ describe('VenueCommunityCreatePageComponent', () => {
     expect(fixture.nativeElement.textContent).toContain(
       'Cadastrar Espaço Oficial'
     );
-    expect(fixture.nativeElement.textContent).toContain(
+    expect(fixture.nativeElement.textContent).not.toContain(
       'Lugar físico ou estabelecimento real.'
     );
-    expect(fixture.nativeElement.textContent).toContain(
+    expect(fixture.nativeElement.textContent).not.toContain(
       'uma organização e um responsável comercial verificados.'
     );
     expect(fixture.nativeElement.textContent).toContain(
