@@ -31,19 +31,14 @@ export async function assertCommunityFeedReportAccessInTransaction(
   const communityRef = db.collection('communities').doc(communityId);
   const membershipRef = communityRef.collection('members').doc(reporterUid);
   const userRef = db.collection('users').doc(reporterUid);
-  const ageEligibilityRef = db
-    .collection('age_eligibility_records')
-    .doc(reporterUid);
   const [
     communitySnapshot,
     membershipSnapshot,
     userSnapshot,
-    ageEligibilitySnapshot,
   ] = await Promise.all([
     transaction.get(communityRef),
     transaction.get(membershipRef),
     transaction.get(userRef),
-    transaction.get(ageEligibilityRef),
   ]);
 
   if (!communitySnapshot.exists) {
@@ -53,8 +48,7 @@ export async function assertCommunityFeedReportAccessInTransaction(
   const user = userSnapshot.exists ? userSnapshot.data() ?? {} : null;
   assertCommunitySocialAccessEligible(
     user,
-    reporterUid,
-    ageEligibilitySnapshot.exists ? ageEligibilitySnapshot.data() : null
+    reporterUid
   );
 
   const decision = evaluateCommunityFeedReportAccess(
