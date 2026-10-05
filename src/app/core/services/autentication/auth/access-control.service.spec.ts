@@ -23,6 +23,15 @@ function createUser(role: IUserDados['role'] = 'free'): IUserDados {
     lastLogin: 1,
     profileCompleted: true,
     isSubscriber: role !== 'free' && role !== 'admin',
+    ageEligibility: {
+      status: 'VERIFIED_ADULT',
+      policyVersion: 1,
+      source: 'INITIAL_VERIFICATION',
+      method: 'EXTERNAL_PROVIDER',
+      verifiedAtMs: 1,
+      expiresAtMs: null,
+      updatedAtMs: 1,
+    },
   } as IUserDados;
 }
 
@@ -139,7 +148,7 @@ describe('AccessControlService canonical subscription roles', () => {
     TestBed.resetTestingModule();
   });
 
-  it('libera recursos sociais sem reavaliar assurance etário quando a conta está apta', async () => {
+  it('libera recursos sociais com assurance confiável projetada pela conta', async () => {
     user$.next({
       ...createUser(),
       acceptedTerms: {
@@ -163,7 +172,7 @@ describe('AccessControlService canonical subscription roles', () => {
       .resolves.toBe(true);
   });
 
-  it('reage a mudanças do contrato da conta sem depender de assurance etário', async () => {
+  it('reage a mudanças do contrato da conta preservando assurance confiável', async () => {
     user$.next({
       ...createUser(),
       acceptedTerms: {
@@ -201,6 +210,77 @@ describe('AccessControlService canonical subscription roles', () => {
     });
 
     expect(states).toEqual([false, true]);
+    subscription.unsubscribe();
+  });
+
+  it('nega experiência adulta para autodeclaração sem verificação confiável', async () => {
+    user$.next({
+      ...createUser(),
+      acceptedTerms: {
+        accepted: true,
+        date: 1,
+        version: 'v3',
+        acknowledgedPrivacyNotice: true,
+      },
+      adultConsent: {
+        accepted: true,
+        version: 'v1',
+      },
+      ageEligibility: {
+        status: 'SELF_DECLARED_ADULT',
+        policyVersion: 1,
+        source: 'SELF_DECLARATION',
+        method: 'SELF_DECLARATION',
+        verifiedAtMs: null,
+        expiresAtMs: null,
+        updatedAtMs: 2,
+      },
+    });
+
+    const service = TestBed.inject(AccessControlService);
+
+    await expect(firstValueFrom(service.canUseAdultSocial$))
+      .resolves.toBe(false);
+    await expect(firstValueFrom(service.canEnterCore$))
+      .resolves.toBe(false);
+  });
+
+  it('autoexpira a capability adulta sem reload', async () => {
+    vi.useFakeTimers();
+    const now = 1_800_000_000_000;
+    vi.setSystemTime(now);
+    user$.next({
+      ...createUser(),
+      acceptedTerms: {
+        accepted: true,
+        date: 1,
+        version: 'v3',
+        acknowledgedPrivacyNotice: true,
+      },
+      adultConsent: {
+        accepted: true,
+        version: 'v1',
+      },
+      ageEligibility: {
+        status: 'VERIFIED_ADULT',
+        policyVersion: 1,
+        source: 'INITIAL_VERIFICATION',
+        method: 'EXTERNAL_PROVIDER',
+        verifiedAtMs: now - 1_000,
+        expiresAtMs: now + 100,
+        updatedAtMs: now,
+      },
+    });
+
+    const service = TestBed.inject(AccessControlService);
+    const states: boolean[] = [];
+    const subscription = service.canUseAdultSocial$.subscribe((value) =>
+      states.push(value)
+    );
+
+    expect(states.at(-1)).toBe(true);
+    await vi.advanceTimersByTimeAsync(101);
+    expect(states.at(-1)).toBe(false);
     subscription.unsubscribe();
   });
 

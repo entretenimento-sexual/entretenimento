@@ -2,7 +2,6 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
 import { BehaviorSubject, of, throwError } from 'rxjs';
-import { take } from 'rxjs/operators';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { IUserAgeEligibility } from 'src/app/core/interfaces/iuser-dados';
@@ -23,6 +22,15 @@ const UNVERIFIED: IUserAgeEligibility = {
   updatedAtMs: 1,
 };
 
+const VERIFIED: IUserAgeEligibility = {
+  ...UNVERIFIED,
+  status: 'VERIFIED_ADULT',
+  source: 'INITIAL_VERIFICATION',
+  method: 'EXTERNAL_PROVIDER',
+  verifiedAtMs: 1,
+  updatedAtMs: 2,
+};
+
 describe('AgeVerificationPageComponent', () => {
   let fixture: ComponentFixture<AgeVerificationPageComponent>;
   let component: AgeVerificationPageComponent;
@@ -30,8 +38,8 @@ describe('AgeVerificationPageComponent', () => {
   let current$: BehaviorSubject<IUserAgeEligibility>;
   let ageEligibilityMock: {
     current$: unknown;
-    acceptSelfDeclaration$: MockFn;
-    getCurrentOnce$: MockFn;
+    reconcileTrustedStateOncePerSession$: MockFn;
+    requestInitialReview$: MockFn;
     refreshTrustedSources$: MockFn;
   };
 
@@ -40,9 +48,13 @@ describe('AgeVerificationPageComponent', () => {
 
     ageEligibilityMock = {
       current$: current$.asObservable(),
-      acceptSelfDeclaration$: vi.fn(() => of('SELF_DECLARED_ADULT')),
-      getCurrentOnce$: vi.fn(() => current$.pipe(take(1))),
-      refreshTrustedSources$: vi.fn(() => of('UNVERIFIED')),
+      reconcileTrustedStateOncePerSession$: vi.fn(
+        () => of(current$.value)
+      ),
+      requestInitialReview$: vi.fn(() =>
+        of({ reportId: 'age_initial_1', status: 'REVIEW_REQUIRED' })
+      ),
+      refreshTrustedSources$: vi.fn(() => of('VERIFIED_ADULT')),
     };
 
     await TestBed.configureTestingModule({
@@ -84,111 +96,60 @@ describe('AgeVerificationPageComponent', () => {
     vi.restoreAllMocks();
   });
 
-  it('não exibe a confirmação enquanto reconcilia o estado já salvo', () => {
-    component.reconciling.set(true);
+  it('reconcilia silenciosamente antes de oferecer ação', () => {
+    expect(
+      ageEligibilityMock.reconcileTrustedStateOncePerSession$
+    ).toHaveBeenCalledTimes(1);
+    expect(ageEligibilityMock.requestInitialReview$).not.toHaveBeenCalled();
+  });
+
+  it('não pede autodeclaração novamente quando ela já existe', () => {
+    current$.next({
+      ...UNVERIFIED,
+      status: 'SELF_DECLARED_ADULT',
+      source: 'SELF_DECLARATION',
+      method: 'SELF_DECLARATION',
+      updatedAtMs: 2,
+    });
     fixture.detectChanges();
 
     const text = String(fixture.nativeElement.textContent ?? '');
 
-    expect(text).toContain('Verificando sua confirmação já registrada');
+    expect(text).toContain('Sua declaração anterior continua registrada');
+    expect(text).toContain('Você não precisa declará-la novamente');
     expect(text).not.toContain('Confirmo que tenho 18 anos ou mais');
+    expect(router.navigate).not.toHaveBeenCalled();
   });
 
-  it('reconcilia confirmação canônica ausente da projeção antes de pedir novamente', async () => {
-    ageEligibilityMock.refreshTrustedSources$.mockClear();
-    ageEligibilityMock.refreshTrustedSources$.mockReturnValueOnce(
-      of('SELF_DECLARED_ADULT')
-    );
+  it('abre verificação confiável sem criar segunda declaração', () => {
+    component.requestVerification();
 
-    fixture.destroy();
-
-    fixture = TestBed.createComponent(AgeVerificationPageComponent);
-    component = fixture.componentInstance;
-    fixture.detectChanges();
-
-    expect(ageEligibilityMock.getCurrentOnce$).toHaveBeenCalled();
-    expect(ageEligibilityMock.refreshTrustedSources$).toHaveBeenCalledTimes(1);
-    expect(ageEligibilityMock.acceptSelfDeclaration$).not.toHaveBeenCalled();
-  });
-
-  it('não pede nova autodeclaração quando o estado já está salvo', async () => {
-    fixture.destroy();
-
-    current$.next({
-      ...UNVERIFIED,
-      status: 'SELF_DECLARED_ADULT',
-      source: 'SELF_DECLARATION',
-      method: 'SELF_DECLARATION',
-      updatedAtMs: Date.now(),
-    });
-
-    fixture = TestBed.createComponent(AgeVerificationPageComponent);
-    component = fixture.componentInstance;
-    fixture.detectChanges();
-
-    expect(ageEligibilityMock.acceptSelfDeclaration$).not.toHaveBeenCalled();
-
-    await vi.waitFor(() => {
-      expect(router.navigate).toHaveBeenCalledWith(
-        ['/adulto/confirmar'],
-        expect.objectContaining({
-          replaceUrl: true,
-        })
-      );
-    });
-  });
-
-  it('registra a autodeclaração e deixa a projeção backend autorizar o avanço', async () => {
-    component.confirmAdult();
-
-    expect(ageEligibilityMock.acceptSelfDeclaration$).toHaveBeenCalledTimes(1);
+    expect(ageEligibilityMock.requestInitialReview$).toHaveBeenCalledTimes(1);
     expect(component.feedback()).toEqual(
       expect.objectContaining({
-        tone: 'success',
-        title: 'Maioridade declarada',
+        tone: 'warning',
+        title: 'Verificação em análise',
       })
     );
-    expect(router.navigate).not.toHaveBeenCalled();
-
-    current$.next({
-      ...UNVERIFIED,
-      status: 'SELF_DECLARED_ADULT',
-      source: 'SELF_DECLARATION',
-      method: 'SELF_DECLARATION',
-      updatedAtMs: Date.now(),
-    });
-
-    await vi.waitFor(() => {
-      expect(router.navigate).toHaveBeenCalledTimes(1);
-      expect(router.navigate).toHaveBeenCalledWith(
-        ['/adulto/confirmar'],
-        {
-          replaceUrl: true,
-          queryParams: {
-            redirectTo: '/dashboard/explorar',
-          },
-        }
-      );
-    });
   });
 
   it('mantém erro operacional como feedback persistente', () => {
-    ageEligibilityMock.acceptSelfDeclaration$.mockReturnValueOnce(
+    ageEligibilityMock.requestInitialReview$.mockReturnValueOnce(
       throwError(() => new Error('network unavailable'))
     );
 
-    component.confirmAdult();
+    component.requestVerification();
 
     expect(component.feedback()).toEqual(
       expect.objectContaining({
         tone: 'error',
-        title: 'Não foi possível continuar',
+        title: 'Não foi possível solicitar a verificação',
       })
     );
     expect(component.processing()).toBe(false);
   });
 
-  it('permite migrar review criado apenas pelo onboarding antigo', () => {
+  it('mantém review existente sem botão de nova confirmação', () => {
     current$.next({
       ...UNVERIFIED,
       status: 'REVIEW_REQUIRED',
@@ -198,24 +159,9 @@ describe('AgeVerificationPageComponent', () => {
     });
     fixture.detectChanges();
 
-    const text = fixture.nativeElement.textContent as string;
+    const text = String(fixture.nativeElement.textContent ?? '');
 
-    expect(text).toContain('O fluxo anterior foi substituído');
-    expect(text).toContain('Confirmo que tenho 18 anos ou mais');
-  });
-
-  it('não tenta sobrescrever estados fortes na interface', async () => {
-    current$.next({
-      ...UNVERIFIED,
-      status: 'REVIEW_REQUIRED',
-      source: 'AGE_REVERIFICATION',
-      method: 'MANUAL_REVIEW',
-    });
-    fixture.detectChanges();
-
-    const text = fixture.nativeElement.textContent as string;
-
-    expect(text).toContain('Confirmação adicional necessária');
+    expect(text).toContain('Verificação em análise');
     expect(text).not.toContain('Confirmo que tenho 18 anos ou mais');
   });
 
@@ -229,43 +175,32 @@ describe('AgeVerificationPageComponent', () => {
     });
   });
 
-  it('segue automaticamente quando a projeção backend libera a etapa etária', async () => {
-    current$.next({
-      ...UNVERIFIED,
-      status: 'SELF_DECLARED_ADULT',
-      source: 'SELF_DECLARATION',
-      method: 'SELF_DECLARATION',
-      updatedAtMs: Date.now(),
-    });
+  it('segue automaticamente somente com VERIFIED_ADULT confiável', async () => {
+    current$.next(VERIFIED);
 
     await vi.waitFor(() => {
       expect(router.navigate).toHaveBeenCalledWith(
         ['/adulto/confirmar'],
-        expect.objectContaining({
+        {
           replaceUrl: true,
           queryParams: {
             redirectTo: '/dashboard/explorar',
           },
-        })
+        }
       );
     });
   });
 
-  it('não cria uma segunda navegação quando a callable conclui antes da projeção realtime', async () => {
-    component.confirmAdult();
-
-    expect(router.navigate).not.toHaveBeenCalled();
-
+  it('não avança para SELF_DECLARED_ADULT', async () => {
     current$.next({
       ...UNVERIFIED,
       status: 'SELF_DECLARED_ADULT',
       source: 'SELF_DECLARATION',
       method: 'SELF_DECLARATION',
-      updatedAtMs: Date.now(),
+      updatedAtMs: 2,
     });
 
-    await vi.waitFor(() => {
-      expect(router.navigate).toHaveBeenCalledTimes(1);
-    });
+    await Promise.resolve();
+    expect(router.navigate).not.toHaveBeenCalled();
   });
 });

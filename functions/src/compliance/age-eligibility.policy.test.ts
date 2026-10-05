@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import {
   AGE_ELIGIBILITY_POLICY_VERSION,
   evaluateCanonicalAgeEligibility,
+  isTrustedAdultAgeDecision,
 } from './age-eligibility.policy';
 
 const NOW = 1_800_000_000_000;
@@ -28,9 +29,10 @@ describe('age-eligibility.policy', () => {
     assert.equal(decision.allowed, true);
     assert.equal(decision.status, 'VERIFIED_ADULT');
     assert.equal(decision.denialReason, null);
+    assert.equal(isTrustedAdultAgeDecision(decision), true);
   });
 
-  it('libera autodeclaração adulta somente no contrato canônico correto', () => {
+  it('preserva autodeclaração válida sem transformá-la em assurance confiável', () => {
     const allowed = evaluateCanonicalAgeEligibility({
       uid: 'user-1',
       nowMs: NOW,
@@ -65,6 +67,7 @@ describe('age-eligibility.policy', () => {
     assert.equal(allowed.allowed, true);
     assert.equal(allowed.status, 'SELF_DECLARED_ADULT');
     assert.equal(allowed.verifiedAtMs, null);
+    assert.equal(isTrustedAdultAgeDecision(allowed), false);
     assert.equal(mismatched.allowed, false);
     assert.equal(mismatched.denialReason, 'record_mismatch');
   });
@@ -158,6 +161,8 @@ describe('age-eligibility.policy', () => {
     assert.equal(verified.allowed, true);
     assert.equal(verified.status, 'VERIFIED_ADULT');
     assert.equal(verified.verifiedAtMs, NOW - 1_000);
+    assert.equal(isTrustedAdultAgeDecision(selfDeclared), false);
+    assert.equal(isTrustedAdultAgeDecision(verified), true);
   });
 
   it('não aceita registro vencido ou política divergente', () => {

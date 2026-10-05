@@ -9,59 +9,43 @@ function source(path: string): string {
   return readFileSync(resolve(ROOT, path), 'utf8');
 }
 
-describe('Adult declaration persistence boundary', () => {
-  it('restaura autodeclaração válida a partir da evidência backend imutável', () => {
+describe('Adult age assurance boundary', () => {
+  it('preserva autodeclaração histórica sem transformá-la em autorização', () => {
     const refresh = source(
       'functions/src/compliance/refresh-my-age-eligibility.handler.ts'
+    );
+    const access = source(
+      'functions/src/account_lifecycle/interaction-access.policy.ts'
     );
 
     expect(refresh).toContain('adult_self_declarations');
-    expect(refresh).toContain('trustedSelfDeclarationAtMs');
-    expect(refresh).toContain('age_eligibility.self_declaration_restored');
-    expect(refresh).toContain('restoredFromDeclarationEvidence');
     expect(refresh).toContain("status: 'SELF_DECLARED_ADULT'");
+    expect(access).toContain('isTrustedAdultAgeDecision');
+    expect(access).toContain("'verification_required'");
   });
 
-  it('não reaproveita por nome um SELF_DECLARED_ADULT inválido', () => {
-    const refresh = source(
-      'functions/src/compliance/refresh-my-age-eligibility.handler.ts'
-    );
-
-    expect(refresh).toContain(
-      "currentDecision.status === 'SELF_DECLARED_ADULT'"
-    );
-    expect(refresh).toContain('currentDecision.allowed === true');
-  });
-
-  it('faz ponte imediata da projeção retornada pela callable', () => {
-    const service = source(
-      'src/app/core/services/compliance/age-eligibility.service.ts'
-    );
-
-    expect(service).toContain('response.data.ageEligibility');
-    expect(service).toContain('trustedSessionProjection.next');
-    expect(service).toContain('getLoggedUserUIDSnapshot');
-  });
-
-  it('reconcilia a projeção persistida e mantém a decisão etária dentro do onboarding', () => {
+  it('reconcilia uma vez por sessão antes de decidir o onboarding', () => {
     const service = source(
       'src/app/core/services/compliance/age-eligibility.service.ts'
     );
     const registerFlow = source(
       'src/app/register-module/data-access/register-flow.facade.ts'
     );
-    const routing = source('src/app/app-routing.module.ts');
 
-    expect(service).toContain('refreshTrustedSources$');
-    expect(service).toContain('trustedSessionProjection');
-    expect(registerFlow).toContain('this.ageEligibility.current$');
-    expect(registerFlow).toContain("state.status === 'SELF_DECLARED_ADULT'");
-    expect(registerFlow).toContain("state.status === 'VERIFIED_ADULT'");
-    expect(routing).not.toContain('ageEligibilityGuard');
-    expect(routing).not.toContain('ageReverificationGuard');
+    expect(service).toContain('reconcileTrustedStateOncePerSession$');
+    expect(service).toContain('reconciledUid');
+    expect(registerFlow).toContain(
+      'reconcileTrustedStateOncePerSession$()'
+    );
+    expect(registerFlow).toContain(
+      'isCurrentTrustedAdultAgeProjection(ageState)'
+    );
+    expect(registerFlow).not.toContain(
+      "state.status === 'SELF_DECLARED_ADULT'"
+    );
   });
 
-  it('não mostra nova confirmação enquanto reconcilia o estado já salvo', () => {
+  it('não pede autodeclaração novamente na tela de verificação', () => {
     const component = source(
       'src/app/compliance/age-verification-page/age-verification-page.component.ts'
     );
@@ -69,15 +53,20 @@ describe('Adult declaration persistence boundary', () => {
       'src/app/compliance/age-verification-page/age-verification-page.component.html'
     );
 
-    expect(component).toContain('reconciling = signal(true)');
-    expect(component).toContain('refreshTrustedSources$()');
-    expect(component).toContain(
-      'finalize(() => this.reconciling.set(false))'
-    );
+    expect(component).toContain('requestInitialReview$()');
+    expect(component).not.toContain('acceptSelfDeclaration$()');
     expect(template).toContain(
-      'Verificando sua confirmação já registrada'
+      'Sua declaração anterior continua registrada'
     );
-    expect(template).toContain('Você não precisa');
-    expect(template).toContain('Essa declaração não equivale à');
+    expect(template).toContain('Você não precisa declará-la novamente');
+    expect(template).not.toContain('(click)="confirmAdult()"');
+  });
+
+  it('mantém rotas sem age guard duplicado por feature', () => {
+    const routing = source('src/app/app-routing.module.ts');
+
+    expect(routing).not.toContain('ageEligibilityGuard');
+    expect(routing).not.toContain('ageReverificationGuard');
+    expect(routing).toContain('adultContentConsentGuard');
   });
 });
