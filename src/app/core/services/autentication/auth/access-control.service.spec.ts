@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { IUserDados } from '../../../interfaces/iuser-dados';
 import { PlatformSubscriptionAccessService } from '../../subscriptions/platform-subscription-access.service';
-import { AgeEligibilityService } from '../../compliance/age-eligibility.service';
 import type { PlatformSubscriptionAccessState } from '../../subscriptions/platform-subscription-access.model';
 import { ApplicationErrorService } from '../../error-handler/application-error.service';
 import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
@@ -58,7 +57,6 @@ describe('AccessControlService canonical subscription roles', () => {
   let subscriptionState$: BehaviorSubject<PlatformSubscriptionAccessState>;
   let subscriptionIsFree$: BehaviorSubject<boolean>;
   let subscriptionIsSubscriber$: BehaviorSubject<boolean>;
-  let adultAccessAllowed$: BehaviorSubject<boolean>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -74,7 +72,6 @@ describe('AccessControlService canonical subscription roles', () => {
     );
     subscriptionIsFree$ = new BehaviorSubject<boolean>(true);
     subscriptionIsSubscriber$ = new BehaviorSubject<boolean>(false);
-    adultAccessAllowed$ = new BehaviorSubject<boolean>(false);
 
     TestBed.configureTestingModule({
       providers: [
@@ -104,11 +101,6 @@ describe('AccessControlService canonical subscription roles', () => {
             isSubscriber$: subscriptionIsSubscriber$.asObservable(),
           },
         },
-        {
-          provide: AgeEligibilityService,
-          useValue: {
-            adultAccessAllowed$: adultAccessAllowed$.asObservable(),
-          },
         },
         {
           provide: AuthAppBlockService,
@@ -148,7 +140,7 @@ describe('AccessControlService canonical subscription roles', () => {
     TestBed.resetTestingModule();
   });
 
-  it('mantém recursos sociais desligados enquanto a maioridade não está confirmada', async () => {
+  it('libera recursos sociais sem reavaliar assurance etário quando a conta está apta', async () => {
     user$.next({
       ...createUser(),
       acceptedTerms: {
@@ -167,16 +159,16 @@ describe('AccessControlService canonical subscription roles', () => {
     const service = TestBed.inject(AccessControlService);
 
     await expect(firstValueFrom(service.canUseAdultSocial$))
-      .resolves.toBe(false);
+      .resolves.toBe(true);
     await expect(firstValueFrom(service.canRunPresence$))
-      .resolves.toBe(false);
+      .resolves.toBe(true);
   });
 
-  it('libera recursos sociais reativamente quando a projeção 18+ backend fica válida', async () => {
+  it('reage a mudanças do contrato da conta sem depender de assurance etário', async () => {
     user$.next({
       ...createUser(),
       acceptedTerms: {
-        accepted: true,
+        accepted: false,
         date: 1,
         version: 'v3',
         acknowledgedPrivacyNotice: true,
@@ -194,11 +186,22 @@ describe('AccessControlService canonical subscription roles', () => {
       states.push(value)
     );
 
-    adultAccessAllowed$.next(true);
+    user$.next({
+      ...createUser(),
+      acceptedTerms: {
+        accepted: true,
+        date: 1,
+        version: 'v3',
+        acknowledgedPrivacyNotice: true,
+      },
+      adultConsent: {
+        accepted: true,
+        version: 'v1',
+      },
+      ageReverification: { status: 'NONE' },
+    });
 
     expect(states).toEqual([false, true]);
-    expect(await firstValueFrom(service.canRunPresence$)).toBe(true);
-
     subscription.unsubscribe();
   });
 
@@ -206,7 +209,6 @@ describe('AccessControlService canonical subscription roles', () => {
     vi.useFakeTimers();
     const now = 1_800_000_000_000;
     vi.setSystemTime(now);
-    adultAccessAllowed$.next(true);
     user$.next({
       ...createUser(),
       acceptedTerms: {
@@ -244,7 +246,7 @@ describe('AccessControlService canonical subscription roles', () => {
     subscription.unsubscribe();
   });
 
-  it('não inicia social quando termos, consentimento ou reverificação bloqueiam', async () => {
+  it('não transforma reverificação em gate local quando lifecycle permanece liberado', async () => {
     adultAccessAllowed$.next(true);
     user$.next({
       ...createUser(),
@@ -264,7 +266,7 @@ describe('AccessControlService canonical subscription roles', () => {
     const service = TestBed.inject(AccessControlService);
 
     await expect(firstValueFrom(service.canUseAdultSocial$))
-      .resolves.toBe(false);
+      .resolves.toBe(true);
   });
 
   it('diagnostica toda falha e limita feedback visual a uma vez por 15 segundos', async () => {
