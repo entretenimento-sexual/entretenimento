@@ -388,9 +388,6 @@ export const getCommunityMembershipRequests = onCall<CommunityIdPayload>(
         .collection('members')
         .doc(actorUid);
       const actorUserRef = db.collection('users').doc(actorUid);
-      const actorAgeEligibilityRef = db
-        .collection('age_eligibility_records')
-        .doc(actorUid);
       const [
         communitySnapshot,
         actorMembershipSnapshot,
@@ -411,10 +408,7 @@ export const getCommunityMembershipRequests = onCall<CommunityIdPayload>(
 
       assertCommunityMembershipActorEligible(
         actorUserSnapshot.exists ? actorUserSnapshot.data() : null,
-        actorUid,
-        actorAgeEligibilitySnapshot.exists
-          ? actorAgeEligibilitySnapshot.data()
-          : null
+        actorUid
       );
       const community = communitySnapshot.data() ?? {};
       assertCommunityManageable(community);
@@ -659,12 +653,6 @@ export const reviewCommunityMembership =
           .doc(memberId);
         const actorUserRef = db.collection('users').doc(actorUid);
         const targetUserRef = db.collection('users').doc(memberId);
-        const actorAgeEligibilityRef = db
-          .collection('age_eligibility_records')
-          .doc(actorUid);
-        const targetAgeEligibilityRef = db
-          .collection('age_eligibility_records')
-          .doc(memberId);
         const auditRef = db.collection('community_membership_audit').doc();
         const [
           communitySnapshot,
@@ -692,10 +680,7 @@ export const reviewCommunityMembership =
 
         assertCommunityMembershipActorEligible(
           actorUserSnapshot.exists ? actorUserSnapshot.data() : null,
-          actorUid,
-          actorAgeEligibilitySnapshot.exists
-            ? actorAgeEligibilitySnapshot.data()
-            : null
+          actorUid
         );
         const community = communitySnapshot.data() ?? null;
         assertCommunityManageable(community);
@@ -723,10 +708,7 @@ export const reviewCommunityMembership =
         if (!decision.idempotent && decision.targetStatus === 'active') {
           assertCommunityMembershipActorEligible(
             targetUserSnapshot.exists ? targetUserSnapshot.data() : null,
-            memberId,
-            targetAgeEligibilitySnapshot.exists
-              ? targetAgeEligibilitySnapshot.data()
-              : null
+            memberId
           );
         }
 
