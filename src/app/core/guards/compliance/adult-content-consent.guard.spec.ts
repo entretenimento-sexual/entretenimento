@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
-import { BehaviorSubject, firstValueFrom, of } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { IUserAgeEligibility } from '../../interfaces/iuser-dados';
@@ -28,6 +28,7 @@ describe('adultContentConsentGuard / account adult boundary', () => {
   let userSubject: BehaviorSubject<Record<string, unknown>>;
   let adultConsentSubject: BehaviorSubject<boolean>;
   let ageState: IUserAgeEligibility;
+  let reconcileAge: ReturnType<typeof vi.fn>;
   let createUrlTree: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -42,6 +43,7 @@ describe('adultContentConsentGuard / account adult boundary', () => {
       },
     });
     adultConsentSubject = new BehaviorSubject(false);
+    reconcileAge = vi.fn(() => of(ageState));
     createUrlTree = vi.fn((commands, options) => ({ commands, options }));
 
     TestBed.configureTestingModule({
@@ -67,7 +69,7 @@ describe('adultContentConsentGuard / account adult boundary', () => {
         {
           provide: AgeEligibilityService,
           useValue: {
-            reconcileTrustedStateOncePerSession$: vi.fn(() => of(ageState)),
+            reconcileTrustedStateOncePerSession$: reconcileAge,
           },
         },
       ],
@@ -165,6 +167,33 @@ describe('adultContentConsentGuard / account adult boundary', () => {
       adultContentConsentGuard(
         {} as never,
         { url: '/descobrir' } as never
+      )
+    );
+
+    await expect(firstValueFrom(result as never)).resolves.toBe(true);
+    expect(createUrlTree).not.toHaveBeenCalled();
+  });
+
+  it('não exige nova verificação quando a reconciliação falha mas a projeção persistida ainda é confiável', async () => {
+    adultConsentSubject.next(true);
+    userSubject.next({
+      uid: 'user-1',
+      initialAdultConsentRequired: false,
+      acceptedTerms: {
+        accepted: true,
+        version: TERMS_ACCEPTANCE_VERSION,
+        acknowledgedPrivacyNotice: true,
+      },
+      ageEligibility: VERIFIED,
+    });
+    reconcileAge.mockReturnValueOnce(
+      throwError(() => new Error('backend temporariamente indisponível'))
+    );
+
+    const result = TestBed.runInInjectionContext(() =>
+      adultContentConsentGuard(
+        {} as never,
+        { url: '/dashboard/principal' } as never
       )
     );
 

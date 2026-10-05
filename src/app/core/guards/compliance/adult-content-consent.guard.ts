@@ -100,7 +100,22 @@ export const adultContentConsentGuard: CanActivateFn = (
 
           return redirectToConsent();
         }),
-        catchError(() => of(redirectToAgeVerification()))
+        catchError(() => {
+          const persistedAgeState = appUser?.ageEligibility;
+
+          if (isCurrentTrustedAdultAgeProjection(persistedAgeState)) {
+            const initialConsentRequired =
+              appUser?.initialAdultConsentRequired !== false;
+
+            return of(
+              !initialConsentRequired || accepted
+                ? true as GuardResult
+                : redirectToConsent()
+            );
+          }
+
+          return of(redirectToAgeVerification());
+        })
       );
     }),
     catchError(() => of(redirectToTerms()))

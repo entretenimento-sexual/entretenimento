@@ -81,7 +81,9 @@ export class RegisterFlowFacade {
         map((ageState) =>
           resolve(isCurrentTrustedAdultAgeProjection(ageState))
         ),
-        catchError(() => of(resolve(false)))
+        catchError(() =>
+          of(resolve(isCurrentTrustedAdultAgeProjection(user?.ageEligibility)))
+        )
       );
     }),
     distinctUntilChanged((a, b) => this.vmEquals(a, b)),
