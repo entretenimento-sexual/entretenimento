@@ -21,6 +21,9 @@ import {
 } from '../../moderation/moderation-safety-notification.service';
 import { consumeBackendRateLimitQuota } from './backend-rate-limit.service';
 import {
+  buildPossibleMinorContentSafetyAssessment,
+} from './media-content-safety-assessment.policy';
+import {
   buildMediaReportSafetyState,
   isCriticalMinorMediaSafetyReason,
   mediaSafetySeverity,
@@ -400,6 +403,7 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
           contentQuarantined: quarantine,
           safetySeverity: mediaSafetySeverity(reason),
           criticalMinorSafety:
+            targetType === 'video' &&
             isCriticalMinorMediaSafetyReason(reason),
           evidencePreservationStatus: binaryEvidenceRequired
             ? 'PENDING'
