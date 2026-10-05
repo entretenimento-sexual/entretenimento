@@ -4,7 +4,9 @@
 // -----------------------------------------------------------------------------
 // Contrato:
 // - dry-run por padrão;
-// - execução real exige LEGACY_MEDIA_AGE_CLEANUP_CONFIRM=true;
+// - FIREBASE_PROJECT_ID é obrigatório inclusive em dry-run;
+ // - execução real exige LEGACY_MEDIA_AGE_CLEANUP_CONFIRM=true e confirmação
+ //   explícita do mesmo projeto em LEGACY_MEDIA_AGE_CLEANUP_PROJECT_CONFIRM;
 // - nunca lê ou altera age_eligibility_records;
 // - nunca decide maioridade;
 // - remove somente campos etários legados de projeções públicas/publicações;
@@ -28,7 +30,10 @@ import {
 } from 'firebase-admin/firestore';
 
 const projectId =
-  String(process.env.FIREBASE_PROJECT_ID || 'entretenimento-sexual').trim();
+  String(process.env.FIREBASE_PROJECT_ID || '').trim();
+
+const confirmedProjectId =
+  String(process.env.LEGACY_MEDIA_AGE_CLEANUP_PROJECT_CONFIRM || '').trim();
 
 const dryRun =
   String(process.env.LEGACY_MEDIA_AGE_CLEANUP_DRY_RUN || 'true')
@@ -81,6 +86,7 @@ const SCOPES = [
   { kind: 'collectionGroup', name: 'public_videos' },
   { kind: 'collectionGroup', name: 'photo_publications' },
   { kind: 'collectionGroup', name: 'video_publications' },
+  { kind: 'collection', name: 'user_intent_statuses' },
 ];
 
 function initializeAdmin() {
@@ -286,9 +292,21 @@ async function scanScope(db, scope, remainingBudget, summary) {
 }
 
 async function main() {
+  if (!projectId) {
+    throw new Error(
+      'FIREBASE_PROJECT_ID é obrigatório para evitar execução contra projeto implícito.'
+    );
+  }
+
   if (!dryRun && !confirmed) {
     throw new Error(
       'Execução real bloqueada. Defina LEGACY_MEDIA_AGE_CLEANUP_CONFIRM=true.'
+    );
+  }
+
+  if (!dryRun && confirmedProjectId !== projectId) {
+    throw new Error(
+      'Execução real bloqueada. LEGACY_MEDIA_AGE_CLEANUP_PROJECT_CONFIRM deve ser exatamente igual a FIREBASE_PROJECT_ID.'
     );
   }
 
@@ -300,7 +318,7 @@ async function main() {
     runId,
     projectId,
     dryRun,
-    confirmed: !dryRun && confirmed,
+    confirmed: !dryRun && confirmed && confirmedProjectId === projectId,
     pageSize,
     maxDocuments,
     scanned: 0,
