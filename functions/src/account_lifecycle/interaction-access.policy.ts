@@ -55,7 +55,7 @@ export function assertPlatformAccountAccessData(
     throw new HttpsError('not-found', 'Conta não encontrada.');
   }
 
-  const accountStatus = String(user.accountStatus ?? 'active')
+  const accountStatus = String(user.accountStatus ?? '')
     .trim()
     .toLowerCase();
   const holdExpiresAtMs = Number(
