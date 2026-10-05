@@ -23,15 +23,11 @@ describe('DiscoveryVisibleProfileLocationRepository', () => {
     expect(readMock.getDocumentLiveSafe).not.toHaveBeenCalled();
   });
 
-  it('observa somente UIDs visíveis por get temporal e preserva ausência de localização', async () => {
-    const validUntil = Date.now() + 60_000;
-
+  it('observa somente UIDs já visíveis e preserva ausência de localização', async () => {
     readMock.getDocumentLiveSafe
       .mockReturnValueOnce(
         of({
           uid: 'u1',
-          ageEligibilityVerifiedAdult: true,
-          ageEligibilityValidUntil: validUntil,
           latitude: -22.93,
           longitude: -43.35,
           geohash: '75cm',
@@ -40,15 +36,11 @@ describe('DiscoveryVisibleProfileLocationRepository', () => {
       .mockReturnValueOnce(
         of({
           uid: 'u2',
-          ageEligibilityVerifiedAdult: true,
-          ageEligibilityValidUntil: validUntil,
         })
       )
       .mockReturnValueOnce(
         of({
           uid: 'u3',
-          ageEligibilityVerifiedAdult: true,
-          ageEligibilityValidUntil: Date.now() - 1,
           latitude: -22.91,
           longitude: -43.31,
           geohash: '75cq',
@@ -76,6 +68,12 @@ describe('DiscoveryVisibleProfileLocationRepository', () => {
         latitude: null,
         longitude: null,
         geohash: null,
+      }),
+      expect.objectContaining({
+        uid: 'u3',
+        latitude: -22.91,
+        longitude: -43.31,
+        geohash: '75cq',
       }),
     ]);
   });
