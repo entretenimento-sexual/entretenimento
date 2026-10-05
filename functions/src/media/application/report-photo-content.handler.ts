@@ -21,6 +21,9 @@ import {
 } from '../../moderation/moderation-safety-notification.service';
 import { consumeBackendRateLimitQuota } from './backend-rate-limit.service';
 import {
+  buildPossibleMinorContentSafetyAssessment,
+} from './media-content-safety-assessment.policy';
+import {
   buildMediaReportSafetyState,
   isCriticalMinorMediaSafetyReason,
   mediaSafetySeverity,
@@ -233,6 +236,15 @@ export const reportPhotoContent = onCall<ReportPhotoContentRequest>(
           reason,
           safetyState.openReportsCount
         );
+        const criticalMinorSafety =
+          isCriticalMinorMediaSafetyReason(reason);
+        const contentSafetyAssessment = criticalMinorSafety
+          ? buildPossibleMinorContentSafetyAssessment({
+            reason,
+            assessedAtMs: Date.now(),
+            assessorId: reporterUid,
+          })
+          : null;
         const evidenceRequired = shouldPreserveMediaEvidence(reason);
         const timestamp = FieldValue.serverTimestamp();
 
@@ -250,8 +262,7 @@ export const reportPhotoContent = onCall<ReportPhotoContentRequest>(
           moderationAction: null,
           contentQuarantined: quarantine,
           safetySeverity: mediaSafetySeverity(reason),
-          criticalMinorSafety:
-            isCriticalMinorMediaSafetyReason(reason),
+          criticalMinorSafety,
           evidencePreservationStatus: evidenceRequired
             ? 'PENDING'
             : 'NOT_REQUIRED',
@@ -268,6 +279,9 @@ export const reportPhotoContent = onCall<ReportPhotoContentRequest>(
           openReportsCount: safetyState.openReportsCount,
           confirmedReportsCount: safetyState.confirmedReportsCount,
           safetyScore: safetyState.safetyScore,
+          ...(contentSafetyAssessment
+            ? { contentSafetyAssessment }
+            : {}),
           ...(quarantine
             ? {
               moderationStatus: 'HIDDEN',
@@ -285,6 +299,9 @@ export const reportPhotoContent = onCall<ReportPhotoContentRequest>(
               visibility,
               moderationStatus: 'FLAGGED',
               moderationReason: QUARANTINE_REASON,
+              ...(contentSafetyAssessment
+                ? { contentSafetyAssessment }
+                : {}),
               updatedAt: Date.now(),
             },
             { merge: true }
