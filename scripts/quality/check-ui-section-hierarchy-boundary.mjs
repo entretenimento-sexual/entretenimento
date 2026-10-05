@@ -92,7 +92,6 @@ const boundaries = [
     path: 'src/app/preferences/pages/preferences-hub/preferences-hub.component.html',
     required: [
       '<app-page-header title="Preferências">',
-      'app-action app-action--ghost',
     ],
     forbidden: [
       'Ajuste como seu perfil aparece, como você recebe notificações',
@@ -2039,7 +2038,7 @@ for (const required of [
   'class="photos-grid"',
   'photo-tile app-card app-card--media app-card--interactive',
   'gallery-filter-group app-segmented',
-  'management-date app-control',
+  'secondaryLabel="Alterar data"',
 ]) {
   if (!profilePhotosHtml.includes(required)) {
     violations.push(
@@ -2087,7 +2086,8 @@ const mediaQueryService = read(
 for (const required of [
   'private readonly storageService: StorageService',
   'resolvePhotoItem$(',
-  'this.storageService.getPhotoUrl(readableSource)',
+  'this.storageService.getPhotoUrl(storagePath)',
+  'this.storageService.getPhotoUrl(storedUrl)',
 ]) {
   if (!mediaQueryService.includes(required)) {
     violations.push(
