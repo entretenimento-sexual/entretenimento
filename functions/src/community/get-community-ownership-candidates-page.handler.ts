@@ -390,7 +390,6 @@ export const getCommunityOwnershipCandidatesPage =
           const memberId = normalizeSafeId(projection['memberId']);
           const membershipSnapshot = membershipSnapshots[index];
           const userSnapshot = userSnapshots[index];
-          const ageEligibilitySnapshot = ageEligibilitySnapshots[index];
 
           if (
             !memberId
