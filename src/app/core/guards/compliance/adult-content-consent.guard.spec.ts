@@ -201,6 +201,42 @@ describe('adultContentConsentGuard / account adult boundary', () => {
     expect(createUrlTree).not.toHaveBeenCalled();
   });
 
+  it('não reinterpreta assurance etário de conta já admitida e ativa', async () => {
+    adultConsentSubject.next(true);
+    ageState = {
+      status: 'EXPIRED',
+      policyVersion: 1,
+      source: 'INITIAL_VERIFICATION',
+      method: 'EXTERNAL_PROVIDER',
+      verifiedAtMs: 1,
+      expiresAtMs: 2,
+      updatedAtMs: 3,
+    };
+    userSubject.next({
+      uid: 'user-1',
+      accountStatus: 'active',
+      profileCompleted: true,
+      initialAdultConsentRequired: false,
+      acceptedTerms: {
+        accepted: true,
+        version: TERMS_ACCEPTANCE_VERSION,
+        acknowledgedPrivacyNotice: true,
+      },
+      ageEligibility: ageState,
+    });
+
+    const result = TestBed.runInInjectionContext(() =>
+      adultContentConsentGuard(
+        {} as never,
+        { url: '/dashboard/principal' } as never
+      )
+    );
+
+    await expect(firstValueFrom(result as never)).resolves.toBe(true);
+    expect(reconcileAge).not.toHaveBeenCalled();
+    expect(createUrlTree).not.toHaveBeenCalled();
+  });
+
   it('não aplica bypass de conta a rota apenas parecida', async () => {
     const result = TestBed.runInInjectionContext(() =>
       adultContentConsentGuard(
