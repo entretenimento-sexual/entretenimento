@@ -101,7 +101,6 @@ describe('AccessControlService canonical subscription roles', () => {
             isSubscriber$: subscriptionIsSubscriber$.asObservable(),
           },
         },
-        },
         {
           provide: AuthAppBlockService,
           useValue: {
@@ -247,7 +246,6 @@ describe('AccessControlService canonical subscription roles', () => {
   });
 
   it('não transforma reverificação em gate local quando lifecycle permanece liberado', async () => {
-    adultAccessAllowed$.next(true);
     user$.next({
       ...createUser(),
       acceptedTerms: {
