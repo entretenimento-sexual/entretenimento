@@ -529,7 +529,6 @@ describe('Canonical UI boundary', () => {
       'src/app/preferences/pages/preferences-hub/preferences-hub.component.html',
       'src/app/preferences/components/compatibility-preview-card/compatibility-preview-card.component.html',
       'src/app/preferences/components/match-profile-preview-card/match-profile-preview-card.component.html',
-      'src/app/preferences/components/preference-summary-card/preference-summary-card.component.html',
       'src/app/preferences/pages/compatibility-lab/compatibility-lab.component.html',
       'src/app/preferences/pages/match-profile-lab/match-profile-lab.component.html',
     ] as const;
@@ -1034,7 +1033,7 @@ describe('Canonical UI boundary', () => {
 
     expect(cardStyles).toContain('--user-card-media-height-mobile');
     expect(discoveryStyles).toContain('--user-card-media-height-mobile');
-    expect(chatStyles).toContain('.chat-shell__reply-preview');
+    expect(chatStyles).not.toContain('.chat-shell__reply-preview');
   });
 
 
@@ -1499,11 +1498,6 @@ describe('Canonical UI boundary', () => {
     expect(hub).toContain('description="Como seu perfil aparece para outras pessoas."');
     expect(hub).toContain('description="Quais avisos você quer receber."');
     expect(hub).not.toContain('<app-preference-summary-card');
-    expect(
-      source(
-        'src/app/preferences/components/preference-summary-card/preference-summary-card.component.ts'
-      )
-    ).not.toContain('@Component');
   });
 
 
@@ -1939,7 +1933,7 @@ describe('Canonical UI boundary', () => {
       'src/app/media/videos/profile-videos/profile-videos-settings.component.css'
     );
 
-    expect(videos).toContain('<app-page-header title="Meus vídeos">');
+    expect(videos).toContain('<app-page-header title="Vídeos do perfil">');
     expect(videos).not.toContain('<h1>Meus vídeos</h1>');
     expect(videos).not.toContain('video-settings-description');
     expect(videos).not.toContain(
