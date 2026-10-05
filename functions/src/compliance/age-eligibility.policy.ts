@@ -2,8 +2,8 @@
 // -----------------------------------------------------------------------------
 // CANONICAL AGE ELIGIBILITY POLICY
 // -----------------------------------------------------------------------------
-// Decide se um registro backend-only autoriza a conta como adulta.
-// Nenhuma autodeclaração client-side é tratada como prova.
+// Decide a elegibilidade etária canônica usada por Registration/Compliance.
+// O resultado descreve decisão/assurance da conta e não autoriza Media ou Discovery.
 // -----------------------------------------------------------------------------
 
 export const AGE_ELIGIBILITY_POLICY_VERSION = 1;
