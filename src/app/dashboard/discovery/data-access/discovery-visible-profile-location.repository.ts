@@ -2,9 +2,9 @@
 // -----------------------------------------------------------------------------
 // Overlay reativo de localização para cards já carregados.
 //
-// Não enumera public_profiles. Cada UID visível usa leitura documental, que cai
-// na Rule de get temporal. A própria projeção é revalidada localmente a cada
-// emissão para não manter localização visível após validUntil.
+// Não enumera public_profiles. Cada UID já autorizado pela camada de Discovery
+// usa leitura documental. Este domínio apenas projeta localização; lifecycle,
+// maioridade e demais autoridades permanecem fora deste repository.
 // -----------------------------------------------------------------------------
 
 import { Injectable } from '@angular/core';
@@ -75,7 +75,7 @@ export class DiscoveryVisibleProfileLocationRepository {
     }
 
     const uid = this.cleanText(raw['uid']);
-    if (!uid || !this.hasCurrentAdultEligibility(raw)) return null;
+    if (!uid) return null;
 
     return {
       uid,
@@ -113,26 +113,6 @@ export class DiscoveryVisibleProfileLocationRepository {
           .filter((uid): uid is string => uid !== null)
       )
     ).sort();
-  }
-
-  private hasCurrentAdultEligibility(
-    source: Record<string, unknown>
-  ): boolean {
-    if (source['ageEligibilityVerifiedAdult'] !== true) {
-      return false;
-    }
-
-    const rawValidUntil = source['ageEligibilityValidUntil'];
-    const validUntil =
-      typeof rawValidUntil === 'number'
-        ? rawValidUntil
-        : rawValidUntil instanceof Date
-          ? rawValidUntil.getTime()
-          : typeof (rawValidUntil as { toMillis?: unknown } | null)?.toMillis === 'function'
-            ? (rawValidUntil as { toMillis: () => number }).toMillis()
-            : Number.NaN;
-
-    return Number.isFinite(validUntil) && validUntil > Date.now();
   }
 
   private firstText(
