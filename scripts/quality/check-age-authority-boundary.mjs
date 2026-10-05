@@ -166,6 +166,8 @@ const productDomainAllowedLegacyFiles = new Set([
   path.normalize('functions/src/media/application/legacy-photo-preventive-review-migration.service.ts'),
   path.normalize('functions/src/media/application/normalize-legacy-photo-moderation.handler.ts'),
   path.normalize('functions/src/media/application/normalize-legacy-video-moderation.handler.ts'),
+  path.normalize('functions/src/discovery/sync-public-profile-discovery.handler.ts'),
+  path.normalize('functions/src/discovery/user-intent-status.handler.ts'),
 ]);
 
 const forbiddenProductAgeTokens = [
