@@ -94,7 +94,6 @@ function authoritySnapshot(
 
 function advertiserInteractionEligible(input: {
   readonly rawUser: unknown;
-  readonly rawAgeEligibility: unknown;
   readonly advertiserUid: string;
 }): boolean {
   try {
@@ -120,20 +119,15 @@ export async function evaluateCommunityBoostCampaignAuthorityInTransaction(
   const advertiserUserRef = db
     .collection('users')
     .doc(campaign.advertiserUid);
-  const ageEligibilityRef = db
-    .collection('age_eligibility_records')
-    .doc(campaign.advertiserUid);
 
   const [
     communitySnapshot,
     membershipSnapshot,
     advertiserUserSnapshot,
-    ageEligibilitySnapshot,
   ] = await Promise.all([
     transaction.get(communityRef),
     transaction.get(membershipRef),
     transaction.get(advertiserUserRef),
-    transaction.get(ageEligibilityRef),
   ]);
 
   const community = communitySnapshot.exists
@@ -161,9 +155,6 @@ export async function evaluateCommunityBoostCampaignAuthorityInTransaction(
       advertiserEligible: advertiserInteractionEligible({
         rawUser: advertiserUserSnapshot.exists
           ? advertiserUserSnapshot.data()
-          : null,
-        rawAgeEligibility: ageEligibilitySnapshot.exists
-          ? ageEligibilitySnapshot.data()
           : null,
         advertiserUid: campaign.advertiserUid,
       }),
