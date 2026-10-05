@@ -165,28 +165,33 @@ describe('DiscoveryPublicProfilesFacade', () => {
     expect('persistPublicLocation$' in geolocationTrackingMock).toBe(false);
   });
 
-  it('remove do estado um card cujo validUntil já venceu', async () => {
+  it('não reavalia assurance etário dos cards já autorizados pelo backend', async () => {
     storeMock.select.mockReturnValue(
       of({
         ...emptyDiscoveryFeedSlice,
         items: [
           {
-            uid: 'profile-expired',
-            nickname: 'Expired',
+            uid: 'profile-legacy-age',
+            nickname: 'Perfil ativo',
             ageEligibilityValidUntil: Date.now() - 1,
+            ageEligibilityVerifiedAdult: false,
           },
         ],
         reachedEnd: true,
       } as any)
     );
 
+    cardEnrichmentMock.buildCardsResult.mockReturnValue({
+      profiles: [{ uid: 'profile-legacy-age', nickname: 'Perfil ativo' }],
+      rejected: [],
+      scores: [],
+      debugSummary: emptyDebugSummary,
+    });
+
     const facade = TestBed.inject(DiscoveryPublicProfilesFacade);
     const state = await firstValueFrom(facade.state$);
 
-    expect(state.profiles).toEqual([]);
-    expect(
-      visibleLocationRepositoryMock.watchByUids$
-    ).not.toHaveBeenCalledWith(['profile-expired']);
+    expect(state.profiles[0]).toMatchObject({ uid: 'profile-legacy-age' });
   });
 
   it('sobrepõe disponibilidade temporária sem alterar o ranking do card', async () => {
@@ -197,7 +202,6 @@ describe('DiscoveryPublicProfilesFacade', () => {
           {
             uid: 'profile-1',
             nickname: 'Profile 1',
-            ageEligibilityValidUntil: Date.now() + 60_000,
           },
         ],
         reachedEnd: true,
@@ -227,7 +231,6 @@ describe('DiscoveryPublicProfilesFacade', () => {
           moderation: { state: 'active' },
           startsAt: Date.now() - 1_000,
           expiresAt: Date.now() + 60_000,
-          ageEligibilityValidUntil: Date.now() + 60_000,
           destinationLabel: 'Rio de Janeiro',
           availabilityLabel: 'Disponível agora',
           expiresInLabel: 'Expira em até 1h',
@@ -282,7 +285,6 @@ describe('DiscoveryPublicProfilesFacade', () => {
           {
             uid: 'profile-1',
             nickname: 'Profile 1',
-            ageEligibilityValidUntil: Date.now() + 60_000,
             latitude: null,
             longitude: null,
             geohash: null,
