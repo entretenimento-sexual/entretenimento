@@ -28,18 +28,47 @@ describe('interaction access policy', () => {
   });
 
   it('bloqueia conta com interactionBlocked', () => {
-    assert.throws(() => assertPlatformAccountAccessData({ ...validUser, interactionBlocked: true }));
+    assert.throws(() =>
+      assertPlatformAccountAccessData({
+        ...validUser,
+        interactionBlocked: true,
+      })
+    );
   });
 
   it('bloqueia conta suspensa ou fora do estado ativo', () => {
-    assert.throws(() => assertPlatformAccountAccessData({ ...validUser, accountStatus: 'moderation_suspended', suspended: true, interactionBlocked: true }));
+    assert.throws(() =>
+      assertPlatformAccountAccessData({
+        ...validUser,
+        accountStatus: 'moderation_suspended',
+        suspended: true,
+        interactionBlocked: true,
+      })
+    );
   });
 
   it('bloqueia interação sem termos atuais', () => {
-    assert.throws(() => assertPlatformAccountAccessData({ ...validUser, acceptedTerms: { accepted: false, version: 'v3', acknowledgedPrivacyNotice: true } }));
+    assert.throws(() =>
+      assertPlatformAccountAccessData({
+        ...validUser,
+        acceptedTerms: {
+          accepted: false,
+          version: 'v3',
+          acknowledgedPrivacyNotice: true,
+        },
+      })
+    );
   });
 
   it('bloqueia interação sem consentimento adulto vigente', () => {
-    assert.throws(() => assertPlatformAccountAccessData({ ...validUser, adultConsent: { accepted: false, version: 'v1' } }));
+    assert.throws(() =>
+      assertPlatformAccountAccessData({
+        ...validUser,
+        adultConsent: {
+          accepted: false,
+          version: 'v1',
+        },
+      })
+    );
   });
 });
