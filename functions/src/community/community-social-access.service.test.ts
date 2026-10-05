@@ -23,20 +23,6 @@ function eligibleUser(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function eligibleAge(overrides: Record<string, unknown> = {}) {
-  return {
-    uid: 'user-1',
-    status: 'VERIFIED_ADULT',
-    policyVersion: 1,
-    source: 'AGE_REVERIFICATION',
-    method: 'MANUAL_REVIEW',
-    caseId: 'case-1',
-    verifiedAtMs: Date.now() - 1_000,
-    expiresAtMs: null,
-    ...overrides,
-  };
-}
-
 function errorCode(error: unknown): unknown {
   return (error as { code?: unknown }).code;
 }
@@ -49,8 +35,7 @@ test('aceita conta social elegível sem exigir perfil completo', () => {
   assert.doesNotThrow(() =>
     assertCommunitySocialAccessEligible(
       eligibleUser({ profileCompleted: false }),
-      'user-1',
-      eligibleAge()
+      'user-1'
     )
   );
 });
@@ -59,8 +44,7 @@ test('nega perfil divergente ou conta restrita', () => {
   assert.throws(
     () => assertCommunitySocialAccessEligible(
       eligibleUser(),
-      'user-2',
-      eligibleAge()
+      'user-2'
     ),
     (error: unknown) => errorCode(error) === 'not-found'
   );
@@ -69,8 +53,7 @@ test('nega perfil divergente ou conta restrita', () => {
     () =>
       assertCommunitySocialAccessEligible(
         eligibleUser({ interactionBlocked: true }),
-        'user-1',
-        eligibleAge()
+        'user-1'
       ),
     (error: unknown) =>
       errorCode(error) === 'failed-precondition'
@@ -83,8 +66,7 @@ test('nega termos ausentes ou desatualizados', () => {
     () =>
       assertCommunitySocialAccessEligible(
         eligibleUser({ acceptedTerms: { accepted: true, version: 'v2' } }),
-        'user-1',
-        eligibleAge()
+        'user-1'
       ),
     (error: unknown) =>
       errorCode(error) === 'failed-precondition'
@@ -93,19 +75,28 @@ test('nega termos ausentes ou desatualizados', () => {
 });
 
 test('não usa idade ou assurance etário como gate social local', () => {
-  for (const ageRecord of [
+  for (const legacyAgeProjection of [
     null,
-    eligibleAge(),
-    eligibleAge({
+    {
+      status: 'SELF_DECLARED_ADULT',
+      policyVersion: 1,
+    },
+    {
+      status: 'VERIFIED_ADULT',
+      policyVersion: 1,
+    },
+    {
       status: 'DENIED_UNDERAGE',
-      verifiedAtMs: null,
-    }),
+      policyVersion: 1,
+    },
   ]) {
     assert.doesNotThrow(() =>
       assertCommunitySocialAccessEligible(
-        eligibleUser({ idade: 17 }),
-        'user-1',
-        ageRecord
+        eligibleUser({
+          idade: 17,
+          ageEligibility: legacyAgeProjection,
+        }),
+        'user-1'
       )
     );
   }
@@ -113,8 +104,7 @@ test('não usa idade ou assurance etário como gate social local', () => {
   assert.doesNotThrow(() =>
     assertCommunitySocialAccessEligible(
       eligibleUser({ ageReverification: { status: 'UNDER_REVIEW' } }),
-      'user-1',
-      null
+      'user-1'
     )
   );
 });
@@ -124,8 +114,7 @@ test('nega consentimento adulto inválido', () => {
     () =>
       assertCommunitySocialAccessEligible(
         eligibleUser({ adultConsent: { accepted: true, version: 'legacy' } }),
-        'user-1',
-        eligibleAge()
+        'user-1'
       ),
     (error: unknown) => errorReason(error) === 'adult_consent_required'
   );
@@ -139,8 +128,7 @@ test('não aceita bypass legado de consentimento inicial', () => {
           initialAdultConsentRequired: false,
           adultConsent: null,
         }),
-        'user-1',
-        eligibleAge()
+        'user-1'
       ),
     (error: unknown) => errorReason(error) === 'adult_consent_required'
   );
