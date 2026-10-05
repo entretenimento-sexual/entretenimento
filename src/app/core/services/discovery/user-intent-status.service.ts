@@ -88,7 +88,6 @@ interface UserIntentStatusFirestoreDocument {
   moderation?: unknown;
   startsAt?: unknown;
   expiresAt?: unknown;
-  ageEligibilityValidUntil?: unknown;
   createdAt?: unknown;
   updatedAt?: unknown;
 }
@@ -407,8 +406,6 @@ export class UserIntentStatusService {
     const moderation = this.normalizeModeration(raw.moderation);
     const startsAt = this.toMillis(raw.startsAt) ?? 0;
     const expiresAt = this.toMillis(raw.expiresAt) ?? 0;
-    const ageEligibilityValidUntil =
-      this.toMillis(raw.ageEligibilityValidUntil) ?? 0;
     const now = Date.now();
 
     if (
@@ -417,8 +414,7 @@ export class UserIntentStatusService {
       !profile ||
       !destination ||
       moderation.state !== 'active' ||
-      expiresAt <= now ||
-      ageEligibilityValidUntil <= now
+      expiresAt <= now
     ) {
       return null;
     }
@@ -433,7 +429,6 @@ export class UserIntentStatusService {
       moderation,
       startsAt,
       expiresAt,
-      ageEligibilityValidUntil,
       createdAt: this.toMillis(raw.createdAt),
       updatedAt: this.toMillis(raw.updatedAt),
     };
