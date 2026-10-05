@@ -3,6 +3,13 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { assertInteractionAccess } from '../../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
+import {
+  assertCallableAppCheck,
+  REQUIRE_CALLABLE_APP_CHECK,
+} from '../../shared/security/callable-app-check';
+import {
+  consumeBackendRateLimitQuota,
+} from '../../shared/security/backend-rate-limit.service';
 import { db, FieldValue } from '../../firebaseApp';
 import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
 import {
@@ -30,6 +37,12 @@ interface PublicVideoDocument {
 }
 
 const MAX_VIDEO_IDS = 24;
+const LEGACY_VIDEO_NORMALIZE_RATE_LIMIT = Object.freeze({
+  burstWindowMs: 60_000,
+  burstMax: 12,
+  sustainedWindowMs: 10 * 60_000,
+  sustainedMax: 48,
+});
 
 function containsControlCharacter(value: string): boolean {
   for (let index = 0; index < value.length; index += 1) {
@@ -153,8 +166,13 @@ async function normalizeLegacyVideo(
 export const normalizeLegacyVideoModeration = onCall<
   NormalizeLegacyVideoModerationRequest
 >(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_CALLABLE_APP_CHECK,
+  },
   async (request) => {
+    assertCallableAppCheck(request.app);
+
     const requesterUid = cleanId(request.auth?.uid);
     const ownerUid = cleanId(request.data?.ownerUid);
     const videoIds = normalizeVideoIds(request.data?.videoIds);
@@ -174,6 +192,13 @@ export const normalizeLegacyVideoModeration = onCall<
       return { normalizedVideoIds: [] as string[] };
     }
 
+    await consumeBackendRateLimitQuota({
+      action: 'legacy-video-moderation-normalize',
+      subject: requesterUid,
+      cost: Math.max(1, Math.ceil(videoIds.length / 8)),
+      config: LEGACY_VIDEO_NORMALIZE_RATE_LIMIT,
+      message: 'Muitos vídeos antigos foram solicitados para normalização em pouco tempo.',
+    });
     await assertInteractionAccess(ownerUid);
 
     const normalizedVideoIds: string[] = [];

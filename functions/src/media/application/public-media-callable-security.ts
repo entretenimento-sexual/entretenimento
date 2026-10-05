@@ -1,9 +1,16 @@
-import { HttpsError } from 'firebase-functions/v2/https';
+// functions/src/media/application/public-media-callable-security.ts
+// -----------------------------------------------------------------------------
+// PUBLIC MEDIA CALLABLE APP CHECK
+// -----------------------------------------------------------------------------
+// Alias de domínio sobre a autoridade transversal. Todo runtime real exige
+// App Check; somente o Functions Emulator é dispensado. Staging não possui
+// bypass backend: precisa de configuração App Check real antes de uso remoto.
+// -----------------------------------------------------------------------------
 
-interface FirebaseRuntimeConfigLike {
-  projectId?: unknown;
-  project_id?: unknown;
-}
+import {
+  assertCallableAppCheck,
+  shouldRequireCallableAppCheck,
+} from '../../shared/security/callable-app-check';
 
 export interface PublicMediaAppCheckEnvironment {
   functionsEmulator?: unknown;
@@ -12,56 +19,21 @@ export interface PublicMediaAppCheckEnvironment {
   firebaseConfig?: unknown;
 }
 
-const STAGING_FIREBASE_PROJECT_ID = 'entretenimento-staging';
-
-function resolveRuntimeProjectId(
-  environment: PublicMediaAppCheckEnvironment
-): string {
-  const directProjectId = String(
-    environment.gcloudProject ?? environment.gcpProject ?? ''
-  ).trim();
-
-  if (directProjectId) {
-    return directProjectId;
-  }
-
-  try {
-    const firebaseConfig = JSON.parse(
-      String(environment.firebaseConfig ?? '{}')
-    ) as FirebaseRuntimeConfigLike;
-
-    return String(
-      firebaseConfig.projectId ?? firebaseConfig.project_id ?? ''
-    ).trim();
-  } catch {
-    return '';
-  }
-}
-
 export function shouldRequirePublicMediaAppCheck(
   environment: PublicMediaAppCheckEnvironment
 ): boolean {
-  return environment.functionsEmulator !== 'true' &&
-    resolveRuntimeProjectId(environment) !== STAGING_FIREBASE_PROJECT_ID;
+  return shouldRequireCallableAppCheck({
+    functionsEmulator: environment.functionsEmulator,
+  });
 }
 
 export const REQUIRE_PUBLIC_MEDIA_APP_CHECK =
   shouldRequirePublicMediaAppCheck({
     functionsEmulator: process.env.FUNCTIONS_EMULATOR,
-    gcloudProject: process.env.GCLOUD_PROJECT,
-    gcpProject: process.env.GCP_PROJECT,
-    firebaseConfig: process.env.FIREBASE_CONFIG,
   });
 
 export function assertPublicMediaCallableAppCheck(
   appContext: unknown
 ): void {
-  if (!REQUIRE_PUBLIC_MEDIA_APP_CHECK || appContext) {
-    return;
-  }
-
-  throw new HttpsError(
-    'unauthenticated',
-    'Não foi possível verificar a origem desta solicitação.'
-  );
+  assertCallableAppCheck(appContext);
 }

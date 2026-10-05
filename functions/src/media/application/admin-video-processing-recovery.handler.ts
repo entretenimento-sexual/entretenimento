@@ -5,6 +5,13 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue, storage } from '../../firebaseApp';
 import {
+  assertCallableAppCheck,
+  REQUIRE_CALLABLE_APP_CHECK,
+} from '../../shared/security/callable-app-check';
+import {
+  consumeBackendRateLimitQuota,
+} from '../../shared/security/backend-rate-limit.service';
+import {
   buildQueuedVideoProcessingJob,
   buildVideoProcessingJobId,
   VIDEO_PROCESSING_JOBS_COLLECTION,
@@ -112,6 +119,18 @@ const ALLOWED_VIDEO_TYPES = new Set([
 const OUTPUT_CLEANUP_COLLECTION =
   'media_video_processing_output_cleanup_jobs';
 const OUTPUT_CLEANUP_BATCH_SIZE = 30;
+const ADMIN_RECOVERY_LIST_RATE_LIMIT = Object.freeze({
+  burstWindowMs: 60_000,
+  burstMax: 12,
+  sustainedWindowMs: 10 * 60_000,
+  sustainedMax: 40,
+});
+const ADMIN_RECOVERY_MUTATION_RATE_LIMIT = Object.freeze({
+  burstWindowMs: 60_000,
+  burstMax: 12,
+  sustainedWindowMs: 10 * 60_000,
+  sustainedMax: 40,
+});
 
 function cleanId(value: unknown): string {
   const normalized = String(value ?? '').trim();
@@ -750,11 +769,22 @@ async function deleteOutputPrefix(outputPrefix: string): Promise<void> {
 }
 
 export const listVideoProcessingRecoveryJobs = onCall<ListRecoveryJobsRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_CALLABLE_APP_CHECK,
+  },
   async (request): Promise<ListRecoveryJobsResponse> => {
-    assertAdmin(request.auth);
+    assertCallableAppCheck(request.app);
+    const adminUid = assertAdmin(request.auth);
     const checkedAt = Date.now();
     const limit = normalizeLimit(request.data?.limit);
+    await consumeBackendRateLimitQuota({
+      action: 'admin-video-processing-recovery-list',
+      subject: adminUid,
+      cost: Math.max(1, Math.ceil(limit / 15)),
+      config: ADMIN_RECOVERY_LIST_RATE_LIMIT,
+      message: 'Muitas consultas de recuperação de vídeo foram feitas em pouco tempo.',
+    });
     const result = await listRecoveryItems(limit, checkedAt);
 
     return {
@@ -765,8 +795,12 @@ export const listVideoProcessingRecoveryJobs = onCall<ListRecoveryJobsRequest>(
 );
 
 export const recoverVideoProcessingJob = onCall<RecoverVideoProcessingRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_CALLABLE_APP_CHECK,
+  },
   async (request): Promise<RecoverVideoProcessingResponse> => {
+    assertCallableAppCheck(request.app);
     const adminUid = assertAdmin(request.auth);
     const ownerUid = cleanId(request.data?.ownerUid);
     const videoId = cleanId(request.data?.videoId);
@@ -784,6 +818,13 @@ export const recoverVideoProcessingJob = onCall<RecoverVideoProcessingRequest>(
         'Informe uma justificativa objetiva, com pelo menos 8 caracteres.'
       );
     }
+
+    await consumeBackendRateLimitQuota({
+      action: 'admin-video-processing-recovery-mutate',
+      subject: adminUid,
+      config: ADMIN_RECOVERY_MUTATION_RATE_LIMIT,
+      message: 'Muitas operações de recuperação de vídeo foram solicitadas em pouco tempo.',
+    });
 
     try {
       if (action === 'RETRY_FAILED') {

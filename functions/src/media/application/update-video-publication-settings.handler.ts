@@ -4,6 +4,13 @@ import {
   assertInteractionAccessInTransaction,
 } from '../../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
+import {
+  assertCallableAppCheck,
+  REQUIRE_CALLABLE_APP_CHECK,
+} from '../../shared/security/callable-app-check';
+import {
+  consumeBackendRateLimitQuota,
+} from '../../shared/security/backend-rate-limit.service';
 import { db } from '../../firebaseApp';
 import {
   normalizeVideoPublicationSettings,
@@ -39,6 +46,13 @@ interface VideoPublicationDoc extends VideoPublicationSettingsInput {
   moderationReason?: string | null;
 }
 
+const VIDEO_PUBLICATION_SETTINGS_RATE_LIMIT = Object.freeze({
+  burstWindowMs: 60_000,
+  burstMax: 20,
+  sustainedWindowMs: 10 * 60_000,
+  sustainedMax: 80,
+});
+
 function cleanId(value: unknown): string {
   const normalized = String(value ?? '').trim();
   return /^[A-Za-z0-9_-]{1,128}$/.test(normalized) ? normalized : '';
@@ -66,8 +80,13 @@ function resolvePublicModerationAfterOwnerEdit(
 
 export const updateVideoPublicationSettings =
   onCall<UpdateVideoPublicationSettingsRequest>(
-    { region: FUNCTIONS_REGION },
+    {
+      region: FUNCTIONS_REGION,
+      enforceAppCheck: REQUIRE_CALLABLE_APP_CHECK,
+    },
     async (request): Promise<UpdateVideoPublicationSettingsResponse> => {
+      assertCallableAppCheck(request.app);
+
       const requesterUid = request.auth?.uid ?? null;
       const ownerUid = cleanId(request.data?.ownerUid);
       const videoId = cleanId(request.data?.videoId);
@@ -86,6 +105,13 @@ export const updateVideoPublicationSettings =
           'Você só pode editar vídeos do seu próprio perfil.'
         );
       }
+
+      await consumeBackendRateLimitQuota({
+        action: 'video-publication-settings',
+        subject: requesterUid,
+        config: VIDEO_PUBLICATION_SETTINGS_RATE_LIMIT,
+        message: 'Muitas alterações de vídeo foram solicitadas em pouco tempo.',
+      });
 
       const privateVideoRef = db.doc(`users/${ownerUid}/videos/${videoId}`);
       const publicationRef = db.doc(

@@ -3,9 +3,19 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue } from '../../firebaseApp';
 import {
+  consumeBackendRateLimitQuota,
+} from '../../shared/security/backend-rate-limit.service';
+import {
   assertPublicMediaCallableAppCheck,
   REQUIRE_PUBLIC_MEDIA_APP_CHECK,
 } from './public-media-callable-security';
+
+const MEDIA_CONTEST_RATE_LIMIT = Object.freeze({
+  burstWindowMs: 60_000,
+  burstMax: 4,
+  sustainedWindowMs: 10 * 60_000,
+  sustainedMax: 12,
+});
 
 interface SubmitMediaModerationContestRequest {
   reportId?: string;
@@ -47,6 +57,13 @@ onCall<SubmitMediaModerationContestRequest>(
         'Informe a denúncia e uma contestação válida.'
       );
     }
+
+    await consumeBackendRateLimitQuota({
+      action: 'media-moderation-contest-submit',
+      subject: ownerUid,
+      config: MEDIA_CONTEST_RATE_LIMIT,
+      message: 'Muitas contestações foram enviadas em pouco tempo.',
+    });
 
     const reportRef = db.collection('moderation_reports').doc(reportId);
     const contestRef = db.collection('moderation_content_contests').doc(reportId);

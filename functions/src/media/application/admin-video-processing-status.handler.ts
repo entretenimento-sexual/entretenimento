@@ -4,6 +4,13 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
 import {
+  assertCallableAppCheck,
+  REQUIRE_CALLABLE_APP_CHECK,
+} from '../../shared/security/callable-app-check';
+import {
+  consumeBackendRateLimitQuota,
+} from '../../shared/security/backend-rate-limit.service';
+import {
   probeGoogleVideoTranscoder,
   type GoogleVideoTranscoderProbeResult,
 } from './google-video-transcoder.service';
@@ -54,6 +61,12 @@ const ACTIVE_JOB_STATES: VideoProcessingJobState[] = [
   'CANCEL_REQUESTED',
 ];
 const ACTIVE_SAMPLE_LIMIT = 100;
+const ADMIN_VIDEO_STATUS_RATE_LIMIT = Object.freeze({
+  burstWindowMs: 60_000,
+  burstMax: 6,
+  sustainedWindowMs: 10 * 60_000,
+  sustainedMax: 20,
+});
 const STALE_AFTER_MS: Record<VideoProcessingJobState, number> = {
   QUEUED: 20 * 60 * 1000,
   SUBMITTING: 20 * 60 * 1000,
@@ -219,9 +232,19 @@ function resolveOperationalState(
 }
 
 export const getVideoProcessingOperationalStatus = onCall(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_CALLABLE_APP_CHECK,
+  },
   async (request): Promise<AdminVideoProcessingStatusResponse> => {
+    assertCallableAppCheck(request.app);
     const adminUid = assertAdmin(request.auth);
+    await consumeBackendRateLimitQuota({
+      action: 'admin-video-processing-status',
+      subject: adminUid,
+      config: ADMIN_VIDEO_STATUS_RATE_LIMIT,
+      message: 'Muitas consultas operacionais de vídeo foram feitas em pouco tempo.',
+    });
     const checkedAt = Date.now();
 
     try {

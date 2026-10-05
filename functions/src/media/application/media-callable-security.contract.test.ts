@@ -17,6 +17,19 @@ const PROTECTED_CALLABLES = [
   'get-public-media-discovery.handler.ts',
   'get-public-photo-access-urls.handler.ts',
   'get-public-video-access-urls.handler.ts',
+  'get-recent-public-media-views.handler.ts',
+  'manage-photo-publication.handler.ts',
+  'update-video-publication-settings.handler.ts',
+  'normalize-legacy-photo-moderation.handler.ts',
+  'normalize-legacy-video-moderation.handler.ts',
+  'submit-media-moderation-contest.handler.ts',
+  'moderate-photo-comment-orchestrator.handler.ts',
+  'manage-video-comment.handler.ts',
+  'admin-video-processing-recovery.handler.ts',
+  'admin-video-processing-status.handler.ts',
+  'review-photo-content-report.handler.ts',
+  'review-video-content-report.handler.ts',
+  'review-media-moderation-contest.handler.ts',
   'start-public-video-playback-session.handler.ts',
   'record-photo-view-orchestrator.handler.ts',
   'record-video-view-orchestrator.handler.ts',
@@ -42,6 +55,18 @@ const RATE_LIMITED_CALLABLES = new Set([
   'get-private-video-access-urls.handler.ts',
   'get-authorized-photo-owner-page.handler.ts',
   'get-public-media-discovery.handler.ts',
+  'get-public-photo-access-urls.handler.ts',
+  'get-public-video-access-urls.handler.ts',
+  'get-recent-public-media-views.handler.ts',
+  'manage-photo-publication.handler.ts',
+  'update-video-publication-settings.handler.ts',
+  'normalize-legacy-photo-moderation.handler.ts',
+  'normalize-legacy-video-moderation.handler.ts',
+  'submit-media-moderation-contest.handler.ts',
+  'moderate-photo-comment-orchestrator.handler.ts',
+  'manage-video-comment.handler.ts',
+  'admin-video-processing-recovery.handler.ts',
+  'admin-video-processing-status.handler.ts',
   'start-public-video-playback-session.handler.ts',
   'record-photo-view-orchestrator.handler.ts',
   'record-video-view-orchestrator.handler.ts',
@@ -62,6 +87,9 @@ function source(name: string): string {
   );
 }
 
+// Tombstones unpublishPhoto/unpublishVideo ficam fora: APIs legadas
+// deliberadamente fail-closed e instrumentadas até a retirada. Triggers,
+// schedules e cores internos também não são callables externos do cliente.
 describe('Media callable security contract', () => {
   for (const name of PROTECTED_CALLABLES) {
     it(`${name} exige App Check no callable real`, () => {

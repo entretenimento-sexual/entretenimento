@@ -25,6 +25,13 @@ import {
   buildUnassessedMediaContentSafetyAssessment,
 } from './media-content-safety-assessment.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
+import {
+  assertCallableAppCheck,
+  REQUIRE_CALLABLE_APP_CHECK,
+} from '../../shared/security/callable-app-check';
+import {
+  consumeBackendRateLimitQuota,
+} from '../../shared/security/backend-rate-limit.service';
 import { db, FieldValue } from '../../firebaseApp';
 import {
   resolveMediaPublicationVisibility,
@@ -420,9 +427,21 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
   }
 );
 
+const SET_COVER_PHOTO_RATE_LIMIT = Object.freeze({
+  burstWindowMs: 60_000,
+  burstMax: 6,
+  sustainedWindowMs: 10 * 60_000,
+  sustainedMax: 20,
+});
+
 export const setCoverPhoto = onCall<SetCoverPhotoRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_CALLABLE_APP_CHECK,
+  },
   async (request): Promise<SetCoverPhotoResponse> => {
+    assertCallableAppCheck(request.app);
+
     const requesterUid = request.auth?.uid ?? null;
     const ownerUid = cleanId(request.data?.ownerUid);
     const photoId = cleanId(request.data?.photoId);
@@ -432,6 +451,14 @@ export const setCoverPhoto = onCall<SetCoverPhotoRequest>(
     }
 
     assertOwner(requesterUid, ownerUid);
+
+    await consumeBackendRateLimitQuota({
+      action: 'photo-set-cover',
+      subject: ownerUid,
+      config: SET_COVER_PHOTO_RATE_LIMIT,
+      message: 'Muitas alterações de foto de capa foram solicitadas em pouco tempo.',
+    });
+    await assertMediaAuthoringEligibility(ownerUid);
 
     const targetPublicationRef = db.doc(
       `users/${ownerUid}/photo_publications/${photoId}`

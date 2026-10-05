@@ -3,6 +3,13 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { assertInteractionAccess } from '../../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
+import {
+  assertCallableAppCheck,
+  REQUIRE_CALLABLE_APP_CHECK,
+} from '../../shared/security/callable-app-check';
+import {
+  consumeBackendRateLimitQuota,
+} from '../../shared/security/backend-rate-limit.service';
 import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
 import {
   normalizeLegacyPhotoPreventiveReview,
@@ -14,6 +21,12 @@ interface NormalizeLegacyPhotoModerationRequest {
 }
 
 const MAX_PHOTO_IDS = 48;
+const LEGACY_PHOTO_NORMALIZE_RATE_LIMIT = Object.freeze({
+  burstWindowMs: 60_000,
+  burstMax: 12,
+  sustainedWindowMs: 10 * 60_000,
+  sustainedMax: 48,
+});
 
 function containsControlCharacter(value: string): boolean {
   for (let index = 0; index < value.length; index += 1) {
@@ -49,8 +62,13 @@ function normalizePhotoIds(value: unknown): string[] {
 export const normalizeLegacyPhotoModeration = onCall<
   NormalizeLegacyPhotoModerationRequest
 >(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_CALLABLE_APP_CHECK,
+  },
   async (request) => {
+    assertCallableAppCheck(request.app);
+
     const requesterUid = cleanId(request.auth?.uid);
     const ownerUid = cleanId(request.data?.ownerUid);
     const photoIds = normalizePhotoIds(request.data?.photoIds);
@@ -70,6 +88,13 @@ export const normalizeLegacyPhotoModeration = onCall<
       return { normalizedPhotoIds: [] as string[] };
     }
 
+    await consumeBackendRateLimitQuota({
+      action: 'legacy-photo-moderation-normalize',
+      subject: requesterUid,
+      cost: Math.max(1, Math.ceil(photoIds.length / 8)),
+      config: LEGACY_PHOTO_NORMALIZE_RATE_LIMIT,
+      message: 'Muitas fotos antigas foram solicitadas para normalização em pouco tempo.',
+    });
     await assertInteractionAccess(ownerUid);
 
     const normalizedPhotoIds: string[] = [];

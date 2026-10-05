@@ -3,6 +3,9 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
 import {
+  consumeBackendRateLimitQuota,
+} from '../../shared/security/backend-rate-limit.service';
+import {
   assertNoActiveBilateralBlockInTransaction,
 } from '../../friendship/application/bilateral-block-access.policy';
 import {
@@ -287,6 +290,13 @@ export const createVideoComment = onCall<CreateVideoCommentRequest>(
   }
 );
 
+const VIDEO_COMMENT_MODERATION_RATE_LIMIT = Object.freeze({
+  burstWindowMs: 60_000,
+  burstMax: 30,
+  sustainedWindowMs: 10 * 60_000,
+  sustainedMax: 120,
+});
+
 export const moderateVideoComment = onCall<ModerateVideoCommentRequest>(
   {
     region: FUNCTIONS_REGION,
@@ -316,6 +326,13 @@ export const moderateVideoComment = onCall<ModerateVideoCommentRequest>(
     if (!['HIDE', 'RESTORE', 'DELETE'].includes(action)) {
       throw new HttpsError('invalid-argument', 'Ação inválida.');
     }
+
+    await consumeBackendRateLimitQuota({
+      action: 'video-comment-moderation',
+      subject: requesterUid,
+      config: VIDEO_COMMENT_MODERATION_RATE_LIMIT,
+      message: 'Muitas alterações de comentários foram solicitadas em pouco tempo.',
+    });
 
     const videoRef = db.doc(
       `public_profiles/${ownerUid}/public_videos/${videoId}`

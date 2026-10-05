@@ -25,23 +25,23 @@ describe('public-media-callable-security', () => {
     );
   });
 
-  it('dispensa App Check no projeto de staging', () => {
+  it('exige App Check também no projeto de staging', () => {
     assert.equal(
       shouldRequirePublicMediaAppCheck({
         gcloudProject: 'entretenimento-staging',
       }),
-      false
+      true
     );
   });
 
-  it('resolve o projeto pelo FIREBASE_CONFIG quando não há variável direta', () => {
+  it('não usa projectId como bypass de App Check', () => {
     assert.equal(
       shouldRequirePublicMediaAppCheck({
         firebaseConfig: JSON.stringify({
           projectId: 'entretenimento-staging',
         }),
       }),
-      false
+      true
     );
   });
 
