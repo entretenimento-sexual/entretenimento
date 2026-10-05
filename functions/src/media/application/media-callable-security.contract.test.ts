@@ -87,9 +87,9 @@ function source(name: string): string {
   );
 }
 
-// Tombstones unpublishPhoto/unpublishVideo ficam fora: APIs legadas
-// deliberadamente fail-closed e instrumentadas até a retirada. Triggers,
-// schedules e cores internos também não são callables externos do cliente.
+// Tombstones legados de despublicação de foto/vídeo ficam fora da matriz:
+// são APIs deliberadamente fail-closed e instrumentadas até a retirada.
+// Triggers, schedules e cores internos também não são callables externos do cliente.
 describe('Media callable security contract', () => {
   for (const name of PROTECTED_CALLABLES) {
     it(`${name} exige App Check no callable real`, () => {
