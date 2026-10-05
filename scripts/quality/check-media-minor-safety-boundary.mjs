@@ -39,6 +39,12 @@ function requireIncludes(source, fragments, label) {
   }
 }
 
+function requirePattern(source, pattern, label) {
+  if (!pattern.test(source)) {
+    throw new Error('[media-minor-safety] ' + label);
+  }
+}
+
 function forbid(source, pattern, reason) {
   if (pattern.test(source)) {
     throw new Error('[media-minor-safety] ' + reason);
@@ -103,11 +109,16 @@ for (const handler of [
     'shouldPreserveMediaEvidence',
     'queueModerationEvidencePreservation',
     'safetySeverity: mediaSafetySeverity(reason)',
-    'criticalMinorSafety:',
     'safeRecordModerationOpenSignal',
     'buildPossibleMinorContentSafetyAssessment',
     'contentSafetyAssessment',
   ], handler);
+
+  requirePattern(
+    source,
+    /transaction\.create\(reportRef,\s*\{[\s\S]*?\bcriticalMinorSafety(?:\s*:\s*criticalMinorSafety)?\s*,/,
+    handler + ' deve persistir criticalMinorSafety no moderation report'
+  );
 }
 
 for (const reviewHandler of [
