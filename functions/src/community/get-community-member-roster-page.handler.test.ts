@@ -6,50 +6,26 @@ import {
 } from './get-community-member-roster-page.handler';
 
 const NOW = 1_800_000_000_000;
+const PROFILE_ID = 'profile-00000000-0000-4000-8000-000000000001';
 
-describe('community member roster temporal age boundary', () => {
-  it('inclui somente perfil público adulto com validade futura', () => {
+describe('community member roster public profile boundary', () => {
+  it('usa existência e identidade pública canônica, sem assurance etário local', () => {
     assert.equal(
       isCurrentCommunityMemberPublicProfile(
-        {
-          ageEligibilityVerifiedAdult: true,
-          ageEligibilityValidUntil: { toMillis: () => NOW + 60_000 },
-        },
+        { profileId: PROFILE_ID },
         NOW
       ),
       true
     );
-
     assert.equal(
       isCurrentCommunityMemberPublicProfile(
-        {
-          ageEligibilityVerifiedAdult: true,
-          ageEligibilityValidUntil: { toMillis: () => NOW },
-        },
+        { profileId: 'invalid-profile-id' },
         NOW
       ),
       false
     );
-
     assert.equal(
-      isCurrentCommunityMemberPublicProfile(
-        {
-          ageEligibilityVerifiedAdult: false,
-          ageEligibilityValidUntil: { toMillis: () => NOW + 60_000 },
-        },
-        NOW
-      ),
-      false
-    );
-
-    assert.equal(
-      isCurrentCommunityMemberPublicProfile(
-        {
-          ageEligibilityVerifiedAdult: true,
-          ageEligibilityValidUntil: null,
-        },
-        NOW
-      ),
+      isCurrentCommunityMemberPublicProfile(null, NOW),
       false
     );
   });

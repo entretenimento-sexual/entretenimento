@@ -10,6 +10,7 @@ import {
   REQUIRE_PUBLIC_MEDIA_APP_CHECK,
 } from './public-media-callable-security';
 import { assertPublicMediaConsumptionAccess } from './public-media-consumption-access.policy';
+import { resolvePublicMediaOwnerExposure } from './public-media-owner-exposure.service';
 import {
   consumePublicVideoPlaybackSessionStartQuota,
 } from './public-video-playback-session-rate-limit.service';
@@ -21,21 +22,6 @@ import {
   hashPublicVideoPlaybackToken,
 } from './public-video-playback-session';
 import { calculateRequiredVideoPlaybackMs } from './video-view-qualification';
-
-function hasCurrentPublicAgeEligibility(
-  data: Record<string, unknown> | undefined
-): boolean {
-  if (data?.['ageEligibilityVerifiedAdult'] !== true) return false;
-
-  const validUntil = data?.['ageEligibilityValidUntil'] as
-    | { toMillis?: unknown }
-    | null
-    | undefined;
-
-  return !!validUntil &&
-    typeof validUntil.toMillis === 'function' &&
-    (validUntil as { toMillis: () => number }).toMillis() > Date.now();
-}
 
 interface StartPublicVideoPlaybackSessionRequest {
   ownerUid?: string;
@@ -114,25 +100,29 @@ export const startPublicVideoPlaybackSession = onCall<
       'Vídeo público não encontrado.'
     );
 
-    const publicProfileRef = db.doc(`public_profiles/${ownerUid}`);
-    const publicVideoRef = db.doc(
-      `public_profiles/${ownerUid}/public_videos/${videoId}`
+    const nowMs = Date.now();
+    const ownerExposureByUid = await resolvePublicMediaOwnerExposure(
+      [ownerUid],
+      new Set<string>(),
+      nowMs
     );
-    const [publicProfileSnapshot, publicVideoSnapshot] = await Promise.all([
-      publicProfileRef.get(),
-      publicVideoRef.get(),
-    ]);
 
-    if (!publicProfileSnapshot.exists || !publicVideoSnapshot.exists) {
+    if (ownerExposureByUid.get(ownerUid)?.allowed !== true) {
       throw new HttpsError('not-found', 'Vídeo público não encontrado.');
     }
 
-    const publicProfile = publicProfileSnapshot.data() ?? {};
+    const publicVideoRef = db.doc(
+      `public_profiles/${ownerUid}/public_videos/${videoId}`
+    );
+    const publicVideoSnapshot = await publicVideoRef.get();
+
+    if (!publicVideoSnapshot.exists) {
+      throw new HttpsError('not-found', 'Vídeo público não encontrado.');
+    }
+
     const publicVideo = publicVideoSnapshot.data() ?? {};
 
     if (
-      !hasCurrentPublicAgeEligibility(publicProfile) ||
-      !hasCurrentPublicAgeEligibility(publicVideo) ||
       publicVideo.visibility !== 'PUBLIC' ||
       publicVideo.moderationStatus !== 'APPROVED'
     ) {

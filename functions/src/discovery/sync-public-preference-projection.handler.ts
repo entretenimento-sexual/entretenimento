@@ -113,10 +113,6 @@ export const syncPublicPreferenceProjection = onDocumentWritten(
         publicRef,
         {
           ...expected,
-          ageEligibilityAdultAccessAllowed: FieldValue.delete(),
-          ageEligibilityVerifiedAdult: FieldValue.delete(),
-          ageEligibilityAssurance: FieldValue.delete(),
-          ageEligibilityValidUntil: FieldValue.delete(),
           publicPreferencesUpdatedAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
         },

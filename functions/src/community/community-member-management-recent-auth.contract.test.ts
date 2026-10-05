@@ -109,6 +109,7 @@ function installTransactionProbe(
     },
     [`users/${actorUid}`]: {
       uid: actorUid,
+      accountStatus: 'active',
       profileCompleted: true,
       interactionBlocked: false,
       acceptedTerms: {
@@ -130,6 +131,7 @@ function installTransactionProbe(
     },
     'users/member-1': {
       uid: 'member-1',
+      accountStatus: 'active',
       profileCompleted: true,
       interactionBlocked: scenario.targetEligible === false,
       acceptedTerms: {

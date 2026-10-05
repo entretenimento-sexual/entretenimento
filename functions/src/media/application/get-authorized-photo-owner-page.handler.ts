@@ -151,7 +151,6 @@ async function loadVisibilityPage(input: {
   let photoQuery = db
     .collectionGroup('public_photos')
     .where('ownerUid', 'in', [...input.ownerUids])
-    .where('ageEligibilityVerifiedAdult', '==', true)
     .where('moderationStatus', '==', 'APPROVED')
     .where('visibility', '==', input.visibility)
     .orderBy('publishedAt', 'desc')

@@ -70,7 +70,7 @@ export class DiscoveryVisibleProfileLocationRepository {
   private toLocation(
     raw: Record<string, unknown> | null
   ): DiscoveryVisibleProfileLocation | null {
-    if (!raw || !this.hasCurrentAgeEligibility(raw)) {
+    if (!raw) {
       return null;
     }
 
@@ -83,33 +83,6 @@ export class DiscoveryVisibleProfileLocationRepository {
       longitude: this.firstNumber(raw, ['longitude', 'lng', 'lon']),
       geohash: this.firstText(raw, ['geohash']),
     };
-  }
-
-  private hasCurrentAgeEligibility(
-    source: Record<string, unknown>
-  ): boolean {
-    if (source['ageEligibilityVerifiedAdult'] !== true) {
-      return false;
-    }
-
-    const value = source['ageEligibilityValidUntil'] as
-      | number
-      | Date
-      | { toMillis?: unknown }
-      | null
-      | undefined;
-
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      return value > Date.now();
-    }
-
-    if (value instanceof Date) {
-      return value.getTime() > Date.now();
-    }
-
-    return !!value
-      && typeof (value as { toMillis?: unknown }).toMillis === 'function'
-      && (value as { toMillis: () => number }).toMillis() > Date.now();
   }
 
   private orderByRequestedUids(

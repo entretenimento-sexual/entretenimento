@@ -64,6 +64,7 @@ function installBoundaryProbe(
           exists: true,
           data: () => ({
             uid,
+            accountStatus: 'active',
             interactionBlocked: false,
             acceptedTerms: {
               accepted: true,

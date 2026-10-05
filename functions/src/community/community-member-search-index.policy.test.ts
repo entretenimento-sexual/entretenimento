@@ -10,7 +10,7 @@ import {
 
 const profileId = 'profile-00000000-0000-4000-8000-000000000001';
 
-test('indexa somente nickname público de perfil adulto vigente', () => {
+test('indexa somente nickname de perfil público canônico', () => {
   const projection = buildCommunityMemberSearchIndexProjection({
     communityId: 'community-1',
     memberId: 'uid-1',
@@ -18,8 +18,6 @@ test('indexa somente nickname público de perfil adulto vigente', () => {
     rawPublicProfile: {
       profileId,
       nickname: 'Álex Leandro',
-      ageEligibilityVerifiedAdult: true,
-      ageEligibilityValidUntil: 2_000,
       nome: 'Nome Civil Não Indexado',
       email: 'privado@example.com',
     },
@@ -35,7 +33,7 @@ test('indexa somente nickname público de perfil adulto vigente', () => {
   assert.equal(JSON.stringify(projection).includes('privado@example.com'), false);
 });
 
-test('não projeta membership inativa nem perfil etariamente inválido', () => {
+test('não projeta membership inativa nem perfil público sem identidade canônica', () => {
   assert.equal(buildCommunityMemberSearchIndexProjection({
     communityId: 'community-1',
     memberId: 'uid-1',
@@ -43,8 +41,6 @@ test('não projeta membership inativa nem perfil etariamente inválido', () => {
     rawPublicProfile: {
       profileId,
       nickname: 'Alex',
-      ageEligibilityVerifiedAdult: true,
-      ageEligibilityValidUntil: 2_000,
     },
     nowMs: 1_000,
   }), null);
@@ -54,10 +50,8 @@ test('não projeta membership inativa nem perfil etariamente inválido', () => {
     memberId: 'uid-1',
     rawMembership: { status: 'active' },
     rawPublicProfile: {
-      profileId,
+      profileId: 'invalid-profile-id',
       nickname: 'Alex',
-      ageEligibilityVerifiedAdult: true,
-      ageEligibilityValidUntil: 500,
     },
     nowMs: 1_000,
   }), null);

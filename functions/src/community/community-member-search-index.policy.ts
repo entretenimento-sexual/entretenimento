@@ -49,29 +49,6 @@ function normalizeDisplayText(value: unknown, maxLength: number): string {
     .slice(0, maxLength);
 }
 
-function timestampToMillis(value: unknown): number | null {
-  if (
-    value
-    && typeof value === 'object'
-    && typeof (value as { toMillis?: unknown }).toMillis === 'function'
-  ) {
-    try {
-      const millis = (value as { toMillis: () => number }).toMillis();
-      return Number.isFinite(millis) ? millis : null;
-    } catch {
-      return null;
-    }
-  }
-
-  if (value instanceof Date) {
-    const millis = value.getTime();
-    return Number.isFinite(millis) ? millis : null;
-  }
-
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-}
-
 export function normalizeCommunityMemberSearchText(value: unknown): string {
   return normalizeDisplayText(value, COMMUNITY_MEMBER_SEARCH_MAX_LENGTH)
     .normalize('NFKD')
@@ -132,13 +109,10 @@ function buildPrefixes(value: string): readonly string[] {
 
 export function isCurrentCommunityMemberSearchPublicProfile(
   rawProfile: unknown,
-  nowMs = Date.now()
+  _nowMs = Date.now()
 ): boolean {
   const profile = (rawProfile ?? {}) as Record<string, unknown>;
-  if (profile['ageEligibilityVerifiedAdult'] !== true) return false;
-
-  const validUntil = timestampToMillis(profile['ageEligibilityValidUntil']);
-  return validUntil !== null && validUntil > nowMs;
+  return normalizePublicProfileId(profile['profileId']) !== null;
 }
 
 export function buildCommunityMemberSearchIndexProjection(input: {
@@ -197,13 +171,10 @@ export function communityMemberSearchPublicProfileFingerprint(
   rawProfile: unknown
 ): string {
   const profile = (rawProfile ?? {}) as Record<string, unknown>;
-  const validUntil = timestampToMillis(profile['ageEligibilityValidUntil']);
 
   return JSON.stringify({
     profileId: normalizePublicProfileId(profile['profileId']),
     nickname: normalizeDisplayText(profile['nickname'], 60),
-    adult: profile['ageEligibilityVerifiedAdult'] === true,
-    validUntil,
   });
 }
 

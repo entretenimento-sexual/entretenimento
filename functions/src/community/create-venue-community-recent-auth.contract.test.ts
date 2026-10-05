@@ -117,6 +117,7 @@ function installBoundaryProbe(
     const documents: Record<string, unknown> = {
       [`users/${actorUid}`]: {
         uid: actorUid,
+        accountStatus: 'active',
         role: mode === 'admin' ? 'admin' : 'vip',
         profileCompleted: true,
         interactionBlocked: false,

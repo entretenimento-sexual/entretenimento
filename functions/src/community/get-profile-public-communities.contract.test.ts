@@ -115,15 +115,13 @@ test('participações públicas paginam pelo índice existente e só expõem cur
   assert.match(source, /community_discovery_index/);
 });
 
-test('comunidades públicas do perfil exigem projeção etária vigente', () => {
+test('comunidades públicas do perfil dependem da identidade pública canônica, não de assurance etário', () => {
   const now = 1_800_000_000_000;
+  const profileId = 'profile-00000000-0000-4000-8000-000000000001';
 
   assert.equal(
     isCurrentPublicProfileForCommunityDisclosure(
-      {
-        ageEligibilityVerifiedAdult: true,
-        ageEligibilityValidUntil: { toMillis: () => now + 60_000 },
-      },
+      { profileId },
       now
     ),
     true
@@ -131,23 +129,14 @@ test('comunidades públicas do perfil exigem projeção etária vigente', () => 
 
   assert.equal(
     isCurrentPublicProfileForCommunityDisclosure(
-      {
-        ageEligibilityVerifiedAdult: true,
-        ageEligibilityValidUntil: { toMillis: () => now },
-      },
+      { profileId: 'invalid-profile-id' },
       now
     ),
     false
   );
 
   assert.equal(
-    isCurrentPublicProfileForCommunityDisclosure(
-      {
-        ageEligibilityVerifiedAdult: false,
-        ageEligibilityValidUntil: { toMillis: () => now + 60_000 },
-      },
-      now
-    ),
+    isCurrentPublicProfileForCommunityDisclosure(null, now),
     false
   );
 });

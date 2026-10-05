@@ -75,42 +75,11 @@ function normalizeCursor(value: unknown): string | null {
     : null;
 }
 
-function timestampToMillis(value: unknown): number | null {
-  if (
-    value &&
-    typeof value === 'object' &&
-    typeof (value as { toMillis?: unknown }).toMillis === 'function'
-  ) {
-    try {
-      const millis = (value as { toMillis: () => number }).toMillis();
-      return Number.isFinite(millis) ? millis : null;
-    } catch {
-      return null;
-    }
-  }
-
-  if (value instanceof Date) {
-    const millis = value.getTime();
-    return Number.isFinite(millis) ? millis : null;
-  }
-
-  const numeric = Number(value);
-  return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
-}
-
 export function isCurrentPublicProfileForCommunityDisclosure(
   profile: Record<string, unknown> | null | undefined,
-  nowMs: number
+  _nowMs: number
 ): boolean {
-  if (!profile || profile['ageEligibilityVerifiedAdult'] !== true) {
-    return false;
-  }
-
-  const validUntilMs = timestampToMillis(
-    profile['ageEligibilityValidUntil']
-  );
-
-  return validUntilMs !== null && validUntilMs > nowMs;
+  return !!profile && normalizePublicProfileId(profile['profileId']) !== null;
 }
 
 export const getProfilePublicCommunities = onCall<ProfilePublicCommunitiesRequest>(
