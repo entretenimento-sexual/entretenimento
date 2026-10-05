@@ -292,7 +292,7 @@ describe('synchronizePublishedPhotoUpdate', () => {
         isPublished: true,
         sourceStoragePath: OLD_PRIVATE_PATH,
         publishedStoragePath: OLD_PUBLIC_PATH,
-        moderationStatus: 'APPROVED',
+        moderationStatus: 'PENDING_REVIEW',
       },
     });
 
