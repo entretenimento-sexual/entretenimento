@@ -1,13 +1,19 @@
+import {
+  resolveCurrentTrustedAdultAgeProjection,
+} from '../../account_lifecycle/trusted-adult-account-assurance.policy';
+
 export type CanonicalOwnerLifecycleDenialReason =
   | 'OWNER_ACCOUNT_MISSING'
   | 'OWNER_ACCOUNT_INACTIVE'
   | 'OWNER_ACCOUNT_SUSPENDED'
   | 'OWNER_ACCOUNT_HIDDEN'
-  | 'OWNER_LOGIN_DISABLED';
+  | 'OWNER_LOGIN_DISABLED'
+  | 'OWNER_ACCOUNT_ASSURANCE_REQUIRED';
 
 export interface CanonicalOwnerLifecycleDecision {
   readonly allowed: boolean;
   readonly denialReason: CanonicalOwnerLifecycleDenialReason | null;
+  readonly accessExpiresAtMs: number | null;
 }
 
 type OwnerLifecycleUserDocument = {
@@ -15,52 +21,50 @@ type OwnerLifecycleUserDocument = {
   suspended?: unknown;
   publicVisibility?: unknown;
   loginAllowed?: unknown;
+  ageEligibility?: unknown;
 };
 
-export function evaluateCanonicalOwnerLifecycle(
-  user: OwnerLifecycleUserDocument | null | undefined
+function denied(
+  denialReason: CanonicalOwnerLifecycleDenialReason
 ): CanonicalOwnerLifecycleDecision {
-  if (!user) {
-    return {
-      allowed: false,
-      denialReason: 'OWNER_ACCOUNT_MISSING',
-    };
-  }
+  return {
+    allowed: false,
+    denialReason,
+    accessExpiresAtMs: null,
+  };
+}
+
+export function evaluateCanonicalOwnerLifecycle(
+  user: OwnerLifecycleUserDocument | null | undefined,
+  nowMs = Date.now()
+): CanonicalOwnerLifecycleDecision {
+  if (!user) return denied('OWNER_ACCOUNT_MISSING');
 
   const accountStatus = String(user.accountStatus ?? 'active')
     .trim()
     .toLowerCase();
 
-  if (accountStatus !== 'active') {
-    return {
-      allowed: false,
-      denialReason: 'OWNER_ACCOUNT_INACTIVE',
-    };
+  if (accountStatus !== 'active') return denied('OWNER_ACCOUNT_INACTIVE');
+  if (user.suspended === true) return denied('OWNER_ACCOUNT_SUSPENDED');
+
+  if (
+    String(user.publicVisibility ?? 'visible')
+      .trim()
+      .toLowerCase() === 'hidden'
+  ) {
+    return denied('OWNER_ACCOUNT_HIDDEN');
   }
 
-  if (user.suspended === true) {
-    return {
-      allowed: false,
-      denialReason: 'OWNER_ACCOUNT_SUSPENDED',
-    };
-  }
+  if (user.loginAllowed === false) return denied('OWNER_LOGIN_DISABLED');
 
-  if (String(user.publicVisibility ?? 'visible').trim().toLowerCase() === 'hidden') {
-    return {
-      allowed: false,
-      denialReason: 'OWNER_ACCOUNT_HIDDEN',
-    };
-  }
-
-  if (user.loginAllowed === false) {
-    return {
-      allowed: false,
-      denialReason: 'OWNER_LOGIN_DISABLED',
-    };
+  const assurance = resolveCurrentTrustedAdultAgeProjection(user, nowMs);
+  if (!assurance.allowed) {
+    return denied('OWNER_ACCOUNT_ASSURANCE_REQUIRED');
   }
 
   return {
     allowed: true,
     denialReason: null,
+    accessExpiresAtMs: assurance.accessExpiresAtMs,
   };
 }

@@ -1,9 +1,10 @@
 import { HttpsError } from 'firebase-functions/v2/https';
 
 import {
+  assertInteractionAccess,
   assertPlatformAccountAccessData,
+  type PlatformAccountAccessContext,
 } from '../../account_lifecycle/interaction-access.policy';
-import { db } from '../../firebaseApp';
 
 export type PublicMediaConsumptionAccessReason =
   | 'ACCOUNT_UNAVAILABLE'
@@ -28,14 +29,8 @@ PublicMediaConsumptionAccessReason {
     (error.details as { reason?: unknown } | undefined)?.reason ?? ''
   ).trim();
 
-  if (reason === 'terms_required') {
-    return 'TERMS_REQUIRED';
-  }
-
-  if (reason === 'adult_consent_required') {
-    return 'ADULT_CONSENT_REQUIRED';
-  }
-
+  if (reason === 'terms_required') return 'TERMS_REQUIRED';
+  if (reason === 'adult_consent_required') return 'ADULT_CONSENT_REQUIRED';
   return 'ACCOUNT_UNAVAILABLE';
 }
 
@@ -53,38 +48,37 @@ function consumptionAccessError(
   );
 }
 
+function remapAccountAccessError(error: unknown): never {
+  if (!(error instanceof HttpsError)) throw error;
+
+  const reason = mapAccountReason(error);
+  throw consumptionAccessError(
+    reason === 'TERMS_REQUIRED'
+      ? 'Aceite os termos vigentes antes de acessar este conteúdo.'
+      : reason === 'ADULT_CONSENT_REQUIRED'
+        ? 'Aceite o acesso à experiência adulta antes de continuar.'
+        : 'Esta conta não pode acessar conteúdo público no momento.',
+    reason,
+    error
+  );
+}
+
 export function assertPublicMediaConsumptionAccessData(
   user: PublicMediaConsumptionAccessUserDocument | null | undefined
 ): void {
   try {
     assertPlatformAccountAccessData(user);
   } catch (error) {
-    if (!(error instanceof HttpsError)) {
-      throw error;
-    }
-
-    const reason = mapAccountReason(error);
-
-    throw consumptionAccessError(
-      reason === 'TERMS_REQUIRED'
-        ? 'Aceite os termos vigentes antes de acessar este conteúdo.'
-        : reason === 'ADULT_CONSENT_REQUIRED'
-          ? 'Aceite o acesso à experiência adulta antes de continuar.'
-          : 'Esta conta não pode acessar conteúdo público no momento.',
-      reason,
-      error
-    );
+    remapAccountAccessError(error);
   }
 }
 
 export async function assertPublicMediaConsumptionAccess(
   uid: string
-): Promise<void> {
-  const userSnapshot = await db.collection('users').doc(uid).get();
-
-  assertPublicMediaConsumptionAccessData(
-    userSnapshot.exists
-      ? userSnapshot.data() as PublicMediaConsumptionAccessUserDocument
-      : null
-  );
+): Promise<PlatformAccountAccessContext> {
+  try {
+    return await assertInteractionAccess(uid);
+  } catch (error) {
+    return remapAccountAccessError(error);
+  }
 }

@@ -2,6 +2,10 @@ import type { Transaction } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 
 import {
+  evaluateCanonicalAgeEligibility,
+  isTrustedAdultAgeDecision,
+} from '../compliance/age-eligibility.policy';
+import {
   ADULT_CONSENT_VERSION,
   TERMS_ACCEPTANCE_VERSION,
 } from '../compliance/platform-legal.constants';
@@ -19,11 +23,17 @@ interface InteractionAccessUserDocument {
   adultConsent?: unknown;
 }
 
-function hasCurrentTerms(value: unknown): boolean {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return false;
-  }
+export interface PlatformAccountAccessContext {
+  readonly accessExpiresAtMs: number | null;
+}
 
+function cleanUid(value: unknown): string {
+  const uid = String(value ?? '').trim();
+  return /^[A-Za-z0-9_-]{1,128}$/.test(uid) ? uid : '';
+}
+
+function hasCurrentTerms(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const terms = value as Record<string, unknown>;
   return terms['accepted'] === true &&
     String(terms['version'] ?? '').trim() === TERMS_ACCEPTANCE_VERSION &&
@@ -31,23 +41,12 @@ function hasCurrentTerms(value: unknown): boolean {
 }
 
 function hasCurrentAdultConsent(value: unknown): boolean {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return false;
-  }
-
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const consent = value as Record<string, unknown>;
   return consent['accepted'] === true &&
     String(consent['version'] ?? '').trim() === ADULT_CONSENT_VERSION;
 }
 
-/**
- * Autoridade canônica de acesso da conta às superfícies normais da plataforma.
- *
- * Maioridade é decidida no domínio da conta. SELF_DECLARED_ADULT e
- * VERIFIED_ADULT são níveis de assurance dessa decisão e não gates que cada
- * feature deve reavaliar. Evidência posterior de menoridade precisa primeiro
- * produzir uma consequência de lifecycle da conta.
- */
 export function assertPlatformAccountAccessData(
   user: InteractionAccessUserDocument | null | undefined
 ): void {
@@ -106,29 +105,90 @@ export function assertPlatformAccountAccessData(
   }
 }
 
+export function assertTrustedAdultAccountAccessData(
+  uid: string,
+  rawAgeEligibility: unknown,
+  nowMs = Date.now()
+): PlatformAccountAccessContext {
+  const decision = evaluateCanonicalAgeEligibility({
+    uid,
+    rawRecord: rawAgeEligibility,
+    nowMs,
+  });
+
+  if (isTrustedAdultAgeDecision(decision)) {
+    return { accessExpiresAtMs: decision.expiresAtMs };
+  }
+
+  const reason =
+    decision.status === 'SELF_DECLARED_ADULT'
+      ? 'verification_required'
+      : decision.denialReason ?? 'verification_required';
+
+  throw new HttpsError(
+    reason === 'underage' ? 'permission-denied' : 'failed-precondition',
+    reason === 'underage'
+      ? 'O acesso adulto não está disponível para esta conta.'
+      : 'Conclua a verificação confiável de maioridade para continuar.',
+    {
+      reason,
+      recommendedAction:
+        reason === 'review_required'
+          ? 'complete_age_review'
+          : 'complete_age_verification',
+    }
+  );
+}
+
 export async function assertInteractionAccess(
   uid: string
-): Promise<void> {
-  const userSnapshot = await db.collection('users').doc(uid).get();
+): Promise<PlatformAccountAccessContext> {
+  const normalizedUid = cleanUid(uid);
+  if (!normalizedUid) {
+    throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
+  }
+
+  const [userSnapshot, ageSnapshot] = await db.getAll(
+    db.collection('users').doc(normalizedUid),
+    db.collection('age_eligibility_records').doc(normalizedUid)
+  );
 
   assertPlatformAccountAccessData(
     userSnapshot.exists
       ? userSnapshot.data() as InteractionAccessUserDocument
       : null
+  );
+
+  return assertTrustedAdultAccountAccessData(
+    normalizedUid,
+    ageSnapshot.exists ? ageSnapshot.data() : null
   );
 }
 
 export async function assertInteractionAccessInTransaction(
   transaction: Transaction,
   uid: string
-): Promise<void> {
-  const userSnapshot = await transaction.get(
-    db.collection('users').doc(uid)
-  );
+): Promise<PlatformAccountAccessContext> {
+  const normalizedUid = cleanUid(uid);
+  if (!normalizedUid) {
+    throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
+  }
+
+  const [userSnapshot, ageSnapshot] = await Promise.all([
+    transaction.get(db.collection('users').doc(normalizedUid)),
+    transaction.get(
+      db.collection('age_eligibility_records').doc(normalizedUid)
+    ),
+  ]);
 
   assertPlatformAccountAccessData(
     userSnapshot.exists
       ? userSnapshot.data() as InteractionAccessUserDocument
       : null
+  );
+
+  return assertTrustedAdultAccountAccessData(
+    normalizedUid,
+    ageSnapshot.exists ? ageSnapshot.data() : null
   );
 }

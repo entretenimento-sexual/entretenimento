@@ -2,8 +2,9 @@
 // -----------------------------------------------------------------------------
 // CANONICAL AGE ELIGIBILITY POLICY
 // -----------------------------------------------------------------------------
-// Decide a elegibilidade etária canônica usada por Registration/Compliance.
-// O resultado descreve decisão/assurance da conta e não autoriza Media ou Discovery.
+// Decide o estado etário canônico da conta. SELF_DECLARED_ADULT permanece
+// como evidência histórica válida, mas acesso adulto exige VERIFIED_ADULT
+// proveniente de método confiável. Produtos consultam somente Account Access.
 // -----------------------------------------------------------------------------
 
 export const AGE_ELIGIBILITY_POLICY_VERSION = 1;
@@ -61,6 +62,35 @@ export interface AgeEligibilityDecision {
   verifiedAtMs: number | null;
   expiresAtMs: number | null;
   caseId: string | null;
+}
+
+const TRUSTED_ADULT_SOURCES = new Set<AgeEligibilitySource>([
+  'INITIAL_VERIFICATION',
+  'AGE_REVERIFICATION',
+  'PROFILE_KYC',
+  'MIGRATION',
+]);
+
+const TRUSTED_ADULT_METHODS = new Set<AgeEligibilityMethod>([
+  'EXTERNAL_PROVIDER',
+  'MANUAL_REVIEW',
+  'KYC',
+  'MIGRATED_REVIEW',
+]);
+
+export function isTrustedAdultAgeDecision(
+  decision: Readonly<AgeEligibilityDecision>
+): boolean {
+  return (
+    decision.allowed === true &&
+    decision.status === 'VERIFIED_ADULT' &&
+    decision.policyVersion === AGE_ELIGIBILITY_POLICY_VERSION &&
+    decision.source !== null &&
+    TRUSTED_ADULT_SOURCES.has(decision.source) &&
+    decision.method !== null &&
+    TRUSTED_ADULT_METHODS.has(decision.method) &&
+    decision.verifiedAtMs !== null
+  );
 }
 
 function cleanUid(value: unknown): string {

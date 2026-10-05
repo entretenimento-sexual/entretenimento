@@ -19,6 +19,7 @@ import {
 } from '../moderation/moderation-safety-notification.service';
 import {
   evaluateCanonicalAgeEligibility,
+  isTrustedAdultAgeDecision,
 } from './age-eligibility.policy';
 import {
   writeCanonicalAgeEligibilityInTransaction,
@@ -33,7 +34,6 @@ import {
 interface RequestInitialAgeVerificationReviewResponse {
   reportId: string | null;
   status:
-    | 'SELF_DECLARED_ADULT'
     | 'VERIFIED_ADULT'
     | 'REVIEW_REQUIRED';
 }
@@ -118,14 +118,23 @@ export const requestInitialAgeVerificationReview = onCall(
         nowMs,
       });
 
-      if (current.allowed) {
+      if (isTrustedAdultAgeDecision(current)) {
         return {
           reportId: null,
-          status: current.status === 'VERIFIED_ADULT'
-            ? 'VERIFIED_ADULT' as const
-            : 'SELF_DECLARED_ADULT' as const,
+          status: 'VERIFIED_ADULT' as const,
           notify: false,
         };
+      }
+
+      if (current.status === 'DENIED_UNDERAGE') {
+        throw new HttpsError(
+          'permission-denied',
+          'O acesso adulto não está disponível para esta conta.',
+          {
+            reason: 'underage',
+            recommendedAction: 'review_account_status',
+          }
+        );
       }
 
       const existingReportStatus = String(

@@ -1,23 +1,29 @@
-// functions/src/media/application/public-media-signed-url-expiry.policy.ts
-// -----------------------------------------------------------------------------
-// PUBLIC MEDIA SIGNED URL EXPIRY
-// -----------------------------------------------------------------------------
-// A expiração é puramente técnica. Maioridade/assurance da conta não limita
-// o TTL de cada ativo e não pertence à autoridade de distribuição de Media.
-// -----------------------------------------------------------------------------
-
 export function resolvePublicMediaSignedUrlExpiresAt(input: {
   nowMs: number;
   technicalExpiresAtMs: number;
+  requesterAccessExpiresAtMs?: number | null;
+  ownerAccessExpiresAtMs?: number | null;
 }): number | null {
   if (
     !Number.isFinite(input.nowMs) ||
-    !Number.isFinite(input.technicalExpiresAtMs)
+    !Number.isFinite(input.technicalExpiresAtMs) ||
+    input.technicalExpiresAtMs <= input.nowMs
   ) {
     return null;
   }
 
-  return input.technicalExpiresAtMs > input.nowMs
-    ? Math.trunc(input.technicalExpiresAtMs)
-    : null;
+  const deadlines = [
+    input.technicalExpiresAtMs,
+    input.requesterAccessExpiresAtMs,
+    input.ownerAccessExpiresAtMs,
+  ].filter(
+    (value): value is number =>
+      typeof value === 'number' && Number.isFinite(value)
+  );
+
+  if (deadlines.some((value) => value <= input.nowMs)) {
+    return null;
+  }
+
+  return Math.trunc(Math.min(...deadlines));
 }

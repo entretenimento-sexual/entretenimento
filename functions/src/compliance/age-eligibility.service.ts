@@ -17,6 +17,7 @@ import {
   type AgeEligibilityStatus,
   type CanonicalAgeEligibilityRecord,
   evaluateCanonicalAgeEligibility,
+  isTrustedAdultAgeDecision,
 } from './age-eligibility.policy';
 
 export interface WriteAgeEligibilityInput {
@@ -185,32 +186,37 @@ export async function assertAdultAgeAccessEligibility(
 ): Promise<void> {
   const decision = await getCanonicalAgeEligibilityForUid(uid);
 
-  if (decision.allowed) return;
+  if (isTrustedAdultAgeDecision(decision)) return;
 
-  const code = decision.denialReason === 'underage'
+  const reason =
+    decision.status === 'SELF_DECLARED_ADULT'
+      ? 'verification_required'
+      : decision.denialReason ?? 'verification_required';
+  const code = reason === 'underage'
     ? 'permission-denied'
     : 'failed-precondition';
 
   throw new HttpsError(
     code,
-    decision.denialReason === 'underage'
+    reason === 'underage'
       ? 'O acesso adulto não está disponível para esta conta.'
-      : 'Conclua a verificação de maioridade para continuar.',
+      : 'Conclua a verificação confiável de maioridade para continuar.',
     {
-      reason: decision.denialReason,
+      reason,
       recommendedAction:
-        decision.denialReason === 'review_required'
+        reason === 'review_required'
           ? 'complete_age_review'
           : 'complete_age_verification',
     }
   );
 }
 
+export const assertTrustedAdultAgeEligibility =
+  assertAdultAgeAccessEligibility;
 
 /**
  * @deprecated Nome legado preservado temporariamente para compatibilidade.
- * A função valida elegibilidade de acesso adulto, que pode ser provisória por
- * autodeclaração ou forte por verificação confiável.
+ * A implementação exige VERIFIED_ADULT confiável; autodeclaração não autoriza.
  */
 export const assertVerifiedAdultAgeEligibility =
   assertAdultAgeAccessEligibility;

@@ -39,7 +39,7 @@ import {
 const ENFORCE_APP_CHECK = process.env.FUNCTIONS_EMULATOR !== 'true';
 
 const AGE_ADMISSION_MODE =
-  String(process.env.AGE_ADMISSION_MODE ?? 'SELF_DECLARATION')
+  String(process.env.AGE_ADMISSION_MODE ?? 'VERIFIED_REQUIRED')
     .trim()
     .toUpperCase() === 'VERIFIED_REQUIRED'
     ? 'VERIFIED_REQUIRED'
@@ -224,15 +224,7 @@ export const acceptAdultSelfDeclaration =
           );
         }
 
-        const obsoleteInitialReview =
-          current.status === 'REVIEW_REQUIRED' &&
-          current.source === 'INITIAL_VERIFICATION' &&
-          current.method === 'MANUAL_REVIEW';
-
-        if (
-          current.status === 'REVIEW_REQUIRED' &&
-          !obsoleteInitialReview
-        ) {
+        if (current.status === 'REVIEW_REQUIRED') {
           throw new HttpsError(
             'failed-precondition',
             'Sua conta possui uma verificação de segurança em andamento.'
@@ -395,22 +387,6 @@ export const acceptAdultSelfDeclaration =
           },
           { merge: true }
         );
-
-        if (obsoleteInitialReview && current.caseId) {
-          transaction.set(
-            db.collection('moderation_reports').doc(current.caseId),
-            {
-              status: 'resolved',
-              moderationAction: 'KEEP',
-              resolution:
-                'Fluxo inicial substituído pela política provisória de autodeclaração 18+.',
-              reviewedBy: 'system:age-policy',
-              reviewedAt: timestamp,
-              updatedAt: timestamp,
-            },
-            { merge: true }
-          );
-        }
 
         return {
           uid,

@@ -4,6 +4,7 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
   evaluateCanonicalAgeEligibility,
+  isTrustedAdultAgeDecision,
 } from './age-eligibility.policy';
 import {
   ADULT_CONSENT_VERSION,
@@ -83,16 +84,21 @@ export const acceptAdultConsent = onCall(
         nowMs: acceptedAtMs,
       });
 
-      if (!ageDecision.allowed) {
+      if (!isTrustedAdultAgeDecision(ageDecision)) {
+        const reason =
+          ageDecision.status === 'SELF_DECLARED_ADULT'
+            ? 'verification_required'
+            : ageDecision.denialReason ?? 'verification_required';
+
         throw new HttpsError(
-          ageDecision.denialReason === 'underage'
+          reason === 'underage'
             ? 'permission-denied'
             : 'failed-precondition',
-          ageDecision.denialReason === 'underage'
+          reason === 'underage'
             ? 'O acesso adulto não está disponível para esta conta.'
-            : 'Conclua a etapa de maioridade antes de aceitar o acesso adulto.',
+            : 'Conclua a verificação confiável de maioridade antes de aceitar o acesso adulto.',
           {
-            reason: ageDecision.denialReason,
+            reason,
             recommendedAction: 'complete_age_verification',
           }
         );
