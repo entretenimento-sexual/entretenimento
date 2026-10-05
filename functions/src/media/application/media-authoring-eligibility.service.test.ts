@@ -23,47 +23,41 @@ describe('media authoring eligibility', () => {
   };
 
   it('permite autoria para conta ativa sem depender do assurance etário', () => {
-    for (const ageRecord of [
+    for (const legacyAgeProjection of [
       null,
       {
-        uid: 'user-1',
         status: 'SELF_DECLARED_ADULT',
         policyVersion: 1,
       },
       {
-        uid: 'user-1',
         status: 'VERIFIED_ADULT',
         policyVersion: 1,
       },
       {
-        uid: 'user-1',
         status: 'EXPIRED',
         policyVersion: 1,
       },
     ]) {
+      const userWithLegacyProjection = {
+        ...eligibleUser,
+        ageEligibility: legacyAgeProjection,
+      };
+
       assert.deepEqual(
-        assertMediaAuthoringEligibilityData(
-          eligibleUser,
-          ageRecord,
-          'user-1'
-        ),
+        assertMediaAuthoringEligibilityData(userWithLegacyProjection),
         { allowed: true }
       );
     }
   });
 
   it('não transforma reverificação etária em gate local de Media', () => {
+    const userWithReverificationProjection = {
+      ...eligibleUser,
+      ageReverification: { status: 'REQUIRED' },
+    };
+
     assert.doesNotThrow(() =>
-      assertMediaAuthoringEligibilityData(
-        {
-          ...eligibleUser,
-          ageReverification: { status: 'REQUIRED' },
-        } as typeof eligibleUser & {
-          ageReverification: { status: string };
-        },
-        null,
-        'user-1'
-      )
+      assertMediaAuthoringEligibilityData(userWithReverificationProjection)
     );
   });
 
@@ -74,7 +68,7 @@ describe('media authoring eligibility', () => {
       { ...eligibleUser, accountStatus: 'pending_deletion' },
     ]) {
       assert.throws(
-        () => assertMediaAuthoringEligibilityData(user, null, 'user-1'),
+        () => assertMediaAuthoringEligibilityData(user),
         HttpsError
       );
     }
@@ -90,9 +84,7 @@ describe('media authoring eligibility', () => {
             version: 'legacy',
             acknowledgedPrivacyNotice: true,
           },
-        },
-        null,
-        'user-1'
+        }
       ),
       HttpsError
     );
@@ -102,9 +94,7 @@ describe('media authoring eligibility', () => {
         {
           ...eligibleUser,
           adultConsent: null,
-        },
-        null,
-        'user-1'
+        }
       ),
       HttpsError
     );
