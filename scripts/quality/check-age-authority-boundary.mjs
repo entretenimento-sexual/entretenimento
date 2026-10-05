@@ -139,6 +139,115 @@ for (const file of walk(path.join(root, 'functions', 'src'), ['.ts'])) {
   }
 }
 
+// Varredura sistemática: domínios de produto não podem conhecer status de
+// assurance etário nem consultar a autoridade canônica. Campos legados podem
+// existir apenas em migração/cleanup explícitos, nunca em decisões de acesso.
+const productDomainDirectories = [
+  'functions/src/media',
+  'functions/src/discovery',
+  'functions/src/community',
+  'functions/src/friendship',
+  'functions/src/promotion-boost',
+  'functions/src/community-boost',
+  'functions/src/chat',
+  'src/app/media',
+  'src/app/community',
+  'src/app/dashboard/online',
+  'src/app/core/services/discovery',
+  'src/app/core/services/interactions/friendship',
+  'src/app/core/services/media',
+].map((item) => path.join(root, item));
+
+const productDomainAllowedLegacyFiles = new Set([
+  path.normalize('functions/src/media/application/manage-photo-publication.handler.ts'),
+  path.normalize('functions/src/media/application/manage-video-publication.handler.ts'),
+  path.normalize('functions/src/media/application/legacy-photo-preventive-review-migration.service.ts'),
+  path.normalize('functions/src/media/application/normalize-legacy-photo-moderation.handler.ts'),
+  path.normalize('functions/src/media/application/normalize-legacy-video-moderation.handler.ts'),
+]);
+
+const forbiddenProductAgeTokens = [
+  'SELF_DECLARED_ADULT',
+  'VERIFIED_ADULT',
+  'AgeEligibilityService',
+  'evaluateCanonicalAgeEligibility',
+  'age_eligibility_records',
+  'isVerifiedAdultAgeDecision',
+];
+
+const forbiddenLegacyAuthorityPatterns = [
+  /ageEligibilityVerifiedAdult\s*(?:===|==|!==|!=)/,
+  /ageEligibilityAdultAccessAllowed\s*(?:===|==|!==|!=)/,
+  /ageEligibilityAssurance\s*(?:===|==|!==|!=)/,
+  /ageEligibilityValidUntil\s*(?:===|==|!==|!=|<=|>=|<|>)/,
+  /ageEligibility\??\.status\s*(?:===|==|!==|!=)/,
+];
+
+for (const directory of productDomainDirectories) {
+  for (const file of walk(directory, ['.ts'])) {
+    const relative = path.normalize(path.relative(root, file));
+
+    if (productDomainAllowedLegacyFiles.has(relative)) {
+      continue;
+    }
+
+    const source = codeOnly(fs.readFileSync(file, 'utf8'));
+
+    for (const token of forbiddenProductAgeTokens) {
+      if (source.includes(token)) {
+        violations.push(
+          `${relative} (domínio de produto não pode conhecer assurance etário: ${token})`
+        );
+      }
+    }
+
+    for (const pattern of forbiddenLegacyAuthorityPatterns) {
+      if (pattern.test(source)) {
+        violations.push(
+          `${relative} (projeção etária legada não pode decidir autorização: ${pattern})`
+        );
+      }
+    }
+  }
+}
+
+// Rules sociais/comerciais também não podem voltar a consultar ou comparar
+// assurance etário. users.rules permanece a única fronteira de registro.
+for (const relativePath of [
+  'firestore-rules/public_index.rules',
+  'firestore-rules/public_profiles_next.rules',
+  'firestore-rules/public_profiles_photos.rules',
+  'firestore-rules/public_profiles_videos.rules',
+  'firestore-rules/user_intent_statuses.rules',
+  'firestore-rules/friendRequests.rules',
+  'firestore-rules/friends_root.rules',
+  'firestore-rules/public_social_links.rules',
+  'firestore-rules/presence.rules',
+  'firestore-rules/communities.rules',
+  'firestore-rules/community_boost.rules',
+  'firestore-rules/promotion_boost.rules',
+  'firestore-rules/chats.rules',
+]) {
+  const source = codeOnly(read(relativePath));
+
+  for (const token of [
+    'SELF_DECLARED_ADULT',
+    'VERIFIED_ADULT',
+    'ageEligibilityVerifiedAdult',
+    'ageEligibilityAdultAccessAllowed',
+    'ageEligibilityAssurance',
+    'ageEligibilityValidUntil',
+    'canonicalAgeEligibilityIsVerifiedAdult',
+    'currentUserHasVerifiedAdultAge',
+  ]) {
+    if (source.includes(token)) {
+      violations.push(
+        `${relativePath} (Rules de produto não podem conhecer assurance etário: ${token})`
+      );
+    }
+  }
+}
+
 // Firestore só pode consultar a autoridade etária no fechamento do cadastro.
 // Superfícies normais recebem qualquer consequência pelo lifecycle da conta.
 for (const relativePath of [
