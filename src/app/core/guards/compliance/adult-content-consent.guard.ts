@@ -1,27 +1,21 @@
-// src/app/core/guards/compliance/adult-content-consent.guard.ts
-// -----------------------------------------------------------------------------
-// ADULT CONTENT CONSENT GUARD
-// -----------------------------------------------------------------------------
-// Protege conteúdo adulto e fluxos sociais dependentes dos documentos legais e
-// do consentimento inicial.
-//
-// Ordem fail-closed:
-// 1. exige Termos de Uso materiais vigentes quando a política do ambiente exige;
-// 2. exige consentimento adulto quando aplicável;
-// 3. libera o recurso protegido.
-//
-// Controles essenciais de conta e notificações permanecem acessíveis após
-// autenticação para permitir ciência, contestação, privacidade, reativação ou
-// cancelamento de exclusão.
-// -----------------------------------------------------------------------------
 import { inject } from '@angular/core';
 import { CanActivateFn, Router, type GuardResult } from '@angular/router';
 import { Observable, combineLatest, of } from 'rxjs';
-import { catchError, filter, map, take } from 'rxjs/operators';
+import {
+  catchError,
+  filter,
+  map,
+  switchMap,
+  take,
+} from 'rxjs/operators';
 
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { AdultConsentService } from 'src/app/core/services/compliance/adult-consent.service';
+import { AgeEligibilityService } from 'src/app/core/services/compliance/age-eligibility.service';
+import {
+  isCurrentTrustedAdultAgeProjection,
+} from 'src/app/core/services/compliance/trusted-adult-age-assurance.policy';
 import { isCurrentLegalAcceptanceSatisfied } from 'src/app/core/services/compliance/terms-acceptance.service';
 import { buildRedirectTree, guardLog } from '../_shared-guard/guard-utils';
 
@@ -33,40 +27,42 @@ export const adultContentConsentGuard: CanActivateFn = (
   const session = inject(AuthSessionService);
   const currentUser = inject(CurrentUserStoreService);
   const adultConsent = inject(AdultConsentService);
+  const ageEligibility = inject(AgeEligibilityService);
 
   const path = String(state.url ?? '').split(/[?#]/, 1)[0] || '/';
   const isEssentialAccountPath =
     path === '/conta' || path.startsWith('/conta/');
 
   if (isEssentialAccountPath) {
-    guardLog('adult-consent', 'essential-account-path-bypass', {
+    guardLog('adult-access', 'essential-account-path-bypass', {
       url: state.url,
     });
     return true;
   }
 
-  const redirectToTerms = (): GuardResult => {
-    guardLog('adult-consent', 'redirect-to-current-terms', {
-      url: state.url,
-    });
-
-    return buildRedirectTree(
+  const redirectToTerms = (): GuardResult =>
+    buildRedirectTree(
       router,
       '/register/aceitar-termos',
       state.url,
       { reason: 'material_terms_update_required' }
     );
-  };
 
-  const redirectToConsent = (): GuardResult => {
-    guardLog('adult-consent', 'redirect-to-initial-consent', {
-      url: state.url,
-    });
+  const redirectToAgeVerification = (): GuardResult =>
+    buildRedirectTree(
+      router,
+      '/adulto/verificar-idade',
+      state.url,
+      { reason: 'trusted_age_verification_required' }
+    );
 
-    return buildRedirectTree(router, '/adulto/confirmar', state.url, {
-      reason: 'initial_adult_consent_required',
-    });
-  };
+  const redirectToConsent = (): GuardResult =>
+    buildRedirectTree(
+      router,
+      '/adulto/confirmar',
+      state.url,
+      { reason: 'initial_adult_consent_required' }
+    );
 
   return combineLatest([
     session.ready$,
@@ -80,31 +76,32 @@ export const adultContentConsentGuard: CanActivateFn = (
       return appUser !== undefined;
     }),
     take(1),
-    map(([_, authUser, appUser, accepted]): GuardResult => {
-      if (!authUser) return true;
+    switchMap(([_, authUser, appUser, accepted]) => {
+      if (!authUser) {
+        return of(true as GuardResult);
+      }
 
       if (!isCurrentLegalAcceptanceSatisfied(appUser?.acceptedTerms)) {
-        return redirectToTerms();
+        return of(redirectToTerms());
       }
 
-      const initialConsentRequired =
-        appUser?.initialAdultConsentRequired !== false;
+      return ageEligibility.reconcileTrustedStateOncePerSession$().pipe(
+        map((ageState): GuardResult => {
+          if (!isCurrentTrustedAdultAgeProjection(ageState)) {
+            return redirectToAgeVerification();
+          }
 
-      if (!initialConsentRequired) {
-        guardLog('adult-consent', 'explicitly-not-required', {
-          url: state.url,
-        });
-        return true;
-      }
+          const initialConsentRequired =
+            appUser?.initialAdultConsentRequired !== false;
 
-      if (accepted) {
-        guardLog('adult-consent', 'initial-consent-accepted', {
-          url: state.url,
-        });
-        return true;
-      }
+          if (!initialConsentRequired || accepted) {
+            return true;
+          }
 
-      return redirectToConsent();
+          return redirectToConsent();
+        }),
+        catchError(() => of(redirectToAgeVerification()))
+      );
     }),
     catchError(() => of(redirectToTerms()))
   );

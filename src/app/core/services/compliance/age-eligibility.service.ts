@@ -3,9 +3,9 @@
 // AGE ELIGIBILITY CLIENT PROJECTION
 // -----------------------------------------------------------------------------
 // Observa a projeção sanitizada de users/{uid}.ageEligibility.
-// A autorização nunca nasce de um campo client-authoritative: a autodeclaração
-// 18+ só passa a valer depois que a callable backend registra
-// SELF_DECLARED_ADULT no domínio canônico. Verificação forte continua distinta.
+// A projeção nunca é autoridade de segurança. Ela serve à UX e é reconciliada
+// silenciosamente com o backend. SELF_DECLARED_ADULT pode existir como evidência,
+// mas somente VERIFIED_ADULT confiável libera a experiência adulta.
 // -----------------------------------------------------------------------------
 
 import {
@@ -25,9 +25,12 @@ import {
 import {
   catchError,
   distinctUntilChanged,
+  finalize,
   map,
   shareReplay,
+  switchMap,
   take,
+  tap,
 } from 'rxjs/operators';
 
 import {
@@ -57,6 +60,10 @@ interface TrustedSessionAgeProjection {
 export class AgeEligibilityService {
   private readonly trustedSessionProjection =
     new BehaviorSubject<TrustedSessionAgeProjection | null>(null);
+  private reconciledUid: string | null = null;
+  private reconcileInFlight:
+    | { uid: string; stream: Observable<IUserAgeEligibility> }
+    | null = null;
 
   constructor(
     private readonly environmentInjector: EnvironmentInjector,
@@ -64,9 +71,25 @@ export class AgeEligibilityService {
     private readonly globalError: GlobalErrorHandlerService,
   ) {
     this.currentUser.user$.subscribe((user) => {
+      const uid = String(user?.uid ?? '').trim();
+
+      if (!uid) {
+        this.reconciledUid = null;
+        this.reconcileInFlight = null;
+        if (this.trustedSessionProjection.value !== null) {
+          this.trustedSessionProjection.next(null);
+        }
+        return;
+      }
+
+      if (this.reconciledUid && this.reconciledUid !== uid) {
+        this.reconciledUid = null;
+        this.reconcileInFlight = null;
+      }
+
       if (
-        user === null &&
-        this.trustedSessionProjection.value !== null
+        this.trustedSessionProjection.value &&
+        this.trustedSessionProjection.value.uid !== uid
       ) {
         this.trustedSessionProjection.next(null);
       }
@@ -85,7 +108,6 @@ export class AgeEligibilityService {
         const uid = String(user?.uid ?? '').trim();
 
         if (
-          persisted.status === 'UNVERIFIED' &&
           uid &&
           trusted?.uid === uid &&
           (trusted.state.updatedAtMs ?? 0) >=
@@ -141,12 +163,13 @@ export class AgeEligibilityService {
           ? this.normalize(response.data.ageEligibility)
           : null;
 
-        if (
-          uid &&
-          state &&
-          state.status !== 'UNVERIFIED'
-        ) {
+        if (uid && state && state.status !== 'UNVERIFIED') {
           this.trustedSessionProjection.next({ uid, state });
+        } else if (
+          uid &&
+          this.trustedSessionProjection.value?.uid === uid
+        ) {
+          this.trustedSessionProjection.next(null);
         }
 
         return response.data.status;
@@ -176,6 +199,45 @@ export class AgeEligibilityService {
         return throwError(() => error);
       })
     );
+  }
+
+
+  /**
+   * Reconcilia silenciosamente a autoridade backend no máximo uma vez por
+   * UID/sessão. Não cria novo consentimento nem pede confirmação ao usuário.
+   */
+  reconcileTrustedStateOncePerSession$(): Observable<IUserAgeEligibility> {
+    const uid = String(
+      this.currentUser.getLoggedUserUIDSnapshot() ?? ''
+    ).trim();
+
+    if (!uid) {
+      return this.getCurrentOnce$();
+    }
+
+    if (this.reconciledUid === uid) {
+      return this.getCurrentOnce$();
+    }
+
+    if (this.reconcileInFlight?.uid === uid) {
+      return this.reconcileInFlight.stream;
+    }
+
+    const stream = this.refreshTrustedSources$().pipe(
+      switchMap(() => this.getCurrentOnce$()),
+      tap(() => {
+        this.reconciledUid = uid;
+      }),
+      finalize(() => {
+        if (this.reconcileInFlight?.uid === uid) {
+          this.reconcileInFlight = null;
+        }
+      }),
+      shareReplay({ bufferSize: 1, refCount: false })
+    );
+
+    this.reconcileInFlight = { uid, stream };
+    return stream;
   }
 
 
@@ -245,7 +307,6 @@ export class AgeEligibilityService {
   requestInitialReview$(): Observable<{
     reportId: string | null;
     status:
-      | 'SELF_DECLARED_ADULT'
       | 'VERIFIED_ADULT'
       | 'REVIEW_REQUIRED';
   }> {
@@ -256,7 +317,6 @@ export class AgeEligibilityService {
         {
           reportId: string | null;
           status:
-            | 'SELF_DECLARED_ADULT'
             | 'VERIFIED_ADULT'
             | 'REVIEW_REQUIRED';
         }

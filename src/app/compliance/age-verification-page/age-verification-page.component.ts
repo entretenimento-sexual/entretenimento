@@ -12,6 +12,7 @@ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { EMPTY, Observable, of } from 'rxjs';
 import {
   catchError,
+  distinctUntilChanged,
   finalize,
   map,
   switchMap,
@@ -25,6 +26,9 @@ import { LogoutService } from 'src/app/core/services/autentication/auth/logout.s
 import {
   AgeEligibilityService,
 } from 'src/app/core/services/compliance/age-eligibility.service';
+import {
+  isCurrentTrustedAdultAgeProjection,
+} from 'src/app/core/services/compliance/trusted-adult-age-assurance.policy';
 import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.component';
 
 interface AgeVerificationPageVm {
@@ -32,9 +36,9 @@ interface AgeVerificationPageVm {
   accessAllowed: boolean;
   verified: boolean;
   selfDeclared: boolean;
+  expired: boolean;
   deniedUnderage: boolean;
   reviewRequired: boolean;
-  legacyInitialReview: boolean;
 }
 
 interface PageFeedback {
@@ -57,6 +61,7 @@ export class AgeVerificationPageComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  private continued = false;
 
   readonly processing = signal(false);
   readonly reconciling = signal(true);
@@ -66,33 +71,20 @@ export class AgeVerificationPageComponent implements OnInit {
     this.ageEligibility.current$.pipe(
       map((state) => ({
         state,
-        accessAllowed:
-          state.status === 'SELF_DECLARED_ADULT' ||
-          state.status === 'VERIFIED_ADULT',
-        verified: state.status === 'VERIFIED_ADULT',
+        accessAllowed: isCurrentTrustedAdultAgeProjection(state),
+        verified: isCurrentTrustedAdultAgeProjection(state),
         selfDeclared: state.status === 'SELF_DECLARED_ADULT',
+        expired: state.status === 'EXPIRED',
         deniedUnderage: state.status === 'DENIED_UNDERAGE',
         reviewRequired: state.status === 'REVIEW_REQUIRED',
-        legacyInitialReview:
-          state.status === 'REVIEW_REQUIRED' &&
-          state.source === 'INITIAL_VERIFICATION' &&
-          state.method === 'MANUAL_REVIEW',
       }))
     );
 
   ngOnInit(): void {
-    this.ageEligibility.getCurrentOnce$()
+    this.ageEligibility.reconcileTrustedStateOncePerSession$()
       .pipe(
         take(1),
-        switchMap((state) => {
-          if (state.status !== 'UNVERIFIED') {
-            return of(state.status);
-          }
-
-          return this.ageEligibility.refreshTrustedSources$().pipe(
-            catchError(() => of('UNVERIFIED' as const))
-          );
-        }),
+        catchError(() => of(null)),
         finalize(() => this.reconciling.set(false)),
         takeUntilDestroyed(this.destroyRef)
       )
@@ -100,59 +92,67 @@ export class AgeVerificationPageComponent implements OnInit {
 
     this.ageEligibility.current$
       .pipe(
-        map((state) =>
-          state.status === 'SELF_DECLARED_ADULT' ||
-          state.status === 'VERIFIED_ADULT'
-        ),
+        map((state) => isCurrentTrustedAdultAgeProjection(state)),
+        distinctUntilChanged(),
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe((registrationAgeStepSatisfied) => {
-        if (registrationAgeStepSatisfied) {
+        if (registrationAgeStepSatisfied && !this.continued) {
+          this.continued = true;
           this.continueAfterAgeStep();
         }
       });
   }
 
-  confirmAdult(): void {
-    if (this.processing()) {
-      return;
-    }
+  requestVerification(): void {
+    if (this.processing()) return;
 
     this.processing.set(true);
     this.feedback.set({
       tone: 'info',
-      title: 'Registrando sua confirmação',
+      title: 'Solicitando verificação',
       message:
-        'Estamos registrando sua declaração de que você tem 18 anos ou mais.',
+        'Estamos abrindo a verificação confiável de maioridade da sua conta.',
     });
 
-    this.ageEligibility.acceptSelfDeclaration$()
+    this.ageEligibility.requestInitialReview$()
       .pipe(
         take(1),
+        switchMap((result) => {
+          if (result.status !== 'VERIFIED_ADULT') return of(result);
+
+          return this.ageEligibility.refreshTrustedSources$().pipe(
+            map(() => result),
+            catchError(() => of(result))
+          );
+        }),
         catchError(() => {
           this.feedback.set({
             tone: 'error',
-            title: 'Não foi possível continuar',
+            title: 'Não foi possível solicitar a verificação',
             message:
-              'Não conseguimos registrar sua confirmação agora. Tente novamente em alguns instantes.',
+              'Tente novamente em alguns instantes ou consulte o status da conta.',
           });
           return EMPTY;
         }),
         finalize(() => this.processing.set(false))
       )
-      .subscribe(() => {
-        this.feedback.set({
-          tone: 'success',
-          title: 'Maioridade declarada',
-          message:
-            'Sua confirmação foi registrada. Estamos preparando a próxima etapa.',
-        });
+      .subscribe((result) => {
+        if (result.status === 'VERIFIED_ADULT') {
+          this.feedback.set({
+            tone: 'success',
+            title: 'Maioridade verificada',
+            message: 'A próxima etapa será aberta automaticamente.',
+          });
+          return;
+        }
 
-        /**
-         * A navegação pertence exclusivamente à projeção autoritativa current$.
-         * A callable confirma a persistência, mas não deve competir com o
-         * listener realtime iniciando uma segunda navegação.
-         */
+        this.feedback.set({
+          tone: 'warning',
+          title: 'Verificação em análise',
+          message:
+            'A solicitação foi registrada. Não é necessário repetir sua declaração de maioridade.',
+        });
       });
   }
 
@@ -165,9 +165,7 @@ export class AgeVerificationPageComponent implements OnInit {
   }
 
   logoutCurrentSession(): void {
-    if (this.processing()) {
-      return;
-    }
+    if (this.processing()) return;
 
     this.processing.set(true);
 

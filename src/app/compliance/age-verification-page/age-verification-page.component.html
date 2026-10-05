@@ -1,10 +1,10 @@
-<main class="age-verification" aria-label="Confirmação de acesso 18+">
+<main class="age-verification" aria-label="Verificação de maioridade">
   <section class="age-verification__card app-card app-card--flat">
     <div class="age-verification__header">
       <span class="age-verification__mark" aria-hidden="true">18+</span>
       <app-page-header
-        title="Confirmação de acesso 18+"
-        subtitle="A plataforma é exclusiva para adultos. Se você ainda não registrou sua declaração 18+, poderá fazê-lo aqui. Essa declaração não equivale à verificação forte exigida para Media adulto."
+        title="Verificação de maioridade"
+        subtitle="A plataforma é exclusiva para adultos. A verificação pertence à sua conta e não precisa ser repetida em cada foto, vídeo ou área do app."
       />
     </div>
 
@@ -22,16 +22,12 @@
     }
 
     @if (reconciling()) {
-      <section
-        class="age-verification__status"
-        role="status"
-        aria-live="polite"
-      >
+      <section class="age-verification__status" role="status" aria-live="polite">
         <div>
-          <strong>Verificando sua confirmação já registrada</strong>
+          <strong>Verificando o estado já salvo da sua conta</strong>
           <p>
-            Estamos consultando o estado já salvo da sua conta. Você não precisa
-            confirmar novamente enquanto essa verificação termina.
+            A consulta é silenciosa. Se sua maioridade já estiver verificada,
+            você não precisará repetir nenhuma confirmação.
           </p>
         </div>
       </section>
@@ -40,10 +36,8 @@
         <section class="age-verification__status age-verification__status--success" role="status">
           <span class="age-verification__status-icon" aria-hidden="true">✓</span>
           <div>
-            <strong>
-              {{ vm.verified ? 'Maioridade verificada' : 'Maioridade declarada' }}
-            </strong>
-            <p>Estamos preparando a próxima etapa. Você seguirá automaticamente.</p>
+            <strong>Maioridade verificada</strong>
+            <p>Estamos preparando a próxima etapa.</p>
           </div>
         </section>
       } @else if (vm.deniedUnderage) {
@@ -52,85 +46,64 @@
           <div>
             <strong>Acesso adulto indisponível</strong>
             <p>
-              Existe uma decisão de segurança mais forte para esta conta.
-              Uma nova autodeclaração não pode substituir essa decisão.
+              Existe uma decisão de segurança para esta conta. Uma declaração
+              do próprio usuário não pode substituir essa decisão.
             </p>
           </div>
         </section>
 
         <div class="age-verification__secondary-grid app-responsive-grid">
-          <button
-            type="button"
-            class="app-action app-action--ghost"
-            [disabled]="processing()"
-            (click)="goToNotifications()"
-          >
+          <button type="button" class="app-action app-action--ghost" [disabled]="processing()" (click)="goToNotifications()">
             Ver notificações
           </button>
-          <button
-            type="button"
-            class="app-action app-action--ghost"
-            [disabled]="processing()"
-            (click)="goToAccount()"
-          >
+          <button type="button" class="app-action app-action--ghost" [disabled]="processing()" (click)="goToAccount()">
             Ir para minha conta
           </button>
         </div>
-      } @else if (vm.reviewRequired && !vm.legacyInitialReview) {
+      } @else if (vm.reviewRequired) {
         <section class="age-verification__status age-verification__status--warning" role="status">
           <span class="age-verification__status-icon" aria-hidden="true">!</span>
           <div>
-            <strong>Confirmação adicional necessária</strong>
+            <strong>Verificação em análise</strong>
             <p>
-              Esta conta recebeu um sinal de segurança que exige uma etapa
-              adicional. A autodeclaração inicial não pode liberar o acesso
-              enquanto essa restrição estiver ativa.
+              A solicitação já está registrada. Não é necessário confirmar
+              novamente que você tem 18 anos ou mais.
             </p>
           </div>
         </section>
 
-        <aside class="age-verification__guidance">
-          <strong>Onde acompanhar?</strong>
-          <p>
-            Consulte suas notificações e o status da conta. Essas áreas continuam
-            acessíveis mesmo quando os recursos adultos estão limitados.
-          </p>
-        </aside>
-
         <div class="age-verification__secondary-grid app-responsive-grid">
-          <button
-            type="button"
-            class="app-action app-action--ghost"
-            [disabled]="processing()"
-            (click)="goToNotifications()"
-          >
+          <button type="button" class="app-action app-action--ghost" [disabled]="processing()" (click)="goToNotifications()">
             Ver notificações
           </button>
-          <button
-            type="button"
-            class="app-action app-action--ghost"
-            [disabled]="processing()"
-            (click)="goToAccount()"
-          >
+          <button type="button" class="app-action app-action--ghost" [disabled]="processing()" (click)="goToAccount()">
             Ir para minha conta
           </button>
         </div>
       } @else {
-        @if (vm.legacyInitialReview) {
+        @if (vm.selfDeclared) {
           <section class="age-verification__migration-note" role="status">
-            <strong>O fluxo anterior foi substituído</strong>
+            <strong>Sua declaração anterior continua registrada</strong>
             <p>
-              Você não precisa aguardar análise manual. Confirme sua maioridade
-              abaixo para continuar pela política inicial de autodeclaração.
+              Você não precisa declará-la novamente. Para acessar a plataforma
+              adulta, falta apenas a verificação por uma fonte confiável.
+            </p>
+          </section>
+        } @else if (vm.expired) {
+          <section class="age-verification__migration-note" role="status">
+            <strong>Sua verificação precisa ser renovada</strong>
+            <p>
+              A verificação anterior não está mais vigente. Seus dados de conta
+              continuam preservados enquanto uma nova verificação é concluída.
             </p>
           </section>
         }
 
         <section class="age-verification__declaration">
-          <strong>Antes de continuar</strong>
+          <strong>Verificação confiável necessária</strong>
           <p>
-            Ao confirmar abaixo, você declara que tem 18 anos ou mais e entende
-            que a plataforma é destinada exclusivamente a adultos.
+            A verificação é feita no nível da conta. Depois de aprovada, o app
+            consulta esse estado silenciosamente nas áreas protegidas.
           </p>
         </section>
 
@@ -138,31 +111,25 @@
           type="button"
           class="app-action app-action--primary"
           [disabled]="processing()"
-          (click)="confirmAdult()"
+          (click)="requestVerification()"
         >
           {{ processing()
-            ? 'Registrando confirmação...'
-            : 'Confirmo que tenho 18 anos ou mais' }}
+            ? 'Solicitando verificação...'
+            : 'Solicitar verificação de maioridade' }}
         </button>
 
         <div class="age-verification__safety-note">
-          <strong>Como tratamos segurança de menores</strong>
+          <strong>Privacidade</strong>
           <p>
-            Perfis podem ser denunciados por possível menoridade. Se houver
-            sinais suficientes de segurança, algumas interações podem ser
-            limitadas temporariamente e uma verificação adicional poderá ser
-            solicitada.
+            A plataforma mantém apenas o estado e as referências mínimas
+            necessárias para comprovar a decisão, sem expor documentos às
+            superfícies de produto.
           </p>
         </div>
       }
 
       <div class="age-verification__footer-actions">
-        <button
-          type="button"
-          class="app-action app-action--ghost"
-          [disabled]="processing()"
-          (click)="logoutCurrentSession()"
-        >
+        <button type="button" class="app-action app-action--ghost" [disabled]="processing()" (click)="logoutCurrentSession()">
           Sair da conta
         </button>
       </div>
