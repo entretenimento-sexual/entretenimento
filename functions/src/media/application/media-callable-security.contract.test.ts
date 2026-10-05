@@ -56,7 +56,10 @@ const RATE_LIMITED_CALLABLES = new Set([
 ]);
 
 function source(name: string): string {
-  return readFileSync(resolve(__dirname, name), 'utf8');
+  return readFileSync(
+    resolve(process.cwd(), 'src', 'media', 'application', name),
+    'utf8'
+  );
 }
 
 describe('Media callable security contract', () => {
