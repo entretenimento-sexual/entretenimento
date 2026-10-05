@@ -57,34 +57,21 @@ async function seedViewerAndStatuses(): Promise<void> {
         publicVisibility: 'visible',
         loginAllowed: true,
       }),
-      setDoc(doc(db, 'users', 'hidden_age_owner'), {
-        uid: 'hidden_age_owner',
+      setDoc(doc(db, 'users', 'hidden_owner'), {
+        uid: 'hidden_owner',
         accountStatus: 'active',
         suspended: false,
         publicVisibility: 'hidden',
         loginAllowed: true,
       }),
-      setDoc(doc(db, 'age_eligibility_records', VIEWER_UID), {
-        uid: VIEWER_UID,
-        status: 'VERIFIED_ADULT',
-        policyVersion: 1,
-        source: 'AGE_REVERIFICATION',
-        method: 'MANUAL_REVIEW',
-        verifiedAt: new Date(Date.now() - 1_000),
-        expiresAt: null,
-      }),
       setDoc(doc(db, 'user_intent_statuses', `current_${OWNER_UID}`), {
         uid: OWNER_UID,
-        ageEligibilityVerifiedAdult: true,
-        ageEligibilityValidUntil: new Date(Date.now() + 60_000),
         visibility: 'public_discovery',
         moderation: { state: 'active' },
         expiresAt: Date.now() + 60_000,
       }),
-      setDoc(doc(db, 'user_intent_statuses', 'current_hidden_age_owner'), {
-        uid: 'hidden_age_owner',
-        ageEligibilityVerifiedAdult: false,
-        ageEligibilityValidUntil: new Date(Date.now() - 60_000),
+      setDoc(doc(db, 'user_intent_statuses', 'current_hidden_owner'), {
+        uid: 'hidden_owner',
         visibility: 'public_discovery',
         moderation: { state: 'active' },
         expiresAt: Date.now() + 60_000,
@@ -93,24 +80,7 @@ async function seedViewerAndStatuses(): Promise<void> {
   });
 }
 
-async function setOwnerCanonicalAgeExpiry(expiresAt: Date | null) {
-  await testEnv.withSecurityRulesDisabled(async (context) => {
-    await setDoc(
-      doc(context.firestore(), 'age_eligibility_records', OWNER_UID),
-      {
-        uid: OWNER_UID,
-        status: 'VERIFIED_ADULT',
-        policyVersion: 1,
-        source: 'AGE_REVERIFICATION',
-        method: 'MANUAL_REVIEW',
-        verifiedAt: new Date(Date.now() - 10_000),
-        expiresAt,
-      }
-    );
-  });
-}
-
-describe('Firestore Rules / user intent status age visibility', () => {
+describe('Firestore Rules / user intent status lifecycle visibility', () => {
   beforeAll(async () => {
     const rules = readFileSync(
       resolve(process.cwd(), 'firestore.rules'),
@@ -143,12 +113,22 @@ describe('Firestore Rules / user intent status age visibility', () => {
       getDoc(doc(db, 'user_intent_statuses', `current_${OWNER_UID}`))
     );
     await assertFails(
-      getDoc(doc(db, 'user_intent_statuses', 'current_hidden_age_owner'))
+      getDoc(doc(db, 'user_intent_statuses', 'current_hidden_owner'))
     );
   });
 
-  it('mantém leitura pública quando muda apenas o assurance etário do autor', async () => {
-    await setOwnerCanonicalAgeExpiry(new Date(Date.now() - 1_000));
+  it('ignora projeções etárias legadas no documento de status', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(
+        doc(context.firestore(), 'user_intent_statuses', `current_${OWNER_UID}`),
+        {
+          ageEligibilityVerifiedAdult: false,
+          ageEligibilityValidUntil: new Date(Date.now() - 60_000),
+        },
+        { merge: true }
+      );
+    });
+
     const db = testEnv.authenticatedContext(VIEWER_UID).firestore();
 
     await assertSucceeds(
@@ -180,8 +160,6 @@ describe('Firestore Rules / user intent status age visibility', () => {
         doc(context.firestore(), 'user_intent_statuses', `current_${VIEWER_UID}`),
         {
           uid: VIEWER_UID,
-          ageEligibilityVerifiedAdult: false,
-        ageEligibilityValidUntil: new Date(Date.now() - 60_000),
           visibility: 'hidden',
           moderation: { state: 'hidden' },
           expiresAt: Date.now() + 60_000,
