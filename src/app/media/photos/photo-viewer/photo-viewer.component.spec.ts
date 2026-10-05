@@ -157,7 +157,9 @@ describe('PhotoViewerComponent mixed-owner safety', () => {
     expect(ownerLink?.getAttribute('href')).toBe('/outro-perfil/owner-a');
     expect(ownerLink?.textContent).toContain('Perfil owner-a');
     expect(ownerLink?.textContent).toContain('Recente');
-    expect(ownerLink?.textContent).toContain('Ver perfil');
+    expect(ownerLink?.getAttribute('aria-label')).toBe(
+      'Abrir perfil de Perfil owner-a'
+    );
 
     component.next();
     fixture.detectChanges();
@@ -224,7 +226,7 @@ describe('PhotoViewerComponent mixed-owner safety', () => {
       '.viewer-owner'
     ) as HTMLAnchorElement | null;
     expect(ownerLink?.getAttribute('href')).toBe('/perfil');
-    expect(ownerLink?.textContent).toContain('Seu perfil');
+    expect(ownerLink?.getAttribute('aria-label')).toBe('Abrir seu perfil');
   });
 
   it('reativa streams quando autores diferentes reutilizam o mesmo photoId', () => {
