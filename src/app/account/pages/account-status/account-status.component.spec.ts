@@ -43,11 +43,11 @@ describe('AccountStatusComponent', () => {
       of({
         ok: true,
         accountStatus: 'active',
-        publicVisibility: 'hidden',
-        interactionBlocked: true,
+        publicVisibility: 'visible',
+        interactionBlocked: false,
         suspended: false,
         statusUpdatedAt: 123,
-        message: 'Conta reativada, mas ainda privada.',
+        message: 'Conta reativada com sucesso.',
       })
     );
 
@@ -55,11 +55,11 @@ describe('AccountStatusComponent', () => {
       of({
         ok: true,
         accountStatus: 'active',
-        publicVisibility: 'hidden',
-        interactionBlocked: true,
+        publicVisibility: 'visible',
+        interactionBlocked: false,
         suspended: false,
         statusUpdatedAt: 456,
-        message: 'Exclusão cancelada, mas ainda privada.',
+        message: 'Exclusão cancelada. Sua conta voltou ao estado ativo.',
       })
     );
 
@@ -148,15 +148,53 @@ describe('AccountStatusComponent', () => {
       user({
         accountStatus: 'active',
         suspended: false,
+        publicVisibility: 'visible',
+        interactionBlocked: false,
+      })
+    );
+
+    expect(showSuccess).toHaveBeenCalledWith(
+      'Conta reativada com sucesso.'
+    );
+    expect(navigate).toHaveBeenCalledWith(['/conta'], { replaceUrl: true });
+    expect(patch).not.toHaveBeenCalled();
+  });
+
+  it('não navega enquanto a hidratação canônica mantiver interação bloqueada', () => {
+    reactivateSelfSuspension$.mockReturnValue(
+      of({
+        ok: true,
+        accountStatus: 'active',
+        publicVisibility: 'hidden',
+        interactionBlocked: true,
+        suspended: false,
+        statusUpdatedAt: 124,
+        message:
+          'Conta reativada. Conclua as verificações pendentes para voltar a aparecer e interagir.',
+      })
+    );
+
+    const fixture = TestBed.createComponent(AccountStatusComponent);
+    const component = fixture.componentInstance;
+
+    component.onLifecycleDialogConfirmed({
+      intent: 'reactivate_self_suspend',
+      password: 'senha-atual',
+    });
+
+    currentUser$.next(
+      user({
+        accountStatus: 'active',
+        suspended: false,
         publicVisibility: 'hidden',
         interactionBlocked: true,
       })
     );
 
     expect(showSuccess).toHaveBeenCalledWith(
-      'Conta reativada, mas ainda privada.'
+      'Conta reativada. Conclua as verificações pendentes para voltar a aparecer e interagir.'
     );
-    expect(navigate).toHaveBeenCalledWith(['/conta'], { replaceUrl: true });
+    expect(navigate).not.toHaveBeenCalled();
     expect(patch).not.toHaveBeenCalled();
   });
 
@@ -178,7 +216,7 @@ describe('AccountStatusComponent', () => {
     );
 
     expect(showSuccess).toHaveBeenCalledWith(
-      'Conta reativada, mas ainda privada.'
+      'Conta reativada com sucesso.'
     );
     expect(navigate).not.toHaveBeenCalled();
     expect(patch).not.toHaveBeenCalled();
@@ -214,7 +252,7 @@ describe('AccountStatusComponent', () => {
     );
 
     expect(showSuccess).toHaveBeenCalledWith(
-      'Exclusão cancelada, mas ainda privada.'
+      'Exclusão cancelada. Sua conta voltou ao estado ativo.'
     );
     expect(navigate).toHaveBeenCalledWith(['/conta'], { replaceUrl: true });
     expect(patch).not.toHaveBeenCalled();
