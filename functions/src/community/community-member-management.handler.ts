@@ -518,9 +518,6 @@ export const getCommunityMembersForManagement = onCall<ManagedMembersPagePayload
     const communityRef = db.collection('communities').doc(communityId);
     const actorMembershipRef = communityRef.collection('members').doc(actorUid);
     const actorUserRef = db.collection('users').doc(actorUid);
-    const actorAgeEligibilityRef = db
-      .collection('age_eligibility_records')
-      .doc(actorUid);
     const [
       communitySnapshot,
       actorMembershipSnapshot,
@@ -541,10 +538,7 @@ export const getCommunityMembersForManagement = onCall<ManagedMembersPagePayload
 
     assertCommunityMembershipActorEligible(
       actorUserSnapshot.exists ? actorUserSnapshot.data() : null,
-      actorUid,
-      actorAgeEligibilitySnapshot.exists
-        ? actorAgeEligibilitySnapshot.data()
-        : null
+      actorUid
     );
     const community = communitySnapshot.data() ?? {};
     assertCommunityManageable(community);
@@ -739,9 +733,6 @@ export const manageCommunityMember = onCall<ManageCommunityMemberPayload>(
       const targetMembershipRef = communityRef.collection('members').doc(memberId);
       const actorUserRef = db.collection('users').doc(actorUid);
       const targetUserRef = db.collection('users').doc(memberId);
-      const actorAgeEligibilityRef = db
-        .collection('age_eligibility_records')
-        .doc(actorUid);
       const auditRef = db.collection('community_membership_audit').doc();
       const [
         communitySnapshot,
@@ -767,10 +758,7 @@ export const manageCommunityMember = onCall<ManageCommunityMemberPayload>(
 
       assertCommunityMembershipActorEligible(
         actorUserSnapshot.exists ? actorUserSnapshot.data() : null,
-        actorUid,
-        actorAgeEligibilitySnapshot.exists
-          ? actorAgeEligibilitySnapshot.data()
-          : null
+        actorUid
       );
       const community = communitySnapshot.data() ?? {};
       assertCommunityManageable(community);
