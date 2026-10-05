@@ -12,13 +12,7 @@ export function getUserIntentStatusExposureExpiresAt(
     typeof item.expiresAt === 'number' && Number.isFinite(item.expiresAt)
       ? item.expiresAt
       : 0;
-  const ageExpiresAt =
-    typeof item.ageEligibilityValidUntil === 'number' &&
-    Number.isFinite(item.ageEligibilityValidUntil)
-      ? item.ageEligibilityValidUntil
-      : 0;
-
-  return Math.min(statusExpiresAt, ageExpiresAt);
+  return statusExpiresAt;
 }
 
 export function formatUserIntentStatusExpiresIn(
