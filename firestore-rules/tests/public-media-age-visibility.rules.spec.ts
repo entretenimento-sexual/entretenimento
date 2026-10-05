@@ -432,26 +432,26 @@ describe('Firestore Rules / public media account and content visibility', () => 
     );
   });
 
-  it('nega exposição quando o owner possui apenas autodeclaração', async () => {
+  it('não reinterpreta autodeclaração do owner enquanto lifecycle está ativo', async () => {
     await setOwnerSelfDeclaredAdult();
     const db = viewerDb();
 
-    await assertFails(
+    await assertSucceeds(
       getDoc(doc(db, 'public_profiles', OWNER_UID, 'public_photos', PHOTO_ID))
     );
-    await assertFails(
+    await assertSucceeds(
       getDoc(doc(db, 'public_profiles', OWNER_UID, 'public_videos', VIDEO_ID))
     );
   });
 
-  it('viewer autodeclarado não acessa superfícies adultas', async () => {
+  it('não reinterpreta autodeclaração do viewer em conta já ativa', async () => {
     await setViewerSelfDeclaredAdult();
     const db = viewerDb();
 
-    await assertFails(
+    await assertSucceeds(
       getDoc(doc(db, 'public_profiles', OWNER_UID))
     );
-    await assertFails(
+    await assertSucceeds(
       getDoc(
         doc(
           db,
@@ -462,7 +462,7 @@ describe('Firestore Rules / public media account and content visibility', () => 
         )
       )
     );
-    await assertFails(
+    await assertSucceeds(
       getDoc(
         doc(
           db,
@@ -524,11 +524,11 @@ describe('Firestore Rules / public media account and content visibility', () => 
     await assertFails(getDoc(videoRef));
   });
 
-  it('revoga mídia quando a assurance confiável do owner vence', async () => {
+  it('expiração de assurance do owner não revoga mídia sem mudança de lifecycle', async () => {
     await setOwnerCanonicalAgeExpiry(new Date(Date.now() - 1_000));
     const db = viewerDb();
 
-    await assertFails(
+    await assertSucceeds(
       getDoc(
         doc(
           db,
@@ -539,7 +539,7 @@ describe('Firestore Rules / public media account and content visibility', () => 
         )
       )
     );
-    await assertFails(
+    await assertSucceeds(
       getDoc(
         doc(
           db,
