@@ -97,6 +97,15 @@ requireAll(
   'serviço etário deve persistir na coleção canônica'
 );
 
+forbidAll(
+  'functions/src/compliance/age-eligibility.policy.ts',
+  [
+    'isVerifiedAdultAgeDecision',
+    'consumo público adulto sob a política atual',
+  ],
+  'assurance forte não pode voltar como helper genérico de autorização'
+);
+
 requireAll(
   'src/app/core/services/compliance/age-eligibility.service.ts',
   [
