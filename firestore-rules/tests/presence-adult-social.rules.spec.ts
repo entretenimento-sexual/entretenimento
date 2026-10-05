@@ -114,7 +114,7 @@ describe('Firestore Rules / presence adult social boundary', () => {
     );
   });
 
-  it('aceita presença com acesso provisório autodeclarado registrado pelo backend', async () => {
+  it('nega presença quando existe apenas autodeclaração', async () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {
       const now = Timestamp.now();
 
@@ -132,7 +132,7 @@ describe('Firestore Rules / presence adult social boundary', () => {
 
     const db = testEnv.authenticatedContext(UID).firestore();
 
-    await assertSucceeds(
+    await assertFails(
       updateDoc(doc(db, 'presence', UID), {
         presenceSessionId: 'session-1',
         presenceState: 'online',
@@ -143,7 +143,7 @@ describe('Firestore Rules / presence adult social boundary', () => {
     );
   });
 
-  it('mantém presença quando muda apenas o assurance etário da conta', async () => {
+  it('nega presença enquanto a assurance confiável exige revisão', async () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {
       await setDoc(doc(context.firestore(), 'age_eligibility_records', UID), {
         uid: UID,
@@ -158,7 +158,7 @@ describe('Firestore Rules / presence adult social boundary', () => {
 
     const db = testEnv.authenticatedContext(UID).firestore();
 
-    await assertSucceeds(
+    await assertFails(
       updateDoc(doc(db, 'presence', UID), {
         presenceSessionId: 'session-1',
         presenceState: 'online',

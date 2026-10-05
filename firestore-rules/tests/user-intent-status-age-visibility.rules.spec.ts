@@ -64,6 +64,33 @@ async function seedViewerAndStatuses(): Promise<void> {
         publicVisibility: 'hidden',
         loginAllowed: true,
       }),
+      setDoc(doc(db, 'age_eligibility_records', VIEWER_UID), {
+        uid: VIEWER_UID,
+        status: 'VERIFIED_ADULT',
+        policyVersion: 1,
+        source: 'INITIAL_VERIFICATION',
+        method: 'MANUAL_REVIEW',
+        verifiedAt: new Date(Date.now() - 10_000),
+        expiresAt: null,
+      }),
+      setDoc(doc(db, 'age_eligibility_records', OWNER_UID), {
+        uid: OWNER_UID,
+        status: 'VERIFIED_ADULT',
+        policyVersion: 1,
+        source: 'INITIAL_VERIFICATION',
+        method: 'MANUAL_REVIEW',
+        verifiedAt: new Date(Date.now() - 10_000),
+        expiresAt: null,
+      }),
+      setDoc(doc(db, 'age_eligibility_records', 'hidden_owner'), {
+        uid: 'hidden_owner',
+        status: 'VERIFIED_ADULT',
+        policyVersion: 1,
+        source: 'INITIAL_VERIFICATION',
+        method: 'MANUAL_REVIEW',
+        verifiedAt: new Date(Date.now() - 10_000),
+        expiresAt: null,
+      }),
       setDoc(doc(db, 'user_intent_statuses', `current_${OWNER_UID}`), {
         uid: OWNER_UID,
         visibility: 'public_discovery',
@@ -106,7 +133,7 @@ describe('Firestore Rules / user intent status lifecycle visibility', () => {
     await testEnv.cleanup();
   });
 
-  it('permite ler status público por lifecycle e moderação, sem gate etário', async () => {
+  it('permite status público quando Account Access do viewer e owner está apto', async () => {
     const db = testEnv.authenticatedContext(VIEWER_UID).firestore();
 
     await assertSucceeds(

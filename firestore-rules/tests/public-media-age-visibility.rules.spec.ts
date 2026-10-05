@@ -91,6 +91,24 @@ async function seedPublicMedia(): Promise<void> {
         publicVisibility: 'visible',
         loginAllowed: true,
       }),
+      setDoc(doc(db, 'age_eligibility_records', VIEWER_UID), {
+        uid: VIEWER_UID,
+        status: 'VERIFIED_ADULT',
+        policyVersion: 1,
+        source: 'INITIAL_VERIFICATION',
+        method: 'MANUAL_REVIEW',
+        verifiedAt: new Date(Date.now() - 10_000),
+        expiresAt: null,
+      }),
+      setDoc(doc(db, 'age_eligibility_records', OWNER_UID), {
+        uid: OWNER_UID,
+        status: 'VERIFIED_ADULT',
+        policyVersion: 1,
+        source: 'INITIAL_VERIFICATION',
+        method: 'MANUAL_REVIEW',
+        verifiedAt: new Date(Date.now() - 10_000),
+        expiresAt: null,
+      }),
       setDoc(doc(db, 'public_profiles', OWNER_UID), {
         uid: OWNER_UID,
         nickname: 'Perfil adulto',
@@ -414,26 +432,26 @@ describe('Firestore Rules / public media account and content visibility', () => 
     );
   });
 
-  it('permite exposição de owner adulto autodeclarado sem reexigir verificação forte na autoria', async () => {
+  it('nega exposição quando o owner possui apenas autodeclaração', async () => {
     await setOwnerSelfDeclaredAdult();
     const db = viewerDb();
 
-    await assertSucceeds(
+    await assertFails(
       getDoc(doc(db, 'public_profiles', OWNER_UID, 'public_photos', PHOTO_ID))
     );
-    await assertSucceeds(
+    await assertFails(
       getDoc(doc(db, 'public_profiles', OWNER_UID, 'public_videos', VIDEO_ID))
     );
   });
 
-  it('viewer autodeclarado continua acessando Media enquanto a conta permanece ativa', async () => {
+  it('viewer autodeclarado não acessa superfícies adultas', async () => {
     await setViewerSelfDeclaredAdult();
     const db = viewerDb();
 
-    await assertSucceeds(
+    await assertFails(
       getDoc(doc(db, 'public_profiles', OWNER_UID))
     );
-    await assertSucceeds(
+    await assertFails(
       getDoc(
         doc(
           db,
@@ -444,7 +462,7 @@ describe('Firestore Rules / public media account and content visibility', () => 
         )
       )
     );
-    await assertSucceeds(
+    await assertFails(
       getDoc(
         doc(
           db,
@@ -506,11 +524,11 @@ describe('Firestore Rules / public media account and content visibility', () => 
     await assertFails(getDoc(videoRef));
   });
 
-  it('não revoga mídia quando muda apenas a validade do assurance etário do owner', async () => {
+  it('revoga mídia quando a assurance confiável do owner vence', async () => {
     await setOwnerCanonicalAgeExpiry(new Date(Date.now() - 1_000));
     const db = viewerDb();
 
-    await assertSucceeds(
+    await assertFails(
       getDoc(
         doc(
           db,
@@ -521,7 +539,7 @@ describe('Firestore Rules / public media account and content visibility', () => 
         )
       )
     );
-    await assertSucceeds(
+    await assertFails(
       getDoc(
         doc(
           db,
