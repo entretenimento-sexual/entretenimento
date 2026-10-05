@@ -525,12 +525,10 @@ export const getCommunityMembersForManagement = onCall<ManagedMembersPagePayload
       communitySnapshot,
       actorMembershipSnapshot,
       actorUserSnapshot,
-      actorAgeEligibilitySnapshot,
     ] = await Promise.all([
       communityRef.get(),
       actorMembershipRef.get(),
       actorUserRef.get(),
-      actorAgeEligibilityRef.get(),
     ]);
 
     if (!communitySnapshot.exists) {
@@ -751,14 +749,12 @@ export const manageCommunityMember = onCall<ManageCommunityMemberPayload>(
         actorMembershipSnapshot,
         targetMembershipSnapshot,
         actorUserSnapshot,
-        actorAgeEligibilitySnapshot,
       ] = await Promise.all([
         transaction.get(communityRef),
         transaction.get(discoveryRef),
         transaction.get(actorMembershipRef),
         transaction.get(targetMembershipRef),
         transaction.get(actorUserRef),
-        transaction.get(actorAgeEligibilityRef),
       ]);
 
       if (!communitySnapshot.exists) {
