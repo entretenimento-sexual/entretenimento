@@ -94,7 +94,7 @@ describe('MediaApplicationErrorService', () => {
     service.report(
       {
         code: 'functions/unavailable',
-        details: { reason: 'AGE_REVERIFICATION_REQUIRED' },
+        details: { reason: 'ACCOUNT_UNAVAILABLE' },
       },
       {
         operation: 'photo.load',
@@ -106,7 +106,7 @@ describe('MediaApplicationErrorService', () => {
       expect.anything(),
       expect.objectContaining({
         presentation: undefined,
-        fallbackMessage: MEDIA_ERROR_MESSAGES.AGE_REVERIFICATION_REQUIRED,
+        fallbackMessage: MEDIA_ERROR_MESSAGES.ACCOUNT_UNAVAILABLE,
       })
     );
   });
