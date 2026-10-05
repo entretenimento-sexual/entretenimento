@@ -14,6 +14,9 @@ import {
 } from '../../moderation/moderation-safety-notification.service';
 import { deleteProfilePhotoResources } from './delete-profile-photo.handler';
 import {
+  buildReviewedMinorContentSafetyAssessment,
+} from './media-content-safety-assessment.policy';
+import {
   buildMediaReportSafetyState,
   isCriticalMinorMediaSafetyReason,
   normalizeMinorMediaSafetyReason,
@@ -317,6 +320,16 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
           decision === 'KEEP' ? 'KEEP' : 'REMOVE'
         );
         const now = Date.now();
+        const contentSafetyAssessment =
+          effectiveReason &&
+          isCriticalMinorMediaSafetyReason(effectiveReason)
+            ? buildReviewedMinorContentSafetyAssessment({
+              confirmed: decision === 'REMOVE',
+              reason: effectiveReason,
+              assessedAtMs: now,
+              moderatorUid: adminUid,
+            })
+            : null;
         const approvedCover = isPreventiveReview
           ? publication?.requestedIsCover === true
           : publication?.isCover === true;
@@ -340,6 +353,9 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
 
           transaction.update(photoRef, {
             ...safetyState,
+            ...(contentSafetyAssessment
+              ? { contentSafetyAssessment }
+              : {}),
             scoreBreakdown: withSafetyScore(
               photo.scoreBreakdown,
               safetyState.safetyScore
@@ -399,6 +415,9 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
                 requestedIsCover: FieldValue.delete(),
                 moderationStatus: 'APPROVED',
                 moderationReason: null,
+                ...(contentSafetyAssessment
+                  ? { contentSafetyAssessment }
+                  : {}),
                 safetyScore: safetyState.safetyScore,
                 scoreBreakdown: withSafetyScore(
                   publication?.scoreBreakdown,
@@ -417,6 +436,9 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
           if (photo) {
             transaction.update(photoRef, {
               ...safetyState,
+              ...(contentSafetyAssessment
+                ? { contentSafetyAssessment }
+                : {}),
               scoreBreakdown: withSafetyScore(
                 photo.scoreBreakdown,
                 safetyState.safetyScore
@@ -442,6 +464,9 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
                 visibility,
                 moderationStatus: 'FLAGGED',
                 moderationReason: resolution,
+                ...(contentSafetyAssessment
+                  ? { contentSafetyAssessment }
+                  : {}),
                 safetyScore: safetyState.safetyScore,
                 scoreBreakdown: withSafetyScore(
                   publication?.scoreBreakdown,
