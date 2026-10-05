@@ -58,9 +58,6 @@ import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-
 import { PlatformSubscriptionAccessService } from '@core/services/subscriptions/platform-subscription-access.service';
 import { TERMS_ACCEPTANCE_VERSION } from '@core/services/compliance/platform-legal.constants';
 import { ADULT_CONSENT_VERSION } from '@core/guards/compliance/adult-content-consent.storage';
-import {
-  resolveTrustedAdultAgeProjection,
-} from '@core/services/compliance/trusted-adult-age-assurance.policy';
 
 export type UserRole = IUserDados['role'];
 
@@ -116,37 +113,6 @@ export class AccessControlService {
     return concat(
       of(false),
       timer(delayMs).pipe(map(() => true))
-    );
-  }
-
-  private observeTrustedAdultAssuranceWindow$(
-    user: IUserDados | null | undefined
-  ): Observable<boolean> {
-    if (!user) {
-      return of(false);
-    }
-
-    const decision = resolveTrustedAdultAgeProjection(
-      user.ageEligibility,
-      Date.now()
-    );
-
-    if (!decision.allowed) {
-      return of(false);
-    }
-
-    if (decision.accessExpiresAtMs === null) {
-      return of(true);
-    }
-
-    const delayMs = Math.max(
-      1,
-      decision.accessExpiresAtMs - Date.now() + 1
-    );
-
-    return concat(
-      of(true),
-      timer(delayMs).pipe(map(() => false))
     );
   }
 
@@ -596,15 +562,6 @@ export class AccessControlService {
       )
     );
 
-  readonly trustedAdultAssuranceAllowed$: Observable<boolean> =
-    this.appUser$.pipe(
-      switchMap((user) => this.observeTrustedAdultAssuranceWindow$(user)),
-      distinctUntilChanged(),
-      shareReplay({ bufferSize: 1, refCount: true }),
-      catchError(
-        this.handleStreamError('trustedAdultAssuranceAllowed$', false)
-      )
-    );
 
   /**
    * Gate canônico de UX/runtime para a experiência social adulta.
@@ -617,21 +574,18 @@ export class AccessControlService {
     this.isBlocked$,
     this.appUser$,
     this.moderationInteractionAllowed$,
-    this.trustedAdultAssuranceAllowed$,
   ]).pipe(
     map(([
       isAuthenticated,
       blocked,
       user,
       moderationAllowed,
-      trustedAdultAllowed,
     ]) => {
       if (
         isAuthenticated !== true ||
         blocked === true ||
         !user ||
-        moderationAllowed !== true ||
-        trustedAdultAllowed !== true
+        moderationAllowed !== true
       ) {
         return false;
       }
@@ -855,19 +809,17 @@ export class AccessControlService {
    *
    * Corrigido:
    * - NÃO exige emailVerified.
-   * - Exige sessão, profileCompleted, conta não bloqueada e assurance adulta confiável.
+   * - Exige sessão, profileCompleted e lifecycle da conta liberado.
    */
   readonly canEnterCore$: Observable<boolean> = combineLatest([
     this.isAuthenticated$,
     this.profileCompleted$,
     this.isBlocked$,
-    this.trustedAdultAssuranceAllowed$,
   ]).pipe(
-    map(([isAuth, profileCompleted, blocked, trustedAdultAllowed]) =>
+    map(([isAuth, profileCompleted, blocked]) =>
       isAuth === true &&
       profileCompleted === true &&
-      blocked === false &&
-      trustedAdultAllowed === true
+      blocked === false
     ),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true }),
