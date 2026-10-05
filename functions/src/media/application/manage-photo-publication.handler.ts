@@ -21,6 +21,9 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import {
   assertMediaAuthoringEligibility,
 } from './media-authoring-eligibility.service';
+import {
+  buildUnassessedMediaContentSafetyAssessment,
+} from './media-content-safety-assessment.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue } from '../../firebaseApp';
 import {
@@ -295,6 +298,8 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
 
     const now = Date.now();
     const moderationStatus = resolveModerationStatus();
+    const contentSafetyAssessment =
+      buildUnassessedMediaContentSafetyAssessment(now);
     const scoreBreakdown = buildUnassessedPhotoScoreBreakdown();
     const batch = db.batch();
 
@@ -314,6 +319,7 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
       reactionsCount: 0,
       moderationStatus,
       moderationReason: null,
+      contentSafetyAssessment,
       reportsCount: 0,
       openReportsCount: 0,
       confirmedReportsCount: 0,
@@ -366,6 +372,7 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
         reactionsCount: 0,
         moderationStatus,
         moderationReason: null,
+        contentSafetyAssessment,
         reportsCount: 0,
         openReportsCount: 0,
         confirmedReportsCount: 0,
