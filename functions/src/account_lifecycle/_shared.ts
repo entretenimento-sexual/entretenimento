@@ -4,9 +4,6 @@ import { HttpsError } from 'firebase-functions/v2/https';
 import { db } from '../firebaseApp';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { TERMS_ACCEPTANCE_VERSION } from '../compliance/platform-legal.constants';
-import {
-  hasCurrentTrustedAdultAgeProjection,
-} from './trusted-adult-account-assurance.policy';
 
 export const ACCOUNT_LIFECYCLE_REGION = FUNCTIONS_REGION;
 export const MAX_LIFECYCLE_REASON_LENGTH = 500;
@@ -193,8 +190,15 @@ export function isUserEligibleForPublicProjection(user: UserDoc): boolean {
       TERMS_ACCEPTANCE_VERSION &&
     user.acceptedTerms.acknowledgedPrivacyNotice === true;
 
+  const accountActive =
+    String(user.accountStatus ?? 'active').trim().toLowerCase() === 'active';
+
   return (
-    hasCurrentTrustedAdultAgeProjection(user) &&
+    accountActive &&
+    user.suspended !== true &&
+    user.interactionBlocked !== true &&
+    user.publicVisibility !== 'hidden' &&
+    user.loginAllowed !== false &&
     user.emailVerified === true &&
     user.profileCompleted === true &&
     currentLegalAcceptance &&
