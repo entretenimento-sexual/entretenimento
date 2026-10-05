@@ -160,9 +160,6 @@ export const requestCommunityMembership =
           .doc(communityId);
         const membershipRef = communityRef.collection('members').doc(uid);
         const userRef = db.collection('users').doc(uid);
-        const ageEligibilityRef = db
-          .collection('age_eligibility_records')
-          .doc(uid);
         const auditRef = db.collection('community_membership_audit').doc();
 
         const [
@@ -183,10 +180,7 @@ export const requestCommunityMembership =
 
         assertCommunityMembershipActorEligible(
           userSnapshot.exists ? userSnapshot.data() : null,
-          uid,
-          ageEligibilitySnapshot.exists
-            ? ageEligibilitySnapshot.data()
-            : null
+          uid
         );
 
         const community = (communitySnapshot.data() ?? {}) as Record<
