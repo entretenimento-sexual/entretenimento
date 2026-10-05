@@ -27,6 +27,11 @@ describe('interaction access policy', () => {
     assert.doesNotThrow(() => assertPlatformAccountAccessData(validUser));
   });
 
+  it('falha fechado quando accountStatus não está materializado como active', () => {
+    const { accountStatus: _accountStatus, ...withoutStatus } = validUser;
+    assert.throws(() => assertPlatformAccountAccessData(withoutStatus));
+  });
+
   it('bloqueia conta com interactionBlocked', () => {
     assert.throws(() =>
       assertPlatformAccountAccessData({
