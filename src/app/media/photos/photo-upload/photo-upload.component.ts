@@ -201,16 +201,16 @@ export class PhotoUploadComponent {
     combineLatest([this.policyResult$, this.ownerUid$, this.phase$])
       .pipe(
         take(1),
-        switchMap(([policyResult, ownerUid, phase]) => {
+        tap(([policyResult, ownerUid, phase]) => {
           if (phase === 'UPLOADING' || phase === 'EDITING') {
-            return EMPTY;
+            return;
           }
 
           if (policyResult.decision !== 'ALLOW') {
             this.errorNotifier.showWarning(
               this.getPolicyDeniedMessage(policyResult.reason, 'adicionar fotos')
             );
-            return EMPTY;
+            return;
           }
 
           if (!ownerUid?.trim()) {
@@ -218,59 +218,15 @@ export class PhotoUploadComponent {
               'photo_upload_failed',
               { op: 'onFileSelected.ownerUid' }
             );
-            return EMPTY;
+            return;
           }
 
-          const fallbackPhase: UploadPhase = this.fileSubject.value
-            ? 'READY'
-            : 'IDLE';
-          this.phaseSubject.next('EDITING');
-
-          return this.photoEditor
-            .editFile$(file, {
-              source: 'photo-upload',
-              context: 'profile-photo',
-              preset: 'profile-photo',
-            })
-            .pipe(
-              tap((result) => {
-                if (!result) {
-                  return;
-                }
-
-                const processedValidation = validateImageMediaFile(
-                  result.file,
-                  'default'
-                );
-                if (!processedValidation.valid) {
-                  this.errorNotifier.showWarning(
-                    processedValidation.userMessage ?? 'A imagem editada não é válida.'
-                  );
-                  return;
-                }
-
-                this.applySelectedFile(result.file, result.imageStateStr);
-                this.debug('fileSelectedAndEdited', {
-                  name: result.file.name,
-                  type: result.file.type,
-                  size: result.file.size,
-                  metadataStripped: result.metadataStripped,
-                });
-              }),
-              catchError((error) => {
-                this.reportError('photo_editor_failed', error, {
-                  op: 'onFileSelected.editor',
-                  ownerUid,
-                  fileName: file.name,
-                });
-                return EMPTY;
-              }),
-              finalize(() => {
-                if (this.phaseSubject.value === 'EDITING') {
-                  this.phaseSubject.next(fallbackPhase);
-                }
-              })
-            );
+          this.applySelectedFile(file, null);
+          this.debug('fileSelectedForPreview', {
+            name: file.name,
+            type: file.type,
+            size: file.size,
+          });
         }),
         takeUntilDestroyed(this.destroyRef)
       )
@@ -312,20 +268,13 @@ export class PhotoUploadComponent {
             return EMPTY;
           }
 
-          if (!imageStateStr) {
-            this.errorNotifier.showWarning(
-              'Confirme a foto no editor antes de enviar.'
-            );
-            return EMPTY;
-          }
-
           this.phaseSubject.next('UPLOADING');
           this.uploadPercentSubject.next(0);
 
           return this.uploadSelectedFile$(
             ownerUid,
             file,
-            imageStateStr
+            imageStateStr ?? undefined
           );
         }),
         takeUntilDestroyed(this.destroyRef)
@@ -426,7 +375,7 @@ export class PhotoUploadComponent {
   private uploadSelectedFile$(
     ownerUid: string,
     file: File,
-    imageStateStr: string
+    imageStateStr?: string
   ): Observable<IPhotoUploadFlowEvent> {
     return this.photoUploadFlow.uploadProcessedPhotoWithProgress$({
       userId: ownerUid,
@@ -538,7 +487,7 @@ export class PhotoUploadComponent {
 
   private applySelectedFile(
     file: File,
-    imageStateStr: string
+    imageStateStr: string | null
   ): void {
     this.revokePreviewUrl();
 
