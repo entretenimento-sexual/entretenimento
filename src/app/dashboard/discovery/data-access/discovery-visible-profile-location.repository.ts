@@ -75,7 +75,7 @@ export class DiscoveryVisibleProfileLocationRepository {
     }
 
     const uid = this.cleanText(raw['uid']);
-    if (!uid) return null;
+    if (!uid || !this.hasCurrentAdultEligibility(raw)) return null;
 
     return {
       uid,
@@ -113,6 +113,26 @@ export class DiscoveryVisibleProfileLocationRepository {
           .filter((uid): uid is string => uid !== null)
       )
     ).sort();
+  }
+
+  private hasCurrentAdultEligibility(
+    source: Record<string, unknown>
+  ): boolean {
+    if (source['ageEligibilityVerifiedAdult'] !== true) {
+      return false;
+    }
+
+    const rawValidUntil = source['ageEligibilityValidUntil'];
+    const validUntil =
+      typeof rawValidUntil === 'number'
+        ? rawValidUntil
+        : rawValidUntil instanceof Date
+          ? rawValidUntil.getTime()
+          : typeof (rawValidUntil as { toMillis?: unknown } | null)?.toMillis === 'function'
+            ? (rawValidUntil as { toMillis: () => number }).toMillis()
+            : Number.NaN;
+
+    return Number.isFinite(validUntil) && validUntil > Date.now();
   }
 
   private firstText(
