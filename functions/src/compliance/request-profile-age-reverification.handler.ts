@@ -3,6 +3,9 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import {
   getNicknameIndexDocId,
 } from '../account_lifecycle/_shared';
+import {
+  buildAgeReviewRestrictionPatch,
+} from '../account_lifecycle/account-age-review-lifecycle.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
@@ -156,9 +159,7 @@ export const requestProfileAgeReverification = onCall<
             method: null,
             resolution: null,
           },
-          publicVisibility: 'hidden',
-          interactionBlocked: true,
-          ageReverificationRestrictedAt: requestedAt,
+          ...buildAgeReviewRestrictionPatch({ restrictedAt: requestedAt }),
           updatedAt: timestamp,
         },
         { merge: true }
