@@ -645,8 +645,7 @@ max-width: calc(100vw - 118px);
 gap: 4px;
 }
 
-.viewer-discovery-reason,
-.viewer-owner-cta {
+.viewer-discovery-reason {
 font-size: 0.61rem;
 }
 
