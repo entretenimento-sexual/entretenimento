@@ -32,9 +32,9 @@ const ACCOUNT_STATUSES = new Set<AccountStatus>([
 /**
  * Normaliza exclusivamente o documento de usuário já disponível.
  *
- * Inconsistências fortes prevalecem sobre um `accountStatus: active` nominal:
- * uma conta tecnicamente locked/suspended nunca deve ser liberada por projeção
- * atrasada ou documento parcialmente migrado.
+ * Inconsistências fortes de lifecycle prevalecem sobre um `accountStatus: active`
+ * nominal. Bloqueios de interação pertencem à política de capacidades e não
+ * transformam, por si só, uma conta ativa em lifecycle locked.
  */
 export function normalizeUserAccountLifecycleStatus(
   user: IUserDados | null | undefined
@@ -51,9 +51,6 @@ export function normalizeUserAccountLifecycleStatus(
       : 'moderation_suspended';
   }
 
-  if (user.interactionBlocked === true) {
-    return 'locked';
-  }
 
   const raw = String(user.accountStatus ?? '')
     .trim()
