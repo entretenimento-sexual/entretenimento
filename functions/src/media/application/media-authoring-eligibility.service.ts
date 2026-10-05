@@ -30,9 +30,7 @@ export interface MediaAuthoringEligibilityDecision {
  * moderação da própria mídia.
  */
 export function assertMediaAuthoringEligibilityData(
-  user: MediaAuthoringAccountSnapshot | null | undefined,
-  _ageEligibilityRecord?: unknown,
-  _uid?: string
+  user: MediaAuthoringAccountSnapshot | null | undefined
 ): MediaAuthoringEligibilityDecision {
   assertPlatformAccountAccessData(user);
   return { allowed: true };
