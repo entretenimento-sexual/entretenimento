@@ -220,17 +220,7 @@ export function mapPublicProfileCard(
     firstText(source, ['uid', 'id']) ?? String(fallbackUid ?? '').trim();
   const nickname = firstText(source, ['nickname']);
 
-  const ageEligibilityValidUntil = toSerializableEpoch(
-    source['ageEligibilityValidUntil']
-  );
-
-  if (
-    source['ageEligibilityVerifiedAdult'] !== true ||
-    ageEligibilityValidUntil === null ||
-    ageEligibilityValidUntil <= Date.now() ||
-    !uid ||
-    !nickname
-  ) {
+  if (!uid || !nickname) {
     return null;
   }
 
@@ -268,7 +258,6 @@ export function mapPublicProfileCard(
       'orientacaoSexual',
     ]),
     age: publicProfileAge(firstValue(source, ['age', 'idade'])),
-    ageEligibilityValidUntil,
 
     normalizedGender: firstText(source, ['normalizedGender']),
     normalizedOrientation: firstText(source, ['normalizedOrientation']),
