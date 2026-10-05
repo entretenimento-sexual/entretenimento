@@ -73,7 +73,6 @@
   height: 0.44rem;
   border-radius: 50%;
   background: #22c55e;
-  box-shadow: 0 0 0 2px color-mix(in oklab, #22c55e 16%, transparent);
 }
 
 .public-user-preview__distance i {
