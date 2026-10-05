@@ -166,6 +166,7 @@ describe('OnlineUsersComponent', () => {
     expect(toggle?.getAttribute('aria-expanded')).toBe('true');
     expect(rangeRow?.querySelectorAll('button').length).toBe(2);
     expect(rangeRow?.querySelector('input[type="range"]')).toBeTruthy();
-    expect(element.querySelector('[class*="card"], [class*="panel"]')).toBeNull();
+    expect(controls?.classList.contains('app-card')).toBe(true);
+    expect(controls?.classList.contains('app-card--flat')).toBe(true);
   });
 });
