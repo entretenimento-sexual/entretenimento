@@ -43,20 +43,64 @@ describe('Adult declaration persistence boundary', () => {
     expect(service).toContain('getLoggedUserUIDSnapshot');
   });
 
-  it('reconcilia antes de decidir guard e etapa de onboarding', () => {
+  it('reconcilia a projeção persistida e mantém a decisão etária dentro do onboarding', () => {
     const service = source(
       'src/app/core/services/compliance/age-eligibility.service.ts'
-    );
-    const guard = source(
-      'src/app/core/guards/compliance/age-eligibility.guard.ts'
     );
     const registerFlow = source(
       'src/app/register-module/data-access/register-flow.facade.ts'
     );
+    const routing = source('src/app/app-routing.module.ts');
 
-    expect(service).toContain('reconciledAdultAccess$');
-    expect(guard).toContain('reconciledAdultAccess$');
-    expect(registerFlow).toContain('reconciledAdultAccess$');
+    expect(service).toContain('refreshTrustedSources
+  it('não mostra nova confirmação enquanto reconcilia o estado já salvo', () => {
+    const component = source(
+      'src/app/compliance/age-verification-page/age-verification-page.component.ts'
+    );
+    const template = source(
+      'src/app/compliance/age-verification-page/age-verification-page.component.html'
+    );
+
+    expect(component).toContain('reconciling = signal(true)');
+    expect(component).toContain('refreshTrustedSources$()');
+    expect(component).toContain(
+      'finalize(() => this.reconciling.set(false))'
+    );
+    expect(template).toContain(
+      'Verificando sua confirmação já registrada'
+    );
+    expect(template).toContain('Você não precisa');
+    expect(template).toContain('Essa declaração não equivale à');
+  });
+});
+);
+    expect(service).toContain('trustedSessionProjection');
+    expect(registerFlow).toContain('this.ageEligibility.current
+  it('não mostra nova confirmação enquanto reconcilia o estado já salvo', () => {
+    const component = source(
+      'src/app/compliance/age-verification-page/age-verification-page.component.ts'
+    );
+    const template = source(
+      'src/app/compliance/age-verification-page/age-verification-page.component.html'
+    );
+
+    expect(component).toContain('reconciling = signal(true)');
+    expect(component).toContain('refreshTrustedSources$()');
+    expect(component).toContain(
+      'finalize(() => this.reconciling.set(false))'
+    );
+    expect(template).toContain(
+      'Verificando sua confirmação já registrada'
+    );
+    expect(template).toContain('Você não precisa');
+    expect(template).toContain('Essa declaração não equivale à');
+  });
+});
+);
+    expect(registerFlow).toContain("state.status === 'SELF_DECLARED_ADULT'");
+    expect(registerFlow).toContain("state.status === 'VERIFIED_ADULT'");
+    expect(routing).not.toContain('ageEligibilityGuard');
+    expect(routing).not.toContain('ageReverificationGuard');
   });
 
   it('não mostra nova confirmação enquanto reconcilia o estado já salvo', () => {
