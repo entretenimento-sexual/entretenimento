@@ -264,14 +264,12 @@ function assertCommunityOwnerPointer(
 
 function isTargetAccountEligible(
   rawUser: unknown,
-  uid: string,
-  rawAgeEligibility: unknown
+  uid: string
 ): boolean {
   try {
     assertCommunityMembershipActorEligible(
       rawUser,
-      uid,
-      rawAgeEligibility
+      uid
     );
     return true;
   } catch {
@@ -434,18 +432,11 @@ export const getCommunityOwnershipCandidates = onCall<CommunityIdPayload>(
         normalizeMembershipRole(document.data()?.['role'])
       );
     });
-    const [userSnapshots, ageEligibilitySnapshots] = await Promise.all([
-      Promise.all(
-        candidateMemberships.map((membership) =>
-          db.collection('users').doc(membership.id).get()
-        )
-      ),
-      Promise.all(
-        candidateMemberships.map((membership) =>
-          db.collection('age_eligibility_records').doc(membership.id).get()
-        )
-      ),
-    ]);
+    const userSnapshots = await Promise.all(
+      candidateMemberships.map((membership) =>
+        db.collection('users').doc(membership.id).get()
+      )
+    );
 
     const items = candidateMemberships
       .map((membership, index): CommunityOwnershipCandidate | null => {
@@ -458,10 +449,7 @@ export const getCommunityOwnershipCandidates = onCall<CommunityIdPayload>(
           || !isTransferCandidateRole(role)
           || !isTargetAccountEligible(
             user,
-            membership.id,
-            ageEligibilitySnapshots[index]?.exists
-              ? ageEligibilitySnapshots[index].data()
-              : null
+            membership.id
           )
         ) {
           return null;
