@@ -1,6 +1,14 @@
 // scripts/quality/check-age-authority-boundary.mjs
 // -----------------------------------------------------------------------------
-// TRUSTED ADULT ACCOUNT ACCESS BOUNDARY
+// ACCOUNT AGE AUTHORITY BOUNDARY
+// -----------------------------------------------------------------------------
+// Contrato:
+// - maioridade confiável é exigida na admissão da conta;
+// - age_eligibility_records/{uid} permanece backend-only;
+// - uma conta já admitida/ativa usa lifecycle + legal/consent no produto;
+// - Media/Discovery/Chat não reinterpretam assurance etário;
+// - fato novo de segurança/reverificação repercute pelo lifecycle da conta;
+// - expiração técnica de assurance, sozinha, não bloqueia produto.
 // -----------------------------------------------------------------------------
 
 import fs from 'node:fs';
@@ -74,6 +82,10 @@ function walk(directory, extensions) {
   return found;
 }
 
+// -----------------------------------------------------------------------------
+// Fonte canônica e admissão
+// -----------------------------------------------------------------------------
+
 requireAll(
   'functions/src/compliance/age-eligibility.policy.ts',
   [
@@ -94,7 +106,7 @@ requireAll(
     'isTrustedAdultAgeDecision',
     'assertTrustedAdultAgeEligibility',
   ],
-  'serviço etário deve exigir assurance confiável'
+  'serviço etário deve preservar verificação confiável'
 );
 
 const ageRules = read('firestore-rules/age_eligibility_records.rules');
@@ -106,29 +118,6 @@ if (
     'firestore-rules/age_eligibility_records.rules (autoridade deve permanecer backend-only)'
   );
 }
-
-requireAll(
-  'functions/src/account_lifecycle/interaction-access.policy.ts',
-  [
-    'assertPlatformAccountAccessData',
-    'accountStatus',
-    'interactionBlocked',
-    'accessExpiresAtMs',
-  ],
-  'Account Access deve centralizar lifecycle/legal sem reinterpretar idade'
-);
-
-forbidAll(
-  'functions/src/account_lifecycle/interaction-access.policy.ts',
-  [
-    'age_eligibility_records',
-    'evaluateCanonicalAgeEligibility',
-    'isTrustedAdultAgeDecision',
-    'SELF_DECLARED_ADULT',
-    'VERIFIED_ADULT',
-  ],
-  'uso normal da conta ativa não pode revalidar assurance etário'
-);
 
 requireAll(
   'firestore-rules/_helpers.rules',
@@ -152,6 +141,16 @@ requireAll(
 
 const helperSource = codeOnly(read('firestore-rules/_helpers.rules'));
 
+const registrationFunction = helperSource.match(
+  /function canonicalAgeEligibilityAllowsRegistration\(userId\)\s*\{([\s\S]*?)\n\s*\}/
+)?.[1] ?? '';
+
+if (registrationFunction.includes('SELF_DECLARED_ADULT')) {
+  violations.push(
+    'firestore-rules/_helpers.rules (SELF_DECLARED_ADULT não pode liberar cadastro)'
+  );
+}
+
 for (const functionName of [
   'currentUserCanUseAdultSocialPlatform',
   'canonicalOwnerLifecycleAllowsPublicMediaExposure',
@@ -164,20 +163,48 @@ for (const functionName of [
     )
   )?.[1] ?? '';
 
+  if (!body) {
+    violations.push(
+      `firestore-rules/_helpers.rules (função obrigatória não localizada: ${functionName})`
+    );
+    continue;
+  }
+
   if (body.includes('canonicalAgeEligibilityAllowsTrustedAdultAccess')) {
     violations.push(
       `firestore-rules/_helpers.rules (${functionName} não pode reinterpretar assurance etário)`
     );
   }
 }
-const registrationFunction = helperSource.match(
-  /function canonicalAgeEligibilityAllowsRegistration\(userId\)\s*\{([\s\S]*?)\n\s*\}/
-)?.[1] ?? '';
-if (registrationFunction.includes('SELF_DECLARED_ADULT')) {
-  violations.push(
-    'firestore-rules/_helpers.rules (SELF_DECLARED_ADULT não pode liberar cadastro)'
-  );
-}
+
+// -----------------------------------------------------------------------------
+// Account Access / lifecycle é a autoridade de produto após admissão
+// -----------------------------------------------------------------------------
+
+requireAll(
+  'functions/src/account_lifecycle/interaction-access.policy.ts',
+  [
+    'assertPlatformAccountAccessData',
+    'accountStatus',
+    'interactionBlocked',
+    'acceptedTerms',
+    'adultConsent',
+    'accessExpiresAtMs',
+  ],
+  'Account Access deve centralizar lifecycle/legal'
+);
+
+forbidAll(
+  'functions/src/account_lifecycle/interaction-access.policy.ts',
+  [
+    'age_eligibility_records',
+    'evaluateCanonicalAgeEligibility',
+    'isTrustedAdultAgeDecision',
+    'SELF_DECLARED_ADULT',
+    'VERIFIED_ADULT',
+  ],
+  'uso normal da conta ativa não pode revalidar assurance etário'
+);
 
 const productDomainDirectories = [
   'functions/src/media',
@@ -233,13 +260,13 @@ requireAll(
 
 forbidAll(
   'functions/src/media/application/public-media-signed-url-expiry.policy.ts',
-  [
-    'ageEligibility',
-    'VERIFIED_ADULT',
-    'SELF_DECLARED_ADULT',
-  ],
+  ['ageEligibility', 'VERIFIED_ADULT', 'SELF_DECLARED_ADULT'],
   'Media não pode conhecer a razão etária do deadline'
 );
+
+// -----------------------------------------------------------------------------
+// Frontend: onboarding pode reconciliar idade; produto ativo usa lifecycle
+// -----------------------------------------------------------------------------
 
 forbidAll(
   'src/app/core/services/media/public-media-read-boundary.service.ts',
@@ -283,609 +310,14 @@ for (const directory of frontendProductDirectories) {
 
 requireAll(
   'src/app/core/services/autentication/auth/access-control.service.ts',
-  [
-    'accountStatus
-requireAll(
-  'src/app/core/guards/compliance/adult-content-consent.guard.ts',
-  [
-    'reconcileTrustedStateOncePerSession$',
-    'isCurrentTrustedAdultAgeProjection',
-    '/adulto/verificar-idade',
-  ],
-  'guard adulto deve reconciliar silenciosamente apenas durante admissão'
-);
-
-requireAll(
-  'src/app/core/guards/compliance/adult-content-consent.guard.ts',
-  [
-    'profileCompleted',
-    'normalizeUserAccountLifecycleStatus',
-    "=== 'active'",
-  ],
-  'conta já admitida deve usar lifecycle, não novo gate etário'
-);
-
-requireAll(
-  'src/app/register-module/data-access/register-flow.facade.ts',
-  [
-    'reconcileTrustedStateOncePerSession$',
-    'isCurrentTrustedAdultAgeProjection',
-  ],
-  'onboarding deve exigir VERIFIED_ADULT confiável'
-);
-
-forbidAll(
-  'src/app/register-module/data-access/register-flow.facade.ts',
-  ["state.status === 'SELF_DECLARED_ADULT'"],
-  'autodeclaração não pode liberar onboarding'
-);
-
-requireAll(
-  'src/app/compliance/age-verification-page/age-verification-page.component.ts',
-  [
-    'requestInitialReview$',
-    'reconcileTrustedStateOncePerSession$',
-    'isCurrentTrustedAdultAgeProjection',
-  ],
-  'tela etária deve usar verificação confiável'
-);
-
-forbidAll(
-  'src/app/compliance/age-verification-page/age-verification-page.component.ts',
-  ['acceptSelfDeclaration$'],
-  'tela não deve pedir autodeclaração novamente'
-);
-
-requireAll(
-  'functions/src/compliance/accept-adult-self-declaration.handler.ts',
-  ["AGE_ADMISSION_MODE ?? 'VERIFIED_REQUIRED'"],
-  'modo padrão não pode admitir por autodeclaração'
-);
-
-requireAll(
-  'functions/src/compliance/adult-consent.handler.ts',
-  ['isTrustedAdultAgeDecision'],
-  'consentimento adulto só pode seguir após maioridade confiável'
-);
-
-requireAll(
-  'functions/src/compliance/request-initial-age-verification-review.handler.ts',
-  ['isTrustedAdultAgeDecision'],
-  'review inicial não pode ser dispensado por autodeclaração'
-);
-
-requireAll(
-  'functions/src/compliance/age-verification-provider-assertion.trigger.ts',
-  ['buildConfirmedUnderageSuspensionPatch'],
-  'assertion confiável de menoridade deve repercutir no lifecycle'
-);
-
-for (const relativePath of [
-  'functions/src/compliance/request-profile-age-reverification.handler.ts',
-  'functions/src/compliance/review-profile-age-reverification.handler.ts',
-]) {
-  forbidAll(
-    relativePath,
-    [
-      'profile-age-reverification-media',
-      'hideProfileMediaVisibility',
-      'restoreProfileMediaVisibility',
-    ],
-    'revalidação deve atuar pela conta, não mutar Media'
-  );
-}
-
-forbidAll(
-  'src/app/app-routing.module.ts',
-  ['ageEligibilityGuard', 'ageReverificationGuard'],
-  'roteamento não deve duplicar gate etário por feature'
-);
-
-for (const relativePath of [
-  'src/app/core/services/media/media-error.catalog.ts',
-  'src/app/core/services/media/public-media-callable-feedback.policy.ts',
-]) {
-  forbidAll(
-    relativePath,
-    [
-      'AGE_VERIFICATION_REQUIRED',
-      'AGE_REVERIFICATION_REQUIRED',
-      '/adulto/verificar-idade',
-      '/adulto/revalidar',
-    ],
-    'Media não deve apresentar fluxo etário próprio'
-  );
-}
-
-const unique = [...new Set(violations)].sort();
-
-if (unique.length > 0) {
-  console.error('[age-authority] Fronteira canônica violada:');
-  for (const violation of unique) {
-    console.error(`  - ${violation}`);
-  }
-  process.exit(1);
-}
-
-console.log(
-  '[age-authority] OK: VERIFIED_ADULT confiável é exigido na admissão; conta ativa usa lifecycle e fatos novos de segurança repercutem pela conta, sem segundo gate etário nos produtos.'
-);
-,
-    'isLifecycleBlocked
-requireAll(
-  'src/app/core/guards/compliance/adult-content-consent.guard.ts',
-  [
-    'reconcileTrustedStateOncePerSession$',
-    'isCurrentTrustedAdultAgeProjection',
-    '/adulto/verificar-idade',
-  ],
-  'guard adulto deve reconciliar silenciosamente'
-);
-
-requireAll(
-  'src/app/register-module/data-access/register-flow.facade.ts',
-  [
-    'reconcileTrustedStateOncePerSession$',
-    'isCurrentTrustedAdultAgeProjection',
-  ],
-  'onboarding deve exigir VERIFIED_ADULT confiável'
-);
-
-forbidAll(
-  'src/app/register-module/data-access/register-flow.facade.ts',
-  ["state.status === 'SELF_DECLARED_ADULT'"],
-  'autodeclaração não pode liberar onboarding'
-);
-
-requireAll(
-  'src/app/compliance/age-verification-page/age-verification-page.component.ts',
-  [
-    'requestInitialReview$',
-    'reconcileTrustedStateOncePerSession$',
-    'isCurrentTrustedAdultAgeProjection',
-  ],
-  'tela etária deve usar verificação confiável'
-);
-
-forbidAll(
-  'src/app/compliance/age-verification-page/age-verification-page.component.ts',
-  ['acceptSelfDeclaration$'],
-  'tela não deve pedir autodeclaração novamente'
-);
-
-requireAll(
-  'functions/src/compliance/accept-adult-self-declaration.handler.ts',
-  ["AGE_ADMISSION_MODE ?? 'VERIFIED_REQUIRED'"],
-  'modo padrão não pode admitir por autodeclaração'
-);
-
-requireAll(
-  'functions/src/compliance/adult-consent.handler.ts',
-  ['isTrustedAdultAgeDecision'],
-  'consentimento adulto só pode seguir após maioridade confiável'
-);
-
-requireAll(
-  'functions/src/compliance/request-initial-age-verification-review.handler.ts',
-  ['isTrustedAdultAgeDecision'],
-  'review inicial não pode ser dispensado por autodeclaração'
-);
-
-requireAll(
-  'functions/src/compliance/age-verification-provider-assertion.trigger.ts',
-  ['buildConfirmedUnderageSuspensionPatch'],
-  'assertion confiável de menoridade deve repercutir no lifecycle'
-);
-
-for (const relativePath of [
-  'functions/src/compliance/request-profile-age-reverification.handler.ts',
-  'functions/src/compliance/review-profile-age-reverification.handler.ts',
-]) {
-  forbidAll(
-    relativePath,
-    [
-      'profile-age-reverification-media',
-      'hideProfileMediaVisibility',
-      'restoreProfileMediaVisibility',
-    ],
-    'revalidação deve atuar pela conta, não mutar Media'
-  );
-}
-
-forbidAll(
-  'src/app/app-routing.module.ts',
-  ['ageEligibilityGuard', 'ageReverificationGuard'],
-  'roteamento não deve duplicar gate etário por feature'
-);
-
-for (const relativePath of [
-  'src/app/core/services/media/media-error.catalog.ts',
-  'src/app/core/services/media/public-media-callable-feedback.policy.ts',
-]) {
-  forbidAll(
-    relativePath,
-    [
-      'AGE_VERIFICATION_REQUIRED',
-      'AGE_REVERIFICATION_REQUIRED',
-      '/adulto/verificar-idade',
-      '/adulto/revalidar',
-    ],
-    'Media não deve apresentar fluxo etário próprio'
-  );
-}
-
-const unique = [...new Set(violations)].sort();
-
-if (unique.length > 0) {
-  console.error('[age-authority] Fronteira canônica violada:');
-  for (const violation of unique) {
-    console.error(`  - ${violation}`);
-  }
-  process.exit(1);
-}
-
-console.log(
-  '[age-authority] OK: VERIFIED_ADULT confiável é revalidado por Account Access/Rules; autodeclaração não autoriza e produtos não interpretam idade.'
-);
-,
-    'canUseAdultSocial
-requireAll(
-  'src/app/core/guards/compliance/adult-content-consent.guard.ts',
-  [
-    'reconcileTrustedStateOncePerSession$',
-    'isCurrentTrustedAdultAgeProjection',
-    '/adulto/verificar-idade',
-  ],
-  'guard adulto deve reconciliar silenciosamente'
-);
-
-requireAll(
-  'src/app/register-module/data-access/register-flow.facade.ts',
-  [
-    'reconcileTrustedStateOncePerSession$',
-    'isCurrentTrustedAdultAgeProjection',
-  ],
-  'onboarding deve exigir VERIFIED_ADULT confiável'
-);
-
-forbidAll(
-  'src/app/register-module/data-access/register-flow.facade.ts',
-  ["state.status === 'SELF_DECLARED_ADULT'"],
-  'autodeclaração não pode liberar onboarding'
-);
-
-requireAll(
-  'src/app/compliance/age-verification-page/age-verification-page.component.ts',
-  [
-    'requestInitialReview$',
-    'reconcileTrustedStateOncePerSession$',
-    'isCurrentTrustedAdultAgeProjection',
-  ],
-  'tela etária deve usar verificação confiável'
-);
-
-forbidAll(
-  'src/app/compliance/age-verification-page/age-verification-page.component.ts',
-  ['acceptSelfDeclaration$'],
-  'tela não deve pedir autodeclaração novamente'
-);
-
-requireAll(
-  'functions/src/compliance/accept-adult-self-declaration.handler.ts',
-  ["AGE_ADMISSION_MODE ?? 'VERIFIED_REQUIRED'"],
-  'modo padrão não pode admitir por autodeclaração'
-);
-
-requireAll(
-  'functions/src/compliance/adult-consent.handler.ts',
-  ['isTrustedAdultAgeDecision'],
-  'consentimento adulto só pode seguir após maioridade confiável'
-);
-
-requireAll(
-  'functions/src/compliance/request-initial-age-verification-review.handler.ts',
-  ['isTrustedAdultAgeDecision'],
-  'review inicial não pode ser dispensado por autodeclaração'
-);
-
-requireAll(
-  'functions/src/compliance/age-verification-provider-assertion.trigger.ts',
-  ['buildConfirmedUnderageSuspensionPatch'],
-  'assertion confiável de menoridade deve repercutir no lifecycle'
-);
-
-for (const relativePath of [
-  'functions/src/compliance/request-profile-age-reverification.handler.ts',
-  'functions/src/compliance/review-profile-age-reverification.handler.ts',
-]) {
-  forbidAll(
-    relativePath,
-    [
-      'profile-age-reverification-media',
-      'hideProfileMediaVisibility',
-      'restoreProfileMediaVisibility',
-    ],
-    'revalidação deve atuar pela conta, não mutar Media'
-  );
-}
-
-forbidAll(
-  'src/app/app-routing.module.ts',
-  ['ageEligibilityGuard', 'ageReverificationGuard'],
-  'roteamento não deve duplicar gate etário por feature'
-);
-
-for (const relativePath of [
-  'src/app/core/services/media/media-error.catalog.ts',
-  'src/app/core/services/media/public-media-callable-feedback.policy.ts',
-]) {
-  forbidAll(
-    relativePath,
-    [
-      'AGE_VERIFICATION_REQUIRED',
-      'AGE_REVERIFICATION_REQUIRED',
-      '/adulto/verificar-idade',
-      '/adulto/revalidar',
-    ],
-    'Media não deve apresentar fluxo etário próprio'
-  );
-}
-
-const unique = [...new Set(violations)].sort();
-
-if (unique.length > 0) {
-  console.error('[age-authority] Fronteira canônica violada:');
-  for (const violation of unique) {
-    console.error(`  - ${violation}`);
-  }
-  process.exit(1);
-}
-
-console.log(
-  '[age-authority] OK: VERIFIED_ADULT confiável é revalidado por Account Access/Rules; autodeclaração não autoriza e produtos não interpretam idade.'
-);
-,
-    'canEnterCore
-requireAll(
-  'src/app/core/guards/compliance/adult-content-consent.guard.ts',
-  [
-    'reconcileTrustedStateOncePerSession$',
-    'isCurrentTrustedAdultAgeProjection',
-    '/adulto/verificar-idade',
-  ],
-  'guard adulto deve reconciliar silenciosamente'
-);
-
-requireAll(
-  'src/app/register-module/data-access/register-flow.facade.ts',
-  [
-    'reconcileTrustedStateOncePerSession$',
-    'isCurrentTrustedAdultAgeProjection',
-  ],
-  'onboarding deve exigir VERIFIED_ADULT confiável'
-);
-
-forbidAll(
-  'src/app/register-module/data-access/register-flow.facade.ts',
-  ["state.status === 'SELF_DECLARED_ADULT'"],
-  'autodeclaração não pode liberar onboarding'
-);
-
-requireAll(
-  'src/app/compliance/age-verification-page/age-verification-page.component.ts',
-  [
-    'requestInitialReview$',
-    'reconcileTrustedStateOncePerSession$',
-    'isCurrentTrustedAdultAgeProjection',
-  ],
-  'tela etária deve usar verificação confiável'
-);
-
-forbidAll(
-  'src/app/compliance/age-verification-page/age-verification-page.component.ts',
-  ['acceptSelfDeclaration$'],
-  'tela não deve pedir autodeclaração novamente'
-);
-
-requireAll(
-  'functions/src/compliance/accept-adult-self-declaration.handler.ts',
-  ["AGE_ADMISSION_MODE ?? 'VERIFIED_REQUIRED'"],
-  'modo padrão não pode admitir por autodeclaração'
-);
-
-requireAll(
-  'functions/src/compliance/adult-consent.handler.ts',
-  ['isTrustedAdultAgeDecision'],
-  'consentimento adulto só pode seguir após maioridade confiável'
-);
-
-requireAll(
-  'functions/src/compliance/request-initial-age-verification-review.handler.ts',
-  ['isTrustedAdultAgeDecision'],
-  'review inicial não pode ser dispensado por autodeclaração'
-);
-
-requireAll(
-  'functions/src/compliance/age-verification-provider-assertion.trigger.ts',
-  ['buildConfirmedUnderageSuspensionPatch'],
-  'assertion confiável de menoridade deve repercutir no lifecycle'
-);
-
-for (const relativePath of [
-  'functions/src/compliance/request-profile-age-reverification.handler.ts',
-  'functions/src/compliance/review-profile-age-reverification.handler.ts',
-]) {
-  forbidAll(
-    relativePath,
-    [
-      'profile-age-reverification-media',
-      'hideProfileMediaVisibility',
-      'restoreProfileMediaVisibility',
-    ],
-    'revalidação deve atuar pela conta, não mutar Media'
-  );
-}
-
-forbidAll(
-  'src/app/app-routing.module.ts',
-  ['ageEligibilityGuard', 'ageReverificationGuard'],
-  'roteamento não deve duplicar gate etário por feature'
-);
-
-for (const relativePath of [
-  'src/app/core/services/media/media-error.catalog.ts',
-  'src/app/core/services/media/public-media-callable-feedback.policy.ts',
-]) {
-  forbidAll(
-    relativePath,
-    [
-      'AGE_VERIFICATION_REQUIRED',
-      'AGE_REVERIFICATION_REQUIRED',
-      '/adulto/verificar-idade',
-      '/adulto/revalidar',
-    ],
-    'Media não deve apresentar fluxo etário próprio'
-  );
-}
-
-const unique = [...new Set(violations)].sort();
-
-if (unique.length > 0) {
-  console.error('[age-authority] Fronteira canônica violada:');
-  for (const violation of unique) {
-    console.error(`  - ${violation}`);
-  }
-  process.exit(1);
-}
-
-console.log(
-  '[age-authority] OK: VERIFIED_ADULT confiável é revalidado por Account Access/Rules; autodeclaração não autoriza e produtos não interpretam idade.'
-);
-,
-  ],
+  ['accountStatus$', 'isLifecycleBlocked$', 'canUseAdultSocial$', 'canEnterCore$'],
   'AccessControl deve consumir lifecycle da conta'
 );
 
 forbidAll(
   'src/app/core/services/autentication/auth/access-control.service.ts',
   [
-    'trustedAdultAssuranceAllowed
-requireAll(
-  'src/app/core/guards/compliance/adult-content-consent.guard.ts',
-  [
-    'reconcileTrustedStateOncePerSession$',
-    'isCurrentTrustedAdultAgeProjection',
-    '/adulto/verificar-idade',
-  ],
-  'guard adulto deve reconciliar silenciosamente'
-);
-
-requireAll(
-  'src/app/register-module/data-access/register-flow.facade.ts',
-  [
-    'reconcileTrustedStateOncePerSession$',
-    'isCurrentTrustedAdultAgeProjection',
-  ],
-  'onboarding deve exigir VERIFIED_ADULT confiável'
-);
-
-forbidAll(
-  'src/app/register-module/data-access/register-flow.facade.ts',
-  ["state.status === 'SELF_DECLARED_ADULT'"],
-  'autodeclaração não pode liberar onboarding'
-);
-
-requireAll(
-  'src/app/compliance/age-verification-page/age-verification-page.component.ts',
-  [
-    'requestInitialReview$',
-    'reconcileTrustedStateOncePerSession$',
-    'isCurrentTrustedAdultAgeProjection',
-  ],
-  'tela etária deve usar verificação confiável'
-);
-
-forbidAll(
-  'src/app/compliance/age-verification-page/age-verification-page.component.ts',
-  ['acceptSelfDeclaration$'],
-  'tela não deve pedir autodeclaração novamente'
-);
-
-requireAll(
-  'functions/src/compliance/accept-adult-self-declaration.handler.ts',
-  ["AGE_ADMISSION_MODE ?? 'VERIFIED_REQUIRED'"],
-  'modo padrão não pode admitir por autodeclaração'
-);
-
-requireAll(
-  'functions/src/compliance/adult-consent.handler.ts',
-  ['isTrustedAdultAgeDecision'],
-  'consentimento adulto só pode seguir após maioridade confiável'
-);
-
-requireAll(
-  'functions/src/compliance/request-initial-age-verification-review.handler.ts',
-  ['isTrustedAdultAgeDecision'],
-  'review inicial não pode ser dispensado por autodeclaração'
-);
-
-requireAll(
-  'functions/src/compliance/age-verification-provider-assertion.trigger.ts',
-  ['buildConfirmedUnderageSuspensionPatch'],
-  'assertion confiável de menoridade deve repercutir no lifecycle'
-);
-
-for (const relativePath of [
-  'functions/src/compliance/request-profile-age-reverification.handler.ts',
-  'functions/src/compliance/review-profile-age-reverification.handler.ts',
-]) {
-  forbidAll(
-    relativePath,
-    [
-      'profile-age-reverification-media',
-      'hideProfileMediaVisibility',
-      'restoreProfileMediaVisibility',
-    ],
-    'revalidação deve atuar pela conta, não mutar Media'
-  );
-}
-
-forbidAll(
-  'src/app/app-routing.module.ts',
-  ['ageEligibilityGuard', 'ageReverificationGuard'],
-  'roteamento não deve duplicar gate etário por feature'
-);
-
-for (const relativePath of [
-  'src/app/core/services/media/media-error.catalog.ts',
-  'src/app/core/services/media/public-media-callable-feedback.policy.ts',
-]) {
-  forbidAll(
-    relativePath,
-    [
-      'AGE_VERIFICATION_REQUIRED',
-      'AGE_REVERIFICATION_REQUIRED',
-      '/adulto/verificar-idade',
-      '/adulto/revalidar',
-    ],
-    'Media não deve apresentar fluxo etário próprio'
-  );
-}
-
-const unique = [...new Set(violations)].sort();
-
-if (unique.length > 0) {
-  console.error('[age-authority] Fronteira canônica violada:');
-  for (const violation of unique) {
-    console.error(`  - ${violation}`);
-  }
-  process.exit(1);
-}
-
-console.log(
-  '[age-authority] OK: VERIFIED_ADULT confiável é revalidado por Account Access/Rules; autodeclaração não autoriza e produtos não interpretam idade.'
-);
-,
+    'trustedAdultAssuranceAllowed$',
     'resolveTrustedAdultAgeProjection',
     'isCurrentTrustedAdultAgeProjection',
     'SELF_DECLARED_ADULT',
@@ -900,8 +332,11 @@ requireAll(
     'reconcileTrustedStateOncePerSession$',
     'isCurrentTrustedAdultAgeProjection',
     '/adulto/verificar-idade',
+    'profileCompleted',
+    'normalizeUserAccountLifecycleStatus',
+    "=== 'active'",
   ],
-  'guard adulto deve reconciliar silenciosamente'
+  'guard adulto deve reconciliar idade somente na admissão e usar lifecycle depois'
 );
 
 requireAll(
@@ -935,6 +370,10 @@ forbidAll(
   'tela não deve pedir autodeclaração novamente'
 );
 
+// -----------------------------------------------------------------------------
+// Reverificação por fato novo e expiração técnica
+// -----------------------------------------------------------------------------
+
 requireAll(
   'functions/src/compliance/accept-adult-self-declaration.handler.ts',
   ["AGE_ADMISSION_MODE ?? 'VERIFIED_REQUIRED'"],
@@ -944,13 +383,25 @@ requireAll(
 requireAll(
   'functions/src/compliance/adult-consent.handler.ts',
   ['isTrustedAdultAgeDecision'],
-  'consentimento adulto só pode seguir após maioridade confiável'
+  'consentimento inicial adulto só pode seguir após maioridade confiável'
 );
 
 requireAll(
   'functions/src/compliance/request-initial-age-verification-review.handler.ts',
   ['isTrustedAdultAgeDecision'],
   'review inicial não pode ser dispensado por autodeclaração'
+);
+
+requireAll(
+  'functions/src/compliance/request-profile-age-reverification.handler.ts',
+  ['buildAgeReviewRestrictionPatch'],
+  'fato novo de segurança deve materializar restrição no lifecycle'
+);
+
+requireAll(
+  'functions/src/compliance/review-profile-age-reverification.handler.ts',
+  ['buildAgeReviewRestorePatch', 'buildConfirmedUnderageSuspensionPatch'],
+  'decisão de reverificação deve restaurar ou suspender via lifecycle'
 );
 
 requireAll(
@@ -973,6 +424,28 @@ for (const relativePath of [
     'revalidação deve atuar pela conta, não mutar Media'
   );
 }
+
+forbidAll(
+  'functions/src/compliance/expire-age-eligibility.service.ts',
+  [
+    'buildAgeReviewRestrictionPatch',
+    'buildConfirmedUnderageSuspensionPatch',
+    'interactionBlocked',
+    'publicVisibility',
+    'moderation_suspended',
+  ],
+  'expiração técnica de assurance não pode bloquear lifecycle sozinha'
+);
+
+requireAll(
+  'functions/src/moderation/moderation-safety-notification.service.ts',
+  [
+    'Registro de verificação atualizado',
+    'Isso não altera sozinho o acesso de uma conta já admitida.',
+    'actionRequired: false',
+  ],
+  'notificação de expiração deve ser informativa e não bloqueante'
+);
 
 forbidAll(
   'src/app/app-routing.module.ts',
@@ -1007,5 +480,5 @@ if (unique.length > 0) {
 }
 
 console.log(
-  '[age-authority] OK: VERIFIED_ADULT confiável é revalidado por Account Access/Rules; autodeclaração não autoriza e produtos não interpretam idade.'
+  '[age-authority] OK: maioridade confiável é exigida na admissão; conta ativa usa lifecycle; expiração técnica não bloqueia; reverificação nasce de fato novo de Compliance.'
 );
