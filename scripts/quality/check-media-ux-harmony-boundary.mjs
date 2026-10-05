@@ -385,6 +385,35 @@ requireIncludes(photoUploadComponent, [
   "navigate(['/media', 'perfil', ownerUid, 'fotos'])",
 ], 'photo upload direct return to gallery');
 
+const photoSelectionStart = photoUploadComponent.indexOf('  onFileSelected(');
+const photoSelectionEnd = photoUploadComponent.indexOf(
+  '\n  startUpload(): void',
+  photoSelectionStart
+);
+if (photoSelectionStart < 0 || photoSelectionEnd < 0) {
+  throw new Error(
+    '[media-ux-harmony] photo upload selection boundary não localizada'
+  );
+}
+const photoSelectionFlow = photoUploadComponent.slice(
+  photoSelectionStart,
+  photoSelectionEnd
+);
+requireIncludes(photoSelectionFlow, [
+  'this.applySelectedFile(file, null);',
+], 'photo selection must stop at preview before optional editing');
+forbidIncludes(
+  photoSelectionFlow,
+  '.editFile$(',
+  'photo selection must not open editor automatically'
+);
+requireIncludes(photoUploadTemplate, [
+  'Publicar foto',
+  'Editar foto',
+  'A edição é opcional',
+  'Pré-visualização da foto selecionada',
+], 'photo upload preview-first optional editor contract');
+
 requireIncludes(profilePhotosTemplate, [
   'app-media-action-menu',
   'editLabel="Editar foto"',
