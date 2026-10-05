@@ -20,8 +20,10 @@ describe('Adult age assurance boundary', () => {
 
     expect(refresh).toContain('adult_self_declarations');
     expect(refresh).toContain("status: 'SELF_DECLARED_ADULT'");
-    expect(access).toContain('isTrustedAdultAgeDecision');
-    expect(access).toContain("'verification_required'");
+    expect(access).toContain('assertPlatformAccountAccessData');
+    expect(access).toContain('interactionBlocked');
+    expect(access).not.toContain('isTrustedAdultAgeDecision');
+    expect(access).not.toContain("'verification_required'");
   });
 
   it('reconcilia uma vez por sessão antes de decidir o onboarding', () => {
