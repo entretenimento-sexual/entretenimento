@@ -68,9 +68,7 @@ export class PublicProfileDiscoveryService {
         const source =
           raw as unknown as Record<string, unknown> | undefined;
 
-        return source && this.hasCurrentAgeEligibility(source)
-          ? this.toUserDadosFromPublicProfile(source)
-          : null;
+        return source ? this.toUserDadosFromPublicProfile(source) : null;
       }),
       catchError((err) => {
         this.reportSilentError(
@@ -149,31 +147,6 @@ export class PublicProfileDiscoveryService {
       && !!this.text(profile.gender)
       && !!this.text(profile.estado)
       && !!this.text(profile.municipio);
-  }
-
-  private hasCurrentAgeEligibility(
-    source: Record<string, unknown>
-  ): boolean {
-    if (source['ageEligibilityVerifiedAdult'] !== true) return false;
-
-    const validUntil = source['ageEligibilityValidUntil'] as
-      | { toMillis?: unknown }
-      | Date
-      | number
-      | null
-      | undefined;
-
-    if (typeof validUntil === 'number' && Number.isFinite(validUntil)) {
-      return validUntil > Date.now();
-    }
-
-    if (validUntil instanceof Date) {
-      return validUntil.getTime() > Date.now();
-    }
-
-    return !!validUntil
-      && typeof (validUntil as { toMillis?: unknown }).toMillis === 'function'
-      && (validUntil as { toMillis: () => number }).toMillis() > Date.now();
   }
 
   private text(value: unknown): string | null {
