@@ -10,6 +10,7 @@ import {
 } from 'rxjs/operators';
 
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
+import { normalizeUserAccountLifecycleStatus } from 'src/app/core/services/autentication/auth/account-lifecycle.policy';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { AdultConsentService } from 'src/app/core/services/compliance/adult-consent.service';
 import { AgeEligibilityService } from 'src/app/core/services/compliance/age-eligibility.service';
@@ -83,6 +84,21 @@ export const adultContentConsentGuard: CanActivateFn = (
 
       if (!isCurrentLegalAcceptanceSatisfied(appUser?.acceptedTerms)) {
         return of(redirectToTerms());
+      }
+
+      const admittedAccount =
+        appUser?.profileCompleted === true &&
+        normalizeUserAccountLifecycleStatus(appUser) === 'active';
+
+      if (admittedAccount) {
+        const initialConsentRequired =
+          appUser?.initialAdultConsentRequired !== false;
+
+        return of(
+          !initialConsentRequired || accepted
+            ? true as GuardResult
+            : redirectToConsent()
+        );
       }
 
       return ageEligibility.reconcileTrustedStateOncePerSession$().pipe(
