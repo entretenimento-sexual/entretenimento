@@ -28,10 +28,8 @@ describe('AgeVerificationPageComponent', () => {
   let component: AgeVerificationPageComponent;
   let router: Router;
   let current$: BehaviorSubject<IUserAgeEligibility>;
-  let adultAccessAllowed$: BehaviorSubject<boolean>;
   let ageEligibilityMock: {
     current$: unknown;
-    adultAccessAllowed$: unknown;
     acceptSelfDeclaration$: MockFn;
     getCurrentOnce$: MockFn;
     refreshTrustedSources$: MockFn;
@@ -39,11 +37,9 @@ describe('AgeVerificationPageComponent', () => {
 
   beforeEach(async () => {
     current$ = new BehaviorSubject<IUserAgeEligibility>(UNVERIFIED);
-    adultAccessAllowed$ = new BehaviorSubject<boolean>(false);
 
     ageEligibilityMock = {
       current$: current$.asObservable(),
-      adultAccessAllowed$: adultAccessAllowed$.asObservable(),
       acceptSelfDeclaration$: vi.fn(() => of('SELF_DECLARED_ADULT')),
       getCurrentOnce$: vi.fn(() => current$.pipe(take(1))),
       refreshTrustedSources$: vi.fn(() => of('UNVERIFIED')),
@@ -125,7 +121,6 @@ describe('AgeVerificationPageComponent', () => {
       method: 'SELF_DECLARATION',
       updatedAtMs: Date.now(),
     });
-    adultAccessAllowed$.next(true);
 
     fixture = TestBed.createComponent(AgeVerificationPageComponent);
     component = fixture.componentInstance;
@@ -155,7 +150,13 @@ describe('AgeVerificationPageComponent', () => {
     );
     expect(router.navigate).not.toHaveBeenCalled();
 
-    adultAccessAllowed$.next(true);
+    current$.next({
+      ...UNVERIFIED,
+      status: 'SELF_DECLARED_ADULT',
+      source: 'SELF_DECLARATION',
+      method: 'SELF_DECLARATION',
+      updatedAtMs: Date.now(),
+    });
 
     await vi.waitFor(() => {
       expect(router.navigate).toHaveBeenCalledTimes(1);
@@ -228,8 +229,14 @@ describe('AgeVerificationPageComponent', () => {
     });
   });
 
-  it('segue automaticamente quando a projeção backend libera acesso adulto', async () => {
-    adultAccessAllowed$.next(true);
+  it('segue automaticamente quando a projeção backend libera a etapa etária', async () => {
+    current$.next({
+      ...UNVERIFIED,
+      status: 'SELF_DECLARED_ADULT',
+      source: 'SELF_DECLARATION',
+      method: 'SELF_DECLARATION',
+      updatedAtMs: Date.now(),
+    });
 
     await vi.waitFor(() => {
       expect(router.navigate).toHaveBeenCalledWith(
@@ -249,7 +256,13 @@ describe('AgeVerificationPageComponent', () => {
 
     expect(router.navigate).not.toHaveBeenCalled();
 
-    adultAccessAllowed$.next(true);
+    current$.next({
+      ...UNVERIFIED,
+      status: 'SELF_DECLARED_ADULT',
+      source: 'SELF_DECLARATION',
+      method: 'SELF_DECLARATION',
+      updatedAtMs: Date.now(),
+    });
 
     await vi.waitFor(() => {
       expect(router.navigate).toHaveBeenCalledTimes(1);
