@@ -384,16 +384,17 @@ export function writeAgeEligibilityExpiredNotificationInTransaction(
     db.collection('notifications').doc(id),
     {
       userId: uid,
-      type: 'compliance.action.taken',
-      title: 'Verificação de idade expirada',
+      type: 'system',
+      title: 'Registro de verificação atualizado',
       body: [
-        'Sua verificação de maioridade expirou.',
-        'Renove a verificação para retomar as superfícies adultas da plataforma.',
+        'O registro de verificação de maioridade atingiu sua validade técnica.',
+        'Isso não altera sozinho o acesso de uma conta já admitida.',
+        'Se uma nova verificação for necessária, você receberá uma solicitação específica.',
       ].join(' '),
       route: '/conta/status',
-      actionRequired: true,
+      actionRequired: false,
       caseId: null,
-      pushMode: 'ESSENTIAL',
+      pushMode: 'IN_APP_ONLY',
       responseDueAt: null,
       readAt: null,
       createdAt: FieldValue.serverTimestamp(),
@@ -419,14 +420,16 @@ export async function notifyAgeEligibilityExpired(input: {
       'age-eligibility-expired'
     ),
     userId: uid,
-    type: 'compliance.action.taken',
-    title: 'Verificação de idade expirada',
+    type: 'system',
+    title: 'Registro de verificação atualizado',
     body: [
-      'Sua verificação de maioridade expirou.',
-      'Renove a verificação para retomar as superfícies adultas da plataforma.',
+      'O registro de verificação de maioridade atingiu sua validade técnica.',
+      'Isso não altera sozinho o acesso de uma conta já admitida.',
+      'Se uma nova verificação for necessária, você receberá uma solicitação específica.',
     ].join(' '),
     route: '/conta/status',
-    actionRequired: true,
+    actionRequired: false,
+    pushMode: 'IN_APP_ONLY',
   });
 }
 
