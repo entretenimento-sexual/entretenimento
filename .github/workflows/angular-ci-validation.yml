@@ -1,24 +1,6 @@
 name: Angular CI Validation
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'src/**'
-      - 'angular.json'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'tsconfig*.json'
-      - '.github/workflows/angular-ci-validation.yml'
-  pull_request:
-    paths:
-      - 'src/**'
-      - 'angular.json'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'tsconfig*.json'
-      - '.github/workflows/angular-ci-validation.yml'
   workflow_dispatch:
 
 permissions:

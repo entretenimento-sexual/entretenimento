@@ -321,6 +321,8 @@ jobs:
 
   angular-build:
     name: Angular safe build
+    needs: angular-tests
+    if: ${{ always() && !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
@@ -380,6 +382,8 @@ jobs:
 
   firestore-rules:
     name: Firestore Rules tests
+    needs: firestore-indexes
+    if: ${{ always() && !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
 
@@ -449,6 +453,7 @@ jobs:
         run: |
           state='success'
           description='Todos os checks de qualidade passaram.'
+          incomplete='false'
 
           for result in \
             "$FIRESTORE_INDEXES_RESULT" \
@@ -456,12 +461,28 @@ jobs:
             "$ANGULAR_TESTS_RESULT" \
             "$ANGULAR_BUILD_RESULT" \
             "$FIRESTORE_RULES_RESULT"; do
-            if [[ "$result" != 'success' ]]; then
-              state='failure'
-              description='Um ou mais checks de qualidade falharam.'
-              break
-            fi
+            case "$result" in
+              success)
+                ;;
+              failure)
+                state='failure'
+                description='Um ou mais checks de qualidade falharam.'
+                break
+                ;;
+              cancelled|skipped)
+                state='failure'
+                incomplete='true'
+                description='Validação incompleta: um ou mais jobs não foram executados até o fim.'
+                ;;
+              *)
+                state='failure'
+                incomplete='true'
+                description='Validação incompleta: resultado inesperado no Quality Gate.'
+                ;;
+            esac
           done
+
+          echo "incomplete=$incomplete" >> "$GITHUB_OUTPUT"
 
           echo "state=$state" >> "$GITHUB_OUTPUT"
           echo "description=$description" >> "$GITHUB_OUTPUT"
