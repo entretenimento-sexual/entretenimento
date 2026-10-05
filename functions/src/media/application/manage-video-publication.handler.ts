@@ -4,6 +4,9 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import {
   assertMediaAuthoringEligibility,
 } from './media-authoring-eligibility.service';
+import {
+  buildUnassessedMediaContentSafetyAssessment,
+} from './media-content-safety-assessment.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue } from '../../firebaseApp';
 import {
@@ -375,6 +378,8 @@ export const publishVideo = onCall<PublishVideoRequest>(
 
     const now = Date.now();
     const moderationStatus = defaultVideoPublicationModerationStatus();
+    const contentSafetyAssessment =
+      buildUnassessedMediaContentSafetyAssessment(now);
     const scoreBreakdown = buildUnassessedVideoScoreBreakdown();
     const durationMs = normalizeOptionalPositiveInteger(
       ownerVideo.durationMs
@@ -392,6 +397,7 @@ export const publishVideo = onCall<PublishVideoRequest>(
         orderIndex,
         moderationStatus,
         moderationReason: null,
+        contentSafetyAssessment,
         reportsCount: 0,
         openReportsCount: 0,
         confirmedReportsCount: 0,
@@ -447,6 +453,7 @@ export const publishVideo = onCall<PublishVideoRequest>(
         orderIndex,
         moderationStatus,
         moderationReason: null,
+        contentSafetyAssessment,
         reportsCount: 0,
         openReportsCount: 0,
         confirmedReportsCount: 0,
