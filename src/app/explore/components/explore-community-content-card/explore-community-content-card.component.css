@@ -31,11 +31,6 @@
   flex: 0 0 auto;
   overflow: hidden;
   border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
-  background: color-mix(
-    in oklab,
-    var(--primary-color, #ff7070) 10%,
-    var(--surface-color, #101925)
-  );
   color: var(--text-color, #f5f7fb);
   font-weight: 850;
 }
