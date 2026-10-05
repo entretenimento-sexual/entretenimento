@@ -45,6 +45,28 @@ function forbid(source, pattern, reason) {
   }
 }
 
+const contentSafety = read(
+  'functions/src/media/application/media-content-safety-assessment.policy.ts'
+);
+requireIncludes(contentSafety, [
+  "'UNASSESSED'",
+  "'POSSIBLE_MINOR'",
+  "'CONFIRMED_MINOR'",
+  "'CLEARED'",
+  "'HUMAN_REPORT'",
+  "'MODERATOR_REVIEW'",
+  "'AUTOMATED_SIGNAL'",
+  'buildUnassessedMediaContentSafetyAssessment',
+  'buildPossibleMinorContentSafetyAssessment',
+  'buildReviewedMinorContentSafetyAssessment',
+], 'autoridade canônica de content safety');
+
+forbid(
+  contentSafety,
+  /ageEligibility|SELF_DECLARED_ADULT|VERIFIED_ADULT/,
+  'content safety não pode depender de assurance etário da conta'
+);
+
 const safety = read('functions/src/media/application/media-report-safety.ts');
 requireIncludes(safety, [
   "'minor_exposure_safety'",
@@ -83,6 +105,8 @@ for (const handler of [
     'safetySeverity: mediaSafetySeverity(reason)',
     'criticalMinorSafety:',
     'safeRecordModerationOpenSignal',
+    'buildPossibleMinorContentSafetyAssessment',
+    'contentSafetyAssessment',
   ], handler);
 }
 
@@ -95,7 +119,20 @@ for (const reviewHandler of [
     'safeRecordModerationReviewSignal',
     'safeRecordModerationReporterOutcome',
     "confirmed: decision === 'REMOVE'",
+    'buildReviewedMinorContentSafetyAssessment',
+    'contentSafetyAssessment',
   ], reviewHandler + ' deve alimentar automação e risco do denunciante');
+}
+
+for (const publicationHandler of [
+  'functions/src/media/application/manage-photo-publication.handler.ts',
+  'functions/src/media/application/manage-video-publication.handler.ts',
+]) {
+  const source = read(publicationHandler);
+  requireIncludes(source, [
+    'buildUnassessedMediaContentSafetyAssessment',
+    'contentSafetyAssessment',
+  ], publicationHandler + ' deve iniciar content safety sem revisão prévia');
 }
 
 const evidence = read(
