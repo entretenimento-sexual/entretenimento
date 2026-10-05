@@ -250,22 +250,3 @@ export function evaluateCanonicalAgeEligibility(input: {
     caseId,
   });
 }
-
-
-/**
- * Assurance forte para superfícies que explicitamente exigem verificação
- * confiável, como consumo público adulto sob a política atual.
- *
- * Não usar esta função como gate genérico de autoria/upload: autoria consulta
- * a elegibilidade adulta canônica da conta e a segurança do conteúdo é
- * decidida separadamente pelo pipeline preventivo de moderação.
- */
-export function isVerifiedAdultAgeDecision(
-  decision: Readonly<AgeEligibilityDecision>
-): boolean {
-  return (
-    decision.allowed === true &&
-    decision.status === 'VERIFIED_ADULT' &&
-    decision.verifiedAtMs !== null
-  );
-}
