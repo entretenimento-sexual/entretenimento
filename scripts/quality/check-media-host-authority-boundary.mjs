@@ -149,35 +149,138 @@ const discoveryRepo = read(
 requireIncludes(discoveryRepo, [
   'PublicProfileReadBoundaryService',
   'this.publicProfileRead.read$(',
-  'filterCurrentAdultCards',
-], 'Discovery deve consumir backend e usar projeção etária apenas para fail-close');
+  'DISCOVERY_PAGE_CACHE_TTL_MS',
+], 'Discovery deve consumir backend e manter cache técnico independente de assurance');
+
+forbid(discoveryRepo, [
+  [/ageEligibilityVerifiedAdult/, 'repositório Discovery não pode decidir maioridade por projeção etária'],
+  [/ageEligibilityValidUntil/, 'TTL/cache Discovery não pode depender de validade etária'],
+  [/filterCurrentAdultCards/, 'cache Discovery não pode manter filtro etário local'],
+], 'repositório Discovery');
 
 const discoveryMapper = read(
   'src/app/dashboard/discovery/data-access/public-profile-card.mapper.ts'
 );
 requireIncludes(discoveryMapper, [
-  "source['ageEligibilityVerifiedAdult'] !== true",
-  'ageEligibilityValidUntil === null',
-  'ageEligibilityValidUntil <= Date.now()',
+  'if (!uid || !nickname)',
   'return null;',
-], 'mapper etário só pode descartar projeção inválida');
+], 'mapper público deve validar apenas integridade do card');
 
 forbid(discoveryMapper, [
-  [/ageEligibilityVerifiedAdult[^\n]{0,120}===\s*true[^\n]{0,160}return\s+\{/, 'mapper não pode conceder autoridade com projeção etária'],
+  [/ageEligibilityVerifiedAdult/, 'mapper não pode decidir maioridade por projeção etária'],
+  [/ageEligibilityValidUntil/, 'mapper não pode depender de validade etária'],
 ], 'mapper de perfil público');
 
 const discoveryFacade = read(
   'src/app/dashboard/discovery/application/discovery-public-profiles.facade.ts'
 );
 requireIncludes(discoveryFacade, [
-  'watchCurrentAdultSlice$(',
-  'item?.ageEligibilityValidUntil',
-  'validUntilMs !== null && validUntilMs > nowMs',
-], 'facade só pode usar validade projetada para retirar cache expirado');
+  'currentFeedSlice
+const officialProjection = read(
+  'src/app/core/services/media/official-media-context.projection.ts'
+);
+requireIncludes(officialProjection, [
+  "identity['verified'] !== true",
+  "association['verified'] !== true",
+  'identityType !== targetType',
+  'return null;',
+], 'Official projection deve falhar fechado');
+
+const mediaPresentation = read(
+  'src/app/media/shared/presentation/public-media-presentation.policy.ts'
+);
+requireIncludes(mediaPresentation, [
+  'normalizeOfficialMediaContextProjection',
+  'value?.officialMediaContext',
+  ") !== null;",
+], 'badge Oficial deve normalizar projeção antes de apresentar');
+
+const promotionPlacement = read(
+  'src/app/core/services/media/photo-promotion-placement.service.ts'
+);
+requireIncludes(promotionPlacement, [
+  "'getPhotoPromotionPlacement'",
+  'placementId',
+  'campaignId',
+  "disclosure: 'Patrocinado'",
+  'PublicPhotoAccessService',
+], 'Patrocinado deve nascer de placement backend');
+
+for (const relativePath of [
+  'src/app/layout/other-user-profile-view/other-user-profile-view.component.ts',
+  'src/app/user-profile/user-profile-view/user-profile-view.component.ts',
+  'src/app/explore/services/explore-personal-media.service.ts',
+  'src/app/explore/services/explore-feed.service.ts',
+  'src/app/explore/facades/explore-feed.facade.ts',
+]) {
+  const source = read(relativePath);
+  forbid(source, [
+    [/\bplacementId\b/, 'host não pode fabricar placement patrocinado'],
+    [/\bcampaignId\b/, 'host não pode fabricar campanha patrocinada'],
+    [/\bdisclosure\s*:\s*['"]Patrocinado['"]/, 'host não pode autoatribuir disclosure comercial'],
+  ], relativePath);
+}
+
+console.log(
+  '[media-host-authority] OK: host/profile/explore apenas apresentam ou falham fechado; autoridade permanece em backend/Rules.'
+);
+,
+  'this.feedSlice
+const officialProjection = read(
+  'src/app/core/services/media/official-media-context.projection.ts'
+);
+requireIncludes(officialProjection, [
+  "identity['verified'] !== true",
+  "association['verified'] !== true",
+  'identityType !== targetType',
+  'return null;',
+], 'Official projection deve falhar fechado');
+
+const mediaPresentation = read(
+  'src/app/media/shared/presentation/public-media-presentation.policy.ts'
+);
+requireIncludes(mediaPresentation, [
+  'normalizeOfficialMediaContextProjection',
+  'value?.officialMediaContext',
+  ") !== null;",
+], 'badge Oficial deve normalizar projeção antes de apresentar');
+
+const promotionPlacement = read(
+  'src/app/core/services/media/photo-promotion-placement.service.ts'
+);
+requireIncludes(promotionPlacement, [
+  "'getPhotoPromotionPlacement'",
+  'placementId',
+  'campaignId',
+  "disclosure: 'Patrocinado'",
+  'PublicPhotoAccessService',
+], 'Patrocinado deve nascer de placement backend');
+
+for (const relativePath of [
+  'src/app/layout/other-user-profile-view/other-user-profile-view.component.ts',
+  'src/app/user-profile/user-profile-view/user-profile-view.component.ts',
+  'src/app/explore/services/explore-personal-media.service.ts',
+  'src/app/explore/services/explore-feed.service.ts',
+  'src/app/explore/facades/explore-feed.facade.ts',
+]) {
+  const source = read(relativePath);
+  forbid(source, [
+    [/\bplacementId\b/, 'host não pode fabricar placement patrocinado'],
+    [/\bcampaignId\b/, 'host não pode fabricar campanha patrocinada'],
+    [/\bdisclosure\s*:\s*['"]Patrocinado['"]/, 'host não pode autoatribuir disclosure comercial'],
+  ], relativePath);
+}
+
+console.log(
+  '[media-host-authority] OK: host/profile/explore apenas apresentam ou falham fechado; autoridade permanece em backend/Rules.'
+);
+,
+], 'facade deve consumir a lista já autorizada pelo backend');
 
 forbid(discoveryFacade, [
   [/ageEligibilityVerifiedAdult/, 'facade não deve decidir maioridade por boolean projetado'],
-  [/ageEligibilityValidUntil[\s\S]{0,220}(?:ALLOW|canAccess|canView|authorized)\s*=\s*true/i, 'facade não pode transformar validade projetada em autorização'],
+  [/ageEligibilityValidUntil/, 'facade não pode manter expiração etária local'],
+  [/watchCurrentAdultSlice\$\(/, 'facade não pode manter segunda política etária'],
 ], 'facade Discovery');
 
 const officialProjection = read(
