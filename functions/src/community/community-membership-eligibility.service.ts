@@ -17,10 +17,9 @@ import {
 
 export function assertCommunityMembershipActorEligible(
   rawUser: unknown,
-  uid: string,
-  _rawAgeEligibility: unknown
+  uid: string
 ): void {
-  assertCommunitySocialAccessEligible(rawUser, uid, null);
+  assertCommunitySocialAccessEligible(rawUser, uid);
 
   const user = (rawUser ?? {}) as Record<string, unknown>;
   if (user['profileCompleted'] !== true) {
@@ -49,8 +48,7 @@ export async function assertCommunityMembershipActorEligibleForUid(
 
   assertCommunityMembershipActorEligible(
     user,
-    normalizedUid,
-    null
+    normalizedUid
   );
 
   return (user ?? {}) as Record<string, unknown>;
@@ -70,7 +68,6 @@ export async function assertCommunityMembershipActorEligibleInTransaction(
 
   assertCommunityMembershipActorEligible(
     rawUser,
-    normalizedUid,
-    null
+    normalizedUid
   );
 }
