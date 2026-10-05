@@ -561,23 +561,52 @@ for (const relativePath of [
 }
 
 requireAll(
-  'functions/src/compliance/request-profile-age-reverification.handler.ts',
+  'functions/src/account_lifecycle/account-age-review-lifecycle.policy.ts',
   [
+    'buildAgeReviewRestrictionPatch',
+    'buildAgeReviewRestorePatch',
+    'buildConfirmedUnderageSuspensionPatch',
     "publicVisibility: 'hidden'",
+    "publicVisibility: 'visible'",
+    "accountStatus: 'moderation_suspended'",
     'interactionBlocked: true',
+    'interactionBlocked: false',
   ],
-  'revalidação deve materializar restrição no lifecycle da conta'
+  'Account Lifecycle deve materializar as consequências da revalidação'
+);
+
+requireAll(
+  'functions/src/compliance/request-profile-age-reverification.handler.ts',
+  ['buildAgeReviewRestrictionPatch'],
+  'Compliance deve delegar restrição etária ao domínio Account'
 );
 
 requireAll(
   'functions/src/compliance/review-profile-age-reverification.handler.ts',
   [
-    "publicVisibility: 'visible'",
-    'interactionBlocked: false',
-    "accountStatus: 'moderation_suspended'",
+    'buildAgeReviewRestorePatch',
+    'buildConfirmedUnderageSuspensionPatch',
+  ],
+  'Compliance deve delegar resultado etário ao domínio Account'
+);
+
+forbidAll(
+  'functions/src/compliance/request-profile-age-reverification.handler.ts',
+  [
+    "publicVisibility: 'hidden'",
     'interactionBlocked: true',
   ],
-  'resultado da revalidação deve restaurar ou restringir a conta'
+  'Compliance não deve definir diretamente consequência de lifecycle'
+);
+
+forbidAll(
+  'functions/src/compliance/review-profile-age-reverification.handler.ts',
+  [
+    "publicVisibility: 'visible'",
+    "accountStatus: 'moderation_suspended'",
+    'suspended: true',
+  ],
+  'Compliance não deve definir diretamente consequência de lifecycle'
 );
 
 // Segurança de menor dentro do conteúdo é uma autoridade de moderação de Media.
