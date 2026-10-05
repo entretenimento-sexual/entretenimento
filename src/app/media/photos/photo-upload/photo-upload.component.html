@@ -87,7 +87,7 @@
 
             @if (phase === 'EDITING') {
               <p class="upload-note" role="status" aria-live="polite">
-                Editor aberto. Confirme ou cancele a edição para continuar.
+                Editor aberto. Salve ou cancele a edição para continuar.
               </p>
             }
 
@@ -104,7 +104,7 @@
             }
 
             <p class="upload-note">
-              A imagem é normalizada pelo editor e publicada após o envio. Moderação pode agir posteriormente por denúncia ou por mecanismos automáticos de segurança quando disponíveis.
+              Você pode publicar a foto como está ou editá-la antes. A edição é opcional; a moderação pode agir posteriormente por denúncia ou por mecanismos automáticos de segurança quando disponíveis.
             </p>
 
             <div class="upload-actions">
@@ -128,7 +128,7 @@
                 [disabled]="phase !== 'READY'"
               >
                 <i class="fas fa-crop-simple" aria-hidden="true"></i>
-                Ajustar novamente
+                Editar foto
               </button>
 
               <button
@@ -161,12 +161,12 @@
           <section class="preview-panel" aria-label="Pré-visualização da foto">
             @if (preview) {
               <figure class="preview-card">
-                <img [src]="preview" alt="Pré-visualização da foto editada" />
+                <img [src]="preview" alt="Pré-visualização da foto selecionada" />
               </figure>
             } @else {
               <div class="preview-empty" role="status" aria-live="polite">
                 <i class="fas fa-images" aria-hidden="true"></i>
-                <strong>Nenhuma foto confirmada</strong>
+                <strong>Nenhuma foto selecionada</strong>
               </div>
             }
           </section>
