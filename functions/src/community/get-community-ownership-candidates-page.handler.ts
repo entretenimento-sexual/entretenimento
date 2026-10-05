@@ -216,14 +216,12 @@ function assertCommunityOwnerPointer(
 
 function isTargetAccountEligible(
   rawUser: unknown,
-  uid: string,
-  rawAgeEligibility: unknown
+  uid: string
 ): boolean {
   try {
     assertCommunityMembershipActorEligible(
       rawUser,
-      uid,
-      rawAgeEligibility
+      uid
     );
     return true;
   } catch {
@@ -356,7 +354,7 @@ export const getCommunityOwnershipCandidatesPage =
         const memberId = normalizeSafeId(document.data()?.['memberId']);
         return memberId && memberId !== actorUid;
       });
-      const [membershipSnapshots, userSnapshots, ageEligibilitySnapshots] =
+      const [membershipSnapshots, userSnapshots] =
         await Promise.all([
           Promise.all(
             candidateDocuments.map((document) => {
@@ -371,14 +369,6 @@ export const getCommunityOwnershipCandidatesPage =
               const memberId = normalizeSafeId(document.data()?.['memberId']);
               return memberId
                 ? db.collection('users').doc(memberId).get()
-                : Promise.resolve(null);
-            })
-          ),
-          Promise.all(
-            candidateDocuments.map((document) => {
-              const memberId = normalizeSafeId(document.data()?.['memberId']);
-              return memberId
-                ? db.collection('age_eligibility_records').doc(memberId).get()
                 : Promise.resolve(null);
             })
           ),
@@ -410,10 +400,7 @@ export const getCommunityOwnershipCandidatesPage =
             || !ownershipCandidateMatchesRoleFilter(role, roleFilter)
             || !isTargetAccountEligible(
               userSnapshot.data() ?? {},
-              memberId,
-              ageEligibilitySnapshot?.exists
-                ? ageEligibilitySnapshot.data()
-                : null
+              memberId
             )
           ) {
             return null;
