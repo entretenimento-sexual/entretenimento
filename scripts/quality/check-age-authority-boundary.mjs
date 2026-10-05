@@ -225,6 +225,8 @@ for (const directory of productDomainDirectories) {
       'age_eligibility_records',
       'evaluateCanonicalAgeEligibility',
       'isTrustedAdultAgeDecision',
+      'resolveCurrentTrustedAdultAgeProjection',
+      'trusted-adult-account-assurance.policy',
     ]) {
       if (source.includes(token)) {
         violations.push(
@@ -247,6 +249,12 @@ for (const relativePath of [
     'produto deve delegar autorização à Account Access'
   );
 }
+
+forbidAll(
+  'firestore-rules/public_profiles_next.rules',
+  ['canonicalAgeEligibilityAllowsTrustedAdultAccess'],
+  'projeção pública de conta já ativa não pode revalidar assurance etário'
+);
 
 requireAll(
   'functions/src/media/application/public-media-signed-url-expiry.policy.ts',
