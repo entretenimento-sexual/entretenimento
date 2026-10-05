@@ -33,8 +33,8 @@ service cloud.firestore {
     // ===============================================================
     // O Router protege a navegação, mas não é fronteira de segurança.
     // Leituras adultas repetem a fronteira canônica de Account Access:
-    // lifecycle, termos, consentimento e assurance confiável backend-only.
-    // As Rules de produto apenas chamam essa autoridade central.
+    // lifecycle, termos e consentimento. A maioridade confiável é exigida na
+    // admissão da conta; fatos novos de segurança repercutem no lifecycle.
     function currentPrivateUserPath() {
       return /databases/$(database)/documents/users/$(uid());
     }
@@ -65,8 +65,7 @@ service cloud.firestore {
         && (accountStatus == null || accountStatus == "active")
         && suspended != true
         && (publicVisibility == null || publicVisibility == "visible")
-        && loginAllowed != false
-        && canonicalAgeEligibilityAllowsTrustedAdultAccess(userId);
+        && loginAllowed != false;
     }
 
     function adultMediaLifecycleAllowsAccess(user) {
@@ -185,8 +184,7 @@ service cloud.firestore {
       return user is map
         && adultMediaLifecycleAllowsAccess(user)
         && adultMediaHasCurrentTerms(user)
-        && adultMediaHasRequiredConsent(user)
-        && canonicalAgeEligibilityAllowsTrustedAdultAccess(uid());
+        && adultMediaHasRequiredConsent(user);
     }
 
     function canConsumeAdultPublicMedia() {
