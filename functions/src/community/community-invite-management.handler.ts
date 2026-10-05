@@ -200,14 +200,12 @@ export const findCommunityInviteCandidate =
       const [
         profileSnapshot,
         userSnapshot,
-        ageEligibilitySnapshot,
         membershipSnapshot,
         inviteSnapshot,
         blockedUids,
       ] = await Promise.all([
         db.collection('public_profiles').doc(candidateUid).get(),
         db.collection('users').doc(candidateUid).get(),
-        db.collection('age_eligibility_records').doc(candidateUid).get(),
         candidateMembershipRef.get(),
         db.collection('invites')
           .doc(buildCommunityInviteId(command.communityId, candidateUid))
