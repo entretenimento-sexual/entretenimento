@@ -7,15 +7,9 @@ import {
   toSerializableEpoch,
 } from './public-profile-card.mapper';
 
-const ACTIVE_AGE_PROJECTION = Object.freeze({
-  ageEligibilityVerifiedAdult: true,
-  ageEligibilityValidUntil: new Date(Date.now() + 60_000),
-});
-
 describe('public-profile-card.mapper', () => {
   it('deve normalizar aliases, métricas e timestamps para valores serializáveis', () => {
     const card = mapPublicProfileCard({
-      ...ACTIVE_AGE_PROJECTION,
       uid: 'profile-1',
       nickname: 'Pessoa Teste',
       avatarUrl: 'https://example.com/avatar.webp',
@@ -62,7 +56,6 @@ describe('public-profile-card.mapper', () => {
 
   it('deve projetar idade social válida e preservar sinais públicos de matching', () => {
     const card = mapPublicProfileCard({
-      ...ACTIVE_AGE_PROJECTION,
       uid: 'profile-matching',
       nickname: 'Compatível',
       age: 34,
@@ -89,7 +82,6 @@ describe('public-profile-card.mapper', () => {
 
   it('aceita alias legado de idade social durante a migração sem torná-lo autoridade adulta', () => {
     const card = mapPublicProfileCard({
-      ...ACTIVE_AGE_PROJECTION,
       uid: 'profile-age-alias',
       nickname: 'Idade social migrada',
       idade: '29',
@@ -100,7 +92,6 @@ describe('public-profile-card.mapper', () => {
 
   it('deve priorizar o contador único do perfil sobre o alias legado', () => {
     const card = mapPublicProfileCard({
-      ...ACTIVE_AGE_PROJECTION,
       uid: 'profile-viewers',
       nickname: 'Audiência',
       profileUniqueViewersCount: 3,
@@ -113,7 +104,6 @@ describe('public-profile-card.mapper', () => {
 
   it('deve descartar idade social inválida sem rejeitar o perfil adulto', () => {
     const card = mapPublicProfileCard({
-      ...ACTIVE_AGE_PROJECTION,
       uid: 'profile-invalid-age',
       nickname: 'Adulto',
       age: 17,
@@ -124,7 +114,6 @@ describe('public-profile-card.mapper', () => {
 
   it('deve remover duplicidades das preferências públicas', () => {
     const card = mapPublicProfileCard({
-      ...ACTIVE_AGE_PROJECTION,
       uid: 'profile-2',
       nickname: 'Teste',
       interestedInGenders: ['man', 'man', 'woman'],
@@ -135,7 +124,6 @@ describe('public-profile-card.mapper', () => {
 
   it('deve tratar 0,0 legado como localização pública ausente', () => {
     const card = mapPublicProfileCard({
-      ...ACTIVE_AGE_PROJECTION,
       uid: 'profile-zero-location',
       nickname: 'Sem posição válida',
       latitude: 0,
@@ -150,22 +138,18 @@ describe('public-profile-card.mapper', () => {
     });
   });
 
-  it('deve recusar projeção sem elegibilidade etária pública vigente', () => {
+  it('ignora projeções etárias legadas no contrato de Discovery', () => {
     expect(
       mapPublicProfileCard({
-        uid: 'profile-no-age-projection',
-        nickname: 'Sem boundary',
-      })
-    ).toBeNull();
-
-    expect(
-      mapPublicProfileCard({
-        uid: 'profile-expired-age-projection',
-        nickname: 'Expirado',
-        ageEligibilityVerifiedAdult: true,
+        uid: 'profile-legacy-age',
+        nickname: 'Perfil ativo',
+        ageEligibilityVerifiedAdult: false,
         ageEligibilityValidUntil: new Date(Date.now() - 1_000),
       })
-    ).toBeNull();
+    ).toMatchObject({
+      uid: 'profile-legacy-age',
+      nickname: 'Perfil ativo',
+    });
   });
 
   it('deve recusar projeção sem nickname público', () => {
