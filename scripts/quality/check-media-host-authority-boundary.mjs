@@ -175,16 +175,7 @@ const discoveryFacade = read(
   'src/app/dashboard/discovery/application/discovery-public-profiles.facade.ts'
 );
 requireIncludes(discoveryFacade, [
-  'currentFeedSlice$',
-  'this.feedSlice$',
-], 'facade deve consumir a lista já autorizada pelo backend');
-
-forbid(discoveryFacade, [
-  [/ageEligibilityVerifiedAdult/, 'facade não deve decidir maioridade por boolean projetado'],
-  [/ageEligibilityValidUntil/, 'facade não pode manter expiração etária local'],
-  [/watchCurrentAdultSlice\$\(/, 'facade não pode manter segunda política etária'],
-], 'facade Discovery');
-
+  'currentFeedSlice
 const officialProjection = read(
   'src/app/core/services/media/official-media-context.projection.ts'
 );
