@@ -15,8 +15,7 @@ import { db } from '../firebaseApp';
 
 export function assertCommunitySocialAccessEligible(
   rawUser: unknown,
-  uid: string,
-  _rawAgeEligibility: unknown
+  uid: string
 ): void {
   const user = (rawUser ?? {}) as Record<string, unknown>;
 
@@ -56,7 +55,6 @@ export async function assertCommunitySocialAccessForUid(
 
   assertCommunitySocialAccessEligible(
     userSnapshot.exists ? userSnapshot.data() : null,
-    normalizedUid,
-    null
+    normalizedUid
   );
 }
