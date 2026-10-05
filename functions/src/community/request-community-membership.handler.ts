@@ -170,13 +170,11 @@ export const requestCommunityMembership =
           discoverySnapshot,
           membershipSnapshot,
           userSnapshot,
-          ageEligibilitySnapshot,
         ] = await Promise.all([
           transaction.get(communityRef),
           transaction.get(discoveryRef),
           transaction.get(membershipRef),
           transaction.get(userRef),
-          transaction.get(ageEligibilityRef),
         ]);
 
         if (!communitySnapshot.exists) {
