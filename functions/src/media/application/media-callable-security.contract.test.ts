@@ -148,11 +148,13 @@ describe('Media callable security contract', () => {
 
     for (const name of INTERNAL_CALLABLE_CORES) {
       const relativeImport = name.replace(/\.ts$/, '');
-      assert.doesNotMatch(
-        mediaIndex,
-        new RegExp(
-          `from ['"]\\.\\/application/${relativeImport.replace(/[.*+?^\${}()|[\\]\\\\]/g, '\\\\  it('mantém exceções legadas apenas como tombstones fail-closed instrumentados', () => {')}['"]`
-        ),
+      const singleQuotedImport = `from './application/${relativeImport}'`;
+      const doubleQuotedImport = `from "./application/${relativeImport}"`;
+
+      assert.equal(
+        mediaIndex.includes(singleQuotedImport) ||
+          mediaIndex.includes(doubleQuotedImport),
+        false,
         `${name} é core interno e não pode ser exportado diretamente.`
       );
     }
