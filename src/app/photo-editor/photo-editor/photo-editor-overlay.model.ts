@@ -4,8 +4,11 @@
 
 export type PhotoEditorTool =
   | 'move'
+  | 'crop'
+  | 'adjust'
   | 'blur'
   | 'pixelate'
+  | 'bar'
   | 'emoji'
   | 'text'
   | 'datetime';
@@ -44,12 +47,23 @@ interface PhotoEditorOverlayBase {
   y: number;
 }
 
-export interface PhotoEditorPrivacyOverlay extends PhotoEditorOverlayBase {
+export interface PhotoEditorEffectPrivacyOverlay extends PhotoEditorOverlayBase {
   kind: 'blur' | 'pixelate';
   width: number;
   height: number;
   strength: number;
 }
+
+export interface PhotoEditorBarPrivacyOverlay extends PhotoEditorOverlayBase {
+  kind: 'bar';
+  width: number;
+  height: number;
+  opacity: number;
+}
+
+export type PhotoEditorPrivacyOverlay =
+  | PhotoEditorEffectPrivacyOverlay
+  | PhotoEditorBarPrivacyOverlay;
 
 export interface PhotoEditorDecorationOverlay extends PhotoEditorOverlayBase {
   kind: 'emoji' | 'text' | 'datetime';
@@ -71,6 +85,7 @@ export interface PhotoEditorDraftPrivacyRegion {
   endX: number;
   endY: number;
   strength: number;
+  opacity?: number;
 }
 
 export interface PhotoEditorOverlayBounds {
@@ -129,7 +144,7 @@ export function normalizePhotoEditorOverlays(
     const kind = source['kind'];
     const id = normalizeId(source['id']);
 
-    if (kind === 'blur' || kind === 'pixelate') {
+    if (kind === 'blur' || kind === 'pixelate' || kind === 'bar') {
       const x = clampNumber(source['x'], 0, 1);
       const y = clampNumber(source['y'], 0, 1);
       const width = clampNumber(
@@ -147,15 +162,27 @@ export function normalizePhotoEditorOverlays(
         continue;
       }
 
-      normalized.push({
-        id,
-        kind,
-        x,
-        y,
-        width,
-        height,
-        strength: clampNumber(source['strength'], 0.008, 0.08),
-      });
+      if (kind === 'bar') {
+        normalized.push({
+          id,
+          kind,
+          x,
+          y,
+          width,
+          height,
+          opacity: clampNumber(source['opacity'], 0.25, 1),
+        });
+      } else {
+        normalized.push({
+          id,
+          kind,
+          x,
+          y,
+          width,
+          height,
+          strength: clampNumber(source['strength'], 0.008, 0.08),
+        });
+      }
       continue;
     }
 
@@ -206,9 +233,8 @@ export function privacyRegionFromDraft(
     return null;
   }
 
-  return {
+  const base = {
     id: createPhotoEditorOverlayId(),
-    kind: draft.kind,
     x: clampNumber(x, 0, 1),
     y: clampNumber(y, 0, 1),
     width: clampNumber(width, MIN_PRIVACY_SIZE, Math.max(MIN_PRIVACY_SIZE, 1 - x)),
@@ -217,8 +243,19 @@ export function privacyRegionFromDraft(
       MIN_PRIVACY_SIZE,
       Math.max(MIN_PRIVACY_SIZE, 1 - y)
     ),
-    strength: clampNumber(draft.strength, 0.008, 0.08),
   };
+
+  return draft.kind === 'bar'
+    ? {
+        ...base,
+        kind: 'bar',
+        opacity: clampNumber(draft.opacity, 0.25, 1),
+      }
+    : {
+        ...base,
+        kind: draft.kind,
+        strength: clampNumber(draft.strength, 0.008, 0.08),
+      };
 }
 
 export function createPhotoEditorOverlayId(): string {
@@ -361,6 +398,8 @@ export function drawPhotoEditorOverlays(
         height,
         createCanvas
       );
+    } else if (overlay.kind === 'bar') {
+      drawBarOverlay(context, overlay, width, height);
     }
   }
 
@@ -369,7 +408,7 @@ export function drawPhotoEditorOverlays(
     if (draftOverlay) {
       if (draftOverlay.kind === 'blur') {
         drawBlurOverlay(context, baseCanvas, draftOverlay, width, height);
-      } else {
+      } else if (draftOverlay.kind === 'pixelate') {
         drawPixelateOverlay(
           context,
           baseCanvas,
@@ -378,6 +417,8 @@ export function drawPhotoEditorOverlays(
           height,
           createCanvas
         );
+      } else {
+        drawBarOverlay(context, draftOverlay, width, height);
       }
 
       if (preview) {
@@ -519,6 +560,19 @@ function drawPixelateOverlay(
     rect.width,
     rect.height
   );
+  context.restore();
+}
+
+function drawBarOverlay(
+  context: CanvasRenderingContext2D,
+  overlay: PhotoEditorBarPrivacyOverlay,
+  width: number,
+  height: number
+): void {
+  const rect = toPixelRect(overlay, width, height);
+  context.save();
+  context.fillStyle = `rgb(0 0 0 / ${overlay.opacity})`;
+  context.fillRect(rect.x, rect.y, rect.width, rect.height);
   context.restore();
 }
 
@@ -814,7 +868,7 @@ function isPrivacyOverlay(
 function isPrivacyKind(
   kind: PhotoEditorTool
 ): kind is PhotoEditorPrivacyOverlay['kind'] {
-  return kind === 'blur' || kind === 'pixelate';
+  return kind === 'blur' || kind === 'pixelate' || kind === 'bar';
 }
 
 function pad2(value: number): string {
