@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto';
-
 import { Timestamp } from 'firebase-admin/firestore';
 import * as logger from 'firebase-functions/logger';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
@@ -27,7 +25,7 @@ type PrivatePhotoCommitMode = 'create' | 'replace';
 interface RegisterPrivatePhotoUploadRequest {
   ownerUid?: unknown;
   photoId?: unknown;
-  storagePath?: unknown;
+  reservationId?: unknown;
   fileName?: unknown;
   mode?: unknown;
 }
@@ -91,6 +89,11 @@ function cleanMode(value: unknown): PrivatePhotoCommitMode | null {
   return value === 'create' || value === 'replace' ? value : null;
 }
 
+function cleanReservationId(value: unknown): string {
+  const normalized = String(value ?? '').trim();
+  return /^[a-f0-9]{64}$/i.test(normalized) ? normalized : '';
+}
+
 function normalizePositiveInteger(value: unknown): number {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : 0;
@@ -111,12 +114,6 @@ function toMillis(value: unknown): number {
   }
 
   return 0;
-}
-
-function buildReservationId(ownerUid: string, storagePath: string): string {
-  return createHash('sha256')
-    .update(`${ownerUid}:${storagePath}`)
-    .digest('hex');
 }
 
 function assertOwner(requesterUid: string, ownerUid: string): void {
@@ -145,12 +142,13 @@ export const registerPrivatePhotoUpload = onCall<
     const requesterUid = cleanId(request.auth?.uid);
     const ownerUid = cleanId(request.data?.ownerUid);
     const photoId = cleanId(request.data?.photoId);
+    const reservationId = cleanReservationId(request.data?.reservationId);
     const mode = cleanMode(request.data?.mode);
 
-    if (!ownerUid || !photoId || !mode) {
+    if (!ownerUid || !photoId || !reservationId || !mode) {
       throw new HttpsError(
         'invalid-argument',
-        'Foto, proprietário ou operação inválidos.'
+        'Foto, reserva, proprietário ou operação inválidos.'
       );
     }
 
@@ -164,20 +162,8 @@ export const registerPrivatePhotoUpload = onCall<
     });
     await assertMediaAuthoringEligibility(ownerUid);
 
-    const storagePath = extractOwnedPrivatePhotoPath(
-      ownerUid,
-      request.data?.storagePath
-    );
     const fileName = cleanFileName(request.data?.fileName);
 
-    if (!storagePath) {
-      throw new HttpsError(
-        'invalid-argument',
-        'O caminho da foto não corresponde ao arquivo privado informado.'
-      );
-    }
-
-    const reservationId = buildReservationId(ownerUid, storagePath);
     const reservationRef = db
       .collection(RESERVATION_COLLECTION)
       .doc(reservationId);
@@ -192,7 +178,7 @@ export const registerPrivatePhotoUpload = onCall<
 
     const reservation = reservationSnap.data() as PhotoUploadReservationDocument;
     const reservationOwnerUid = cleanId(reservation.ownerUid);
-    const reservationStoragePath = extractOwnedPrivatePhotoPath(
+    const storagePath = extractOwnedPrivatePhotoPath(
       ownerUid,
       reservation.storagePath
     );
@@ -206,7 +192,7 @@ export const registerPrivatePhotoUpload = onCall<
 
     if (
       reservationOwnerUid !== ownerUid ||
-      reservationStoragePath !== storagePath ||
+      !storagePath ||
       !reservationSizeBytes ||
       reservationExpiresAt <= Date.now() ||
       !ALLOWED_CONTENT_TYPES.has(reservationContentType)
