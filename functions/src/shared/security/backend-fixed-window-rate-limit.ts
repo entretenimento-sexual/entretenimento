@@ -46,9 +46,11 @@ function normalizeWindow(input: {
 }): { windowStartedAt: number; count: number } {
   const previousStartedAt = safeNonNegativeInteger(input.windowStartedAt);
   const previousCount = safeNonNegativeInteger(input.count);
+  const elapsedMs = previousStartedAt > 0
+    ? Math.max(0, input.now - previousStartedAt)
+    : 0;
   const expired = previousStartedAt <= 0
-    || input.now < previousStartedAt
-    || input.now - previousStartedAt >= input.windowMs;
+    || elapsedMs >= input.windowMs;
 
   return expired
     ? { windowStartedAt: input.now, count: 0 }
@@ -98,10 +100,16 @@ export function buildBackendFixedWindowRateLimitDecision(input: {
 
   if (burstBlocked || sustainedBlocked) {
     const burstRetryAfterMs = burstBlocked
-      ? Math.max(1, burstWindowMs - (now - burst.windowStartedAt))
+      ? Math.max(
+        1,
+        burstWindowMs - Math.max(0, now - burst.windowStartedAt)
+      )
       : 0;
     const sustainedRetryAfterMs = sustainedBlocked
-      ? Math.max(1, sustainedWindowMs - (now - sustained.windowStartedAt))
+      ? Math.max(
+        1,
+        sustainedWindowMs - Math.max(0, now - sustained.windowStartedAt)
+      )
       : 0;
 
     return {
