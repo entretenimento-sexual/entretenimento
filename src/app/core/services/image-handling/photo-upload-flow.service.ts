@@ -78,7 +78,7 @@ export class PhotoUploadFlowService {
       file,
       requestedStoragePath
     ).pipe(
-      switchMap(({ displayUrl, storagePath }) => {
+      switchMap(({ displayUrl, storagePath, reservationId }) => {
         const result: IPhotoFlowResult = {
           ...resultBase,
           url: displayUrl,
@@ -88,6 +88,7 @@ export class PhotoUploadFlowService {
         return this.persistNewPhoto$(
           safeUserId,
           result,
+          reservationId,
           command.imageStateStr
         );
       }),
@@ -160,7 +161,7 @@ export class PhotoUploadFlowService {
       file,
       requestedStoragePath
     ).pipe(
-      switchMap(({ displayUrl, storagePath }) => {
+      switchMap(({ displayUrl, storagePath, reservationId }) => {
         const result: IPhotoFlowResult = {
           photoId: safePhotoId,
           url: displayUrl,
@@ -176,7 +177,8 @@ export class PhotoUploadFlowService {
             {
               path: storagePath,
               fileName,
-            }
+            },
+            reservationId
           )
         ).pipe(
           switchMap(() =>
@@ -251,7 +253,7 @@ export class PhotoUploadFlowService {
           });
         }
       ).pipe(
-        switchMap(({ displayUrl, storagePath }) => {
+        switchMap(({ displayUrl, storagePath, reservationId }) => {
           const result: IPhotoFlowResult = {
             ...resultBase,
             url: displayUrl,
@@ -261,6 +263,7 @@ export class PhotoUploadFlowService {
           return this.persistNewPhoto$(
             safeUserId,
             result,
+            reservationId,
             command.imageStateStr
           );
         }),
@@ -293,7 +296,11 @@ export class PhotoUploadFlowService {
     file: File,
     requestedStoragePath: string,
     progressCallback?: (progress: number) => void
-  ): Observable<{ displayUrl: string; storagePath: string }> {
+  ): Observable<{
+    displayUrl: string;
+    storagePath: string;
+    reservationId: string;
+  }> {
     const storagePath =
       this.photoStorageLifecycle.extractOwnedPrivatePhotoPath(
         userId,
@@ -309,35 +316,42 @@ export class PhotoUploadFlowService {
       );
     }
 
-    return this.storageService.uploadFile(
+    return this.storageService.uploadOwnedPhotoFile(
       file,
       storagePath,
       userId,
       progressCallback
     ).pipe(
-      switchMap((location) =>
-        this.resolveDisplayUrl$(storagePath, location)
-      ),
-      map((displayUrl) => ({
-        displayUrl,
-        storagePath,
-      }))
+      switchMap(({ location, reservationId }) =>
+        this.resolveDisplayUrl$(storagePath, location).pipe(
+          map((displayUrl) => ({
+            displayUrl,
+            storagePath,
+            reservationId,
+          }))
+        )
+      )
     );
   }
 
   private persistNewPhoto$(
     userId: string,
     result: IPhotoFlowResult,
+    reservationId: string,
     imageStateStr?: string
   ): Observable<IPhotoFlowResult> {
     return from(
-      this.photoFirestoreService.savePhotoMetadata(userId, {
-        id: result.photoId,
-        url: result.url,
-        path: result.path,
-        fileName: result.fileName,
-        createdAt: result.createdAt,
-      })
+      this.photoFirestoreService.savePhotoMetadata(
+        userId,
+        {
+          id: result.photoId,
+          url: result.url,
+          path: result.path,
+          fileName: result.fileName,
+          createdAt: result.createdAt,
+        },
+        reservationId
+      )
     ).pipe(
       switchMap(() =>
         this.saveImageStateBestEffort$(userId, imageStateStr)
