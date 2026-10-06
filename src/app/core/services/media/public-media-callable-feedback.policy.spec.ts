@@ -59,7 +59,7 @@ describe('public-media-callable-feedback.policy', () => {
         'reaction',
         'Fallback'
       )
-    ).toBe('Sua conta não está disponível para esta interação.');
+    ).toBe('Esta conta não pode acessar conteúdo de mídia no momento.');
   });
 
   it('orienta aceite de termos por reason estruturado', () => {
@@ -72,9 +72,7 @@ describe('public-media-callable-feedback.policy', () => {
         'comment',
         'Fallback'
       )
-    ).toBe(
-      'Aceite os termos e a política de privacidade atuais para continuar.'
-    );
+    ).toBe('Aceite os termos vigentes antes de acessar conteúdo adulto.');
   });
 
   it('orienta consentimento adulto por reason estruturado', () => {
@@ -87,9 +85,7 @@ describe('public-media-callable-feedback.policy', () => {
         'rating',
         'Fallback'
       )
-    ).toBe(
-      'Confirme o consentimento para conteúdo adulto para continuar.'
-    );
+    ).toBe('Confirme o acesso à experiência adulta antes de continuar.');
   });
 
   it('não trata assurance etário como reason conhecido de Media', () => {
@@ -117,9 +113,7 @@ describe('public-media-callable-feedback.policy', () => {
         'reaction',
         'Fallback'
       )
-    ).toBe(
-      'Aceite os termos e a política de privacidade atuais para continuar.'
-    );
+    ).toBe('Aceite os termos vigentes antes de acessar conteúdo adulto.');
   });
 
   it('ignora reason desconhecido e mantém fallback seguro da ação', () => {
@@ -156,7 +150,9 @@ describe('public-media-callable-feedback.policy', () => {
         'comment',
         'Fallback'
       )
-    ).toBe('Sua sessão expirou. Entre novamente para continuar.');
+    ).toBe(
+      'Sua sessão expirou. Entre novamente para continuar com esta mídia.'
+    );
   });
 
   it('trata indisponibilidade transitória com mensagem segura', () => {
@@ -167,7 +163,7 @@ describe('public-media-callable-feedback.policy', () => {
         'Fallback'
       )
     ).toBe(
-      'O serviço está temporariamente indisponível. Tente novamente em instantes.'
+      'O serviço de mídia está temporariamente indisponível. Tente novamente em instantes.'
     );
   });
 
