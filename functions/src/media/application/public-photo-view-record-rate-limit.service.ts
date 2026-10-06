@@ -1,9 +1,5 @@
 import { consumeBackendRateLimitQuota } from './backend-rate-limit.service';
-
-const PUBLIC_PHOTO_VIEW_RECORD_BURST_WINDOW_MS = 60 * 1000;
-const PUBLIC_PHOTO_VIEW_RECORD_BURST_MAX = 60;
-const PUBLIC_PHOTO_VIEW_RECORD_SUSTAINED_WINDOW_MS = 10 * 60 * 1000;
-const PUBLIC_PHOTO_VIEW_RECORD_SUSTAINED_MAX = 360;
+import { PUBLIC_MEDIA_VIEW_RECORD_RATE_LIMIT_CONFIG } from './public-media-rate-limit.config';
 
 export async function consumePublicPhotoViewRecordQuota(
   viewerUid: string,
@@ -13,12 +9,7 @@ export async function consumePublicPhotoViewRecordQuota(
     action: 'public-media-view-record',
     subject: viewerUid,
     cost: 1,
-    config: {
-      burstWindowMs: PUBLIC_PHOTO_VIEW_RECORD_BURST_WINDOW_MS,
-      burstMax: PUBLIC_PHOTO_VIEW_RECORD_BURST_MAX,
-      sustainedWindowMs: PUBLIC_PHOTO_VIEW_RECORD_SUSTAINED_WINDOW_MS,
-      sustainedMax: PUBLIC_PHOTO_VIEW_RECORD_SUSTAINED_MAX,
-    },
+    config: PUBLIC_MEDIA_VIEW_RECORD_RATE_LIMIT_CONFIG,
     message: 'Muitas tentativas de registrar visualizações foram feitas em pouco tempo.',
     now,
   });
