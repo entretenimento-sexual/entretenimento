@@ -2,7 +2,7 @@
 // Serviço da camada de publicação.
 //
 // OBJETIVO:
-// - separar publicação da biblioteca privada;
+// - separar publicação da acervo de origem;
 // - ler configuração privada de publicação;
 // - solicitar publicação/capa via Cloud Functions;
 // - registrar visualização pública por backend confiável;
