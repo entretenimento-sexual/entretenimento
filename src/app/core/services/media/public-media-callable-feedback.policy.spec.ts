@@ -184,6 +184,6 @@ describe('public-media-callable-feedback.policy', () => {
         'comment',
         'Fallback'
       )
-    ).toBe('Este conteúdo não está mais disponível.');
+    ).toBe('Esta mídia não está mais disponível.');
   });
 });
