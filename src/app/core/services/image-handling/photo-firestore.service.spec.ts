@@ -4,6 +4,7 @@ import { Functions } from '@angular/fire/functions';
 import { of } from 'rxjs';
 
 import { PhotoFirestoreService } from './photo-firestore.service';
+import { StorageService } from './storage.service';
 import { FirestoreContextService } from '../data-handling/firestore/core/firestore-context.service';
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
@@ -21,6 +22,12 @@ describe('PhotoFirestoreService', () => {
         {
           provide: Functions,
           useValue: {},
+        },
+        {
+          provide: StorageService,
+          useValue: {
+            getPhotoUrl: (path: string) => of(path),
+          },
         },
         {
           provide: FirestoreContextService,
