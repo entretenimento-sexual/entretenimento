@@ -47,7 +47,6 @@ import { MEDIA_VIDEO_MAX_BYTES } from 'src/app/core/services/media/media-format.
 import {
   IMediaPolicyResult,
   IMediaPolicyViewerSnapshot,
-  MediaPolicyDenyReason,
   MediaPolicyService,
 } from 'src/app/core/services/media/media-policy.service';
 import { VideoEditorLauncherService } from 'src/app/core/services/media/video-editor-launcher.service';
