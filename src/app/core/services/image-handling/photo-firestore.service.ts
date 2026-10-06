@@ -34,6 +34,15 @@ export interface Photo {
   path?: string;
 }
 
+interface PrivatePhotoDocument {
+  id: string;
+  url?: string;
+  fileName?: string;
+  createdAt?: unknown;
+  displayDate?: number | null;
+  path?: string;
+}
+
 export interface PhotoComment {
   id: string;
   comment: string;
@@ -101,7 +110,7 @@ export class PhotoFirestoreService {
       );
 
       return collectionData(photosCollection, { idField: 'id' }).pipe(
-        map((photos) => photos as Photo[]),
+        map((photos) => photos as PrivatePhotoDocument[]),
         switchMap((photos) => this.hydratePrivatePhotoUrls$(photos))
       );
     }).pipe(
@@ -399,7 +408,7 @@ export class PhotoFirestoreService {
     );
   }
 
-  private hydratePrivatePhotoUrls$(photos: Photo[]): Observable<Photo[]> {
+  private hydratePrivatePhotoUrls$(photos: PrivatePhotoDocument[]): Observable<Photo[]> {
     if (!photos.length) {
       return of([]);
     }
@@ -411,15 +420,29 @@ export class PhotoFirestoreService {
         const source = path || legacyUrl;
 
         if (!source) {
-          return of({ ...photo, url: '' });
+          return of(this.toHydratedPhoto(photo, ''));
         }
 
         return this.storageService.getPhotoUrl(source).pipe(
-          map((url) => ({ ...photo, url: String(url ?? '').trim() })),
-          catchError(() => of({ ...photo, url: legacyUrl }))
+          map((url) => this.toHydratedPhoto(photo, String(url ?? '').trim())),
+          catchError(() => of(this.toHydratedPhoto(photo, legacyUrl)))
         );
       })
     );
+  }
+
+  private toHydratedPhoto(
+    photo: PrivatePhotoDocument,
+    url: string
+  ): Photo {
+    return {
+      id: String(photo.id ?? '').trim(),
+      url,
+      fileName: String(photo.fileName ?? '').trim(),
+      createdAt: photo.createdAt as Date,
+      displayDate: photo.displayDate ?? null,
+      path: String(photo.path ?? '').trim() || undefined,
+    };
   }
 
   private normalizeDisplayDate(value: number | null): number | null {
