@@ -10,7 +10,7 @@ export async function consumePublicPhotoViewRecordQuota(
   now = Date.now()
 ): Promise<void> {
   await consumeBackendRateLimitQuota({
-    action: 'recordPhotoView',
+    action: 'public-media-view-record',
     subject: viewerUid,
     cost: 1,
     config: {
