@@ -366,3 +366,51 @@ html.high-contrast .preview-empty {
   color: var(--text-color) !important;
   box-shadow: none !important;
 }
+
+
+.audience-picker {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.audience-picker legend {
+  margin-bottom: 0.15rem;
+  font-weight: 800;
+}
+
+.audience-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 0.9rem;
+  cursor: pointer;
+}
+
+.audience-option:has(input:checked) {
+  border-color: var(--primary-color);
+  background: color-mix(in oklab, var(--primary-color) 7%, var(--surface-color));
+}
+
+.audience-option input {
+  margin-top: 0.2rem;
+}
+
+.audience-option span {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.audience-option small {
+  color: color-mix(in oklab, var(--text-color) 68%, transparent);
+  line-height: 1.35;
+}
+
+.audience-picker:disabled .audience-option {
+  cursor: default;
+  opacity: 0.7;
+}
