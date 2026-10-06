@@ -42,11 +42,12 @@ describe('photo upload path authority', () => {
       'extractOwnedPrivatePhotoPath(\n        userId,\n        requestedStoragePath'
     );
     expect(uploadBlock).toContain(
-      'this.storageService.uploadFile(\n      file,\n      storagePath'
+      'this.storageService.uploadOwnedPhotoFile(\n      file,\n      storagePath'
     );
     expect(uploadBlock).toContain(
       'this.resolveDisplayUrl$(storagePath, location)'
     );
+    expect(uploadBlock).toContain('reservationId');
     expect(uploadBlock).toContain('storagePath,');
 
     const displayStart = flow.indexOf('  private resolveDisplayUrl$(');
@@ -58,6 +59,24 @@ describe('photo upload path authority', () => {
 
     expect(displayBlock).not.toContain('extractOwnedPrivatePhotoPath');
     expect(displayBlock).toContain('this.storageService.getPhotoUrl(storagePath)');
+  });
+
+  it('registro crítico usa reservationId e não reenvia storagePath como autoridade', () => {
+    const firestore = source(
+      'src/app/core/services/image-handling/photo-firestore.service.ts'
+    );
+
+    const commitStart = firestore.indexOf(
+      '  private async commitCriticalPhotoMetadata('
+    );
+    const hydrateStart = firestore.indexOf(
+      '  private hydratePrivatePhotoUrls$(',
+      commitStart
+    );
+    const commitBlock = firestore.slice(commitStart, hydrateStart);
+
+    expect(commitBlock).toContain('reservationId: safeReservationId');
+    expect(commitBlock).not.toContain('storagePath,\n            fileName');
   });
 
   it('metadado crítico persiste path, não URL de exibição', () => {
