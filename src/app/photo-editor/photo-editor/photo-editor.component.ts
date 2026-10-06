@@ -81,15 +81,28 @@ interface PhotoEditorNativeStateV1 {
   aspectRatio: PhotoEditorAspectRatio;
 }
 
+interface PhotoEditorCropRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 interface PhotoEditorNativeStateV2 {
   version: 2;
   editor: 'native-canvas';
   flattened: true;
   rotation: number;
+  straighten?: number;
+  flipHorizontal?: boolean;
+  brightness?: number;
+  contrast?: number;
+  saturation?: number;
   zoom: number;
   panX: number;
   panY: number;
   aspectRatio: PhotoEditorAspectRatio;
+  cropRect?: PhotoEditorCropRect;
   overlays: PhotoEditorOverlay[];
 }
 
@@ -110,6 +123,13 @@ const MAX_ZOOM = 3;
 const ZOOM_STEP = 0.05;
 const KEYBOARD_PAN_STEP = 0.025;
 const KEYBOARD_OVERLAY_STEP = 0.01;
+const MIN_CROP_SIZE = 0.08;
+const DEFAULT_CROP_RECT: PhotoEditorCropRect = {
+  x: 0,
+  y: 0,
+  width: 1,
+  height: 1,
+};
 
 @Component({
   selector: 'app-photo-editor',
@@ -191,13 +211,20 @@ export class PhotoEditorComponent implements AfterViewInit {
 
   userId = '';
   rotation = 0;
+  straighten = 0;
+  flipHorizontal = false;
+  brightness = 100;
+  contrast = 100;
+  saturation = 100;
   zoom = 1;
   panX = 0;
   panY = 0;
   aspectRatio: PhotoEditorAspectRatio = 'original';
+  cropRect: PhotoEditorCropRect = { ...DEFAULT_CROP_RECT };
 
   activeTool: PhotoEditorTool = 'move';
   privacyStrength = 3;
+  privacyOpacity = 85;
   decorationSize = 10;
   selectedEmoji = this.emojiOptions[0];
   captionText = '';
@@ -218,12 +245,19 @@ export class PhotoEditorComponent implements AfterViewInit {
   private renderFrame: number | null = null;
   private viewReady = false;
   private draggingPointerId: number | null = null;
-  private pointerInteraction: 'pan' | 'privacy' | 'overlay' | null = null;
+  private pointerInteraction:
+    | 'pan'
+    | 'privacy'
+    | 'overlay'
+    | 'crop'
+    | null = null;
   private lastPointerX = 0;
   private lastPointerY = 0;
   private overlayDragSnapshot: PhotoEditorOverlay[] | null = null;
   private overlayDragChanged = false;
   private draftPrivacyRegion: PhotoEditorDraftPrivacyRegion | null = null;
+  private cropStartPoint: PhotoEditorNormalizedPoint | null = null;
+  private draftCropRect: PhotoEditorCropRect | null = null;
   private previewWidth = 0;
   private previewHeight = 0;
   private focusOrigin: HTMLElement | null = null;
@@ -306,7 +340,19 @@ export class PhotoEditorComponent implements AfterViewInit {
   }
 
   get isPrivacyTool(): boolean {
-    return this.activeTool === 'blur' || this.activeTool === 'pixelate';
+    return (
+      this.activeTool === 'blur' ||
+      this.activeTool === 'pixelate' ||
+      this.activeTool === 'bar'
+    );
+  }
+
+  get hasCustomCrop(): boolean {
+    return !this.isFullCropRect(this.cropRect);
+  }
+
+  isToolDisabled(tool: PhotoEditorTool): boolean {
+    return tool === 'crop' && this.isAspectRatioLocked;
   }
 
   get isDecorationTool(): boolean {
@@ -344,10 +390,18 @@ export class PhotoEditorComponent implements AfterViewInit {
     }
 
     switch (this.activeTool) {
+      case 'crop':
+        return this.isAspectRatioLocked
+          ? 'Este uso exige formato fixo; ajuste o enquadramento com zoom e movimento.'
+          : 'Arraste na foto para definir um recorte livre. Repita para reajustar.';
+      case 'adjust':
+        return 'Ajuste alinhamento, espelhamento, brilho, contraste e saturação.';
       case 'blur':
         return 'Arraste sobre o rosto, tatuagem ou outra área que precisa ser escondida.';
       case 'pixelate':
         return 'Arraste sobre a área para aplicar pixels grandes na foto final.';
+      case 'bar':
+        return 'Arraste para criar uma tarja sólida ou semitransparente sobre a área.';
       case 'emoji':
         return 'Escolha um emoji e clique na foto para posicionar.';
       case 'text':
@@ -366,7 +420,13 @@ export class PhotoEditorComponent implements AfterViewInit {
   }
 
   selectTool(tool: PhotoEditorTool): void {
-    if (this.isBusy() || !isLocalPhotoEditorTool(tool)) return;
+    if (
+      this.isBusy() ||
+      !isLocalPhotoEditorTool(tool) ||
+      this.isToolDisabled(tool)
+    ) {
+      return;
+    }
     this.activeTool = tool;
     this.selectedOverlayId = null;
     this.cancelPointerInteraction(false);
@@ -404,6 +464,15 @@ export class PhotoEditorComponent implements AfterViewInit {
       Number.isFinite(numericValue) ? numericValue : 3,
       0.8,
       8
+    );
+  }
+
+  updatePrivacyOpacity(value: number | string): void {
+    const numericValue = Number(value);
+    this.privacyOpacity = this.clamp(
+      Number.isFinite(numericValue) ? numericValue : 85,
+      25,
+      100
     );
   }
 
@@ -493,7 +562,17 @@ export class PhotoEditorComponent implements AfterViewInit {
   updateSelectedPrivacyStrength(value: number | string): void {
     const strength = this.clamp(Number(value) / 100, 0.008, 0.08);
     this.updateSelectedPrivacy(
-      (overlay) => ({ ...overlay, strength }),
+      (overlay) =>
+        overlay.kind === 'bar' ? overlay : { ...overlay, strength },
+      false
+    );
+  }
+
+  updateSelectedPrivacyOpacity(value: number | string): void {
+    const opacity = this.clamp(Number(value) / 100, 0.25, 1);
+    this.updateSelectedPrivacy(
+      (overlay) =>
+        overlay.kind === 'bar' ? { ...overlay, opacity } : overlay,
       false
     );
   }
@@ -646,13 +725,67 @@ export class PhotoEditorComponent implements AfterViewInit {
     this.commitEditorState();
   }
 
+  updateStraighten(value: number | string): void {
+    if (this.isBusy()) return;
+    const next = this.clamp(Number(value), -15, 15);
+    if (next === this.straighten) return;
+    this.straighten = next;
+    this.panX = 0;
+    this.panY = 0;
+    this.commitEditorState();
+  }
+
+  toggleFlipHorizontal(): void {
+    if (this.isBusy()) return;
+    this.flipHorizontal = !this.flipHorizontal;
+    this.commitEditorState();
+  }
+
+  updateBrightness(value: number | string): void {
+    this.updateToneAdjustment('brightness', value, 50, 150, 100);
+  }
+
+  updateContrast(value: number | string): void {
+    this.updateToneAdjustment('contrast', value, 50, 150, 100);
+  }
+
+  updateSaturation(value: number | string): void {
+    this.updateToneAdjustment('saturation', value, 0, 200, 100);
+  }
+
+  resetAdjustments(): void {
+    if (this.isBusy()) return;
+    this.straighten = 0;
+    this.flipHorizontal = false;
+    this.brightness = 100;
+    this.contrast = 100;
+    this.saturation = 100;
+    this.panX = 0;
+    this.panY = 0;
+    this.commitEditorState();
+  }
+
+  resetCrop(): void {
+    if (this.isBusy() || !this.hasCustomCrop) return;
+    this.cropRect = { ...DEFAULT_CROP_RECT };
+    this.draftCropRect = null;
+    this.commitEditorState();
+  }
+
   resetEditor(): void {
     if (this.isBusy()) return;
     this.rotation = 0;
+    this.straighten = 0;
+    this.flipHorizontal = false;
+    this.brightness = 100;
+    this.contrast = 100;
+    this.saturation = 100;
     this.zoom = 1;
     this.panX = 0;
     this.panY = 0;
     this.aspectRatio = this.resolvePresetAspectRatio();
+    this.cropRect = { ...DEFAULT_CROP_RECT };
+    this.draftCropRect = null;
     this.activeTool = 'move';
     this.selectedOverlayId = null;
     this.overlays = [];
@@ -683,6 +816,22 @@ export class PhotoEditorComponent implements AfterViewInit {
 
     this.selectedOverlayId = null;
 
+    if (this.activeTool === 'crop' && !this.isAspectRatioLocked) {
+      this.pointerInteraction = 'crop';
+      this.draggingPointerId = event.pointerId;
+      this.cropStartPoint = point;
+      this.draftCropRect = {
+        x: point.x,
+        y: point.y,
+        width: 0,
+        height: 0,
+      };
+      this.capturePointer(event.pointerId);
+      this.scheduleRender();
+      event.preventDefault();
+      return;
+    }
+
     if (this.activeTool === 'move') {
       this.pointerInteraction = 'pan';
       this.draggingPointerId = event.pointerId;
@@ -703,6 +852,9 @@ export class PhotoEditorComponent implements AfterViewInit {
         endX: point.x,
         endY: point.y,
         strength: this.privacyStrength / 100,
+        ...(this.activeTool === 'bar'
+          ? { opacity: this.privacyOpacity / 100 }
+          : {}),
       };
       this.capturePointer(event.pointerId);
       this.scheduleRender();
@@ -758,6 +910,15 @@ export class PhotoEditorComponent implements AfterViewInit {
       };
       this.scheduleRender();
       event.preventDefault();
+      return;
+    }
+
+    if (this.pointerInteraction === 'crop' && this.cropStartPoint) {
+      const point = this.resolveNormalizedPointer(event);
+      if (!point) return;
+      this.draftCropRect = this.createCropRect(this.cropStartPoint, point);
+      this.scheduleRender();
+      event.preventDefault();
     }
   }
 
@@ -768,6 +929,14 @@ export class PhotoEditorComponent implements AfterViewInit {
       if (overlay) {
         this.selectedOverlayId = overlay.id;
         this.commitOverlays([...this.overlays, overlay]);
+      }
+    } else if (this.pointerInteraction === 'crop' && this.draftCropRect) {
+      if (
+        this.draftCropRect.width >= MIN_CROP_SIZE &&
+        this.draftCropRect.height >= MIN_CROP_SIZE
+      ) {
+        this.cropRect = this.normalizeCropRect(this.draftCropRect);
+        this.commitEditorState();
       }
     } else if (this.pointerInteraction === 'overlay' && this.overlayDragChanged) {
       this.commitOverlays(this.overlays);
@@ -784,6 +953,8 @@ export class PhotoEditorComponent implements AfterViewInit {
     } else if (this.pointerInteraction === 'pan') {
       const snapshot = this.photoEditorHistory.current;
       if (snapshot) this.restoreHistorySnapshot(snapshot);
+    } else if (this.pointerInteraction === 'crop') {
+      this.draftCropRect = null;
     }
     this.cancelPointerInteraction(true, event.pointerId);
   }
@@ -1115,6 +1286,9 @@ export class PhotoEditorComponent implements AfterViewInit {
     }
     context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
     this.drawImageFrame(context, this.previewWidth, this.previewHeight, true);
+    if (this.activeTool === 'crop' || this.hasCustomCrop) {
+      this.drawCropGuide(context, this.previewWidth, this.previewHeight);
+    }
   }
 
   private drawImageFrame(
@@ -1166,16 +1340,21 @@ export class PhotoEditorComponent implements AfterViewInit {
       context.fillRect(0, 0, width, height);
     }
 
-    const quarterTurn = Math.abs(this.rotation % 180) === 90;
-    const rotatedWidth = quarterTurn ? image.naturalHeight : image.naturalWidth;
-    const rotatedHeight = quarterTurn ? image.naturalWidth : image.naturalHeight;
+    const effectiveRotation = this.rotation + this.straighten;
+    const radians = (effectiveRotation * Math.PI) / 180;
+    const absCos = Math.abs(Math.cos(radians));
+    const absSin = Math.abs(Math.sin(radians));
     const baseScale = Math.max(
-      width / Math.max(1, rotatedWidth),
-      height / Math.max(1, rotatedHeight)
+      (absCos * width + absSin * height) /
+        Math.max(1, image.naturalWidth),
+      (absSin * width + absCos * height) /
+        Math.max(1, image.naturalHeight)
     );
     const scale = baseScale * this.zoom;
-    const displayedWidth = rotatedWidth * scale;
-    const displayedHeight = rotatedHeight * scale;
+    const displayedWidth =
+      (absCos * image.naturalWidth + absSin * image.naturalHeight) * scale;
+    const displayedHeight =
+      (absSin * image.naturalWidth + absCos * image.naturalHeight) * scale;
     const maxPanX = Math.max(0, (displayedWidth - width) / 2) / width;
     const maxPanY = Math.max(0, (displayedHeight - height) / 2) / height;
 
@@ -1186,13 +1365,16 @@ export class PhotoEditorComponent implements AfterViewInit {
       width / 2 + this.panX * width,
       height / 2 + this.panY * height
     );
-    context.rotate((this.rotation * Math.PI) / 180);
-    context.scale(scale, scale);
+    context.rotate(radians);
+    context.scale(this.flipHorizontal ? -scale : scale, scale);
+    context.filter =
+      `brightness(${this.brightness}%) contrast(${this.contrast}%) saturate(${this.saturation}%)`;
     context.drawImage(
       image,
       -image.naturalWidth / 2,
       -image.naturalHeight / 2
     );
+    context.filter = 'none';
     context.restore();
   }
 
@@ -1201,13 +1383,42 @@ export class PhotoEditorComponent implements AfterViewInit {
   ): Promise<ExportedPhotoEditorImage> {
     const preset = resolveImageEditorPreset(this.activePreset);
     const maxOutputEdge = preset.maxOutputEdge;
-    const ratio = this.resolveOutputAspectRatio();
-    let width: number = maxOutputEdge;
-    let height = Math.round(width / ratio);
+    const workingRatio = this.resolveOutputAspectRatio();
+    let workingWidth: number = maxOutputEdge;
+    let workingHeight = Math.round(workingWidth / workingRatio);
 
+    if (workingHeight > maxOutputEdge) {
+      workingHeight = maxOutputEdge;
+      workingWidth = Math.round(workingHeight * workingRatio);
+    }
+
+    const workingCanvas = this.document.createElement('canvas');
+    workingCanvas.width = Math.max(1, workingWidth);
+    workingCanvas.height = Math.max(1, workingHeight);
+    const workingContext = workingCanvas.getContext('2d');
+    if (!workingContext) {
+      throw new Error('Canvas de exportação indisponível.');
+    }
+
+    this.drawImageFrame(
+      workingContext,
+      workingCanvas.width,
+      workingCanvas.height,
+      false
+    );
+
+    const crop = this.normalizeCropRect(this.cropRect);
+    const sourceX = Math.round(crop.x * workingCanvas.width);
+    const sourceY = Math.round(crop.y * workingCanvas.height);
+    const sourceWidth = Math.max(1, Math.round(crop.width * workingCanvas.width));
+    const sourceHeight = Math.max(1, Math.round(crop.height * workingCanvas.height));
+    const cropRatio = sourceWidth / sourceHeight;
+
+    let width = maxOutputEdge;
+    let height = Math.round(width / cropRatio);
     if (height > maxOutputEdge) {
       height = maxOutputEdge;
-      width = Math.round(height * ratio);
+      width = Math.round(height * cropRatio);
     }
 
     const output = this.document.createElement('canvas');
@@ -1218,7 +1429,18 @@ export class PhotoEditorComponent implements AfterViewInit {
       throw new Error('Canvas de exportação indisponível.');
     }
 
-    this.drawImageFrame(context, output.width, output.height, false);
+    context.drawImage(
+      workingCanvas,
+      sourceX,
+      sourceY,
+      sourceWidth,
+      sourceHeight,
+      0,
+      0,
+      output.width,
+      output.height
+    );
+
     const preferredMimeType = this.normalizeOutputMimeType(originalMimeType);
     const blob = await this.canvasToBlob(
       output,
@@ -1273,10 +1495,16 @@ export class PhotoEditorComponent implements AfterViewInit {
       editor: 'native-canvas',
       flattened: true,
       rotation: this.rotation,
+      straighten: Number(this.straighten.toFixed(2)),
+      flipHorizontal: this.flipHorizontal,
+      brightness: Math.round(this.brightness),
+      contrast: Math.round(this.contrast),
+      saturation: Math.round(this.saturation),
       zoom: Number(this.zoom.toFixed(3)),
       panX: Number(this.panX.toFixed(4)),
       panY: Number(this.panY.toFixed(4)),
       aspectRatio: this.aspectRatio,
+      cropRect: this.normalizeCropRect(this.cropRect),
       overlays: clonePhotoEditorOverlays(this.overlays),
     };
   }
@@ -1286,10 +1514,16 @@ export class PhotoEditorComponent implements AfterViewInit {
     // o estado duplicaria corte, texto e proteção visual.
     if (!value || this.isStoredSource) {
       this.rotation = 0;
+      this.straighten = 0;
+      this.flipHorizontal = false;
+      this.brightness = 100;
+      this.contrast = 100;
+      this.saturation = 100;
       this.zoom = 1;
       this.panX = 0;
       this.panY = 0;
       this.aspectRatio = this.resolvePresetAspectRatio();
+      this.cropRect = { ...DEFAULT_CROP_RECT };
       this.resetOverlayHistory([]);
       return;
     }
@@ -1301,21 +1535,35 @@ export class PhotoEditorComponent implements AfterViewInit {
 
       if (parsed.editor !== 'native-canvas') {
         this.rotation = 0;
+        this.straighten = 0;
+        this.flipHorizontal = false;
+        this.brightness = 100;
+        this.contrast = 100;
+        this.saturation = 100;
         this.zoom = 1;
         this.panX = 0;
         this.panY = 0;
         this.aspectRatio = this.resolvePresetAspectRatio();
+        this.cropRect = { ...DEFAULT_CROP_RECT };
         this.resetOverlayHistory([]);
         return;
       }
 
       this.rotation = this.normalizeRotation(Number(parsed.rotation ?? 0));
+      this.straighten = this.clamp(Number(parsed.straighten ?? 0), -15, 15);
+      this.flipHorizontal = parsed.flipHorizontal === true;
+      this.brightness = this.clamp(Number(parsed.brightness ?? 100), 50, 150);
+      this.contrast = this.clamp(Number(parsed.contrast ?? 100), 50, 150);
+      this.saturation = this.clamp(Number(parsed.saturation ?? 100), 0, 200);
       this.zoom = this.clamp(Number(parsed.zoom ?? 1), MIN_ZOOM, MAX_ZOOM);
       this.panX = this.clamp(Number(parsed.panX ?? 0), -1, 1);
       this.panY = this.clamp(Number(parsed.panY ?? 0), -1, 1);
       this.aspectRatio = this.isAspectRatioLocked
         ? this.resolvePresetAspectRatio()
         : this.normalizeAspectRatio(parsed.aspectRatio);
+      this.cropRect = this.isAspectRatioLocked
+        ? { ...DEFAULT_CROP_RECT }
+        : this.normalizeCropRect(parsed.cropRect);
 
       const overlays =
         parsed.version === 2
@@ -1326,10 +1574,16 @@ export class PhotoEditorComponent implements AfterViewInit {
       this.resetOverlayHistory(overlays);
     } catch {
       this.rotation = 0;
+      this.straighten = 0;
+      this.flipHorizontal = false;
+      this.brightness = 100;
+      this.contrast = 100;
+      this.saturation = 100;
       this.zoom = 1;
       this.panX = 0;
       this.panY = 0;
       this.aspectRatio = this.resolvePresetAspectRatio();
+      this.cropRect = { ...DEFAULT_CROP_RECT };
       this.resetOverlayHistory([]);
       // Estados de editores antigos ou inválidos são deliberadamente ignorados.
     }
@@ -1514,7 +1768,9 @@ export class PhotoEditorComponent implements AfterViewInit {
     this.overlays = this.overlays.map((overlay) => {
       if (
         overlay.id !== selectedId ||
-        (overlay.kind !== 'blur' && overlay.kind !== 'pixelate')
+        (overlay.kind !== 'blur' &&
+          overlay.kind !== 'pixelate' &&
+          overlay.kind !== 'bar')
       ) {
         return overlay;
       }
@@ -1564,7 +1820,11 @@ export class PhotoEditorComponent implements AfterViewInit {
     deltaX: number,
     deltaY: number
   ): PhotoEditorOverlay {
-    if (overlay.kind === 'blur' || overlay.kind === 'pixelate') {
+    if (
+      overlay.kind === 'blur' ||
+      overlay.kind === 'pixelate' ||
+      overlay.kind === 'bar'
+    ) {
       return {
         ...overlay,
         x: this.clamp(overlay.x + deltaX, 0, 1 - overlay.width),
@@ -1630,12 +1890,20 @@ export class PhotoEditorComponent implements AfterViewInit {
       }
 
       this.rotation = this.normalizeRotation(Number(parsed.rotation ?? 0));
+      this.straighten = this.clamp(Number(parsed.straighten ?? 0), -15, 15);
+      this.flipHorizontal = parsed.flipHorizontal === true;
+      this.brightness = this.clamp(Number(parsed.brightness ?? 100), 50, 150);
+      this.contrast = this.clamp(Number(parsed.contrast ?? 100), 50, 150);
+      this.saturation = this.clamp(Number(parsed.saturation ?? 100), 0, 200);
       this.zoom = this.clamp(Number(parsed.zoom ?? 1), MIN_ZOOM, MAX_ZOOM);
       this.panX = this.clamp(Number(parsed.panX ?? 0), -1, 1);
       this.panY = this.clamp(Number(parsed.panY ?? 0), -1, 1);
       this.aspectRatio = this.isAspectRatioLocked
         ? this.resolvePresetAspectRatio()
         : this.normalizeAspectRatio(parsed.aspectRatio);
+      this.cropRect = this.isAspectRatioLocked
+        ? { ...DEFAULT_CROP_RECT }
+        : this.normalizeCropRect(parsed.cropRect);
       this.overlays = clonePhotoEditorOverlays(
         normalizePhotoEditorOverlays(parsed.overlays)
       );
@@ -1694,6 +1962,8 @@ export class PhotoEditorComponent implements AfterViewInit {
     this.overlayDragSnapshot = null;
     this.overlayDragChanged = false;
     this.draftPrivacyRegion = null;
+    this.cropStartPoint = null;
+    this.draftCropRect = null;
     this.scheduleRender();
   }
 
@@ -1796,6 +2066,112 @@ export class PhotoEditorComponent implements AfterViewInit {
       value === 'mono'
       ? value
       : 'system';
+  }
+
+  private updateToneAdjustment(
+    key: 'brightness' | 'contrast' | 'saturation',
+    value: number | string,
+    minimum: number,
+    maximum: number,
+    fallback: number
+  ): void {
+    if (this.isBusy()) return;
+    const numericValue = Number(value);
+    const next = this.clamp(
+      Number.isFinite(numericValue) ? numericValue : fallback,
+      minimum,
+      maximum
+    );
+    if (this[key] === next) return;
+    this[key] = next;
+    this.commitEditorState();
+  }
+
+  private normalizeCropRect(value: unknown): PhotoEditorCropRect {
+    if (!value || typeof value !== 'object') {
+      return { ...DEFAULT_CROP_RECT };
+    }
+
+    const source = value as Partial<PhotoEditorCropRect>;
+    const x = this.clamp(Number(source.x ?? 0), 0, 1 - MIN_CROP_SIZE);
+    const y = this.clamp(Number(source.y ?? 0), 0, 1 - MIN_CROP_SIZE);
+    const width = this.clamp(
+      Number(source.width ?? 1),
+      MIN_CROP_SIZE,
+      Math.max(MIN_CROP_SIZE, 1 - x)
+    );
+    const height = this.clamp(
+      Number(source.height ?? 1),
+      MIN_CROP_SIZE,
+      Math.max(MIN_CROP_SIZE, 1 - y)
+    );
+    return { x, y, width, height };
+  }
+
+  private createCropRect(
+    start: PhotoEditorNormalizedPoint,
+    end: PhotoEditorNormalizedPoint
+  ): PhotoEditorCropRect {
+    const x = Math.min(start.x, end.x);
+    const y = Math.min(start.y, end.y);
+    return this.normalizeCropRect({
+      x,
+      y,
+      width: Math.abs(end.x - start.x),
+      height: Math.abs(end.y - start.y),
+    });
+  }
+
+  private isFullCropRect(rect: PhotoEditorCropRect): boolean {
+    const epsilon = 0.0005;
+    return (
+      Math.abs(rect.x) < epsilon &&
+      Math.abs(rect.y) < epsilon &&
+      Math.abs(rect.width - 1) < epsilon &&
+      Math.abs(rect.height - 1) < epsilon
+    );
+  }
+
+  private drawCropGuide(
+    context: CanvasRenderingContext2D,
+    width: number,
+    height: number
+  ): void {
+    const crop = this.normalizeCropRect(this.draftCropRect ?? this.cropRect);
+    const x = crop.x * width;
+    const y = crop.y * height;
+    const cropWidth = crop.width * width;
+    const cropHeight = crop.height * height;
+
+    context.save();
+    context.fillStyle = 'rgb(0 0 0 / 52%)';
+    context.beginPath();
+    context.rect(0, 0, width, height);
+    context.rect(x, y, cropWidth, cropHeight);
+    context.fill('evenodd');
+
+    context.strokeStyle = '#ffffff';
+    context.lineWidth = Math.max(1.5, Math.min(width, height) * 0.003);
+    context.setLineDash([8, 5]);
+    context.strokeRect(x, y, cropWidth, cropHeight);
+    context.setLineDash([]);
+
+    const handleSize = Math.max(8, Math.min(width, height) * 0.018);
+    context.fillStyle = '#ff7070';
+    for (const [handleX, handleY] of [
+      [x, y],
+      [x + cropWidth, y],
+      [x, y + cropHeight],
+      [x + cropWidth, y + cropHeight],
+    ] as const) {
+      context.fillRect(
+        handleX - handleSize / 2,
+        handleY - handleSize / 2,
+        handleSize,
+        handleSize
+      );
+    }
+    context.restore();
   }
 
   private normalizeDateTimeFormat(value: unknown): PhotoEditorDateTimeFormat {
