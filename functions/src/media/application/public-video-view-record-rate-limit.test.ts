@@ -92,19 +92,24 @@ describe('public-video-view-record-rate-limit', () => {
     });
   });
 
-  it('recupera de relógio persistido no futuro', () => {
+  it('clampa clock-skew futuro sem resetar a quota autoritativa', () => {
+    const futureStartedAt = NOW + 60_000;
     const decision = buildPublicVideoViewRecordRateLimitDecision({
       now: NOW,
       state: {
-        burstWindowStartedAt: NOW + 60_000,
+        burstWindowStartedAt: futureStartedAt,
         burstCount: PUBLIC_VIDEO_VIEW_RECORD_BURST_MAX,
-        sustainedWindowStartedAt: NOW + 60_000,
+        sustainedWindowStartedAt: futureStartedAt,
         sustainedCount: PUBLIC_VIDEO_VIEW_RECORD_SUSTAINED_MAX,
       },
     });
 
-    assert.equal(decision.allowed, true);
-    assert.equal(decision.nextState.burstWindowStartedAt, NOW);
-    assert.equal(decision.nextState.sustainedWindowStartedAt, NOW);
+    assert.equal(decision.allowed, false);
+    assert.equal(decision.nextState.burstWindowStartedAt, futureStartedAt);
+    assert.equal(decision.nextState.sustainedWindowStartedAt, futureStartedAt);
+    assert.equal(
+      decision.retryAfterMs,
+      PUBLIC_VIDEO_VIEW_RECORD_SUSTAINED_WINDOW_MS
+    );
   });
 });
