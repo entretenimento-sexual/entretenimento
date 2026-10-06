@@ -8,6 +8,7 @@
 @let selectedFileName = (selectedFileName$ | async);
 @let selectedFileSizeLabel = (selectedFileSizeLabel$ | async);
 @let uploadPercent = (uploadPercent$ | async);
+@let audience = (audience$ | async);
 
 <section class="upload-page container-wide" aria-label="Adicionar foto">
   <app-page-header title="Adicionar foto">
@@ -104,18 +105,68 @@
             }
 
             <p class="upload-note">
-              Você pode publicar a foto como está ou editá-la antes. A edição é opcional; a moderação pode agir posteriormente por denúncia ou por mecanismos automáticos de segurança quando disponíveis.
+              Você pode enviar a foto como está ou editá-la antes. A edição é opcional.
             </p>
+
+            @if (selectedFileName) {
+              <fieldset class="audience-picker" [disabled]="phase === 'EDITING' || phase === 'UPLOADING'">
+                <legend>Quem poderá ver esta foto?</legend>
+
+                <label class="audience-option">
+                  <input
+                    type="radio"
+                    name="photoAudience"
+                    value="PRIVATE"
+                    [checked]="audience === 'PRIVATE'"
+                    (change)="selectAudience('PRIVATE')"
+                  />
+                  <span>
+                    <strong>Somente eu</strong>
+                    <small>Salva apenas na sua biblioteca privada.</small>
+                  </span>
+                </label>
+
+                <label class="audience-option">
+                  <input
+                    type="radio"
+                    name="photoAudience"
+                    value="FRIENDS"
+                    [checked]="audience === 'FRIENDS'"
+                    (change)="selectAudience('FRIENDS')"
+                  />
+                  <span>
+                    <strong>Amigos</strong>
+                    <small>Publica para suas conexões permitidas.</small>
+                  </span>
+                </label>
+
+                <label class="audience-option">
+                  <input
+                    type="radio"
+                    name="photoAudience"
+                    value="PUBLIC"
+                    [checked]="audience === 'PUBLIC'"
+                    (change)="selectAudience('PUBLIC')"
+                  />
+                  <span>
+                    <strong>Público</strong>
+                    <small>Publica para quem puder acessar seu conteúdo público.</small>
+                  </span>
+                </label>
+              </fieldset>
+            }
 
             <div class="upload-actions">
               <button
                 type="button"
                 class="app-action app-action--primary"
                 (click)="startUpload()"
-                [disabled]="phase !== 'READY'"
+                [disabled]="phase !== 'READY' || !audience"
               >
                 @if (phase === 'UPLOADING') {
                   Enviando...
+                } @else if (audience === 'PRIVATE') {
+                  Salvar foto
                 } @else {
                   Publicar foto
                 }
