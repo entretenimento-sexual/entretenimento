@@ -159,7 +159,7 @@
               <button
                 type="button"
                 class="app-action app-action--ghost"
-                (click)="editBeforeUpload()"
+                (click)="editBeforeUpload($event)"
                 [disabled]="phase !== 'READY'"
               >
                 <i class="fas fa-crop-simple" aria-hidden="true"></i>
