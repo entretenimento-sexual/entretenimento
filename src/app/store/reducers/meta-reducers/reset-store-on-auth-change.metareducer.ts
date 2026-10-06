@@ -15,7 +15,6 @@ import { initialCommunityDiscoveryCacheState } from '../../states/states.discove
 import { initialFriendsPaginationState } from '../../states/states.interactions/friends-pagination.state';
 import { initialState as initialFriendsState } from '../../states/states.interactions/friends.state';
 import { initialUserState } from '../../states/states.user/user.state';
-import { initialFileState } from '../../states/states.user/file.state';
 import { initialUserPreferencesState } from '../../states/states.user/user-preferences.state';
 
 /**
@@ -55,7 +54,6 @@ function resetUserScopedSlices(
     ...nextState,
 
     [STORE_FEATURE.user]: initialUserState as any,
-    [STORE_FEATURE.file]: initialFileState as any,
     [STORE_FEATURE.userPreferences]: initialUserPreferencesState as any,
 
 
