@@ -5,7 +5,6 @@ export const STORE_FEATURE = {
   // USER DOMAIN
   auth: 'auth',
   user: 'user',
-  file: 'file',
   userPreferences: 'userPreferences',
 
   // LOCATION DOMAIN
