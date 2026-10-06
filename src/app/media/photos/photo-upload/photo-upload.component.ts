@@ -11,7 +11,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { BehaviorSubject, EMPTY, Observable, combineLatest, from, of, throwError } from 'rxjs';
+import { BehaviorSubject, EMPTY, Observable, combineLatest, of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -30,7 +30,6 @@ import { MediaPublicationService } from 'src/app/core/services/media/media-publi
 import type { TPhotoPublishableVisibility } from 'src/app/core/interfaces/media/i-photo-publication-config';
 import type { MediaErrorReason } from 'src/app/core/services/media/media-error.catalog';
 import { PhotoEditorLauncherService } from 'src/app/core/services/image-handling/photo-editor-launcher.service';
-import { PhotoFirestoreService } from 'src/app/core/services/image-handling/photo-firestore.service';
 import {
   IPhotoUploadFlowEvent,
   PhotoUploadFlowService,
@@ -72,7 +71,6 @@ export class PhotoUploadComponent {
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly errorHandler = inject(MediaApplicationErrorService);
   private readonly photoUploadFlow = inject(PhotoUploadFlowService);
-  private readonly photoFirestore = inject(PhotoFirestoreService);
   private readonly mediaPublication = inject(MediaPublicationService);
   private readonly photoEditor = inject(PhotoEditorLauncherService);
 
@@ -212,7 +210,7 @@ export class PhotoUploadComponent {
 
           if (policyResult.decision !== 'ALLOW') {
             this.errorNotifier.showWarning(
-              this.getPolicyDeniedMessage(policyResult.reason, 'adicionar fotos')
+              resolveMediaPolicyDeniedMessage(policyResult.reason, 'upload-photo')
             );
             return;
           }
@@ -390,6 +388,8 @@ export class PhotoUploadComponent {
     audience: PhotoUploadAudience,
     imageStateStr?: string
   ): Observable<IPhotoUploadFlowEvent> {
+    let publicationFailed = false;
+
     return this.photoUploadFlow.uploadProcessedPhotoWithProgress$({
       userId: ownerUid,
       processedFile: file,
@@ -433,6 +433,7 @@ export class PhotoUploadComponent {
         }).pipe(
           map(() => event),
           catchError((error) => {
+            publicationFailed = true;
             this.errorHandler.report(error, {
               operation: 'photoUpload.publishAfterUpload',
               reasonHint: 'media_publication_failed',
@@ -456,13 +457,19 @@ export class PhotoUploadComponent {
 
         this.debug('uploadSuccess', event.result);
         this.uploadPercentSubject.next(100);
-        this.errorNotifier.showSuccess(
-          audience === 'PRIVATE'
-            ? 'Foto adicionada à sua biblioteca privada.'
-            : audience === 'FRIENDS'
-              ? 'Foto publicada para amigos.'
-              : 'Foto publicada para todos.'
-        );
+        if (publicationFailed) {
+          this.errorNotifier.showWarning(
+            'A foto foi salva na sua biblioteca privada, mas não foi publicada.'
+          );
+        } else {
+          this.errorNotifier.showSuccess(
+            audience === 'PRIVATE'
+              ? 'Foto adicionada à sua biblioteca privada.'
+              : audience === 'FRIENDS'
+                ? 'Foto publicada para amigos.'
+                : 'Foto publicada para todos.'
+          );
+        }
 
         this.router
           .navigate(['/media', 'perfil', ownerUid, 'fotos'])
