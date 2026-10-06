@@ -12,22 +12,21 @@ describe('photo upload flow architecture', () => {
     );
 
     expect(component).not.toContain("visibility: 'PUBLIC'");
-    expect(component).toContain("type PhotoUploadAudience = 'PRIVATE' | TPhotoPublishableVisibility");
-    expect(component).toContain("if (!audience)");
-    expect(component).toContain("if (audience === 'PRIVATE')");
+    expect(component).toContain('type PhotoUploadAudience = TPhotoPublishableVisibility');
+    expect(component).toContain('if (!audience)');
     expect(component).toContain('visibility: audience');
+    expect(component).not.toContain("'PRIVATE'");
   });
 
-  it('preserva a cópia privada quando a publicação falha', () => {
+  it('remove o upload de origem quando a publicação falha', () => {
     const component = source(
       'src/app/media/photos/photo-upload/photo-upload.component.ts'
     );
 
-    expect(component).toContain('privateCopyPreserved: true');
-    expect(component).toContain(
-      'A foto foi salva na sua biblioteca privada, mas não foi publicada.'
-    );
-    expect(component).not.toContain('rollbackFailedPublication');
+    expect(component).toContain('rollbackFailedPublication');
+    expect(component).toContain('this.photoFirestore.deletePhoto');
+    expect(component).not.toContain('privateCopyPreserved');
+    expect(component).not.toContain('biblioteca privada');
   });
 
   it('seleção global de foto não abre o editor automaticamente', () => {
@@ -45,7 +44,7 @@ describe('photo upload flow architecture', () => {
     );
 
     expect(template).toContain('Quem poderá ver esta foto?');
-    expect(template).toContain("selectAudience('PRIVATE')");
+    expect(template).not.toContain("selectAudience('PRIVATE')");
     expect(template).toContain("selectAudience('FRIENDS')");
     expect(template).toContain("selectAudience('PUBLIC')");
     expect(template).toContain("[disabled]="phase !== 'READY' || !audience"");
