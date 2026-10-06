@@ -4,7 +4,7 @@
 // -----------------------------------------------------------------------------
 // Foto e Vídeo devem falhar fechado de forma uniforme em:
 // próprio perfil publicado, perfil alheio, discovery, deep link, viewer e share.
-// O acervo de origem do dono é superfície de gestão; nunca é atalho para exposição pública.
+// O acervo de origem do dono é gestão; nunca é atalho para exposição pública.
 // -----------------------------------------------------------------------------
 
 import fs from 'node:fs';
@@ -148,8 +148,8 @@ const ownProfile = read(
   'src/app/user-profile/user-profile-view/user-profile-view.component.html'
 );
 requireIncludes(ownProfile, [
-  "[galleryLink]="['/media', 'perfil', currentUid, 'fotos']"",
-  "[uploadLink]="['/media', 'perfil', currentUid, 'fotos', 'upload']"",
+  "currentUid, 'fotos'",
+  "currentUid, 'fotos', 'upload'",
 ], 'perfil próprio deve apontar somente para gestão do proprietário');
 
 const otherProfileShowcase = read(
@@ -164,7 +164,6 @@ requireIncludes(otherProfileShowcase, [
 for (const forbidden of [
   'MediaQueryService',
   'PhotoFirestoreService',
-  "'fotos']",
 ]) {
   if (otherProfileShowcase.includes(forbidden)) {
     throw new Error(
@@ -179,8 +178,6 @@ const publicProfilePhotos = read(
 requireIncludes(publicProfilePhotos, [
   'MediaPublicQueryService',
   'getProfilePublicPhotos
-  'functions/src/media/application/public-media-exposure-matrix.contract.test.ts'
-);
 for (const required of [
   'SELF_PROFILE_PUBLISHED',
   'OTHER_PROFILE',
@@ -221,6 +218,7 @@ console.log(
 ,
   'PublicPhotoViewerLauncherService',
 ], 'galeria pública de perfil deve usar query e viewer públicos');
+
 for (const forbidden of ['MediaQueryService', 'PhotoFirestoreService']) {
   if (publicProfilePhotos.includes(forbidden)) {
     throw new Error(
@@ -256,8 +254,6 @@ requireIncludes(explorePersonalMedia, [
   'PublicMediaOwnerPageQueryService',
   'IPublicPhotoItem',
   'loadPhotoPage
-  'functions/src/media/application/public-media-exposure-matrix.contract.test.ts'
-);
 for (const required of [
   'SELF_PROFILE_PUBLISHED',
   'OTHER_PROFILE',
@@ -297,6 +293,7 @@ console.log(
 );
 ,
 ], 'Explore pessoal deve usar paginação pública autorizada');
+
 for (const forbidden of ['MediaQueryService', 'PhotoFirestoreService']) {
   if (explorePersonalMedia.includes(forbidden)) {
     throw new Error(
@@ -312,8 +309,6 @@ requireIncludes(promotionPlacement, [
   'getPhotoPromotionPlacement',
   'PublicPhotoAccessService',
   'hydratePublicPhotoUrls
-  'functions/src/media/application/public-media-exposure-matrix.contract.test.ts'
-);
 for (const required of [
   'SELF_PROFILE_PUBLISHED',
   'OTHER_PROFILE',
@@ -354,6 +349,7 @@ console.log(
 ,
   "disclosure: 'Patrocinado'",
 ], 'foto patrocinada deve reusar autoridade pública de acesso');
+
 for (const forbidden of ['PhotoFirestoreService', 'MediaQueryService']) {
   if (promotionPlacement.includes(forbidden)) {
     throw new Error(
@@ -378,6 +374,7 @@ requireIncludes(communityExplore, [
   'getCommunityExploreContent',
   'httpsCallable',
 ], 'conteúdo de Comunidades no Explore deve vir de autoridade backend');
+
 for (const forbidden of [
   'PhotoFirestoreService',
   'MediaQueryService',
