@@ -116,20 +116,6 @@
                   <input
                     type="radio"
                     name="photoAudience"
-                    value="PRIVATE"
-                    [checked]="audience === 'PRIVATE'"
-                    (change)="selectAudience('PRIVATE')"
-                  />
-                  <span>
-                    <strong>Somente eu</strong>
-                    <small>Salva apenas na sua biblioteca privada.</small>
-                  </span>
-                </label>
-
-                <label class="audience-option">
-                  <input
-                    type="radio"
-                    name="photoAudience"
                     value="FRIENDS"
                     [checked]="audience === 'FRIENDS'"
                     (change)="selectAudience('FRIENDS')"
@@ -165,8 +151,6 @@
               >
                 @if (phase === 'UPLOADING') {
                   Enviando...
-                } @else if (audience === 'PRIVATE') {
-                  Salvar foto
                 } @else {
                   Publicar foto
                 }
