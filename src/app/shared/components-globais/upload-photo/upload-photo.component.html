@@ -35,15 +35,8 @@
 
   <p id="upload-photo-help" class="upload-photo-help">
     Formatos aceitos: {{ imageFormatLabel }}. Tamanho máximo:
-    {{ maxUploadMegabytes }} MB. A foto será aberta no editor antes da confirmação.
+    {{ maxUploadMegabytes }} MB. A edição da foto é opcional e acontece somente quando você escolher editar.
   </p>
-
-  @if (isLoading) {
-    <div class="loading-spinner app-card app-card--flat app-card--compact" role="status" aria-live="polite">
-      <div class="spinner" aria-hidden="true"></div>
-      <p>Preparando o editor...</p>
-    </div>
-  }
 
   @if (errorMessage) {
     <div
