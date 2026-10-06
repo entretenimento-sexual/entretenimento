@@ -42,6 +42,7 @@ import { IVideoPublicationSettingsInput } from 'src/app/core/interfaces/media/i-
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
+import { resolveMediaPolicyDeniedMessage } from 'src/app/core/services/media/media-policy-feedback.policy';
 import { MEDIA_VIDEO_MAX_BYTES } from 'src/app/core/services/media/media-format.policy';
 import {
   IMediaPolicyResult,
@@ -435,7 +436,7 @@ export class ProfileVideosComponent {
 
         if (policyResult.decision !== 'ALLOW') {
           this.errorNotification.showWarning(
-            this.getPolicyDeniedMessage(policyResult.reason)
+            resolveMediaPolicyDeniedMessage(policyResult.reason, 'upload-video')
           );
           return EMPTY;
         }
@@ -1064,23 +1065,5 @@ export class ProfileVideosComponent {
     }
   }
 
-  private getPolicyDeniedMessage(reason?: MediaPolicyDenyReason): string {
-    if (reason === 'EMAIL_UNVERIFIED') {
-      return 'Confirme seu e-mail antes de enviar vídeos.';
-    }
 
-    if (reason === 'PROFILE_INCOMPLETE') {
-      return 'Conclua seu perfil antes de enviar vídeos.';
-    }
-
-    if (reason === 'INTERACTION_BLOCKED' || reason === 'BLOCKED') {
-      return 'Sua conta não pode enviar mídias neste momento.';
-    }
-
-    if (reason === 'NOT_OWNER') {
-      return 'Você só pode enviar vídeos para o próprio perfil.';
-    }
-
-    return 'Não foi possível liberar o upload de vídeos agora.';
-  }
 }
