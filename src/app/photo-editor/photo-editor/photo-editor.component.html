@@ -28,6 +28,7 @@
         [class.is-pan-tool]="activeTool === 'move' && !selectedOverlay"
         [class.is-draw-tool]="isPrivacyTool && !selectedOverlay"
         [class.is-place-tool]="isDecorationTool && !selectedOverlay"
+        [class.is-crop-tool]="activeTool === 'crop' && !selectedOverlay"
         [class.has-selection]="!!selectedOverlay"
         tabindex="0"
         role="img"
@@ -56,6 +57,7 @@
             [class.is-active]="activeTool === tool.value && !selectedOverlay"
             [attr.aria-pressed]="activeTool === tool.value && !selectedOverlay"
             [attr.aria-label]="tool.label"
+            [disabled]="isToolDisabled(tool.value)"
             (click)="selectTool(tool.value)"
           >
             {{ tool.shortLabel }}
@@ -105,6 +107,7 @@
                 @switch (selected.kind) {
                   @case ('blur') { Área borrada }
                   @case ('pixelate') { Área pixelada }
+                  @case ('bar') { Tarja de privacidade }
                   @case ('emoji') { Emoji }
                   @case ('text') { Texto }
                   @case ('datetime') { Data e hora }
@@ -135,6 +138,24 @@
                   (change)="commitSelectedOverlayEdit()"
                 />
                 <output>{{ (selected.strength * 100).toFixed(1) }}%</output>
+              </label>
+            </div>
+          }
+
+          @if (selected.kind === 'bar') {
+            <div class="editor-properties-grid editor-properties-grid--privacy">
+              <label class="editor-tool-field editor-tool-field--range">
+                <span>Opacidade</span>
+                <input
+                  type="range"
+                  min="25"
+                  max="100"
+                  step="5"
+                  [ngModel]="selected.opacity * 100"
+                  (ngModelChange)="updateSelectedPrivacyOpacity($event)"
+                  (change)="commitSelectedOverlayEdit()"
+                />
+                <output>{{ (selected.opacity * 100).toFixed(0) }}%</output>
               </label>
             </div>
           }
@@ -336,22 +357,129 @@
       } @else {
         @if (isPrivacyTool) {
           <div class="editor-tool-panel editor-tool-panel--privacy">
-            <label class="editor-tool-field editor-tool-field--range">
-              <span>Intensidade</span>
-              <input
-                type="range"
-                min="0.8"
-                max="8"
-                step="0.2"
-                [ngModel]="privacyStrength"
-                (ngModelChange)="updatePrivacyStrength($event)"
-                [attr.aria-valuetext]="privacyStrength.toFixed(1) + ' por cento'"
-              />
-              <output>{{ privacyStrength.toFixed(1) }}%</output>
-            </label>
+            @if (activeTool === 'bar') {
+              <label class="editor-tool-field editor-tool-field--range">
+                <span>Opacidade</span>
+                <input
+                  type="range"
+                  min="25"
+                  max="100"
+                  step="5"
+                  [ngModel]="privacyOpacity"
+                  (ngModelChange)="updatePrivacyOpacity($event)"
+                  [attr.aria-valuetext]="privacyOpacity.toFixed(0) + ' por cento'"
+                />
+                <output>{{ privacyOpacity.toFixed(0) }}%</output>
+              </label>
+            } @else {
+              <label class="editor-tool-field editor-tool-field--range">
+                <span>Intensidade</span>
+                <input
+                  type="range"
+                  min="0.8"
+                  max="8"
+                  step="0.2"
+                  [ngModel]="privacyStrength"
+                  (ngModelChange)="updatePrivacyStrength($event)"
+                  [attr.aria-valuetext]="privacyStrength.toFixed(1) + ' por cento'"
+                />
+                <output>{{ privacyStrength.toFixed(1) }}%</output>
+              </label>
+            }
             <p class="editor-tool-note">
               Arraste sobre a área. A proteção será incorporada ao arquivo final.
             </p>
+          </div>
+        }
+
+        @if (activeTool === 'crop') {
+          <div class="editor-tool-panel editor-tool-panel--crop">
+            <p class="editor-tool-note">
+              Arraste sobre a foto para criar o recorte. O arquivo final usará somente a área marcada.
+            </p>
+            <button
+              type="button"
+              class="app-action app-action--ghost"
+              (click)="resetCrop()"
+              [disabled]="!hasCustomCrop"
+            >
+              Remover recorte
+            </button>
+          </div>
+        }
+
+        @if (activeTool === 'adjust') {
+          <div class="editor-tool-panel editor-tool-panel--adjust">
+            <label class="editor-tool-field editor-tool-field--range">
+              <span>Endireitar</span>
+              <input
+                type="range"
+                min="-15"
+                max="15"
+                step="0.5"
+                [ngModel]="straighten"
+                (ngModelChange)="updateStraighten($event)"
+              />
+              <output>{{ straighten.toFixed(1) }}°</output>
+            </label>
+
+            <label class="editor-tool-field editor-tool-field--range">
+              <span>Brilho</span>
+              <input
+                type="range"
+                min="50"
+                max="150"
+                step="1"
+                [ngModel]="brightness"
+                (ngModelChange)="updateBrightness($event)"
+              />
+              <output>{{ brightness.toFixed(0) }}%</output>
+            </label>
+
+            <label class="editor-tool-field editor-tool-field--range">
+              <span>Contraste</span>
+              <input
+                type="range"
+                min="50"
+                max="150"
+                step="1"
+                [ngModel]="contrast"
+                (ngModelChange)="updateContrast($event)"
+              />
+              <output>{{ contrast.toFixed(0) }}%</output>
+            </label>
+
+            <label class="editor-tool-field editor-tool-field--range">
+              <span>Saturação</span>
+              <input
+                type="range"
+                min="0"
+                max="200"
+                step="1"
+                [ngModel]="saturation"
+                (ngModelChange)="updateSaturation($event)"
+              />
+              <output>{{ saturation.toFixed(0) }}%</output>
+            </label>
+
+            <div class="editor-adjust-actions">
+              <button
+                type="button"
+                class="app-action app-action--ghost"
+                [class.is-active]="flipHorizontal"
+                [attr.aria-pressed]="flipHorizontal"
+                (click)="toggleFlipHorizontal()"
+              >
+                Espelhar
+              </button>
+              <button
+                type="button"
+                class="app-action app-action--ghost"
+                (click)="resetAdjustments()"
+              >
+                Restaurar ajustes
+              </button>
+            </div>
           </div>
         }
 
