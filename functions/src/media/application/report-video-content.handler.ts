@@ -224,7 +224,7 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
     const reporterAbuseRisk = await getModerationReporterAbuseRisk(reporterUid);
 
     await consumeBackendRateLimitQuota({
-      action: 'reportVideoContent',
+      action: 'public-media-report',
       subject: reporterUid,
       cost: moderationReportRateLimitCost(reporterAbuseRisk),
       config: {
