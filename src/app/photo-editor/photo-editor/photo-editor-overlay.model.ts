@@ -417,7 +417,7 @@ export function drawPhotoEditorOverlays(
           height,
           createCanvas
         );
-      } else {
+      } else if (draftOverlay.kind === 'bar') {
         drawBarOverlay(context, draftOverlay, width, height);
       }
 
