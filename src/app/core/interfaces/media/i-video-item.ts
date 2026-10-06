@@ -1,9 +1,9 @@
 // src/app/core/interfaces/media/i-video-item.ts
 // -----------------------------------------------------------------------------
-// Contratos do domínio de vídeos privados.
+// Contratos do domínio de vídeos de origem.
 //
 // Decisão de produto:
-// - vídeo começa como biblioteca privada do usuário;
+// - vídeo começa como acervo de origem do usuário;
 // - publicação cria cópia física e projeção pública separadas;
 // - uid continua sendo o identificador canônico do usuário;
 // - paths privados nunca entram em contratos de exibição pública.
