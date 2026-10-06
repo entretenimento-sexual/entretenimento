@@ -22,7 +22,6 @@ import {
 } from 'firebase/functions';
 import {
   connectStorageEmulator,
-  getDownloadURL,
   getStorage as getClientStorage,
   ref,
   uploadBytes,
@@ -224,8 +223,6 @@ async function run() {
         mediaPhotoReservationId: reservationId,
       },
     });
-    const privateDownloadUrl = await getDownloadURL(privateStorageRef);
-
     const registerPrivatePhotoUpload = httpsCallable(
       ownerClient.functions,
       'registerPrivatePhotoUpload'
@@ -233,8 +230,7 @@ async function run() {
     await registerPrivatePhotoUpload({
       ownerUid,
       photoId,
-      storagePath: privateStoragePath,
-      url: privateDownloadUrl,
+      reservationId,
       fileName: 'reported-photo.png',
       mode: 'create',
     });
