@@ -66,13 +66,16 @@ describe('photo upload path authority', () => {
     );
 
     const replaceStart = flow.indexOf('  replaceProcessedPhoto$(');
-    const progressStart = flow.indexOf(
-      '  uploadProcessedPhotoWithProgress$(',
+    const updateStart = flow.indexOf(
+      'this.photoFirestoreService.updatePhotoMetadata(',
       replaceStart
     );
-    const replaceBlock = flow.slice(replaceStart, progressStart);
+    const updateEnd = flow.indexOf('          )\n        ).pipe(', updateStart);
+    const criticalMetadataBlock = flow.slice(updateStart, updateEnd);
 
-    expect(replaceBlock).toContain('path: storagePath');
-    expect(replaceBlock).not.toContain('url: displayUrl');
+    expect(updateStart).toBeGreaterThan(replaceStart);
+    expect(updateEnd).toBeGreaterThan(updateStart);
+    expect(criticalMetadataBlock).toContain('path: storagePath');
+    expect(criticalMetadataBlock).not.toContain('url: displayUrl');
   });
 });
