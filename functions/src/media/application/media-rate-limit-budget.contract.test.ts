@@ -19,6 +19,10 @@ describe('Media rate-limit budget contract', () => {
     assert.match(video, /action:\s*['"]public-media-access-urls['"]/);
     assert.match(photo, /cost:\s*itemCount/);
     assert.match(video, /cost:\s*itemCount/);
+    assert.match(photo, /PUBLIC_PHOTO_ACCESS_BURST_MAX_ITEMS\s*=\s*144/);
+    assert.match(photo, /PUBLIC_PHOTO_ACCESS_SUSTAINED_MAX_ITEMS\s*=\s*720/);
+    assert.match(video, /PUBLIC_VIDEO_ACCESS_BURST_MAX_ITEMS\s*=\s*144/);
+    assert.match(video, /PUBLIC_VIDEO_ACCESS_SUSTAINED_MAX_ITEMS\s*=\s*720/);
   });
 
   it('compartilha o orçamento de registro de views entre foto e vídeo', () => {
