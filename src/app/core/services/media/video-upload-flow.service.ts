@@ -24,6 +24,7 @@ import { IVideoItem } from 'src/app/core/interfaces/media/i-video-item';
 import { IVideoPublicationSettingsInput } from 'src/app/core/interfaces/media/i-video-publication-config';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { MediaApplicationErrorService } from './media-application-error.service';
+import { mapMediaUploadProgress, normalizeMediaUploadProgress } from './media-upload-progress.policy';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import {
   MEDIA_VIDEO_POSTER_MAX_BYTES,
@@ -276,7 +277,7 @@ export class VideoUploadFlowService {
               observer.next({
                 type: 'progress',
                 phase: 'uploading-video',
-                progress: this.mapProgress(progress, 6, 86),
+                progress: mapMediaUploadProgress(progress, 6, 86),
               });
             }
           );
@@ -299,7 +300,7 @@ export class VideoUploadFlowService {
                 observer.next({
                   type: 'progress',
                   phase: 'uploading-poster',
-                  progress: this.mapProgress(progress, 86, 96),
+                  progress: mapMediaUploadProgress(progress, 86, 96),
                 });
               }
             );
@@ -482,7 +483,7 @@ export class VideoUploadFlowService {
           const progress = snapshot.totalBytes > 0
             ? (snapshot.bytesTransferred / snapshot.totalBytes) * 100
             : 0;
-          onProgress(this.normalizeProgress(progress));
+          onProgress(normalizeMediaUploadProgress(progress));
         },
         reject,
         () => resolve({ path: storagePath })
@@ -632,19 +633,6 @@ export class VideoUploadFlowService {
     }
 
     return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  }
-
-  private mapProgress(progress: number, start: number, end: number): number {
-    const normalized = this.normalizeProgress(progress) / 100;
-    return Math.round(start + (end - start) * normalized);
-  }
-
-  private normalizeProgress(value: number): number {
-    if (!Number.isFinite(value)) {
-      return 0;
-    }
-
-    return Math.max(0, Math.min(100, Math.round(value)));
   }
 
   private reportCleanupError(
