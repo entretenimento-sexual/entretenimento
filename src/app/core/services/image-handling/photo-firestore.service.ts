@@ -13,13 +13,17 @@ import { Functions, httpsCallable } from '@angular/fire/functions';
 import {
   Observable,
   catchError,
+  combineLatest,
   lastValueFrom,
   map,
+  of,
+  switchMap,
   throwError,
 } from 'rxjs';
 
 import { FirestoreContextService } from '../data-handling/firestore/core/firestore-context.service';
 import { MediaApplicationErrorService } from '../media/media-application-error.service';
+import { StorageService } from './storage.service';
 
 export interface Photo {
   id: string;
@@ -44,7 +48,6 @@ interface RegisterPrivatePhotoUploadCallableRequest {
   ownerUid: string;
   photoId: string;
   storagePath: string;
-  url: string;
   fileName: string;
   mode: 'create' | 'replace';
 }
@@ -77,6 +80,7 @@ export class PhotoFirestoreService {
   constructor(
     private readonly errorHandler: MediaApplicationErrorService,
     private readonly firestoreCtx: FirestoreContextService,
+    private readonly storageService: StorageService,
   ) {}
 
   getPhotosByUser(userId: string): Observable<Photo[]> {
@@ -97,7 +101,8 @@ export class PhotoFirestoreService {
       );
 
       return collectionData(photosCollection, { idField: 'id' }).pipe(
-        map((photos) => photos as Photo[])
+        map((photos) => photos as Photo[]),
+        switchMap((photos) => this.hydratePrivatePhotoUrls$(photos))
       );
     }).pipe(
       catchError((error) =>
@@ -176,7 +181,6 @@ export class PhotoFirestoreService {
       safeUserId,
       photo.id,
       {
-        url: photo.url,
         path: photo.path,
         fileName: photo.fileName,
       },
@@ -195,7 +199,6 @@ export class PhotoFirestoreService {
       safeUserId,
       photoId,
       {
-        url: String(updatedData['url'] ?? ''),
         path: String(updatedData['path'] ?? ''),
         fileName: String(updatedData['fileName'] ?? ''),
       },
@@ -345,7 +348,6 @@ export class PhotoFirestoreService {
     userId: string,
     photoId: string,
     data: {
-      url?: string;
       path?: string;
       fileName?: string;
     },
@@ -353,10 +355,9 @@ export class PhotoFirestoreService {
   ): Promise<void> {
     const safePhotoId = String(photoId ?? '').trim();
     const storagePath = String(data.path ?? '').trim();
-    const url = String(data.url ?? '').trim();
     const fileName = String(data.fileName ?? '').trim();
 
-    if (!safePhotoId || !storagePath || !url || !fileName) {
+    if (!safePhotoId || !storagePath || !fileName) {
       throw this.normalizeHandledError(
         new Error('Metadados críticos da foto inválidos.'),
         'Metadados críticos da foto inválidos.',
@@ -381,7 +382,6 @@ export class PhotoFirestoreService {
             ownerUid: userId,
             photoId: safePhotoId,
             storagePath,
-            url,
             fileName,
             mode,
           }).then(() => undefined);
