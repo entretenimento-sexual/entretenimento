@@ -118,6 +118,11 @@ describe('PhotoEditorComponent', () => {
 
   it('deve iniciar com o estado nativo padrão do editor', () => {
     expect(component.rotation).toBe(0);
+    expect(component.straighten).toBe(0);
+    expect(component.flipHorizontal).toBe(false);
+    expect(component.brightness).toBe(100);
+    expect(component.contrast).toBe(100);
+    expect(component.saturation).toBe(100);
     expect(component.zoom).toBe(1);
     expect(component.panX).toBe(0);
     expect(component.panY).toBe(0);
@@ -158,8 +163,11 @@ describe('PhotoEditorComponent', () => {
   it('deve expor catálogos ampliados de ferramentas, emojis e fontes', () => {
     expect(component.toolOptions.map((tool) => tool.value)).toEqual([
       'move',
+      'crop',
+      'adjust',
       'blur',
       'pixelate',
+      'bar',
       'emoji',
       'text',
       'datetime',
@@ -178,10 +186,79 @@ describe('PhotoEditorComponent', () => {
 
   it('deve limitar intensidade e tamanho aos intervalos suportados', () => {
     component.updatePrivacyStrength(99);
+    component.updatePrivacyOpacity(1);
     component.updateDecorationSize(99);
 
     expect(component.privacyStrength).toBe(8);
+    expect(component.privacyOpacity).toBe(25);
     expect(component.decorationSize).toBe(28);
+  });
+
+  it('deve aplicar e restaurar ajustes locais com histórico', () => {
+    markEditorIdle();
+    (component as any).resetOverlayHistory([]);
+
+    component.updateStraighten(8.5);
+    component.toggleFlipHorizontal();
+    component.updateBrightness(120);
+    component.updateContrast(115);
+    component.updateSaturation(140);
+
+    expect(component.straighten).toBe(8.5);
+    expect(component.flipHorizontal).toBe(true);
+    expect(component.brightness).toBe(120);
+    expect(component.contrast).toBe(115);
+    expect(component.saturation).toBe(140);
+
+    component.resetAdjustments();
+
+    expect(component.straighten).toBe(0);
+    expect(component.flipHorizontal).toBe(false);
+    expect(component.brightness).toBe(100);
+    expect(component.contrast).toBe(100);
+    expect(component.saturation).toBe(100);
+    expect(component.canUndo).toBe(true);
+  });
+
+  it('deve criar e remover recorte livre normalizado', () => {
+    markEditorIdle();
+    (component as any).resetOverlayHistory([]);
+
+    component.cropRect = {
+      x: 0.2,
+      y: 0.1,
+      width: 0.5,
+      height: 0.7,
+    };
+
+    expect(component.hasCustomCrop).toBe(true);
+
+    component.resetCrop();
+
+    expect(component.cropRect).toEqual({
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
+    });
+    expect(component.hasCustomCrop).toBe(false);
+  });
+
+  it('desabilita recorte livre quando o preset exige proporção fixa', () => {
+    markEditorIdle();
+    (component as any).activeDraft = {
+      mode: 'create',
+      source: 'profile-avatar',
+      context: 'profile-avatar',
+      preset: 'avatar-square',
+      file: component.imageFile()!,
+      ownerUid: 'u1',
+      createdAt: Date.now(),
+    };
+
+    expect(component.isToolDisabled('crop')).toBe(true);
+    component.selectTool('crop');
+    expect(component.activeTool).toBe('move');
   });
 
   it('deve selecionar, editar, duplicar e remover um texto', () => {
