@@ -1,5 +1,5 @@
 // src/app/media/photos/profile-photos/profile-photos.component.ts
-// Galeria privada do perfil.
+// Galeria de gestão do próprio perfil.
 //
 // Responsabilidades:
 // - observar acervo de origem e configurações de publicação;
@@ -8,7 +8,7 @@
 //   arquivo processado e este componente executa a substituição da foto.
 //
 // users/{uid}/photos continua sendo a acervo de origem. Estado de publicação
-// permanece em sua camada própria e não é misturado no documento privado.
+// permanece em sua camada própria e não é misturado no documento de origem.
 
 import { CommonModule } from '@angular/common';
 import {
