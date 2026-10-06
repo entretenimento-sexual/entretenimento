@@ -2,6 +2,7 @@ import type { PhotoEditorTool } from './photo-editor-overlay.model';
 
 export type PhotoEditorLocalToolFamily =
   | 'navigation'
+  | 'adjustment'
   | 'privacy'
   | 'decoration';
 
@@ -34,6 +35,24 @@ export const PHOTO_EDITOR_LOCAL_TOOL_REGISTRY:
       requiresPaidService: false,
     }),
     Object.freeze({
+      value: 'crop',
+      label: 'Recorte livre',
+      shortLabel: 'Recortar',
+      family: 'adjustment',
+      execution: 'local-canvas',
+      requiresNetwork: false,
+      requiresPaidService: false,
+    }),
+    Object.freeze({
+      value: 'adjust',
+      label: 'Ajustar imagem',
+      shortLabel: 'Ajustar',
+      family: 'adjustment',
+      execution: 'local-canvas',
+      requiresNetwork: false,
+      requiresPaidService: false,
+    }),
+    Object.freeze({
       value: 'blur',
       label: 'Borrar área',
       shortLabel: 'Borrar',
@@ -46,6 +65,15 @@ export const PHOTO_EDITOR_LOCAL_TOOL_REGISTRY:
       value: 'pixelate',
       label: 'Pixelar área',
       shortLabel: 'Pixelar',
+      family: 'privacy',
+      execution: 'local-canvas',
+      requiresNetwork: false,
+      requiresPaidService: false,
+    }),
+    Object.freeze({
+      value: 'bar',
+      label: 'Tarja de privacidade',
+      shortLabel: 'Tarja',
       family: 'privacy',
       execution: 'local-canvas',
       requiresNetwork: false,
