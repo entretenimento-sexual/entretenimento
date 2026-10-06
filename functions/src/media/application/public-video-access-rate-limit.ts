@@ -5,9 +5,9 @@ import {
 } from './backend-fixed-window-rate-limit';
 
 export const PUBLIC_VIDEO_ACCESS_BURST_WINDOW_MS = 60 * 1000;
-export const PUBLIC_VIDEO_ACCESS_BURST_MAX_ITEMS = 96;
+export const PUBLIC_VIDEO_ACCESS_BURST_MAX_ITEMS = 144;
 export const PUBLIC_VIDEO_ACCESS_SUSTAINED_WINDOW_MS = 10 * 60 * 1000;
-export const PUBLIC_VIDEO_ACCESS_SUSTAINED_MAX_ITEMS = 480;
+export const PUBLIC_VIDEO_ACCESS_SUSTAINED_MAX_ITEMS = 720;
 
 export type PublicVideoAccessRateLimitState = BackendFixedWindowRateLimitState;
 export type PublicVideoAccessRateLimitDecision = BackendFixedWindowRateLimitDecision;
