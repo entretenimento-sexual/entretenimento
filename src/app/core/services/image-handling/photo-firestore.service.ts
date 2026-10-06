@@ -56,7 +56,7 @@ export type PhotoUpdateData =
 interface RegisterPrivatePhotoUploadCallableRequest {
   ownerUid: string;
   photoId: string;
-  storagePath: string;
+  reservationId: string;
   fileName: string;
   mode: 'create' | 'replace';
 }
@@ -182,7 +182,8 @@ export class PhotoFirestoreService {
 
   async savePhotoMetadata(
     userId: string,
-    photo: Photo
+    photo: Photo,
+    reservationId: string
   ): Promise<void> {
     const safeUserId = this.requireUserId(userId);
 
@@ -193,6 +194,7 @@ export class PhotoFirestoreService {
         path: photo.path,
         fileName: photo.fileName,
       },
+      reservationId,
       'create'
     );
   }
@@ -200,7 +202,8 @@ export class PhotoFirestoreService {
   async updatePhotoMetadata(
     userId: string,
     photoId: string,
-    updatedData: PhotoUpdateData
+    updatedData: PhotoUpdateData,
+    reservationId: string
   ): Promise<void> {
     const safeUserId = this.requireUserId(userId);
 
@@ -211,6 +214,7 @@ export class PhotoFirestoreService {
         path: String(updatedData['path'] ?? ''),
         fileName: String(updatedData['fileName'] ?? ''),
       },
+      reservationId,
       'replace'
     );
   }
@@ -360,13 +364,15 @@ export class PhotoFirestoreService {
       path?: string;
       fileName?: string;
     },
+    reservationId: string,
     mode: 'create' | 'replace'
   ): Promise<void> {
     const safePhotoId = String(photoId ?? '').trim();
     const storagePath = String(data.path ?? '').trim();
+    const safeReservationId = String(reservationId ?? '').trim();
     const fileName = String(data.fileName ?? '').trim();
 
-    if (!safePhotoId || !storagePath || !fileName) {
+    if (!safePhotoId || !storagePath || !safeReservationId || !fileName) {
       throw this.normalizeHandledError(
         new Error('Metadados críticos da foto inválidos.'),
         'Metadados críticos da foto inválidos.',
@@ -390,7 +396,7 @@ export class PhotoFirestoreService {
           return callable({
             ownerUid: userId,
             photoId: safePhotoId,
-            storagePath,
+            reservationId: safeReservationId,
             fileName,
             mode,
           }).then(() => undefined);
