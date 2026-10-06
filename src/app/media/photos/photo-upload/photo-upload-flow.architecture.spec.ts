@@ -47,6 +47,6 @@ describe('photo upload flow architecture', () => {
     expect(template).not.toContain("selectAudience('PRIVATE')");
     expect(template).toContain("selectAudience('FRIENDS')");
     expect(template).toContain("selectAudience('PUBLIC')");
-    expect(template).toContain("[disabled]="phase !== 'READY' || !audience"");
+    expect(template).toContain(`[disabled]="phase !== 'READY' || !audience"`);
   });
 });
