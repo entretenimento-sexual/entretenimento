@@ -116,6 +116,10 @@
   cursor: copy;
 }
 
+.editor-canvas.is-crop-tool {
+  cursor: crosshair;
+}
+
 .editor-canvas:focus-visible,
 .editor-controls button:focus-visible,
 .editor-controls input:focus-visible,
@@ -244,6 +248,29 @@
 
 .editor-tool-panel--datetime {
   grid-template-columns: repeat(3, minmax(130px, 1fr));
+}
+
+.editor-tool-panel--crop {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.editor-tool-panel--adjust {
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  align-items: end;
+}
+
+.editor-adjust-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.editor-adjust-actions .app-action.is-active {
+  border-color: color-mix(in oklab, var(--primary-color, #ff7070) 65%, transparent);
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 18%, transparent);
 }
 
 .editor-tool-panel--stacked {
@@ -537,6 +564,7 @@
 @media (max-width: 980px) {
   .editor-tool-panel--decoration,
   .editor-tool-panel--datetime,
+  .editor-tool-panel--adjust,
   .editor-properties-grid {
     grid-template-columns: repeat(2, minmax(130px, 1fr));
   }
@@ -610,8 +638,10 @@
   }
 
   .editor-tool-panel--privacy,
+  .editor-tool-panel--crop,
   .editor-tool-panel--decoration,
   .editor-tool-panel--datetime,
+  .editor-tool-panel--adjust,
   .editor-tool-panel__row,
   .editor-properties-grid,
   .editor-controls {
@@ -621,7 +651,8 @@
   .editor-tool-panel--decoration .editor-tool-field--text,
   .editor-properties-grid__wide,
   .editor-tool-note,
-  .editor-zoom {
+  .editor-zoom,
+  .editor-adjust-actions {
     grid-column: auto;
   }
 
