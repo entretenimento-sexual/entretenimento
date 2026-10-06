@@ -1404,7 +1404,6 @@ const uploadPhotoHtml = read(
 for (const required of [
   'upload-modal-content app-card app-card--media',
   'btn-close app-action app-action--ghost',
-  'loading-spinner app-card app-card--flat app-card--compact',
   'alert alert-danger mt-2 app-card app-card--flat app-card--compact',
 ]) {
   if (!uploadPhotoHtml.includes(required)) {
@@ -2100,12 +2099,25 @@ const photoUploadComponent = read(
 for (const required of [
   'private readonly mediaPublication = inject(MediaPublicationService)',
   'this.mediaPublication.publishPhoto$(',
-  "visibility: 'PUBLIC'",
-  "commentsPolicy: 'EVERYONE'",
+  'type PhotoUploadAudience = TPhotoPublishableVisibility',
+  'if (!audience)',
+  'visibility: audience',
+  "commentsPolicy: audience === 'FRIENDS' ? 'FRIENDS' : 'EVERYONE'",
 ]) {
   if (!photoUploadComponent.includes(required)) {
     violations.push(
-      'photo-upload.component.ts missing automatic preventive publication contract ' + required
+      'photo-upload.component.ts missing explicit audience publication contract ' + required
+    );
+  }
+}
+
+for (const forbidden of [
+  "visibility: 'PUBLIC'",
+  "selectAudience('PRIVATE')",
+]) {
+  if (photoUploadComponent.includes(forbidden)) {
+    violations.push(
+      'photo-upload.component.ts contains implicit/unsupported audience contract ' + forbidden
     );
   }
 }
