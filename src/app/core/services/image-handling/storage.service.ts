@@ -30,15 +30,6 @@ import {
 } from 'firebase/storage';
 import { Observable, defer, from, of, throwError } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
-import { Store } from '@ngrx/store';
-
-import { AppState } from 'src/app/store/states/app.state';
-import {
-  uploadError,
-  uploadProgress,
-  uploadSuccess,
-} from '../../../store/actions/actions.user/file.actions';
-
 import { MediaApplicationErrorService } from '../media/media-application-error.service';
 import type { MediaErrorReason } from '../media/media-error.catalog';
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
@@ -50,6 +41,7 @@ import {
 } from '../media/media-format.policy';
 import { PrivacyDebugLoggerService } from '../privacy/privacy-debug-logger.service';
 import { FirestoreContextService } from '../data-handling/firestore/core/firestore-context.service';
+import { normalizeMediaUploadProgress } from '../media/media-upload-progress.policy';
 
 type UploadKind = 'image' | 'video';
 type StorageDebugKind = UploadKind | 'avatar';
@@ -77,7 +69,6 @@ export class StorageService {
   constructor(
     private readonly errorNotifier: ErrorNotificationService,
     private readonly mediaError: MediaApplicationErrorService,
-    private readonly store: Store<AppState>,
     private readonly privacyDebug: PrivacyDebugLoggerService,
     private readonly firebaseContext: FirestoreContextService
   ) {}
@@ -153,11 +144,6 @@ export class StorageService {
       ...this.getSafeFileDebugMeta(file, mediaKind),
       ...(extra ?? {}),
     };
-  }
-
-  private normalizeProgress(progress: number): number {
-    if (!Number.isFinite(progress)) return 0;
-    return Math.max(0, Math.min(100, Math.round(progress)));
   }
 
   private get currentUid(): string | null {
@@ -332,7 +318,6 @@ export class StorageService {
     file: File,
     kind: StorageDebugKind,
     progressCallback?: (progress: number) => void,
-    dispatchStoreProgress = false,
     metadata?: UploadMetadata
   ): Observable<string> {
     return new Observable<string>((observer) => {
@@ -344,19 +329,13 @@ export class StorageService {
           const progress = snapshot.totalBytes
             ? (snapshot.bytesTransferred / snapshot.totalBytes) * 100
             : 0;
-          const normalizedProgress = this.normalizeProgress(progress);
+          const normalizedProgress = normalizeMediaUploadProgress(progress);
           this.dbg('upload progress', { kind, progress: normalizedProgress });
-          if (dispatchStoreProgress) {
-            this.store.dispatch(uploadProgress({ progress }));
-          }
-          progressCallback?.(progress);
+          progressCallback?.(normalizedProgress);
         },
         (error) => {
           const errorMsg = this.extractErrorMessage(error);
           this.dbg('upload failed', { kind, errorMsg });
-          if (dispatchStoreProgress) {
-            this.store.dispatch(uploadError({ error: errorMsg }));
-          }
           observer.error(error);
         },
         () => {
@@ -488,13 +467,11 @@ export class StorageService {
                 file,
                 kind,
                 progressCallback,
-                true,
                 this.buildUploadMetadata(file, kind, reservationId)
               )
             ),
             switchMap((uploadedPath) => this.resolveReadableLocation$(uploadedPath)),
             map((location) => {
-              this.store.dispatch(uploadSuccess({ url: location }));
               this.dbg('uploadFile completed', {
                 kind,
                 hasLocation: !!location,
@@ -514,7 +491,6 @@ export class StorageService {
           hasRequestedPath: !!String(path ?? '').trim(),
           hasUserId: !!safeUid,
         });
-        this.store.dispatch(uploadError({ error: errorMsg }));
         this.routeError(
           'uploadFile',
           error,
@@ -563,7 +539,6 @@ export class StorageService {
             file,
             'avatar',
             progressCallback,
-            false,
             this.buildUploadMetadata(file, 'avatar', null)
           ).pipe(
             switchMap((uploadedPath) => this.resolveReadableLocation$(uploadedPath)),
