@@ -174,7 +174,6 @@ export class PhotoUploadFlowService {
             safeUserId,
             safePhotoId,
             {
-              url: displayUrl,
               path: storagePath,
               fileName,
             }
