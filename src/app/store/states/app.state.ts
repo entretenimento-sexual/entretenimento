@@ -1,7 +1,6 @@
 // src/app/store/states/app.state.ts
 import { authReducer } from '../reducers/reducers.user/auth.reducer';
 import { userReducer } from '../reducers/reducers.user/user.reducer';
-import { fileReducer } from '../reducers/reducers.user/file.reducer';
 import { userPreferencesReducer } from '../reducers/reducers.user/user-preferences.reducer';
 
 
@@ -17,7 +16,6 @@ export interface AppState {
   // USER DOMAIN
   auth: ReturnType<typeof authReducer>;
   user: ReturnType<typeof userReducer>;
-  file: ReturnType<typeof fileReducer>;
   userPreferences: ReturnType<typeof userPreferencesReducer>;
   friendsPages: ReturnType<typeof friendsPaginationReducer>;
 
