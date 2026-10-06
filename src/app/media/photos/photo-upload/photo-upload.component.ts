@@ -294,7 +294,12 @@ export class PhotoUploadComponent {
       .subscribe();
   }
 
-  editBeforeUpload(): void {
+  editBeforeUpload(event: MouseEvent): void {
+    if (!event.isTrusted) {
+      this.debug('editBeforeUpload.ignoredNonUserGesture');
+      return;
+    }
+
     combineLatest([this.policyResult$, this.file$, this.ownerUid$, this.phase$])
       .pipe(
         take(1),
