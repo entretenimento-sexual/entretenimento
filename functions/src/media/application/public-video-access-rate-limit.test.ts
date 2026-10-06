@@ -16,10 +16,15 @@ describe('public-video-access-rate-limit', () => {
   it('pondera a quota pela quantidade de vídeos únicos solicitados', () => {
     let state: PublicVideoAccessRateLimitState | null = null;
 
-    for (let page = 0; page < 8; page += 1) {
+    const batchSize = 12;
+    const pageCount = PUBLIC_VIDEO_ACCESS_BURST_MAX_ITEMS / batchSize;
+
+    assert.equal(Number.isInteger(pageCount), true);
+
+    for (let page = 0; page < pageCount; page += 1) {
       const decision = buildPublicVideoAccessRateLimitDecision({
         now: NOW,
-        itemCount: 12,
+        itemCount: batchSize,
         state,
       });
 
