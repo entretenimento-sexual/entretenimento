@@ -10,8 +10,8 @@ type PublicPhotoSocialInteractionKind = Extract<
 >;
 
 const ACTION_BY_KIND: Record<PublicPhotoSocialInteractionKind, string> = {
-  reaction: 'togglePhotoReaction',
-  comment: 'createPhotoComment',
+  reaction: 'public-media-reaction',
+  comment: 'public-media-comment',
 };
 
 const MESSAGE_BY_KIND: Record<PublicPhotoSocialInteractionKind, string> = {
