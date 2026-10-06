@@ -8,7 +8,6 @@ import { initialFriendsPaginationState } from '../../states/states.interactions/
 import { initialState as initialFriendsState } from '../../states/states.interactions/friends.state';
 import { initialLocationState } from '../../states/states.location/location.state';
 import { initialNearbyProfilesState } from '../../states/states.location/nearby-profiles.state';
-import { initialFileState } from '../../states/states.user/file.state';
 import { initialUserPreferencesState } from '../../states/states.user/user-preferences.state';
 import { initialUserState } from '../../states/states.user/user.state';
 import { AppState } from '../../states/app.state';
@@ -31,7 +30,6 @@ function buildState(uid: string): AppState {
       error: null,
     },
     [STORE_FEATURE.user]: { __previous: 'user' } as any,
-    [STORE_FEATURE.file]: { __previous: 'file' } as any,
     [STORE_FEATURE.userPreferences]: { __previous: 'preferences' } as any,
     [STORE_FEATURE.location]: { __previous: 'location' } as any,
     [STORE_FEATURE.nearbyProfiles]: { __previous: 'nearby' } as any,
@@ -52,7 +50,6 @@ function expectUserScopedSlicesReset(
   viewerUid: string | null
 ): void {
   expect(next[STORE_FEATURE.user]).toEqual(initialUserState);
-  expect(next[STORE_FEATURE.file]).toEqual(initialFileState);
   expect(next[STORE_FEATURE.userPreferences]).toEqual(initialUserPreferencesState);
   expect(next[STORE_FEATURE.location]).toEqual(initialLocationState);
   expect(next[STORE_FEATURE.nearbyProfiles]).toEqual(initialNearbyProfilesState);
