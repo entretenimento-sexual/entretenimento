@@ -1,3 +1,8 @@
+import {
+  MEDIA_ERROR_CODE_MESSAGES,
+  resolveMediaErrorMessage,
+} from './media-error.catalog';
+
 export type PublicMediaCallableAction =
   | 'reaction'
   | 'comment'
@@ -68,24 +73,6 @@ function readConsumptionAccessReason(
   return null;
 }
 
-function consumptionAccessMessage(
-  reason: PublicMediaConsumptionAccessReason
-): string {
-  if (reason === 'ACCOUNT_UNAVAILABLE') {
-    return 'Sua conta não está disponível para esta interação.';
-  }
-
-  if (reason === 'TERMS_REQUIRED') {
-    return 'Aceite os termos e a política de privacidade atuais para continuar.';
-  }
-
-  if (reason === 'ADULT_CONSENT_REQUIRED') {
-    return 'Confirme o consentimento para conteúdo adulto para continuar.';
-  }
-
-  return 'Confirme o consentimento para conteúdo adulto para continuar.';
-}
-
 function actionUnavailableMessage(action: PublicMediaCallableAction): string {
   if (action === 'reaction') {
     return 'Esta reação não está disponível no momento.';
@@ -133,27 +120,23 @@ export function resolvePublicMediaCallableUserMessage(
     return rateLimitMessage(action);
   }
 
-  if (code === 'unauthenticated') {
-    return 'Sua sessão expirou. Entre novamente para continuar.';
-  }
-
-  if (code === 'permission-denied') {
-    return 'Você não tem permissão para realizar esta ação.';
-  }
-
-  if (code === 'not-found') {
-    return 'Este conteúdo não está mais disponível.';
+  if (
+    code === 'unauthenticated' ||
+    code === 'permission-denied' ||
+    code === 'not-found'
+  ) {
+    return MEDIA_ERROR_CODE_MESSAGES[code] ?? fallback;
   }
 
   if (code === 'failed-precondition') {
     const accessReason = readConsumptionAccessReason(error);
     return accessReason
-      ? consumptionAccessMessage(accessReason)
+      ? resolveMediaErrorMessage(accessReason) ?? fallback
       : actionUnavailableMessage(action);
   }
 
   if (code === 'unavailable' || code === 'deadline-exceeded') {
-    return 'O serviço está temporariamente indisponível. Tente novamente em instantes.';
+    return MEDIA_ERROR_CODE_MESSAGES[code] ?? fallback;
   }
 
   return fallback;
