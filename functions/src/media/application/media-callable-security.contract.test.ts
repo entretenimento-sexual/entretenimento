@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, it } from 'node:test';
 
@@ -43,6 +43,11 @@ const PROTECTED_CALLABLES = [
   'report-video-content.handler.ts',
 ] as const;
 
+const APP_CHECK_EXEMPT_CALLABLES = new Set([
+  'legacy-unpublish-photo.handler.ts',
+  'legacy-unpublish-video.handler.ts',
+]);
+
 const RATE_LIMITED_CALLABLES = new Set([
   'reserve-photo-upload.handler.ts',
   'reserve-video-upload.handler.ts',
@@ -83,17 +88,60 @@ const RATE_LIMITED_CALLABLES = new Set([
   'review-media-moderation-contest.handler.ts',
 ]);
 
+const MEDIA_APPLICATION_DIR = resolve(
+  process.cwd(),
+  'src',
+  'media',
+  'application'
+);
+
 function source(name: string): string {
-  return readFileSync(
-    resolve(process.cwd(), 'src', 'media', 'application', name),
-    'utf8'
-  );
+  return readFileSync(resolve(MEDIA_APPLICATION_DIR, name), 'utf8');
+}
+
+function discoverCallableHandlers(): string[] {
+  return readdirSync(MEDIA_APPLICATION_DIR)
+    .filter((name) => name.endsWith('.handler.ts'))
+    .filter((name) => /\bonCall(?:<|\s*\()/.test(source(name)))
+    .sort();
 }
 
 // Tombstones legados de despublicação de foto/vídeo ficam fora da matriz:
 // são APIs deliberadamente fail-closed e instrumentadas até a retirada.
 // Triggers, schedules e cores internos também não são callables externos do cliente.
 describe('Media callable security contract', () => {
+  it('classifica automaticamente todo onCall de Media', () => {
+    const discovered = discoverCallableHandlers();
+    const classified = new Set<string>([
+      ...PROTECTED_CALLABLES,
+      ...APP_CHECK_EXEMPT_CALLABLES,
+    ]);
+
+    assert.deepEqual(
+      discovered.filter((name) => !classified.has(name)),
+      [],
+      'Existe callable de Media sem classificação explícita de App Check.'
+    );
+
+    assert.deepEqual(
+      [...classified].filter((name) => !discovered.includes(name)).sort(),
+      [],
+      'A matriz contém arquivo que deixou de ser callable e precisa ser revisado.'
+    );
+  });
+
+  it('mantém exceções legadas apenas como tombstones fail-closed instrumentados', () => {
+    for (const name of APP_CHECK_EXEMPT_CALLABLES) {
+      const content = source(name);
+
+      assert.match(content, /logLegacyMediaTombstoneUse\(/);
+      assert.match(
+        content,
+        /throw new HttpsError\(\s*['"]failed-precondition['"]/
+      );
+    }
+  });
+
   for (const name of PROTECTED_CALLABLES) {
     it(`${name} exige App Check no callable real`, () => {
       const content = source(name);
