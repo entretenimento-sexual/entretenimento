@@ -260,6 +260,34 @@ export class StorageService {
     ).test(clean);
   }
 
+  private resolveOwnedUploadPath(
+    requestedPath: string,
+    uid: string,
+    kind: UploadKind,
+    file: File
+  ): string {
+    const cleanPath = String(requestedPath ?? '').trim();
+
+    if (!cleanPath) {
+      return kind === 'video'
+        ? this.buildVideoUploadPath(uid, file)
+        : this.buildImageUploadPath(uid, file.name);
+    }
+
+    if (!this.isOwnUploadPath(cleanPath, uid)) {
+      throw new Error('Path de upload inválido ou fora do namespace autenticado.');
+    }
+
+    const expectedSegment =
+      kind === 'video' ? '/uploads/videos/' : '/uploads/images/';
+
+    if (!cleanPath.includes(expectedSegment)) {
+      throw new Error('O path de upload não corresponde ao tipo de mídia.');
+    }
+
+    return cleanPath;
+  }
+
   private isPublishedReadablePath(path: string): boolean {
     const clean = String(path ?? '').trim();
     if (!clean) return false;
@@ -444,10 +472,12 @@ export class StorageService {
 
       return validation$.pipe(
         switchMap(() => {
-          const resolvedPath =
-            kind === 'video'
-              ? this.buildVideoUploadPath(safeUid, file)
-              : this.buildImageUploadPath(safeUid, file.name);
+          const resolvedPath = this.resolveOwnedUploadPath(
+            path,
+            safeUid,
+            kind,
+            file
+          );
           this.dbg(
             'uploadFile started',
             this.getSafeStorageDebugMeta(kind, file, {
