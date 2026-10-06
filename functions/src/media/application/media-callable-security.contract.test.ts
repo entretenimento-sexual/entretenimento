@@ -112,3 +112,45 @@ describe('Media callable security contract', () => {
     });
   }
 });
+
+
+describe('Media internal callable cores stay behind protected orchestrators', () => {
+  const mediaIndex = readFileSync(
+    resolve(process.cwd(), 'src', 'media', 'index.ts'),
+    'utf8'
+  );
+
+  it('não exporta diretamente os cores internos de comentário e publicação', () => {
+    assert.doesNotMatch(
+      mediaIndex,
+      /from '\.\/application\/manage-photo-comment\.handler'/
+    );
+    assert.doesNotMatch(
+      mediaIndex,
+      /export\s*\{[^}]*\bpublishVideo\b[^}]*\}\s*from '\.\/application\/manage-video-publication\.handler'/
+    );
+    assert.doesNotMatch(
+      mediaIndex,
+      /export\s*\{[^}]*\bcreateVideoComment\b[^}]*\}\s*from '\.\/application\/manage-video-comment\.handler'/
+    );
+  });
+
+  it('expõe somente os wrappers protegidos equivalentes', () => {
+    assert.match(
+      mediaIndex,
+      /createPhotoComment[\s\S]*create-photo-comment-orchestrator\.handler/
+    );
+    assert.match(
+      mediaIndex,
+      /moderatePhotoComment[\s\S]*moderate-photo-comment-orchestrator\.handler/
+    );
+    assert.match(
+      mediaIndex,
+      /createVideoComment[\s\S]*create-video-comment-orchestrator\.handler/
+    );
+    assert.match(
+      mediaIndex,
+      /publishVideo[\s\S]*publish-video-orchestrator\.handler/
+    );
+  });
+});
