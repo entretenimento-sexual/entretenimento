@@ -3,11 +3,16 @@ import {
   type BackendFixedWindowRateLimitDecision,
   type BackendFixedWindowRateLimitState,
 } from './backend-fixed-window-rate-limit';
+import { PUBLIC_MEDIA_ACCESS_RATE_LIMIT_CONFIG } from './public-media-rate-limit.config';
 
-export const PUBLIC_VIDEO_ACCESS_BURST_WINDOW_MS = 60 * 1000;
-export const PUBLIC_VIDEO_ACCESS_BURST_MAX_ITEMS = 144;
-export const PUBLIC_VIDEO_ACCESS_SUSTAINED_WINDOW_MS = 10 * 60 * 1000;
-export const PUBLIC_VIDEO_ACCESS_SUSTAINED_MAX_ITEMS = 720;
+export const PUBLIC_VIDEO_ACCESS_BURST_WINDOW_MS =
+  PUBLIC_MEDIA_ACCESS_RATE_LIMIT_CONFIG.burstWindowMs;
+export const PUBLIC_VIDEO_ACCESS_BURST_MAX_ITEMS =
+  PUBLIC_MEDIA_ACCESS_RATE_LIMIT_CONFIG.burstMax;
+export const PUBLIC_VIDEO_ACCESS_SUSTAINED_WINDOW_MS =
+  PUBLIC_MEDIA_ACCESS_RATE_LIMIT_CONFIG.sustainedWindowMs;
+export const PUBLIC_VIDEO_ACCESS_SUSTAINED_MAX_ITEMS =
+  PUBLIC_MEDIA_ACCESS_RATE_LIMIT_CONFIG.sustainedMax;
 
 export type PublicVideoAccessRateLimitState = BackendFixedWindowRateLimitState;
 export type PublicVideoAccessRateLimitDecision = BackendFixedWindowRateLimitDecision;
@@ -21,11 +26,6 @@ export function buildPublicVideoAccessRateLimitDecision(input: {
     now: input.now,
     state: input.state,
     cost: input.itemCount,
-    config: {
-      burstWindowMs: PUBLIC_VIDEO_ACCESS_BURST_WINDOW_MS,
-      burstMax: PUBLIC_VIDEO_ACCESS_BURST_MAX_ITEMS,
-      sustainedWindowMs: PUBLIC_VIDEO_ACCESS_SUSTAINED_WINDOW_MS,
-      sustainedMax: PUBLIC_VIDEO_ACCESS_SUSTAINED_MAX_ITEMS,
-    },
+    config: PUBLIC_MEDIA_ACCESS_RATE_LIMIT_CONFIG,
   });
 }
