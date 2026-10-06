@@ -1,6 +1,6 @@
 // src/app/core/services/media/media-policy.service.ts
-// Policy central de mídia privada e publicação controlada.
-// - somente o dono acessa bibliotecas privadas;
+// Policy central de mídia de origem e publicação controlada.
+// - somente o dono acessa acervos de origem;
 // - upload exige e-mail verificado, perfil concluído e conta sem bloqueio;
 // - fotos e vídeos compartilham a mesma defesa em profundidade.
 import { Injectable } from '@angular/core';
