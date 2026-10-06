@@ -19,10 +19,8 @@ describe('Media rate-limit budget contract', () => {
     assert.match(video, /action:\s*['"]public-media-access-urls['"]/);
     assert.match(photo, /cost:\s*itemCount/);
     assert.match(video, /cost:\s*itemCount/);
-    assert.match(photo, /PUBLIC_PHOTO_ACCESS_BURST_MAX_ITEMS\s*=\s*144/);
-    assert.match(photo, /PUBLIC_PHOTO_ACCESS_SUSTAINED_MAX_ITEMS\s*=\s*720/);
-    assert.match(video, /PUBLIC_VIDEO_ACCESS_BURST_MAX_ITEMS\s*=\s*144/);
-    assert.match(video, /PUBLIC_VIDEO_ACCESS_SUSTAINED_MAX_ITEMS\s*=\s*720/);
+    assert.match(photo, /PUBLIC_MEDIA_ACCESS_RATE_LIMIT_CONFIG/);
+    assert.match(video, /PUBLIC_MEDIA_ACCESS_RATE_LIMIT_CONFIG/);
   });
 
   it('compartilha o orçamento de registro de views entre foto e vídeo', () => {
@@ -33,6 +31,8 @@ describe('Media rate-limit budget contract', () => {
     assert.match(video, /action:\s*['"]public-media-view-record['"]/);
     assert.match(photo, /cost:\s*1/);
     assert.match(video, /cost:\s*1/);
+    assert.match(photo, /PUBLIC_MEDIA_VIEW_RECORD_RATE_LIMIT_CONFIG/);
+    assert.match(video, /PUBLIC_MEDIA_VIEW_RECORD_RATE_LIMIT_CONFIG/);
   });
 
   it('compartilha budgets sociais por tipo de interação', () => {
@@ -55,6 +55,8 @@ describe('Media rate-limit budget contract', () => {
     assert.match(video, /action:\s*['"]public-media-report['"]/);
     assert.match(photo, /cost:\s*moderationReportRateLimitCost\(/);
     assert.match(video, /cost:\s*moderationReportRateLimitCost\(/);
+    assert.match(photo, /PUBLIC_MEDIA_REPORT_RATE_LIMIT_CONFIG/);
+    assert.match(video, /PUBLIC_MEDIA_REPORT_RATE_LIMIT_CONFIG/);
   });
 
   it('mantém discovery com custo proporcional ao volume solicitado', () => {
