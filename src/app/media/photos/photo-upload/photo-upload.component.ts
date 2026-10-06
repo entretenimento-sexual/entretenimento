@@ -11,7 +11,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { BehaviorSubject, EMPTY, Observable, combineLatest, of } from 'rxjs';
+import { BehaviorSubject, EMPTY, Observable, combineLatest, from, of, throwError } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -30,6 +30,7 @@ import { MediaPublicationService } from 'src/app/core/services/media/media-publi
 import type { TPhotoPublishableVisibility } from 'src/app/core/interfaces/media/i-photo-publication-config';
 import type { MediaErrorReason } from 'src/app/core/services/media/media-error.catalog';
 import { PhotoEditorLauncherService } from 'src/app/core/services/image-handling/photo-editor-launcher.service';
+import { PhotoFirestoreService } from 'src/app/core/services/image-handling/photo-firestore.service';
 import {
   IPhotoUploadFlowEvent,
   PhotoUploadFlowService,
@@ -51,7 +52,7 @@ import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.comp
 const DENY_UNKNOWN: IMediaPolicyResult = { decision: 'DENY', reason: 'UNKNOWN' };
 
 type UploadPhase = 'IDLE' | 'EDITING' | 'READY' | 'UPLOADING';
-type PhotoUploadAudience = 'PRIVATE' | TPhotoPublishableVisibility;
+type PhotoUploadAudience = TPhotoPublishableVisibility;
 
 @Component({
   selector: 'app-photo-upload',
@@ -71,6 +72,7 @@ export class PhotoUploadComponent {
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly errorHandler = inject(MediaApplicationErrorService);
   private readonly photoUploadFlow = inject(PhotoUploadFlowService);
+  private readonly photoFirestore = inject(PhotoFirestoreService);
   private readonly mediaPublication = inject(MediaPublicationService);
   private readonly photoEditor = inject(PhotoEditorLauncherService);
 
@@ -409,10 +411,6 @@ export class PhotoUploadComponent {
 
         const result = event.result;
 
-        if (audience === 'PRIVATE') {
-          return of(event);
-        }
-
         return this.mediaPublication.publishPhoto$({
           ownerUid,
           photo: {
@@ -437,16 +435,33 @@ export class PhotoUploadComponent {
             this.errorHandler.report(error, {
               operation: 'photoUpload.publishAfterUpload',
               reasonHint: 'media_publication_failed',
+              silent: true,
               metadata: {
                 scope: 'PhotoUploadComponent',
                 ownerUid,
                 photoId: result.photoId,
                 audience,
-                privateCopyPreserved: true,
               },
             });
 
-            return of(event);
+            return from(
+              this.photoFirestore.deletePhoto(ownerUid, result.photoId)
+            ).pipe(
+              catchError((cleanupError) => {
+                this.errorHandler.report(cleanupError, {
+                  operation: 'photoUpload.rollbackFailedPublication',
+                  reasonHint: 'photo_delete_failed',
+                  silent: true,
+                  metadata: {
+                    scope: 'PhotoUploadComponent',
+                    ownerUid,
+                    photoId: result.photoId,
+                  },
+                });
+                return of(void 0);
+              }),
+              switchMap(() => throwError(() => error))
+            );
           })
         );
       }),
@@ -457,17 +472,11 @@ export class PhotoUploadComponent {
 
         this.debug('uploadSuccess', event.result);
         this.uploadPercentSubject.next(100);
-        if (publicationFailed) {
-          this.errorNotifier.showWarning(
-            'A foto foi salva na sua biblioteca privada, mas não foi publicada.'
-          );
-        } else {
+        if (!publicationFailed) {
           this.errorNotifier.showSuccess(
-            audience === 'PRIVATE'
-              ? 'Foto adicionada à sua biblioteca privada.'
-              : audience === 'FRIENDS'
-                ? 'Foto publicada para amigos.'
-                : 'Foto publicada para todos.'
+            audience === 'FRIENDS'
+              ? 'Foto publicada para amigos.'
+              : 'Foto publicada para todos.'
           );
         }
 
