@@ -41,7 +41,7 @@ const metaReducers = appMetaReducers;
  * - InviteEffects foi removido do root: não existe mais superfície global de convites de Sala;
  * - NearbyProfilesEffects pertence ao LayoutModule lazy;
  * - DiscoveryFeedEffects pertence ao DashboardModule lazy;
- * - FileEffects é legado e os fluxos modernos mantêm File em services;
+ * - o antigo slice/effect global de upload foi removido; fluxos de mídia mantêm estado runtime nos services/componentes;
  * - TermsEffects simulava persistência; o owner é TermsAcceptanceService;
  * - LocationEffects não possui effects;
  * - UserPreferencesEffects duplicava UserPreferencesService.
