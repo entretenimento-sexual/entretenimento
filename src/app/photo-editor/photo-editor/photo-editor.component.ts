@@ -1549,12 +1549,13 @@ export class PhotoEditorComponent implements AfterViewInit {
         return;
       }
 
+      const parsedV2 = parsed as Partial<PhotoEditorNativeStateV2>;
       this.rotation = this.normalizeRotation(Number(parsed.rotation ?? 0));
-      this.straighten = this.clamp(Number(parsed.straighten ?? 0), -15, 15);
-      this.flipHorizontal = parsed.flipHorizontal === true;
-      this.brightness = this.clamp(Number(parsed.brightness ?? 100), 50, 150);
-      this.contrast = this.clamp(Number(parsed.contrast ?? 100), 50, 150);
-      this.saturation = this.clamp(Number(parsed.saturation ?? 100), 0, 200);
+      this.straighten = this.clamp(Number(parsedV2.straighten ?? 0), -15, 15);
+      this.flipHorizontal = parsedV2.flipHorizontal === true;
+      this.brightness = this.clamp(Number(parsedV2.brightness ?? 100), 50, 150);
+      this.contrast = this.clamp(Number(parsedV2.contrast ?? 100), 50, 150);
+      this.saturation = this.clamp(Number(parsedV2.saturation ?? 100), 0, 200);
       this.zoom = this.clamp(Number(parsed.zoom ?? 1), MIN_ZOOM, MAX_ZOOM);
       this.panX = this.clamp(Number(parsed.panX ?? 0), -1, 1);
       this.panY = this.clamp(Number(parsed.panY ?? 0), -1, 1);
@@ -1563,13 +1564,11 @@ export class PhotoEditorComponent implements AfterViewInit {
         : this.normalizeAspectRatio(parsed.aspectRatio);
       this.cropRect = this.isAspectRatioLocked
         ? { ...DEFAULT_CROP_RECT }
-        : this.normalizeCropRect(parsed.cropRect);
+        : this.normalizeCropRect(parsedV2.cropRect);
 
       const overlays =
         parsed.version === 2
-          ? normalizePhotoEditorOverlays(
-              (parsed as Partial<PhotoEditorNativeStateV2>).overlays
-            )
+          ? normalizePhotoEditorOverlays(parsedV2.overlays)
           : [];
       this.resetOverlayHistory(overlays);
     } catch {
