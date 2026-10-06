@@ -5,6 +5,7 @@ import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
 import { resolveSocialConnectionAccess } from '../../friendship/application/social-connection-access.policy';
 import { consumeBackendRateLimitQuota } from './backend-rate-limit.service';
+import { PUBLIC_MEDIA_ACCESS_RATE_LIMIT_CONFIG } from './public-media-rate-limit.config';
 import {
   containsControlCharacter,
   normalizeOwnedPublishedPhotoPath,
@@ -54,11 +55,6 @@ interface PublicPhotoAccessResolution {
 
 const MAX_ITEMS_PER_REQUEST = 32;
 const SIGNED_URL_TTL_MS = 5 * 60 * 1000;
-const PUBLIC_PHOTO_ACCESS_BURST_WINDOW_MS = 60 * 1000;
-const PUBLIC_PHOTO_ACCESS_BURST_MAX_ITEMS = 144;
-const PUBLIC_PHOTO_ACCESS_SUSTAINED_WINDOW_MS = 10 * 60 * 1000;
-const PUBLIC_PHOTO_ACCESS_SUSTAINED_MAX_ITEMS = 720;
-
 function cleanId(value: unknown): string {
   const normalized = String(value ?? '').trim();
 
@@ -86,12 +82,7 @@ async function consumePublicPhotoAccessQuota(
     action: 'public-media-access-urls',
     subject: viewerUid,
     cost: itemCount,
-    config: {
-      burstWindowMs: PUBLIC_PHOTO_ACCESS_BURST_WINDOW_MS,
-      burstMax: PUBLIC_PHOTO_ACCESS_BURST_MAX_ITEMS,
-      sustainedWindowMs: PUBLIC_PHOTO_ACCESS_SUSTAINED_WINDOW_MS,
-      sustainedMax: PUBLIC_PHOTO_ACCESS_SUSTAINED_MAX_ITEMS,
-    },
+    config: PUBLIC_MEDIA_ACCESS_RATE_LIMIT_CONFIG,
     message: 'Muitas fotos foram solicitadas em pouco tempo.',
   });
 }
