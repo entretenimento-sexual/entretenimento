@@ -381,9 +381,10 @@ for (const forbidden of [
 }
 
 requireIncludes(photoUploadComponent, [
-  "this.errorNotifier.showSuccess('Foto adicionada.')",
+  "'Foto publicada para amigos.'",
+  "'Foto publicada para todos.'",
   "navigate(['/media', 'perfil', ownerUid, 'fotos'])",
-], 'photo upload direct return to gallery');
+], 'photo upload audience feedback and direct return to gallery');
 
 const photoSelectionStart = photoUploadComponent.indexOf('  onFileSelected(');
 const photoSelectionEnd = photoUploadComponent.indexOf(
