@@ -27,6 +27,7 @@ import { CurrentUserStoreService } from 'src/app/core/services/autentication/aut
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { MediaApplicationErrorService } from 'src/app/core/services/media/media-application-error.service';
 import { MediaPublicationService } from 'src/app/core/services/media/media-publication.service';
+import type { TPhotoPublishableVisibility } from 'src/app/core/interfaces/media/i-photo-publication-config';
 import type { MediaErrorReason } from 'src/app/core/services/media/media-error.catalog';
 import { PhotoEditorLauncherService } from 'src/app/core/services/image-handling/photo-editor-launcher.service';
 import { PhotoFirestoreService } from 'src/app/core/services/image-handling/photo-firestore.service';
@@ -51,6 +52,7 @@ import { PageHeaderComponent } from 'src/app/shared/page-header/page-header.comp
 const DENY_UNKNOWN: IMediaPolicyResult = { decision: 'DENY', reason: 'UNKNOWN' };
 
 type UploadPhase = 'IDLE' | 'EDITING' | 'READY' | 'UPLOADING';
+type PhotoUploadAudience = 'PRIVATE' | TPhotoPublishableVisibility;
 
 @Component({
   selector: 'app-photo-upload',
@@ -164,6 +166,9 @@ export class PhotoUploadComponent {
   private readonly phaseSubject = new BehaviorSubject<UploadPhase>('IDLE');
   readonly phase$: Observable<UploadPhase> = this.phaseSubject.asObservable();
 
+  private readonly audienceSubject = new BehaviorSubject<PhotoUploadAudience | null>(null);
+  readonly audience$: Observable<PhotoUploadAudience | null> =
+    this.audienceSubject.asObservable();
 
   private readonly uploadPercentSubject = new BehaviorSubject<number>(0);
   readonly uploadPercent$: Observable<number> =
@@ -239,10 +244,11 @@ export class PhotoUploadComponent {
       this.ownerUid$,
       this.phase$,
       this.imageState$,
+      this.audience$,
     ])
       .pipe(
         take(1),
-        switchMap(([policyResult, file, ownerUid, phase, imageStateStr]) => {
+        switchMap(([policyResult, file, ownerUid, phase, imageStateStr, audience]) => {
           if (phase === 'UPLOADING' || phase === 'EDITING') {
             return EMPTY;
           }
@@ -267,12 +273,18 @@ export class PhotoUploadComponent {
             return EMPTY;
           }
 
+          if (!audience) {
+            this.errorNotifier.showWarning('Escolha quem poderá ver esta foto.');
+            return EMPTY;
+          }
+
           this.phaseSubject.next('UPLOADING');
           this.uploadPercentSubject.next(0);
 
           return this.uploadSelectedFile$(
             ownerUid,
             file,
+            audience,
             imageStateStr ?? undefined
           );
         }),
@@ -364,6 +376,7 @@ export class PhotoUploadComponent {
     this.imageStateSubject.next(null);
     this.previewUrlSubject.next(null);
     this.phaseSubject.next('IDLE');
+    this.audienceSubject.next(null);
     this.uploadPercentSubject.next(0);
 
     if (fileInput) {
@@ -374,6 +387,7 @@ export class PhotoUploadComponent {
   private uploadSelectedFile$(
     ownerUid: string,
     file: File,
+    audience: PhotoUploadAudience,
     imageStateStr?: string
   ): Observable<IPhotoUploadFlowEvent> {
     return this.photoUploadFlow.uploadProcessedPhotoWithProgress$({
@@ -395,6 +409,10 @@ export class PhotoUploadComponent {
 
         const result = event.result;
 
+        if (audience === 'PRIVATE') {
+          return of(event);
+        }
+
         return this.mediaPublication.publishPhoto$({
           ownerUid,
           photo: {
@@ -406,44 +424,28 @@ export class PhotoUploadComponent {
             path: result.path,
             fileName: result.fileName,
           },
-          visibility: 'PUBLIC',
+          visibility: audience,
           isCover: false,
           orderIndex: 0,
           commentsEnabled: true,
-          commentsPolicy: 'EVERYONE',
+          commentsPolicy: audience === 'FRIENDS' ? 'FRIENDS' : 'EVERYONE',
           reactionsEnabled: true,
         }).pipe(
           map(() => event),
           catchError((error) => {
             this.errorHandler.report(error, {
-              operation: 'photoUpload.autoPublish',
+              operation: 'photoUpload.publishAfterUpload',
               reasonHint: 'media_publication_failed',
-              silent: true,
               metadata: {
                 scope: 'PhotoUploadComponent',
                 ownerUid,
                 photoId: result.photoId,
+                audience,
+                privateCopyPreserved: true,
               },
             });
 
-            return from(
-              this.photoFirestore.deletePhoto(ownerUid, result.photoId)
-            ).pipe(
-              catchError((cleanupError) => {
-                this.errorHandler.report(cleanupError, {
-                  operation: 'photoUpload.rollbackFailedPublication',
-                  reasonHint: 'photo_delete_failed',
-                  silent: true,
-                  metadata: {
-                    scope: 'PhotoUploadComponent',
-                    ownerUid,
-                    photoId: result.photoId,
-                  },
-                });
-                return of(void 0);
-              }),
-              switchMap(() => throwError(() => error))
-            );
+            return of(event);
           })
         );
       }),
@@ -454,7 +456,13 @@ export class PhotoUploadComponent {
 
         this.debug('uploadSuccess', event.result);
         this.uploadPercentSubject.next(100);
-        this.errorNotifier.showSuccess('Foto adicionada.');
+        this.errorNotifier.showSuccess(
+          audience === 'PRIVATE'
+            ? 'Foto adicionada à sua biblioteca privada.'
+            : audience === 'FRIENDS'
+              ? 'Foto publicada para amigos.'
+              : 'Foto publicada para todos.'
+        );
 
         this.router
           .navigate(['/media', 'perfil', ownerUid, 'fotos'])
@@ -482,6 +490,14 @@ export class PhotoUploadComponent {
         return EMPTY;
       })
     );
+  }
+
+  selectAudience(audience: PhotoUploadAudience): void {
+    if (this.phaseSubject.value === 'UPLOADING' || this.phaseSubject.value === 'EDITING') {
+      return;
+    }
+
+    this.audienceSubject.next(audience);
   }
 
   private applySelectedFile(
