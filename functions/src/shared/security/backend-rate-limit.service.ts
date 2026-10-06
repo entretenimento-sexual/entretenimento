@@ -117,7 +117,10 @@ export async function consumeBackendRateLimitQuota(input: {
         action,
         ...decision.nextState,
         updatedAt: now,
-        expiresAt: new Date(now + input.config.sustainedWindowMs),
+        expiresAt: new Date(
+          Math.max(now, decision.nextState.sustainedWindowStartedAt) +
+            input.config.sustainedWindowMs
+        ),
       },
       { merge: false }
     );
