@@ -1414,8 +1414,8 @@ export class PhotoEditorComponent implements AfterViewInit {
     const sourceHeight = Math.max(1, Math.round(crop.height * workingCanvas.height));
     const cropRatio = sourceWidth / sourceHeight;
 
-    let width = maxOutputEdge;
-    let height = Math.round(width / cropRatio);
+    let width: number = maxOutputEdge;
+    let height: number = Math.round(width / cropRatio);
     if (height > maxOutputEdge) {
       height = maxOutputEdge;
       width = Math.round(height * cropRatio);
