@@ -30,6 +30,27 @@ describe('photo editor overlay model', () => {
     expect(overlay?.strength).toBeCloseTo(0.03, 10);
   });
 
+  it('cria tarja de privacidade com opacidade limitada', () => {
+    const overlay = privacyRegionFromDraft({
+      kind: 'bar',
+      startX: 0.1,
+      startY: 0.2,
+      endX: 0.8,
+      endY: 0.4,
+      strength: 0.03,
+      opacity: 0.9,
+    });
+
+    expect(overlay).toMatchObject({
+      kind: 'bar',
+      x: 0.1,
+      y: 0.2,
+      width: 0.7,
+      height: 0.2,
+      opacity: 0.9,
+    });
+  });
+
   it('descarta seleção pequena demais para produzir proteção acidental', () => {
     const overlay = privacyRegionFromDraft({
       kind: 'pixelate',
