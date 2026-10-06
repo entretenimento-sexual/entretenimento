@@ -20,6 +20,7 @@ import {
   safeNotifyModerationReportOpened,
 } from '../../moderation/moderation-safety-notification.service';
 import { consumeBackendRateLimitQuota } from './backend-rate-limit.service';
+import { PUBLIC_MEDIA_REPORT_RATE_LIMIT_CONFIG } from './public-media-rate-limit.config';
 import {
   buildPossibleMinorContentSafetyAssessment,
 } from './media-content-safety-assessment.policy';
@@ -122,10 +123,6 @@ const ALLOWED_REASONS = new Set<VideoReportReason>([
   'minor_content_safety',
   'other',
 ]);
-const REPORT_BURST_WINDOW_MS = 60 * 1000;
-const REPORT_BURST_MAX = 12;
-const REPORT_SUSTAINED_WINDOW_MS = 10 * 60 * 1000;
-const REPORT_SUSTAINED_MAX = 48;
 const QUARANTINE_REASON =
   'Conteúdo temporariamente indisponível durante análise de segurança.';
 
@@ -227,12 +224,7 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
       action: 'public-media-report',
       subject: reporterUid,
       cost: moderationReportRateLimitCost(reporterAbuseRisk),
-      config: {
-        burstWindowMs: REPORT_BURST_WINDOW_MS,
-        burstMax: REPORT_BURST_MAX,
-        sustainedWindowMs: REPORT_SUSTAINED_WINDOW_MS,
-        sustainedMax: REPORT_SUSTAINED_MAX,
-      },
+      config: PUBLIC_MEDIA_REPORT_RATE_LIMIT_CONFIG,
       message: 'Muitas denúncias foram enviadas em pouco tempo.',
     });
     await assertInteractionAccess(reporterUid);
