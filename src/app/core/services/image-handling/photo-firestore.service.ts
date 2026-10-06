@@ -399,6 +399,29 @@ export class PhotoFirestoreService {
     );
   }
 
+  private hydratePrivatePhotoUrls$(photos: Photo[]): Observable<Photo[]> {
+    if (!photos.length) {
+      return of([]);
+    }
+
+    return combineLatest(
+      photos.map((photo) => {
+        const path = String(photo.path ?? '').trim();
+        const legacyUrl = String(photo.url ?? '').trim();
+        const source = path || legacyUrl;
+
+        if (!source) {
+          return of({ ...photo, url: '' });
+        }
+
+        return this.storageService.getPhotoUrl(source).pipe(
+          map((url) => ({ ...photo, url: String(url ?? '').trim() })),
+          catchError(() => of({ ...photo, url: legacyUrl }))
+        );
+      })
+    );
+  }
+
   private normalizeDisplayDate(value: number | null): number | null {
     if (value === null) {
       return null;
