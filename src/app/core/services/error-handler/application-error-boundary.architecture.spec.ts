@@ -47,7 +47,6 @@ const LEGACY_MANUAL_COMPOSITION_BASELINE = new Set<string>([
   'register-module/terms-acceptance/terms-acceptance-page.component.ts',
   'register-module/welcome/welcome.component.ts',
   'shared/components-globais/modal-mensagem/modal-mensagem.component.ts',
-  'shared/components-globais/upload-photo/upload-photo.component.ts',
   'store/effects/effects.location/nearby-profiles.effects.ts',
   'store/effects/effects.user/online-users-effect-feedback.service.ts',
 ]);
@@ -138,6 +137,6 @@ describe('Application error ownership boundary', () => {
   });
 
   it('mantém explícito o tamanho atual da dívida legada', () => {
-    expect(LEGACY_MANUAL_COMPOSITION_BASELINE.size).toBe(19);
+    expect(LEGACY_MANUAL_COMPOSITION_BASELINE.size).toBe(18);
   });
 });
