@@ -490,7 +490,7 @@ function getDecorationOverlayBounds(
 function drawBlurOverlay(
   context: CanvasRenderingContext2D,
   baseCanvas: HTMLCanvasElement,
-  overlay: PhotoEditorPrivacyOverlay,
+  overlay: PhotoEditorEffectPrivacyOverlay,
   width: number,
   height: number
 ): void {
@@ -513,7 +513,7 @@ function drawBlurOverlay(
 function drawPixelateOverlay(
   context: CanvasRenderingContext2D,
   baseCanvas: HTMLCanvasElement,
-  overlay: PhotoEditorPrivacyOverlay,
+  overlay: PhotoEditorEffectPrivacyOverlay,
   width: number,
   height: number,
   createCanvas: () => HTMLCanvasElement
