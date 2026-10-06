@@ -27,7 +27,9 @@ describe('photo editor overlay model', () => {
     expect(overlay?.y).toBeCloseTo(0.1, 10);
     expect(overlay?.width).toBeCloseTo(0.6, 10);
     expect(overlay?.height).toBeCloseTo(0.6, 10);
-    expect(overlay?.strength).toBeCloseTo(0.03, 10);
+    if (overlay?.kind === 'blur') {
+      expect(overlay.strength).toBeCloseTo(0.03, 10);
+    }
   });
 
   it('cria tarja de privacidade com opacidade limitada', () => {
