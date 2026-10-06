@@ -58,6 +58,12 @@ interface ReservePhotoUploadCallableResponse {
   expiresAt: number;
 }
 
+export interface PhotoUploadAssetResult {
+  readonly storagePath: string;
+  readonly reservationId: string;
+  readonly location: string;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -453,6 +459,79 @@ export class StorageService {
           }
         : {}),
     };
+  }
+
+  uploadOwnedPhotoFile(
+    file: File,
+    path: string,
+    userId: string,
+    progressCallback?: (progress: number) => void
+  ): Observable<PhotoUploadAssetResult> {
+    let safeUid = '';
+
+    return defer(() => {
+      safeUid = this.requireAuthenticatedOwnerUid(userId);
+
+      return this.validateImageFile(file).pipe(
+        switchMap(() => {
+          const storagePath = this.resolveOwnedUploadPath(
+            path,
+            safeUid,
+            'image',
+            file
+          );
+
+          return this.reservePhotoUpload$(
+            safeUid,
+            storagePath,
+            file
+          ).pipe(
+            switchMap((reservationId) =>
+              this.uploadResumablePath$(
+                storagePath,
+                file,
+                'image',
+                progressCallback,
+                this.buildUploadMetadata(file, 'image', reservationId)
+              ).pipe(
+                switchMap(() =>
+                  this.resolveReadableLocation$(storagePath).pipe(
+                    map((location) => ({
+                      storagePath,
+                      reservationId,
+                      location,
+                    }))
+                  )
+                )
+              )
+            )
+          );
+        })
+      );
+    }).pipe(
+      catchError((error) => {
+        const errorMsg = this.extractErrorMessage(error);
+        this.dbg('uploadOwnedPhotoFile failed', {
+          errorMsg,
+          hasRequestedPath: !!String(path ?? '').trim(),
+          hasUserId: !!safeUid,
+        });
+        this.routeError(
+          'uploadOwnedPhotoFile',
+          error,
+          this.getSafeStorageDebugMeta('image', file, {
+            hasRequestedPath: !!String(path ?? '').trim(),
+            hasUserId: !!safeUid,
+          }),
+          {
+            notifyUser: true,
+            fallbackMessage: 'Não foi possível concluir o upload da foto.',
+            reasonHint: 'photo_upload_failed',
+          }
+        );
+        return throwError(() => error);
+      })
+    );
   }
 
   uploadFile(
