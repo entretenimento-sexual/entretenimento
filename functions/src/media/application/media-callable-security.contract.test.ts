@@ -140,7 +140,7 @@ describe('Media callable security contract', () => {
     );
   });
 
-  it('mantém cores onCall internos fora da superfície exportada', () => {
+  it('mantém cores onCall internos fora da superfície callable exportada', () => {
     const mediaIndex = readFileSync(
       resolve(process.cwd(), 'src', 'media', 'index.ts'),
       'utf8'
@@ -150,12 +150,34 @@ describe('Media callable security contract', () => {
       const relativeImport = name.replace(/\.ts$/, '');
       const singleQuotedImport = `from './application/${relativeImport}'`;
       const doubleQuotedImport = `from "./application/${relativeImport}"`;
+      const exportBlocks = mediaIndex
+        .split(';')
+        .filter(
+          (block) =>
+            block.includes(singleQuotedImport) ||
+            block.includes(doubleQuotedImport)
+        );
 
-      assert.equal(
-        mediaIndex.includes(singleQuotedImport) ||
-          mediaIndex.includes(doubleQuotedImport),
-        false,
-        `${name} é core interno e não pode ser exportado diretamente.`
+      if (name === 'register-private-video-upload.handler.ts') {
+        assert.equal(
+          exportBlocks.some((block) => block.includes('registerPrivateVideoUpload')),
+          false,
+          'registerPrivateVideoUpload deve permanecer atrás do orchestrator protegido.'
+        );
+        assert.equal(
+          exportBlocks.some((block) =>
+            block.includes('cleanupPendingPrivateVideoUploadAssets')
+          ),
+          true,
+          'O cleanup agendado do upload privado de vídeo deve continuar exportado.'
+        );
+        continue;
+      }
+
+      assert.deepEqual(
+        exportBlocks,
+        [],
+        `${name} é core callable interno e não pode ser exportado diretamente.`
       );
     }
   });
