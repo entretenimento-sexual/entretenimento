@@ -295,15 +295,34 @@ export class PhotoUploadFlowService {
     requestedStoragePath: string,
     progressCallback?: (progress: number) => void
   ): Observable<{ displayUrl: string; storagePath: string }> {
+    const storagePath =
+      this.photoStorageLifecycle.extractOwnedPrivatePhotoPath(
+        userId,
+        requestedStoragePath
+      );
+
+    if (!storagePath) {
+      return throwError(() =>
+        this.createError(
+          'media/invalid-upload-path',
+          'O upload foi iniciado sem um caminho de armazenamento válido.'
+        )
+      );
+    }
+
     return this.storageService.uploadFile(
       file,
-      requestedStoragePath,
+      storagePath,
       userId,
       progressCallback
     ).pipe(
       switchMap((location) =>
-        this.resolveDisplayAndStorage$(userId, location)
-      )
+        this.resolveDisplayUrl$(storagePath, location)
+      ),
+      map((displayUrl) => ({
+        displayUrl,
+        storagePath,
+      }))
     );
   }
 
@@ -362,31 +381,14 @@ export class PhotoUploadFlowService {
     );
   }
 
-  private resolveDisplayAndStorage$(
-    userId: string,
+  private resolveDisplayUrl$(
+    storagePath: string,
     location: string
-  ): Observable<{ displayUrl: string; storagePath: string }> {
+  ): Observable<string> {
     const safeLocation = String(location ?? '').trim();
-    const storagePath =
-      this.photoStorageLifecycle.extractOwnedPrivatePhotoPath(
-        userId,
-        safeLocation
-      );
-
-    if (!safeLocation || !storagePath) {
-      return throwError(() =>
-        this.createError(
-          'media/invalid-upload-location',
-          'O upload terminou sem um caminho de armazenamento válido.'
-        )
-      );
-    }
 
     if (this.isHttpUrl(safeLocation)) {
-      return of({
-        displayUrl: safeLocation,
-        storagePath,
-      });
+      return of(safeLocation);
     }
 
     return this.storageService.getPhotoUrl(storagePath).pipe(
@@ -402,10 +404,7 @@ export class PhotoUploadFlowService {
           );
         }
 
-        return of({
-          displayUrl,
-          storagePath,
-        });
+        return of(displayUrl);
       })
     );
   }
