@@ -31,7 +31,6 @@ import {
 import {
   connectStorageEmulator,
   deleteObject,
-  getDownloadURL,
   getStorage as getClientStorage,
   ref,
   uploadBytes,
@@ -252,8 +251,6 @@ async function run() {
         mediaPhotoReservationId: originalReservationId,
       },
     });
-    const originalDownloadUrl = await getDownloadURL(originalStorageRef);
-
     const registerPrivatePhotoUpload = httpsCallable(
       clientFunctions,
       'registerPrivatePhotoUpload'
@@ -262,8 +259,7 @@ async function run() {
     await registerPrivatePhotoUpload({
       ownerUid,
       photoId,
-      storagePath: resolvedOriginalPath,
-      url: originalDownloadUrl,
+      reservationId: originalReservationId,
       fileName: 'original.png',
       mode: 'create',
     });
@@ -362,13 +358,10 @@ async function run() {
         mediaPhotoReservationId: editedReservationId,
       },
     });
-    const editedDownloadUrl = await getDownloadURL(editedStorageRef);
-
     await registerPrivatePhotoUpload({
       ownerUid,
       photoId,
-      storagePath: resolvedEditedPath,
-      url: editedDownloadUrl,
+      reservationId: editedReservationId,
       fileName: 'edited.png',
       mode: 'replace',
     });
