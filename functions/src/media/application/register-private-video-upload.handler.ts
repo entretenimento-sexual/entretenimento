@@ -617,13 +617,11 @@ export const registerPrivateVideoUpload = onCall<
         batch.create(videoRef, {
           id: videoId,
           ownerUid,
-          url: videoStoragePath,
           path: videoStoragePath,
           fileName,
           mimeType: videoMetadata.mimeType,
           sizeBytes: videoMetadata.sizeBytes,
           durationMs,
-          thumbnailUrl: posterStoragePath,
           thumbnailPath: posterStoragePath,
           editRecipe: request.data?.editRecipe ?? null,
           status,
