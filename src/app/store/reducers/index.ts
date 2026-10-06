@@ -18,7 +18,6 @@ export const reducers: ActionReducerMap<AppState> = {
   // USER DOMAIN
   [STORE_FEATURE.auth]: userReducers.auth,
   [STORE_FEATURE.user]: userReducers.user,
-  [STORE_FEATURE.file]: userReducers.file,
   [STORE_FEATURE.userPreferences]: userReducers.userPreferences,
 
   // LOCATION DOMAIN
