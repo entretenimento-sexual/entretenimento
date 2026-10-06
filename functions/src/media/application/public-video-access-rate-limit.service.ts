@@ -1,10 +1,5 @@
 import { consumeBackendRateLimitQuota } from './backend-rate-limit.service';
-import {
-  PUBLIC_VIDEO_ACCESS_BURST_MAX_ITEMS,
-  PUBLIC_VIDEO_ACCESS_BURST_WINDOW_MS,
-  PUBLIC_VIDEO_ACCESS_SUSTAINED_MAX_ITEMS,
-  PUBLIC_VIDEO_ACCESS_SUSTAINED_WINDOW_MS,
-} from './public-video-access-rate-limit';
+import { PUBLIC_MEDIA_ACCESS_RATE_LIMIT_CONFIG } from './public-media-rate-limit.config';
 
 export async function consumePublicVideoAccessQuota(
   viewerUid: string,
@@ -15,12 +10,7 @@ export async function consumePublicVideoAccessQuota(
     action: 'public-media-access-urls',
     subject: viewerUid,
     cost: itemCount,
-    config: {
-      burstWindowMs: PUBLIC_VIDEO_ACCESS_BURST_WINDOW_MS,
-      burstMax: PUBLIC_VIDEO_ACCESS_BURST_MAX_ITEMS,
-      sustainedWindowMs: PUBLIC_VIDEO_ACCESS_SUSTAINED_WINDOW_MS,
-      sustainedMax: PUBLIC_VIDEO_ACCESS_SUSTAINED_MAX_ITEMS,
-    },
+    config: PUBLIC_MEDIA_ACCESS_RATE_LIMIT_CONFIG,
     message: 'Muitos vídeos foram solicitados em pouco tempo.',
     now,
   });
