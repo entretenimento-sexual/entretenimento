@@ -250,7 +250,7 @@ export class PhotoUploadComponent {
 
           if (policyResult.decision !== 'ALLOW') {
             this.errorNotifier.showWarning(
-              this.getPolicyDeniedMessage(policyResult.reason, 'enviar fotos')
+              resolveMediaPolicyDeniedMessage(policyResult.reason, 'upload-photo')
             );
             return EMPTY;
           }
@@ -293,7 +293,7 @@ export class PhotoUploadComponent {
 
           if (policyResult.decision !== 'ALLOW') {
             this.errorNotifier.showWarning(
-              this.getPolicyDeniedMessage(policyResult.reason, 'editar fotos')
+              resolveMediaPolicyDeniedMessage(policyResult.reason, 'edit-photo')
             );
             return EMPTY;
           }
@@ -527,28 +527,6 @@ export class PhotoUploadComponent {
     return `${value.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
   }
 
-  private getPolicyDeniedMessage(
-    reason: MediaPolicyDenyReason | undefined,
-    actionLabel: string
-  ): string {
-    switch (reason) {
-      case 'NOT_AUTHENTICATED':
-        return `Faça login para ${actionLabel}.`;
-      case 'NOT_OWNER':
-        return `Você só pode ${actionLabel} no seu próprio perfil.`;
-      case 'EMAIL_UNVERIFIED':
-        return `Confirme seu e-mail antes de ${actionLabel}.`;
-      case 'PROFILE_INCOMPLETE':
-        return `Finalize seu cadastro antes de ${actionLabel}.`;
-      case 'INTERACTION_BLOCKED':
-      case 'BLOCKED':
-        return `Sua conta não pode ${actionLabel} no momento.`;
-      case 'SUBSCRIPTION_REQUIRED':
-        return `Assinatura necessária para ${actionLabel}.`;
-      default:
-        return `Não foi possível autorizar ${actionLabel} agora.`;
-    }
-  }
 
   private reportError(
     reasonHint: MediaErrorReason,
