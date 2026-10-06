@@ -177,45 +177,7 @@ const publicProfilePhotos = read(
 );
 requireIncludes(publicProfilePhotos, [
   'MediaPublicQueryService',
-  'getProfilePublicPhotos
-for (const required of [
-  'SELF_PROFILE_PUBLISHED',
-  'OTHER_PROFILE',
-  'DISCOVERY',
-  'DEEP_LINK',
-  'VIEWER',
-  'SHARE',
-  "'PHOTO'",
-  "'VIDEO'",
-  "'PENDING_REVIEW'",
-  "'FLAGGED'",
-  "'HIDDEN'",
-  "'REJECTED'",
-  'BILATERAL_BLOCK',
-  'OWNER_LIFECYCLE_NOT_CANONICAL',
-  'assertPublicMediaConsumptionAccessData',
-  'ageReverification',
-]) {
-  if (!matrixTest.includes(required)) {
-    throw new Error(
-      '[media-exposure-matrix] contrato de teste incompleto: ' + required
-    );
-  }
-}
-
-const rulesTest = read(
-  'firestore-rules/tests/public-media-age-visibility.rules.spec.ts'
-);
-requireIncludes(rulesTest, [
-  'revoga deep link de foto e vídeo imediatamente quando o proprietário é suspenso',
-  'mantém mídia em quarentena fora de deep link para foto e vídeo',
-  "setMediaModerationStatus('APPROVED')",
-], 'Rules precisam cobrir suspensão e quarentena');
-
-console.log(
-  '[media-exposure-matrix] OK: Foto/Vídeo compartilham autoridade fail-closed em perfil próprio/alheio, latest/top, Explore, Comunidades, oficial, patrocinado, deep link, viewer e share.'
-);
-,
+  'getProfilePublicPhotos$',
   'PublicPhotoViewerLauncherService',
 ], 'galeria pública de perfil deve usar query e viewer públicos');
 
@@ -253,45 +215,7 @@ const explorePersonalMedia = read(
 requireIncludes(explorePersonalMedia, [
   'PublicMediaOwnerPageQueryService',
   'IPublicPhotoItem',
-  'loadPhotoPage
-for (const required of [
-  'SELF_PROFILE_PUBLISHED',
-  'OTHER_PROFILE',
-  'DISCOVERY',
-  'DEEP_LINK',
-  'VIEWER',
-  'SHARE',
-  "'PHOTO'",
-  "'VIDEO'",
-  "'PENDING_REVIEW'",
-  "'FLAGGED'",
-  "'HIDDEN'",
-  "'REJECTED'",
-  'BILATERAL_BLOCK',
-  'OWNER_LIFECYCLE_NOT_CANONICAL',
-  'assertPublicMediaConsumptionAccessData',
-  'ageReverification',
-]) {
-  if (!matrixTest.includes(required)) {
-    throw new Error(
-      '[media-exposure-matrix] contrato de teste incompleto: ' + required
-    );
-  }
-}
-
-const rulesTest = read(
-  'firestore-rules/tests/public-media-age-visibility.rules.spec.ts'
-);
-requireIncludes(rulesTest, [
-  'revoga deep link de foto e vídeo imediatamente quando o proprietário é suspenso',
-  'mantém mídia em quarentena fora de deep link para foto e vídeo',
-  "setMediaModerationStatus('APPROVED')",
-], 'Rules precisam cobrir suspensão e quarentena');
-
-console.log(
-  '[media-exposure-matrix] OK: Foto/Vídeo compartilham autoridade fail-closed em perfil, discovery, deep link, viewer e share.'
-);
-,
+  'loadPhotoPage$',
 ], 'Explore pessoal deve usar paginação pública autorizada');
 
 for (const forbidden of ['MediaQueryService', 'PhotoFirestoreService']) {
@@ -308,45 +232,7 @@ const promotionPlacement = read(
 requireIncludes(promotionPlacement, [
   'getPhotoPromotionPlacement',
   'PublicPhotoAccessService',
-  'hydratePublicPhotoUrls
-for (const required of [
-  'SELF_PROFILE_PUBLISHED',
-  'OTHER_PROFILE',
-  'DISCOVERY',
-  'DEEP_LINK',
-  'VIEWER',
-  'SHARE',
-  "'PHOTO'",
-  "'VIDEO'",
-  "'PENDING_REVIEW'",
-  "'FLAGGED'",
-  "'HIDDEN'",
-  "'REJECTED'",
-  'BILATERAL_BLOCK',
-  'OWNER_LIFECYCLE_NOT_CANONICAL',
-  'assertPublicMediaConsumptionAccessData',
-  'ageReverification',
-]) {
-  if (!matrixTest.includes(required)) {
-    throw new Error(
-      '[media-exposure-matrix] contrato de teste incompleto: ' + required
-    );
-  }
-}
-
-const rulesTest = read(
-  'firestore-rules/tests/public-media-age-visibility.rules.spec.ts'
-);
-requireIncludes(rulesTest, [
-  'revoga deep link de foto e vídeo imediatamente quando o proprietário é suspenso',
-  'mantém mídia em quarentena fora de deep link para foto e vídeo',
-  "setMediaModerationStatus('APPROVED')",
-], 'Rules precisam cobrir suspensão e quarentena');
-
-console.log(
-  '[media-exposure-matrix] OK: Foto/Vídeo compartilham autoridade fail-closed em perfil, discovery, deep link, viewer e share.'
-);
-,
+  'hydratePublicPhotoUrls$',
   "disclosure: 'Patrocinado'",
 ], 'foto patrocinada deve reusar autoridade pública de acesso');
 
@@ -425,5 +311,5 @@ requireIncludes(rulesTest, [
 ], 'Rules precisam cobrir suspensão e quarentena');
 
 console.log(
-  '[media-exposure-matrix] OK: Foto/Vídeo compartilham autoridade fail-closed em perfil, discovery, deep link, viewer e share.'
+  '[media-exposure-matrix] OK: Foto/Vídeo compartilham autoridade fail-closed em perfil próprio/alheio, latest/top, Explore, Comunidades, oficial, patrocinado, deep link, viewer e share.'
 );
