@@ -19,6 +19,7 @@ export type VideoProcessingStatus =
 export interface IVideoItem {
   readonly id: string;
   readonly ownerUid: string;
+  /** URL temporária de playback hidratada em runtime; vazia enquanto não autorizada. */
   readonly url: string;
   readonly path?: string | null;
   readonly fileName?: string | null;
