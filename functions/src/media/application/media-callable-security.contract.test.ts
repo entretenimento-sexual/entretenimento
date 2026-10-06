@@ -48,6 +48,15 @@ const APP_CHECK_EXEMPT_CALLABLES = new Set([
   'legacy-unpublish-video.handler.ts',
 ]);
 
+const INTERNAL_CALLABLE_CORES = new Set([
+  'manage-photo-comment.handler.ts',
+  'manage-video-publication.handler.ts',
+  'record-photo-view.handler.ts',
+  'record-video-retention.handler.ts',
+  'record-video-view.handler.ts',
+  'register-private-video-upload.handler.ts',
+]);
+
 const RATE_LIMITED_CALLABLES = new Set([
   'reserve-photo-upload.handler.ts',
   'reserve-video-upload.handler.ts',
@@ -115,6 +124,7 @@ describe('Media callable security contract', () => {
     const classified = new Set<string>([
       ...PROTECTED_CALLABLES,
       ...APP_CHECK_EXEMPT_CALLABLES,
+      ...INTERNAL_CALLABLE_CORES,
     ]);
 
     assert.deepEqual(
@@ -128,6 +138,24 @@ describe('Media callable security contract', () => {
       [],
       'A matriz contém arquivo que deixou de ser callable e precisa ser revisado.'
     );
+  });
+
+  it('mantém cores onCall internos fora da superfície exportada', () => {
+    const mediaIndex = readFileSync(
+      resolve(process.cwd(), 'src', 'media', 'index.ts'),
+      'utf8'
+    );
+
+    for (const name of INTERNAL_CALLABLE_CORES) {
+      const relativeImport = name.replace(/\.ts$/, '');
+      assert.doesNotMatch(
+        mediaIndex,
+        new RegExp(
+          `from ['"]\\.\\/application/${relativeImport.replace(/[.*+?^\${}()|[\\]\\\\]/g, '\\\\  it('mantém exceções legadas apenas como tombstones fail-closed instrumentados', () => {')}['"]`
+        ),
+        `${name} é core interno e não pode ser exportado diretamente.`
+      );
+    }
   });
 
   it('mantém exceções legadas apenas como tombstones fail-closed instrumentados', () => {
