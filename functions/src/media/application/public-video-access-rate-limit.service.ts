@@ -12,7 +12,7 @@ export async function consumePublicVideoAccessQuota(
   now = Date.now()
 ): Promise<void> {
   await consumeBackendRateLimitQuota({
-    action: 'getPublicVideoAccessUrls',
+    action: 'public-media-access-urls',
     subject: viewerUid,
     cost: itemCount,
     config: {
