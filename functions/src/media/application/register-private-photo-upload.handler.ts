@@ -28,7 +28,6 @@ interface RegisterPrivatePhotoUploadRequest {
   ownerUid?: unknown;
   photoId?: unknown;
   storagePath?: unknown;
-  url?: unknown;
   fileName?: unknown;
   mode?: unknown;
 }
@@ -169,10 +168,9 @@ export const registerPrivatePhotoUpload = onCall<
       ownerUid,
       request.data?.storagePath
     );
-    const urlPath = extractOwnedPrivatePhotoPath(ownerUid, request.data?.url);
     const fileName = cleanFileName(request.data?.fileName);
 
-    if (!storagePath || urlPath !== storagePath) {
+    if (!storagePath) {
       throw new HttpsError(
         'invalid-argument',
         'O caminho da foto não corresponde ao arquivo privado informado.'
@@ -285,7 +283,6 @@ export const registerPrivatePhotoUpload = onCall<
 
       const criticalPayload = {
         id: photoId,
-        url: String(request.data?.url ?? '').trim(),
         path: storagePath,
         fileName,
         updatedAt: Timestamp.fromMillis(now),
