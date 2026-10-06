@@ -38,6 +38,28 @@ describe('photo upload flow architecture', () => {
     expect(globalUpload).toContain('this.photoSelected.emit(selectedFile)');
   });
 
+  it('o editor só abre por gesto explícito no botão de edição', () => {
+    const component = source(
+      'src/app/media/photos/photo-upload/photo-upload.component.ts'
+    );
+    const template = source(
+      'src/app/media/photos/photo-upload/photo-upload.component.html'
+    );
+
+    const selectionStart = component.indexOf('  onFileSelected(');
+    const uploadStart = component.indexOf('  startUpload(', selectionStart);
+    const selectionBlock = component.slice(selectionStart, uploadStart);
+
+    expect(selectionStart).toBeGreaterThanOrEqual(0);
+    expect(uploadStart).toBeGreaterThan(selectionStart);
+    expect(selectionBlock).not.toContain('photoEditor.editFile$(');
+    expect(selectionBlock).not.toContain('editBeforeUpload(');
+
+    expect(template).toContain('(click)="editBeforeUpload($event)"');
+    expect(component).toContain('editBeforeUpload(event: MouseEvent)');
+    expect(component).toContain('if (!event.isTrusted)');
+  });
+
   it('a UI exige uma decisão visível de audiência', () => {
     const template = source(
       'src/app/media/photos/photo-upload/photo-upload.component.html'
