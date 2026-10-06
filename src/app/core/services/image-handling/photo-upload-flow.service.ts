@@ -248,7 +248,7 @@ export class PhotoUploadFlowService {
         (progress) => {
           observer.next({
             type: 'progress',
-            progress: this.normalizeProgress(progress),
+            progress,
           });
         }
       ).pipe(
@@ -469,14 +469,6 @@ export class PhotoUploadFlowService {
     }
 
     return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  }
-
-  private normalizeProgress(progress: number): number {
-    if (!Number.isFinite(progress)) {
-      return 0;
-    }
-
-    return Math.max(0, Math.min(100, Math.round(progress)));
   }
 
   private normalizeRequiredString(value: string, message: string): string {
