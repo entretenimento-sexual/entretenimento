@@ -19,6 +19,15 @@ describe('Private media asset authority contract', () => {
     assert.doesNotMatch(source, /urlPath/);
   });
 
+  it('registro de foto deriva path da reserva e não do payload do cliente', () => {
+    const source = mediaSource('register-private-photo-upload.handler.ts');
+
+    assert.match(source, /request\.data\?\.reservationId/);
+    assert.match(source, /reservation\.storagePath/);
+    assert.match(source, /const storagePath = extractOwnedPrivatePhotoPath/);
+    assert.doesNotMatch(source, /request\.data\?\.storagePath/);
+  });
+
   it('vídeo privado não persiste path como url ou thumbnailUrl', () => {
     const source = mediaSource('register-private-video-upload.handler.ts');
 
