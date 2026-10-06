@@ -70,7 +70,7 @@ export interface IPhotoPublicationConfig {
   ownerUid: string;
 
   /**
-   * Indica se a foto foi promovida da biblioteca privada para camada pública.
+   * Indica se a foto foi promovida da acervo de origem para camada pública.
    */
   isPublished: boolean;
 
