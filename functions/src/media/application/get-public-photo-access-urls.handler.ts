@@ -55,9 +55,9 @@ interface PublicPhotoAccessResolution {
 const MAX_ITEMS_PER_REQUEST = 32;
 const SIGNED_URL_TTL_MS = 5 * 60 * 1000;
 const PUBLIC_PHOTO_ACCESS_BURST_WINDOW_MS = 60 * 1000;
-const PUBLIC_PHOTO_ACCESS_BURST_MAX_ITEMS = 96;
+const PUBLIC_PHOTO_ACCESS_BURST_MAX_ITEMS = 144;
 const PUBLIC_PHOTO_ACCESS_SUSTAINED_WINDOW_MS = 10 * 60 * 1000;
-const PUBLIC_PHOTO_ACCESS_SUSTAINED_MAX_ITEMS = 480;
+const PUBLIC_PHOTO_ACCESS_SUSTAINED_MAX_ITEMS = 720;
 
 function cleanId(value: unknown): string {
   const normalized = String(value ?? '').trim();
