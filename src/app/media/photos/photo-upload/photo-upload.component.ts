@@ -43,7 +43,6 @@ import {
 import {
   IMediaPolicyResult,
   IMediaPolicyViewerSnapshot,
-  MediaPolicyDenyReason,
   MediaPolicyService,
 } from 'src/app/core/services/media/media-policy.service';
 import { environment } from 'src/environments/environment';
