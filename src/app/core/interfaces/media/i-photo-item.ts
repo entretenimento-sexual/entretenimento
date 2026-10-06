@@ -5,17 +5,13 @@ export interface IPhotoItem {
   id: string;
   ownerUid: string;
 
-  url: string;        // No MVP pode ser asset/preview; no futuro: downloadURL do Storage
+  url: string;        // URL de apresentação hidratada em runtime; nunca é autoridade persistida do ativo
   alt?: string;
 
   createdAt: number;  // epoch ms: data técnica de criação/upload
   displayDate?: number | null; // epoch ms: data escolhida pelo usuário para organizar a galeria
 
-   path?: string;
+  path?: string;
    fileName?: string;
-
-  // Futuro (não usar ainda no MVP, mas já “prepara” a expansão):
-  // visibility?: 'PRIVATE' | 'FRIENDS' | 'SUBSCRIBERS' | 'PUBLIC';
-  // isSensitive?: boolean;
 }
 // lembrar sempre da padronização em uid para usuários, o identificador canônico.
