@@ -2,6 +2,9 @@ import * as logger from 'firebase-functions/logger';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
+import {
+  consumeBackendRateLimitQuota,
+} from '../../shared/security/backend-rate-limit.service';
 import { db, FieldValue } from '../../firebaseApp';
 import {
   safeRecordModerationReviewSignal,
@@ -194,6 +197,13 @@ export function resolveModeratedPhotoVisibility(input: {
   return publicationVisibility ?? photoVisibility;
 }
 
+const PHOTO_REPORT_REVIEW_RATE_LIMIT = Object.freeze({
+  burstWindowMs: 60_000,
+  burstMax: 20,
+  sustainedWindowMs: 10 * 60_000,
+  sustainedMax: 120,
+});
+
 function assertAdmin(requestAuth: unknown): string {
   const authData = requestAuth as {
     uid?: unknown;
@@ -231,6 +241,13 @@ export const reviewPhotoContentReport = onCall<ReviewPhotoContentReportRequest>(
     assertPublicMediaCallableAppCheck(request.app);
 
     const adminUid = assertAdmin(request.auth);
+
+    await consumeBackendRateLimitQuota({
+      action: 'photo-report-review',
+      subject: adminUid,
+      config: PHOTO_REPORT_REVIEW_RATE_LIMIT,
+      message: 'Muitas revisões de denúncias de foto foram solicitadas em pouco tempo.',
+    });
     const reportId = cleanId(request.data?.reportId);
     const decision = cleanDecision(request.data?.decision);
     const resolution = cleanResolution(request.data?.resolution);

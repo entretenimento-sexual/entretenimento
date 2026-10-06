@@ -1,6 +1,9 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
+import {
+  consumeBackendRateLimitQuota,
+} from '../../shared/security/backend-rate-limit.service';
 import { db, FieldValue } from '../../firebaseApp';
 import {
   safeRecordModerationReviewSignal,
@@ -44,6 +47,13 @@ function cleanText(value: unknown): string {
     .slice(0, 1200);
 }
 
+const MEDIA_CONTEST_REVIEW_RATE_LIMIT = Object.freeze({
+  burstWindowMs: 60_000,
+  burstMax: 20,
+  sustainedWindowMs: 10 * 60_000,
+  sustainedMax: 120,
+});
+
 function assertAdmin(requestAuth: unknown): string {
   const authData = requestAuth as {
     uid?: unknown;
@@ -79,6 +89,13 @@ onCall<ReviewMediaModerationContestRequest>(
     assertPublicMediaCallableAppCheck(request.app);
 
     const adminUid = assertAdmin(request.auth);
+
+    await consumeBackendRateLimitQuota({
+      action: 'media-contest-review',
+      subject: adminUid,
+      config: MEDIA_CONTEST_REVIEW_RATE_LIMIT,
+      message: 'Muitas revisões de contestação foram solicitadas em pouco tempo.',
+    });
     const reportId = cleanId(request.data?.reportId);
     const decision = cleanDecision(request.data?.decision);
     const resolution = cleanText(request.data?.resolution);

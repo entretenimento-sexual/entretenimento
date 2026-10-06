@@ -78,6 +78,9 @@ const RATE_LIMITED_CALLABLES = new Set([
   'create-video-comment-orchestrator.handler.ts',
   'report-photo-content.handler.ts',
   'report-video-content.handler.ts',
+  'review-photo-content-report.handler.ts',
+  'review-video-content-report.handler.ts',
+  'review-media-moderation-contest.handler.ts',
 ]);
 
 function source(name: string): string {
