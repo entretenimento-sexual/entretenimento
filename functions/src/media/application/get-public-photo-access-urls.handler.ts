@@ -83,7 +83,7 @@ async function consumePublicPhotoAccessQuota(
   itemCount: number
 ): Promise<void> {
   await consumeBackendRateLimitQuota({
-    action: 'getPublicPhotoAccessUrls',
+    action: 'public-media-access-urls',
     subject: viewerUid,
     cost: itemCount,
     config: {
