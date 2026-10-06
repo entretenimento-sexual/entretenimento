@@ -2,12 +2,12 @@
 // Galeria privada do perfil.
 //
 // Responsabilidades:
-// - observar biblioteca privada e configurações de publicação;
+// - observar acervo de origem e configurações de publicação;
 // - permitir edição, exclusão, publicação e capa;
 // - manter a edição visual desacoplada da persistência: o editor devolve um
 //   arquivo processado e este componente executa a substituição da foto.
 //
-// users/{uid}/photos continua sendo a biblioteca privada. Estado de publicação
+// users/{uid}/photos continua sendo a acervo de origem. Estado de publicação
 // permanece em sua camada própria e não é misturado no documento privado.
 
 import { CommonModule } from '@angular/common';
