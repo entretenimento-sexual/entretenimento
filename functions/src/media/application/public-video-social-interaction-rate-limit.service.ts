@@ -5,9 +5,9 @@ import {
 } from './public-video-social-interaction-rate-limit';
 
 const ACTION_BY_KIND: Record<PublicVideoSocialInteractionKind, string> = {
-  reaction: 'toggleVideoReaction',
-  comment: 'createVideoComment',
-  rating: 'rateVideo',
+  reaction: 'public-media-reaction',
+  comment: 'public-media-comment',
+  rating: 'public-media-rating',
 };
 
 const MESSAGE_BY_KIND: Record<PublicVideoSocialInteractionKind, string> = {
