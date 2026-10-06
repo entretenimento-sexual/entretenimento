@@ -3,7 +3,7 @@
 //
 // Segurança:
 // - consome somente public_profiles/{uid}/public_photos e public_videos;
-// - não usa bibliotecas privadas para exibição a terceiros;
+// - não usa acervos de origem para exibição a terceiros;
 // - projeções Firestore não precisam conter URLs permanentes;
 // - URLs temporárias são emitidas pelo backend e mantidas apenas em memória.
 
