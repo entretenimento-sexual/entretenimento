@@ -124,8 +124,16 @@ describe('photo editor overlay model', () => {
     });
     expect(overlay.x).toBeCloseTo(0.15, 10);
     expect(overlay.y).toBeCloseTo(0.12, 10);
-    expect(overlay.width).toBeCloseTo(0.3, 10);
-    expect(overlay.height).toBeCloseTo(0.26, 10);
+    expect(
+      overlay.kind === 'blur' && overlay.shape === 'brush'
+        ? overlay.width
+        : null
+    ).toBeCloseTo(0.3, 10);
+    expect(
+      overlay.kind === 'blur' && overlay.shape === 'brush'
+        ? overlay.height
+        : null
+    ).toBeCloseTo(0.26, 10);
   });
 
   it('descarta seleção pequena demais para produzir proteção acidental', () => {
