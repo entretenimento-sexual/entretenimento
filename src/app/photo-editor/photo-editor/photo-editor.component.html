@@ -50,6 +50,32 @@
         (keydown)="onCanvasKeydown($event)"
       ></canvas>
 
+      @if (isEditorReady$ | async) {
+        <button
+          type="button"
+          class="editor-compare-button"
+          [class.is-active]="isComparingOriginal"
+          [attr.aria-pressed]="isComparingOriginal"
+          aria-label="Segure para ver a foto original; solte para voltar à edição"
+          aria-keyshortcuts="Space Enter"
+          title="Segure para comparar com a foto original"
+          (pointerdown)="onComparePointerDown($event)"
+          (pointerup)="onComparePointerEnd($event)"
+          (pointercancel)="onComparePointerEnd($event)"
+          (lostpointercapture)="stopOriginalPreview()"
+          (keydown)="onCompareKeydown($event)"
+          (keyup)="onCompareKeyup($event)"
+          (blur)="stopOriginalPreview()"
+        >
+          <span class="editor-compare-button__label">
+            {{ isComparingOriginal ? 'Original' : 'Antes / depois' }}
+          </span>
+          <span class="editor-compare-button__hint">
+            {{ isComparingOriginal ? 'Solte' : 'Segure' }}
+          </span>
+        </button>
+      }
+
       @if ((isLoading$ | async) || !(isEditorReady$ | async)) {
         <div class="editor-loading" role="status" aria-live="polite">
           <mat-progress-spinner mode="indeterminate" diameter="38"></mat-progress-spinner>
