@@ -824,19 +824,29 @@
   }
 
   .editor-toolbox__bar {
-    top: 52px;
+    position: static;
+    top: auto;
+    z-index: auto;
     grid-template-columns: 1fr;
     align-items: stretch;
+    gap: 8px;
+    min-height: 0;
+    padding: 6px 0 4px;
   }
 
   .editor-tool-groups {
-    padding-bottom: 2px;
+    padding-bottom: 4px;
+  }
+
+  .editor-tool-hint {
+    padding-top: 2px;
   }
 
   .editor-tool-actions {
     min-width: 0;
     justify-items: stretch;
-    padding-top: 6px;
+    gap: 5px;
+    padding-top: 8px;
     padding-left: 0;
     border-top: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
     border-left: 0;
