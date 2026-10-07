@@ -332,8 +332,11 @@
     grid-column: 1 / -1;
   }
 
-  .preview-card,
-  .preview-empty {
+  .preview-panel--empty {
+    display: none;
+  }
+
+  .preview-card {
     min-height: min(52vh, 440px);
   }
 }
