@@ -90,7 +90,7 @@ describe('auth guards - single operational session authority', () => {
     uid$.next(null);
     terminating$.next(true);
     uid$.next('stale-user');
-    expectLogin(await run(), '/conta');
+    expectLogin(await run(), '/conta/seguranca');
   });
 
   it('mantém o fallback existente após esgotar a tolerância de refresh', async () => {
