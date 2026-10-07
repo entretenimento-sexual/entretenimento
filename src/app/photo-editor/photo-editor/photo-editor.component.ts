@@ -427,15 +427,15 @@ export class PhotoEditorComponent implements AfterViewInit {
       case 'bar':
         return 'Arraste para criar uma tarja sólida ou semitransparente sobre a área.';
       case 'emoji':
-        return 'Escolha um emoji e clique na foto para posicionar.';
+        return 'Escolha um emoji e selecione um ponto na foto para posicionar.';
       case 'text':
         return this.captionText.trim()
-          ? 'Clique na foto para posicionar o texto.'
-          : 'Digite o texto antes de clicar na foto.';
+          ? 'Selecione um ponto na foto para posicionar o texto.'
+          : 'Digite o texto antes de posicioná-lo na foto.';
       case 'datetime':
-        return 'Ajuste data, hora e estilo; depois clique na foto para posicionar.';
+        return 'Ajuste data, hora e estilo; depois selecione um ponto na foto.';
       default:
-        return 'Clique em um elemento para selecioná-lo ou arraste a imagem para enquadrar.';
+        return 'Arraste a imagem para enquadrar. Selecione um elemento para editá-lo.';
     }
   }
 
