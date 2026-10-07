@@ -7,6 +7,12 @@
   --app-sidebar-collapsed-width: clamp(84px, 6vw, 96px);
   --app-sidebar-gap: clamp(12px, 1.2vw, 20px);
   --app-mobile-bottom-nav-height: 76px;
+  --app-mobile-bottom-nav-clearance: 14px;
+  --app-mobile-bottom-nav-reserved-space: calc(
+    var(--app-mobile-bottom-nav-height) +
+    var(--app-mobile-bottom-nav-clearance) +
+    env(safe-area-inset-bottom)
+  );
 }
 
 .auth-shell {
@@ -119,7 +125,8 @@ app-navbar {
   }
 
   .auth-shell[data-shell-mode='auth']:not([data-chat-layout='true']) .auth-shell__content {
-    padding: var(--space-2) var(--space-2) calc(var(--app-mobile-bottom-nav-height) + 14px + env(safe-area-inset-bottom));
+    padding: var(--space-2) var(--space-2) var(--app-mobile-bottom-nav-reserved-space);
+    scroll-padding-bottom: var(--app-mobile-bottom-nav-reserved-space);
   }
 
   .auth-shell__bottom-nav {
@@ -142,8 +149,13 @@ app-navbar {
 }
 
 @media (max-width: 420px) {
+  :host {
+    --app-mobile-bottom-nav-clearance: 12px;
+  }
+
   .auth-shell[data-shell-mode='auth']:not([data-chat-layout='true']) .auth-shell__content {
-    padding: 10px 10px calc(var(--app-mobile-bottom-nav-height) + 12px + env(safe-area-inset-bottom));
+    padding: 10px 10px var(--app-mobile-bottom-nav-reserved-space);
+    scroll-padding-bottom: var(--app-mobile-bottom-nav-reserved-space);
   }
 
   .auth-shell[data-chat-layout='true'] .auth-shell__content {
