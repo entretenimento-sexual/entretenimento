@@ -324,6 +324,10 @@
     grid-template-columns: 1fr 1fr;
   }
 
+  .upload-actions--inactive {
+    display: none;
+  }
+
   .upload-actions .app-action {
     width: 100%;
   }
