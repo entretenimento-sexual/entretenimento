@@ -124,17 +124,25 @@ export class PublicVideoAccessService {
       return of(null);
     }
 
+    const sessionScope = this.currentSessionScope();
     const identityKey = buildPublicVideoKey(projection.ownerUid, projection.id);
-    const inFlight = this.inFlightRefreshes.get(identityKey);
+    const refreshKey = `${sessionScope}:${identityKey}`;
+    const inFlight = this.inFlightRefreshes.get(refreshKey);
 
     if (inFlight) {
       return inFlight;
     }
 
-    this.accessCache.delete(this.buildCacheKey(projection));
+    this.accessCache.delete(this.buildCacheKey(projection, sessionScope));
 
-    const refresh$ = this.requestAccessUrls$([projection], 'PLAYBACK').pipe(
+    const refresh$: Observable<IPublicVideoItem | null> = this.requestAccessUrls$([projection], 'PLAYBACK').pipe(
       map((response) => {
+        // A promise de uma callable pode concluir depois de logout/troca A→B.
+        // Nunca entregar nem armazenar a credencial da sessão anterior.
+        if (sessionScope !== this.currentSessionScope()) {
+          return null;
+        }
+
         const now = Date.now();
         const access = (response.items ?? []).find((item) =>
           buildPublicVideoKey(item.ownerUid, item.videoId) === identityKey
@@ -144,14 +152,18 @@ export class PublicVideoAccessService {
           return null;
         }
 
-        this.setAccessCache(projection, access);
+        this.setAccessCache(projection, access, sessionScope);
         return hydratePublicVideoItem(projection, access, now);
       }),
-      finalize(() => this.inFlightRefreshes.delete(identityKey)),
+      finalize(() => {
+        if (this.inFlightRefreshes.get(refreshKey) === refresh$) {
+          this.inFlightRefreshes.delete(refreshKey);
+        }
+      }),
       shareReplay({ bufferSize: 1, refCount: false })
     );
 
-    this.inFlightRefreshes.set(identityKey, refresh$);
+    this.inFlightRefreshes.set(refreshKey, refresh$);
     return refresh$;
   }
 
@@ -178,12 +190,13 @@ export class PublicVideoAccessService {
       return of([]);
     }
 
+    const sessionScope = this.currentSessionScope();
     const resolved = new Map<string, IPublicVideoAccess>();
     const pending: IPublicVideoProjection[] = [];
     const now = Date.now();
 
     for (const projection of eligible) {
-      const cacheKey = this.buildCacheKey(projection);
+      const cacheKey = this.buildCacheKey(projection, sessionScope);
       const cached = this.accessCache.get(cacheKey);
       const usable = mode === 'PLAYBACK'
         ? isPublicVideoAccessUsable(projection, cached, now)
@@ -219,6 +232,10 @@ export class PublicVideoAccessService {
 
     return forkJoin(requests).pipe(
       map((responses) => {
+        if (sessionScope !== this.currentSessionScope()) {
+          return [];
+        }
+
         const projectionByIdentity = new Map(
           eligible.map((projection) => [
             buildPublicVideoKey(projection.ownerUid, projection.id),
@@ -242,11 +259,11 @@ export class PublicVideoAccessService {
             }
 
             resolved.set(identityKey, access);
-            this.setAccessCache(projection, access);
+            this.setAccessCache(projection, access, sessionScope);
           }
         }
 
-        return this.materializeItems(eligible, resolved, now, mode);
+        return this.materializeItems(eligible, resolved, Date.now(), mode);
       }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
@@ -330,9 +347,10 @@ export class PublicVideoAccessService {
 
   private setAccessCache(
     projection: IPublicVideoProjection,
-    access: IPublicVideoAccess
+    access: IPublicVideoAccess,
+    sessionScope = this.currentSessionScope()
   ): void {
-    const key = this.buildCacheKey(projection);
+    const key = this.buildCacheKey(projection, sessionScope);
     this.touchAccessCache(key, access);
 
     while (this.accessCache.size > MAX_ACCESS_CACHE_ENTRIES) {
@@ -352,14 +370,29 @@ export class PublicVideoAccessService {
     this.accessCache.set(key, access);
   }
 
-  private buildCacheKey(projection: IPublicVideoProjection): string {
-    return buildPublicMediaAccessCacheKey({
+  private buildCacheKey(
+    projection: IPublicVideoProjection,
+    sessionScope = this.currentSessionScope()
+  ): string {
+    const mediaKey = buildPublicMediaAccessCacheKey({
       namespace: 'public-video-access',
       ownerUid: projection.ownerUid,
       mediaId: projection.id,
       assetVersion: projection.assetVersion,
       publishedAt: projection.publishedAt,
     });
+
+    return `${sessionScope}:${mediaKey}`;
+  }
+
+  private currentSessionScope(): string {
+    if (this.lastSessionUid === undefined) {
+      return 'session:pending';
+    }
+
+    return this.lastSessionUid
+      ? `session:uid:${this.lastSessionUid}`
+      : 'session:anonymous';
   }
 
   private chunkItems<T>(items: readonly T[], size: number): T[][] {

@@ -36,4 +36,14 @@ describe('Private media asset authority contract', () => {
     assert.doesNotMatch(source, /url:\s*videoStoragePath/);
     assert.doesNotMatch(source, /thumbnailUrl:\s*posterStoragePath/);
   });
+
+  it('vídeo privado valida lifecycle e limita URL pelo acesso da conta', () => {
+    const source = mediaSource('get-private-video-access-urls.handler.ts');
+
+    assert.match(source, /await assertInteractionAccess\(requesterUid\)/);
+    assert.match(source, /resolveAuthorizedMediaSignedUrlExpiresAt\(\{/);
+    assert.match(source, /requesterAccessExpiresAtMs:\s*requesterAccess\.accessExpiresAtMs/);
+    assert.match(source, /if \(expiresAt === null\)/);
+  });
+
 });

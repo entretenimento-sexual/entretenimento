@@ -1,6 +1,7 @@
 import * as logger from 'firebase-functions/logger';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
+import { assertInteractionAccess } from '../../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
 import {
@@ -15,6 +16,7 @@ import {
   shouldIssuePrivateVideoPlaybackAccess,
   type PrivateVideoAccessMode,
 } from './private-video-access-mode';
+import { resolveAuthorizedMediaSignedUrlExpiresAt } from './authorized-media-signed-url-expiry.policy';
 import { createTemporaryStorageReadUrl } from './temporary-storage-read-url.service';
 import {
   extractOwnedPrivateVideoPathForId,
@@ -235,7 +237,22 @@ export const getPrivateVideoAccessUrls = onCall<PrivateVideoAccessRequest>(
       message: 'Muitas solicitações de acesso aos seus vídeos foram feitas em pouco tempo.',
     });
 
-    const expiresAt = Date.now() + SIGNED_URL_TTL_MS;
+    // Um único read canônico por lote: UID proprietário não basta para autorizar
+    // emissão quando a conta foi suspensa, bloqueada ou perdeu compliance.
+    const requesterAccess = await assertInteractionAccess(requesterUid);
+    const nowMs = Date.now();
+    const expiresAt = resolveAuthorizedMediaSignedUrlExpiresAt({
+      nowMs,
+      technicalExpiresAtMs: nowMs + SIGNED_URL_TTL_MS,
+      requesterAccessExpiresAtMs: requesterAccess.accessExpiresAtMs,
+    });
+
+    if (expiresAt === null) {
+      throw new HttpsError(
+        'failed-precondition',
+        'O período autorizado de acesso aos seus vídeos expirou.'
+      );
+    }
     const resolutions = await Promise.all(
       videoIds.map(async (videoId) => {
         try {
