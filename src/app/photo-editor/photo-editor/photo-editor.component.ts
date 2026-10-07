@@ -241,6 +241,7 @@ export class PhotoEditorComponent implements AfterViewInit {
   newDateTimeMeta: PhotoEditorDateTimeMeta = createPhotoEditorDateTimeMeta();
   overlays: PhotoEditorOverlay[] = [];
   selectedOverlayId: string | null = null;
+  isComparingOriginal = false;
 
   private sourceImage: HTMLImageElement | null = null;
   private sourceFile: File | null = null;
@@ -835,6 +836,55 @@ export class PhotoEditorComponent implements AfterViewInit {
     this.commitEditorState();
   }
 
+  startOriginalPreview(): void {
+    if (this.isBusy() || this.isComparingOriginal) return;
+    this.isComparingOriginal = true;
+    this.scheduleRender();
+  }
+
+  stopOriginalPreview(): void {
+    if (!this.isComparingOriginal) return;
+    this.isComparingOriginal = false;
+    this.scheduleRender();
+  }
+
+  onComparePointerDown(event: PointerEvent): void {
+    if (this.isBusy()) return;
+    event.preventDefault();
+    this.startOriginalPreview();
+
+    const target = event.currentTarget as HTMLButtonElement | null;
+    try {
+      target?.setPointerCapture?.(event.pointerId);
+    } catch {
+      // A captura melhora a ergonomia, mas não é necessária para a comparação.
+    }
+  }
+
+  onComparePointerEnd(event: PointerEvent): void {
+    const target = event.currentTarget as HTMLButtonElement | null;
+    try {
+      if (target?.hasPointerCapture?.(event.pointerId)) {
+        target.releasePointerCapture(event.pointerId);
+      }
+    } catch {
+      // O navegador pode já ter liberado a captura.
+    }
+    this.stopOriginalPreview();
+  }
+
+  onCompareKeydown(event: KeyboardEvent): void {
+    if (event.key !== ' ' && event.key !== 'Enter') return;
+    event.preventDefault();
+    this.startOriginalPreview();
+  }
+
+  onCompareKeyup(event: KeyboardEvent): void {
+    if (event.key !== ' ' && event.key !== 'Enter') return;
+    event.preventDefault();
+    this.stopOriginalPreview();
+  }
+
   resetEditor(): void {
     if (this.isBusy()) return;
     this.rotation = 0;
@@ -861,7 +911,7 @@ export class PhotoEditorComponent implements AfterViewInit {
   }
 
   onPointerDown(event: PointerEvent): void {
-    if (!this.sourceImage || this.isBusy()) return;
+    if (!this.sourceImage || this.isBusy() || this.isComparingOriginal) return;
     const point = this.resolveNormalizedPointer(event);
     if (!point) return;
 
@@ -1621,11 +1671,42 @@ export class PhotoEditorComponent implements AfterViewInit {
       return;
     }
     context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+
+    if (this.isComparingOriginal) {
+      this.drawOriginalPreview(context, this.previewWidth, this.previewHeight);
+      return;
+    }
+
     this.drawImageFrame(context, this.previewWidth, this.previewHeight, true);
     this.drawBrushCursor(context, this.previewWidth, this.previewHeight);
     if (this.activeTool === 'crop' || this.hasCustomCrop) {
       this.drawCropGuide(context, this.previewWidth, this.previewHeight);
     }
+  }
+
+  private drawOriginalPreview(
+    context: CanvasRenderingContext2D,
+    width: number,
+    height: number
+  ): void {
+    const image = this.sourceImage;
+    if (!image) return;
+
+    const scale = Math.min(
+      width / Math.max(1, image.naturalWidth),
+      height / Math.max(1, image.naturalHeight)
+    );
+    const drawWidth = image.naturalWidth * scale;
+    const drawHeight = image.naturalHeight * scale;
+    const drawX = (width - drawWidth) / 2;
+    const drawY = (height - drawHeight) / 2;
+
+    context.save();
+    context.clearRect(0, 0, width, height);
+    context.fillStyle = '#080b10';
+    context.fillRect(0, 0, width, height);
+    context.drawImage(image, drawX, drawY, drawWidth, drawHeight);
+    context.restore();
   }
 
   private drawImageFrame(
