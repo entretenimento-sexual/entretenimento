@@ -805,6 +805,8 @@ describe('PhotoEditorComponent', () => {
     expect(styles).toContain('max-width: 100%;');
     expect(styles).toContain('position: static;');
     expect(styles).toContain('scroll-snap-type: x proximity;');
+    expect(styles).toContain('flex: 0 0 auto;');
+    expect(styles).toContain('grid-template-columns: 1fr;');
   });
 
   it('mantém ações secundárias progressivas no editor mobile', () => {
