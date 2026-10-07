@@ -461,6 +461,30 @@
               </fieldset>
 
               @if (privacyShape === 'brush') {
+                <fieldset class="editor-shape-field">
+                  <legend>Modo do pincel</legend>
+                  <div class="editor-shape-options" role="group" aria-label="Modo do pincel">
+                    <button
+                      type="button"
+                      class="editor-tool-button"
+                      [class.is-active]="privacyBrushMode === 'paint'"
+                      [attr.aria-pressed]="privacyBrushMode === 'paint'"
+                      (click)="setPrivacyBrushMode('paint')"
+                    >
+                      Pintar
+                    </button>
+                    <button
+                      type="button"
+                      class="editor-tool-button"
+                      [class.is-active]="privacyBrushMode === 'erase'"
+                      [attr.aria-pressed]="privacyBrushMode === 'erase'"
+                      (click)="setPrivacyBrushMode('erase')"
+                    >
+                      Borracha
+                    </button>
+                  </div>
+                </fieldset>
+
                 <label class="editor-tool-field editor-tool-field--range">
                   <span>Tamanho do pincel</span>
                   <input
@@ -493,6 +517,8 @@
             <p class="editor-tool-note">
               @if (activeTool === 'bar') {
                 Arraste sobre a área. A proteção será incorporada ao arquivo final.
+              } @else if (privacyShape === 'brush' && privacyBrushMode === 'erase') {
+                Passe a borracha sobre o traço de pincel para remover somente aquela proteção.
               } @else if (privacyShape === 'brush') {
                 Pressione e passe o mouse ou dedo sobre a área para ir borrando como um pincel.
               } @else if (privacyShape === 'ellipse') {

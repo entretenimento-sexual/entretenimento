@@ -82,6 +82,8 @@ export type PhotoEditorAspectRatio =
   | 'portrait'
   | 'landscape';
 
+type PhotoEditorBrushMode = 'paint' | 'erase';
+
 interface PhotoEditorNativeStateV1 {
   version: 1;
   editor: 'native-canvas';
@@ -225,6 +227,7 @@ export class PhotoEditorComponent implements AfterViewInit {
   privacyOpacity = 85;
   privacyShape: PhotoEditorPrivacyShape = 'rectangle';
   privacyBrushSize = 12;
+  privacyBrushMode: PhotoEditorBrushMode = 'paint';
   decorationSize = 10;
   selectedEmoji = this.emojiOptions[0];
   captionText = '';
@@ -249,6 +252,7 @@ export class PhotoEditorComponent implements AfterViewInit {
     | 'pan'
     | 'privacy'
     | 'privacy-brush'
+    | 'privacy-brush-erase'
     | 'overlay'
     | 'crop'
     | null = null;
@@ -259,6 +263,7 @@ export class PhotoEditorComponent implements AfterViewInit {
   private draftPrivacyRegion: PhotoEditorDraftPrivacyRegion | null = null;
   private brushStrokeSnapshot: PhotoEditorOverlay[] | null = null;
   private brushStrokeOverlayId: string | null = null;
+  private brushEraseChanged = false;
   private brushCursorPoint: PhotoEditorNormalizedPoint | null = null;
   private cropStartPoint: PhotoEditorNormalizedPoint | null = null;
   private draftCropRect: PhotoEditorCropRect | null = null;
@@ -494,6 +499,13 @@ export class PhotoEditorComponent implements AfterViewInit {
       3,
       30
     );
+    this.scheduleRender();
+  }
+
+  setPrivacyBrushMode(mode: PhotoEditorBrushMode): void {
+    if (this.isBusy()) return;
+    this.privacyBrushMode = mode === 'erase' ? 'erase' : 'paint';
+    this.selectedOverlayId = null;
     this.scheduleRender();
   }
 
@@ -828,6 +840,7 @@ export class PhotoEditorComponent implements AfterViewInit {
     this.overlays = [];
     this.privacyShape = 'rectangle';
     this.privacyBrushSize = 12;
+    this.privacyBrushMode = 'paint';
     this.draftPrivacyRegion = null;
     this.newDateTimeMeta = createPhotoEditorDateTimeMeta();
     this.commitEditorState();
@@ -843,13 +856,21 @@ export class PhotoEditorComponent implements AfterViewInit {
       this.privacyShape === 'brush'
     ) {
       this.selectedOverlayId = null;
-      this.pointerInteraction = 'privacy-brush';
       this.draggingPointerId = event.pointerId;
       this.brushStrokeSnapshot = clonePhotoEditorOverlays(this.overlays);
       this.brushCursorPoint = point;
-      const overlay = this.createBrushOverlay(point);
-      this.brushStrokeOverlayId = overlay.id;
-      this.overlays = [...this.overlays, overlay];
+      this.brushEraseChanged = false;
+
+      if (this.privacyBrushMode === 'erase') {
+        this.pointerInteraction = 'privacy-brush-erase';
+        this.brushEraseChanged = this.eraseBrushAt(point);
+      } else {
+        this.pointerInteraction = 'privacy-brush';
+        const overlay = this.createBrushOverlay(point);
+        this.brushStrokeOverlayId = overlay.id;
+        this.overlays = [...this.overlays, overlay];
+      }
+
       this.capturePointer(event.pointerId);
       this.scheduleRender();
       event.preventDefault();
@@ -984,6 +1005,16 @@ export class PhotoEditorComponent implements AfterViewInit {
       return;
     }
 
+    if (this.pointerInteraction === 'privacy-brush-erase') {
+      const point = this.resolveNormalizedPointer(event);
+      if (!point) return;
+      this.brushCursorPoint = point;
+      this.brushEraseChanged = this.eraseBrushAt(point) || this.brushEraseChanged;
+      this.scheduleRender();
+      event.preventDefault();
+      return;
+    }
+
     if (this.pointerInteraction === 'privacy' && this.draftPrivacyRegion) {
       const point = this.resolveNormalizedPointer(event);
       if (!point) return;
@@ -1015,6 +1046,13 @@ export class PhotoEditorComponent implements AfterViewInit {
       } else if (this.brushStrokeSnapshot) {
         this.overlays = clonePhotoEditorOverlays(this.brushStrokeSnapshot);
       }
+    } else if (this.pointerInteraction === 'privacy-brush-erase') {
+      if (this.brushEraseChanged) {
+        this.selectedOverlayId = null;
+        this.commitOverlays(this.overlays);
+      } else if (this.brushStrokeSnapshot) {
+        this.overlays = clonePhotoEditorOverlays(this.brushStrokeSnapshot);
+      }
     } else if (this.pointerInteraction === 'privacy' && this.draftPrivacyRegion) {
       const overlay = privacyRegionFromDraft(this.draftPrivacyRegion);
       if (overlay) {
@@ -1039,7 +1077,11 @@ export class PhotoEditorComponent implements AfterViewInit {
 
   onPointerCancel(event: PointerEvent): void {
     if (this.draggingPointerId !== event.pointerId) return;
-    if (this.pointerInteraction === 'privacy-brush' && this.brushStrokeSnapshot) {
+    if (
+      (this.pointerInteraction === 'privacy-brush' ||
+        this.pointerInteraction === 'privacy-brush-erase') &&
+      this.brushStrokeSnapshot
+    ) {
       this.overlays = clonePhotoEditorOverlays(this.brushStrokeSnapshot);
     } else if (this.pointerInteraction === 'overlay' && this.overlayDragSnapshot) {
       this.overlays = clonePhotoEditorOverlays(this.overlayDragSnapshot);
@@ -2021,6 +2063,59 @@ export class PhotoEditorComponent implements AfterViewInit {
     });
   }
 
+  private eraseBrushAt(point: PhotoEditorNormalizedPoint): boolean {
+    const width = Math.max(1, this.previewWidth);
+    const height = Math.max(1, this.previewHeight);
+    const eraserRadiusPx = Math.max(
+      3,
+      (Math.min(width, height) * this.privacyBrushSize) / 200
+    );
+    let changed = false;
+
+    this.overlays = this.overlays.flatMap((overlay) => {
+      if (
+        (overlay.kind !== 'blur' && overlay.kind !== 'pixelate') ||
+        overlay.kind !== this.activeTool ||
+        overlay.shape !== 'brush'
+      ) {
+        return [overlay];
+      }
+
+      const remainingPoints = overlay.points.filter((brushPoint) => {
+        const dx = (brushPoint.x - point.x) * width;
+        const dy = (brushPoint.y - point.y) * height;
+        const brushRadiusPx = Math.max(
+          1,
+          Math.min(overlay.radiusX * width, overlay.radiusY * height)
+        );
+        return Math.hypot(dx, dy) > eraserRadiusPx + brushRadiusPx * 0.45;
+      });
+
+      if (remainingPoints.length === overlay.points.length) {
+        return [overlay];
+      }
+
+      changed = true;
+      if (remainingPoints.length === 0) {
+        return [];
+      }
+
+      return [
+        {
+          ...overlay,
+          ...this.resolveBrushBounds(
+            remainingPoints,
+            overlay.radiusX,
+            overlay.radiusY
+          ),
+          points: remainingPoints,
+        },
+      ];
+    });
+
+    return changed;
+  }
+
   private resolveBrushBounds(
     points: readonly PhotoEditorNormalizedPoint[],
     radiusX: number,
@@ -2069,12 +2164,42 @@ export class PhotoEditorComponent implements AfterViewInit {
       0,
       Math.PI * 2
     );
-    context.fillStyle = 'rgb(255 255 255 / 8%)';
+    context.fillStyle =
+      this.privacyBrushMode === 'erase'
+        ? 'rgb(255 112 112 / 10%)'
+        : 'rgb(255 255 255 / 8%)';
     context.fill();
-    context.strokeStyle = 'rgb(255 255 255 / 92%)';
+    context.strokeStyle =
+      this.privacyBrushMode === 'erase'
+        ? 'rgb(255 112 112 / 96%)'
+        : 'rgb(255 255 255 / 92%)';
     context.lineWidth = Math.max(1.5, Math.min(width, height) * 0.0025);
     context.setLineDash([5, 4]);
     context.stroke();
+
+    if (this.privacyBrushMode === 'erase') {
+      const markerRadius = Math.max(3, radius * 0.25);
+      context.setLineDash([]);
+      context.beginPath();
+      context.moveTo(
+        this.brushCursorPoint.x * width - markerRadius,
+        this.brushCursorPoint.y * height - markerRadius
+      );
+      context.lineTo(
+        this.brushCursorPoint.x * width + markerRadius,
+        this.brushCursorPoint.y * height + markerRadius
+      );
+      context.moveTo(
+        this.brushCursorPoint.x * width + markerRadius,
+        this.brushCursorPoint.y * height - markerRadius
+      );
+      context.lineTo(
+        this.brushCursorPoint.x * width - markerRadius,
+        this.brushCursorPoint.y * height + markerRadius
+      );
+      context.stroke();
+    }
+
     context.restore();
   }
 
@@ -2207,6 +2332,7 @@ export class PhotoEditorComponent implements AfterViewInit {
     this.draftPrivacyRegion = null;
     this.brushStrokeSnapshot = null;
     this.brushStrokeOverlayId = null;
+    this.brushEraseChanged = false;
     this.cropStartPoint = null;
     this.draftCropRect = null;
     this.scheduleRender();

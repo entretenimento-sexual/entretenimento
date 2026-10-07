@@ -235,7 +235,11 @@ describe('PhotoEditorComponent', () => {
     component.updatePrivacyBrushSize(99);
 
     expect(component.privacyShape).toBe('brush');
+    expect(component.privacyBrushMode).toBe('paint');
     expect(component.privacyBrushSize).toBe(30);
+
+    component.setPrivacyBrushMode('erase');
+    expect(component.privacyBrushMode).toBe('erase');
 
     component.updatePrivacyBrushSize(1);
     expect(component.privacyBrushSize).toBe(3);
@@ -269,6 +273,71 @@ describe('PhotoEditorComponent', () => {
     expect(component.canUndo).toBe(true);
     component.undoOverlay();
     expect(component.overlays).toEqual([]);
+  });
+
+  it('apaga somente pontos do brush ativo e registra uma única alteração', () => {
+    markEditorIdle();
+    (component as any).resetOverlayHistory([]);
+    component.activeTool = 'blur';
+    component.setPrivacyShape('brush');
+    component.setPrivacyBrushMode('erase');
+    component.updatePrivacyBrushSize(12);
+    (component as any).previewWidth = 800;
+    (component as any).previewHeight = 600;
+
+    const blurBrush = {
+      id: 'blur-brush',
+      kind: 'blur' as const,
+      shape: 'brush' as const,
+      x: 0.1,
+      y: 0.1,
+      width: 0.5,
+      height: 0.2,
+      radiusX: 0.04,
+      radiusY: 0.05,
+      strength: 0.03,
+      points: [
+        { x: 0.2, y: 0.2 },
+        { x: 0.3, y: 0.2 },
+        { x: 0.4, y: 0.2 },
+        { x: 0.5, y: 0.2 },
+      ],
+    };
+    const pixelBrush = {
+      ...blurBrush,
+      id: 'pixel-brush',
+      kind: 'pixelate' as const,
+    };
+    component.overlays = [blurBrush, pixelBrush];
+    (component as any).resetOverlayHistory(component.overlays);
+
+    const changed = (component as any).eraseBrushAt({ x: 0.3, y: 0.2 });
+
+    expect(changed).toBe(true);
+    const remainingBlur = component.overlays.find(
+      (overlay) => overlay.id === 'blur-brush'
+    );
+    const untouchedPixel = component.overlays.find(
+      (overlay) => overlay.id === 'pixel-brush'
+    );
+    expect(remainingBlur).toMatchObject({
+      kind: 'blur',
+      shape: 'brush',
+    });
+    expect((remainingBlur as any).points.length).toBeLessThan(
+      blurBrush.points.length
+    );
+    expect((untouchedPixel as any).points).toHaveLength(pixelBrush.points.length);
+    expect(component.canUndo).toBe(false);
+
+    (component as any).commitOverlays(component.overlays);
+
+    expect(component.canUndo).toBe(true);
+    component.undoOverlay();
+    expect(
+      (component.overlays.find((overlay) => overlay.id === 'blur-brush') as any)
+        .points
+    ).toHaveLength(blurBrush.points.length);
   });
 
   it('deve limitar intensidade e tamanho aos intervalos suportados', () => {
