@@ -142,7 +142,10 @@
               </fieldset>
             }
 
-            <div class="upload-actions">
+            <div
+              class="upload-actions"
+              [class.upload-actions--inactive]="!selectedFileName"
+            >
               <button
                 type="button"
                 class="app-action app-action--primary"
