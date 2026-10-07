@@ -47,10 +47,10 @@ describe('photo editor overlay model', () => {
       kind: 'bar',
       x: 0.1,
       y: 0.2,
-      width: 0.7,
       height: 0.2,
       opacity: 0.9,
     });
+    expect(overlay?.width).toBeCloseTo(0.7, 10);
   });
 
   it('descarta seleção pequena demais para produzir proteção acidental', () => {
