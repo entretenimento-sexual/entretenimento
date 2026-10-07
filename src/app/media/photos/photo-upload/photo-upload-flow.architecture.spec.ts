@@ -74,6 +74,19 @@ describe('photo upload flow architecture', () => {
     expect(styles).toContain('.preview-card');
   });
 
+  it('mantém ações de upload progressivas no mobile sem alterar o desktop', () => {
+    const template = source(
+      'src/app/media/photos/photo-upload/photo-upload.component.html'
+    );
+    const styles = source(
+      'src/app/media/photos/photo-upload/photo-upload.component.css'
+    );
+
+    expect(template).toContain('[class.upload-actions--inactive]="!selectedFileName"');
+    expect(styles).toContain('.upload-actions--inactive');
+    expect(styles).toContain('display: none;');
+  });
+
   it('a UI exige uma decisão visível de audiência', () => {
     const template = source(
       'src/app/media/photos/photo-upload/photo-upload.component.html'
