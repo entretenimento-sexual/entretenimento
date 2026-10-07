@@ -789,37 +789,7 @@ describe('PhotoEditorComponent', () => {
     expect(component.hoveringMovableTarget).toBe(true);
   });
 
-  it('mantém o card mobile contido na viewport com fluxo flex vertical', () => {
-    const styles = require('node:fs').readFileSync(
-      require('node:path').resolve(
-        process.cwd(),
-        'src/app/photo-editor/photo-editor/photo-editor.component.css'
-      ),
-      'utf8'
-    );
-
-    expect(styles).toContain('display: flex;');
-    expect(styles).toContain('flex-direction: column;');
-    expect(styles).toContain('max-width: 100%;');
-    expect(styles).toContain('overflow-x: auto;');
-    expect(styles).toContain('flex-wrap: wrap;');
-  });
-
-  it('usa fluxo flexível no toolbox mobile para impedir colapso entre ferramentas e controles', () => {
-    const styles = require('node:fs').readFileSync(
-      require('node:path').resolve(
-        process.cwd(),
-        'src/app/photo-editor/photo-editor/photo-editor.component.css'
-      ),
-      'utf8'
-    );
-
-    expect(styles).toContain('flex-direction: column;');
-    expect(styles).toContain('min-height: max-content;');
-    expect(styles).toContain('min-height: 58px;');
-  });
-
-  it('deixa o conteúdo mobile definir a altura rolável do editor', () => {
+  it('mantém o editor mobile em fluxo vertical contido e rolável', () => {
     const styles = require('node:fs').readFileSync(
       require('node:path').resolve(
         process.cwd(),
@@ -829,11 +799,22 @@ describe('PhotoEditorComponent', () => {
     );
 
     expect(styles).toContain('grid-template-rows: auto auto;');
-    expect(styles).toContain('min-height: max-content;');
-    expect(styles).toContain('grid-template-rows: clamp(220px, 40dvh, 340px) auto auto auto auto;');
+    expect(styles).toContain('display: flex;');
+    expect(styles).toContain('flex-direction: column;');
+    expect(styles).toContain('flex: 0 0 clamp(230px, 44dvh, 420px);');
+    expect(styles).toContain('max-width: 100%;');
+    expect(styles).toContain('position: static;');
+    expect(styles).toContain('scroll-snap-type: x proximity;');
   });
 
-  it('mantém a toolbar mobile no fluxo para evitar sobreposição de instruções e controles', () => {
+  it('mantém ações secundárias progressivas no editor mobile', () => {
+    const template = require('node:fs').readFileSync(
+      require('node:path').resolve(
+        process.cwd(),
+        'src/app/photo-editor/photo-editor/photo-editor.component.html'
+      ),
+      'utf8'
+    );
     const styles = require('node:fs').readFileSync(
       require('node:path').resolve(
         process.cwd(),
@@ -842,9 +823,21 @@ describe('PhotoEditorComponent', () => {
       'utf8'
     );
 
-    expect(styles).toContain('.editor-toolbox__bar {');
-    expect(styles).toContain('position: static;');
-    expect(styles).toContain('top: auto;');
+    expect(template).toContain(
+      '[class.editor-tool-actions--inactive]="!canUndo && !canRedo && !hasOverlays"'
+    );
+    expect(template).toContain('@if (hasOverlays)');
+    expect(styles).toContain('.editor-tool-actions--inactive');
+    expect(styles).toContain('display: none;');
+  });
+
+  it('usa orientação neutra entre mouse e toque no estado padrão', () => {
+    markEditorIdle();
+    component.selectTool('move');
+
+    expect(component.toolInstruction).toContain('Arraste a imagem');
+    expect(component.toolInstruction).toContain('Selecione um elemento');
+    expect(component.toolInstruction).not.toContain('Clique');
   });
 
   it('expõe modo de canvas compatível com rolagem touch quando a ferramenta mover está ativa', () => {
