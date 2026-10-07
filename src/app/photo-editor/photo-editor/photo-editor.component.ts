@@ -85,6 +85,7 @@ export type PhotoEditorAspectRatio =
 
 type PhotoEditorBrushMode = 'paint' | 'erase';
 type PhotoEditorResizeHandle = 'nw' | 'ne' | 'sw' | 'se';
+type PhotoEditorCropResizeHandle = PhotoEditorResizeHandle;
 
 interface PhotoEditorNativeStateV1 {
   version: 1;
@@ -131,6 +132,8 @@ const MAX_ZOOM = 3;
 const ZOOM_STEP = 0.05;
 const KEYBOARD_PAN_STEP = 0.025;
 const KEYBOARD_OVERLAY_STEP = 0.01;
+const KEYBOARD_CROP_STEP = 0.01;
+const KEYBOARD_CROP_RESIZE_STEP = 0.02;
 
 @Component({
   selector: 'app-photo-editor',
@@ -258,6 +261,8 @@ export class PhotoEditorComponent implements AfterViewInit {
     | 'overlay'
     | 'overlay-resize'
     | 'crop'
+    | 'crop-move'
+    | 'crop-resize'
     | null = null;
   private lastPointerX = 0;
   private lastPointerY = 0;
@@ -270,6 +275,9 @@ export class PhotoEditorComponent implements AfterViewInit {
   private brushEraseChanged = false;
   private brushCursorPoint: PhotoEditorNormalizedPoint | null = null;
   private cropStartPoint: PhotoEditorNormalizedPoint | null = null;
+  private cropInteractionSnapshot: PhotoEditorCropRect | null = null;
+  private activeCropResizeHandle: PhotoEditorCropResizeHandle | null = null;
+  private cropInteractionChanged = false;
   private draftCropRect: PhotoEditorCropRect | null = null;
   private previewWidth = 0;
   private previewHeight = 0;
@@ -406,7 +414,7 @@ export class PhotoEditorComponent implements AfterViewInit {
       case 'crop':
         return this.isAspectRatioLocked
           ? 'Este uso exige formato fixo; ajuste o enquadramento com zoom e movimento.'
-          : 'Arraste na foto para definir um recorte livre. Repita para reajustar.';
+          : 'Arraste para criar o recorte; depois mova a área ou redimensione pelos cantos.';
       case 'adjust':
         return 'Ajuste alinhamento, espelhamento, brilho, contraste e saturação.';
       case 'blur':
@@ -912,15 +920,28 @@ export class PhotoEditorComponent implements AfterViewInit {
     this.selectedOverlayId = null;
 
     if (this.activeTool === 'crop' && !this.isAspectRatioLocked) {
-      this.pointerInteraction = 'crop';
+      const cropHandle = this.hitTestCropResizeHandle(point);
       this.draggingPointerId = event.pointerId;
-      this.cropStartPoint = point;
-      this.draftCropRect = {
-        x: point.x,
-        y: point.y,
-        width: 0,
-        height: 0,
-      };
+      this.cropInteractionSnapshot = { ...this.cropRect };
+      this.cropInteractionChanged = false;
+
+      if (cropHandle && this.hasCustomCrop) {
+        this.pointerInteraction = 'crop-resize';
+        this.activeCropResizeHandle = cropHandle;
+      } else if (this.hasCustomCrop && this.isPointInsideCrop(point, this.cropRect)) {
+        this.pointerInteraction = 'crop-move';
+        this.cropStartPoint = point;
+      } else {
+        this.pointerInteraction = 'crop';
+        this.cropStartPoint = point;
+        this.draftCropRect = {
+          x: point.x,
+          y: point.y,
+          width: 0,
+          height: 0,
+        };
+      }
+
       this.capturePointer(event.pointerId);
       this.scheduleRender();
       event.preventDefault();
@@ -1067,7 +1088,51 @@ export class PhotoEditorComponent implements AfterViewInit {
     if (this.pointerInteraction === 'crop' && this.cropStartPoint) {
       const point = this.resolveNormalizedPointer(event);
       if (!point) return;
-      this.draftCropRect = createPhotoEditorCropRect(this.cropStartPoint, point);
+      this.draftCropRect = this.createRawCropRect(this.cropStartPoint, point);
+      this.cropInteractionChanged =
+        this.draftCropRect.width >= PHOTO_EDITOR_MIN_CROP_SIZE &&
+        this.draftCropRect.height >= PHOTO_EDITOR_MIN_CROP_SIZE;
+      this.scheduleRender();
+      event.preventDefault();
+      return;
+    }
+
+    if (this.pointerInteraction === 'crop-move' && this.cropStartPoint) {
+      const point = this.resolveNormalizedPointer(event);
+      if (!point || !this.cropInteractionSnapshot) return;
+      const deltaX = point.x - this.cropStartPoint.x;
+      const deltaY = point.y - this.cropStartPoint.y;
+      const next = this.moveCropRect(
+        this.cropInteractionSnapshot,
+        deltaX,
+        deltaY
+      );
+      this.cropInteractionChanged =
+        next.x !== this.cropRect.x || next.y !== this.cropRect.y;
+      this.cropRect = next;
+      this.scheduleRender();
+      event.preventDefault();
+      return;
+    }
+
+    if (
+      this.pointerInteraction === 'crop-resize' &&
+      this.activeCropResizeHandle &&
+      this.cropInteractionSnapshot
+    ) {
+      const point = this.resolveNormalizedPointer(event);
+      if (!point) return;
+      const next = this.resizeCropRect(
+        this.cropInteractionSnapshot,
+        point,
+        this.activeCropResizeHandle
+      );
+      this.cropInteractionChanged =
+        next.x !== this.cropRect.x ||
+        next.y !== this.cropRect.y ||
+        next.width !== this.cropRect.width ||
+        next.height !== this.cropRect.height;
+      this.cropRect = next;
       this.scheduleRender();
       event.preventDefault();
     }
@@ -1102,7 +1167,15 @@ export class PhotoEditorComponent implements AfterViewInit {
       ) {
         this.cropRect = normalizePhotoEditorCropRect(this.draftCropRect);
         this.commitEditorState();
+      } else if (this.cropInteractionSnapshot) {
+        this.cropRect = { ...this.cropInteractionSnapshot };
       }
+    } else if (
+      (this.pointerInteraction === 'crop-move' ||
+        this.pointerInteraction === 'crop-resize') &&
+      this.cropInteractionChanged
+    ) {
+      this.commitEditorState();
     } else if (
       this.pointerInteraction === 'overlay-resize' &&
       this.overlayDragChanged
@@ -1133,7 +1206,13 @@ export class PhotoEditorComponent implements AfterViewInit {
     } else if (this.pointerInteraction === 'pan') {
       const snapshot = this.photoEditorHistory.current;
       if (snapshot) this.restoreHistorySnapshot(snapshot);
-    } else if (this.pointerInteraction === 'crop') {
+    } else if (
+      (this.pointerInteraction === 'crop' ||
+        this.pointerInteraction === 'crop-move' ||
+        this.pointerInteraction === 'crop-resize') &&
+      this.cropInteractionSnapshot
+    ) {
+      this.cropRect = { ...this.cropInteractionSnapshot };
       this.draftCropRect = null;
     }
     this.cancelPointerInteraction(true, event.pointerId);
@@ -1203,6 +1282,58 @@ export class PhotoEditorComponent implements AfterViewInit {
       return;
     }
 
+    if (
+      this.activeTool === 'crop' &&
+      !this.isAspectRatioLocked &&
+      !this.selectedOverlay
+    ) {
+      if (event.key.startsWith('Arrow')) {
+        const step = event.shiftKey ? KEYBOARD_CROP_STEP * 3 : KEYBOARD_CROP_STEP;
+        let deltaX = 0;
+        let deltaY = 0;
+        if (event.key === 'ArrowLeft') deltaX = -step;
+        else if (event.key === 'ArrowRight') deltaX = step;
+        else if (event.key === 'ArrowUp') deltaY = -step;
+        else if (event.key === 'ArrowDown') deltaY = step;
+        event.preventDefault();
+        this.cropRect = this.moveCropRect(this.cropRect, deltaX, deltaY);
+        this.commitEditorState();
+        return;
+      }
+
+      if (event.key === '[' || event.key === ']') {
+        event.preventDefault();
+        const delta =
+          event.key === ']'
+            ? KEYBOARD_CROP_RESIZE_STEP
+            : -KEYBOARD_CROP_RESIZE_STEP;
+        this.cropRect = this.resizeCropFromCenter(this.cropRect, delta);
+        this.commitEditorState();
+        return;
+      }
+
+      if (key === '0' && this.hasCustomCrop) {
+        event.preventDefault();
+        this.resetCrop();
+        return;
+      }
+    }
+
+    if (!event.ctrlKey && !event.metaKey && !event.altKey) {
+      const shortcutTool: Partial<Record<string, PhotoEditorTool>> = {
+        m: 'move',
+        c: 'crop',
+        b: 'blur',
+        p: 'pixelate',
+      };
+      const tool = shortcutTool[key];
+      if (tool && !this.isToolDisabled(tool)) {
+        event.preventDefault();
+        this.selectTool(tool);
+        return;
+      }
+    }
+
     if (this.activeTool !== 'move') return;
     let handled = true;
     switch (event.key) {
@@ -1220,11 +1351,11 @@ export class PhotoEditorComponent implements AfterViewInit {
         break;
       case '+':
       case '=':
-        this.updateZoom(this.zoom + ZOOM_STEP);
+        this.zoom = this.clamp(this.zoom + ZOOM_STEP, MIN_ZOOM, MAX_ZOOM);
         break;
       case '-':
       case '_':
-        this.updateZoom(this.zoom - ZOOM_STEP);
+        this.zoom = this.clamp(this.zoom - ZOOM_STEP, MIN_ZOOM, MAX_ZOOM);
         break;
       default:
         handled = false;
@@ -2494,6 +2625,9 @@ export class PhotoEditorComponent implements AfterViewInit {
     this.brushStrokeOverlayId = null;
     this.brushEraseChanged = false;
     this.cropStartPoint = null;
+    this.cropInteractionSnapshot = null;
+    this.activeCropResizeHandle = null;
+    this.cropInteractionChanged = false;
     this.draftCropRect = null;
     this.scheduleRender();
   }
@@ -2616,6 +2750,139 @@ export class PhotoEditorComponent implements AfterViewInit {
     if (this[key] === next) return;
     this[key] = next;
     this.scheduleRender();
+  }
+
+  private createRawCropRect(
+    start: PhotoEditorNormalizedPoint,
+    end: PhotoEditorNormalizedPoint
+  ): PhotoEditorCropRect {
+    return {
+      x: Math.min(start.x, end.x),
+      y: Math.min(start.y, end.y),
+      width: Math.abs(end.x - start.x),
+      height: Math.abs(end.y - start.y),
+    };
+  }
+
+  private isPointInsideCrop(
+    point: PhotoEditorNormalizedPoint,
+    crop: PhotoEditorCropRect
+  ): boolean {
+    return (
+      point.x >= crop.x &&
+      point.x <= crop.x + crop.width &&
+      point.y >= crop.y &&
+      point.y <= crop.y + crop.height
+    );
+  }
+
+  private hitTestCropResizeHandle(
+    point: PhotoEditorNormalizedPoint
+  ): PhotoEditorCropResizeHandle | null {
+    if (!this.hasCustomCrop || !this.previewWidth || !this.previewHeight) {
+      return null;
+    }
+
+    const width = this.previewWidth;
+    const height = this.previewHeight;
+    const crop = this.cropRect;
+    const hitRadius = Math.max(12, Math.min(width, height) * 0.022);
+    const pixelX = point.x * width;
+    const pixelY = point.y * height;
+    const left = crop.x * width;
+    const top = crop.y * height;
+    const right = (crop.x + crop.width) * width;
+    const bottom = (crop.y + crop.height) * height;
+
+    const handles: ReadonlyArray<
+      readonly [PhotoEditorCropResizeHandle, number, number]
+    > = [
+      ['nw', left, top],
+      ['ne', right, top],
+      ['sw', left, bottom],
+      ['se', right, bottom],
+    ];
+
+    for (const [handle, x, y] of handles) {
+      if (Math.hypot(pixelX - x, pixelY - y) <= hitRadius) {
+        return handle;
+      }
+    }
+    return null;
+  }
+
+  private moveCropRect(
+    crop: PhotoEditorCropRect,
+    deltaX: number,
+    deltaY: number
+  ): PhotoEditorCropRect {
+    return {
+      ...crop,
+      x: this.clamp(crop.x + deltaX, 0, 1 - crop.width),
+      y: this.clamp(crop.y + deltaY, 0, 1 - crop.height),
+    };
+  }
+
+  private resizeCropRect(
+    crop: PhotoEditorCropRect,
+    point: PhotoEditorNormalizedPoint,
+    handle: PhotoEditorCropResizeHandle
+  ): PhotoEditorCropRect {
+    const left = crop.x;
+    const top = crop.y;
+    const right = crop.x + crop.width;
+    const bottom = crop.y + crop.height;
+    let x = left;
+    let y = top;
+    let width = crop.width;
+    let height = crop.height;
+
+    if (handle === 'nw' || handle === 'sw') {
+      x = this.clamp(point.x, 0, right - PHOTO_EDITOR_MIN_CROP_SIZE);
+      width = right - x;
+    } else {
+      const nextRight = this.clamp(
+        point.x,
+        left + PHOTO_EDITOR_MIN_CROP_SIZE,
+        1
+      );
+      width = nextRight - left;
+    }
+
+    if (handle === 'nw' || handle === 'ne') {
+      y = this.clamp(point.y, 0, bottom - PHOTO_EDITOR_MIN_CROP_SIZE);
+      height = bottom - y;
+    } else {
+      const nextBottom = this.clamp(
+        point.y,
+        top + PHOTO_EDITOR_MIN_CROP_SIZE,
+        1
+      );
+      height = nextBottom - top;
+    }
+
+    return normalizePhotoEditorCropRect({ x, y, width, height });
+  }
+
+  private resizeCropFromCenter(
+    crop: PhotoEditorCropRect,
+    delta: number
+  ): PhotoEditorCropRect {
+    const centerX = crop.x + crop.width / 2;
+    const centerY = crop.y + crop.height / 2;
+    const width = this.clamp(
+      crop.width + delta * 2,
+      PHOTO_EDITOR_MIN_CROP_SIZE,
+      1
+    );
+    const height = this.clamp(
+      crop.height + delta * 2,
+      PHOTO_EDITOR_MIN_CROP_SIZE,
+      1
+    );
+    const x = this.clamp(centerX - width / 2, 0, 1 - width);
+    const y = this.clamp(centerY - height / 2, 0, 1 - height);
+    return normalizePhotoEditorCropRect({ x, y, width, height });
   }
 
   private drawCropGuide(

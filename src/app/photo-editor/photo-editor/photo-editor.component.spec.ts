@@ -304,9 +304,9 @@ describe('PhotoEditorComponent', () => {
       shape: 'ellipse',
       x: 0.1,
       y: 0.12,
-      width: 0.5,
-      height: 0.38,
     });
+    expect((component.selectedOverlay as any).width).toBeCloseTo(0.5, 10);
+    expect((component.selectedOverlay as any).height).toBeCloseTo(0.38, 10);
     expect(component.canUndo).toBe(false);
 
     (component as any).commitOverlays(component.overlays);
@@ -532,6 +532,80 @@ describe('PhotoEditorComponent', () => {
       height: 1,
     });
     expect(component.hasCustomCrop).toBe(false);
+  });
+
+  it('move e redimensiona recorte existente sem precisar redesenhar', () => {
+    markEditorIdle();
+    (component as any).resetOverlayHistory([]);
+    component.cropRect = {
+      x: 0.2,
+      y: 0.2,
+      width: 0.5,
+      height: 0.5,
+    };
+
+    const moved = (component as any).moveCropRect(
+      component.cropRect,
+      0.1,
+      -0.05
+    );
+    expect(moved).toEqual({
+      x: 0.3,
+      y: 0.15000000000000002,
+      width: 0.5,
+      height: 0.5,
+    });
+
+    const resized = (component as any).resizeCropRect(
+      moved,
+      { x: 0.15, y: 0.1 },
+      'nw'
+    );
+    expect(resized.x).toBeCloseTo(0.15, 10);
+    expect(resized.y).toBeCloseTo(0.1, 10);
+    expect(resized.width).toBeCloseTo(0.65, 10);
+    expect(resized.height).toBeCloseTo(0.55, 10);
+  });
+
+  it('não transforma clique mínimo de recorte em seleção artificial de 8%', () => {
+    markEditorIdle();
+    const raw = (component as any).createRawCropRect(
+      { x: 0.4, y: 0.4 },
+      { x: 0.401, y: 0.401 }
+    );
+
+    expect(raw.width).toBeCloseTo(0.001, 10);
+    expect(raw.height).toBeCloseTo(0.001, 10);
+    expect(raw.width).toBeLessThan(PHOTO_EDITOR_MIN_CROP_SIZE);
+    expect(raw.height).toBeLessThan(PHOTO_EDITOR_MIN_CROP_SIZE);
+  });
+
+  it('oferece atalhos de teclado para recorte e ferramentas principais', () => {
+    markEditorIdle();
+    (component as any).resetOverlayHistory([]);
+    component.cropRect = {
+      x: 0.2,
+      y: 0.2,
+      width: 0.5,
+      height: 0.5,
+    };
+    component.selectTool('crop');
+
+    const right = new KeyboardEvent('keydown', { key: 'ArrowRight' });
+    component.onCanvasKeydown(right);
+    expect(component.cropRect.x).toBeCloseTo(0.21, 10);
+
+    const grow = new KeyboardEvent('keydown', { key: ']' });
+    component.onCanvasKeydown(grow);
+    expect(component.cropRect.width).toBeGreaterThan(0.5);
+
+    const moveTool = new KeyboardEvent('keydown', { key: 'm' });
+    component.onCanvasKeydown(moveTool);
+    expect(component.activeTool).toBe('move');
+
+    const blurTool = new KeyboardEvent('keydown', { key: 'b' });
+    component.onCanvasKeydown(blurTool);
+    expect(component.activeTool).toBe('blur');
   });
 
   it('desabilita recorte livre quando o preset exige proporção fixa', () => {
