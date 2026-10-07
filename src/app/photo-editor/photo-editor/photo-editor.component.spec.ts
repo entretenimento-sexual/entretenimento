@@ -228,6 +228,51 @@ describe('PhotoEditorComponent', () => {
     expect(component.canUndo).toBe(true);
   });
 
+  it('configura pincel de privacidade e limita seu tamanho', () => {
+    markEditorIdle();
+
+    component.setPrivacyShape('brush');
+    component.updatePrivacyBrushSize(99);
+
+    expect(component.privacyShape).toBe('brush');
+    expect(component.privacyBrushSize).toBe(30);
+
+    component.updatePrivacyBrushSize(1);
+    expect(component.privacyBrushSize).toBe(3);
+  });
+
+  it('gera dabs circulares de pincel e mantém o traço em uma única etapa de histórico', () => {
+    markEditorIdle();
+    (component as any).resetOverlayHistory([]);
+    component.activeTool = 'blur';
+    component.setPrivacyShape('brush');
+    component.updatePrivacyBrushSize(12);
+    (component as any).previewWidth = 800;
+    (component as any).previewHeight = 600;
+    (component as any).brushStrokeSnapshot = [];
+    (component as any).brushStrokeLastPoint = { x: 0.2, y: 0.2 };
+    (component as any).brushStrokeDabCount = 0;
+
+    (component as any).appendBrushDab({ x: 0.2, y: 0.2 });
+    (component as any).appendBrushStroke({ x: 0.5, y: 0.2 });
+
+    expect(component.overlays.length).toBeGreaterThan(1);
+    expect(
+      component.overlays.every(
+        (overlay) =>
+          overlay.kind === 'blur' &&
+          overlay.shape === 'ellipse'
+      )
+    ).toBe(true);
+    expect(component.canUndo).toBe(false);
+
+    (component as any).commitOverlays(component.overlays);
+
+    expect(component.canUndo).toBe(true);
+    component.undoOverlay();
+    expect(component.overlays).toEqual([]);
+  });
+
   it('deve limitar intensidade e tamanho aos intervalos suportados', () => {
     component.updatePrivacyStrength(99);
     component.updatePrivacyOpacity(1);

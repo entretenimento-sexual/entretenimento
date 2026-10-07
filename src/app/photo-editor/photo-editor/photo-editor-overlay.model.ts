@@ -110,7 +110,7 @@ export interface PhotoEditorOverlayRenderOptions {
   preview?: boolean;
 }
 
-const MAX_OVERLAYS = 60;
+export const PHOTO_EDITOR_MAX_OVERLAYS = 60;
 const MIN_PRIVACY_SIZE = 0.012;
 const SELECTION_PADDING_PX = 10;
 
@@ -138,7 +138,7 @@ export function normalizePhotoEditorOverlays(
 
   const normalized: PhotoEditorOverlay[] = [];
 
-  for (const candidate of value.slice(0, MAX_OVERLAYS)) {
+  for (const candidate of value.slice(0, PHOTO_EDITOR_MAX_OVERLAYS)) {
     if (!candidate || typeof candidate !== 'object') {
       continue;
     }

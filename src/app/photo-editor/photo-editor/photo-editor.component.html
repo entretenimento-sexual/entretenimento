@@ -27,6 +27,11 @@
         class="editor-canvas"
         [class.is-pan-tool]="activeTool === 'move' && !selectedOverlay"
         [class.is-draw-tool]="isPrivacyTool && !selectedOverlay"
+        [class.is-brush-tool]="
+          (activeTool === 'blur' || activeTool === 'pixelate') &&
+          privacyShape === 'brush' &&
+          !selectedOverlay
+        "
         [class.is-place-tool]="isDecorationTool && !selectedOverlay"
         [class.is-crop-tool]="activeTool === 'crop' && !selectedOverlay"
         [class.has-selection]="!!selectedOverlay"
@@ -435,8 +440,33 @@
                   >
                     Círculo
                   </button>
+                  <button
+                    type="button"
+                    class="editor-tool-button"
+                    [class.is-active]="privacyShape === 'brush'"
+                    [attr.aria-pressed]="privacyShape === 'brush'"
+                    (click)="setPrivacyShape('brush')"
+                  >
+                    Pincel
+                  </button>
                 </div>
               </fieldset>
+
+              @if (privacyShape === 'brush') {
+                <label class="editor-tool-field editor-tool-field--range">
+                  <span>Tamanho do pincel</span>
+                  <input
+                    type="range"
+                    min="3"
+                    max="30"
+                    step="1"
+                    [ngModel]="privacyBrushSize"
+                    (ngModelChange)="updatePrivacyBrushSize($event)"
+                    [attr.aria-valuetext]="privacyBrushSize.toFixed(0) + ' por cento'"
+                  />
+                  <output>{{ privacyBrushSize.toFixed(0) }}%</output>
+                </label>
+              }
 
               <label class="editor-tool-field editor-tool-field--range">
                 <span>Intensidade</span>
@@ -455,6 +485,8 @@
             <p class="editor-tool-note">
               @if (activeTool === 'bar') {
                 Arraste sobre a área. A proteção será incorporada ao arquivo final.
+              } @else if (privacyShape === 'brush') {
+                Pressione e passe o mouse ou dedo sobre a área para ir borrando como um pincel.
               } @else if (privacyShape === 'ellipse') {
                 Arraste sobre o rosto ou outra área para criar uma proteção circular/oval.
               } @else {

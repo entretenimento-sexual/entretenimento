@@ -112,6 +112,10 @@
   cursor: crosshair;
 }
 
+.editor-canvas.is-brush-tool {
+  cursor: cell;
+}
+
 .editor-canvas.is-place-tool {
   cursor: copy;
 }
@@ -297,7 +301,7 @@
 }
 
 .editor-tool-panel--privacy {
-  grid-template-columns: minmax(180px, auto) minmax(230px, 0.8fr) minmax(0, 1.2fr);
+  grid-template-columns: minmax(180px, auto) repeat(2, minmax(180px, 0.7fr)) minmax(0, 1.2fr);
 }
 
 .editor-shape-field {

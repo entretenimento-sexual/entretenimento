@@ -49,6 +49,7 @@ import {
   PhotoEditorFontFamily,
   PhotoEditorNormalizedPoint,
   PhotoEditorOverlay,
+  PHOTO_EDITOR_MAX_OVERLAYS,
   PhotoEditorPrivacyOverlay,
   PhotoEditorPrivacyShape,
   PhotoEditorTool,
@@ -81,6 +82,8 @@ export type PhotoEditorAspectRatio =
   | 'square'
   | 'portrait'
   | 'landscape';
+
+type PhotoEditorPrivacyPaintMode = PhotoEditorPrivacyShape | 'brush';
 
 interface PhotoEditorNativeStateV1 {
   version: 1;
@@ -223,7 +226,8 @@ export class PhotoEditorComponent implements AfterViewInit {
   activeTool: PhotoEditorTool = 'move';
   privacyStrength = 3;
   privacyOpacity = 85;
-  privacyShape: PhotoEditorPrivacyShape = 'rectangle';
+  privacyShape: PhotoEditorPrivacyPaintMode = 'rectangle';
+  privacyBrushSize = 12;
   decorationSize = 10;
   selectedEmoji = this.emojiOptions[0];
   captionText = '';
@@ -247,6 +251,7 @@ export class PhotoEditorComponent implements AfterViewInit {
   private pointerInteraction:
     | 'pan'
     | 'privacy'
+    | 'privacy-brush'
     | 'overlay'
     | 'crop'
     | null = null;
@@ -255,6 +260,9 @@ export class PhotoEditorComponent implements AfterViewInit {
   private overlayDragSnapshot: PhotoEditorOverlay[] | null = null;
   private overlayDragChanged = false;
   private draftPrivacyRegion: PhotoEditorDraftPrivacyRegion | null = null;
+  private brushStrokeSnapshot: PhotoEditorOverlay[] | null = null;
+  private brushStrokeLastPoint: PhotoEditorNormalizedPoint | null = null;
+  private brushStrokeDabCount = 0;
   private cropStartPoint: PhotoEditorNormalizedPoint | null = null;
   private draftCropRect: PhotoEditorCropRect | null = null;
   private previewWidth = 0;
@@ -475,9 +483,20 @@ export class PhotoEditorComponent implements AfterViewInit {
     );
   }
 
-  setPrivacyShape(shape: PhotoEditorPrivacyShape): void {
+  setPrivacyShape(shape: PhotoEditorPrivacyPaintMode): void {
     if (this.isBusy()) return;
-    this.privacyShape = shape === 'ellipse' ? 'ellipse' : 'rectangle';
+    this.privacyShape =
+      shape === 'ellipse' || shape === 'brush' ? shape : 'rectangle';
+    this.scheduleRender();
+  }
+
+  updatePrivacyBrushSize(value: number | string): void {
+    const numericValue = Number(value);
+    this.privacyBrushSize = this.clamp(
+      Number.isFinite(numericValue) ? numericValue : 12,
+      3,
+      30
+    );
     this.scheduleRender();
   }
 
@@ -811,6 +830,8 @@ export class PhotoEditorComponent implements AfterViewInit {
     this.activeTool = 'move';
     this.selectedOverlayId = null;
     this.overlays = [];
+    this.privacyShape = 'rectangle';
+    this.privacyBrushSize = 12;
     this.draftPrivacyRegion = null;
     this.newDateTimeMeta = createPhotoEditorDateTimeMeta();
     this.commitEditorState();
@@ -820,6 +841,23 @@ export class PhotoEditorComponent implements AfterViewInit {
     if (!this.sourceImage || this.isBusy()) return;
     const point = this.resolveNormalizedPointer(event);
     if (!point) return;
+
+    if (
+      (this.activeTool === 'blur' || this.activeTool === 'pixelate') &&
+      this.privacyShape === 'brush'
+    ) {
+      this.selectedOverlayId = null;
+      this.pointerInteraction = 'privacy-brush';
+      this.draggingPointerId = event.pointerId;
+      this.brushStrokeSnapshot = clonePhotoEditorOverlays(this.overlays);
+      this.brushStrokeLastPoint = point;
+      this.brushStrokeDabCount = 0;
+      this.appendBrushDab(point);
+      this.capturePointer(event.pointerId);
+      this.scheduleRender();
+      event.preventDefault();
+      return;
+    }
 
     const hitOverlay = this.hitTestOverlay(point);
     if (hitOverlay) {
@@ -876,7 +914,10 @@ export class PhotoEditorComponent implements AfterViewInit {
         strength: this.privacyStrength / 100,
         ...(this.activeTool === 'bar'
           ? { opacity: this.privacyOpacity / 100 }
-          : { shape: this.privacyShape }),
+          : {
+              shape:
+                this.privacyShape === 'ellipse' ? 'ellipse' : 'rectangle',
+            }),
       };
       this.capturePointer(event.pointerId);
       this.scheduleRender();
@@ -922,6 +963,15 @@ export class PhotoEditorComponent implements AfterViewInit {
       return;
     }
 
+    if (this.pointerInteraction === 'privacy-brush') {
+      const point = this.resolveNormalizedPointer(event);
+      if (!point) return;
+      this.appendBrushStroke(point);
+      this.scheduleRender();
+      event.preventDefault();
+      return;
+    }
+
     if (this.pointerInteraction === 'privacy' && this.draftPrivacyRegion) {
       const point = this.resolveNormalizedPointer(event);
       if (!point) return;
@@ -946,7 +996,14 @@ export class PhotoEditorComponent implements AfterViewInit {
 
   onPointerUp(event: PointerEvent): void {
     if (this.draggingPointerId !== event.pointerId) return;
-    if (this.pointerInteraction === 'privacy' && this.draftPrivacyRegion) {
+    if (this.pointerInteraction === 'privacy-brush') {
+      if (this.brushStrokeDabCount > 0) {
+        this.selectedOverlayId = null;
+        this.commitOverlays(this.overlays);
+      } else if (this.brushStrokeSnapshot) {
+        this.overlays = clonePhotoEditorOverlays(this.brushStrokeSnapshot);
+      }
+    } else if (this.pointerInteraction === 'privacy' && this.draftPrivacyRegion) {
       const overlay = privacyRegionFromDraft(this.draftPrivacyRegion);
       if (overlay) {
         this.selectedOverlayId = overlay.id;
@@ -970,7 +1027,9 @@ export class PhotoEditorComponent implements AfterViewInit {
 
   onPointerCancel(event: PointerEvent): void {
     if (this.draggingPointerId !== event.pointerId) return;
-    if (this.pointerInteraction === 'overlay' && this.overlayDragSnapshot) {
+    if (this.pointerInteraction === 'privacy-brush' && this.brushStrokeSnapshot) {
+      this.overlays = clonePhotoEditorOverlays(this.brushStrokeSnapshot);
+    } else if (this.pointerInteraction === 'overlay' && this.overlayDragSnapshot) {
       this.overlays = clonePhotoEditorOverlays(this.overlayDragSnapshot);
     } else if (this.pointerInteraction === 'pan') {
       const snapshot = this.photoEditorHistory.current;
@@ -1855,6 +1914,83 @@ export class PhotoEditorComponent implements AfterViewInit {
     };
   }
 
+  private appendBrushStroke(point: PhotoEditorNormalizedPoint): void {
+    const previous = this.brushStrokeLastPoint;
+    if (!previous) {
+      this.brushStrokeLastPoint = point;
+      this.appendBrushDab(point);
+      return;
+    }
+
+    const width = Math.max(1, this.previewWidth);
+    const height = Math.max(1, this.previewHeight);
+    const deltaX = (point.x - previous.x) * width;
+    const deltaY = (point.y - previous.y) * height;
+    const distance = Math.hypot(deltaX, deltaY);
+    const diameter = Math.max(
+      6,
+      (Math.min(width, height) * this.privacyBrushSize) / 100
+    );
+    const spacing = Math.max(3, diameter * 0.32);
+    const steps = Math.floor(distance / spacing);
+    if (steps < 1) return;
+
+    let lastPoint = previous;
+    for (let index = 1; index <= steps; index += 1) {
+      if (this.overlays.length >= PHOTO_EDITOR_MAX_OVERLAYS) break;
+      const fraction = Math.min(1, (index * spacing) / distance);
+      lastPoint = {
+        x: previous.x + (point.x - previous.x) * fraction,
+        y: previous.y + (point.y - previous.y) * fraction,
+      };
+      this.appendBrushDab(lastPoint);
+    }
+    this.brushStrokeLastPoint = lastPoint;
+  }
+
+  private appendBrushDab(point: PhotoEditorNormalizedPoint): void {
+    if (
+      (this.activeTool !== 'blur' && this.activeTool !== 'pixelate') ||
+      this.overlays.length >= PHOTO_EDITOR_MAX_OVERLAYS
+    ) {
+      return;
+    }
+
+    const width = Math.max(1, this.previewWidth);
+    const height = Math.max(1, this.previewHeight);
+    const diameterPx = Math.max(
+      6,
+      (Math.min(width, height) * this.privacyBrushSize) / 100
+    );
+    const normalizedWidth = this.clamp(diameterPx / width, 0.012, 1);
+    const normalizedHeight = this.clamp(diameterPx / height, 0.012, 1);
+    const x = this.clamp(
+      point.x - normalizedWidth / 2,
+      0,
+      Math.max(0, 1 - normalizedWidth)
+    );
+    const y = this.clamp(
+      point.y - normalizedHeight / 2,
+      0,
+      Math.max(0, 1 - normalizedHeight)
+    );
+
+    this.overlays = [
+      ...this.overlays,
+      {
+        id: createPhotoEditorOverlayId(),
+        kind: this.activeTool,
+        x,
+        y,
+        width: normalizedWidth,
+        height: normalizedHeight,
+        strength: this.clamp(this.privacyStrength / 100, 0.008, 0.08),
+        shape: 'ellipse',
+      },
+    ];
+    this.brushStrokeDabCount += 1;
+  }
+
   private commitOverlays(next: readonly PhotoEditorOverlay[]): void {
     this.overlays = clonePhotoEditorOverlays(normalizePhotoEditorOverlays(next));
     this.ensureSelectedOverlayExists();
@@ -1976,6 +2112,9 @@ export class PhotoEditorComponent implements AfterViewInit {
     this.overlayDragSnapshot = null;
     this.overlayDragChanged = false;
     this.draftPrivacyRegion = null;
+    this.brushStrokeSnapshot = null;
+    this.brushStrokeLastPoint = null;
+    this.brushStrokeDabCount = 0;
     this.cropStartPoint = null;
     this.draftCropRect = null;
     this.scheduleRender();
