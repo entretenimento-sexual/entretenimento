@@ -138,19 +138,24 @@
 
 .editor-compare-button {
   position: absolute;
-  left: 14px;
-  bottom: 14px;
+  left: 18px;
+  bottom: 18px;
   z-index: 2;
   display: inline-flex;
   min-height: 36px;
+  max-width: calc(100% - 36px);
   align-items: center;
   gap: 7px;
   padding: 6px 10px;
-  border: 1px solid rgb(255 255 255 / 28%);
+  border: 1px solid rgb(255 255 255 / 38%);
   border-radius: 999px;
-  background: rgb(7 10 15 / 78%);
+  background: rgb(7 10 15 / 90%);
   color: #fff;
-  box-shadow: 0 6px 18px rgb(0 0 0 / 24%);
+  box-shadow:
+    0 8px 22px rgb(0 0 0 / 34%),
+    0 0 0 1px rgb(0 0 0 / 18%);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   font: inherit;
   line-height: 1;
   touch-action: none;
@@ -793,9 +798,9 @@
   }
 
   .editor-compare-button {
-    left: 10px;
-    bottom: 10px;
-    max-width: calc(100% - 20px);
+    left: 12px;
+    bottom: 12px;
+    max-width: calc(100% - 24px);
   }
 
   .editor-compare-button__hint {
