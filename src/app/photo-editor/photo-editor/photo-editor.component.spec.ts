@@ -789,6 +789,17 @@ describe('PhotoEditorComponent', () => {
     expect(component.hoveringMovableTarget).toBe(true);
   });
 
+  it('expõe modo de canvas compatível com rolagem touch quando a ferramenta mover está ativa', () => {
+    markEditorIdle();
+    component.selectTool('move');
+
+    expect(component.activeTool).toBe('move');
+    expect(component.selectedOverlay).toBeNull();
+
+    component.selectTool('crop');
+    expect(component.activeTool).toBe('crop');
+  });
+
   it('oferece atalhos de teclado para recorte e ferramentas principais', () => {
     markEditorIdle();
     (component as any).resetOverlayHistory([]);
