@@ -26,6 +26,7 @@
         #editorCanvas
         class="editor-canvas"
         [class.is-pan-tool]="activeTool === 'move' && !selectedOverlay"
+        [class.is-touch-scroll-friendly]="activeTool === 'move' && !selectedOverlay"
         [class.is-draw-tool]="isPrivacyTool && !selectedOverlay"
         [class.is-brush-tool]="
           (activeTool === 'blur' || activeTool === 'pixelate') &&
