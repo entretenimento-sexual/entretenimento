@@ -116,37 +116,42 @@
           }
         </div>
 
-        <div class="editor-tool-actions" aria-label="Ações de edição">
+        <div
+          class="editor-tool-actions"
+          [class.editor-tool-actions--inactive]="!canUndo && !canRedo && !hasOverlays"
+          aria-label="Ações de edição"
+        >
           <span class="editor-tool-actions__label">Ações</span>
           <div class="editor-tool-actions__buttons">
-          <button
-            type="button"
-            class="editor-tool-button editor-tool-button--history"
-            (click)="undoOverlay()"
-            [disabled]="!canUndo"
-            aria-label="Desfazer última alteração"
-            title="Desfazer"
-          >
-            ↶
-          </button>
-          <button
-            type="button"
-            class="editor-tool-button editor-tool-button--history"
-            (click)="redoOverlay()"
-            [disabled]="!canRedo"
-            aria-label="Refazer última alteração"
-            title="Refazer"
-          >
-            ↷
-          </button>
-          <button
-            type="button"
-            class="editor-tool-button editor-tool-button--danger"
-            (click)="clearOverlays()"
-            [disabled]="!hasOverlays"
-          >
-            Remover elementos
-          </button>
+            <button
+              type="button"
+              class="editor-tool-button editor-tool-button--history"
+              (click)="undoOverlay()"
+              [disabled]="!canUndo"
+              aria-label="Desfazer última alteração"
+              title="Desfazer"
+            >
+              ↶
+            </button>
+            <button
+              type="button"
+              class="editor-tool-button editor-tool-button--history"
+              (click)="redoOverlay()"
+              [disabled]="!canRedo"
+              aria-label="Refazer última alteração"
+              title="Refazer"
+            >
+              ↷
+            </button>
+            @if (hasOverlays) {
+              <button
+                type="button"
+                class="editor-tool-button editor-tool-button--danger"
+                (click)="clearOverlays()"
+              >
+                Remover elementos
+              </button>
+            }
           </div>
         </div>
       </div>
