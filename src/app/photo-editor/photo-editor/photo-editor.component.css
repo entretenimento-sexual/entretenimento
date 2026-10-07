@@ -136,7 +136,46 @@
   cursor: nesw-resize;
 }
 
+.editor-compare-button {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  z-index: 2;
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  border: 1px solid rgb(255 255 255 / 28%);
+  border-radius: 999px;
+  background: rgb(7 10 15 / 78%);
+  color: #fff;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 24%);
+  font: inherit;
+  line-height: 1;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.editor-compare-button.is-active {
+  border-color: color-mix(in oklab, var(--primary-color, #ff7070) 74%, white);
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 24%, #070a0f);
+}
+
+.editor-compare-button__label {
+  font-size: 0.74rem;
+  font-weight: 850;
+}
+
+.editor-compare-button__hint {
+  color: rgb(255 255 255 / 68%);
+  font-size: 0.64rem;
+  font-weight: 700;
+}
+
 .editor-canvas:focus-visible,
+.editor-compare-button:focus-visible,
 .editor-controls button:focus-visible,
 .editor-controls input:focus-visible,
 .editor-toolbox button:focus-visible,
@@ -753,6 +792,16 @@
     padding: 8px;
   }
 
+  .editor-compare-button {
+    left: 10px;
+    bottom: 10px;
+    max-width: calc(100% - 20px);
+  }
+
+  .editor-compare-button__hint {
+    font-size: 0.62rem;
+  }
+
   .editor-toolbox {
     max-height: none;
     padding-inline: 9px;
@@ -898,6 +947,7 @@ html.high-contrast .editor-emoji-palette button {
 
 @media (pointer: coarse) {
   .editor-tool-button,
+  .editor-compare-button,
   .editor-selection-actions .app-action,
   .editor-tool-panel .app-action,
   .editor-segmented button,
