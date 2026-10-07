@@ -93,9 +93,9 @@ test('cursor permanece vinculado ao termo e bloqueio bilateral ocorre antes da r
   const handler = source('search-community-members-page.handler.ts');
 
   assert.equal(handler.includes('(cursor && cursor.query !== query)'), true);
-  assert.equal(
-    handler.includes("reason: providedCursor\n              ? 'community_search_cursor_invalid'"),
-    true
+  assert.match(
+    handler,
+    /reason:\s*providedCursor\s*\?\s*'community_search_cursor_invalid'\s*:\s*'community_search_query_invalid'/
   );
 
   const blockResolution = handler.indexOf(
