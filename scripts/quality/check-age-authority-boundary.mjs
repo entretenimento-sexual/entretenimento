@@ -256,14 +256,32 @@ forbidAll(
   'projeção pública de conta já ativa não pode revalidar assurance etário'
 );
 
+// Os deadlines vivem na política reutilizada por mídias públicas e privadas.
+// O alias público continua obrigatório para compatibilidade dos consumidores.
 requireAll(
-  'functions/src/media/application/public-media-signed-url-expiry.policy.ts',
+  'functions/src/media/application/authorized-media-signed-url-expiry.policy.ts',
   [
+    'resolveAuthorizedMediaSignedUrlExpiresAt',
     'requesterAccessExpiresAtMs',
     'ownerAccessExpiresAtMs',
     'technicalExpiresAtMs',
   ],
   'URL temporária deve respeitar deadline genérico de Account Access'
+);
+
+requireAll(
+  'functions/src/media/application/public-media-signed-url-expiry.policy.ts',
+  [
+    'resolveAuthorizedMediaSignedUrlExpiresAt',
+    'resolvePublicMediaSignedUrlExpiresAt',
+  ],
+  'alias público deve delegar à política compartilhada'
+);
+
+forbidAll(
+  'functions/src/media/application/authorized-media-signed-url-expiry.policy.ts',
+  ['ageEligibility', 'VERIFIED_ADULT', 'SELF_DECLARED_ADULT'],
+  'Media não pode conhecer a razão etária do deadline'
 );
 
 forbidAll(

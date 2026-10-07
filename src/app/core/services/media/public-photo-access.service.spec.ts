@@ -143,6 +143,24 @@ describe('PublicPhotoAccessService cache boundary', () => {
     expect(firstKey).toContain('session:uid:viewer-a');
     expect(secondKey).toContain('session:uid:viewer-b');
   });
+  it('distingue sessões sucessivas da mesma conta e descarta resposta antiga', () => {
+    const { uid$, internals } = setup('viewer-a');
+    const candidate = projection();
+    const previousKey = internals.buildCacheKey(candidate);
+    internals.setCachedAccess(previousKey, {
+      url: 'https://signed.example.test/old-session',
+      expiresAt: Date.now() + 120_000,
+    });
+
+    uid$.next(null);
+    uid$.next('viewer-a');
+
+    expect(internals.accessCache.size).toBe(0);
+    const nextKey = internals.buildCacheKey(candidate);
+    expect(nextKey).not.toBe(previousKey);
+    expect(nextKey).toContain('session:uid:viewer-a');
+  });
+
 });
 
 function projection(): IPublicPhotoProjection {

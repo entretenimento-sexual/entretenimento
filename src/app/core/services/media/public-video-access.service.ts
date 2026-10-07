@@ -61,6 +61,7 @@ export class PublicVideoAccessService {
     Observable<IPublicVideoItem | null>
   >();
   private lastSessionUid: string | null | undefined = undefined;
+  private sessionEpoch = 0;
 
   constructor(
     private readonly firestoreCtx: FirestoreContextService,
@@ -75,10 +76,8 @@ export class PublicVideoAccessService {
       .subscribe((uid) => {
         const normalizedUid = uid?.trim() || null;
 
-        if (
-          this.lastSessionUid !== undefined &&
-          this.lastSessionUid !== normalizedUid
-        ) {
+        if (this.lastSessionUid !== normalizedUid) {
+          this.sessionEpoch += 1;
           this.accessCache.clear();
           this.inFlightRefreshes.clear();
         }
@@ -390,9 +389,11 @@ export class PublicVideoAccessService {
       return 'session:pending';
     }
 
-    return this.lastSessionUid
+    const uidScope = this.lastSessionUid
       ? `session:uid:${this.lastSessionUid}`
       : 'session:anonymous';
+
+    return `${uidScope}:epoch:${this.sessionEpoch}`;
   }
 
   private chunkItems<T>(items: readonly T[], size: number): T[][] {

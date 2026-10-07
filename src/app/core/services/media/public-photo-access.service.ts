@@ -67,6 +67,8 @@ export class PublicPhotoAccessService {
     PublicPhotoAccessCacheEntry
   >();
   private lastSessionUid: string | null | undefined = undefined;
+  // UID sozinho não diferencia logout→login na mesma conta.
+  private sessionEpoch = 0;
 
   constructor(
     private readonly firestoreCtx: FirestoreContextService,
@@ -82,6 +84,7 @@ export class PublicPhotoAccessService {
         const normalizedUid = uid?.trim() || null;
 
         if (this.lastSessionUid !== normalizedUid) {
+          this.sessionEpoch += 1;
           this.accessCache.clear();
         }
 
@@ -264,9 +267,11 @@ export class PublicPhotoAccessService {
       return 'session:pending';
     }
 
-    return this.lastSessionUid
+    const uidScope = this.lastSessionUid
       ? `session:uid:${this.lastSessionUid}`
       : 'session:anonymous';
+
+    return `${uidScope}:epoch:${this.sessionEpoch}`;
   }
 
   private getCachedAccess(

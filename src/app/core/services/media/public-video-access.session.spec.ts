@@ -238,4 +238,37 @@ describe('PublicVideoAccessService / session lifecycle', () => {
     expect(internal.accessCache.size).toBe(0);
   });
 
+  it('gera escopo distinto em logout→login da mesma conta', () => {
+    const uid$ = new BehaviorSubject<string | null>('viewer-a');
+    TestBed.configureTestingModule({
+      providers: [
+        PublicVideoAccessService,
+        { provide: Functions, useValue: {} },
+        { provide: FirestoreContextService, useValue: {} },
+        { provide: AuthSessionService, useValue: { uid$: uid$.asObservable() } },
+        { provide: MediaApplicationErrorService, useValue: { reportSilently: vi.fn() } },
+        { provide: PublicVideoOwnerEnrichmentService, useValue: {} },
+      ],
+    });
+    const service = TestBed.inject(PublicVideoAccessService);
+    const internal = service as unknown as {
+      buildCacheKey(projection: IPublicVideoProjection): string;
+      accessCache: Map<string, IPublicVideoAccess>;
+    };
+    const candidate = {
+      id: 'video-1', ownerUid: 'owner-1', assetVersion: 42, publishedAt: 42,
+    } as IPublicVideoProjection;
+    const previousKey = internal.buildCacheKey(candidate);
+    internal.accessCache.set(previousKey, {
+      ownerUid: 'owner-1', videoId: 'video-1', url: 'https://signed.example.test/old',
+      posterUrl: null, expiresAt: Date.now() + 120_000,
+    });
+
+    uid$.next(null);
+    uid$.next('viewer-a');
+
+    expect(internal.accessCache.size).toBe(0);
+    expect(internal.buildCacheKey(candidate)).not.toBe(previousKey);
+  });
+
 });
