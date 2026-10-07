@@ -27,6 +27,11 @@ describe('PHOTO_EDITOR_LOCAL_TOOL_REGISTRY', () => {
       expect(tool.requiresNetwork).toBe(false);
       expect(tool.requiresPaidService).toBe(false);
     }
+
+    expect(
+      PHOTO_EDITOR_LOCAL_TOOL_REGISTRY.find((tool) => tool.value === 'adjust')
+        ?.shortLabel
+    ).toBe('Correções');
   });
 
   it('organiza a apresentação sem duplicar o registro canônico', () => {

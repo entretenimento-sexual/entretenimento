@@ -65,6 +65,15 @@ import {
   PHOTO_EDITOR_LOCAL_TOOL_REGISTRY,
   isLocalPhotoEditorTool,
 } from './photo-editor-local-tool.registry';
+import {
+  PHOTO_EDITOR_FULL_CROP_RECT,
+  PHOTO_EDITOR_PHOTO_EDITOR_MIN_CROP_SIZE,
+  PhotoEditorCropRect,
+  createPhotoEditorCropRect,
+  isFullPhotoEditorCropRect,
+  normalizePhotoEditorCropRect,
+  resolvePhotoEditorCropOutputGeometry,
+} from './photo-editor-transform.model';
 
 export type PhotoEditorAspectRatio =
   | 'original'
@@ -80,13 +89,6 @@ interface PhotoEditorNativeStateV1 {
   panX: number;
   panY: number;
   aspectRatio: PhotoEditorAspectRatio;
-}
-
-interface PhotoEditorCropRect {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
 }
 
 interface PhotoEditorNativeStateV2 {
@@ -124,13 +126,6 @@ const MAX_ZOOM = 3;
 const ZOOM_STEP = 0.05;
 const KEYBOARD_PAN_STEP = 0.025;
 const KEYBOARD_OVERLAY_STEP = 0.01;
-const MIN_CROP_SIZE = 0.08;
-const DEFAULT_CROP_RECT: PhotoEditorCropRect = {
-  x: 0,
-  y: 0,
-  width: 1,
-  height: 1,
-};
 
 @Component({
   selector: 'app-photo-editor',
@@ -222,7 +217,7 @@ export class PhotoEditorComponent implements AfterViewInit {
   panX = 0;
   panY = 0;
   aspectRatio: PhotoEditorAspectRatio = 'original';
-  cropRect: PhotoEditorCropRect = { ...DEFAULT_CROP_RECT };
+  cropRect: PhotoEditorCropRect = { ...PHOTO_EDITOR_FULL_CROP_RECT };
 
   activeTool: PhotoEditorTool = 'move';
   privacyStrength = 3;
@@ -350,7 +345,7 @@ export class PhotoEditorComponent implements AfterViewInit {
   }
 
   get hasCustomCrop(): boolean {
-    return !this.isFullCropRect(this.cropRect);
+    return !isFullPhotoEditorCropRect(this.cropRect);
   }
 
   isToolDisabled(tool: PhotoEditorTool): boolean {
@@ -734,6 +729,11 @@ export class PhotoEditorComponent implements AfterViewInit {
     this.straighten = next;
     this.panX = 0;
     this.panY = 0;
+    this.scheduleRender();
+  }
+
+  commitImageAdjustment(): void {
+    if (this.isBusy()) return;
     this.commitEditorState();
   }
 
@@ -769,7 +769,7 @@ export class PhotoEditorComponent implements AfterViewInit {
 
   resetCrop(): void {
     if (this.isBusy() || !this.hasCustomCrop) return;
-    this.cropRect = { ...DEFAULT_CROP_RECT };
+    this.cropRect = { ...PHOTO_EDITOR_FULL_CROP_RECT };
     this.draftCropRect = null;
     this.commitEditorState();
   }
@@ -786,7 +786,7 @@ export class PhotoEditorComponent implements AfterViewInit {
     this.panX = 0;
     this.panY = 0;
     this.aspectRatio = this.resolvePresetAspectRatio();
-    this.cropRect = { ...DEFAULT_CROP_RECT };
+    this.cropRect = { ...PHOTO_EDITOR_FULL_CROP_RECT };
     this.draftCropRect = null;
     this.activeTool = 'move';
     this.selectedOverlayId = null;
@@ -918,7 +918,7 @@ export class PhotoEditorComponent implements AfterViewInit {
     if (this.pointerInteraction === 'crop' && this.cropStartPoint) {
       const point = this.resolveNormalizedPointer(event);
       if (!point) return;
-      this.draftCropRect = this.createCropRect(this.cropStartPoint, point);
+      this.draftCropRect = createPhotoEditorCropRect(this.cropStartPoint, point);
       this.scheduleRender();
       event.preventDefault();
     }
@@ -934,10 +934,10 @@ export class PhotoEditorComponent implements AfterViewInit {
       }
     } else if (this.pointerInteraction === 'crop' && this.draftCropRect) {
       if (
-        this.draftCropRect.width >= MIN_CROP_SIZE &&
-        this.draftCropRect.height >= MIN_CROP_SIZE
+        this.draftCropRect.width >= PHOTO_EDITOR_MIN_CROP_SIZE &&
+        this.draftCropRect.height >= PHOTO_EDITOR_MIN_CROP_SIZE
       ) {
-        this.cropRect = this.normalizeCropRect(this.draftCropRect);
+        this.cropRect = normalizePhotoEditorCropRect(this.draftCropRect);
         this.commitEditorState();
       }
     } else if (this.pointerInteraction === 'overlay' && this.overlayDragChanged) {
@@ -1409,23 +1409,16 @@ export class PhotoEditorComponent implements AfterViewInit {
       false
     );
 
-    const crop = this.normalizeCropRect(this.cropRect);
-    const sourceX = Math.round(crop.x * workingCanvas.width);
-    const sourceY = Math.round(crop.y * workingCanvas.height);
-    const sourceWidth = Math.max(1, Math.round(crop.width * workingCanvas.width));
-    const sourceHeight = Math.max(1, Math.round(crop.height * workingCanvas.height));
-    const cropRatio = sourceWidth / sourceHeight;
-
-    let width: number = maxOutputEdge;
-    let height: number = Math.round(width / cropRatio);
-    if (height > maxOutputEdge) {
-      height = maxOutputEdge;
-      width = Math.round(height * cropRatio);
-    }
+    const cropGeometry = resolvePhotoEditorCropOutputGeometry(
+      workingCanvas.width,
+      workingCanvas.height,
+      this.cropRect,
+      maxOutputEdge
+    );
 
     const output = this.document.createElement('canvas');
-    output.width = Math.max(1, width);
-    output.height = Math.max(1, height);
+    output.width = cropGeometry.outputWidth;
+    output.height = cropGeometry.outputHeight;
     const context = output.getContext('2d');
     if (!context) {
       throw new Error('Canvas de exportação indisponível.');
@@ -1433,10 +1426,10 @@ export class PhotoEditorComponent implements AfterViewInit {
 
     context.drawImage(
       workingCanvas,
-      sourceX,
-      sourceY,
-      sourceWidth,
-      sourceHeight,
+      cropGeometry.sourceX,
+      cropGeometry.sourceY,
+      cropGeometry.sourceWidth,
+      cropGeometry.sourceHeight,
       0,
       0,
       output.width,
@@ -1506,7 +1499,7 @@ export class PhotoEditorComponent implements AfterViewInit {
       panX: Number(this.panX.toFixed(4)),
       panY: Number(this.panY.toFixed(4)),
       aspectRatio: this.aspectRatio,
-      cropRect: this.normalizeCropRect(this.cropRect),
+      cropRect: normalizePhotoEditorCropRect(this.cropRect),
       overlays: clonePhotoEditorOverlays(this.overlays),
     };
   }
@@ -1525,7 +1518,7 @@ export class PhotoEditorComponent implements AfterViewInit {
       this.panX = 0;
       this.panY = 0;
       this.aspectRatio = this.resolvePresetAspectRatio();
-      this.cropRect = { ...DEFAULT_CROP_RECT };
+      this.cropRect = { ...PHOTO_EDITOR_FULL_CROP_RECT };
       this.resetOverlayHistory([]);
       return;
     }
@@ -1546,7 +1539,7 @@ export class PhotoEditorComponent implements AfterViewInit {
         this.panX = 0;
         this.panY = 0;
         this.aspectRatio = this.resolvePresetAspectRatio();
-        this.cropRect = { ...DEFAULT_CROP_RECT };
+        this.cropRect = { ...PHOTO_EDITOR_FULL_CROP_RECT };
         this.resetOverlayHistory([]);
         return;
       }
@@ -1565,8 +1558,8 @@ export class PhotoEditorComponent implements AfterViewInit {
         ? this.resolvePresetAspectRatio()
         : this.normalizeAspectRatio(parsed.aspectRatio);
       this.cropRect = this.isAspectRatioLocked
-        ? { ...DEFAULT_CROP_RECT }
-        : this.normalizeCropRect(parsedV2.cropRect);
+        ? { ...PHOTO_EDITOR_FULL_CROP_RECT }
+        : normalizePhotoEditorCropRect(parsedV2.cropRect);
 
       const overlays =
         parsed.version === 2
@@ -1584,7 +1577,7 @@ export class PhotoEditorComponent implements AfterViewInit {
       this.panX = 0;
       this.panY = 0;
       this.aspectRatio = this.resolvePresetAspectRatio();
-      this.cropRect = { ...DEFAULT_CROP_RECT };
+      this.cropRect = { ...PHOTO_EDITOR_FULL_CROP_RECT };
       this.resetOverlayHistory([]);
       // Estados de editores antigos ou inválidos são deliberadamente ignorados.
     }
@@ -1903,8 +1896,8 @@ export class PhotoEditorComponent implements AfterViewInit {
         ? this.resolvePresetAspectRatio()
         : this.normalizeAspectRatio(parsed.aspectRatio);
       this.cropRect = this.isAspectRatioLocked
-        ? { ...DEFAULT_CROP_RECT }
-        : this.normalizeCropRect(parsed.cropRect);
+        ? { ...PHOTO_EDITOR_FULL_CROP_RECT }
+        : normalizePhotoEditorCropRect(parsed.cropRect);
       this.overlays = clonePhotoEditorOverlays(
         normalizePhotoEditorOverlays(parsed.overlays)
       );
@@ -2085,52 +2078,7 @@ export class PhotoEditorComponent implements AfterViewInit {
     );
     if (this[key] === next) return;
     this[key] = next;
-    this.commitEditorState();
-  }
-
-  private normalizeCropRect(value: unknown): PhotoEditorCropRect {
-    if (!value || typeof value !== 'object') {
-      return { ...DEFAULT_CROP_RECT };
-    }
-
-    const source = value as Partial<PhotoEditorCropRect>;
-    const x = this.clamp(Number(source.x ?? 0), 0, 1 - MIN_CROP_SIZE);
-    const y = this.clamp(Number(source.y ?? 0), 0, 1 - MIN_CROP_SIZE);
-    const width = this.clamp(
-      Number(source.width ?? 1),
-      MIN_CROP_SIZE,
-      Math.max(MIN_CROP_SIZE, 1 - x)
-    );
-    const height = this.clamp(
-      Number(source.height ?? 1),
-      MIN_CROP_SIZE,
-      Math.max(MIN_CROP_SIZE, 1 - y)
-    );
-    return { x, y, width, height };
-  }
-
-  private createCropRect(
-    start: PhotoEditorNormalizedPoint,
-    end: PhotoEditorNormalizedPoint
-  ): PhotoEditorCropRect {
-    const x = Math.min(start.x, end.x);
-    const y = Math.min(start.y, end.y);
-    return this.normalizeCropRect({
-      x,
-      y,
-      width: Math.abs(end.x - start.x),
-      height: Math.abs(end.y - start.y),
-    });
-  }
-
-  private isFullCropRect(rect: PhotoEditorCropRect): boolean {
-    const epsilon = 0.0005;
-    return (
-      Math.abs(rect.x) < epsilon &&
-      Math.abs(rect.y) < epsilon &&
-      Math.abs(rect.width - 1) < epsilon &&
-      Math.abs(rect.height - 1) < epsilon
-    );
+    this.scheduleRender();
   }
 
   private drawCropGuide(
@@ -2138,7 +2086,7 @@ export class PhotoEditorComponent implements AfterViewInit {
     width: number,
     height: number
   ): void {
-    const crop = this.normalizeCropRect(this.draftCropRect ?? this.cropRect);
+    const crop = normalizePhotoEditorCropRect(this.draftCropRect ?? this.cropRect);
     const x = crop.x * width;
     const y = crop.y * height;
     const cropWidth = crop.width * width;
@@ -2156,6 +2104,20 @@ export class PhotoEditorComponent implements AfterViewInit {
     context.setLineDash([8, 5]);
     context.strokeRect(x, y, cropWidth, cropHeight);
     context.setLineDash([]);
+
+    context.strokeStyle = 'rgb(255 255 255 / 42%)';
+    context.lineWidth = Math.max(1, Math.min(width, height) * 0.0015);
+    for (const fraction of [1 / 3, 2 / 3]) {
+      context.beginPath();
+      context.moveTo(x + cropWidth * fraction, y);
+      context.lineTo(x + cropWidth * fraction, y + cropHeight);
+      context.stroke();
+
+      context.beginPath();
+      context.moveTo(x, y + cropHeight * fraction);
+      context.lineTo(x + cropWidth, y + cropHeight * fraction);
+      context.stroke();
+    }
 
     const handleSize = Math.max(8, Math.min(width, height) * 0.018);
     context.fillStyle = '#ff7070';

@@ -215,17 +215,28 @@
 }
 
 .editor-tool-group__actions,
-.editor-tool-actions {
+.editor-tool-actions__buttons {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
 .editor-tool-actions {
+  display: grid;
   flex: 0 0 auto;
   align-self: end;
+  gap: 4px;
   padding-left: 10px;
   border-left: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
+}
+
+.editor-tool-actions__label {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 54%, transparent);
+  font-size: 0.62rem;
+  font-weight: 850;
+  letter-spacing: 0.055em;
+  line-height: 1;
+  text-transform: uppercase;
 }
 
 .editor-tool-button {
@@ -691,7 +702,7 @@
   }
 
   .editor-tool-actions {
-    justify-content: flex-end;
+    justify-items: end;
     padding-top: 6px;
     padding-left: 0;
     border-top: 1px solid var(--surface-border, rgb(255 255 255 / 12%));

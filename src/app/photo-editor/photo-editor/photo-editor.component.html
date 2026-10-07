@@ -80,6 +80,8 @@
         </div>
 
         <div class="editor-tool-actions" aria-label="Ações de edição">
+          <span class="editor-tool-actions__label">Ações</span>
+          <div class="editor-tool-actions__buttons">
           <button
             type="button"
             class="editor-tool-button editor-tool-button--history"
@@ -108,6 +110,7 @@
           >
             Limpar elementos
           </button>
+          </div>
         </div>
       </div>
 
@@ -434,6 +437,7 @@
                 step="0.5"
                 [ngModel]="straighten"
                 (ngModelChange)="updateStraighten($event)"
+                (change)="commitImageAdjustment()"
               />
               <output>{{ straighten.toFixed(1) }}°</output>
             </label>
@@ -447,6 +451,7 @@
                 step="1"
                 [ngModel]="brightness"
                 (ngModelChange)="updateBrightness($event)"
+                (change)="commitImageAdjustment()"
               />
               <output>{{ brightness.toFixed(0) }}%</output>
             </label>
@@ -460,6 +465,7 @@
                 step="1"
                 [ngModel]="contrast"
                 (ngModelChange)="updateContrast($event)"
+                (change)="commitImageAdjustment()"
               />
               <output>{{ contrast.toFixed(0) }}%</output>
             </label>
@@ -473,6 +479,7 @@
                 step="1"
                 [ngModel]="saturation"
                 (ngModelChange)="updateSaturation($event)"
+                (change)="commitImageAdjustment()"
               />
               <output>{{ saturation.toFixed(0) }}%</output>
             </label>

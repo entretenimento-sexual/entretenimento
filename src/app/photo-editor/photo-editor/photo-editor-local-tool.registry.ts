@@ -56,8 +56,8 @@ export const PHOTO_EDITOR_LOCAL_TOOL_REGISTRY:
     }),
     Object.freeze({
       value: 'adjust',
-      label: 'Ajustar imagem',
-      shortLabel: 'Ajustar',
+      label: 'Correções de imagem',
+      shortLabel: 'Correções',
       family: 'adjustment',
       execution: 'local-canvas',
       requiresNetwork: false,
@@ -124,7 +124,6 @@ export function isLocalPhotoEditorTool(value: unknown): value is PhotoEditorTool
     (tool) => tool.value === value
   );
 }
-
 
 const toolsByValue = new Map(
   PHOTO_EDITOR_LOCAL_TOOL_REGISTRY.map((tool) => [tool.value, tool] as const)

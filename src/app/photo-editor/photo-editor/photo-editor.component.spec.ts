@@ -182,6 +182,9 @@ describe('PhotoEditorComponent', () => {
       { label: 'Privacidade', values: ['blur', 'pixelate', 'bar'] },
       { label: 'Elementos', values: ['emoji', 'text', 'datetime'] },
     ]);
+    expect(
+      component.toolOptions.find((tool) => tool.value === 'adjust')?.shortLabel
+    ).toBe('Correções');
     expect(component.emojiOptions.length).toBeGreaterThanOrEqual(24);
     expect(component.emojiOptions).toContain('🔒');
     expect(component.fontOptions.map((font) => font.value)).toEqual([
@@ -204,15 +207,43 @@ describe('PhotoEditorComponent', () => {
     expect(component.decorationSize).toBe(28);
   });
 
+  it('mantém preview reativo de sliders e só grava histórico ao concluir a interação', () => {
+    markEditorIdle();
+    (component as any).resetOverlayHistory([]);
+
+    component.updateStraighten(8.5);
+    component.updateBrightness(110);
+    component.updateBrightness(120);
+    component.updateContrast(115);
+    component.updateSaturation(140);
+
+    expect(component.straighten).toBe(8.5);
+    expect(component.brightness).toBe(120);
+    expect(component.contrast).toBe(115);
+    expect(component.saturation).toBe(140);
+    expect(component.canUndo).toBe(false);
+
+    component.commitImageAdjustment();
+
+    expect(component.canUndo).toBe(true);
+    component.undoOverlay();
+    expect(component.straighten).toBe(0);
+    expect(component.brightness).toBe(100);
+    expect(component.contrast).toBe(100);
+    expect(component.saturation).toBe(100);
+  });
+
   it('deve aplicar e restaurar ajustes locais com histórico', () => {
     markEditorIdle();
     (component as any).resetOverlayHistory([]);
 
     component.updateStraighten(8.5);
+    component.commitImageAdjustment();
     component.toggleFlipHorizontal();
     component.updateBrightness(120);
     component.updateContrast(115);
     component.updateSaturation(140);
+    component.commitImageAdjustment();
 
     expect(component.straighten).toBe(8.5);
     expect(component.flipHorizontal).toBe(true);
@@ -391,6 +422,163 @@ describe('PhotoEditorComponent', () => {
     expect(component.zoom).toBe(1.5);
     expect(component.overlays).toHaveLength(1);
     expect(component.canRedo).toBe(false);
+  });
+
+  it('desfaz combinação de recorte, correções, espelhamento e privacidade em ordem', () => {
+    markEditorIdle();
+    (component as any).resetOverlayHistory([]);
+
+    component.cropRect = {
+      x: 0.15,
+      y: 0.1,
+      width: 0.7,
+      height: 0.8,
+    };
+    (component as any).commitEditorState();
+
+    component.updateStraighten(6);
+    component.commitImageAdjustment();
+
+    component.toggleFlipHorizontal();
+
+    (component as any).commitOverlays([
+      {
+        id: 'bar-history',
+        kind: 'bar',
+        x: 0.2,
+        y: 0.3,
+        width: 0.4,
+        height: 0.12,
+        opacity: 0.8,
+      },
+    ]);
+
+    expect(component.overlays).toHaveLength(1);
+    expect(component.flipHorizontal).toBe(true);
+    expect(component.straighten).toBe(6);
+    expect(component.hasCustomCrop).toBe(true);
+
+    component.undoOverlay();
+    expect(component.overlays).toEqual([]);
+
+    component.undoOverlay();
+    expect(component.flipHorizontal).toBe(false);
+
+    component.undoOverlay();
+    expect(component.straighten).toBe(0);
+
+    component.undoOverlay();
+    expect(component.cropRect).toEqual({
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
+    });
+
+    component.redoOverlay();
+    component.redoOverlay();
+    component.redoOverlay();
+    component.redoOverlay();
+
+    expect(component.cropRect).toEqual({
+      x: 0.15,
+      y: 0.1,
+      width: 0.7,
+      height: 0.8,
+    });
+    expect(component.straighten).toBe(6);
+    expect(component.flipHorizontal).toBe(true);
+    expect(component.overlays).toHaveLength(1);
+  });
+
+  it('restaura estado V1 sem herdar campos das correções modernas', () => {
+    markEditorIdle();
+
+    (component as any).applyStoredEditorState(
+      JSON.stringify({
+        version: 1,
+        editor: 'native-canvas',
+        rotation: 90,
+        zoom: 1.4,
+        panX: 0.1,
+        panY: -0.1,
+        aspectRatio: 'portrait',
+      })
+    );
+
+    expect(component.rotation).toBe(90);
+    expect(component.zoom).toBe(1.4);
+    expect(component.aspectRatio).toBe('portrait');
+    expect(component.straighten).toBe(0);
+    expect(component.flipHorizontal).toBe(false);
+    expect(component.brightness).toBe(100);
+    expect(component.contrast).toBe(100);
+    expect(component.saturation).toBe(100);
+    expect(component.cropRect).toEqual({
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
+    });
+    expect(component.overlays).toEqual([]);
+  });
+
+  it('normaliza estado V2 estendido antes de reutilizá-lo', () => {
+    markEditorIdle();
+
+    (component as any).applyStoredEditorState(
+      JSON.stringify({
+        version: 2,
+        editor: 'native-canvas',
+        flattened: true,
+        rotation: 450,
+        straighten: 99,
+        flipHorizontal: true,
+        brightness: 999,
+        contrast: -20,
+        saturation: 999,
+        zoom: 9,
+        panX: 2,
+        panY: -2,
+        aspectRatio: 'original',
+        cropRect: {
+          x: 0.9,
+          y: -1,
+          width: 0.8,
+          height: 3,
+        },
+        overlays: [
+          {
+            id: 'bar-v2',
+            kind: 'bar',
+            x: 0.2,
+            y: 0.3,
+            width: 0.4,
+            height: 0.12,
+            opacity: 0.8,
+          },
+        ],
+      })
+    );
+
+    expect(component.rotation).toBe(90);
+    expect(component.straighten).toBe(15);
+    expect(component.flipHorizontal).toBe(true);
+    expect(component.brightness).toBe(150);
+    expect(component.contrast).toBe(50);
+    expect(component.saturation).toBe(200);
+    expect(component.zoom).toBe(3);
+    expect(component.panX).toBe(1);
+    expect(component.panY).toBe(-1);
+    expect(component.cropRect.x).toBeCloseTo(0.9, 10);
+    expect(component.cropRect.width).toBeCloseTo(0.1, 10);
+    expect(component.overlays).toEqual([
+      expect.objectContaining({
+        id: 'bar-v2',
+        kind: 'bar',
+        opacity: 0.8,
+      }),
+    ]);
   });
 
   it('descarta redo quando uma nova edição nasce depois de undo', () => {
