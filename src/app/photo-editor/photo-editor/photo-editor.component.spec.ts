@@ -11,6 +11,7 @@ import {
   provideErrorTestingMocks,
 } from '../../../test/angular-error-testing.providers';
 import { PhotoEditorComponent } from './photo-editor.component';
+import { PHOTO_EDITOR_MIN_CROP_SIZE } from './photo-editor-transform.model';
 
 describe('PhotoEditorComponent', () => {
   let fixture: ComponentFixture<PhotoEditorComponent>;
