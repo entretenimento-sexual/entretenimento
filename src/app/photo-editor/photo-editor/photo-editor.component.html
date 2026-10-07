@@ -42,6 +42,7 @@
         (pointermove)="onPointerMove($event)"
         (pointerup)="onPointerUp($event)"
         (pointercancel)="onPointerCancel($event)"
+        (pointerleave)="onBrushPointerLeave()"
         (keydown)="onCanvasKeydown($event)"
       ></canvas>
 
@@ -149,29 +150,36 @@
 
           @if (selected.kind === 'blur' || selected.kind === 'pixelate') {
             <div class="editor-properties-grid editor-properties-grid--privacy">
-              <fieldset class="editor-shape-field">
-                <legend>Forma</legend>
-                <div class="editor-shape-options" role="group" aria-label="Forma da área de privacidade">
-                  <button
-                    type="button"
-                    class="editor-tool-button"
-                    [class.is-active]="selected.shape === 'rectangle'"
-                    [attr.aria-pressed]="selected.shape === 'rectangle'"
-                    (click)="updateSelectedPrivacyShape('rectangle')"
-                  >
-                    Retângulo
-                  </button>
-                  <button
-                    type="button"
-                    class="editor-tool-button"
-                    [class.is-active]="selected.shape === 'ellipse'"
-                    [attr.aria-pressed]="selected.shape === 'ellipse'"
-                    (click)="updateSelectedPrivacyShape('ellipse')"
-                  >
-                    Círculo
-                  </button>
+              @if (selected.shape === 'brush') {
+                <div class="editor-tool-field">
+                  <span>Forma</span>
+                  <strong>Pincel</strong>
                 </div>
-              </fieldset>
+              } @else {
+                <fieldset class="editor-shape-field">
+                  <legend>Forma</legend>
+                  <div class="editor-shape-options" role="group" aria-label="Forma da área de privacidade">
+                    <button
+                      type="button"
+                      class="editor-tool-button"
+                      [class.is-active]="selected.shape === 'rectangle'"
+                      [attr.aria-pressed]="selected.shape === 'rectangle'"
+                      (click)="updateSelectedPrivacyShape('rectangle')"
+                    >
+                      Retângulo
+                    </button>
+                    <button
+                      type="button"
+                      class="editor-tool-button"
+                      [class.is-active]="selected.shape === 'ellipse'"
+                      [attr.aria-pressed]="selected.shape === 'ellipse'"
+                      (click)="updateSelectedPrivacyShape('ellipse')"
+                    >
+                      Círculo
+                    </button>
+                  </div>
+                </fieldset>
+              }
 
               <label class="editor-tool-field editor-tool-field--range">
                 <span>Intensidade</span>

@@ -88,6 +88,46 @@ describe('photo editor overlay model', () => {
     });
   });
 
+  it('normaliza um traço de pincel como único overlay de privacidade', () => {
+    const [overlay] = normalizePhotoEditorOverlays([
+      {
+        id: 'brush-1',
+        kind: 'blur',
+        shape: 'brush',
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+        radiusX: 0.05,
+        radiusY: 0.08,
+        strength: 0.03,
+        points: [
+          { x: 0.2, y: 0.2 },
+          { x: 0.3, y: 0.25 },
+          { x: 0.4, y: 0.3 },
+        ],
+      },
+    ]);
+
+    expect(overlay).toMatchObject({
+      id: 'brush-1',
+      kind: 'blur',
+      shape: 'brush',
+      radiusX: 0.05,
+      radiusY: 0.08,
+      strength: 0.03,
+      points: [
+        { x: 0.2, y: 0.2 },
+        { x: 0.3, y: 0.25 },
+        { x: 0.4, y: 0.3 },
+      ],
+    });
+    expect(overlay.x).toBeCloseTo(0.15, 10);
+    expect(overlay.y).toBeCloseTo(0.12, 10);
+    expect(overlay.width).toBeCloseTo(0.3, 10);
+    expect(overlay.height).toBeCloseTo(0.26, 10);
+  });
+
   it('descarta seleção pequena demais para produzir proteção acidental', () => {
     const overlay = privacyRegionFromDraft({
       kind: 'pixelate',

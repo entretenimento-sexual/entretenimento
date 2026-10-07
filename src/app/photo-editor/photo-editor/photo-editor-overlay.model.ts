@@ -14,7 +14,8 @@ export type PhotoEditorTool =
   | 'datetime';
 
 export type PhotoEditorCaptionStyle = 'classic' | 'badge' | 'neon';
-export type PhotoEditorPrivacyShape = 'rectangle' | 'ellipse';
+export type PhotoEditorPrivacyRegionShape = 'rectangle' | 'ellipse';
+export type PhotoEditorPrivacyShape = PhotoEditorPrivacyRegionShape | 'brush';
 
 export type PhotoEditorFontFamily =
   | 'system'
@@ -48,13 +49,29 @@ interface PhotoEditorOverlayBase {
   y: number;
 }
 
-export interface PhotoEditorEffectPrivacyOverlay extends PhotoEditorOverlayBase {
+interface PhotoEditorEffectPrivacyOverlayBase extends PhotoEditorOverlayBase {
   kind: 'blur' | 'pixelate';
   width: number;
   height: number;
   strength: number;
-  shape: PhotoEditorPrivacyShape;
 }
+
+export interface PhotoEditorRegionPrivacyOverlay
+  extends PhotoEditorEffectPrivacyOverlayBase {
+  shape: PhotoEditorPrivacyRegionShape;
+}
+
+export interface PhotoEditorBrushPrivacyOverlay
+  extends PhotoEditorEffectPrivacyOverlayBase {
+  shape: 'brush';
+  radiusX: number;
+  radiusY: number;
+  points: PhotoEditorNormalizedPoint[];
+}
+
+export type PhotoEditorEffectPrivacyOverlay =
+  | PhotoEditorRegionPrivacyOverlay
+  | PhotoEditorBrushPrivacyOverlay;
 
 export interface PhotoEditorBarPrivacyOverlay extends PhotoEditorOverlayBase {
   kind: 'bar';
@@ -88,7 +105,7 @@ export interface PhotoEditorDraftPrivacyRegion {
   endY: number;
   strength: number;
   opacity?: number;
-  shape?: PhotoEditorPrivacyShape;
+  shape?: PhotoEditorPrivacyRegionShape;
 }
 
 export interface PhotoEditorOverlayBounds {
@@ -110,8 +127,11 @@ export interface PhotoEditorOverlayRenderOptions {
   preview?: boolean;
 }
 
-export const PHOTO_EDITOR_MAX_OVERLAYS = 60;
+const MAX_OVERLAYS = 60;
+const MAX_BRUSH_POINTS = 512;
 const MIN_PRIVACY_SIZE = 0.012;
+const MIN_BRUSH_RADIUS = 0.004;
+const MAX_BRUSH_RADIUS = 0.25;
 const SELECTION_PADDING_PX = 10;
 
 export function clonePhotoEditorOverlays(
@@ -122,6 +142,15 @@ export function clonePhotoEditorOverlays(
       return {
         ...overlay,
         dateTimeMeta: { ...overlay.dateTimeMeta },
+      };
+    }
+    if (
+      (overlay.kind === 'blur' || overlay.kind === 'pixelate') &&
+      overlay.shape === 'brush'
+    ) {
+      return {
+        ...overlay,
+        points: overlay.points.map((point) => ({ ...point })),
       };
     }
 
@@ -138,7 +167,7 @@ export function normalizePhotoEditorOverlays(
 
   const normalized: PhotoEditorOverlay[] = [];
 
-  for (const candidate of value.slice(0, PHOTO_EDITOR_MAX_OVERLAYS)) {
+  for (const candidate of value.slice(0, MAX_OVERLAYS)) {
     if (!candidate || typeof candidate !== 'object') {
       continue;
     }
@@ -147,7 +176,37 @@ export function normalizePhotoEditorOverlays(
     const kind = source['kind'];
     const id = normalizeId(source['id']);
 
-    if (kind === 'blur' || kind === 'pixelate' || kind === 'bar') {
+    if (kind === 'blur' || kind === 'pixelate') {
+      const shape = normalizePrivacyShape(source['shape']);
+      if (shape === 'brush') {
+        const points = normalizeBrushPoints(source['points']);
+        if (points.length === 0) {
+          continue;
+        }
+        const radiusX = clampNumber(
+          source['radiusX'],
+          MIN_BRUSH_RADIUS,
+          MAX_BRUSH_RADIUS
+        );
+        const radiusY = clampNumber(
+          source['radiusY'],
+          MIN_BRUSH_RADIUS,
+          MAX_BRUSH_RADIUS
+        );
+        const bounds = resolveBrushBounds(points, radiusX, radiusY);
+        normalized.push({
+          id,
+          kind,
+          shape,
+          ...bounds,
+          radiusX,
+          radiusY,
+          points,
+          strength: clampNumber(source['strength'], 0.008, 0.08),
+        });
+        continue;
+      }
+
       const x = clampNumber(source['x'], 0, 1);
       const y = clampNumber(source['y'], 0, 1);
       const width = clampNumber(
@@ -160,33 +219,39 @@ export function normalizePhotoEditorOverlays(
         MIN_PRIVACY_SIZE,
         Math.max(MIN_PRIVACY_SIZE, 1 - y)
       );
+      normalized.push({
+        id,
+        kind,
+        x,
+        y,
+        width,
+        height,
+        strength: clampNumber(source['strength'], 0.008, 0.08),
+        shape,
+      });
+      continue;
+    }
 
-      if (width < MIN_PRIVACY_SIZE || height < MIN_PRIVACY_SIZE) {
-        continue;
-      }
-
-      if (kind === 'bar') {
-        normalized.push({
-          id,
-          kind,
-          x,
-          y,
-          width,
-          height,
-          opacity: clampNumber(source['opacity'], 0.25, 1),
-        });
-      } else {
-        normalized.push({
-          id,
-          kind,
-          x,
-          y,
-          width,
-          height,
-          strength: clampNumber(source['strength'], 0.008, 0.08),
-          shape: normalizePrivacyShape(source['shape']),
-        });
-      }
+    if (kind === 'bar') {
+      const x = clampNumber(source['x'], 0, 1);
+      const y = clampNumber(source['y'], 0, 1);
+      normalized.push({
+        id,
+        kind,
+        x,
+        y,
+        width: clampNumber(
+          source['width'],
+          MIN_PRIVACY_SIZE,
+          Math.max(MIN_PRIVACY_SIZE, 1 - x)
+        ),
+        height: clampNumber(
+          source['height'],
+          MIN_PRIVACY_SIZE,
+          Math.max(MIN_PRIVACY_SIZE, 1 - y)
+        ),
+        opacity: clampNumber(source['opacity'], 0.25, 1),
+      });
       continue;
     }
 
@@ -259,7 +324,7 @@ export function privacyRegionFromDraft(
         ...base,
         kind: draft.kind,
         strength: clampNumber(draft.strength, 0.008, 0.08),
-        shape: normalizePrivacyShape(draft.shape),
+        shape: normalizePrivacyRegionShape(draft.shape),
       };
 }
 
@@ -373,18 +438,34 @@ export function hitTestPhotoEditorOverlay(
       continue;
     }
 
-    if (
-      (overlay.kind === 'blur' || overlay.kind === 'pixelate') &&
-      overlay.shape === 'ellipse'
-    ) {
-      const radiusX = Math.max(1, bounds.width / 2 + SELECTION_PADDING_PX);
-      const radiusY = Math.max(1, bounds.height / 2 + SELECTION_PADDING_PX);
-      const centerX = bounds.x + bounds.width / 2;
-      const centerY = bounds.y + bounds.height / 2;
-      const normalizedX = (pixelX - centerX) / radiusX;
-      const normalizedY = (pixelY - centerY) / radiusY;
-      if (normalizedX * normalizedX + normalizedY * normalizedY > 1) {
-        continue;
+    if (overlay.kind === 'blur' || overlay.kind === 'pixelate') {
+      if (overlay.shape === 'ellipse') {
+        const radiusX = Math.max(1, bounds.width / 2 + SELECTION_PADDING_PX);
+        const radiusY = Math.max(1, bounds.height / 2 + SELECTION_PADDING_PX);
+        const centerX = bounds.x + bounds.width / 2;
+        const centerY = bounds.y + bounds.height / 2;
+        const normalizedX = (pixelX - centerX) / radiusX;
+        const normalizedY = (pixelY - centerY) / radiusY;
+        if (normalizedX * normalizedX + normalizedY * normalizedY > 1) {
+          continue;
+        }
+      } else if (overlay.shape === 'brush') {
+        const hitBrush = overlay.points.some((brushPoint) => {
+          const radiusX = Math.max(
+            1,
+            overlay.radiusX * width + SELECTION_PADDING_PX
+          );
+          const radiusY = Math.max(
+            1,
+            overlay.radiusY * height + SELECTION_PADDING_PX
+          );
+          const normalizedX = (pixelX - brushPoint.x * width) / radiusX;
+          const normalizedY = (pixelY - brushPoint.y * height) / radiusY;
+          return normalizedX * normalizedX + normalizedY * normalizedY <= 1;
+        });
+        if (!hitBrush) {
+          continue;
+        }
       }
     }
 
@@ -524,7 +605,7 @@ function drawBlurOverlay(
   );
 
   context.save();
-  applyPrivacyClip(context, overlay, rect);
+  applyPrivacyClip(context, overlay, rect, width, height);
   context.clip();
   context.filter = `blur(${blurRadius}px)`;
   context.drawImage(baseCanvas, 0, 0, width, height);
@@ -570,7 +651,7 @@ function drawPixelateOverlay(
   );
 
   context.save();
-  applyPrivacyClip(context, overlay, rect);
+  applyPrivacyClip(context, overlay, rect, width, height);
   context.clip();
   context.imageSmoothingEnabled = false;
   context.drawImage(
@@ -612,12 +693,16 @@ function drawDraftOutline(
   context.strokeStyle = '#ff7070';
   context.lineWidth = Math.max(2, Math.min(width, height) * 0.004);
   context.setLineDash([8, 6]);
-  if (
-    (overlay.kind === 'blur' || overlay.kind === 'pixelate') &&
-    overlay.shape === 'ellipse'
-  ) {
-    traceEllipse(context, rect);
-    context.stroke();
+  if (overlay.kind === 'blur' || overlay.kind === 'pixelate') {
+    if (overlay.shape === 'ellipse') {
+      traceEllipse(context, rect);
+      context.stroke();
+    } else if (overlay.shape === 'brush') {
+      traceBrushMask(context, overlay, width, height);
+      context.stroke();
+    } else {
+      context.strokeRect(rect.x, rect.y, rect.width, rect.height);
+    }
   } else {
     context.strokeRect(rect.x, rect.y, rect.width, rect.height);
   }
@@ -627,11 +712,17 @@ function drawDraftOutline(
 function applyPrivacyClip(
   context: CanvasRenderingContext2D,
   overlay: PhotoEditorEffectPrivacyOverlay,
-  rect: PhotoEditorOverlayBounds
+  rect: PhotoEditorOverlayBounds,
+  width: number,
+  height: number
 ): void {
   context.beginPath();
   if (overlay.shape === 'ellipse') {
     traceEllipse(context, rect);
+    return;
+  }
+  if (overlay.shape === 'brush') {
+    traceBrushMask(context, overlay, width, height);
     return;
   }
   context.rect(rect.x, rect.y, rect.width, rect.height);
@@ -650,6 +741,27 @@ function traceEllipse(
     0,
     Math.PI * 2
   );
+}
+
+function traceBrushMask(
+  context: CanvasRenderingContext2D,
+  overlay: PhotoEditorBrushPrivacyOverlay,
+  width: number,
+  height: number
+): void {
+  context.beginPath();
+  for (const point of overlay.points) {
+    context.moveTo(point.x * width + overlay.radiusX * width, point.y * height);
+    context.ellipse(
+      point.x * width,
+      point.y * height,
+      Math.max(1, overlay.radiusX * width),
+      Math.max(1, overlay.radiusY * height),
+      0,
+      0,
+      Math.PI * 2
+    );
+  }
 }
 
 function drawEmojiOverlay(
@@ -745,17 +857,26 @@ function drawSelection(
   context.strokeStyle = '#ffffff';
   context.lineWidth = Math.max(1.5, Math.min(width, height) * 0.003);
   context.setLineDash([7, 5]);
-  if (
-    (overlay.kind === 'blur' || overlay.kind === 'pixelate') &&
-    overlay.shape === 'ellipse'
-  ) {
-    traceEllipse(context, {
-      x: bounds.x - padding,
-      y: bounds.y - padding,
-      width: bounds.width + padding * 2,
-      height: bounds.height + padding * 2,
-    });
-    context.stroke();
+  if (overlay.kind === 'blur' || overlay.kind === 'pixelate') {
+    if (overlay.shape === 'ellipse') {
+      traceEllipse(context, {
+        x: bounds.x - padding,
+        y: bounds.y - padding,
+        width: bounds.width + padding * 2,
+        height: bounds.height + padding * 2,
+      });
+      context.stroke();
+    } else if (overlay.shape === 'brush') {
+      traceBrushMask(context, overlay, width, height);
+      context.stroke();
+    } else {
+      context.strokeRect(
+        bounds.x - padding,
+        bounds.y - padding,
+        bounds.width + padding * 2,
+        bounds.height + padding * 2
+      );
+    }
   } else {
     context.strokeRect(
       bounds.x - padding,
@@ -889,7 +1010,54 @@ function normalizeDateTimeFormat(value: unknown): PhotoEditorDateTimeFormat {
 }
 
 function normalizePrivacyShape(value: unknown): PhotoEditorPrivacyShape {
+  if (value === 'brush') return 'brush';
+  return normalizePrivacyRegionShape(value);
+}
+
+function normalizePrivacyRegionShape(
+  value: unknown
+): PhotoEditorPrivacyRegionShape {
   return value === 'ellipse' ? 'ellipse' : 'rectangle';
+}
+
+function normalizeBrushPoints(value: unknown): PhotoEditorNormalizedPoint[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.slice(0, MAX_BRUSH_POINTS).flatMap((candidate) => {
+    if (!candidate || typeof candidate !== 'object') return [];
+    const point = candidate as Partial<PhotoEditorNormalizedPoint>;
+    const x = Number(point.x);
+    const y = Number(point.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return [];
+    return [
+      {
+        x: clampNumber(x, 0, 1),
+        y: clampNumber(y, 0, 1),
+      },
+    ];
+  });
+}
+
+function resolveBrushBounds(
+  points: readonly PhotoEditorNormalizedPoint[],
+  radiusX: number,
+  radiusY: number
+): PhotoEditorOverlayBounds {
+  const minX = Math.min(...points.map((point) => point.x));
+  const minY = Math.min(...points.map((point) => point.y));
+  const maxX = Math.max(...points.map((point) => point.x));
+  const maxY = Math.max(...points.map((point) => point.y));
+  const x = clampNumber(minX - radiusX, 0, 1);
+  const y = clampNumber(minY - radiusY, 0, 1);
+  const right = clampNumber(maxX + radiusX, 0, 1);
+  const bottom = clampNumber(maxY + radiusY, 0, 1);
+
+  return {
+    x,
+    y,
+    width: Math.max(MIN_PRIVACY_SIZE, right - x),
+    height: Math.max(MIN_PRIVACY_SIZE, bottom - y),
+  };
 }
 
 function normalizeId(value: unknown): string {

@@ -241,7 +241,7 @@ describe('PhotoEditorComponent', () => {
     expect(component.privacyBrushSize).toBe(3);
   });
 
-  it('gera dabs circulares de pincel e mantém o traço em uma única etapa de histórico', () => {
+  it('mantém cada traço de pincel em um único overlay e uma etapa de histórico', () => {
     markEditorIdle();
     (component as any).resetOverlayHistory([]);
     component.activeTool = 'blur';
@@ -249,21 +249,19 @@ describe('PhotoEditorComponent', () => {
     component.updatePrivacyBrushSize(12);
     (component as any).previewWidth = 800;
     (component as any).previewHeight = 600;
-    (component as any).brushStrokeSnapshot = [];
-    (component as any).brushStrokeLastPoint = { x: 0.2, y: 0.2 };
-    (component as any).brushStrokeDabCount = 0;
 
-    (component as any).appendBrushDab({ x: 0.2, y: 0.2 });
-    (component as any).appendBrushStroke({ x: 0.5, y: 0.2 });
+    const overlay = (component as any).createBrushOverlay({ x: 0.2, y: 0.2 });
+    (component as any).brushStrokeOverlayId = overlay.id;
+    component.overlays = [overlay];
 
-    expect(component.overlays.length).toBeGreaterThan(1);
-    expect(
-      component.overlays.every(
-        (overlay) =>
-          overlay.kind === 'blur' &&
-          overlay.shape === 'ellipse'
-      )
-    ).toBe(true);
+    (component as any).appendBrushPoint({ x: 0.5, y: 0.2 });
+
+    expect(component.overlays).toHaveLength(1);
+    expect(component.overlays[0]).toMatchObject({
+      kind: 'blur',
+      shape: 'brush',
+    });
+    expect((component.overlays[0] as any).points.length).toBeGreaterThan(1);
     expect(component.canUndo).toBe(false);
 
     (component as any).commitOverlays(component.overlays);
