@@ -129,7 +129,7 @@ export interface PhotoEditorOverlayRenderOptions {
 
 const MAX_OVERLAYS = 60;
 const MAX_BRUSH_POINTS = 512;
-const MIN_PRIVACY_SIZE = 0.012;
+export const PHOTO_EDITOR_PHOTO_EDITOR_MIN_PRIVACY_SIZE = 0.012;
 const MIN_BRUSH_RADIUS = 0.004;
 const MAX_BRUSH_RADIUS = 0.25;
 const SELECTION_PADDING_PX = 10;
@@ -211,13 +211,13 @@ export function normalizePhotoEditorOverlays(
       const y = clampNumber(source['y'], 0, 1);
       const width = clampNumber(
         source['width'],
-        MIN_PRIVACY_SIZE,
-        Math.max(MIN_PRIVACY_SIZE, 1 - x)
+        PHOTO_EDITOR_MIN_PRIVACY_SIZE,
+        Math.max(PHOTO_EDITOR_MIN_PRIVACY_SIZE, 1 - x)
       );
       const height = clampNumber(
         source['height'],
-        MIN_PRIVACY_SIZE,
-        Math.max(MIN_PRIVACY_SIZE, 1 - y)
+        PHOTO_EDITOR_MIN_PRIVACY_SIZE,
+        Math.max(PHOTO_EDITOR_MIN_PRIVACY_SIZE, 1 - y)
       );
       normalized.push({
         id,
@@ -242,13 +242,13 @@ export function normalizePhotoEditorOverlays(
         y,
         width: clampNumber(
           source['width'],
-          MIN_PRIVACY_SIZE,
-          Math.max(MIN_PRIVACY_SIZE, 1 - x)
+          PHOTO_EDITOR_MIN_PRIVACY_SIZE,
+          Math.max(PHOTO_EDITOR_MIN_PRIVACY_SIZE, 1 - x)
         ),
         height: clampNumber(
           source['height'],
-          MIN_PRIVACY_SIZE,
-          Math.max(MIN_PRIVACY_SIZE, 1 - y)
+          PHOTO_EDITOR_MIN_PRIVACY_SIZE,
+          Math.max(PHOTO_EDITOR_MIN_PRIVACY_SIZE, 1 - y)
         ),
         opacity: clampNumber(source['opacity'], 0.25, 1),
       });
@@ -298,7 +298,7 @@ export function privacyRegionFromDraft(
   const width = Math.abs(draft.endX - draft.startX);
   const height = Math.abs(draft.endY - draft.startY);
 
-  if (width < MIN_PRIVACY_SIZE || height < MIN_PRIVACY_SIZE) {
+  if (width < PHOTO_EDITOR_MIN_PRIVACY_SIZE || height < PHOTO_EDITOR_MIN_PRIVACY_SIZE) {
     return null;
   }
 
@@ -306,11 +306,11 @@ export function privacyRegionFromDraft(
     id: createPhotoEditorOverlayId(),
     x: clampNumber(x, 0, 1),
     y: clampNumber(y, 0, 1),
-    width: clampNumber(width, MIN_PRIVACY_SIZE, Math.max(MIN_PRIVACY_SIZE, 1 - x)),
+    width: clampNumber(width, PHOTO_EDITOR_MIN_PRIVACY_SIZE, Math.max(PHOTO_EDITOR_MIN_PRIVACY_SIZE, 1 - x)),
     height: clampNumber(
       height,
-      MIN_PRIVACY_SIZE,
-      Math.max(MIN_PRIVACY_SIZE, 1 - y)
+      PHOTO_EDITOR_MIN_PRIVACY_SIZE,
+      Math.max(PHOTO_EDITOR_MIN_PRIVACY_SIZE, 1 - y)
     ),
   };
 
@@ -886,17 +886,24 @@ function drawSelection(
     );
   }
   context.setLineDash([]);
-  context.fillStyle = '#ff7070';
 
-  for (const [x, y] of [
-    [bounds.x - padding, bounds.y - padding],
-    [bounds.x + bounds.width + padding, bounds.y - padding],
-    [bounds.x - padding, bounds.y + bounds.height + padding],
-    [bounds.x + bounds.width + padding, bounds.y + bounds.height + padding],
-  ] as const) {
-    context.beginPath();
-    context.arc(x, y, handleRadius, 0, Math.PI * 2);
-    context.fill();
+  const showResizeHandles =
+    overlay.kind === 'bar' ||
+    ((overlay.kind === 'blur' || overlay.kind === 'pixelate') &&
+      overlay.shape !== 'brush');
+
+  if (showResizeHandles) {
+    context.fillStyle = '#ff7070';
+    for (const [x, y] of [
+      [bounds.x - padding, bounds.y - padding],
+      [bounds.x + bounds.width + padding, bounds.y - padding],
+      [bounds.x - padding, bounds.y + bounds.height + padding],
+      [bounds.x + bounds.width + padding, bounds.y + bounds.height + padding],
+    ] as const) {
+      context.beginPath();
+      context.arc(x, y, handleRadius, 0, Math.PI * 2);
+      context.fill();
+    }
   }
 
   context.restore();
@@ -1055,8 +1062,8 @@ function resolveBrushBounds(
   return {
     x,
     y,
-    width: Math.max(MIN_PRIVACY_SIZE, right - x),
-    height: Math.max(MIN_PRIVACY_SIZE, bottom - y),
+    width: Math.max(PHOTO_EDITOR_MIN_PRIVACY_SIZE, right - x),
+    height: Math.max(PHOTO_EDITOR_MIN_PRIVACY_SIZE, bottom - y),
   };
 }
 

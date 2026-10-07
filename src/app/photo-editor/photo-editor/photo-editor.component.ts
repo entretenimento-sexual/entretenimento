@@ -41,6 +41,7 @@ import {
   resolveImageEditorPreset,
 } from 'src/app/core/services/media/media-format.policy';
 import {
+  PHOTO_EDITOR_MIN_PRIVACY_SIZE,
   PhotoEditorCaptionStyle,
   PhotoEditorDateTimeFormat,
   PhotoEditorDateTimeMeta,
@@ -83,6 +84,7 @@ export type PhotoEditorAspectRatio =
   | 'landscape';
 
 type PhotoEditorBrushMode = 'paint' | 'erase';
+type PhotoEditorResizeHandle = 'nw' | 'ne' | 'sw' | 'se';
 
 interface PhotoEditorNativeStateV1 {
   version: 1;
@@ -254,12 +256,14 @@ export class PhotoEditorComponent implements AfterViewInit {
     | 'privacy-brush'
     | 'privacy-brush-erase'
     | 'overlay'
+    | 'overlay-resize'
     | 'crop'
     | null = null;
   private lastPointerX = 0;
   private lastPointerY = 0;
   private overlayDragSnapshot: PhotoEditorOverlay[] | null = null;
   private overlayDragChanged = false;
+  private activeResizeHandle: PhotoEditorResizeHandle | null = null;
   private draftPrivacyRegion: PhotoEditorDraftPrivacyRegion | null = null;
   private brushStrokeSnapshot: PhotoEditorOverlay[] | null = null;
   private brushStrokeOverlayId: string | null = null;
@@ -877,6 +881,19 @@ export class PhotoEditorComponent implements AfterViewInit {
       return;
     }
 
+    const resizeHandle = this.hitTestSelectedPrivacyResizeHandle(point);
+    if (resizeHandle && this.selectedOverlayId) {
+      this.pointerInteraction = 'overlay-resize';
+      this.activeResizeHandle = resizeHandle;
+      this.overlayDragSnapshot = clonePhotoEditorOverlays(this.overlays);
+      this.overlayDragChanged = false;
+      this.draggingPointerId = event.pointerId;
+      this.capturePointer(event.pointerId);
+      this.scheduleRender();
+      event.preventDefault();
+      return;
+    }
+
     const hitOverlay = this.hitTestOverlay(point);
     if (hitOverlay) {
       this.selectedOverlayId = hitOverlay.id;
@@ -977,6 +994,25 @@ export class PhotoEditorComponent implements AfterViewInit {
       return;
     }
 
+    if (
+      this.pointerInteraction === 'overlay-resize' &&
+      this.selectedOverlayId &&
+      this.activeResizeHandle
+    ) {
+      const point = this.resolveNormalizedPointer(event);
+      if (!point) return;
+      const changed = this.resizeSelectedPrivacyOverlay(
+        point,
+        this.activeResizeHandle
+      );
+      this.overlayDragChanged = changed || this.overlayDragChanged;
+      if (changed) {
+        this.scheduleRender();
+      }
+      event.preventDefault();
+      return;
+    }
+
     if (this.pointerInteraction === 'overlay' && this.selectedOverlayId) {
       const deltaX = (event.clientX - this.lastPointerX) / width;
       const deltaY = (event.clientY - this.lastPointerY) / height;
@@ -1067,6 +1103,11 @@ export class PhotoEditorComponent implements AfterViewInit {
         this.cropRect = normalizePhotoEditorCropRect(this.draftCropRect);
         this.commitEditorState();
       }
+    } else if (
+      this.pointerInteraction === 'overlay-resize' &&
+      this.overlayDragChanged
+    ) {
+      this.commitOverlays(this.overlays);
     } else if (this.pointerInteraction === 'overlay' && this.overlayDragChanged) {
       this.commitOverlays(this.overlays);
     } else if (this.pointerInteraction === 'pan') {
@@ -1083,7 +1124,11 @@ export class PhotoEditorComponent implements AfterViewInit {
       this.brushStrokeSnapshot
     ) {
       this.overlays = clonePhotoEditorOverlays(this.brushStrokeSnapshot);
-    } else if (this.pointerInteraction === 'overlay' && this.overlayDragSnapshot) {
+    } else if (
+      (this.pointerInteraction === 'overlay' ||
+        this.pointerInteraction === 'overlay-resize') &&
+      this.overlayDragSnapshot
+    ) {
       this.overlays = clonePhotoEditorOverlays(this.overlayDragSnapshot);
     } else if (this.pointerInteraction === 'pan') {
       const snapshot = this.photoEditorHistory.current;
@@ -1928,6 +1973,120 @@ export class PhotoEditorComponent implements AfterViewInit {
     }, commit);
   }
 
+  private hitTestSelectedPrivacyResizeHandle(
+    point: PhotoEditorNormalizedPoint
+  ): PhotoEditorResizeHandle | null {
+    const selected = this.selectedOverlay;
+    if (
+      !selected ||
+      (selected.kind !== 'blur' &&
+        selected.kind !== 'pixelate' &&
+        selected.kind !== 'bar') ||
+      ((selected.kind === 'blur' || selected.kind === 'pixelate') &&
+        selected.shape === 'brush') ||
+      !this.previewWidth ||
+      !this.previewHeight
+    ) {
+      return null;
+    }
+
+    const width = this.previewWidth;
+    const height = this.previewHeight;
+    const padding = Math.max(5, Math.min(width, height) * 0.008);
+    const hitRadius = Math.max(12, Math.min(width, height) * 0.018);
+    const pixelX = point.x * width;
+    const pixelY = point.y * height;
+    const left = selected.x * width - padding;
+    const top = selected.y * height - padding;
+    const right = (selected.x + selected.width) * width + padding;
+    const bottom = (selected.y + selected.height) * height + padding;
+
+    const handles: ReadonlyArray<
+      readonly [PhotoEditorResizeHandle, number, number]
+    > = [
+      ['nw', left, top],
+      ['ne', right, top],
+      ['sw', left, bottom],
+      ['se', right, bottom],
+    ];
+
+    for (const [handle, x, y] of handles) {
+      if (Math.hypot(pixelX - x, pixelY - y) <= hitRadius) {
+        return handle;
+      }
+    }
+
+    return null;
+  }
+
+  private resizeSelectedPrivacyOverlay(
+    point: PhotoEditorNormalizedPoint,
+    handle: PhotoEditorResizeHandle
+  ): boolean {
+    const selectedId = this.selectedOverlayId;
+    const snapshot = this.overlayDragSnapshot;
+    if (!selectedId || !snapshot) return false;
+
+    const original = snapshot.find((overlay) => overlay.id === selectedId);
+    if (
+      !original ||
+      (original.kind !== 'blur' &&
+        original.kind !== 'pixelate' &&
+        original.kind !== 'bar') ||
+      ((original.kind === 'blur' || original.kind === 'pixelate') &&
+        original.shape === 'brush')
+    ) {
+      return false;
+    }
+
+    const left = original.x;
+    const top = original.y;
+    const right = original.x + original.width;
+    const bottom = original.y + original.height;
+    let x = left;
+    let y = top;
+    let width = original.width;
+    let height = original.height;
+
+    if (handle === 'nw' || handle === 'sw') {
+      x = this.clamp(point.x, 0, right - PHOTO_EDITOR_MIN_PRIVACY_SIZE);
+      width = right - x;
+    } else {
+      const nextRight = this.clamp(
+        point.x,
+        left + PHOTO_EDITOR_MIN_PRIVACY_SIZE,
+        1
+      );
+      width = nextRight - left;
+    }
+
+    if (handle === 'nw' || handle === 'ne') {
+      y = this.clamp(point.y, 0, bottom - PHOTO_EDITOR_MIN_PRIVACY_SIZE);
+      height = bottom - y;
+    } else {
+      const nextBottom = this.clamp(
+        point.y,
+        top + PHOTO_EDITOR_MIN_PRIVACY_SIZE,
+        1
+      );
+      height = nextBottom - top;
+    }
+
+    const next = { ...original, x, y, width, height };
+    const changed =
+      Math.abs(next.x - original.x) > Number.EPSILON ||
+      Math.abs(next.y - original.y) > Number.EPSILON ||
+      Math.abs(next.width - original.width) > Number.EPSILON ||
+      Math.abs(next.height - original.height) > Number.EPSILON;
+
+    if (!changed) return false;
+
+    this.overlays = this.overlays.map((overlay) =>
+      overlay.id === selectedId ? next : overlay
+    );
+    return true;
+  }
+
   private hitTestOverlay(
     point: PhotoEditorNormalizedPoint
   ): PhotoEditorOverlay | null {
@@ -2329,6 +2488,7 @@ export class PhotoEditorComponent implements AfterViewInit {
     this.pointerInteraction = null;
     this.overlayDragSnapshot = null;
     this.overlayDragChanged = false;
+    this.activeResizeHandle = null;
     this.draftPrivacyRegion = null;
     this.brushStrokeSnapshot = null;
     this.brushStrokeOverlayId = null;

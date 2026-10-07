@@ -275,6 +275,112 @@ describe('PhotoEditorComponent', () => {
     expect(component.overlays).toEqual([]);
   });
 
+  it('redimensiona áreas retangulares e circulares pelas alças e preserva histórico', () => {
+    markEditorIdle();
+    component.overlays = [
+      {
+        id: 'privacy-resize',
+        kind: 'blur',
+        x: 0.2,
+        y: 0.2,
+        width: 0.4,
+        height: 0.3,
+        strength: 0.03,
+        shape: 'ellipse',
+      },
+    ];
+    (component as any).resetOverlayHistory(component.overlays);
+    component.selectOverlay('privacy-resize');
+    (component as any).overlayDragSnapshot = structuredClone(component.overlays);
+
+    const changed = (component as any).resizeSelectedPrivacyOverlay(
+      { x: 0.1, y: 0.12 },
+      'nw'
+    );
+
+    expect(changed).toBe(true);
+    expect(component.selectedOverlay).toMatchObject({
+      id: 'privacy-resize',
+      shape: 'ellipse',
+      x: 0.1,
+      y: 0.12,
+      width: 0.5,
+      height: 0.38,
+    });
+    expect(component.canUndo).toBe(false);
+
+    (component as any).commitOverlays(component.overlays);
+
+    expect(component.canUndo).toBe(true);
+    component.undoOverlay();
+    expect(component.selectedOverlay).toMatchObject({
+      id: 'privacy-resize',
+      x: 0.2,
+      y: 0.2,
+      width: 0.4,
+      height: 0.3,
+    });
+  });
+
+  it('impõe tamanho mínimo ao redimensionar uma área de privacidade', () => {
+    markEditorIdle();
+    component.overlays = [
+      {
+        id: 'privacy-min-resize',
+        kind: 'pixelate',
+        x: 0.2,
+        y: 0.2,
+        width: 0.4,
+        height: 0.4,
+        strength: 0.03,
+        shape: 'rectangle',
+      },
+    ];
+    component.selectOverlay('privacy-min-resize');
+    (component as any).overlayDragSnapshot = structuredClone(component.overlays);
+
+    const changed = (component as any).resizeSelectedPrivacyOverlay(
+      { x: 0.5999, y: 0.5999 },
+      'nw'
+    );
+
+    expect(changed).toBe(true);
+    expect((component.selectedOverlay as any).width).toBeCloseTo(0.012, 10);
+    expect((component.selectedOverlay as any).height).toBeCloseTo(0.012, 10);
+  });
+
+  it('não oferece redimensionamento por alça para brush', () => {
+    markEditorIdle();
+    component.overlays = [
+      {
+        id: 'brush-no-resize',
+        kind: 'blur',
+        shape: 'brush',
+        x: 0.1,
+        y: 0.1,
+        width: 0.5,
+        height: 0.2,
+        radiusX: 0.04,
+        radiusY: 0.05,
+        strength: 0.03,
+        points: [
+          { x: 0.2, y: 0.2 },
+          { x: 0.3, y: 0.2 },
+        ],
+      },
+    ];
+    component.selectOverlay('brush-no-resize');
+    (component as any).previewWidth = 800;
+    (component as any).previewHeight = 600;
+
+    expect(
+      (component as any).hitTestSelectedPrivacyResizeHandle({
+        x: 0.1,
+        y: 0.1,
+      })
+    ).toBeNull();
+  });
+
   it('apaga somente pontos do brush ativo e registra uma única alteração', () => {
     markEditorIdle();
     (component as any).resetOverlayHistory([]);
