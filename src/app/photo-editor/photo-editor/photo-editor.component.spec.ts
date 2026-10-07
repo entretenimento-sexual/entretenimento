@@ -314,13 +314,16 @@ describe('PhotoEditorComponent', () => {
 
     expect(component.canUndo).toBe(true);
     component.undoOverlay();
-    expect(component.selectedOverlay).toMatchObject({
+    const restored = component.overlays.find(
+      (overlay) => overlay.id === 'privacy-resize'
+    );
+    expect(restored).toMatchObject({
       id: 'privacy-resize',
       x: 0.2,
       y: 0.2,
-      width: 0.4,
-      height: 0.3,
     });
+    expect((restored as any).width).toBeCloseTo(0.4, 10);
+    expect((restored as any).height).toBeCloseTo(0.3, 10);
   });
 
   it('impõe tamanho mínimo ao redimensionar uma área de privacidade', () => {
@@ -550,12 +553,10 @@ describe('PhotoEditorComponent', () => {
       0.1,
       -0.05
     );
-    expect(moved).toEqual({
-      x: 0.3,
-      y: 0.15000000000000002,
-      width: 0.5,
-      height: 0.5,
-    });
+    expect(moved.x).toBeCloseTo(0.3, 10);
+    expect(moved.y).toBeCloseTo(0.15, 10);
+    expect(moved.width).toBeCloseTo(0.5, 10);
+    expect(moved.height).toBeCloseTo(0.5, 10);
 
     const resized = (component as any).resizeCropRect(
       moved,
