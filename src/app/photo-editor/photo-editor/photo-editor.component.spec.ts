@@ -136,6 +136,119 @@ describe('PhotoEditorComponent', () => {
     expect(component.saveActionLabel).toBe('Aplicar edição');
   });
 
+  it('compara com o original sem alterar estado canônico nem histórico', () => {
+    markEditorIdle();
+    (component as any).resetOverlayHistory([]);
+    component.rotateRight();
+    component.updateBrightness(120);
+    component.commitImageAdjustment();
+    component.overlays = [
+      {
+        id: 'compare-bar',
+        kind: 'bar',
+        x: 0.2,
+        y: 0.3,
+        width: 0.4,
+        height: 0.12,
+        opacity: 0.8,
+      },
+    ];
+    (component as any).commitOverlays(component.overlays);
+
+    const stateBefore = structuredClone((component as any).buildEditorState());
+    const canUndoBefore = component.canUndo;
+
+    component.startOriginalPreview();
+
+    expect(component.isComparingOriginal).toBe(true);
+    expect((component as any).buildEditorState()).toEqual(stateBefore);
+    expect(component.canUndo).toBe(canUndoBefore);
+
+    component.stopOriginalPreview();
+
+    expect(component.isComparingOriginal).toBe(false);
+    expect((component as any).buildEditorState()).toEqual(stateBefore);
+    expect(component.canUndo).toBe(canUndoBefore);
+  });
+
+  it('mantém comparação pressionável acessível por teclado', () => {
+    markEditorIdle();
+
+    const down = new KeyboardEvent('keydown', {
+      key: ' ',
+      cancelable: true,
+    });
+    component.onCompareKeydown(down);
+
+    expect(down.defaultPrevented).toBe(true);
+    expect(component.isComparingOriginal).toBe(true);
+
+    const up = new KeyboardEvent('keyup', {
+      key: ' ',
+      cancelable: true,
+    });
+    component.onCompareKeyup(up);
+
+    expect(up.defaultPrevented).toBe(true);
+    expect(component.isComparingOriginal).toBe(false);
+
+    component.onCompareKeydown(
+      new KeyboardEvent('keydown', { key: 'Enter', cancelable: true })
+    );
+    expect(component.isComparingOriginal).toBe(true);
+
+    component.onCompareKeyup(
+      new KeyboardEvent('keyup', { key: 'Enter', cancelable: true })
+    );
+    expect(component.isComparingOriginal).toBe(false);
+  });
+
+  it('desenha o original inteiro sem aplicar transformações ou overlays', () => {
+    markEditorIdle();
+    const sourceImage = {
+      naturalWidth: 1200,
+      naturalHeight: 800,
+    } as HTMLImageElement;
+    (component as any).sourceImage = sourceImage;
+    component.rotation = 90;
+    component.zoom = 2;
+    component.brightness = 125;
+    component.overlays = [
+      {
+        id: 'compare-overlay',
+        kind: 'bar',
+        x: 0.2,
+        y: 0.2,
+        width: 0.4,
+        height: 0.12,
+        opacity: 1,
+      },
+    ];
+
+    const context = {
+      save: vi.fn(),
+      restore: vi.fn(),
+      clearRect: vi.fn(),
+      fillRect: vi.fn(),
+      drawImage: vi.fn(),
+      fillStyle: '',
+    } as unknown as CanvasRenderingContext2D;
+
+    (component as any).drawOriginalPreview(context, 600, 600);
+
+    expect(context.drawImage).toHaveBeenCalledWith(
+      sourceImage,
+      0,
+      100,
+      600,
+      400
+    );
+    expect(component.rotation).toBe(90);
+    expect(component.zoom).toBe(2);
+    expect(component.brightness).toBe(125);
+    expect(component.overlays).toHaveLength(1);
+  });
+
   it('bloqueia proporção conforme o preset canônico de avatar', () => {
     markEditorIdle();
     (component as any).activeDraft = {
