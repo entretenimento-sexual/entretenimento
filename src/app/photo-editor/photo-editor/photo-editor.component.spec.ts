@@ -789,6 +789,20 @@ describe('PhotoEditorComponent', () => {
     expect(component.hoveringMovableTarget).toBe(true);
   });
 
+  it('deixa o conteúdo mobile definir a altura rolável do editor', () => {
+    const styles = require('node:fs').readFileSync(
+      require('node:path').resolve(
+        process.cwd(),
+        'src/app/photo-editor/photo-editor/photo-editor.component.css'
+      ),
+      'utf8'
+    );
+
+    expect(styles).toContain('grid-template-rows: auto auto;');
+    expect(styles).toContain('min-height: max-content;');
+    expect(styles).toContain('grid-template-rows: clamp(220px, 40dvh, 340px) auto auto auto auto;');
+  });
+
   it('mantém a toolbar mobile no fluxo para evitar sobreposição de instruções e controles', () => {
     const styles = require('node:fs').readFileSync(
       require('node:path').resolve(
