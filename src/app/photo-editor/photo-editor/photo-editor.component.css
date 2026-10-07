@@ -771,6 +771,7 @@
 
 @media (max-width: 640px) {
   .editor-shell {
+    grid-template-rows: auto auto;
     height: 100dvh;
     max-height: 100dvh;
     padding:
@@ -796,7 +797,8 @@
   }
 
   .editor-card {
-    grid-template-rows: clamp(230px, 44dvh, 420px) minmax(44px, auto) auto auto auto;
+    grid-template-rows: clamp(230px, 44dvh, 420px) auto auto auto auto;
+    min-height: max-content;
     overflow: visible;
     border-radius: 14px;
     box-shadow: none;
@@ -932,7 +934,7 @@
   }
 
   .editor-card {
-    grid-template-rows: clamp(220px, 40dvh, 340px) minmax(44px, auto) auto auto auto;
+    grid-template-rows: clamp(220px, 40dvh, 340px) auto auto auto auto;
   }
 
   .editor-controls {
