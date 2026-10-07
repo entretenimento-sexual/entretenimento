@@ -786,7 +786,7 @@
   }
 
   .editor-card {
-    grid-template-rows: minmax(240px, 46dvh) minmax(44px, auto) auto auto auto;
+    grid-template-rows: clamp(230px, 44dvh, 420px) minmax(44px, auto) auto auto auto;
     overflow: visible;
     border-radius: 14px;
     box-shadow: none;
@@ -824,11 +824,20 @@
   }
 
   .editor-tool-actions {
-    justify-items: end;
+    min-width: 0;
+    justify-items: stretch;
     padding-top: 6px;
     padding-left: 0;
     border-top: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
     border-left: 0;
+  }
+
+  .editor-tool-actions__buttons {
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    padding-bottom: 2px;
+    scrollbar-width: thin;
   }
 
   .editor-tool-panel--privacy,
@@ -837,15 +846,23 @@
   .editor-tool-panel--datetime,
   .editor-tool-panel--adjust,
   .editor-tool-panel__row,
-  .editor-properties-grid,
-  .editor-controls {
+  .editor-properties-grid {
     grid-template-columns: 1fr;
+  }
+
+  .editor-controls {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 9px;
+  }
+
+  .editor-control-group--ratio,
+  .editor-zoom {
+    grid-column: 1 / -1;
   }
 
   .editor-tool-panel--decoration .editor-tool-field--text,
   .editor-properties-grid__wide,
   .editor-tool-note,
-  .editor-zoom,
   .editor-adjust-actions {
     grid-column: auto;
   }
@@ -865,7 +882,11 @@
   }
 
   .editor-segmented {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .editor-shortcuts-hint {
+    display: none;
   }
 
   .editor-footer {
@@ -886,9 +907,25 @@
 }
 
 @media (max-width: 390px) {
-
   .close-btn {
     min-width: 76px;
+  }
+
+  .editor-card {
+    grid-template-rows: clamp(220px, 40dvh, 340px) minmax(44px, auto) auto auto auto;
+  }
+
+  .editor-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .editor-control-group--ratio,
+  .editor-zoom {
+    grid-column: auto;
+  }
+
+  .editor-segmented {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .editor-selection-actions,
