@@ -865,6 +865,12 @@
     padding-bottom: 4px;
     overflow-x: auto;
     overflow-y: hidden;
+    scroll-snap-type: x proximity;
+    scroll-padding-inline: 2px;
+  }
+
+  .editor-tool-group {
+    scroll-snap-align: start;
   }
 
   .editor-tool-actions,
@@ -875,7 +881,7 @@
   }
 
   .editor-tool-hint {
-    padding-top: 2px;
+    padding: 2px 1px 0;
   }
 
   .editor-tool-actions {
@@ -888,6 +894,10 @@
     padding-left: 0;
     border-top: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
     border-left: 0;
+  }
+
+  .editor-tool-actions--inactive {
+    display: none;
   }
 
   .editor-tool-actions__buttons {
