@@ -820,6 +820,9 @@
   }
 
   .editor-toolbox {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
     max-height: none;
     padding-inline: 9px;
     overflow: visible;
@@ -829,15 +832,26 @@
     position: static;
     top: auto;
     z-index: auto;
-    grid-template-columns: 1fr;
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
     align-items: stretch;
     gap: 8px;
-    min-height: 0;
+    min-height: max-content;
     padding: 6px 0 4px;
   }
 
   .editor-tool-groups {
+    flex: 0 0 auto;
+    min-height: 58px;
     padding-bottom: 4px;
+  }
+
+  .editor-tool-actions,
+  .editor-tool-hint,
+  .editor-tool-panel,
+  .editor-selection-panel {
+    flex: 0 0 auto;
   }
 
   .editor-tool-hint {
@@ -875,6 +889,7 @@
   .editor-controls {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 9px;
+    padding-top: 4px;
   }
 
   .editor-control-group--ratio,
