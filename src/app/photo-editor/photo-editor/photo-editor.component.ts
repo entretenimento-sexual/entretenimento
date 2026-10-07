@@ -50,6 +50,7 @@ import {
   PhotoEditorNormalizedPoint,
   PhotoEditorOverlay,
   PhotoEditorPrivacyOverlay,
+  PhotoEditorPrivacyShape,
   PhotoEditorTool,
   clonePhotoEditorOverlays,
   createPhotoEditorDateTimeMeta,
@@ -222,6 +223,7 @@ export class PhotoEditorComponent implements AfterViewInit {
   activeTool: PhotoEditorTool = 'move';
   privacyStrength = 3;
   privacyOpacity = 85;
+  privacyShape: PhotoEditorPrivacyShape = 'rectangle';
   decorationSize = 10;
   selectedEmoji = this.emojiOptions[0];
   captionText = '';
@@ -473,6 +475,12 @@ export class PhotoEditorComponent implements AfterViewInit {
     );
   }
 
+  setPrivacyShape(shape: PhotoEditorPrivacyShape): void {
+    if (this.isBusy()) return;
+    this.privacyShape = shape === 'ellipse' ? 'ellipse' : 'rectangle';
+    this.scheduleRender();
+  }
+
   updateDecorationSize(value: number | string): void {
     const numericValue = Number(value);
     this.decorationSize = this.clamp(
@@ -571,6 +579,18 @@ export class PhotoEditorComponent implements AfterViewInit {
       (overlay) =>
         overlay.kind === 'bar' ? { ...overlay, opacity } : overlay,
       false
+    );
+  }
+
+  updateSelectedPrivacyShape(shape: PhotoEditorPrivacyShape): void {
+    const normalizedShape: PhotoEditorPrivacyShape =
+      shape === 'ellipse' ? 'ellipse' : 'rectangle';
+    this.updateSelectedPrivacy(
+      (overlay) =>
+        overlay.kind === 'bar'
+          ? overlay
+          : { ...overlay, shape: normalizedShape },
+      true
     );
   }
 
@@ -856,7 +876,7 @@ export class PhotoEditorComponent implements AfterViewInit {
         strength: this.privacyStrength / 100,
         ...(this.activeTool === 'bar'
           ? { opacity: this.privacyOpacity / 100 }
-          : {}),
+          : { shape: this.privacyShape }),
       };
       this.capturePointer(event.pointerId);
       this.scheduleRender();

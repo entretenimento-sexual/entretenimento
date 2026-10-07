@@ -53,6 +53,41 @@ describe('photo editor overlay model', () => {
     expect(overlay?.width).toBeCloseTo(0.7, 10);
   });
 
+  it('preserva forma circular de borramento e usa retângulo como fallback legado', () => {
+    const ellipse = privacyRegionFromDraft({
+      kind: 'blur',
+      startX: 0.2,
+      startY: 0.2,
+      endX: 0.7,
+      endY: 0.6,
+      strength: 0.03,
+      shape: 'ellipse',
+    });
+
+    expect(ellipse).toMatchObject({
+      kind: 'blur',
+      shape: 'ellipse',
+    });
+
+    const [legacy] = normalizePhotoEditorOverlays([
+      {
+        id: 'legacy-blur',
+        kind: 'blur',
+        x: 0.1,
+        y: 0.1,
+        width: 0.4,
+        height: 0.4,
+        strength: 0.03,
+      },
+    ]);
+
+    expect(legacy).toMatchObject({
+      id: 'legacy-blur',
+      kind: 'blur',
+      shape: 'rectangle',
+    });
+  });
+
   it('descarta seleção pequena demais para produzir proteção acidental', () => {
     const overlay = privacyRegionFromDraft({
       kind: 'pixelate',

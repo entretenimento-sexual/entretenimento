@@ -197,6 +197,37 @@ describe('PhotoEditorComponent', () => {
     ]);
   });
 
+  it('alterna a forma de privacidade entre retângulo e círculo', () => {
+    markEditorIdle();
+    expect(component.privacyShape).toBe('rectangle');
+
+    component.setPrivacyShape('ellipse');
+    expect(component.privacyShape).toBe('ellipse');
+
+    component.overlays = [
+      {
+        id: 'blur-shape',
+        kind: 'blur',
+        x: 0.2,
+        y: 0.2,
+        width: 0.4,
+        height: 0.4,
+        strength: 0.03,
+        shape: 'rectangle',
+      },
+    ];
+    (component as any).resetOverlayHistory(component.overlays);
+    component.selectOverlay('blur-shape');
+    component.updateSelectedPrivacyShape('ellipse');
+
+    expect(component.selectedOverlay).toMatchObject({
+      id: 'blur-shape',
+      kind: 'blur',
+      shape: 'ellipse',
+    });
+    expect(component.canUndo).toBe(true);
+  });
+
   it('deve limitar intensidade e tamanho aos intervalos suportados', () => {
     component.updatePrivacyStrength(99);
     component.updatePrivacyOpacity(1);

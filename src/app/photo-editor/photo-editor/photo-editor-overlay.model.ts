@@ -14,6 +14,7 @@ export type PhotoEditorTool =
   | 'datetime';
 
 export type PhotoEditorCaptionStyle = 'classic' | 'badge' | 'neon';
+export type PhotoEditorPrivacyShape = 'rectangle' | 'ellipse';
 
 export type PhotoEditorFontFamily =
   | 'system'
@@ -52,6 +53,7 @@ export interface PhotoEditorEffectPrivacyOverlay extends PhotoEditorOverlayBase 
   width: number;
   height: number;
   strength: number;
+  shape: PhotoEditorPrivacyShape;
 }
 
 export interface PhotoEditorBarPrivacyOverlay extends PhotoEditorOverlayBase {
@@ -86,6 +88,7 @@ export interface PhotoEditorDraftPrivacyRegion {
   endY: number;
   strength: number;
   opacity?: number;
+  shape?: PhotoEditorPrivacyShape;
 }
 
 export interface PhotoEditorOverlayBounds {
@@ -181,6 +184,7 @@ export function normalizePhotoEditorOverlays(
           width,
           height,
           strength: clampNumber(source['strength'], 0.008, 0.08),
+          shape: normalizePrivacyShape(source['shape']),
         });
       }
       continue;
@@ -255,6 +259,7 @@ export function privacyRegionFromDraft(
         ...base,
         kind: draft.kind,
         strength: clampNumber(draft.strength, 0.008, 0.08),
+        shape: normalizePrivacyShape(draft.shape),
       };
 }
 
@@ -358,14 +363,32 @@ export function hitTestPhotoEditorOverlay(
       context
     );
 
-    if (
+    const insideBounds =
       pixelX >= bounds.x - SELECTION_PADDING_PX &&
       pixelX <= bounds.x + bounds.width + SELECTION_PADDING_PX &&
       pixelY >= bounds.y - SELECTION_PADDING_PX &&
-      pixelY <= bounds.y + bounds.height + SELECTION_PADDING_PX
-    ) {
-      return overlay;
+      pixelY <= bounds.y + bounds.height + SELECTION_PADDING_PX;
+
+    if (!insideBounds) {
+      continue;
     }
+
+    if (
+      (overlay.kind === 'blur' || overlay.kind === 'pixelate') &&
+      overlay.shape === 'ellipse'
+    ) {
+      const radiusX = Math.max(1, bounds.width / 2 + SELECTION_PADDING_PX);
+      const radiusY = Math.max(1, bounds.height / 2 + SELECTION_PADDING_PX);
+      const centerX = bounds.x + bounds.width / 2;
+      const centerY = bounds.y + bounds.height / 2;
+      const normalizedX = (pixelX - centerX) / radiusX;
+      const normalizedY = (pixelY - centerY) / radiusY;
+      if (normalizedX * normalizedX + normalizedY * normalizedY > 1) {
+        continue;
+      }
+    }
+
+    return overlay;
   }
 
   return null;
@@ -501,8 +524,7 @@ function drawBlurOverlay(
   );
 
   context.save();
-  context.beginPath();
-  context.rect(rect.x, rect.y, rect.width, rect.height);
+  applyPrivacyClip(context, overlay, rect);
   context.clip();
   context.filter = `blur(${blurRadius}px)`;
   context.drawImage(baseCanvas, 0, 0, width, height);
@@ -548,6 +570,8 @@ function drawPixelateOverlay(
   );
 
   context.save();
+  applyPrivacyClip(context, overlay, rect);
+  context.clip();
   context.imageSmoothingEnabled = false;
   context.drawImage(
     sampleCanvas,
@@ -588,8 +612,44 @@ function drawDraftOutline(
   context.strokeStyle = '#ff7070';
   context.lineWidth = Math.max(2, Math.min(width, height) * 0.004);
   context.setLineDash([8, 6]);
-  context.strokeRect(rect.x, rect.y, rect.width, rect.height);
+  if (
+    (overlay.kind === 'blur' || overlay.kind === 'pixelate') &&
+    overlay.shape === 'ellipse'
+  ) {
+    traceEllipse(context, rect);
+    context.stroke();
+  } else {
+    context.strokeRect(rect.x, rect.y, rect.width, rect.height);
+  }
   context.restore();
+}
+
+function applyPrivacyClip(
+  context: CanvasRenderingContext2D,
+  overlay: PhotoEditorEffectPrivacyOverlay,
+  rect: PhotoEditorOverlayBounds
+): void {
+  context.beginPath();
+  if (overlay.shape === 'ellipse') {
+    traceEllipse(context, rect);
+    return;
+  }
+  context.rect(rect.x, rect.y, rect.width, rect.height);
+}
+
+function traceEllipse(
+  context: CanvasRenderingContext2D,
+  rect: PhotoEditorOverlayBounds
+): void {
+  context.ellipse(
+    rect.x + rect.width / 2,
+    rect.y + rect.height / 2,
+    rect.width / 2,
+    rect.height / 2,
+    0,
+    0,
+    Math.PI * 2
+  );
 }
 
 function drawEmojiOverlay(
@@ -685,12 +745,25 @@ function drawSelection(
   context.strokeStyle = '#ffffff';
   context.lineWidth = Math.max(1.5, Math.min(width, height) * 0.003);
   context.setLineDash([7, 5]);
-  context.strokeRect(
-    bounds.x - padding,
-    bounds.y - padding,
-    bounds.width + padding * 2,
-    bounds.height + padding * 2
-  );
+  if (
+    (overlay.kind === 'blur' || overlay.kind === 'pixelate') &&
+    overlay.shape === 'ellipse'
+  ) {
+    traceEllipse(context, {
+      x: bounds.x - padding,
+      y: bounds.y - padding,
+      width: bounds.width + padding * 2,
+      height: bounds.height + padding * 2,
+    });
+    context.stroke();
+  } else {
+    context.strokeRect(
+      bounds.x - padding,
+      bounds.y - padding,
+      bounds.width + padding * 2,
+      bounds.height + padding * 2
+    );
+  }
   context.setLineDash([]);
   context.fillStyle = '#ff7070';
 
@@ -813,6 +886,10 @@ function normalizeDateTimeFormat(value: unknown): PhotoEditorDateTimeFormat {
   return value === 'numeric' || value === 'long' || value === 'today'
     ? value
     : 'instagram';
+}
+
+function normalizePrivacyShape(value: unknown): PhotoEditorPrivacyShape {
+  return value === 'ellipse' ? 'ellipse' : 'rectangle';
 }
 
 function normalizeId(value: unknown): string {

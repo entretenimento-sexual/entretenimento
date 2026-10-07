@@ -297,7 +297,30 @@
 }
 
 .editor-tool-panel--privacy {
-  grid-template-columns: minmax(230px, 0.8fr) minmax(0, 1.2fr);
+  grid-template-columns: minmax(180px, auto) minmax(230px, 0.8fr) minmax(0, 1.2fr);
+}
+
+.editor-shape-field {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.editor-shape-field legend {
+  margin: 0 0 4px;
+  padding: 0;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.editor-shape-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .editor-tool-panel--decoration {
@@ -371,7 +394,7 @@
 }
 
 .editor-properties-grid--privacy {
-  grid-template-columns: minmax(240px, 1fr);
+  grid-template-columns: minmax(170px, 0.6fr) minmax(240px, 1fr);
 }
 
 .editor-properties-grid__wide {

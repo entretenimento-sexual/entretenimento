@@ -144,6 +144,30 @@
 
           @if (selected.kind === 'blur' || selected.kind === 'pixelate') {
             <div class="editor-properties-grid editor-properties-grid--privacy">
+              <fieldset class="editor-shape-field">
+                <legend>Forma</legend>
+                <div class="editor-shape-options" role="group" aria-label="Forma da área de privacidade">
+                  <button
+                    type="button"
+                    class="editor-tool-button"
+                    [class.is-active]="selected.shape === 'rectangle'"
+                    [attr.aria-pressed]="selected.shape === 'rectangle'"
+                    (click)="updateSelectedPrivacyShape('rectangle')"
+                  >
+                    Retângulo
+                  </button>
+                  <button
+                    type="button"
+                    class="editor-tool-button"
+                    [class.is-active]="selected.shape === 'ellipse'"
+                    [attr.aria-pressed]="selected.shape === 'ellipse'"
+                    (click)="updateSelectedPrivacyShape('ellipse')"
+                  >
+                    Círculo
+                  </button>
+                </div>
+              </fieldset>
+
               <label class="editor-tool-field editor-tool-field--range">
                 <span>Intensidade</span>
                 <input
@@ -390,6 +414,30 @@
                 <output>{{ privacyOpacity.toFixed(0) }}%</output>
               </label>
             } @else {
+              <fieldset class="editor-shape-field">
+                <legend>Forma</legend>
+                <div class="editor-shape-options" role="group" aria-label="Forma da área de privacidade">
+                  <button
+                    type="button"
+                    class="editor-tool-button"
+                    [class.is-active]="privacyShape === 'rectangle'"
+                    [attr.aria-pressed]="privacyShape === 'rectangle'"
+                    (click)="setPrivacyShape('rectangle')"
+                  >
+                    Retângulo
+                  </button>
+                  <button
+                    type="button"
+                    class="editor-tool-button"
+                    [class.is-active]="privacyShape === 'ellipse'"
+                    [attr.aria-pressed]="privacyShape === 'ellipse'"
+                    (click)="setPrivacyShape('ellipse')"
+                  >
+                    Círculo
+                  </button>
+                </div>
+              </fieldset>
+
               <label class="editor-tool-field editor-tool-field--range">
                 <span>Intensidade</span>
                 <input
@@ -405,7 +453,13 @@
               </label>
             }
             <p class="editor-tool-note">
-              Arraste sobre a área. A proteção será incorporada ao arquivo final.
+              @if (activeTool === 'bar') {
+                Arraste sobre a área. A proteção será incorporada ao arquivo final.
+              } @else if (privacyShape === 'ellipse') {
+                Arraste sobre o rosto ou outra área para criar uma proteção circular/oval.
+              } @else {
+                Arraste sobre a área. A proteção será incorporada ao arquivo final.
+              }
             </p>
           </div>
         }
