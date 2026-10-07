@@ -792,6 +792,11 @@
     background: var(--surface-color, #101923);
   }
 
+  .close-btn {
+    flex: 0 0 auto;
+    width: auto;
+  }
+
   .subtitle {
     display: none;
   }
@@ -926,7 +931,7 @@
     width: 100%;
     max-width: 100%;
     min-width: 0;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: 1fr;
     gap: 9px;
     padding-top: 4px;
     box-sizing: border-box;
@@ -934,7 +939,7 @@
 
   .editor-control-group--ratio,
   .editor-zoom {
-    grid-column: 1 / -1;
+    grid-column: auto;
   }
 
   .editor-tool-panel--decoration .editor-tool-field--text,
