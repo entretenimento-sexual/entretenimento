@@ -71,7 +71,6 @@ import {
   PHOTO_EDITOR_FULL_CROP_RECT,
   PHOTO_EDITOR_MIN_CROP_SIZE,
   PhotoEditorCropRect,
-  createPhotoEditorCropRect,
   isFullPhotoEditorCropRect,
   normalizePhotoEditorCropRect,
   resolvePhotoEditorCropOutputGeometry,
