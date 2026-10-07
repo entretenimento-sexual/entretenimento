@@ -60,6 +60,20 @@ describe('photo upload flow architecture', () => {
     expect(component).toContain('if (!event.isTrusted)');
   });
 
+  it('colapsa o preview vazio no mobile e preserva a prévia quando há foto', () => {
+    const template = source(
+      'src/app/media/photos/photo-upload/photo-upload.component.html'
+    );
+    const styles = source(
+      'src/app/media/photos/photo-upload/photo-upload.component.css'
+    );
+
+    expect(template).toContain('[class.preview-panel--empty]="!preview"');
+    expect(styles).toContain('.preview-panel--empty');
+    expect(styles).toContain('display: none;');
+    expect(styles).toContain('.preview-card');
+  });
+
   it('a UI exige uma decisão visível de audiência', () => {
     const template = source(
       'src/app/media/photos/photo-upload/photo-upload.component.html'
