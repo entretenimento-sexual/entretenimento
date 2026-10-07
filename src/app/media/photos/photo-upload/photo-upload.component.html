@@ -193,7 +193,11 @@
             }
           </section>
 
-          <section class="preview-panel" aria-label="Pré-visualização da foto">
+          <section
+            class="preview-panel"
+            [class.preview-panel--empty]="!preview"
+            aria-label="Pré-visualização da foto"
+          >
             @if (preview) {
               <figure class="preview-card">
                 <img [src]="preview" alt="Pré-visualização da foto selecionada" />
