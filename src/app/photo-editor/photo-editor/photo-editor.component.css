@@ -765,9 +765,13 @@
 
 @media (max-width: 640px) {
   .editor-shell {
-    height: calc(100dvh - 12px);
-    max-height: calc(100dvh - 12px);
-    padding: 8px;
+    height: 100dvh;
+    max-height: 100dvh;
+    padding:
+      max(8px, env(safe-area-inset-top))
+      max(8px, env(safe-area-inset-right))
+      max(8px, env(safe-area-inset-bottom))
+      max(8px, env(safe-area-inset-left));
     overflow-y: auto;
     overscroll-behavior: contain;
   }
@@ -928,9 +932,12 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .editor-selection-actions,
-  .editor-footer__actions {
+  .editor-selection-actions {
     grid-template-columns: 1fr;
+  }
+
+  .editor-footer__actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
