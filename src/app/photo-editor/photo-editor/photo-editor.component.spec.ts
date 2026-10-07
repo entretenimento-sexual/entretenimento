@@ -172,6 +172,16 @@ describe('PhotoEditorComponent', () => {
       'text',
       'datetime',
     ]);
+    expect(
+      component.toolGroups.map((group) => ({
+        label: group.label,
+        values: group.tools.map((tool) => tool.value),
+      }))
+    ).toEqual([
+      { label: 'Ajustar', values: ['move', 'crop', 'adjust'] },
+      { label: 'Privacidade', values: ['blur', 'pixelate', 'bar'] },
+      { label: 'Elementos', values: ['emoji', 'text', 'datetime'] },
+    ]);
     expect(component.emojiOptions.length).toBeGreaterThanOrEqual(24);
     expect(component.emojiOptions).toContain('🔒');
     expect(component.fontOptions.map((font) => font.value)).toEqual([

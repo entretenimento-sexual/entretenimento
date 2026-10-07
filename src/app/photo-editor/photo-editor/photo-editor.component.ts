@@ -61,6 +61,7 @@ import {
   privacyRegionFromDraft,
 } from './photo-editor-overlay.model';
 import {
+  PHOTO_EDITOR_LOCAL_TOOL_GROUPS,
   PHOTO_EDITOR_LOCAL_TOOL_REGISTRY,
   isLocalPhotoEditorTool,
 } from './photo-editor-local-tool.registry';
@@ -208,6 +209,7 @@ export class PhotoEditorComponent implements AfterViewInit {
   ];
 
   readonly toolOptions = PHOTO_EDITOR_LOCAL_TOOL_REGISTRY;
+  readonly toolGroups = PHOTO_EDITOR_LOCAL_TOOL_GROUPS;
 
   userId = '';
   rotation = 0;

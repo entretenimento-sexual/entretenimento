@@ -50,50 +50,65 @@
 
     <section class="editor-toolbox" aria-label="Ferramentas da foto">
       <div class="editor-toolbox__bar" role="toolbar" aria-label="Ferramentas">
-        @for (tool of toolOptions; track tool.value) {
+        <div class="editor-tool-groups">
+          @for (group of toolGroups; track group.id) {
+            <section
+              class="editor-tool-group"
+              [class.editor-tool-group--adjustment]="group.id === 'adjustment'"
+              [attr.aria-label]="group.label"
+            >
+              <span class="editor-tool-group__label">{{ group.label }}</span>
+
+              <div class="editor-tool-group__actions">
+                @for (tool of group.tools; track tool.value) {
+                  <button
+                    type="button"
+                    class="editor-tool-button"
+                    [class.editor-tool-button--navigation]="tool.value === 'move'"
+                    [class.is-active]="activeTool === tool.value && !selectedOverlay"
+                    [attr.aria-pressed]="activeTool === tool.value && !selectedOverlay"
+                    [attr.aria-label]="tool.label"
+                    [disabled]="isToolDisabled(tool.value)"
+                    (click)="selectTool(tool.value)"
+                  >
+                    {{ tool.shortLabel }}
+                  </button>
+                }
+              </div>
+            </section>
+          }
+        </div>
+
+        <div class="editor-tool-actions" aria-label="Ações de edição">
           <button
             type="button"
-            class="editor-tool-button"
-            [class.is-active]="activeTool === tool.value && !selectedOverlay"
-            [attr.aria-pressed]="activeTool === tool.value && !selectedOverlay"
-            [attr.aria-label]="tool.label"
-            [disabled]="isToolDisabled(tool.value)"
-            (click)="selectTool(tool.value)"
+            class="editor-tool-button editor-tool-button--history"
+            (click)="undoOverlay()"
+            [disabled]="!canUndo"
+            aria-label="Desfazer última alteração"
+            title="Desfazer"
           >
-            {{ tool.shortLabel }}
+            ↶
           </button>
-        }
-
-        <span class="editor-toolbox__separator" aria-hidden="true"></span>
-
-        <button
-          type="button"
-          class="editor-tool-button editor-tool-button--history"
-          (click)="undoOverlay()"
-          [disabled]="!canUndo"
-          aria-label="Desfazer última alteração"
-          title="Desfazer"
-        >
-          ↶
-        </button>
-        <button
-          type="button"
-          class="editor-tool-button editor-tool-button--history"
-          (click)="redoOverlay()"
-          [disabled]="!canRedo"
-          aria-label="Refazer última alteração"
-          title="Refazer"
-        >
-          ↷
-        </button>
-        <button
-          type="button"
-          class="editor-tool-button editor-tool-button--danger"
-          (click)="clearOverlays()"
-          [disabled]="!hasOverlays"
-        >
-          Limpar elementos
-        </button>
+          <button
+            type="button"
+            class="editor-tool-button editor-tool-button--history"
+            (click)="redoOverlay()"
+            [disabled]="!canRedo"
+            aria-label="Refazer última alteração"
+            title="Refazer"
+          >
+            ↷
+          </button>
+          <button
+            type="button"
+            class="editor-tool-button editor-tool-button--danger"
+            (click)="clearOverlays()"
+            [disabled]="!hasOverlays"
+          >
+            Limpar elementos
+          </button>
+        </div>
       </div>
 
       <p class="editor-tool-hint" aria-live="polite">{{ toolInstruction }}</p>

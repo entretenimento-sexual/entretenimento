@@ -166,16 +166,66 @@
   position: sticky;
   top: 0;
   z-index: 3;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   flex: 0 0 auto;
+  align-items: end;
+  gap: 10px;
+  min-width: 0;
+  min-height: 58px;
+  padding: 4px 0 6px;
+  background: var(--surface-color, #101923);
+}
+
+.editor-tool-groups {
+  display: flex;
+  min-width: 0;
+  gap: 10px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+}
+
+.editor-tool-group {
+  position: relative;
+  display: grid;
+  flex: 0 0 auto;
+  gap: 4px;
+  min-width: max-content;
+  padding-right: 10px;
+}
+
+.editor-tool-group:not(:last-child)::after {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  bottom: 2px;
+  width: 1px;
+  background: var(--surface-border, rgb(255 255 255 / 12%));
+  content: '';
+}
+
+.editor-tool-group__label {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 54%, transparent);
+  font-size: 0.62rem;
+  font-weight: 850;
+  letter-spacing: 0.055em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.editor-tool-group__actions,
+.editor-tool-actions {
+  display: flex;
   align-items: center;
   gap: 6px;
-  min-width: 0;
-  min-height: 40px;
-  overflow-x: auto;
-  padding: 3px 0 5px;
-  background: var(--surface-color, #101923);
-  scrollbar-width: thin;
+}
+
+.editor-tool-actions {
+  flex: 0 0 auto;
+  align-self: end;
+  padding-left: 10px;
+  border-left: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
 }
 
 .editor-tool-button {
@@ -204,15 +254,12 @@
   font-size: 1.08rem;
 }
 
-.editor-tool-button--danger:not([disabled]) {
-  color: var(--primary-color, #ff7070);
+.editor-tool-button--navigation:not(.is-active) {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 58%, transparent);
 }
 
-.editor-toolbox__separator {
-  flex: 0 0 1px;
-  align-self: stretch;
-  min-height: 28px;
-  background: var(--surface-border, rgb(255 255 255 / 12%));
+.editor-tool-button--danger:not([disabled]) {
+  color: var(--primary-color, #ff7070);
 }
 
 .editor-tool-hint,
@@ -635,6 +682,20 @@
 
   .editor-toolbox__bar {
     top: 52px;
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .editor-tool-groups {
+    padding-bottom: 2px;
+  }
+
+  .editor-tool-actions {
+    justify-content: flex-end;
+    padding-top: 6px;
+    padding-left: 0;
+    border-top: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
+    border-left: 0;
   }
 
   .editor-tool-panel--privacy,

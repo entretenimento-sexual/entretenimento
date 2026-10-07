@@ -16,6 +16,17 @@ export interface PhotoEditorLocalToolDefinition {
   readonly requiresPaidService: false;
 }
 
+export type PhotoEditorLocalToolGroupId =
+  | 'adjustment'
+  | 'privacy'
+  | 'decoration';
+
+export interface PhotoEditorLocalToolGroupDefinition {
+  readonly id: PhotoEditorLocalToolGroupId;
+  readonly label: string;
+  readonly tools: readonly PhotoEditorLocalToolDefinition[];
+}
+
 /**
  * Registro canônico de ferramentas do editor de Fotos.
  *
@@ -113,3 +124,47 @@ export function isLocalPhotoEditorTool(value: unknown): value is PhotoEditorTool
     (tool) => tool.value === value
   );
 }
+
+
+const toolsByValue = new Map(
+  PHOTO_EDITOR_LOCAL_TOOL_REGISTRY.map((tool) => [tool.value, tool] as const)
+);
+
+function resolveGroupTools(
+  values: readonly PhotoEditorTool[]
+): readonly PhotoEditorLocalToolDefinition[] {
+  return Object.freeze(
+    values.map((value) => {
+      const tool = toolsByValue.get(value);
+      if (!tool) {
+        throw new Error(`Ferramenta local não registrada: ${value}`);
+      }
+      return tool;
+    })
+  );
+}
+
+/**
+ * Organização visual canônica das ferramentas.
+ *
+ * Mantém a semântica de execução no registro de ferramentas e concentra aqui
+ * apenas a apresentação do editor, evitando listas paralelas no componente.
+ */
+export const PHOTO_EDITOR_LOCAL_TOOL_GROUPS:
+  readonly PhotoEditorLocalToolGroupDefinition[] = Object.freeze([
+    Object.freeze({
+      id: 'adjustment',
+      label: 'Ajustar',
+      tools: resolveGroupTools(['move', 'crop', 'adjust']),
+    }),
+    Object.freeze({
+      id: 'privacy',
+      label: 'Privacidade',
+      tools: resolveGroupTools(['blur', 'pixelate', 'bar']),
+    }),
+    Object.freeze({
+      id: 'decoration',
+      label: 'Elementos',
+      tools: resolveGroupTools(['emoji', 'text', 'datetime']),
+    }),
+  ]);
