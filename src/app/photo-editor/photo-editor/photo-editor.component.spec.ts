@@ -326,6 +326,79 @@ describe('PhotoEditorComponent', () => {
     expect((restored as any).height).toBeCloseTo(0.3, 10);
   });
 
+  it('redimensiona seleção pelo teclado mantendo o centro e o histórico', () => {
+    markEditorIdle();
+    component.overlays = [
+      {
+        id: 'privacy-keyboard-resize',
+        kind: 'blur',
+        x: 0.2,
+        y: 0.2,
+        width: 0.4,
+        height: 0.3,
+        strength: 0.03,
+        shape: 'rectangle',
+      },
+    ];
+    (component as any).resetOverlayHistory(component.overlays);
+    component.selectOverlay('privacy-keyboard-resize');
+
+    component.onCanvasKeydown(new KeyboardEvent('keydown', { key: ']' }));
+
+    const resized = component.selectedOverlay as any;
+    expect(resized.width).toBeCloseTo(0.44, 10);
+    expect(resized.height).toBeCloseTo(0.34, 10);
+    expect(resized.x).toBeCloseTo(0.18, 10);
+    expect(resized.y).toBeCloseTo(0.18, 10);
+    expect(component.canUndo).toBe(true);
+
+    component.undoOverlay();
+    const restored = component.overlays.find(
+      (overlay) => overlay.id === 'privacy-keyboard-resize'
+    ) as any;
+    expect(restored.width).toBeCloseTo(0.4, 10);
+    expect(restored.height).toBeCloseTo(0.3, 10);
+  });
+
+  it('redimensiona elemento decorativo e brush pelo teclado', () => {
+    markEditorIdle();
+    component.overlays = [
+      {
+        id: 'emoji-keyboard-resize',
+        kind: 'emoji',
+        x: 0.5,
+        y: 0.5,
+        size: 0.1,
+        value: '🙂',
+        style: 'classic',
+        fontFamily: 'system',
+      },
+      {
+        id: 'brush-keyboard-resize',
+        kind: 'pixelate',
+        shape: 'brush',
+        x: 0.2,
+        y: 0.2,
+        width: 0.3,
+        height: 0.2,
+        radiusX: 0.03,
+        radiusY: 0.04,
+        strength: 0.03,
+        points: [{ x: 0.3, y: 0.3 }],
+      },
+    ];
+    (component as any).resetOverlayHistory(component.overlays);
+
+    component.selectOverlay('emoji-keyboard-resize');
+    component.onCanvasKeydown(new KeyboardEvent('keydown', { key: ']' }));
+    expect((component.selectedOverlay as any).size).toBeCloseTo(0.12, 10);
+
+    component.selectOverlay('brush-keyboard-resize');
+    component.onCanvasKeydown(new KeyboardEvent('keydown', { key: ']' }));
+    expect((component.selectedOverlay as any).radiusX).toBeCloseTo(0.04, 10);
+    expect((component.selectedOverlay as any).radiusY).toBeCloseTo(0.05, 10);
+  });
+
   it('impõe tamanho mínimo ao redimensionar uma área de privacidade', () => {
     markEditorIdle();
     component.overlays = [
@@ -580,6 +653,27 @@ describe('PhotoEditorComponent', () => {
     expect(raw.height).toBeCloseTo(0.001, 10);
     expect(raw.width).toBeLessThan(PHOTO_EDITOR_MIN_CROP_SIZE);
     expect(raw.height).toBeLessThan(PHOTO_EDITOR_MIN_CROP_SIZE);
+  });
+
+  it('identifica cursor contextual de alça e movimento no recorte', () => {
+    markEditorIdle();
+    component.cropRect = {
+      x: 0.2,
+      y: 0.2,
+      width: 0.5,
+      height: 0.5,
+    };
+    (component as any).previewWidth = 800;
+    (component as any).previewHeight = 600;
+    component.selectTool('crop');
+
+    (component as any).updatePointerHoverState({ x: 0.2, y: 0.2 });
+    expect(component.hoverResizeHandle).toBe('nw');
+    expect(component.hoveringMovableTarget).toBe(false);
+
+    (component as any).updatePointerHoverState({ x: 0.4, y: 0.4 });
+    expect(component.hoverResizeHandle).toBeNull();
+    expect(component.hoveringMovableTarget).toBe(true);
   });
 
   it('oferece atalhos de teclado para recorte e ferramentas principais', () => {

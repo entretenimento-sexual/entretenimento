@@ -124,6 +124,18 @@
   cursor: crosshair;
 }
 
+.editor-canvas.is-move-target {
+  cursor: move;
+}
+
+.editor-canvas.is-resize-nwse {
+  cursor: nwse-resize;
+}
+
+.editor-canvas.is-resize-nesw {
+  cursor: nesw-resize;
+}
+
 .editor-canvas:focus-visible,
 .editor-controls button:focus-visible,
 .editor-controls input:focus-visible,
@@ -275,6 +287,35 @@
 
 .editor-tool-button--danger:not([disabled]) {
   color: var(--primary-color, #ff7070);
+}
+
+.editor-shortcuts-hint {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 10px;
+  margin: 0;
+  padding: 0 2px;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 56%, transparent);
+  font-size: 0.66rem;
+  line-height: 1.35;
+}
+
+.editor-shortcuts-hint span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.editor-shortcuts-hint kbd {
+  min-width: 20px;
+  padding: 1px 4px;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 14%));
+  border-radius: 5px;
+  background: color-mix(in oklab, var(--surface-color, #101923) 82%, #000 18%);
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 78%, transparent);
+  font: inherit;
+  font-weight: 850;
+  text-align: center;
 }
 
 .editor-tool-hint,

@@ -133,6 +133,7 @@ const KEYBOARD_PAN_STEP = 0.025;
 const KEYBOARD_OVERLAY_STEP = 0.01;
 const KEYBOARD_CROP_STEP = 0.01;
 const KEYBOARD_CROP_RESIZE_STEP = 0.02;
+const KEYBOARD_OVERLAY_RESIZE_STEP = 0.02;
 
 @Component({
   selector: 'app-photo-editor',
@@ -268,6 +269,8 @@ export class PhotoEditorComponent implements AfterViewInit {
   private overlayDragSnapshot: PhotoEditorOverlay[] | null = null;
   private overlayDragChanged = false;
   private activeResizeHandle: PhotoEditorResizeHandle | null = null;
+  hoverResizeHandle: PhotoEditorResizeHandle | null = null;
+  hoveringMovableTarget = false;
   private draftPrivacyRegion: PhotoEditorDraftPrivacyRegion | null = null;
   private brushStrokeSnapshot: PhotoEditorOverlay[] | null = null;
   private brushStrokeOverlayId: string | null = null;
@@ -987,6 +990,13 @@ export class PhotoEditorComponent implements AfterViewInit {
   onPointerMove(event: PointerEvent): void {
     if (this.isBusy()) return;
 
+    if (this.draggingPointerId === null) {
+      const hoverPoint = this.resolveNormalizedPointer(event);
+      if (hoverPoint) {
+        this.updatePointerHoverState(hoverPoint);
+      }
+    }
+
     if (
       (this.activeTool === 'blur' || this.activeTool === 'pixelate') &&
       this.privacyShape === 'brush' &&
@@ -1275,6 +1285,22 @@ export class PhotoEditorComponent implements AfterViewInit {
         this.overlays.map((overlay) =>
           overlay.id === selected.id
             ? this.offsetOverlay(overlay, deltaX, deltaY)
+            : overlay
+        )
+      );
+      return;
+    }
+
+    if (selected && (event.key === '[' || event.key === ']')) {
+      event.preventDefault();
+      const delta =
+        event.key === ']'
+          ? KEYBOARD_OVERLAY_RESIZE_STEP
+          : -KEYBOARD_OVERLAY_RESIZE_STEP;
+      this.commitOverlays(
+        this.overlays.map((overlay) =>
+          overlay.id === selected.id
+            ? this.resizeOverlayFromCenter(overlay, delta)
             : overlay
         )
       );
@@ -2495,7 +2521,119 @@ export class PhotoEditorComponent implements AfterViewInit {
   onBrushPointerLeave(): void {
     if (this.draggingPointerId !== null) return;
     this.brushCursorPoint = null;
+    this.hoverResizeHandle = null;
+    this.hoveringMovableTarget = false;
     this.scheduleRender();
+  }
+
+  private updatePointerHoverState(point: PhotoEditorNormalizedPoint): void {
+    if (this.selectedOverlay) {
+      this.hoverResizeHandle =
+        this.hitTestSelectedPrivacyResizeHandle(point);
+      this.hoveringMovableTarget =
+        !this.hoverResizeHandle &&
+        this.hitTestOverlay(point)?.id === this.selectedOverlay.id;
+      return;
+    }
+
+    if (
+      this.activeTool === 'crop' &&
+      !this.isAspectRatioLocked &&
+      this.hasCustomCrop
+    ) {
+      this.hoverResizeHandle = this.hitTestCropResizeHandle(point);
+      this.hoveringMovableTarget =
+        !this.hoverResizeHandle && this.isPointInsideCrop(point, this.cropRect);
+      return;
+    }
+
+    this.hoverResizeHandle = null;
+    this.hoveringMovableTarget = false;
+  }
+
+  private resizeOverlayFromCenter(
+    overlay: PhotoEditorOverlay,
+    delta: number
+  ): PhotoEditorOverlay {
+    if (
+      overlay.kind === 'emoji' ||
+      overlay.kind === 'text' ||
+      overlay.kind === 'datetime'
+    ) {
+      return {
+        ...overlay,
+        size: this.clamp(overlay.size + delta, 0.035, 0.28),
+      };
+    }
+
+    if (overlay.kind === 'blur' || overlay.kind === 'pixelate') {
+      if (overlay.shape === 'brush') {
+        const nextRadiusX = this.clamp(
+          overlay.radiusX + delta / 2,
+          0.004,
+          0.25
+        );
+        const nextRadiusY = this.clamp(
+          overlay.radiusY + delta / 2,
+          0.004,
+          0.25
+        );
+        return {
+          ...overlay,
+          ...this.resolveBrushBounds(
+            overlay.points,
+            nextRadiusX,
+            nextRadiusY
+          ),
+          radiusX: nextRadiusX,
+          radiusY: nextRadiusY,
+        };
+      }
+
+      const centerX = overlay.x + overlay.width / 2;
+      const centerY = overlay.y + overlay.height / 2;
+      const width = this.clamp(
+        overlay.width + delta * 2,
+        PHOTO_EDITOR_MIN_PRIVACY_SIZE,
+        1
+      );
+      const height = this.clamp(
+        overlay.height + delta * 2,
+        PHOTO_EDITOR_MIN_PRIVACY_SIZE,
+        1
+      );
+      return {
+        ...overlay,
+        x: this.clamp(centerX - width / 2, 0, 1 - width),
+        y: this.clamp(centerY - height / 2, 0, 1 - height),
+        width,
+        height,
+      };
+    }
+
+    if (overlay.kind === 'bar') {
+      const centerX = overlay.x + overlay.width / 2;
+      const centerY = overlay.y + overlay.height / 2;
+      const width = this.clamp(
+        overlay.width + delta * 2,
+        PHOTO_EDITOR_MIN_PRIVACY_SIZE,
+        1
+      );
+      const height = this.clamp(
+        overlay.height + delta * 2,
+        PHOTO_EDITOR_MIN_PRIVACY_SIZE,
+        1
+      );
+      return {
+        ...overlay,
+        x: this.clamp(centerX - width / 2, 0, 1 - width),
+        y: this.clamp(centerY - height / 2, 0, 1 - height),
+        width,
+        height,
+      };
+    }
+
+    return overlay;
   }
 
   private commitOverlays(next: readonly PhotoEditorOverlay[]): void {
@@ -2619,6 +2757,8 @@ export class PhotoEditorComponent implements AfterViewInit {
     this.overlayDragSnapshot = null;
     this.overlayDragChanged = false;
     this.activeResizeHandle = null;
+    this.hoverResizeHandle = null;
+    this.hoveringMovableTarget = false;
     this.draftPrivacyRegion = null;
     this.brushStrokeSnapshot = null;
     this.brushStrokeOverlayId = null;

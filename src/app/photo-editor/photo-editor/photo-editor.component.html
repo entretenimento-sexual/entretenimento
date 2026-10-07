@@ -35,10 +35,13 @@
         [class.is-place-tool]="isDecorationTool && !selectedOverlay"
         [class.is-crop-tool]="activeTool === 'crop' && !selectedOverlay"
         [class.has-selection]="!!selectedOverlay"
+        [class.is-resize-nwse]="hoverResizeHandle === 'nw' || hoverResizeHandle === 'se'"
+        [class.is-resize-nesw]="hoverResizeHandle === 'ne' || hoverResizeHandle === 'sw'"
+        [class.is-move-target]="hoveringMovableTarget"
         tabindex="0"
         role="img"
         [attr.aria-label]="canvasAriaLabel"
-        aria-keyshortcuts="Control+Z Meta+Z Control+Y Meta+Y Control+D Meta+D Delete Backspace Escape M C B P"
+        aria-keyshortcuts="Control+Z Meta+Z Control+Y Meta+Y Control+D Meta+D Delete Backspace Escape ArrowLeft ArrowRight ArrowUp ArrowDown [ ] 0 M C B P"
         (pointerdown)="onPointerDown($event)"
         (pointermove)="onPointerMove($event)"
         (pointerup)="onPointerUp($event)"
@@ -115,13 +118,24 @@
             (click)="clearOverlays()"
             [disabled]="!hasOverlays"
           >
-            Limpar elementos
+            Remover elementos
           </button>
           </div>
         </div>
       </div>
 
       <p class="editor-tool-hint" aria-live="polite">{{ toolInstruction }}</p>
+
+      <p class="editor-shortcuts-hint" aria-label="Atalhos do editor">
+        <span><kbd>M</kbd> mover</span>
+        <span><kbd>C</kbd> recortar</span>
+        <span><kbd>B</kbd> borrar</span>
+        <span><kbd>P</kbd> pixelar</span>
+        <span><kbd>Setas</kbd> mover seleção</span>
+        <span><kbd>[</kbd><kbd>]</kbd> redimensionar</span>
+        <span><kbd>Del</kbd> excluir</span>
+        <span><kbd>Ctrl/Cmd+Z</kbd> desfazer</span>
+      </p>
 
       @if (selectedOverlay; as selected) {
         <section class="editor-selection-panel" aria-label="Propriedades do elemento selecionado">
