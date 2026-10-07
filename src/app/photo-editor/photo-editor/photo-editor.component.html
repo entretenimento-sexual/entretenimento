@@ -571,16 +571,15 @@
           </div>
         }
 
-        @if (activeTool === 'crop') {
+        @if (activeTool === 'crop' && hasCustomCrop) {
           <div class="editor-tool-panel editor-tool-panel--crop">
             <p class="editor-tool-note">
-              Arraste sobre a foto para criar o recorte. O arquivo final usará somente a área marcada.
+              Somente a área marcada será aplicada.
             </p>
             <button
               type="button"
               class="app-action app-action--ghost"
               (click)="resetCrop()"
-              [disabled]="!hasCustomCrop"
             >
               Remover recorte
             </button>
