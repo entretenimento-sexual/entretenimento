@@ -789,6 +789,22 @@ describe('PhotoEditorComponent', () => {
     expect(component.hoveringMovableTarget).toBe(true);
   });
 
+  it('mantém o card mobile contido na viewport com fluxo flex vertical', () => {
+    const styles = require('node:fs').readFileSync(
+      require('node:path').resolve(
+        process.cwd(),
+        'src/app/photo-editor/photo-editor/photo-editor.component.css'
+      ),
+      'utf8'
+    );
+
+    expect(styles).toContain('display: flex;');
+    expect(styles).toContain('flex-direction: column;');
+    expect(styles).toContain('max-width: 100%;');
+    expect(styles).toContain('overflow-x: auto;');
+    expect(styles).toContain('flex-wrap: wrap;');
+  });
+
   it('usa fluxo flexível no toolbox mobile para impedir colapso entre ferramentas e controles', () => {
     const styles = require('node:fs').readFileSync(
       require('node:path').resolve(
