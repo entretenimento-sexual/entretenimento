@@ -114,6 +114,35 @@ describe('AccountFacade canonical subscription state', () => {
     sub.unsubscribe();
   });
 
+  it('oculta imediatamente os dados da conta quando a sessão operacional termina', () => {
+    const facade = TestBed.inject(AccountFacade);
+    const values: Array<string | null> = [];
+    const sub = facade.vm$.subscribe((vm) => values.push(vm?.uid ?? null));
+
+    authUserSubject.next(null);
+
+    expect(values.at(-1)).toBeNull();
+    sub.unsubscribe();
+  });
+
+  it('não combina perfil de A com Auth de B durante a troca de sessão', () => {
+    const facade = TestBed.inject(AccountFacade);
+    const values: Array<string | null> = [];
+    const sub = facade.vm$.subscribe((vm) => values.push(vm?.uid ?? null));
+
+    authUserSubject.next({
+      uid: 'user-2',
+      email: 'other@example.com',
+      emailVerified: true,
+      providerData: [],
+    });
+    expect(values.at(-1)).toBeNull();
+
+    userSubject.next({ ...user(), uid: 'user-2' });
+    expect(values.at(-1)).toBe('user-2');
+    sub.unsubscribe();
+  });
+
   it('preserva admin como papel administrativo', () => {
     userSubject.next(user('admin'));
     const facade = TestBed.inject(AccountFacade);

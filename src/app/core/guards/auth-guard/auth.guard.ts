@@ -1,106 +1,81 @@
 // src/app/core/guards/auth-guard/auth.guard.ts
-// Guard de autenticação: protege rotas que exigem sessão válida.
+// Guard de autenticação operacional das rotas protegidas.
 //
-// Propósito:
-// - evitar redirect prematuro no refresh/cold start
-// - aguardar o auth ficar pronto
-// - tolerar uma pequena janela de restauração do uid antes de decidir
-// - retornar sempre boolean | UrlTree, sem router.navigate()
-// - em erro, falhar com segurança para /login
+// - AuthSessionService é a fonte canônica de ready/UID/encerramento;
+// - tolera a janela legada de restauração durante refresh;
+// - interrompe essa tolerância imediatamente quando o logout começa;
+// - devolve boolean | UrlTree, sem navegação imperativa;
+// - falha fechado com tratamento centralizado de erros.
 import { inject } from '@angular/core';
 import { CanActivateFn, Router, type GuardResult } from '@angular/router';
-import { Observable, of } from 'rxjs';
+import { combineLatest, Observable, of } from 'rxjs';
 import { catchError, filter, map, switchMap, take, timeout } from 'rxjs/operators';
 
-import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { buildRedirectTree, guardLog } from '../_shared-guard/guard-utils';
+
 /**
- * Janela curta para tolerar refresh/hidratação.
- *
- * Motivo:
- * - no seu fluxo, em alguns boots o store/auth publica uid:null primeiro,
- *   e só depois restaura o uid real da sessão.
- * - sem essa tolerância, o guard derruba a navegação e manda para /login
- *   mesmo quando a sessão ainda iria reaparecer.
- *
- * Ajuste fino:
- * - 2000ms é um valor seguro para dev/emulator e refresh local.
- * - se depois você comprovar que 1200ms já resolve, pode reduzir.
+ * Preservamos os 2 segundos de tolerância para refresh/cold start existentes.
+ * Essa espera nunca se aplica a uma sessão explicitamente em encerramento.
  */
 const AUTH_REFRESH_GRACE_MS = 2000;
 
 export const authGuard: CanActivateFn = (_route, state): Observable<GuardResult> => {
   const router = inject(Router);
-  const currentUserStore = inject(CurrentUserStoreService);
+  const authSession = inject(AuthSessionService);
   const applicationError = inject(ApplicationErrorService);
   const notify = inject(ErrorNotificationService);
 
   const toLogin = () => buildRedirectTree(router, '/login', state.url);
 
-  return currentUserStore.getAuthReady$().pipe(
-    /**
-     * 1) Só decide quando a camada de auth disser que está pronta.
-     *    Isso evita usar uid transitório antes da hora.
-     */
-    filter((ready) => ready === true),
+  return combineLatest([
+    authSession.ready$,
+    authSession.uid$,
+    authSession.isTerminating$,
+  ]).pipe(
+    // Encerramento explícito não precisa aguardar a hidratação Firebase.
+    filter(([ready, , terminating]) => ready === true || terminating === true),
     take(1),
+    switchMap(([, uid, terminating]): Observable<GuardResult> => {
+      if (terminating) {
+        guardLog('auth', 'session terminating -> deny', { url: state.url });
+        return of(toLogin());
+      }
 
-    /**
-     * 2) Snapshot inicial do uid.
-     */
-    switchMap(() => currentUserStore.getLoggedUserUID$().pipe(take(1))),
-
-    /**
-     * 3) Se já há uid, libera imediatamente.
-     *    Se veio null, espera uma pequena janela reativa por restauração.
-     */
-    switchMap((uid): Observable<GuardResult> => {
       if (uid) {
         guardLog('auth', 'ready:true', 'uid:', uid, 'ok:', true, 'url:', state.url);
         return of(true);
       }
 
-      guardLog(
-        'auth',
-        'ready:true but uid:null -> aguardando janela de restauração',
-        { url: state.url, waitMs: AUTH_REFRESH_GRACE_MS }
-      );
+      // Compatibilidade com a restauração tardia do UID no bootstrap.
+      // O mesmo Observable observa o logout para não aguardar o timeout.
+      guardLog('auth', 'ready:true, uid:null -> restoration grace', {
+        url: state.url,
+        waitMs: AUTH_REFRESH_GRACE_MS,
+      });
 
-      return currentUserStore.getLoggedUserUID$().pipe(
-        /**
-         * Espera apenas uid válido.
-         * Se a sessão reaparecer dentro da janela, a rota segue.
-         */
-        filter((restoredUid): restoredUid is string => !!restoredUid),
+      return combineLatest([
+        authSession.uid$,
+        authSession.isTerminating$,
+      ]).pipe(
+        filter(([restoredUid, isTerminating]) => !!restoredUid || isTerminating),
         take(1),
+        map(([restoredUid, isTerminating]) => !isTerminating && !!restoredUid),
         timeout({
           first: AUTH_REFRESH_GRACE_MS,
-          with: () => of(null),
+          with: () => of(false),
         }),
-        map((restoredUid): GuardResult => {
-          const ok = !!restoredUid;
-
-          guardLog(
-            'auth',
-            'after grace',
-            'uid:',
-            restoredUid,
-            'ok:',
-            ok,
-            'url:',
-            state.url
-          );
-
-          return ok ? true : toLogin();
+        map((authorized): GuardResult => {
+          guardLog('auth', 'restoration finished', {
+            ok: authorized,
+            url: state.url,
+          });
+          return authorized ? true : toLogin();
         })
       );
     }),
-
-    /**
-     * 4) Falha segura.
-     */
     catchError((err): Observable<GuardResult> => {
       try {
         applicationError.report(err, {
@@ -111,7 +86,7 @@ export const authGuard: CanActivateFn = (_route, state): Observable<GuardResult>
           metadata: { scope: 'authGuard' },
         });
       } catch {
-        // Guard continua fail-safe mesmo se o diagnóstico falhar.
+        // Falha de telemetria não impede decisão fail-closed.
       }
       notify.showError('Erro ao verificar sua sessão. Faça login novamente.');
       return of(buildRedirectTree(router, '/login', state.url, { reason: 'auth_error' }));

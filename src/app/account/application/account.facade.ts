@@ -55,7 +55,11 @@ export class AccountFacade {
     this.subscriptionAccess.state$,
   ]).pipe(
     map(([user, authUser, subscriptionState]) => {
-      if (!user && !authUser) return null;
+      // A sessão operacional sempre governa a exibição de dados privados.
+      // O perfil anterior pode permanecer no store por um breve intervalo
+      // durante logout ou troca A -> B: nunca o projete em outra sessão.
+      if (!authUser) return null;
+      if (user && user.uid !== authUser.uid) return null;
       return this.buildVm(user, authUser, subscriptionState);
     }),
     distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),

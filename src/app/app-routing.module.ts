@@ -300,6 +300,7 @@ const routes: Routes = [
         loadChildren: () =>
           import('./account/account.routes').then((m) => m.ACCOUNT_ROUTES),
         canActivate: [authGuard],
+        canActivateChild: [authGuard],
       },
 
       {
