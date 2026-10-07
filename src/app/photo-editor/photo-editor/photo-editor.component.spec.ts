@@ -789,6 +789,20 @@ describe('PhotoEditorComponent', () => {
     expect(component.hoveringMovableTarget).toBe(true);
   });
 
+  it('mantém a toolbar mobile no fluxo para evitar sobreposição de instruções e controles', () => {
+    const styles = require('node:fs').readFileSync(
+      require('node:path').resolve(
+        process.cwd(),
+        'src/app/photo-editor/photo-editor/photo-editor.component.css'
+      ),
+      'utf8'
+    );
+
+    expect(styles).toContain('.editor-toolbox__bar {');
+    expect(styles).toContain('position: static;');
+    expect(styles).toContain('top: auto;');
+  });
+
   it('expõe modo de canvas compatível com rolagem touch quando a ferramenta mover está ativa', () => {
     markEditorIdle();
     component.selectTool('move');
