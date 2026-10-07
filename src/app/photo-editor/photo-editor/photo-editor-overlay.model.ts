@@ -129,7 +129,7 @@ export interface PhotoEditorOverlayRenderOptions {
 
 const MAX_OVERLAYS = 60;
 const MAX_BRUSH_POINTS = 512;
-export const PHOTO_EDITOR_PHOTO_EDITOR_MIN_PRIVACY_SIZE = 0.012;
+export const PHOTO_EDITOR_MIN_PRIVACY_SIZE = 0.012;
 const MIN_BRUSH_RADIUS = 0.004;
 const MAX_BRUSH_RADIUS = 0.25;
 const SELECTION_PADDING_PX = 10;
