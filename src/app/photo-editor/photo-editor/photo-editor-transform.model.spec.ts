@@ -10,19 +10,17 @@ import {
 
 describe('photo editor transform model', () => {
   it('normaliza recorte e mantém a área dentro do canvas', () => {
-    expect(
-      normalizePhotoEditorCropRect({
-        x: 0.9,
-        y: -1,
-        width: 0.8,
-        height: 3,
-      })
-    ).toEqual({
+    const crop = normalizePhotoEditorCropRect({
       x: 0.9,
-      y: 0,
-      width: 0.1,
-      height: 1,
+      y: -1,
+      width: 0.8,
+      height: 3,
     });
+
+    expect(crop.x).toBeCloseTo(0.9, 10);
+    expect(crop.y).toBe(0);
+    expect(crop.width).toBeCloseTo(0.1, 10);
+    expect(crop.height).toBe(1);
   });
 
   it('cria recorte no sentido inverso sem depender da direção do arraste', () => {
