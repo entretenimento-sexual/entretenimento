@@ -5,7 +5,9 @@
 
 .mobile-bottom-nav {
   --app-card-radius: 22px 22px 0 0;
+  box-sizing: border-box;
   display: grid;
+  min-height: var(--app-mobile-bottom-nav-height, 76px);
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
   width: min(100%, 640px);
