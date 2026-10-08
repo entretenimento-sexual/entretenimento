@@ -210,7 +210,7 @@ async function deadLetterReservation(
   await batch.commit();
 }
 
-async function reconcileExpiredReservation(
+export async function reconcileExpiredReservation(
   snapshot: FirebaseFirestore.QueryDocumentSnapshot,
   reservation: VideoUploadReservationDocument
 ): Promise<'referenced' | 'orphan_deleted' | 'retryable' | 'dead_letter'> {
