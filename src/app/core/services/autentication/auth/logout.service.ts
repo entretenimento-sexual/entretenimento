@@ -26,7 +26,6 @@ import {
   shareReplay,
   switchMap,
   take,
-  tap,
   timeout,
 } from 'rxjs/operators';
 
@@ -91,7 +90,7 @@ export class LogoutService {
     shared$ = defer(() => {
       this.authSession.beginTermination();
       return this.capturePushStateBestEffort$();
-    }).pipe
+    }).pipe(
       switchMap((pushState) =>
         this.stopGeolocationBestEffort$().pipe(
           switchMap(() => this.stopPresenceBestEffort$()),
