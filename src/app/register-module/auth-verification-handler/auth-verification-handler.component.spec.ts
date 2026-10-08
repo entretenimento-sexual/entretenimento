@@ -91,6 +91,7 @@ describe('AuthVerificationHandlerComponent', () => {
         requestCompleted: false,
         submittedEmail: null,
         isLocalDev: true,
+        cooldownUntilMs: 0,
         feedback: null,
       }),
       isModalOpen: new Subject<boolean>(),

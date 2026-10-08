@@ -20,6 +20,7 @@ describe('EmailInputModalComponent', () => {
     requestCompleted: false,
     submittedEmail: null,
     isLocalDev: true,
+    cooldownUntilMs: 0,
     feedback: null,
   });
 
