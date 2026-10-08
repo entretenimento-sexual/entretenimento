@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { firstValueFrom, of } from 'rxjs';
+import { firstValueFrom, of, Subject } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -212,4 +212,38 @@ describe('VideoSimpleEditorControlsComponent', () => {
     expect(component.form.controls.rotationDegrees.enabled).toBe(true);
     expect(component.form.controls.muteAudio.enabled).toBe(true);
   });
+  it('descarta captura de capa pendente ao selecionar outro arquivo', () => {
+    const poster$ = new Subject<Blob>();
+    metadataPreparation.captureCurrentFrame$.mockReturnValue(poster$.asObservable());
+    const emit = vi.spyOn(component.posterChange, 'emit');
+    const video = document.createElement('video');
+
+    component.capturePoster(video);
+    expect(metadataPreparation.captureCurrentFrame$).toHaveBeenCalledOnce();
+    emit.mockClear();
+
+    component.file = new File(['new'], 'new.mp4', { type: 'video/mp4' });
+    emit.mockClear();
+    poster$.next(new Blob(['old'], { type: 'image/jpeg' }));
+
+    expect(emit).not.toHaveBeenCalled();
+    expect(errorNotification.showSuccess).not.toHaveBeenCalled();
+    expect(errorNotification.showWarning).not.toHaveBeenCalled();
+    expect(component.capturingPoster$).toBeDefined();
+  });
+
+  it('descarta captura de capa após alterar enquadramento', () => {
+    const poster$ = new Subject<Blob>();
+    metadataPreparation.captureCurrentFrame$.mockReturnValue(poster$.asObservable());
+    const emit = vi.spyOn(component.posterChange, 'emit');
+    component.capturePoster(document.createElement('video'));
+
+    component.form.controls.aspectRatio.setValue('SQUARE_1_1');
+    emit.mockClear();
+    poster$.next(new Blob(['old-ratio'], { type: 'image/jpeg' }));
+
+    expect(emit).not.toHaveBeenCalled();
+    expect(errorNotification.showSuccess).not.toHaveBeenCalled();
+  });
+
 });

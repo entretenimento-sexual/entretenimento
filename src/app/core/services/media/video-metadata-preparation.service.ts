@@ -32,7 +32,24 @@ export class VideoMetadataPreparationService {
     file: File,
     options: IVideoMetadataPreparationOptions = {}
   ): Observable<IPreparedVideoMetadata> {
-    return defer(() => from(this.prepare(file, options)));
+    return new Observable<IPreparedVideoMetadata>((observer) => {
+      const controller = new AbortController();
+      void this.prepare(file, options, controller.signal).then(
+        (metadata) => {
+          if (controller.signal.aborted || observer.closed) return;
+          observer.next(metadata);
+          observer.complete();
+        },
+        (error: unknown) => {
+          if (!controller.signal.aborted && !observer.closed) {
+            observer.error(error);
+          }
+        }
+      );
+      // Desinscrição é cancelamento real: libera listeners, timer, video.src
+      // e ObjectURL sem esperar o timeout de metadata/seek.
+      return () => controller.abort();
+    });
   }
 
   captureCurrentFrame$(
@@ -47,7 +64,8 @@ export class VideoMetadataPreparationService {
 
   private async prepare(
     file: File,
-    options: IVideoMetadataPreparationOptions
+    options: IVideoMetadataPreparationOptions,
+    signal?: AbortSignal
   ): Promise<IPreparedVideoMetadata> {
     if (
       typeof document === 'undefined' ||
@@ -69,10 +87,12 @@ export class VideoMetadataPreparationService {
       const metadataLoaded = this.waitForEvent(
         video,
         'loadedmetadata',
-        METADATA_TIMEOUT_MS
+        METADATA_TIMEOUT_MS,
+        signal
       );
       video.load();
       await metadataLoaded;
+      if (signal?.aborted) return this.emptyResult();
 
       const durationMs = this.normalizeDuration(video.duration);
       const widthPixels = this.normalizeDimension(video.videoWidth);
@@ -83,9 +103,10 @@ export class VideoMetadataPreparationService {
         heightPixels !== null &&
         PUBLIC_PLAYBACK_TYPES.has(String(file.type ?? '').toLowerCase());
       const posterBlob = playbackReady
-        ? await this.capturePosterBestEffort(video, options)
+        ? await this.capturePosterBestEffort(video, options, signal)
         : null;
 
+      if (signal?.aborted) return this.emptyResult();
       return {
         durationMs,
         widthPixels,
@@ -135,7 +156,8 @@ export class VideoMetadataPreparationService {
 
   private async capturePosterBestEffort(
     video: HTMLVideoElement,
-    options: IVideoMetadataPreparationOptions
+    options: IVideoMetadataPreparationOptions,
+    signal?: AbortSignal
   ): Promise<Blob | null> {
     try {
       if (!video.videoWidth || !video.videoHeight) {
@@ -148,13 +170,14 @@ export class VideoMetadataPreparationService {
       );
 
       if (targetSeconds > 0) {
-        const seeked = this.waitForEvent(video, 'seeked', 8_000);
+        const seeked = this.waitForEvent(video, 'seeked', 8_000, signal);
         video.currentTime = targetSeconds;
         await seeked;
       } else if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
-        await this.waitForEvent(video, 'loadeddata', 8_000);
+        await this.waitForEvent(video, 'loadeddata', 8_000, signal);
       }
 
+      if (signal?.aborted) return null;
       return await this.drawCurrentFrame(
         video,
         options.aspectRatio ?? 'ORIGINAL',
@@ -292,7 +315,8 @@ export class VideoMetadataPreparationService {
   private waitForEvent(
     video: HTMLVideoElement,
     eventName: 'loadedmetadata' | 'loadeddata' | 'seeked',
-    timeoutMs: number
+    timeoutMs: number,
+    signal?: AbortSignal
   ): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       let settled = false;
@@ -300,6 +324,7 @@ export class VideoMetadataPreparationService {
       const cleanup = (): void => {
         video.removeEventListener(eventName, onSuccess);
         video.removeEventListener('error', onError);
+        signal?.removeEventListener('abort', onAbort);
         clearTimeout(timeoutId);
       };
 
@@ -313,6 +338,9 @@ export class VideoMetadataPreparationService {
         callback();
       };
 
+      const onAbort = (): void => finish(() => {
+        reject(new Error('Preparação do vídeo cancelada.'));
+      });
       const onSuccess = (): void => finish(resolve);
       const onError = (): void => finish(() => {
         reject(new Error('Falha ao ler o vídeo.'));
@@ -326,6 +354,8 @@ export class VideoMetadataPreparationService {
 
       video.addEventListener(eventName, onSuccess, { once: true });
       video.addEventListener('error', onError, { once: true });
+      if (signal?.aborted) onAbort();
+      else signal?.addEventListener('abort', onAbort, { once: true });
     });
   }
 

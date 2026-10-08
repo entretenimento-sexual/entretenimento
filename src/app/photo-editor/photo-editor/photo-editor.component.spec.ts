@@ -1251,4 +1251,64 @@ describe('PhotoEditorComponent', () => {
 
     expect(activeModalMock.dismiss).toHaveBeenCalledWith('close');
   });
+  it('ignora exportação tardia após fechar o modal', async () => {
+    markEditorIdle();
+    (component as any).sourceFile = component.imageFile();
+    (component as any).sourceImage = { naturalWidth: 640, naturalHeight: 480 };
+    let resolveExport!: (data: { blob: Blob; width: number; height: number }) => void;
+    vi.spyOn(component as any, 'exportImage').mockReturnValue(
+      new Promise((resolve) => { resolveExport = resolve; })
+    );
+
+    const saving = component.save();
+    component.onClose();
+    resolveExport({
+      blob: new Blob(['late'], { type: 'image/jpeg' }),
+      width: 640,
+      height: 480,
+    });
+    await saving;
+
+    expect(activeModalMock.dismiss).toHaveBeenCalledWith('close');
+    expect(activeModalMock.close).not.toHaveBeenCalled();
+  });
+
+  it('não entrega exportação de A após transição para B', async () => {
+    markEditorIdle();
+    (component as any).sourceFile = component.imageFile();
+    (component as any).sourceImage = { naturalWidth: 640, naturalHeight: 480 };
+    let resolveExport!: (data: { blob: Blob; width: number; height: number }) => void;
+    vi.spyOn(component as any, 'exportImage').mockReturnValue(
+      new Promise((resolve) => { resolveExport = resolve; })
+    );
+
+    const saving = component.save();
+    uidSubject.next('owner-b');
+    resolveExport({
+      blob: new Blob(['stale'], { type: 'image/jpeg' }),
+      width: 640,
+      height: 480,
+    });
+    await saving;
+
+    expect(activeModalMock.dismiss).toHaveBeenCalledWith('auth-changed');
+    expect(activeModalMock.close).not.toHaveBeenCalled();
+  });
+
+  it('descarta imagem carregada depois de encerrar o modal', async () => {
+    let resolveImage!: (image: HTMLImageElement) => void;
+    vi.spyOn(component as any, 'createImage').mockReturnValue(
+      new Promise((resolve) => { resolveImage = resolve; })
+    );
+
+    const load = (component as any).loadSourceImage() as Promise<void>;
+    component.onClose();
+    resolveImage({ naturalWidth: 640, naturalHeight: 480 } as HTMLImageElement);
+    await load;
+
+    expect((component as any).sourceImage).toBeNull();
+    expect(activeModalMock.close).not.toHaveBeenCalled();
+    expect(activeModalMock.dismiss).toHaveBeenCalledWith('close');
+  });
+
 });

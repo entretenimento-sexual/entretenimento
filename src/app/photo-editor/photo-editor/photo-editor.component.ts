@@ -244,6 +244,9 @@ export class PhotoEditorComponent implements AfterViewInit {
   isComparingOriginal = false;
 
   private sourceImage: HTMLImageElement | null = null;
+  private pendingImage: HTMLImageElement | null = null;
+  private cancelImageLoad: (() => void) | null = null;
+  private operationVersion = 0;
   private sourceFile: File | null = null;
   private sourceObjectUrl: string | null = null;
   private activeDraft: IPhotoEditorDraft | null = null;
@@ -309,11 +312,16 @@ export class PhotoEditorComponent implements AfterViewInit {
     this.captureAndReleaseBackgroundFocus();
 
     this.destroyRef.onDestroy(() => {
-      this.isClosingSubject.next(true);
+      this.invalidatePendingOperations();
       this.cancelScheduledRender();
       this.resizeObserver?.disconnect();
       this.resizeObserver = null;
       this.revokeSourceObjectUrl();
+      this.sourceImage = null;
+      this.sourceFile = null;
+      this.activeDraft = null;
+      this.effectiveStoredImageUrl = null;
+      this.effectiveStoredImageState = null;
       this.photoEditorHistory.clear();
       this.photoEditorSession.clearDraft();
       this.restoreBackgroundFocus();
@@ -1442,7 +1450,10 @@ export class PhotoEditorComponent implements AfterViewInit {
   }
 
   async save(): Promise<void> {
-    if (!this.userId || !this.sourceImage || this.isBusy()) return;
+    if (!this.userId || !this.sourceImage || this.isBusy() ||
+        this.authSession.isTerminatingSnapshot) return;
+    const operationVersion = this.operationVersion;
+    const operationUid = this.userId;
 
     const originalMeta = this.resolveOriginalFileMetadata();
     if (!originalMeta) {
@@ -1459,6 +1470,9 @@ export class PhotoEditorComponent implements AfterViewInit {
 
     try {
       const exported = await this.exportImage(originalMeta.mimeType);
+      // toBlob é assíncrono e não cancelável. Descarte o resultado tardio
+      // antes de qualquer efeito ou retorno ao componente chamador.
+      if (!this.isOperationCurrent(operationVersion, operationUid)) return;
       const imageStateStr = JSON.stringify(this.buildEditorState());
       const file = this.createProcessedFile(
         exported.blob,
@@ -1477,20 +1491,40 @@ export class PhotoEditorComponent implements AfterViewInit {
       };
       this.closeWithProcessedResult(result);
     } catch (error) {
+      if (!this.isOperationCurrent(operationVersion, operationUid)) return;
       this.reportError('Erro ao aplicar a edição na imagem.', error, {
         op: 'save',
         source: this.activeDraft?.source ?? 'direct-input',
         preset: this.activePreset,
       });
     } finally {
-      this.isSavingSubject.next(false);
+      if (this.isOperationCurrent(operationVersion, operationUid)) {
+        this.isSavingSubject.next(false);
+      }
     }
   }
 
   onClose(): void {
     if (this.isClosingSubject.value) return;
-    this.isClosingSubject.next(true);
+    this.invalidatePendingOperations();
     this.activeModal.dismiss('close');
+  }
+
+  private invalidatePendingOperations(): void {
+    this.operationVersion += 1;
+    this.isClosingSubject.next(true);
+    this.cancelImageLoad?.();
+    this.cancelImageLoad = null;
+    this.pendingImage = null;
+    this.cancelScheduledRender();
+  }
+
+  private isOperationCurrent(version: number, uid: string): boolean {
+    return version === this.operationVersion
+      && !this.destroyRef.destroyed
+      && !this.isClosingSubject.value
+      && this.authSession.isTerminatingSnapshot !== true
+      && this.userId === uid;
   }
 
   private initializeSession(): void {
@@ -1507,6 +1541,12 @@ export class PhotoEditorComponent implements AfterViewInit {
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe((uid) => {
+        if (this.isClosingSubject.value) return;
+        if (this.userId && this.userId !== uid) {
+          this.invalidatePendingOperations();
+          this.activeModal.dismiss('auth-changed');
+          return;
+        }
         this.userId = uid;
         if (!uid) {
           this.failAndDismiss(
@@ -1544,10 +1584,13 @@ export class PhotoEditorComponent implements AfterViewInit {
       return;
     }
 
+    const operationVersion = this.operationVersion;
+    const operationUid = this.userId;
     this.isLoadingSubject.next(true);
     this.isEditorReadySubject.next(false);
     try {
       const image = await this.createImage(source);
+      if (!this.isOperationCurrent(operationVersion, operationUid)) return;
       this.assertInteractivePixelBudget(image);
       this.sourceImage = image;
       this.applyStoredEditorState(this.effectiveStoredImageState);
@@ -1555,14 +1598,17 @@ export class PhotoEditorComponent implements AfterViewInit {
       this.errorMessageSubject.next(null);
       this.scheduleRender();
     } catch (error) {
+      if (!this.isOperationCurrent(operationVersion, operationUid)) return;
       this.failAndDismiss(
         'Não foi possível carregar a imagem para edição.',
         error,
         'editor-source-load-failed'
       );
     } finally {
-      this.isLoadingSubject.next(false);
-      this.changeDetectorRef.markForCheck();
+      if (this.isOperationCurrent(operationVersion, operationUid)) {
+        this.isLoadingSubject.next(false);
+        this.changeDetectorRef.markForCheck();
+      }
     }
   }
 
@@ -1597,16 +1643,34 @@ export class PhotoEditorComponent implements AfterViewInit {
   private createImage(src: string): Promise<HTMLImageElement> {
     return new Promise<HTMLImageElement>((resolve, reject) => {
       const image = new Image();
+      this.pendingImage = image;
+      let settled = false;
+      const finish = (error?: Error): void => {
+        if (settled) return;
+        settled = true;
+        image.onload = null;
+        image.onerror = null;
+        if (this.pendingImage === image) {
+          this.pendingImage = null;
+          this.cancelImageLoad = null;
+        }
+        if (error) reject(error);
+        else resolve(image);
+      };
+      this.cancelImageLoad = () => {
+        image.removeAttribute('src');
+        finish(new Error('Carregamento de imagem cancelado.'));
+      };
       if (/^https?:\/\//i.test(src)) image.crossOrigin = 'anonymous';
       image.decoding = 'async';
       image.onload = () => {
         if (!image.naturalWidth || !image.naturalHeight) {
-          reject(new Error('Imagem carregada sem dimensões válidas.'));
+          finish(new Error('Imagem carregada sem dimensões válidas.'));
           return;
         }
-        resolve(image);
+        finish();
       };
-      image.onerror = () => reject(new Error('Falha ao carregar a imagem.'));
+      image.onerror = () => finish(new Error('Falha ao carregar a imagem.'));
       image.src = src;
     });
   }
@@ -2853,7 +2917,8 @@ export class PhotoEditorComponent implements AfterViewInit {
   }
 
   private closeWithProcessedResult(result: PhotoEditorProcessedResult): void {
-    this.isClosingSubject.next(true);
+    if (this.isClosingSubject.value) return;
+    this.invalidatePendingOperations();
     this.activeModal.close({ reason: 'processSuccess', result });
   }
 
@@ -2862,8 +2927,9 @@ export class PhotoEditorComponent implements AfterViewInit {
     error: unknown,
     reason: string
   ): void {
+    if (this.isClosingSubject.value) return;
     this.reportError(message, error, { op: 'failAndDismiss', reason });
-    this.isClosingSubject.next(true);
+    this.invalidatePendingOperations();
     this.activeModal.dismiss(reason);
   }
 

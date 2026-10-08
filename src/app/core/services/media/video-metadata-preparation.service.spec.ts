@@ -183,4 +183,32 @@ describe('VideoMetadataPreparationService', () => {
     ).rejects.toThrow('Aguarde o quadro do vídeo aparecer');
     expect(drawImage).not.toHaveBeenCalled();
   });
+  it('aborta leitura em andamento, libera src e revoga ObjectURL ao desinscrever', async () => {
+    const originalCreateElement = document.createElement.bind(document);
+    const video = originalCreateElement('video');
+    vi.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
+      return tagName.toLowerCase() === 'video' ? video : originalCreateElement(tagName);
+    });
+    vi.spyOn(video, 'load').mockImplementation(() => undefined);
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', {
+      ...URL,
+      createObjectURL: vi.fn(() => 'blob:pending-video'),
+      revokeObjectURL,
+    });
+
+    const next = vi.fn();
+    const sub = service.prepare$(new File(['video'], 'old.mp4', { type: 'video/mp4' }))
+      .subscribe({ next });
+    expect(video.getAttribute('src')).toBe('blob:pending-video');
+
+    sub.unsubscribe();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(next).not.toHaveBeenCalled();
+    expect(video.getAttribute('src')).toBeNull();
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:pending-video');
+  });
+
 });

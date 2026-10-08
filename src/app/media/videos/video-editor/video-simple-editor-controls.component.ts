@@ -15,6 +15,7 @@ import {
   BehaviorSubject,
   Observable,
   combineLatest,
+  merge,
   of,
 } from 'rxjs';
 import {
@@ -23,6 +24,8 @@ import {
   distinctUntilChanged,
   finalize,
   map,
+  filter,
+  takeUntil,
   shareReplay,
   startWith,
   switchMap,
@@ -216,13 +219,18 @@ export class VideoSimpleEditorControlsComponent {
         this.metadataSubject.next(null);
 
         if (!file) {
+          this.loadingSubject.next(false);
           return of(null);
         }
 
         this.loadingSubject.next(true);
         return this.metadataPreparation.prepare$(file).pipe(
           catchError(() => of(null)),
-          finalize(() => this.loadingSubject.next(false))
+          finalize(() => {
+            if (this.fileSubject.value === file) {
+              this.loadingSubject.next(false);
+            }
+          })
         );
       }),
       takeUntilDestroyed(this.destroyRef)
@@ -422,6 +430,7 @@ export class VideoSimpleEditorControlsComponent {
       return;
     }
 
+    const capturedFile = this.fileSubject.value;
     this.capturingPosterSubject.next(true);
 
     this.metadataPreparation.captureCurrentFrame$(
@@ -429,10 +438,18 @@ export class VideoSimpleEditorControlsComponent {
       this.form.controls.aspectRatio.value,
       this.form.controls.rotationDegrees.value
     ).pipe(
+      // Uma capa iniciada para A não pode pertencer ao arquivo B nem ao
+      // enquadramento anterior. Desinscreve sem emitir erro/notificação.
+      takeUntil(merge(
+        this.fileSubject.pipe(filter((file) => file !== capturedFile)),
+        this.form.controls.aspectRatio.valueChanges,
+        this.form.controls.rotationDegrees.valueChanges
+      )),
       finalize(() => this.capturingPosterSubject.next(false)),
       takeUntilDestroyed(this.destroyRef)
     ).subscribe({
       next: (blob) => {
+        if (this.fileSubject.value !== capturedFile) return;
         this.posterChange.emit(blob);
         if (notify) {
           this.errorNotification.showSuccess('Capa do vídeo atualizada.');
