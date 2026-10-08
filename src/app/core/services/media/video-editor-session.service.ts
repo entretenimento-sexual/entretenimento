@@ -46,7 +46,7 @@ export class VideoEditorSessionService {
   private activeOwnerUid: string | null = null;
 
   constructor(@Optional() private readonly authSession: AuthSessionService | null = null) {
-    this.authSession?.uid$.pipe(takeUntilDestroyed()).subscribe((uid) => {
+    this.authSession?.uid$?.pipe(takeUntilDestroyed()).subscribe((uid) => {
       this.activeOwnerUid = String(uid ?? '').trim() || null;
       this.clearIfOwnerMismatch(this.activeOwnerUid);
     });
